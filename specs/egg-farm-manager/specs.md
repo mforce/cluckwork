@@ -1,675 +1,84 @@
-
-# Egg Farm Manager — v3 Extensibility Update
-
-This v3 update keeps the product focused on an egg-producing layer farm for Phase 1, while changing the foundation so the system can later support chicken raising, pullets, broilers/meat birds, live bird sales, meat products, breeders, and hatchery modules without a major rewrite.
-
----
-
-# A. Core v3 Decisions
-
-## A1. Flocks are no longer egg-only
-
-Add these fields to `flocks`:
-
-```text
-flocks
-- species: chicken / duck / quail / turkey / other
-- production_purpose: layer / broiler / pullet / breeder / dual_purpose / other
-- production_model: egg / meat / raising / breeding / mixed
-- sex: female / male / mixed / unknown
-- expected_harvest_date nullable
-```
-
-Examples:
-
-```text
-Layer flock:
-species = chicken
-production_purpose = layer
-production_model = egg
-sex = female
-```
-
-```text
-Broiler flock:
-species = chicken
-production_purpose = broiler
-production_model = meat
-sex = mixed
-```
-
-```text
-Pullet raising flock:
-species = chicken
-production_purpose = pullet
-production_model = raising
-sex = female
-```
-
-## A2. Sales are generic, not egg-only
-
-Replace egg-only sales assumptions with a generic product catalog.
-
-```text
-products
-- id
-- account_id
-- farm_id nullable
-- name
-- product_type: egg / live_bird / meat / chick / pullet / manure / service / other
-- default_unit: egg / dozen / tray / carton / case / bird / lb / kg / package / other
-- default_price_cents nullable
-- active
-- notes
-- created_at
-- updated_at
-```
-
-Eggs remain fully traceable through egg lots.
-
-```text
-product_egg_grade_mappings
-- id
-- account_id
-- product_id
-- egg_grade_id
-```
-
-## A3. Sales order items use products
-
-```text
-sales_order_items
-- id
-- account_id
-- sales_order_id
-- product_id
-- product_type_snapshot
-- quantity
-- unit
-- quantity_base
-- unit_price_cents
-- line_total_cents
-- created_at
-- updated_at
-```
-
-`quantity_base` means:
-
-```text
-Egg products → individual eggs
-Live bird products → individual birds
-Meat products → base weight unit
-Other products → configured base unit
-```
-
-## A4. Product-specific allocation tables
-
-Egg products allocate from egg lots now.
-
-```text
-sales_order_item_egg_allocations
-- id
-- account_id
-- sales_order_item_id
-- egg_lot_id
-- quantity_in_eggs
-- allocation_method: fifo / manual
-- egg_inventory_movement_id
-- created_at
-```
-
-Future live bird products allocate from bird inventory.
-
-```text
-sales_order_item_bird_allocations
-- id
-- account_id
-- sales_order_item_id
-- flock_id
-- bird_inventory_movement_id
-- quantity_in_birds
-- allocation_method: manual / fifo
-- created_at
-```
-
-Future meat products allocate from meat lots.
-
-```text
-sales_order_item_meat_allocations
-- id
-- account_id
-- sales_order_item_id
-- meat_lot_id
-- quantity_weight
-- unit
-- meat_inventory_movement_id
-- allocation_method: fifo / manual
-- created_at
-```
-
-Phase 1 only needs egg allocation logic, but the sales schema is ready for later product types.
-
----
-
-# B. Live Bird Inventory Ledger
-
-## B1. Purpose
-
-A live bird ledger supports:
-
-- Chick placement
-- Chicken raising
-- Pullet development
-- Broiler growout
-- Transfers between houses
-- Mortality
-- Culls
-- Live bird sales
-- Broiler harvest
-- Depletion
-- Adjustments
-
-## B2. Table
-
-```text
-bird_inventory_movements
-- id
-- account_id
-- farm_id
-- house_id nullable
-- flock_id
-- movement_type: placement / mortality / cull / transfer_in / transfer_out / sale / harvest / adjustment / depletion / void
-- quantity_delta
-- movement_date
-- reference_type
-- reference_id
-- reason
-- notes
-- created_by
-- created_at
-```
-
-## B3. Placement rule
-
-When a flock is created with starting birds:
-
-```text
-Create bird_inventory_movement:
-movement_type = placement
-quantity_delta = starting_bird_count
-reference_type = flock
-reference_id = flock_id
-```
-
-## B4. Mortality/cull rule
-
-When mortality is recorded:
-
-```text
-Create bird_inventory_movement:
-movement_type = mortality
-quantity_delta = -death_count
-```
-
-When culls are recorded:
-
-```text
-Create bird_inventory_movement:
-movement_type = cull
-quantity_delta = -cull_count
-```
-
-## B5. Future live bird sale rule
-
-When live birds are sold:
-
-```text
-Create bird_inventory_movement:
-movement_type = sale
-quantity_delta = -birds_sold
-reference_type = sales_order_item_bird_allocation
-```
-
----
-
-# C. Generic Weight Tracking
-
-Weight tracking is useful for pullets, broilers, breeders, and sometimes layers.
-
-```text
-flock_weight_records
-- id
-- account_id
-- farm_id
-- house_id
-- flock_id
-- date
-- sample_count
-- average_weight
-- unit: g / kg / oz / lb
-- uniformity_percent nullable
-- notes
-- created_by
-- created_at
-```
-
-Future broiler KPIs can use these records for:
-
-```text
-Average daily gain
-Feed conversion ratio
-Target harvest weight
-Cost per lb/kg live weight
-Harvest readiness
-```
-
----
-
-# D. Modular Daily Entry
-
-Daily Entry should be a core form plus conditional sections.
-
-## D1. Core section for all flock types
-
-```text
-Date
-Farm
-House
-Flock
-Feed used
-Water used
-Deaths
-Culls
-Notes
-```
-
-## D2. Egg section
-
-Shown when:
-
-```text
-flock.production_model = egg or mixed
-```
-
-Fields:
-
-```text
-Egg quantities by grade
-Cracked/dirty/discarded/internal use
-Egg notes
-```
-
-## D3. Weight section
-
-Shown when:
-
-```text
-flock.production_model = meat or raising or mixed
-```
-
-Fields:
-
-```text
-Sample count
-Average weight
-Uniformity %
-Weight notes
-```
-
-## D4. Future broiler section
-
-Shown when:
-
-```text
-flock.production_purpose = broiler
-```
-
-Future fields:
-
-```text
-Target harvest date
-Average daily gain
-Feed conversion ratio
-Harvest readiness
-```
-
-## D5. Future breeder section
-
-Shown when:
-
-```text
-flock.production_purpose = breeder
-```
-
-Future fields:
-
-```text
-Hatching eggs
-Settable eggs
-Fertility checks
-Male/female counts
-```
-
----
-
-# E. Future Module Reservations
-
-These modules are not part of Phase 1, but the v3 architecture reserves a clean path for them.
-
-## E1. Pullet / chicken raising
-
-```text
-pullet_development_records
-- id
-- flock_id
-- date
-- target_weight
-- actual_weight
-- uniformity_percent
-- readiness_status
-```
-
-## E2. Broiler / meat bird production
-
-```text
-broiler_growth_records
-- id
-- flock_id
-- date
-- average_weight
-- sample_count
-- feed_conversion_ratio
-- average_daily_gain
-```
-
-```text
-broiler_harvest_records
-- id
-- flock_id
-- harvest_date
-- birds_harvested
-- live_weight_total
-- average_live_weight
-- birds_rejected
-- buyer_id nullable
-```
-
-## E3. Processed meat inventory
-
-```text
-meat_lots
-- id
-- account_id
-- farm_id
-- flock_id
-- harvest_record_id
-- product_id
-- processing_date
-- quantity_produced
-- quantity_available
-- unit
-- status
-```
-
-```text
-meat_inventory_movements
-- id
-- meat_lot_id
-- movement_type: production / sale / discard / reconciliation / transfer
-- quantity_delta
-- unit
-- reference_type
-- reference_id
-```
-
-## E4. Breeder module
-
-Reserved future tables:
-
-```text
-breeder_daily_records
-breeder_male_female_counts
-hatching_egg_lots
-fertility_test_records
-```
-
-## E5. Hatchery module
-
-Reserved future tables:
-
-```text
-incubation_batches
-setter_records
-candling_records
-hatcher_transfer_records
-chick_lots
-chick_sales_allocations
-```
-
----
-
-# F. Updated Phase Plan
-
-## Phase 1 — Egg farm walking skeleton
-
-Still focused on:
-
-```text
-Layers
-Egg production
-Egg lots
-Egg sales
-Feed/water/mortality
-Basic medication withdrawal
-Expenses
-Dashboard
-Core reports
-```
-
-But implemented with:
-
-```text
-Generic products
-Flock production purpose/model
-Bird movement ledger
-Optional weight records
-Modular daily entry
-```
-
-## Phase 2 — Chicken raising / pullets
-
-Add:
-
-```text
-Pullet development records
-Weight trend reports
-Transfer readiness
-Pullet sales
-More vaccination schedule support
-```
-
-## Phase 3 — Broilers / meat birds
-
-Add:
-
-```text
-Broiler growth records
-Harvest records
-Live bird sales
-FCR and ADG reports
-Broiler profitability
-```
-
-## Phase 4 — Meat processing
-
-Add:
-
-```text
-Meat lots
-Meat inventory movements
-Processing batches
-Meat product sales allocation
-```
-
-## Phase 5 — Breeder / hatchery
-
-Add:
-
-```text
-Breeder production
-Hatching egg lots
-Incubation batches
-Chick lots
-Chick sales
-```
-
----
-
-# G. Updated Build Order
-
-## Sprint 1 — Foundation
-
-- Account/user/auth
-- Farm/house/flock CRUD
-- Add flock classification fields
-- Product catalog
-- Audit log foundation
-
-## Sprint 2 — Daily entry
-
-- Modular daily entry
-- Egg section for layer flocks
-- Core feed/water/mortality
-- Bird placement and mortality movement generation
-
-## Sprint 3 — Egg lots and inventory
-
-- Egg lot generation
-- Egg inventory movements
-- Cached balances
-- Traceability
-
-## Sprint 4 — Sales
-
-- Generic sales orders
-- Egg product mapping
-- Egg lot allocation
-- Payments
-
-## Sprint 5 — Safety and reports
-
-- Medication withdrawal
-- Restricted egg lots
-- Dashboard
-- Core reports
-
----
-
-# H. v3 Summary
-
-The product remains:
-
-```text
-Egg Farm Manager first.
-```
-
-But the architecture becomes:
-
-```text
-Poultry farm platform later.
-```
-
-The important design rules are:
-
-```text
-Do not hardcode sales to eggs.
-Do not hardcode flocks to layers.
-Keep egg lots for egg traceability.
-Use product-specific allocation tables.
-Use bird movements for live bird counts.
-Use modular daily entry sections.
-```
-
-
----
-
-# Base Specification v2 Incorporated Below
-
-# Egg Farm Manager — Product & Technical Specification v2
+# Egg Farm Manager — Reconciled Product & Technical Specification v4
 
 **Product:** Egg Farm Manager  
-**Domain:** Poultry egg-producing farm management  
-**Version:** v2  
-**Purpose:** Build a practical, traceable, ledger-based system for managing layer farms, egg production, egg inventory, feed usage, flock health, sales, and profitability.
+**Domain:** Poultry egg-producing farm management, with future support for chicken raising, pullets, broilers, live bird sales, meat products, breeders, and hatchery modules  
+**Version:** v4 reconciled  
+**Purpose:** Provide one coherent developer-ready specification. This replaces the v3 addendum + embedded v2 structure with a single integrated document.
 
 ---
 
-## 0. v2 Summary
+## 0. v4 Reconciliation Summary
 
-This version incorporates two technical review passes and tightens the system around build-critical decisions:
+This version fixes the editorial inconsistencies identified in the Opus 4.8 review:
 
-1. **Egg traceability is mandatory.** Egg inventory is tracked by **egg lots**, not grade-only totals.
-2. **Inventory uses immutable movement ledgers.** Cached balances are allowed only as rebuildable read models.
-3. **Sales allocate from egg lots.** A sale line may pull from multiple flocks/dates/lots.
-4. **Medication withdrawal is enforced at egg-lot and sale-allocation level.**
-5. **Daily entry has states:** `draft`, `submitted`, `locked`, `manager_adjusted`.
-6. **Concurrency protection is defined.**
-7. **An account/tenant root exists from day one.**
-8. **Phase 1 is trimmed to a true walking skeleton.**
-9. **Wireframes now include missing administrative, import, reconciliation, alert, and traceability screens.**
+1. There is now **one canonical sales model**: product-generic sales order items.
+2. Egg sales still use **egg lots and egg-lot allocations** for Phase 1 traceability.
+3. The old egg-only `sales_order_items` schema is removed.
+4. The old generic `sales_order_item_allocations` name is replaced with the canonical `sales_order_item_egg_allocations`.
+5. There is now **one phase plan** and **one sprint list**.
+6. Wireframe coverage is documented as:
+   - current v4 wireframes,
+   - v2 wireframes carried forward unchanged,
+   - v2 wireframes superseded/redrawn in v4.
+7. Product-purpose/model validity is defined.
+8. Daily-entry section visibility is defined for `egg`, `meat`, `raising`, `breeding`, and `mixed`.
 
 ---
 
 # 1. Product Goal
 
-Build a system that lets an egg-producing poultry farm answer, with confidence:
+Build a farm management system that can run an egg-producing poultry farm today and later expand into broader poultry operations.
+
+The Phase 1 product should answer:
 
 - How many eggs were produced today?
 - Which flock/house produced them?
-- Which egg lots are available for sale?
+- Which egg lots are available by grade, date, flock, location, and restriction status?
 - Are any eggs restricted due to medication withdrawal?
-- How much feed was consumed and what did it cost?
+- How much feed and water were consumed?
 - What is the flock’s hen-day production?
-- What is the egg loss rate?
-- What is available inventory by grade, age, flock, and location?
-- What did we sell, to whom, and from which egg lots?
-- What is the farm’s profit per period, per flock, and per dozen?
-- What critical health, mortality, inventory, or withdrawal alerts require action?
+- What is the current live bird count?
+- What was sold, to whom, and from which egg lots?
+- What is the farm’s sales, expense, and profitability picture?
 
-The system is optimized for **daily operational use**, not just reporting.
+The architecture should later support:
+
+- Pullet/chicken raising
+- Broilers/meat birds
+- Live bird sales
+- Processed meat products
+- Breeders
+- Hatchery
+- Manure/byproduct sales
+- Multi-species poultry operations
 
 ---
 
-# 2. Explicit Non-Goals for Phase 1
+# 2. Non-Goals for Phase 1
 
-Phase 1 will not include:
+Phase 1 does **not** include:
 
-- Broiler production
+- Broiler growout optimization
+- Meat processing inventory
 - Hatchery management
-- Breeder/parent-stock management
-- Feed mill formulation
-- Processing/slaughter plant management
+- Breeder flock fertility/hatchability
+- Feed formulation
+- Payroll
+- Full accounting replacement
 - Offline mobile mode
 - IoT/sensor automation
-- Full accounting package replacement
-- Payroll
+- Processing plant management
 - Delivery route optimization
-- Advanced certification workflows
 
-These can be future modules.
+The schema reserves paths for these modules, but they are not built in Phase 1.
 
 ---
 
-# 3. Architecture Decision Log
+# 3. Core Architecture
 
-## 3.1 Deployment model
+## 3.1 Tenant/account hierarchy
 
-The system should support two paths:
-
-1. **Self-hosted single account**
-2. **Future SaaS / multi-account**
-
-Therefore, the schema includes an `accounts` root entity from day one.
+The system includes an account root from day one.
 
 ```text
 Account / Tenant
@@ -678,234 +87,6 @@ Account / Tenant
     Houses
       Flocks
 ```
-
-Even if the MVP UI only shows one account, all farm data belongs to an account.
-
-## 3.2 Inventory model
-
-Inventory is **ledger-first**.
-
-Rule:
-
-```text
-Never directly edit a stock balance.
-Every stock change must create an inventory movement.
-Cached balances are allowed only if they can be rebuilt from the movement ledger.
-```
-
-This applies to:
-
-- Eggs
-- Feed
-- Supplements
-- Medications
-- Vaccines
-- Packaging
-- Bedding/litter
-- Cleaning supplies
-- Equipment parts
-
-## 3.3 Egg inventory model
-
-Egg inventory is **lot-based**, not just grade-based.
-
-An egg lot is created from a submitted production entry.
-
-```text
-Egg Lot = farm + house + flock + production_date + grade + location + quantity
-```
-
-Dashboards may show aggregated totals:
-
-```text
-Large eggs: 42 trays
-Medium eggs: 18 trays
-```
-
-But those are views over traceable lots.
-
-## 3.4 Sales allocation model
-
-A sales order item may be fulfilled by one or more egg lots.
-
-Example:
-
-```text
-Sale line: 10 trays of Large eggs
-
-Allocations:
-- 4 trays from Flock A, produced June 24
-- 3 trays from Flock B, produced June 25
-- 3 trays from Flock A, produced June 25
-```
-
-This allows pooled inventory while preserving traceability.
-
-## 3.5 Medication withdrawal model
-
-Withdrawal enforcement is based on the egg lot.
-
-If eggs are produced during a flock’s withdrawal window, the generated egg lot is restricted until the withdrawal date.
-
-```text
-egg_lots.restricted_until
-egg_lots.restriction_reason
-```
-
-This is safer than checking only whether the flock is currently under withdrawal.
-
-## 3.6 Date/time model
-
-Operational records use **farm-local dates**.
-
-Examples:
-
-- Daily egg production date
-- Feed usage date
-- Sales date
-- Mortality date
-
-Audit timestamps use UTC.
-
-```text
-daily_entry.date = farm-local date
-created_at / updated_at = UTC timestamp
-```
-
----
-
-# 4. Core Users and Permissions
-
-## 4.1 User roles
-
-| Role | Purpose |
-|---|---|
-| Owner | Full access to all modules and financials |
-| Manager | Farm operations, inventory, health, reports, approvals |
-| Worker | Daily entry for assigned houses/flocks |
-| Sales | Customers, sales, payments, egg inventory view |
-| Vet/Consultant | Health, medication, vaccination, welfare notes |
-| Read-only | Dashboard and reports only |
-
-## 4.2 Data scope
-
-User access can be scoped by:
-
-- Account
-- Farm
-- House
-- Flock
-
-Example rules:
-
-```text
-Worker assigned to House A can create daily entries only for House A.
-Worker cannot see financial reports unless explicitly granted.
-Sales user can sell eggs but cannot edit medication records.
-Vet can add health notes but cannot alter sales or expenses.
-Owner can override locked records, with audit log.
-```
-
-## 4.3 Permission matrix
-
-| Module | Owner | Manager | Worker | Sales | Vet | Read-only |
-|---|---:|---:|---:|---:|---:|---:|
-| Dashboard | full | full | limited | sales view | health view | view |
-| Farm setup | full | edit | no | no | view | view |
-| Flocks | full | edit | view assigned | view | health view | view |
-| Daily entry | full | edit | create assigned | no | view | view |
-| Egg inventory | full | edit | view assigned | view/sell | view | view |
-| Sales | full | view | no | create/edit | no | view |
-| Expenses | full | edit | no | no | no | view if allowed |
-| Medication | full | edit | no | view withdrawal only | create/edit | view |
-| Reports | full | full | limited | sales reports | health reports | view |
-| Users/Roles | full | limited | no | no | no | no |
-| Audit log | full | view | no | no | no | no |
-
----
-
-# 5. Phase Plan
-
-## 5.1 Phase 1 — Walking Skeleton
-
-Build the smallest real system that can run an egg farm’s core loop.
-
-### Phase 1 modules
-
-1. Auth + basic roles
-2. Account / farm / house / flock setup
-3. Daily entry: eggs, feed, water, mortality
-4. Daily entry states and locking
-5. Egg lots + egg inventory ledger
-6. Sales + customer payments + lot allocation
-7. Feed inventory + feed usage
-8. Basic medication withdrawal flag
-9. Basic expenses
-10. Dashboard
-11. Core reports
-12. Audit log for critical edits
-13. CSV export / backup
-
-### Phase 1 acceptance criteria
-
-The farm can:
-
-- Create a flock and assign it to a house.
-- Submit a daily entry in under 60 seconds.
-- Generate egg lots from submitted production.
-- Sell eggs and reduce inventory.
-- Allocate sale quantities from egg lots using FIFO by default.
-- Block or warn on restricted egg lots.
-- Track feed usage and calculate feed cost from inventory lot where possible.
-- Track mortality and calculate current live birds.
-- View dashboard KPIs.
-- Export records for backup.
-- Audit critical changes.
-
-## 5.2 Phase 1.5 — Operational Hardening
-
-Add:
-
-- Legacy import wizard
-- Inventory reconciliation
-- Alert center
-- Email digest for critical alerts
-- House-level RBAC UI
-- Packaging inventory
-- Additives/supplements
-- Vaccination records
-- Flock profitability allocation rules
-
-## 5.3 Phase 2 — Farm Operations
-
-Add:
-
-- Beak treatment and follow-ups
-- Water quality testing
-- Environment/lighting tracking
-- Litter/sanitation
-- Equipment/maintenance
-- Advanced reports
-- Advanced alert thresholds
-- Excel import/export
-
-## 5.4 Phase 3 — Advanced
-
-Add:
-
-- Offline mobile mode
-- IoT integrations
-- Barcode/QR labels
-- Multi-farm benchmarking
-- SaaS billing/admin
-- Accounting integrations
-- Forecasting and breed baseline comparisons
-
----
-
-# 6. Core Data Model
-
-## 6.1 Accounts
 
 ```text
 accounts
@@ -918,7 +99,170 @@ accounts
 - updated_at
 ```
 
-## 6.2 Users and roles
+Every business table should include `account_id`.
+
+## 3.2 Farm hierarchy
+
+```text
+farms
+- id
+- account_id
+- name
+- address
+- phone
+- email
+- timezone
+- currency
+- unit_system: imperial / metric
+- active
+- created_at
+- updated_at
+```
+
+```text
+houses
+- id
+- account_id
+- farm_id
+- name
+- house_type: cage / deep_litter / free_range / aviary / other
+- capacity
+- location_description
+- active
+- notes
+- created_at
+- updated_at
+```
+
+## 3.3 Flock model
+
+Flocks are not hardcoded to layers. They classify what kind of poultry operation they represent.
+
+```text
+flocks
+- id
+- account_id
+- farm_id
+- house_id
+- name
+- species: chicken / duck / quail / turkey / other
+- production_purpose: layer / broiler / pullet / breeder / dual_purpose / other
+- production_model: egg / meat / raising / breeding / mixed
+- sex: female / male / mixed / unknown
+- breed_or_strain
+- source_supplier_id nullable
+- placement_date
+- starting_bird_count
+- production_stage: brooding / growing / pre_lay / laying / molting / growout / finishing / breeding / depleted
+- status: active / inactive / depleted / sold
+- expected_start_lay_date nullable
+- expected_harvest_date nullable
+- expected_depletion_date nullable
+- active_egg_withdrawal_until nullable
+- beak_treated_status: unknown / no / yes / supplier_performed
+- notes
+- created_at
+- updated_at
+```
+
+## 3.4 Valid flock purpose/model combinations
+
+The system should validate combinations at the application layer. These are the recommended defaults:
+
+| production_purpose | Allowed production_model values | Notes |
+|---|---|---|
+| layer | egg, mixed | Normal egg-producing flock |
+| broiler | meat | Meat bird flock |
+| pullet | raising | Chick/pullet raising until transfer or sale |
+| breeder | breeding, mixed | Future breeder module |
+| dual_purpose | mixed, egg, meat | May produce eggs and later meat/live bird sales |
+| other | egg, meat, raising, breeding, mixed | Admin-configurable exception |
+
+Invalid by default:
+
+| Combination | Reason |
+|---|---|
+| broiler + egg | Broilers are not managed as egg-producing flocks |
+| layer + meat | Use `dual_purpose + mixed` if the flock may also be sold/depleted as birds |
+| pullet + egg | Use layer once transferred into laying production |
+| pullet + meat | Use broiler if the purpose is meat production |
+
+Admin override may be allowed later, but defaults should guide users toward clean reporting.
+
+---
+
+# 4. Core Design Principles
+
+## 4.1 Ledger-first inventory
+
+Never directly edit stock balance.
+
+Every stock change must create a movement.
+
+Cached balances are allowed only if they can be rebuilt from movement ledgers.
+
+This applies to:
+
+- Egg lots
+- Feed
+- Supplements
+- Medications
+- Vaccines
+- Packaging
+- Bedding/litter
+- Future meat lots
+- Future live bird allocations where relevant
+
+## 4.2 Traceability-first eggs
+
+Egg inventory is lot-based.
+
+```text
+Egg Lot = farm + house + flock + production_date + egg_grade + location + quantity
+```
+
+Dashboards may show aggregate inventory by grade, but the source of truth is lots.
+
+## 4.3 Product-generic sales
+
+Sales are generic.
+
+A sales order item references a `product_id`.
+
+Product-specific allocation tables handle inventory source:
+
+- Egg product → egg lots
+- Future live bird product → bird ledger/flock allocation
+- Future meat product → meat lots
+- Other products/services → no stock allocation or a future module-specific allocator
+
+## 4.4 Operational dates
+
+Farm operations use farm-local dates.
+
+Audit timestamps use UTC.
+
+```text
+daily_entry.date = farm-local date
+created_at / updated_at = UTC
+```
+
+---
+
+# 5. Users, Roles, and Scope
+
+## 5.1 Roles
+
+| Role | Purpose |
+|---|---|
+| Owner | Full access |
+| Manager | Farm operations, inventory, health, reports |
+| Worker | Daily entry for assigned houses/flocks |
+| Sales | Customers, sales, payments |
+| Vet/Consultant | Health, medication, vaccination, welfare notes |
+| Read-only | View dashboards/reports only |
+
+## 5.2 Role assignments
 
 ```text
 users
@@ -953,107 +297,189 @@ user_role_assignments
 - created_at
 ```
 
-## 6.3 Farms
+## 5.3 Scope rules
 
-```text
-farms
-- id
-- account_id
-- name
-- address
-- phone
-- email
-- timezone
-- currency
-- unit_system: imperial / metric
-- active
-- created_at
-- updated_at
-```
-
-## 6.4 Houses
-
-```text
-houses
-- id
-- account_id
-- farm_id
-- name
-- house_type: cage / deep_litter / free_range / aviary / other
-- capacity
-- location_description
-- active
-- notes
-- created_at
-- updated_at
-```
-
-## 6.5 Flocks
-
-```text
-flocks
-- id
-- account_id
-- farm_id
-- house_id
-- name
-- breed_or_strain
-- source_supplier_id nullable
-- placement_date
-- starting_bird_count
-- production_stage: brooding / growing / pre_lay / laying / molting / depleted
-- status: active / inactive / depleted / sold
-- expected_start_lay_date
-- expected_depletion_date
-- active_egg_withdrawal_until nullable
-- beak_treated_status: unknown / no / yes / supplier_performed
-- notes
-- created_at
-- updated_at
-```
-
-## 6.6 Flock movements
-
-For future support of transfers between houses:
-
-```text
-flock_movements
-- id
-- account_id
-- farm_id
-- flock_id
-- from_house_id nullable
-- to_house_id nullable
-- movement_date
-- bird_count
-- reason
-- notes
-- created_by
-- created_at
-```
-
-Phase 1 rule:
-
-```text
-One active flock belongs to one house at a time.
-Transfers use flock_movements and update flocks.house_id.
-```
+- Workers may create daily entries only for assigned houses/flocks.
+- Sales users may create sales but cannot edit medication records.
+- Vet users may create health/medication notes but cannot sell eggs or edit expenses.
+- Owners may override locked records with audit reason.
+- Financial reports are hidden unless the role allows them.
 
 ---
 
-# 7. Daily Entry
+# 6. Unified Phase Plan
 
-## 7.1 Purpose
+This is the single canonical roadmap.
 
-The daily entry screen is the make-or-break workflow.
+## Phase 1 — Egg farm walking skeleton
 
-Target:
+Goal: ship a real egg-farm management system.
 
-```text
-A worker should complete daily entry for one house/flock in under 60 seconds.
-```
+Includes:
 
-## 7.2 Daily entry states
+1. Account, users, roles, scoped permissions
+2. Farm / house / flock setup with flock classification fields
+3. Product catalog with egg products
+4. Daily entry with states and modular sections
+5. Egg production by grade
+6. Egg lots and egg inventory movement ledger
+7. Generic sales orders with Phase 1 egg allocation
+8. Customers and payments
+9. Feed inventory and feed usage
+10. Water usage
+11. Mortality/culling and bird movement generation
+12. Basic medication withdrawal flag
+13. Restricted egg lots and sale blocking
+14. Expenses
+15. Dashboard
+16. Core reports
+17. Audit log for critical changes
+18. CSV export / manual backup
+
+## Phase 1.5 — Egg product hardening
+
+Goal: make the egg MVP safer and more operationally complete.
+
+Includes:
+
+1. Legacy import wizard
+2. Inventory reconciliation
+3. Alert center
+4. Email digest for critical alerts
+5. House/flock-level RBAC UI
+6. Packaging inventory
+7. Additives/supplements
+8. Vaccination records
+9. Flock profitability allocation rules
+10. Backup/recovery workflow
+11. Advanced sales/customer balances
+
+## Phase 2 — Pullet / chicken raising
+
+Goal: support raising chicks/pullets before laying or sale.
+
+Includes:
+
+1. Pullet development records
+2. Weight trend reports
+3. Transfer readiness
+4. Pullet sales using generic products
+5. Expanded vaccination schedules
+6. Growth and uniformity dashboards
+
+## Phase 3 — Broilers / meat birds
+
+Goal: support meat bird growout and live bird sales.
+
+Includes:
+
+1. Broiler growth records
+2. Average daily gain
+3. Feed conversion ratio
+4. Harvest readiness
+5. Live bird sales allocations
+6. Broiler profitability
+
+## Phase 4 — Meat processing
+
+Goal: support processed meat inventory and sales.
+
+Includes:
+
+1. Broiler harvest records
+2. Meat lots
+3. Meat inventory movements
+4. Processing batches
+5. Meat product sales allocation
+6. Meat traceability reports
+
+## Phase 5 — Breeder and hatchery
+
+Goal: support parent stock, hatching eggs, incubation, chick lots, and chick sales.
+
+Includes:
+
+1. Breeder daily records
+2. Male/female counts
+3. Hatching egg lots
+4. Fertility tests
+5. Incubation batches
+6. Chick lots
+7. Chick sales allocations
+
+---
+
+# 7. Unified Sprint List
+
+## Sprint 1 — Foundation
+
+- Account/auth/users
+- Roles and scoped assignments
+- Farm/house/flock CRUD
+- Flock classification fields
+- Product catalog
+- Audit log foundation
+
+## Sprint 2 — Daily entry
+
+- Daily entry states
+- Copy from yesterday
+- Duplicate prevention
+- Modular sections
+- Egg section for layer flocks
+- Core feed/water/mortality fields
+- Bird placement/mortality movement generation
+
+## Sprint 3 — Egg lots and inventory
+
+- Egg grades
+- Daily egg grade entries
+- Egg lot generation
+- Egg inventory movement ledger
+- Cached balances
+- Traceability chain
+
+## Sprint 4 — Sales
+
+- Customers
+- Generic sales orders
+- Product-based sales order items
+- Egg product mapping
+- FIFO/manual egg lot allocation
+- Sale movement generation
+- Payments
+
+## Sprint 5 — Safety
+
+- Medication records
+- Flock withdrawal cache
+- Restricted egg lots
+- Sale blocking
+- Health/welfare basics
+
+## Sprint 6 — Reports and hardening
+
+- Dashboard
+- Core reports
+- Exports/backups
+- Alerts basics
+- Audit screens
+- Basic expenses
+
+## Sprint 7 — Phase 1.5 hardening
+
+- Legacy import
+- Reconciliation
+- Packaging inventory
+- Additives/supplements
+- Vaccination
+- Email alert digest
+
+---
+
+# 8. Daily Entry
+
+## 8.1 States
 
 ```text
 draft
@@ -1063,38 +489,27 @@ manager_adjusted
 voided
 ```
 
-### State rules
-
 | State | Meaning | Who can edit |
 |---|---|---|
 | draft | Incomplete or copied from previous day | creator, manager |
 | submitted | Official daily record | worker until cutoff, manager |
 | locked | Closed after configured days | owner/admin only |
 | manager_adjusted | Submitted record adjusted after review | manager/owner |
-| voided | Entry cancelled but preserved for audit | owner/admin |
+| voided | Cancelled but preserved | owner/admin |
 
-Default lock rule:
+Default lock:
 
 ```text
 Daily entries lock after 7 farm-local days.
 ```
 
-## 7.3 Uniqueness rule
-
-Database constraint:
+## 8.2 Uniqueness
 
 ```text
 UNIQUE(account_id, farm_id, house_id, flock_id, date)
 ```
 
-If a duplicate entry is attempted:
-
-- Same user, draft exists → open existing draft.
-- Different user, draft exists → show conflict warning.
-- Submitted exists → reject unless manager override.
-- Locked exists → owner override only.
-
-## 7.4 Fields
+## 8.3 Daily entry table
 
 ```text
 daily_entries
@@ -1116,27 +531,81 @@ daily_entries
 - updated_at
 ```
 
-Egg production, feed usage, water usage, mortality, and environment are linked to the daily entry.
+## 8.4 Modular sections
 
-## 7.5 Daily entry UX requirements
+### Core section
 
-- Remember last selected farm/house/flock per user.
-- Provide **Copy from yesterday**.
-- Show Draft/Submitted/Locked status.
-- Allow saving partial drafts.
-- Warn if expected fields are blank.
-- Distinguish zero from blank:
-  - `0 deaths` means no deaths.
-  - blank deaths means not entered.
-- Submit action generates ledger side effects.
+Shown for all flocks:
+
+```text
+Date
+Farm
+House
+Flock
+Feed used
+Water used
+Deaths
+Culls
+Notes
+```
+
+### Egg section
+
+Shown when:
+
+```text
+production_model IN ('egg', 'mixed')
+```
+
+Fields:
+
+```text
+Egg quantities by grade
+Cracked/dirty/discarded/internal-use eggs
+Egg notes
+```
+
+### Weight section
+
+Shown when:
+
+```text
+production_model IN ('meat', 'raising', 'mixed')
+```
+
+Fields:
+
+```text
+Sample count
+Average weight
+Uniformity %
+Weight notes
+```
+
+### Breeding section
+
+Shown when:
+
+```text
+production_model IN ('breeding', 'mixed')
+```
+
+Phase 5 fields:
+
+```text
+Hatching eggs
+Settable eggs
+Fertility notes
+Male/female count notes
+```
+
+Phase 1 may display this section as disabled/future if a breeder flock is created.
 
 ---
 
-# 8. Egg Production, Egg Lots, and Egg Inventory
+# 9. Egg Production, Egg Lots, and Egg Inventory
 
-## 8.1 Egg grades
-
-Egg grades are configurable per farm.
+## 9.1 Egg grades
 
 ```text
 egg_grades
@@ -1166,9 +635,7 @@ Internal Use
 Seconds
 ```
 
-## 8.2 Production grade records
-
-Instead of hardcoding egg categories into one table, use grade rows.
+## 9.2 Daily production by grade
 
 ```text
 daily_egg_grade_entries
@@ -1185,9 +652,7 @@ daily_egg_grade_entries
 - updated_at
 ```
 
-## 8.3 Egg lots
-
-A submitted production entry creates one egg lot per saleable grade.
+## 9.3 Egg lots
 
 ```text
 egg_lots
@@ -1209,7 +674,7 @@ egg_lots
 - updated_at
 ```
 
-## 8.4 Egg inventory movements
+## 9.4 Egg inventory movements
 
 ```text
 egg_inventory_movements
@@ -1228,42 +693,76 @@ egg_inventory_movements
 - created_at
 ```
 
-### Movement rules
+## 9.5 Egg movement rules
 
-| Event | Required movement |
+| Event | Movement |
 |---|---|
-| Daily entry submitted | `production` movement per generated egg lot |
-| Sale confirmed | `sale` movement per allocation |
+| Daily entry submitted | `production` movement per saleable lot |
+| Sale confirmed | `sale` movement per egg allocation |
 | Eggs discarded | `discard` movement |
-| Inventory count corrected | `reconciliation` movement |
-| Entry voided | reversing `void` movements |
+| Inventory corrected | `reconciliation` movement |
+| Entry voided | reversing `void` movement |
 | Internal use | `internal_use` movement |
 
-## 8.5 Cached stock
-
-`egg_lots.quantity_available` is a cached balance.
-
-Rule:
-
-```text
-quantity_available = quantity_produced + sum(egg_inventory_movements.quantity_delta)
-```
-
-It may be stored for fast reads, but it must be rebuildable from movements.
-
-## 8.6 Traceability report
+## 9.6 Traceability chain
 
 The system must be able to answer:
 
 ```text
-Customer sale → sales item → allocations → egg lots → flock → house → production date → daily entry
+Sale
+→ sales_order_item
+→ sales_order_item_egg_allocations
+→ egg_lot
+→ flock
+→ house
+→ production_date
+→ daily_entry
 ```
 
 ---
 
-# 9. Sales, Customers, Payments, and Allocation
+# 10. Product Catalog and Sales
 
-## 9.1 Customers
+This is the canonical sales model. There is no egg-only `sales_order_items` table.
+
+## 10.1 Products
+
+```text
+products
+- id
+- account_id
+- farm_id nullable
+- name
+- product_type: egg / live_bird / meat / chick / pullet / manure / service / other
+- default_unit: egg / dozen / tray / carton / case / bird / lb / kg / package / other
+- default_price_cents nullable
+- active
+- notes
+- created_at
+- updated_at
+```
+
+## 10.2 Egg product mappings
+
+Egg products map to egg grades.
+
+```text
+product_egg_grade_mappings
+- id
+- account_id
+- product_id
+- egg_grade_id
+```
+
+Example:
+
+| Product | product_type | egg_grade |
+|---|---|---|
+| Large Eggs | egg | Large |
+| Medium Eggs | egg | Medium |
+| Cracked Eggs | egg | Cracked |
+
+## 10.3 Customers
 
 ```text
 customers
@@ -1274,7 +773,7 @@ customers
 - phone
 - email
 - address
-- customer_type: retail / wholesale / store / restaurant / family / other
+- customer_type: retail / wholesale / store / restaurant / family / processor / other
 - default_price_level
 - active
 - notes
@@ -1282,7 +781,7 @@ customers
 - updated_at
 ```
 
-## 9.2 Sales orders
+## 10.4 Sales orders
 
 ```text
 sales_orders
@@ -1306,27 +805,44 @@ sales_orders
 - updated_at
 ```
 
-## 9.3 Sales order items
+## 10.5 Sales order items
+
+Canonical schema:
 
 ```text
 sales_order_items
 - id
 - account_id
 - sales_order_id
-- egg_grade_id
-- quantity_in_eggs
-- display_unit: egg / dozen / tray / carton / case
-- display_quantity
+- product_id
+- product_type_snapshot
+- quantity
+- unit
+- quantity_base
 - unit_price_cents
 - line_total_cents
 - created_at
 - updated_at
 ```
 
-## 9.4 Sales item allocations
+`quantity_base` stores the normalized quantity:
+
+| product_type | quantity_base means |
+|---|---|
+| egg | individual eggs |
+| live_bird | individual birds |
+| chick | individual chicks |
+| pullet | individual birds |
+| meat | base weight unit |
+| manure | configured base unit |
+| service | configured base unit or 1 line item |
+
+## 10.6 Egg allocations
+
+Egg products allocate from egg lots.
 
 ```text
-sales_order_item_allocations
+sales_order_item_egg_allocations
 - id
 - account_id
 - sales_order_item_id
@@ -1337,21 +853,64 @@ sales_order_item_allocations
 - created_at
 ```
 
-## 9.5 Sale confirmation transaction
+## 10.7 Future live bird allocations
 
-When a sales order is confirmed:
+Reserved for future live bird sales.
 
-1. Validate inventory availability.
-2. Allocate from egg lots using FIFO by production date unless manual selection is used.
-3. Check each candidate egg lot for restriction.
-4. Block restricted lots unless owner override is enabled and allowed.
-5. Create `sales_order_item_allocations`.
-6. Create `egg_inventory_movements` with `movement_type = sale`.
-7. Update cached egg lot balances.
-8. Update sales totals and customer balance.
-9. Write audit log.
+```text
+sales_order_item_bird_allocations
+- id
+- account_id
+- sales_order_item_id
+- flock_id
+- bird_inventory_movement_id
+- quantity_in_birds
+- allocation_method: manual / fifo
+- created_at
+```
 
-## 9.6 Withdrawal sales rule
+## 10.8 Future meat allocations
+
+Reserved for future processed meat sales.
+
+```text
+sales_order_item_meat_allocations
+- id
+- account_id
+- sales_order_item_id
+- meat_lot_id
+- quantity_weight
+- unit
+- meat_inventory_movement_id
+- allocation_method: fifo / manual
+- created_at
+```
+
+## 10.9 Sale confirmation transaction
+
+When a sale is confirmed:
+
+1. Validate the sales order is in a confirmable state.
+2. For each `sales_order_item`, inspect `product_type_snapshot`.
+3. If `product_type = egg`:
+   - Resolve mapped egg grade from `product_egg_grade_mappings`.
+   - Allocate from available egg lots using FIFO by production date unless manual allocation is used.
+   - Block restricted egg lots.
+   - Create `sales_order_item_egg_allocations`.
+   - Create `egg_inventory_movements` with `movement_type = sale`.
+   - Update cached egg lot balances.
+4. If `product_type = live_bird`, `chick`, or `pullet`:
+   - Phase 1: reject confirmation unless the future module is enabled.
+   - Future: create bird allocation and bird inventory movement.
+5. If `product_type = meat`:
+   - Phase 1: reject confirmation unless the future module is enabled.
+   - Future: allocate from meat lots and create meat inventory movement.
+6. If `product_type = service` or non-stock item:
+   - No inventory allocation required.
+7. Update order totals and customer balance.
+8. Write audit log.
+
+## 10.10 Withdrawal rule for egg sales
 
 Default:
 
@@ -1359,20 +918,11 @@ Default:
 Restricted egg lots cannot be sold.
 ```
 
-Optional owner-only override:
+Owner-only override may be added later, with mandatory audit reason.
 
-- Requires reason.
-- Creates audit log.
-- Clearly marks sale as containing restricted eggs.
+Phase 1 should hard-block restricted egg lots.
 
-Recommended default for Phase 1:
-
-```text
-Hard block restricted egg lots.
-No override until Phase 1.5.
-```
-
-## 9.7 Payments
+## 10.11 Payments
 
 ```text
 payments
@@ -1392,11 +942,86 @@ payments
 
 ---
 
-# 10. Feed Inventory and Feed Usage
+# 11. Live Bird Inventory and Mortality
 
-## 10.1 Inventory items
+## 11.1 Bird inventory movements
 
-All non-egg stock uses the general inventory system.
+```text
+bird_inventory_movements
+- id
+- account_id
+- farm_id
+- house_id nullable
+- flock_id
+- movement_type: placement / mortality / cull / transfer_in / transfer_out / sale / harvest / adjustment / depletion / void
+- quantity_delta
+- movement_date
+- reference_type
+- reference_id
+- reason
+- notes
+- created_by
+- created_at
+```
+
+## 11.2 Placement rule
+
+When a flock is created:
+
+```text
+movement_type = placement
+quantity_delta = starting_bird_count
+reference_type = flock
+reference_id = flock_id
+```
+
+## 11.3 Mortality records
+
+```text
+mortality_records
+- id
+- account_id
+- daily_entry_id nullable
+- farm_id
+- house_id
+- flock_id
+- date
+- death_count
+- cull_count
+- reason: disease / injury / predator / heat_stress / weak / unknown / other
+- description
+- disposal_method
+- created_by
+- created_at
+- updated_at
+```
+
+Saving mortality creates bird inventory movements:
+
+```text
+death_count → movement_type = mortality, quantity_delta = -death_count
+cull_count → movement_type = cull, quantity_delta = -cull_count
+```
+
+## 11.4 Current live birds
+
+```text
+Current live birds = sum(bird_inventory_movements.quantity_delta)
+```
+
+Phase 1 may display this alongside:
+
+```text
+starting birds - deaths - culls +/- transfers
+```
+
+But the bird ledger is canonical.
+
+---
+
+# 12. Feed, Water, and General Inventory
+
+## 12.1 Inventory items
 
 ```text
 inventory_items
@@ -1417,7 +1042,7 @@ inventory_items
 - updated_at
 ```
 
-## 10.2 Inventory lots
+## 12.2 Inventory lots
 
 ```text
 inventory_lots
@@ -1437,7 +1062,7 @@ inventory_lots
 - updated_at
 ```
 
-## 10.3 General inventory movements
+## 12.3 Inventory movements
 
 ```text
 inventory_movements
@@ -1449,7 +1074,6 @@ inventory_movements
 - movement_type: purchase / usage / adjustment / transfer / discard / reconciliation / void
 - quantity_delta
 - unit
-- farm_id
 - house_id nullable
 - flock_id nullable
 - reference_type
@@ -1460,7 +1084,7 @@ inventory_movements
 - created_at
 ```
 
-## 10.4 Feed usage
+## 12.4 Feed usage
 
 ```text
 feed_usage
@@ -1482,34 +1106,9 @@ feed_usage
 - created_at
 ```
 
-## 10.5 Feed usage transaction
+Saving feed usage creates `inventory_movements` with `movement_type = usage`.
 
-When feed usage is saved:
-
-1. Create `feed_usage`.
-2. Select inventory lot:
-   - FIFO by received date if lot tracking is enabled.
-   - Latest lot or average cost if simplified.
-3. Calculate cost.
-4. Create `inventory_movements` with `movement_type = usage`.
-5. Update cached lot balance.
-6. Update feed KPIs.
-
-## 10.6 Feed KPIs
-
-- Feed per bird per day
-- Feed cost per day
-- Feed cost per dozen
-- Feed cost per tray
-- Feed-to-egg ratio
-- Days of feed remaining
-- Feed inventory value
-
----
-
-# 11. Water and Hydration
-
-## 11.1 Water usage
+## 12.5 Water usage
 
 ```text
 water_usage
@@ -1530,26 +1129,17 @@ water_usage
 - created_at
 ```
 
-## 11.2 Water KPIs
-
-- Water per bird per day
-- Water-to-feed ratio
-- 7-day water trend
-- Drop compared to rolling average
-
-Formula:
+## 12.6 Water-to-feed ratio
 
 ```text
-Water-to-feed ratio = water quantity / feed quantity
+Water-to-feed ratio = normalized water quantity / normalized feed quantity
 ```
-
-Units must be normalized before calculation.
 
 ---
 
-# 12. Medication, Withdrawal, Vaccines, Additives
+# 13. Medication, Withdrawal, Vaccines, and Additives
 
-## 12.1 Medication applications
+## 13.1 Medication applications
 
 ```text
 medication_applications
@@ -1577,33 +1167,26 @@ medication_applications
 - updated_at
 ```
 
-## 12.2 Active medication definition
-
-A medication is active when:
-
-```text
-status = active
-OR
-start_date <= farm_today AND (end_date IS NULL OR end_date >= farm_today)
-```
+## 13.2 Active withdrawal
 
 Withdrawal is active when:
 
 ```text
-egg_withdrawal_until IS NOT NULL AND egg_withdrawal_until >= farm_today
+egg_withdrawal_until IS NOT NULL
+AND egg_withdrawal_until >= farm_today
 ```
 
-## 12.3 Medication save transaction
+Medication save transaction:
 
 1. Create medication application.
-2. Create inventory movement usage if stock item is selected.
-3. Update `flocks.active_egg_withdrawal_until` to max active withdrawal date.
-4. Create alert if withdrawal is active.
+2. Create inventory movement usage if a stock item is selected.
+3. Update `flocks.active_egg_withdrawal_until`.
+4. Create withdrawal alert.
 5. Audit log.
 
-## 12.4 Egg lot restriction rule
+## 13.3 Egg lot restriction
 
-When daily egg lots are generated:
+When egg lots are generated:
 
 ```text
 if flock.active_egg_withdrawal_until >= production_date:
@@ -1611,7 +1194,7 @@ if flock.active_egg_withdrawal_until >= production_date:
     egg_lot.restricted_until = flock.active_egg_withdrawal_until
 ```
 
-## 12.5 Vaccination records
+## 13.4 Vaccination records
 
 ```text
 vaccination_records
@@ -1633,9 +1216,7 @@ vaccination_records
 - created_at
 ```
 
-Saving a vaccination record creates inventory usage movement if stock is selected.
-
-## 12.6 Additive and supplement applications
+## 13.5 Additive applications
 
 ```text
 additive_applications
@@ -1654,72 +1235,17 @@ additive_applications
 - dosage_unit
 - dosage_basis
 - quantity_used
-- reason: heat_stress / shell_quality / stress / routine / recovery / other
+- reason
 - notes
 - created_by
 - created_at
 ```
 
-Saving an additive application creates an inventory usage movement.
+Vaccination and additive records create inventory usage movements when stock is selected.
 
 ---
 
-# 13. Mortality, Culling, and Live Birds
-
-## 13.1 Mortality records
-
-```text
-mortality_records
-- id
-- account_id
-- daily_entry_id nullable
-- farm_id
-- house_id
-- flock_id
-- date
-- death_count
-- cull_count
-- reason: disease / injury / predator / heat_stress / weak / unknown / other
-- description
-- disposal_method
-- created_by
-- created_at
-- updated_at
-```
-
-## 13.2 Current live birds
-
-MVP decision:
-
-```text
-Current live birds are recomputed from starting count minus mortality/culls/transfers.
-```
-
-Backdated edits may alter historical KPI reports.
-
-All backdated edits are audit logged.
-
-Future option:
-
-```text
-Daily flock snapshots for immutable historical reporting.
-```
-
-## 13.3 Mortality alerts
-
-Use both absolute and relative thresholds.
-
-Example default:
-
-```text
-Alert if today mortality exceeds max(absolute_threshold, 3x 7-day average)
-```
-
-Thresholds are configurable by farm and optionally by flock/stage.
-
----
-
-# 14. Health and Welfare
+# 14. Health, Welfare, and Beak Treatment
 
 ## 14.1 Health events
 
@@ -1743,7 +1269,7 @@ health_events
 - created_at
 ```
 
-## 14.2 Welfare observation tags
+## 14.2 Welfare tags
 
 ```text
 welfare_observation_tags
@@ -1753,7 +1279,7 @@ welfare_observation_tags
 - observation_type
 ```
 
-Default observation types:
+Default tags:
 
 ```text
 feather_pecking
@@ -1768,9 +1294,7 @@ low_water_intake
 predator_incident
 ```
 
----
-
-# 15. Beak Treatment
+## 14.3 Beak treatment
 
 Phase 2 module.
 
@@ -1797,29 +1321,49 @@ beak_treatment_records
 - created_at
 ```
 
+---
+
+# 15. Weight and Growth Records
+
+Weight tracking is generic.
+
 ```text
-beak_treatment_followups
+flock_weight_records
 - id
 - account_id
-- beak_treatment_id
-- followup_date
-- feed_intake_status
-- water_intake_status
-- mortality_count
-- pecking_observed
-- cannibalism_observed
-- uniformity_rating
-- corrective_action
+- farm_id
+- house_id
+- flock_id
+- date
+- sample_count
+- average_weight
+- unit: g / kg / oz / lb
+- uniformity_percent nullable
 - notes
 - created_by
 - created_at
 ```
 
+Used for:
+
+- Pullets
+- Broilers
+- Breeders
+- Optional layer monitoring
+
+Future broiler KPIs:
+
+```text
+Average daily gain
+Feed conversion ratio
+Target harvest weight
+Harvest readiness
+Cost per weight unit
+```
+
 ---
 
 # 16. Expenses and Profitability
-
-## 16.1 Expenses
 
 ```text
 expenses
@@ -1841,8 +1385,6 @@ expenses
 - created_at
 ```
 
-## 16.2 Expense categories
-
 ```text
 expense_categories
 - id
@@ -1852,50 +1394,13 @@ expense_categories
 - active
 ```
 
-## 16.3 Profitability allocation rules
-
-Direct expenses:
-
-```text
-Assign directly to flock/house/farm.
-```
-
-Shared expenses:
-
-```text
-Allocate by bird count, revenue share, or manual percentage.
-```
-
-Brooding costs:
-
-```text
-MVP: count as direct flock costs.
-Future: amortize over expected laying period.
-```
+Direct expenses are assigned to the flock/house/farm. Shared expenses are allocated by bird count, revenue share, or manual percentage.
 
 ---
 
-# 17. Alerts and Tasks
+# 17. Alerts, Tasks, Reconciliation, Import, and Backup
 
-## 17.1 Alert thresholds
-
-```text
-alert_thresholds
-- id
-- account_id
-- farm_id
-- flock_id nullable
-- threshold_type
-- value
-- unit
-- enabled
-- created_at
-- updated_at
-```
-
-Thresholds may be global per farm or customized per flock.
-
-## 17.2 Alerts
+## 17.1 Alerts
 
 ```text
 alerts
@@ -1914,14 +1419,7 @@ alerts
 - created_at
 ```
 
-Critical alerts should appear in:
-
-- Dashboard badge
-- Alert center
-- Email digest, Phase 1.5
-- Push notification, Phase 3
-
-## 17.3 Alert types
+Important alert types:
 
 - Medication withdrawal active
 - Restricted egg lots available
@@ -1935,7 +1433,7 @@ Critical alerts should appear in:
 - Locked entry override
 - Expiring medication/vaccine lot
 
-## 17.4 Tasks
+## 17.2 Tasks
 
 ```text
 tasks
@@ -1956,32 +1454,9 @@ tasks
 - created_at
 ```
 
----
+## 17.3 Inventory reconciliation
 
-# 18. Inventory Reconciliation
-
-## 18.1 Purpose
-
-Real-world inventory drifts.
-
-Examples:
-
-- Eggs break after collection.
-- Feed bag weight is inaccurate.
-- Worker forgets to record a usage.
-- Packaging count is wrong.
-
-## 18.2 Reconciliation workflow
-
-1. User selects item/grade/location.
-2. System shows expected quantity.
-3. User enters physical count.
-4. System calculates difference.
-5. User must provide reason.
-6. System creates reconciliation movement.
-7. Audit log records change.
-
-## 18.3 Reconciliation movement
+Reconciliation creates movement records.
 
 ```text
 movement_type = reconciliation
@@ -1989,27 +1464,9 @@ quantity_delta = physical_count - system_count
 reason required
 ```
 
----
+## 17.4 Legacy import
 
-# 19. Legacy Import
-
-## 19.1 Purpose
-
-Most farms will already have data in notebooks, Excel, WhatsApp, or memory.
-
-## 19.2 Legacy import wizard
-
-Steps:
-
-1. Select import type.
-2. Upload CSV/Excel.
-3. Map columns.
-4. Set farm/house/flock context.
-5. Preview validation.
-6. Import as backdated records.
-7. Create audit import batch.
-
-## 19.3 Import types
+Import wizard supports:
 
 - Existing flocks with initial bird counts
 - Historical egg production
@@ -2020,9 +1477,7 @@ Steps:
 - Expenses
 - Starting inventory counts
 
-## 19.4 Backdated flag
-
-Imported historical records should include:
+Imported records include:
 
 ```text
 import_batch_id
@@ -2030,36 +1485,24 @@ is_backdated = true
 source = legacy_import
 ```
 
----
-
-# 20. Backup and Recovery
-
-## 20.1 Backups
+## 17.5 Backup/recovery
 
 Phase 1:
 
 - Manual CSV export
 - Full account export
-- Database dump instructions for self-hosted deployments
+- Database dump instructions for self-hosted deployment
 
 Phase 1.5:
 
-- Scheduled automated backups
-- Configurable storage target
-- Backup health check
-
-## 20.2 Recovery
-
-The system must define:
-
-- Restore from backup
+- Scheduled backup
+- Storage target
+- Backup health checks
 - Rollback failed imports
-- Export before destructive changes
-- Audit log preservation
 
 ---
 
-# 21. Audit Log
+# 18. Audit Log
 
 ```text
 audit_logs
@@ -2080,7 +1523,7 @@ Audit log required for:
 
 - Daily entry edits after submission
 - Locked entry overrides
-- Medication withdrawal overrides
+- Withdrawal overrides
 - Inventory reconciliation
 - Sales voids
 - Expense changes
@@ -2089,47 +1532,9 @@ Audit log required for:
 
 ---
 
-# 22. Dashboard
+# 19. Reports and KPIs
 
-## 22.1 Main dashboard cards
-
-- Eggs collected today
-- Saleable eggs today
-- Hen-day production %
-- Active egg withdrawal warnings
-- Restricted egg lots
-- Current live birds
-- Feed used today
-- Water used today
-- Mortality today
-- Egg inventory by grade
-- Aging egg lots
-- Sales today
-- Expenses this week
-- Active alerts
-- Tasks due today
-
-## 22.2 Flock dashboard
-
-- Age
-- Current live birds
-- Production stage
-- 7-day egg average
-- Hen-day production %
-- Mortality %
-- Feed per bird
-- Water per bird
-- Water-to-feed ratio
-- Feed cost per dozen
-- Egg loss %
-- Active withdrawal status
-- Recent health events
-
----
-
-# 23. Reports
-
-## 23.1 Core Phase 1 reports
+## 19.1 Phase 1 reports
 
 - Daily production report
 - Weekly production report
@@ -2142,19 +1547,23 @@ Audit log required for:
 - Expense summary
 - Basic profit report
 
-## 23.2 Traceability report
-
-Must support:
+## 19.2 Traceability report
 
 ```text
-Sale → customer → sales items → allocations → egg lots → flock → daily entry
+Sale
+→ sales_order_item
+→ sales_order_item_egg_allocations
+→ egg_lot
+→ flock
+→ house
+→ daily_entry
 ```
 
-## 23.3 KPI formulas
+## 19.3 KPI formulas
 
 ```text
 Current live birds =
-starting birds - deaths - culls +/- transfers
+sum(bird_inventory_movements.quantity_delta)
 ```
 
 ```text
@@ -2189,12 +1598,12 @@ egg revenue - allocated expenses
 
 ---
 
-# 24. Use Cases
+# 20. Use Cases
 
 ## UC-001 Create account
 
 **Actor:** Owner  
-**Goal:** Create the account root for all farm data.
+**Goal:** Create tenant root.
 
 **Flow:**
 
@@ -2209,48 +1618,44 @@ egg revenue - allocated expenses
 - Farm has `account_id`.
 - Owner has full permissions.
 
----
-
 ## UC-010 Create farm, house, and flock
 
 **Actor:** Owner/Manager  
-**Goal:** Set up the production structure.
+**Goal:** Set up production structure.
 
 **Flow:**
 
 1. Create farm.
-2. Add one or more houses.
+2. Create house.
 3. Create flock.
-4. Assign flock to house.
+4. Select species, production purpose, production model, and sex.
 5. Enter starting bird count and placement date.
+6. System creates bird placement movement.
 
 **Acceptance criteria:**
 
 - Flock belongs to account, farm, and house.
-- Flock age auto-calculates from placement date.
-- Starting bird count is immutable after submitted records exist unless owner override.
+- Flock classification is valid.
+- Bird placement movement exists.
 
----
-
-## UC-020 Daily entry draft
+## UC-020 Create daily entry draft
 
 **Actor:** Worker  
-**Goal:** Start daily entry without final submission.
+**Goal:** Start a daily entry.
 
 **Flow:**
 
 1. Worker opens Daily Entry.
-2. System defaults to last selected farm/house/flock.
-3. Worker clicks Copy from Yesterday or enters values manually.
-4. Worker saves draft.
+2. System defaults last farm/house/flock.
+3. Sections are shown based on flock production model.
+4. Worker clicks Copy from Yesterday or enters values manually.
+5. Worker saves draft.
 
 **Acceptance criteria:**
 
 - Draft does not create inventory movements.
-- Draft can be edited by creator/manager.
-- Duplicate draft for same farm/house/flock/date is prevented.
-
----
+- Duplicate drafts for same farm/house/flock/date are prevented.
+- Blank values are distinct from zero.
 
 ## UC-021 Submit daily entry
 
@@ -2259,325 +1664,188 @@ egg revenue - allocated expenses
 
 **Flow:**
 
-1. Worker reviews draft.
+1. User reviews draft.
 2. System validates required fields.
-3. Worker submits.
-4. System creates production grade records.
-5. System creates egg lots.
-6. System creates production inventory movements.
-7. System creates feed usage movement if feed entered.
-8. System creates water usage record if water entered.
-9. System creates mortality record if mortality entered.
-10. System recalculates KPIs and alerts.
+3. User submits.
+4. Egg entries create egg lots and production movements.
+5. Feed entries create feed usage and inventory movements.
+6. Water entries create water records.
+7. Mortality/culls create bird movements.
+8. KPIs and alerts update.
 
 **Acceptance criteria:**
 
-- Submitted entry creates ledger side effects exactly once.
-- Re-submission does not duplicate inventory movements.
-- Saleable egg grades create egg lots.
-- Restricted status is applied if flock is under withdrawal.
+- Submission is idempotent.
+- Ledger side effects happen exactly once.
+- Restricted egg lots are generated if flock withdrawal is active.
 - Audit log records submission.
 
----
-
-## UC-022 Edit submitted daily entry
-
-**Actor:** Manager  
-**Goal:** Correct an error.
-
-**Flow:**
-
-1. Manager opens submitted entry.
-2. Manager edits values.
-3. System requires reason.
-4. System creates reversing/adjusting movements.
-5. System updates lots and balances.
-6. System records audit log.
-
-**Acceptance criteria:**
-
-- Original history is preserved.
-- Adjustments are traceable.
-- Locked entries require owner/admin override.
-
----
-
-## UC-030 Sell eggs
+## UC-030 Sell egg product
 
 **Actor:** Sales user/Manager  
-**Goal:** Sell eggs and reduce inventory.
+**Goal:** Sell eggs using the product-generic sales model.
 
 **Flow:**
 
-1. Sales user creates order.
-2. Adds egg grade and quantity.
-3. System suggests FIFO allocations from available egg lots.
-4. User reviews lots, ages, and restrictions.
-5. System blocks restricted lots.
-6. User confirms order.
-7. System creates allocations and sale movements.
-8. Customer balance updates.
-9. Receipt/invoice is generated.
+1. User creates sales order.
+2. User selects customer.
+3. User adds product, such as `Large Eggs`.
+4. System reads `product_type = egg`.
+5. System resolves egg grade through `product_egg_grade_mappings`.
+6. System suggests FIFO egg lot allocations.
+7. User confirms allocations.
+8. System blocks restricted lots.
+9. User confirms sale.
+10. System creates `sales_order_item_egg_allocations`.
+11. System creates egg inventory sale movements.
+12. Customer balance updates.
 
 **Acceptance criteria:**
 
-- Inventory decreases only through movements.
-- Sale line can allocate from multiple lots.
-- Traceability report can trace sale to flock.
-- Restricted lots are blocked.
+- `sales_order_items` references `product_id`.
+- Egg sale lines allocate from egg lots.
+- Restricted egg lots cannot be sold.
+- Traceability report works.
 
----
+## UC-031 Manually allocate egg lots
 
-## UC-031 Manual egg lot allocation
-
-**Actor:** Manager/Sales  
-**Goal:** Choose specific egg lots for a sale.
+**Actor:** Sales user/Manager  
+**Goal:** Choose specific lots for egg sale.
 
 **Flow:**
 
-1. User opens allocation panel.
-2. Selects lots by grade/date/flock/location.
-3. System validates quantity.
+1. User opens allocation panel for an egg product line.
+2. User selects egg lots by grade, date, flock, and location.
+3. System validates available quantity.
 4. System blocks restricted lots.
 5. User confirms allocation.
 
 **Acceptance criteria:**
 
 - Allocation cannot exceed available lot quantity.
-- Restricted lots are visibly marked.
 - Manual allocation is stored as `allocation_method = manual`.
+- Allocation records use `sales_order_item_egg_allocations`.
 
----
+## UC-032 Sell non-egg product later
+
+**Actor:** Sales user/Manager  
+**Goal:** Sell future products such as live birds, pullets, meat, manure, or services.
+
+**Phase:** Future
+
+**Flow:**
+
+1. User adds product to sales order.
+2. System checks `product_type_snapshot`.
+3. If product type is not enabled, system prevents confirmation.
+4. If module is enabled, system uses that product type’s allocation table.
+5. Customer balance updates.
+
+**Acceptance criteria:**
+
+- Sales table does not need redesign.
+- Product-specific allocation is modular.
+- Egg allocation remains unchanged.
 
 ## UC-040 Record medication with egg withdrawal
 
 **Actor:** Manager/Vet  
-**Goal:** Track treatment and prevent unsafe sales.
+**Goal:** Track treatment and prevent unsafe egg sales.
 
 **Flow:**
 
 1. User selects flock.
-2. Enters medication, dates, dose, reason.
+2. Enters medication and dates.
 3. Enters egg withdrawal date.
 4. System creates medication record.
-5. System creates inventory usage movement if item/lot selected.
-6. System updates flock active withdrawal cache.
-7. System creates alert.
-8. Future egg lots produced during withdrawal are marked restricted.
+5. System updates flock withdrawal cache.
+6. Future egg lots produced during withdrawal become restricted.
 
 **Acceptance criteria:**
 
-- Withdrawal appears on flock detail and sales screen.
-- Restricted lots cannot be allocated to sales.
+- Restricted egg lots are sale-blocked.
 - Audit log records medication creation/edit.
 
----
-
-## UC-050 Record feed usage
+## UC-050 Record weight
 
 **Actor:** Worker/Manager  
-**Goal:** Track feed cost and consumption.
+**Goal:** Record average bird weight.
 
 **Flow:**
 
-1. Feed is entered in daily entry or feed usage screen.
-2. System selects inventory lot by FIFO/default method.
-3. System calculates cost.
-4. System creates inventory movement.
-5. Feed KPIs update.
+1. User opens daily entry or flock weight screen.
+2. Selects flock.
+3. Enters sample count, average weight, unit, and uniformity.
+4. System saves weight record.
 
 **Acceptance criteria:**
 
-- Feed usage reduces stock.
-- Cost method is stored.
-- Feed cost per dozen is calculable.
+- Weight records link to account/farm/house/flock.
+- Section appears for meat, raising, and mixed production models.
+- Future broiler reports can use the record.
 
 ---
 
-## UC-060 Reconcile inventory
+# 21. Wireframe Coverage
 
-**Actor:** Manager  
-**Goal:** Correct inventory drift.
+## 21.1 Current v4 wireframes
 
-**Flow:**
+These wireframes are current for the v4 product-generic/extensible model:
 
-1. Manager opens Reconciliation.
-2. Selects egg lot or inventory item.
-3. System shows expected balance.
-4. Manager enters physical count.
-5. Manager provides reason.
-6. System creates reconciliation movement.
-7. Audit log records correction.
+1. Dashboard
+2. Modular Daily Entry
+3. Flock Setup
+4. Products
+5. Generic Sales Order
+6. Sales Allocation by Product Type
+7. Egg Sales Allocation
+8. Live Bird Ledger
+9. Growth / Weight Records
+10. Future Meat Module
+11. Reports
 
-**Acceptance criteria:**
+## 21.2 Carried forward from v2 unchanged
 
-- Stock cannot be changed without movement.
-- Reason is required.
-- Difference is visible in movement history.
-
----
-
-## UC-070 Legacy import
-
-**Actor:** Owner/Manager  
-**Goal:** Bring existing farm records into system.
-
-**Flow:**
-
-1. User opens Legacy Import.
-2. Chooses import type.
-3. Uploads CSV/Excel.
-4. Maps columns.
-5. Previews validation results.
-6. Imports records as backdated.
-7. System creates import batch record.
-
-**Acceptance criteria:**
-
-- User can import existing flock with initial bird count.
-- Historical production can be imported.
-- Records are marked as legacy/backdated.
-- Failed rows are reported.
-
----
-
-## UC-080 Review alerts
-
-**Actor:** Manager/Owner  
-**Goal:** See and resolve farm issues.
-
-**Flow:**
-
-1. Alert badge appears in header.
-2. User opens Alert Center.
-3. User filters by severity/module.
-4. User resolves/dismisses alert.
-5. System records status.
-
-**Acceptance criteria:**
-
-- Critical alerts are visible without opening reports.
-- Resolved alerts remain in history.
-- Email digest can be enabled in Phase 1.5.
-
----
-
-# 25. Screen List and Wireframe Coverage
-
-## 25.1 Updated v2 wireframes
-
-The v2 wireframe package includes:
+These v2 wireframes remain valid because they do not conflict with the v4 sales schema:
 
 1. Login
-2. Account/Farm Setup
-3. Dashboard
-4. Daily Entry
-5. Flocks
-6. Flock Detail
-7. Egg Production
-8. Egg Lots / Traceability
-9. Egg Inventory
-10. Sales Order
-11. Sales Lot Allocation
-12. Customers
-13. Feed & Inventory
-14. Inventory Reconciliation
-15. Water & Additives
-16. Health & Welfare
-17. Medication & Withdrawal
-18. Beak Treatment
-19. Expenses
-20. Alerts & Tasks
-21. Reports
-22. Users & Roles
-23. Audit Log
-24. Legacy Import
-25. Settings
-26. Mobile Daily Entry
+2. Account / Farm Setup
+3. Flocks
+4. Flock Detail
+5. Egg Production
+6. Egg Lots / Traceability
+7. Egg Inventory
+8. Customers
+9. Feed & Inventory
+10. Inventory Reconciliation
+11. Water & Additives
+12. Health & Welfare
+13. Medication & Withdrawal
+14. Beak Treatment
+15. Expenses
+16. Alerts & Tasks
+17. Users & Roles
+18. Audit Log
+19. Legacy Import
+20. Settings
+21. Mobile Daily Entry
 
-## 25.2 Wireframe disclaimer
+## 21.3 Superseded v2 wireframes
+
+These v2 wireframes are superseded and should not be used:
+
+1. `sales_order.svg`
+2. `sales_allocation.svg`
+
+They were replaced because sales are now product-generic.
+
+## 21.4 Wireframe intent
 
 Wireframes are low-fidelity. They define layout intent, major controls, and data relationships. They are not final visual design.
 
 ---
 
-# 26. Open Questions Resolved in v2
-
-| Question | v2 Decision |
-|---|---|
-| Multi-farm day one? | Add account root now. UI can remain simple. |
-| Should egg inventory track age by production date? | Yes. Egg lots include production date. |
-| Should sales require source flock selection? | Sales allocate from egg lots; egg lots carry flock source. |
-| Should withdrawal block sales completely? | Phase 1 hard block restricted lots. |
-| Can workers edit own entries? | Draft yes. Submitted only until cutoff if allowed. Locked no. |
-| Should daily entries be locked? | Yes, default 7 days. |
-| Stock from movements only or cached? | Ledger source of truth + rebuildable cached balances. |
-| Fiscal or calendar periods? | Calendar for MVP. |
-| Web-only or self-hosted? | Web-first, account-ready. Self-hosted compatible. |
-| Offline entry first release? | No. |
-| Multiple houses per flock? | One active house at a time; transfers tracked. |
-| Egg grades configurable? | Yes, per farm. |
-| Packaging separate? | General inventory category in Phase 1; richer packaging later. |
-| Dashboard scope? | Global farm selector. |
-| Expense categories configurable? | Yes. |
-| Data visibility? | Scoped by role and farm/house/flock. |
-| Reports trend lines? | Core reports include 7-day/30-day trends. |
-
----
-
-# 27. Build Order Recommendation
-
-## Sprint 1 — Foundation
-
-- Account/user/auth
-- Farm/house/flock CRUD
-- Role scope
-- Audit log foundation
-
-## Sprint 2 — Daily entry
-
-- Daily entry states
-- Duplicate prevention
-- Copy from yesterday
-- Egg grade entries
-- Mortality
-- Feed/water simple fields
-
-## Sprint 3 — Egg lots and inventory
-
-- Egg lot generation
-- Egg inventory movement ledger
-- Cached balances
-- Egg inventory screens
-
-## Sprint 4 — Sales
-
-- Customers
-- Sales orders
-- FIFO allocation
-- Sale movements
-- Payment records
-
-## Sprint 5 — Health safety
-
-- Basic medication records
-- Withdrawal cache
-- Restricted egg lots
-- Sale blocking
-
-## Sprint 6 — Reports and hardening
-
-- Dashboard
-- Core reports
-- Export/backup
-- Audit screens
-- Basic alerts
-
----
-
-# 28. Developer Notes
-
-## 28.1 Transaction boundaries
+# 22. Transaction Boundaries
 
 The following must be atomic database transactions:
 
@@ -2589,20 +1857,27 @@ The following must be atomic database transactions:
 - Save feed usage
 - Reconcile inventory
 - Import batch
+- Create flock with initial bird placement movement
 
-## 28.2 Idempotency
+---
+
+# 23. Idempotency
 
 Submitting the same draft twice must not duplicate lots or movements.
 
-Use:
+Use uniqueness around:
 
 ```text
 reference_type + reference_id + movement_type
 ```
 
-and unique constraints where needed.
+and table-specific constraints.
 
-## 28.3 Money
+---
+
+# 24. Data Storage Rules
+
+## Money
 
 Store money as integer cents.
 
@@ -2610,58 +1885,74 @@ Store money as integer cents.
 amount_cents integer
 ```
 
-## 28.4 Quantities
+## Egg quantities
 
-Egg quantities should store base unit as individual eggs.
+Store eggs as individual eggs.
 
 ```text
 quantity_in_eggs integer
 ```
 
-Display units are presentation only.
+## Live bird quantities
 
-## 28.5 Units
+Store birds as individual birds.
 
-Normalize feed/water internally where possible.
+```text
+quantity_in_birds integer
+```
 
-- Feed: base unit grams or pounds, depending on system setting.
-- Water: base unit liters or gallons, depending on system setting.
+## Meat quantities
 
-## 28.6 Auditability
+Store weight in normalized base unit.
 
-Never delete business records physically in normal operation.
+```text
+quantity_weight
+unit
+```
 
-Use status:
+## Soft delete
+
+Do not physically delete business records in normal use.
+
+Use statuses:
 
 ```text
 voided
 cancelled
 inactive
+depleted
 ```
 
 ---
 
-# 29. Summary
+# 25. Final v4 Summary
 
-The v2 system is now centered around a safe operational loop:
+The canonical operational loop is:
 
 ```text
 Daily Entry
+→ Egg Production by Grade
 → Egg Lots
-→ Inventory Movements
-→ Sales Allocations
-→ Traceability
-→ Reports
+→ Egg Inventory Movements
+→ Product-Generic Sales Order
+→ Egg Allocation
+→ Traceability Report
 ```
 
-And the safety loop:
+The canonical future expansion loop is:
 
 ```text
-Medication
-→ Flock Withdrawal Cache
-→ Restricted Egg Lots
-→ Sale Blocking
-→ Audit Log
+Flock Classification
+→ Modular Daily Entry
+→ Product Catalog
+→ Product-Specific Allocation
+→ Bird Ledger / Meat Lots / Hatchery Lots
 ```
 
-This gives the system enough structure to support real egg-farm operations without building the entire enterprise platform in the first release.
+The most important rule:
+
+```text
+Sales are generic.
+Egg inventory remains lot-traceable.
+Future poultry modules plug into product-specific allocation tables.
+```

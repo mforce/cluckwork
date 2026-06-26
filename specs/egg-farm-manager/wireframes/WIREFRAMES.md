@@ -1,14 +1,44 @@
-# Egg Farm Manager v3 Wireframes
+# Egg Farm Manager v4 Wireframes
 
-Wireframes for future poultry extensibility.
+## Current v4 wireframes
 
-- [Dashboard](./dashboard.svg) — Egg farm dashboard with future-ready flock types and product sales.
-- [Modular Daily Entry](./daily_entry.svg) — Daily entry shows conditional sections based on flock production model.
-- [Flock Setup](./flock_setup.svg) — Create layer, pullet, broiler, breeder, or mixed-purpose flocks.
-- [Products](./products.svg) — Generic product catalog for eggs now and live birds/meat later.
-- [Generic Sales Order](./sales_order.svg) — Sales order supports products beyond eggs while egg products still allocate from egg lots.
-- [Egg Sales Allocation](./egg_allocation.svg) — Egg product allocation remains traceable by egg lot, flock, and date.
-- [Live Bird Ledger](./bird_ledger.svg) — Future-ready bird movement ledger for placements, mortality, transfers, sales, and harvest.
-- [Growth / Weight Records](./weight_records.svg) — Generic weight records for pullets, broilers, breeders, and optional layer monitoring.
-- [Future Meat Module](./future_meat.svg) — Reserved path for broiler harvests, meat lots, and processed meat sales.
-- [Reports](./reports.svg) — Reports separate egg, bird, and future meat KPIs while sharing the same foundation.
+- [Dashboard](./dashboard.svg) — Current v4 dashboard with flock-type and product-generic sales context.
+- [Modular Daily Entry](./daily_entry.svg) — Current v4 daily-entry sections based on production_model.
+- [Flock Setup](./flock_setup.svg) — Current v4 flock classification screen.
+- [Products](./products.svg) — Current v4 generic product catalog.
+- [Generic Sales Order](./sales_order.svg) — Current v4 product-generic sales order; supersedes v2.
+- [Sales Allocation by Product Type](./sales_allocation.svg) — Current v4 allocation dispatch; supersedes v2.
+- [Egg Sales Allocation](./egg_allocation.svg) — Current v4 egg lot allocation.
+- [Live Bird Ledger](./bird_ledger.svg) — Current v4/future bird movement ledger.
+- [Growth / Weight Records](./weight_records.svg) — Current v4 generic weight screen.
+- [Future Meat Module](./future_meat.svg) — Reserved future meat workflow.
+- [Reports](./reports.svg) — Current v4 reporting model.
+
+## Carried forward from v2 unchanged
+
+- [Login](./login.svg)
+- [Account / Farm Setup](./setup.svg)
+- [Flocks](./flocks.svg)
+- [Flock Detail](./flock_detail.svg)
+- [Egg Production](./egg_production.svg)
+- [Egg Lots / Traceability](./egg_lots.svg)
+- [Egg Inventory](./egg_inventory.svg)
+- [Customers](./customers.svg)
+- [Feed & Inventory](./feed_inventory.svg)
+- [Inventory Reconciliation](./reconciliation.svg)
+- [Water & Additives](./water_additives.svg)
+- [Health & Welfare](./health_welfare.svg)
+- [Medication & Withdrawal](./medication_withdrawal.svg)
+- [Beak Treatment](./beak_treatment.svg)
+- [Expenses](./expenses.svg)
+- [Alerts & Tasks](./alerts_tasks.svg)
+- [Users & Roles](./users_roles.svg)
+- [Audit Log](./audit_log.svg)
+- [Legacy Import](./legacy_import.svg)
+- [Settings](./settings.svg)
+- [Mobile Daily Entry](./mobile_daily_entry.svg)
+
+## Superseded
+
+- v2 `sales_order.svg` is superseded by v4 `sales_order.svg`.
+- v2 `sales_allocation.svg` is superseded by v4 `sales_allocation.svg`.

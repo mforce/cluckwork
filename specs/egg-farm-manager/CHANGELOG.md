@@ -1,19 +1,78 @@
-# Egg Farm Manager v3 — Changelog
+# Egg Farm Manager v4 — Reconciliation Changelog
 
-## Why this version exists
+## Fixed from Opus 4.8 review
 
-v2 was excellent for an egg-producing farm, but several core structures were still egg-specific. v3 keeps the egg MVP intact while making the design future-proof for chicken raising, broilers, live bird sales, and meat production.
+### 1. Sales schema conflict fixed
 
-## Changes made
+The egg-only `sales_order_items` schema was removed. The product-generic schema is now canonical:
 
-- Added flock classification: `species`, `production_purpose`, `production_model`, `sex`, and `expected_harvest_date`.
-- Added generic `products` table.
-- Changed sales order items to reference `product_id` instead of being egg-only.
-- Added egg product to egg grade mapping.
-- Kept egg-lot allocation for egg products.
-- Reserved future allocation tables for live birds and meat products.
-- Added `bird_inventory_movements`.
-- Added `flock_weight_records`.
-- Changed daily entry concept to modular sections by flock type.
-- Added future module reservations for pullets, broilers, meat lots, breeders, and hatchery.
-- Added v3-specific wireframes for products, generic sales, flock setup, bird ledger, weight records, and future meat module.
+```text
+sales_order_items.product_id
+sales_order_items.product_type_snapshot
+sales_order_items.quantity
+sales_order_items.quantity_base
+```
+
+Egg sales allocate through:
+
+```text
+sales_order_item_egg_allocations
+```
+
+The old v2 `sales_order_item_allocations` name is no longer canonical.
+
+### 2. Phase plans merged
+
+The v2 hardening roadmap and v3 species roadmap are merged into one ordered plan:
+
+1. Phase 1 — Egg farm walking skeleton
+2. Phase 1.5 — Egg product hardening
+3. Phase 2 — Pullet / chicken raising
+4. Phase 3 — Broilers / meat birds
+5. Phase 4 — Meat processing
+6. Phase 5 — Breeder and hatchery
+
+There is also one sprint list.
+
+### 3. Wireframe coverage clarified
+
+The spec now states:
+
+- Current v4 wireframes
+- v2 wireframes carried forward unchanged
+- v2 sales wireframes superseded
+
+The sales wireframes were redrawn around the product-generic sales model.
+
+### 4. Enum/validity gaps closed
+
+Added a validity table for:
+
+```text
+production_purpose × production_model
+```
+
+Also clarified daily-entry section visibility for:
+
+```text
+egg
+meat
+raising
+breeding
+mixed
+```
+
+### 5. Preserved correct v2/v3 design
+
+Preserved:
+
+- Egg-lot traceability
+- Lot-level withdrawal restriction
+- Ledger-first inventory
+- Product-specific allocation tables
+- Bird movement ledger
+- Weight records
+- Modular daily entry
+- Account/tenant root
+- Daily-entry state machine
+- Permission model
