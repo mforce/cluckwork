@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1000" viewBox="0 0 1440 1000">
+<rect width="100%" height="100%" fill="#f6f7f9"/>
+<rect x="0" y="0" width="1440" height="64" rx="0" fill="#ffffff" stroke="#dddddd" stroke-width="1"/>
+<text x="28" y="40" font-size="20" font-family="Arial, sans-serif" font-weight="700" fill="#222" text-anchor="start">Egg Farm Manager</text>
+<text x="1230" y="38" font-size="13" font-family="Arial, sans-serif" font-weight="400" fill="#777" text-anchor="start">Search</text>
+<rect x="1200" y="16" width="120" height="32" rx="16" fill="#f8f8f8" stroke="#ddd" stroke-width="1"/>
+<rect x="1340" y="16" width="72" height="32" rx="16" fill="#f8f8f8" stroke="#ddd" stroke-width="1"/>
+<text x="1376" y="37" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#555" text-anchor="middle">User</text>
+<rect x="0" y="64" width="230" height="936" rx="0" fill="#ffffff" stroke="#dddddd" stroke-width="1"/>
+<text x="34" y="112" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Dashboard</text>
+<text x="34" y="158" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Daily Entry</text>
+<text x="34" y="204" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Flocks</text>
+<text x="34" y="250" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Egg Inventory</text>
+<text x="34" y="296" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Feed &amp; Inventory</text>
+<text x="34" y="342" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Health</text>
+<text x="34" y="388" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Sales</text>
+<text x="34" y="434" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Reports</text>
+<text x="34" y="480" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Settings</text>
+<text x="260" y="112" font-size="30" font-family="Arial, sans-serif" font-weight="700" fill="#222" text-anchor="start">Water, Hydration &amp; Additives</text>
+<text x="260" y="142" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Track water consumption, water quality, and supplement/additive applications.</text>
+<rect x="260" y="175" width="360" height="310" rx="8" fill="#fff" stroke="#c9c9c9" stroke-width="1"/>
+<text x="278" y="207" font-size="17" font-family="Arial, sans-serif" font-weight="700" fill="#222" text-anchor="start">Water Usage</text>
+<text x="278" y="241" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Date</text>
+<rect x="278" y="249" width="324" height="34" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+<text x="278" y="299" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">House</text>
+<rect x="278" y="307" width="324" height="34" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+<text x="278" y="357" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Flock</text>
+<rect x="278" y="365" width="324" height="34" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+<text x="278" y="415" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Gallons/Liters</text>
+<rect x="278" y="423" width="324" height="34" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+<text x="278" y="473" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Meter start</text>
+<rect x="278" y="481" width="324" height="34" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+<text x="278" y="531" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Meter end</text>
+<rect x="278" y="539" width="324" height="34" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+<text x="278" y="589" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Source</text>
+<rect x="278" y="597" width="324" height="34" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+<rect x="650" y="175" width="360" height="310" rx="8" fill="#fff" stroke="#c9c9c9" stroke-width="1"/>
+<text x="668" y="207" font-size="17" font-family="Arial, sans-serif" font-weight="700" fill="#222" text-anchor="start">Water Quality</text>
+<text x="668" y="241" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">pH</text>
+<rect x="668" y="249" width="324" height="34" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+<text x="668" y="299" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Chlorine ppm</text>
+<rect x="668" y="307" width="324" height="34" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+<text x="668" y="357" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">TDS ppm</text>
+<rect x="668" y="365" width="324" height="34" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+<text x="668" y="415" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Bacteria test</text>
+<rect x="668" y="423" width="324" height="34" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+<text x="668" y="473" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Treatment used</text>
+<rect x="668" y="481" width="324" height="34" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+<rect x="1040" y="175" width="360" height="310" rx="8" fill="#fff" stroke="#c9c9c9" stroke-width="1"/>
+<text x="1058" y="207" font-size="17" font-family="Arial, sans-serif" font-weight="700" fill="#222" text-anchor="start">Additive Application</text>
+<text x="1058" y="241" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Item</text>
+<rect x="1058" y="249" width="324" height="34" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+<text x="1058" y="299" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Lot</text>
+<rect x="1058" y="307" width="324" height="34" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+<text x="1058" y="357" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Delivery method</text>
+<rect x="1058" y="365" width="324" height="34" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+<text x="1058" y="415" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Dosage</text>
+<rect x="1058" y="423" width="324" height="34" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+<text x="1058" y="473" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Reason</text>
+<rect x="1058" y="481" width="324" height="34" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+<text x="1058" y="531" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Start date</text>
+<rect x="1058" y="539" width="324" height="34" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+<text x="1058" y="589" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">End date</text>
+<rect x="1058" y="597" width="324" height="34" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+<rect x="260" y="525" width="540" height="160" rx="8" fill="#fff" stroke="#c9c9c9" stroke-width="1"/>
+<text x="278" y="557" font-size="17" font-family="Arial, sans-serif" font-weight="700" fill="#222" text-anchor="start">Hydration Trend</text>
+<rect x="278" y="577" width="504" height="84" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+<text x="294" y="623" font-size="13" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Chart: water per bird/day and water-to-feed ratio</text>
+<rect x="830" y="525" width="540" height="160" rx="8" fill="#fff" stroke="#c9c9c9" stroke-width="1"/>
+<text x="848" y="557" font-size="17" font-family="Arial, sans-serif" font-weight="700" fill="#222" text-anchor="start">Recent Additives</text>
+<rect x="848" y="577" width="504" height="84" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+<text x="864" y="623" font-size="13" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Vitamin C • Electrolytes • Calcium supplement</text>
+</svg>

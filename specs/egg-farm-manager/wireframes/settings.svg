@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1000" viewBox="0 0 1440 1000">
+<rect width="100%" height="100%" fill="#f6f7f9"/>
+<rect x="0" y="0" width="1440" height="64" rx="0" fill="#ffffff" stroke="#dddddd" stroke-width="1"/>
+<text x="28" y="40" font-size="20" font-family="Arial, sans-serif" font-weight="700" fill="#222" text-anchor="start">Egg Farm Manager</text>
+<text x="1230" y="38" font-size="13" font-family="Arial, sans-serif" font-weight="400" fill="#777" text-anchor="start">Search</text>
+<rect x="1200" y="16" width="120" height="32" rx="16" fill="#f8f8f8" stroke="#ddd" stroke-width="1"/>
+<rect x="1340" y="16" width="72" height="32" rx="16" fill="#f8f8f8" stroke="#ddd" stroke-width="1"/>
+<text x="1376" y="37" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#555" text-anchor="middle">User</text>
+<rect x="0" y="64" width="230" height="936" rx="0" fill="#ffffff" stroke="#dddddd" stroke-width="1"/>
+<text x="34" y="112" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Dashboard</text>
+<text x="34" y="158" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Daily Entry</text>
+<text x="34" y="204" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Flocks</text>
+<text x="34" y="250" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Egg Inventory</text>
+<text x="34" y="296" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Feed &amp; Inventory</text>
+<text x="34" y="342" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Health</text>
+<text x="34" y="388" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Sales</text>
+<text x="34" y="434" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Reports</text>
+<rect x="18" y="456" width="194" height="38" rx="8" fill="#eeeeee" stroke="#dddddd" stroke-width="1"/>
+<text x="34" y="480" font-size="14" font-family="Arial, sans-serif" font-weight="600" fill="#222" text-anchor="start">Settings</text>
+<text x="260" y="112" font-size="30" font-family="Arial, sans-serif" font-weight="700" fill="#222" text-anchor="start">Settings &amp; Admin</text>
+<text x="260" y="142" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Users, roles, units, egg grades, packaging conversions, alert thresholds, and audit logs.</text>
+<rect x="260" y="175" width="1140" height="56" rx="8" fill="#fff" stroke="#c9c9c9" stroke-width="1"/>
+<rect x="278" y="188" width="96" height="30" rx="15" fill="#eeeeee" stroke="#ddd" stroke-width="1"/>
+<text x="292" y="209" font-size="12" font-family="Arial, sans-serif" font-weight="600" fill="#333" text-anchor="start">Users</text>
+<rect x="384" y="188" width="96" height="30" rx="15" fill="#f8f8f8" stroke="#ddd" stroke-width="1"/>
+<text x="398" y="209" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#333" text-anchor="start">Roles</text>
+<rect x="490" y="188" width="132" height="30" rx="15" fill="#f8f8f8" stroke="#ddd" stroke-width="1"/>
+<text x="504" y="209" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#333" text-anchor="start">Farm Settings</text>
+<rect x="632" y="188" width="108" height="30" rx="15" fill="#f8f8f8" stroke="#ddd" stroke-width="1"/>
+<text x="646" y="209" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#333" text-anchor="start">Egg Grades</text>
+<rect x="750" y="188" width="96" height="30" rx="15" fill="#f8f8f8" stroke="#ddd" stroke-width="1"/>
+<text x="764" y="209" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#333" text-anchor="start">Units</text>
+<rect x="856" y="188" width="96" height="30" rx="15" fill="#f8f8f8" stroke="#ddd" stroke-width="1"/>
+<text x="870" y="209" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#333" text-anchor="start">Alerts</text>
+<rect x="962" y="188" width="100" height="30" rx="15" fill="#f8f8f8" stroke="#ddd" stroke-width="1"/>
+<text x="976" y="209" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#333" text-anchor="start">Audit Log</text>
+<rect x="260" y="251" width="360" height="310" rx="8" fill="#fff" stroke="#c9c9c9" stroke-width="1"/>
+<text x="278" y="283" font-size="17" font-family="Arial, sans-serif" font-weight="700" fill="#222" text-anchor="start">Farm Defaults</text>
+<text x="278" y="317" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Currency</text>
+<rect x="278" y="325" width="324" height="34" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+<text x="278" y="375" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Unit system</text>
+<rect x="278" y="383" width="324" height="34" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+<text x="278" y="433" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Timezone</text>
+<rect x="278" y="441" width="324" height="34" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+<text x="278" y="491" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Default tray size</text>
+<rect x="278" y="499" width="324" height="34" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+<text x="278" y="549" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Default carton size</text>
+<rect x="278" y="557" width="324" height="34" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+<rect x="650" y="251" width="360" height="310" rx="8" fill="#fff" stroke="#c9c9c9" stroke-width="1"/>
+<text x="668" y="283" font-size="17" font-family="Arial, sans-serif" font-weight="700" fill="#222" text-anchor="start">Alert Thresholds</text>
+<text x="668" y="317" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Production drop %</text>
+<rect x="668" y="325" width="324" height="34" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+<text x="668" y="375" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Mortality spike %</text>
+<rect x="668" y="383" width="324" height="34" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+<text x="668" y="433" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Low feed days</text>
+<rect x="668" y="441" width="324" height="34" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+<text x="668" y="491" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Aging eggs days</text>
+<rect x="668" y="499" width="324" height="34" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+<rect x="1040" y="251" width="360" height="310" rx="8" fill="#fff" stroke="#c9c9c9" stroke-width="1"/>
+<text x="1058" y="283" font-size="17" font-family="Arial, sans-serif" font-weight="700" fill="#222" text-anchor="start">Roles</text>
+<text x="1058" y="317" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Owner</text>
+<rect x="1058" y="325" width="324" height="34" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+<text x="1058" y="375" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Manager</text>
+<rect x="1058" y="383" width="324" height="34" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+<text x="1058" y="433" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Worker</text>
+<rect x="1058" y="441" width="324" height="34" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+<text x="1058" y="491" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Sales</text>
+<rect x="1058" y="499" width="324" height="34" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+<text x="1058" y="549" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Vet</text>
+<rect x="1058" y="557" width="324" height="34" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+<text x="1058" y="607" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Read-only</text>
+<rect x="1058" y="615" width="324" height="34" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+</svg>

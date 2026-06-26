@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1000" viewBox="0 0 1440 1000">
+<rect width="100%" height="100%" fill="#f6f7f9"/>
+<rect x="0" y="0" width="1440" height="64" rx="0" fill="#ffffff" stroke="#dddddd" stroke-width="1"/>
+<text x="28" y="40" font-size="20" font-family="Arial, sans-serif" font-weight="700" fill="#222" text-anchor="start">Egg Farm Manager</text>
+<text x="1230" y="38" font-size="13" font-family="Arial, sans-serif" font-weight="400" fill="#777" text-anchor="start">Search</text>
+<rect x="1200" y="16" width="120" height="32" rx="16" fill="#f8f8f8" stroke="#ddd" stroke-width="1"/>
+<rect x="1340" y="16" width="72" height="32" rx="16" fill="#f8f8f8" stroke="#ddd" stroke-width="1"/>
+<text x="1376" y="37" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#555" text-anchor="middle">User</text>
+<rect x="0" y="64" width="230" height="936" rx="0" fill="#ffffff" stroke="#dddddd" stroke-width="1"/>
+<rect x="18" y="88" width="194" height="38" rx="8" fill="#eeeeee" stroke="#dddddd" stroke-width="1"/>
+<text x="34" y="112" font-size="14" font-family="Arial, sans-serif" font-weight="600" fill="#222" text-anchor="start">Dashboard</text>
+<text x="34" y="158" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Daily Entry</text>
+<text x="34" y="204" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Flocks</text>
+<text x="34" y="250" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Egg Inventory</text>
+<text x="34" y="296" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Feed &amp; Inventory</text>
+<text x="34" y="342" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Health</text>
+<text x="34" y="388" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Sales</text>
+<text x="34" y="434" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Reports</text>
+<text x="34" y="480" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Settings</text>
+<text x="260" y="112" font-size="30" font-family="Arial, sans-serif" font-weight="700" fill="#222" text-anchor="start">Dashboard</text>
+<text x="260" y="142" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Owner/manager overview of production, alerts, inventory, sales, and active flock KPIs.</text>
+<rect x="260" y="175" width="178" height="104" rx="8" fill="#fff" stroke="#c9c9c9" stroke-width="1"/>
+<text x="274" y="203" font-size="13" font-family="Arial, sans-serif" font-weight="600" fill="#666" text-anchor="start">Eggs Today</text>
+<text x="274" y="237" font-size="25" font-family="Arial, sans-serif" font-weight="700" fill="#222" text-anchor="start">1,284</text>
+<text x="274" y="263" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#777" text-anchor="start">↑ 4.2% vs yesterday</text>
+<rect x="456" y="175" width="178" height="104" rx="8" fill="#fff" stroke="#c9c9c9" stroke-width="1"/>
+<text x="470" y="203" font-size="13" font-family="Arial, sans-serif" font-weight="600" fill="#666" text-anchor="start">Saleable Eggs</text>
+<text x="470" y="237" font-size="25" font-family="Arial, sans-serif" font-weight="700" fill="#222" text-anchor="start">1,205</text>
+<text x="470" y="263" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#777" text-anchor="start">93.8% saleable</text>
+<rect x="652" y="175" width="178" height="104" rx="8" fill="#fff" stroke="#c9c9c9" stroke-width="1"/>
+<text x="666" y="203" font-size="13" font-family="Arial, sans-serif" font-weight="600" fill="#666" text-anchor="start">Hen-Day %</text>
+<text x="666" y="237" font-size="25" font-family="Arial, sans-serif" font-weight="700" fill="#222" text-anchor="start">82.6%</text>
+<text x="666" y="263" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#777" text-anchor="start">7-day avg 80.9%</text>
+<rect x="848" y="175" width="178" height="104" rx="8" fill="#fff" stroke="#c9c9c9" stroke-width="1"/>
+<text x="862" y="203" font-size="13" font-family="Arial, sans-serif" font-weight="600" fill="#666" text-anchor="start">Mortality Today</text>
+<text x="862" y="237" font-size="25" font-family="Arial, sans-serif" font-weight="700" fill="#222" text-anchor="start">3</text>
+<text x="862" y="263" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#777" text-anchor="start">Normal range</text>
+<rect x="1044" y="175" width="178" height="104" rx="8" fill="#fff" stroke="#c9c9c9" stroke-width="1"/>
+<text x="1058" y="203" font-size="13" font-family="Arial, sans-serif" font-weight="600" fill="#666" text-anchor="start">Feed Used</text>
+<text x="1058" y="237" font-size="25" font-family="Arial, sans-serif" font-weight="700" fill="#222" text-anchor="start">420 lb</text>
+<text x="1058" y="263" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#777" text-anchor="start">$168 estimated</text>
+<rect x="1240" y="175" width="178" height="104" rx="8" fill="#fff" stroke="#c9c9c9" stroke-width="1"/>
+<text x="1254" y="203" font-size="13" font-family="Arial, sans-serif" font-weight="600" fill="#666" text-anchor="start">Water Used</text>
+<text x="1254" y="237" font-size="25" font-family="Arial, sans-serif" font-weight="700" fill="#222" text-anchor="start">230 gal</text>
+<text x="1254" y="263" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#777" text-anchor="start">Normal trend</text>
+<rect x="260" y="307" width="540" height="160" rx="8" fill="#fff" stroke="#c9c9c9" stroke-width="1"/>
+<text x="278" y="339" font-size="17" font-family="Arial, sans-serif" font-weight="700" fill="#222" text-anchor="start">Production Trend</text>
+<rect x="278" y="359" width="504" height="84" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+<text x="294" y="405" font-size="13" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Line chart: total eggs, saleable eggs, hen-day %</text>
+<rect x="830" y="307" width="540" height="160" rx="8" fill="#fff" stroke="#c9c9c9" stroke-width="1"/>
+<text x="848" y="339" font-size="17" font-family="Arial, sans-serif" font-weight="700" fill="#222" text-anchor="start">Active Alerts</text>
+<rect x="848" y="359" width="504" height="84" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+<text x="864" y="405" font-size="13" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Feed stock low • Vaccine due tomorrow • Customer payment overdue</text>
+<rect x="260" y="497" width="540" height="160" rx="8" fill="#fff" stroke="#c9c9c9" stroke-width="1"/>
+<text x="278" y="529" font-size="17" font-family="Arial, sans-serif" font-weight="700" fill="#222" text-anchor="start">Egg Inventory by Grade</text>
+<rect x="278" y="549" width="504" height="84" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+<text x="294" y="595" font-size="13" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Large 42 trays • Medium 18 trays • Jumbo 6 trays • Cracked 2 trays</text>
+<rect x="830" y="497" width="540" height="160" rx="8" fill="#fff" stroke="#c9c9c9" stroke-width="1"/>
+<text x="848" y="529" font-size="17" font-family="Arial, sans-serif" font-weight="700" fill="#222" text-anchor="start">Flock Snapshot</text>
+<rect x="848" y="549" width="504" height="84" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+<text x="864" y="595" font-size="13" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Batch A: 84% HD • Batch B: 79% HD • Batch C: growing</text>
+</svg>

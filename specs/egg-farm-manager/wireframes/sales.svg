@@ -1,0 +1,94 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1000" viewBox="0 0 1440 1000">
+<rect width="100%" height="100%" fill="#f6f7f9"/>
+<rect x="0" y="0" width="1440" height="64" rx="0" fill="#ffffff" stroke="#dddddd" stroke-width="1"/>
+<text x="28" y="40" font-size="20" font-family="Arial, sans-serif" font-weight="700" fill="#222" text-anchor="start">Egg Farm Manager</text>
+<text x="1230" y="38" font-size="13" font-family="Arial, sans-serif" font-weight="400" fill="#777" text-anchor="start">Search</text>
+<rect x="1200" y="16" width="120" height="32" rx="16" fill="#f8f8f8" stroke="#ddd" stroke-width="1"/>
+<rect x="1340" y="16" width="72" height="32" rx="16" fill="#f8f8f8" stroke="#ddd" stroke-width="1"/>
+<text x="1376" y="37" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#555" text-anchor="middle">User</text>
+<rect x="0" y="64" width="230" height="936" rx="0" fill="#ffffff" stroke="#dddddd" stroke-width="1"/>
+<text x="34" y="112" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Dashboard</text>
+<text x="34" y="158" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Daily Entry</text>
+<text x="34" y="204" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Flocks</text>
+<text x="34" y="250" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Egg Inventory</text>
+<text x="34" y="296" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Feed &amp; Inventory</text>
+<text x="34" y="342" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Health</text>
+<rect x="18" y="364" width="194" height="38" rx="8" fill="#eeeeee" stroke="#dddddd" stroke-width="1"/>
+<text x="34" y="388" font-size="14" font-family="Arial, sans-serif" font-weight="600" fill="#222" text-anchor="start">Sales</text>
+<text x="34" y="434" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Reports</text>
+<text x="34" y="480" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Settings</text>
+<text x="260" y="112" font-size="30" font-family="Arial, sans-serif" font-weight="700" fill="#222" text-anchor="start">Sales, Customers &amp; Payments</text>
+<text x="260" y="142" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Record egg sales, customer balances, deliveries, and payments.</text>
+<rect x="260" y="175" width="178" height="104" rx="8" fill="#fff" stroke="#c9c9c9" stroke-width="1"/>
+<text x="274" y="203" font-size="13" font-family="Arial, sans-serif" font-weight="600" fill="#666" text-anchor="start">Sales Today</text>
+<text x="274" y="237" font-size="25" font-family="Arial, sans-serif" font-weight="700" fill="#222" text-anchor="start">$436</text>
+<text x="274" y="263" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#777" text-anchor="start">7 orders</text>
+<rect x="456" y="175" width="178" height="104" rx="8" fill="#fff" stroke="#c9c9c9" stroke-width="1"/>
+<text x="470" y="203" font-size="13" font-family="Arial, sans-serif" font-weight="600" fill="#666" text-anchor="start">Receivables</text>
+<text x="470" y="237" font-size="25" font-family="Arial, sans-serif" font-weight="700" fill="#222" text-anchor="start">$1,240</text>
+<text x="470" y="263" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#777" text-anchor="start">12 unpaid invoices</text>
+<rect x="652" y="175" width="178" height="104" rx="8" fill="#fff" stroke="#c9c9c9" stroke-width="1"/>
+<text x="666" y="203" font-size="13" font-family="Arial, sans-serif" font-weight="600" fill="#666" text-anchor="start">Top Customer</text>
+<text x="666" y="237" font-size="25" font-family="Arial, sans-serif" font-weight="700" fill="#222" text-anchor="start">Market Fresh</text>
+<text x="666" y="263" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#777" text-anchor="start">$860 this month</text>
+<rect x="848" y="175" width="178" height="104" rx="8" fill="#fff" stroke="#c9c9c9" stroke-width="1"/>
+<text x="862" y="203" font-size="13" font-family="Arial, sans-serif" font-weight="600" fill="#666" text-anchor="start">Inventory Reserved</text>
+<text x="862" y="237" font-size="25" font-family="Arial, sans-serif" font-weight="700" fill="#222" text-anchor="start">22 trays</text>
+<text x="862" y="263" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#777" text-anchor="start">Open orders</text>
+<rect x="260" y="307" width="1140" height="56" rx="8" fill="#fff" stroke="#c9c9c9" stroke-width="1"/>
+<rect x="278" y="320" width="190" height="30" rx="15" fill="#f8f8f8" stroke="#ddd" stroke-width="1"/>
+<text x="292" y="341" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#555" text-anchor="start">Search customer</text>
+<rect x="480" y="320" width="150" height="30" rx="15" fill="#f8f8f8" stroke="#ddd" stroke-width="1"/>
+<text x="494" y="341" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#555" text-anchor="start">Filter status</text>
+<rect x="642" y="320" width="150" height="30" rx="15" fill="#f8f8f8" stroke="#ddd" stroke-width="1"/>
+<text x="656" y="341" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#555" text-anchor="start">+ New Sale</text>
+<rect x="804" y="320" width="150" height="30" rx="15" fill="#f8f8f8" stroke="#ddd" stroke-width="1"/>
+<text x="818" y="341" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#555" text-anchor="start">+ Payment</text>
+<rect x="260" y="383" width="1140" height="300" rx="8" fill="#fff" stroke="#c9c9c9" stroke-width="1"/>
+<text x="278" y="415" font-size="17" font-family="Arial, sans-serif" font-weight="700" fill="#222" text-anchor="start">Records</text>
+<rect x="278" y="443" width="1104" height="38" rx="4" fill="#f0f0f0" stroke="#ddd" stroke-width="1"/>
+<text x="288.0" y="468" font-size="12" font-family="Arial, sans-serif" font-weight="700" fill="#555" text-anchor="start">Order</text>
+<text x="426.0" y="468" font-size="12" font-family="Arial, sans-serif" font-weight="700" fill="#555" text-anchor="start">Customer</text>
+<text x="564.0" y="468" font-size="12" font-family="Arial, sans-serif" font-weight="700" fill="#555" text-anchor="start">Date</text>
+<text x="702.0" y="468" font-size="12" font-family="Arial, sans-serif" font-weight="700" fill="#555" text-anchor="start">Items</text>
+<text x="840.0" y="468" font-size="12" font-family="Arial, sans-serif" font-weight="700" fill="#555" text-anchor="start">Total</text>
+<text x="978.0" y="468" font-size="12" font-family="Arial, sans-serif" font-weight="700" fill="#555" text-anchor="start">Paid</text>
+<text x="1116.0" y="468" font-size="12" font-family="Arial, sans-serif" font-weight="700" fill="#555" text-anchor="start">Balance</text>
+<text x="1254.0" y="468" font-size="12" font-family="Arial, sans-serif" font-weight="700" fill="#555" text-anchor="start">Status</text>
+<rect x="278" y="491" width="1104" height="38" rx="0" fill="#fff" stroke="#eee" stroke-width="1"/>
+<text x="288.0" y="516" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#444" text-anchor="start">—</text>
+<text x="426.0" y="516" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#444" text-anchor="start">—</text>
+<text x="564.0" y="516" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#444" text-anchor="start">—</text>
+<text x="702.0" y="516" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#444" text-anchor="start">—</text>
+<text x="840.0" y="516" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#444" text-anchor="start">—</text>
+<text x="978.0" y="516" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#444" text-anchor="start">—</text>
+<text x="1116.0" y="516" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#444" text-anchor="start">—</text>
+<text x="1254.0" y="516" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#444" text-anchor="start">—</text>
+<rect x="278" y="529" width="1104" height="38" rx="0" fill="#fff" stroke="#eee" stroke-width="1"/>
+<text x="288.0" y="554" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#444" text-anchor="start">—</text>
+<text x="426.0" y="554" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#444" text-anchor="start">—</text>
+<text x="564.0" y="554" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#444" text-anchor="start">—</text>
+<text x="702.0" y="554" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#444" text-anchor="start">—</text>
+<text x="840.0" y="554" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#444" text-anchor="start">—</text>
+<text x="978.0" y="554" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#444" text-anchor="start">—</text>
+<text x="1116.0" y="554" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#444" text-anchor="start">—</text>
+<text x="1254.0" y="554" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#444" text-anchor="start">—</text>
+<rect x="278" y="567" width="1104" height="38" rx="0" fill="#fff" stroke="#eee" stroke-width="1"/>
+<text x="288.0" y="592" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#444" text-anchor="start">—</text>
+<text x="426.0" y="592" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#444" text-anchor="start">—</text>
+<text x="564.0" y="592" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#444" text-anchor="start">—</text>
+<text x="702.0" y="592" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#444" text-anchor="start">—</text>
+<text x="840.0" y="592" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#444" text-anchor="start">—</text>
+<text x="978.0" y="592" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#444" text-anchor="start">—</text>
+<text x="1116.0" y="592" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#444" text-anchor="start">—</text>
+<text x="1254.0" y="592" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#444" text-anchor="start">—</text>
+<rect x="278" y="605" width="1104" height="38" rx="0" fill="#fff" stroke="#eee" stroke-width="1"/>
+<text x="288.0" y="630" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#444" text-anchor="start">—</text>
+<text x="426.0" y="630" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#444" text-anchor="start">—</text>
+<text x="564.0" y="630" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#444" text-anchor="start">—</text>
+<text x="702.0" y="630" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#444" text-anchor="start">—</text>
+<text x="840.0" y="630" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#444" text-anchor="start">—</text>
+<text x="978.0" y="630" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#444" text-anchor="start">—</text>
+<text x="1116.0" y="630" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#444" text-anchor="start">—</text>
+<text x="1254.0" y="630" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#444" text-anchor="start">—</text>
+</svg>

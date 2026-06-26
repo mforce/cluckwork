@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1000" viewBox="0 0 1440 1000">
+<rect width="100%" height="100%" fill="#f6f7f9"/>
+<rect x="0" y="0" width="1440" height="64" rx="0" fill="#ffffff" stroke="#dddddd" stroke-width="1"/>
+<text x="28" y="40" font-size="20" font-family="Arial, sans-serif" font-weight="700" fill="#222" text-anchor="start">Egg Farm Manager</text>
+<text x="1230" y="38" font-size="13" font-family="Arial, sans-serif" font-weight="400" fill="#777" text-anchor="start">Search</text>
+<rect x="1200" y="16" width="120" height="32" rx="16" fill="#f8f8f8" stroke="#ddd" stroke-width="1"/>
+<rect x="1340" y="16" width="72" height="32" rx="16" fill="#f8f8f8" stroke="#ddd" stroke-width="1"/>
+<text x="1376" y="37" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#555" text-anchor="middle">User</text>
+<rect x="0" y="64" width="230" height="936" rx="0" fill="#ffffff" stroke="#dddddd" stroke-width="1"/>
+<text x="34" y="112" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Dashboard</text>
+<text x="34" y="158" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Daily Entry</text>
+<text x="34" y="204" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Flocks</text>
+<text x="34" y="250" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Egg Inventory</text>
+<text x="34" y="296" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Feed &amp; Inventory</text>
+<text x="34" y="342" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Health</text>
+<text x="34" y="388" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Sales</text>
+<text x="34" y="434" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Reports</text>
+<text x="34" y="480" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Settings</text>
+<text x="260" y="112" font-size="30" font-family="Arial, sans-serif" font-weight="700" fill="#222" text-anchor="start">Flock Detail</text>
+<text x="260" y="142" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">One flock’s profile, KPIs, events, procedures, and history.</text>
+<rect x="260" y="175" width="178" height="104" rx="8" fill="#fff" stroke="#c9c9c9" stroke-width="1"/>
+<text x="274" y="203" font-size="13" font-family="Arial, sans-serif" font-weight="600" fill="#666" text-anchor="start">Age</text>
+<text x="274" y="237" font-size="25" font-family="Arial, sans-serif" font-weight="700" fill="#222" text-anchor="start">31 weeks</text>
+<text x="274" y="263" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#777" text-anchor="start">Placed 2026-01-21</text>
+<rect x="456" y="175" width="178" height="104" rx="8" fill="#fff" stroke="#c9c9c9" stroke-width="1"/>
+<text x="470" y="203" font-size="13" font-family="Arial, sans-serif" font-weight="600" fill="#666" text-anchor="start">Live Birds</text>
+<text x="470" y="237" font-size="25" font-family="Arial, sans-serif" font-weight="700" fill="#222" text-anchor="start">486</text>
+<text x="470" y="263" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#777" text-anchor="start">Start: 500</text>
+<rect x="652" y="175" width="178" height="104" rx="8" fill="#fff" stroke="#c9c9c9" stroke-width="1"/>
+<text x="666" y="203" font-size="13" font-family="Arial, sans-serif" font-weight="600" fill="#666" text-anchor="start">Hen-Day %</text>
+<text x="666" y="237" font-size="25" font-family="Arial, sans-serif" font-weight="700" fill="#222" text-anchor="start">84.1%</text>
+<text x="666" y="263" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#777" text-anchor="start">7-day average</text>
+<rect x="848" y="175" width="178" height="104" rx="8" fill="#fff" stroke="#c9c9c9" stroke-width="1"/>
+<text x="862" y="203" font-size="13" font-family="Arial, sans-serif" font-weight="600" fill="#666" text-anchor="start">Feed/Dozen</text>
+<text x="862" y="237" font-size="25" font-family="Arial, sans-serif" font-weight="700" fill="#222" text-anchor="start">$1.72</text>
+<text x="862" y="263" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#777" text-anchor="start">Current week</text>
+<rect x="260" y="307" width="1140" height="56" rx="8" fill="#fff" stroke="#c9c9c9" stroke-width="1"/>
+<rect x="278" y="320" width="96" height="30" rx="15" fill="#eeeeee" stroke="#ddd" stroke-width="1"/>
+<text x="292" y="341" font-size="12" font-family="Arial, sans-serif" font-weight="600" fill="#333" text-anchor="start">Overview</text>
+<rect x="384" y="320" width="108" height="30" rx="15" fill="#f8f8f8" stroke="#ddd" stroke-width="1"/>
+<text x="398" y="341" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#333" text-anchor="start">Production</text>
+<rect x="502" y="320" width="108" height="30" rx="15" fill="#f8f8f8" stroke="#ddd" stroke-width="1"/>
+<text x="516" y="341" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#333" text-anchor="start">Feed/Water</text>
+<rect x="620" y="320" width="96" height="30" rx="15" fill="#f8f8f8" stroke="#ddd" stroke-width="1"/>
+<text x="634" y="341" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#333" text-anchor="start">Health</text>
+<rect x="726" y="320" width="108" height="30" rx="15" fill="#f8f8f8" stroke="#ddd" stroke-width="1"/>
+<text x="740" y="341" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#333" text-anchor="start">Procedures</text>
+<rect x="844" y="320" width="96" height="30" rx="15" fill="#f8f8f8" stroke="#ddd" stroke-width="1"/>
+<text x="858" y="341" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#333" text-anchor="start">Costs</text>
+<rect x="950" y="320" width="96" height="30" rx="15" fill="#f8f8f8" stroke="#ddd" stroke-width="1"/>
+<text x="964" y="341" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#333" text-anchor="start">Files</text>
+<rect x="260" y="383" width="540" height="160" rx="8" fill="#fff" stroke="#c9c9c9" stroke-width="1"/>
+<text x="278" y="415" font-size="17" font-family="Arial, sans-serif" font-weight="700" fill="#222" text-anchor="start">Production Curve</text>
+<rect x="278" y="435" width="504" height="84" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+<text x="294" y="481" font-size="13" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Chart: eggs/day and hen-day %</text>
+<rect x="830" y="383" width="540" height="160" rx="8" fill="#fff" stroke="#c9c9c9" stroke-width="1"/>
+<text x="848" y="415" font-size="17" font-family="Arial, sans-serif" font-weight="700" fill="#222" text-anchor="start">Recent Events</text>
+<rect x="848" y="435" width="504" height="84" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+<text x="864" y="481" font-size="13" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Vaccination • Beak treatment follow-up • Health note • Mortality record</text>
+<rect x="260" y="573" width="540" height="160" rx="8" fill="#fff" stroke="#c9c9c9" stroke-width="1"/>
+<text x="278" y="605" font-size="17" font-family="Arial, sans-serif" font-weight="700" fill="#222" text-anchor="start">Flock Profile</text>
+<rect x="278" y="625" width="504" height="84" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+<text x="294" y="671" font-size="13" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Breed, supplier, placement date, expected depletion, beak-treated status</text>
+</svg>
