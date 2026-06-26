@@ -1,18 +1,30 @@
-# Wireframes
+# Egg Farm Manager v2 Wireframes
 
-This package contains low-fidelity SVG wireframes and an HTML overview for the poultry egg-producing farm management system.
+Low-fidelity SVG wireframes for the v2 specification.
 
-- [Dashboard](./dashboard.svg) — Owner/manager overview of production, alerts, inventory, sales, and active flock KPIs.
-- [Daily Entry](./daily_entry.svg) — Fast worker screen for recording eggs, feed, water, mortality, environment, and notes.
-- [Flocks](./flocks.svg) — List and manage layer batches by farm/house/stage with performance summaries.
-- [Flock Detail](./flock_detail.svg) — One flock’s profile, KPIs, events, procedures, and history.
-- [Egg Inventory](./egg_inventory.svg) — Track inventory by grade, unit, age, location, and movement history.
-- [Feed & General Inventory](./feed_inventory.svg) — Manage feed, additives, medications, vaccines, packaging, bedding, and supplies.
-- [Water, Hydration & Additives](./water_additives.svg) — Track water consumption, water quality, and supplement/additive applications.
-- [Health & Welfare](./health_welfare.svg) — Unified area for mortality, symptoms, medication, vaccination, welfare observations, and withdrawal status.
-- [Beak Treatment](./beak_treatment.svg) — Structured records for beak trimming/treatment and post-procedure follow-ups.
-- [Sales, Customers & Payments](./sales.svg) — Record egg sales, customer balances, deliveries, and payments.
-- [Expenses](./expenses.svg) — Track operating costs by category, flock, house, supplier, and period.
-- [Reports](./reports.svg) — Production, inventory, flock performance, health, and financial reporting.
-- [Settings & Admin](./settings.svg) — Users, roles, units, egg grades, packaging conversions, alert thresholds, and audit logs.
-- [Mobile Daily Entry](./mobile_daily_entry.svg) — Phone-first version of the daily entry workflow for farm workers.
+- [Login](./login.svg) — Authentication entry point.
+- [Account / Farm Setup](./setup.svg) — Create account, first farm, first house, and first flock.
+- [Dashboard](./dashboard.svg) — Farm-level operational overview.
+- [Daily Entry](./daily_entry.svg) — Fast daily workflow with draft/submitted/locked status and copy-from-yesterday.
+- [Flocks](./flocks.svg) — Manage layer batches and flock status.
+- [Flock Detail](./flock_detail.svg) — Flock KPIs, status, withdrawal, and history.
+- [Egg Production](./egg_production.svg) — Production records from daily entries by grade.
+- [Egg Lots / Traceability](./egg_lots.svg) — Source-of-truth egg inventory lots by flock, production date, grade, status, and age.
+- [Egg Inventory](./egg_inventory.svg) — Aggregated view over egg lots with movement history.
+- [Sales Order](./sales_order.svg) — Create egg sale and customer payment.
+- [Sales Lot Allocation](./sales_allocation.svg) — FIFO/manual allocation from egg lots with restriction blocking.
+- [Customers](./customers.svg) — Customer list, balances, and order history.
+- [Feed & Inventory](./feed_inventory.svg) — General inventory ledger for feed, medications, vaccines, additives, packaging, and supplies.
+- [Inventory Reconciliation](./reconciliation.svg) — Correct drift through required reason and ledger movement.
+- [Water & Additives](./water_additives.svg) — Track water usage, hydration KPIs, and additive applications.
+- [Health & Welfare](./health_welfare.svg) — Health events with structured welfare observation tags.
+- [Medication & Withdrawal](./medication_withdrawal.svg) — Record medication and enforce egg withdrawal restrictions.
+- [Beak Treatment](./beak_treatment.svg) — Phase 2 welfare procedure records and follow-ups.
+- [Expenses](./expenses.svg) — Costs with allocation method for profitability.
+- [Alerts & Tasks](./alerts_tasks.svg) — Dedicated center for critical alerts and operational tasks.
+- [Reports](./reports.svg) — Production, traceability, inventory, sales, and financial reports.
+- [Users & Roles](./users_roles.svg) — Role permissions and farm/house/flock data scope.
+- [Audit Log](./audit_log.svg) — Trace critical changes and overrides.
+- [Legacy Import](./legacy_import.svg) — Wizard for existing flocks, historical production, starting inventory, and sales history.
+- [Settings](./settings.svg) — Farm defaults, grades, units, alerts, locks, and backups.
+- [Mobile Daily Entry](./mobile_daily_entry.svg) — Phone-first daily workflow.

@@ -1,49 +1,49 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="430" height="920" viewBox="0 0 430 920">
+<svg xmlns="http://www.w3.org/2000/svg" width="430" height="930" viewBox="0 0 430 930">
 <rect width="100%" height="100%" fill="#f6f7f9"/>
 <rect x="0" y="0" width="430" height="64" rx="0" fill="#fff" stroke="#ddd" stroke-width="1"/>
-<text x="22" y="40" font-size="21" font-family="Arial, sans-serif" font-weight="700" fill="#222" text-anchor="start">Mobile Daily Entry</text>
-<rect x="378" y="18" width="30" height="30" rx="15" fill="#f8f8f8" stroke="#ddd" stroke-width="1"/>
-<text x="22" y="88" font-size="14" font-family="Arial, sans-serif" font-weight="700" fill="#444" text-anchor="start">Progress</text>
-<rect x="22" y="104" width="386" height="48" rx="8" fill="#fff" stroke="#c9c9c9" stroke-width="1"/>
-<rect x="36" y="116" width="24" height="24" rx="12" fill="#eeeeee" stroke="#ccc" stroke-width="1"/>
-<text x="48" y="134" font-size="12" font-family="Arial, sans-serif" font-weight="700" fill="#222" text-anchor="middle">1</text>
-<text x="76" y="135" font-size="13" font-family="Arial, sans-serif" font-weight="400" fill="#444" text-anchor="start">Select Date / House / Flock</text>
-<rect x="22" y="160" width="386" height="48" rx="8" fill="#fff" stroke="#c9c9c9" stroke-width="1"/>
-<rect x="36" y="172" width="24" height="24" rx="12" fill="#eeeeee" stroke="#ccc" stroke-width="1"/>
-<text x="48" y="190" font-size="12" font-family="Arial, sans-serif" font-weight="700" fill="#222" text-anchor="middle">2</text>
-<text x="76" y="191" font-size="13" font-family="Arial, sans-serif" font-weight="400" fill="#444" text-anchor="start">Enter Eggs</text>
-<rect x="22" y="216" width="386" height="48" rx="8" fill="#fff" stroke="#c9c9c9" stroke-width="1"/>
-<rect x="36" y="228" width="24" height="24" rx="12" fill="#eeeeee" stroke="#ccc" stroke-width="1"/>
-<text x="48" y="246" font-size="12" font-family="Arial, sans-serif" font-weight="700" fill="#222" text-anchor="middle">3</text>
-<text x="76" y="247" font-size="13" font-family="Arial, sans-serif" font-weight="400" fill="#444" text-anchor="start">Enter Feed &amp; Water</text>
-<rect x="22" y="272" width="386" height="48" rx="8" fill="#fff" stroke="#c9c9c9" stroke-width="1"/>
-<rect x="36" y="284" width="24" height="24" rx="12" fill="#eeeeee" stroke="#ccc" stroke-width="1"/>
-<text x="48" y="302" font-size="12" font-family="Arial, sans-serif" font-weight="700" fill="#222" text-anchor="middle">4</text>
-<text x="76" y="303" font-size="13" font-family="Arial, sans-serif" font-weight="400" fill="#444" text-anchor="start">Mortality / Health Notes</text>
-<rect x="22" y="328" width="386" height="48" rx="8" fill="#fff" stroke="#c9c9c9" stroke-width="1"/>
-<rect x="36" y="340" width="24" height="24" rx="12" fill="#eeeeee" stroke="#ccc" stroke-width="1"/>
-<text x="48" y="358" font-size="12" font-family="Arial, sans-serif" font-weight="700" fill="#222" text-anchor="middle">5</text>
-<text x="76" y="359" font-size="13" font-family="Arial, sans-serif" font-weight="400" fill="#444" text-anchor="start">Review &amp; Save</text>
-<rect x="22" y="396" width="386" height="410" rx="8" fill="#fff" stroke="#c9c9c9" stroke-width="1"/>
-<text x="40" y="428" font-size="18" font-family="Arial, sans-serif" font-weight="700" fill="#222" text-anchor="start">Today’s Entry</text>
-<text x="40" y="464" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Good eggs</text>
-<rect x="40" y="472" width="350" height="38" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
-<text x="40" y="522" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Cracked</text>
-<rect x="40" y="530" width="350" height="38" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
-<text x="40" y="580" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Dirty</text>
-<rect x="40" y="588" width="350" height="38" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
-<text x="40" y="638" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Feed used</text>
-<rect x="40" y="646" width="350" height="38" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
-<text x="40" y="696" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Water used</text>
-<rect x="40" y="704" width="350" height="38" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
-<text x="40" y="754" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Deaths</text>
-<rect x="40" y="762" width="350" height="38" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
-<text x="40" y="812" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Culls</text>
-<rect x="40" y="820" width="350" height="38" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
-<text x="40" y="870" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Notes</text>
-<rect x="40" y="878" width="350" height="38" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
-<rect x="22" y="830" width="180" height="48" rx="8" fill="#eeeeee" stroke="#bbb" stroke-width="1"/>
-<text x="112" y="861" font-size="14" font-family="Arial, sans-serif" font-weight="700" fill="#222" text-anchor="middle">Save Draft</text>
-<rect x="218" y="830" width="180" height="48" rx="8" fill="#eeeeee" stroke="#bbb" stroke-width="1"/>
-<text x="308" y="861" font-size="14" font-family="Arial, sans-serif" font-weight="700" fill="#222" text-anchor="middle">Submit</text>
+<text x="22" y="40" font-family="Arial, sans-serif" font-size="21" font-weight="700" fill="#222" text-anchor="start">Mobile Daily Entry</text>
+<rect x="22" y="86" width="386" height="46" rx="8" fill="#fff9e8" stroke="#ead8a0" stroke-width="1"/>
+<text x="40" y="115" font-family="Arial, sans-serif" font-size="12" font-weight="700" fill="#6f5200" text-anchor="start">Draft • House 1 / Layer Batch A • Copy from yesterday</text>
+<rect x="22" y="156" width="386" height="42" rx="8" fill="#fff" stroke="#d4d4d4" stroke-width="1"/>
+<rect x="38" y="165" width="24" height="24" rx="12" fill="#e9eef8" stroke="#b9c8e8" stroke-width="1"/>
+<text x="50" y="182" font-family="Arial, sans-serif" font-size="11" font-weight="700" fill="#1c3d75" text-anchor="middle">1</text>
+<text x="78" y="183" font-family="Arial, sans-serif" font-size="13" font-weight="400" fill="#444" text-anchor="start">Context</text>
+<rect x="22" y="205" width="386" height="42" rx="8" fill="#fff" stroke="#d4d4d4" stroke-width="1"/>
+<rect x="38" y="214" width="24" height="24" rx="12" fill="#e9eef8" stroke="#b9c8e8" stroke-width="1"/>
+<text x="50" y="231" font-family="Arial, sans-serif" font-size="11" font-weight="700" fill="#1c3d75" text-anchor="middle">2</text>
+<text x="78" y="232" font-family="Arial, sans-serif" font-size="13" font-weight="400" fill="#444" text-anchor="start">Copy Yesterday</text>
+<rect x="22" y="254" width="386" height="42" rx="8" fill="#fff" stroke="#d4d4d4" stroke-width="1"/>
+<rect x="38" y="263" width="24" height="24" rx="12" fill="#e9eef8" stroke="#b9c8e8" stroke-width="1"/>
+<text x="50" y="280" font-family="Arial, sans-serif" font-size="11" font-weight="700" fill="#1c3d75" text-anchor="middle">3</text>
+<text x="78" y="281" font-family="Arial, sans-serif" font-size="13" font-weight="400" fill="#444" text-anchor="start">Eggs</text>
+<rect x="22" y="303" width="386" height="42" rx="8" fill="#fff" stroke="#d4d4d4" stroke-width="1"/>
+<rect x="38" y="312" width="24" height="24" rx="12" fill="#e9eef8" stroke="#b9c8e8" stroke-width="1"/>
+<text x="50" y="329" font-family="Arial, sans-serif" font-size="11" font-weight="700" fill="#1c3d75" text-anchor="middle">4</text>
+<text x="78" y="330" font-family="Arial, sans-serif" font-size="13" font-weight="400" fill="#444" text-anchor="start">Feed/Water</text>
+<rect x="22" y="352" width="386" height="42" rx="8" fill="#fff" stroke="#d4d4d4" stroke-width="1"/>
+<rect x="38" y="361" width="24" height="24" rx="12" fill="#e9eef8" stroke="#b9c8e8" stroke-width="1"/>
+<text x="50" y="378" font-family="Arial, sans-serif" font-size="11" font-weight="700" fill="#1c3d75" text-anchor="middle">5</text>
+<text x="78" y="379" font-family="Arial, sans-serif" font-size="13" font-weight="400" fill="#444" text-anchor="start">Mortality</text>
+<rect x="22" y="401" width="386" height="42" rx="8" fill="#fff" stroke="#d4d4d4" stroke-width="1"/>
+<rect x="38" y="410" width="24" height="24" rx="12" fill="#e9eef8" stroke="#b9c8e8" stroke-width="1"/>
+<text x="50" y="427" font-family="Arial, sans-serif" font-size="11" font-weight="700" fill="#1c3d75" text-anchor="middle">6</text>
+<text x="78" y="428" font-family="Arial, sans-serif" font-size="13" font-weight="400" fill="#444" text-anchor="start">Review</text>
+<rect x="22" y="464" width="386" height="360" rx="8" fill="#fff" stroke="#d4d4d4" stroke-width="1"/>
+<text x="40" y="496" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#222" text-anchor="start">Quick Entry</text>
+<text x="40" y="530" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#666" text-anchor="start">House/Flock</text>
+<rect x="40" y="538" width="350" height="36" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+<text x="40" y="584" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#666" text-anchor="start">Large eggs</text>
+<rect x="40" y="592" width="350" height="36" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+<text x="40" y="638" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#666" text-anchor="start">Medium eggs</text>
+<rect x="40" y="646" width="350" height="36" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+<text x="40" y="692" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#666" text-anchor="start">Cracked</text>
+<rect x="40" y="700" width="350" height="36" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+<text x="40" y="746" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#666" text-anchor="start">Feed used</text>
+<rect x="40" y="754" width="350" height="36" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+<text x="40" y="800" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#666" text-anchor="start">Water used</text>
+<rect x="40" y="808" width="350" height="36" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+<rect x="22" y="850" width="180" height="48" rx="8" fill="#e9eef8" stroke="#b9c8e8" stroke-width="1"/>
+<text x="112" y="881" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#1c3d75" text-anchor="middle">Save Draft</text>
+<rect x="218" y="850" width="180" height="48" rx="8" fill="#e9eef8" stroke="#b9c8e8" stroke-width="1"/>
+<text x="308" y="881" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#1c3d75" text-anchor="middle">Submit</text>
 </svg>

@@ -1,46 +1,50 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1000" viewBox="0 0 1440 1000">
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1020" viewBox="0 0 1440 1020">
 <rect width="100%" height="100%" fill="#f6f7f9"/>
-<rect x="0" y="0" width="1440" height="64" rx="0" fill="#ffffff" stroke="#dddddd" stroke-width="1"/>
-<text x="28" y="40" font-size="20" font-family="Arial, sans-serif" font-weight="700" fill="#222" text-anchor="start">Egg Farm Manager</text>
-<text x="1230" y="38" font-size="13" font-family="Arial, sans-serif" font-weight="400" fill="#777" text-anchor="start">Search</text>
-<rect x="1200" y="16" width="120" height="32" rx="16" fill="#f8f8f8" stroke="#ddd" stroke-width="1"/>
-<rect x="1340" y="16" width="72" height="32" rx="16" fill="#f8f8f8" stroke="#ddd" stroke-width="1"/>
-<text x="1376" y="37" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#555" text-anchor="middle">User</text>
-<rect x="0" y="64" width="230" height="936" rx="0" fill="#ffffff" stroke="#dddddd" stroke-width="1"/>
-<text x="34" y="112" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Dashboard</text>
-<text x="34" y="158" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Daily Entry</text>
-<text x="34" y="204" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Flocks</text>
-<text x="34" y="250" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Egg Inventory</text>
-<text x="34" y="296" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Feed &amp; Inventory</text>
-<text x="34" y="342" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Health</text>
-<text x="34" y="388" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Sales</text>
-<rect x="18" y="410" width="194" height="38" rx="8" fill="#eeeeee" stroke="#dddddd" stroke-width="1"/>
-<text x="34" y="434" font-size="14" font-family="Arial, sans-serif" font-weight="600" fill="#222" text-anchor="start">Reports</text>
-<text x="34" y="480" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Settings</text>
-<text x="260" y="112" font-size="30" font-family="Arial, sans-serif" font-weight="700" fill="#222" text-anchor="start">Reports</text>
-<text x="260" y="142" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Production, inventory, flock performance, health, and financial reporting.</text>
-<rect x="260" y="175" width="178" height="104" rx="8" fill="#fff" stroke="#c9c9c9" stroke-width="1"/>
-<text x="274" y="203" font-size="13" font-family="Arial, sans-serif" font-weight="600" fill="#666" text-anchor="start">Production</text>
-<text x="274" y="237" font-size="25" font-family="Arial, sans-serif" font-weight="700" fill="#222" text-anchor="start">Eggs, HD%, grade trends</text>
-<text x="274" y="263" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#777" text-anchor="start">Export CSV/PDF</text>
-<rect x="456" y="175" width="178" height="104" rx="8" fill="#fff" stroke="#c9c9c9" stroke-width="1"/>
-<text x="470" y="203" font-size="13" font-family="Arial, sans-serif" font-weight="600" fill="#666" text-anchor="start">Flock Performance</text>
-<text x="470" y="237" font-size="25" font-family="Arial, sans-serif" font-weight="700" fill="#222" text-anchor="start">Mortality, feed, water</text>
-<text x="470" y="263" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#777" text-anchor="start">Compare flocks</text>
-<rect x="652" y="175" width="178" height="104" rx="8" fill="#fff" stroke="#c9c9c9" stroke-width="1"/>
-<text x="666" y="203" font-size="13" font-family="Arial, sans-serif" font-weight="600" fill="#666" text-anchor="start">Inventory</text>
-<text x="666" y="237" font-size="25" font-family="Arial, sans-serif" font-weight="700" fill="#222" text-anchor="start">Stock, expiry, movements</text>
-<text x="666" y="263" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#777" text-anchor="start">Audit-ready</text>
-<rect x="848" y="175" width="178" height="104" rx="8" fill="#fff" stroke="#c9c9c9" stroke-width="1"/>
-<text x="862" y="203" font-size="13" font-family="Arial, sans-serif" font-weight="600" fill="#666" text-anchor="start">Financial</text>
-<text x="862" y="237" font-size="25" font-family="Arial, sans-serif" font-weight="700" fill="#222" text-anchor="start">P&amp;L, profit/dozen</text>
-<text x="862" y="263" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#777" text-anchor="start">Owner view</text>
-<rect x="260" y="307" width="540" height="160" rx="8" fill="#fff" stroke="#c9c9c9" stroke-width="1"/>
-<text x="278" y="339" font-size="17" font-family="Arial, sans-serif" font-weight="700" fill="#222" text-anchor="start">Report Builder</text>
-<rect x="278" y="359" width="504" height="84" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
-<text x="294" y="405" font-size="13" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Date range • farm • house • flock • group by • export</text>
-<rect x="830" y="307" width="540" height="160" rx="8" fill="#fff" stroke="#c9c9c9" stroke-width="1"/>
-<text x="848" y="339" font-size="17" font-family="Arial, sans-serif" font-weight="700" fill="#222" text-anchor="start">Saved Reports</text>
-<rect x="848" y="359" width="504" height="84" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
-<text x="864" y="405" font-size="13" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Monthly P&amp;L • Weekly Egg Production • Feed Cost per Dozen</text>
+<rect x="0" y="0" width="1440" height="64" rx="0" fill="#fff" stroke="#ddd" stroke-width="1"/>
+<text x="28" y="40" font-family="Arial, sans-serif" font-size="20" font-weight="700" fill="#222" text-anchor="start">Egg Farm Manager</text>
+<rect x="1030" y="16" width="180" height="32" rx="16" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+<text x="1048" y="37" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#555" text-anchor="start">Farm: Main Farm</text>
+<rect x="1220" y="16" width="96" height="32" rx="16" fill="#fff4f4" stroke="#e6b0b0" stroke-width="1"/>
+<text x="1268" y="37" font-family="Arial, sans-serif" font-size="12" font-weight="700" fill="#8a1f1f" text-anchor="middle">Alerts 5</text>
+<rect x="1330" y="16" width="82" height="32" rx="16" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+<text x="1371" y="37" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#555" text-anchor="middle">User</text>
+<rect x="0" y="64" width="230" height="956" rx="0" fill="#fff" stroke="#ddd" stroke-width="1"/>
+<text x="34" y="110" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#666" text-anchor="start">Dashboard</text>
+<text x="34" y="154" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#666" text-anchor="start">Daily Entry</text>
+<text x="34" y="198" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#666" text-anchor="start">Flocks</text>
+<text x="34" y="242" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#666" text-anchor="start">Egg Lots</text>
+<text x="34" y="286" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#666" text-anchor="start">Egg Inventory</text>
+<text x="34" y="330" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#666" text-anchor="start">Sales</text>
+<text x="34" y="374" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#666" text-anchor="start">Feed &amp; Inventory</text>
+<text x="34" y="418" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#666" text-anchor="start">Health</text>
+<text x="34" y="462" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#666" text-anchor="start">Alerts</text>
+<rect x="18" y="482" width="194" height="38" rx="8" fill="#eeeeee" stroke="#ddd" stroke-width="1"/>
+<text x="34" y="506" font-family="Arial, sans-serif" font-size="14" font-weight="600" fill="#222" text-anchor="start">Reports</text>
+<text x="34" y="550" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#666" text-anchor="start">Settings</text>
+<text x="260" y="112" font-family="Arial, sans-serif" font-size="30" font-weight="700" fill="#222" text-anchor="start">Reports</text>
+<text x="260" y="142" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#666" text-anchor="start">Production, traceability, inventory, sales, and financial reports.</text>
+<rect x="260" y="168" width="178" height="104" rx="8" fill="#fff" stroke="#d4d4d4" stroke-width="1"/>
+<text x="274" y="196" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#666" text-anchor="start">Production</text>
+<text x="274" y="230" font-family="Arial, sans-serif" font-size="24" font-weight="700" fill="#222" text-anchor="start">Eggs &amp; HD%</text>
+<text x="274" y="256" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#777" text-anchor="start">7/30-day trends</text>
+<rect x="456" y="168" width="178" height="104" rx="8" fill="#fff" stroke="#d4d4d4" stroke-width="1"/>
+<text x="470" y="196" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#666" text-anchor="start">Traceability</text>
+<text x="470" y="230" font-family="Arial, sans-serif" font-size="24" font-weight="700" fill="#222" text-anchor="start">Sale → Lot → Flock</text>
+<text x="470" y="256" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#777" text-anchor="start">Compliance</text>
+<rect x="652" y="168" width="178" height="104" rx="8" fill="#fff" stroke="#d4d4d4" stroke-width="1"/>
+<text x="666" y="196" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#666" text-anchor="start">Inventory</text>
+<text x="666" y="230" font-family="Arial, sans-serif" font-size="24" font-weight="700" fill="#222" text-anchor="start">Stock &amp; movements</text>
+<text x="666" y="256" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#777" text-anchor="start">Audit</text>
+<rect x="848" y="168" width="178" height="104" rx="8" fill="#fff" stroke="#d4d4d4" stroke-width="1"/>
+<text x="862" y="196" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#666" text-anchor="start">Financial</text>
+<text x="862" y="230" font-family="Arial, sans-serif" font-size="24" font-weight="700" fill="#222" text-anchor="start">P&amp;L</text>
+<text x="862" y="256" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#777" text-anchor="start">Profit/dozen</text>
+<rect x="260" y="300" width="540" height="150" rx="8" fill="#fff" stroke="#d4d4d4" stroke-width="1"/>
+<text x="278" y="332" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#222" text-anchor="start">Report Builder</text>
+<rect x="278" y="352" width="504" height="74" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+<text x="294" y="395" font-family="Arial, sans-serif" font-size="13" font-weight="400" fill="#666" text-anchor="start">Date range • farm • flock • group by • export</text>
+<rect x="830" y="300" width="540" height="150" rx="8" fill="#fff" stroke="#d4d4d4" stroke-width="1"/>
+<text x="848" y="332" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#222" text-anchor="start">Saved Reports</text>
+<rect x="848" y="352" width="504" height="74" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+<text x="864" y="395" font-family="Arial, sans-serif" font-size="13" font-weight="400" fill="#666" text-anchor="start">Weekly production • Feed cost • Customer balances</text>
 </svg>

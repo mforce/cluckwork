@@ -1,88 +1,92 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1000" viewBox="0 0 1440 1000">
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1020" viewBox="0 0 1440 1020">
 <rect width="100%" height="100%" fill="#f6f7f9"/>
-<rect x="0" y="0" width="1440" height="64" rx="0" fill="#ffffff" stroke="#dddddd" stroke-width="1"/>
-<text x="28" y="40" font-size="20" font-family="Arial, sans-serif" font-weight="700" fill="#222" text-anchor="start">Egg Farm Manager</text>
-<text x="1230" y="38" font-size="13" font-family="Arial, sans-serif" font-weight="400" fill="#777" text-anchor="start">Search</text>
-<rect x="1200" y="16" width="120" height="32" rx="16" fill="#f8f8f8" stroke="#ddd" stroke-width="1"/>
-<rect x="1340" y="16" width="72" height="32" rx="16" fill="#f8f8f8" stroke="#ddd" stroke-width="1"/>
-<text x="1376" y="37" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#555" text-anchor="middle">User</text>
-<rect x="0" y="64" width="230" height="936" rx="0" fill="#ffffff" stroke="#dddddd" stroke-width="1"/>
-<text x="34" y="112" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Dashboard</text>
-<text x="34" y="158" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Daily Entry</text>
-<text x="34" y="204" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Flocks</text>
-<text x="34" y="250" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Egg Inventory</text>
-<text x="34" y="296" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Feed &amp; Inventory</text>
-<text x="34" y="342" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Health</text>
-<text x="34" y="388" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Sales</text>
-<text x="34" y="434" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Reports</text>
-<text x="34" y="480" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Settings</text>
-<text x="260" y="112" font-size="30" font-family="Arial, sans-serif" font-weight="700" fill="#222" text-anchor="start">Expenses</text>
-<text x="260" y="142" font-size="14" font-family="Arial, sans-serif" font-weight="400" fill="#666" text-anchor="start">Track operating costs by category, flock, house, supplier, and period.</text>
-<rect x="260" y="175" width="178" height="104" rx="8" fill="#fff" stroke="#c9c9c9" stroke-width="1"/>
-<text x="274" y="203" font-size="13" font-family="Arial, sans-serif" font-weight="600" fill="#666" text-anchor="start">Expenses This Month</text>
-<text x="274" y="237" font-size="25" font-family="Arial, sans-serif" font-weight="700" fill="#222" text-anchor="start">$4,820</text>
-<text x="274" y="263" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#777" text-anchor="start">Feed is 68%</text>
-<rect x="456" y="175" width="178" height="104" rx="8" fill="#fff" stroke="#c9c9c9" stroke-width="1"/>
-<text x="470" y="203" font-size="13" font-family="Arial, sans-serif" font-weight="600" fill="#666" text-anchor="start">Feed Cost</text>
-<text x="470" y="237" font-size="25" font-family="Arial, sans-serif" font-weight="700" fill="#222" text-anchor="start">$3,278</text>
-<text x="470" y="263" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#777" text-anchor="start">$1.72/dozen</text>
-<rect x="652" y="175" width="178" height="104" rx="8" fill="#fff" stroke="#c9c9c9" stroke-width="1"/>
-<text x="666" y="203" font-size="13" font-family="Arial, sans-serif" font-weight="600" fill="#666" text-anchor="start">Packaging</text>
-<text x="666" y="237" font-size="25" font-family="Arial, sans-serif" font-weight="700" fill="#222" text-anchor="start">$310</text>
-<text x="666" y="263" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#777" text-anchor="start">$0.16/dozen</text>
-<rect x="848" y="175" width="178" height="104" rx="8" fill="#fff" stroke="#c9c9c9" stroke-width="1"/>
-<text x="862" y="203" font-size="13" font-family="Arial, sans-serif" font-weight="600" fill="#666" text-anchor="start">Repairs</text>
-<text x="862" y="237" font-size="25" font-family="Arial, sans-serif" font-weight="700" fill="#222" text-anchor="start">$260</text>
-<text x="862" y="263" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#777" text-anchor="start">2 open items</text>
-<rect x="260" y="307" width="1140" height="56" rx="8" fill="#fff" stroke="#c9c9c9" stroke-width="1"/>
-<rect x="278" y="320" width="190" height="30" rx="15" fill="#f8f8f8" stroke="#ddd" stroke-width="1"/>
-<text x="292" y="341" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#555" text-anchor="start">Filter category</text>
-<rect x="480" y="320" width="190" height="30" rx="15" fill="#f8f8f8" stroke="#ddd" stroke-width="1"/>
-<text x="494" y="341" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#555" text-anchor="start">Filter supplier</text>
-<rect x="682" y="320" width="150" height="30" rx="15" fill="#f8f8f8" stroke="#ddd" stroke-width="1"/>
-<text x="696" y="341" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#555" text-anchor="start">Filter flock</text>
-<rect x="844" y="320" width="150" height="30" rx="15" fill="#f8f8f8" stroke="#ddd" stroke-width="1"/>
-<text x="858" y="341" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#555" text-anchor="start">+ Expense</text>
-<rect x="260" y="383" width="1140" height="300" rx="8" fill="#fff" stroke="#c9c9c9" stroke-width="1"/>
-<text x="278" y="415" font-size="17" font-family="Arial, sans-serif" font-weight="700" fill="#222" text-anchor="start">Records</text>
-<rect x="278" y="443" width="1104" height="38" rx="4" fill="#f0f0f0" stroke="#ddd" stroke-width="1"/>
-<text x="288.0" y="468" font-size="12" font-family="Arial, sans-serif" font-weight="700" fill="#555" text-anchor="start">Date</text>
-<text x="445.7142857142857" y="468" font-size="12" font-family="Arial, sans-serif" font-weight="700" fill="#555" text-anchor="start">Category</text>
-<text x="603.4285714285714" y="468" font-size="12" font-family="Arial, sans-serif" font-weight="700" fill="#555" text-anchor="start">Supplier</text>
-<text x="761.1428571428571" y="468" font-size="12" font-family="Arial, sans-serif" font-weight="700" fill="#555" text-anchor="start">Description</text>
-<text x="918.8571428571429" y="468" font-size="12" font-family="Arial, sans-serif" font-weight="700" fill="#555" text-anchor="start">Flock/House</text>
-<text x="1076.5714285714287" y="468" font-size="12" font-family="Arial, sans-serif" font-weight="700" fill="#555" text-anchor="start">Amount</text>
-<text x="1234.2857142857142" y="468" font-size="12" font-family="Arial, sans-serif" font-weight="700" fill="#555" text-anchor="start">Receipt</text>
-<rect x="278" y="491" width="1104" height="38" rx="0" fill="#fff" stroke="#eee" stroke-width="1"/>
-<text x="288.0" y="516" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#444" text-anchor="start">—</text>
-<text x="445.7142857142857" y="516" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#444" text-anchor="start">—</text>
-<text x="603.4285714285714" y="516" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#444" text-anchor="start">—</text>
-<text x="761.1428571428571" y="516" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#444" text-anchor="start">—</text>
-<text x="918.8571428571429" y="516" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#444" text-anchor="start">—</text>
-<text x="1076.5714285714287" y="516" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#444" text-anchor="start">—</text>
-<text x="1234.2857142857142" y="516" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#444" text-anchor="start">—</text>
-<rect x="278" y="529" width="1104" height="38" rx="0" fill="#fff" stroke="#eee" stroke-width="1"/>
-<text x="288.0" y="554" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#444" text-anchor="start">—</text>
-<text x="445.7142857142857" y="554" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#444" text-anchor="start">—</text>
-<text x="603.4285714285714" y="554" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#444" text-anchor="start">—</text>
-<text x="761.1428571428571" y="554" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#444" text-anchor="start">—</text>
-<text x="918.8571428571429" y="554" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#444" text-anchor="start">—</text>
-<text x="1076.5714285714287" y="554" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#444" text-anchor="start">—</text>
-<text x="1234.2857142857142" y="554" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#444" text-anchor="start">—</text>
-<rect x="278" y="567" width="1104" height="38" rx="0" fill="#fff" stroke="#eee" stroke-width="1"/>
-<text x="288.0" y="592" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#444" text-anchor="start">—</text>
-<text x="445.7142857142857" y="592" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#444" text-anchor="start">—</text>
-<text x="603.4285714285714" y="592" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#444" text-anchor="start">—</text>
-<text x="761.1428571428571" y="592" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#444" text-anchor="start">—</text>
-<text x="918.8571428571429" y="592" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#444" text-anchor="start">—</text>
-<text x="1076.5714285714287" y="592" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#444" text-anchor="start">—</text>
-<text x="1234.2857142857142" y="592" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#444" text-anchor="start">—</text>
-<rect x="278" y="605" width="1104" height="38" rx="0" fill="#fff" stroke="#eee" stroke-width="1"/>
-<text x="288.0" y="630" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#444" text-anchor="start">—</text>
-<text x="445.7142857142857" y="630" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#444" text-anchor="start">—</text>
-<text x="603.4285714285714" y="630" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#444" text-anchor="start">—</text>
-<text x="761.1428571428571" y="630" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#444" text-anchor="start">—</text>
-<text x="918.8571428571429" y="630" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#444" text-anchor="start">—</text>
-<text x="1076.5714285714287" y="630" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#444" text-anchor="start">—</text>
-<text x="1234.2857142857142" y="630" font-size="12" font-family="Arial, sans-serif" font-weight="400" fill="#444" text-anchor="start">—</text>
+<rect x="0" y="0" width="1440" height="64" rx="0" fill="#fff" stroke="#ddd" stroke-width="1"/>
+<text x="28" y="40" font-family="Arial, sans-serif" font-size="20" font-weight="700" fill="#222" text-anchor="start">Egg Farm Manager</text>
+<rect x="1030" y="16" width="180" height="32" rx="16" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+<text x="1048" y="37" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#555" text-anchor="start">Farm: Main Farm</text>
+<rect x="1220" y="16" width="96" height="32" rx="16" fill="#fff4f4" stroke="#e6b0b0" stroke-width="1"/>
+<text x="1268" y="37" font-family="Arial, sans-serif" font-size="12" font-weight="700" fill="#8a1f1f" text-anchor="middle">Alerts 5</text>
+<rect x="1330" y="16" width="82" height="32" rx="16" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+<text x="1371" y="37" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#555" text-anchor="middle">User</text>
+<rect x="0" y="64" width="230" height="956" rx="0" fill="#fff" stroke="#ddd" stroke-width="1"/>
+<text x="34" y="110" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#666" text-anchor="start">Dashboard</text>
+<text x="34" y="154" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#666" text-anchor="start">Daily Entry</text>
+<text x="34" y="198" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#666" text-anchor="start">Flocks</text>
+<text x="34" y="242" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#666" text-anchor="start">Egg Lots</text>
+<text x="34" y="286" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#666" text-anchor="start">Egg Inventory</text>
+<text x="34" y="330" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#666" text-anchor="start">Sales</text>
+<text x="34" y="374" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#666" text-anchor="start">Feed &amp; Inventory</text>
+<text x="34" y="418" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#666" text-anchor="start">Health</text>
+<text x="34" y="462" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#666" text-anchor="start">Alerts</text>
+<text x="34" y="506" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#666" text-anchor="start">Reports</text>
+<text x="34" y="550" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#666" text-anchor="start">Settings</text>
+<text x="260" y="112" font-family="Arial, sans-serif" font-size="30" font-weight="700" fill="#222" text-anchor="start">Expenses</text>
+<text x="260" y="142" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#666" text-anchor="start">Costs with allocation method for profitability.</text>
+<rect x="260" y="168" width="178" height="104" rx="8" fill="#fff" stroke="#d4d4d4" stroke-width="1"/>
+<text x="274" y="196" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#666" text-anchor="start">Month Expenses</text>
+<text x="274" y="230" font-family="Arial, sans-serif" font-size="24" font-weight="700" fill="#222" text-anchor="start">$4,820</text>
+<text x="274" y="256" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#777" text-anchor="start">Feed 68%</text>
+<rect x="456" y="168" width="178" height="104" rx="8" fill="#fff" stroke="#d4d4d4" stroke-width="1"/>
+<text x="470" y="196" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#666" text-anchor="start">Feed Cost</text>
+<text x="470" y="230" font-family="Arial, sans-serif" font-size="24" font-weight="700" fill="#222" text-anchor="start">$3,278</text>
+<text x="470" y="256" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#777" text-anchor="start">$1.72/dozen</text>
+<rect x="652" y="168" width="178" height="104" rx="8" fill="#fff" stroke="#d4d4d4" stroke-width="1"/>
+<text x="666" y="196" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#666" text-anchor="start">Shared Costs</text>
+<text x="666" y="230" font-family="Arial, sans-serif" font-size="24" font-weight="700" fill="#222" text-anchor="start">$860</text>
+<text x="666" y="256" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#777" text-anchor="start">Allocated</text>
+<rect x="848" y="168" width="178" height="104" rx="8" fill="#fff" stroke="#d4d4d4" stroke-width="1"/>
+<text x="862" y="196" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#666" text-anchor="start">Receipts</text>
+<text x="862" y="230" font-family="Arial, sans-serif" font-size="24" font-weight="700" fill="#222" text-anchor="start">12</text>
+<text x="862" y="256" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#777" text-anchor="start">Attached</text>
+<rect x="260" y="300" width="1140" height="56" rx="8" fill="#fff" stroke="#d4d4d4" stroke-width="1"/>
+<rect x="278" y="313" width="110" height="30" rx="15" fill="#f8f8f8" stroke="#ddd" stroke-width="1"/>
+<text x="292" y="334" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#555" text-anchor="start">Category</text>
+<rect x="400" y="313" width="110" height="30" rx="15" fill="#f8f8f8" stroke="#ddd" stroke-width="1"/>
+<text x="414" y="334" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#555" text-anchor="start">Flock</text>
+<rect x="522" y="313" width="114" height="30" rx="15" fill="#f8f8f8" stroke="#ddd" stroke-width="1"/>
+<text x="536" y="334" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#555" text-anchor="start">Allocation</text>
+<rect x="648" y="313" width="110" height="30" rx="15" fill="#f8f8f8" stroke="#ddd" stroke-width="1"/>
+<text x="662" y="334" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#555" text-anchor="start">+ Expense</text>
+<rect x="260" y="376" width="1140" height="310" rx="8" fill="#fff" stroke="#d4d4d4" stroke-width="1"/>
+<text x="278" y="408" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#222" text-anchor="start">Records</text>
+<rect x="278" y="434" width="1104" height="38" rx="4" fill="#f0f0f0" stroke="#ddd" stroke-width="1"/>
+<text x="288.0" y="459" font-family="Arial, sans-serif" font-size="12" font-weight="700" fill="#555" text-anchor="start">Date</text>
+<text x="445.7142857142857" y="459" font-family="Arial, sans-serif" font-size="12" font-weight="700" fill="#555" text-anchor="start">Category</text>
+<text x="603.4285714285714" y="459" font-family="Arial, sans-serif" font-size="12" font-weight="700" fill="#555" text-anchor="start">Description</text>
+<text x="761.1428571428571" y="459" font-family="Arial, sans-serif" font-size="12" font-weight="700" fill="#555" text-anchor="start">Flock/House</text>
+<text x="918.8571428571429" y="459" font-family="Arial, sans-serif" font-size="12" font-weight="700" fill="#555" text-anchor="start">Allocation</text>
+<text x="1076.5714285714287" y="459" font-family="Arial, sans-serif" font-size="12" font-weight="700" fill="#555" text-anchor="start">Amount</text>
+<text x="1234.2857142857142" y="459" font-family="Arial, sans-serif" font-size="12" font-weight="700" fill="#555" text-anchor="start">Receipt</text>
+<rect x="278" y="482" width="1104" height="38" rx="0" fill="#fff" stroke="#eee" stroke-width="1"/>
+<text x="288.0" y="507" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#444" text-anchor="start">—</text>
+<text x="445.7142857142857" y="507" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#444" text-anchor="start">—</text>
+<text x="603.4285714285714" y="507" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#444" text-anchor="start">—</text>
+<text x="761.1428571428571" y="507" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#444" text-anchor="start">—</text>
+<text x="918.8571428571429" y="507" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#444" text-anchor="start">—</text>
+<text x="1076.5714285714287" y="507" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#444" text-anchor="start">—</text>
+<text x="1234.2857142857142" y="507" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#444" text-anchor="start">—</text>
+<rect x="278" y="520" width="1104" height="38" rx="0" fill="#fff" stroke="#eee" stroke-width="1"/>
+<text x="288.0" y="545" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#444" text-anchor="start">—</text>
+<text x="445.7142857142857" y="545" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#444" text-anchor="start">—</text>
+<text x="603.4285714285714" y="545" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#444" text-anchor="start">—</text>
+<text x="761.1428571428571" y="545" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#444" text-anchor="start">—</text>
+<text x="918.8571428571429" y="545" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#444" text-anchor="start">—</text>
+<text x="1076.5714285714287" y="545" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#444" text-anchor="start">—</text>
+<text x="1234.2857142857142" y="545" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#444" text-anchor="start">—</text>
+<rect x="278" y="558" width="1104" height="38" rx="0" fill="#fff" stroke="#eee" stroke-width="1"/>
+<text x="288.0" y="583" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#444" text-anchor="start">—</text>
+<text x="445.7142857142857" y="583" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#444" text-anchor="start">—</text>
+<text x="603.4285714285714" y="583" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#444" text-anchor="start">—</text>
+<text x="761.1428571428571" y="583" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#444" text-anchor="start">—</text>
+<text x="918.8571428571429" y="583" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#444" text-anchor="start">—</text>
+<text x="1076.5714285714287" y="583" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#444" text-anchor="start">—</text>
+<text x="1234.2857142857142" y="583" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#444" text-anchor="start">—</text>
+<rect x="278" y="596" width="1104" height="38" rx="0" fill="#fff" stroke="#eee" stroke-width="1"/>
+<text x="288.0" y="621" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#444" text-anchor="start">—</text>
+<text x="445.7142857142857" y="621" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#444" text-anchor="start">—</text>
+<text x="603.4285714285714" y="621" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#444" text-anchor="start">—</text>
+<text x="761.1428571428571" y="621" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#444" text-anchor="start">—</text>
+<text x="918.8571428571429" y="621" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#444" text-anchor="start">—</text>
+<text x="1076.5714285714287" y="621" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#444" text-anchor="start">—</text>
+<text x="1234.2857142857142" y="621" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#444" text-anchor="start">—</text>
 </svg>

@@ -10,61 +10,55 @@
 <text x="1371" y="37" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#555" text-anchor="middle">User</text>
 <rect x="0" y="64" width="230" height="956" rx="0" fill="#fff" stroke="#ddd" stroke-width="1"/>
 <text x="34" y="110" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#666" text-anchor="start">Dashboard</text>
-<rect x="18" y="130" width="194" height="38" rx="8" fill="#eeeeee" stroke="#ddd" stroke-width="1"/>
-<text x="34" y="154" font-family="Arial, sans-serif" font-size="14" font-weight="600" fill="#222" text-anchor="start">Daily Entry</text>
+<text x="34" y="154" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#666" text-anchor="start">Daily Entry</text>
 <text x="34" y="198" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#666" text-anchor="start">Flocks</text>
 <text x="34" y="242" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#666" text-anchor="start">Egg Lots</text>
 <text x="34" y="286" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#666" text-anchor="start">Egg Inventory</text>
-<text x="34" y="330" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#666" text-anchor="start">Sales</text>
+<rect x="18" y="306" width="194" height="38" rx="8" fill="#eeeeee" stroke="#ddd" stroke-width="1"/>
+<text x="34" y="330" font-family="Arial, sans-serif" font-size="14" font-weight="600" fill="#222" text-anchor="start">Sales</text>
 <text x="34" y="374" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#666" text-anchor="start">Feed &amp; Inventory</text>
 <text x="34" y="418" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#666" text-anchor="start">Health</text>
 <text x="34" y="462" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#666" text-anchor="start">Alerts</text>
 <text x="34" y="506" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#666" text-anchor="start">Reports</text>
 <text x="34" y="550" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#666" text-anchor="start">Settings</text>
-<text x="260" y="112" font-family="Arial, sans-serif" font-size="30" font-weight="700" fill="#222" text-anchor="start">Daily Entry</text>
-<text x="260" y="142" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#666" text-anchor="start">Fast daily workflow with draft/submitted/locked status and copy-from-yesterday.</text>
+<text x="260" y="112" font-family="Arial, sans-serif" font-size="30" font-weight="700" fill="#222" text-anchor="start">Sales Order</text>
+<text x="260" y="142" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#666" text-anchor="start">Create egg sale and customer payment.</text>
 <rect x="260" y="168" width="1140" height="48" rx="8" fill="#fff9e8" stroke="#ead8a0" stroke-width="1"/>
-<text x="278" y="198" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#6f5200" text-anchor="start">Status: Draft • Farm date: 2026-06-26 • Last used: House 1 / Layer Batch A</text>
+<text x="278" y="198" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#6f5200" text-anchor="start">Inventory is allocated from egg lots on confirmation.</text>
 <rect x="260" y="236" width="360" height="305" rx="8" fill="#fff" stroke="#d4d4d4" stroke-width="1"/>
-<text x="278" y="268" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#222" text-anchor="start">Context</text>
-<text x="278" y="302" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#666" text-anchor="start">Date</text>
+<text x="278" y="268" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#222" text-anchor="start">Customer &amp; Order</text>
+<text x="278" y="302" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#666" text-anchor="start">Customer</text>
 <rect x="278" y="310" width="324" height="34" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
-<text x="278" y="356" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#666" text-anchor="start">Farm</text>
+<text x="278" y="356" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#666" text-anchor="start">Order date</text>
 <rect x="278" y="364" width="324" height="34" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
-<text x="278" y="410" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#666" text-anchor="start">House</text>
+<text x="278" y="410" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#666" text-anchor="start">Delivery method</text>
 <rect x="278" y="418" width="324" height="34" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
-<text x="278" y="464" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#666" text-anchor="start">Flock</text>
+<text x="278" y="464" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#666" text-anchor="start">Status</text>
 <rect x="278" y="472" width="324" height="34" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
-<text x="278" y="518" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#666" text-anchor="start">Copy from yesterday</text>
-<rect x="278" y="526" width="324" height="34" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
 <rect x="650" y="236" width="360" height="305" rx="8" fill="#fff" stroke="#d4d4d4" stroke-width="1"/>
-<text x="668" y="268" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#222" text-anchor="start">Eggs by Grade</text>
-<text x="668" y="302" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#666" text-anchor="start">Large</text>
+<text x="668" y="268" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#222" text-anchor="start">Line Items</text>
+<text x="668" y="302" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#666" text-anchor="start">Egg grade</text>
 <rect x="668" y="310" width="324" height="34" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
-<text x="668" y="356" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#666" text-anchor="start">Medium</text>
+<text x="668" y="356" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#666" text-anchor="start">Quantity</text>
 <rect x="668" y="364" width="324" height="34" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
-<text x="668" y="410" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#666" text-anchor="start">Small</text>
+<text x="668" y="410" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#666" text-anchor="start">Unit</text>
 <rect x="668" y="418" width="324" height="34" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
-<text x="668" y="464" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#666" text-anchor="start">Cracked</text>
+<text x="668" y="464" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#666" text-anchor="start">Unit price</text>
 <rect x="668" y="472" width="324" height="34" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
-<text x="668" y="518" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#666" text-anchor="start">Dirty</text>
-<rect x="668" y="526" width="324" height="34" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
 <rect x="1040" y="236" width="360" height="305" rx="8" fill="#fff" stroke="#d4d4d4" stroke-width="1"/>
-<text x="1058" y="268" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#222" text-anchor="start">Inputs &amp; Health</text>
-<text x="1058" y="302" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#666" text-anchor="start">Feed used</text>
+<text x="1058" y="268" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#222" text-anchor="start">Payment</text>
+<text x="1058" y="302" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#666" text-anchor="start">Amount paid</text>
 <rect x="1058" y="310" width="324" height="34" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
-<text x="1058" y="356" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#666" text-anchor="start">Water used</text>
+<text x="1058" y="356" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#666" text-anchor="start">Payment method</text>
 <rect x="1058" y="364" width="324" height="34" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
-<text x="1058" y="410" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#666" text-anchor="start">Deaths</text>
+<text x="1058" y="410" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#666" text-anchor="start">Reference</text>
 <rect x="1058" y="418" width="324" height="34" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
-<text x="1058" y="464" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#666" text-anchor="start">Culls</text>
+<text x="1058" y="464" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#666" text-anchor="start">Balance due</text>
 <rect x="1058" y="472" width="324" height="34" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
-<text x="1058" y="518" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#666" text-anchor="start">Notes</text>
-<rect x="1058" y="526" width="324" height="34" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
 <rect x="260" y="594" width="128" height="42" rx="8" fill="#e9eef8" stroke="#b9c8e8" stroke-width="1"/>
 <text x="324.0" y="621" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#1c3d75" text-anchor="middle">Save Draft</text>
-<rect x="402" y="594" width="128" height="42" rx="8" fill="#e9eef8" stroke="#b9c8e8" stroke-width="1"/>
-<text x="466.0" y="621" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#1c3d75" text-anchor="middle">Submit</text>
-<rect x="544" y="594" width="164" height="42" rx="8" fill="#e9eef8" stroke="#b9c8e8" stroke-width="1"/>
-<text x="626.0" y="621" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#1c3d75" text-anchor="middle">Add Health Event</text>
+<rect x="402" y="594" width="140" height="42" rx="8" fill="#e9eef8" stroke="#b9c8e8" stroke-width="1"/>
+<text x="472.0" y="621" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#1c3d75" text-anchor="middle">Allocate Lots</text>
+<rect x="556" y="594" width="132" height="42" rx="8" fill="#e9eef8" stroke="#b9c8e8" stroke-width="1"/>
+<text x="622.0" y="621" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#1c3d75" text-anchor="middle">Confirm Sale</text>
 </svg>
