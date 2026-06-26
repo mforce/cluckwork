@@ -1,30 +1,14 @@
-# Egg Farm Manager v2 Wireframes
+# Egg Farm Manager v3 Wireframes
 
-Low-fidelity SVG wireframes for the v2 specification.
+Wireframes for future poultry extensibility.
 
-- [Login](./login.svg) — Authentication entry point.
-- [Account / Farm Setup](./setup.svg) — Create account, first farm, first house, and first flock.
-- [Dashboard](./dashboard.svg) — Farm-level operational overview.
-- [Daily Entry](./daily_entry.svg) — Fast daily workflow with draft/submitted/locked status and copy-from-yesterday.
-- [Flocks](./flocks.svg) — Manage layer batches and flock status.
-- [Flock Detail](./flock_detail.svg) — Flock KPIs, status, withdrawal, and history.
-- [Egg Production](./egg_production.svg) — Production records from daily entries by grade.
-- [Egg Lots / Traceability](./egg_lots.svg) — Source-of-truth egg inventory lots by flock, production date, grade, status, and age.
-- [Egg Inventory](./egg_inventory.svg) — Aggregated view over egg lots with movement history.
-- [Sales Order](./sales_order.svg) — Create egg sale and customer payment.
-- [Sales Lot Allocation](./sales_allocation.svg) — FIFO/manual allocation from egg lots with restriction blocking.
-- [Customers](./customers.svg) — Customer list, balances, and order history.
-- [Feed & Inventory](./feed_inventory.svg) — General inventory ledger for feed, medications, vaccines, additives, packaging, and supplies.
-- [Inventory Reconciliation](./reconciliation.svg) — Correct drift through required reason and ledger movement.
-- [Water & Additives](./water_additives.svg) — Track water usage, hydration KPIs, and additive applications.
-- [Health & Welfare](./health_welfare.svg) — Health events with structured welfare observation tags.
-- [Medication & Withdrawal](./medication_withdrawal.svg) — Record medication and enforce egg withdrawal restrictions.
-- [Beak Treatment](./beak_treatment.svg) — Phase 2 welfare procedure records and follow-ups.
-- [Expenses](./expenses.svg) — Costs with allocation method for profitability.
-- [Alerts & Tasks](./alerts_tasks.svg) — Dedicated center for critical alerts and operational tasks.
-- [Reports](./reports.svg) — Production, traceability, inventory, sales, and financial reports.
-- [Users & Roles](./users_roles.svg) — Role permissions and farm/house/flock data scope.
-- [Audit Log](./audit_log.svg) — Trace critical changes and overrides.
-- [Legacy Import](./legacy_import.svg) — Wizard for existing flocks, historical production, starting inventory, and sales history.
-- [Settings](./settings.svg) — Farm defaults, grades, units, alerts, locks, and backups.
-- [Mobile Daily Entry](./mobile_daily_entry.svg) — Phone-first daily workflow.
+- [Dashboard](./dashboard.svg) — Egg farm dashboard with future-ready flock types and product sales.
+- [Modular Daily Entry](./daily_entry.svg) — Daily entry shows conditional sections based on flock production model.
+- [Flock Setup](./flock_setup.svg) — Create layer, pullet, broiler, breeder, or mixed-purpose flocks.
+- [Products](./products.svg) — Generic product catalog for eggs now and live birds/meat later.
+- [Generic Sales Order](./sales_order.svg) — Sales order supports products beyond eggs while egg products still allocate from egg lots.
+- [Egg Sales Allocation](./egg_allocation.svg) — Egg product allocation remains traceable by egg lot, flock, and date.
+- [Live Bird Ledger](./bird_ledger.svg) — Future-ready bird movement ledger for placements, mortality, transfers, sales, and harvest.
+- [Growth / Weight Records](./weight_records.svg) — Generic weight records for pullets, broilers, breeders, and optional layer monitoring.
+- [Future Meat Module](./future_meat.svg) — Reserved path for broiler harvests, meat lots, and processed meat sales.
+- [Reports](./reports.svg) — Reports separate egg, bird, and future meat KPIs while sharing the same foundation.

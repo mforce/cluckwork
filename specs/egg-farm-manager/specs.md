@@ -1,3 +1,600 @@
+
+# Egg Farm Manager — v3 Extensibility Update
+
+This v3 update keeps the product focused on an egg-producing layer farm for Phase 1, while changing the foundation so the system can later support chicken raising, pullets, broilers/meat birds, live bird sales, meat products, breeders, and hatchery modules without a major rewrite.
+
+---
+
+# A. Core v3 Decisions
+
+## A1. Flocks are no longer egg-only
+
+Add these fields to `flocks`:
+
+```text
+flocks
+- species: chicken / duck / quail / turkey / other
+- production_purpose: layer / broiler / pullet / breeder / dual_purpose / other
+- production_model: egg / meat / raising / breeding / mixed
+- sex: female / male / mixed / unknown
+- expected_harvest_date nullable
+```
+
+Examples:
+
+```text
+Layer flock:
+species = chicken
+production_purpose = layer
+production_model = egg
+sex = female
+```
+
+```text
+Broiler flock:
+species = chicken
+production_purpose = broiler
+production_model = meat
+sex = mixed
+```
+
+```text
+Pullet raising flock:
+species = chicken
+production_purpose = pullet
+production_model = raising
+sex = female
+```
+
+## A2. Sales are generic, not egg-only
+
+Replace egg-only sales assumptions with a generic product catalog.
+
+```text
+products
+- id
+- account_id
+- farm_id nullable
+- name
+- product_type: egg / live_bird / meat / chick / pullet / manure / service / other
+- default_unit: egg / dozen / tray / carton / case / bird / lb / kg / package / other
+- default_price_cents nullable
+- active
+- notes
+- created_at
+- updated_at
+```
+
+Eggs remain fully traceable through egg lots.
+
+```text
+product_egg_grade_mappings
+- id
+- account_id
+- product_id
+- egg_grade_id
+```
+
+## A3. Sales order items use products
+
+```text
+sales_order_items
+- id
+- account_id
+- sales_order_id
+- product_id
+- product_type_snapshot
+- quantity
+- unit
+- quantity_base
+- unit_price_cents
+- line_total_cents
+- created_at
+- updated_at
+```
+
+`quantity_base` means:
+
+```text
+Egg products → individual eggs
+Live bird products → individual birds
+Meat products → base weight unit
+Other products → configured base unit
+```
+
+## A4. Product-specific allocation tables
+
+Egg products allocate from egg lots now.
+
+```text
+sales_order_item_egg_allocations
+- id
+- account_id
+- sales_order_item_id
+- egg_lot_id
+- quantity_in_eggs
+- allocation_method: fifo / manual
+- egg_inventory_movement_id
+- created_at
+```
+
+Future live bird products allocate from bird inventory.
+
+```text
+sales_order_item_bird_allocations
+- id
+- account_id
+- sales_order_item_id
+- flock_id
+- bird_inventory_movement_id
+- quantity_in_birds
+- allocation_method: manual / fifo
+- created_at
+```
+
+Future meat products allocate from meat lots.
+
+```text
+sales_order_item_meat_allocations
+- id
+- account_id
+- sales_order_item_id
+- meat_lot_id
+- quantity_weight
+- unit
+- meat_inventory_movement_id
+- allocation_method: fifo / manual
+- created_at
+```
+
+Phase 1 only needs egg allocation logic, but the sales schema is ready for later product types.
+
+---
+
+# B. Live Bird Inventory Ledger
+
+## B1. Purpose
+
+A live bird ledger supports:
+
+- Chick placement
+- Chicken raising
+- Pullet development
+- Broiler growout
+- Transfers between houses
+- Mortality
+- Culls
+- Live bird sales
+- Broiler harvest
+- Depletion
+- Adjustments
+
+## B2. Table
+
+```text
+bird_inventory_movements
+- id
+- account_id
+- farm_id
+- house_id nullable
+- flock_id
+- movement_type: placement / mortality / cull / transfer_in / transfer_out / sale / harvest / adjustment / depletion / void
+- quantity_delta
+- movement_date
+- reference_type
+- reference_id
+- reason
+- notes
+- created_by
+- created_at
+```
+
+## B3. Placement rule
+
+When a flock is created with starting birds:
+
+```text
+Create bird_inventory_movement:
+movement_type = placement
+quantity_delta = starting_bird_count
+reference_type = flock
+reference_id = flock_id
+```
+
+## B4. Mortality/cull rule
+
+When mortality is recorded:
+
+```text
+Create bird_inventory_movement:
+movement_type = mortality
+quantity_delta = -death_count
+```
+
+When culls are recorded:
+
+```text
+Create bird_inventory_movement:
+movement_type = cull
+quantity_delta = -cull_count
+```
+
+## B5. Future live bird sale rule
+
+When live birds are sold:
+
+```text
+Create bird_inventory_movement:
+movement_type = sale
+quantity_delta = -birds_sold
+reference_type = sales_order_item_bird_allocation
+```
+
+---
+
+# C. Generic Weight Tracking
+
+Weight tracking is useful for pullets, broilers, breeders, and sometimes layers.
+
+```text
+flock_weight_records
+- id
+- account_id
+- farm_id
+- house_id
+- flock_id
+- date
+- sample_count
+- average_weight
+- unit: g / kg / oz / lb
+- uniformity_percent nullable
+- notes
+- created_by
+- created_at
+```
+
+Future broiler KPIs can use these records for:
+
+```text
+Average daily gain
+Feed conversion ratio
+Target harvest weight
+Cost per lb/kg live weight
+Harvest readiness
+```
+
+---
+
+# D. Modular Daily Entry
+
+Daily Entry should be a core form plus conditional sections.
+
+## D1. Core section for all flock types
+
+```text
+Date
+Farm
+House
+Flock
+Feed used
+Water used
+Deaths
+Culls
+Notes
+```
+
+## D2. Egg section
+
+Shown when:
+
+```text
+flock.production_model = egg or mixed
+```
+
+Fields:
+
+```text
+Egg quantities by grade
+Cracked/dirty/discarded/internal use
+Egg notes
+```
+
+## D3. Weight section
+
+Shown when:
+
+```text
+flock.production_model = meat or raising or mixed
+```
+
+Fields:
+
+```text
+Sample count
+Average weight
+Uniformity %
+Weight notes
+```
+
+## D4. Future broiler section
+
+Shown when:
+
+```text
+flock.production_purpose = broiler
+```
+
+Future fields:
+
+```text
+Target harvest date
+Average daily gain
+Feed conversion ratio
+Harvest readiness
+```
+
+## D5. Future breeder section
+
+Shown when:
+
+```text
+flock.production_purpose = breeder
+```
+
+Future fields:
+
+```text
+Hatching eggs
+Settable eggs
+Fertility checks
+Male/female counts
+```
+
+---
+
+# E. Future Module Reservations
+
+These modules are not part of Phase 1, but the v3 architecture reserves a clean path for them.
+
+## E1. Pullet / chicken raising
+
+```text
+pullet_development_records
+- id
+- flock_id
+- date
+- target_weight
+- actual_weight
+- uniformity_percent
+- readiness_status
+```
+
+## E2. Broiler / meat bird production
+
+```text
+broiler_growth_records
+- id
+- flock_id
+- date
+- average_weight
+- sample_count
+- feed_conversion_ratio
+- average_daily_gain
+```
+
+```text
+broiler_harvest_records
+- id
+- flock_id
+- harvest_date
+- birds_harvested
+- live_weight_total
+- average_live_weight
+- birds_rejected
+- buyer_id nullable
+```
+
+## E3. Processed meat inventory
+
+```text
+meat_lots
+- id
+- account_id
+- farm_id
+- flock_id
+- harvest_record_id
+- product_id
+- processing_date
+- quantity_produced
+- quantity_available
+- unit
+- status
+```
+
+```text
+meat_inventory_movements
+- id
+- meat_lot_id
+- movement_type: production / sale / discard / reconciliation / transfer
+- quantity_delta
+- unit
+- reference_type
+- reference_id
+```
+
+## E4. Breeder module
+
+Reserved future tables:
+
+```text
+breeder_daily_records
+breeder_male_female_counts
+hatching_egg_lots
+fertility_test_records
+```
+
+## E5. Hatchery module
+
+Reserved future tables:
+
+```text
+incubation_batches
+setter_records
+candling_records
+hatcher_transfer_records
+chick_lots
+chick_sales_allocations
+```
+
+---
+
+# F. Updated Phase Plan
+
+## Phase 1 — Egg farm walking skeleton
+
+Still focused on:
+
+```text
+Layers
+Egg production
+Egg lots
+Egg sales
+Feed/water/mortality
+Basic medication withdrawal
+Expenses
+Dashboard
+Core reports
+```
+
+But implemented with:
+
+```text
+Generic products
+Flock production purpose/model
+Bird movement ledger
+Optional weight records
+Modular daily entry
+```
+
+## Phase 2 — Chicken raising / pullets
+
+Add:
+
+```text
+Pullet development records
+Weight trend reports
+Transfer readiness
+Pullet sales
+More vaccination schedule support
+```
+
+## Phase 3 — Broilers / meat birds
+
+Add:
+
+```text
+Broiler growth records
+Harvest records
+Live bird sales
+FCR and ADG reports
+Broiler profitability
+```
+
+## Phase 4 — Meat processing
+
+Add:
+
+```text
+Meat lots
+Meat inventory movements
+Processing batches
+Meat product sales allocation
+```
+
+## Phase 5 — Breeder / hatchery
+
+Add:
+
+```text
+Breeder production
+Hatching egg lots
+Incubation batches
+Chick lots
+Chick sales
+```
+
+---
+
+# G. Updated Build Order
+
+## Sprint 1 — Foundation
+
+- Account/user/auth
+- Farm/house/flock CRUD
+- Add flock classification fields
+- Product catalog
+- Audit log foundation
+
+## Sprint 2 — Daily entry
+
+- Modular daily entry
+- Egg section for layer flocks
+- Core feed/water/mortality
+- Bird placement and mortality movement generation
+
+## Sprint 3 — Egg lots and inventory
+
+- Egg lot generation
+- Egg inventory movements
+- Cached balances
+- Traceability
+
+## Sprint 4 — Sales
+
+- Generic sales orders
+- Egg product mapping
+- Egg lot allocation
+- Payments
+
+## Sprint 5 — Safety and reports
+
+- Medication withdrawal
+- Restricted egg lots
+- Dashboard
+- Core reports
+
+---
+
+# H. v3 Summary
+
+The product remains:
+
+```text
+Egg Farm Manager first.
+```
+
+But the architecture becomes:
+
+```text
+Poultry farm platform later.
+```
+
+The important design rules are:
+
+```text
+Do not hardcode sales to eggs.
+Do not hardcode flocks to layers.
+Keep egg lots for egg traceability.
+Use product-specific allocation tables.
+Use bird movements for live bird counts.
+Use modular daily entry sections.
+```
+
+
+---
+
+# Base Specification v2 Incorporated Below
+
 # Egg Farm Manager — Product & Technical Specification v2
 
 **Product:** Egg Farm Manager  
