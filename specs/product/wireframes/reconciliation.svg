@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1020" viewBox="0 0 1440 1020">
+<rect width="100%" height="100%" fill="#f6f7f9"/>
+<rect x="0" y="0" width="1440" height="64" rx="0" fill="#fff" stroke="#ddd" stroke-width="1"/>
+<text x="28" y="40" font-family="Arial, sans-serif" font-size="20" font-weight="700" fill="#222" text-anchor="start">Cluckwork</text>
+<rect x="1030" y="16" width="180" height="32" rx="16" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+<text x="1048" y="37" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#555" text-anchor="start">Farm: Main Farm</text>
+<rect x="1220" y="16" width="96" height="32" rx="16" fill="#fff4f4" stroke="#e6b0b0" stroke-width="1"/>
+<text x="1268" y="37" font-family="Arial, sans-serif" font-size="12" font-weight="700" fill="#8a1f1f" text-anchor="middle">Alerts 5</text>
+<rect x="1330" y="16" width="82" height="32" rx="16" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+<text x="1371" y="37" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#555" text-anchor="middle">User</text>
+<rect x="0" y="64" width="230" height="956" rx="0" fill="#fff" stroke="#ddd" stroke-width="1"/>
+<text x="34" y="110" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#666" text-anchor="start">Dashboard</text>
+<text x="34" y="154" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#666" text-anchor="start">Daily Entry</text>
+<text x="34" y="198" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#666" text-anchor="start">Flocks</text>
+<text x="34" y="242" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#666" text-anchor="start">Egg Lots</text>
+<text x="34" y="286" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#666" text-anchor="start">Egg Inventory</text>
+<text x="34" y="330" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#666" text-anchor="start">Sales</text>
+<text x="34" y="374" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#666" text-anchor="start">Feed &amp; Inventory</text>
+<text x="34" y="418" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#666" text-anchor="start">Health</text>
+<text x="34" y="462" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#666" text-anchor="start">Alerts</text>
+<text x="34" y="506" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#666" text-anchor="start">Reports</text>
+<text x="34" y="550" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#666" text-anchor="start">Settings</text>
+<text x="260" y="112" font-family="Arial, sans-serif" font-size="30" font-weight="700" fill="#222" text-anchor="start">Inventory Reconciliation</text>
+<text x="260" y="142" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#666" text-anchor="start">Correct drift through required reason and ledger movement.</text>
+<rect x="260" y="168" width="360" height="305" rx="8" fill="#fff" stroke="#d4d4d4" stroke-width="1"/>
+<text x="278" y="200" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#222" text-anchor="start">Select Inventory</text>
+<text x="278" y="234" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#666" text-anchor="start">Type: Eggs / Feed / General</text>
+<rect x="278" y="242" width="324" height="34" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+<text x="278" y="288" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#666" text-anchor="start">Item or egg lot</text>
+<rect x="278" y="296" width="324" height="34" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+<text x="278" y="342" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#666" text-anchor="start">Location</text>
+<rect x="278" y="350" width="324" height="34" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+<rect x="650" y="168" width="360" height="305" rx="8" fill="#fff" stroke="#d4d4d4" stroke-width="1"/>
+<text x="668" y="200" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#222" text-anchor="start">Count</text>
+<text x="668" y="234" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#666" text-anchor="start">System quantity</text>
+<rect x="668" y="242" width="324" height="34" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+<text x="668" y="288" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#666" text-anchor="start">Physical count</text>
+<rect x="668" y="296" width="324" height="34" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+<text x="668" y="342" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#666" text-anchor="start">Difference</text>
+<rect x="668" y="350" width="324" height="34" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+<rect x="1040" y="168" width="360" height="305" rx="8" fill="#fff" stroke="#d4d4d4" stroke-width="1"/>
+<text x="1058" y="200" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#222" text-anchor="start">Required Reason</text>
+<text x="1058" y="234" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#666" text-anchor="start">Reason</text>
+<rect x="1058" y="242" width="324" height="34" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+<text x="1058" y="288" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#666" text-anchor="start">Notes</text>
+<rect x="1058" y="296" width="324" height="34" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+<text x="1058" y="342" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#666" text-anchor="start">Attachment</text>
+<rect x="1058" y="350" width="324" height="34" rx="6" fill="#fafafa" stroke="#ddd" stroke-width="1"/>
+<rect x="260" y="526" width="164" height="42" rx="8" fill="#e9eef8" stroke="#b9c8e8" stroke-width="1"/>
+<text x="342.0" y="553" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#1c3d75" text-anchor="middle">Preview Movement</text>
+<rect x="438" y="526" width="204" height="42" rx="8" fill="#e9eef8" stroke="#b9c8e8" stroke-width="1"/>
+<text x="540.0" y="553" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#1c3d75" text-anchor="middle">Submit Reconciliation</text>
+</svg>
