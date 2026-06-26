@@ -1,44 +1,40 @@
-# Egg Farm Manager v4 Wireframes
+# Egg Farm Manager v4.1 Wireframes
 
-## Current v4 wireframes
+## v4.1 update
 
-- [Dashboard](./dashboard.svg) — Current v4 dashboard with flock-type and product-generic sales context.
-- [Modular Daily Entry](./daily_entry.svg) — Current v4 daily-entry sections based on production_model.
-- [Flock Setup](./flock_setup.svg) — Current v4 flock classification screen.
-- [Products](./products.svg) — Current v4 generic product catalog.
-- [Generic Sales Order](./sales_order.svg) — Current v4 product-generic sales order; supersedes v2.
-- [Sales Allocation by Product Type](./sales_allocation.svg) — Current v4 allocation dispatch; supersedes v2.
-- [Egg Sales Allocation](./egg_allocation.svg) — Current v4 egg lot allocation.
-- [Live Bird Ledger](./bird_ledger.svg) — Current v4/future bird movement ledger.
-- [Growth / Weight Records](./weight_records.svg) — Current v4 generic weight screen.
-- [Future Meat Module](./future_meat.svg) — Reserved future meat workflow.
-- [Reports](./reports.svg) — Current v4 reporting model.
+- [Farm Localization Settings](./farm_localization.svg) — ties farm to currency, locale, and timezone.
 
-## Carried forward from v2 unchanged
+## Carried forward from v4
 
-- [Login](./login.svg)
-- [Account / Farm Setup](./setup.svg)
-- [Flocks](./flocks.svg)
-- [Flock Detail](./flock_detail.svg)
-- [Egg Production](./egg_production.svg)
-- [Egg Lots / Traceability](./egg_lots.svg)
-- [Egg Inventory](./egg_inventory.svg)
-- [Customers](./customers.svg)
-- [Feed & Inventory](./feed_inventory.svg)
-- [Inventory Reconciliation](./reconciliation.svg)
-- [Water & Additives](./water_additives.svg)
-- [Health & Welfare](./health_welfare.svg)
-- [Medication & Withdrawal](./medication_withdrawal.svg)
-- [Beak Treatment](./beak_treatment.svg)
-- [Expenses](./expenses.svg)
-- [Alerts & Tasks](./alerts_tasks.svg)
-- [Users & Roles](./users_roles.svg)
+- [Alerts Tasks](./alerts_tasks.svg)
 - [Audit Log](./audit_log.svg)
+- [Beak Treatment](./beak_treatment.svg)
+- [Bird Ledger](./bird_ledger.svg)
+- [Customers](./customers.svg)
+- [Daily Entry](./daily_entry.svg)
+- [Dashboard](./dashboard.svg)
+- [Egg Allocation](./egg_allocation.svg)
+- [Egg Inventory](./egg_inventory.svg)
+- [Egg Lots](./egg_lots.svg)
+- [Egg Production](./egg_production.svg)
+- [Expenses](./expenses.svg)
+- [Feed Inventory](./feed_inventory.svg)
+- [Flock Detail](./flock_detail.svg)
+- [Flock Setup](./flock_setup.svg)
+- [Flocks](./flocks.svg)
+- [Future Meat](./future_meat.svg)
+- [Health Welfare](./health_welfare.svg)
 - [Legacy Import](./legacy_import.svg)
-- [Settings](./settings.svg)
+- [Login](./login.svg)
+- [Medication Withdrawal](./medication_withdrawal.svg)
 - [Mobile Daily Entry](./mobile_daily_entry.svg)
-
-## Superseded
-
-- v2 `sales_order.svg` is superseded by v4 `sales_order.svg`.
-- v2 `sales_allocation.svg` is superseded by v4 `sales_allocation.svg`.
+- [Products](./products.svg)
+- [Reconciliation](./reconciliation.svg)
+- [Reports](./reports.svg)
+- [Sales Allocation](./sales_allocation.svg)
+- [Sales Order](./sales_order.svg)
+- [Settings](./settings.svg)
+- [Setup](./setup.svg)
+- [Users Roles](./users_roles.svg)
+- [Water Additives](./water_additives.svg)
+- [Weight Records](./weight_records.svg)

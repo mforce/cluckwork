@@ -2,7 +2,7 @@
 
 **Product:** Egg Farm Manager  
 **Domain:** Poultry egg-producing farm management, with future support for chicken raising, pullets, broilers, live bird sales, meat products, breeders, and hatchery modules  
-**Version:** v4 reconciled  
+**Version:** v4.1 farm localization patch  
 **Purpose:** Provide one coherent developer-ready specification. This replaces the v3 addendum + embedded v2 structure with a single integrated document.
 
 ---
@@ -111,9 +111,15 @@ farms
 - address
 - phone
 - email
-- timezone
-- currency
+- timezone: IANA timezone string, e.g. America/Los_Angeles
+- locale: BCP 47 locale tag, e.g. en-US, es-MX, ja-JP
+- currency_code: ISO 4217 code, e.g. USD, MXN, JPY
+- currency_symbol nullable
+- currency_minor_unit: 0 / 2 / 3, derived from currency where possible
 - unit_system: imperial / metric
+- first_day_of_week nullable
+- date_format_override nullable
+- time_format_override nullable
 - active
 - created_at
 - updated_at
@@ -246,6 +252,76 @@ Audit timestamps use UTC.
 daily_entry.date = farm-local date
 created_at / updated_at = UTC
 ```
+
+
+## 4.5 Farm localization settings
+
+For Phase 1, localization belongs to the farm.
+
+```text
+Farm = currency + locale + timezone
+```
+
+The account may own multiple farms later, but each farm has its own display and reporting defaults.
+
+### Canonical fields
+
+| Field | Purpose |
+|---|---|
+| `farms.timezone` | Determines farm-local operational dates and default "today" |
+| `farms.locale` | Determines number, date, time, and currency formatting |
+| `farms.currency_code` | Determines the currency used for prices, sales, payments, expenses, and reports |
+| `farms.currency_minor_unit` | Determines how integer money amounts are interpreted |
+| `farms.first_day_of_week` | Used for weekly reports and calendars |
+| `farms.unit_system` | Determines default display units for feed, water, and weights |
+
+### Phase 1 currency rule
+
+Phase 1 is single-currency per farm.
+
+```text
+All sales, payments, expenses, product prices, and financial reports for a farm use farms.currency_code.
+```
+
+There is no exchange-rate conversion in Phase 1.
+
+If an account has multiple farms with different currencies, the system may show farm-specific reports, but should not automatically aggregate financial totals across currencies.
+
+### Money storage rule
+
+Money is stored as integer minor units using the farm currency.
+
+Examples:
+
+```text
+USD 12.34 → amount_cents = 1234, currency_minor_unit = 2
+JPY 1200 → amount_cents = 1200, currency_minor_unit = 0
+```
+
+The field name `amount_cents` remains acceptable in code for Phase 1, but the more precise long-term name is `amount_minor_units`.
+
+### Display rule
+
+The UI should format money, dates, times, and numbers using:
+
+```text
+farm.locale + farm.currency_code + farm.timezone
+```
+
+Examples:
+
+```text
+en-US + USD + America/Los_Angeles → $1,234.56, 06/26/2026
+es-MX + MXN + America/Mexico_City → $1,234.56 MXN, 26/06/2026
+ja-JP + JPY + Asia/Tokyo → ￥1,235, 2026/06/26
+```
+
+### Operational date rule
+
+Daily entry, mortality, feed usage, water usage, egg production, and sales order dates default to the selected farm’s local date.
+
+Audit timestamps remain UTC.
+
 
 ---
 
@@ -736,6 +812,7 @@ products
 - product_type: egg / live_bird / meat / chick / pullet / manure / service / other
 - default_unit: egg / dozen / tray / carton / case / bird / lb / kg / package / other
 - default_price_cents nullable
+- currency_code: inherited from farm when farm_id is set
 - active
 - notes
 - created_at
@@ -790,6 +867,7 @@ sales_orders
 - farm_id
 - customer_id
 - order_date
+- currency_code: copied from farm at order creation
 - status: draft / confirmed / delivered / paid / cancelled / voided
 - delivery_method: pickup / delivery
 - delivery_date nullable
@@ -933,6 +1011,7 @@ payments
 - customer_id
 - payment_date
 - amount_cents
+- currency_code: copied from sales_order
 - method: cash / check / card / bank_transfer / mobile_payment / other
 - reference_number
 - notes
@@ -1377,6 +1456,7 @@ expenses
 - expense_date
 - description
 - amount_cents
+- currency_code: copied from farm at expense creation
 - allocation_method: direct / bird_count_share / revenue_share / manual
 - payment_method
 - receipt_attachment_id nullable
@@ -1638,6 +1718,34 @@ egg revenue - allocated expenses
 - Flock classification is valid.
 - Bird placement movement exists.
 
+
+## UC-011 Configure farm localization
+
+**Actor:** Owner/Manager  
+**Goal:** Tie a farm to a currency, locale, and timezone.
+
+**Flow:**
+
+1. User creates or edits a farm.
+2. User selects timezone.
+3. User selects locale.
+4. User selects currency code.
+5. System derives currency symbol and minor unit where possible.
+6. System saves settings.
+7. Daily entry and reports use the farm timezone.
+8. Sales, expenses, payments, and prices use the farm currency.
+9. UI formats numbers, dates, and money using the farm locale.
+
+**Acceptance criteria:**
+
+- Farm cannot be active without timezone, locale, and currency code.
+- Daily Entry defaults to the farm-local date.
+- Sales orders copy the farm currency at creation.
+- Expenses copy the farm currency at creation.
+- Financial reports are farm-currency specific.
+- Cross-farm financial aggregation is disabled or clearly marked when currencies differ.
+
+
 ## UC-020 Create daily entry draft
 
 **Actor:** Worker  
@@ -1803,6 +1911,7 @@ These wireframes are current for the v4 product-generic/extensible model:
 9. Growth / Weight Records
 10. Future Meat Module
 11. Reports
+12. Farm Localization Settings
 
 ## 21.2 Carried forward from v2 unchanged
 
@@ -1879,11 +1988,15 @@ and table-specific constraints.
 
 ## Money
 
-Store money as integer cents.
+Store money as integer minor units using the selected farm's currency.
+
+The existing field suffix `_cents` is acceptable for Phase 1 when most deployments use 2-decimal currencies, but the meaning is:
 
 ```text
-amount_cents integer
+amount_cents integer = amount in farm.currency_code minor units
 ```
+
+Future code may rename these fields to `_minor_units` for precision.
 
 ## Egg quantities
 

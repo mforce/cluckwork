@@ -1,78 +1,60 @@
-# Egg Farm Manager v4 — Reconciliation Changelog
+# Egg Farm Manager v4.1 — Farm Localization Patch
 
-## Fixed from Opus 4.8 review
+## Change
 
-### 1. Sales schema conflict fixed
-
-The egg-only `sales_order_items` schema was removed. The product-generic schema is now canonical:
+Farm is now explicitly tied to:
 
 ```text
-sales_order_items.product_id
-sales_order_items.product_type_snapshot
-sales_order_items.quantity
-sales_order_items.quantity_base
+currency_code
+locale
+timezone
 ```
 
-Egg sales allocate through:
+## Why
+
+For the current product, the farm is the operational unit. Daily entries, sales, expenses, reports, and display formatting should use the selected farm's settings.
+
+## Added / clarified
+
+### farms table
+
+Added:
 
 ```text
-sales_order_item_egg_allocations
+timezone
+locale
+currency_code
+currency_symbol
+currency_minor_unit
+first_day_of_week
+date_format_override
+time_format_override
 ```
 
-The old v2 `sales_order_item_allocations` name is no longer canonical.
+### Business rules
 
-### 2. Phase plans merged
+- Phase 1 is single-currency per farm.
+- No exchange-rate conversion in Phase 1.
+- Sales orders copy farm currency at creation.
+- Expenses copy farm currency at creation.
+- Payments copy sales order currency.
+- UI formats money/dates/numbers using farm locale.
+- Operational dates use farm timezone.
+- Audit timestamps remain UTC.
+- Cross-farm financial aggregation should be disabled or clearly marked when farm currencies differ.
 
-The v2 hardening roadmap and v3 species roadmap are merged into one ordered plan:
+### Use case
 
-1. Phase 1 — Egg farm walking skeleton
-2. Phase 1.5 — Egg product hardening
-3. Phase 2 — Pullet / chicken raising
-4. Phase 3 — Broilers / meat birds
-5. Phase 4 — Meat processing
-6. Phase 5 — Breeder and hatchery
-
-There is also one sprint list.
-
-### 3. Wireframe coverage clarified
-
-The spec now states:
-
-- Current v4 wireframes
-- v2 wireframes carried forward unchanged
-- v2 sales wireframes superseded
-
-The sales wireframes were redrawn around the product-generic sales model.
-
-### 4. Enum/validity gaps closed
-
-Added a validity table for:
+Added:
 
 ```text
-production_purpose × production_model
+UC-011 Configure farm localization
 ```
 
-Also clarified daily-entry section visibility for:
+### Wireframes
+
+Added / updated:
 
 ```text
-egg
-meat
-raising
-breeding
-mixed
+farm_localization.svg
 ```
-
-### 5. Preserved correct v2/v3 design
-
-Preserved:
-
-- Egg-lot traceability
-- Lot-level withdrawal restriction
-- Ledger-first inventory
-- Product-specific allocation tables
-- Bird movement ledger
-- Weight records
-- Modular daily entry
-- Account/tenant root
-- Daily-entry state machine
-- Permission model
