@@ -1,10 +1,6 @@
-# Egg Farm Manager v4.1 Wireframes
+# Egg Farm Manager v4.2 Wireframes
 
-## v4.1 update
-
-- [Farm Localization Settings](./farm_localization.svg) — ties farm to currency, locale, and timezone.
-
-## Carried forward from v4
+Wireframes are carried forward from v4.1 unchanged. v4.2 is a spec-only build-readiness patch.
 
 - [Alerts Tasks](./alerts_tasks.svg)
 - [Audit Log](./audit_log.svg)
@@ -18,6 +14,7 @@
 - [Egg Lots](./egg_lots.svg)
 - [Egg Production](./egg_production.svg)
 - [Expenses](./expenses.svg)
+- [Farm Localization](./farm_localization.svg)
 - [Feed Inventory](./feed_inventory.svg)
 - [Flock Detail](./flock_detail.svg)
 - [Flock Setup](./flock_setup.svg)

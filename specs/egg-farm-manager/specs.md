@@ -2,7 +2,7 @@
 
 **Product:** Egg Farm Manager  
 **Domain:** Poultry egg-producing farm management, with future support for chicken raising, pullets, broilers, live bird sales, meat products, breeders, and hatchery modules  
-**Version:** v4.1 farm localization patch  
+**Version:** v4.2 build-readiness patch  
 **Purpose:** Provide one coherent developer-ready specification. This replaces the v3 addendum + embedded v2 structure with a single integrated document.
 
 ---
@@ -323,6 +323,90 @@ Daily entry, mortality, feed usage, water usage, egg production, and sales order
 Audit timestamps remain UTC.
 
 
+## 4.6 Financial row currency immutability
+
+Financial rows must be self-contained for historical interpretation.
+
+### Row-level currency rule
+
+All money display and all financial reports must interpret `amount_cents` using the **row's stored** currency fields, never the farm's current currency settings.
+
+Use:
+
+```text
+row.currency_code
+row.currency_minor_unit
+```
+
+Do not use:
+
+```text
+farm.currency_code at display/report time
+```
+
+except when creating a new financial row.
+
+### Required financial row snapshots
+
+The following rows must snapshot both fields at creation:
+
+```text
+sales_orders.currency_code
+sales_orders.currency_minor_unit
+
+payments.currency_code
+payments.currency_minor_unit
+
+expenses.currency_code
+expenses.currency_minor_unit
+```
+
+Optional future financial tables should follow the same rule.
+
+### Farm currency change rule
+
+For Phase 1, block changing `farms.currency_code` if any financial row already exists for the farm:
+
+```text
+sales_orders
+payments
+expenses
+```
+
+If no financial rows exist, the farm currency may be changed.
+
+If a farm truly changes operating currency after transactions exist, recommended workflow is:
+
+```text
+Create a new farm record or future currency-migration workflow.
+Do not reinterpret old financial records.
+```
+
+### Currency derivation fallback
+
+Phase 1 may ship with a static ISO 4217 lookup table.
+
+If `currency_symbol` cannot be derived:
+
+```text
+Use currency_code as the display symbol.
+```
+
+If `currency_minor_unit` cannot be derived:
+
+```text
+Default to 2.
+```
+
+Examples:
+
+```text
+USD → symbol "$", minor unit 2
+JPY → symbol "¥", minor unit 0
+Unknown XYZ → symbol "XYZ", minor unit 2
+```
+
+
 ---
 
 # 5. Users, Roles, and Scope
@@ -607,6 +691,33 @@ daily_entries
 - updated_at
 ```
 
+## 8.5 Daily-entry speed acceptance criteria
+
+The original "under 60 seconds" target is a binding Phase 1 UX acceptance criterion for a normal egg-only layer flock daily entry.
+
+For QA, a normal egg-only daily entry means:
+
+```text
+production_model = egg
+no medication event being entered
+no new health event being entered
+no inventory reconciliation
+no manual egg-lot adjustment
+```
+
+Acceptance criteria:
+
+1. From the dashboard or app launch with remembered farm context, Daily Entry is reachable in **no more than 2 taps/clicks**.
+2. Farm, house, and flock are preselected from the user's last used context when allowed by permissions.
+3. The egg-only quick entry path requires **no more than 12 editable inputs** before submit, excluding optional notes.
+4. The form provides **Copy from Yesterday**.
+5. The form distinguishes blank from zero.
+6. A user can save draft or submit without leaving the screen.
+7. A trained worker should be able to submit a normal egg-only daily entry in **60 seconds or less** during usability testing.
+
+If a daily entry includes optional health events, medication, reconciliation, manual adjustments, or future broiler/breeder sections, the 60-second target does not apply.
+
+
 ## 8.4 Modular sections
 
 ### Core section
@@ -868,6 +979,7 @@ sales_orders
 - customer_id
 - order_date
 - currency_code: copied from farm at order creation
+- currency_minor_unit: copied from farm at order creation
 - status: draft / confirmed / delivered / paid / cancelled / voided
 - delivery_method: pickup / delivery
 - delivery_date nullable
@@ -988,6 +1100,44 @@ When a sale is confirmed:
 7. Update order totals and customer balance.
 8. Write audit log.
 
+## 10.9.1 Egg-lot allocation concurrency rule
+
+Sale confirmation must serialize allocation against the selected egg lots.
+
+Phase 1 rule:
+
+```text
+Within the sale confirmation transaction, lock candidate egg_lots rows before checking quantity_available and creating sale movements.
+```
+
+Recommended implementation:
+
+```sql
+SELECT *
+FROM egg_lots
+WHERE id IN (...)
+FOR UPDATE;
+```
+
+Then:
+
+1. Re-read `quantity_available` after the lock.
+2. Validate the requested allocation still fits.
+3. Create `sales_order_item_egg_allocations`.
+4. Create `egg_inventory_movements`.
+5. Update `egg_lots.quantity_available`.
+6. Commit.
+
+If the database does not support row-level locks, use optimistic concurrency:
+
+```text
+egg_lots.version integer
+```
+
+and require the update to match the expected version.
+
+If the allocation no longer fits, the confirmation fails and the user must refresh allocations.
+
 ## 10.10 Withdrawal rule for egg sales
 
 Default:
@@ -1012,6 +1162,7 @@ payments
 - payment_date
 - amount_cents
 - currency_code: copied from sales_order
+- currency_minor_unit: copied from sales_order
 - method: cash / check / card / bank_transfer / mobile_payment / other
 - reference_number
 - notes
@@ -1457,6 +1608,7 @@ expenses
 - description
 - amount_cents
 - currency_code: copied from farm at expense creation
+- currency_minor_unit: copied from farm at expense creation
 - allocation_method: direct / bird_count_share / revenue_share / manual
 - payment_method
 - receipt_attachment_id nullable
@@ -1740,9 +1892,11 @@ egg revenue - allocated expenses
 
 - Farm cannot be active without timezone, locale, and currency code.
 - Daily Entry defaults to the farm-local date.
-- Sales orders copy the farm currency at creation.
-- Expenses copy the farm currency at creation.
-- Financial reports are farm-currency specific.
+- Sales orders copy the farm currency code and minor unit at creation.
+- Expenses copy the farm currency code and minor unit at creation.
+- Payments copy the sales order currency code and minor unit.
+- Financial reports use row-level currency code and minor unit.
+- Changing farm currency is blocked after sales, payments, or expenses exist.
 - Cross-farm financial aggregation is disabled or clearly marked when currencies differ.
 
 
@@ -2062,10 +2216,12 @@ Flock Classification
 → Bird Ledger / Meat Lots / Hatchery Lots
 ```
 
-The most important rule:
+The most important rules:
 
 ```text
 Sales are generic.
 Egg inventory remains lot-traceable.
 Future poultry modules plug into product-specific allocation tables.
+Financial rows use their own stored currency fields forever.
+Egg lot allocation is serialized during sale confirmation.
 ```

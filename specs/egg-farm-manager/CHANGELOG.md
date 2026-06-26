@@ -1,60 +1,42 @@
-# Egg Farm Manager v4.1 — Farm Localization Patch
+# Egg Farm Manager v4.2 — Build-Readiness Patch
 
-## Change
+## Purpose
 
-Farm is now explicitly tied to:
+v4.2 applies small additive clarifications from the Opus build-readiness review. It does not redesign the system or pull deferred features into Phase 1.
 
-```text
-currency_code
-locale
-timezone
-```
+## 1. Financial row currency immutability
 
-## Why
+Added explicit rules:
 
-For the current product, the farm is the operational unit. Daily entries, sales, expenses, reports, and display formatting should use the selected farm's settings.
+- Money display and financial reports must use each row's stored `currency_code` and `currency_minor_unit`.
+- Financial displays must not reinterpret historical rows using the farm's current currency.
+- `sales_orders`, `payments`, and `expenses` now snapshot both `currency_code` and `currency_minor_unit`.
+- Changing `farms.currency_code` is blocked once any sales order, payment, or expense exists for that farm.
 
-## Added / clarified
+## 2. Currency derivation fallback
 
-### farms table
+Added fallback rules:
 
-Added:
+- If currency symbol cannot be derived, display the ISO 4217 currency code.
+- If minor unit cannot be derived, default to `2`.
+- Phase 1 may use a static ISO 4217 lookup table.
 
-```text
-timezone
-locale
-currency_code
-currency_symbol
-currency_minor_unit
-first_day_of_week
-date_format_override
-time_format_override
-```
+## 3. Measurable daily-entry UX acceptance criteria
 
-### Business rules
+Promoted the 60-second daily-entry target into testable criteria:
 
-- Phase 1 is single-currency per farm.
-- No exchange-rate conversion in Phase 1.
-- Sales orders copy farm currency at creation.
-- Expenses copy farm currency at creation.
-- Payments copy sales order currency.
-- UI formats money/dates/numbers using farm locale.
-- Operational dates use farm timezone.
-- Audit timestamps remain UTC.
-- Cross-farm financial aggregation should be disabled or clearly marked when farm currencies differ.
+- Daily Entry reachable in no more than 2 taps/clicks from remembered context.
+- Farm/house/flock preselected when allowed.
+- Egg-only quick entry path requires no more than 12 editable inputs before submit.
+- Copy from Yesterday is available.
+- Blank and zero are distinct.
+- Save Draft and Submit do not require leaving the screen.
+- 60-second target applies only to normal egg-only daily entry.
 
-### Use case
+## 4. Egg-lot allocation concurrency
 
-Added:
+Added sale-confirmation concurrency rule:
 
-```text
-UC-011 Configure farm localization
-```
-
-### Wireframes
-
-Added / updated:
-
-```text
-farm_localization.svg
-```
+- Lock candidate `egg_lots` rows during allocation, e.g. `SELECT ... FOR UPDATE`.
+- Revalidate `quantity_available` after locking.
+- If row locks are unavailable, use optimistic concurrency with `egg_lots.version`.
