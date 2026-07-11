@@ -2,7 +2,7 @@
 
 **Product:** Cluckwork
 **Domain:** Poultry egg-producing farm management, with future support for chicken raising, pullets, broilers, live bird sales, meat products, breeders, and hatchery modules
-**Version:** v4.4 spec-corrections patch (egg unit conversion, grading assumption, hen-day fix)
+**Version:** v4.2 build-readiness patch
 **Purpose:** Provide one coherent developer-ready specification. This replaces the v3 addendum + embedded v2 structure with a single integrated document.
 
 ---
