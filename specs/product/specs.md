@@ -910,6 +910,91 @@ Sale
 → daily_entry
 ```
 
+## 9.7 Egg unit conversions
+
+Eggs are stored as individual eggs (§24), but products are sold in packed units
+(dozen, tray, carton, case). The system must convert sale units to individual eggs
+deterministically. There is no implicit fixed factor: a carton is 12, 18, or 30 eggs
+depending on the market, so the factor is farm-configurable.
+
+```text
+egg_unit_conversions
+- id
+- account_id
+- farm_id nullable            (null = account default; a farm row overrides it)
+- unit_code: individual / dozen / flat / tray / carton / case / other
+- eggs_per_unit integer       (individual = 1, dozen = 12, tray/flat = 30, ...)
+- active
+- created_at
+- updated_at
+```
+
+Suggested defaults (farm may override):
+
+```text
+individual = 1
+dozen      = 12
+flat/tray  = 30
+carton     = 12
+case       = 360   (30 dozen; farm-specific — confirm at setup)
+```
+
+### Conversion rules
+
+- `quantity_base` on a sales order item is always individual eggs:
+  `quantity_base = quantity × eggs_per_unit`.
+- Resolve `eggs_per_unit` at line creation and **snapshot it on the sales order item**
+  (see §10.5 `base_unit_factor`). A later change to the farm's carton/case definition
+  must not reinterpret existing orders — same immutability principle as §4.6.
+- If the selected unit has no active conversion for the farm, block sale confirmation.
+  Never guess a factor.
+- KPI conversions (e.g. dozens produced for feed-cost-per-dozen, §19.3) use the same
+  table: `dozens = total eggs / 12`.
+
+## 9.8 Grading and packing assumption
+
+### Phase 1 assumption
+
+Phase 1 assumes eggs are **graded at collection**: the daily grade entry (§9.2) captures
+the final grade of each egg. The lot's grade is fixed at production. This matches farms
+that candle/sort during collection and keeps the walking skeleton simple.
+
+Phase 1 does **not** model a separate post-collection grading or wash/pack shift, nor
+moving eggs between grades after the lot exists.
+
+### Reserved path — regrade / repack (Phase 1.5)
+
+Farms that grade or pack in a later shift need to move eggs between lots/grades without
+breaking traceability. Discarding from one lot and producing into another is **not**
+allowed for this, because it corrupts the traceability chain (§9.6) and the discard
+ledger. Instead, reserve a grade-transfer that nets to zero eggs and preserves the source
+lot's origin chain:
+
+```text
+egg_grade_transfers
+- id
+- account_id
+- farm_id
+- source_egg_lot_id
+- dest_egg_lot_id             (new or existing lot at the destination grade)
+- quantity_in_eggs
+- reason: regrade / repack / downgrade / candling / other
+- created_by
+- created_at
+```
+
+Saving a grade transfer generates paired egg inventory movements (§9.4), extending the
+`movement_type` enum:
+
+```text
+source lot: movement_type = grade_out, quantity_delta = -quantity_in_eggs
+dest lot:   movement_type = grade_in,  quantity_delta = +quantity_in_eggs
+```
+
+The destination lot links back to the source lot so `source_daily_entry_id` traceability
+is preserved. Net egg count across the two movements is zero. This module ships with
+packaging inventory in Phase 1.5 (§6), not in the Phase 1 skeleton.
+
 ---
 
 # 10. Product Catalog and Sales
@@ -1012,6 +1097,7 @@ sales_order_items
 - product_type_snapshot
 - quantity
 - unit
+- base_unit_factor          (eggs-per-unit snapshot at line creation; see §9.7)
 - quantity_base
 - unit_price_cents
 - line_total_cents
@@ -1803,9 +1889,42 @@ sum(bird_inventory_movements.quantity_delta)
 ```
 
 ```text
-Hen-day production % =
-total eggs collected / current live birds × 100
+Hen-day production % (single day) =
+eggs collected on date / hen-days on date × 100
+
+Hen-day production % (period) =
+total eggs collected in period / sum(daily hen-days in period) × 100
 ```
+
+`hen-days on date` is the live laying-bird count **on that operational date**, reconstructed
+from the bird ledger, not the current count:
+
+```text
+hen-days on date =
+sum(bird_inventory_movements.quantity_delta) WHERE movement_date <= date
+  AND flock.production_purpose = 'layer'
+  AND flock.sex = 'female'
+```
+
+Rules:
+
+- Use the point-in-time ledger count on the entry date, never the current live count.
+  Using the current (post-mortality) count inflates the percentage.
+- Count laying **females only**. Hen-day is a female-bird metric by definition. Exclude
+  males and non-layer flocks.
+- **Mixed-sex flocks (`sex = 'mixed'`) overcount** because the ledger tracks a single
+  `starting_bird_count` with no female subcount, so males inflate the denominator. Phase 1
+  options:
+  - Prefer modelling a laying flock as `sex = 'female'` so the metric is exact, or
+  - Flag hen-day % as **approximate** for `mixed` flocks, and reserve a future
+    `female_bird_count` (or sex-split placement movements) to make it exact.
+  Do not silently report an exact-looking hen-day % for a mixed flock.
+- Period rate divides total eggs by the sum of daily hen-days, not by an end-of-period
+  headcount.
+- The benchmark-meaningful period anchors to **start of lay** (`flock.expected_start_lay_date`,
+  or first laying production date), not an arbitrary calendar range. Comparing week 1 of
+  lay against week 20 as one blended rate produces a number that matches no industry
+  layer-curve benchmark. Report hen-day % by flock age / week-of-lay for comparability.
 
 ```text
 Saleable egg % =
