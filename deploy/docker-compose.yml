@@ -1,0 +1,49 @@
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: src/Cluckwork.Api/Dockerfile
+    env_file:
+      - .env
+    environment:
+      ASPNETCORE_URLS: http://+:8080
+      Database__Provider: Postgres
+      ConnectionStrings__Default: Host=db;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+    depends_on:
+      db:
+        condition: service_healthy
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.cluckwork.rule=Host(`${CLUCKWORK_HOST}`)
+      - traefik.http.routers.cluckwork.entrypoints=websecure
+      - traefik.http.routers.cluckwork.tls=true
+      - traefik.http.services.cluckwork.loadbalancer.server.port=8080
+
+  db:
+    image: postgres:16-alpine
+    env_file:
+      - .env
+    volumes:
+      - cluckwork-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  traefik:
+    image: traefik:v3.1
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik:/etc/traefik/dynamic:ro
+
+volumes:
+  cluckwork-postgres:

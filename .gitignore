@@ -1,0 +1,17 @@
+# .NET build outputs
+bin/
+obj/
+
+# User/local IDE files
+.vs/
+.vscode/
+*.user
+*.suo
+.env
+.env.*
+!deploy/.env.example
+appsettings.Development.local.json
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
