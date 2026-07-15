@@ -12,6 +12,10 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    # Direct local access at http://localhost:8080 (SPA + API), independent of
+    # traefik. In prod, front with traefik/TLS and drop or bind this to 127.0.0.1.
+    ports:
+      - "8080:8080"
     labels:
       - traefik.enable=true
       - traefik.http.routers.cluckwork.rule=Host(`${CLUCKWORK_HOST}`)
@@ -32,7 +36,11 @@ services:
       retries: 5
 
   traefik:
-    image: traefik:v3.1
+    # Prod-only TLS/host router. Local dev hits the API directly on :8080, so
+    # traefik does not start with a bare `docker compose up`. Enable in prod
+    # with `docker compose --profile prod up`.
+    profiles: ["prod"]
+    image: traefik:v3.5
     command:
       - --providers.docker=true
       - --providers.docker.exposedbydefault=false
