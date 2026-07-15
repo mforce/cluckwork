@@ -1,0 +1,63 @@
+# AGENTS.md — Cluckwork
+
+Poultry egg-farm management system. Backend: **.NET 10** (C#), layered DDD. Frontend: **React 19 + Vite** SPA in `web/`. Postgres via EF Core.
+
+This file is the shared brief for any coding agent (Claude Code, Codex, etc.).
+
+## Layout
+
+```
+src/
+  Cluckwork.Domain          aggregates, value objects, domain events (no deps)
+  Cluckwork.Application      feature handlers, repository interfaces, validators
+  Cluckwork.Infrastructure   EF Core, Identity/JWT, repositories, seeding, jobs
+  Cluckwork.Api             minimal-API endpoints, middleware, Program.cs
+web/                        React/Vite SPA (see web/README.md)
+deploy/                     docker-compose (.yml prod, .dev.yml dev DB), .env.example
+specs/                      product + technical specs, wireframes
+tests/                      Domain.Tests, Application.Tests, Api.IntegrationTests
+```
+
+Dependencies point inward: Api → Application/Infrastructure → Domain. Domain depends on nothing.
+
+## Build / test / run
+
+```bash
+dotnet build Cluckwork.sln                 # warnings are errors — keep it clean
+dotnet test  Cluckwork.sln                 # 42 tests; integration needs Docker
+```
+
+- **Integration tests** spin up a real Postgres via Testcontainers (`docker` required). No SQLite — EF SQL semantics differ.
+- **Run full stack (prod-like):** `docker compose -f deploy/docker-compose.yml up --build` → SPA + API on http://localhost:8080 (single container; API serves the built SPA from `wwwroot`).
+- **Run frontend dev:** `cd web && npm run dev` → http://localhost:5173 (proxies `/api` → :8080).
+- **Debug API (no docker stack):** `docker compose -f deploy/docker-compose.dev.yml up -d` (Postgres on :5432), then run/debug `Cluckwork.Api` (Development env). Dev secrets live in **user-secrets**, not files.
+
+## Conventions (follow these)
+
+- **Result pattern:** domain/handlers return `Result` / `Result<T>` (see `Domain/Common`). Don't throw for expected failures; throw only for invariant violations (e.g. `Flock.Create` guards).
+- **Handler per feature**, invoked directly from endpoints — **no MediatR**. Register handlers/validators/repos in `Program.cs`.
+- **Validation:** FluentValidation validators (`*Validator`), one per command; endpoints call `ValidateAsync` and return `ValidationProblem`.
+- **Endpoints:** minimal APIs grouped under `/api/v1/...` via `Map<Feature>Endpoints`; writes require auth + an `Idempotency-Key` (middleware).
+- **Multi-tenancy:** every tenant-owned entity has `AccountId`; enforced by an EF **global query filter** + a **`TenantStampInterceptor`** (stamps on insert). `TenantContext` is resolved per-request from the JWT `account_id` claim. At startup it's unresolved → use `IgnoreQueryFilters()` in seeders.
+- **Auth:** asymmetric JWT + rotating refresh tokens. PEM keys come from config with escaped `\n`; normalize via `PemKey.Normalize` before `ImportFromPem`.
+- **Migrations + seed:** EF migrations auto-apply on startup (`Database:MigrateOnStartup`, default true). `DatabaseSeeder` seeds the default account + admin user + `Admin` role — **credentials only from `Seed:*` config, never a fallback secret**; failures log + skip (don't crash).
+- **Nullable enabled**, no unused usings (both are build-breaking).
+
+## Secrets — never commit
+
+- `deploy/.env` is gitignored (real values). `deploy/.env.example` holds placeholders only.
+- Local API debug config uses `dotnet user-secrets` (keyed by `UserSecretsId` in `Cluckwork.Api.csproj`).
+- No hardcoded passwords/keys in source — GitGuardian scans PRs. Generate test credentials at runtime.
+
+## Git / PR workflow
+
+- `origin` = GitHub (`github.com/mforce/cluckwork`); `gitea` = backup mirror. Use `gh` for PRs.
+- **`main` is protected** — branch, push, open a PR; don't commit to `main`.
+- Branch names: `feat/…`, `chore/…`, `spec/…`. PRs squash-merge.
+- Only commit/push when the human asks.
+
+## Phase context
+
+MVP is **Phase 1.0** (see `specs/product/specs.md` §6): the egg loop — daily entry (by grade) → egg lots → stock → sales order → FIFO allocation → stock decremented. Single-farm login (multi-tenant infra already present but dormant), customers name/phone/optional, **no payments**. Work is tracked as GitHub issues (epics + slices).
+
+Known gap being built next: `EggLot.Create` is never called — daily-entry production doesn't yet generate lots (issue #8, the critical bridge), which needs per-grade capture on daily entry first (#6).
