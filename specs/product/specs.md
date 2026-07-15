@@ -492,6 +492,7 @@ Includes:
 7. Generic sales orders + FIFO egg-lot allocation + sale decrements stock.
 8. Restricted egg lots and sale blocking (medication-withdrawal flag on lot). Already built; keep.
 9. Read/list surfaces for daily entries, current stock by grade, and orders.
+10. **Web client (React + Vite SPA)** in `web/`, consuming the JSON API: login, daily-entry capture, stock view, customers, sales order (create → add items → confirm), and the list/history screens. This is what makes 1.0 shippable to a farmer — the API alone is not the product.
 
 Explicitly **not** in 1.0 (moved down): payments, dashboard, core reports, expenses, feed/water tracking, mortality movement generation, audit-log UI, CSV export, inventory movement ledger, offline queue. Schema may reserve columns/paths, but no logic is built.
 
@@ -619,6 +620,16 @@ Sprints A–D deliver **Phase 1.0 (MVP)** and are the ship gate. Everything afte
 - Confirm-sale decrements stock — **built**
 - Restricted-lot sale blocking (medication withdrawal) — **built**
 - Payments — deferred (possibly indefinitely)
+
+## Sprint UI — Web client (MVP) — not started
+
+React + Vite SPA in `web/`, consuming the JSON API. Runs alongside the backend sprints; each screen lands once its API slice exists.
+
+- SPA scaffold + auth (login, token storage/refresh) + API client + routing shell — **missing**
+- Daily-entry capture screen (production by grade) — **missing** (needs Sprint B)
+- Stock-by-grade view — **missing** (needs Sprint C)
+- Customers + sales order flow (create → add items → confirm) — **missing** (needs Sprint D)
+- List/history screens (daily entries, orders) — **missing** (needs read endpoints)
 
 **↑ Ship Phase 1.0 here. ↓ Everything below is post-MVP.**
 
