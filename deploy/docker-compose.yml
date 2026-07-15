@@ -1,5 +1,6 @@
 services:
-  api:
+  # Bundled application: the .NET API serves the JSON API and the SPA (wwwroot).
+  app:
     build:
       context: ..
       dockerfile: src/Cluckwork.Api/Dockerfile
@@ -23,6 +24,8 @@ services:
       - traefik.http.routers.cluckwork.entrypoints=websecure
       - traefik.http.routers.cluckwork.tls=true
       - traefik.http.services.cluckwork.loadbalancer.server.port=8080
+    # NOTE: traefik discovers this by container label, not the service name —
+    # the rename to `app` needs no label changes.
 
   db:
     image: postgres:16-alpine
