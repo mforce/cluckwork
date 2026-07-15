@@ -36,4 +36,20 @@ public sealed class FlockTests
         Assert.True(result.IsFailure);
         Assert.Equal("Flock.NotActive", result.Error.Code);
     }
+
+    [Fact]
+    public void Create_WithBlankName_Throws()
+    {
+        Assert.Throws<ArgumentException>(() => Flock.Create(
+            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
+            "  ", "ISA Brown", DateOnly.FromDateTime(DateTime.Today), 500));
+    }
+
+    [Fact]
+    public void Create_WithNonPositiveCount_Throws()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => Flock.Create(
+            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
+            "House 1", "ISA Brown", DateOnly.FromDateTime(DateTime.Today), 0));
+    }
 }

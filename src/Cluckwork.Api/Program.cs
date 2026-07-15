@@ -141,13 +141,15 @@ var app = builder.Build();
 // ----------------------------------------------------------------
 
 // --- Startup: apply migrations, then seed (both idempotent) ---
-// Gated by Database:MigrateOnStartup (default true). Seeding is further gated by
-// Seed:Enabled + supplied credentials (see DatabaseSeeder).
-if (builder.Configuration.GetValue("Database:MigrateOnStartup", true))
+// The two switches are independent: Database:MigrateOnStartup (default true)
+// gates only the migration — useful when a deploy job runs migrations — while
+// seeding always runs and self-gates on Seed:Enabled + supplied credentials
+// (see DatabaseSeeder).
 {
     using var startupScope = app.Services.CreateScope();
     var sp = startupScope.ServiceProvider;
-    await sp.GetRequiredService<AppDbContext>().Database.MigrateAsync();
+    if (builder.Configuration.GetValue("Database:MigrateOnStartup", true))
+        await sp.GetRequiredService<AppDbContext>().Database.MigrateAsync();
     await sp.GetRequiredService<DatabaseSeeder>().SeedAsync();
 }
 

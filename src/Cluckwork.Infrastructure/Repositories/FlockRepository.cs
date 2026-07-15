@@ -9,11 +9,18 @@ public sealed class FlockRepository(AppDbContext db) : IFlockRepository
 {
     // Reads rely on the tenant query filter (AccountId == current tenant), so the
     // caller only ever sees its own flocks.
+    // Tracked: DepleteFlockHandler mutates the returned entity.
     public Task<Flock?> GetByIdAsync(Guid id, CancellationToken ct = default) =>
         db.Flocks.FirstOrDefaultAsync(f => f.Id == id, ct);
 
-    public async Task<IReadOnlyList<Flock>> ListAsync(CancellationToken ct = default) =>
-        await db.Flocks.OrderBy(f => f.Name).ToListAsync(ct);
+    // Read-only, paged.
+    public async Task<IReadOnlyList<Flock>> ListAsync(int limit, int offset, CancellationToken ct = default) =>
+        await db.Flocks
+            .AsNoTracking()
+            .OrderBy(f => f.Name)
+            .Skip(offset)
+            .Take(limit)
+            .ToListAsync(ct);
 
     public async Task AddAsync(Flock entity, CancellationToken ct = default) =>
         await db.Flocks.AddAsync(entity, ct);

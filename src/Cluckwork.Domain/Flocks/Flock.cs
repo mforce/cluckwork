@@ -16,6 +16,16 @@ public sealed class Flock : AggregateRoot<Guid>
         Guid id, Guid accountId, Guid farmId, Guid houseId,
         string name, string breed, DateOnly placementDate, int initialCount)
     {
+        // Invariants: enforced here so no caller (handler, seeder, test) can build
+        // an invalid aggregate. The FluentValidation validator is the user-facing
+        // message surface; these guard against programmer error.
+        if (string.IsNullOrWhiteSpace(name))
+            throw new ArgumentException("Flock name is required.", nameof(name));
+        if (string.IsNullOrWhiteSpace(breed))
+            throw new ArgumentException("Flock breed is required.", nameof(breed));
+        if (initialCount <= 0)
+            throw new ArgumentOutOfRangeException(nameof(initialCount), "Initial count must be positive.");
+
         return new Flock
         {
             Id = id, AccountId = accountId,

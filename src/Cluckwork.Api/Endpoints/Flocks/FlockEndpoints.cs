@@ -9,6 +9,12 @@ using FluentValidation;
 
 public static class FlockEndpoints
 {
+    private const int DefaultPageSize = 100;
+    private const int MaxPageSize = 500;
+
+    // Code produced by Error.NotFound(nameof(Flock), ...).
+    private static readonly string FlockNotFoundCode = $"{nameof(Flock)}.NotFound";
+
     public static RouteGroupBuilder MapFlockEndpoints(this RouteGroupBuilder group)
     {
         group.MapPost("/", CreateFlock)
@@ -17,7 +23,7 @@ public static class FlockEndpoints
 
         group.MapGet("/", ListFlocks)
             .WithName("ListFlocks")
-            .WithSummary("List the current account's flocks.");
+            .WithSummary("List the current account's flocks (paged).");
 
         group.MapGet("/{id:guid}", GetFlock)
             .WithName("GetFlock")
@@ -40,8 +46,7 @@ public static class FlockEndpoints
         if (!tenant.IsResolved) return Results.Unauthorized();
 
         var command = new CreateFlockCommand(
-            request.Name, request.Breed, request.PlacementDate, request.InitialCount,
-            request.FarmId, request.HouseId);
+            request.Name, request.Breed, request.PlacementDate, request.InitialCount);
 
         var validation = await validator.ValidateAsync(command, ct);
         if (!validation.IsValid)
@@ -54,10 +59,15 @@ public static class FlockEndpoints
     }
 
     private static async Task<IResult> ListFlocks(
-        IFlockRepository flocks, TenantContext tenant, CancellationToken ct)
+        IFlockRepository flocks, TenantContext tenant,
+        CancellationToken ct, int? limit = null, int? offset = null)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
-        var list = await flocks.ListAsync(ct);
+
+        var take = Math.Clamp(limit ?? DefaultPageSize, 1, MaxPageSize);
+        var skip = Math.Max(offset ?? 0, 0);
+
+        var list = await flocks.ListAsync(take, skip, ct);
         return Results.Ok(list.Select(ToResponse));
     }
 
@@ -75,7 +85,7 @@ public static class FlockEndpoints
         if (!tenant.IsResolved) return Results.Unauthorized();
         var result = await handler.HandleAsync(id, ct);
         if (result.IsSuccess) return Results.NoContent();
-        return result.Error.Code.EndsWith(".NotFound", StringComparison.Ordinal)
+        return result.Error.Code == FlockNotFoundCode
             ? Results.NotFound()
             : Results.Problem(result.Error.Description, statusCode: 422, title: result.Error.Code);
     }
@@ -89,9 +99,7 @@ public sealed record CreateFlockRequest(
     string Name,
     string Breed,
     DateOnly PlacementDate,
-    int InitialCount,
-    Guid? FarmId = null,
-    Guid? HouseId = null);
+    int InitialCount);
 
 public sealed record FlockResponse(
     Guid Id, Guid FarmId, Guid HouseId, string Name, string Breed,

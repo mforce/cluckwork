@@ -11,6 +11,8 @@ public sealed class CreateFlockValidator : AbstractValidator<CreateFlockCommand>
         RuleFor(x => x.InitialCount).GreaterThan(0);
         RuleFor(x => x.PlacementDate)
             .NotEqual(default(DateOnly))
-            .WithMessage("Placement date is required.");
+            .WithMessage("Placement date is required.")
+            .LessThanOrEqualTo(_ => DateOnly.FromDateTime(DateTime.UtcNow.Date))
+            .WithMessage("Placement date cannot be in the future.");
     }
 }

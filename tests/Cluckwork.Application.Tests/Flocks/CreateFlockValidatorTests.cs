@@ -1,7 +1,6 @@
 namespace Cluckwork.Application.Tests.Flocks;
 
 using Cluckwork.Application.Features.Flocks.CreateFlock;
-using Cluckwork.Domain.Accounts;
 
 public sealed class CreateFlockValidatorTests
 {
@@ -32,10 +31,10 @@ public sealed class CreateFlockValidatorTests
     }
 
     [Fact]
-    public void UnsetFarmHouse_DefaultsToSeedIds()
+    public void FuturePlacementDate_Fails()
     {
-        var cmd = Valid();
-        Assert.Equal(SeedDefaults.FarmId, cmd.ResolvedFarmId);
-        Assert.Equal(SeedDefaults.HouseId, cmd.ResolvedHouseId);
+        var future = DateOnly.FromDateTime(DateTime.UtcNow.Date).AddDays(1);
+        var result = _validator.Validate(Valid() with { PlacementDate = future });
+        Assert.Contains(result.Errors, e => e.PropertyName == nameof(CreateFlockCommand.PlacementDate));
     }
 }

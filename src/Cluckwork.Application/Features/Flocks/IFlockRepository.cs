@@ -5,5 +5,5 @@ using Cluckwork.Domain.Flocks;
 
 public interface IFlockRepository : IRepository<Flock, Guid>
 {
-    Task<IReadOnlyList<Flock>> ListAsync(CancellationToken ct = default);
+    Task<IReadOnlyList<Flock>> ListAsync(int limit, int offset, CancellationToken ct = default);
 }

@@ -2,6 +2,7 @@ namespace Cluckwork.Application.Features.Flocks.CreateFlock;
 
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Flocks;
+using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Flocks;
 
@@ -14,7 +15,7 @@ public sealed class CreateFlockHandler(
     {
         var flock = Flock.Create(
             Guid.NewGuid(), accountId,
-            command.ResolvedFarmId, command.ResolvedHouseId,
+            SeedDefaults.FarmId, SeedDefaults.HouseId,
             command.Name, command.Breed,
             command.PlacementDate, command.InitialCount);
 
