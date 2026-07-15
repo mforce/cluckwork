@@ -1,0 +1,15 @@
+# API image build context is the repo root (compose: context ..). The image now
+# also builds the SPA (web/ source IS needed), but build artifacts are not —
+# npm ci + npm run build run fresh inside the image.
+**/bin
+**/obj
+**/.vs
+web/node_modules
+web/dist
+web/.vite
+**/*.tsbuildinfo
+.git
+.github
+**/.env
+!**/.env.example
+deploy/.env
