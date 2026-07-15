@@ -2,65 +2,89 @@
 
 Poultry farm management — starting with egg-producing layer operations, with architectural headroom for broilers, pullets, breeders, live bird sales, meat products, and hatchery modules.
 
-## What it does
-
-Cluckwork helps a poultry farm answer its daily operational questions from a single system:
-
-- How many eggs were produced today, and by which flock/house?
-- Which egg lots are available by grade, date, flock, location, and restriction status?
-- Are any eggs restricted due to medication withdrawal?
-- How much feed and water were consumed?
-- What is the flock's hen-day production rate?
-- What is the current live bird count?
-- What was sold, to whom, and from which egg lots?
-- What is the farm's sales, expense, and profitability picture?
-
-## Architecture
-
-The data model starts from a multi-tenant account root so the system scales past a single farm:
-
-```
-Account / Tenant
-  Users
-  Farms (localized: timezone, locale, currency)
-    Houses (cage, deep litter, free range, aviary...)
-      Flocks (any species/production purpose — not hardcoded to layers)
-```
-
-Flock classification is extensible: `species` (chicken, duck, quail, turkey...), `production_purpose` (layer, broiler, pullet, breeder, dual-purpose...), and `production_model` (egg, meat, raising, breeding, mixed).
-
-## Phase 1 scope (walking skeleton)
-
-Phase 1 ships the core egg-production loop:
-
-- **Daily Entry** — submit egg production by grade, feed consumption, water, mortality, and culls
-- **Egg Lots & Inventory** — egg lots tracked from production through sale with full traceability back to flock/house/date
-- **Medication Withdrawal** — medication records automatically restrict affected egg lots from sale
-- **Product Catalog & Sales** — product-generic sales model; egg products map to grades, allocate from lots via FIFO, and generate sale inventory movements
-- **Bird Ledger** — point-in-time bird inventory reconstructed from placement, mortality, and cull movements
-- **KPIs & Alerts** — hen-day production, saleable egg %, feed cost per dozen, flock alerts
-- **Multi-farm localization** — each farm has its own timezone, locale, and currency; sales orders snapshot the farm's currency at creation
-
-Phase 1 does **not** include broiler optimization, meat processing, hatchery, feed formulation, payroll, accounting, offline mobile, or IoT automation. The schema reserves paths for all of these.
+Cluckwork helps a farm run its daily operation from one system: record production, track egg lots from the hen through to the sale with full traceability, block medication-restricted lots, manage sales and customers, and see the numbers that matter (hen-day rate, saleable %, stock on hand).
 
 ## Stack
 
-- **Backend:** C# / .NET (ASP.NET Core Web API)
-- **Database:** PostgreSQL
-- **Frontend:** React (TypeScript)
+- **Backend:** C# / .NET 10 (ASP.NET Core minimal APIs)
+- **Database:** PostgreSQL (EF Core)
+- **Frontend:** React 19 + Vite (TypeScript), served by the API in production
 
-## Specs
-
-The canonical product and technical specification is [`specs/product/specs.md`](specs/product/specs.md).
-
-It covers: data model schemas, business rules, use cases, wireframe coverage, transaction boundaries, idempotency rules, data storage conventions, KPI formulas, and module phasing through Phase 5.
+The API and the built SPA ship as a **single container**; in production the API serves the SPA and the JSON API from the same origin.
 
 ## Repo layout
 
 ```
 cluckwork/
-  specs/product/     — product & technical spec, wireframes, CHANGELOG
-  src/               — .NET solution (API, domain, data access)
-  tests/             — integration and unit tests
-  deploy/            — Docker Compose, Traefik reverse proxy config
+  src/               .NET solution
+    Cluckwork.Domain          aggregates, value objects (no dependencies)
+    Cluckwork.Application     feature handlers, repository interfaces, validators
+    Cluckwork.Infrastructure  EF Core, Identity/JWT, repositories, seeding
+    Cluckwork.Api             endpoints, middleware, Program.cs
+  web/               React + Vite SPA (see web/README.md)
+  tests/             domain, application, and API integration tests
+  deploy/            Docker Compose (prod + dev DB), Traefik, .env.example
+  specs/             product & technical specification, wireframes, CHANGELOG
 ```
+
+## Getting started
+
+Prerequisites: **.NET 10 SDK**, **Docker**, **Node 22+**.
+
+### Run the whole app (Docker)
+
+```bash
+cp deploy/.env.example deploy/.env
+# edit deploy/.env: set POSTGRES_PASSWORD, a JWT RSA keypair (Jwt__*KeyPem),
+# and Seed__AdminEmail / Seed__AdminPassword (password must be >=12 chars,
+# upper/lower/digit/symbol)
+
+docker compose -f deploy/docker-compose.yml up --build
+```
+
+The app comes up on **http://localhost:8080**. On first boot it applies migrations and seeds the default account + admin user, so you can log in with the `Seed__Admin*` credentials.
+
+### Frontend development
+
+```bash
+cd web
+npm install
+npm run dev        # http://localhost:5173, proxies /api to the API
+```
+
+### Run the API from the IDE / CLI
+
+Start just the database, then run the API (config comes from user-secrets):
+
+```bash
+docker compose -f deploy/docker-compose.dev.yml up -d   # Postgres on :5432
+dotnet run --project src/Cluckwork.Api
+```
+
+### Tests
+
+```bash
+dotnet test Cluckwork.sln    # integration tests spin up Postgres via Docker
+```
+
+## Architecture
+
+Multi-tenant from the root so the system scales past a single farm:
+
+```
+Account / Tenant
+  Users
+  Farms (localized: timezone, locale, currency)
+    Houses (cage, deep litter, free range, aviary…)
+      Flocks (any species / production purpose — not hardcoded to layers)
+```
+
+Flock classification is extensible: `species` (chicken, duck, quail…), `production_purpose` (layer, broiler, pullet, breeder…), and `production_model` (egg, meat, raising, breeding, mixed). Tenant isolation is enforced in the data layer (EF query filters + an insert-time tenant stamp).
+
+## Specs & roadmap
+
+The canonical product and technical specification — data model, business rules, transaction boundaries, KPI formulas, and the **phase plan (Phase 1.0 MVP through Phase 5)** — lives in [`specs/product/specs.md`](specs/product/specs.md). Work is tracked as GitHub issues (epics + slices).
+
+## Contributing / agents
+
+Conventions, build/run details, and the workflow coding agents should follow are in [`AGENTS.md`](AGENTS.md).
