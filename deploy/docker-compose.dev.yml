@@ -1,0 +1,27 @@
+# Dev dependencies only — Postgres, loopback-published on :5432 — so the API can
+# be run/debugged from the IDE (VS Code F5) against a real database.
+# Usage: docker compose -f deploy/docker-compose.dev.yml up -d
+#
+# Credentials here are LOCAL DEV defaults, not secrets. The API reads its own
+# connection string from user-secrets (see .vscode/README or project setup).
+name: cluckwork-dev
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: cluckwork
+      POSTGRES_USER: cluckwork
+      POSTGRES_PASSWORD: cluckwork
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - cluckwork-dev-pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cluckwork -d cluckwork"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  cluckwork-dev-pg:
