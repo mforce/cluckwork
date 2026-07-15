@@ -13,9 +13,10 @@ services:
       db:
         condition: service_healthy
     # Direct local access at http://localhost:8080 (SPA + API), independent of
-    # traefik. In prod, front with traefik/TLS and drop or bind this to 127.0.0.1.
+    # traefik. Bound to loopback only — never exposes the plaintext API to the
+    # LAN. In prod, front with traefik/TLS (the 'prod' profile) instead.
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     labels:
       - traefik.enable=true
       - traefik.http.routers.cluckwork.rule=Host(`${CLUCKWORK_HOST}`)
