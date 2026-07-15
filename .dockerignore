@@ -1,0 +1,14 @@
+# API build context is the repo root (compose: context ..). Keep it lean so the
+# `COPY . .` in src/Cluckwork.Api/Dockerfile doesn't pull build junk.
+**/bin
+**/obj
+**/.vs
+web/node_modules
+web/dist
+web/.vite
+**/*.tsbuildinfo
+.git
+.github
+**/.env
+!**/.env.example
+deploy/.env

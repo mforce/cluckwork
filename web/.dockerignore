@@ -1,0 +1,10 @@
+node_modules
+dist
+dist-ssr
+.vite
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+.git
+README.md

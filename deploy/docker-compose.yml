@@ -13,11 +13,29 @@ services:
       db:
         condition: service_healthy
     labels:
+      # API owns /api on the same host; higher priority than the web catch-all.
       - traefik.enable=true
-      - traefik.http.routers.cluckwork.rule=Host(`${CLUCKWORK_HOST}`)
-      - traefik.http.routers.cluckwork.entrypoints=websecure
-      - traefik.http.routers.cluckwork.tls=true
-      - traefik.http.services.cluckwork.loadbalancer.server.port=8080
+      - traefik.http.routers.cluckwork-api.rule=Host(`${CLUCKWORK_HOST}`) && PathPrefix(`/api`)
+      - traefik.http.routers.cluckwork-api.priority=10
+      - traefik.http.routers.cluckwork-api.entrypoints=websecure
+      - traefik.http.routers.cluckwork-api.tls=true
+      - traefik.http.services.cluckwork-api.loadbalancer.server.port=8080
+
+  web:
+    build:
+      context: ../web
+      dockerfile: Dockerfile
+    depends_on:
+      - api
+    labels:
+      # Serves the SPA for everything on the host that is not /api. The SPA calls
+      # relative /api/v1/... which traefik routes to the api service above.
+      - traefik.enable=true
+      - traefik.http.routers.cluckwork-web.rule=Host(`${CLUCKWORK_HOST}`)
+      - traefik.http.routers.cluckwork-web.priority=1
+      - traefik.http.routers.cluckwork-web.entrypoints=websecure
+      - traefik.http.routers.cluckwork-web.tls=true
+      - traefik.http.services.cluckwork-web.loadbalancer.server.port=80
 
   db:
     image: postgres:16-alpine
