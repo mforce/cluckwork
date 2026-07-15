@@ -488,7 +488,7 @@ Includes:
 3. Daily entry with states, capturing **egg production by sellable grade**.
 4. **Egg-lot generation from daily entry** (production by grade → dated lots). This is the bridge the rest of the loop depends on.
 5. Egg lots as the stock balance (`quantity_available`). No separate movement-ledger table yet.
-6. Customers as name + phone only (reference-app shape — no balances).
+6. Customers with name + phone (required) and optional email/address/note (reference-app shape — no balances/payments).
 7. Generic sales orders + FIFO egg-lot allocation + sale decrements stock.
 8. Restricted egg lots and sale blocking (medication-withdrawal flag on lot). Already built; keep.
 9. Read/list surfaces for daily entries, current stock by grade, and orders.
@@ -613,7 +613,7 @@ Sprints A–D deliver **Phase 1.0 (MVP)** and are the ship gate. Everything afte
 
 ## Sprint D — Sales (MVP) — mostly built
 
-- Customers (name + phone only) — **missing entity** (only `CustomerId` referenced)
+- Customers (name/phone required, optional email/address/note) — **missing entity** (only `CustomerId` referenced)
 - Generic sales orders + items — aggregate built; **create/add-item endpoints missing**
 - FIFO egg-lot allocation, pessimistic lock — **built + concurrency-tested**
 - Confirm-sale decrements stock — **built**
