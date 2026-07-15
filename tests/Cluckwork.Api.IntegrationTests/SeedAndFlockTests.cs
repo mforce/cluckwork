@@ -12,7 +12,10 @@ public sealed class SeedAndFlockTests(CluckworkWebApplicationFactory factory)
     public async Task SeededAdmin_CanLogIn()
     {
         const string email = "admin@cluckwork.local";
-        const string password = "SeedPassw0rd!23";
+        // Generated per run — keeps a real-looking password out of source (no
+        // hardcoded-secret scanner false positives) while satisfying the identity
+        // policy (upper/lower/digit/symbol, >=12 chars).
+        var password = $"Aa1!{Guid.NewGuid():N}";
 
         // A host built with Seed:* config runs the startup seeder against the
         // shared container, creating the default account + admin user.
