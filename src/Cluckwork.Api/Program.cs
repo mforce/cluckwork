@@ -138,6 +138,12 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 
 app.UseHttpsRedirection();
+
+// Serve the built SPA (copied to wwwroot in the Docker image). Static assets are
+// public — mounted before auth. API routes and the SPA fallback are wired below.
+app.UseDefaultFiles();
+app.UseStaticFiles();
+
 app.UseAuthentication();
 app.UseMiddleware<TenantResolutionMiddleware>();
 app.UseMiddleware<IdempotencyMiddleware>();
@@ -181,6 +187,11 @@ app.Map("/error", (HttpContext context) =>
         _ => Results.Problem()
     };
 });
+
+// SPA client-side routing: any non-API, non-file request falls back to
+// index.html. Lowest route priority, so the /api/v1 endpoints and /health above
+// always match first. No-op in dev (no wwwroot) — dev uses the Vite server.
+app.MapFallbackToFile("index.html");
 
 app.Run();
 
