@@ -73,8 +73,8 @@ builder.Services
 
 // --- JWT Bearer (asymmetric signing; tech spec §7.4) ---
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
-var jwtPublicKeyPem = builder.Configuration["Jwt:PublicKeyPem"]
-    ?? throw new InvalidOperationException("Jwt:PublicKeyPem is not configured.");
+var jwtPublicKeyPem = PemKey.Normalize(builder.Configuration["Jwt:PublicKeyPem"]
+    ?? throw new InvalidOperationException("Jwt:PublicKeyPem is not configured."));
 
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)

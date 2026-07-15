@@ -18,7 +18,7 @@ public sealed class JwtTokenService(IOptions<JwtOptions> options, TimeProvider t
     {
         var jwtOptions = options.Value;
         using var rsa = RSA.Create();
-        rsa.ImportFromPem(jwtOptions.PrivateKeyPem);
+        rsa.ImportFromPem(PemKey.Normalize(jwtOptions.PrivateKeyPem));
 
         var now = timeProvider.GetUtcNow();
         var expires = now.AddMinutes(jwtOptions.AccessTokenMinutes);
