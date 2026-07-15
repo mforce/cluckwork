@@ -1,12 +1,16 @@
 using System.Security.Cryptography;
 using Cluckwork.Api.Endpoints.Auth;
 using Cluckwork.Api.Endpoints.DailyEntries;
+using Cluckwork.Api.Endpoints.Flocks;
 using Cluckwork.Api.Endpoints.Sales;
 using Cluckwork.Api.Middleware;
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.DailyEntries;
 using Cluckwork.Application.Features.DailyEntries.RecordDailyEntry;
 using Cluckwork.Application.Features.EggLots;
+using Cluckwork.Application.Features.Flocks;
+using Cluckwork.Application.Features.Flocks.CreateFlock;
+using Cluckwork.Application.Features.Flocks.DepleteFlock;
 using Cluckwork.Application.Features.Sales;
 using Cluckwork.Application.Features.Sales.ConfirmSale;
 using Cluckwork.Infrastructure.Identity;
@@ -107,13 +111,21 @@ builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<IDailyEntryRepository, DailyEntryRepository>();
 builder.Services.AddScoped<IEggLotRepository, EggLotRepository>();
 builder.Services.AddScoped<ISalesOrderRepository, SalesOrderRepository>();
+builder.Services.AddScoped<IFlockRepository, FlockRepository>();
 
 // --- Validators ---
 builder.Services.AddScoped<IValidator<RecordDailyEntryCommand>, RecordDailyEntryValidator>();
+builder.Services.AddScoped<IValidator<CreateFlockCommand>, CreateFlockValidator>();
 
 // --- Handlers (direct — no mediator, tech spec §2.1) ---
 builder.Services.AddScoped<RecordDailyEntryHandler>();
 builder.Services.AddScoped<ConfirmSaleHandler>();
+builder.Services.AddScoped<CreateFlockHandler>();
+builder.Services.AddScoped<DepleteFlockHandler>();
+
+// --- Startup seed (single-farm MVP) ---
+builder.Services.Configure<SeedOptions>(builder.Configuration.GetSection(SeedOptions.SectionName));
+builder.Services.AddScoped<DatabaseSeeder>();
 
 // --- OpenAPI ---
 builder.Services.AddOpenApi();
@@ -127,6 +139,19 @@ builder.Services.AddHostedService<DurableJobWorker>();
 // ----------------------------------------------------------------
 var app = builder.Build();
 // ----------------------------------------------------------------
+
+// --- Startup: apply migrations, then seed (both idempotent) ---
+// The two switches are independent: Database:MigrateOnStartup (default true)
+// gates only the migration — useful when a deploy job runs migrations — while
+// seeding always runs and self-gates on Seed:Enabled + supplied credentials
+// (see DatabaseSeeder).
+{
+    using var startupScope = app.Services.CreateScope();
+    var sp = startupScope.ServiceProvider;
+    if (builder.Configuration.GetValue("Database:MigrateOnStartup", true))
+        await sp.GetRequiredService<AppDbContext>().Database.MigrateAsync();
+    await sp.GetRequiredService<DatabaseSeeder>().SeedAsync();
+}
 
 app.UseExceptionHandler(new ExceptionHandlerOptions
 {
@@ -153,6 +178,11 @@ app.UseAuthorization();
 app.MapGroup("/api/v1/auth")
     .WithTags("Auth")
     .MapAuthEndpoints();
+
+app.MapGroup("/api/v1/flocks")
+    .WithTags("Flocks")
+    .RequireAuthorization()
+    .MapFlockEndpoints();
 
 app.MapGroup("/api/v1/daily-entries")
     .WithTags("DailyEntries")
