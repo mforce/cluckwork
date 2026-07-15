@@ -2,7 +2,7 @@
 
 Poultry egg-farm management system. Backend: **.NET 10** (C#), layered DDD. Frontend: **React 19 + Vite** SPA in `web/`. Postgres via EF Core.
 
-This file is the shared brief for any coding agent. `CLAUDE.md` is a symlink to it.
+This file is the shared brief for any coding agent (Claude Code, Codex, etc.).
 
 ## Layout
 
