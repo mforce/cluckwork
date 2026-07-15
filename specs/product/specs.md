@@ -475,34 +475,48 @@ user_role_assignments
 
 This is the single canonical roadmap.
 
-## Phase 1 — Egg farm walking skeleton
+## Phase 1.0 — MVP (shippable egg loop)
 
-Goal: ship a real egg-farm management system.
+Goal: ship the smallest **end-to-end** egg loop that is genuinely useful — record what the hens produce, know what is in stock, sell it. Ship this before building anything below it.
+
+The loop, in one line: **daily entry (production by grade) → egg lots → stock → sales order → FIFO allocation → stock decremented.**
 
 Includes:
 
-1. Account, users, roles, scoped permissions
-2. Farm / house / flock setup with flock classification fields
-3. Product catalog with egg products
-4. Daily entry with states and modular sections
-5. Egg production by grade
-6. Egg lots and egg inventory movement ledger
-7. Generic sales orders with Phase 1 egg allocation
-8. Customers and payments
-9. Feed inventory and feed usage
-10. Water usage
-11. Mortality/culling and bird movement generation
-12. Basic medication withdrawal flag
-13. Restricted egg lots and sale blocking
-14. Expenses
-15. Dashboard
-16. Core reports
-17. Audit log for critical changes
-18. CSV export / manual backup
+1. Single-farm login (JWT). Multi-tenant isolation stays in the schema and infrastructure — one default farm/account is seeded; scoped-role UI is deferred.
+2. Minimal setup: farm/house/flock records (seed a default farm; flock CRUD).
+3. Daily entry with states, capturing **egg production by sellable grade**.
+4. **Egg-lot generation from daily entry** (production by grade → dated lots). This is the bridge the rest of the loop depends on.
+5. Egg lots as the stock balance (`quantity_available`). No separate movement-ledger table yet.
+6. Customers with name + phone (required) and optional email/address/note (reference-app shape — no balances/payments).
+7. Generic sales orders + FIFO egg-lot allocation + sale decrements stock.
+8. Restricted egg lots and sale blocking (medication-withdrawal flag on lot). Already built; keep.
+9. Read/list surfaces for daily entries, current stock by grade, and orders.
+
+Explicitly **not** in 1.0 (moved down): payments, dashboard, core reports, expenses, feed/water tracking, mortality movement generation, audit-log UI, CSV export, inventory movement ledger, offline queue. Schema may reserve columns/paths, but no logic is built.
+
+## Phase 1.1 — Egg loop hardening (formerly Phase 1 remainder)
+
+Goal: turn the shippable loop into the fuller operational system originally scoped as Phase 1.
+
+Includes:
+
+1. Roles and scoped permissions (house/flock-level RBAC UI)
+2. Product catalog with egg products (replace raw grade strings)
+3. Egg **inventory movement ledger** (explicit movement rows + cached balances)
+4. Feed inventory and feed usage
+5. Water usage
+6. Mortality/culling and bird movement generation
+7. Expenses
+8. Customer payments and balances
+9. Dashboard
+10. Core reports
+11. Audit log for critical changes
+12. CSV export / manual backup
 
 ## Phase 1.5 — Egg product hardening
 
-Goal: make the egg MVP safer and more operationally complete.
+Goal: make the egg product safer and more operationally complete.
 
 Includes:
 
@@ -510,13 +524,11 @@ Includes:
 2. Inventory reconciliation
 3. Alert center
 4. Email digest for critical alerts
-5. House/flock-level RBAC UI
-6. Packaging inventory
-7. Additives/supplements
-8. Vaccination records
-9. Flock profitability allocation rules
-10. Backup/recovery workflow
-11. Advanced sales/customer balances
+5. Packaging inventory
+6. Additives/supplements
+7. Vaccination records
+8. Flock profitability allocation rules
+9. Backup/recovery workflow
 
 ## Phase 2 — Pullet / chicken raising
 
@@ -575,69 +587,66 @@ Includes:
 
 # 7. Unified Sprint List
 
-## Sprint 1 — Foundation
+Sprints A–D deliver **Phase 1.0 (MVP)** and are the ship gate. Everything after is Phase 1.1+. Much of A–D is already built (see status tags).
 
-- Account/auth/users
-- Roles and scoped assignments
-- Farm/house/flock CRUD
-- Flock classification fields
-- Product catalog
-- Audit log foundation
+## Sprint A — Foundation (MVP) — mostly built
 
-## Sprint 2 — Daily entry
+- Single-farm login / JWT / refresh tokens — **built**
+- Multi-tenant infrastructure (tenant stamp, isolation) — **built, kept dormant behind one default farm**
+- Seed default farm/house; flock CRUD — flock aggregate built; **seed + CRUD endpoints missing**
+- Idempotency middleware — **built**
 
-- Daily entry states
-- Copy from yesterday
-- Duplicate prevention
-- Modular sections
-- Egg section for layer flocks
-- Core feed/water/mortality fields
-- Bird placement/mortality movement generation
+## Sprint B — Daily entry (MVP) — mostly built
 
-## Sprint 3 — Egg lots and inventory
+- Daily entry states, duplicate prevention (natural-key upsert) — **built**
+- Record production endpoint — **built**
+- **Egg production by sellable grade** — **missing** (only cracked/dirty/discarded counts today)
+- Copy from yesterday — deferred to 1.1
+- Read/list daily entries — **missing**
 
-- Egg grades
-- Daily egg grade entries
-- Egg lot generation
-- Egg inventory movement ledger
-- Cached balances
-- Traceability chain
+## Sprint C — Egg lots and stock (MVP) — the critical bridge
 
-## Sprint 4 — Sales
+- **Egg-lot generation from daily entry (production by grade → dated lots)** — **MISSING, top priority**; `EggLot.Create` exists but is never called
+- Egg-lot `quantity_available` as stock balance — **built**
+- Stock-by-grade read endpoint — **missing**
+- Egg inventory movement ledger + explicit traceability rows — deferred to 1.1
 
-- Customers
-- Generic sales orders
-- Product-based sales order items
-- Egg product mapping
-- FIFO/manual egg lot allocation
-- Sale movement generation
-- Payments
+## Sprint D — Sales (MVP) — mostly built
 
-## Sprint 5 — Safety
+- Customers (name/phone required, optional email/address/note) — **missing entity** (only `CustomerId` referenced)
+- Generic sales orders + items — aggregate built; **create/add-item endpoints missing**
+- FIFO egg-lot allocation, pessimistic lock — **built + concurrency-tested**
+- Confirm-sale decrements stock — **built**
+- Restricted-lot sale blocking (medication withdrawal) — **built**
+- Payments — deferred (possibly indefinitely)
 
-- Medication records
-- Flock withdrawal cache
-- Restricted egg lots
-- Sale blocking
+**↑ Ship Phase 1.0 here. ↓ Everything below is post-MVP.**
+
+## Sprint E — Phase 1.1 operational fill
+
+- Roles and scoped assignments (RBAC UI)
+- Product catalog + egg product mapping (replace grade strings)
+- Egg inventory movement ledger + cached balances
+- Feed/water usage, mortality movement generation
+- Basic expenses
 - Health/welfare basics
 
-## Sprint 6 — Reports and hardening
+## Sprint F — Phase 1.1 reporting and audit
 
 - Dashboard
 - Core reports
-- Exports/backups
-- Alerts basics
-- Audit screens
-- Basic expenses
+- Customer payments and balances
+- Audit-log screens
+- Exports / manual backup
 
-## Sprint 7 — Phase 1.5 hardening
+## Sprint G — Phase 1.5 hardening
 
 - Legacy import
 - Reconciliation
 - Packaging inventory
 - Additives/supplements
 - Vaccination
-- Email alert digest
+- Alert center + email digest
 
 ---
 
