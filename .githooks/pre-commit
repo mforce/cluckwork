@@ -12,17 +12,23 @@ set -eu
 
 [ "${SKIP_HOOKS:-0}" = "1" ] && exit 0
 
-staged=$(git diff --cached --name-only --diff-filter=ACMR)
+# Note: checks run against the WORKING TREE, not the staged snapshot — with
+# partial staging (git add -p) the hook can pass while the staged content
+# alone would not build. Acceptable for a tripwire; CI checks the real tree.
+# D included: deleting a .cs/.csproj can break references just as well.
+staged=$(git diff --cached --name-only --diff-filter=ACMRD)
 
-if echo "$staged" | grep -qE '\.(cs|csproj)$|\.sln$'; then
+fail() { echo "pre-commit: FAILED ($1) — fix or use --no-verify." >&2; exit 1; }
+
+if echo "$staged" | grep -qE '\.sln$|\.cs(proj)?$'; then
   echo "pre-commit: .NET unit tests (domain + application)..."
-  dotnet test tests/Cluckwork.Domain.Tests --nologo -v q
-  dotnet test tests/Cluckwork.Application.Tests --nologo -v q
+  dotnet test tests/Cluckwork.Domain.Tests --nologo -v q || fail ".NET unit tests"
+  dotnet test tests/Cluckwork.Application.Tests --nologo -v q || fail ".NET unit tests"
 fi
 
 if echo "$staged" | grep -q '^web/'; then
   echo "pre-commit: web typecheck..."
-  (cd web && npm run --silent typecheck)
+  (cd web && npm run --silent typecheck) || fail "web typecheck"
 fi
 
 exit 0

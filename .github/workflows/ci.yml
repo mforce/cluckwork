@@ -54,6 +54,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
+          # Resolved from the repo root — setup-node ignores defaults.run.working-directory.
           cache-dependency-path: web/package-lock.json
 
       - name: Install dependencies

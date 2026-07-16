@@ -52,7 +52,7 @@ dotnet test  Cluckwork.sln                 # 42 tests; integration needs Docker
 ## Pre-commit hook (opt-in)
 
 `git config core.hooksPath .githooks` enables a ~2s pre-commit hook: unit tests
-(domain + application) when `.cs` files are staged, `npm run typecheck` when
+(domain + application) when `.cs`/`.csproj`/`.sln` files are staged, `npm run typecheck` when
 `web/` files are staged. Integration tests are deliberately excluded (Docker,
 slow) — CI is the authority. Skip once with `--no-verify`.
 
