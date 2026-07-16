@@ -19,11 +19,13 @@ public static class EggGradeEndpoints
         IEggGradeRepository grades, TenantContext tenant, CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
-        var list = await grades.ListActiveAsync(ct);
+        var list = await grades.ListActiveAsync(farmId: null, ct);
         return Results.Ok(list.Select(g => new EggGradeResponse(
-            g.Id, g.Name, g.GradeType.ToString(), g.SortOrder, g.IsSaleable)));
+            g.Id, g.FarmId, g.Name, g.GradeType.ToString(), g.SortOrder, g.IsSaleable)));
     }
 }
 
+// FarmId included from day one — grades are farm-scoped (spec §9.1) and a
+// multi-farm client needs to know which farm each bucket belongs to.
 public sealed record EggGradeResponse(
-    Guid Id, string Name, string GradeType, int SortOrder, bool IsSaleable);
+    Guid Id, Guid FarmId, string Name, string GradeType, int SortOrder, bool IsSaleable);

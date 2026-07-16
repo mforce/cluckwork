@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Cluckwork.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260716023955_AddEggGradesAndDailyEntryGrades")]
+    [Migration("20260716034027_AddEggGradesAndDailyEntryGrades")]
     partial class AddEggGradesAndDailyEntryGrades
     {
         /// <inheritdoc />
@@ -130,6 +130,8 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("AccountId");
 
                     b.HasIndex("EggGradeId");
 

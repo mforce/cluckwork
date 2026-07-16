@@ -128,6 +128,8 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("AccountId");
+
                     b.HasIndex("EggGradeId");
 
                     b.HasIndex("DailyEntryId", "EggGradeId")

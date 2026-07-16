@@ -57,6 +57,9 @@ public sealed class DailyEntryGradeConfiguration : IEntityTypeConfiguration<Dail
 
         // One line per grade within an entry (domain also enforces this).
         builder.HasIndex(g => new { g.DailyEntryId, g.EggGradeId }).IsUnique();
+
+        // The tenant query filter predicates every read on AccountId.
+        builder.HasIndex(g => g.AccountId);
     }
 }
 

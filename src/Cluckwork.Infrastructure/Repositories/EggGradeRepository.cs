@@ -11,10 +11,10 @@ public sealed class EggGradeRepository(AppDbContext db) : IEggGradeRepository
     public Task<EggGrade?> GetByIdAsync(Guid id, CancellationToken ct = default) =>
         db.EggGrades.FirstOrDefaultAsync(g => g.Id == id, ct);
 
-    public async Task<IReadOnlyList<EggGrade>> ListActiveAsync(CancellationToken ct = default) =>
+    public async Task<IReadOnlyList<EggGrade>> ListActiveAsync(Guid? farmId = null, CancellationToken ct = default) =>
         await db.EggGrades
             .AsNoTracking()
-            .Where(g => g.Active)
+            .Where(g => g.Active && (farmId == null || g.FarmId == farmId))
             .OrderBy(g => g.SortOrder).ThenBy(g => g.Name)
             .ToListAsync(ct);
 

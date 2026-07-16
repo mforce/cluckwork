@@ -92,15 +92,26 @@ public sealed class DatabaseSeeder(
             await db.SaveChangesAsync(ct);
             logger.LogInformation("Seeded {Count} default egg grades.", missing.Count);
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException ex)
         {
-            // Concurrent replica seeded the same names — they exist, which is all
-            // we wanted. Detach the failed inserts.
             foreach (var grade in missing)
                 db.Entry(grade).State = EntityState.Detached;
-            logger.LogInformation("Default egg grades already present (concurrent insert); continuing.");
+
+            if (IsUniqueViolation(ex))
+                // Concurrent replica seeded the same names — they exist, which is
+                // all we wanted.
+                logger.LogInformation("Default egg grades already present (concurrent insert); continuing.");
+            else
+                // Genuine failure: the tenant is left without default grades.
+                // Startup stays best-effort, but this must be loud, not "healthy".
+                logger.LogError(ex, "Failed to seed default egg grades.");
         }
     }
+
+    // Postgres unique_violation. Other DbUpdateExceptions (connection loss, batch
+    // errors, ...) are real failures and must not be mistaken for "already seeded".
+    private static bool IsUniqueViolation(DbUpdateException ex) =>
+        ex.InnerException is Npgsql.PostgresException { SqlState: Npgsql.PostgresErrorCodes.UniqueViolation };
 
     private async Task SeedDefaultAccountAsync(SeedOptions o, CancellationToken ct)
     {
@@ -118,14 +129,19 @@ public sealed class DatabaseSeeder(
             await db.SaveChangesAsync(ct);
             logger.LogInformation("Seeded default account {AccountId}.", SeedDefaults.AccountId);
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException ex)
         {
-            // Lost a race with another replica inserting the same fixed PK — the
-            // account now exists, which is all we wanted. Detach the failed insert
-            // so later SaveChanges on this context don't retry it.
+            // Detach the failed insert so later SaveChanges on this context don't
+            // retry it.
             var pending = db.Accounts.Local.FirstOrDefault(a => a.Id == SeedDefaults.AccountId);
             if (pending is not null) db.Entry(pending).State = EntityState.Detached;
-            logger.LogInformation("Default account already present (concurrent insert); continuing.");
+
+            if (IsUniqueViolation(ex))
+                // Lost a race with another replica inserting the same fixed PK —
+                // the account now exists, which is all we wanted.
+                logger.LogInformation("Default account already present (concurrent insert); continuing.");
+            else
+                logger.LogError(ex, "Failed to seed the default account.");
         }
     }
 

@@ -80,6 +80,9 @@ public sealed class DailyEntry : AggregateRoot<Guid>
         return Result.Success();
     }
 
+    // NOTE for the future adjust handler: like RecordDailyEntryHandler, it must
+    // validate grade ids against the tenant's active saleable grades for the
+    // entry's farm before calling this — the aggregate can't check ownership.
     public Result ManagerAdjust(
         int totalEggs, int cracked, int dirty, int discarded, int mortality, string reason,
         IReadOnlyCollection<GradeQuantity>? grades = null)

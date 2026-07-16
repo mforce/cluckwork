@@ -45,6 +45,14 @@ public sealed class EggGrade : AggregateRoot<Guid>
         Active = false;
         return Result.Success();
     }
+
+    public Result Activate()
+    {
+        if (Active)
+            return Result.Failure(Error.Domain("EggGrade.AlreadyActive", "Grade is already active."));
+        Active = true;
+        return Result.Success();
+    }
 }
 
 public enum EggGradeType { Size, Quality, Custom }

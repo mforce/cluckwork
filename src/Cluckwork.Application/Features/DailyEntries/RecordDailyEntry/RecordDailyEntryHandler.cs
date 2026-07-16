@@ -22,8 +22,8 @@ public sealed class RecordDailyEntryHandler(
         // filter scopes the lookup; grades are farm-scoped (spec §9.1).
         if (command.Grades is { Count: > 0 })
         {
-            var known = (await eggGrades.ListActiveAsync(ct))
-                .Where(g => g.IsSaleable && g.FarmId == command.FarmId)
+            var known = (await eggGrades.ListActiveAsync(command.FarmId, ct))
+                .Where(g => g.IsSaleable)
                 .Select(g => g.Id)
                 .ToHashSet();
 

@@ -57,6 +57,11 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                 });
 
             migrationBuilder.CreateIndex(
+                name: "IX_DailyEntryGrades_AccountId",
+                table: "DailyEntryGrades",
+                column: "AccountId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_DailyEntryGrades_DailyEntryId_EggGradeId",
                 table: "DailyEntryGrades",
                 columns: new[] { "DailyEntryId", "EggGradeId" },
