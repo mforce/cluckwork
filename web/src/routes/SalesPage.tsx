@@ -154,30 +154,39 @@ export function SalesPage() {
     clearKey(scope);
   });
 
-  const onConfirm = () => run(async () => {
-    if (!active) return;
-    // One-way action (#59): allocation cannot be undone yet (void is #60).
+  // One-way actions (#59). Confirm BEFORE run() so buttons don't flash
+  // disabled while the user decides.
+  const onConfirm = () => {
+    // Allocation cannot be undone yet (void is #60).
     if (!window.confirm(
       "Confirm this order? Stock is allocated from inventory (FIFO) and cannot be undone.")) return;
-    const scope = `confirm:${active.id}`;
-    await confirmOrder(active.id, keyFor(scope));
-    const refreshed = await getOrder(active.id);
-    setActive(refreshed);
-    setMessage(`Order ${refreshed.referenceNumber} confirmed — stock allocated (FIFO).`);
-    await loadOrders();
-    clearKey(scope);
-  });
+    void run(async () => {
+      if (!active) return;
+      const scope = `confirm:${active.id}`;
+      await confirmOrder(active.id, keyFor(scope));
+      const refreshed = await getOrder(active.id);
+      setActive(refreshed);
+      setMessage(`Order ${refreshed.referenceNumber} confirmed — stock allocated (FIFO).`);
+      await loadOrders();
+      clearKey(scope);
+    });
+  };
 
-  const onCancel = () => run(async () => {
-    if (!active) return;
-    if (!window.confirm("Cancel this draft? Its line items are discarded.")) return;
-    const scope = `cancel:${active.id}`;
-    await cancelOrder(active.id, keyFor(scope));
-    setActive(null);
-    setMessage("Draft order cancelled.");
-    await loadOrders();
-    clearKey(scope);
-  });
+  const onCancel = () => {
+    // Cancel is a status change: the order keeps its lines but becomes
+    // read-only and can't be confirmed.
+    if (!window.confirm(
+      "Cancel this draft? The order becomes cancelled and can no longer be edited or confirmed.")) return;
+    void run(async () => {
+      if (!active) return;
+      const scope = `cancel:${active.id}`;
+      await cancelOrder(active.id, keyFor(scope));
+      setActive(null);
+      setMessage("Draft order cancelled.");
+      await loadOrders();
+      clearKey(scope);
+    });
+  };
 
   // Always fetch fresh on open — the list row may be stale relative to
   // mutations made through the panel since the list was loaded.
