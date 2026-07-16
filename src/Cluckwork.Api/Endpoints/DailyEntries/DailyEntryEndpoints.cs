@@ -40,7 +40,7 @@ public static class DailyEntryEndpoints
         CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
-        var entry = await entries.GetByIdAsync(id, ct);
+        var entry = await entries.GetReadOnlyAsync(id, ct);
         return entry is null ? Results.NotFound() : Results.Ok(ToResponse(entry));
     }
 

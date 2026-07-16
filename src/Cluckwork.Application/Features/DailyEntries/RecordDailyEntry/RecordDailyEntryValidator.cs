@@ -9,7 +9,12 @@ public sealed class RecordDailyEntryValidator : AbstractValidator<RecordDailyEnt
         RuleFor(x => x.FarmId).NotEmpty();
         RuleFor(x => x.HouseId).NotEmpty();
         RuleFor(x => x.FlockId).NotEmpty();
-        RuleFor(x => x.Date).NotEmpty();
+        RuleFor(x => x.Date)
+            .NotEmpty()
+            .LessThanOrEqualTo(_ => DateOnly.FromDateTime(DateTime.UtcNow.Date).AddDays(1))
+            .WithMessage("Entry date cannot be in the future.");
+        // AddDays(1): a farm ahead of UTC legitimately records "today" that is
+        // UTC-tomorrow. Proper farm-local handling is the timezone follow-up.
         RuleFor(x => x.TotalEggs).GreaterThanOrEqualTo(0);
         RuleFor(x => x.CrackedEggs).GreaterThanOrEqualTo(0);
         RuleFor(x => x.DirtyEggs).GreaterThanOrEqualTo(0);

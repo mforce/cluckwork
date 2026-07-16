@@ -31,7 +31,7 @@ public static class SaleEndpoints
         Guid id, ISalesOrderRepository orders, TenantContext tenant, CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
-        var order = await orders.GetByIdAsync(id, ct);
+        var order = await orders.GetReadOnlyAsync(id, ct);
         return order is null ? Results.NotFound() : Results.Ok(ToResponse(order));
     }
 
@@ -44,7 +44,9 @@ public static class SaleEndpoints
         SalesOrderStatus? statusFilter = null;
         if (status is not null)
         {
-            if (!Enum.TryParse<SalesOrderStatus>(status, ignoreCase: true, out var parsed))
+            // IsDefined too: TryParse accepts any numeric ("999" parses fine).
+            if (!Enum.TryParse<SalesOrderStatus>(status, ignoreCase: true, out var parsed)
+                || !Enum.IsDefined(parsed))
                 return Results.ValidationProblem(new Dictionary<string, string[]>
                 {
                     ["status"] = [$"Unknown status '{status}'."]
@@ -61,9 +63,10 @@ public static class SaleEndpoints
 
     private static SalesOrderResponse ToResponse(SalesOrder o) => new(
         o.Id, o.CustomerId, o.ReferenceNumber, o.OrderDate, o.Status.ToString(),
-        o.TotalAmount.MinorUnits, o.TotalAmount.CurrencyCode,
+        o.TotalAmount.MinorUnits, o.TotalAmount.CurrencyCode, o.TotalAmount.CurrencyMinorUnit,
         o.Items.Select(i => new SalesOrderItemResponse(
-            i.Id, i.EggGradeId, i.Quantity, i.UnitPrice.MinorUnits, i.UnitPrice.CurrencyCode)).ToList());
+            i.Id, i.EggGradeId, i.Quantity,
+            i.UnitPrice.MinorUnits, i.UnitPrice.CurrencyCode, i.UnitPrice.CurrencyMinorUnit)).ToList());
 
     private static async Task<IResult> ConfirmSale(
         Guid id,
@@ -97,10 +100,13 @@ public static class SaleEndpoints
     }
 }
 
+// CurrencyMinorUnit included so clients render non-2-decimal currencies (JPY,
+// KWD) correctly instead of assuming cents.
 public sealed record SalesOrderResponse(
     Guid Id, Guid CustomerId, string ReferenceNumber, DateOnly OrderDate, string Status,
-    long TotalMinorUnits, string CurrencyCode,
+    long TotalMinorUnits, string CurrencyCode, int CurrencyMinorUnit,
     IReadOnlyList<SalesOrderItemResponse> Items);
 
 public sealed record SalesOrderItemResponse(
-    Guid Id, Guid EggGradeId, int Quantity, long UnitPriceMinorUnits, string CurrencyCode);
+    Guid Id, Guid EggGradeId, int Quantity,
+    long UnitPriceMinorUnits, string CurrencyCode, int CurrencyMinorUnit);

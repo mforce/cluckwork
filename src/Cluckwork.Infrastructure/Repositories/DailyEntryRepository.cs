@@ -27,6 +27,12 @@ public sealed class DailyEntryRepository(AppDbContext db) : IDailyEntryRepositor
                 e.FlockId == flockId &&
                 e.Date == date, ct);
 
+    public Task<DailyEntry?> GetReadOnlyAsync(Guid id, CancellationToken ct = default) =>
+        db.DailyEntries
+            .AsNoTracking()
+            .Include(e => e.Grades)
+            .FirstOrDefaultAsync(e => e.Id == id, ct);
+
     public async Task<IReadOnlyList<DailyEntry>> ListAsync(
         Guid? flockId, DateOnly? from, DateOnly? to, int limit, int offset,
         CancellationToken ct = default) =>
@@ -36,7 +42,9 @@ public sealed class DailyEntryRepository(AppDbContext db) : IDailyEntryRepositor
             .Where(e => (flockId == null || e.FlockId == flockId)
                      && (from == null || e.Date >= from)
                      && (to == null || e.Date <= to))
-            .OrderByDescending(e => e.Date)
+            // Id tiebreaker: Date alone is non-unique, and unstable ordering under
+            // OFFSET paging drops or duplicates rows across pages.
+            .OrderByDescending(e => e.Date).ThenByDescending(e => e.Id)
             .Skip(offset)
             .Take(limit)
             .ToListAsync(ct);

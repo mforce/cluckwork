@@ -46,6 +46,14 @@ public sealed class RecordDailyEntryValidatorTests
     }
 
     [Fact]
+    public void FarFutureDate_Fails()
+    {
+        var cmd = Valid() with { Date = DateOnly.FromDateTime(DateTime.UtcNow.Date).AddDays(3) };
+        var result = _validator.Validate(cmd);
+        Assert.Contains(result.Errors, e => e.PropertyName == nameof(RecordDailyEntryCommand.Date));
+    }
+
+    [Fact]
     public void ValidGrades_Pass()
     {
         var cmd = Valid() with

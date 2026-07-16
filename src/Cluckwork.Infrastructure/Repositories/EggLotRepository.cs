@@ -37,6 +37,8 @@ public sealed class EggLotRepository(AppDbContext db) : IEggLotRepository
         // grade set is tiny and the join-into-GroupBy shape doesn't translate.
         var sums = await db.EggLots
             .AsNoTracking()
+            // Future-dated production (if it ever slips in) is not current stock.
+            .Where(l => l.ProductionDate <= asOfDate)
             .GroupBy(l => l.EggGradeId)
             .Select(g => new
             {

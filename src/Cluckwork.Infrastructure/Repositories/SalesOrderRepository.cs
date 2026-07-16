@@ -12,6 +12,12 @@ public sealed class SalesOrderRepository(AppDbContext db) : ISalesOrderRepositor
             .Include(o => o.Items)
             .FirstOrDefaultAsync(o => o.Id == id, ct);
 
+    public Task<SalesOrder?> GetReadOnlyAsync(Guid id, CancellationToken ct = default) =>
+        db.SalesOrders
+            .AsNoTracking()
+            .Include(o => o.Items)
+            .FirstOrDefaultAsync(o => o.Id == id, ct);
+
     public async Task<IReadOnlyList<SalesOrder>> ListAsync(
         SalesOrderStatus? status, Guid? customerId, int limit, int offset,
         CancellationToken ct = default) =>
@@ -20,7 +26,7 @@ public sealed class SalesOrderRepository(AppDbContext db) : ISalesOrderRepositor
             .Include(o => o.Items)
             .Where(o => (status == null || o.Status == status)
                      && (customerId == null || o.CustomerId == customerId))
-            .OrderByDescending(o => o.OrderDate)
+            .OrderByDescending(o => o.OrderDate).ThenByDescending(o => o.Id)
             .Skip(offset)
             .Take(limit)
             .ToListAsync(ct);
