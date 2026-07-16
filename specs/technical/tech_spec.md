@@ -115,7 +115,7 @@ Explicitly avoided: MediatR, AutoMapper, MassTransit, FluentAssertions (all move
 ## 3.2 API conventions
 
 - **Versioning:** URL segment `/api/v1/...`. Additive changes don't bump; breaking changes do.
-- **Errors:** RFC 9457 `ProblemDetails` for every non-2xx. Validation failures → 400 with per-field errors. Domain rule violations → 422 with a machine-readable `code`.
+- **Errors:** RFC 9457 `ProblemDetails` for every non-2xx. Validation failures → 400 with per-field errors, each carrying a stable machine-readable code (FluentValidation `ErrorCode`) so clients can localize (functional §4.5); message text is an English fallback, not a contract. Domain rule violations → 422 with a machine-readable `code`. Other response classes (auth, idempotency, concurrency) carry no localization contract.
 - **Pagination:** cursor-based for ledgers/lists (`?cursor=&limit=`); never offset for large tables.
 - **Idempotency:** all write endpoints honor an `Idempotency-Key` header (functional §23). Key + account + endpoint hashed → stored result; replays return the original response. This is the backbone of safe offline retry (§6).
 - **Concurrency:** optimistic via `version`/row-version token on mutable aggregates (functional §10.9.1 already mandates `egg_lots.version`). Mismatch → 409 with current state.

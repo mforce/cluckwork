@@ -68,4 +68,4 @@ slow) — CI is the authority. Skip once with `--no-verify`.
 
 **Phase 1.0 (MVP) is shipped** — epic #13 closed. The egg loop runs end-to-end from the SPA: daily entry (by grade) → submit → egg lots → stock → customer → sales order → FIFO allocation → stock decremented. Single-farm login (multi-tenant infra present but dormant), customers without payments, draft orders cancellable/editable.
 
-Current phase: **Phase 1.1** (epic #14, `specs/product/specs.md` §6) — RBAC UI, product catalog / egg-grade management, inventory movement ledger, feed/water/mortality, expenses, payments, dashboard, reports, audit UI, exports. Known deferred item with an issue: farm-local timezone boundaries (#35). Work is tracked as GitHub issues (epics + slices).
+Current phase: **Phase 1.1** (epic #14, `specs/product/specs.md` §6) — RBAC UI, product catalog / egg-grade management, inventory movement ledger, feed/water/mortality, expenses, payments, dashboard, reports, audit UI, exports, i18n infrastructure (#45; English-only, translations land in 1.5). Known deferred item with an issue: farm-local timezone boundaries (#35). Work is tracked as GitHub issues (epics + slices).
