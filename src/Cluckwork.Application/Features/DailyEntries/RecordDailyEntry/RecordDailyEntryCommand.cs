@@ -9,4 +9,8 @@ public sealed record RecordDailyEntryCommand(
     int CrackedEggs,
     int DirtyEggs,
     int DiscardedEggs,
-    int MortalityCount);
+    int MortalityCount,
+    IReadOnlyList<GradeQuantityDto>? Grades = null);
+
+// Sellable production for one grade, referencing an EggGrade row (spec §9.2).
+public sealed record GradeQuantityDto(Guid EggGradeId, int Quantity);

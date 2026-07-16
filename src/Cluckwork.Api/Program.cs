@@ -1,12 +1,14 @@
 using System.Security.Cryptography;
 using Cluckwork.Api.Endpoints.Auth;
 using Cluckwork.Api.Endpoints.DailyEntries;
+using Cluckwork.Api.Endpoints.EggGrades;
 using Cluckwork.Api.Endpoints.Flocks;
 using Cluckwork.Api.Endpoints.Sales;
 using Cluckwork.Api.Middleware;
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.DailyEntries;
 using Cluckwork.Application.Features.DailyEntries.RecordDailyEntry;
+using Cluckwork.Application.Features.EggGrades;
 using Cluckwork.Application.Features.EggLots;
 using Cluckwork.Application.Features.Flocks;
 using Cluckwork.Application.Features.Flocks.CreateFlock;
@@ -110,6 +112,7 @@ builder.Services.AddScoped<IIdentityProvider, IdentityProvider>();
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<IDailyEntryRepository, DailyEntryRepository>();
 builder.Services.AddScoped<IEggLotRepository, EggLotRepository>();
+builder.Services.AddScoped<IEggGradeRepository, EggGradeRepository>();
 builder.Services.AddScoped<ISalesOrderRepository, SalesOrderRepository>();
 builder.Services.AddScoped<IFlockRepository, FlockRepository>();
 
@@ -183,6 +186,11 @@ app.MapGroup("/api/v1/flocks")
     .WithTags("Flocks")
     .RequireAuthorization()
     .MapFlockEndpoints();
+
+app.MapGroup("/api/v1/egg-grades")
+    .WithTags("EggGrades")
+    .RequireAuthorization()
+    .MapEggGradeEndpoints();
 
 app.MapGroup("/api/v1/daily-entries")
     .WithTags("DailyEntries")

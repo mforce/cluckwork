@@ -44,4 +44,80 @@ public sealed class RecordDailyEntryValidatorTests
 
         Assert.Contains(result.Errors, error => error.PropertyName == "Eggs");
     }
+
+    [Fact]
+    public void ValidGrades_Pass()
+    {
+        var cmd = Valid() with
+        {
+            Grades = [new GradeQuantityDto(Guid.NewGuid(), 600), new GradeQuantityDto(Guid.NewGuid(), 300)]
+        };
+        Assert.True(_validator.Validate(cmd).IsValid);
+    }
+
+    [Fact]
+    public void NoGrades_StillValid()
+    {
+        Assert.True(_validator.Validate(Valid()).IsValid);
+    }
+
+    [Fact]
+    public void GradeWithNonPositiveQuantity_Fails()
+    {
+        var cmd = Valid() with { Grades = [new GradeQuantityDto(Guid.NewGuid(), 0)] };
+        Assert.False(_validator.Validate(cmd).IsValid);
+    }
+
+    [Fact]
+    public void DuplicateGradeIds_Fail()
+    {
+        var gradeId = Guid.NewGuid();
+        var cmd = Valid() with
+        {
+            Grades = [new GradeQuantityDto(gradeId, 100), new GradeQuantityDto(gradeId, 50)]
+        };
+        var result = _validator.Validate(cmd);
+        Assert.Contains(result.Errors, e => e.PropertyName == "Grades");
+    }
+
+    [Fact]
+    public void GradesSumExceedingTotal_Fails()
+    {
+        var cmd = Valid() with
+        {
+            TotalEggs = 100,
+            CrackedEggs = 0, DirtyEggs = 0, DiscardedEggs = 0,
+            Grades = [new GradeQuantityDto(Guid.NewGuid(), 101)]
+        };
+        var result = _validator.Validate(cmd);
+        Assert.Contains(result.Errors, e => e.PropertyName == "Grades");
+    }
+
+    [Fact]
+    public void GradesSumExceedingSellable_Fails()
+    {
+        // 100 total - 10 cracked - 5 dirty - 3 discarded = 82 sellable.
+        var cmd = Valid() with
+        {
+            TotalEggs = 100, CrackedEggs = 10, DirtyEggs = 5, DiscardedEggs = 3,
+            Grades = [new GradeQuantityDto(Guid.NewGuid(), 83)]
+        };
+        var result = _validator.Validate(cmd);
+        Assert.Contains(result.Errors, e => e.PropertyName == "Grades");
+    }
+
+    [Fact]
+    public void HugeGradeQuantities_FailValidation_InsteadOfOverflowing()
+    {
+        var cmd = Valid() with
+        {
+            Grades =
+            [
+                new GradeQuantityDto(Guid.NewGuid(), 1_500_000_000),
+                new GradeQuantityDto(Guid.NewGuid(), 1_500_000_000)
+            ]
+        };
+        var result = _validator.Validate(cmd);
+        Assert.False(result.IsValid);
+    }
 }

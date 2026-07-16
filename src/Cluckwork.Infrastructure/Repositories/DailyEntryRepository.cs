@@ -7,14 +7,19 @@ using Microsoft.EntityFrameworkCore;
 
 public sealed class DailyEntryRepository(AppDbContext db) : IDailyEntryRepository
 {
+    // Grades are always eager-loaded: RecordProduction does a full replace of the
+    // lines, which requires the current lines to be tracked (orphan delete).
     public Task<DailyEntry?> GetByIdAsync(Guid id, CancellationToken ct = default) =>
-        db.DailyEntries.FirstOrDefaultAsync(e => e.Id == id, ct);
+        db.DailyEntries
+            .Include(e => e.Grades)
+            .FirstOrDefaultAsync(e => e.Id == id, ct);
 
     public Task<DailyEntry?> FindByNaturalKeyAsync(
         Guid accountId, Guid farmId, Guid houseId, Guid flockId, DateOnly date,
         CancellationToken ct = default) =>
         db.DailyEntries
             .IgnoreQueryFilters()
+            .Include(e => e.Grades)
             .FirstOrDefaultAsync(e =>
                 e.AccountId == accountId &&
                 e.FarmId == farmId &&
