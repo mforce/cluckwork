@@ -259,3 +259,81 @@ label.check {
   align-items: center;
   gap: 0.4rem;
 }
+
+/* --- Responsive pass (F9, #49) ---
+   Phones/tablets per spec KD-6 + the mobile daily-entry wireframe. Desktop
+   layout is untouched: everything below only applies under the breakpoint. */
+@media (max-width: 700px) {
+  /* Topbar: brand + sign-out on the first row, nav wraps below. */
+  .topbar {
+    flex-wrap: wrap;
+    row-gap: 0.25rem;
+    padding: 0.5rem 1rem;
+  }
+
+  .topbar nav {
+    order: 3;
+    flex-basis: 100%;
+    flex-wrap: wrap;
+    gap: 0.25rem 0.9rem;
+  }
+
+  .topbar nav a,
+  button.link {
+    /* comfortable tap targets */
+    padding: 0.5rem 0.25rem;
+    display: inline-block;
+  }
+
+  .content {
+    padding: 1rem;
+  }
+
+  /* Wide tables scroll inside their own box — the page never scrolls
+     sideways. display:block turns the table into its own scroll container
+     without wrapper markup on every screen. */
+  table.data {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    white-space: nowrap;
+    min-width: 0;
+  }
+
+  /* Flex children default to min-width:auto and refuse to shrink below their
+     table content — the dashboard panels then push the page wide. */
+  .panel {
+    min-width: 0;
+    flex-basis: 100%;
+  }
+
+  .form-grid label {
+    min-width: 0;
+    flex: 1 1 40%;
+  }
+
+  .inline-form input {
+    width: 100%;
+    flex: 1 1 100%;
+  }
+
+  .inline-form button[type="submit"] {
+    flex: 1 1 100%;
+  }
+
+  /* Primary actions: sticky full-width bar at the bottom of the viewport,
+     one-thumb reachable (mobile daily-entry wireframe). */
+  .actions {
+    position: sticky;
+    bottom: 0;
+    background: var(--bg);
+    padding: 0.75rem 0;
+    margin-top: 0.75rem;
+  }
+
+  .actions button {
+    flex: 1;
+    padding: 0.85rem 0.5rem;
+  }
+}
