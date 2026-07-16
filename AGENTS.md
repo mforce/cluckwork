@@ -63,6 +63,7 @@ slow) — CI is the authority. Skip once with `--no-verify`.
 - **`main` is protected** — branch, push, open a PR; don't commit to `main`.
 - Branch names: `feat/…`, `chore/…`, `spec/…`. PRs squash-merge.
 - Only commit/push when the human asks.
+- **Keep phase epics in sync**: when filing a slice issue, add it to the phase epic's checklist (epic #14 = Phase 1.1, #15 = Phase 1.5) with its issue number; when its PR merges, check it off. Milestone assignment alone is not enough — the epics are how work is navigated.
 
 ## Phase context
 
