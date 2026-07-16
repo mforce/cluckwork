@@ -49,6 +49,13 @@ dotnet test  Cluckwork.sln                 # 42 tests; integration needs Docker
 - Local API debug config uses `dotnet user-secrets` (keyed by `UserSecretsId` in `Cluckwork.Api.csproj`).
 - No hardcoded passwords/keys in source — GitGuardian scans PRs. Generate test credentials at runtime.
 
+## Pre-commit hook (opt-in)
+
+`git config core.hooksPath .githooks` enables a ~2s pre-commit hook: unit tests
+(domain + application) when `.cs`/`.csproj`/`.sln` files are staged, `npm run typecheck` when
+`web/` files are staged. Integration tests are deliberately excluded (Docker,
+slow) — CI is the authority. Skip once with `--no-verify`.
+
 ## Git / PR workflow
 
 - `origin` = GitHub (`github.com/mforce/cluckwork`); `gitea` = backup mirror. Use `gh` for PRs.
