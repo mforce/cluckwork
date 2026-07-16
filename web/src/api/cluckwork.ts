@@ -79,12 +79,15 @@ export const recordDailyEntry = (body: {
 export const submitDailyEntry = (id: string, key?: string) =>
   apiPost<{ id: string; status: string; eggLotIds: string[] }>(`/daily-entries/${id}/submit`, undefined, key);
 
-export const listDailyEntries = (params?: { flockId?: string; from?: string; to?: string; limit?: number }) => {
+export const listDailyEntries = (params?: {
+  flockId?: string; from?: string; to?: string; limit?: number; offset?: number;
+}) => {
   const q = new URLSearchParams();
   if (params?.flockId) q.set("flockId", params.flockId);
   if (params?.from) q.set("from", params.from);
   if (params?.to) q.set("to", params.to);
   if (params?.limit) q.set("limit", String(params.limit));
+  if (params?.offset) q.set("offset", String(params.offset));
   const qs = q.size > 0 ? `?${q}` : "";
   return apiGet<DailyEntry[]>(`/daily-entries${qs}`);
 };
@@ -133,10 +136,17 @@ export const createCustomer = (body: {
   note?: string;
 }, key?: string) => apiPost<Created>("/customers", body, key);
 
-export const listOrders = (params?: { status?: string; limit?: number }) => {
+export const listOrders = (params?: {
+  status?: string; customerId?: string; from?: string; to?: string;
+  limit?: number; offset?: number;
+}) => {
   const q = new URLSearchParams();
   if (params?.status) q.set("status", params.status);
+  if (params?.customerId) q.set("customerId", params.customerId);
+  if (params?.from) q.set("from", params.from);
+  if (params?.to) q.set("to", params.to);
   if (params?.limit) q.set("limit", String(params.limit));
+  if (params?.offset) q.set("offset", String(params.offset));
   const qs = q.size > 0 ? `?${q}` : "";
   return apiGet<SalesOrder[]>(`/sales${qs}`);
 };

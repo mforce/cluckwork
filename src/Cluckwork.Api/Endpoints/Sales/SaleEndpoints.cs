@@ -170,7 +170,9 @@ public static class SaleEndpoints
 
     private static async Task<IResult> ListSalesOrders(
         ISalesOrderRepository orders, TenantContext tenant, CancellationToken ct,
-        string? status = null, Guid? customerId = null, int? limit = null, int? offset = null)
+        string? status = null, Guid? customerId = null,
+        DateOnly? from = null, DateOnly? to = null,
+        int? limit = null, int? offset = null)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
 
@@ -190,7 +192,7 @@ public static class SaleEndpoints
         var take = Math.Clamp(limit ?? DefaultPageSize, 1, MaxPageSize);
         var skip = Math.Max(offset ?? 0, 0);
 
-        var list = await orders.ListAsync(statusFilter, customerId, take, skip, ct);
+        var list = await orders.ListAsync(statusFilter, customerId, from, to, take, skip, ct);
         return Results.Ok(list.Select(ToResponse));
     }
 
