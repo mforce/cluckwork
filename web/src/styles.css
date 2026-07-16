@@ -211,6 +211,40 @@ table.data th {
   background: var(--card);
 }
 
+/* --- Dashboard (F5) --- */
+.dash-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.panel {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1rem 1.25rem;
+  background: var(--card);
+  flex: 1 1 18rem;
+}
+
+.panel h3 {
+  margin: 0 0 0.25rem;
+}
+
+.panel h3 a {
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.panel h3 a:hover {
+  color: var(--accent);
+}
+
+.panel table.data {
+  min-width: 0;
+  width: 100%;
+}
+
 input.cell {
   width: 6.5rem;
 }

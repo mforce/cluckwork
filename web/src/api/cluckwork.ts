@@ -54,7 +54,8 @@ export interface Created {
 
 export const listEggGrades = () => apiGet<EggGrade[]>("/egg-grades");
 
-export const listFlocks = () => apiGet<Flock[]>("/flocks");
+export const listFlocks = (params?: { limit?: number }) =>
+  apiGet<Flock[]>(`/flocks${params?.limit ? `?limit=${params.limit}` : ""}`);
 
 export const createFlock = (body: {
   name: string;
@@ -126,7 +127,8 @@ export interface SalesOrder {
   items: OrderItem[];
 }
 
-export const listCustomers = () => apiGet<Customer[]>("/customers");
+export const listCustomers = (params?: { limit?: number }) =>
+  apiGet<Customer[]>(`/customers${params?.limit ? `?limit=${params.limit}` : ""}`);
 
 export const createCustomer = (body: {
   name: string;
