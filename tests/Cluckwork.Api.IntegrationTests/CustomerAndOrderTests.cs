@@ -123,6 +123,62 @@ public sealed class CustomerAndOrderTests(CluckworkWebApplicationFactory factory
     }
 
     [Fact]
+    public async Task ParallelAddItems_TotalMatchesPersistedItems()
+    {
+        // The race both reviews flagged: without AddItem's Version bump, two
+        // parallel add-items both commit but the second overwrites the first's
+        // TotalAmount. With the bump, the loser 409s and rolls back entirely —
+        // either way the denormalized total must equal the sum of persisted lines.
+        var (client, _, _, grades) = await SetupAsync("Large");
+        var customerId = await CreatedId(await client.PostWithKeyAsync(
+            "/api/v1/customers", Guid.NewGuid().ToString(), new { name = "C", phone = "1" }));
+        var orderId = await CreatedId(await client.PostWithKeyAsync(
+            "/api/v1/sales", Guid.NewGuid().ToString(),
+            new { customerId, orderDate = DateOnly.FromDateTime(DateTime.UtcNow.Date) }));
+
+        var a = client.PostWithKeyAsync($"/api/v1/sales/{orderId}/items", Guid.NewGuid().ToString(),
+            new { eggGradeId = grades["Large"], quantity = 10, unitPriceMinorUnits = 100 });
+        var b = client.PostWithKeyAsync($"/api/v1/sales/{orderId}/items", Guid.NewGuid().ToString(),
+            new { eggGradeId = grades["Large"], quantity = 20, unitPriceMinorUnits = 100 });
+        var responses = await Task.WhenAll(a, b);
+
+        Assert.All(responses, r => Assert.True(
+            r.StatusCode is HttpStatusCode.Created or HttpStatusCode.Conflict,
+            $"unexpected {(int)r.StatusCode}"));
+        Assert.Contains(responses, r => r.StatusCode == HttpStatusCode.Created);
+
+        var order = await client.GetFromJsonAsync<OrderDto>($"/api/v1/sales/{orderId}");
+        var expected = order!.Items.Sum(i => i.Quantity * i.UnitPriceMinorUnits);
+        Assert.Equal(expected, order.TotalMinorUnits);
+        Assert.Equal(responses.Count(r => r.StatusCode == HttpStatusCode.Created), order.Items.Count);
+    }
+
+    [Fact]
+    public async Task Customer_WhitespaceNamePhone_400NotServerError()
+    {
+        var (client, _, _, _) = await SetupAsync("Large");
+        var response = await client.PostWithKeyAsync(
+            "/api/v1/customers", Guid.NewGuid().ToString(), new { name = "   ", phone = "  " });
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task AddItem_OverflowingLineTotal_Rejected()
+    {
+        var (client, _, _, grades) = await SetupAsync("Large");
+        var customerId = await CreatedId(await client.PostWithKeyAsync(
+            "/api/v1/customers", Guid.NewGuid().ToString(), new { name = "C", phone = "1" }));
+        var orderId = await CreatedId(await client.PostWithKeyAsync(
+            "/api/v1/sales", Guid.NewGuid().ToString(),
+            new { customerId, orderDate = DateOnly.FromDateTime(DateTime.UtcNow.Date) }));
+
+        var response = await client.PostWithKeyAsync(
+            $"/api/v1/sales/{orderId}/items", Guid.NewGuid().ToString(),
+            new { eggGradeId = grades["Large"], quantity = 2, unitPriceMinorUnits = long.MaxValue });
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
     public async Task FullLoop_PureHttp_RecordToSale()
     {
         // The complete MVP loop with no harness data seeding beyond

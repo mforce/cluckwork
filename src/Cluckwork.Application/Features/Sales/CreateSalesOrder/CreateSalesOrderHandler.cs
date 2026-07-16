@@ -21,14 +21,17 @@ public sealed class CreateSalesOrderHandler(
             return Result.Failure<Guid>(Error.NotFound(nameof(Customer), command.CustomerId));
 
         // Spec: orders snapshot the farm's currency at creation. The account's
-        // default currency is the single-farm MVP stand-in.
+        // default currency is the single-farm MVP stand-in. A resolved tenant
+        // without an account row is an invariant violation — fail, don't guess.
         var account = await accounts.GetCurrentAsync(ct);
-        var currency = account?.DefaultCurrencyCode ?? "USD";
+        if (account is null)
+            return Result.Failure<Guid>(Error.NotFound("Account", accountId));
 
         var orderId = Guid.NewGuid();
         var reference = $"SO-{orderId.ToString("N")[..8].ToUpperInvariant()}";
         var order = SalesOrder.Create(
-            orderId, accountId, command.CustomerId, reference, command.OrderDate, currency);
+            orderId, accountId, command.CustomerId, reference, command.OrderDate,
+            account.DefaultCurrencyCode, account.DefaultCurrencyMinorUnit);
 
         await orders.AddAsync(order, ct);
         await unitOfWork.SaveChangesAsync(ct);

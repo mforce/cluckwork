@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Cluckwork.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260716052039_AddCustomers")]
+    [Migration("20260716053715_AddCustomers")]
     partial class AddCustomers
     {
         /// <inheritdoc />
@@ -334,6 +334,9 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("CustomerId");
+
+                    b.HasIndex("AccountId", "ReferenceNumber")
+                        .IsUnique();
 
                     b.ToTable("SalesOrders");
                 });

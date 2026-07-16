@@ -17,7 +17,7 @@ public sealed class SalesOrder : AggregateRoot<Guid>
 
     public static SalesOrder Create(
         Guid id, Guid accountId, Guid customerId,
-        string referenceNumber, DateOnly orderDate, string currencyCode)
+        string referenceNumber, DateOnly orderDate, string currencyCode, int currencyMinorUnit = 2)
     {
         return new SalesOrder
         {
@@ -26,7 +26,9 @@ public sealed class SalesOrder : AggregateRoot<Guid>
             ReferenceNumber = referenceNumber,
             OrderDate = orderDate,
             Status = SalesOrderStatus.Draft,
-            TotalAmount = Money.Zero(currencyCode)
+            // The order snapshots the farm currency INCLUDING its minor unit —
+            // JPY(0)/KWD(3) amounts are misread if this defaults to cents.
+            TotalAmount = Money.Zero(currencyCode, currencyMinorUnit)
         };
     }
 
@@ -39,6 +41,10 @@ public sealed class SalesOrder : AggregateRoot<Guid>
         var item = SalesOrderItem.Create(AccountId, Id, eggGradeId, quantity, unitPrice);
         _items.Add(item);
         TotalAmount = TotalAmount.Add(item.LineTotal);
+        // Version is the concurrency token (EF never auto-increments it): without
+        // this bump, two parallel add-items both match WHERE Version = N and the
+        // second silently overwrites the first's TotalAmount.
+        Version++;
         return Result.Success(item);
     }
 

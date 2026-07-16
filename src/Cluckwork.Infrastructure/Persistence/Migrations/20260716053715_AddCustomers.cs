@@ -36,6 +36,12 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                 });
 
             migrationBuilder.CreateIndex(
+                name: "IX_SalesOrders_AccountId_ReferenceNumber",
+                table: "SalesOrders",
+                columns: new[] { "AccountId", "ReferenceNumber" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
                 name: "IX_SalesOrders_CustomerId",
                 table: "SalesOrders",
                 column: "CustomerId");
@@ -63,6 +69,10 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
 
             migrationBuilder.DropTable(
                 name: "Customers");
+
+            migrationBuilder.DropIndex(
+                name: "IX_SalesOrders_AccountId_ReferenceNumber",
+                table: "SalesOrders");
 
             migrationBuilder.DropIndex(
                 name: "IX_SalesOrders_CustomerId",

@@ -15,6 +15,10 @@ public sealed class SalesOrderConfiguration : IEntityTypeConfiguration<SalesOrde
             .HasConversion<string>().HasMaxLength(32).IsRequired();
         builder.Property(o => o.Version).IsConcurrencyToken();
 
+        // Reference numbers are 8-hex truncations — the index turns a birthday
+        // collision into a retryable 409 instead of silent duplicates.
+        builder.HasIndex(o => new { o.AccountId, o.ReferenceNumber }).IsUnique();
+
         // Customers with order history cannot be deleted from under them.
         builder.HasOne<Cluckwork.Domain.Sales.Customer>()
             .WithMany()

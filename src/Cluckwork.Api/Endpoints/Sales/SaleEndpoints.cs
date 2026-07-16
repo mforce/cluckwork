@@ -78,7 +78,7 @@ public static class SaleEndpoints
 
         var result = await handler.HandleAsync(command, tenant.AccountId, ct);
         if (result.IsSuccess)
-            return Results.Created($"/api/v1/sales/{id}", new { Id = result.Value });
+            return Results.Created($"/api/v1/sales/{id}", new { OrderId = id, ItemId = result.Value });
         if (result.Error.Code.EndsWith(".NotFound", StringComparison.Ordinal))
             return Results.NotFound();
         var status = result.Error.Code == "SalesOrder.NotDraft"

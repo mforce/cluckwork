@@ -332,6 +332,9 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("CustomerId");
 
+                    b.HasIndex("AccountId", "ReferenceNumber")
+                        .IsUnique();
+
                     b.ToTable("SalesOrders");
                 });
 
