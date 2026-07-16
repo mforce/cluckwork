@@ -61,7 +61,7 @@ export const createFlock = (body: {
   breed: string;
   placementDate: string;
   initialCount: number;
-}) => apiPost<Created>("/flocks", body);
+}, key?: string) => apiPost<Created>("/flocks", body, key);
 
 export const recordDailyEntry = (body: {
   farmId: string;
@@ -74,14 +74,16 @@ export const recordDailyEntry = (body: {
   discardedEggs: number;
   mortalityCount: number;
   grades?: GradeLine[];
-}) => apiPost<Created>("/daily-entries", body);
+}, key?: string) => apiPost<Created>("/daily-entries", body, key);
 
-export const submitDailyEntry = (id: string) =>
-  apiPost<{ id: string; status: string; eggLotIds: string[] }>(`/daily-entries/${id}/submit`);
+export const submitDailyEntry = (id: string, key?: string) =>
+  apiPost<{ id: string; status: string; eggLotIds: string[] }>(`/daily-entries/${id}/submit`, undefined, key);
 
-export const listDailyEntries = (params?: { flockId?: string; limit?: number }) => {
+export const listDailyEntries = (params?: { flockId?: string; from?: string; to?: string; limit?: number }) => {
   const q = new URLSearchParams();
   if (params?.flockId) q.set("flockId", params.flockId);
+  if (params?.from) q.set("from", params.from);
+  if (params?.to) q.set("to", params.to);
   if (params?.limit) q.set("limit", String(params.limit));
   const qs = q.size > 0 ? `?${q}` : "";
   return apiGet<DailyEntry[]>(`/daily-entries${qs}`);
