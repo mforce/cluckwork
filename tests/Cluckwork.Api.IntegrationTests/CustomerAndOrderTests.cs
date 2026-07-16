@@ -235,7 +235,8 @@ public sealed class CustomerAndOrderTests(CluckworkWebApplicationFactory factory
 
         // 5. stock decremented per grade
         var stock = await client.GetFromJsonAsync<List<StockDto>>("/api/v1/stock");
-        Assert.Equal(350, stock!.Single(s => s.EggGradeId == grades["Large"]).Available);
+        Assert.NotNull(stock);
+        Assert.Equal(350, stock.Single(s => s.EggGradeId == grades["Large"]).Available);
         Assert.Equal(200, stock.Single(s => s.EggGradeId == grades["Medium"]).Available);
     }
 }
