@@ -62,15 +62,17 @@ public sealed class DailyEntryTests
     }
 
     [Fact]
-    public void RecordProduction_WithGrades_StoresLines()
+    public void RecordProduction_WithGrades_StoresNormalizedLines()
     {
         var entry = MakeDraft();
         var result = entry.RecordProduction(1000, 10, 5, 3, 2,
-            [new GradeQuantity("A-Large", 600), new GradeQuantity("A-Medium", 300)]);
+            [new GradeQuantity(" a-Large ", 600), new GradeQuantity("A-Medium", 300)]);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(2, entry.Grades.Count);
-        Assert.Equal(600, entry.Grades.Single(g => g.GradeCode == "A-Large").Quantity);
+        // Codes are canonicalized (trim + uppercase) — they're matched across
+        // entries, lots, and sales lines by a case-sensitive unique index.
+        Assert.Equal(600, entry.Grades.Single(g => g.GradeCode == "A-LARGE").Quantity);
         Assert.All(entry.Grades, g => Assert.Equal(entry.AccountId, g.AccountId));
     }
 
@@ -82,16 +84,57 @@ public sealed class DailyEntryTests
         entry.RecordProduction(900, 0, 0, 0, 0, [new GradeQuantity("A-Medium", 500)]);
 
         var line = Assert.Single(entry.Grades);
-        Assert.Equal("A-Medium", line.GradeCode);
+        Assert.Equal("A-MEDIUM", line.GradeCode);
         Assert.Equal(500, line.Quantity);
     }
 
     [Fact]
-    public void RecordProduction_GradesExceedingTotal_Fails()
+    public void RecordProduction_OmittedGrades_PreservesLines()
     {
         var entry = MakeDraft();
-        var result = entry.RecordProduction(100, 0, 0, 0, 0,
-            [new GradeQuantity("A-Large", 101)]);
+        entry.RecordProduction(1000, 0, 0, 0, 0, [new GradeQuantity("A-Large", 600)]);
+
+        // Older client re-records counts without the grades field.
+        var result = entry.RecordProduction(950, 10, 5, 3, 1);
+
+        Assert.True(result.IsSuccess);
+        var line = Assert.Single(entry.Grades);
+        Assert.Equal(600, line.Quantity);
+    }
+
+    [Fact]
+    public void RecordProduction_OmittedGrades_StillValidatedAgainstNewTotals()
+    {
+        var entry = MakeDraft();
+        entry.RecordProduction(1000, 0, 0, 0, 0, [new GradeQuantity("A-Large", 600)]);
+
+        // New totals leave only 500 sellable — the preserved 600 no longer fits.
+        var result = entry.RecordProduction(500, 0, 0, 0, 0);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal("DailyEntry.GradesExceedTotal", result.Error.Code);
+        Assert.Equal(1000, entry.TotalEggs);
+    }
+
+    [Fact]
+    public void RecordProduction_EmptyGrades_ClearsLines()
+    {
+        var entry = MakeDraft();
+        entry.RecordProduction(1000, 0, 0, 0, 0, [new GradeQuantity("A-Large", 600)]);
+
+        var result = entry.RecordProduction(1000, 0, 0, 0, 0, []);
+
+        Assert.True(result.IsSuccess);
+        Assert.Empty(entry.Grades);
+    }
+
+    [Fact]
+    public void RecordProduction_GradesExceedingSellable_Fails()
+    {
+        var entry = MakeDraft();
+        // 100 total - 10 cracked - 5 dirty - 3 discarded = 82 sellable.
+        var result = entry.RecordProduction(100, 10, 5, 3, 0,
+            [new GradeQuantity("A-Large", 83)]);
 
         Assert.True(result.IsFailure);
         Assert.Equal("DailyEntry.GradesExceedTotal", result.Error.Code);

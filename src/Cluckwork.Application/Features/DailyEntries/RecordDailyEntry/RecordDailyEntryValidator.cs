@@ -36,10 +36,13 @@ public sealed class RecordDailyEntryValidator : AbstractValidator<RecordDailyEnt
                 .WithName("Grades")
                 .WithMessage("Each grade may appear only once.");
 
+            // Grades are the sellable portion of the same total the losses come out
+            // of; long accumulation so a pathological payload can't overflow Sum.
             RuleFor(x => x)
-                .Must(x => x.Grades!.Sum(g => g.Quantity) <= x.TotalEggs)
+                .Must(x => x.Grades!.Sum(g => (long)g.Quantity)
+                    <= (long)x.TotalEggs - x.CrackedEggs - x.DirtyEggs - x.DiscardedEggs)
                 .WithName("Grades")
-                .WithMessage("Graded quantities cannot exceed total eggs.");
+                .WithMessage("Graded quantities cannot exceed total eggs minus cracked/dirty/discarded.");
         });
     }
 }

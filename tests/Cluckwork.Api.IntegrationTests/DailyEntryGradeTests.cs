@@ -42,7 +42,8 @@ public sealed class DailyEntryGradeTests(CluckworkWebApplicationFactory factory)
         var lines = await factory.WithTenantScopeAsync(accountId, db =>
             db.DailyEntryGrades.OrderBy(g => g.GradeCode).ToListAsync());
         Assert.Equal(2, lines.Count);
-        Assert.Equal(600, lines.Single(g => g.GradeCode == "A-Large").Quantity);
+        // Stored canonicalized (trim + uppercase).
+        Assert.Equal(600, lines.Single(g => g.GradeCode == "A-LARGE").Quantity);
         Assert.All(lines, g => Assert.Equal(accountId, g.AccountId));
     }
 
@@ -69,8 +70,49 @@ public sealed class DailyEntryGradeTests(CluckworkWebApplicationFactory factory)
         var lines = await factory.WithTenantScopeAsync(accountId, db =>
             db.DailyEntryGrades.OrderBy(g => g.GradeCode).ToListAsync());
         Assert.Equal(2, lines.Count);
-        Assert.Equal(550, lines.Single(g => g.GradeCode == "A-Large").Quantity);
+        Assert.Equal(550, lines.Single(g => g.GradeCode == "A-LARGE").Quantity);
         Assert.Equal(100, lines.Single(g => g.GradeCode == "B").Quantity);
+    }
+
+    [Fact]
+    public async Task ReRecord_WithoutGrades_PreservesLines()
+    {
+        var email = $"u-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
+        var (farmId, houseId, flockId) = (Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
+
+        await client.PostWithKeyAsync(
+            "/api/v1/daily-entries", Guid.NewGuid().ToString(),
+            Body(farmId, houseId, flockId, [new { gradeCode = "A-Large", quantity = 600 }]));
+
+        // Older client shape: no grades field at all.
+        var second = await client.PostWithKeyAsync(
+            "/api/v1/daily-entries", Guid.NewGuid().ToString(), new
+            {
+                farmId, houseId, flockId,
+                date = DateOnly.FromDateTime(DateTime.UtcNow.Date),
+                totalEggs = 950, crackedEggs = 10, dirtyEggs = 5, discardedEggs = 3, mortalityCount = 1
+            });
+        Assert.Equal(HttpStatusCode.Created, second.StatusCode);
+
+        var line = Assert.Single(await factory.WithTenantScopeAsync(accountId, db =>
+            db.DailyEntryGrades.ToListAsync()));
+        Assert.Equal(600, line.Quantity);
+    }
+
+    [Fact]
+    public async Task NullGradeElement_Rejected()
+    {
+        var email = $"u-{Guid.NewGuid():N}@test.local";
+        await factory.SeedAccountWithUserAsync(email);
+        var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
+
+        var response = await client.PostWithKeyAsync(
+            "/api/v1/daily-entries", Guid.NewGuid().ToString(),
+            Body(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), [null!]));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
     [Fact]

@@ -45,7 +45,10 @@ public sealed class DailyEntry : AggregateRoot<Guid>
             return Result.Failure(Error.Domain(
                 "DailyEntry.Immutable", "Cannot modify a locked or voided entry."));
 
-        var gradeResult = ValidateGrades(totalEggs, grades);
+        // null = leave existing grade lines untouched (older clients omit the
+        // field); the kept lines must still fit the new totals. [] clears.
+        var effectiveGrades = grades ?? CurrentGradeQuantities();
+        var gradeResult = ValidateGrades(totalEggs, cracked, dirty, discarded, effectiveGrades);
         if (gradeResult.IsFailure) return gradeResult;
 
         TotalEggs = totalEggs;
@@ -53,7 +56,8 @@ public sealed class DailyEntry : AggregateRoot<Guid>
         DirtyEggs = dirty;
         DiscardedEggs = discarded;
         MortalityCount = mortality;
-        ReplaceGrades(grades);
+        if (grades is not null)
+            ReplaceGrades(grades);
         Version++;
         return Result.Success();
     }
@@ -84,7 +88,8 @@ public sealed class DailyEntry : AggregateRoot<Guid>
             return Result.Failure(Error.Domain(
                 "DailyEntry.NotLocked", "Manager adjustments require a locked entry."));
 
-        var gradeResult = ValidateGrades(totalEggs, grades);
+        var effectiveGrades = grades ?? CurrentGradeQuantities();
+        var gradeResult = ValidateGrades(totalEggs, cracked, dirty, discarded, effectiveGrades);
         if (gradeResult.IsFailure) return gradeResult;
 
         TotalEggs = totalEggs;
@@ -92,19 +97,31 @@ public sealed class DailyEntry : AggregateRoot<Guid>
         DirtyEggs = dirty;
         DiscardedEggs = discarded;
         MortalityCount = mortality;
-        ReplaceGrades(grades);
+        if (grades is not null)
+            ReplaceGrades(grades);
         Status = DailyEntryStatus.ManagerAdjusted;
         Version++;
         return Result.Success();
     }
 
-    private static Result ValidateGrades(int totalEggs, IReadOnlyCollection<GradeQuantity>? grades)
+    public const int MaxGradeCodeLength = 20;
+
+    private List<GradeQuantity> CurrentGradeQuantities() =>
+        _grades.Select(l => new GradeQuantity(l.GradeCode, l.Quantity)).ToList();
+
+    private static Result ValidateGrades(
+        int totalEggs, int cracked, int dirty, int discarded,
+        IReadOnlyCollection<GradeQuantity> grades)
     {
-        if (grades is null || grades.Count == 0) return Result.Success();
+        if (grades.Count == 0) return Result.Success();
 
         if (grades.Any(g => string.IsNullOrWhiteSpace(g.GradeCode)))
             return Result.Failure(Error.Validation(
                 "DailyEntry.InvalidGrade", "Grade code is required."));
+
+        if (grades.Any(g => g.GradeCode.Trim().Length > MaxGradeCodeLength))
+            return Result.Failure(Error.Validation(
+                "DailyEntry.InvalidGrade", $"Grade code cannot exceed {MaxGradeCodeLength} characters."));
 
         if (grades.Any(g => g.Quantity <= 0))
             return Result.Failure(Error.Validation(
@@ -114,9 +131,13 @@ public sealed class DailyEntry : AggregateRoot<Guid>
             return Result.Failure(Error.Validation(
                 "DailyEntry.DuplicateGrade", "Each grade may appear only once."));
 
-        if (grades.Sum(g => g.Quantity) > totalEggs)
+        // Grades are the sellable portion; cracked/dirty/discarded are losses out
+        // of the same total. long accumulation — Sum<int> would throw on overflow.
+        var sellable = (long)totalEggs - cracked - dirty - discarded;
+        if (grades.Sum(g => (long)g.Quantity) > sellable)
             return Result.Failure(Error.Domain(
-                "DailyEntry.GradesExceedTotal", "Graded quantities cannot exceed total eggs."));
+                "DailyEntry.GradesExceedTotal",
+                "Graded quantities cannot exceed total eggs minus cracked/dirty/discarded."));
 
         return Result.Success();
     }
@@ -126,17 +147,15 @@ public sealed class DailyEntry : AggregateRoot<Guid>
     // codes, remove gone, add new) rather than clear+add — deleting and re-inserting
     // the same (entry, grade) key in one save can trip the unique index depending on
     // EF's statement ordering.
-    private void ReplaceGrades(IReadOnlyCollection<GradeQuantity>? grades)
+    private void ReplaceGrades(IReadOnlyCollection<GradeQuantity> grades)
     {
-        var incoming = grades ?? [];
+        _grades.RemoveAll(line => !grades.Any(g =>
+            string.Equals(g.GradeCode.Trim(), line.GradeCode, StringComparison.OrdinalIgnoreCase)));
 
-        _grades.RemoveAll(line => !incoming.Any(g =>
-            string.Equals(g.GradeCode, line.GradeCode, StringComparison.OrdinalIgnoreCase)));
-
-        foreach (var g in incoming)
+        foreach (var g in grades)
         {
             var existing = _grades.FirstOrDefault(line =>
-                string.Equals(line.GradeCode, g.GradeCode, StringComparison.OrdinalIgnoreCase));
+                string.Equals(line.GradeCode, g.GradeCode.Trim(), StringComparison.OrdinalIgnoreCase));
             if (existing is not null)
                 existing.UpdateQuantity(g.Quantity);
             else
@@ -170,7 +189,10 @@ public sealed class DailyEntryGrade : Entity<Guid>
         {
             AccountId = accountId,
             DailyEntryId = dailyEntryId,
-            GradeCode = gradeCode,
+            // Normalized: grade codes are identifiers matched across daily entries,
+            // egg lots, and sales lines; the DB unique index is case-sensitive, so
+            // storage must be canonical ("a-large " and "A-Large" are one grade).
+            GradeCode = gradeCode.Trim().ToUpperInvariant(),
             Quantity = quantity
         };
     }

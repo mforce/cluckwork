@@ -91,4 +91,32 @@ public sealed class RecordDailyEntryValidatorTests
         var result = _validator.Validate(cmd);
         Assert.Contains(result.Errors, e => e.PropertyName == "Grades");
     }
+
+    [Fact]
+    public void GradesSumExceedingSellable_Fails()
+    {
+        // 100 total - 10 cracked - 5 dirty - 3 discarded = 82 sellable.
+        var cmd = Valid() with
+        {
+            TotalEggs = 100, CrackedEggs = 10, DirtyEggs = 5, DiscardedEggs = 3,
+            Grades = [new GradeQuantityDto("A-Large", 83)]
+        };
+        var result = _validator.Validate(cmd);
+        Assert.Contains(result.Errors, e => e.PropertyName == "Grades");
+    }
+
+    [Fact]
+    public void HugeGradeQuantities_FailValidation_InsteadOfOverflowing()
+    {
+        var cmd = Valid() with
+        {
+            Grades =
+            [
+                new GradeQuantityDto("A-Large", 1_500_000_000),
+                new GradeQuantityDto("A-Medium", 1_500_000_000)
+            ]
+        };
+        var result = _validator.Validate(cmd);
+        Assert.False(result.IsValid);
+    }
 }

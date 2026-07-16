@@ -25,6 +25,14 @@ public static class DailyEntryEndpoints
         if (!tenant.IsResolved)
             return Results.Unauthorized();
 
+        // System.Text.Json can bind "grades": [null] into the list despite the
+        // non-nullable element type; reject it here instead of NRE-ing in mapping.
+        if (request.Grades is not null && request.Grades.Any(g => g is null))
+            return Results.ValidationProblem(new Dictionary<string, string[]>
+            {
+                ["Grades"] = ["Grade entries must not be null."]
+            });
+
         var command = new RecordDailyEntryCommand(
             request.FarmId, request.HouseId, request.FlockId, request.Date,
             request.TotalEggs, request.CrackedEggs, request.DirtyEggs,
@@ -48,6 +56,7 @@ public sealed record RecordDailyEntryRequest(
     int TotalEggs, int CrackedEggs, int DirtyEggs, int DiscardedEggs, int MortalityCount,
     List<GradeQuantityRequest>? Grades = null);
 
-// Sellable production for one grade (e.g. "A-Large", 220). Optional for
-// backward compatibility; #8 turns these lines into egg lots on submit.
+// Sellable production for one grade (e.g. "A-LARGE", 220). Contract:
+// omitted/null = leave existing grade lines unchanged (older clients);
+// [] = explicitly clear all lines. #8 turns these lines into egg lots.
 public sealed record GradeQuantityRequest(string GradeCode, int Quantity);
