@@ -2,6 +2,7 @@ namespace Cluckwork.Api.IntegrationTests;
 
 using System.Net;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+using Microsoft.EntityFrameworkCore;
 
 // #42 — egg grade management: CRUD over the API, case-insensitive name
 // uniqueness, deactivation semantics, and the Version-token race required by
@@ -14,12 +15,14 @@ public sealed class EggGradeManagementTests(CluckworkWebApplicationFactory facto
         Guid Id, Guid FarmId, string Name, string GradeType, int SortOrder, bool IsSaleable, bool Active);
 
     // API-created grades land in the seeded single-MVP farm, same as flocks.
-    private async Task<HttpClient> SetupClientAsync()
+    private async Task<(HttpClient Client, Guid AccountId)> SetupAsync()
     {
         var email = $"u-{Guid.NewGuid():N}@test.local";
-        await factory.SeedAccountWithUserAsync(email);
-        return factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        return (factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email)), accountId);
     }
+
+    private async Task<HttpClient> SetupClientAsync() => (await SetupAsync()).Client;
 
     private static Task<HttpResponseMessage> PutWithKeyAsync(
         HttpClient client, string url, object body)
@@ -166,7 +169,7 @@ public sealed class EggGradeManagementTests(CluckworkWebApplicationFactory facto
         // Version-token race per the aggregate-mutation rule: two concurrent
         // updates must not interleave — the final row is exactly one request's
         // full payload (the loser either 409s or is cleanly serialized after).
-        var client = await SetupClientAsync();
+        var (client, accountId) = await SetupAsync();
         var create = await client.PostWithKeyAsync(
             "/api/v1/egg-grades", Guid.NewGuid().ToString(),
             new { name = "Race", gradeType = "Custom", sortOrder = 0, isSaleable = true });
@@ -181,13 +184,41 @@ public sealed class EggGradeManagementTests(CluckworkWebApplicationFactory facto
         Assert.All(responses, r => Assert.True(
             r.StatusCode is HttpStatusCode.NoContent or HttpStatusCode.Conflict,
             $"unexpected {(int)r.StatusCode}"));
-        Assert.Contains(responses, r => r.StatusCode == HttpStatusCode.NoContent);
+        var successes = responses.Count(r => r.StatusCode == HttpStatusCode.NoContent);
+        Assert.True(successes >= 1);
 
         var all = await client.GetFromJsonAsync<List<GradeDto>>("/api/v1/egg-grades?includeInactive=true");
         var final = all!.Single(g => g.Id == id);
         var isA = final is { Name: "Race A", SortOrder: 1, IsSaleable: true };
         var isB = final is { Name: "Race B", SortOrder: 2, IsSaleable: false };
         Assert.True(isA || isB, $"torn write: {final.Name}/{final.SortOrder}/{final.IsSaleable}");
+
+        // The full-payload check above passes even without the Version token
+        // (each UPDATE writes all three fields), so also pin the token itself:
+        // every 204 must have advanced Version by exactly one.
+        var version = await factory.WithTenantScopeAsync(accountId, async db =>
+            (await db.EggGrades.FirstAsync(g => g.Id == id)).Version);
+        Assert.Equal(successes, version);
+    }
+
+    [Fact]
+    public async Task Grade_ParallelCreates_SameName_ExactlyOneWins()
+    {
+        // Two concurrent creates can both pass the handler's friendly pre-check;
+        // the lower(Name) unique index must reject the loser (global 409 mapping).
+        var client = await SetupClientAsync();
+
+        var a = client.PostWithKeyAsync("/api/v1/egg-grades", Guid.NewGuid().ToString(),
+            new { name = "Duplo", gradeType = "Custom", sortOrder = 1, isSaleable = true });
+        var b = client.PostWithKeyAsync("/api/v1/egg-grades", Guid.NewGuid().ToString(),
+            new { name = "duplo", gradeType = "Custom", sortOrder = 2, isSaleable = true });
+        var responses = await Task.WhenAll(a, b);
+
+        Assert.Equal(1, responses.Count(r => r.StatusCode == HttpStatusCode.Created));
+        Assert.Equal(1, responses.Count(r => r.StatusCode == HttpStatusCode.Conflict));
+
+        var all = await client.GetFromJsonAsync<List<GradeDto>>("/api/v1/egg-grades?includeInactive=true");
+        Assert.Single(all!, g => g.Name.Equals("duplo", StringComparison.OrdinalIgnoreCase));
     }
 
     private sealed record FlockDto(Guid Id, Guid FarmId, Guid HouseId, string Name);

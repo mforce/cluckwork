@@ -16,6 +16,10 @@ public static class EggGradeEndpoints
             .WithName("ListEggGrades")
             .WithSummary("List egg grades. Active only by default; includeInactive=true adds deactivated grades (management view).");
 
+        group.MapGet("/{id:guid}", GetEggGrade)
+            .WithName("GetEggGrade")
+            .WithSummary("Get a single egg grade by id (active or not).");
+
         group.MapPost("/", CreateEggGrade)
             .WithName("CreateEggGrade")
             .WithSummary("Create an egg grade (name unique per farm, case-insensitive).");
@@ -44,6 +48,14 @@ public static class EggGradeEndpoints
             ? await grades.ListAllAsync(ct)
             : await grades.ListActiveAsync(farmId: null, ct);
         return Results.Ok(list.Select(ToResponse));
+    }
+
+    private static async Task<IResult> GetEggGrade(
+        Guid id, IEggGradeRepository grades, TenantContext tenant, CancellationToken ct)
+    {
+        if (!tenant.IsResolved) return Results.Unauthorized();
+        var grade = await grades.GetByIdAsync(id, ct);
+        return grade is null ? Results.NotFound() : Results.Ok(ToResponse(grade));
     }
 
     private static async Task<IResult> CreateEggGrade(

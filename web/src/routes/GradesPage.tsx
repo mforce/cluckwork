@@ -45,12 +45,13 @@ export function GradesPage() {
   };
   const clearKey = (scope: string) => keys.current.delete(scope);
 
-  const load = () =>
-    listEggGrades({ includeInactive: true })
+  const fetchGrades = () => listEggGrades({ includeInactive: true });
+
+  useEffect(() => {
+    fetchGrades()
       .then(setGrades)
       .catch(() => setError("Could not load grades. Is the API up?"));
-
-  useEffect(() => { void load(); }, []);
+  }, []);
 
   async function run(scope: string, action: (key: string) => Promise<unknown>) {
     if (busy) return;
@@ -58,7 +59,9 @@ export function GradesPage() {
     setError(null);
     try {
       await action(keyFor(scope));
-      await load();
+      // The refresh must succeed before the key rotates: if it throws, the key
+      // survives and a retry replays the idempotent write instead of repeating it.
+      setGrades(await fetchGrades());
       clearKey(scope);
       return true;
     } catch (err) {

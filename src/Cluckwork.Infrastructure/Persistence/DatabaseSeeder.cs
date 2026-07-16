@@ -69,22 +69,21 @@ public sealed class DatabaseSeeder(
 
     private async Task SeedDefaultEggGradesAsync(CancellationToken ct)
     {
-        var existing = await db.EggGrades
+        // Defaults are seeded only into an empty catalog. Once any grade exists
+        // the catalog is user-managed (#42): re-seeding by name would resurrect
+        // renamed or deliberately removed defaults on every startup.
+        var anyGrades = await db.EggGrades
             .IgnoreQueryFilters()
-            .Where(g => g.AccountId == SeedDefaults.AccountId)
-            .Select(g => g.Name)
-            .ToListAsync(ct);
+            .AnyAsync(g => g.AccountId == SeedDefaults.AccountId, ct);
+        if (anyGrades) return;
 
         var missing = DefaultGrades
-            .Where(d => !existing.Contains(d.Name))
-            .Select((d, _) => EggGrade.Create(
+            .Select((d, index) => EggGrade.Create(
                 Guid.NewGuid(), SeedDefaults.AccountId, SeedDefaults.FarmId,
                 d.Name, d.Type,
-                sortOrder: Array.FindIndex(DefaultGrades, x => x.Name == d.Name),
+                sortOrder: index,
                 isSaleable: d.Saleable))
             .ToList();
-
-        if (missing.Count == 0) return;
 
         db.EggGrades.AddRange(missing);
         try

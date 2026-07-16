@@ -21,6 +21,22 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                 nullable: false,
                 defaultValue: 0);
 
+            // The old index was case-sensitive, so "Large"/"large" may coexist.
+            // Rename later duplicates (keeping the earliest row's name) so the
+            // stricter index below can't brick startup on existing data. The
+            // suffix stays within MaxNameLength (42 + '-' + 7 = 50).
+            migrationBuilder.Sql(
+                """
+                UPDATE "EggGrades" g
+                SET "Name" = left(g."Name", 42) || '-' || left(g."Id"::text, 7)
+                WHERE EXISTS (
+                    SELECT 1 FROM "EggGrades" d
+                    WHERE d."AccountId" = g."AccountId"
+                      AND d."FarmId" = g."FarmId"
+                      AND lower(d."Name") = lower(g."Name")
+                      AND d."Id" < g."Id");
+                """);
+
             // Case-insensitive per-farm name uniqueness. Expression indexes
             // aren't representable in the EF model, so this lives as raw SQL;
             // it replaces the case-sensitive IX dropped above.

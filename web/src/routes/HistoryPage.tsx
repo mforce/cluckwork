@@ -17,7 +17,9 @@ export function HistoryPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([listFlocks(), listEggGrades()])
+    // includeInactive: historical entries may reference deactivated grades and
+    // their names must still resolve.
+    Promise.all([listFlocks(), listEggGrades({ includeInactive: true })])
       .then(([f, g]) => { setFlocks(f); setGrades(g); })
       .catch(() => setError("Could not load flocks/grades."));
   }, []);
