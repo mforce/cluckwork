@@ -86,7 +86,9 @@ Flock classification is extensible: `species` (chicken, duck, quail…), `produc
 
 ## Specs & roadmap
 
-The canonical product and technical specification — data model, business rules, transaction boundaries, KPI formulas, and the **phase plan (Phase 1.0 MVP through Phase 5)** — lives in [`specs/product/specs.md`](specs/product/specs.md). Work is tracked as GitHub issues (epics + slices).
+The canonical product and technical specification — data model, business rules, transaction boundaries, KPI formulas, and the **phase plan (Phase 1.0 MVP through Phase 5)** — lives in [`specs/product/specs.md`](specs/product/specs.md). New to the domain? Start with the
+[**glossary of key concepts**](specs/product/GLOSSARY.md) — flocks, daily entries, egg lots,
+culls, FIFO allocation, and friends. Work is tracked as GitHub issues (epics + slices).
 
 ## Contributing / agents
 
