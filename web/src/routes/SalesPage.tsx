@@ -25,7 +25,8 @@ export function SalesPage() {
   const [orders, setOrders] = useState<SalesOrder[] | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [grades, setGrades] = useState<EggGrade[]>([]);
+  const [grades, setGrades] = useState<EggGrade[]>([]);        // active + saleable (picker)
+  const [allGrades, setAllGrades] = useState<EggGrade[]>([]);  // inactive included (display names)
   const [loadError, setLoadError] = useState<string | null>(null);
 
   // list filters (#24: status/customer/paged)
@@ -65,7 +66,7 @@ export function SalesPage() {
   const [message, setMessage] = useState<string | null>(null);
 
   const customerName = (id: string) => customers.find((c) => c.id === id)?.name ?? id.slice(0, 8);
-  const gradeName = (id: string) => grades.find((g) => g.id === id)?.name ?? id.slice(0, 8);
+  const gradeName = (id: string) => allGrades.find((g) => g.id === id)?.name ?? id.slice(0, 8);
 
   const loadOrders = useCallback(async (offset = 0) => {
     const page = await listOrders({
@@ -79,10 +80,14 @@ export function SalesPage() {
   }, [statusFilter, customerFilter]);
 
   useEffect(() => {
-    Promise.all([listCustomers(), listEggGrades()])
+    // includeInactive: existing order lines may reference deactivated grades,
+    // and their names must still resolve. The add-item picker filters back down
+    // to active + saleable.
+    Promise.all([listCustomers(), listEggGrades({ includeInactive: true })])
       .then(([c, g]) => {
         setCustomers(c);
-        const saleable = g.filter((x) => x.isSaleable);
+        setAllGrades(g);
+        const saleable = g.filter((x) => x.active && x.isSaleable);
         setGrades(saleable);
         if (c.length > 0) setCustomerId(c[0].id);
         if (saleable.length > 0) setGradeId(saleable[0].id);

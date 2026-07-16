@@ -26,6 +26,7 @@ export function AppLayout() {
           <NavLink to="/customers">Customers</NavLink>
           <NavLink to="/sales">Sales</NavLink>
           <NavLink to="/history">History</NavLink>
+          <NavLink to="/grades">Grades</NavLink>
         </nav>
         <button className="link" onClick={onLogout}>
           Sign out

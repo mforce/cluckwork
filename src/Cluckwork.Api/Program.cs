@@ -15,6 +15,9 @@ using Cluckwork.Application.Features.DailyEntries;
 using Cluckwork.Application.Features.DailyEntries.RecordDailyEntry;
 using Cluckwork.Application.Features.DailyEntries.SubmitDailyEntry;
 using Cluckwork.Application.Features.EggGrades;
+using Cluckwork.Application.Features.EggGrades.CreateEggGrade;
+using Cluckwork.Application.Features.EggGrades.SetEggGradeActive;
+using Cluckwork.Application.Features.EggGrades.UpdateEggGrade;
 using Cluckwork.Application.Features.EggLots;
 using Cluckwork.Application.Features.Flocks;
 using Cluckwork.Application.Features.Flocks.CreateFlock;
@@ -136,6 +139,8 @@ builder.Services.AddScoped<IValidator<CreateCustomerCommand>, CreateCustomerVali
 builder.Services.AddScoped<IValidator<CreateSalesOrderCommand>, CreateSalesOrderValidator>();
 builder.Services.AddScoped<IValidator<AddOrderItemCommand>, AddOrderItemValidator>();
 builder.Services.AddScoped<IValidator<UpdateOrderItemCommand>, UpdateOrderItemValidator>();
+builder.Services.AddScoped<IValidator<CreateEggGradeCommand>, CreateEggGradeValidator>();
+builder.Services.AddScoped<IValidator<UpdateEggGradeCommand>, UpdateEggGradeValidator>();
 
 // --- Handlers (direct — no mediator, tech spec §2.1) ---
 builder.Services.AddScoped<RecordDailyEntryHandler>();
@@ -149,6 +154,9 @@ builder.Services.AddScoped<UpdateOrderItemHandler>();
 builder.Services.AddScoped<ConfirmSaleHandler>();
 builder.Services.AddScoped<CreateFlockHandler>();
 builder.Services.AddScoped<DepleteFlockHandler>();
+builder.Services.AddScoped<CreateEggGradeHandler>();
+builder.Services.AddScoped<UpdateEggGradeHandler>();
+builder.Services.AddScoped<SetEggGradeActiveHandler>();
 
 // --- Startup seed (single-farm MVP) ---
 builder.Services.Configure<SeedOptions>(builder.Configuration.GetSection(SeedOptions.SectionName));
