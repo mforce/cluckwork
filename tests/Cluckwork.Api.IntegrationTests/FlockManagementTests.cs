@@ -98,15 +98,17 @@ public sealed class FlockManagementTests(CluckworkWebApplicationFactory factory)
     }
 
     [Fact]
-    public async Task DailyEntry_OnDepletedFlock_Rejected()
+    public async Task DailyEntry_FlockLifecycle_GatesByDate()
     {
-        // Depleted birds lay no eggs — capture must refuse (#47). The flock and
-        // its farm come from the API, so this runs the same path the SPA does.
+        // Capture rules (#47): depleted flocks accept backfill dated on/before
+        // the depletion date and reject later dates; archived flocks reject
+        // everything. The flock/farm come from the API — same path as the SPA.
         var (client, _) = await SetupAsync();
         var id = await CreateFlockAsync(client);
         var flock = await client.GetFromJsonAsync<FlockDto>($"/api/v1/flocks/{id}");
+        var today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
 
-        object EntryBody(string date) => new
+        object EntryBody(DateOnly date) => new
         {
             farmId = flock!.FarmId,
             houseId = flock.HouseId,
@@ -119,25 +121,44 @@ public sealed class FlockManagementTests(CluckworkWebApplicationFactory factory)
             mortalityCount = 0,
         };
 
-        var ok = await client.PostWithKeyAsync(
-            "/api/v1/daily-entries", Guid.NewGuid().ToString(), EntryBody("2026-07-14"));
-        Assert.Equal(HttpStatusCode.Created, ok.StatusCode);
-
         await client.PostWithKeyAsync($"/api/v1/flocks/{id}/deplete", Guid.NewGuid().ToString());
 
+        // Backfill for the final laying days (on/before DepletedOn) still works.
+        var backfill = await client.PostWithKeyAsync(
+            "/api/v1/daily-entries", Guid.NewGuid().ToString(), EntryBody(today.AddDays(-1)));
+        Assert.Equal(HttpStatusCode.Created, backfill.StatusCode);
+
+        // A date after depletion is refused (tomorrow passes the future-date
+        // validator slack but not the lifecycle rule).
         var rejected = await client.PostWithKeyAsync(
-            "/api/v1/daily-entries", Guid.NewGuid().ToString(), EntryBody("2026-07-15"));
+            "/api/v1/daily-entries", Guid.NewGuid().ToString(), EntryBody(today.AddDays(1)));
         Assert.Equal(HttpStatusCode.UnprocessableEntity, rejected.StatusCode);
 
-        // Unknown flock -> 404, distinct from the status rejection.
+        // Archived: nothing is recordable, not even backfill.
+        await client.PostWithKeyAsync($"/api/v1/flocks/{id}/archive", Guid.NewGuid().ToString());
+        var archived = await client.PostWithKeyAsync(
+            "/api/v1/daily-entries", Guid.NewGuid().ToString(), EntryBody(today.AddDays(-2)));
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, archived.StatusCode);
+
+        // Unknown flock -> 404, distinct from the lifecycle rejection.
         var unknown = await client.PostWithKeyAsync(
             "/api/v1/daily-entries", Guid.NewGuid().ToString(), new
             {
                 farmId = flock!.FarmId, houseId = flock.HouseId, flockId = Guid.NewGuid(),
-                date = "2026-07-15", totalEggs = 10, crackedEggs = 0, dirtyEggs = 0,
+                date = today, totalEggs = 10, crackedEggs = 0, dirtyEggs = 0,
                 discardedEggs = 0, mortalityCount = 0,
             });
         Assert.Equal(HttpStatusCode.NotFound, unknown.StatusCode);
+
+        // Farm mismatch -> 422 with its own code (flock ids are caller-supplied).
+        var mismatch = await client.PostWithKeyAsync(
+            "/api/v1/daily-entries", Guid.NewGuid().ToString(), new
+            {
+                farmId = Guid.NewGuid(), houseId = flock.HouseId, flockId = id,
+                date = today.AddDays(-1), totalEggs = 10, crackedEggs = 0, dirtyEggs = 0,
+                discardedEggs = 0, mortalityCount = 0,
+            });
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, mismatch.StatusCode);
     }
 
     [Fact]

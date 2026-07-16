@@ -2,7 +2,9 @@ namespace Cluckwork.Domain.Flocks;
 
 public sealed class Flock : AggregateRoot<Guid>
 {
-    public const int MaxNameLength = 100;
+    // Match the column widths (Name 200 / Breed 100) so validators and schema
+    // agree on one limit.
+    public const int MaxNameLength = 200;
     public const int MaxBreedLength = 100;
 
     public Guid FarmId { get; private set; }
@@ -12,6 +14,11 @@ public sealed class Flock : AggregateRoot<Guid>
     public DateOnly PlacementDate { get; private set; }
     public int InitialCount { get; private set; }
     public FlockStatus Status { get; private set; }
+    // Lifecycle stamps: the operational date the action was taken (farm-local ≈
+    // UTC for the MVP, issue #35). DepletedOn lets historical daily entries
+    // dated on/before it stay recordable after depletion.
+    public DateOnly? DepletedOn { get; private set; }
+    public DateOnly? ArchivedOn { get; private set; }
     public int Version { get; private set; }
 
     private Flock() { }
@@ -51,6 +58,8 @@ public sealed class Flock : AggregateRoot<Guid>
             return Result.Failure(Error.Validation("Flock.BreedRequired", "Flock breed is required."));
         if (initialCount <= 0)
             return Result.Failure(Error.Validation("Flock.CountInvalid", "Initial count must be positive."));
+        if (placementDate == default)
+            return Result.Failure(Error.Validation("Flock.PlacementRequired", "Placement date is required."));
 
         Name = name.Trim();
         Breed = breed.Trim();
@@ -60,25 +69,37 @@ public sealed class Flock : AggregateRoot<Guid>
         return Result.Success();
     }
 
-    public Result Deplete()
+    public Result Deplete(DateOnly asOf)
     {
         if (Status != FlockStatus.Active)
             return Result.Failure(Error.Domain("Flock.NotActive", "Only active flocks can be depleted."));
         Status = FlockStatus.Depleted;
+        DepletedOn = asOf;
         Version++;
         return Result.Success();
     }
 
     // Archive hides a flock from pickers and the dashboard. Allowed from Active
     // too (a mistake-created flock shouldn't need a fake depletion first).
-    public Result Archive()
+    public Result Archive(DateOnly asOf)
     {
         if (Status == FlockStatus.Archived)
             return Result.Failure(Error.Domain("Flock.AlreadyArchived", "Flock is already archived."));
         Status = FlockStatus.Archived;
+        ArchivedOn = asOf;
         Version++;
         return Result.Success();
     }
+
+    // Whether production may be recorded for the given operational date:
+    // active flocks always; depleted flocks only for dates on/before the
+    // depletion date (late backfill of the final laying days); archived never.
+    public bool CanRecordProductionOn(DateOnly date) => Status switch
+    {
+        FlockStatus.Active => true,
+        FlockStatus.Depleted => DepletedOn is null || date <= DepletedOn,
+        _ => false,
+    };
 }
 
 public enum FlockStatus { Active, Depleted, Archived }

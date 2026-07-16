@@ -19,15 +19,24 @@ public sealed class RecordDailyEntryHandler(
         Guid accountId,
         CancellationToken ct)
     {
-        // Production is only recordable against a live flock (#47): depleted
-        // birds lay no eggs, and archived flocks are hidden bookkeeping.
+        // Production needs a live flock for the entry's date (#47): archived
+        // flocks never accept entries; depleted flocks still accept backfill
+        // dated on/before the depletion date (the final laying days are often
+        // entered late). The flock must also belong to the farm/house the entry
+        // names — ids are caller-supplied and only tenant-checked otherwise.
         var flock = await flocks.GetByIdAsync(command.FlockId, ct);
         if (flock is null)
             return Result.Failure<Guid>(Error.NotFound(nameof(Flock), command.FlockId));
-        if (flock.Status != FlockStatus.Active)
+        // Farm only: houses aren't aggregates yet (phantom ids until Phase 2's
+        // House model) — add the HouseId match when they are.
+        if (flock.FarmId != command.FarmId)
+            return Result.Failure<Guid>(Error.Validation(
+                "DailyEntry.FlockFarmMismatch",
+                $"Flock '{flock.Name}' does not belong to the given farm."));
+        if (!flock.CanRecordProductionOn(command.Date))
             return Result.Failure<Guid>(Error.Validation(
                 "DailyEntry.FlockNotActive",
-                $"Flock '{flock.Name}' is {flock.Status.ToString().ToLowerInvariant()} — production can only be recorded for active flocks."));
+                $"Flock '{flock.Name}' is {flock.Status.ToString().ToLowerInvariant()} — production cannot be recorded for {command.Date:yyyy-MM-dd}."));
 
         // Grade ids must be the tenant's own, belong to the entry's farm, and be
         // active + saleable — grade lines capture sellable production; non-saleable

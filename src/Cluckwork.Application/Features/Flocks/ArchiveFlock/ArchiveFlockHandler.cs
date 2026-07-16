@@ -15,7 +15,8 @@ public sealed class ArchiveFlockHandler(
         if (flock is null)
             return Result.Failure(Error.NotFound(nameof(Flock), flockId));
 
-        var result = flock.Archive();
+        // Operational date of the action (farm-local ≈ UTC for the MVP, #35).
+        var result = flock.Archive(DateOnly.FromDateTime(DateTime.UtcNow.Date));
         if (result.IsFailure)
             return result;
 

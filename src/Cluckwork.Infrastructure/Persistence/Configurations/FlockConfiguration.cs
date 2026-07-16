@@ -12,8 +12,8 @@ public sealed class FlockConfiguration : IEntityTypeConfiguration<Flock>
         builder.Property(e => e.AccountId).IsRequired();
         builder.Property(e => e.FarmId).IsRequired();
         builder.Property(e => e.HouseId).IsRequired();
-        builder.Property(e => e.Name).HasMaxLength(200).IsRequired();
-        builder.Property(e => e.Breed).HasMaxLength(100).IsRequired();
+        builder.Property(e => e.Name).HasMaxLength(Flock.MaxNameLength).IsRequired();
+        builder.Property(e => e.Breed).HasMaxLength(Flock.MaxBreedLength).IsRequired();
         builder.Property(e => e.Status)
             .HasConversion<string>()
             .HasMaxLength(32)

@@ -15,7 +15,8 @@ public sealed class DepleteFlockHandler(
         if (flock is null)
             return Result.Failure(Error.NotFound(nameof(Flock), flockId));
 
-        var result = flock.Deplete();
+        // Operational date of the action (farm-local ≈ UTC for the MVP, #35).
+        var result = flock.Deplete(DateOnly.FromDateTime(DateTime.UtcNow.Date));
         if (result.IsFailure)
             return result;
 

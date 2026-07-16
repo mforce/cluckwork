@@ -21,7 +21,7 @@ public sealed class FlockTests
     public void Deplete_WhenActive_Succeeds()
     {
         var flock = Make();
-        var result = flock.Deplete();
+        var result = flock.Deplete(new DateOnly(2026, 7, 16));
         Assert.True(result.IsSuccess);
         Assert.Equal(FlockStatus.Depleted, flock.Status);
     }
@@ -30,9 +30,9 @@ public sealed class FlockTests
     public void Deplete_WhenAlreadyDepleted_Fails()
     {
         var flock = Make();
-        flock.Deplete();
+        flock.Deplete(new DateOnly(2026, 7, 16));
 
-        var result = flock.Deplete();
+        var result = flock.Deplete(new DateOnly(2026, 7, 16));
         Assert.True(result.IsFailure);
         Assert.Equal("Flock.NotActive", result.Error.Code);
     }
@@ -65,16 +65,33 @@ public sealed class FlockTests
     public void Archive_FromActiveOrDepleted_Succeeds_TwiceFails()
     {
         var active = Make();
-        Assert.True(active.Archive().IsSuccess);
+        Assert.True(active.Archive(new DateOnly(2026, 7, 16)).IsSuccess);
 
         var depleted = Make();
-        depleted.Deplete();
-        Assert.True(depleted.Archive().IsSuccess);
+        depleted.Deplete(new DateOnly(2026, 7, 16));
+        Assert.True(depleted.Archive(new DateOnly(2026, 7, 16)).IsSuccess);
         Assert.Equal(FlockStatus.Archived, depleted.Status);
 
-        var again = depleted.Archive();
+        var again = depleted.Archive(new DateOnly(2026, 7, 16));
         Assert.True(again.IsFailure);
         Assert.Equal("Flock.AlreadyArchived", again.Error.Code);
+    }
+
+    [Fact]
+    public void CanRecordProductionOn_RespectsLifecycleDates()
+    {
+        var flock = Make();
+        var depletedOn = new DateOnly(2026, 7, 10);
+
+        Assert.True(flock.CanRecordProductionOn(new DateOnly(2026, 7, 20)));   // active: any date
+
+        flock.Deplete(depletedOn);
+        Assert.True(flock.CanRecordProductionOn(depletedOn));                  // backfill: on the day
+        Assert.True(flock.CanRecordProductionOn(depletedOn.AddDays(-3)));      // backfill: before
+        Assert.False(flock.CanRecordProductionOn(depletedOn.AddDays(1)));      // after depletion
+
+        flock.Archive(depletedOn.AddDays(5));
+        Assert.False(flock.CanRecordProductionOn(depletedOn.AddDays(-3)));     // archived: never
     }
 
     [Fact]
@@ -82,9 +99,9 @@ public sealed class FlockTests
     {
         // AGENTS.md rule: every aggregate mutation bumps the concurrency token.
         var flock = Make();
-        flock.Deplete();
+        flock.Deplete(new DateOnly(2026, 7, 16));
         Assert.Equal(1, flock.Version);
-        flock.Archive();
+        flock.Archive(new DateOnly(2026, 7, 16));
         Assert.Equal(2, flock.Version);
     }
 
