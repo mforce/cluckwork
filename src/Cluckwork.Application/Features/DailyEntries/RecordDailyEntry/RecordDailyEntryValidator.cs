@@ -24,14 +24,14 @@ public sealed class RecordDailyEntryValidator : AbstractValidator<RecordDailyEnt
         {
             RuleForEach(x => x.Grades!).ChildRules(g =>
             {
-                g.RuleFor(x => x.GradeCode).NotEmpty().MaximumLength(20);
+                g.RuleFor(x => x.EggGradeId).NotEmpty();
                 g.RuleFor(x => x.Quantity).GreaterThan(0);
             });
 
             RuleFor(x => x.Grades!)
                 .Must(grades => grades
-                    .Select(g => g.GradeCode)
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Select(g => g.EggGradeId)
+                    .Distinct()
                     .Count() == grades.Count)
                 .WithName("Grades")
                 .WithMessage("Each grade may appear only once.");

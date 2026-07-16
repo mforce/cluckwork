@@ -104,10 +104,8 @@ public sealed class DailyEntry : AggregateRoot<Guid>
         return Result.Success();
     }
 
-    public const int MaxGradeCodeLength = 20;
-
     private List<GradeQuantity> CurrentGradeQuantities() =>
-        _grades.Select(l => new GradeQuantity(l.GradeCode, l.Quantity)).ToList();
+        _grades.Select(l => new GradeQuantity(l.EggGradeId, l.Quantity)).ToList();
 
     private static Result ValidateGrades(
         int totalEggs, int cracked, int dirty, int discarded,
@@ -115,19 +113,15 @@ public sealed class DailyEntry : AggregateRoot<Guid>
     {
         if (grades.Count == 0) return Result.Success();
 
-        if (grades.Any(g => string.IsNullOrWhiteSpace(g.GradeCode)))
+        if (grades.Any(g => g.EggGradeId == Guid.Empty))
             return Result.Failure(Error.Validation(
-                "DailyEntry.InvalidGrade", "Grade code is required."));
-
-        if (grades.Any(g => g.GradeCode.Trim().Length > MaxGradeCodeLength))
-            return Result.Failure(Error.Validation(
-                "DailyEntry.InvalidGrade", $"Grade code cannot exceed {MaxGradeCodeLength} characters."));
+                "DailyEntry.InvalidGrade", "Egg grade id is required."));
 
         if (grades.Any(g => g.Quantity <= 0))
             return Result.Failure(Error.Validation(
                 "DailyEntry.InvalidGrade", "Grade quantities must be positive."));
 
-        if (grades.Select(g => g.GradeCode).Distinct(StringComparer.OrdinalIgnoreCase).Count() != grades.Count)
+        if (grades.Select(g => g.EggGradeId).Distinct().Count() != grades.Count)
             return Result.Failure(Error.Validation(
                 "DailyEntry.DuplicateGrade", "Each grade may appear only once."));
 
@@ -144,35 +138,35 @@ public sealed class DailyEntry : AggregateRoot<Guid>
 
     // Full replace: the daily entry is the single source for the day's grading, so
     // a re-record supersedes previous lines. Reconciled in place (update matching
-    // codes, remove gone, add new) rather than clear+add — deleting and re-inserting
+    // grade, remove gone, add new) rather than clear+add — deleting and re-inserting
     // the same (entry, grade) key in one save can trip the unique index depending on
     // EF's statement ordering.
     private void ReplaceGrades(IReadOnlyCollection<GradeQuantity> grades)
     {
-        _grades.RemoveAll(line => !grades.Any(g =>
-            string.Equals(g.GradeCode.Trim(), line.GradeCode, StringComparison.OrdinalIgnoreCase)));
+        _grades.RemoveAll(line => grades.All(g => g.EggGradeId != line.EggGradeId));
 
         foreach (var g in grades)
         {
-            var existing = _grades.FirstOrDefault(line =>
-                string.Equals(line.GradeCode, g.GradeCode.Trim(), StringComparison.OrdinalIgnoreCase));
+            var existing = _grades.FirstOrDefault(line => line.EggGradeId == g.EggGradeId);
             if (existing is not null)
                 existing.UpdateQuantity(g.Quantity);
             else
-                _grades.Add(DailyEntryGrade.Create(AccountId, Id, g.GradeCode, g.Quantity));
+                _grades.Add(DailyEntryGrade.Create(AccountId, Id, g.EggGradeId, g.Quantity));
         }
     }
 }
 
 public enum DailyEntryStatus { Draft, Submitted, Locked, ManagerAdjusted, Voided }
 
-// Input value for recording production by grade.
-public sealed record GradeQuantity(string GradeCode, int Quantity);
+// Input value for recording production by grade. References an EggGrade row
+// (spec §9.2); the handler validates the ids against the account's active
+// saleable grades before this reaches the aggregate.
+public sealed record GradeQuantity(Guid EggGradeId, int Quantity);
 
 public sealed class DailyEntryGrade : Entity<Guid>
 {
     public Guid DailyEntryId { get; private set; }
-    public string GradeCode { get; private set; } = string.Empty;
+    public Guid EggGradeId { get; private set; }
     public int Quantity { get; private set; }
 
     private DailyEntryGrade() { }
@@ -183,16 +177,13 @@ public sealed class DailyEntryGrade : Entity<Guid>
     // a line added to an already-tracked entry would be discovered as Modified,
     // producing an UPDATE for a row that doesn't exist yet.
     internal static DailyEntryGrade Create(
-        Guid accountId, Guid dailyEntryId, string gradeCode, int quantity)
+        Guid accountId, Guid dailyEntryId, Guid eggGradeId, int quantity)
     {
         return new DailyEntryGrade
         {
             AccountId = accountId,
             DailyEntryId = dailyEntryId,
-            // Normalized: grade codes are identifiers matched across daily entries,
-            // egg lots, and sales lines; the DB unique index is case-sensitive, so
-            // storage must be canonical ("a-large " and "A-Large" are one grade).
-            GradeCode = gradeCode.Trim().ToUpperInvariant(),
+            EggGradeId = eggGradeId,
             Quantity = quantity
         };
     }

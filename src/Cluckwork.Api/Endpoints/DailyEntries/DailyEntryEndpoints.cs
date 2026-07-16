@@ -37,7 +37,7 @@ public static class DailyEntryEndpoints
             request.FarmId, request.HouseId, request.FlockId, request.Date,
             request.TotalEggs, request.CrackedEggs, request.DirtyEggs,
             request.DiscardedEggs, request.MortalityCount,
-            request.Grades?.Select(g => new GradeQuantityDto(g.GradeCode, g.Quantity)).ToList());
+            request.Grades?.Select(g => new GradeQuantityDto(g.EggGradeId, g.Quantity)).ToList());
 
         var validation = await validator.ValidateAsync(command, ct);
         if (!validation.IsValid)
@@ -56,7 +56,8 @@ public sealed record RecordDailyEntryRequest(
     int TotalEggs, int CrackedEggs, int DirtyEggs, int DiscardedEggs, int MortalityCount,
     List<GradeQuantityRequest>? Grades = null);
 
-// Sellable production for one grade (e.g. "A-LARGE", 220). Contract:
-// omitted/null = leave existing grade lines unchanged (older clients);
-// [] = explicitly clear all lines. #8 turns these lines into egg lots.
-public sealed record GradeQuantityRequest(string GradeCode, int Quantity);
+// Sellable production for one grade; eggGradeId references a row from
+// GET /api/v1/egg-grades. Contract: omitted/null = leave existing grade lines
+// unchanged (older clients); [] = explicitly clear all lines. #8 turns these
+// lines into egg lots.
+public sealed record GradeQuantityRequest(Guid EggGradeId, int Quantity);

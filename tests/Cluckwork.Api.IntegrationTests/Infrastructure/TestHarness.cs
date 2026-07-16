@@ -68,6 +68,27 @@ internal static class TestHarness
         return await action(db);
     }
 
+    // Seeds saleable egg grades for the account; returns name -> id.
+    public static async Task<Dictionary<string, Guid>> SeedEggGradesAsync(
+        this CluckworkWebApplicationFactory factory, Guid accountId, params string[] names)
+    {
+        var ids = new Dictionary<string, Guid>();
+        await factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            var sort = 0;
+            foreach (var name in names)
+            {
+                var grade = EggGrade.Create(
+                    Guid.NewGuid(), accountId, Guid.NewGuid(),
+                    name, EggGradeType.Size, sort++, isSaleable: true);
+                db.EggGrades.Add(grade);
+                ids[name] = grade.Id;
+            }
+            await db.SaveChangesAsync();
+        });
+        return ids;
+    }
+
     // Seeds an egg lot for the account. Pass restrictedUntil to make it withdrawal-restricted.
     public static async Task<Guid> SeedEggLotAsync(
         this CluckworkWebApplicationFactory factory, Guid accountId,

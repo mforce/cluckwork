@@ -120,20 +120,59 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("DailyEntryId")
                         .HasColumnType("uuid");
 
-                    b.Property<string>("GradeCode")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
+                    b.Property<Guid>("EggGradeId")
+                        .HasColumnType("uuid");
 
                     b.Property<int>("Quantity")
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("DailyEntryId", "GradeCode")
+                    b.HasIndex("EggGradeId");
+
+                    b.HasIndex("DailyEntryId", "EggGradeId")
                         .IsUnique();
 
                     b.ToTable("DailyEntryGrades");
+                });
+
+            modelBuilder.Entity("Cluckwork.Domain.Eggs.EggGrade", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AccountId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("Active")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("FarmId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("GradeType")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<bool>("IsSaleable")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AccountId", "FarmId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("EggGrades");
                 });
 
             modelBuilder.Entity("Cluckwork.Domain.Eggs.EggLot", b =>
@@ -610,6 +649,12 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                         .WithMany("Grades")
                         .HasForeignKey("DailyEntryId")
                         .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Cluckwork.Domain.Eggs.EggGrade", null)
+                        .WithMany()
+                        .HasForeignKey("EggGradeId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 

@@ -50,7 +50,7 @@ public sealed class RecordDailyEntryValidatorTests
     {
         var cmd = Valid() with
         {
-            Grades = [new GradeQuantityDto("A-Large", 600), new GradeQuantityDto("A-Medium", 300)]
+            Grades = [new GradeQuantityDto(Guid.NewGuid(), 600), new GradeQuantityDto(Guid.NewGuid(), 300)]
         };
         Assert.True(_validator.Validate(cmd).IsValid);
     }
@@ -64,16 +64,17 @@ public sealed class RecordDailyEntryValidatorTests
     [Fact]
     public void GradeWithNonPositiveQuantity_Fails()
     {
-        var cmd = Valid() with { Grades = [new GradeQuantityDto("A-Large", 0)] };
+        var cmd = Valid() with { Grades = [new GradeQuantityDto(Guid.NewGuid(), 0)] };
         Assert.False(_validator.Validate(cmd).IsValid);
     }
 
     [Fact]
-    public void DuplicateGradeCodes_Fail()
+    public void DuplicateGradeIds_Fail()
     {
+        var gradeId = Guid.NewGuid();
         var cmd = Valid() with
         {
-            Grades = [new GradeQuantityDto("A-Large", 100), new GradeQuantityDto("a-large", 50)]
+            Grades = [new GradeQuantityDto(gradeId, 100), new GradeQuantityDto(gradeId, 50)]
         };
         var result = _validator.Validate(cmd);
         Assert.Contains(result.Errors, e => e.PropertyName == "Grades");
@@ -86,7 +87,7 @@ public sealed class RecordDailyEntryValidatorTests
         {
             TotalEggs = 100,
             CrackedEggs = 0, DirtyEggs = 0, DiscardedEggs = 0,
-            Grades = [new GradeQuantityDto("A-Large", 101)]
+            Grades = [new GradeQuantityDto(Guid.NewGuid(), 101)]
         };
         var result = _validator.Validate(cmd);
         Assert.Contains(result.Errors, e => e.PropertyName == "Grades");
@@ -99,7 +100,7 @@ public sealed class RecordDailyEntryValidatorTests
         var cmd = Valid() with
         {
             TotalEggs = 100, CrackedEggs = 10, DirtyEggs = 5, DiscardedEggs = 3,
-            Grades = [new GradeQuantityDto("A-Large", 83)]
+            Grades = [new GradeQuantityDto(Guid.NewGuid(), 83)]
         };
         var result = _validator.Validate(cmd);
         Assert.Contains(result.Errors, e => e.PropertyName == "Grades");
@@ -112,8 +113,8 @@ public sealed class RecordDailyEntryValidatorTests
         {
             Grades =
             [
-                new GradeQuantityDto("A-Large", 1_500_000_000),
-                new GradeQuantityDto("A-Medium", 1_500_000_000)
+                new GradeQuantityDto(Guid.NewGuid(), 1_500_000_000),
+                new GradeQuantityDto(Guid.NewGuid(), 1_500_000_000)
             ]
         };
         var result = _validator.Validate(cmd);

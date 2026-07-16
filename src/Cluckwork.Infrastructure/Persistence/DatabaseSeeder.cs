@@ -1,6 +1,7 @@
 namespace Cluckwork.Infrastructure.Persistence;
 
 using Cluckwork.Domain.Accounts;
+using Cluckwork.Domain.Eggs;
 using Cluckwork.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -44,8 +45,61 @@ public sealed class DatabaseSeeder(
         }
 
         await SeedDefaultAccountAsync(o, ct);
+        await SeedDefaultEggGradesAsync(ct);
         await SeedAdminRoleAsync();
         await SeedAdminUserAsync(o);
+    }
+
+    // Spec §9.1 suggested defaults. Saleable grades are what daily-entry grade
+    // lines may reference; the non-saleable buckets exist for future use (the
+    // entry's cracked/dirty/discarded counts cover losses in the MVP).
+    private static readonly (string Name, EggGradeType Type, bool Saleable)[] DefaultGrades =
+    [
+        ("Small", EggGradeType.Size, true),
+        ("Medium", EggGradeType.Size, true),
+        ("Large", EggGradeType.Size, true),
+        ("Jumbo", EggGradeType.Size, true),
+        ("Seconds", EggGradeType.Quality, true),
+        ("Cracked", EggGradeType.Quality, false),
+        ("Dirty", EggGradeType.Quality, false),
+        ("Soft Shell", EggGradeType.Quality, false),
+        ("Discarded", EggGradeType.Custom, false),
+        ("Internal Use", EggGradeType.Custom, false),
+    ];
+
+    private async Task SeedDefaultEggGradesAsync(CancellationToken ct)
+    {
+        var existing = await db.EggGrades
+            .IgnoreQueryFilters()
+            .Where(g => g.AccountId == SeedDefaults.AccountId)
+            .Select(g => g.Name)
+            .ToListAsync(ct);
+
+        var missing = DefaultGrades
+            .Where(d => !existing.Contains(d.Name))
+            .Select((d, _) => EggGrade.Create(
+                Guid.NewGuid(), SeedDefaults.AccountId, SeedDefaults.FarmId,
+                d.Name, d.Type,
+                sortOrder: Array.FindIndex(DefaultGrades, x => x.Name == d.Name),
+                isSaleable: d.Saleable))
+            .ToList();
+
+        if (missing.Count == 0) return;
+
+        db.EggGrades.AddRange(missing);
+        try
+        {
+            await db.SaveChangesAsync(ct);
+            logger.LogInformation("Seeded {Count} default egg grades.", missing.Count);
+        }
+        catch (DbUpdateException)
+        {
+            // Concurrent replica seeded the same names — they exist, which is all
+            // we wanted. Detach the failed inserts.
+            foreach (var grade in missing)
+                db.Entry(grade).State = EntityState.Detached;
+            logger.LogInformation("Default egg grades already present (concurrent insert); continuing.");
+        }
     }
 
     private async Task SeedDefaultAccountAsync(SeedOptions o, CancellationToken ct)

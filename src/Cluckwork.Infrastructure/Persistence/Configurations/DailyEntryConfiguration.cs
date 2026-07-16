@@ -46,10 +46,33 @@ public sealed class DailyEntryGradeConfiguration : IEntityTypeConfiguration<Dail
         builder.HasKey(g => g.Id);
         builder.Property(g => g.AccountId).IsRequired();
         builder.Property(g => g.DailyEntryId).IsRequired();
-        builder.Property(g => g.GradeCode).HasMaxLength(20).IsRequired();
+        builder.Property(g => g.EggGradeId).IsRequired();
         builder.Property(g => g.Quantity).IsRequired();
 
+        // Grade rows must not disappear from under production lines.
+        builder.HasOne<EggGrade>()
+            .WithMany()
+            .HasForeignKey(g => g.EggGradeId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         // One line per grade within an entry (domain also enforces this).
-        builder.HasIndex(g => new { g.DailyEntryId, g.GradeCode }).IsUnique();
+        builder.HasIndex(g => new { g.DailyEntryId, g.EggGradeId }).IsUnique();
+    }
+}
+
+public sealed class EggGradeConfiguration : IEntityTypeConfiguration<EggGrade>
+{
+    public void Configure(EntityTypeBuilder<EggGrade> builder)
+    {
+        builder.HasKey(g => g.Id);
+        builder.Property(g => g.AccountId).IsRequired();
+        builder.Property(g => g.FarmId).IsRequired();
+        builder.Property(g => g.Name).HasMaxLength(EggGrade.MaxNameLength).IsRequired();
+        builder.Property(g => g.GradeType)
+            .HasConversion<string>()
+            .HasMaxLength(16)
+            .IsRequired();
+
+        builder.HasIndex(g => new { g.AccountId, g.FarmId, g.Name }).IsUnique();
     }
 }
