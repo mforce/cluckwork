@@ -30,13 +30,13 @@ public sealed class SalesOrder : AggregateRoot<Guid>
         };
     }
 
-    public Result AddItem(Guid itemId, string gradeCode, int quantity, Money unitPrice)
+    public Result AddItem(Guid itemId, Guid eggGradeId, int quantity, Money unitPrice)
     {
         if (Status != SalesOrderStatus.Draft)
             return Result.Failure(Error.Domain(
                 "SalesOrder.NotDraft", "Items can only be added to draft orders."));
 
-        var item = SalesOrderItem.Create(itemId, AccountId, Id, gradeCode, quantity, unitPrice);
+        var item = SalesOrderItem.Create(itemId, AccountId, Id, eggGradeId, quantity, unitPrice);
         _items.Add(item);
         TotalAmount = TotalAmount.Add(item.LineTotal);
         return Result.Success();
@@ -63,7 +63,7 @@ public enum SalesOrderStatus { Draft, Confirmed, Shipped, Invoiced, Cancelled }
 public sealed class SalesOrderItem : Entity<Guid>
 {
     public Guid SalesOrderId { get; private set; }
-    public string GradeCode { get; private set; } = string.Empty;
+    public Guid EggGradeId { get; private set; }
     public int Quantity { get; private set; }
     public Money UnitPrice { get; private set; } = null!;
     public Money LineTotal => UnitPrice.Multiply(Quantity);
@@ -72,13 +72,13 @@ public sealed class SalesOrderItem : Entity<Guid>
 
     internal static SalesOrderItem Create(
         Guid id, Guid accountId, Guid orderId,
-        string gradeCode, int quantity, Money unitPrice)
+        Guid eggGradeId, int quantity, Money unitPrice)
     {
         return new SalesOrderItem
         {
             Id = id, AccountId = accountId,
             SalesOrderId = orderId,
-            GradeCode = gradeCode,
+            EggGradeId = eggGradeId,
             Quantity = quantity,
             UnitPrice = unitPrice
         };

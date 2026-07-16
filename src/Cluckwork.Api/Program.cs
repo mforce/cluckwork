@@ -8,6 +8,7 @@ using Cluckwork.Api.Middleware;
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.DailyEntries;
 using Cluckwork.Application.Features.DailyEntries.RecordDailyEntry;
+using Cluckwork.Application.Features.DailyEntries.SubmitDailyEntry;
 using Cluckwork.Application.Features.EggGrades;
 using Cluckwork.Application.Features.EggLots;
 using Cluckwork.Application.Features.Flocks;
@@ -122,6 +123,7 @@ builder.Services.AddScoped<IValidator<CreateFlockCommand>, CreateFlockValidator>
 
 // --- Handlers (direct — no mediator, tech spec §2.1) ---
 builder.Services.AddScoped<RecordDailyEntryHandler>();
+builder.Services.AddScoped<SubmitDailyEntryHandler>();
 builder.Services.AddScoped<ConfirmSaleHandler>();
 builder.Services.AddScoped<CreateFlockHandler>();
 builder.Services.AddScoped<DepleteFlockHandler>();

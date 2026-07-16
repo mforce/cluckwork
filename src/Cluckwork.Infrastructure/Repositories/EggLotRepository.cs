@@ -13,14 +13,14 @@ public sealed class EggLotRepository(AppDbContext db) : IEggLotRepository
     // Acquires a pessimistic FOR UPDATE lock for FIFO sale allocation (tech spec §3.3).
     // Provider-specific SQL is isolated here behind the repository port.
     public async Task<IReadOnlyList<EggLot>> GetAvailableFifoLockedAsync(
-        Guid accountId, string gradeCode, DateOnly allocationDate,
+        Guid accountId, Guid eggGradeId, DateOnly allocationDate,
         CancellationToken ct = default)
     {
         return await db.EggLots.FromSqlInterpolated($"""
             SELECT *
             FROM "EggLots"
             WHERE "AccountId" = {accountId}
-              AND "GradeCode" = {gradeCode}
+              AND "EggGradeId" = {eggGradeId}
               AND "QuantityAvailable" > 0
               AND ("RestrictedUntil" IS NULL OR "RestrictedUntil" < {allocationDate})
             ORDER BY "ProductionDate"

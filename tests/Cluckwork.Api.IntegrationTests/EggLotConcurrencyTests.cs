@@ -16,10 +16,12 @@ public sealed class EggLotConcurrencyTests(CluckworkWebApplicationFactory factor
         var email = $"u-{Guid.NewGuid():N}@test.local";
         var accountId = await factory.SeedAccountWithUserAsync(email);
 
+        var grades = await factory.SeedEggGradesAsync(accountId, Guid.NewGuid(), "Large");
+
         // One lot of 100; two orders each wanting the whole 100.
-        await factory.SeedEggLotAsync(accountId, "A-Large", 100);
-        var orderA = await factory.SeedSalesOrderAsync(accountId, "A-Large", 100);
-        var orderB = await factory.SeedSalesOrderAsync(accountId, "A-Large", 100);
+        await factory.SeedEggLotAsync(accountId, grades["Large"], 100);
+        var orderA = await factory.SeedSalesOrderAsync(accountId, grades["Large"], 100);
+        var orderB = await factory.SeedSalesOrderAsync(accountId, grades["Large"], 100);
 
         var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
 
