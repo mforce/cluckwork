@@ -1,6 +1,7 @@
 namespace Cluckwork.Application.Features.Sales.ConfirmSale;
 
 using Cluckwork.Application.Common;
+using Cluckwork.Application.Features.EggGrades;
 using Cluckwork.Application.Features.EggLots;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Sales;
@@ -8,6 +9,7 @@ using Cluckwork.Domain.Sales;
 public sealed class ConfirmSaleHandler(
     ISalesOrderRepository salesOrders,
     IEggLotRepository eggLots,
+    IEggGradeRepository eggGrades,
     IUnitOfWork unitOfWork,
     IClock clock)
 {
@@ -55,9 +57,13 @@ public sealed class ConfirmSaleHandler(
 
                 if (remaining > 0)
                 {
+                    // Human-readable grade name for operators; fall back to the id
+                    // if the grade row is unexpectedly missing.
+                    var gradeName = (await eggGrades.GetByIdAsync(item.EggGradeId, transactionCt))?.Name
+                        ?? item.EggGradeId.ToString();
                     failure = Result.Failure<ConfirmSaleResponse>(Error.Domain(
                         "EggLot.InsufficientStock",
-                        $"Insufficient stock for grade {item.EggGradeId}: {remaining} units unallocated."));
+                        $"Insufficient stock for grade '{gradeName}': {remaining} units unallocated."));
                     return false;
                 }
             }

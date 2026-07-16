@@ -39,6 +39,10 @@ public sealed class SubmitDailyEntryHandler(
             lotIds.Add(lot.Id);
         }
 
+        // A concurrent submit that loses the Version race throws
+        // DbUpdateConcurrencyException here; the API's global error handler maps it
+        // to 409 and nothing from the losing request is persisted. A retry then
+        // gets the state-machine 422 (NotDraft).
         await unitOfWork.SaveChangesAsync(ct);
         return Result.Success(new SubmitDailyEntryResponse(entry.Id, entry.Status.ToString(), lotIds));
     }

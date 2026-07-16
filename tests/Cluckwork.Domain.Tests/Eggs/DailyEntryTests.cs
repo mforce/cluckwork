@@ -61,6 +61,31 @@ public sealed class DailyEntryTests
         Assert.Equal(DailyEntryStatus.Locked, entry.Status);
     }
 
+    [Fact]
+    public void Submit_BumpsVersion()
+    {
+        // Version is the optimistic concurrency token: without a bump on submit,
+        // two racing submits both pass the WHERE Version = N predicate and
+        // duplicate the generated egg lots.
+        var entry = MakeDraft();
+        entry.RecordProduction(100, 0, 0, 0, 0);
+        var before = entry.Version;
+        entry.Submit();
+        Assert.Equal(before + 1, entry.Version);
+    }
+
+    [Fact]
+    public void RecordProduction_OnSubmitted_Fails()
+    {
+        var entry = MakeDraft();
+        entry.RecordProduction(100, 0, 0, 0, 0);
+        entry.Submit();
+
+        var result = entry.RecordProduction(200, 0, 0, 0, 0);
+        Assert.True(result.IsFailure);
+        Assert.Equal("DailyEntry.Immutable", result.Error.Code);
+    }
+
     private static readonly Guid GradeLarge = Guid.NewGuid();
     private static readonly Guid GradeMedium = Guid.NewGuid();
 

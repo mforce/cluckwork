@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Cluckwork.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260716040322_ConvertLotsAndSalesToEggGradeIds")]
+    [Migration("20260716041655_ConvertLotsAndSalesToEggGradeIds")]
     partial class ConvertLotsAndSalesToEggGradeIds
     {
         /// <inheritdoc />
@@ -317,6 +317,8 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("EggGradeId");
 
                     b.HasIndex("SalesOrderId");
 
@@ -705,6 +707,12 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Cluckwork.Domain.Sales.SalesOrderItem", b =>
                 {
+                    b.HasOne("Cluckwork.Domain.Eggs.EggGrade", null)
+                        .WithMany()
+                        .HasForeignKey("EggGradeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("Cluckwork.Domain.Sales.SalesOrder", null)
                         .WithMany("Items")
                         .HasForeignKey("SalesOrderId")

@@ -93,6 +93,44 @@ public sealed class SubmitDailyEntryTests(CluckworkWebApplicationFactory factory
     }
 
     [Fact]
+    public async Task ParallelSubmits_ExactlyOneWins_NoDuplicateLots()
+    {
+        // The race both reviews flagged: two concurrent submits with different
+        // idempotency keys. The Version bump in Submit() makes the loser's UPDATE
+        // miss (409 via the global concurrency mapping); its lots roll back.
+        var (client, accountId, farmId, flockId, grades) = await SetupAsync("Large");
+        var entryId = await RecordAsync(client, Body(farmId, flockId,
+            [new { eggGradeId = grades["Large"], quantity = 600 }]));
+
+        var a = client.PostWithKeyAsync($"/api/v1/daily-entries/{entryId}/submit", Guid.NewGuid().ToString());
+        var b = client.PostWithKeyAsync($"/api/v1/daily-entries/{entryId}/submit", Guid.NewGuid().ToString());
+        var responses = await Task.WhenAll(a, b);
+
+        Assert.Equal(1, responses.Count(r => r.StatusCode == HttpStatusCode.OK));
+        Assert.Equal(1, responses.Count(r =>
+            r.StatusCode is HttpStatusCode.Conflict or HttpStatusCode.UnprocessableEntity));
+
+        var lotCount = await factory.WithTenantScopeAsync(accountId, db => db.EggLots.CountAsync());
+        Assert.Equal(1, lotCount);
+    }
+
+    [Fact]
+    public async Task ReRecord_AfterSubmit_Rejected()
+    {
+        // Submitted entries are immutable to the record endpoint: their grade
+        // lines already became lots, and silent edits would diverge from stock.
+        var (client, _, farmId, flockId, grades) = await SetupAsync("Large");
+        var body = Body(farmId, flockId, [new { eggGradeId = grades["Large"], quantity = 600 }]);
+        var entryId = await RecordAsync(client, body);
+
+        await client.PostWithKeyAsync($"/api/v1/daily-entries/{entryId}/submit", Guid.NewGuid().ToString());
+
+        var reRecord = await client.PostWithKeyAsync(
+            "/api/v1/daily-entries", Guid.NewGuid().ToString(), body);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, reRecord.StatusCode);
+    }
+
+    [Fact]
     public async Task Submit_WithoutGrades_Succeeds_NoLots()
     {
         var (client, accountId, farmId, flockId, _) = await SetupAsync("Large");

@@ -41,9 +41,14 @@ public sealed class DailyEntry : AggregateRoot<Guid>
         int totalEggs, int cracked, int dirty, int discarded, int mortality,
         IReadOnlyCollection<GradeQuantity>? grades = null)
     {
-        if (Status is DailyEntryStatus.Locked or DailyEntryStatus.Voided)
+        // Draft-only: submitting generates egg lots from the grade lines, and
+        // editing a submitted entry would silently diverge from its (possibly
+        // partially sold) lots. Post-submit corrections are the manager-adjust
+        // flow with lot reconciliation — a later slice. (Spec §8.1's
+        // worker-edit-until-cutoff moves there too.)
+        if (Status != DailyEntryStatus.Draft)
             return Result.Failure(Error.Domain(
-                "DailyEntry.Immutable", "Cannot modify a locked or voided entry."));
+                "DailyEntry.Immutable", "Only draft entries can be edited."));
 
         // null = leave existing grade lines untouched (older clients omit the
         // field); the kept lines must still fit the new totals. [] clears.
@@ -68,6 +73,10 @@ public sealed class DailyEntry : AggregateRoot<Guid>
             return Result.Failure(Error.Domain(
                 "DailyEntry.NotDraft", "Only draft entries can be submitted."));
         Status = DailyEntryStatus.Submitted;
+        // Version is a concurrency token, not auto-incremented by EF: without this
+        // bump, two racing submits both match WHERE Version = N and both succeed —
+        // duplicating the generated egg lots.
+        Version++;
         return Result.Success();
     }
 
@@ -77,6 +86,7 @@ public sealed class DailyEntry : AggregateRoot<Guid>
             return Result.Failure(Error.Domain(
                 "DailyEntry.NotSubmitted", "Only submitted entries can be locked."));
         Status = DailyEntryStatus.Locked;
+        Version++;
         return Result.Success();
     }
 

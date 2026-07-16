@@ -21,6 +21,11 @@ public sealed class EggLot : AggregateRoot<Guid>
         Guid id, Guid accountId, Guid flockId,
         DateOnly productionDate, Guid eggGradeId, int quantity)
     {
+        if (eggGradeId == Guid.Empty)
+            throw new ArgumentException("Egg grade id is required.", nameof(eggGradeId));
+        if (quantity <= 0)
+            throw new ArgumentOutOfRangeException(nameof(quantity), "Lot quantity must be positive.");
+
         return new EggLot
         {
             Id = id, AccountId = accountId,

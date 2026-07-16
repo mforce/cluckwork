@@ -11,6 +11,15 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            // PRE-RELEASE conversion: string grade codes ("A-LARGE") cannot be
+            // reliably backfilled to EggGrade rows (seeded names differ), and the
+            // new NOT NULL FK columns would otherwise default to Guid.Empty and
+            // fail FK validation, bricking startup migration on any database with
+            // existing rows. There is no production data — purge legacy lot and
+            // sales-line rows instead of backfilling.
+            migrationBuilder.Sql("""DELETE FROM "SalesOrderItems";""");
+            migrationBuilder.Sql("""DELETE FROM "EggLots";""");
+
             migrationBuilder.DropIndex(
                 name: "IX_EggLots_Allocation",
                 table: "EggLots");
@@ -38,6 +47,11 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                 defaultValue: new Guid("00000000-0000-0000-0000-000000000000"));
 
             migrationBuilder.CreateIndex(
+                name: "IX_SalesOrderItems_EggGradeId",
+                table: "SalesOrderItems",
+                column: "EggGradeId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_EggLots_Allocation",
                 table: "EggLots",
                 columns: new[] { "AccountId", "EggGradeId", "ProductionDate", "QuantityAvailable" });
@@ -54,6 +68,14 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                 principalTable: "EggGrades",
                 principalColumn: "Id",
                 onDelete: ReferentialAction.Restrict);
+
+            migrationBuilder.AddForeignKey(
+                name: "FK_SalesOrderItems_EggGrades_EggGradeId",
+                table: "SalesOrderItems",
+                column: "EggGradeId",
+                principalTable: "EggGrades",
+                principalColumn: "Id",
+                onDelete: ReferentialAction.Restrict);
         }
 
         /// <inheritdoc />
@@ -62,6 +84,14 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
             migrationBuilder.DropForeignKey(
                 name: "FK_EggLots_EggGrades_EggGradeId",
                 table: "EggLots");
+
+            migrationBuilder.DropForeignKey(
+                name: "FK_SalesOrderItems_EggGrades_EggGradeId",
+                table: "SalesOrderItems");
+
+            migrationBuilder.DropIndex(
+                name: "IX_SalesOrderItems_EggGradeId",
+                table: "SalesOrderItems");
 
             migrationBuilder.DropIndex(
                 name: "IX_EggLots_Allocation",

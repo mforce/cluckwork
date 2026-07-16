@@ -315,6 +315,8 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("EggGradeId");
+
                     b.HasIndex("SalesOrderId");
 
                     b.ToTable("SalesOrderItems");
@@ -702,6 +704,12 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Cluckwork.Domain.Sales.SalesOrderItem", b =>
                 {
+                    b.HasOne("Cluckwork.Domain.Eggs.EggGrade", null)
+                        .WithMany()
+                        .HasForeignKey("EggGradeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("Cluckwork.Domain.Sales.SalesOrder", null)
                         .WithMany("Items")
                         .HasForeignKey("SalesOrderId")
