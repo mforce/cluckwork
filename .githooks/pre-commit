@@ -1,12 +1,14 @@
-#!/usr/bin/env bash
+#!/bin/sh
 # Pre-commit: fast unit tests for the stacks the commit touches.
 #
 # Enable once per clone:   git config core.hooksPath .githooks
 # Skip once:               git commit --no-verify   (or SKIP_HOOKS=1)
 #
-# Deliberately excluded: Cluckwork.Api.IntegrationTests (needs Docker, ~30s+).
-# CI remains the authority; this is a ~2s tripwire for broken domain logic.
-set -euo pipefail
+# Deliberately excluded: Cluckwork.Api.IntegrationTests (needs Docker, ~30s+)
+# — CI runs the full suite on every PR. This is a ~2s tripwire.
+# POSIX sh on purpose: git invokes the shebang directly, and sh exists
+# everywhere git does (including git-for-windows).
+set -eu
 
 [ "${SKIP_HOOKS:-0}" = "1" ] && exit 0
 
