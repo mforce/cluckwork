@@ -261,28 +261,42 @@ label.check {
 }
 
 /* --- Responsive pass (F9, #49) ---
-   Phones/tablets per spec KD-6 + the mobile daily-entry wireframe. Desktop
-   layout is untouched: everything below only applies under the breakpoint. */
+   Phones/tablets per spec KD-6 + the mobile daily-entry wireframe. */
+
+/* Topbar wraps at every width: on desktop the 8 links fit one line so nothing
+   changes; below that the nav flows to extra rows instead of overflowing the
+   page (there is no "gap" band where it can't fit and can't wrap either). */
+.topbar {
+  flex-wrap: wrap;
+  row-gap: 0.25rem;
+}
+
+.topbar nav {
+  flex-wrap: wrap;
+  gap: 0.25rem 0.9rem;
+}
+
 @media (max-width: 700px) {
-  /* Topbar: brand + sign-out on the first row, nav wraps below. */
+  /* Brand + sign-out keep the first row; nav takes its own row(s). */
   .topbar {
-    flex-wrap: wrap;
-    row-gap: 0.25rem;
     padding: 0.5rem 1rem;
   }
 
   .topbar nav {
     order: 3;
     flex-basis: 100%;
-    flex-wrap: wrap;
-    gap: 0.25rem 0.9rem;
   }
 
-  .topbar nav a,
+  .topbar nav a {
+    /* 44px-ish tap targets (WCAG 2.5.5) for primary navigation */
+    padding: 0.65rem 0.35rem;
+  }
+
   button.link {
-    /* comfortable tap targets */
-    padding: 0.5rem 0.25rem;
-    display: inline-block;
+    /* row actions: bigger than desktop, denser than nav — these live inside
+       nowrap table rows and full 44px would balloon them */
+    padding: 0.5rem 0.5rem;
+    min-height: 40px;
   }
 
   .content {
@@ -296,7 +310,6 @@ label.check {
     display: block;
     max-width: 100%;
     overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
     white-space: nowrap;
     min-width: 0;
   }
@@ -305,7 +318,7 @@ label.check {
      table content — the dashboard panels then push the page wide. */
   .panel {
     min-width: 0;
-    flex-basis: 100%;
+    flex: 1 1 100%;
   }
 
   .form-grid label {
@@ -314,7 +327,6 @@ label.check {
   }
 
   .inline-form input {
-    width: 100%;
     flex: 1 1 100%;
   }
 
