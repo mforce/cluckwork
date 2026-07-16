@@ -4,6 +4,8 @@ import { ProtectedRoute } from "./routes/ProtectedRoute";
 import { AppLayout } from "./routes/AppLayout";
 import { Login } from "./routes/Login";
 import { Dashboard } from "./routes/Dashboard";
+import { DailyEntryPage } from "./routes/DailyEntryPage";
+import { StockPage } from "./routes/StockPage";
 import { Placeholder } from "./routes/Placeholder";
 
 export function App() {
@@ -15,14 +17,8 @@ export function App() {
           <Route element={<ProtectedRoute />}>
             <Route element={<AppLayout />}>
               <Route index element={<Dashboard />} />
-              <Route
-                path="daily-entry"
-                element={<Placeholder title="Daily entry" issue="#21 (F1)" />}
-              />
-              <Route
-                path="stock"
-                element={<Placeholder title="Stock by grade" issue="#22 (F2)" />}
-              />
+              <Route path="daily-entry" element={<DailyEntryPage />} />
+              <Route path="stock" element={<StockPage />} />
               <Route
                 path="sales"
                 element={<Placeholder title="Sales" issue="#23 (F3)" />}

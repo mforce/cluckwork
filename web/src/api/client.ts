@@ -25,9 +25,15 @@ async function parseError(res: Response): Promise<ApiError> {
   let title = res.statusText;
   let detail = res.statusText;
   try {
-    const body = (await res.json()) as ProblemDetails;
+    const body = (await res.json()) as ProblemDetails & {
+      errors?: Record<string, string[]>;
+    };
     title = body.title ?? title;
-    detail = body.detail ?? detail;
+    // ValidationProblem carries an errors map and usually no detail — flatten
+    // it so the user sees which field is wrong, not just "Bad Request".
+    if (body.errors && Object.keys(body.errors).length > 0)
+      detail = Object.values(body.errors).flat().join(" ");
+    else detail = body.detail ?? detail;
   } catch {
     // non-JSON body — keep status text
   }
@@ -99,6 +105,22 @@ async function refreshTokens(): Promise<TokenPair> {
 }
 
 // --- Authenticated request with one transparent refresh-and-retry ---------
+
+export function apiGet<T>(path: string): Promise<T> {
+  return apiFetch<T>(path, { method: "GET" });
+}
+
+// Writes require an Idempotency-Key (server middleware): a retry with the same
+// key replays the original response instead of repeating the side effect.
+// Callers retrying a logical mutation after an ambiguous failure should pass
+// the SAME key so the server dedupes instead of repeating the write.
+export function apiPost<T>(path: string, body?: unknown, idempotencyKey?: string): Promise<T> {
+  return apiFetch<T>(path, {
+    method: "POST",
+    headers: { "Idempotency-Key": idempotencyKey ?? crypto.randomUUID() },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+}
 
 export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
   const tokens = loadTokens();
