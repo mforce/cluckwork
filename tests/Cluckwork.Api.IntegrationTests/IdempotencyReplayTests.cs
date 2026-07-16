@@ -31,7 +31,7 @@ public sealed class IdempotencyReplayTests(CluckworkWebApplicationFactory factor
 
         var farmId = Guid.NewGuid();
         var houseId = Guid.NewGuid();
-        var flockId = Guid.NewGuid();
+        var flockId = await factory.SeedFlockAsync(accountId, farmId, houseId);
         var body = DailyEntryBody(farmId, houseId, flockId);
         var key = Guid.NewGuid().ToString();
 

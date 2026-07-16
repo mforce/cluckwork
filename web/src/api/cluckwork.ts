@@ -75,8 +75,25 @@ export const deactivateEggGrade = (id: string, key?: string) =>
 export const activateEggGrade = (id: string, key?: string) =>
   apiPost<void>(`/egg-grades/${id}/activate`, undefined, key);
 
-export const listFlocks = (params?: { limit?: number }) =>
-  apiGet<Flock[]>(`/flocks${params?.limit ? `?limit=${params.limit}` : ""}`);
+export const listFlocks = (params?: { limit?: number; includeArchived?: boolean }) => {
+  const q = new URLSearchParams();
+  if (params?.limit) q.set("limit", String(params.limit));
+  if (params?.includeArchived) q.set("includeArchived", "true");
+  return apiGet<Flock[]>(`/flocks${q.size > 0 ? `?${q}` : ""}`);
+};
+
+export const updateFlock = (id: string, body: {
+  name: string;
+  breed: string;
+  placementDate: string;
+  initialCount: number;
+}, key?: string) => apiPut<void>(`/flocks/${id}`, body, key);
+
+export const depleteFlock = (id: string, key?: string) =>
+  apiPost<void>(`/flocks/${id}/deplete`, undefined, key);
+
+export const archiveFlock = (id: string, key?: string) =>
+  apiPost<void>(`/flocks/${id}/archive`, undefined, key);
 
 export const createFlock = (body: {
   name: string;

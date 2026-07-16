@@ -113,8 +113,12 @@ public static class DailyEntryEndpoints
 
         var result = await handler.HandleAsync(command, tenant.AccountId, ct);
 
-        return result.IsSuccess
-            ? Results.Created($"/api/v1/daily-entries/{result.Value}", new { Id = result.Value })
+        if (result.IsSuccess)
+            return Results.Created($"/api/v1/daily-entries/{result.Value}", new { Id = result.Value });
+        // Unknown flock (or other missing referenced resource) is a 404, not a
+        // semantic 422 — mirrors the submit endpoint's mapping.
+        return result.Error.Code.EndsWith(".NotFound", StringComparison.Ordinal)
+            ? Results.NotFound()
             : Results.Problem(result.Error.Description, statusCode: 422, title: result.Error.Code);
     }
 }

@@ -279,8 +279,8 @@ public sealed class CustomerAndOrderTests(CluckworkWebApplicationFactory factory
         // account/user/grades: record production -> submit -> lots -> customer ->
         // order -> items -> confirm -> stock decremented. This is what a real
         // client (the SPA) will do.
-        var (client, _, farmId, grades) = await SetupAsync("Large", "Medium");
-        var flockId = Guid.NewGuid();
+        var (client, accountId, farmId, grades) = await SetupAsync("Large", "Medium");
+        var flockId = await factory.SeedFlockAsync(accountId, farmId);
         var today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
 
         // 1. record + submit production

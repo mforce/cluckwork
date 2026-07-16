@@ -30,7 +30,8 @@ public sealed class DailyEntryGradeTests(CluckworkWebApplicationFactory factory)
     {
         var email = $"u-{Guid.NewGuid():N}@test.local";
         var accountId = await factory.SeedAccountWithUserAsync(email);
-        var (farmId, houseId, flockId) = (Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
+        var (farmId, houseId) = (Guid.NewGuid(), Guid.NewGuid());
+        var flockId = await factory.SeedFlockAsync(accountId, farmId, houseId);
         var grades = await factory.SeedEggGradesAsync(accountId, farmId, "Large", "Medium");
         var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
 
@@ -56,7 +57,8 @@ public sealed class DailyEntryGradeTests(CluckworkWebApplicationFactory factory)
     {
         var email = $"u-{Guid.NewGuid():N}@test.local";
         var accountId = await factory.SeedAccountWithUserAsync(email);
-        var (farmId, houseId, flockId) = (Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
+        var (farmId, houseId) = (Guid.NewGuid(), Guid.NewGuid());
+        var flockId = await factory.SeedFlockAsync(accountId, farmId, houseId);
         var grades = await factory.SeedEggGradesAsync(accountId, farmId, "Large", "Small");
         var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
 
@@ -87,7 +89,8 @@ public sealed class DailyEntryGradeTests(CluckworkWebApplicationFactory factory)
     {
         var email = $"u-{Guid.NewGuid():N}@test.local";
         var accountId = await factory.SeedAccountWithUserAsync(email);
-        var (farmId, houseId, flockId) = (Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
+        var (farmId, houseId) = (Guid.NewGuid(), Guid.NewGuid());
+        var flockId = await factory.SeedFlockAsync(accountId, farmId, houseId);
         var grades = await factory.SeedEggGradesAsync(accountId, farmId, "Large");
         var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
 
@@ -131,12 +134,14 @@ public sealed class DailyEntryGradeTests(CluckworkWebApplicationFactory factory)
     public async Task UnknownGradeId_Rejected()
     {
         var email = $"u-{Guid.NewGuid():N}@test.local";
-        await factory.SeedAccountWithUserAsync(email);
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var farmId = Guid.NewGuid();
+        var flockId = await factory.SeedFlockAsync(accountId, farmId);
         var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
 
         var response = await client.PostWithKeyAsync(
             "/api/v1/daily-entries", Guid.NewGuid().ToString(),
-            Body(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
+            Body(farmId, Guid.NewGuid(), flockId,
                 [new { eggGradeId = Guid.NewGuid(), quantity = 100 }]));
 
         Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
@@ -152,12 +157,13 @@ public sealed class DailyEntryGradeTests(CluckworkWebApplicationFactory factory)
         var gradesA = await factory.SeedEggGradesAsync(accountA, farmA, "Large");
 
         var emailB = $"b-{Guid.NewGuid():N}@test.local";
-        await factory.SeedAccountWithUserAsync(emailB);
+        var accountB = await factory.SeedAccountWithUserAsync(emailB);
+        var flockB = await factory.SeedFlockAsync(accountB, farmA);
         var clientB = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(emailB));
 
         var response = await clientB.PostWithKeyAsync(
             "/api/v1/daily-entries", Guid.NewGuid().ToString(),
-            Body(farmA, Guid.NewGuid(), Guid.NewGuid(),
+            Body(farmA, Guid.NewGuid(), flockB,
                 [new { eggGradeId = gradesA["Large"], quantity = 100 }]));
 
         Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
@@ -173,11 +179,12 @@ public sealed class DailyEntryGradeTests(CluckworkWebApplicationFactory factory)
         var farmA = Guid.NewGuid();
         var farmB = Guid.NewGuid();
         var grades = await factory.SeedEggGradesAsync(accountId, farmA, "Large");
+        var flockB = await factory.SeedFlockAsync(accountId, farmB);
         var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
 
         var response = await client.PostWithKeyAsync(
             "/api/v1/daily-entries", Guid.NewGuid().ToString(),
-            Body(farmB, Guid.NewGuid(), Guid.NewGuid(),
+            Body(farmB, Guid.NewGuid(), flockB,
                 [new { eggGradeId = grades["Large"], quantity = 100 }]));
 
         Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);

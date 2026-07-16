@@ -1,11 +1,11 @@
-namespace Cluckwork.Application.Features.Flocks.DepleteFlock;
+namespace Cluckwork.Application.Features.Flocks.ArchiveFlock;
 
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Flocks;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Flocks;
 
-public sealed class DepleteFlockHandler(
+public sealed class ArchiveFlockHandler(
     IFlockRepository flocks,
     IUnitOfWork unitOfWork)
 {
@@ -16,7 +16,7 @@ public sealed class DepleteFlockHandler(
             return Result.Failure(Error.NotFound(nameof(Flock), flockId));
 
         // Operational date of the action (farm-local ≈ UTC for the MVP, #35).
-        var result = flock.Deplete(DateOnly.FromDateTime(DateTime.UtcNow.Date));
+        var result = flock.Archive(DateOnly.FromDateTime(DateTime.UtcNow.Date));
         if (result.IsFailure)
             return result;
 

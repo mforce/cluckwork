@@ -10,6 +10,11 @@ import { todayIso } from "../lib/dates";
 
 const LAST_FLOCK_KEY = "cluckwork.lastFlockId";
 
+// Capture targets live flocks only — depleted/archived can't lay (#47); the
+// server enforces the same rule. Every flock refresh on this page (initial
+// load AND inline create) must go through this filter.
+const activeOnly = (flocks: Flock[]) => flocks.filter((x) => x.status === "Active");
+
 function errorMessage(err: unknown): string {
   if (err instanceof ApiError) return err.message;
   return err instanceof Error ? err.message : String(err);
@@ -56,7 +61,8 @@ export function DailyEntryPage() {
 
   useEffect(() => {
     Promise.all([listFlocks(), listEggGrades()])
-      .then(([f, g]) => {
+      .then(([all, g]) => {
+        const f = activeOnly(all);
         setFlocks(f);
         setGrades(g.filter((x) => x.isSaleable));
         const remembered = localStorage.getItem(LAST_FLOCK_KEY);
@@ -123,7 +129,7 @@ export function DailyEntryPage() {
         initialCount: newFlockCount,
       }, flockKey.current);
       flockKey.current = crypto.randomUUID();
-      const refreshed = await listFlocks();
+      const refreshed = activeOnly(await listFlocks());
       setFlocks(refreshed);
       setFlockId(created.id);
       setShowNewFlock(false);
