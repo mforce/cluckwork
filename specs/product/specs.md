@@ -475,7 +475,7 @@ user_role_assignments
 
 This is the single canonical roadmap.
 
-## Phase 1.0 — MVP (shippable egg loop)
+## Phase 1.0 — MVP (shippable egg loop) — ✅ SHIPPED (2026-07-16, epic #13)
 
 Goal: ship the smallest **end-to-end** egg loop that is genuinely useful — record what the hens produce, know what is in stock, sell it. Ship this before building anything below it.
 
@@ -588,7 +588,7 @@ Includes:
 
 # 7. Unified Sprint List
 
-Sprints A–D deliver **Phase 1.0 (MVP)** and are the ship gate. Everything after is Phase 1.1+. Much of A–D is already built (see status tags).
+Sprints A–D delivered **Phase 1.0 (MVP)** — shipped 2026-07-16 (epic #13; per-item status tags below are historical). Everything after is Phase 1.1+.
 
 ## Sprint A — Foundation (MVP) — mostly built
 
