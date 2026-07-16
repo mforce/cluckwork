@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Pre-commit: fast unit tests for the stacks the commit touches.
+#
+# Enable once per clone:   git config core.hooksPath .githooks
+# Skip once:               git commit --no-verify   (or SKIP_HOOKS=1)
+#
+# Deliberately excluded: Cluckwork.Api.IntegrationTests (needs Docker, ~30s+).
+# CI remains the authority; this is a ~2s tripwire for broken domain logic.
+set -euo pipefail
+
+[ "${SKIP_HOOKS:-0}" = "1" ] && exit 0
+
+staged=$(git diff --cached --name-only --diff-filter=ACMR)
+
+if echo "$staged" | grep -qE '\.(cs|csproj)$|\.sln$'; then
+  echo "pre-commit: .NET unit tests (domain + application)..."
+  dotnet test tests/Cluckwork.Domain.Tests --nologo -v q
+  dotnet test tests/Cluckwork.Application.Tests --nologo -v q
+fi
+
+if echo "$staged" | grep -q '^web/'; then
+  echo "pre-commit: web typecheck..."
+  (cd web && npm run --silent typecheck)
+fi
+
+exit 0

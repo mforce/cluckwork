@@ -67,6 +67,9 @@ dotnet run --project src/Cluckwork.Api
 dotnet test Cluckwork.sln    # integration tests spin up Postgres via Docker
 ```
 
+Optional: `git config core.hooksPath .githooks` enables a fast pre-commit hook
+(unit tests for staged .NET changes, typecheck for staged `web/` changes).
+
 ## Architecture
 
 Multi-tenant from the root so the system scales past a single farm:
