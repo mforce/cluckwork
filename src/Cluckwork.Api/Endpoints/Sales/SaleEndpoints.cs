@@ -2,8 +2,11 @@ namespace Cluckwork.Api.Endpoints.Sales;
 
 using Cluckwork.Application.Features.Sales;
 using Cluckwork.Application.Features.Sales.AddOrderItem;
+using Cluckwork.Application.Features.Sales.CancelSalesOrder;
 using Cluckwork.Application.Features.Sales.ConfirmSale;
 using Cluckwork.Application.Features.Sales.CreateSalesOrder;
+using Cluckwork.Application.Features.Sales.RemoveOrderItem;
+using Cluckwork.Application.Features.Sales.UpdateOrderItem;
 using FluentValidation;
 using Cluckwork.Domain.Sales;
 using Cluckwork.Infrastructure.Persistence;
@@ -22,6 +25,18 @@ public static class SaleEndpoints
         group.MapPost("/{id:guid}/items", AddOrderItem)
             .WithName("AddOrderItem")
             .WithSummary("Add a graded line item to a draft order.");
+
+        group.MapPut("/{id:guid}/items/{itemId:guid}", UpdateOrderItem)
+            .WithName("UpdateOrderItem")
+            .WithSummary("Edit a line's quantity/unit price on a draft order.");
+
+        group.MapDelete("/{id:guid}/items/{itemId:guid}", RemoveOrderItem)
+            .WithName("RemoveOrderItem")
+            .WithSummary("Remove a line from a draft order.");
+
+        group.MapPost("/{id:guid}/cancel", CancelSalesOrder)
+            .WithName("CancelSalesOrder")
+            .WithSummary("Cancel a draft order (preserved as Cancelled, not deleted).");
 
         group.MapPost("/{id:guid}/confirm", ConfirmSale)
             .WithName("ConfirmSale")
@@ -87,6 +102,64 @@ public static class SaleEndpoints
         return Results.Problem(result.Error.Description, statusCode: status, title: result.Error.Code);
     }
 
+    private static IResult MapItemMutationFailure(Cluckwork.Domain.Common.Error error)
+    {
+        if (error.Code.EndsWith(".NotFound", StringComparison.Ordinal))
+            return Results.NotFound();
+        return error.Code == "SalesOrder.NotDraft"
+            ? Results.Problem(error.Description, statusCode: StatusCodes.Status409Conflict, title: error.Code)
+            : Results.Problem(error.Description, statusCode: 422, title: error.Code);
+    }
+
+    private static async Task<IResult> UpdateOrderItem(
+        Guid id,
+        Guid itemId,
+        UpdateOrderItemRequest request,
+        UpdateOrderItemHandler handler,
+        IValidator<UpdateOrderItemCommand> validator,
+        TenantContext tenant,
+        CancellationToken ct)
+    {
+        if (!tenant.IsResolved) return Results.Unauthorized();
+
+        var command = new UpdateOrderItemCommand(id, itemId, request.Quantity, request.UnitPriceMinorUnits);
+        var validation = await validator.ValidateAsync(command, ct);
+        if (!validation.IsValid)
+            return Results.ValidationProblem(validation.ToDictionary());
+
+        var result = await handler.HandleAsync(command, ct);
+        return result.IsSuccess ? Results.NoContent() : MapItemMutationFailure(result.Error);
+    }
+
+    private static async Task<IResult> RemoveOrderItem(
+        Guid id,
+        Guid itemId,
+        RemoveOrderItemHandler handler,
+        TenantContext tenant,
+        CancellationToken ct)
+    {
+        if (!tenant.IsResolved) return Results.Unauthorized();
+        var result = await handler.HandleAsync(id, itemId, ct);
+        return result.IsSuccess ? Results.NoContent() : MapItemMutationFailure(result.Error);
+    }
+
+    private static async Task<IResult> CancelSalesOrder(
+        Guid id,
+        CancelSalesOrderHandler handler,
+        TenantContext tenant,
+        CancellationToken ct)
+    {
+        if (!tenant.IsResolved) return Results.Unauthorized();
+
+        var result = await handler.HandleAsync(id, ct);
+        if (result.IsSuccess) return Results.NoContent();
+        if (result.Error.Code.EndsWith(".NotFound", StringComparison.Ordinal))
+            return Results.NotFound();
+        return result.Error.Code == "SalesOrder.NotDraft"
+            ? Results.Problem(result.Error.Description, statusCode: StatusCodes.Status409Conflict, title: result.Error.Code)
+            : Results.Problem(result.Error.Description, statusCode: 422, title: result.Error.Code);
+    }
+
     private static async Task<IResult> GetSalesOrder(
         Guid id, ISalesOrderRepository orders, TenantContext tenant, CancellationToken ct)
     {
@@ -97,7 +170,9 @@ public static class SaleEndpoints
 
     private static async Task<IResult> ListSalesOrders(
         ISalesOrderRepository orders, TenantContext tenant, CancellationToken ct,
-        string? status = null, Guid? customerId = null, int? limit = null, int? offset = null)
+        string? status = null, Guid? customerId = null,
+        DateOnly? from = null, DateOnly? to = null,
+        int? limit = null, int? offset = null)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
 
@@ -117,7 +192,7 @@ public static class SaleEndpoints
         var take = Math.Clamp(limit ?? DefaultPageSize, 1, MaxPageSize);
         var skip = Math.Max(offset ?? 0, 0);
 
-        var list = await orders.ListAsync(statusFilter, customerId, take, skip, ct);
+        var list = await orders.ListAsync(statusFilter, customerId, from, to, take, skip, ct);
         return Results.Ok(list.Select(ToResponse));
     }
 
@@ -170,6 +245,8 @@ public sealed record SalesOrderResponse(
 public sealed record CreateSalesOrderRequest(Guid CustomerId, DateOnly OrderDate);
 
 public sealed record AddOrderItemRequest(Guid EggGradeId, int Quantity, long UnitPriceMinorUnits);
+
+public sealed record UpdateOrderItemRequest(int Quantity, long UnitPriceMinorUnits);
 
 public sealed record SalesOrderItemResponse(
     Guid Id, Guid EggGradeId, int Quantity,

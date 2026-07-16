@@ -1,5 +1,5 @@
 // Typed wrappers over the Cluckwork JSON API (mirrors the endpoint DTOs).
-import { apiGet, apiPost } from "./client";
+import { apiDelete, apiGet, apiPost, apiPut } from "./client";
 
 export interface EggGrade {
   id: string;
@@ -79,14 +79,107 @@ export const recordDailyEntry = (body: {
 export const submitDailyEntry = (id: string, key?: string) =>
   apiPost<{ id: string; status: string; eggLotIds: string[] }>(`/daily-entries/${id}/submit`, undefined, key);
 
-export const listDailyEntries = (params?: { flockId?: string; from?: string; to?: string; limit?: number }) => {
+export const listDailyEntries = (params?: {
+  flockId?: string; from?: string; to?: string; limit?: number; offset?: number;
+}) => {
   const q = new URLSearchParams();
   if (params?.flockId) q.set("flockId", params.flockId);
   if (params?.from) q.set("from", params.from);
   if (params?.to) q.set("to", params.to);
   if (params?.limit) q.set("limit", String(params.limit));
+  if (params?.offset) q.set("offset", String(params.offset));
   const qs = q.size > 0 ? `?${q}` : "";
   return apiGet<DailyEntry[]>(`/daily-entries${qs}`);
 };
 
 export const getStock = () => apiGet<StockRow[]>("/stock");
+
+// --- Customers & sales (#23/#24) -------------------------------------------
+
+export interface Customer {
+  id: string;
+  name: string;
+  phone: string;
+  email: string | null;
+  address: string | null;
+  note: string | null;
+}
+
+export interface OrderItem {
+  id: string;
+  eggGradeId: string;
+  quantity: number;
+  unitPriceMinorUnits: number;
+  currencyCode: string;
+  currencyMinorUnit: number;
+}
+
+export interface SalesOrder {
+  id: string;
+  customerId: string;
+  referenceNumber: string;
+  orderDate: string;
+  status: string;
+  totalMinorUnits: number;
+  currencyCode: string;
+  currencyMinorUnit: number;
+  items: OrderItem[];
+}
+
+export const listCustomers = () => apiGet<Customer[]>("/customers");
+
+export const createCustomer = (body: {
+  name: string;
+  phone: string;
+  email?: string;
+  address?: string;
+  note?: string;
+}, key?: string) => apiPost<Created>("/customers", body, key);
+
+export const listOrders = (params?: {
+  status?: string; customerId?: string; from?: string; to?: string;
+  limit?: number; offset?: number;
+}) => {
+  const q = new URLSearchParams();
+  if (params?.status) q.set("status", params.status);
+  if (params?.customerId) q.set("customerId", params.customerId);
+  if (params?.from) q.set("from", params.from);
+  if (params?.to) q.set("to", params.to);
+  if (params?.limit) q.set("limit", String(params.limit));
+  if (params?.offset) q.set("offset", String(params.offset));
+  const qs = q.size > 0 ? `?${q}` : "";
+  return apiGet<SalesOrder[]>(`/sales${qs}`);
+};
+
+export const getOrder = (id: string) => apiGet<SalesOrder>(`/sales/${id}`);
+
+export const createOrder = (body: { customerId: string; orderDate: string }, key?: string) =>
+  apiPost<Created>("/sales", body, key);
+
+export const addOrderItem = (
+  orderId: string,
+  body: { eggGradeId: string; quantity: number; unitPriceMinorUnits: number },
+  key?: string,
+) => apiPost<{ orderId: string; itemId: string }>(`/sales/${orderId}/items`, body, key);
+
+export const updateOrderItem = (
+  orderId: string,
+  itemId: string,
+  body: { quantity: number; unitPriceMinorUnits: number },
+  key?: string,
+) => apiPut<void>(`/sales/${orderId}/items/${itemId}`, body, key);
+
+export const removeOrderItem = (orderId: string, itemId: string, key?: string) =>
+  apiDelete<void>(`/sales/${orderId}/items/${itemId}`, key);
+
+export const cancelOrder = (orderId: string, key?: string) =>
+  apiPost<void>(`/sales/${orderId}/cancel`, undefined, key);
+
+export const confirmOrder = (orderId: string, key?: string) =>
+  apiPost<{ orderId: string; status: string }>(`/sales/${orderId}/confirm`, undefined, key);
+
+// Formats minor units per the order's snapshotted currency (JPY has 0 decimals).
+export function formatMoney(minorUnits: number, currencyCode: string, minorUnit: number): string {
+  const value = minorUnits / 10 ** minorUnit;
+  return `${value.toFixed(minorUnit)} ${currencyCode}`;
+}

@@ -6,7 +6,9 @@ import { Login } from "./routes/Login";
 import { Dashboard } from "./routes/Dashboard";
 import { DailyEntryPage } from "./routes/DailyEntryPage";
 import { StockPage } from "./routes/StockPage";
-import { Placeholder } from "./routes/Placeholder";
+import { CustomersPage } from "./routes/CustomersPage";
+import { SalesPage } from "./routes/SalesPage";
+import { HistoryPage } from "./routes/HistoryPage";
 
 export function App() {
   return (
@@ -19,10 +21,9 @@ export function App() {
               <Route index element={<Dashboard />} />
               <Route path="daily-entry" element={<DailyEntryPage />} />
               <Route path="stock" element={<StockPage />} />
-              <Route
-                path="sales"
-                element={<Placeholder title="Sales" issue="#23 (F3)" />}
-              />
+              <Route path="customers" element={<CustomersPage />} />
+              <Route path="sales" element={<SalesPage />} />
+              <Route path="history" element={<HistoryPage />} />
             </Route>
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />

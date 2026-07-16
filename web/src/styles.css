@@ -202,3 +202,15 @@ table.data th {
   font-weight: 600;
   font-size: 0.85rem;
 }
+
+.order-panel {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1rem 1.25rem;
+  margin: 1rem 0;
+  background: var(--card);
+}
+
+input.cell {
+  width: 6.5rem;
+}

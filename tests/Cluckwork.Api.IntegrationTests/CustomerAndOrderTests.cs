@@ -12,7 +12,7 @@ public sealed class CustomerAndOrderTests(CluckworkWebApplicationFactory factory
     private sealed record IdDto(Guid Id);
     private sealed record CustomerDto(
         Guid Id, string Name, string Phone, string? Email, string? Address, string? Note);
-    private sealed record OrderItemDto(Guid EggGradeId, int Quantity, long UnitPriceMinorUnits);
+    private sealed record OrderItemDto(Guid Id, Guid EggGradeId, int Quantity, long UnitPriceMinorUnits);
     private sealed record OrderDto(
         Guid Id, Guid CustomerId, string ReferenceNumber, string Status,
         long TotalMinorUnits, string CurrencyCode, List<OrderItemDto> Items);
@@ -177,6 +177,100 @@ public sealed class CustomerAndOrderTests(CluckworkWebApplicationFactory factory
             new { eggGradeId = grades["Large"], quantity = 2, unitPriceMinorUnits = long.MaxValue });
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
+
+    [Fact]
+    public async Task CancelDraft_Succeeds_CancelConfirmed_409()
+    {
+        var (client, accountId, _, grades) = await SetupAsync("Large");
+        await factory.SeedEggLotAsync(accountId, grades["Large"], 500);
+        var customerId = await CreatedId(await client.PostWithKeyAsync(
+            "/api/v1/customers", Guid.NewGuid().ToString(), new { name = "C", phone = "1" }));
+
+        // Cancel a draft: 204, listed as Cancelled, and rejects further mutation.
+        var draftId = await CreatedId(await client.PostWithKeyAsync(
+            "/api/v1/sales", Guid.NewGuid().ToString(),
+            new { customerId, orderDate = DateOnly.FromDateTime(DateTime.UtcNow.Date) }));
+        var cancel = await client.PostWithKeyAsync(
+            $"/api/v1/sales/{draftId}/cancel", Guid.NewGuid().ToString());
+        Assert.Equal(HttpStatusCode.NoContent, cancel.StatusCode);
+
+        var cancelled = await client.GetFromJsonAsync<OrderDto>($"/api/v1/sales/{draftId}");
+        Assert.Equal("Cancelled", cancelled!.Status);
+
+        var addToCancelled = await client.PostWithKeyAsync(
+            $"/api/v1/sales/{draftId}/items", Guid.NewGuid().ToString(),
+            new { eggGradeId = grades["Large"], quantity = 1, unitPriceMinorUnits = 1 });
+        Assert.Equal(HttpStatusCode.Conflict, addToCancelled.StatusCode);
+        var confirmCancelled = await client.PostWithKeyAsync(
+            $"/api/v1/sales/{draftId}/confirm", Guid.NewGuid().ToString());
+        Assert.Equal(HttpStatusCode.Conflict, confirmCancelled.StatusCode);
+
+        // A confirmed order cannot be cancelled.
+        var confirmedId = await CreatedId(await client.PostWithKeyAsync(
+            "/api/v1/sales", Guid.NewGuid().ToString(),
+            new { customerId, orderDate = DateOnly.FromDateTime(DateTime.UtcNow.Date) }));
+        await client.PostWithKeyAsync(
+            $"/api/v1/sales/{confirmedId}/items", Guid.NewGuid().ToString(),
+            new { eggGradeId = grades["Large"], quantity = 10, unitPriceMinorUnits = 100 });
+        await client.PostWithKeyAsync(
+            $"/api/v1/sales/{confirmedId}/confirm", Guid.NewGuid().ToString());
+        var cancelConfirmed = await client.PostWithKeyAsync(
+            $"/api/v1/sales/{confirmedId}/cancel", Guid.NewGuid().ToString());
+        Assert.Equal(HttpStatusCode.Conflict, cancelConfirmed.StatusCode);
+    }
+
+    [Fact]
+    public async Task EditAndRemoveLines_TotalTracks()
+    {
+        var (client, accountId, _, grades) = await SetupAsync("Large", "Medium");
+        // Stock so the confirm at the end actually succeeds (else the order stays
+        // Draft and the final 409 assertion would be testing nothing).
+        await factory.SeedEggLotAsync(accountId, grades["Medium"], 100);
+        var customerId = await CreatedId(await client.PostWithKeyAsync(
+            "/api/v1/customers", Guid.NewGuid().ToString(), new { name = "C", phone = "1" }));
+        var orderId = await CreatedId(await client.PostWithKeyAsync(
+            "/api/v1/sales", Guid.NewGuid().ToString(),
+            new { customerId, orderDate = DateOnly.FromDateTime(DateTime.UtcNow.Date) }));
+
+        // two lines: 10x100 + 5x200 = 2000
+        var addA = await client.PostWithKeyAsync($"/api/v1/sales/{orderId}/items", Guid.NewGuid().ToString(),
+            new { eggGradeId = grades["Large"], quantity = 10, unitPriceMinorUnits = 100 });
+        var itemA = (await addA.Content.ReadFromJsonAsync<ItemCreatedDto>())!.ItemId;
+        await client.PostWithKeyAsync($"/api/v1/sales/{orderId}/items", Guid.NewGuid().ToString(),
+            new { eggGradeId = grades["Medium"], quantity = 5, unitPriceMinorUnits = 200 });
+
+        // edit line A -> 4x250 = 1000; total 2000
+        var put = new HttpRequestMessage(HttpMethod.Put, $"/api/v1/sales/{orderId}/items/{itemA}")
+        {
+            Content = JsonContent.Create(new { quantity = 4, unitPriceMinorUnits = 250 }),
+        };
+        put.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
+        var update = await client.SendAsync(put);
+        Assert.Equal(HttpStatusCode.NoContent, update.StatusCode);
+
+        var afterUpdate = await client.GetFromJsonAsync<OrderDto>($"/api/v1/sales/{orderId}");
+        Assert.Equal(2000, afterUpdate!.TotalMinorUnits);
+
+        // remove line A -> total 1000
+        var del = new HttpRequestMessage(HttpMethod.Delete, $"/api/v1/sales/{orderId}/items/{itemA}");
+        del.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
+        var remove = await client.SendAsync(del);
+        Assert.Equal(HttpStatusCode.NoContent, remove.StatusCode);
+
+        var afterRemove = await client.GetFromJsonAsync<OrderDto>($"/api/v1/sales/{orderId}");
+        Assert.Equal(1000, afterRemove!.TotalMinorUnits);
+        Assert.Single(afterRemove.Items);
+
+        // mutating a confirmed order's lines -> 409
+        await client.PostWithKeyAsync($"/api/v1/sales/{orderId}/confirm", Guid.NewGuid().ToString());
+        var delConfirmed = new HttpRequestMessage(HttpMethod.Delete,
+            $"/api/v1/sales/{orderId}/items/{afterRemove.Items[0].Id}");
+        delConfirmed.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
+        var removeConfirmed = await client.SendAsync(delConfirmed);
+        Assert.Equal(HttpStatusCode.Conflict, removeConfirmed.StatusCode);
+    }
+
+    private sealed record ItemCreatedDto(Guid OrderId, Guid ItemId);
 
     [Fact]
     public async Task FullLoop_PureHttp_RecordToSale()

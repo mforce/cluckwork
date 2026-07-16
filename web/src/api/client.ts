@@ -122,6 +122,21 @@ export function apiPost<T>(path: string, body?: unknown, idempotencyKey?: string
   });
 }
 
+export function apiPut<T>(path: string, body: unknown, idempotencyKey?: string): Promise<T> {
+  return apiFetch<T>(path, {
+    method: "PUT",
+    headers: { "Idempotency-Key": idempotencyKey ?? crypto.randomUUID() },
+    body: JSON.stringify(body),
+  });
+}
+
+export function apiDelete<T>(path: string, idempotencyKey?: string): Promise<T> {
+  return apiFetch<T>(path, {
+    method: "DELETE",
+    headers: { "Idempotency-Key": idempotencyKey ?? crypto.randomUUID() },
+  });
+}
+
 export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
   const tokens = loadTokens();
   if (!tokens) {
