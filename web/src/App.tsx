@@ -9,6 +9,7 @@ import { StockPage } from "./routes/StockPage";
 import { CustomersPage } from "./routes/CustomersPage";
 import { SalesPage } from "./routes/SalesPage";
 import { HistoryPage } from "./routes/HistoryPage";
+import { GradesPage } from "./routes/GradesPage";
 
 export function App() {
   return (
@@ -24,6 +25,7 @@ export function App() {
               <Route path="customers" element={<CustomersPage />} />
               <Route path="sales" element={<SalesPage />} />
               <Route path="history" element={<HistoryPage />} />
+              <Route path="grades" element={<GradesPage />} />
             </Route>
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />

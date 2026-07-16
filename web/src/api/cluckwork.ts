@@ -8,6 +8,7 @@ export interface EggGrade {
   gradeType: string;
   sortOrder: number;
   isSaleable: boolean;
+  active: boolean;
 }
 
 export interface Flock {
@@ -52,7 +53,27 @@ export interface Created {
   id: string;
 }
 
-export const listEggGrades = () => apiGet<EggGrade[]>("/egg-grades");
+export const listEggGrades = (params?: { includeInactive?: boolean }) =>
+  apiGet<EggGrade[]>(`/egg-grades${params?.includeInactive ? "?includeInactive=true" : ""}`);
+
+export const createEggGrade = (body: {
+  name: string;
+  gradeType: string;
+  sortOrder: number;
+  isSaleable: boolean;
+}, key?: string) => apiPost<Created>("/egg-grades", body, key);
+
+export const updateEggGrade = (id: string, body: {
+  name: string;
+  sortOrder: number;
+  isSaleable: boolean;
+}, key?: string) => apiPut<void>(`/egg-grades/${id}`, body, key);
+
+export const deactivateEggGrade = (id: string, key?: string) =>
+  apiPost<void>(`/egg-grades/${id}/deactivate`, undefined, key);
+
+export const activateEggGrade = (id: string, key?: string) =>
+  apiPost<void>(`/egg-grades/${id}/activate`, undefined, key);
 
 export const listFlocks = (params?: { limit?: number }) =>
   apiGet<Flock[]>(`/flocks${params?.limit ? `?limit=${params.limit}` : ""}`);

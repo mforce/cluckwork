@@ -18,6 +18,23 @@ public sealed class EggGradeRepository(AppDbContext db) : IEggGradeRepository
             .OrderBy(g => g.SortOrder).ThenBy(g => g.Name)
             .ToListAsync(ct);
 
+    public async Task<IReadOnlyList<EggGrade>> ListAllAsync(CancellationToken ct = default) =>
+        await db.EggGrades
+            .AsNoTracking()
+            .OrderBy(g => g.SortOrder).ThenBy(g => g.Name)
+            .ToListAsync(ct);
+
+    public Task<bool> NameExistsAsync(
+        Guid farmId, string name, Guid? excludeId = null, CancellationToken ct = default)
+    {
+        var normalized = name.Trim().ToLower();
+        return db.EggGrades.AnyAsync(
+            g => g.FarmId == farmId
+                 && g.Name.ToLower() == normalized
+                 && (excludeId == null || g.Id != excludeId),
+            ct);
+    }
+
     public async Task AddAsync(EggGrade entity, CancellationToken ct = default) =>
         await db.EggGrades.AddAsync(entity, ct);
 

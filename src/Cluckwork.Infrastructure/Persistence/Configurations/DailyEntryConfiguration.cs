@@ -76,6 +76,11 @@ public sealed class EggGradeConfiguration : IEntityTypeConfiguration<EggGrade>
             .HasMaxLength(16)
             .IsRequired();
 
-        builder.HasIndex(g => new { g.AccountId, g.FarmId, g.Name }).IsUnique();
+        builder.Property(g => g.Version).IsConcurrencyToken();
+
+        // Name uniqueness is case-insensitive per farm — enforced by a raw
+        // lower(Name) expression index (EF can't model it); see the
+        // AddEggGradeManagement migration. Handlers pre-check via
+        // NameExistsAsync for a friendly 409; the index is the real guarantee.
     }
 }

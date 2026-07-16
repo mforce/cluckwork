@@ -248,3 +248,14 @@ table.data th {
 input.cell {
   width: 6.5rem;
 }
+
+/* --- Grades (F6) --- */
+tr.inactive td {
+  color: var(--muted);
+}
+
+label.check {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.4rem;
+}
