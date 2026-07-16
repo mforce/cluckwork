@@ -30,6 +30,46 @@ public sealed class EggLotRepository(AppDbContext db) : IEggLotRepository
             .ToListAsync(ct);
     }
 
+    public async Task<IReadOnlyList<StockByGrade>> GetStockByGradeAsync(
+        DateOnly asOfDate, CancellationToken ct = default)
+    {
+        // Aggregate in SQL by grade id, then attach grade names in memory — the
+        // grade set is tiny and the join-into-GroupBy shape doesn't translate.
+        var sums = await db.EggLots
+            .AsNoTracking()
+            .GroupBy(l => l.EggGradeId)
+            .Select(g => new
+            {
+                EggGradeId = g.Key,
+                Available = g.Sum(l =>
+                    l.RestrictedUntil == null || l.RestrictedUntil < asOfDate ? l.QuantityAvailable : 0),
+                Restricted = g.Sum(l =>
+                    l.RestrictedUntil != null && l.RestrictedUntil >= asOfDate ? l.QuantityAvailable : 0),
+            })
+            .ToListAsync(ct);
+
+        if (sums.Count == 0) return [];
+
+        var ids = sums.Select(s => s.EggGradeId).ToList();
+        var grades = await db.EggGrades
+            .AsNoTracking()
+            .Where(g => ids.Contains(g.Id))
+            .ToDictionaryAsync(g => g.Id, ct);
+
+        return sums
+            .Select(s =>
+            {
+                var grade = grades.GetValueOrDefault(s.EggGradeId);
+                return new StockByGrade(
+                    s.EggGradeId,
+                    grade?.Name ?? s.EggGradeId.ToString(),
+                    grade?.SortOrder ?? int.MaxValue,
+                    s.Available, s.Restricted);
+            })
+            .OrderBy(r => r.SortOrder).ThenBy(r => r.GradeName)
+            .ToList();
+    }
+
     public async Task AddAsync(EggLot entity, CancellationToken ct = default) =>
         await db.EggLots.AddAsync(entity, ct);
 

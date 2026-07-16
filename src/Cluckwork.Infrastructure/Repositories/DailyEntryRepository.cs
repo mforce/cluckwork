@@ -27,6 +27,20 @@ public sealed class DailyEntryRepository(AppDbContext db) : IDailyEntryRepositor
                 e.FlockId == flockId &&
                 e.Date == date, ct);
 
+    public async Task<IReadOnlyList<DailyEntry>> ListAsync(
+        Guid? flockId, DateOnly? from, DateOnly? to, int limit, int offset,
+        CancellationToken ct = default) =>
+        await db.DailyEntries
+            .AsNoTracking()
+            .Include(e => e.Grades)
+            .Where(e => (flockId == null || e.FlockId == flockId)
+                     && (from == null || e.Date >= from)
+                     && (to == null || e.Date <= to))
+            .OrderByDescending(e => e.Date)
+            .Skip(offset)
+            .Take(limit)
+            .ToListAsync(ct);
+
     public async Task AddAsync(DailyEntry entity, CancellationToken ct = default) =>
         await db.DailyEntries.AddAsync(entity, ct);
 

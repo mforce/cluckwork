@@ -4,6 +4,7 @@ using Cluckwork.Api.Endpoints.DailyEntries;
 using Cluckwork.Api.Endpoints.EggGrades;
 using Cluckwork.Api.Endpoints.Flocks;
 using Cluckwork.Api.Endpoints.Sales;
+using Cluckwork.Api.Endpoints.Stock;
 using Cluckwork.Api.Middleware;
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.DailyEntries;
@@ -198,6 +199,11 @@ app.MapGroup("/api/v1/daily-entries")
     .WithTags("DailyEntries")
     .RequireAuthorization()
     .MapDailyEntryEndpoints();
+
+app.MapGroup("/api/v1/stock")
+    .WithTags("Stock")
+    .RequireAuthorization()
+    .MapStockEndpoints();
 
 app.MapGroup("/api/v1/sales")
     .WithTags("Sales")
