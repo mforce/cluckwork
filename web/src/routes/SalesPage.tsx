@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  addOrderItem, confirmOrder, createOrder, formatMoney, getOrder,
-  listCustomers, listEggGrades, listOrders,
+  addOrderItem, cancelOrder, confirmOrder, createOrder, formatMoney, getOrder,
+  listCustomers, listEggGrades, listOrders, removeOrderItem, updateOrderItem,
 } from "../api/cluckwork";
 import type { Customer, EggGrade, SalesOrder } from "../api/cluckwork";
 import { ApiError } from "../api/client";
@@ -33,12 +33,17 @@ export function SalesPage() {
   const [gradeId, setGradeId] = useState("");
   const [qty, setQty] = useState(30);
   const [price, setPrice] = useState("0.30");
+  // per-row edit state (draft orders)
+  const [editItemId, setEditItemId] = useState<string | null>(null);
+  const [editQty, setEditQty] = useState(1);
+  const [editPrice, setEditPrice] = useState("0");
 
   const [busy, setBusy] = useState(false);
   const inFlight = useRef(false);
   const orderKey = useRef<string>(crypto.randomUUID());
   const itemKey = useRef<string>(crypto.randomUUID());
   const confirmKey = useRef<string>(crypto.randomUUID());
+  const cancelKey = useRef<string>(crypto.randomUUID());
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -105,6 +110,30 @@ export function SalesPage() {
     await reloadOrders();
   });
 
+  const onRemoveItem = (itemId: string) => run(async () => {
+    if (!active) return;
+    await removeOrderItem(active.id, itemId);
+    setActive(await getOrder(active.id));
+  });
+
+  const onUpdateItem = (itemId: string) => run(async () => {
+    if (!active) return;
+    const minorUnits = Math.round(parseFloat(editPrice) * 10 ** active.currencyMinorUnit);
+    if (!Number.isFinite(minorUnits) || minorUnits < 0) throw new Error("Invalid unit price.");
+    await updateOrderItem(active.id, itemId, { quantity: editQty, unitPriceMinorUnits: minorUnits });
+    setEditItemId(null);
+    setActive(await getOrder(active.id));
+  });
+
+  const onCancel = () => run(async () => {
+    if (!active) return;
+    await cancelOrder(active.id, cancelKey.current);
+    cancelKey.current = crypto.randomUUID();
+    setActive(null);
+    setMessage("Draft order cancelled.");
+    await reloadOrders();
+  });
+
   if (loadError) return <section><h2>Sales</h2><p className="error">{loadError}</p></section>;
   if (orders === null) return <section><h2>Sales</h2><p className="muted">Loading…</p></section>;
 
@@ -138,14 +167,45 @@ export function SalesPage() {
 
           {active.items.length > 0 && (
             <table className="data">
-              <thead><tr><th>Grade</th><th>Qty</th><th>Unit price</th><th>Line total</th></tr></thead>
+              <thead><tr><th>Grade</th><th>Qty</th><th>Unit price</th><th>Line total</th><th></th></tr></thead>
               <tbody>
                 {active.items.map((i) => (
                   <tr key={i.id}>
                     <td>{gradeName(i.eggGradeId)}</td>
-                    <td>{i.quantity}</td>
-                    <td>{formatMoney(i.unitPriceMinorUnits, i.currencyCode, i.currencyMinorUnit)}</td>
-                    <td>{formatMoney(i.unitPriceMinorUnits * i.quantity, i.currencyCode, i.currencyMinorUnit)}</td>
+                    {editItemId === i.id ? (
+                      <>
+                        <td><input className="cell" type="number" min={1} value={editQty}
+                          onChange={(e) => setEditQty(Math.max(1, e.target.valueAsNumber || 1))} /></td>
+                        <td><input className="cell" type="number" min={0}
+                          step={10 ** -active.currencyMinorUnit} value={editPrice}
+                          onChange={(e) => setEditPrice(e.target.value)} /></td>
+                        <td>—</td>
+                        <td>
+                          <button className="link" disabled={busy} onClick={() => onUpdateItem(i.id)}>save</button>
+                          <button className="link" onClick={() => setEditItemId(null)}>cancel</button>
+                        </td>
+                      </>
+                    ) : (
+                      <>
+                        <td>{i.quantity}</td>
+                        <td>{formatMoney(i.unitPriceMinorUnits, i.currencyCode, i.currencyMinorUnit)}</td>
+                        <td>{formatMoney(i.unitPriceMinorUnits * i.quantity, i.currencyCode, i.currencyMinorUnit)}</td>
+                        <td>
+                          {active.status === "Draft" && (
+                            <>
+                              <button className="link" disabled={busy} onClick={() => {
+                                setEditItemId(i.id);
+                                setEditQty(i.quantity);
+                                setEditPrice((i.unitPriceMinorUnits / 10 ** i.currencyMinorUnit)
+                                  .toFixed(i.currencyMinorUnit));
+                              }}>edit</button>
+                              <button className="link" disabled={busy}
+                                onClick={() => onRemoveItem(i.id)}>remove</button>
+                            </>
+                          )}
+                        </td>
+                      </>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -175,6 +235,7 @@ export function SalesPage() {
                 <button disabled={busy || active.items.length === 0} onClick={onConfirm}>
                   Confirm order (allocates stock)
                 </button>
+                <button className="link" disabled={busy} onClick={onCancel}>Cancel draft</button>
                 <button className="link" onClick={() => setActive(null)}>close</button>
               </div>
             </>

@@ -210,3 +210,7 @@ table.data th {
   margin: 1rem 0;
   background: var(--card);
 }
+
+input.cell {
+  width: 6.5rem;
+}

@@ -40,12 +40,61 @@ public sealed class SalesOrder : AggregateRoot<Guid>
 
         var item = SalesOrderItem.Create(AccountId, Id, eggGradeId, quantity, unitPrice);
         _items.Add(item);
-        TotalAmount = TotalAmount.Add(item.LineTotal);
+        RecalculateTotal();
         // Version is the concurrency token (EF never auto-increments it): without
-        // this bump, two parallel add-items both match WHERE Version = N and the
-        // second silently overwrites the first's TotalAmount.
+        // this bump, two parallel item mutations both match WHERE Version = N and
+        // the second silently overwrites the first's TotalAmount.
         Version++;
         return Result.Success(item);
+    }
+
+    public Result RemoveItem(Guid itemId)
+    {
+        if (Status != SalesOrderStatus.Draft)
+            return Result.Failure(Error.Domain(
+                "SalesOrder.NotDraft", "Items can only be removed from draft orders."));
+
+        var item = _items.FirstOrDefault(i => i.Id == itemId);
+        if (item is null)
+            return Result.Failure(Error.NotFound(nameof(SalesOrderItem), itemId));
+
+        _items.Remove(item);
+        RecalculateTotal();
+        Version++;
+        return Result.Success();
+    }
+
+    public Result UpdateItem(Guid itemId, int quantity, Money unitPrice)
+    {
+        if (Status != SalesOrderStatus.Draft)
+            return Result.Failure(Error.Domain(
+                "SalesOrder.NotDraft", "Items can only be edited on draft orders."));
+
+        var item = _items.FirstOrDefault(i => i.Id == itemId);
+        if (item is null)
+            return Result.Failure(Error.NotFound(nameof(SalesOrderItem), itemId));
+
+        item.Update(quantity, unitPrice);
+        RecalculateTotal();
+        Version++;
+        return Result.Success();
+    }
+
+    // Recomputed from the lines rather than adjusted incrementally — one source
+    // of truth, no drift across add/remove/update paths.
+    private void RecalculateTotal() =>
+        TotalAmount = _items.Aggregate(
+            Money.Zero(TotalAmount.CurrencyCode, TotalAmount.CurrencyMinorUnit),
+            (acc, i) => acc.Add(i.LineTotal));
+
+    public Result Cancel()
+    {
+        if (Status != SalesOrderStatus.Draft)
+            return Result.Failure(Error.Domain(
+                "SalesOrder.NotDraft", "Only draft orders can be cancelled."));
+        Status = SalesOrderStatus.Cancelled;
+        Version++;
+        return Result.Success();
     }
 
     public Result Confirm()
@@ -75,6 +124,12 @@ public sealed class SalesOrderItem : Entity<Guid>
     public Money LineTotal => UnitPrice.Multiply(Quantity);
 
     private SalesOrderItem() { }
+
+    internal void Update(int quantity, Money unitPrice)
+    {
+        Quantity = quantity;
+        UnitPrice = unitPrice;
+    }
 
     // Id left unset for EF to generate: a client-set key on an item added to an
     // already-tracked order is discovered as Modified (UPDATE of a nonexistent

@@ -1,5 +1,5 @@
 // Typed wrappers over the Cluckwork JSON API (mirrors the endpoint DTOs).
-import { apiGet, apiPost } from "./client";
+import { apiDelete, apiGet, apiPost, apiPut } from "./client";
 
 export interface EggGrade {
   id: string;
@@ -151,6 +151,19 @@ export const addOrderItem = (
   body: { eggGradeId: string; quantity: number; unitPriceMinorUnits: number },
   key?: string,
 ) => apiPost<{ orderId: string; itemId: string }>(`/sales/${orderId}/items`, body, key);
+
+export const updateOrderItem = (
+  orderId: string,
+  itemId: string,
+  body: { quantity: number; unitPriceMinorUnits: number },
+  key?: string,
+) => apiPut<void>(`/sales/${orderId}/items/${itemId}`, body, key);
+
+export const removeOrderItem = (orderId: string, itemId: string, key?: string) =>
+  apiDelete<void>(`/sales/${orderId}/items/${itemId}`, key);
+
+export const cancelOrder = (orderId: string, key?: string) =>
+  apiPost<void>(`/sales/${orderId}/cancel`, undefined, key);
 
 export const confirmOrder = (orderId: string, key?: string) =>
   apiPost<{ orderId: string; status: string }>(`/sales/${orderId}/confirm`, undefined, key);

@@ -21,8 +21,11 @@ using Cluckwork.Application.Features.Flocks.CreateFlock;
 using Cluckwork.Application.Features.Flocks.DepleteFlock;
 using Cluckwork.Application.Features.Sales;
 using Cluckwork.Application.Features.Sales.AddOrderItem;
+using Cluckwork.Application.Features.Sales.CancelSalesOrder;
 using Cluckwork.Application.Features.Sales.ConfirmSale;
 using Cluckwork.Application.Features.Sales.CreateSalesOrder;
+using Cluckwork.Application.Features.Sales.RemoveOrderItem;
+using Cluckwork.Application.Features.Sales.UpdateOrderItem;
 using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Jobs;
 using Cluckwork.Infrastructure.Persistence;
@@ -132,6 +135,7 @@ builder.Services.AddScoped<IValidator<CreateFlockCommand>, CreateFlockValidator>
 builder.Services.AddScoped<IValidator<CreateCustomerCommand>, CreateCustomerValidator>();
 builder.Services.AddScoped<IValidator<CreateSalesOrderCommand>, CreateSalesOrderValidator>();
 builder.Services.AddScoped<IValidator<AddOrderItemCommand>, AddOrderItemValidator>();
+builder.Services.AddScoped<IValidator<UpdateOrderItemCommand>, UpdateOrderItemValidator>();
 
 // --- Handlers (direct — no mediator, tech spec §2.1) ---
 builder.Services.AddScoped<RecordDailyEntryHandler>();
@@ -139,6 +143,9 @@ builder.Services.AddScoped<SubmitDailyEntryHandler>();
 builder.Services.AddScoped<CreateCustomerHandler>();
 builder.Services.AddScoped<CreateSalesOrderHandler>();
 builder.Services.AddScoped<AddOrderItemHandler>();
+builder.Services.AddScoped<CancelSalesOrderHandler>();
+builder.Services.AddScoped<RemoveOrderItemHandler>();
+builder.Services.AddScoped<UpdateOrderItemHandler>();
 builder.Services.AddScoped<ConfirmSaleHandler>();
 builder.Services.AddScoped<CreateFlockHandler>();
 builder.Services.AddScoped<DepleteFlockHandler>();
