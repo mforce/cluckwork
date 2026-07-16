@@ -1,7 +1,10 @@
 namespace Cluckwork.Api.Endpoints.Sales;
 
 using Cluckwork.Application.Features.Sales;
+using Cluckwork.Application.Features.Sales.AddOrderItem;
 using Cluckwork.Application.Features.Sales.ConfirmSale;
+using Cluckwork.Application.Features.Sales.CreateSalesOrder;
+using FluentValidation;
 using Cluckwork.Domain.Sales;
 using Cluckwork.Infrastructure.Persistence;
 
@@ -12,6 +15,14 @@ public static class SaleEndpoints
 
     public static RouteGroupBuilder MapSaleEndpoints(this RouteGroupBuilder group)
     {
+        group.MapPost("/", CreateSalesOrder)
+            .WithName("CreateSalesOrder")
+            .WithSummary("Create a draft sales order for a customer (currency snapshotted from the account).");
+
+        group.MapPost("/{id:guid}/items", AddOrderItem)
+            .WithName("AddOrderItem")
+            .WithSummary("Add a graded line item to a draft order.");
+
         group.MapPost("/{id:guid}/confirm", ConfirmSale)
             .WithName("ConfirmSale")
             .WithSummary("Confirm a sales order and allocate egg lots via FIFO (online-only).");
@@ -25,6 +36,55 @@ public static class SaleEndpoints
             .WithSummary("List sales orders, newest first (optional status/customer filters, paged).");
 
         return group;
+    }
+
+    private static async Task<IResult> CreateSalesOrder(
+        CreateSalesOrderRequest request,
+        CreateSalesOrderHandler handler,
+        IValidator<CreateSalesOrderCommand> validator,
+        TenantContext tenant,
+        CancellationToken ct)
+    {
+        if (!tenant.IsResolved) return Results.Unauthorized();
+
+        var command = new CreateSalesOrderCommand(request.CustomerId, request.OrderDate);
+        var validation = await validator.ValidateAsync(command, ct);
+        if (!validation.IsValid)
+            return Results.ValidationProblem(validation.ToDictionary());
+
+        var result = await handler.HandleAsync(command, tenant.AccountId, ct);
+        if (result.IsSuccess)
+            return Results.Created($"/api/v1/sales/{result.Value}", new { Id = result.Value });
+        return result.Error.Code.EndsWith(".NotFound", StringComparison.Ordinal)
+            ? Results.NotFound()
+            : Results.Problem(result.Error.Description, statusCode: 422, title: result.Error.Code);
+    }
+
+    private static async Task<IResult> AddOrderItem(
+        Guid id,
+        AddOrderItemRequest request,
+        AddOrderItemHandler handler,
+        IValidator<AddOrderItemCommand> validator,
+        TenantContext tenant,
+        CancellationToken ct)
+    {
+        if (!tenant.IsResolved) return Results.Unauthorized();
+
+        var command = new AddOrderItemCommand(
+            id, request.EggGradeId, request.Quantity, request.UnitPriceMinorUnits);
+        var validation = await validator.ValidateAsync(command, ct);
+        if (!validation.IsValid)
+            return Results.ValidationProblem(validation.ToDictionary());
+
+        var result = await handler.HandleAsync(command, tenant.AccountId, ct);
+        if (result.IsSuccess)
+            return Results.Created($"/api/v1/sales/{id}", new { Id = result.Value });
+        if (result.Error.Code.EndsWith(".NotFound", StringComparison.Ordinal))
+            return Results.NotFound();
+        var status = result.Error.Code == "SalesOrder.NotDraft"
+            ? StatusCodes.Status409Conflict
+            : StatusCodes.Status422UnprocessableEntity;
+        return Results.Problem(result.Error.Description, statusCode: status, title: result.Error.Code);
     }
 
     private static async Task<IResult> GetSalesOrder(
@@ -106,6 +166,10 @@ public sealed record SalesOrderResponse(
     Guid Id, Guid CustomerId, string ReferenceNumber, DateOnly OrderDate, string Status,
     long TotalMinorUnits, string CurrencyCode, int CurrencyMinorUnit,
     IReadOnlyList<SalesOrderItemResponse> Items);
+
+public sealed record CreateSalesOrderRequest(Guid CustomerId, DateOnly OrderDate);
+
+public sealed record AddOrderItemRequest(Guid EggGradeId, int Quantity, long UnitPriceMinorUnits);
 
 public sealed record SalesOrderItemResponse(
     Guid Id, Guid EggGradeId, int Quantity,

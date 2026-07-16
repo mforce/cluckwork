@@ -15,6 +15,12 @@ public sealed class SalesOrderConfiguration : IEntityTypeConfiguration<SalesOrde
             .HasConversion<string>().HasMaxLength(32).IsRequired();
         builder.Property(o => o.Version).IsConcurrencyToken();
 
+        // Customers with order history cannot be deleted from under them.
+        builder.HasOne<Cluckwork.Domain.Sales.Customer>()
+            .WithMany()
+            .HasForeignKey(o => o.CustomerId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         // Money value object stored as owned type (no jsonb — stays provider-neutral)
         builder.OwnsOne(o => o.TotalAmount, m =>
         {
@@ -61,5 +67,21 @@ public sealed class SalesOrderItemConfiguration : IEntityTypeConfiguration<Sales
 
         // LineTotal is computed — ignored by EF Core
         builder.Ignore(i => i.LineTotal);
+    }
+}
+
+public sealed class CustomerConfiguration : IEntityTypeConfiguration<Cluckwork.Domain.Sales.Customer>
+{
+    public void Configure(EntityTypeBuilder<Cluckwork.Domain.Sales.Customer> builder)
+    {
+        builder.HasKey(c => c.Id);
+        builder.Property(c => c.AccountId).IsRequired();
+        builder.Property(c => c.Name).HasMaxLength(Cluckwork.Domain.Sales.Customer.MaxNameLength).IsRequired();
+        builder.Property(c => c.Phone).HasMaxLength(Cluckwork.Domain.Sales.Customer.MaxPhoneLength).IsRequired();
+        builder.Property(c => c.Email).HasMaxLength(Cluckwork.Domain.Sales.Customer.MaxEmailLength);
+        builder.Property(c => c.Address).HasMaxLength(Cluckwork.Domain.Sales.Customer.MaxAddressLength);
+        builder.Property(c => c.Note).HasMaxLength(Cluckwork.Domain.Sales.Customer.MaxNoteLength);
+
+        builder.HasIndex(c => new { c.AccountId, c.Name });
     }
 }

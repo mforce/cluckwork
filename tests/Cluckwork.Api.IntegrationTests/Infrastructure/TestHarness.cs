@@ -117,10 +117,14 @@ internal static class TestHarness
         var orderId = Guid.NewGuid();
         await factory.WithTenantScopeAsync(accountId, async db =>
         {
+            // Orders FK to Customers — seed a real customer row.
+            var customer = Customer.Create(Guid.NewGuid(), accountId, "Seed Customer", "555-0000");
+            db.Customers.Add(customer);
+
             var order = SalesOrder.Create(
-                orderId, accountId, Guid.NewGuid(),
+                orderId, accountId, customer.Id,
                 $"SO-{orderId.ToString()[..8]}", DateOnly.FromDateTime(DateTime.UtcNow.Date), "USD");
-            order.AddItem(Guid.NewGuid(), eggGradeId, quantity, Cluckwork.Domain.Common.Money.Zero("USD"));
+            order.AddItem(eggGradeId, quantity, Cluckwork.Domain.Common.Money.Zero("USD"));
             db.SalesOrders.Add(order);
             await db.SaveChangesAsync();
         });
