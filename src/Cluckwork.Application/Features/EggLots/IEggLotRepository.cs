@@ -10,4 +10,12 @@ public interface IEggLotRepository : IRepository<EggLot, Guid>
     Task<IReadOnlyList<EggLot>> GetAvailableFifoLockedAsync(
         Guid accountId, Guid eggGradeId, DateOnly allocationDate,
         CancellationToken ct = default);
+
+    // Current stock aggregated by grade for the tenant. Available excludes lots
+    // under withdrawal restriction as of the given date; those sum separately.
+    Task<IReadOnlyList<StockByGrade>> GetStockByGradeAsync(
+        DateOnly asOfDate, CancellationToken ct = default);
 }
+
+public sealed record StockByGrade(
+    Guid EggGradeId, string GradeName, int SortOrder, int Available, int Restricted);

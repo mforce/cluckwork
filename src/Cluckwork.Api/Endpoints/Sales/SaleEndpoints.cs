@@ -1,18 +1,72 @@
 namespace Cluckwork.Api.Endpoints.Sales;
 
+using Cluckwork.Application.Features.Sales;
 using Cluckwork.Application.Features.Sales.ConfirmSale;
+using Cluckwork.Domain.Sales;
 using Cluckwork.Infrastructure.Persistence;
 
 public static class SaleEndpoints
 {
+    private const int DefaultPageSize = 100;
+    private const int MaxPageSize = 500;
+
     public static RouteGroupBuilder MapSaleEndpoints(this RouteGroupBuilder group)
     {
         group.MapPost("/{id:guid}/confirm", ConfirmSale)
             .WithName("ConfirmSale")
             .WithSummary("Confirm a sales order and allocate egg lots via FIFO (online-only).");
 
+        group.MapGet("/{id:guid}", GetSalesOrder)
+            .WithName("GetSalesOrder")
+            .WithSummary("Get a sales order with its line items.");
+
+        group.MapGet("/", ListSalesOrders)
+            .WithName("ListSalesOrders")
+            .WithSummary("List sales orders, newest first (optional status/customer filters, paged).");
+
         return group;
     }
+
+    private static async Task<IResult> GetSalesOrder(
+        Guid id, ISalesOrderRepository orders, TenantContext tenant, CancellationToken ct)
+    {
+        if (!tenant.IsResolved) return Results.Unauthorized();
+        var order = await orders.GetReadOnlyAsync(id, ct);
+        return order is null ? Results.NotFound() : Results.Ok(ToResponse(order));
+    }
+
+    private static async Task<IResult> ListSalesOrders(
+        ISalesOrderRepository orders, TenantContext tenant, CancellationToken ct,
+        string? status = null, Guid? customerId = null, int? limit = null, int? offset = null)
+    {
+        if (!tenant.IsResolved) return Results.Unauthorized();
+
+        SalesOrderStatus? statusFilter = null;
+        if (status is not null)
+        {
+            // IsDefined too: TryParse accepts any numeric ("999" parses fine).
+            if (!Enum.TryParse<SalesOrderStatus>(status, ignoreCase: true, out var parsed)
+                || !Enum.IsDefined(parsed))
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["status"] = [$"Unknown status '{status}'."]
+                });
+            statusFilter = parsed;
+        }
+
+        var take = Math.Clamp(limit ?? DefaultPageSize, 1, MaxPageSize);
+        var skip = Math.Max(offset ?? 0, 0);
+
+        var list = await orders.ListAsync(statusFilter, customerId, take, skip, ct);
+        return Results.Ok(list.Select(ToResponse));
+    }
+
+    private static SalesOrderResponse ToResponse(SalesOrder o) => new(
+        o.Id, o.CustomerId, o.ReferenceNumber, o.OrderDate, o.Status.ToString(),
+        o.TotalAmount.MinorUnits, o.TotalAmount.CurrencyCode, o.TotalAmount.CurrencyMinorUnit,
+        o.Items.Select(i => new SalesOrderItemResponse(
+            i.Id, i.EggGradeId, i.Quantity,
+            i.UnitPrice.MinorUnits, i.UnitPrice.CurrencyCode, i.UnitPrice.CurrencyMinorUnit)).ToList());
 
     private static async Task<IResult> ConfirmSale(
         Guid id,
@@ -45,3 +99,14 @@ public static class SaleEndpoints
         return Results.Ok(result.Value);
     }
 }
+
+// CurrencyMinorUnit included so clients render non-2-decimal currencies (JPY,
+// KWD) correctly instead of assuming cents.
+public sealed record SalesOrderResponse(
+    Guid Id, Guid CustomerId, string ReferenceNumber, DateOnly OrderDate, string Status,
+    long TotalMinorUnits, string CurrencyCode, int CurrencyMinorUnit,
+    IReadOnlyList<SalesOrderItemResponse> Items);
+
+public sealed record SalesOrderItemResponse(
+    Guid Id, Guid EggGradeId, int Quantity,
+    long UnitPriceMinorUnits, string CurrencyCode, int CurrencyMinorUnit);

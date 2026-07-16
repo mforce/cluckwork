@@ -19,8 +19,54 @@ public static class DailyEntryEndpoints
             .WithName("SubmitDailyEntry")
             .WithSummary("Submit a draft entry: locks it in and generates egg lots from its grade lines.");
 
+        group.MapGet("/{id:guid}", GetDailyEntry)
+            .WithName("GetDailyEntry")
+            .WithSummary("Get a daily entry with its grade lines.");
+
+        group.MapGet("/", ListDailyEntries)
+            .WithName("ListDailyEntries")
+            .WithSummary("List daily entries, newest first (optional flock/date filters, paged).");
+
         return group;
     }
+
+    private const int DefaultPageSize = 100;
+    private const int MaxPageSize = 500;
+
+    private static async Task<IResult> GetDailyEntry(
+        Guid id,
+        Cluckwork.Application.Features.DailyEntries.IDailyEntryRepository entries,
+        TenantContext tenant,
+        CancellationToken ct)
+    {
+        if (!tenant.IsResolved) return Results.Unauthorized();
+        var entry = await entries.GetReadOnlyAsync(id, ct);
+        return entry is null ? Results.NotFound() : Results.Ok(ToResponse(entry));
+    }
+
+    private static async Task<IResult> ListDailyEntries(
+        Cluckwork.Application.Features.DailyEntries.IDailyEntryRepository entries,
+        TenantContext tenant,
+        CancellationToken ct,
+        Guid? flockId = null,
+        DateOnly? from = null,
+        DateOnly? to = null,
+        int? limit = null,
+        int? offset = null)
+    {
+        if (!tenant.IsResolved) return Results.Unauthorized();
+
+        var take = Math.Clamp(limit ?? DefaultPageSize, 1, MaxPageSize);
+        var skip = Math.Max(offset ?? 0, 0);
+
+        var list = await entries.ListAsync(flockId, from, to, take, skip, ct);
+        return Results.Ok(list.Select(ToResponse));
+    }
+
+    private static DailyEntryResponse ToResponse(Cluckwork.Domain.Eggs.DailyEntry e) => new(
+        e.Id, e.FarmId, e.HouseId, e.FlockId, e.Date, e.Status.ToString(),
+        e.TotalEggs, e.CrackedEggs, e.DirtyEggs, e.DiscardedEggs, e.MortalityCount,
+        e.Grades.Select(g => new GradeLineResponse(g.EggGradeId, g.Quantity)).ToList());
 
     private static async Task<IResult> SubmitDailyEntry(
         Guid id,
@@ -83,3 +129,10 @@ public sealed record RecordDailyEntryRequest(
 // unchanged (older clients); [] = explicitly clear all lines. #8 turns these
 // lines into egg lots.
 public sealed record GradeQuantityRequest(Guid EggGradeId, int Quantity);
+
+public sealed record DailyEntryResponse(
+    Guid Id, Guid FarmId, Guid HouseId, Guid FlockId, DateOnly Date, string Status,
+    int TotalEggs, int CrackedEggs, int DirtyEggs, int DiscardedEggs, int MortalityCount,
+    IReadOnlyList<GradeLineResponse> Grades);
+
+public sealed record GradeLineResponse(Guid EggGradeId, int Quantity);

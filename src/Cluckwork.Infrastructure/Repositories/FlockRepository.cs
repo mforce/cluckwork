@@ -17,7 +17,7 @@ public sealed class FlockRepository(AppDbContext db) : IFlockRepository
     public async Task<IReadOnlyList<Flock>> ListAsync(int limit, int offset, CancellationToken ct = default) =>
         await db.Flocks
             .AsNoTracking()
-            .OrderBy(f => f.Name)
+            .OrderBy(f => f.Name).ThenBy(f => f.Id)
             .Skip(offset)
             .Take(limit)
             .ToListAsync(ct);
