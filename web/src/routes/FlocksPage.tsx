@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import {
-  archiveFlock, createFlock, depleteFlock, listFlocks, updateFlock,
+  archiveFlock, createFlock, depleteFlock, listBirdMovements, listFlocks,
+  recordBirdMovement, updateFlock,
 } from "../api/cluckwork";
-import type { Flock } from "../api/cluckwork";
+import type { BirdMovement, Flock } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { todayIso } from "../lib/dates";
 
@@ -39,6 +40,14 @@ export function FlocksPage() {
   const [editBreed, setEditBreed] = useState("");
   const [editPlaced, setEditPlaced] = useState("");
   const [editCount, setEditCount] = useState(0);
+
+  // bird ledger (#54): one flock's movements open at a time
+  const [ledgerFlockId, setLedgerFlockId] = useState<string | null>(null);
+  const [movements, setMovements] = useState<BirdMovement[] | null>(null);
+  const [mvDate, setMvDate] = useState(todayIso());
+  const [mvType, setMvType] = useState("Cull");
+  const [mvQty, setMvQty] = useState(1);
+  const [mvNote, setMvNote] = useState("");
 
   // Stable idempotency keys per logical mutation, rotated only after the full
   // action (write + refresh) succeeds — same contract as the other screens.
@@ -111,6 +120,38 @@ export function FlocksPage() {
     if (ok) setEditingId(null);
   }
 
+  async function openLedger(id: string) {
+    if (ledgerFlockId === id) {
+      setLedgerFlockId(null);
+      return;
+    }
+    setLedgerFlockId(id);
+    setMovements(null);
+    setMvDate(todayIso());
+    try {
+      setMovements(await listBirdMovements(id, { limit: 50 }));
+    } catch {
+      setError("Could not load movements.");
+    }
+  }
+
+  async function onRecordMovement(e: FormEvent) {
+    e.preventDefault();
+    if (!ledgerFlockId) return;
+    const id = ledgerFlockId;
+    const ok = await run(`movement:${id}`, async (key) => {
+      await recordBirdMovement(id, {
+        date: mvDate, type: mvType, quantity: mvQty,
+        note: mvNote || undefined,
+      }, key);
+      setMovements(await listBirdMovements(id, { limit: 50 }));
+    });
+    if (ok) {
+      setMvQty(1);
+      setMvNote("");
+    }
+  }
+
   if (error && flocks === null) {
     return <section><h2>Flocks</h2><p className="error">{error}</p></section>;
   }
@@ -162,7 +203,7 @@ export function FlocksPage() {
           <thead>
             <tr>
               <th>Name</th><th>Breed</th><th>Placed</th><th>Age</th>
-              <th>Initial birds</th><th>Status</th><th></th>
+              <th>Birds</th><th>Status</th><th></th>
             </tr>
           </thead>
           <tbody>
@@ -201,12 +242,20 @@ export function FlocksPage() {
                     <td>{f.breed}</td>
                     <td>{f.placementDate}</td>
                     <td>{ageWeeks(f.placementDate)} wk</td>
-                    <td>{f.initialCount}</td>
+                    <td>
+                      {f.currentBirds}
+                      {f.currentBirds !== f.initialCount &&
+                        <span className="muted"> / {f.initialCount}</span>}
+                    </td>
                     <td>
                       {f.status === "Active" ? "Active"
                         : <span className="warn">{f.status}</span>}
                     </td>
                     <td>
+                      <button className="link" disabled={busy}
+                        onClick={() => void openLedger(f.id)}>
+                        {ledgerFlockId === f.id ? "close" : "birds"}
+                      </button>
                       <button className="link" disabled={busy}
                         onClick={() => startEdit(f)}>edit</button>
                       {f.status === "Active" && (
@@ -228,6 +277,58 @@ export function FlocksPage() {
             ))}
           </tbody>
         </table>
+      )}
+
+      {ledgerFlockId && (
+        <div className="order-panel">
+          <h3>
+            Bird ledger — {flocks.find((f) => f.id === ledgerFlockId)?.name ?? ""}
+          </h3>
+          <p className="muted">
+            Mortality rows come from submitted daily entries. Record culls here;
+            use a negative adjustment to correct a miscount.
+          </p>
+
+          <form className="inline-form" onSubmit={onRecordMovement}>
+            <label className="muted">Date
+              <input type="date" value={mvDate} max={todayIso()}
+                onChange={(e) => setMvDate(e.target.value)} />
+            </label>
+            <select value={mvType} onChange={(e) => setMvType(e.target.value)}>
+              <option value="Cull">Cull</option>
+              <option value="Adjustment">Adjustment</option>
+            </select>
+            <label className="muted">Birds
+              <input className="cell" type="number" value={mvQty}
+                onChange={(e) => setMvQty(e.target.valueAsNumber || 0)} />
+            </label>
+            <input placeholder="Note" value={mvNote} maxLength={500}
+              onChange={(e) => setMvNote(e.target.value)} />
+            <button type="submit" disabled={busy || mvQty === 0}>Record</button>
+          </form>
+
+          {movements === null ? (
+            <p className="muted">Loading…</p>
+          ) : movements.length === 0 ? (
+            <p className="muted">No movements yet — the flock is at its initial count.</p>
+          ) : (
+            <table className="data">
+              <thead>
+                <tr><th>Date</th><th>Type</th><th>Birds</th><th>Note</th></tr>
+              </thead>
+              <tbody>
+                {movements.map((m) => (
+                  <tr key={m.id}>
+                    <td>{m.date}</td>
+                    <td>{m.type}</td>
+                    <td>{m.quantity > 0 ? `−${m.quantity}` : `+${-m.quantity}`}</td>
+                    <td>{m.note ?? "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
       )}
     </section>
   );

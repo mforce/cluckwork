@@ -4,6 +4,7 @@ using Cluckwork.Application.Features.Flocks;
 using Cluckwork.Application.Features.Flocks.ArchiveFlock;
 using Cluckwork.Application.Features.Flocks.CreateFlock;
 using Cluckwork.Application.Features.Flocks.DepleteFlock;
+using Cluckwork.Application.Features.Flocks.RecordBirdMovement;
 using Cluckwork.Application.Features.Flocks.UpdateFlock;
 using Cluckwork.Domain.Flocks;
 using Cluckwork.Infrastructure.Persistence;
@@ -43,6 +44,14 @@ public static class FlockEndpoints
             .WithName("ArchiveFlock")
             .WithSummary("Archive a flock: hidden from pickers and dashboard, visible in the management view.");
 
+        group.MapPost("/{id:guid}/movements", RecordMovement)
+            .WithName("RecordBirdMovement")
+            .WithSummary("Record a manual bird movement (Cull or Adjustment; mortality is generated from submitted daily entries).");
+
+        group.MapGet("/{id:guid}/movements", ListMovements)
+            .WithName("ListBirdMovements")
+            .WithSummary("List a flock's bird movements, newest first (paged).");
+
         return group;
     }
 
@@ -69,7 +78,7 @@ public static class FlockEndpoints
     }
 
     private static async Task<IResult> ListFlocks(
-        IFlockRepository flocks, TenantContext tenant,
+        IFlockRepository flocks, IBirdMovementRepository movements, TenantContext tenant,
         CancellationToken ct, int? limit = null, int? offset = null, bool includeArchived = false)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
@@ -78,15 +87,59 @@ public static class FlockEndpoints
         var skip = Math.Max(offset ?? 0, 0);
 
         var list = await flocks.ListAsync(take, skip, includeArchived, ct);
-        return Results.Ok(list.Select(ToResponse));
+        var removed = await movements.RemovedByFlockAsync(ct);
+        return Results.Ok(list.Select(f =>
+            ToResponse(f, removed.GetValueOrDefault(f.Id, 0))));
     }
 
     private static async Task<IResult> GetFlock(
-        Guid id, IFlockRepository flocks, TenantContext tenant, CancellationToken ct)
+        Guid id, IFlockRepository flocks, IBirdMovementRepository movements,
+        TenantContext tenant, CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
         var flock = await flocks.GetByIdAsync(id, ct);
-        return flock is null ? Results.NotFound() : Results.Ok(ToResponse(flock));
+        if (flock is null) return Results.NotFound();
+        var removed = await movements.RemovedForFlockAsync(id, ct);
+        return Results.Ok(ToResponse(flock, removed));
+    }
+
+    private static async Task<IResult> RecordMovement(
+        Guid id,
+        RecordBirdMovementRequest request,
+        RecordBirdMovementHandler handler,
+        IValidator<RecordBirdMovementCommand> validator,
+        TenantContext tenant,
+        CancellationToken ct)
+    {
+        if (!tenant.IsResolved) return Results.Unauthorized();
+
+        var command = new RecordBirdMovementCommand(
+            id, request.Date, request.Type, request.Quantity, request.Note);
+
+        var validation = await validator.ValidateAsync(command, ct);
+        if (!validation.IsValid)
+            return Results.ValidationProblem(validation.ToDictionary());
+
+        var result = await handler.HandleAsync(command, tenant.AccountId, ct);
+        return result.IsSuccess
+            ? Results.Created($"/api/v1/flocks/{id}/movements", new { Id = result.Value })
+            : MapFailure(result.Error);
+    }
+
+    private static async Task<IResult> ListMovements(
+        Guid id, IFlockRepository flocks, IBirdMovementRepository movements,
+        TenantContext tenant, CancellationToken ct, int? limit = null, int? offset = null)
+    {
+        if (!tenant.IsResolved) return Results.Unauthorized();
+        // 404 for a foreign/unknown flock rather than an empty ledger.
+        if (await flocks.GetByIdAsync(id, ct) is null) return Results.NotFound();
+
+        var take = Math.Clamp(limit ?? DefaultPageSize, 1, MaxPageSize);
+        var skip = Math.Max(offset ?? 0, 0);
+
+        var list = await movements.ListByFlockAsync(id, take, skip, ct);
+        return Results.Ok(list.Select(m => new BirdMovementResponse(
+            m.Id, m.FlockId, m.Date, m.Type.ToString(), m.Quantity, m.Note)));
     }
 
     private static async Task<IResult> UpdateFlock(
@@ -137,9 +190,9 @@ public static class FlockEndpoints
             : Results.Problem(error.Description, statusCode: 422, title: error.Code);
     }
 
-    private static FlockResponse ToResponse(Flock f) => new(
+    private static FlockResponse ToResponse(Flock f, long removed) => new(
         f.Id, f.FarmId, f.HouseId, f.Name, f.Breed,
-        f.PlacementDate, f.InitialCount, f.Status.ToString());
+        f.PlacementDate, f.InitialCount, f.InitialCount - removed, f.Status.ToString());
 }
 
 public sealed record CreateFlockRequest(
@@ -154,6 +207,13 @@ public sealed record UpdateFlockRequest(
     DateOnly PlacementDate,
     int InitialCount);
 
+// CurrentBirds = InitialCount − Σ movement quantities (bird ledger, #54).
 public sealed record FlockResponse(
     Guid Id, Guid FarmId, Guid HouseId, string Name, string Breed,
-    DateOnly PlacementDate, int InitialCount, string Status);
+    DateOnly PlacementDate, int InitialCount, long CurrentBirds, string Status);
+
+public sealed record RecordBirdMovementRequest(
+    DateOnly Date, string Type, int Quantity, string? Note = null);
+
+public sealed record BirdMovementResponse(
+    Guid Id, Guid FlockId, DateOnly Date, string Type, int Quantity, string? Note);

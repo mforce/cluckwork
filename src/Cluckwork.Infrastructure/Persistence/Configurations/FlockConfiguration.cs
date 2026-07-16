@@ -24,3 +24,26 @@ public sealed class FlockConfiguration : IEntityTypeConfiguration<Flock>
         builder.HasIndex(e => new { e.AccountId, e.FarmId, e.HouseId });
     }
 }
+
+public sealed class BirdMovementConfiguration : IEntityTypeConfiguration<BirdMovement>
+{
+    public void Configure(EntityTypeBuilder<BirdMovement> builder)
+    {
+        builder.HasKey(e => e.Id);
+        builder.Property(e => e.AccountId).IsRequired();
+        builder.Property(e => e.FlockId).IsRequired();
+        builder.Property(e => e.Type)
+            .HasConversion<string>()
+            .HasMaxLength(16)
+            .IsRequired();
+        builder.Property(e => e.Note).HasMaxLength(BirdMovement.MaxNoteLength);
+
+        builder.HasOne<Flock>()
+            .WithMany()
+            .HasForeignKey(e => e.FlockId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // Ledger reads: per-flock browsing (newest first) and per-flock sums.
+        builder.HasIndex(e => new { e.AccountId, e.FlockId, e.Date });
+    }
+}
