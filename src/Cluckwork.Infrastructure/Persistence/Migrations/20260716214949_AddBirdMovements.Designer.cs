@@ -3,6 +3,7 @@ using System;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Cluckwork.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260716214949_AddBirdMovements")]
+    partial class AddBirdMovements
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -228,9 +231,6 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("AccountId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid?>("DailyEntryId")
-                        .HasColumnType("uuid");
-
                     b.Property<DateOnly>("Date")
                         .HasColumnType("date");
 
@@ -250,8 +250,6 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(16)");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("DailyEntryId");
 
                     b.HasIndex("FlockId");
 
@@ -766,11 +764,6 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Cluckwork.Domain.Flocks.BirdMovement", b =>
                 {
-                    b.HasOne("Cluckwork.Domain.Eggs.DailyEntry", null)
-                        .WithMany()
-                        .HasForeignKey("DailyEntryId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("Cluckwork.Domain.Flocks.Flock", null)
                         .WithMany()
                         .HasForeignKey("FlockId")

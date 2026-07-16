@@ -14,6 +14,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, TenantContext 
 {
     public DbSet<Account> Accounts => Set<Account>();
     public DbSet<Flock> Flocks => Set<Flock>();
+    public DbSet<BirdMovement> BirdMovements => Set<BirdMovement>();
     public DbSet<DailyEntry> DailyEntries => Set<DailyEntry>();
     public DbSet<DailyEntryGrade> DailyEntryGrades => Set<DailyEntryGrade>();
     public DbSet<EggGrade> EggGrades => Set<EggGrade>();
@@ -37,6 +38,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, TenantContext 
         // Account.AccountId == Account.Id (self-reference), so the filter returns only the owning account.
         builder.Entity<Account>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
         builder.Entity<Flock>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
+        builder.Entity<BirdMovement>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
         builder.Entity<DailyEntry>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
         builder.Entity<DailyEntryGrade>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
         builder.Entity<EggGrade>().HasQueryFilter(e => e.AccountId == tenant.AccountId);

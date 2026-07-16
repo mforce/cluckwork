@@ -23,6 +23,7 @@ using Cluckwork.Application.Features.Flocks;
 using Cluckwork.Application.Features.Flocks.ArchiveFlock;
 using Cluckwork.Application.Features.Flocks.CreateFlock;
 using Cluckwork.Application.Features.Flocks.DepleteFlock;
+using Cluckwork.Application.Features.Flocks.RecordBirdMovement;
 using Cluckwork.Application.Features.Flocks.UpdateFlock;
 using Cluckwork.Application.Features.Sales;
 using Cluckwork.Application.Features.Sales.AddOrderItem;
@@ -131,6 +132,7 @@ builder.Services.AddScoped<IEggLotRepository, EggLotRepository>();
 builder.Services.AddScoped<IEggGradeRepository, EggGradeRepository>();
 builder.Services.AddScoped<ISalesOrderRepository, SalesOrderRepository>();
 builder.Services.AddScoped<IFlockRepository, FlockRepository>();
+builder.Services.AddScoped<IBirdMovementRepository, BirdMovementRepository>();
 builder.Services.AddScoped<ICustomerRepository, CustomerRepository>();
 builder.Services.AddScoped<IAccountRepository, AccountRepository>();
 
@@ -144,6 +146,7 @@ builder.Services.AddScoped<IValidator<UpdateOrderItemCommand>, UpdateOrderItemVa
 builder.Services.AddScoped<IValidator<CreateEggGradeCommand>, CreateEggGradeValidator>();
 builder.Services.AddScoped<IValidator<UpdateEggGradeCommand>, UpdateEggGradeValidator>();
 builder.Services.AddScoped<IValidator<UpdateFlockCommand>, UpdateFlockValidator>();
+builder.Services.AddScoped<IValidator<RecordBirdMovementCommand>, RecordBirdMovementValidator>();
 
 // --- Handlers (direct — no mediator, tech spec §2.1) ---
 builder.Services.AddScoped<RecordDailyEntryHandler>();
@@ -162,6 +165,7 @@ builder.Services.AddScoped<UpdateEggGradeHandler>();
 builder.Services.AddScoped<SetEggGradeActiveHandler>();
 builder.Services.AddScoped<UpdateFlockHandler>();
 builder.Services.AddScoped<ArchiveFlockHandler>();
+builder.Services.AddScoped<RecordBirdMovementHandler>();
 
 // --- Startup seed (single-farm MVP) ---
 builder.Services.Configure<SeedOptions>(builder.Configuration.GetSection(SeedOptions.SectionName));

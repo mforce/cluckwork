@@ -19,7 +19,17 @@ export interface Flock {
   breed: string;
   placementDate: string;
   initialCount: number;
+  currentBirds: number;
   status: string;
+}
+
+export interface BirdMovement {
+  id: string;
+  flockId: string;
+  date: string;
+  type: string;
+  quantity: number;
+  note: string | null;
 }
 
 export interface GradeLine {
@@ -91,6 +101,20 @@ export const updateFlock = (id: string, body: {
 
 export const depleteFlock = (id: string, key?: string) =>
   apiPost<void>(`/flocks/${id}/deplete`, undefined, key);
+
+export const listBirdMovements = (flockId: string, params?: { limit?: number; offset?: number }) => {
+  const q = new URLSearchParams();
+  if (params?.limit) q.set("limit", String(params.limit));
+  if (params?.offset) q.set("offset", String(params.offset));
+  return apiGet<BirdMovement[]>(`/flocks/${flockId}/movements${q.size > 0 ? `?${q}` : ""}`);
+};
+
+export const recordBirdMovement = (flockId: string, body: {
+  date: string;
+  type: string;
+  quantity: number;
+  note?: string;
+}, key?: string) => apiPost<Created>(`/flocks/${flockId}/movements`, body, key);
 
 export const archiveFlock = (id: string, key?: string) =>
   apiPost<void>(`/flocks/${id}/archive`, undefined, key);
