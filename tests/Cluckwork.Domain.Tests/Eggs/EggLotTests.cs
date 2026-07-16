@@ -6,7 +6,7 @@ public sealed class EggLotTests
 {
     private static EggLot MakeLot(int quantity = 100) =>
         EggLot.Create(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
-            DateOnly.FromDateTime(DateTime.Today), "A-Large", quantity);
+            DateOnly.FromDateTime(DateTime.Today), Guid.NewGuid(), quantity);
 
     private static readonly DateOnly Today = DateOnly.FromDateTime(DateTime.Today);
 

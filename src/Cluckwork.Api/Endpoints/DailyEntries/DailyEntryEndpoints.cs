@@ -1,18 +1,40 @@
 namespace Cluckwork.Api.Endpoints.DailyEntries;
 
 using Cluckwork.Application.Features.DailyEntries.RecordDailyEntry;
+using Cluckwork.Application.Features.DailyEntries.SubmitDailyEntry;
 using Cluckwork.Infrastructure.Persistence;
 using FluentValidation;
 
 public static class DailyEntryEndpoints
 {
+    private static readonly string EntryNotFoundCode = "DailyEntry.NotFound";
+
     public static RouteGroupBuilder MapDailyEntryEndpoints(this RouteGroupBuilder group)
     {
         group.MapPost("/", RecordDailyEntry)
             .WithName("RecordDailyEntry")
             .WithSummary("Record or update the daily production entry for a flock/house.");
 
+        group.MapPost("/{id:guid}/submit", SubmitDailyEntry)
+            .WithName("SubmitDailyEntry")
+            .WithSummary("Submit a draft entry: locks it in and generates egg lots from its grade lines.");
+
         return group;
+    }
+
+    private static async Task<IResult> SubmitDailyEntry(
+        Guid id,
+        SubmitDailyEntryHandler handler,
+        TenantContext tenant,
+        CancellationToken ct)
+    {
+        if (!tenant.IsResolved) return Results.Unauthorized();
+
+        var result = await handler.HandleAsync(id, tenant.AccountId, ct);
+        if (result.IsSuccess) return Results.Ok(result.Value);
+        return result.Error.Code == EntryNotFoundCode
+            ? Results.NotFound()
+            : Results.Problem(result.Error.Description, statusCode: 422, title: result.Error.Code);
     }
 
     private static async Task<IResult> RecordDailyEntry(

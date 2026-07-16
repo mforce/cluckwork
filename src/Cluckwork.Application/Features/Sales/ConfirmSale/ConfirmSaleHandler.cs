@@ -37,7 +37,7 @@ public sealed class ConfirmSaleHandler(
             foreach (var item in order.Items)
             {
                 var lockedLots = await eggLots.GetAvailableFifoLockedAsync(
-                    accountId, item.GradeCode, allocationDate, transactionCt);
+                    accountId, item.EggGradeId, allocationDate, transactionCt);
 
                 var remaining = item.Quantity;
                 foreach (var lot in lockedLots)
@@ -57,7 +57,7 @@ public sealed class ConfirmSaleHandler(
                 {
                     failure = Result.Failure<ConfirmSaleResponse>(Error.Domain(
                         "EggLot.InsufficientStock",
-                        $"Insufficient stock for grade {item.GradeCode}: {remaining} units unallocated."));
+                        $"Insufficient stock for grade {item.EggGradeId}: {remaining} units unallocated."));
                     return false;
                 }
             }

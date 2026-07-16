@@ -4,7 +4,7 @@ public sealed class EggLot : AggregateRoot<Guid>
 {
     public Guid FlockId { get; private set; }
     public DateOnly ProductionDate { get; private set; }
-    public string GradeCode { get; private set; } = string.Empty;
+    public Guid EggGradeId { get; private set; }
     public int QuantityProduced { get; private set; }
     public int QuantityAvailable { get; private set; }
 
@@ -19,13 +19,13 @@ public sealed class EggLot : AggregateRoot<Guid>
 
     public static EggLot Create(
         Guid id, Guid accountId, Guid flockId,
-        DateOnly productionDate, string gradeCode, int quantity)
+        DateOnly productionDate, Guid eggGradeId, int quantity)
     {
         return new EggLot
         {
             Id = id, AccountId = accountId,
             FlockId = flockId, ProductionDate = productionDate,
-            GradeCode = gradeCode,
+            EggGradeId = eggGradeId,
             QuantityProduced = quantity, QuantityAvailable = quantity
         };
     }

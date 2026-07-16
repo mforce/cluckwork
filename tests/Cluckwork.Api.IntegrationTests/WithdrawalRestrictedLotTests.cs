@@ -15,10 +15,12 @@ public sealed class WithdrawalRestrictedLotTests(CluckworkWebApplicationFactory 
         var email = $"u-{Guid.NewGuid():N}@test.local";
         var accountId = await factory.SeedAccountWithUserAsync(email);
 
+        var grades = await factory.SeedEggGradesAsync(accountId, Guid.NewGuid(), "Large");
+
         // The only stock for this grade is restricted for another week.
         var restrictedUntil = DateOnly.FromDateTime(DateTime.UtcNow.Date).AddDays(7);
-        await factory.SeedEggLotAsync(accountId, "A-Large", 100, restrictedUntil);
-        var orderId = await factory.SeedSalesOrderAsync(accountId, "A-Large", 10);
+        await factory.SeedEggLotAsync(accountId, grades["Large"], 100, restrictedUntil);
+        var orderId = await factory.SeedSalesOrderAsync(accountId, grades["Large"], 10);
 
         var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
         var response = await client.PostWithKeyAsync(

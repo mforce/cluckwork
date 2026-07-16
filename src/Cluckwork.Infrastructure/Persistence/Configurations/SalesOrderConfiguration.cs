@@ -42,7 +42,7 @@ public sealed class SalesOrderItemConfiguration : IEntityTypeConfiguration<Sales
         builder.HasKey(i => i.Id);
         builder.Property(i => i.AccountId).IsRequired();
         builder.Property(i => i.SalesOrderId).IsRequired();
-        builder.Property(i => i.GradeCode).HasMaxLength(20).IsRequired();
+        builder.Property(i => i.EggGradeId).IsRequired();
         builder.Property(i => i.Quantity).IsRequired();
 
         builder.OwnsOne(i => i.UnitPrice, m =>

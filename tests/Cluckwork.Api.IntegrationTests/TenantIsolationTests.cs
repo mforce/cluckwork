@@ -47,8 +47,9 @@ public sealed class TenantIsolationTests(CluckworkWebApplicationFactory factory)
         await factory.SeedAccountWithUserAsync(userB);
 
         // Order + stock belong to account A.
-        await factory.SeedEggLotAsync(accountA, "A-Large", 100);
-        var orderId = await factory.SeedSalesOrderAsync(accountA, "A-Large", 10);
+        var grades = await factory.SeedEggGradesAsync(accountA, Guid.NewGuid(), "Large");
+        await factory.SeedEggLotAsync(accountA, grades["Large"], 100);
+        var orderId = await factory.SeedSalesOrderAsync(accountA, grades["Large"], 10);
 
         // Account B, fully authenticated, tries to confirm A's order.
         var tokenB = await factory.LoginForAccessTokenAsync(userB);
