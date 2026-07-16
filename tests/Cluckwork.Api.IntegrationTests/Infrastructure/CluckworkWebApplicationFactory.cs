@@ -34,6 +34,10 @@ public sealed class CluckworkWebApplicationFactory : WebApplicationFactory<Progr
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
+        // Not "Development": that would load the developer's user-secrets (e.g.
+        // Seed:* credentials) into the test host and seed machine-specific users
+        // into the test database — tests must be hermetic.
+        builder.UseEnvironment("Testing");
         builder.UseSetting("Database:Provider", "Postgres");
         builder.UseSetting("ConnectionStrings:Default", _postgres.GetConnectionString());
         builder.UseSetting("Jwt:PrivateKeyPem", TestJwtKeys.PrivateKeyPem);

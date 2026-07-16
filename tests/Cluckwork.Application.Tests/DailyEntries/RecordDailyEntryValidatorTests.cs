@@ -44,4 +44,51 @@ public sealed class RecordDailyEntryValidatorTests
 
         Assert.Contains(result.Errors, error => error.PropertyName == "Eggs");
     }
+
+    [Fact]
+    public void ValidGrades_Pass()
+    {
+        var cmd = Valid() with
+        {
+            Grades = [new GradeQuantityDto("A-Large", 600), new GradeQuantityDto("A-Medium", 300)]
+        };
+        Assert.True(_validator.Validate(cmd).IsValid);
+    }
+
+    [Fact]
+    public void NoGrades_StillValid()
+    {
+        Assert.True(_validator.Validate(Valid()).IsValid);
+    }
+
+    [Fact]
+    public void GradeWithNonPositiveQuantity_Fails()
+    {
+        var cmd = Valid() with { Grades = [new GradeQuantityDto("A-Large", 0)] };
+        Assert.False(_validator.Validate(cmd).IsValid);
+    }
+
+    [Fact]
+    public void DuplicateGradeCodes_Fail()
+    {
+        var cmd = Valid() with
+        {
+            Grades = [new GradeQuantityDto("A-Large", 100), new GradeQuantityDto("a-large", 50)]
+        };
+        var result = _validator.Validate(cmd);
+        Assert.Contains(result.Errors, e => e.PropertyName == "Grades");
+    }
+
+    [Fact]
+    public void GradesSumExceedingTotal_Fails()
+    {
+        var cmd = Valid() with
+        {
+            TotalEggs = 100,
+            CrackedEggs = 0, DirtyEggs = 0, DiscardedEggs = 0,
+            Grades = [new GradeQuantityDto("A-Large", 101)]
+        };
+        var result = _validator.Validate(cmd);
+        Assert.Contains(result.Errors, e => e.PropertyName == "Grades");
+    }
 }

@@ -28,7 +28,8 @@ public static class DailyEntryEndpoints
         var command = new RecordDailyEntryCommand(
             request.FarmId, request.HouseId, request.FlockId, request.Date,
             request.TotalEggs, request.CrackedEggs, request.DirtyEggs,
-            request.DiscardedEggs, request.MortalityCount);
+            request.DiscardedEggs, request.MortalityCount,
+            request.Grades?.Select(g => new GradeQuantityDto(g.GradeCode, g.Quantity)).ToList());
 
         var validation = await validator.ValidateAsync(command, ct);
         if (!validation.IsValid)
@@ -44,4 +45,9 @@ public static class DailyEntryEndpoints
 
 public sealed record RecordDailyEntryRequest(
     Guid FarmId, Guid HouseId, Guid FlockId, DateOnly Date,
-    int TotalEggs, int CrackedEggs, int DirtyEggs, int DiscardedEggs, int MortalityCount);
+    int TotalEggs, int CrackedEggs, int DirtyEggs, int DiscardedEggs, int MortalityCount,
+    List<GradeQuantityRequest>? Grades = null);
+
+// Sellable production for one grade (e.g. "A-Large", 220). Optional for
+// backward compatibility; #8 turns these lines into egg lots on submit.
+public sealed record GradeQuantityRequest(string GradeCode, int Quantity);

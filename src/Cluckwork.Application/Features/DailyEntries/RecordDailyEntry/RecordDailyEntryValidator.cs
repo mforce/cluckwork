@@ -19,5 +19,27 @@ public sealed class RecordDailyEntryValidator : AbstractValidator<RecordDailyEnt
             .Must(x => x.CrackedEggs + x.DirtyEggs + x.DiscardedEggs <= x.TotalEggs)
             .WithName("Eggs")
             .WithMessage("Cracked + dirty + discarded cannot exceed total eggs.");
+
+        When(x => x.Grades is { Count: > 0 }, () =>
+        {
+            RuleForEach(x => x.Grades!).ChildRules(g =>
+            {
+                g.RuleFor(x => x.GradeCode).NotEmpty().MaximumLength(20);
+                g.RuleFor(x => x.Quantity).GreaterThan(0);
+            });
+
+            RuleFor(x => x.Grades!)
+                .Must(grades => grades
+                    .Select(g => g.GradeCode)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Count() == grades.Count)
+                .WithName("Grades")
+                .WithMessage("Each grade may appear only once.");
+
+            RuleFor(x => x)
+                .Must(x => x.Grades!.Sum(g => g.Quantity) <= x.TotalEggs)
+                .WithName("Grades")
+                .WithMessage("Graded quantities cannot exceed total eggs.");
+        });
     }
 }

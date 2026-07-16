@@ -25,5 +25,31 @@ public sealed class DailyEntryConfiguration : IEntityTypeConfiguration<DailyEntr
         builder.HasIndex(e => new { e.AccountId, e.FarmId, e.HouseId, e.FlockId, e.Date })
             .IsUnique()
             .HasDatabaseName("IX_DailyEntries_NaturalKey");
+
+        // Grade lines — EF reads/writes via the "_grades" backing field; removing a
+        // line from the collection deletes the row (required FK -> orphan delete).
+        builder.Navigation(e => e.Grades)
+            .HasField("_grades")
+            .UsePropertyAccessMode(PropertyAccessMode.Field);
+
+        builder.HasMany(e => e.Grades)
+            .WithOne()
+            .HasForeignKey(g => g.DailyEntryId)
+            .OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
+public sealed class DailyEntryGradeConfiguration : IEntityTypeConfiguration<DailyEntryGrade>
+{
+    public void Configure(EntityTypeBuilder<DailyEntryGrade> builder)
+    {
+        builder.HasKey(g => g.Id);
+        builder.Property(g => g.AccountId).IsRequired();
+        builder.Property(g => g.DailyEntryId).IsRequired();
+        builder.Property(g => g.GradeCode).HasMaxLength(20).IsRequired();
+        builder.Property(g => g.Quantity).IsRequired();
+
+        // One line per grade within an entry (domain also enforces this).
+        builder.HasIndex(g => new { g.DailyEntryId, g.GradeCode }).IsUnique();
     }
 }

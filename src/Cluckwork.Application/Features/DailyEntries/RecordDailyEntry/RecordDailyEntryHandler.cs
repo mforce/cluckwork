@@ -30,10 +30,14 @@ public sealed class RecordDailyEntryHandler(
             entry = existing;
         }
 
+        var grades = command.Grades?
+            .Select(g => new GradeQuantity(g.GradeCode, g.Quantity))
+            .ToList();
+
         var result = entry.RecordProduction(
             command.TotalEggs, command.CrackedEggs,
             command.DirtyEggs, command.DiscardedEggs,
-            command.MortalityCount);
+            command.MortalityCount, grades);
 
         if (result.IsFailure)
             return Result.Failure<Guid>(result.Error);

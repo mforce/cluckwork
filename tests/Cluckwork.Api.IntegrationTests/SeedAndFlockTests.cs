@@ -30,7 +30,9 @@ public sealed class SeedAndFlockTests(CluckworkWebApplicationFactory factory)
         var response = await client.PostAsJsonAsync(
             "/api/v1/auth/login", new { email, password });
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.True(response.StatusCode == HttpStatusCode.OK,
+            $"Expected 200, got {(int)response.StatusCode}: {body}");
         var tokens = await response.Content.ReadFromJsonAsync<TokenPairDto>();
         Assert.False(string.IsNullOrWhiteSpace(tokens!.AccessToken));
     }

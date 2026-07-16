@@ -9,4 +9,8 @@ public sealed record RecordDailyEntryCommand(
     int CrackedEggs,
     int DirtyEggs,
     int DiscardedEggs,
-    int MortalityCount);
+    int MortalityCount,
+    IReadOnlyList<GradeQuantityDto>? Grades = null);
+
+// Sellable production for one grade (e.g. "A-Large", 220).
+public sealed record GradeQuantityDto(string GradeCode, int Quantity);
