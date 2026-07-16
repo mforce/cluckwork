@@ -56,7 +56,10 @@ export function DailyEntryPage() {
 
   useEffect(() => {
     Promise.all([listFlocks(), listEggGrades()])
-      .then(([f, g]) => {
+      .then(([all, g]) => {
+        // Capture targets live flocks only — depleted/archived can't lay (#47);
+        // the server enforces the same rule.
+        const f = all.filter((x) => x.status === "Active");
         setFlocks(f);
         setGrades(g.filter((x) => x.isSaleable));
         const remembered = localStorage.getItem(LAST_FLOCK_KEY);

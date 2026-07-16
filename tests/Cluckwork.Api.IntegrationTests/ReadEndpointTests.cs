@@ -44,8 +44,8 @@ public sealed class ReadEndpointTests(CluckworkWebApplicationFactory factory)
     [Fact]
     public async Task GetDailyEntry_ReturnsGradeLines()
     {
-        var (client, _, farmId, grades) = await SetupAsync("Large");
-        var flockId = Guid.NewGuid();
+        var (client, accountId, farmId, grades) = await SetupAsync("Large");
+        var flockId = await factory.SeedFlockAsync(accountId, farmId);
         var today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
 
         var create = await client.PostWithKeyAsync(
@@ -66,9 +66,9 @@ public sealed class ReadEndpointTests(CluckworkWebApplicationFactory factory)
     [Fact]
     public async Task ListDailyEntries_FiltersByFlock_NewestFirst()
     {
-        var (client, _, farmId, grades) = await SetupAsync("Large");
-        var flockA = Guid.NewGuid();
-        var flockB = Guid.NewGuid();
+        var (client, accountId, farmId, grades) = await SetupAsync("Large");
+        var flockA = await factory.SeedFlockAsync(accountId, farmId);
+        var flockB = await factory.SeedFlockAsync(accountId, farmId);
         var today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
 
         foreach (var (flock, date) in new[] { (flockA, today.AddDays(-2)), (flockA, today), (flockB, today) })
@@ -88,7 +88,7 @@ public sealed class ReadEndpointTests(CluckworkWebApplicationFactory factory)
     public async Task Stock_AggregatesByGrade_SeparatesRestricted()
     {
         var (client, accountId, farmId, grades) = await SetupAsync("Large", "Medium");
-        var flockId = Guid.NewGuid();
+        var flockId = await factory.SeedFlockAsync(accountId, farmId);
         var today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
 
         // Two submitted entries -> lots: Large 600 + 400, Medium 300.
@@ -163,10 +163,11 @@ public sealed class ReadEndpointTests(CluckworkWebApplicationFactory factory)
     [Fact]
     public async Task GetForeignDailyEntry_Returns404()
     {
-        var (clientA, _, farmA, gradesA) = await SetupAsync("Large");
+        var (clientA, accountA, farmA, gradesA) = await SetupAsync("Large");
+        var flockA = await factory.SeedFlockAsync(accountA, farmA);
         var create = await clientA.PostWithKeyAsync(
             "/api/v1/daily-entries", Guid.NewGuid().ToString(),
-            EntryBody(farmA, Guid.NewGuid(), DateOnly.FromDateTime(DateTime.UtcNow.Date),
+            EntryBody(farmA, flockA, DateOnly.FromDateTime(DateTime.UtcNow.Date),
                 [new { eggGradeId = gradesA["Large"], quantity = 100 }]));
         var id = (await create.Content.ReadFromJsonAsync<IdDto>())!.Id;
 

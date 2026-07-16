@@ -33,8 +33,9 @@ public sealed class SubmitDailyEntryTests(CluckworkWebApplicationFactory factory
         var accountId = await factory.SeedAccountWithUserAsync(email);
         var farmId = Guid.NewGuid();
         var grades = await factory.SeedEggGradesAsync(accountId, farmId, gradeNames);
+        var flockId = await factory.SeedFlockAsync(accountId, farmId);
         var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
-        return (client, accountId, farmId, Guid.NewGuid(), grades);
+        return (client, accountId, farmId, flockId, grades);
     }
 
     private static async Task<Guid> RecordAsync(HttpClient client, object body)

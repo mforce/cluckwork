@@ -22,6 +22,7 @@ export function AppLayout() {
             Dashboard
           </NavLink>
           <NavLink to="/daily-entry">Daily entry</NavLink>
+          <NavLink to="/flocks">Flocks</NavLink>
           <NavLink to="/stock">Stock</NavLink>
           <NavLink to="/customers">Customers</NavLink>
           <NavLink to="/sales">Sales</NavLink>

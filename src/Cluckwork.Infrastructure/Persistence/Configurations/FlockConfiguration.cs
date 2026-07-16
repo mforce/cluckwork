@@ -19,6 +19,8 @@ public sealed class FlockConfiguration : IEntityTypeConfiguration<Flock>
             .HasMaxLength(32)
             .IsRequired();
 
+        builder.Property(e => e.Version).IsConcurrencyToken();
+
         builder.HasIndex(e => new { e.AccountId, e.FarmId, e.HouseId });
     }
 }

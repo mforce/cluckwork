@@ -90,6 +90,23 @@ internal static class TestHarness
         return ids;
     }
 
+    // Seeds an Active flock — daily entries now require a live flock row (#47),
+    // so tests can no longer post entries against invented flock ids.
+    public static async Task<Guid> SeedFlockAsync(
+        this CluckworkWebApplicationFactory factory, Guid accountId, Guid farmId, Guid? houseId = null)
+    {
+        var flockId = Guid.NewGuid();
+        await factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            db.Flocks.Add(Cluckwork.Domain.Flocks.Flock.Create(
+                flockId, accountId, farmId, houseId ?? Guid.NewGuid(),
+                $"Flock-{flockId.ToString()[..8]}", "Test Breed",
+                DateOnly.FromDateTime(DateTime.UtcNow.Date).AddDays(-30), initialCount: 100));
+            await db.SaveChangesAsync();
+        });
+        return flockId;
+    }
+
     // Seeds an egg lot for the account. Pass restrictedUntil to make it withdrawal-restricted.
     // eggGradeId must reference a seeded EggGrade row (see SeedEggGradesAsync) — lots FK to grades.
     public static async Task<Guid> SeedEggLotAsync(

@@ -3,12 +3,15 @@ namespace Cluckwork.Application.Features.DailyEntries.RecordDailyEntry;
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.DailyEntries;
 using Cluckwork.Application.Features.EggGrades;
+using Cluckwork.Application.Features.Flocks;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Eggs;
+using Cluckwork.Domain.Flocks;
 
 public sealed class RecordDailyEntryHandler(
     IDailyEntryRepository repository,
     IEggGradeRepository eggGrades,
+    IFlockRepository flocks,
     IUnitOfWork unitOfWork)
 {
     public async Task<Result<Guid>> HandleAsync(
@@ -16,6 +19,16 @@ public sealed class RecordDailyEntryHandler(
         Guid accountId,
         CancellationToken ct)
     {
+        // Production is only recordable against a live flock (#47): depleted
+        // birds lay no eggs, and archived flocks are hidden bookkeeping.
+        var flock = await flocks.GetByIdAsync(command.FlockId, ct);
+        if (flock is null)
+            return Result.Failure<Guid>(Error.NotFound(nameof(Flock), command.FlockId));
+        if (flock.Status != FlockStatus.Active)
+            return Result.Failure<Guid>(Error.Validation(
+                "DailyEntry.FlockNotActive",
+                $"Flock '{flock.Name}' is {flock.Status.ToString().ToLowerInvariant()} — production can only be recorded for active flocks."));
+
         // Grade ids must be the tenant's own, belong to the entry's farm, and be
         // active + saleable — grade lines capture sellable production; non-saleable
         // buckets (cracked/dirty/...) are the entry's loss counts. The tenant query
