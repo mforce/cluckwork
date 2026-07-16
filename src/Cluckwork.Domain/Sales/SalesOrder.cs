@@ -17,7 +17,7 @@ public sealed class SalesOrder : AggregateRoot<Guid>
 
     public static SalesOrder Create(
         Guid id, Guid accountId, Guid customerId,
-        string referenceNumber, DateOnly orderDate, string currencyCode)
+        string referenceNumber, DateOnly orderDate, string currencyCode, int currencyMinorUnit = 2)
     {
         return new SalesOrder
         {
@@ -26,20 +26,26 @@ public sealed class SalesOrder : AggregateRoot<Guid>
             ReferenceNumber = referenceNumber,
             OrderDate = orderDate,
             Status = SalesOrderStatus.Draft,
-            TotalAmount = Money.Zero(currencyCode)
+            // The order snapshots the farm currency INCLUDING its minor unit —
+            // JPY(0)/KWD(3) amounts are misread if this defaults to cents.
+            TotalAmount = Money.Zero(currencyCode, currencyMinorUnit)
         };
     }
 
-    public Result AddItem(Guid itemId, Guid eggGradeId, int quantity, Money unitPrice)
+    public Result<SalesOrderItem> AddItem(Guid eggGradeId, int quantity, Money unitPrice)
     {
         if (Status != SalesOrderStatus.Draft)
-            return Result.Failure(Error.Domain(
+            return Result.Failure<SalesOrderItem>(Error.Domain(
                 "SalesOrder.NotDraft", "Items can only be added to draft orders."));
 
-        var item = SalesOrderItem.Create(itemId, AccountId, Id, eggGradeId, quantity, unitPrice);
+        var item = SalesOrderItem.Create(AccountId, Id, eggGradeId, quantity, unitPrice);
         _items.Add(item);
         TotalAmount = TotalAmount.Add(item.LineTotal);
-        return Result.Success();
+        // Version is the concurrency token (EF never auto-increments it): without
+        // this bump, two parallel add-items both match WHERE Version = N and the
+        // second silently overwrites the first's TotalAmount.
+        Version++;
+        return Result.Success(item);
     }
 
     public Result Confirm()
@@ -70,13 +76,16 @@ public sealed class SalesOrderItem : Entity<Guid>
 
     private SalesOrderItem() { }
 
+    // Id left unset for EF to generate: a client-set key on an item added to an
+    // already-tracked order is discovered as Modified (UPDATE of a nonexistent
+    // row) — same trap as daily-entry grade lines.
     internal static SalesOrderItem Create(
-        Guid id, Guid accountId, Guid orderId,
+        Guid accountId, Guid orderId,
         Guid eggGradeId, int quantity, Money unitPrice)
     {
         return new SalesOrderItem
         {
-            Id = id, AccountId = accountId,
+            AccountId = accountId,
             SalesOrderId = orderId,
             EggGradeId = eggGradeId,
             Quantity = quantity,

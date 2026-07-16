@@ -1,0 +1,14 @@
+namespace Cluckwork.Infrastructure.Repositories;
+
+using Cluckwork.Application.Features.Accounts;
+using Cluckwork.Domain.Accounts;
+using Cluckwork.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
+
+public sealed class AccountRepository(AppDbContext db) : IAccountRepository
+{
+    // The account query filter is self-scoped (AccountId == Id == tenant), so
+    // FirstOrDefault returns exactly the current tenant's account.
+    public Task<Account?> GetCurrentAsync(CancellationToken ct = default) =>
+        db.Accounts.AsNoTracking().FirstOrDefaultAsync(ct);
+}

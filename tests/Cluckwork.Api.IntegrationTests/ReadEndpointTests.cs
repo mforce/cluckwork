@@ -111,8 +111,9 @@ public sealed class ReadEndpointTests(CluckworkWebApplicationFactory factory)
             DateOnly.FromDateTime(DateTime.UtcNow.Date).AddDays(7));
 
         var stock = await client.GetFromJsonAsync<List<StockDto>>("/api/v1/stock");
+        Assert.NotNull(stock);
 
-        var large = stock!.Single(r => r.EggGradeId == grades["Large"]);
+        var large = stock.Single(r => r.EggGradeId == grades["Large"]);
         Assert.Equal(1000, large.Available);
         Assert.Equal(50, large.Restricted);
         Assert.Equal("Large", large.GradeName);

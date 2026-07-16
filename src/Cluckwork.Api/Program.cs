@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using Cluckwork.Api.Endpoints.Auth;
+using Cluckwork.Api.Endpoints.Customers;
 using Cluckwork.Api.Endpoints.DailyEntries;
 using Cluckwork.Api.Endpoints.EggGrades;
 using Cluckwork.Api.Endpoints.Flocks;
@@ -7,6 +8,9 @@ using Cluckwork.Api.Endpoints.Sales;
 using Cluckwork.Api.Endpoints.Stock;
 using Cluckwork.Api.Middleware;
 using Cluckwork.Application.Common;
+using Cluckwork.Application.Features.Accounts;
+using Cluckwork.Application.Features.Customers;
+using Cluckwork.Application.Features.Customers.CreateCustomer;
 using Cluckwork.Application.Features.DailyEntries;
 using Cluckwork.Application.Features.DailyEntries.RecordDailyEntry;
 using Cluckwork.Application.Features.DailyEntries.SubmitDailyEntry;
@@ -16,7 +20,9 @@ using Cluckwork.Application.Features.Flocks;
 using Cluckwork.Application.Features.Flocks.CreateFlock;
 using Cluckwork.Application.Features.Flocks.DepleteFlock;
 using Cluckwork.Application.Features.Sales;
+using Cluckwork.Application.Features.Sales.AddOrderItem;
 using Cluckwork.Application.Features.Sales.ConfirmSale;
+using Cluckwork.Application.Features.Sales.CreateSalesOrder;
 using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Jobs;
 using Cluckwork.Infrastructure.Persistence;
@@ -117,14 +123,22 @@ builder.Services.AddScoped<IEggLotRepository, EggLotRepository>();
 builder.Services.AddScoped<IEggGradeRepository, EggGradeRepository>();
 builder.Services.AddScoped<ISalesOrderRepository, SalesOrderRepository>();
 builder.Services.AddScoped<IFlockRepository, FlockRepository>();
+builder.Services.AddScoped<ICustomerRepository, CustomerRepository>();
+builder.Services.AddScoped<IAccountRepository, AccountRepository>();
 
 // --- Validators ---
 builder.Services.AddScoped<IValidator<RecordDailyEntryCommand>, RecordDailyEntryValidator>();
 builder.Services.AddScoped<IValidator<CreateFlockCommand>, CreateFlockValidator>();
+builder.Services.AddScoped<IValidator<CreateCustomerCommand>, CreateCustomerValidator>();
+builder.Services.AddScoped<IValidator<CreateSalesOrderCommand>, CreateSalesOrderValidator>();
+builder.Services.AddScoped<IValidator<AddOrderItemCommand>, AddOrderItemValidator>();
 
 // --- Handlers (direct — no mediator, tech spec §2.1) ---
 builder.Services.AddScoped<RecordDailyEntryHandler>();
 builder.Services.AddScoped<SubmitDailyEntryHandler>();
+builder.Services.AddScoped<CreateCustomerHandler>();
+builder.Services.AddScoped<CreateSalesOrderHandler>();
+builder.Services.AddScoped<AddOrderItemHandler>();
 builder.Services.AddScoped<ConfirmSaleHandler>();
 builder.Services.AddScoped<CreateFlockHandler>();
 builder.Services.AddScoped<DepleteFlockHandler>();
@@ -204,6 +218,11 @@ app.MapGroup("/api/v1/stock")
     .WithTags("Stock")
     .RequireAuthorization()
     .MapStockEndpoints();
+
+app.MapGroup("/api/v1/customers")
+    .WithTags("Customers")
+    .RequireAuthorization()
+    .MapCustomerEndpoints();
 
 app.MapGroup("/api/v1/sales")
     .WithTags("Sales")
