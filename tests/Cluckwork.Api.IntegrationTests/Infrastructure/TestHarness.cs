@@ -68,9 +68,10 @@ internal static class TestHarness
         return await action(db);
     }
 
-    // Seeds saleable egg grades for the account; returns name -> id.
+    // Seeds saleable egg grades for the account + farm; returns name -> id.
+    // Grades are farm-scoped (spec §9.1) — pass the same farmId the test posts.
     public static async Task<Dictionary<string, Guid>> SeedEggGradesAsync(
-        this CluckworkWebApplicationFactory factory, Guid accountId, params string[] names)
+        this CluckworkWebApplicationFactory factory, Guid accountId, Guid farmId, params string[] names)
     {
         var ids = new Dictionary<string, Guid>();
         await factory.WithTenantScopeAsync(accountId, async db =>
@@ -79,7 +80,7 @@ internal static class TestHarness
             foreach (var name in names)
             {
                 var grade = EggGrade.Create(
-                    Guid.NewGuid(), accountId, Guid.NewGuid(),
+                    Guid.NewGuid(), accountId, farmId,
                     name, EggGradeType.Size, sort++, isSaleable: true);
                 db.EggGrades.Add(grade);
                 ids[name] = grade.Id;

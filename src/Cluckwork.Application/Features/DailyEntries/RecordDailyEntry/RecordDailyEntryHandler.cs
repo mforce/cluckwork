@@ -16,13 +16,14 @@ public sealed class RecordDailyEntryHandler(
         Guid accountId,
         CancellationToken ct)
     {
-        // Grade ids must be the tenant's own, active, and saleable — grade lines
-        // capture sellable production; non-saleable buckets (cracked/dirty/...)
-        // are the entry's loss counts. The tenant query filter scopes the lookup.
+        // Grade ids must be the tenant's own, belong to the entry's farm, and be
+        // active + saleable — grade lines capture sellable production; non-saleable
+        // buckets (cracked/dirty/...) are the entry's loss counts. The tenant query
+        // filter scopes the lookup; grades are farm-scoped (spec §9.1).
         if (command.Grades is { Count: > 0 })
         {
             var known = (await eggGrades.ListActiveAsync(ct))
-                .Where(g => g.IsSaleable)
+                .Where(g => g.IsSaleable && g.FarmId == command.FarmId)
                 .Select(g => g.Id)
                 .ToHashSet();
 
