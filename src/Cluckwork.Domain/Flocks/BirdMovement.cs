@@ -16,12 +16,17 @@ public sealed class BirdMovement : AggregateRoot<Guid>
     public BirdMovementType Type { get; private set; }
     public int Quantity { get; private set; }
     public string? Note { get; private set; }
+    // Set on generated Mortality rows: the daily entry that produced this row,
+    // so a future reconciliation flow (manager adjust / void-and-resubmit) can
+    // find and correct the ledger side. Null for manual movements.
+    public Guid? DailyEntryId { get; private set; }
 
     private BirdMovement() { }
 
     public static BirdMovement Create(
         Guid id, Guid accountId, Guid flockId,
-        DateOnly date, BirdMovementType type, int quantity, string? note = null)
+        DateOnly date, BirdMovementType type, int quantity, string? note = null,
+        Guid? dailyEntryId = null)
     {
         if (quantity == 0)
             throw new ArgumentOutOfRangeException(nameof(quantity), "Movement quantity cannot be zero.");
@@ -43,6 +48,7 @@ public sealed class BirdMovement : AggregateRoot<Guid>
             Type = type,
             Quantity = quantity,
             Note = trimmed,
+            DailyEntryId = dailyEntryId,
         };
     }
 }

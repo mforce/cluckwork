@@ -120,18 +120,25 @@ export function FlocksPage() {
     if (ok) setEditingId(null);
   }
 
+  // Guards the async fetch: only the ledger currently open may write state,
+  // so a slow response for flock A can't render under flock B's heading.
+  const ledgerRequest = useRef<string | null>(null);
+
   async function openLedger(id: string) {
     if (ledgerFlockId === id) {
       setLedgerFlockId(null);
+      ledgerRequest.current = null;
       return;
     }
     setLedgerFlockId(id);
     setMovements(null);
     setMvDate(todayIso());
+    ledgerRequest.current = id;
     try {
-      setMovements(await listBirdMovements(id, { limit: 50 }));
+      const rows = await listBirdMovements(id, { limit: 50 });
+      if (ledgerRequest.current === id) setMovements(rows);
     } catch {
-      setError("Could not load movements.");
+      if (ledgerRequest.current === id) setError("Could not load movements.");
     }
   }
 
@@ -144,7 +151,8 @@ export function FlocksPage() {
         date: mvDate, type: mvType, quantity: mvQty,
         note: mvNote || undefined,
       }, key);
-      setMovements(await listBirdMovements(id, { limit: 50 }));
+      const rows = await listBirdMovements(id, { limit: 50 });
+      if (ledgerRequest.current === id) setMovements(rows);
     });
     if (ok) {
       setMvQty(1);
@@ -300,6 +308,7 @@ export function FlocksPage() {
             </select>
             <label className="muted">Birds
               <input className="cell" type="number" value={mvQty}
+                min={mvType === "Cull" ? 1 : undefined}
                 onChange={(e) => setMvQty(e.target.valueAsNumber || 0)} />
             </label>
             <input placeholder="Note" value={mvNote} maxLength={500}

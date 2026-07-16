@@ -37,7 +37,11 @@ public sealed class BirdMovementRepository(AppDbContext db) : IBirdMovementRepos
     public async Task AddAsync(BirdMovement entity, CancellationToken ct = default) =>
         await db.BirdMovements.AddAsync(entity, ct);
 
-    public void Update(BirdMovement entity) => db.BirdMovements.Update(entity);
+    // The ledger is append-only: corrections are new Adjustment rows, never
+    // edits or deletes — enforced here so no handler can drift.
+    public void Update(BirdMovement entity) =>
+        throw new NotSupportedException("Bird movements are append-only; record an Adjustment instead.");
 
-    public void Remove(BirdMovement entity) => db.BirdMovements.Remove(entity);
+    public void Remove(BirdMovement entity) =>
+        throw new NotSupportedException("Bird movements are append-only; record an Adjustment instead.");
 }

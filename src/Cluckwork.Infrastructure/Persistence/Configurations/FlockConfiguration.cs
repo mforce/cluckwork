@@ -43,6 +43,11 @@ public sealed class BirdMovementConfiguration : IEntityTypeConfiguration<BirdMov
             .HasForeignKey(e => e.FlockId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        builder.HasOne<Cluckwork.Domain.Eggs.DailyEntry>()
+            .WithMany()
+            .HasForeignKey(e => e.DailyEntryId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         // Ledger reads: per-flock browsing (newest first) and per-flock sums.
         builder.HasIndex(e => new { e.AccountId, e.FlockId, e.Date });
     }

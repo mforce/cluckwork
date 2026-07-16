@@ -18,6 +18,7 @@ public sealed class SubmitDailyEntryHandler(
     IDailyEntryRepository entries,
     IEggLotRepository eggLots,
     IBirdMovementRepository birdMovements,
+    IFlockRepository flocks,
     IUnitOfWork unitOfWork)
 {
     public async Task<Result<SubmitDailyEntryResponse>> HandleAsync(
@@ -28,6 +29,15 @@ public sealed class SubmitDailyEntryHandler(
         if (entry is null)
             return Result.Failure<SubmitDailyEntryResponse>(
                 Error.NotFound(nameof(DailyEntry), dailyEntryId));
+
+        // Same lifecycle gate as recording (#47/#54): a draft can still be
+        // submitted after depletion when its date is on/before DepletedOn
+        // (late backfill), but never for an archived flock.
+        var flock = await flocks.GetByIdAsync(entry.FlockId, ct);
+        if (flock is not null && !flock.CanRecordProductionOn(entry.Date))
+            return Result.Failure<SubmitDailyEntryResponse>(Error.Validation(
+                "DailyEntry.FlockNotActive",
+                $"Flock '{flock.Name}' is {flock.Status.ToString().ToLowerInvariant()} — this entry can no longer be submitted."));
 
         var submit = entry.Submit();
         if (submit.IsFailure)
@@ -50,7 +60,8 @@ public sealed class SubmitDailyEntryHandler(
             await birdMovements.AddAsync(BirdMovement.Create(
                 Guid.NewGuid(), accountId, entry.FlockId,
                 entry.Date, BirdMovementType.Mortality, entry.MortalityCount,
-                note: "Daily entry mortality"), ct);
+                note: "Daily entry mortality",
+                dailyEntryId: entry.Id), ct);
         }
 
         // A concurrent submit that loses the Version race throws
