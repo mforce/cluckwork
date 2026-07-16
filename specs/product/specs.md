@@ -260,7 +260,7 @@ created_at / updated_at = UTC
 
 ## 4.5 Farm localization settings
 
-For Phase 1, localization belongs to the farm.
+For Phase 1, formatting and operational localization (numbers, dates, money, timezone, units) belongs to the farm. UI language is the one exception: it is a per-user preference — see *UI language vs farm locale* below.
 
 ```text
 Farm = currency + locale + timezone
@@ -312,6 +312,8 @@ The UI should format money, dates, times, and numbers using:
 farm.locale + farm.currency_code + farm.timezone
 ```
 
+UI string language is selected separately, per `users.language` — see *UI language vs farm locale* below. Language never changes formatting.
+
 Examples:
 
 ```text
@@ -326,6 +328,41 @@ Daily entry, mortality, feed usage, water usage, egg production, and sales order
 
 Audit timestamps remain UTC.
 
+### UI language vs farm locale
+
+UI language (translated interface strings) is a separate concern from farm locale (formatting).
+
+| Concern | Field | Scope |
+|---|---|---|
+| Formatting conventions for numbers/dates/money (together with `farms.timezone`, the currency fields, and the format overrides — see the display rule above) | `farms.locale` | Per farm |
+| UI language (translated strings) | `users.language` | Per user |
+
+Field format:
+
+- `users.language` stores a BCP 47 **primary-language subtag** (`en`, `es`, `ja`), not a full locale. Language packs are keyed by that subtag; regional variants are a formatting concern and stay with `farms.locale`.
+
+Catalog resolution (deterministic, in order):
+
+1. `users.language`, if set **and** a matching language pack exists.
+2. The language component of the user's **default farm** locale (`default_farm_id`; e.g. `es-MX` → `es`), if a matching pack exists. Switching the active farm mid-session does not change UI language.
+3. English.
+
+A stored `users.language` with no matching pack (stale/unsupported value) is treated as unset — resolution continues down the chain; it is not an error.
+
+Within the resolved catalog, a missing translation key falls back to the English string, never a blank or raw key.
+
+Bootstrap and self-service:
+
+- The login response (and any current-user/profile endpoint) includes `language`, so the SPA resolves the catalog before first paint. The JWT does not carry language; a change takes effect on the next catalog load, not via token refresh.
+- Every authenticated user — including Read-only (§5.1) — may update their **own** `users.language`. This is a self-service profile preference, not a farm-scoped permission.
+
+API error localization:
+
+- Validation failures (400) carry a stable machine-readable per-field code; domain rule violations (422) already carry a `code` (technical spec §3.2). Clients localize from the code; the human-readable message text is an English fallback, not a contract. Other response classes (auth, idempotency, concurrency) are unchanged.
+
+Formatting is unaffected by UI language: a user reading the UI in English still sees the farm's `es-MX` number/date/money formats.
+
+Phasing: i18n infrastructure (string externalization, message codes, `users.language`) lands in Phase 1.1 and ships English-only; the first non-English translation (Spanish) lands in Phase 1.5 (§6).
 
 ## 4.6 Financial row currency immutability
 
@@ -436,6 +473,7 @@ users
 - email
 - password_hash
 - default_farm_id
+- language nullable: BCP 47 primary-language subtag, e.g. en, es — UI language preference (§4.5)
 - status
 - last_login_at
 - created_at
@@ -514,6 +552,7 @@ Includes:
 10. Core reports
 11. Audit log for critical changes
 12. CSV export / manual backup
+13. i18n infrastructure (§4.5): externalized UI strings in the SPA, machine-readable API validation/error codes, `users.language` with farm-locale fallback. Ships English-only — no translations yet.
 
 ## Phase 1.5 — Egg product hardening
 
@@ -530,6 +569,7 @@ Includes:
 7. Vaccination records
 8. Flock profitability allocation rules
 9. Backup/recovery workflow
+10. First non-English UI translation: **Spanish (`es`)** language pack on the Phase 1.1 i18n infrastructure (§4.5). Coverage: every catalog key translated, plus localized rendering of API validation/domain codes; UC-012 Phase 1.5 acceptance criteria apply.
 
 ## Phase 2 — Pullet / chicken raising
 
@@ -635,6 +675,7 @@ React + Vite SPA in `web/`, consuming the JSON API. Runs alongside the backend s
 
 ## Sprint E — Phase 1.1 operational fill
 
+- **i18n infrastructure first** (externalized UI strings, API message codes, `users.language`, §4.5) — prerequisite for the rest of Sprint E/F UI work; includes retrofitting all existing Phase 1.0 screens to the catalog
 - Roles and scoped assignments (RBAC UI)
 - Product catalog + egg product mapping (replace grade strings)
 - Egg inventory movement ledger + cached balances
@@ -658,6 +699,7 @@ React + Vite SPA in `web/`, consuming the JSON API. Runs alongside the backend s
 - Additives/supplements
 - Vaccination
 - Alert center + email digest
+- First non-English UI translation — Spanish (depends on Sprint E i18n infrastructure, §4.5)
 
 ---
 
@@ -2043,6 +2085,35 @@ egg revenue - allocated expenses
 - Cross-farm financial aggregation is disabled or clearly marked when currencies differ.
 
 
+## UC-012 Select UI language
+
+**Actor:** Any user (including Read-only — self-service preference, not a farm-scoped permission)
+**Goal:** Read the UI in the user's preferred language.
+**Phase:** 1.1 (infrastructure, English-only) / 1.5 (first translation)
+
+**Flow:**
+
+1. User opens their profile/settings.
+2. User selects a language from the available language packs. (While only English exists, the selector may be hidden or disabled.)
+3. System saves `users.language` (BCP 47 primary-language subtag, §4.5).
+4. UI re-renders strings from the catalog resolved per §4.5.
+5. Numbers, dates, and money continue to format per the farm locale (§4.5).
+
+**Acceptance criteria — Phase 1.1 (infrastructure):**
+
+- All UI strings are served from the English catalog; no hardcoded strings in screens.
+- Login/current-user response includes `language`; the SPA resolves the catalog before first paint.
+- Any authenticated user can update their own `users.language`; changing it never affects other users or farm settings.
+- API validation and error responses carry stable machine-readable codes (§4.5); the client renders text from the code with the message as English fallback.
+- Formatting (§4.5 display rule) is unaffected by UI language choice.
+
+**Acceptance criteria — Phase 1.5 (first translation):**
+
+- Catalog resolution follows §4.5: user language → default-farm locale language → English; unsupported stored values are treated as unset.
+- A missing translation key falls back to the English string, never a blank or raw key.
+- The language selector is visible and lists all shipped language packs.
+
+
 ## UC-020 Create daily entry draft
 
 **Actor:** Worker
@@ -2233,7 +2304,7 @@ These v2 wireframes remain valid because they do not conflict with the v4 sales 
 17. Users & Roles
 18. Audit Log
 19. Legacy Import
-20. Settings
+20. Settings — now also carries the per-user UI language selector (UC-012, §4.5)
 21. Mobile Daily Entry
 
 ## 21.3 Superseded v2 wireframes
@@ -2319,6 +2390,16 @@ Store weight in normalized base unit.
 quantity_weight
 unit
 ```
+
+## User language
+
+Store the UI language preference as a nullable BCP 47 primary-language subtag.
+
+```text
+users.language varchar nullable, e.g. en, es — NULL means "not set" (resolve per §4.5)
+```
+
+No index needed; read at login. Unsupported stored values are tolerated, not rejected (§4.5).
 
 ## Soft delete
 
