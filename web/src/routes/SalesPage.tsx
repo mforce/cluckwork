@@ -156,6 +156,9 @@ export function SalesPage() {
 
   const onConfirm = () => run(async () => {
     if (!active) return;
+    // One-way action (#59): allocation cannot be undone yet (void is #60).
+    if (!window.confirm(
+      "Confirm this order? Stock is allocated from inventory (FIFO) and cannot be undone.")) return;
     const scope = `confirm:${active.id}`;
     await confirmOrder(active.id, keyFor(scope));
     const refreshed = await getOrder(active.id);
@@ -167,6 +170,7 @@ export function SalesPage() {
 
   const onCancel = () => run(async () => {
     if (!active) return;
+    if (!window.confirm("Cancel this draft? Its line items are discarded.")) return;
     const scope = `cancel:${active.id}`;
     await cancelOrder(active.id, keyFor(scope));
     setActive(null);

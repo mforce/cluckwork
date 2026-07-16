@@ -41,6 +41,9 @@ export function DailyEntryPage() {
   // so an untouched re-save must not wipe an existing entry's grading.
   const [gradesTouched, setGradesTouched] = useState(false);
   const [existingStatus, setExistingStatus] = useState<string | null>(null);
+  // Prefill failure blocks saving (silent-overwrite guard, #59).
+  const [prefillFailed, setPrefillFailed] = useState(false);
+  const [prefillRetry, setPrefillRetry] = useState(0);
 
   const [busy, setBusy] = useState(false);
   const inFlight = useRef(false);
@@ -78,6 +81,7 @@ export function DailyEntryPage() {
   useEffect(() => {
     if (!flockId || !date) return;
     let cancelled = false;
+    setPrefillFailed(false);
     listDailyEntries({ flockId, from: date, to: date, limit: 1 })
       .then((entries) => {
         if (cancelled) return;
@@ -98,9 +102,14 @@ export function DailyEntryPage() {
           setExistingStatus(null);
         }
       })
-      .catch(() => { /* prefill is best-effort; save still validates server-side */ });
+      .catch(() => {
+        // Not best-effort (#59): without the prefill we can't know whether this
+        // day already has data — saving would overwrite it with zeros. Block
+        // saving until a retry succeeds.
+        if (!cancelled) setPrefillFailed(true);
+      });
     return () => { cancelled = true; };
-  }, [flockId, date]);
+  }, [flockId, date, prefillRetry]);
 
   useEffect(() => {
     if (flockId) localStorage.setItem(LAST_FLOCK_KEY, flockId);
@@ -143,7 +152,10 @@ export function DailyEntryPage() {
   }
 
   async function onSave(submit: boolean) {
-    if (inFlight.current || !selectedFlock) return;   // sync re-entry guard
+    if (inFlight.current || !selectedFlock || prefillFailed) return;   // sync re-entry guard
+    // One-way action (#59): submit freezes the day and creates egg lots.
+    if (submit && !window.confirm(
+      "Submit this day? Egg lots are created and the entry can no longer be edited — corrections need a manager adjustment.")) return;
     inFlight.current = true;
     setBusy(true);
     setError(null);
@@ -252,6 +264,15 @@ export function DailyEntryPage() {
         </p>
       )}
 
+      {prefillFailed && (
+        <p className="error">
+          Could not check whether this day already has an entry — saving is blocked
+          so existing data isn't overwritten.{" "}
+          <button className="link" type="button"
+            onClick={() => setPrefillRetry((n) => n + 1)}>retry</button>
+        </p>
+      )}
+
       <h3>Sellable production by grade</h3>
       <div className="form-grid">
         {grades.map((g) => (
@@ -274,10 +295,10 @@ export function DailyEntryPage() {
       {message && <p className="success">{message}</p>}
 
       <div className="actions">
-        <button disabled={busy || !flockId || lossesExceedTotal || entryLocked}
+        <button disabled={busy || !flockId || lossesExceedTotal || entryLocked || prefillFailed}
           onClick={() => onSave(false)}>Save draft</button>
         <button
-          disabled={busy || !flockId || lossesExceedTotal || gradesSum > sellable || entryLocked}
+          disabled={busy || !flockId || lossesExceedTotal || gradesSum > sellable || entryLocked || prefillFailed}
           onClick={() => onSave(true)}>
           Save &amp; submit (creates egg lots)
         </button>
