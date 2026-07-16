@@ -100,6 +100,20 @@ async function refreshTokens(): Promise<TokenPair> {
 
 // --- Authenticated request with one transparent refresh-and-retry ---------
 
+export function apiGet<T>(path: string): Promise<T> {
+  return apiFetch<T>(path, { method: "GET" });
+}
+
+// Writes require an Idempotency-Key (server middleware): a retry with the same
+// key replays the original response instead of repeating the side effect.
+export function apiPost<T>(path: string, body?: unknown): Promise<T> {
+  return apiFetch<T>(path, {
+    method: "POST",
+    headers: { "Idempotency-Key": crypto.randomUUID() },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+}
+
 export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
   const tokens = loadTokens();
   if (!tokens) {
