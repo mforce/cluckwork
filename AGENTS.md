@@ -66,6 +66,6 @@ slow) — CI is the authority. Skip once with `--no-verify`.
 
 ## Phase context
 
-MVP is **Phase 1.0** (see `specs/product/specs.md` §6): the egg loop — daily entry (by grade) → egg lots → stock → sales order → FIFO allocation → stock decremented. Single-farm login (multi-tenant infra already present but dormant), customers name/phone/optional, **no payments**. Work is tracked as GitHub issues (epics + slices).
+**Phase 1.0 (MVP) is shipped** — epic #13 closed. The egg loop runs end-to-end from the SPA: daily entry (by grade) → submit → egg lots → stock → customer → sales order → FIFO allocation → stock decremented. Single-farm login (multi-tenant infra present but dormant), customers without payments, draft orders cancellable/editable.
 
-Known gap being built next: `EggLot.Create` is never called — daily-entry production doesn't yet generate lots (issue #8, the critical bridge), which needs per-grade capture on daily entry first (#6).
+Current phase: **Phase 1.1** (epic #14, `specs/product/specs.md` §6) — RBAC UI, product catalog / egg-grade management, inventory movement ledger, feed/water/mortality, expenses, payments, dashboard, reports, audit UI, exports. Known deferred item with an issue: farm-local timezone boundaries (#35). Work is tracked as GitHub issues (epics + slices).
