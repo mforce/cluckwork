@@ -268,13 +268,20 @@ export function FlocksPage() {
                         onClick={() => startEdit(f)}>edit</button>
                       {f.status === "Active" && (
                         <button className="link" disabled={busy}
-                          onClick={() => void run(`deplete:${f.id}`, (key) => depleteFlock(f.id, key))}>
+                          onClick={() => {
+                            // One-way until reactivate ships (#57/#59).
+                            if (window.confirm(`Deplete "${f.name}"? The flock stops accepting new entries (backfill for past dates still works).`))
+                              void run(`deplete:${f.id}`, (key) => depleteFlock(f.id, key));
+                          }}>
                           deplete
                         </button>
                       )}
                       {f.status !== "Archived" && (
                         <button className="link" disabled={busy}
-                          onClick={() => void run(`archive:${f.id}`, (key) => archiveFlock(f.id, key))}>
+                          onClick={() => {
+                            if (window.confirm(`Archive "${f.name}"? It disappears from pickers and the dashboard and accepts nothing new.`))
+                              void run(`archive:${f.id}`, (key) => archiveFlock(f.id, key));
+                          }}>
                           archive
                         </button>
                       )}

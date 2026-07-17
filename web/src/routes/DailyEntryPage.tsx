@@ -41,6 +41,12 @@ export function DailyEntryPage() {
   // so an untouched re-save must not wipe an existing entry's grading.
   const [gradesTouched, setGradesTouched] = useState(false);
   const [existingStatus, setExistingStatus] = useState<string | null>(null);
+  // Prefill failure OR in-flight prefill blocks saving (silent-overwrite
+  // guard, #59); failedTarget marks which flock+date the failure was for.
+  const [prefillFailed, setPrefillFailed] = useState(false);
+  const [prefillPending, setPrefillPending] = useState(false);
+  const [prefillRetry, setPrefillRetry] = useState(0);
+  const failedTarget = useRef<string | null>(null);
 
   const [busy, setBusy] = useState(false);
   const inFlight = useRef(false);
@@ -78,10 +84,19 @@ export function DailyEntryPage() {
   useEffect(() => {
     if (!flockId || !date) return;
     let cancelled = false;
+    // Saves stay blocked from the moment a prefill is in flight until it
+    // SUCCEEDS — clearing the flag optimistically would reopen the exact
+    // overwrite window this guard closes (#61 review).
+    setPrefillPending(true);
+    const target = `${flockId}|${date}`;
     listDailyEntries({ flockId, from: date, to: date, limit: 1 })
       .then((entries) => {
         if (cancelled) return;
         const existing = entries.find((e) => e.date === date);
+        // A retry that recovers for the SAME flock+date must not zero the form:
+        // the user may have typed while the banner was up, and with no server
+        // entry there is nothing to overwrite.
+        const isRetryRecovery = failedTarget.current === target;
         if (existing) {
           setTotalEggs(existing.totalEggs);
           setCracked(existing.crackedEggs);
@@ -91,16 +106,28 @@ export function DailyEntryPage() {
           setGradeQty(Object.fromEntries(existing.grades.map((g) => [g.eggGradeId, g.quantity])));
           setGradesTouched(existing.grades.length > 0);
           setExistingStatus(existing.status);
-        } else {
+        } else if (!isRetryRecovery) {
           setTotalEggs(0); setCracked(0); setDirty(0); setDiscarded(0); setMortality(0);
           setGradeQty({});
           setGradesTouched(false);
           setExistingStatus(null);
         }
+        failedTarget.current = null;
+        setPrefillFailed(false);
+        setPrefillPending(false);
       })
-      .catch(() => { /* prefill is best-effort; save still validates server-side */ });
+      .catch(() => {
+        // Not best-effort (#59): without the prefill we can't know whether this
+        // day already has data — saving would overwrite it with zeros. Block
+        // saving until a retry succeeds.
+        if (!cancelled) {
+          failedTarget.current = target;
+          setPrefillFailed(true);
+          setPrefillPending(false);
+        }
+      });
     return () => { cancelled = true; };
-  }, [flockId, date]);
+  }, [flockId, date, prefillRetry]);
 
   useEffect(() => {
     if (flockId) localStorage.setItem(LAST_FLOCK_KEY, flockId);
@@ -143,7 +170,10 @@ export function DailyEntryPage() {
   }
 
   async function onSave(submit: boolean) {
-    if (inFlight.current || !selectedFlock) return;   // sync re-entry guard
+    if (inFlight.current || !selectedFlock || prefillFailed || prefillPending) return;   // sync re-entry guard
+    // One-way action (#59): submit freezes the day and creates egg lots.
+    if (submit && !window.confirm(
+      "Submit this day? Egg lots are created and the entry can no longer be edited — corrections need a manager adjustment.")) return;
     inFlight.current = true;
     setBusy(true);
     setError(null);
@@ -252,6 +282,15 @@ export function DailyEntryPage() {
         </p>
       )}
 
+      {prefillFailed && (
+        <p className="error">
+          Could not check whether this day already has an entry — saving is blocked
+          so existing data isn't overwritten.{" "}
+          <button className="link" type="button"
+            onClick={() => setPrefillRetry((n) => n + 1)}>retry</button>
+        </p>
+      )}
+
       <h3>Sellable production by grade</h3>
       <div className="form-grid">
         {grades.map((g) => (
@@ -274,10 +313,10 @@ export function DailyEntryPage() {
       {message && <p className="success">{message}</p>}
 
       <div className="actions">
-        <button disabled={busy || !flockId || lossesExceedTotal || entryLocked}
+        <button disabled={busy || !flockId || lossesExceedTotal || entryLocked || prefillFailed || prefillPending}
           onClick={() => onSave(false)}>Save draft</button>
         <button
-          disabled={busy || !flockId || lossesExceedTotal || gradesSum > sellable || entryLocked}
+          disabled={busy || !flockId || lossesExceedTotal || gradesSum > sellable || entryLocked || prefillFailed || prefillPending}
           onClick={() => onSave(true)}>
           Save &amp; submit (creates egg lots)
         </button>
