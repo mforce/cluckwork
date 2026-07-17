@@ -91,6 +91,19 @@ public sealed class Flock : AggregateRoot<Guid>
         return Result.Success();
     }
 
+    // Undo for a mistaken deplete/archive (#57). Clearing the lifecycle stamps
+    // restores full capture: the backfill window disappears with them.
+    public Result Reactivate()
+    {
+        if (Status == FlockStatus.Active)
+            return Result.Failure(Error.Domain("Flock.AlreadyActive", "Flock is already active."));
+        Status = FlockStatus.Active;
+        DepletedOn = null;
+        ArchivedOn = null;
+        Version++;
+        return Result.Success();
+    }
+
     // Whether production may be recorded for the given operational date:
     // active flocks always; depleted flocks only for dates on/before the
     // depletion date (late backfill of the final laying days); archived never.

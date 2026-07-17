@@ -23,6 +23,7 @@ using Cluckwork.Application.Features.Flocks;
 using Cluckwork.Application.Features.Flocks.ArchiveFlock;
 using Cluckwork.Application.Features.Flocks.CreateFlock;
 using Cluckwork.Application.Features.Flocks.DepleteFlock;
+using Cluckwork.Application.Features.Flocks.ReactivateFlock;
 using Cluckwork.Application.Features.Flocks.RecordBirdMovement;
 using Cluckwork.Application.Features.Flocks.UpdateFlock;
 using Cluckwork.Application.Features.Sales;
@@ -166,6 +167,7 @@ builder.Services.AddScoped<SetEggGradeActiveHandler>();
 builder.Services.AddScoped<UpdateFlockHandler>();
 builder.Services.AddScoped<ArchiveFlockHandler>();
 builder.Services.AddScoped<RecordBirdMovementHandler>();
+builder.Services.AddScoped<ReactivateFlockHandler>();
 
 // --- Startup seed (single-farm MVP) ---
 builder.Services.Configure<SeedOptions>(builder.Configuration.GetSection(SeedOptions.SectionName));

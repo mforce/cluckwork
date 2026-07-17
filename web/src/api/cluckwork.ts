@@ -119,6 +119,9 @@ export const recordBirdMovement = (flockId: string, body: {
 export const archiveFlock = (id: string, key?: string) =>
   apiPost<void>(`/flocks/${id}/archive`, undefined, key);
 
+export const reactivateFlock = (id: string, key?: string) =>
+  apiPost<void>(`/flocks/${id}/reactivate`, undefined, key);
+
 export const createFlock = (body: {
   name: string;
   breed: string;
