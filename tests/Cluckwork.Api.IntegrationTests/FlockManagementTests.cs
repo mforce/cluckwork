@@ -204,6 +204,11 @@ public sealed class FlockManagementTests(CluckworkWebApplicationFactory factory)
         var id = await CreateFlockAsync(client, "Race undo");
         await client.PostWithKeyAsync($"/api/v1/flocks/{id}/deplete", Guid.NewGuid().ToString());
 
+        // Snapshot Version before the race so the delta assertion can't drift
+        // if fixture setup ever gains extra mutations.
+        var before = await factory.WithTenantScopeAsync(accountId, async db =>
+            (await db.Flocks.AsNoTracking().FirstAsync(f => f.Id == id)).Version);
+
         var a = client.PostWithKeyAsync($"/api/v1/flocks/{id}/reactivate", Guid.NewGuid().ToString());
         var b = client.PostWithKeyAsync($"/api/v1/flocks/{id}/reactivate", Guid.NewGuid().ToString());
         var responses = await Task.WhenAll(a, b);
@@ -213,10 +218,10 @@ public sealed class FlockManagementTests(CluckworkWebApplicationFactory factory)
             $"unexpected {(int)r.StatusCode}"));
         Assert.Contains(responses, r => r.StatusCode == HttpStatusCode.NoContent);
 
-        // deplete (1) + exactly the successful reactivates (state machine caps at one more).
-        var version = await factory.WithTenantScopeAsync(accountId, async db =>
-            (await db.Flocks.FirstAsync(f => f.Id == id)).Version);
-        Assert.Equal(1 + responses.Count(r => r.StatusCode == HttpStatusCode.NoContent), version);
+        // Exactly one bump per successful reactivate.
+        var after = await factory.WithTenantScopeAsync(accountId, async db =>
+            (await db.Flocks.AsNoTracking().FirstAsync(f => f.Id == id)).Version);
+        Assert.Equal(responses.Count(r => r.StatusCode == HttpStatusCode.NoContent), after - before);
     }
 
     [Fact]

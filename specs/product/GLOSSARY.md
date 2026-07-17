@@ -42,6 +42,9 @@ straight from Active for mistake-created flocks):
 - **Archived** — hidden bookkeeping. Gone from pickers and the dashboard,
   visible on the Flocks screen behind a toggle; accepts nothing new. Historic
   data keeps rendering its name.
+- **Reactivate** — the undo: a Depleted or Archived flock returns to Active.
+  Its lifecycle dates are cleared, so full capture (any date) is restored. A
+  flock archived after depletion carries both dates; reactivation clears both.
 
 ## Production
 
