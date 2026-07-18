@@ -287,6 +287,12 @@ app.Map("/error", (HttpContext context) =>
             detail: "The request conflicts with existing data.",
             statusCode: StatusCodes.Status409Conflict,
             title: "Data conflict"),
+        // Locking paths (confirm/void) share one canonical lock order so this
+        // shouldn't fire; if it ever does, it's a retryable conflict, not a 500.
+        Npgsql.PostgresException { SqlState: "40P01" } => Results.Problem(
+            detail: "The request conflicted with a concurrent operation. Retry.",
+            statusCode: StatusCodes.Status409Conflict,
+            title: "Concurrency conflict"),
         _ => Results.Problem()
     };
 });

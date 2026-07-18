@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Cluckwork.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260718031049_AddSalesOrderVoidAndAllocations")]
+    [Migration("20260718033224_AddSalesOrderVoidAndAllocations")]
     partial class AddSalesOrderVoidAndAllocations
     {
         /// <inheritdoc />
@@ -411,6 +411,9 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
 
                     b.Property<int>("Quantity")
                         .HasColumnType("integer");
+
+                    b.Property<DateTime?>("ReleasedOnUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<Guid>("SalesOrderId")
                         .HasColumnType("uuid");

@@ -41,15 +41,22 @@ public sealed class ConfirmSaleHandler(
             // quantities to the exact lots they were drawn from.
             var allocationRows = new List<SalesOrderAllocation>();
 
+            // ONE locked statement for every grade on the order — canonical
+            // (ProductionDate, Id) lock order shared with the void path, so the
+            // two can never deadlock on overlapping lots.
+            var gradeIds = order.Items.Select(i => i.EggGradeId).Distinct().ToList();
+            var lockedLots = await eggLots.GetAvailableFifoLockedAsync(
+                accountId, gradeIds, allocationDate, transactionCt);
+
             foreach (var item in order.Items)
             {
-                var lockedLots = await eggLots.GetAvailableFifoLockedAsync(
-                    accountId, item.EggGradeId, allocationDate, transactionCt);
-
                 var remaining = item.Quantity;
-                foreach (var lot in lockedLots)
+                // Filtering preserves the FIFO order; QuantityAvailable already
+                // reflects earlier items' draws (same tracked instances).
+                foreach (var lot in lockedLots.Where(l => l.EggGradeId == item.EggGradeId))
                 {
                     if (remaining <= 0) break;
+                    if (lot.QuantityAvailable == 0) continue;
                     var take = Math.Min(remaining, lot.QuantityAvailable);
                     var alloc = lot.Allocate(take, allocationDate);
                     if (alloc.IsFailure)

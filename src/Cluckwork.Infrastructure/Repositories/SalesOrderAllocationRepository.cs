@@ -11,12 +11,9 @@ public sealed class SalesOrderAllocationRepository(AppDbContext db) : ISalesOrde
         IReadOnlyList<SalesOrderAllocation> allocations, CancellationToken ct = default) =>
         await db.SalesOrderAllocations.AddRangeAsync(allocations, ct);
 
-    public async Task<IReadOnlyList<SalesOrderAllocation>> ListByOrderAsync(
+    public async Task<IReadOnlyList<SalesOrderAllocation>> ListPendingByOrderAsync(
         Guid salesOrderId, CancellationToken ct = default) =>
         await db.SalesOrderAllocations
-            .Where(a => a.SalesOrderId == salesOrderId)
+            .Where(a => a.SalesOrderId == salesOrderId && a.ReleasedOnUtc == null)
             .ToListAsync(ct);
-
-    public void RemoveRange(IReadOnlyList<SalesOrderAllocation> allocations) =>
-        db.SalesOrderAllocations.RemoveRange(allocations);
 }

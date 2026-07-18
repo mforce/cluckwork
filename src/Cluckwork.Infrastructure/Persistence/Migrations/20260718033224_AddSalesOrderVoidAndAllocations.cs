@@ -27,6 +27,7 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                     SalesOrderItemId = table.Column<Guid>(type: "uuid", nullable: false),
                     EggLotId = table.Column<Guid>(type: "uuid", nullable: false),
                     Quantity = table.Column<int>(type: "integer", nullable: false),
+                    ReleasedOnUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
                     AccountId = table.Column<Guid>(type: "uuid", nullable: false)
                 },
                 constraints: table =>

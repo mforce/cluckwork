@@ -18,6 +18,24 @@ public sealed class SalesOrderRepository(AppDbContext db) : ISalesOrderRepositor
             .Include(o => o.Items)
             .FirstOrDefaultAsync(o => o.Id == id, ct);
 
+    // FOR UPDATE row lock + fresh load (call inside an open transaction). The
+    // raw query can't compose with Include, so items load in a second step —
+    // the row lock is already held by then. Tenant scoping is the caller's
+    // job (the handler checks AccountId), hence IgnoreQueryFilters like the
+    // other locked reads.
+    public async Task<SalesOrder?> GetByIdLockedAsync(Guid id, CancellationToken ct = default)
+    {
+        var order = await db.SalesOrders.FromSqlInterpolated($"""
+            SELECT * FROM "SalesOrders" WHERE "Id" = {id} FOR UPDATE
+            """)
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(ct);
+        if (order is null) return null;
+
+        await db.Entry(order).Collection(o => o.Items).LoadAsync(ct);
+        return order;
+    }
+
     public async Task<IReadOnlyList<SalesOrder>> ListAsync(
         SalesOrderStatus? status, Guid? customerId, DateOnly? from, DateOnly? to,
         int limit, int offset, CancellationToken ct = default) =>

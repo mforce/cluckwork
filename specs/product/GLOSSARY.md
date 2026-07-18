@@ -103,7 +103,9 @@ payments/balances yet (later 1.1 slice).
 **Sales order lifecycle** — `Draft → Confirmed → Voided` (or `Draft →
 Cancelled`): drafts are fully editable (add/edit/remove lines, cancel);
 **confirming** allocates stock FIFO. A mistaken confirm is undone by
-**voiding** — never by editing a confirmed order.
+**voiding** — never by editing a confirmed order. (`Shipped`/`Invoiced`
+exist in the status enum for later phases; nothing sets them yet, and only
+`Confirmed` orders can be voided.)
 
 **Void** — undo of a mistaken confirm (requires a reason): the allocated
 quantities return to the *exact* egg lots they were drawn from (recorded at

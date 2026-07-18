@@ -47,10 +47,15 @@ public sealed class VoidSaleTests(CluckworkWebApplicationFactory factory)
         var afterVoid = await LotQuantitiesAsync(accountId, olderLot, newerLot);
         Assert.Equal((30, 100), afterVoid);
 
-        // Allocation rows are gone with the void.
-        var allocationCount = await factory.WithTenantScopeAsync(accountId, async db =>
-            await db.SalesOrderAllocations.CountAsync(a => a.SalesOrderId == order));
-        Assert.Equal(0, allocationCount);
+        // Provenance survives the void (spec §9.6 traceability): rows are kept,
+        // marked released — never deleted.
+        var (total, released) = await factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            var rows = await db.SalesOrderAllocations.Where(a => a.SalesOrderId == order).ToListAsync();
+            return (rows.Count, rows.Count(r => r.ReleasedOnUtc != null));
+        });
+        Assert.Equal(2, total);       // one row per source lot
+        Assert.Equal(total, released);
 
         // Voided order stays listed, distinct status, lines/total intact.
         var voided = await client.GetFromJsonAsync<OrderDto>($"/api/v1/sales/{order}");
@@ -64,6 +69,29 @@ public sealed class VoidSaleTests(CluckworkWebApplicationFactory factory)
             .EnsureSuccessStatusCode();
         var afterNext = await LotQuantitiesAsync(accountId, olderLot, newerLot);
         Assert.Equal((20, 100), afterNext);
+    }
+
+    // Multi-grade orders exercise the single-statement lock acquisition on the
+    // confirm side (one FOR UPDATE across all grades, canonical order) and the
+    // cross-grade restore on the void side.
+    [Fact]
+    public async Task Void_MultiGradeOrder_RestoresEveryGrade()
+    {
+        var email = $"u-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var grades = await factory.SeedEggGradesAsync(accountId, Guid.NewGuid(), "Large", "Medium");
+        var largeLot = await factory.SeedEggLotAsync(accountId, grades["Large"], 60);
+        var mediumLot = await factory.SeedEggLotAsync(accountId, grades["Medium"], 40);
+        var order = await factory.SeedSalesOrderAsync(
+            accountId, [(grades["Large"], 50), (grades["Medium"], 25)]);
+
+        var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
+        (await client.PostWithKeyAsync($"/api/v1/sales/{order}/confirm", Guid.NewGuid().ToString()))
+            .EnsureSuccessStatusCode();
+        Assert.Equal((10, 15), await LotQuantitiesAsync(accountId, largeLot, mediumLot));
+
+        Assert.Equal(HttpStatusCode.OK, (await VoidAsync(client, order)).StatusCode);
+        Assert.Equal((60, 40), await LotQuantitiesAsync(accountId, largeLot, mediumLot));
     }
 
     [Fact]
@@ -132,9 +160,9 @@ public sealed class VoidSaleTests(CluckworkWebApplicationFactory factory)
     }
 
     // AGENTS.md Version-token rule: racing voids of the same order must not
-    // double-restore. The winner bumps Version; the loser fails on the lot
-    // locks + stale Version (409 from the concurrency handler, or 409/422 from
-    // the state checks depending on timing) and rolls back entirely.
+    // double-restore. The order row is locked FOR UPDATE inside the void
+    // transaction, so the loser blocks, re-reads Voided, and deterministically
+    // gets SalesOrder.AlreadyVoided → 409.
     [Fact]
     public async Task ParallelVoids_ExactlyOneWins_StockRestoredOnce()
     {
@@ -155,8 +183,7 @@ public sealed class VoidSaleTests(CluckworkWebApplicationFactory factory)
             VoidAsync(client, order, "race A"), VoidAsync(client, order, "race B"));
 
         Assert.Equal(1, responses.Count(r => r.StatusCode == HttpStatusCode.OK));
-        Assert.Equal(1, responses.Count(r =>
-            r.StatusCode is HttpStatusCode.Conflict or HttpStatusCode.UnprocessableEntity));
+        Assert.Equal(1, responses.Count(r => r.StatusCode == HttpStatusCode.Conflict));
 
         var (available, versionAfter) = await factory.WithTenantScopeAsync(accountId, async db =>
         {

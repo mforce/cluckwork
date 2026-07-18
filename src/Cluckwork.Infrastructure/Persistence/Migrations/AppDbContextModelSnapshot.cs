@@ -409,6 +409,9 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                     b.Property<int>("Quantity")
                         .HasColumnType("integer");
 
+                    b.Property<DateTime?>("ReleasedOnUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<Guid>("SalesOrderId")
                         .HasColumnType("uuid");
 

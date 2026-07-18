@@ -75,8 +75,9 @@ public sealed class SalesOrderItemConfiguration : IEntityTypeConfiguration<Sales
     }
 }
 
-// Lot-level allocation provenance (#60). Rows exist exactly while an order is
-// Confirmed: written in the confirm transaction, deleted in the void one.
+// Lot-level allocation provenance (#60). Written in the confirm transaction
+// and never deleted — a void marks rows released (ReleasedOnUtc) so the
+// sale → lot traceability chain (spec §9.6) survives the undo.
 public sealed class SalesOrderAllocationConfiguration : IEntityTypeConfiguration<SalesOrderAllocation>
 {
     public void Configure(EntityTypeBuilder<SalesOrderAllocation> builder)

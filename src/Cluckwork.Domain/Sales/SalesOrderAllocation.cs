@@ -2,9 +2,11 @@ namespace Cluckwork.Domain.Sales;
 
 // Lot-level provenance of a FIFO allocation (#60): which egg lots supplied
 // which order line, and how much. Written inside the confirm transaction and
-// deleted inside the void transaction that restores the quantities — a
-// Confirmed order therefore always has allocation rows (orders confirmed
-// before this table existed are the one exception; those cannot be voided).
+// kept forever — the traceability chain (spec §9.6: sale → lots → flock →
+// production dates) must survive a void. Voiding marks the rows released
+// (stock returned to the source lots) instead of deleting them. A Confirmed
+// order therefore always has pending rows (orders confirmed before this table
+// existed are the one exception; those cannot be voided).
 public sealed class SalesOrderAllocation : Entity<Guid>
 {
     public Guid SalesOrderId { get; private set; }
@@ -12,7 +14,13 @@ public sealed class SalesOrderAllocation : Entity<Guid>
     public Guid EggLotId { get; private set; }
     public int Quantity { get; private set; }
 
+    // Set when a void returned this quantity to the source lot. Null = the
+    // allocation is live (the order holds this stock).
+    public DateTime? ReleasedOnUtc { get; private set; }
+
     private SalesOrderAllocation() { }
+
+    public void MarkReleased(DateTime utcNow) => ReleasedOnUtc = utcNow;
 
     public static SalesOrderAllocation Create(
         Guid accountId, Guid salesOrderId, Guid salesOrderItemId, Guid eggLotId, int quantity)

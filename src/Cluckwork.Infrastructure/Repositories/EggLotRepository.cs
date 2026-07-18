@@ -12,18 +12,24 @@ public sealed class EggLotRepository(AppDbContext db) : IEggLotRepository
 
     // Acquires a pessimistic FOR UPDATE lock for FIFO sale allocation (tech spec §3.3).
     // Provider-specific SQL is isolated here behind the repository port.
+    // ONE statement for all grades, ordered (ProductionDate, Id): every locking
+    // path (this and GetByIdsLockedAsync) acquires row locks in the same global
+    // order, so a confirm and a void touching overlapping lots can never
+    // deadlock. Per-grade statements in order-line order could.
     public async Task<IReadOnlyList<EggLot>> GetAvailableFifoLockedAsync(
-        Guid accountId, Guid eggGradeId, DateOnly allocationDate,
+        Guid accountId, IReadOnlyList<Guid> eggGradeIds, DateOnly allocationDate,
         CancellationToken ct = default)
     {
+        if (eggGradeIds.Count == 0) return [];
+
         return await db.EggLots.FromSqlInterpolated($"""
             SELECT *
             FROM "EggLots"
             WHERE "AccountId" = {accountId}
-              AND "EggGradeId" = {eggGradeId}
+              AND "EggGradeId" = ANY({eggGradeIds.ToArray()})
               AND "QuantityAvailable" > 0
               AND ("RestrictedUntil" IS NULL OR "RestrictedUntil" < {allocationDate})
-            ORDER BY "ProductionDate"
+            ORDER BY "ProductionDate", "Id"
             FOR UPDATE
             """)
             .IgnoreQueryFilters()
