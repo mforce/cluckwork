@@ -25,6 +25,7 @@ export function AppLayout() {
           <NavLink to="/flocks">Flocks</NavLink>
           <NavLink to="/stock">Stock</NavLink>
           <NavLink to="/inventory">Inventory</NavLink>
+          <NavLink to="/water">Water</NavLink>
           <NavLink to="/customers">Customers</NavLink>
           <NavLink to="/sales">Sales</NavLink>
           <NavLink to="/history">History</NavLink>

@@ -103,6 +103,36 @@ public sealed class FeedUsageConfiguration : IEntityTypeConfiguration<FeedUsage>
     }
 }
 
+public sealed class WaterUsageConfiguration : IEntityTypeConfiguration<WaterUsage>
+{
+    public void Configure(EntityTypeBuilder<WaterUsage> builder)
+    {
+        builder.HasKey(u => u.Id);
+        builder.Property(u => u.AccountId).IsRequired();
+        builder.Property(u => u.Quantity).HasPrecision(18, 3).IsRequired();
+        builder.Property(u => u.MeterStart).HasPrecision(18, 3);
+        builder.Property(u => u.MeterEnd).HasPrecision(18, 3);
+        builder.Property(u => u.Unit).HasMaxLength(8).IsRequired();
+        builder.Property(u => u.Source)
+            .HasConversion<string>().HasMaxLength(32).IsRequired();
+        builder.Property(u => u.Note).HasMaxLength(WaterUsage.MaxNoteLength);
+        builder.Property(u => u.CreatedAtUtc).IsRequired();
+        builder.Property(u => u.Version).IsConcurrencyToken();
+
+        builder.HasOne<Cluckwork.Domain.Flocks.Flock>()
+            .WithMany()
+            .HasForeignKey(u => u.FlockId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne<Cluckwork.Domain.Eggs.DailyEntry>()
+            .WithMany()
+            .HasForeignKey(u => u.DailyEntryId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasIndex(u => new { u.FlockId, u.Date });
+    }
+}
+
 public sealed class InventoryMovementConfiguration : IEntityTypeConfiguration<InventoryMovement>
 {
     public void Configure(EntityTypeBuilder<InventoryMovement> builder)

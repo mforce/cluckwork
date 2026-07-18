@@ -342,6 +342,43 @@ export const recordInventoryAdjustment = (itemId: string, body: {
   inventoryLotId: string; date: string; type: string; quantityDelta: number; reason: string;
 }, key?: string) => apiPost<{ movementId: string }>(`/inventory/items/${itemId}/adjustments`, body, key);
 
+// --- Water usage (#67) ---
+
+export interface WaterUsage {
+  id: string;
+  flockId: string;
+  date: string;
+  quantity: number;
+  unit: string;
+  source: string;
+  meterStart: number | null;
+  meterEnd: number | null;
+  note: string | null;
+}
+
+export const listWaterUsage = (params?: {
+  flockId?: string; from?: string; to?: string; limit?: number; offset?: number;
+}) => {
+  const q = new URLSearchParams();
+  if (params?.flockId) q.set("flockId", params.flockId);
+  if (params?.from) q.set("from", params.from);
+  if (params?.to) q.set("to", params.to);
+  if (params?.limit) q.set("limit", String(params.limit));
+  if (params?.offset) q.set("offset", String(params.offset));
+  const qs = q.size > 0 ? `?${q}` : "";
+  return apiGet<WaterUsage[]>(`/water-usage${qs}`);
+};
+
+export const recordWaterUsage = (body: {
+  flockId: string; date: string; quantity?: number; unit?: string; source: string;
+  meterStart?: number; meterEnd?: number; note?: string;
+}, key?: string) => apiPost<Created>("/water-usage", body, key);
+
+export const updateWaterUsage = (id: string, body: {
+  quantity?: number; unit?: string; source: string;
+  meterStart?: number; meterEnd?: number; note?: string;
+}, key?: string) => apiPut<void>(`/water-usage/${id}`, body, key);
+
 export const listInventoryMovements = (itemId: string, params?: { limit?: number; offset?: number }) => {
   const q = new URLSearchParams();
   if (params?.limit) q.set("limit", String(params.limit));

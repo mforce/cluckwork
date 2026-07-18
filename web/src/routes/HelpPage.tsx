@@ -11,6 +11,7 @@ const TOC = [
   ["grades", "Egg grades"],
   ["stock", "Stock"],
   ["inventory", "Feed & inventory"],
+  ["water", "Water"],
   ["sales", "Customers & sales"],
   ["history", "History"],
   ["mistakes", "Fixing mistakes"],
@@ -146,6 +147,25 @@ export function HelpPage() {
         </li>
       </ul>
 
+      <h3 id="water">Water</h3>
+      <ul>
+        <li>
+          Record what each flock drank per day: either a direct amount (liters
+          or gallons) or <strong>meter readings</strong> — the amount is then
+          the meter delta (end − start).
+        </li>
+        <li>
+          Water records have no stock behind them, so mistakes are fixed by{" "}
+          <strong>correcting the record directly</strong> (the "correct" button)
+          — no compensating entries. The flock and date are fixed: picked
+          wrong, record it again under the right one.
+        </li>
+        <li>
+          Same lifecycle rule as everywhere: depleted flocks accept backfill up
+          to their depletion date, archived flocks accept nothing.
+        </li>
+      </ul>
+
       <h3 id="sales">Customers &amp; sales</h3>
       <ul>
         <li>
@@ -213,6 +233,14 @@ export function HelpPage() {
             </td>
           </tr>
           <tr>
+            <td>Wrong water record</td>
+            <td>
+              Water → <strong>correct</strong> on the record — amounts, source,
+              meters, and note edit in place (no stock behind water). Flock and
+              date are fixed: picked wrong, record it again under the right one.
+            </td>
+          </tr>
+          <tr>
             <td>Mistake in a <em>submitted</em> daily entry</td>
             <td><strong>Not yet undoable</strong> — an admin adjust/void feature is planned. Until then, contact your administrator.</td>
           </tr>
@@ -261,6 +289,8 @@ export function HelpPage() {
             <td>One received batch of an item, with its own cost. On-hand = sum of lots.</td></tr>
           <tr><th scope="row">Movement ledger</th>
             <td>The append-only trail of every stock change. Corrections are new rows, never edits.</td></tr>
+          <tr><th scope="row">Water usage</th>
+            <td>What a flock drank on a day — direct amount or meter delta. Editable in place; flock/date fixed.</td></tr>
           <tr><th scope="row">Feed usage</th>
             <td>What a flock ate on a day; drains lots FIFO and estimates cost from them.</td></tr>
           <tr><th scope="row">Adjustment / Discard</th>
