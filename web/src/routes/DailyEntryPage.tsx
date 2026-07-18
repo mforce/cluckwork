@@ -10,10 +10,12 @@ import { todayIso } from "../lib/dates";
 
 const LAST_FLOCK_KEY = "cluckwork.lastFlockId";
 
-// Capture targets live flocks only — depleted/archived can't lay (#47); the
-// server enforces the same rule. Every flock refresh on this page (initial
-// load AND inline create) must go through this filter.
-const activeOnly = (flocks: Flock[]) => flocks.filter((x) => x.status === "Active");
+// Capture targets active flocks plus depleted ones — a depleted flock still
+// accepts backfilled entries up to its depletion date (the API gates exact
+// dates), matching the Flocks screen's promise and the feed-usage picker.
+// Archived flocks accept nothing and stay hidden. Every flock refresh on this
+// page (initial load AND inline create) must go through this filter.
+const capturable = (flocks: Flock[]) => flocks.filter((x) => x.status !== "Archived");
 
 function errorMessage(err: unknown): string {
   if (err instanceof ApiError) return err.message;
@@ -68,12 +70,15 @@ export function DailyEntryPage() {
   useEffect(() => {
     Promise.all([listFlocks(), listEggGrades()])
       .then(([all, g]) => {
-        const f = activeOnly(all);
+        const f = capturable(all);
         setFlocks(f);
         setGrades(g.filter((x) => x.isSaleable));
         const remembered = localStorage.getItem(LAST_FLOCK_KEY);
+        // Default prefers an ACTIVE flock — depleted ones are backfill targets
+        // you pick deliberately, not a default.
+        const firstActive = f.find((x) => x.status === "Active") ?? f[0];
         if (remembered && f.some((x) => x.id === remembered)) setFlockId(remembered);
-        else if (f.length > 0) setFlockId(f[0].id);
+        else if (firstActive) setFlockId(firstActive.id);
       })
       .catch(() => setLoadError("Could not load flocks/grades. Is the API up?"))
       .finally(() => setLoading(false));
@@ -156,7 +161,7 @@ export function DailyEntryPage() {
         initialCount: newFlockCount,
       }, flockKey.current);
       flockKey.current = crypto.randomUUID();
-      const refreshed = activeOnly(await listFlocks());
+      const refreshed = capturable(await listFlocks());
       setFlocks(refreshed);
       setFlockId(created.id);
       setShowNewFlock(false);
@@ -223,7 +228,9 @@ export function DailyEntryPage() {
           <select value={flockId} onChange={(e) => setFlockId(e.target.value)}>
             {flocks.length === 0 && <option value="">— no flocks yet —</option>}
             {flocks.map((f) => (
-              <option key={f.id} value={f.id}>{f.name} ({f.breed})</option>
+              <option key={f.id} value={f.id}>
+                {f.name} ({f.breed}){f.status === "Depleted" ? " — depleted, backfill only" : ""}
+              </option>
             ))}
           </select>
         </label>
