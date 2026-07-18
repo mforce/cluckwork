@@ -260,6 +260,35 @@ label.check {
   gap: 0.4rem;
 }
 
+/* --- Help page (F18, #71) ---
+   Deliberately minimal: prose width for readability, inline TOC. The 1.5
+   redesign (#52) restyles this with everything else. */
+.help {
+  max-width: 46rem;
+}
+
+.help nav ul {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+}
+
+.help h3 {
+  margin-top: 1.75rem;
+  /* Anchor targets clear the sticky-less topbar comfortably. */
+  scroll-margin-top: 1rem;
+}
+
+.help ul {
+  padding-left: 1.25rem;
+}
+
+.help li {
+  margin-bottom: 0.4rem;
+}
+
 /* --- Responsive pass (F9, #49) ---
    Phones/tablets per spec KD-6 + the mobile daily-entry wireframe. */
 

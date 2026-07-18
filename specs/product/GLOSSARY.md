@@ -95,6 +95,40 @@ allocate the same physical eggs.
 medication withholding periods). Restricted quantities show in stock but are
 blocked from sale until the date passes.
 
+## Feed & inventory
+
+**Inventory item** — a catalog entry (spec §12.1): what a thing is, its
+category (Feed/Supplement/Additive/Medication/… — only feed-ish categories
+have features today), and its **unit of measure**. The unit locks once stock
+has been received — recorded quantities must never be silently reinterpreted
+in a different unit. Names are unique per farm, case-insensitively; items
+deactivate (leave pickers) rather than delete.
+
+**Inventory lot** — a received batch of an item: received date, quantity,
+per-lot unit cost, optional supplier lot number/expiry. Created by recording
+a **purchase**. Stock on hand for an item = the sum of its lots' remaining
+quantities. Quantities are decimals (feed is weighed, not counted).
+
+**Inventory movement ledger** — append-only audit trail (spec §12.3): every
+purchase, usage, adjustment, and discard is a row with a signed quantity.
+Rows are never edited or deleted — mistakes get a *compensating* row. Lots
+hold the balance; the ledger explains it.
+
+**Feed usage** — a feeding event: flock + date + item + quantity. Draws down
+the item's lots **oldest first (FIFO)**, only from lots that existed on the
+usage date, and records an estimated cost from the actual lots consumed
+(feed-cost KPIs, spec §19). Usage records are create-only; only
+Feed/Supplement/Additive items can be fed to a flock. Same lifecycle rule as
+production: depleted flocks accept backfill up to their depletion date,
+archived never.
+
+**Adjustment / Discard** — the correction path for stock: a signed ledger row
+against a specific lot (reason required). Negative fixes an over-entered
+purchase or writes off spoiled feed (Discard); positive undoes an
+over-recorded usage, capped at the lot's received quantity — genuinely new
+stock is a purchase, not an adjustment. A lot can never go below what's
+already been consumed.
+
 ## Sales
 
 **Customer** — name + phone required; email/address/note optional. No
