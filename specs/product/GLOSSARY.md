@@ -136,6 +136,14 @@ over-recorded usage, capped at the lot's received quantity — genuinely new
 stock is a purchase, not an adjustment. A lot can never go below what's
 already been consumed.
 
+**Water usage** — water consumed by a flock on a day (spec §12.5): direct
+quantity in L/gal, or derived from meter start/end readings (the delta; when
+both quantity and meters are given they must agree). No inventory behind
+water, so records are **editable in place** (Version-guarded) rather than
+corrected via compensating rows — the one create-then-edit record type.
+Flock and date are fixed after creation. Same lifecycle gate as production
+and feed.
+
 ## Sales
 
 **Customer** — name + phone required; email/address/note optional. No

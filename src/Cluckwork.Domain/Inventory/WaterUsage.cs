@@ -85,8 +85,10 @@ public sealed class WaterUsage : AggregateRoot<Guid>
             return new ArgumentException($"Unit must be one of: {string.Join(", ", AllowedUnits)}.", nameof(unit));
         if ((meterStart is null) != (meterEnd is null))
             return new ArgumentException("Meter start and end must be provided together.", nameof(meterEnd));
-        if (meterStart is not null && (meterStart < 0 || meterEnd < meterStart))
-            return new ArgumentException("Meter end must be at or after meter start (both non-negative).", nameof(meterEnd));
+        // <= not <: equal readings give a zero delta, which would surface as a
+        // confusing "quantity must be positive" instead of naming the meters.
+        if (meterStart is not null && (meterStart < 0 || meterEnd <= meterStart))
+            return new ArgumentException("Meter end must exceed meter start (both non-negative).", nameof(meterEnd));
         if (meterStart is not null && meterEnd - meterStart != quantity)
             return new ArgumentException("Quantity must equal the meter delta.", nameof(quantity));
         if (note is not null && note.Trim().Length > MaxNoteLength)

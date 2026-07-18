@@ -11,6 +11,7 @@ public sealed class RecordWaterUsageValidator : AbstractValidator<RecordWaterUsa
         RuleFor(x => x.Date).NotEmpty()
             .WithMessage("Usage date is required.");
         RuleFor(x => x.Source)
+            .NotEmpty()
             .Must(s => Enum.TryParse<WaterSource>(s, ignoreCase: true, out var parsed)
                        && Enum.IsDefined(parsed))
             .WithMessage("Source must be Well, Municipal, Tank, or Other.");
@@ -33,8 +34,8 @@ public sealed class RecordWaterUsageValidator : AbstractValidator<RecordWaterUsa
                        || (x.MeterStart >= 0 && x.MeterEnd > x.MeterStart
                            && x.MeterEnd - x.MeterStart <= 1_000_000_000m))
             .WithName("MeterEnd")
-            .WithMessage("Meter end must be after meter start (non-negative, sane range).")
-            .When(x => (x.MeterStart is null) == (x.MeterEnd is null));
+            .WithMessage("Meter end must exceed meter start (non-negative, sane range).")
+            .When(x => x.MeterStart is not null && x.MeterEnd is not null);
         // Without meters a quantity is mandatory; with both, they must agree.
         RuleFor(x => x)
             .Must(x => x.Quantity is not null || x.MeterStart is not null)

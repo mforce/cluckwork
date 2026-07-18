@@ -202,10 +202,14 @@ public sealed class InventoryTests
         Assert.Throws<ArgumentException>(() => WaterUsage.Create(
             Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Today,
             10m, "L", WaterSource.Well, 100m, null, Now));
-        // End before start refused.
+        // End before start refused; equal readings too (zero delta would
+        // otherwise surface as a confusing quantity error).
         Assert.Throws<ArgumentException>(() => WaterUsage.Create(
             Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Today,
             10m, "L", WaterSource.Well, 100m, 90m, Now));
+        Assert.Throws<ArgumentException>(() => WaterUsage.Create(
+            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Today,
+            10m, "L", WaterSource.Well, 100m, 100m, Now));
         // Quantity must equal the delta.
         Assert.Throws<ArgumentException>(() => WaterUsage.Create(
             Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Today,

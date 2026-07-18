@@ -10,6 +10,9 @@ const SOURCES = ["Well", "Municipal", "Tank", "Other"];
 const UNITS = ["L", "gal"];
 
 function errText(err: unknown): string {
+  // Concurrent-edit conflicts get a human message instead of raw problem text.
+  if (err instanceof ApiError && err.status === 409)
+    return "This record was just changed elsewhere — reload the list and retry.";
   if (err instanceof ApiError) return err.message;
   return err instanceof Error ? err.message : String(err);
 }
