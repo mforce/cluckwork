@@ -11,4 +11,9 @@ public sealed class SeedOptions
     public string AdminEmail { get; init; } = string.Empty;
     public string AdminPassword { get; init; } = string.Empty;
     public string AccountName { get; init; } = "Default Farm";
+
+    // Dev/demo only (#58): when true AND the account has no flocks, seed sample
+    // flocks/entries/customers/orders through the real domain path. Default
+    // false — production can never accidentally get fake data.
+    public bool Demo { get; init; }
 }
