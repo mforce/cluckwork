@@ -100,9 +100,18 @@ blocked from sale until the date passes.
 **Customer** — name + phone required; email/address/note optional. No
 payments/balances yet (later 1.1 slice).
 
-**Sales order lifecycle** — `Draft → Confirmed` (or `Draft → Cancelled`):
-drafts are fully editable (add/edit/remove lines, cancel); **confirming**
-allocates stock FIFO and is the point of no return for inventory.
+**Sales order lifecycle** — `Draft → Confirmed → Voided` (or `Draft →
+Cancelled`): drafts are fully editable (add/edit/remove lines, cancel);
+**confirming** allocates stock FIFO. A mistaken confirm is undone by
+**voiding** — never by editing a confirmed order. (`Shipped`/`Invoiced`
+exist in the status enum for later phases; nothing sets them yet, and only
+`Confirmed` orders can be voided.)
+
+**Void** — undo of a mistaken confirm (requires a reason): the allocated
+quantities return to the *exact* egg lots they were drawn from (recorded at
+confirm as lot-level allocations), preserving FIFO order and any withdrawal
+restriction. The order stays listed as `Voided` with its lines and total —
+this is not returns processing for delivered goods.
 
 **Money** — stored as integer *minor units* plus a currency code snapshotted
 from the account onto each order (JPY has 0 decimals, USD 2 — the snapshot

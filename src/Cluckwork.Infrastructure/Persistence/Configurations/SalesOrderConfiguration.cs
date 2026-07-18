@@ -13,6 +13,7 @@ public sealed class SalesOrderConfiguration : IEntityTypeConfiguration<SalesOrde
         builder.Property(o => o.ReferenceNumber).HasMaxLength(100).IsRequired();
         builder.Property(o => o.Status)
             .HasConversion<string>().HasMaxLength(32).IsRequired();
+        builder.Property(o => o.VoidReason).HasMaxLength(SalesOrder.MaxVoidReasonLength);
         builder.Property(o => o.Version).IsConcurrencyToken();
 
         // Reference numbers are 8-hex truncations — the index turns a birthday
@@ -71,6 +72,39 @@ public sealed class SalesOrderItemConfiguration : IEntityTypeConfiguration<Sales
 
         // LineTotal is computed — ignored by EF Core
         builder.Ignore(i => i.LineTotal);
+    }
+}
+
+// Lot-level allocation provenance (#60). Written in the confirm transaction
+// and never deleted — a void marks rows released (ReleasedOnUtc) so the
+// sale → lot traceability chain (spec §9.6) survives the undo.
+public sealed class SalesOrderAllocationConfiguration : IEntityTypeConfiguration<SalesOrderAllocation>
+{
+    public void Configure(EntityTypeBuilder<SalesOrderAllocation> builder)
+    {
+        builder.HasKey(a => a.Id);
+        builder.Property(a => a.AccountId).IsRequired();
+        builder.Property(a => a.Quantity).IsRequired();
+
+        builder.HasOne<SalesOrder>()
+            .WithMany()
+            .HasForeignKey(a => a.SalesOrderId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne<SalesOrderItem>()
+            .WithMany()
+            .HasForeignKey(a => a.SalesOrderItemId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // The source lot must not disappear from under an active allocation —
+        // its quantities could then never be restored.
+        builder.HasOne<Cluckwork.Domain.Eggs.EggLot>()
+            .WithMany()
+            .HasForeignKey(a => a.EggLotId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // Void loads all rows for one order.
+        builder.HasIndex(a => a.SalesOrderId);
     }
 }
 

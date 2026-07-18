@@ -2,6 +2,8 @@ namespace Cluckwork.Domain.Sales;
 
 public sealed class SalesOrder : AggregateRoot<Guid>
 {
+    public const int MaxVoidReasonLength = 500;
+
     private readonly List<SalesOrderItem> _items = [];
 
     public string ReferenceNumber { get; private set; } = string.Empty;
@@ -9,6 +11,7 @@ public sealed class SalesOrder : AggregateRoot<Guid>
     public SalesOrderStatus Status { get; private set; }
     public DateOnly OrderDate { get; private set; }
     public Money TotalAmount { get; private set; } = null!;
+    public string? VoidReason { get; private set; }
     public int Version { get; private set; }
 
     public IReadOnlyList<SalesOrderItem> Items => _items.AsReadOnly();
@@ -111,9 +114,34 @@ public sealed class SalesOrder : AggregateRoot<Guid>
         RaiseDomainEvent(new SalesOrderConfirmedEvent(Id, AccountId));
         return Result.Success();
     }
+
+    // Undo of a mistaken confirm (#60) — the caller must restore the allocated
+    // stock to its source lots in the same transaction. Not returns processing:
+    // a voided order keeps its lines and total for the audit trail.
+    public Result Void(string reason)
+    {
+        if (Status == SalesOrderStatus.Voided)
+            return Result.Failure(Error.Domain(
+                "SalesOrder.AlreadyVoided", "This order is already voided."));
+        if (Status != SalesOrderStatus.Confirmed)
+            return Result.Failure(Error.Domain(
+                "SalesOrder.NotConfirmed", "Only confirmed orders can be voided."));
+        if (string.IsNullOrWhiteSpace(reason))
+            return Result.Failure(Error.Validation(
+                "SalesOrder.VoidReasonRequired", "A void reason is required."));
+        if (reason.Trim().Length > MaxVoidReasonLength)
+            return Result.Failure(Error.Validation(
+                "SalesOrder.VoidReasonTooLong",
+                $"Void reason must be at most {MaxVoidReasonLength} characters."));
+
+        Status = SalesOrderStatus.Voided;
+        VoidReason = reason.Trim();
+        Version++;
+        return Result.Success();
+    }
 }
 
-public enum SalesOrderStatus { Draft, Confirmed, Shipped, Invoiced, Cancelled }
+public enum SalesOrderStatus { Draft, Confirmed, Shipped, Invoiced, Cancelled, Voided }
 
 public sealed class SalesOrderItem : Entity<Guid>
 {

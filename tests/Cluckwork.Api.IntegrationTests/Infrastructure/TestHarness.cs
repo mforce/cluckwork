@@ -111,13 +111,14 @@ internal static class TestHarness
     // eggGradeId must reference a seeded EggGrade row (see SeedEggGradesAsync) — lots FK to grades.
     public static async Task<Guid> SeedEggLotAsync(
         this CluckworkWebApplicationFactory factory, Guid accountId,
-        Guid eggGradeId, int quantity, DateOnly? restrictedUntil = null)
+        Guid eggGradeId, int quantity, DateOnly? restrictedUntil = null,
+        DateOnly? productionDate = null)
     {
         var lotId = Guid.NewGuid();
         await factory.WithTenantScopeAsync(accountId, async db =>
         {
             var lot = EggLot.Create(lotId, accountId, Guid.NewGuid(),
-                DateOnly.FromDateTime(DateTime.UtcNow.Date), eggGradeId, quantity);
+                productionDate ?? DateOnly.FromDateTime(DateTime.UtcNow.Date), eggGradeId, quantity);
             if (restrictedUntil is not null)
                 lot.SetWithdrawalRestriction(restrictedUntil.Value);
             db.EggLots.Add(lot);
@@ -127,9 +128,15 @@ internal static class TestHarness
     }
 
     // Seeds a draft sales order with a single line item for the given grade/quantity.
+    public static Task<Guid> SeedSalesOrderAsync(
+        this CluckworkWebApplicationFactory factory, Guid accountId,
+        Guid eggGradeId, int quantity) =>
+        factory.SeedSalesOrderAsync(accountId, [(eggGradeId, quantity)]);
+
+    // Multi-line variant (one line per grade/quantity pair).
     public static async Task<Guid> SeedSalesOrderAsync(
         this CluckworkWebApplicationFactory factory, Guid accountId,
-        Guid eggGradeId, int quantity)
+        IReadOnlyList<(Guid EggGradeId, int Quantity)> lines)
     {
         var orderId = Guid.NewGuid();
         await factory.WithTenantScopeAsync(accountId, async db =>
@@ -141,7 +148,8 @@ internal static class TestHarness
             var order = SalesOrder.Create(
                 orderId, accountId, customer.Id,
                 $"SO-{orderId.ToString()[..8]}", DateOnly.FromDateTime(DateTime.UtcNow.Date), "USD");
-            order.AddItem(eggGradeId, quantity, Cluckwork.Domain.Common.Money.Zero("USD"));
+            foreach (var (eggGradeId, quantity) in lines)
+                order.AddItem(eggGradeId, quantity, Cluckwork.Domain.Common.Money.Zero("USD"));
             db.SalesOrders.Add(order);
             await db.SaveChangesAsync();
         });

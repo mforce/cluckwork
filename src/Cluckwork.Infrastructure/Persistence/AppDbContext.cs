@@ -22,6 +22,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, TenantContext 
     public DbSet<Customer> Customers => Set<Customer>();
     public DbSet<SalesOrder> SalesOrders => Set<SalesOrder>();
     public DbSet<SalesOrderItem> SalesOrderItems => Set<SalesOrderItem>();
+    public DbSet<SalesOrderAllocation> SalesOrderAllocations => Set<SalesOrderAllocation>();
     public DbSet<IdempotencyRecord> IdempotencyRecords => Set<IdempotencyRecord>();
     public DbSet<DurableJob> DurableJobs => Set<DurableJob>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
@@ -46,5 +47,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, TenantContext 
         builder.Entity<Customer>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
         builder.Entity<SalesOrder>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
         builder.Entity<SalesOrderItem>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
+        builder.Entity<SalesOrderAllocation>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
     }
 }

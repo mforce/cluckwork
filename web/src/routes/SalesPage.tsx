@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   addOrderItem, cancelOrder, confirmOrder, createOrder, formatMoney, getOrder,
-  listCustomers, listEggGrades, listOrders, removeOrderItem, updateOrderItem,
+  listCustomers, listEggGrades, listOrders, removeOrderItem, updateOrderItem, voidOrder,
 } from "../api/cluckwork";
 import type { Customer, EggGrade, SalesOrder } from "../api/cluckwork";
 import { ApiError } from "../api/client";
@@ -157,9 +157,9 @@ export function SalesPage() {
   // One-way actions (#59). Confirm BEFORE run() so buttons don't flash
   // disabled while the user decides.
   const onConfirm = () => {
-    // Allocation cannot be undone yet (void is #60).
     if (!window.confirm(
-      "Confirm this order? Stock is allocated from inventory (FIFO) and cannot be undone.")) return;
+      "Confirm this order? Stock is allocated from inventory (FIFO). "
+      + "A mistaken confirm can be undone with Void, which returns the stock.")) return;
     void run(async () => {
       if (!active) return;
       const scope = `confirm:${active.id}`;
@@ -183,6 +183,30 @@ export function SalesPage() {
       await cancelOrder(active.id, keyFor(scope));
       setActive(null);
       setMessage("Draft order cancelled.");
+      await loadOrders();
+      clearKey(scope);
+    });
+  };
+
+  // Undo of a mistaken confirm (#60). Reason prompt doubles as the confirm
+  // dialog, hoisted above run() like the other one-way actions; cancelling the
+  // prompt aborts the void.
+  const onVoid = () => {
+    const reason = window.prompt(
+      "Void this confirmed order? The allocated stock returns to the exact "
+      + "egg lots it came from.\n\nReason (required):");
+    if (reason === null) return;
+    if (!reason.trim()) {
+      setError("A void reason is required.");
+      return;
+    }
+    void run(async () => {
+      if (!active) return;
+      const scope = `void:${active.id}`;
+      await voidOrder(active.id, reason.trim(), keyFor(scope));
+      const refreshed = await getOrder(active.id);
+      setActive(refreshed);
+      setMessage(`Order ${refreshed.referenceNumber} voided — stock returned to inventory.`);
       await loadOrders();
       clearKey(scope);
     });
@@ -300,8 +324,16 @@ export function SalesPage() {
               </div>
             </>
           )}
+          {active.status === "Voided" && active.voidReason && (
+            <p className="muted">Void reason: {active.voidReason}</p>
+          )}
           {active.status !== "Draft" && (
             <div className="actions">
+              {active.status === "Confirmed" && (
+                <button className="link" disabled={busy} onClick={onVoid}>
+                  Void order (returns stock)
+                </button>
+              )}
               <button className="link" onClick={() => setActive(null)}>close</button>
             </div>
           )}
@@ -319,6 +351,7 @@ export function SalesPage() {
             <option value="Draft">Draft</option>
             <option value="Confirmed">Confirmed</option>
             <option value="Cancelled">Cancelled</option>
+            <option value="Voided">Voided</option>
           </select>
         </label>
         <label>Customer

@@ -7,6 +7,7 @@ using Cluckwork.Application.Features.Sales.ConfirmSale;
 using Cluckwork.Application.Features.Sales.CreateSalesOrder;
 using Cluckwork.Application.Features.Sales.RemoveOrderItem;
 using Cluckwork.Application.Features.Sales.UpdateOrderItem;
+using Cluckwork.Application.Features.Sales.VoidSale;
 using FluentValidation;
 using Cluckwork.Domain.Sales;
 using Cluckwork.Infrastructure.Persistence;
@@ -41,6 +42,10 @@ public static class SaleEndpoints
         group.MapPost("/{id:guid}/confirm", ConfirmSale)
             .WithName("ConfirmSale")
             .WithSummary("Confirm a sales order and allocate egg lots via FIFO (online-only).");
+
+        group.MapPost("/{id:guid}/void", VoidSale)
+            .WithName("VoidSale")
+            .WithSummary("Void a confirmed order, returning allocated stock to its source egg lots.");
 
         group.MapGet("/{id:guid}", GetSalesOrder)
             .WithName("GetSalesOrder")
@@ -199,9 +204,43 @@ public static class SaleEndpoints
     private static SalesOrderResponse ToResponse(SalesOrder o) => new(
         o.Id, o.CustomerId, o.ReferenceNumber, o.OrderDate, o.Status.ToString(),
         o.TotalAmount.MinorUnits, o.TotalAmount.CurrencyCode, o.TotalAmount.CurrencyMinorUnit,
+        o.VoidReason,
         o.Items.Select(i => new SalesOrderItemResponse(
             i.Id, i.EggGradeId, i.Quantity,
             i.UnitPrice.MinorUnits, i.UnitPrice.CurrencyCode, i.UnitPrice.CurrencyMinorUnit)).ToList());
+
+    private static async Task<IResult> VoidSale(
+        Guid id,
+        VoidSaleRequest request,
+        VoidSaleHandler handler,
+        IValidator<VoidSaleCommand> validator,
+        TenantContext tenant,
+        CancellationToken ct)
+    {
+        if (!tenant.IsResolved)
+            return Results.Unauthorized();
+
+        var command = new VoidSaleCommand(id, request.Reason);
+        var validation = await validator.ValidateAsync(command, ct);
+        if (!validation.IsValid)
+            return Results.ValidationProblem(validation.ToDictionary());
+
+        var result = await handler.HandleAsync(command, tenant.AccountId, ct);
+        if (result.IsSuccess)
+            return Results.Ok(result.Value);
+
+        // TenantMismatch → NotFound: don't reveal foreign-tenant existence.
+        if (result.Error.Code.EndsWith(".NotFound", StringComparison.Ordinal)
+            || result.Error.Code == "Tenant.Mismatch")
+            return Results.NotFound();
+
+        // Wrong lifecycle state is a genuine conflict; everything else
+        // (missing allocation provenance, restore invariants) is a 422.
+        var status = result.Error.Code is "SalesOrder.NotConfirmed" or "SalesOrder.AlreadyVoided"
+            ? StatusCodes.Status409Conflict
+            : StatusCodes.Status422UnprocessableEntity;
+        return Results.Problem(result.Error.Description, statusCode: status, title: result.Error.Code);
+    }
 
     private static async Task<IResult> ConfirmSale(
         Guid id,
@@ -240,9 +279,12 @@ public static class SaleEndpoints
 public sealed record SalesOrderResponse(
     Guid Id, Guid CustomerId, string ReferenceNumber, DateOnly OrderDate, string Status,
     long TotalMinorUnits, string CurrencyCode, int CurrencyMinorUnit,
+    string? VoidReason,
     IReadOnlyList<SalesOrderItemResponse> Items);
 
 public sealed record CreateSalesOrderRequest(Guid CustomerId, DateOnly OrderDate);
+
+public sealed record VoidSaleRequest(string Reason);
 
 public sealed record AddOrderItemRequest(Guid EggGradeId, int Quantity, long UnitPriceMinorUnits);
 
