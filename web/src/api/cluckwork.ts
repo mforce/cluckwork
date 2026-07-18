@@ -250,6 +250,79 @@ export const confirmOrder = (orderId: string, key?: string) =>
 export const voidOrder = (orderId: string, reason: string, key?: string) =>
   apiPost<{ salesOrderId: string; status: string }>(`/sales/${orderId}/void`, { reason }, key);
 
+// --- Feed & inventory (#66) ---
+
+export interface InventoryItem {
+  id: string;
+  farmId: string;
+  name: string;
+  category: string;
+  unit: string;
+  defaultCostMinorUnits: number | null;
+  defaultCostCurrencyCode: string | null;
+  defaultCostCurrencyMinorUnit: number | null;
+  quantityOnHand: number;
+  active: boolean;
+}
+
+export interface InventoryLot {
+  id: string;
+  inventoryItemId: string;
+  receivedDate: string;
+  lotNumber: string | null;
+  expiryDate: string | null;
+  quantityReceived: number;
+  quantityAvailable: number;
+  unitCostMinorUnits: number;
+  unitCostCurrencyCode: string;
+  unitCostCurrencyMinorUnit: number;
+}
+
+export interface InventoryMovement {
+  id: string;
+  inventoryItemId: string;
+  inventoryLotId: string | null;
+  date: string;
+  type: string;
+  quantityDelta: number;
+  unit: string;
+  flockId: string | null;
+  note: string | null;
+}
+
+export const listInventoryItems = (params?: { includeInactive?: boolean }) =>
+  apiGet<InventoryItem[]>(`/inventory/items${params?.includeInactive ? "?includeInactive=true" : ""}`);
+
+export const createInventoryItem = (body: {
+  name: string; category: string; unit: string; defaultUnitCostMinorUnits: number | null;
+}, key?: string) => apiPost<Created>("/inventory/items", body, key);
+
+export const updateInventoryItem = (id: string, body: {
+  name: string; unit: string; defaultUnitCostMinorUnits: number | null;
+}, key?: string) => apiPut<void>(`/inventory/items/${id}`, body, key);
+
+export const activateInventoryItem = (id: string, key?: string) =>
+  apiPost<void>(`/inventory/items/${id}/activate`, undefined, key);
+
+export const deactivateInventoryItem = (id: string, key?: string) =>
+  apiPost<void>(`/inventory/items/${id}/deactivate`, undefined, key);
+
+export const recordInventoryPurchase = (itemId: string, body: {
+  receivedDate: string; quantity: number; unitCostMinorUnits: number | null;
+  lotNumber?: string; expiryDate?: string; note?: string;
+}, key?: string) => apiPost<{ lotId: string }>(`/inventory/items/${itemId}/purchases`, body, key);
+
+export const listInventoryLots = (itemId: string) =>
+  apiGet<InventoryLot[]>(`/inventory/items/${itemId}/lots`);
+
+export const listInventoryMovements = (itemId: string, params?: { limit?: number; offset?: number }) => {
+  const q = new URLSearchParams();
+  if (params?.limit) q.set("limit", String(params.limit));
+  if (params?.offset) q.set("offset", String(params.offset));
+  const qs = q.size > 0 ? `?${q}` : "";
+  return apiGet<InventoryMovement[]>(`/inventory/items/${itemId}/movements${qs}`);
+};
+
 // Formats minor units per the order's snapshotted currency (JPY has 0 decimals).
 export function formatMoney(minorUnits: number, currencyCode: string, minorUnit: number): string {
   const value = minorUnits / 10 ** minorUnit;
