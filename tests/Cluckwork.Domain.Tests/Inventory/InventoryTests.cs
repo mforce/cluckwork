@@ -158,16 +158,28 @@ public sealed class InventoryTests
     {
         var usage = FeedUsage.Create(
             Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
-            Today, 12.5m, "kg", new Money(30000, "USD", 2), "  morning feed  ");
+            Today, 12.5m, "kg", new Money(30000, "USD", 2), Now, "  morning feed  ");
         Assert.Equal(12.5m, usage.Quantity);
         Assert.Equal("morning feed", usage.Note);
+        Assert.Equal(Now, usage.CreatedAtUtc);
 
         Assert.Throws<ArgumentOutOfRangeException>(() => FeedUsage.Create(
             Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
-            Today, 0m, "kg", Money.Zero("USD")));
+            Today, 0m, "kg", Money.Zero("USD"), Now));
         Assert.Throws<ArgumentException>(() => FeedUsage.Create(
             Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
-            Today, 1m, "kg", new Money(-1, "USD", 2)));
+            Today, 1m, "kg", new Money(-1, "USD", 2), Now));
+    }
+
+    [Fact]
+    public void Movement_ReferenceTypeAndId_MustBeSetTogether()
+    {
+        Assert.Throws<ArgumentException>(() => InventoryMovement.Create(
+            Guid.NewGuid(), Guid.NewGuid(), null, Today,
+            InventoryMovementType.Usage, -1m, "kg", Now, referenceType: "FeedUsage"));
+        Assert.Throws<ArgumentException>(() => InventoryMovement.Create(
+            Guid.NewGuid(), Guid.NewGuid(), null, Today,
+            InventoryMovementType.Usage, -1m, "kg", Now, referenceId: Guid.NewGuid()));
     }
 
     // --- InventoryMovement ---

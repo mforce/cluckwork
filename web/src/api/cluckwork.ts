@@ -301,6 +301,8 @@ export interface InventoryMovement {
   unit: string;
   flockId: string | null;
   note: string | null;
+  referenceType: string | null;
+  referenceId: string | null;
 }
 
 export const listInventoryItems = (params?: { includeInactive?: boolean }) =>

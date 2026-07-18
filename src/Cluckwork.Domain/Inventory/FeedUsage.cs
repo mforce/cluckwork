@@ -25,6 +25,10 @@ public sealed class FeedUsage : AggregateRoot<Guid>
     public Guid? DailyEntryId { get; private set; }
 
     public string? Note { get; private set; }
+
+    // Append timestamp — same-day records order by this, like movement rows.
+    public DateTime CreatedAtUtc { get; private set; }
+
     public int Version { get; private set; }
 
     private FeedUsage() { }
@@ -32,7 +36,7 @@ public sealed class FeedUsage : AggregateRoot<Guid>
     public static FeedUsage Create(
         Guid id, Guid accountId, Guid flockId, Guid inventoryItemId,
         DateOnly date, decimal quantity, string unit, Money estimatedCost,
-        string? note = null, Guid? dailyEntryId = null)
+        DateTime createdAtUtc, string? note = null, Guid? dailyEntryId = null)
     {
         if (flockId == Guid.Empty)
             throw new ArgumentException("Flock id is required.", nameof(flockId));
@@ -56,6 +60,7 @@ public sealed class FeedUsage : AggregateRoot<Guid>
             Quantity = quantity,
             Unit = unit,
             EstimatedCost = estimatedCost,
+            CreatedAtUtc = createdAtUtc,
             Note = string.IsNullOrWhiteSpace(note) ? null : note.Trim(),
             DailyEntryId = dailyEntryId
         };

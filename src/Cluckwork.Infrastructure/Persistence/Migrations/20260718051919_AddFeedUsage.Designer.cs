@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Cluckwork.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260718050146_AddFeedUsage")]
+    [Migration("20260718051919_AddFeedUsage")]
     partial class AddFeedUsage
     {
         /// <inheritdoc />
@@ -325,6 +325,9 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("AccountId")
                         .HasColumnType("uuid");
 
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<Guid?>("DailyEntryId")
                         .HasColumnType("uuid");
 
@@ -355,6 +358,8 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("DailyEntryId");
 
                     b.HasIndex("FlockId", "Date");
 
@@ -476,6 +481,13 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                     b.Property<decimal>("QuantityDelta")
                         .HasPrecision(18, 3)
                         .HasColumnType("numeric(18,3)");
+
+                    b.Property<Guid?>("ReferenceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ReferenceType")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
 
                     b.Property<string>("Type")
                         .IsRequired()
@@ -1004,6 +1016,11 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Cluckwork.Domain.Inventory.FeedUsage", b =>
                 {
+                    b.HasOne("Cluckwork.Domain.Eggs.DailyEntry", null)
+                        .WithMany()
+                        .HasForeignKey("DailyEntryId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("Cluckwork.Domain.Flocks.Flock", null)
                         .WithMany()
                         .HasForeignKey("FlockId")

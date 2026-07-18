@@ -15,6 +15,7 @@ public sealed class FeedUsageTests(CluckworkWebApplicationFactory factory)
     private sealed record UsageResponse(Guid FeedUsageId, decimal QuantityUsed, long EstimatedCostMinorUnits, string CurrencyCode);
     private sealed record UsageRow(Guid Id, Guid FlockId, DateOnly Date, decimal Quantity, string Unit, long EstimatedCostMinorUnits, string? Note);
     private sealed record MovementDto(Guid Id, Guid? InventoryLotId, DateOnly Date, string Type, decimal QuantityDelta);
+    private sealed record MovementWithRef(Guid Id, string Type, decimal QuantityDelta, string? ReferenceType, Guid? ReferenceId);
     private sealed record ItemDto(Guid Id, decimal QuantityOnHand);
 
     private static readonly DateOnly Today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
@@ -187,6 +188,82 @@ public sealed class FeedUsageTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(HttpStatusCode.Created, restore.StatusCode);
         var item = await client.GetFromJsonAsync<ItemDto>($"/api/v1/inventory/items/{itemId}");
         Assert.Equal(50m, item!.QuantityOnHand);
+    }
+
+    // A backdated usage may only consume stock that existed on that day —
+    // lots received later are invisible to it (codex review of PR #70).
+    [Fact]
+    public async Task BackdatedUsage_CannotConsumeLotsReceivedLater()
+    {
+        var (client, _, flockId, itemId) = await SetupAsync();
+        await PurchaseAsync(client, itemId, 20m, 2500, Today.AddDays(-10));
+        await PurchaseAsync(client, itemId, 100m, 2500, Today); // didn't exist a week ago
+
+        var response = await client.PostWithKeyAsync(
+            $"/api/v1/inventory/items/{itemId}/usage", Guid.NewGuid().ToString(),
+            new { flockId, date = Today.AddDays(-7), quantity = 50m });
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+
+        var ok = await client.PostWithKeyAsync(
+            $"/api/v1/inventory/items/{itemId}/usage", Guid.NewGuid().ToString(),
+            new { flockId, date = Today.AddDays(-7), quantity = 15m });
+        Assert.Equal(HttpStatusCode.OK, ok.StatusCode);
+    }
+
+    // Non-feed catalog items can't be recorded as flock feed.
+    [Fact]
+    public async Task Usage_NonFeedCategory_Returns422()
+    {
+        var (client, _, flockId, _) = await SetupAsync();
+        var packaging = await client.PostWithKeyAsync("/api/v1/inventory/items", Guid.NewGuid().ToString(),
+            new { name = "Egg cartons", category = "Packaging", unit = "pcs", defaultUnitCostMinorUnits = 50 });
+        packaging.EnsureSuccessStatusCode();
+        var packagingId = (await packaging.Content.ReadFromJsonAsync<Created>())!.Id;
+        await PurchaseAsync(client, packagingId, 500m, 50, Today);
+
+        var response = await client.PostWithKeyAsync(
+            $"/api/v1/inventory/items/{packagingId}/usage", Guid.NewGuid().ToString(),
+            new { flockId, date = Today, quantity = 10m });
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+    }
+
+    // Usage movements carry a reference to their FeedUsage record so same-day
+    // feedings of the same flock reconcile individually.
+    [Fact]
+    public async Task UsageMovements_ReferenceTheirUsageRecord()
+    {
+        var (client, _, flockId, itemId) = await SetupAsync();
+        await PurchaseAsync(client, itemId, 100m, 2500, Today);
+
+        var first = await client.PostWithKeyAsync(
+            $"/api/v1/inventory/items/{itemId}/usage", Guid.NewGuid().ToString(),
+            new { flockId, date = Today, quantity = 10m });
+        var second = await client.PostWithKeyAsync(
+            $"/api/v1/inventory/items/{itemId}/usage", Guid.NewGuid().ToString(),
+            new { flockId, date = Today, quantity = 15m });
+        var firstId = (await first.Content.ReadFromJsonAsync<UsageResponse>())!.FeedUsageId;
+        var secondId = (await second.Content.ReadFromJsonAsync<UsageResponse>())!.FeedUsageId;
+
+        var movements = await client.GetFromJsonAsync<List<MovementWithRef>>(
+            $"/api/v1/inventory/items/{itemId}/movements");
+        var usageRows = movements!.Where(m => m.Type == "Usage").ToList();
+        Assert.Equal(2, usageRows.Count);
+        Assert.Contains(usageRows, m => m.ReferenceId == firstId && m.QuantityDelta == -10m);
+        Assert.Contains(usageRows, m => m.ReferenceId == secondId && m.QuantityDelta == -15m);
+        Assert.All(usageRows, m => Assert.Equal("FeedUsage", m.ReferenceType));
+    }
+
+    // Corrections can't predate the stock they correct.
+    [Fact]
+    public async Task Adjustment_BeforeLotReceipt_Returns422()
+    {
+        var (client, _, _, itemId) = await SetupAsync();
+        var lot = await PurchaseAsync(client, itemId, 100m, 2500, Today.AddDays(-2));
+
+        var response = await client.PostWithKeyAsync(
+            $"/api/v1/inventory/items/{itemId}/adjustments", Guid.NewGuid().ToString(),
+            new { inventoryLotId = lot, date = Today.AddDays(-5), type = "Adjustment", quantityDelta = -5m, reason = "impossible date" });
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
     }
 
     // AGENTS.md race rule: two usages racing one lot serialize on FOR UPDATE —

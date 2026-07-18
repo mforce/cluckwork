@@ -70,6 +70,7 @@ public sealed class FeedUsageConfiguration : IEntityTypeConfiguration<FeedUsage>
         builder.Property(u => u.Quantity).HasPrecision(18, 3).IsRequired();
         builder.Property(u => u.Unit).HasMaxLength(InventoryItem.MaxUnitLength).IsRequired();
         builder.Property(u => u.Note).HasMaxLength(FeedUsage.MaxNoteLength);
+        builder.Property(u => u.CreatedAtUtc).IsRequired();
         builder.Property(u => u.Version).IsConcurrencyToken();
 
         builder.HasOne<Cluckwork.Domain.Flocks.Flock>()
@@ -80,6 +81,13 @@ public sealed class FeedUsageConfiguration : IEntityTypeConfiguration<FeedUsage>
         builder.HasOne<InventoryItem>()
             .WithMany()
             .HasForeignKey(u => u.InventoryItemId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // Reserved column, but keep the FK honest from day one — a dangling
+        // DailyEntryId would poison the future integration silently.
+        builder.HasOne<Cluckwork.Domain.Eggs.DailyEntry>()
+            .WithMany()
+            .HasForeignKey(u => u.DailyEntryId)
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.OwnsOne(u => u.EstimatedCost, m =>
@@ -107,6 +115,9 @@ public sealed class InventoryMovementConfiguration : IEntityTypeConfiguration<In
         builder.Property(m => m.Unit).HasMaxLength(InventoryItem.MaxUnitLength).IsRequired();
         builder.Property(m => m.Note).HasMaxLength(InventoryMovement.MaxNoteLength);
         builder.Property(m => m.CreatedAtUtc).IsRequired();
+        // Polymorphic reference (spec §12.3) — no FK by design; type names the
+        // table the id points into.
+        builder.Property(m => m.ReferenceType).HasMaxLength(50);
 
         builder.HasOne<InventoryItem>()
             .WithMany()

@@ -29,13 +29,23 @@ public sealed class InventoryMovement : AggregateRoot<Guid>
     // CreatedBy joins with the audit-log slice; single login today.
     public DateTime CreatedAtUtc { get; private set; }
 
+    // What generated this row (spec §12.3 reference_type/reference_id):
+    // "FeedUsage" + the usage id for usage rows, so several same-day feedings
+    // of the same flock reconcile to their own source records. Null for
+    // purchases (the lot id is the reference) and manual adjustments.
+    public string? ReferenceType { get; private set; }
+    public Guid? ReferenceId { get; private set; }
+
     private InventoryMovement() { }
 
     public static InventoryMovement Create(
         Guid accountId, Guid inventoryItemId, Guid? inventoryLotId,
         DateOnly date, InventoryMovementType type, decimal quantityDelta,
-        string unit, DateTime createdAtUtc, Guid? flockId = null, string? note = null)
+        string unit, DateTime createdAtUtc, Guid? flockId = null, string? note = null,
+        string? referenceType = null, Guid? referenceId = null)
     {
+        if ((referenceType is null) != (referenceId is null))
+            throw new ArgumentException("Reference type and id must be set together.", nameof(referenceId));
         if (inventoryItemId == Guid.Empty)
             throw new ArgumentException("Inventory item id is required.", nameof(inventoryItemId));
         if (quantityDelta == 0)
@@ -60,6 +70,8 @@ public sealed class InventoryMovement : AggregateRoot<Guid>
             QuantityDelta = quantityDelta,
             Unit = unit,
             CreatedAtUtc = createdAtUtc,
+            ReferenceType = referenceType,
+            ReferenceId = referenceId,
             FlockId = flockId,
             Note = string.IsNullOrWhiteSpace(note) ? null : note.Trim()
         };

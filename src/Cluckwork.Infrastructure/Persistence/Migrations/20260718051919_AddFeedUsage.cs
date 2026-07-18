@@ -11,6 +11,19 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.AddColumn<Guid>(
+                name: "ReferenceId",
+                table: "InventoryMovements",
+                type: "uuid",
+                nullable: true);
+
+            migrationBuilder.AddColumn<string>(
+                name: "ReferenceType",
+                table: "InventoryMovements",
+                type: "character varying(50)",
+                maxLength: 50,
+                nullable: true);
+
             migrationBuilder.CreateTable(
                 name: "FeedUsages",
                 columns: table => new
@@ -26,12 +39,19 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                     EstimatedCostCurrencyMinorUnit = table.Column<int>(type: "integer", nullable: false),
                     DailyEntryId = table.Column<Guid>(type: "uuid", nullable: true),
                     Note = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true),
+                    CreatedAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     Version = table.Column<int>(type: "integer", nullable: false),
                     AccountId = table.Column<Guid>(type: "uuid", nullable: false)
                 },
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_FeedUsages", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_FeedUsages_DailyEntries_DailyEntryId",
+                        column: x => x.DailyEntryId,
+                        principalTable: "DailyEntries",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
                         name: "FK_FeedUsages_Flocks_FlockId",
                         column: x => x.FlockId,
@@ -45,6 +65,11 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                 });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_FeedUsages_DailyEntryId",
+                table: "FeedUsages",
+                column: "DailyEntryId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_FeedUsages_FlockId_Date",
@@ -62,6 +87,14 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
         {
             migrationBuilder.DropTable(
                 name: "FeedUsages");
+
+            migrationBuilder.DropColumn(
+                name: "ReferenceId",
+                table: "InventoryMovements");
+
+            migrationBuilder.DropColumn(
+                name: "ReferenceType",
+                table: "InventoryMovements");
         }
     }
 }

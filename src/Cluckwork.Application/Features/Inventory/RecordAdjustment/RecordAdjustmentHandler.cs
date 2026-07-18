@@ -37,6 +37,16 @@ public sealed class RecordAdjustmentHandler(
                 return false;
             }
 
+            // A correction can't predate the stock it corrects — that would
+            // fabricate impossible historical balances.
+            if (command.Date < lot.ReceivedDate)
+            {
+                outcome = Result.Failure<Guid>(Error.Validation(
+                    "InventoryMovement.BeforeLotReceived",
+                    $"Adjustment date precedes the lot's received date ({lot.ReceivedDate:yyyy-MM-dd})."));
+                return false;
+            }
+
             var adjust = lot.Adjust(command.QuantityDelta);
             if (adjust.IsFailure)
             {

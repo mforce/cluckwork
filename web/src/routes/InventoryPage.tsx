@@ -14,6 +14,9 @@ const CATEGORIES = [
   "Packaging", "Bedding", "Sanitation", "EquipmentPart", "Other",
 ];
 
+// Only these can be recorded as flock feed usage (mirrors the API gate).
+const FEEDABLE_CATEGORIES = ["Feed", "Supplement", "Additive"];
+
 function todayIso(): string {
   const d = new Date();
   const pad = (n: number) => String(n).padStart(2, "0");
@@ -92,11 +95,12 @@ export function InventoryPage() {
       .then(([list, acct, flockList]) => {
         setItems(list);
         setAccount(acct);
-        // Active flocks only in the usage picker — depleted backfill is an
-        // edge case better served by the API's own gating message.
-        const activeFlocks = flockList.filter((f) => f.status === "Active");
-        setFlocks(activeFlocks);
-        if (activeFlocks.length > 0) setUsageFlockId(activeFlocks[0].id);
+        // Active + depleted: depleted flocks still take backfilled feed up to
+        // their depletion date (the API gates the exact dates). Archived are out.
+        const feedable = flockList.filter((f) => f.status !== "Archived");
+        setFlocks(feedable);
+        const firstActive = feedable.find((f) => f.status === "Active") ?? feedable[0];
+        if (firstActive) setUsageFlockId(firstActive.id);
       })
       .catch(() => setError("Could not load inventory. Is the API up?"));
   }, []);
@@ -348,13 +352,22 @@ export function InventoryPage() {
           </form>
 
           <h4>Record usage</h4>
-          {flocks.length === 0 ? (
-            <p className="muted">No active flocks — usage needs a flock to feed.</p>
+          {!FEEDABLE_CATEGORIES.includes(active.category) ? (
+            <p className="muted">
+              {active.category} items aren't fed to flocks — usage applies to
+              Feed, Supplement, and Additive items only.
+            </p>
+          ) : flocks.length === 0 ? (
+            <p className="muted">No flocks — usage needs a flock to feed.</p>
           ) : (
             <form className="form-grid" onSubmit={onRecordUsage}>
               <label>Flock
                 <select value={usageFlockId} onChange={(e) => setUsageFlockId(e.target.value)}>
-                  {flocks.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+                  {flocks.map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {f.name}{f.status === "Depleted" ? " (depleted — backfill only)" : ""}
+                    </option>
+                  ))}
                 </select>
               </label>
               <label>Date

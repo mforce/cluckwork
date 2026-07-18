@@ -16,7 +16,7 @@ public sealed class RecordAdjustmentValidator : AbstractValidator<RecordAdjustme
             .WithMessage("Type must be 'Adjustment' or 'Discard'.");
         RuleFor(x => x.QuantityDelta)
             .NotEqual(0)
-            .Must(q => Math.Abs(q) <= 1_000_000_000m)
+            .InclusiveBetween(-1_000_000_000m, 1_000_000_000m)
             .WithMessage("Quantity is out of range.")
             .Must(q => decimal.Round(q, 3) == q)
             .WithMessage("Quantity supports at most 3 decimal places.");

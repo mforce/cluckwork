@@ -21,7 +21,11 @@ public sealed class RecordPurchaseValidator : AbstractValidator<RecordPurchaseCo
             .Must(q => decimal.Round(q, 3) == q)
             .WithMessage("Quantity supports at most 3 decimal places.");
         RuleFor(x => x.UnitCostMinorUnits)
-            .GreaterThanOrEqualTo(0).When(x => x.UnitCostMinorUnits is not null);
+            .GreaterThanOrEqualTo(0).When(x => x.UnitCostMinorUnits is not null)
+            // Cap so quantity × cost (usage cost estimates) stays far inside
+            // long range: 1e9 qty × 1e13 minor units < decimal precision loss
+            // territory and > any real feed price by orders of magnitude.
+            .LessThanOrEqualTo(10_000_000_000_000).When(x => x.UnitCostMinorUnits is not null);
         RuleFor(x => x.LotNumber)
             .MaximumLength(InventoryLot.MaxLotNumberLength);
         RuleFor(x => x.ExpiryDate)

@@ -183,7 +183,7 @@ public static class InventoryEndpoints
         var list = await movements.ListByItemAsync(id, take, skip, ct);
         return Results.Ok(list.Select(m => new InventoryMovementResponse(
             m.Id, m.InventoryItemId, m.InventoryLotId, m.Date, m.Type.ToString(),
-            m.QuantityDelta, m.Unit, m.FlockId, m.Note)));
+            m.QuantityDelta, m.Unit, m.FlockId, m.Note, m.ReferenceType, m.ReferenceId)));
     }
 
     private static async Task<IResult> RecordFeedUsage(
@@ -272,7 +272,8 @@ public sealed record InventoryLotResponse(
 
 public sealed record InventoryMovementResponse(
     Guid Id, Guid InventoryItemId, Guid? InventoryLotId, DateOnly Date, string Type,
-    decimal QuantityDelta, string Unit, Guid? FlockId, string? Note);
+    decimal QuantityDelta, string Unit, Guid? FlockId, string? Note,
+    string? ReferenceType, Guid? ReferenceId);
 
 public sealed record CreateInventoryItemRequest(
     string Name, string Category, string Unit, long? DefaultUnitCostMinorUnits);
