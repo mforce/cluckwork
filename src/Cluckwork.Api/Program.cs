@@ -1,9 +1,11 @@
 using System.Security.Cryptography;
+using Cluckwork.Api.Endpoints.Accounts;
 using Cluckwork.Api.Endpoints.Auth;
 using Cluckwork.Api.Endpoints.Customers;
 using Cluckwork.Api.Endpoints.DailyEntries;
 using Cluckwork.Api.Endpoints.EggGrades;
 using Cluckwork.Api.Endpoints.Flocks;
+using Cluckwork.Api.Endpoints.Inventory;
 using Cluckwork.Api.Endpoints.Sales;
 using Cluckwork.Api.Endpoints.Stock;
 using Cluckwork.Api.Middleware;
@@ -15,6 +17,10 @@ using Cluckwork.Application.Features.DailyEntries;
 using Cluckwork.Application.Features.DailyEntries.RecordDailyEntry;
 using Cluckwork.Application.Features.DailyEntries.SubmitDailyEntry;
 using Cluckwork.Application.Features.EggGrades;
+using Cluckwork.Application.Features.Inventory;
+using Cluckwork.Application.Features.Inventory.CreateInventoryItem;
+using Cluckwork.Application.Features.Inventory.RecordPurchase;
+using Cluckwork.Application.Features.Inventory.UpdateInventoryItem;
 using Cluckwork.Application.Features.EggGrades.CreateEggGrade;
 using Cluckwork.Application.Features.EggGrades.SetEggGradeActive;
 using Cluckwork.Application.Features.EggGrades.UpdateEggGrade;
@@ -134,6 +140,9 @@ builder.Services.AddScoped<IEggLotRepository, EggLotRepository>();
 builder.Services.AddScoped<IEggGradeRepository, EggGradeRepository>();
 builder.Services.AddScoped<ISalesOrderRepository, SalesOrderRepository>();
 builder.Services.AddScoped<ISalesOrderAllocationRepository, SalesOrderAllocationRepository>();
+builder.Services.AddScoped<IInventoryItemRepository, InventoryItemRepository>();
+builder.Services.AddScoped<IInventoryLotRepository, InventoryLotRepository>();
+builder.Services.AddScoped<IInventoryMovementRepository, InventoryMovementRepository>();
 builder.Services.AddScoped<IFlockRepository, FlockRepository>();
 builder.Services.AddScoped<IBirdMovementRepository, BirdMovementRepository>();
 builder.Services.AddScoped<ICustomerRepository, CustomerRepository>();
@@ -151,6 +160,9 @@ builder.Services.AddScoped<IValidator<UpdateEggGradeCommand>, UpdateEggGradeVali
 builder.Services.AddScoped<IValidator<UpdateFlockCommand>, UpdateFlockValidator>();
 builder.Services.AddScoped<IValidator<RecordBirdMovementCommand>, RecordBirdMovementValidator>();
 builder.Services.AddScoped<IValidator<VoidSaleCommand>, VoidSaleValidator>();
+builder.Services.AddScoped<IValidator<CreateInventoryItemCommand>, CreateInventoryItemValidator>();
+builder.Services.AddScoped<IValidator<UpdateInventoryItemCommand>, UpdateInventoryItemValidator>();
+builder.Services.AddScoped<IValidator<RecordPurchaseCommand>, RecordPurchaseValidator>();
 
 // --- Handlers (direct — no mediator, tech spec §2.1) ---
 builder.Services.AddScoped<RecordDailyEntryHandler>();
@@ -163,6 +175,10 @@ builder.Services.AddScoped<RemoveOrderItemHandler>();
 builder.Services.AddScoped<UpdateOrderItemHandler>();
 builder.Services.AddScoped<ConfirmSaleHandler>();
 builder.Services.AddScoped<VoidSaleHandler>();
+builder.Services.AddScoped<CreateInventoryItemHandler>();
+builder.Services.AddScoped<UpdateInventoryItemHandler>();
+builder.Services.AddScoped<SetInventoryItemActiveHandler>();
+builder.Services.AddScoped<RecordPurchaseHandler>();
 builder.Services.AddScoped<CreateFlockHandler>();
 builder.Services.AddScoped<DepleteFlockHandler>();
 builder.Services.AddScoped<CreateEggGradeHandler>();
@@ -247,6 +263,16 @@ app.MapGroup("/api/v1/egg-grades")
     .RequireAuthorization()
     .MapEggGradeEndpoints();
 
+app.MapGroup("/api/v1/account")
+    .WithTags("Account")
+    .RequireAuthorization()
+    .MapAccountEndpoints();
+
+app.MapGroup("/api/v1/inventory")
+    .WithTags("Inventory")
+    .RequireAuthorization()
+    .MapInventoryEndpoints();
+
 app.MapGroup("/api/v1/daily-entries")
     .WithTags("DailyEntries")
     .RequireAuthorization()
@@ -276,6 +302,13 @@ app.Map("/error", (HttpContext context) =>
     var exception = context.Features.Get<IExceptionHandlerFeature>()?.Error;
     return exception switch
     {
+        // Minimal-API body binding failures (malformed JSON, unparseable
+        // dates/guids) throw this with a 400 — without the mapping the
+        // exception handler swallowed it into a 500.
+        BadHttpRequestException bad => Results.Problem(
+            detail: bad.Message,
+            statusCode: bad.StatusCode,
+            title: "Invalid request body"),
         DbUpdateConcurrencyException => Results.Conflict(new ProblemDetails
         {
             Title = "Concurrency conflict",

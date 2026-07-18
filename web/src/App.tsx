@@ -11,6 +11,7 @@ import { SalesPage } from "./routes/SalesPage";
 import { HistoryPage } from "./routes/HistoryPage";
 import { GradesPage } from "./routes/GradesPage";
 import { FlocksPage } from "./routes/FlocksPage";
+import { InventoryPage } from "./routes/InventoryPage";
 
 export function App() {
   return (
@@ -28,6 +29,7 @@ export function App() {
               <Route path="history" element={<HistoryPage />} />
               <Route path="grades" element={<GradesPage />} />
               <Route path="flocks" element={<FlocksPage />} />
+              <Route path="inventory" element={<InventoryPage />} />
             </Route>
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
