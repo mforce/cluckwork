@@ -33,6 +33,7 @@ using Cluckwork.Application.Features.Sales.ConfirmSale;
 using Cluckwork.Application.Features.Sales.CreateSalesOrder;
 using Cluckwork.Application.Features.Sales.RemoveOrderItem;
 using Cluckwork.Application.Features.Sales.UpdateOrderItem;
+using Cluckwork.Application.Features.Sales.VoidSale;
 using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Jobs;
 using Cluckwork.Infrastructure.Persistence;
@@ -132,6 +133,7 @@ builder.Services.AddScoped<IDailyEntryRepository, DailyEntryRepository>();
 builder.Services.AddScoped<IEggLotRepository, EggLotRepository>();
 builder.Services.AddScoped<IEggGradeRepository, EggGradeRepository>();
 builder.Services.AddScoped<ISalesOrderRepository, SalesOrderRepository>();
+builder.Services.AddScoped<ISalesOrderAllocationRepository, SalesOrderAllocationRepository>();
 builder.Services.AddScoped<IFlockRepository, FlockRepository>();
 builder.Services.AddScoped<IBirdMovementRepository, BirdMovementRepository>();
 builder.Services.AddScoped<ICustomerRepository, CustomerRepository>();
@@ -148,6 +150,7 @@ builder.Services.AddScoped<IValidator<CreateEggGradeCommand>, CreateEggGradeVali
 builder.Services.AddScoped<IValidator<UpdateEggGradeCommand>, UpdateEggGradeValidator>();
 builder.Services.AddScoped<IValidator<UpdateFlockCommand>, UpdateFlockValidator>();
 builder.Services.AddScoped<IValidator<RecordBirdMovementCommand>, RecordBirdMovementValidator>();
+builder.Services.AddScoped<IValidator<VoidSaleCommand>, VoidSaleValidator>();
 
 // --- Handlers (direct — no mediator, tech spec §2.1) ---
 builder.Services.AddScoped<RecordDailyEntryHandler>();
@@ -159,6 +162,7 @@ builder.Services.AddScoped<CancelSalesOrderHandler>();
 builder.Services.AddScoped<RemoveOrderItemHandler>();
 builder.Services.AddScoped<UpdateOrderItemHandler>();
 builder.Services.AddScoped<ConfirmSaleHandler>();
+builder.Services.AddScoped<VoidSaleHandler>();
 builder.Services.AddScoped<CreateFlockHandler>();
 builder.Services.AddScoped<DepleteFlockHandler>();
 builder.Services.AddScoped<CreateEggGradeHandler>();

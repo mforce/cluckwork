@@ -189,6 +189,7 @@ export interface SalesOrder {
   totalMinorUnits: number;
   currencyCode: string;
   currencyMinorUnit: number;
+  voidReason: string | null;
   items: OrderItem[];
 }
 
@@ -244,6 +245,10 @@ export const cancelOrder = (orderId: string, key?: string) =>
 
 export const confirmOrder = (orderId: string, key?: string) =>
   apiPost<{ orderId: string; status: string }>(`/sales/${orderId}/confirm`, undefined, key);
+
+// Undo of a mistaken confirm (#60): stock returns to its source lots.
+export const voidOrder = (orderId: string, reason: string, key?: string) =>
+  apiPost<{ salesOrderId: string; status: string }>(`/sales/${orderId}/void`, { reason }, key);
 
 // Formats minor units per the order's snapshotted currency (JPY has 0 decimals).
 export function formatMoney(minorUnits: number, currencyCode: string, minorUnit: number): string {

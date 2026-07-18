@@ -74,4 +74,24 @@ public sealed class EggLot : AggregateRoot<Guid>
         Version++;
         return Result.Success();
     }
+
+    // Inverse of Allocate, for voiding a confirmed sale (#60). Same rule as
+    // Allocate: call only inside the pessimistic FOR UPDATE transaction.
+    // Withdrawal restriction is intentionally not checked — the eggs return to
+    // the lot they came from and keep whatever restriction it carries.
+    public Result Restore(int quantity)
+    {
+        if (quantity <= 0)
+            return Result.Failure(Error.Validation(
+                "EggLot.InvalidQuantity", "Restore quantity must be positive."));
+
+        if (QuantityAvailable + quantity > QuantityProduced)
+            return Result.Failure(Error.Domain(
+                "EggLot.RestoreExceedsProduced",
+                $"Restoring {quantity} would exceed the {QuantityProduced} produced in this lot."));
+
+        QuantityAvailable += quantity;
+        Version++;
+        return Result.Success();
+    }
 }

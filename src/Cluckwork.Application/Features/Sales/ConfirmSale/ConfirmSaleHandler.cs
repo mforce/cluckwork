@@ -10,6 +10,7 @@ public sealed class ConfirmSaleHandler(
     ISalesOrderRepository salesOrders,
     IEggLotRepository eggLots,
     IEggGradeRepository eggGrades,
+    ISalesOrderAllocationRepository allocations,
     IUnitOfWork unitOfWork,
     IClock clock)
 {
@@ -36,6 +37,10 @@ public sealed class ConfirmSaleHandler(
 
         await unitOfWork.ExecuteInTransactionAsync(async transactionCt =>
         {
+            // Lot-level provenance (#60): recorded so a void can return the exact
+            // quantities to the exact lots they were drawn from.
+            var allocationRows = new List<SalesOrderAllocation>();
+
             foreach (var item in order.Items)
             {
                 var lockedLots = await eggLots.GetAvailableFifoLockedAsync(
@@ -52,6 +57,8 @@ public sealed class ConfirmSaleHandler(
                         failure = Result.Failure<ConfirmSaleResponse>(alloc.Error);
                         return false;
                     }
+                    allocationRows.Add(SalesOrderAllocation.Create(
+                        accountId, order.Id, item.Id, lot.Id, take));
                     remaining -= take;
                 }
 
@@ -75,6 +82,7 @@ public sealed class ConfirmSaleHandler(
                 return false;
             }
 
+            await allocations.AddRangeAsync(allocationRows, transactionCt);
             return true;
         }, ct);
 

@@ -30,6 +30,26 @@ public sealed class EggLotRepository(AppDbContext db) : IEggLotRepository
             .ToListAsync(ct);
     }
 
+    // FOR UPDATE lock on specific lots for the void-restore path (#60). Ordered
+    // like the FIFO allocation query so void and confirm acquire overlapping
+    // row locks in the same order (deadlock avoidance).
+    public async Task<IReadOnlyList<EggLot>> GetByIdsLockedAsync(
+        Guid accountId, IReadOnlyList<Guid> lotIds, CancellationToken ct = default)
+    {
+        if (lotIds.Count == 0) return [];
+
+        return await db.EggLots.FromSqlInterpolated($"""
+            SELECT *
+            FROM "EggLots"
+            WHERE "AccountId" = {accountId}
+              AND "Id" = ANY({lotIds.ToArray()})
+            ORDER BY "ProductionDate", "Id"
+            FOR UPDATE
+            """)
+            .IgnoreQueryFilters()
+            .ToListAsync(ct);
+    }
+
     public async Task<IReadOnlyList<StockByGrade>> GetStockByGradeAsync(
         DateOnly asOfDate, CancellationToken ct = default)
     {

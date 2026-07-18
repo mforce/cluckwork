@@ -95,4 +95,80 @@ public sealed class SalesOrderTests
         Assert.True(result.IsFailure);
         Assert.Equal("SalesOrder.NotDraft", result.Error.Code);
     }
+
+    private static SalesOrder MakeConfirmed()
+    {
+        var order = MakeDraft();
+        order.AddItem(Guid.NewGuid(), 10, Money.Zero("USD"));
+        order.Confirm();
+        return order;
+    }
+
+    [Fact]
+    public void Void_Confirmed_Succeeds_StoresReason_AndBumpsVersion()
+    {
+        var order = MakeConfirmed();
+        var before = order.Version;
+
+        var result = order.Void("  Confirmed the wrong order  ");
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(SalesOrderStatus.Voided, order.Status);
+        Assert.Equal("Confirmed the wrong order", order.VoidReason);
+        Assert.Equal(before + 1, order.Version);
+        // Lines and total survive for the audit trail.
+        Assert.Single(order.Items);
+    }
+
+    [Fact]
+    public void Void_Draft_Fails()
+    {
+        var order = MakeDraft();
+        var result = order.Void("mistake");
+        Assert.True(result.IsFailure);
+        Assert.Equal("SalesOrder.NotConfirmed", result.Error.Code);
+    }
+
+    [Fact]
+    public void Void_Cancelled_Fails()
+    {
+        var order = MakeDraft();
+        order.Cancel();
+        var result = order.Void("mistake");
+        Assert.True(result.IsFailure);
+        Assert.Equal("SalesOrder.NotConfirmed", result.Error.Code);
+    }
+
+    [Fact]
+    public void Void_Twice_Fails()
+    {
+        var order = MakeConfirmed();
+        Assert.True(order.Void("mistake").IsSuccess);
+
+        var result = order.Void("again");
+        Assert.True(result.IsFailure);
+        Assert.Equal("SalesOrder.AlreadyVoided", result.Error.Code);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Void_WithoutReason_Fails(string? reason)
+    {
+        var order = MakeConfirmed();
+        var result = order.Void(reason!);
+        Assert.True(result.IsFailure);
+        Assert.Equal("SalesOrder.VoidReasonRequired", result.Error.Code);
+        Assert.Equal(SalesOrderStatus.Confirmed, order.Status);
+    }
+
+    [Fact]
+    public void Void_ReasonTooLong_Fails()
+    {
+        var order = MakeConfirmed();
+        var result = order.Void(new string('x', SalesOrder.MaxVoidReasonLength + 1));
+        Assert.True(result.IsFailure);
+        Assert.Equal("SalesOrder.VoidReasonTooLong", result.Error.Code);
+    }
 }

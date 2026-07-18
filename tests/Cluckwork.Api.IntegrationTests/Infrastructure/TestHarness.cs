@@ -111,13 +111,14 @@ internal static class TestHarness
     // eggGradeId must reference a seeded EggGrade row (see SeedEggGradesAsync) — lots FK to grades.
     public static async Task<Guid> SeedEggLotAsync(
         this CluckworkWebApplicationFactory factory, Guid accountId,
-        Guid eggGradeId, int quantity, DateOnly? restrictedUntil = null)
+        Guid eggGradeId, int quantity, DateOnly? restrictedUntil = null,
+        DateOnly? productionDate = null)
     {
         var lotId = Guid.NewGuid();
         await factory.WithTenantScopeAsync(accountId, async db =>
         {
             var lot = EggLot.Create(lotId, accountId, Guid.NewGuid(),
-                DateOnly.FromDateTime(DateTime.UtcNow.Date), eggGradeId, quantity);
+                productionDate ?? DateOnly.FromDateTime(DateTime.UtcNow.Date), eggGradeId, quantity);
             if (restrictedUntil is not null)
                 lot.SetWithdrawalRestriction(restrictedUntil.Value);
             db.EggLots.Add(lot);

@@ -56,4 +56,51 @@ public sealed class EggLotTests
         lot.ClearWithdrawalRestriction();
         Assert.True(lot.Allocate(10, Today).IsSuccess);
     }
+
+    [Fact]
+    public void Restore_AfterAllocate_ReturnsQuantity_AndBumpsVersion()
+    {
+        var lot = MakeLot(100);
+        Assert.True(lot.Allocate(40, Today).IsSuccess);
+        var before = lot.Version;
+
+        var result = lot.Restore(40);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(100, lot.QuantityAvailable);
+        Assert.Equal(before + 1, lot.Version);
+    }
+
+    [Fact]
+    public void Restore_ExceedingProduced_Fails()
+    {
+        var lot = MakeLot(100);
+        Assert.True(lot.Allocate(40, Today).IsSuccess);
+
+        var result = lot.Restore(41);
+        Assert.True(result.IsFailure);
+        Assert.Equal("EggLot.RestoreExceedsProduced", result.Error.Code);
+        Assert.Equal(60, lot.QuantityAvailable);
+    }
+
+    [Fact]
+    public void Restore_NonPositive_Fails()
+    {
+        var lot = MakeLot(100);
+        Assert.True(lot.Restore(0).IsFailure);
+        Assert.True(lot.Restore(-5).IsFailure);
+    }
+
+    [Fact]
+    public void Restore_IgnoresWithdrawalRestriction()
+    {
+        // Eggs return to the lot they came from even if it is now restricted;
+        // the restriction then governs any future sale as usual.
+        var lot = MakeLot(100);
+        Assert.True(lot.Allocate(30, Today).IsSuccess);
+        lot.SetWithdrawalRestriction(Today.AddDays(7));
+
+        Assert.True(lot.Restore(30).IsSuccess);
+        Assert.Equal(100, lot.QuantityAvailable);
+    }
 }
