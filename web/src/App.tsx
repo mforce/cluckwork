@@ -13,6 +13,7 @@ import { GradesPage } from "./routes/GradesPage";
 import { FlocksPage } from "./routes/FlocksPage";
 import { InventoryPage } from "./routes/InventoryPage";
 import { HelpPage } from "./routes/HelpPage";
+import { WaterPage } from "./routes/WaterPage";
 
 export function App() {
   return (
@@ -31,6 +32,7 @@ export function App() {
               <Route path="grades" element={<GradesPage />} />
               <Route path="flocks" element={<FlocksPage />} />
               <Route path="inventory" element={<InventoryPage />} />
+              <Route path="water" element={<WaterPage />} />
               <Route path="help" element={<HelpPage />} />
             </Route>
           </Route>

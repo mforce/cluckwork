@@ -7,6 +7,7 @@ using Cluckwork.Api.Endpoints.EggGrades;
 using Cluckwork.Api.Endpoints.Flocks;
 using Cluckwork.Api.Endpoints.Inventory;
 using Cluckwork.Api.Endpoints.Sales;
+using Cluckwork.Api.Endpoints.Water;
 using Cluckwork.Api.Endpoints.Stock;
 using Cluckwork.Api.Middleware;
 using Cluckwork.Application.Common;
@@ -22,6 +23,8 @@ using Cluckwork.Application.Features.Inventory.CreateInventoryItem;
 using Cluckwork.Application.Features.Inventory.RecordAdjustment;
 using Cluckwork.Application.Features.Inventory.RecordFeedUsage;
 using Cluckwork.Application.Features.Inventory.RecordPurchase;
+using Cluckwork.Application.Features.Inventory.RecordWaterUsage;
+using Cluckwork.Application.Features.Inventory.UpdateWaterUsage;
 using Cluckwork.Application.Features.Inventory.UpdateInventoryItem;
 using Cluckwork.Application.Features.EggGrades.CreateEggGrade;
 using Cluckwork.Application.Features.EggGrades.SetEggGradeActive;
@@ -146,6 +149,7 @@ builder.Services.AddScoped<IInventoryItemRepository, InventoryItemRepository>();
 builder.Services.AddScoped<IInventoryLotRepository, InventoryLotRepository>();
 builder.Services.AddScoped<IInventoryMovementRepository, InventoryMovementRepository>();
 builder.Services.AddScoped<IFeedUsageRepository, FeedUsageRepository>();
+builder.Services.AddScoped<IWaterUsageRepository, WaterUsageRepository>();
 builder.Services.AddScoped<IFlockRepository, FlockRepository>();
 builder.Services.AddScoped<IBirdMovementRepository, BirdMovementRepository>();
 builder.Services.AddScoped<ICustomerRepository, CustomerRepository>();
@@ -168,6 +172,8 @@ builder.Services.AddScoped<IValidator<UpdateInventoryItemCommand>, UpdateInvento
 builder.Services.AddScoped<IValidator<RecordPurchaseCommand>, RecordPurchaseValidator>();
 builder.Services.AddScoped<IValidator<RecordFeedUsageCommand>, RecordFeedUsageValidator>();
 builder.Services.AddScoped<IValidator<RecordAdjustmentCommand>, RecordAdjustmentValidator>();
+builder.Services.AddScoped<IValidator<RecordWaterUsageCommand>, RecordWaterUsageValidator>();
+builder.Services.AddScoped<IValidator<UpdateWaterUsageCommand>, UpdateWaterUsageValidator>();
 
 // --- Handlers (direct — no mediator, tech spec §2.1) ---
 builder.Services.AddScoped<RecordDailyEntryHandler>();
@@ -186,6 +192,8 @@ builder.Services.AddScoped<SetInventoryItemActiveHandler>();
 builder.Services.AddScoped<RecordPurchaseHandler>();
 builder.Services.AddScoped<RecordFeedUsageHandler>();
 builder.Services.AddScoped<RecordAdjustmentHandler>();
+builder.Services.AddScoped<RecordWaterUsageHandler>();
+builder.Services.AddScoped<UpdateWaterUsageHandler>();
 builder.Services.AddScoped<CreateFlockHandler>();
 builder.Services.AddScoped<DepleteFlockHandler>();
 builder.Services.AddScoped<CreateEggGradeHandler>();
@@ -279,6 +287,11 @@ app.MapGroup("/api/v1/inventory")
     .WithTags("Inventory")
     .RequireAuthorization()
     .MapInventoryEndpoints();
+
+app.MapGroup("/api/v1/water-usage")
+    .WithTags("WaterUsage")
+    .RequireAuthorization()
+    .MapWaterUsageEndpoints();
 
 app.MapGroup("/api/v1/daily-entries")
     .WithTags("DailyEntries")

@@ -182,6 +182,65 @@ public sealed class InventoryTests
             InventoryMovementType.Usage, -1m, "kg", Now, referenceId: Guid.NewGuid()));
     }
 
+    // --- WaterUsage ---
+
+    [Fact]
+    public void WaterUsage_Create_DirectQuantity()
+    {
+        var usage = WaterUsage.Create(
+            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Today,
+            120.5m, "L", WaterSource.Well, null, null, Now, "  tank refill  ");
+        Assert.Equal(120.5m, usage.Quantity);
+        Assert.Equal("tank refill", usage.Note);
+        Assert.Null(usage.MeterStart);
+    }
+
+    [Fact]
+    public void WaterUsage_MeterRules()
+    {
+        // Meters must travel together.
+        Assert.Throws<ArgumentException>(() => WaterUsage.Create(
+            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Today,
+            10m, "L", WaterSource.Well, 100m, null, Now));
+        // End before start refused.
+        Assert.Throws<ArgumentException>(() => WaterUsage.Create(
+            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Today,
+            10m, "L", WaterSource.Well, 100m, 90m, Now));
+        // Quantity must equal the delta.
+        Assert.Throws<ArgumentException>(() => WaterUsage.Create(
+            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Today,
+            15m, "L", WaterSource.Well, 100m, 110m, Now));
+        // Consistent meters accepted.
+        var ok = WaterUsage.Create(
+            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Today,
+            10m, "L", WaterSource.Municipal, 100m, 110m, Now);
+        Assert.Equal(10m, ok.Quantity);
+    }
+
+    [Fact]
+    public void WaterUsage_Update_BumpsVersion_AndKeepsFlockDate()
+    {
+        var usage = WaterUsage.Create(
+            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Today,
+            50m, "L", WaterSource.Well, null, null, Now);
+        var before = usage.Version;
+
+        var result = usage.Update(60m, "gal", WaterSource.Tank, null, null, "recount");
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(60m, usage.Quantity);
+        Assert.Equal("gal", usage.Unit);
+        Assert.Equal(before + 1, usage.Version);
+    }
+
+    [Fact]
+    public void WaterUsage_InvalidUnit_Throws()
+    {
+        Assert.Throws<ArgumentException>(() => WaterUsage.Create(
+            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Today,
+            10m, "m3", WaterSource.Well, null, null, Now));
+    }
+
     // --- InventoryMovement ---
 
     private static readonly DateTime Now = new(2026, 7, 18, 12, 0, 0, DateTimeKind.Utc);
