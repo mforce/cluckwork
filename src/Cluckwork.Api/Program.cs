@@ -172,6 +172,7 @@ builder.Services.AddScoped<ReactivateFlockHandler>();
 // --- Startup seed (single-farm MVP) ---
 builder.Services.Configure<SeedOptions>(builder.Configuration.GetSection(SeedOptions.SectionName));
 builder.Services.AddScoped<DatabaseSeeder>();
+builder.Services.AddScoped<DemoDataSeeder>();
 
 // --- OpenAPI ---
 builder.Services.AddOpenApi();
@@ -197,6 +198,13 @@ var app = builder.Build();
     if (builder.Configuration.GetValue("Database:MigrateOnStartup", true))
         await sp.GetRequiredService<AppDbContext>().Database.MigrateAsync();
     await sp.GetRequiredService<DatabaseSeeder>().SeedAsync();
+}
+
+// Demo sample data (#58): own scope — it resolves the TenantContext to the
+// seeded account, which must not leak into the scope above.
+{
+    using var demoScope = app.Services.CreateScope();
+    await demoScope.ServiceProvider.GetRequiredService<DemoDataSeeder>().SeedAsync();
 }
 
 app.UseExceptionHandler(new ExceptionHandlerOptions
