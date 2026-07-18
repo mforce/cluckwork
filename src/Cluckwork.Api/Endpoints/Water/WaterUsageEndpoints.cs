@@ -62,7 +62,7 @@ public static class WaterUsageEndpoints
         if (!tenant.IsResolved) return Results.Unauthorized();
 
         var command = new UpdateWaterUsageCommand(
-            id, request.Quantity, request.Unit, request.Source,
+            id, request.Version, request.Quantity, request.Unit, request.Source,
             request.MeterStart, request.MeterEnd, request.Note);
         var validation = await validator.ValidateAsync(command, ct);
         if (!validation.IsValid)
@@ -83,23 +83,30 @@ public static class WaterUsageEndpoints
         var list = await waterUsages.ListAsync(flockId, from, to, take, skip, ct);
         return Results.Ok(list.Select(u => new WaterUsageResponse(
             u.Id, u.FlockId, u.Date, u.Quantity, u.Unit, u.Source.ToString(),
-            u.MeterStart, u.MeterEnd, u.Note)));
+            u.MeterStart, u.MeterEnd, u.Note, u.Version)));
     }
 
-    private static IResult MapFailure(Cluckwork.Domain.Common.Error error) =>
-        error.Code.EndsWith(".NotFound", StringComparison.Ordinal)
-            ? Results.NotFound()
+    private static IResult MapFailure(Cluckwork.Domain.Common.Error error)
+    {
+        if (error.Code.EndsWith(".NotFound", StringComparison.Ordinal))
+            return Results.NotFound();
+        // A stale base version is a genuine conflict, not a validation problem.
+        return error.Code == "WaterUsage.VersionMismatch"
+            ? Results.Problem(error.Description, statusCode: StatusCodes.Status409Conflict, title: error.Code)
             : Results.Problem(error.Description, statusCode: 422, title: error.Code);
+    }
 }
 
+// Version rides on every row so corrections send it back as their base —
+// the mismatch → 409 contract (stale form never silently overwrites).
 public sealed record WaterUsageResponse(
     Guid Id, Guid FlockId, DateOnly Date, decimal Quantity, string Unit, string Source,
-    decimal? MeterStart, decimal? MeterEnd, string? Note);
+    decimal? MeterStart, decimal? MeterEnd, string? Note, int Version);
 
 public sealed record RecordWaterUsageRequest(
     Guid FlockId, DateOnly Date, decimal? Quantity, string? Unit, string Source,
     decimal? MeterStart, decimal? MeterEnd, string? Note);
 
 public sealed record UpdateWaterUsageRequest(
-    decimal? Quantity, string? Unit, string Source,
+    int Version, decimal? Quantity, string? Unit, string Source,
     decimal? MeterStart, decimal? MeterEnd, string? Note);
