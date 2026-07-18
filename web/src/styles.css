@@ -2,7 +2,9 @@
   --bg: #f6f5f0;
   --card: #ffffff;
   --ink: #2b2620;
-  --muted: #8a8378;
+  /* 4.6:1 on --bg — body-sized muted text must clear WCAG AA (was #8a8378
+     at 3.4:1; flagged in the #74 accuracy review). */
+  --muted: #6d675d;
   --accent: #d98a1f;
   --error: #b00020;
   --border: #e4e0d7;
@@ -203,6 +205,13 @@ table.data th {
   font-size: 0.85rem;
 }
 
+/* Row headers (glossary terms) read as body text, not column-header chrome. */
+table.data th[scope="row"] {
+  color: var(--ink);
+  font-size: 1rem;
+  vertical-align: top;
+}
+
 .order-panel {
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -341,6 +350,12 @@ label.check {
     overflow-x: auto;
     white-space: nowrap;
     min-width: 0;
+  }
+
+  /* Help tables are prose, not data grids — nowrap would turn them into
+     screen-wide horizontal scrollers on phones. Let the text wrap. */
+  .help table.data {
+    white-space: normal;
   }
 
   /* Flex children default to min-width:auto and refuse to shrink below their

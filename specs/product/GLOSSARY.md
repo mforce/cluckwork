@@ -80,8 +80,11 @@ captured by the daily entry's counters, not grade lines. Names are unique per
 farm, case-insensitively.
 
 **Deactivated grade** — removed from capture and order pickers; existing
-stock keeps selling until the lots drain, and history keeps resolving the
-name. Grades are never hard-deleted (historic rows reference them forever).
+stock stays counted and order lines added before deactivation can still
+confirm, but the grade cannot go on *new* order lines (`AddOrderItem`
+rejects inactive grades) — reactivate to sell remaining stock. History keeps
+resolving the name. Grades are never hard-deleted (historic rows reference
+them forever).
 
 **Egg lot** — a batch of sellable eggs: flock + production date + grade +
 quantity. Created only by submitting a daily entry. Stock is the sum of lots'
@@ -93,16 +96,20 @@ allocate the same physical eggs.
 
 **Withdrawal restriction** — a lot flagged `RestrictedUntil` a date (bird
 medication withholding periods). Restricted quantities show in stock but are
-blocked from sale until the date passes.
+blocked from sale until the date passes. **Schema + enforcement only today:
+no production path sets a restriction yet** — that arrives with medication
+tracking (spec §13). Until then the system does not enforce withdrawal times.
 
 ## Feed & inventory
 
 **Inventory item** — a catalog entry (spec §12.1): what a thing is, its
-category (Feed/Supplement/Additive/Medication/… — only feed-ish categories
-have features today), and its **unit of measure**. The unit locks once stock
-has been received — recorded quantities must never be silently reinterpreted
-in a different unit. Names are unique per farm, case-insensitively; items
-deactivate (leave pickers) rather than delete.
+category (Feed/Supplement/Additive/Medication/…), and its **unit of
+measure**. All categories support purchases, stock, and corrections; only
+*flock feed usage* is limited to Feed/Supplement/Additive. The unit locks
+once stock has been received — recorded quantities must never be silently
+reinterpreted in a different unit. Names are unique per farm,
+case-insensitively; items deactivate rather than delete (deactivation blocks
+new purchases; remaining stock can still be used up).
 
 **Inventory lot** — a received batch of an item: received date, quantity,
 per-lot unit cost, optional supplier lot number/expiry. Created by recording
