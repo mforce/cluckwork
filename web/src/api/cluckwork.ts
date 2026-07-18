@@ -354,6 +354,7 @@ export interface WaterUsage {
   meterStart: number | null;
   meterEnd: number | null;
   note: string | null;
+  version: number;
 }
 
 export const listWaterUsage = (params?: {
@@ -374,8 +375,10 @@ export const recordWaterUsage = (body: {
   meterStart?: number; meterEnd?: number; note?: string;
 }, key?: string) => apiPost<Created>("/water-usage", body, key);
 
+// version = the base Version the row was loaded with; a stale one gets a 409
+// instead of silently overwriting someone else's correction.
 export const updateWaterUsage = (id: string, body: {
-  quantity?: number; unit?: string; source: string;
+  version: number; quantity?: number; unit?: string; source: string;
   meterStart?: number; meterEnd?: number; note?: string;
 }, key?: string) => apiPut<void>(`/water-usage/${id}`, body, key);
 

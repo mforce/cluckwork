@@ -8,10 +8,11 @@ public sealed class UpdateWaterUsageValidator : AbstractValidator<UpdateWaterUsa
     public UpdateWaterUsageValidator()
     {
         RuleFor(x => x.WaterUsageId).NotEmpty();
+        RuleFor(x => x.Version).GreaterThanOrEqualTo(0);
         RuleFor(x => x.Source)
             .NotEmpty()
-            .Must(s => Enum.TryParse<WaterSource>(s, ignoreCase: true, out var parsed)
-                       && Enum.IsDefined(parsed))
+            .Must(s => Enum.GetNames<WaterSource>()
+                .Contains(s, StringComparer.OrdinalIgnoreCase))
             .WithMessage("Source must be Well, Municipal, Tank, or Other.");
         RuleFor(x => x.Unit)
             .Must(u => u is null || WaterUsage.AllowedUnits.Contains(u))
@@ -26,6 +27,13 @@ public sealed class UpdateWaterUsageValidator : AbstractValidator<UpdateWaterUsa
             .Must(x => (x.MeterStart is null) == (x.MeterEnd is null))
             .WithName("MeterEnd")
             .WithMessage("Meter start and end must be provided together.");
+        RuleFor(x => x)
+            .Must(x => (x.MeterStart is null || (decimal.Round(x.MeterStart.Value, 3) == x.MeterStart
+                            && x.MeterStart <= 1_000_000_000_000m))
+                       && (x.MeterEnd is null || (decimal.Round(x.MeterEnd.Value, 3) == x.MeterEnd
+                            && x.MeterEnd <= 1_000_000_000_000m)))
+            .WithName("MeterEnd")
+            .WithMessage("Meter readings support at most 3 decimal places (sane range).");
         RuleFor(x => x)
             .Must(x => x.MeterStart is null
                        || (x.MeterStart >= 0 && x.MeterEnd > x.MeterStart

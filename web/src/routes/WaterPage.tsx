@@ -28,8 +28,11 @@ export function WaterPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  // capture form; editingId switches it to update mode
+  // capture form; editingId switches it to update mode. editingVersion is the
+  // base Version the row was loaded with — sent back so a concurrent edit
+  // surfaces as a 409 instead of being silently overwritten.
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingVersion, setEditingVersion] = useState(0);
   const [flockId, setFlockId] = useState("");
   const [date, setDate] = useState(todayIso());
   const [source, setSource] = useState("Well");
@@ -89,17 +92,29 @@ export function WaterPage() {
   const flockName = (id: string) => flocks.find((f) => f.id === id)?.name ?? id.slice(0, 8);
   const pickableFlocks = flocks.filter((f) => f.status !== "Archived");
 
+  // Restores CAPTURE defaults completely — startEdit overwrote flock/date/
+  // source/unit with the historical record's values (possibly an archived
+  // flock absent from the picker), and leaving them would misdirect the next
+  // capture (codex review of PR #76).
   function resetForm() {
     setEditingId(null);
+    setEditingVersion(0);
     setQuantity("");
     setMeterStart("");
     setMeterEnd("");
     setNote("");
     setUseMeters(false);
+    setDate(todayIso());
+    setSource("Well");
+    setUnit("L");
+    const firstActive = flocks.find((f) => f.status === "Active")
+      ?? flocks.find((f) => f.status === "Depleted");
+    if (firstActive) setFlockId(firstActive.id);
   }
 
   function startEdit(r: WaterUsage) {
     setEditingId(r.id);
+    setEditingVersion(r.version);
     setFlockId(r.flockId);
     setDate(r.date);
     setSource(r.source);
@@ -137,7 +152,7 @@ export function WaterPage() {
       }
       const scope = editingId ? `update:${editingId}` : `record:${flockId}:${date}`;
       if (editingId) {
-        await updateWaterUsage(editingId, body, keyFor(scope));
+        await updateWaterUsage(editingId, { ...body, version: editingVersion }, keyFor(scope));
         setMessage("Water record corrected.");
       } else {
         await recordWaterUsage({ ...body, flockId, date }, keyFor(scope));

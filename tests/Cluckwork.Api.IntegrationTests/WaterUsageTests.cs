@@ -12,7 +12,7 @@ public sealed class WaterUsageTests(CluckworkWebApplicationFactory factory)
     private sealed record Created(Guid Id);
     private sealed record Row(
         Guid Id, Guid FlockId, DateOnly Date, decimal Quantity, string Unit, string Source,
-        decimal? MeterStart, decimal? MeterEnd, string? Note);
+        decimal? MeterStart, decimal? MeterEnd, string? Note, int Version);
 
     private static readonly DateOnly Today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
 
@@ -99,6 +99,38 @@ public sealed class WaterUsageTests(CluckworkWebApplicationFactory factory)
         var archived = await client.PostWithKeyAsync("/api/v1/water-usage", Guid.NewGuid().ToString(),
             new { flockId, date = Today, quantity = 10m, source = "Well" });
         Assert.Equal(HttpStatusCode.UnprocessableEntity, archived.StatusCode);
+
+        // Numeric enum strings are refused — named values only.
+        var numericEnum = await client.PostWithKeyAsync("/api/v1/water-usage", Guid.NewGuid().ToString(),
+            new { flockId, date = Today, quantity = 10m, source = "1" });
+        Assert.Equal(HttpStatusCode.BadRequest, numericEnum.StatusCode);
+
+        // Meter readings beyond 3 decimals would round into Quantity ≠ delta
+        // after numeric(18,3) persistence.
+        var precise = await client.PostWithKeyAsync("/api/v1/water-usage", Guid.NewGuid().ToString(),
+            new { flockId, date = Today, source = "Well", meterStart = 1.0001m, meterEnd = 2.0001m });
+        Assert.Equal(HttpStatusCode.BadRequest, precise.StatusCode);
+    }
+
+    [Fact]
+    public async Task Update_ArchivedFlockRecord_IsReadOnly()
+    {
+        var (client, accountId, flockId) = await SetupAsync();
+        var created = await client.PostWithKeyAsync("/api/v1/water-usage", Guid.NewGuid().ToString(),
+            new { flockId, date = Today, quantity = 50m, source = "Well" });
+        var id = (await created.Content.ReadFromJsonAsync<Created>())!.Id;
+
+        await factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            var flock = await db.Flocks.FirstAsync(f => f.Id == flockId);
+            flock.Deplete(Today);
+            flock.Archive(Today);
+            await db.SaveChangesAsync();
+        });
+
+        var update = await PutWithKeyAsync(client, $"/api/v1/water-usage/{id}",
+            new { version = 0, quantity = 60m, source = "Well" });
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, update.StatusCode);
     }
 
     [Fact]
@@ -110,8 +142,14 @@ public sealed class WaterUsageTests(CluckworkWebApplicationFactory factory)
         var id = (await created.Content.ReadFromJsonAsync<Created>())!.Id;
 
         var update = await PutWithKeyAsync(client, $"/api/v1/water-usage/{id}",
-            new { quantity = 90m, unit = "L", source = "Tank", note = "recount" });
+            new { version = 0, quantity = 90m, unit = "L", source = "Tank", note = "recount" });
         Assert.Equal(HttpStatusCode.NoContent, update.StatusCode);
+
+        // Replaying the ORIGINAL base version after the edit is a stale form
+        // — deterministic 409, nothing changes.
+        var stale = await PutWithKeyAsync(client, $"/api/v1/water-usage/{id}",
+            new { version = 0, quantity = 999m, source = "Well" });
+        Assert.Equal(HttpStatusCode.Conflict, stale.StatusCode);
 
         var rows = await client.GetFromJsonAsync<List<Row>>($"/api/v1/water-usage?flockId={flockId}");
         var row = Assert.Single(rows!);
@@ -125,10 +163,12 @@ public sealed class WaterUsageTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(1, version);
     }
 
-    // AGENTS.md Version-token rule: parallel corrections of the same record
-    // must not silently merge — exactly one wins, the loser 409s.
+    // The full optimistic contract (codex review of PR #76): both writers send
+    // the SAME base version, so exactly one wins DETERMINISTICALLY — no timing
+    // window. The earlier token-only design let both 204 when the requests
+    // serialized outside the handler's read→save gap.
     [Fact]
-    public async Task ParallelUpdates_ExactlyOneWins()
+    public async Task ParallelUpdates_SameBaseVersion_ExactlyOneWins()
     {
         var (client, accountId, flockId) = await SetupAsync();
         var created = await client.PostWithKeyAsync("/api/v1/water-usage", Guid.NewGuid().ToString(),
@@ -140,9 +180,9 @@ public sealed class WaterUsageTests(CluckworkWebApplicationFactory factory)
 
         var responses = await Task.WhenAll(
             PutWithKeyAsync(client, $"/api/v1/water-usage/{id}",
-                new { quantity = 80m, source = "Well" }),
+                new { version = versionBefore, quantity = 80m, source = "Well" }),
             PutWithKeyAsync(client, $"/api/v1/water-usage/{id}",
-                new { quantity = 70m, source = "Tank" }));
+                new { version = versionBefore, quantity = 70m, source = "Tank" }));
 
         Assert.Equal(1, responses.Count(r => r.StatusCode == HttpStatusCode.NoContent));
         Assert.Equal(1, responses.Count(r => r.StatusCode == HttpStatusCode.Conflict));
