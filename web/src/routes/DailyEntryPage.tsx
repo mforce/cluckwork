@@ -68,7 +68,10 @@ export function DailyEntryPage() {
   const [newFlockCount, setNewFlockCount] = useState(100);
 
   useEffect(() => {
-    Promise.all([listFlocks(), listEggGrades()])
+    // includeInactive: an existing draft may reference a since-deactivated
+    // grade; that line must render and survive a re-save (only the ACTIVE
+    // saleable grades are offered for new input — see visibleGrades).
+    Promise.all([listFlocks(), listEggGrades({ includeInactive: true })])
       .then(([all, g]) => {
         const f = capturable(all);
         setFlocks(f);
@@ -142,6 +145,14 @@ export function DailyEntryPage() {
     () => Object.values(gradeQty).reduce((a, b) => a + (b || 0), 0),
     [gradeQty],
   );
+  // Active grades take input; a deactivated grade appears only while a
+  // prefilled draft still carries a quantity for it — hiding it would
+  // silently drop that line on the next save (the server's ReplaceGrades
+  // removes omitted grades). Found by the PR #74 accuracy review.
+  const visibleGrades = useMemo(
+    () => grades.filter((g) => g.active || (gradeQty[g.id] ?? 0) > 0),
+    [grades, gradeQty],
+  );
   const losses = cracked + dirty + discarded;
   const sellable = totalEggs - losses;
   const lossesExceedTotal = losses > totalEggs;
@@ -184,7 +195,7 @@ export function DailyEntryPage() {
     setError(null);
     setMessage(null);
     try {
-      const lines = grades
+      const lines = visibleGrades
         .filter((g) => (gradeQty[g.id] ?? 0) > 0)
         .map((g) => ({ eggGradeId: g.id, quantity: gradeQty[g.id] }));
       const created = await recordDailyEntry({
@@ -300,8 +311,8 @@ export function DailyEntryPage() {
 
       <h3>Sellable production by grade</h3>
       <div className="form-grid">
-        {grades.map((g) => (
-          <label key={g.id}>{g.name}
+        {visibleGrades.map((g) => (
+          <label key={g.id}>{g.name}{g.active ? "" : " (deactivated)"}
             <input type="number" min={0} value={gradeQty[g.id] ?? 0} disabled={entryLocked}
               onChange={(e) => {
                 setGradesTouched(true);

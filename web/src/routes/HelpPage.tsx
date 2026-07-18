@@ -98,18 +98,22 @@ export function HelpPage() {
         </li>
         <li>
           Grades are never deleted. <strong>Deactivating</strong> removes a
-          grade from pickers; its existing stock keeps selling until it drains
-          and history keeps showing its name.
+          grade from capture and order pickers: its stock stays counted and
+          order lines added earlier can still confirm, but it can't be put on{" "}
+          <em>new</em> order lines — reactivate the grade to sell remaining
+          stock. History keeps showing its name.
         </li>
       </ul>
 
       <h3 id="stock">Stock</h3>
       <ul>
         <li>
-          Stock is the sum of your egg lots per grade, split into{" "}
-          <strong>available</strong> and <strong>restricted</strong> (eggs under
-          a medication withholding period — visible but blocked from sale until
-          the date passes).
+          Stock is the sum of your egg lots per grade. The{" "}
+          <strong>restricted</strong> column is reserved for medication
+          withholding periods — that feature arrives with medication tracking.{" "}
+          <strong>Nothing marks eggs restricted yet, so the system does not
+          enforce withdrawal times today</strong> — manage withholding periods
+          outside Cluckwork for now.
         </li>
         <li>
           Selling always takes the oldest lots first, so stock naturally rotates.
@@ -157,7 +161,9 @@ export function HelpPage() {
           A mistaken confirm is undone with <strong>Void</strong> (reason
           required): the eggs go back to the exact lots they came from, and the
           order stays listed as Voided. Voiding is for mistakes, not for
-          returns of delivered goods.
+          returns of delivered goods. (Orders confirmed before lot-level
+          allocation tracking existed can't self-serve void — ask your
+          administrator.)
         </li>
       </ul>
 
@@ -188,12 +194,23 @@ export function HelpPage() {
             <td>Sales → open the order → <strong>Void order</strong> (stock returns to its lots; reason required)</td>
           </tr>
           <tr>
-            <td>Typo in a feed purchase / spoiled feed</td>
-            <td>Inventory → open the item → <strong>Correct stock</strong> (Adjustment or Discard against the lot; reason required)</td>
+            <td>Wrong <em>quantity</em> in a feed purchase / spoiled feed</td>
+            <td>
+              Inventory → open the item → <strong>Correct stock</strong>{" "}
+              (Adjustment or Discard against the lot; reason required). Only
+              quantities are correctable — a wrong cost, date, or lot number
+              can't be fixed yet, so double-check those before saving.
+            </td>
           </tr>
           <tr>
             <td>Over- or under-recorded feed usage</td>
-            <td>Same correction form — a positive Adjustment restores over-used stock (up to what the lot received)</td>
+            <td>
+              Same correction form: a positive Adjustment returns over-used
+              stock to the lot (up to what it received); a negative one removes
+              under-recorded stock. The usage record itself and its cost
+              estimate stay as recorded — corrections fix the stock, not the
+              history.
+            </td>
           </tr>
           <tr>
             <td>Mistake in a <em>submitted</em> daily entry</td>
@@ -201,7 +218,12 @@ export function HelpPage() {
           </tr>
           <tr>
             <td>Mistake in a <em>draft</em> entry or order</td>
-            <td>Just edit it — drafts are freely editable.</td>
+            <td>
+              Edit it — draft numbers, grade lines, and order lines are all
+              editable. The flock/date of an entry and the customer/date of an
+              order are fixed, though: picked wrong, just record it again under
+              the right one (and cancel the wrong draft order).
+            </td>
           </tr>
         </tbody>
       </table>
@@ -209,39 +231,39 @@ export function HelpPage() {
       <h3 id="glossary">Glossary</h3>
       <table className="data">
         <tbody>
-          <tr><td><strong>Daily entry</strong></td>
+          <tr><th scope="row">Daily entry</th>
             <td>One flock's day: eggs by grade, losses, deaths. Draft until submitted.</td></tr>
-          <tr><td><strong>Egg lot</strong></td>
+          <tr><th scope="row">Egg lot</th>
             <td>A dated batch of sellable eggs of one grade, created by submitting an entry. Stock is the sum of lots.</td></tr>
-          <tr><td><strong>Grade</strong></td>
+          <tr><th scope="row">Grade</th>
             <td>A grading bucket (size, quality, or custom). Saleable grades can be sold.</td></tr>
-          <tr><td><strong>FIFO</strong></td>
+          <tr><th scope="row">FIFO</th>
             <td>"First in, first out" — sales and feed usage always take the oldest stock first.</td></tr>
-          <tr><td><strong>Cull</strong></td>
+          <tr><th scope="row">Cull</th>
             <td>Birds deliberately removed from a flock (sold, slaughtered, given away) — not deaths.</td></tr>
-          <tr><td><strong>Mortality</strong></td>
+          <tr><th scope="row">Mortality</th>
             <td>Deaths, recorded on the daily entry; lands in the bird ledger automatically at submit.</td></tr>
-          <tr><td><strong>Deplete</strong></td>
+          <tr><th scope="row">Deplete</th>
             <td>Mark a flock as having no birds left. History stays; reversible via Reactivate.</td></tr>
-          <tr><td><strong>Archive</strong></td>
+          <tr><th scope="row">Archive</th>
             <td>Hide a finished flock from daily work. Reversible via Reactivate.</td></tr>
-          <tr><td><strong>Withdrawal restriction</strong></td>
-            <td>A hold on eggs during a medication withholding period — visible in stock, blocked from sale.</td></tr>
-          <tr><td><strong>Confirm (order)</strong></td>
+          <tr><th scope="row">Withdrawal restriction</th>
+            <td>A hold on eggs during a medication withholding period. Coming with medication tracking — nothing sets restrictions yet, so manage withholding periods outside Cluckwork for now.</td></tr>
+          <tr><th scope="row">Confirm (order)</th>
             <td>Turns a draft order into a real sale and allocates stock. Undone only by voiding.</td></tr>
-          <tr><td><strong>Void (order)</strong></td>
+          <tr><th scope="row">Void (order)</th>
             <td>Undo of a mistaken confirm — stock returns to the exact lots it came from. Needs a reason.</td></tr>
-          <tr><td><strong>Cancel (order)</strong></td>
+          <tr><th scope="row">Cancel (order)</th>
             <td>Close a draft that never happened. No stock involved.</td></tr>
-          <tr><td><strong>Inventory item</strong></td>
+          <tr><th scope="row">Inventory item</th>
             <td>A catalog entry for something you stock (feed, supplements…), with a fixed unit of measure.</td></tr>
-          <tr><td><strong>Inventory lot</strong></td>
+          <tr><th scope="row">Inventory lot</th>
             <td>One received batch of an item, with its own cost. On-hand = sum of lots.</td></tr>
-          <tr><td><strong>Movement ledger</strong></td>
+          <tr><th scope="row">Movement ledger</th>
             <td>The append-only trail of every stock change. Corrections are new rows, never edits.</td></tr>
-          <tr><td><strong>Feed usage</strong></td>
+          <tr><th scope="row">Feed usage</th>
             <td>What a flock ate on a day; drains lots FIFO and estimates cost from them.</td></tr>
-          <tr><td><strong>Adjustment / Discard</strong></td>
+          <tr><th scope="row">Adjustment / Discard</th>
             <td>Stock corrections against a lot, reason required. Discard = write-off (spoilage).</td></tr>
         </tbody>
       </table>
