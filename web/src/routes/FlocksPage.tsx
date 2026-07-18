@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import {
-  archiveFlock, createFlock, depleteFlock, listBirdMovements, listFlocks,
+  archiveFlock, createFlock, depleteFlock, listBirdMovements, listFlocks, reactivateFlock,
   recordBirdMovement, updateFlock,
 } from "../api/cluckwork";
 import type { BirdMovement, Flock } from "../api/cluckwork";
@@ -269,7 +269,6 @@ export function FlocksPage() {
                       {f.status === "Active" && (
                         <button className="link" disabled={busy}
                           onClick={() => {
-                            // One-way until reactivate ships (#57/#59).
                             if (window.confirm(`Deplete "${f.name}"? The flock stops accepting new entries (backfill for past dates still works).`))
                               void run(`deplete:${f.id}`, (key) => depleteFlock(f.id, key));
                           }}>
@@ -283,6 +282,13 @@ export function FlocksPage() {
                               void run(`archive:${f.id}`, (key) => archiveFlock(f.id, key));
                           }}>
                           archive
+                        </button>
+                      )}
+                      {f.status !== "Active" && (
+                        // The undo (#57): back to Active, full capture restored.
+                        <button className="link" disabled={busy}
+                          onClick={() => void run(`reactivate:${f.id}`, (key) => reactivateFlock(f.id, key))}>
+                          reactivate
                         </button>
                       )}
                     </td>

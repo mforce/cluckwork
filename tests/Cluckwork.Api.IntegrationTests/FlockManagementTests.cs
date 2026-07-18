@@ -162,6 +162,69 @@ public sealed class FlockManagementTests(CluckworkWebApplicationFactory factory)
     }
 
     [Fact]
+    public async Task Flock_Reactivate_UndoesDepleteAndArchive()
+    {
+        var (client, _) = await SetupAsync();
+        var id = await CreateFlockAsync(client, "Undo me");
+        var flock = await client.GetFromJsonAsync<FlockDto>($"/api/v1/flocks/{id}");
+        var today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
+
+        // Deplete, then reactivate -> Active again, future capture restored.
+        await client.PostWithKeyAsync($"/api/v1/flocks/{id}/deplete", Guid.NewGuid().ToString());
+        var undo = await client.PostWithKeyAsync(
+            $"/api/v1/flocks/{id}/reactivate", Guid.NewGuid().ToString());
+        Assert.Equal(HttpStatusCode.NoContent, undo.StatusCode);
+        var after = await client.GetFromJsonAsync<FlockDto>($"/api/v1/flocks/{id}");
+        Assert.Equal("Active", after!.Status);
+
+        var entry = await client.PostWithKeyAsync(
+            "/api/v1/daily-entries", Guid.NewGuid().ToString(), new
+            {
+                farmId = flock!.FarmId, houseId = flock.HouseId, flockId = id,
+                date = today, totalEggs = 10, crackedEggs = 0, dirtyEggs = 0,
+                discardedEggs = 0, mortalityCount = 0,
+            });
+        Assert.Equal(HttpStatusCode.Created, entry.StatusCode);
+
+        // Archived -> reactivate works too; reactivating an Active flock -> 409.
+        await client.PostWithKeyAsync($"/api/v1/flocks/{id}/archive", Guid.NewGuid().ToString());
+        var undo2 = await client.PostWithKeyAsync(
+            $"/api/v1/flocks/{id}/reactivate", Guid.NewGuid().ToString());
+        Assert.Equal(HttpStatusCode.NoContent, undo2.StatusCode);
+        var again = await client.PostWithKeyAsync(
+            $"/api/v1/flocks/{id}/reactivate", Guid.NewGuid().ToString());
+        Assert.Equal(HttpStatusCode.Conflict, again.StatusCode);
+    }
+
+    [Fact]
+    public async Task Flock_ParallelReactivates_ExactlyOneWins()
+    {
+        // Version-token race per the aggregate-mutation rule.
+        var (client, accountId) = await SetupAsync();
+        var id = await CreateFlockAsync(client, "Race undo");
+        await client.PostWithKeyAsync($"/api/v1/flocks/{id}/deplete", Guid.NewGuid().ToString());
+
+        // Snapshot Version before the race so the delta assertion can't drift
+        // if fixture setup ever gains extra mutations.
+        var before = await factory.WithTenantScopeAsync(accountId, async db =>
+            (await db.Flocks.AsNoTracking().FirstAsync(f => f.Id == id)).Version);
+
+        var a = client.PostWithKeyAsync($"/api/v1/flocks/{id}/reactivate", Guid.NewGuid().ToString());
+        var b = client.PostWithKeyAsync($"/api/v1/flocks/{id}/reactivate", Guid.NewGuid().ToString());
+        var responses = await Task.WhenAll(a, b);
+
+        Assert.All(responses, r => Assert.True(
+            r.StatusCode is HttpStatusCode.NoContent or HttpStatusCode.Conflict,
+            $"unexpected {(int)r.StatusCode}"));
+        Assert.Contains(responses, r => r.StatusCode == HttpStatusCode.NoContent);
+
+        // Exactly one bump per successful reactivate.
+        var after = await factory.WithTenantScopeAsync(accountId, async db =>
+            (await db.Flocks.AsNoTracking().FirstAsync(f => f.Id == id)).Version);
+        Assert.Equal(responses.Count(r => r.StatusCode == HttpStatusCode.NoContent), after - before);
+    }
+
+    [Fact]
     public async Task Flock_ParallelUpdates_NoTornWrite_VersionAdvances()
     {
         var (client, accountId) = await SetupAsync();

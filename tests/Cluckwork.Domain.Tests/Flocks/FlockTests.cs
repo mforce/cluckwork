@@ -78,6 +78,30 @@ public sealed class FlockTests
     }
 
     [Fact]
+    public void Reactivate_RestoresActive_ClearsStamps_BumpsVersion()
+    {
+        var depleted = Make();
+        depleted.Deplete(new DateOnly(2026, 7, 10));
+        var result = depleted.Reactivate();
+        Assert.True(result.IsSuccess);
+        Assert.Equal(FlockStatus.Active, depleted.Status);
+        Assert.Null(depleted.DepletedOn);
+        Assert.Equal(2, depleted.Version);
+        // Full capture restored: dates after the old depletion work again.
+        Assert.True(depleted.CanRecordProductionOn(new DateOnly(2026, 7, 20)));
+
+        var archived = Make();
+        archived.Archive(new DateOnly(2026, 7, 10));
+        Assert.True(archived.Reactivate().IsSuccess);
+        Assert.Null(archived.ArchivedOn);
+
+        var active = Make();
+        var already = active.Reactivate();
+        Assert.True(already.IsFailure);
+        Assert.Equal("Flock.AlreadyActive", already.Error.Code);
+    }
+
+    [Fact]
     public void CanRecordProductionOn_RespectsLifecycleDates()
     {
         var flock = Make();

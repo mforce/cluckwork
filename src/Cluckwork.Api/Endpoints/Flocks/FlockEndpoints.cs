@@ -4,6 +4,7 @@ using Cluckwork.Application.Features.Flocks;
 using Cluckwork.Application.Features.Flocks.ArchiveFlock;
 using Cluckwork.Application.Features.Flocks.CreateFlock;
 using Cluckwork.Application.Features.Flocks.DepleteFlock;
+using Cluckwork.Application.Features.Flocks.ReactivateFlock;
 using Cluckwork.Application.Features.Flocks.RecordBirdMovement;
 using Cluckwork.Application.Features.Flocks.UpdateFlock;
 using Cluckwork.Domain.Flocks;
@@ -43,6 +44,10 @@ public static class FlockEndpoints
         group.MapPost("/{id:guid}/archive", ArchiveFlock)
             .WithName("ArchiveFlock")
             .WithSummary("Archive a flock: hidden from pickers and dashboard, visible in the management view.");
+
+        group.MapPost("/{id:guid}/reactivate", ReactivateFlock)
+            .WithName("ReactivateFlock")
+            .WithSummary("Undo a deplete/archive: the flock returns to Active and accepts entries for any date again.");
 
         group.MapPost("/{id:guid}/movements", RecordMovement)
             .WithName("RecordBirdMovement")
@@ -101,6 +106,14 @@ public static class FlockEndpoints
         if (flock is null) return Results.NotFound();
         var removed = await movements.RemovedForFlockAsync(id, ct);
         return Results.Ok(ToResponse(flock, removed));
+    }
+
+    private static async Task<IResult> ReactivateFlock(
+        Guid id, ReactivateFlockHandler handler, TenantContext tenant, CancellationToken ct)
+    {
+        if (!tenant.IsResolved) return Results.Unauthorized();
+        var result = await handler.HandleAsync(id, ct);
+        return result.IsSuccess ? Results.NoContent() : MapFailure(result.Error);
     }
 
     private static async Task<IResult> RecordMovement(
@@ -185,7 +198,7 @@ public static class FlockEndpoints
             return Results.NotFound();
         // Lifecycle mismatches (deplete a non-active flock, archive twice) are
         // conflicts with current state.
-        return error.Code is "Flock.NotActive" or "Flock.AlreadyArchived"
+        return error.Code is "Flock.NotActive" or "Flock.AlreadyArchived" or "Flock.AlreadyActive"
             ? Results.Problem(error.Description, statusCode: StatusCodes.Status409Conflict, title: error.Code)
             : Results.Problem(error.Description, statusCode: 422, title: error.Code);
     }
