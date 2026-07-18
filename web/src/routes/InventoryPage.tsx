@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import {
-  createInventoryItem, activateInventoryItem, deactivateInventoryItem, formatMoney,
+  createInventoryItem, activateInventoryItem, deactivateInventoryItem, formatMoney, getAccount,
   listInventoryItems, listInventoryMovements, recordInventoryPurchase, updateInventoryItem,
 } from "../api/cluckwork";
-import type { InventoryItem, InventoryMovement } from "../api/cluckwork";
+import type { Account, InventoryItem, InventoryMovement } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 
 // Feed first (spec §12); the rest of the categories get their features later.
@@ -29,6 +29,9 @@ function errText(err: unknown): string {
 // every change. Feed usage (consumption) is the follow-up PR.
 export function InventoryPage() {
   const [items, setItems] = useState<InventoryItem[] | null>(null);
+  // Account currency drives ALL money parsing/formatting here — costs may not
+  // exist on an item yet, and assuming 2 decimals corrupts JPY/KWD amounts.
+  const [account, setAccount] = useState<Account | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -72,8 +75,11 @@ export function InventoryPage() {
   const fetchItems = () => listInventoryItems({ includeInactive: true });
 
   useEffect(() => {
-    fetchItems()
-      .then(setItems)
+    Promise.all([fetchItems(), getAccount()])
+      .then(([list, acct]) => {
+        setItems(list);
+        setAccount(acct);
+      })
       .catch(() => setError("Could not load inventory. Is the API up?"));
   }, []);
 
@@ -114,23 +120,22 @@ export function InventoryPage() {
     }
   }
 
-  function toMinorUnits(text: string, minorUnit: number): number | null {
+  const minorUnit = account?.currencyMinorUnit ?? 2;
+  const costStep = 10 ** -minorUnit;
+
+  function toMinorUnits(text: string): number | null {
     if (!text.trim()) return null;
     const parsed = Math.round(parseFloat(text) * 10 ** minorUnit);
     if (!Number.isFinite(parsed) || parsed < 0) throw new Error("Invalid cost.");
     return parsed;
   }
 
-  // Account currency comes back on items that have a default cost; fall back
-  // to 2 decimals for input parsing when none is set yet.
-  const costMinorUnit = (i?: InventoryItem | null) => i?.defaultCostCurrencyMinorUnit ?? 2;
-
   async function onCreate(e: FormEvent) {
     e.preventDefault();
     const ok = await run("create-item", (key) =>
       createInventoryItem({
         name, category, unit,
-        defaultUnitCostMinorUnits: toMinorUnits(defaultCost, 2),
+        defaultUnitCostMinorUnits: toMinorUnits(defaultCost),
       }, key));
     if (ok) {
       setName("");
@@ -145,14 +150,14 @@ export function InventoryPage() {
     setEditUnit(i.unit);
     setEditCost(i.defaultCostMinorUnits === null
       ? ""
-      : (i.defaultCostMinorUnits / 10 ** costMinorUnit(i)).toFixed(costMinorUnit(i)));
+      : (i.defaultCostMinorUnits / 10 ** minorUnit).toFixed(minorUnit));
   }
 
   async function onSaveEdit(i: InventoryItem) {
     const ok = await run(`update:${i.id}`, (key) =>
       updateInventoryItem(i.id, {
         name: editName, unit: editUnit,
-        defaultUnitCostMinorUnits: toMinorUnits(editCost, costMinorUnit(i)),
+        defaultUnitCostMinorUnits: toMinorUnits(editCost),
       }, key));
     if (ok) setEditingId(null);
   }
@@ -179,7 +184,7 @@ export function InventoryPage() {
       recordInventoryPurchase(active.id, {
         receivedDate: purchaseDate,
         quantity: qty,
-        unitCostMinorUnits: toMinorUnits(purchaseCost, costMinorUnit(active)),
+        unitCostMinorUnits: toMinorUnits(purchaseCost),
         lotNumber: lotNumber.trim() || undefined,
         expiryDate: expiryDate || undefined,
         note: purchaseNote.trim() || undefined,
@@ -196,7 +201,8 @@ export function InventoryPage() {
 
   const costText = (i: InventoryItem) =>
     i.defaultCostMinorUnits !== null && i.defaultCostCurrencyCode
-      ? formatMoney(i.defaultCostMinorUnits, i.defaultCostCurrencyCode, i.defaultCostCurrencyMinorUnit ?? 2)
+      ? formatMoney(i.defaultCostMinorUnits, i.defaultCostCurrencyCode,
+          i.defaultCostCurrencyMinorUnit ?? minorUnit)
       : "—";
 
   if (error && items === null) {
@@ -223,7 +229,7 @@ export function InventoryPage() {
         <input placeholder="Unit *" value={unit} required maxLength={20} size={6}
           onChange={(e) => setUnit(e.target.value)} />
         <label className="muted">Default cost/unit
-          <input className="cell" type="number" min={0} step="0.01" value={defaultCost}
+          <input className="cell" type="number" min={0} step={costStep} value={defaultCost}
             onChange={(e) => setDefaultCost(e.target.value)} />
         </label>
         <button type="submit" disabled={busy}>Add item</button>
@@ -246,7 +252,7 @@ export function InventoryPage() {
                 onChange={(e) => setPurchaseQty(e.target.value)} />
             </label>
             <label>Unit cost {active.defaultCostCurrencyCode ? `(${active.defaultCostCurrencyCode})` : ""}
-              <input type="number" min={0} step="0.01" value={purchaseCost}
+              <input type="number" min={0} step={costStep} value={purchaseCost}
                 placeholder={active.defaultCostMinorUnits !== null ? "item default" : "required"}
                 onChange={(e) => setPurchaseCost(e.target.value)} />
             </label>
@@ -310,7 +316,7 @@ export function InventoryPage() {
                       onChange={(e) => setEditUnit(e.target.value)} />
                   </td>
                   <td>
-                    <input className="cell" type="number" min={0} step="0.01" value={editCost}
+                    <input className="cell" type="number" min={0} step={costStep} value={editCost}
                       onChange={(e) => setEditCost(e.target.value)} />
                   </td>
                   <td>{i.active ? "Active" : "Inactive"}</td>

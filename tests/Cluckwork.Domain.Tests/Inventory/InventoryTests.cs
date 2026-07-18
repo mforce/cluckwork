@@ -113,18 +113,20 @@ public sealed class InventoryTests
 
     // --- InventoryMovement ---
 
+    private static readonly DateTime Now = new(2026, 7, 18, 12, 0, 0, DateTimeKind.Utc);
+
     [Fact]
     public void Movement_PurchaseMustBePositive_UsageMustBeNegative()
     {
         Assert.Throws<ArgumentOutOfRangeException>(() => InventoryMovement.Create(
             Guid.NewGuid(), Guid.NewGuid(), null, Today,
-            InventoryMovementType.Purchase, -5m, "kg"));
+            InventoryMovementType.Purchase, -5m, "kg", Now));
         Assert.Throws<ArgumentOutOfRangeException>(() => InventoryMovement.Create(
             Guid.NewGuid(), Guid.NewGuid(), null, Today,
-            InventoryMovementType.Usage, 5m, "kg"));
+            InventoryMovementType.Usage, 5m, "kg", Now));
         Assert.Throws<ArgumentOutOfRangeException>(() => InventoryMovement.Create(
             Guid.NewGuid(), Guid.NewGuid(), null, Today,
-            InventoryMovementType.Adjustment, 0m, "kg"));
+            InventoryMovementType.Adjustment, 0m, "kg", Now));
     }
 
     [Fact]
@@ -132,8 +134,9 @@ public sealed class InventoryTests
     {
         var movement = InventoryMovement.Create(
             Guid.NewGuid(), Guid.NewGuid(), null, Today,
-            InventoryMovementType.Adjustment, -2.5m, "kg", note: "spillage correction");
+            InventoryMovementType.Adjustment, -2.5m, "kg", Now, note: "spillage correction");
         Assert.Equal(-2.5m, movement.QuantityDelta);
         Assert.Equal("spillage correction", movement.Note);
+        Assert.Equal(Now, movement.CreatedAtUtc);
     }
 }

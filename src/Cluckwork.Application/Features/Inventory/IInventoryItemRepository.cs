@@ -17,6 +17,12 @@ public interface IInventoryItemRepository : IRepository<InventoryItem, Guid>
     // True if any lot references the item — guards unit edits (quantities
     // recorded in one unit must not be reinterpreted in another).
     Task<bool> HasLotsAsync(Guid itemId, CancellationToken ct = default);
+
+    // Tracked read under a FOR UPDATE row lock — call inside an open
+    // transaction. Serializes unit edits against concurrent first purchases:
+    // without it, a purchase can record the old unit while an update that saw
+    // no lots commits a new one (TOCTOU).
+    Task<InventoryItem?> GetByIdLockedAsync(Guid id, CancellationToken ct = default);
 }
 
 // Stock roll-up for list screens: on-hand = Σ lots' QuantityAvailable.

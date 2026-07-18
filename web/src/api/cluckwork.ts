@@ -250,6 +250,19 @@ export const confirmOrder = (orderId: string, key?: string) =>
 export const voidOrder = (orderId: string, reason: string, key?: string) =>
   apiPost<{ salesOrderId: string; status: string }>(`/sales/${orderId}/void`, { reason }, key);
 
+// --- Account ---
+
+export interface Account {
+  id: string;
+  name: string;
+  currencyCode: string;
+  currencyMinorUnit: number;
+}
+
+// Clients need the account currency to parse money input correctly — a JPY
+// amount has 0 decimals, so assuming 2 silently multiplies costs by 100.
+export const getAccount = () => apiGet<Account>("/account");
+
 // --- Feed & inventory (#66) ---
 
 export interface InventoryItem {

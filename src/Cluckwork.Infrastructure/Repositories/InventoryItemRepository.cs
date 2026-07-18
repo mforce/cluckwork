@@ -32,6 +32,15 @@ public sealed class InventoryItemRepository(AppDbContext db) : IInventoryItemRep
     public Task<bool> HasLotsAsync(Guid itemId, CancellationToken ct = default) =>
         db.InventoryLots.AnyAsync(l => l.InventoryItemId == itemId, ct);
 
+    // FOR UPDATE + fresh load, inside an open transaction. Tenant scoping is
+    // the caller's job (handlers check AccountId), like the other locked reads.
+    public Task<InventoryItem?> GetByIdLockedAsync(Guid id, CancellationToken ct = default) =>
+        db.InventoryItems.FromSqlInterpolated($"""
+            SELECT * FROM "InventoryItems" WHERE "Id" = {id} FOR UPDATE
+            """)
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(ct);
+
     public async Task AddAsync(InventoryItem entity, CancellationToken ct = default) =>
         await db.InventoryItems.AddAsync(entity, ct);
 

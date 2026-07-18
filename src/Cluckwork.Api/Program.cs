@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using Cluckwork.Api.Endpoints.Accounts;
 using Cluckwork.Api.Endpoints.Auth;
 using Cluckwork.Api.Endpoints.Customers;
 using Cluckwork.Api.Endpoints.DailyEntries;
@@ -261,6 +262,11 @@ app.MapGroup("/api/v1/egg-grades")
     .WithTags("EggGrades")
     .RequireAuthorization()
     .MapEggGradeEndpoints();
+
+app.MapGroup("/api/v1/account")
+    .WithTags("Account")
+    .RequireAuthorization()
+    .MapAccountEndpoints();
 
 app.MapGroup("/api/v1/inventory")
     .WithTags("Inventory")

@@ -24,12 +24,17 @@ public sealed class InventoryMovement : AggregateRoot<Guid>
     public Guid? FlockId { get; private set; }
     public string? Note { get; private set; }
 
+    // When the row was appended (as opposed to Date, the backdatable operational
+    // day) — same-day rows order by this, keeping ledger chronology honest.
+    // CreatedBy joins with the audit-log slice; single login today.
+    public DateTime CreatedAtUtc { get; private set; }
+
     private InventoryMovement() { }
 
     public static InventoryMovement Create(
         Guid accountId, Guid inventoryItemId, Guid? inventoryLotId,
         DateOnly date, InventoryMovementType type, decimal quantityDelta,
-        string unit, Guid? flockId = null, string? note = null)
+        string unit, DateTime createdAtUtc, Guid? flockId = null, string? note = null)
     {
         if (inventoryItemId == Guid.Empty)
             throw new ArgumentException("Inventory item id is required.", nameof(inventoryItemId));
@@ -54,6 +59,7 @@ public sealed class InventoryMovement : AggregateRoot<Guid>
             Type = type,
             QuantityDelta = quantityDelta,
             Unit = unit,
+            CreatedAtUtc = createdAtUtc,
             FlockId = flockId,
             Note = string.IsNullOrWhiteSpace(note) ? null : note.Trim()
         };

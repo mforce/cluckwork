@@ -72,6 +72,7 @@ public sealed class InventoryMovementConfiguration : IEntityTypeConfiguration<In
         builder.Property(m => m.QuantityDelta).HasPrecision(18, 3).IsRequired();
         builder.Property(m => m.Unit).HasMaxLength(InventoryItem.MaxUnitLength).IsRequired();
         builder.Property(m => m.Note).HasMaxLength(InventoryMovement.MaxNoteLength);
+        builder.Property(m => m.CreatedAtUtc).IsRequired();
 
         builder.HasOne<InventoryItem>()
             .WithMany()

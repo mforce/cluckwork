@@ -96,6 +96,20 @@ public sealed class InventoryTests(CluckworkWebApplicationFactory factory)
             $"/api/v1/inventory/items/{item}/purchases", Guid.NewGuid().ToString(),
             new { receivedDate = "", quantity = 10m, unitCostMinorUnits = 100 });
         Assert.Equal(HttpStatusCode.BadRequest, malformed.StatusCode);
+
+        // Omitted date binds as 0001-01-01 — rejected as missing, not stored
+        // as a year-1 lot.
+        var missingDate = await client.PostWithKeyAsync(
+            $"/api/v1/inventory/items/{item}/purchases", Guid.NewGuid().ToString(),
+            new { quantity = 10m, unitCostMinorUnits = 100 });
+        Assert.Equal(HttpStatusCode.BadRequest, missingDate.StatusCode);
+
+        // Beyond the quantity cap: a validation 400, not a Postgres overflow
+        // surfacing as a misleading 409.
+        var huge = await client.PostWithKeyAsync(
+            $"/api/v1/inventory/items/{item}/purchases", Guid.NewGuid().ToString(),
+            new { receivedDate = Today, quantity = 2_000_000_000m, unitCostMinorUnits = 100 });
+        Assert.Equal(HttpStatusCode.BadRequest, huge.StatusCode);
     }
 
     [Fact]
@@ -163,10 +177,79 @@ public sealed class InventoryTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(HttpStatusCode.Created, afterReactivate.StatusCode);
     }
 
-    // AGENTS.md Version-token rule: concurrent edits of the same item must not
-    // silently lose one write. Version DELTA asserted, not an absolute.
+    // The unit-lock TOCTOU (codex/pi review of PR #68): a unit change racing
+    // the item's FIRST purchase must serialize on the item row lock — either
+    // the purchase lands first and the unit change 409s, or the unit change
+    // lands and the purchase records the new unit. Never a lot whose unit
+    // disagrees with its item.
     [Fact]
-    public async Task ParallelItemUpdates_ExactlyOneWins()
+    public async Task UnitChange_RacingFirstPurchase_NeverMislabelsTheLot()
+    {
+        var email = $"u-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
+        var item = await CreateItemAsync(client, "TOCTOU mash", unit: "kg");
+
+        var purchase = client.PostWithKeyAsync(
+            $"/api/v1/inventory/items/{item}/purchases", Guid.NewGuid().ToString(),
+            new { receivedDate = Today, quantity = 100m, unitCostMinorUnits = 100 });
+        var unitChange = PutWithKeyAsync(client, $"/api/v1/inventory/items/{item}",
+            new { name = "TOCTOU mash", unit = "bags", defaultUnitCostMinorUnits = (long?)null });
+        var (purchaseResponse, updateResponse) = (await purchase, await unitChange);
+
+        Assert.Equal(HttpStatusCode.Created, purchaseResponse.StatusCode);
+
+        var (itemUnit, movementUnits) = await factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            var row = await db.InventoryItems.FirstAsync(i => i.Id == item);
+            var units = await db.InventoryMovements
+                .Where(m => m.InventoryItemId == item).Select(m => m.Unit).ToListAsync();
+            return (row.Unit, units);
+        });
+
+        if (updateResponse.StatusCode == HttpStatusCode.NoContent)
+            Assert.Equal("bags", itemUnit);   // unit change won; purchase waited and used it
+        else
+        {
+            Assert.Equal(HttpStatusCode.Conflict, updateResponse.StatusCode);
+            Assert.Equal("kg", itemUnit);     // purchase won; unit is locked
+        }
+        // The invariant either way: every ledger row matches the item's unit.
+        Assert.All(movementUnits, u => Assert.Equal(itemUnit, u));
+    }
+
+    // Activation state is also Version-guarded: double deactivate can't both
+    // report success.
+    [Fact]
+    public async Task ParallelDeactivates_ExactlyOneWins()
+    {
+        var email = $"u-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
+        var item = await CreateItemAsync(client, "Race dust");
+
+        var versionBefore = await factory.WithTenantScopeAsync(accountId, async db =>
+            (await db.InventoryItems.FirstAsync(i => i.Id == item)).Version);
+
+        var responses = await Task.WhenAll(
+            client.PostWithKeyAsync($"/api/v1/inventory/items/{item}/deactivate", Guid.NewGuid().ToString()),
+            client.PostWithKeyAsync($"/api/v1/inventory/items/{item}/deactivate", Guid.NewGuid().ToString()));
+
+        Assert.Equal(1, responses.Count(r => r.StatusCode == HttpStatusCode.NoContent));
+        Assert.Equal(1, responses.Count(r => r.StatusCode == HttpStatusCode.Conflict));
+
+        var versionAfter = await factory.WithTenantScopeAsync(accountId, async db =>
+            (await db.InventoryItems.FirstAsync(i => i.Id == item)).Version);
+        Assert.Equal(versionBefore + 1, versionAfter);
+    }
+
+    // AGENTS.md race rule: concurrent edits of the same item must not silently
+    // interleave. Updates serialize on the item's FOR UPDATE row lock (needed
+    // for the unit-vs-first-purchase TOCTOU), so both apply in order — each
+    // bump lands as its own Version DELTA and the final state is exactly one
+    // writer's payload, never a blend.
+    [Fact]
+    public async Task ParallelItemUpdates_SerializeCleanly()
     {
         var email = $"u-{Guid.NewGuid():N}@test.local";
         var accountId = await factory.SeedAccountWithUserAsync(email);
@@ -182,11 +265,15 @@ public sealed class InventoryTests(CluckworkWebApplicationFactory factory)
             new { name = "Race pellets B", unit = "kg", defaultUnitCostMinorUnits = 200 });
         var responses = await Task.WhenAll(a, b);
 
-        Assert.Equal(1, responses.Count(r => r.StatusCode == HttpStatusCode.NoContent));
-        Assert.Equal(1, responses.Count(r => r.StatusCode == HttpStatusCode.Conflict));
+        Assert.All(responses, r => Assert.Equal(HttpStatusCode.NoContent, r.StatusCode));
 
-        var versionAfter = await factory.WithTenantScopeAsync(accountId, async db =>
-            (await db.InventoryItems.FirstAsync(i => i.Id == item)).Version);
-        Assert.Equal(versionBefore + 1, versionAfter);
+        var after = await factory.WithTenantScopeAsync(accountId, async db =>
+            await db.InventoryItems.FirstAsync(i => i.Id == item));
+        Assert.Equal(versionBefore + 2, after.Version);
+        // Whole-payload consistency: name and cost came from the same writer.
+        Assert.True(
+            (after.Name == "Race pellets A" && after.DefaultUnitCost!.MinorUnits == 100)
+            || (after.Name == "Race pellets B" && after.DefaultUnitCost!.MinorUnits == 200),
+            $"blended write: {after.Name} / {after.DefaultUnitCost!.MinorUnits}");
     }
 }

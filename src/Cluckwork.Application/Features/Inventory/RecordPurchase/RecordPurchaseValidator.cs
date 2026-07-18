@@ -8,8 +8,15 @@ public sealed class RecordPurchaseValidator : AbstractValidator<RecordPurchaseCo
     public RecordPurchaseValidator()
     {
         RuleFor(x => x.InventoryItemId).NotEmpty();
+        // An omitted JSON date binds as default (0001-01-01) and would pass the
+        // handler's future-only check — reject it as missing input.
+        RuleFor(x => x.ReceivedDate).NotEmpty()
+            .WithMessage("Received date is required.");
         RuleFor(x => x.Quantity)
             .GreaterThan(0)
+            // Far above any real receipt, far below numeric(18,3) overflow —
+            // without a cap, Postgres rejects the insert as a misleading 409.
+            .LessThanOrEqualTo(1_000_000_000m)
             // Storage is decimal(18,3); finer input would be silently rounded.
             .Must(q => decimal.Round(q, 3) == q)
             .WithMessage("Quantity supports at most 3 decimal places.");
