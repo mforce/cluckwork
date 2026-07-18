@@ -64,6 +64,7 @@ slow) — CI is the authority. Skip once with `--no-verify`.
 - Branch names: `feat/…`, `chore/…`, `spec/…`. PRs squash-merge.
 - Only commit/push when the human asks.
 - **Keep phase epics in sync**: when filing a slice issue, add it to the phase epic's checklist (epic #14 = Phase 1.1, #15 = Phase 1.5) with its issue number; when its PR merges, check it off. Milestone assignment alone is not enough — the epics are how work is navigated.
+- **Keep documentation in sync** (owner directive, 2026-07-17): every PR that adds or changes user-visible behavior updates, in the same PR: (1) `specs/product/GLOSSARY.md` when a concept appears or changes meaning, and (2) the SPA Help page + in-app glossary (once #71 lands). Treat a missing doc update like a missing test — reviewers should flag it.
 
 ## Phase context
 
