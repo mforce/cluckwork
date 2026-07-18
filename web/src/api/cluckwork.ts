@@ -328,6 +328,18 @@ export const recordInventoryPurchase = (itemId: string, body: {
 export const listInventoryLots = (itemId: string) =>
   apiGet<InventoryLot[]>(`/inventory/items/${itemId}/lots`);
 
+export const recordFeedUsage = (itemId: string, body: {
+  flockId: string; date: string; quantity: number; note?: string;
+}, key?: string) => apiPost<{
+  feedUsageId: string; quantityUsed: number; estimatedCostMinorUnits: number; currencyCode: string;
+}>(`/inventory/items/${itemId}/usage`, body, key);
+
+// Correction path: compensating ledger row against a specific lot. Type
+// "Adjustment" (signed) or "Discard" (negative write-off); reason required.
+export const recordInventoryAdjustment = (itemId: string, body: {
+  inventoryLotId: string; date: string; type: string; quantityDelta: number; reason: string;
+}, key?: string) => apiPost<{ movementId: string }>(`/inventory/items/${itemId}/adjustments`, body, key);
+
 export const listInventoryMovements = (itemId: string, params?: { limit?: number; offset?: number }) => {
   const q = new URLSearchParams();
   if (params?.limit) q.set("limit", String(params.limit));

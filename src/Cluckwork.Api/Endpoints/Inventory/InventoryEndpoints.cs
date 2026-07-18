@@ -2,6 +2,8 @@ namespace Cluckwork.Api.Endpoints.Inventory;
 
 using Cluckwork.Application.Features.Inventory;
 using Cluckwork.Application.Features.Inventory.CreateInventoryItem;
+using Cluckwork.Application.Features.Inventory.RecordAdjustment;
+using Cluckwork.Application.Features.Inventory.RecordFeedUsage;
 using Cluckwork.Application.Features.Inventory.RecordPurchase;
 using Cluckwork.Application.Features.Inventory.UpdateInventoryItem;
 using Cluckwork.Domain.Inventory;
@@ -50,6 +52,18 @@ public static class InventoryEndpoints
         group.MapGet("/items/{id:guid}/movements", ListMovements)
             .WithName("ListInventoryMovements")
             .WithSummary("Movement ledger for an item, newest first (paged).");
+
+        group.MapPost("/items/{id:guid}/usage", RecordFeedUsage)
+            .WithName("RecordFeedUsage")
+            .WithSummary("Record feed consumed by a flock: drains lots FIFO, appends Usage ledger rows, estimates cost from lot costs.");
+
+        group.MapPost("/items/{id:guid}/adjustments", RecordAdjustment)
+            .WithName("RecordInventoryAdjustment")
+            .WithSummary("Correct a lot's stock (signed Adjustment) or write it off (Discard) via a compensating ledger row; reason required.");
+
+        group.MapGet("/usage", ListFeedUsage)
+            .WithName("ListFeedUsage")
+            .WithSummary("List feed usage records, newest first (optional flock/date filters, paged).");
 
         return group;
     }
@@ -172,6 +186,64 @@ public static class InventoryEndpoints
             m.QuantityDelta, m.Unit, m.FlockId, m.Note)));
     }
 
+    private static async Task<IResult> RecordFeedUsage(
+        Guid id,
+        RecordFeedUsageRequest request,
+        RecordFeedUsageHandler handler,
+        IValidator<RecordFeedUsageCommand> validator,
+        TenantContext tenant,
+        CancellationToken ct)
+    {
+        if (!tenant.IsResolved) return Results.Unauthorized();
+
+        var command = new RecordFeedUsageCommand(
+            request.FlockId, id, request.Date, request.Quantity, request.Note);
+        var validation = await validator.ValidateAsync(command, ct);
+        if (!validation.IsValid)
+            return Results.ValidationProblem(validation.ToDictionary());
+
+        var result = await handler.HandleAsync(command, tenant.AccountId, ct);
+        return result.IsSuccess ? Results.Ok(result.Value) : MapFailure(result.Error);
+    }
+
+    private static async Task<IResult> RecordAdjustment(
+        Guid id,
+        RecordAdjustmentRequest request,
+        RecordAdjustmentHandler handler,
+        IValidator<RecordAdjustmentCommand> validator,
+        TenantContext tenant,
+        CancellationToken ct)
+    {
+        if (!tenant.IsResolved) return Results.Unauthorized();
+
+        var command = new RecordAdjustmentCommand(
+            id, request.InventoryLotId, request.Date, request.Type,
+            request.QuantityDelta, request.Reason);
+        var validation = await validator.ValidateAsync(command, ct);
+        if (!validation.IsValid)
+            return Results.ValidationProblem(validation.ToDictionary());
+
+        var result = await handler.HandleAsync(command, tenant.AccountId, ct);
+        return result.IsSuccess
+            ? Results.Created($"/api/v1/inventory/items/{id}/movements", new { MovementId = result.Value })
+            : MapFailure(result.Error);
+    }
+
+    private static async Task<IResult> ListFeedUsage(
+        IFeedUsageRepository usages, TenantContext tenant, CancellationToken ct,
+        Guid? flockId = null, DateOnly? from = null, DateOnly? to = null,
+        int? limit = null, int? offset = null)
+    {
+        if (!tenant.IsResolved) return Results.Unauthorized();
+        var take = Math.Clamp(limit ?? DefaultPageSize, 1, MaxPageSize);
+        var skip = Math.Max(offset ?? 0, 0);
+        var list = await usages.ListAsync(flockId, from, to, take, skip, ct);
+        return Results.Ok(list.Select(u => new FeedUsageResponse(
+            u.Id, u.FlockId, u.InventoryItemId, u.Date, u.Quantity, u.Unit,
+            u.EstimatedCost.MinorUnits, u.EstimatedCost.CurrencyCode, u.EstimatedCost.CurrencyMinorUnit,
+            u.Note)));
+    }
+
     private static IResult MapFailure(Cluckwork.Domain.Common.Error error)
     {
         if (error.Code.EndsWith(".NotFound", StringComparison.Ordinal))
@@ -211,3 +283,13 @@ public sealed record UpdateInventoryItemRequest(
 public sealed record RecordPurchaseRequest(
     DateOnly ReceivedDate, decimal Quantity, long? UnitCostMinorUnits,
     string? LotNumber, DateOnly? ExpiryDate, string? Note);
+
+public sealed record RecordFeedUsageRequest(
+    Guid FlockId, DateOnly Date, decimal Quantity, string? Note);
+
+public sealed record RecordAdjustmentRequest(
+    Guid InventoryLotId, DateOnly Date, string Type, decimal QuantityDelta, string Reason);
+
+public sealed record FeedUsageResponse(
+    Guid Id, Guid FlockId, Guid InventoryItemId, DateOnly Date, decimal Quantity, string Unit,
+    long EstimatedCostMinorUnits, string CurrencyCode, int CurrencyMinorUnit, string? Note);

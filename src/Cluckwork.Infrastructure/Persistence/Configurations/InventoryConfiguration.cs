@@ -61,6 +61,40 @@ public sealed class InventoryLotConfiguration : IEntityTypeConfiguration<Invento
     }
 }
 
+public sealed class FeedUsageConfiguration : IEntityTypeConfiguration<FeedUsage>
+{
+    public void Configure(EntityTypeBuilder<FeedUsage> builder)
+    {
+        builder.HasKey(u => u.Id);
+        builder.Property(u => u.AccountId).IsRequired();
+        builder.Property(u => u.Quantity).HasPrecision(18, 3).IsRequired();
+        builder.Property(u => u.Unit).HasMaxLength(InventoryItem.MaxUnitLength).IsRequired();
+        builder.Property(u => u.Note).HasMaxLength(FeedUsage.MaxNoteLength);
+        builder.Property(u => u.Version).IsConcurrencyToken();
+
+        builder.HasOne<Cluckwork.Domain.Flocks.Flock>()
+            .WithMany()
+            .HasForeignKey(u => u.FlockId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne<InventoryItem>()
+            .WithMany()
+            .HasForeignKey(u => u.InventoryItemId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.OwnsOne(u => u.EstimatedCost, m =>
+        {
+            m.Property(x => x.MinorUnits).HasColumnName("EstimatedCostMinorUnits").IsRequired();
+            m.Property(x => x.CurrencyCode).HasMaxLength(3).HasColumnName("EstimatedCostCurrencyCode").IsRequired();
+            m.Property(x => x.CurrencyMinorUnit).HasColumnName("EstimatedCostCurrencyMinorUnit").IsRequired();
+        });
+
+        // Usage browsing: per flock and per item, by date.
+        builder.HasIndex(u => new { u.FlockId, u.Date });
+        builder.HasIndex(u => new { u.InventoryItemId, u.Date });
+    }
+}
+
 public sealed class InventoryMovementConfiguration : IEntityTypeConfiguration<InventoryMovement>
 {
     public void Configure(EntityTypeBuilder<InventoryMovement> builder)

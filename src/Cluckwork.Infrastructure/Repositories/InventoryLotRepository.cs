@@ -29,6 +29,22 @@ public sealed class InventoryLotRepository(AppDbContext db) : IInventoryLotRepos
             .ToListAsync(ct);
     }
 
+    // Single-lot FOR UPDATE for adjustments (empty lots included — positive
+    // corrections target exactly those). Single-row lock: no ordering
+    // interplay with the FIFO fetch to reason about beyond both being
+    // row locks on this table.
+    public Task<InventoryLot?> GetByIdLockedAsync(
+        Guid accountId, Guid lotId, CancellationToken ct = default) =>
+        db.InventoryLots.FromSqlInterpolated($"""
+            SELECT *
+            FROM "InventoryLots"
+            WHERE "AccountId" = {accountId}
+              AND "Id" = {lotId}
+            FOR UPDATE
+            """)
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(ct);
+
     public async Task<IReadOnlyList<InventoryLot>> ListByItemAsync(
         Guid inventoryItemId, CancellationToken ct = default) =>
         await db.InventoryLots

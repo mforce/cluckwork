@@ -111,6 +111,65 @@ public sealed class InventoryTests
         Assert.True(lot.Consume(-1m).IsFailure);
     }
 
+    [Fact]
+    public void Lot_Adjust_NegativeWithinAvailable_Succeeds()
+    {
+        var lot = MakeLot(100m);
+        var before = lot.Version;
+        Assert.True(lot.Adjust(-40m).IsSuccess);
+        Assert.Equal(60m, lot.QuantityAvailable);
+        Assert.Equal(before + 1, lot.Version);
+    }
+
+    [Fact]
+    public void Lot_Adjust_NegativeBeyondAvailable_Fails()
+    {
+        var lot = MakeLot(100m);
+        Assert.True(lot.Consume(80m).IsSuccess);
+        var result = lot.Adjust(-30m);
+        Assert.True(result.IsFailure);
+        Assert.Equal("InventoryLot.InsufficientStock", result.Error.Code);
+        Assert.Equal(20m, lot.QuantityAvailable);
+    }
+
+    [Fact]
+    public void Lot_Adjust_PositiveRestoresUpToReceived()
+    {
+        var lot = MakeLot(100m);
+        Assert.True(lot.Consume(80m).IsSuccess);
+        Assert.True(lot.Adjust(30m).IsSuccess);
+        Assert.Equal(50m, lot.QuantityAvailable);
+
+        var beyond = lot.Adjust(60m);
+        Assert.True(beyond.IsFailure);
+        Assert.Equal("InventoryLot.AdjustExceedsReceived", beyond.Error.Code);
+    }
+
+    [Fact]
+    public void Lot_Adjust_Zero_Fails()
+    {
+        Assert.True(MakeLot().Adjust(0m).IsFailure);
+    }
+
+    // --- FeedUsage ---
+
+    [Fact]
+    public void FeedUsage_Create_Guards()
+    {
+        var usage = FeedUsage.Create(
+            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
+            Today, 12.5m, "kg", new Money(30000, "USD", 2), "  morning feed  ");
+        Assert.Equal(12.5m, usage.Quantity);
+        Assert.Equal("morning feed", usage.Note);
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => FeedUsage.Create(
+            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
+            Today, 0m, "kg", Money.Zero("USD")));
+        Assert.Throws<ArgumentException>(() => FeedUsage.Create(
+            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
+            Today, 1m, "kg", new Money(-1, "USD", 2)));
+    }
+
     // --- InventoryMovement ---
 
     private static readonly DateTime Now = new(2026, 7, 18, 12, 0, 0, DateTimeKind.Utc);

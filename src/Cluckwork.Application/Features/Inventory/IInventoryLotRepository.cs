@@ -16,6 +16,12 @@ public interface IInventoryLotRepository : IRepository<InventoryLot, Guid>
     Task<IReadOnlyList<InventoryLot>> ListByItemAsync(
         Guid inventoryItemId, CancellationToken ct = default);
 
+    // Single lot under FOR UPDATE for the adjustment path — call inside an
+    // open transaction. Unlike the FIFO fetch this returns empty lots too
+    // (a positive adjustment targets exactly those).
+    Task<InventoryLot?> GetByIdLockedAsync(
+        Guid accountId, Guid lotId, CancellationToken ct = default);
+
     // On-hand per item (Σ QuantityAvailable), one grouped query for the
     // catalog screen. Items with no lots are absent.
     Task<Dictionary<Guid, decimal>> StockByItemAsync(CancellationToken ct = default);
