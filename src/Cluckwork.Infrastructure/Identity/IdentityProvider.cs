@@ -83,6 +83,11 @@ public sealed class IdentityProvider(
     public async Task<Result<Guid>> CreateUserAsync(
         Guid accountId, string email, string password, bool isAdmin, CancellationToken ct = default)
     {
+        // One transaction around create + role assignment: a failed admin
+        // creation must not survive as a usable role-less worker account
+        // (codex review of PR #78). Disposal without commit rolls back.
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+
         var user = new ApplicationUser
         {
             Id = Guid.NewGuid(),
@@ -94,23 +99,40 @@ public sealed class IdentityProvider(
 
         var created = await userManager.CreateAsync(user, password);
         if (!created.Succeeded)
-            return Result.Failure<Guid>(Error.Validation("Users.CreateFailed", Describe(created)));
+            return Result.Failure<Guid>(await CreateFailureAsync(created, email, accountId));
 
         if (isAdmin)
         {
             if (!await roleManager.RoleExistsAsync(DatabaseSeeder.AdminRole))
-                await roleManager.CreateAsync(new ApplicationRole { Id = Guid.NewGuid(), Name = DatabaseSeeder.AdminRole });
+            {
+                var roleCreated = await roleManager.CreateAsync(
+                    new ApplicationRole { Id = Guid.NewGuid(), Name = DatabaseSeeder.AdminRole });
+                if (!roleCreated.Succeeded)
+                    return Result.Failure<Guid>(Error.Validation("Users.CreateFailed", Describe(roleCreated)));
+            }
 
             var addedToRole = await userManager.AddToRoleAsync(user, DatabaseSeeder.AdminRole);
             if (!addedToRole.Succeeded)
-            {
-                // Don't leave a half-created admin behind as a silent worker.
-                await userManager.DeleteAsync(user);
                 return Result.Failure<Guid>(Error.Validation("Users.CreateFailed", Describe(addedToRole)));
-            }
         }
 
+        await transaction.CommitAsync(ct);
         return Result.Success(user.Id);
+    }
+
+    // Identity's duplicate-email wording is only surfaced when the email
+    // already belongs to THIS account. A duplicate in another tenant gets a
+    // generic message so the endpoint is not a cross-tenant registration
+    // oracle (single-farm today, multi-tenant infrastructure dormant).
+    private async Task<Error> CreateFailureAsync(IdentityResult result, string email, Guid accountId)
+    {
+        if (!result.Errors.Any(e => e.Code is "DuplicateUserName" or "DuplicateEmail"))
+            return Error.Validation("Users.CreateFailed", Describe(result));
+
+        var existing = await userManager.FindByEmailAsync(email);
+        return existing is not null && existing.AccountId == accountId
+            ? Error.Validation("Users.DuplicateEmail", "A user with this email already exists.")
+            : Error.Validation("Users.CreateFailed", "Could not create the user.");
     }
 
     public async Task<IReadOnlyList<UserSummary>> ListUsersAsync(Guid accountId, CancellationToken ct = default)

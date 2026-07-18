@@ -1,6 +1,6 @@
 import { createContext, useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { login as apiLogin, logout as apiLogout, setOnUnauthenticated } from "../api/client";
+import { login as apiLogin, logout as apiLogout, setOnTokensChanged, setOnUnauthenticated } from "../api/client";
 import { currentUserIsAdmin } from "./claims";
 import { loadTokens } from "./tokenStore";
 
@@ -20,10 +20,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAdmin, setIsAdmin] = useState(currentUserIsAdmin);
 
   // When any authenticated request exhausts its refresh, drop auth state so the
-  // router redirects to /login.
+  // router redirects to /login. Token rotation (login or transparent refresh)
+  // re-derives the role — the server re-reads roles on every refresh, so a
+  // demotion reaches the UI within one token lifetime (codex review of PR #78).
   useEffect(() => {
     setOnUnauthenticated(() => setIsAuthenticated(false));
-    return () => setOnUnauthenticated(null);
+    setOnTokensChanged(() => setIsAdmin(currentUserIsAdmin()));
+    return () => {
+      setOnUnauthenticated(null);
+      setOnTokensChanged(null);
+    };
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {

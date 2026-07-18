@@ -3,6 +3,9 @@ namespace Cluckwork.Api.IntegrationTests;
 using System.Net;
 using System.Text.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+using Cluckwork.Infrastructure.Identity;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.DependencyInjection;
 
 // #73 — Admin vs not-Admin. The principle under test: anything that undoes,
 // corrects, or reconfigures is admin-only; recording the day's work is open
@@ -160,6 +163,72 @@ public sealed class AdminGatingTests(CluckworkWebApplicationFactory factory)
         Assert.Null(RoleClaim(await factory.LoginForAccessTokenAsync(workerEmail)));
     }
 
+    // The server re-reads roles at every refresh, so a demotion reaches
+    // enforcement within one access-token lifetime — not at next login.
+    [Fact]
+    public async Task Refresh_ReReadsRoles_DemotionTakesEffect()
+    {
+        var adminEmail = $"admin-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(adminEmail);
+        var flockId = await factory.SeedFlockAsync(accountId, Guid.NewGuid());
+        var pair = await factory.LoginAsync(adminEmail);
+        Assert.Equal("Admin", RoleClaim(pair.AccessToken));
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var user = await users.FindByEmailAsync(adminEmail);
+            Assert.True((await users.RemoveFromRoleAsync(user!, "Admin")).Succeeded);
+        }
+
+        var client = factory.CreateClient();
+        var refreshed = await client.PostAsJsonAsync(
+            "/api/v1/auth/refresh", new { pair.RefreshToken });
+        Assert.Equal(HttpStatusCode.OK, refreshed.StatusCode);
+        var newPair = (await refreshed.Content.ReadFromJsonAsync<TokenPairDto>())!;
+
+        Assert.Null(RoleClaim(newPair.AccessToken));
+        var demoted = factory.CreateAuthedClient(newPair.AccessToken);
+        var gated = await SendWithKeyAsync(demoted, HttpMethod.Post, $"/api/v1/flocks/{flockId}/deplete");
+        Assert.Equal(HttpStatusCode.Forbidden, gated.StatusCode);
+    }
+
+    // The idempotency replay path returns cached responses without invoking
+    // the endpoint — authorization must run first so a worker replaying an
+    // admin's key still gets 403, not the cached 201.
+    [Fact]
+    public async Task IdempotencyReplay_DoesNotBypassAdminGate()
+    {
+        var (admin, worker, _, _, _) = await SetupAsync();
+        var key = Guid.NewGuid().ToString();
+
+        var created = await admin.PostWithKeyAsync("/api/v1/users", key,
+            new { email = $"replay-{Guid.NewGuid():N}@test.local", password = TestHarness.Password, role = "Worker" });
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+
+        var replayed = await worker.PostWithKeyAsync("/api/v1/users", key,
+            new { email = $"replay-{Guid.NewGuid():N}@test.local", password = TestHarness.Password, role = "Worker" });
+        Assert.Equal(HttpStatusCode.Forbidden, replayed.StatusCode);
+    }
+
+    // A duplicate email in ANOTHER tenant gets the generic message — the
+    // admin endpoint must not double as a cross-tenant registration oracle.
+    [Fact]
+    public async Task DuplicateEmail_InAnotherAccount_GetsGenericMessage()
+    {
+        var foreignEmail = $"foreign-{Guid.NewGuid():N}@test.local";
+        await factory.SeedAccountWithUserAsync(foreignEmail);
+
+        var (admin, _, _, _, _) = await SetupAsync();
+        var response = await admin.PostWithKeyAsync("/api/v1/users", Guid.NewGuid().ToString(),
+            new { email = foreignEmail, password = TestHarness.Password, role = "Worker" });
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.Contains("Could not create the user.", body);
+        Assert.DoesNotContain("already", body);
+    }
+
     [Fact]
     public async Task Admin_CreatesUsers_RoleValidated_AndListed()
     {
@@ -178,17 +247,27 @@ public sealed class AdminGatingTests(CluckworkWebApplicationFactory factory)
         var gated = await SendWithKeyAsync(hand, HttpMethod.Post, $"/api/v1/flocks/{flockId}/deplete");
         Assert.Equal(HttpStatusCode.Forbidden, gated.StatusCode);
 
-        // Unknown role → 400; duplicate email → 422 (Identity error surfaced).
+        // An admin-created ADMIN gets the role and passes the gate.
+        var newAdminEmail = $"boss-{Guid.NewGuid():N}@test.local";
+        var createdAdmin = await admin.PostWithKeyAsync("/api/v1/users", Guid.NewGuid().ToString(),
+            new { email = newAdminEmail, password = TestHarness.Password, role = "Admin" });
+        Assert.Equal(HttpStatusCode.Created, createdAdmin.StatusCode);
+        var boss = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(newAdminEmail));
+        var bossGated = await boss.GetAsync("/api/v1/users");
+        Assert.Equal(HttpStatusCode.OK, bossGated.StatusCode);
+
+        // Unknown role → 400; own-account duplicate → 422 with the friendly message.
         var badRole = await admin.PostWithKeyAsync("/api/v1/users", Guid.NewGuid().ToString(),
             new { email = $"x-{Guid.NewGuid():N}@test.local", password = TestHarness.Password, role = "Boss" });
         Assert.Equal(HttpStatusCode.BadRequest, badRole.StatusCode);
         var duplicate = await admin.PostWithKeyAsync("/api/v1/users", Guid.NewGuid().ToString(),
             new { email = newWorkerEmail, password = TestHarness.Password, role = "Worker" });
         Assert.Equal(HttpStatusCode.UnprocessableEntity, duplicate.StatusCode);
+        Assert.Contains("already exists", await duplicate.Content.ReadAsStringAsync());
 
         var listed = await admin.GetFromJsonAsync<List<UserRow>>("/api/v1/users");
         Assert.Contains(listed!, u => u.Email == newWorkerEmail && u.Role == "Worker");
-        Assert.Contains(listed!, u => u.Role == "Admin");
+        Assert.Contains(listed!, u => u.Email == newAdminEmail && u.Role == "Admin");
     }
 
     // Reads the "role" claim straight from the JWT payload — the same short

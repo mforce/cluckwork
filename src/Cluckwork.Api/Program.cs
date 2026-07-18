@@ -274,8 +274,11 @@ app.UseStaticFiles();
 
 app.UseAuthentication();
 app.UseMiddleware<TenantResolutionMiddleware>();
-app.UseMiddleware<IdempotencyMiddleware>();
+// Authorization must run BEFORE idempotency: the replay path returns cached
+// responses without invoking the endpoint, so a role-denied caller replaying
+// an admin's key must hit the 403 first (codex review of PR #78).
 app.UseAuthorization();
+app.UseMiddleware<IdempotencyMiddleware>();
 
 // --- Endpoint groups (URL versioned: /api/v1/...) ---
 app.MapGroup("/api/v1/auth")
