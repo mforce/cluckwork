@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using Cluckwork.Api;
 using Cluckwork.Api.Endpoints.Accounts;
 using Cluckwork.Api.Endpoints.Auth;
 using Cluckwork.Api.Endpoints.Customers;
@@ -9,6 +10,7 @@ using Cluckwork.Api.Endpoints.Inventory;
 using Cluckwork.Api.Endpoints.Sales;
 using Cluckwork.Api.Endpoints.Water;
 using Cluckwork.Api.Endpoints.Stock;
+using Cluckwork.Api.Endpoints.Users;
 using Cluckwork.Api.Middleware;
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Accounts;
@@ -45,6 +47,7 @@ using Cluckwork.Application.Features.Sales.CreateSalesOrder;
 using Cluckwork.Application.Features.Sales.RemoveOrderItem;
 using Cluckwork.Application.Features.Sales.UpdateOrderItem;
 using Cluckwork.Application.Features.Sales.VoidSale;
+using Cluckwork.Application.Features.Users.CreateUser;
 using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Jobs;
 using Cluckwork.Infrastructure.Persistence;
@@ -119,6 +122,10 @@ builder.Services
         var rsa = RSA.Create();
         rsa.ImportFromPem(jwtPublicKeyPem);
 
+        // Keep the raw JWT claim names ("role", "sub", "account_id") instead of
+        // remapping to the legacy XML-schema claim types — the SPA decodes the
+        // same short names from the token payload (#73).
+        opts.MapInboundClaims = false;
         opts.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
@@ -128,11 +135,16 @@ builder.Services
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
             IssuerSigningKey = new RsaSecurityKey(rsa),
-            ClockSkew = TimeSpan.FromSeconds(30)
+            ClockSkew = TimeSpan.FromSeconds(30),
+            RoleClaimType = "role"
         };
     });
 
-builder.Services.AddAuthorization();
+// #73 — Admin vs not-Admin only; house/flock-scoped RBAC is a later slice.
+builder.Services.AddAuthorization(opts =>
+    opts.AddPolicy(AuthPolicies.AdminOnly, p => p.RequireRole(AuthPolicies.AdminRole)));
+builder.Services.AddSingleton<Microsoft.AspNetCore.Authorization.IAuthorizationMiddlewareResultHandler,
+    ForbiddenProblemResultHandler>();
 
 // --- Application ports ---
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
@@ -174,6 +186,7 @@ builder.Services.AddScoped<IValidator<RecordFeedUsageCommand>, RecordFeedUsageVa
 builder.Services.AddScoped<IValidator<RecordAdjustmentCommand>, RecordAdjustmentValidator>();
 builder.Services.AddScoped<IValidator<RecordWaterUsageCommand>, RecordWaterUsageValidator>();
 builder.Services.AddScoped<IValidator<UpdateWaterUsageCommand>, UpdateWaterUsageValidator>();
+builder.Services.AddScoped<IValidator<CreateUserCommand>, CreateUserValidator>();
 
 // --- Handlers (direct — no mediator, tech spec §2.1) ---
 builder.Services.AddScoped<RecordDailyEntryHandler>();
@@ -203,6 +216,7 @@ builder.Services.AddScoped<UpdateFlockHandler>();
 builder.Services.AddScoped<ArchiveFlockHandler>();
 builder.Services.AddScoped<RecordBirdMovementHandler>();
 builder.Services.AddScoped<ReactivateFlockHandler>();
+builder.Services.AddScoped<CreateUserHandler>();
 
 // --- Startup seed (single-farm MVP) ---
 builder.Services.Configure<SeedOptions>(builder.Configuration.GetSection(SeedOptions.SectionName));
@@ -312,6 +326,11 @@ app.MapGroup("/api/v1/sales")
     .WithTags("Sales")
     .RequireAuthorization()
     .MapSaleEndpoints();
+
+app.MapGroup("/api/v1/users")
+    .WithTags("Users")
+    .RequireAuthorization(AuthPolicies.AdminOnly)
+    .MapUserEndpoints();
 
 // Health
 app.MapHealthChecks("/health/live");

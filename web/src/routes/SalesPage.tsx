@@ -5,6 +5,7 @@ import {
 } from "../api/cluckwork";
 import type { Customer, EggGrade, SalesOrder } from "../api/cluckwork";
 import { ApiError } from "../api/client";
+import { useAuth } from "../auth/useAuth";
 
 const PAGE = 50;
 
@@ -22,6 +23,8 @@ function errText(err: unknown): string {
 // #23 + #24 (orders half): create a draft order, add/edit/remove graded lines,
 // confirm (FIFO allocation), cancel drafts, browse/filter the order list.
 export function SalesPage() {
+  // Void undoes a confirmed sale — admin-only (#73); the API enforces it too.
+  const { isAdmin } = useAuth();
   const [orders, setOrders] = useState<SalesOrder[] | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -329,10 +332,13 @@ export function SalesPage() {
           )}
           {active.status !== "Draft" && (
             <div className="actions">
-              {active.status === "Confirmed" && (
+              {active.status === "Confirmed" && isAdmin && (
                 <button className="link" disabled={busy} onClick={onVoid}>
                   Void order (returns stock)
                 </button>
+              )}
+              {active.status === "Confirmed" && !isAdmin && (
+                <span className="muted">Voiding needs an admin.</span>
               )}
               <button className="link" onClick={() => setActive(null)}>close</button>
             </div>

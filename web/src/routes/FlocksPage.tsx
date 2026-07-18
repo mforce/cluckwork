@@ -6,6 +6,7 @@ import {
 } from "../api/cluckwork";
 import type { BirdMovement, Flock } from "../api/cluckwork";
 import { ApiError } from "../api/client";
+import { useAuth } from "../auth/useAuth";
 import { todayIso } from "../lib/dates";
 
 function errorMessage(err: unknown): string {
@@ -23,6 +24,9 @@ function ageWeeks(placementDate: string): number {
 // Archived flocks leave pickers and the dashboard; this screen still shows them
 // behind a toggle. Current bird count math is the mortality slice, not this one.
 export function FlocksPage() {
+  // Creating a flock records the day's work (birds arrived); corrections,
+  // lifecycle changes, and manual movements are admin-only (#73).
+  const { isAdmin } = useAuth();
   const [flocks, setFlocks] = useState<Flock[] | null>(null);
   const [showArchived, setShowArchived] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -264,9 +268,11 @@ export function FlocksPage() {
                         onClick={() => void openLedger(f.id)}>
                         {ledgerFlockId === f.id ? "close" : "birds"}
                       </button>
-                      <button className="link" disabled={busy}
-                        onClick={() => startEdit(f)}>edit</button>
-                      {f.status === "Active" && (
+                      {isAdmin && (
+                        <button className="link" disabled={busy}
+                          onClick={() => startEdit(f)}>edit</button>
+                      )}
+                      {isAdmin && f.status === "Active" && (
                         <button className="link" disabled={busy}
                           onClick={() => {
                             if (window.confirm(`Deplete "${f.name}"? The flock stops accepting new entries (backfill for past dates still works).`))
@@ -275,7 +281,7 @@ export function FlocksPage() {
                           deplete
                         </button>
                       )}
-                      {f.status !== "Archived" && (
+                      {isAdmin && f.status !== "Archived" && (
                         <button className="link" disabled={busy}
                           onClick={() => {
                             if (window.confirm(`Archive "${f.name}"? It disappears from pickers and the dashboard and accepts nothing new.`))
@@ -284,7 +290,7 @@ export function FlocksPage() {
                           archive
                         </button>
                       )}
-                      {f.status !== "Active" && (
+                      {isAdmin && f.status !== "Active" && (
                         // The undo (#57): back to Active, full capture restored.
                         <button className="link" disabled={busy}
                           onClick={() => void run(`reactivate:${f.id}`, (key) => reactivateFlock(f.id, key))}>
@@ -306,10 +312,13 @@ export function FlocksPage() {
             Bird ledger — {flocks.find((f) => f.id === ledgerFlockId)?.name ?? ""}
           </h3>
           <p className="muted">
-            Mortality rows come from submitted daily entries. Record culls here;
-            use a negative adjustment to correct a miscount.
+            Mortality rows come from submitted daily entries.
+            {isAdmin
+              ? " Record culls here; use a negative adjustment to correct a miscount."
+              : " Recording culls and adjustments needs an admin."}
           </p>
 
+          {isAdmin && (
           <form className="inline-form" onSubmit={onRecordMovement}>
             <label className="muted">Date
               <input type="date" value={mvDate} max={todayIso()}
@@ -328,6 +337,7 @@ export function FlocksPage() {
               onChange={(e) => setMvNote(e.target.value)} />
             <button type="submit" disabled={busy || mvQty === 0}>Record</button>
           </form>
+          )}
 
           {movements === null ? (
             <p className="muted">Loading…</p>

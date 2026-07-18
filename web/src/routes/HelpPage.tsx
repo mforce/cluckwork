@@ -6,6 +6,7 @@
 
 const TOC = [
   ["daily-loop", "The daily loop"],
+  ["roles", "Who can do what"],
   ["daily-entry", "Daily entry"],
   ["flocks", "Flocks & birds"],
   ["grades", "Egg grades"],
@@ -48,6 +49,29 @@ export function HelpPage() {
         Record entry → submit → egg lots → stock → order → confirm.
       </p>
 
+      <h3 id="roles">Who can do what</h3>
+      <ul>
+        <li>
+          There are two kinds of sign-in: <strong>workers</strong> and{" "}
+          <strong>admins</strong>. Workers run the daily loop — record and
+          submit entries, receive feed purchases, record feed and water usage,
+          create flocks and customers, and take orders from draft through
+          confirm.
+        </li>
+        <li>
+          Anything that <strong>undoes, corrects, or configures</strong> needs
+          an admin: voiding orders, stock corrections, water-record corrections,
+          editing flocks, deplete/archive/reactivate, culls and bird
+          adjustments, and managing the grade and item catalogs. Controls you
+          can't use are hidden, and the server refuses them regardless.
+        </li>
+        <li>
+          Admins create sign-ins on the <strong>Users</strong> screen — email,
+          password, and role. Changing an existing user's role or password
+          comes with a later release.
+        </li>
+      </ul>
+
       <h3 id="daily-entry">Daily entry</h3>
       <ul>
         <li>
@@ -88,6 +112,10 @@ export function HelpPage() {
           (hidden from daily work). Depleting and archiving ask for
           confirmation; both are reversible with <strong>Reactivate</strong>.
         </li>
+        <li>
+          Anyone can create a flock and view the bird ledger. Editing a flock,
+          lifecycle changes, and recording culls/adjustments are admin-only.
+        </li>
       </ul>
 
       <h3 id="grades">Egg grades</h3>
@@ -103,6 +131,9 @@ export function HelpPage() {
           order lines added earlier can still confirm, but it can't be put on{" "}
           <em>new</em> order lines — reactivate the grade to sell remaining
           stock. History keeps showing its name.
+        </li>
+        <li>
+          The grade catalog is configuration — managing it is admin-only.
         </li>
       </ul>
 
@@ -145,6 +176,10 @@ export function HelpPage() {
           (write-off) against a specific lot, always with a reason. The original
           row and the correction both stay visible.
         </li>
+        <li>
+          Recording purchases and usage is open to everyone; the item catalog
+          and stock corrections are admin-only.
+        </li>
       </ul>
 
       <h3 id="water">Water</h3>
@@ -156,9 +191,9 @@ export function HelpPage() {
         </li>
         <li>
           Water records have no stock behind them, so mistakes are fixed by{" "}
-          <strong>correcting the record directly</strong> (the "correct" button)
-          — no compensating entries. The flock and date are fixed: picked
-          wrong, record it again under the right one.
+          <strong>correcting the record directly</strong> (the "correct" button,
+          admin-only) — no compensating entries. The flock and date are fixed:
+          picked wrong, record it again under the right one.
         </li>
         <li>
           Same lifecycle rule as everywhere: depleted flocks accept backfill up
@@ -178,9 +213,9 @@ export function HelpPage() {
           lots first — and is the point where inventory changes hands.
         </li>
         <li>
-          A mistaken confirm is undone with <strong>Void</strong> (reason
-          required): the eggs go back to the exact lots they came from, and the
-          order stays listed as Voided. Voiding is for mistakes, not for
+          A mistaken confirm is undone with <strong>Void</strong> (admin-only,
+          reason required): the eggs go back to the exact lots they came from,
+          and the order stays listed as Voided. Voiding is for mistakes, not for
           returns of delivered goods. (Orders confirmed before lot-level
           allocation tracking existed can't self-serve void — ask your
           administrator.)
@@ -196,6 +231,10 @@ export function HelpPage() {
       </ul>
 
       <h3 id="mistakes">Fixing mistakes</h3>
+      <p className="muted">
+        Every fix in this table needs an admin sign-in (see "Who can do what")
+        — workers record, admins correct.
+      </p>
       <table className="data">
         <thead>
           <tr><th>Mistake</th><th>Fix</th></tr>
@@ -295,6 +334,8 @@ export function HelpPage() {
             <td>What a flock ate on a day; drains lots FIFO and estimates cost from them.</td></tr>
           <tr><th scope="row">Adjustment / Discard</th>
             <td>Stock corrections against a lot, reason required. Discard = write-off (spoilage).</td></tr>
+          <tr><th scope="row">Admin / Worker</th>
+            <td>The two sign-in roles. Workers record the day's work; anything that undoes, corrects, or configures needs an admin.</td></tr>
         </tbody>
       </table>
 

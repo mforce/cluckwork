@@ -10,6 +10,7 @@ using Microsoft.Extensions.Options;
 
 public sealed class IdentityProvider(
     UserManager<ApplicationUser> userManager,
+    RoleManager<ApplicationRole> roleManager,
     IJwtTokenService jwtTokenService,
     AppDbContext db,
     IOptions<JwtOptions> jwtOptions,
@@ -38,7 +39,8 @@ public sealed class IdentityProvider(
         db.RefreshTokens.Add(NewToken(user, tokenHash));
         await db.SaveChangesAsync(ct);
 
-        return Result.Success(jwtTokenService.CreateTokenPair(user, rawToken));
+        var roles = await userManager.GetRolesAsync(user);
+        return Result.Success(jwtTokenService.CreateTokenPair(user, [.. roles], rawToken));
     }
 
     public async Task<Result<TokenPair>> RefreshAsync(string refreshToken, CancellationToken ct = default)
@@ -72,8 +74,64 @@ public sealed class IdentityProvider(
         db.RefreshTokens.Add(NewToken(user, newHash));
         await db.SaveChangesAsync(ct);
 
-        return Result.Success(jwtTokenService.CreateTokenPair(user, rawToken));
+        // Roles re-read on every refresh so a demotion takes effect within one
+        // access-token lifetime, not at next login.
+        var roles = await userManager.GetRolesAsync(user);
+        return Result.Success(jwtTokenService.CreateTokenPair(user, [.. roles], rawToken));
     }
+
+    public async Task<Result<Guid>> CreateUserAsync(
+        Guid accountId, string email, string password, bool isAdmin, CancellationToken ct = default)
+    {
+        var user = new ApplicationUser
+        {
+            Id = Guid.NewGuid(),
+            UserName = email,
+            Email = email,
+            EmailConfirmed = true,
+            AccountId = accountId
+        };
+
+        var created = await userManager.CreateAsync(user, password);
+        if (!created.Succeeded)
+            return Result.Failure<Guid>(Error.Validation("Users.CreateFailed", Describe(created)));
+
+        if (isAdmin)
+        {
+            if (!await roleManager.RoleExistsAsync(DatabaseSeeder.AdminRole))
+                await roleManager.CreateAsync(new ApplicationRole { Id = Guid.NewGuid(), Name = DatabaseSeeder.AdminRole });
+
+            var addedToRole = await userManager.AddToRoleAsync(user, DatabaseSeeder.AdminRole);
+            if (!addedToRole.Succeeded)
+            {
+                // Don't leave a half-created admin behind as a silent worker.
+                await userManager.DeleteAsync(user);
+                return Result.Failure<Guid>(Error.Validation("Users.CreateFailed", Describe(addedToRole)));
+            }
+        }
+
+        return Result.Success(user.Id);
+    }
+
+    public async Task<IReadOnlyList<UserSummary>> ListUsersAsync(Guid accountId, CancellationToken ct = default)
+    {
+        var adminIds = await (
+            from userRole in db.UserRoles
+            join role in db.Roles on userRole.RoleId equals role.Id
+            where role.Name == DatabaseSeeder.AdminRole
+            select userRole.UserId).ToListAsync(ct);
+
+        return await db.Users
+            .Where(u => u.AccountId == accountId)
+            .OrderBy(u => u.Email)
+            .Select(u => new UserSummary(
+                u.Id, u.Email!, u.DisplayName,
+                adminIds.Contains(u.Id) ? DatabaseSeeder.AdminRole : "Worker"))
+            .ToListAsync(ct);
+    }
+
+    private static string Describe(IdentityResult result) =>
+        string.Join(" ", result.Errors.Select(e => e.Description));
 
     public async Task RevokeRefreshTokenAsync(string refreshToken, CancellationToken ct = default)
     {

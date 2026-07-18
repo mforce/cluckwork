@@ -17,8 +17,10 @@ internal static class TestHarness
     public const string Password = "TestPassw0rd!23";
 
     // Creates an Account row + an ApplicationUser bound to it, returning the account id.
+    // Users are Admin by default — #73 gated the corrective endpoints, and most tests
+    // exercise them; pass asAdmin: false for a worker.
     public static async Task<Guid> SeedAccountWithUserAsync(
-        this CluckworkWebApplicationFactory factory, string email)
+        this CluckworkWebApplicationFactory factory, string email, bool asAdmin = true)
     {
         var accountId = Guid.NewGuid();
 
@@ -28,6 +30,14 @@ internal static class TestHarness
             await db.SaveChangesAsync();
         });
 
+        await factory.SeedUserAsync(accountId, email, asAdmin);
+        return accountId;
+    }
+
+    // Adds another user to an existing account (e.g. a worker beside the admin).
+    public static async Task SeedUserAsync(
+        this CluckworkWebApplicationFactory factory, Guid accountId, string email, bool asAdmin)
+    {
         using var scope = factory.Services.CreateScope();
         var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
         var user = new ApplicationUser
@@ -42,7 +52,20 @@ internal static class TestHarness
             throw new InvalidOperationException(
                 "Seed user creation failed: " + string.Join("; ", result.Errors.Select(e => e.Description)));
 
-        return accountId;
+        if (asAdmin)
+        {
+            // The startup seeder doesn't run in tests (Seed:Enabled unset) — create
+            // the role on first use. Tests in the collection run sequentially, so
+            // the exists-then-create pair doesn't race.
+            var roles = scope.ServiceProvider.GetRequiredService<RoleManager<ApplicationRole>>();
+            if (!await roles.RoleExistsAsync(DatabaseSeeder.AdminRole))
+                await roles.CreateAsync(new ApplicationRole { Id = Guid.NewGuid(), Name = DatabaseSeeder.AdminRole });
+
+            var added = await users.AddToRoleAsync(user, DatabaseSeeder.AdminRole);
+            if (!added.Succeeded)
+                throw new InvalidOperationException(
+                    "Seed role assignment failed: " + string.Join("; ", added.Errors.Select(e => e.Description)));
+        }
     }
 
     // Opens a scope, resolves the tenant to accountId, and hands the AppDbContext to the

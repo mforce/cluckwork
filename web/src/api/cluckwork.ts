@@ -390,6 +390,21 @@ export const listInventoryMovements = (itemId: string, params?: { limit?: number
   return apiGet<InventoryMovement[]>(`/inventory/items/${itemId}/movements${qs}`);
 };
 
+// --- Users (#73, admin-only endpoints) ---
+
+export interface User {
+  id: string;
+  email: string;
+  displayName: string | null;
+  role: string; // "Admin" | "Worker"
+}
+
+export const listUsers = () => apiGet<User[]>("/users");
+
+export const createUser = (body: {
+  email: string; password: string; role: string;
+}, key?: string) => apiPost<Created>("/users", body, key);
+
 // Formats minor units per the order's snapshotted currency (JPY has 0 decimals).
 export function formatMoney(minorUnits: number, currencyCode: string, minorUnit: number): string {
   const value = minorUnits / 10 ** minorUnit;
