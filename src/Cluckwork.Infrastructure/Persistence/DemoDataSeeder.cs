@@ -42,7 +42,8 @@ public sealed class DemoDataSeeder(
 {
     public async Task SeedAsync(CancellationToken ct = default)
     {
-        if (!options.Value.Demo) return;
+        // Seed:Enabled=false disables ALL startup seeding — demo included.
+        if (!options.Value.Demo || !options.Value.Enabled) return;
 
         var accountId = SeedDefaults.AccountId;
         var anyFlocks = await db.Flocks
@@ -65,7 +66,35 @@ public sealed class DemoDataSeeder(
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Demo seed failed; continuing without demo data.");
+            logger.LogError(ex, "Demo seed failed; removing partial demo data.");
+            await CleanupPartialSeedAsync(accountId);
+        }
+    }
+
+    // The handlers commit step by step (ConfirmSale even opens its own
+    // transaction, so one outer transaction can't wrap the whole seed). If a
+    // later step fails, committed rows would otherwise trip the empty-catalog
+    // guard forever with a half-seeded demo. The guard also makes cleanup
+    // safe: we only ever get here when the account had NO flocks, so every
+    // row in these tables belongs to this failed seed run.
+    private async Task CleanupPartialSeedAsync(Guid accountId)
+    {
+        try
+        {
+            // FK-safe order: children before parents.
+            await db.SalesOrderItems.IgnoreQueryFilters().Where(x => x.AccountId == accountId).ExecuteDeleteAsync();
+            await db.SalesOrders.IgnoreQueryFilters().Where(x => x.AccountId == accountId).ExecuteDeleteAsync();
+            await db.Customers.IgnoreQueryFilters().Where(x => x.AccountId == accountId).ExecuteDeleteAsync();
+            await db.BirdMovements.IgnoreQueryFilters().Where(x => x.AccountId == accountId).ExecuteDeleteAsync();
+            await db.EggLots.IgnoreQueryFilters().Where(x => x.AccountId == accountId).ExecuteDeleteAsync();
+            await db.DailyEntryGrades.IgnoreQueryFilters().Where(x => x.AccountId == accountId).ExecuteDeleteAsync();
+            await db.DailyEntries.IgnoreQueryFilters().Where(x => x.AccountId == accountId).ExecuteDeleteAsync();
+            await db.Flocks.IgnoreQueryFilters().Where(x => x.AccountId == accountId).ExecuteDeleteAsync();
+            logger.LogInformation("Partial demo data removed; next startup will retry the demo seed.");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Demo seed cleanup failed; the next startup will skip demo seeding.");
         }
     }
 
