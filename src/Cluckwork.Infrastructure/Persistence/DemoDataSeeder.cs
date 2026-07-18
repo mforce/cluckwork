@@ -74,13 +74,16 @@ public sealed class DemoDataSeeder(
     // The handlers commit step by step (ConfirmSale even opens its own
     // transaction, so one outer transaction can't wrap the whole seed). If a
     // later step fails, committed rows would otherwise trip the empty-catalog
-    // guard forever with a half-seeded demo. The guard also makes cleanup
-    // safe: we only ever get here when the account had NO flocks, so every
-    // row in these tables belongs to this failed seed run.
+    // guard forever with a half-seeded demo. Cleanup is safe on a fresh
+    // database: the flock guard proves the flock-rooted rows are ours, and
+    // DatabaseSeeder never writes customers/orders — nothing else can have
+    // created them before first startup completes.
     private async Task CleanupPartialSeedAsync(Guid accountId)
     {
         try
         {
+            // One transaction: cleanup is all-or-nothing, never half-purged.
+            await using var transaction = await db.Database.BeginTransactionAsync();
             // FK-safe order: children before parents.
             await db.SalesOrderItems.IgnoreQueryFilters().Where(x => x.AccountId == accountId).ExecuteDeleteAsync();
             await db.SalesOrders.IgnoreQueryFilters().Where(x => x.AccountId == accountId).ExecuteDeleteAsync();
@@ -90,6 +93,7 @@ public sealed class DemoDataSeeder(
             await db.DailyEntryGrades.IgnoreQueryFilters().Where(x => x.AccountId == accountId).ExecuteDeleteAsync();
             await db.DailyEntries.IgnoreQueryFilters().Where(x => x.AccountId == accountId).ExecuteDeleteAsync();
             await db.Flocks.IgnoreQueryFilters().Where(x => x.AccountId == accountId).ExecuteDeleteAsync();
+            await transaction.CommitAsync();
             logger.LogInformation("Partial demo data removed; next startup will retry the demo seed.");
         }
         catch (Exception ex)
