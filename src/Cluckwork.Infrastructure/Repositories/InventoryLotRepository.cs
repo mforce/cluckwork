@@ -14,7 +14,7 @@ public sealed class InventoryLotRepository(AppDbContext db) : IInventoryLotRepos
     // (ReceivedDate, Id) ordering — every locking path over these rows must
     // share it (the egg-lot deadlock lesson from #60/PR #64).
     public async Task<IReadOnlyList<InventoryLot>> GetAvailableFifoLockedAsync(
-        Guid accountId, Guid inventoryItemId, CancellationToken ct = default)
+        Guid accountId, Guid inventoryItemId, DateOnly asOfDate, CancellationToken ct = default)
     {
         return await db.InventoryLots.FromSqlInterpolated($"""
             SELECT *
@@ -22,12 +22,29 @@ public sealed class InventoryLotRepository(AppDbContext db) : IInventoryLotRepos
             WHERE "AccountId" = {accountId}
               AND "InventoryItemId" = {inventoryItemId}
               AND "QuantityAvailable" > 0
+              AND "ReceivedDate" <= {asOfDate}
             ORDER BY "ReceivedDate", "Id"
             FOR UPDATE
             """)
             .IgnoreQueryFilters()
             .ToListAsync(ct);
     }
+
+    // Single-lot FOR UPDATE for adjustments (empty lots included — positive
+    // corrections target exactly those). Single-row lock: no ordering
+    // interplay with the FIFO fetch to reason about beyond both being
+    // row locks on this table.
+    public Task<InventoryLot?> GetByIdLockedAsync(
+        Guid accountId, Guid lotId, CancellationToken ct = default) =>
+        db.InventoryLots.FromSqlInterpolated($"""
+            SELECT *
+            FROM "InventoryLots"
+            WHERE "AccountId" = {accountId}
+              AND "Id" = {lotId}
+            FOR UPDATE
+            """)
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(ct);
 
     public async Task<IReadOnlyList<InventoryLot>> ListByItemAsync(
         Guid inventoryItemId, CancellationToken ct = default) =>

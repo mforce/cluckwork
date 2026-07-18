@@ -70,4 +70,29 @@ public sealed class InventoryLot : AggregateRoot<Guid>
         Version++;
         return Result.Success();
     }
+
+    // Signed correction (#66 part 2): negative writes off / fixes an
+    // over-recorded purchase, positive undoes an over-consumption. Available
+    // stays within [0, QuantityReceived] — stock genuinely beyond the receipt
+    // is a new purchase, not an adjustment. Same FOR UPDATE rule as Consume.
+    public Result Adjust(decimal delta)
+    {
+        if (delta == 0)
+            return Result.Failure(Error.Validation(
+                "InventoryLot.InvalidQuantity", "Adjustment quantity cannot be zero."));
+
+        if (delta < 0 && -delta > QuantityAvailable)
+            return Result.Failure(Error.Domain(
+                "InventoryLot.InsufficientStock",
+                $"Cannot remove {-delta}: only {QuantityAvailable} available in this lot."));
+
+        if (delta > 0 && QuantityAvailable + delta > QuantityReceived)
+            return Result.Failure(Error.Domain(
+                "InventoryLot.AdjustExceedsReceived",
+                $"Adjusting by {delta} would exceed the {QuantityReceived} received in this lot; record extra stock as a purchase."));
+
+        QuantityAvailable += delta;
+        Version++;
+        return Result.Success();
+    }
 }

@@ -8,13 +8,20 @@ public interface IInventoryLotRepository : IRepository<InventoryLot, Guid>
     // FIFO-ordered lots with stock remaining for one item, locked FOR UPDATE —
     // the feed-usage consumption path (PR2 of #66). Canonical (ReceivedDate,
     // Id) lock order, same discipline as egg-lot allocation. Call inside an
-    // open transaction.
+    // open transaction. asOfDate: a backdated usage must not consume lots
+    // received after that day — stock that didn't exist yet.
     Task<IReadOnlyList<InventoryLot>> GetAvailableFifoLockedAsync(
-        Guid accountId, Guid inventoryItemId, CancellationToken ct = default);
+        Guid accountId, Guid inventoryItemId, DateOnly asOfDate, CancellationToken ct = default);
 
     // Lot browsing for an item, newest received first.
     Task<IReadOnlyList<InventoryLot>> ListByItemAsync(
         Guid inventoryItemId, CancellationToken ct = default);
+
+    // Single lot under FOR UPDATE for the adjustment path — call inside an
+    // open transaction. Unlike the FIFO fetch this returns empty lots too
+    // (a positive adjustment targets exactly those).
+    Task<InventoryLot?> GetByIdLockedAsync(
+        Guid accountId, Guid lotId, CancellationToken ct = default);
 
     // On-hand per item (Σ QuantityAvailable), one grouped query for the
     // catalog screen. Items with no lots are absent.

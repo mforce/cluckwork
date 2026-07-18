@@ -20,6 +20,7 @@ public sealed class CreateInventoryItemValidator : AbstractValidator<CreateInven
                        && Enum.IsDefined(parsed))
             .WithMessage("Unknown inventory category.");
         RuleFor(x => x.DefaultUnitCostMinorUnits)
-            .GreaterThanOrEqualTo(0).When(x => x.DefaultUnitCostMinorUnits is not null);
+            .GreaterThanOrEqualTo(0).When(x => x.DefaultUnitCostMinorUnits is not null)
+            .LessThanOrEqualTo(10_000_000_000_000).When(x => x.DefaultUnitCostMinorUnits is not null);
     }
 }

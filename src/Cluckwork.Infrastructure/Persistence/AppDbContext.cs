@@ -27,6 +27,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, TenantContext 
     public DbSet<InventoryItem> InventoryItems => Set<InventoryItem>();
     public DbSet<InventoryLot> InventoryLots => Set<InventoryLot>();
     public DbSet<InventoryMovement> InventoryMovements => Set<InventoryMovement>();
+    public DbSet<FeedUsage> FeedUsages => Set<FeedUsage>();
     public DbSet<IdempotencyRecord> IdempotencyRecords => Set<IdempotencyRecord>();
     public DbSet<DurableJob> DurableJobs => Set<DurableJob>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
@@ -55,5 +56,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, TenantContext 
         builder.Entity<InventoryItem>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
         builder.Entity<InventoryLot>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
         builder.Entity<InventoryMovement>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
+        builder.Entity<FeedUsage>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
     }
 }

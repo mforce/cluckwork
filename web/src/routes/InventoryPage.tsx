@@ -2,9 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import {
   createInventoryItem, activateInventoryItem, deactivateInventoryItem, formatMoney, getAccount,
-  listInventoryItems, listInventoryMovements, recordInventoryPurchase, updateInventoryItem,
+  listFlocks, listInventoryItems, listInventoryLots, listInventoryMovements,
+  recordFeedUsage, recordInventoryAdjustment, recordInventoryPurchase, updateInventoryItem,
 } from "../api/cluckwork";
-import type { Account, InventoryItem, InventoryMovement } from "../api/cluckwork";
+import type { Account, Flock, InventoryItem, InventoryLot, InventoryMovement } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 
 // Feed first (spec §12); the rest of the categories get their features later.
@@ -12,6 +13,9 @@ const CATEGORIES = [
   "Feed", "Supplement", "Additive", "Medication", "Vaccine",
   "Packaging", "Bedding", "Sanitation", "EquipmentPart", "Other",
 ];
+
+// Only these can be recorded as flock feed usage (mirrors the API gate).
+const FEEDABLE_CATEGORIES = ["Feed", "Supplement", "Additive"];
 
 function todayIso(): string {
   const d = new Date();
@@ -48,9 +52,21 @@ export function InventoryPage() {
   const [editUnit, setEditUnit] = useState("");
   const [editCost, setEditCost] = useState("");
 
-  // open item panel: purchase form + ledger
+  // open item panel: purchase/usage/adjust forms + ledger
   const [active, setActive] = useState<InventoryItem | null>(null);
   const [movements, setMovements] = useState<InventoryMovement[]>([]);
+  const [lots, setLots] = useState<InventoryLot[]>([]);
+  const [flocks, setFlocks] = useState<Flock[]>([]);
+  // usage form
+  const [usageFlockId, setUsageFlockId] = useState("");
+  const [usageDate, setUsageDate] = useState(todayIso());
+  const [usageQty, setUsageQty] = useState("");
+  const [usageNote, setUsageNote] = useState("");
+  // adjustment form
+  const [adjustLotId, setAdjustLotId] = useState("");
+  const [adjustType, setAdjustType] = useState("Adjustment");
+  const [adjustQty, setAdjustQty] = useState("");
+  const [adjustReason, setAdjustReason] = useState("");
   const [purchaseDate, setPurchaseDate] = useState(todayIso());
   const [purchaseQty, setPurchaseQty] = useState("");
   const [purchaseCost, setPurchaseCost] = useState("");
@@ -75,10 +91,16 @@ export function InventoryPage() {
   const fetchItems = () => listInventoryItems({ includeInactive: true });
 
   useEffect(() => {
-    Promise.all([fetchItems(), getAccount()])
-      .then(([list, acct]) => {
+    Promise.all([fetchItems(), getAccount(), listFlocks()])
+      .then(([list, acct, flockList]) => {
         setItems(list);
         setAccount(acct);
+        // Active + depleted: depleted flocks still take backfilled feed up to
+        // their depletion date (the API gates the exact dates). Archived are out.
+        const feedable = flockList.filter((f) => f.status !== "Archived");
+        setFlocks(feedable);
+        const firstActive = feedable.find((f) => f.status === "Active") ?? feedable[0];
+        if (firstActive) setUsageFlockId(firstActive.id);
       })
       .catch(() => setError("Could not load inventory. Is the API up?"));
   }, []);
@@ -96,8 +118,14 @@ export function InventoryPage() {
 
   async function loadLedger(itemId: string) {
     const req = ++ledgerRequest.current;
-    const rows = await listInventoryMovements(itemId, { limit: 100 });
-    if (ledgerRequest.current === req) setMovements(rows);
+    const [rows, lotRows] = await Promise.all([
+      listInventoryMovements(itemId, { limit: 100 }),
+      listInventoryLots(itemId),
+    ]);
+    if (ledgerRequest.current !== req) return;
+    setMovements(rows);
+    setLots(lotRows);
+    setAdjustLotId((prev) => lotRows.some((l) => l.id === prev) ? prev : (lotRows[0]?.id ?? ""));
   }
 
   async function run(scope: string, action: (key: string) => Promise<unknown>, openItemId?: string) {
@@ -199,6 +227,58 @@ export function InventoryPage() {
     }
   }
 
+  async function onRecordUsage(e: FormEvent) {
+    e.preventDefault();
+    if (!active) return;
+    const qty = parseFloat(usageQty);
+    if (!Number.isFinite(qty) || qty <= 0) {
+      setError("Quantity must be a positive number.");
+      return;
+    }
+    const ok = await run(`usage:${active.id}`, (key) =>
+      recordFeedUsage(active.id, {
+        flockId: usageFlockId,
+        date: usageDate,
+        quantity: qty,
+        note: usageNote.trim() || undefined,
+      }, key), active.id);
+    if (ok) {
+      setUsageQty("");
+      setUsageNote("");
+      setMessage("Feed usage recorded — stock drained oldest lots first.");
+    }
+  }
+
+  async function onAdjust(e: FormEvent) {
+    e.preventDefault();
+    if (!active) return;
+    const delta = parseFloat(adjustQty);
+    if (!Number.isFinite(delta) || delta === 0) {
+      setError("Adjustment quantity must be a non-zero number (negative removes stock).");
+      return;
+    }
+    if (!adjustReason.trim()) {
+      setError("A reason is required for corrections.");
+      return;
+    }
+    const ok = await run(`adjust:${active.id}:${adjustLotId}`, (key) =>
+      recordInventoryAdjustment(active.id, {
+        inventoryLotId: adjustLotId,
+        date: todayIso(),
+        type: adjustType,
+        quantityDelta: adjustType === "Discard" ? -Math.abs(delta) : delta,
+        reason: adjustReason.trim(),
+      }, key), active.id);
+    if (ok) {
+      setAdjustQty("");
+      setAdjustReason("");
+      setMessage("Correction recorded in the ledger.");
+    }
+  }
+
+  const lotLabel = (l: InventoryLot) =>
+    `${l.receivedDate}${l.lotNumber ? ` · ${l.lotNumber}` : ""} — ${l.quantityAvailable}/${l.quantityReceived}`;
+
   const costText = (i: InventoryItem) =>
     i.defaultCostMinorUnits !== null && i.defaultCostCurrencyCode
       ? formatMoney(i.defaultCostMinorUnits, i.defaultCostCurrencyCode,
@@ -270,6 +350,70 @@ export function InventoryPage() {
             </label>
             <button type="submit" disabled={busy}>Record purchase</button>
           </form>
+
+          <h4>Record usage</h4>
+          {!FEEDABLE_CATEGORIES.includes(active.category) ? (
+            <p className="muted">
+              {active.category} items aren't fed to flocks — usage applies to
+              Feed, Supplement, and Additive items only.
+            </p>
+          ) : flocks.length === 0 ? (
+            <p className="muted">No flocks — usage needs a flock to feed.</p>
+          ) : (
+            <form className="form-grid" onSubmit={onRecordUsage}>
+              <label>Flock
+                <select value={usageFlockId} onChange={(e) => setUsageFlockId(e.target.value)}>
+                  {flocks.map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {f.name}{f.status === "Depleted" ? " (depleted — backfill only)" : ""}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>Date
+                <input type="date" value={usageDate} max={todayIso()} required
+                  onChange={(e) => setUsageDate(e.target.value)} />
+              </label>
+              <label>Quantity ({active.unit})
+                <input type="number" min={0.001} step={0.001} value={usageQty} required
+                  onChange={(e) => setUsageQty(e.target.value)} />
+              </label>
+              <label>Note
+                <input value={usageNote} maxLength={500}
+                  onChange={(e) => setUsageNote(e.target.value)} />
+              </label>
+              <button type="submit" disabled={busy || !usageFlockId}>Record usage</button>
+            </form>
+          )}
+
+          <h4>Correct stock</h4>
+          {lots.length === 0 ? (
+            <p className="muted">No lots yet — corrections target a received lot.</p>
+          ) : (
+            <form className="form-grid" onSubmit={onAdjust}>
+              <label>Lot
+                <select value={adjustLotId} onChange={(e) => setAdjustLotId(e.target.value)}>
+                  {lots.map((l) => <option key={l.id} value={l.id}>{lotLabel(l)}</option>)}
+                </select>
+              </label>
+              <label>Type
+                <select value={adjustType} onChange={(e) => setAdjustType(e.target.value)}>
+                  <option value="Adjustment">Adjustment (±)</option>
+                  <option value="Discard">Discard (write-off)</option>
+                </select>
+              </label>
+              <label>Quantity ({active.unit})
+                <input type="number" step={0.001} value={adjustQty} required
+                  placeholder={adjustType === "Discard" ? "amount discarded" : "± correction"}
+                  onChange={(e) => setAdjustQty(e.target.value)} />
+              </label>
+              <label>Reason *
+                <input value={adjustReason} maxLength={500} required
+                  onChange={(e) => setAdjustReason(e.target.value)} />
+              </label>
+              <button type="submit" disabled={busy || !adjustLotId}>Record correction</button>
+            </form>
+          )}
 
           {movements.length > 0 ? (
             <table className="data">

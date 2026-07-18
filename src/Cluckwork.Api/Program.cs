@@ -19,6 +19,8 @@ using Cluckwork.Application.Features.DailyEntries.SubmitDailyEntry;
 using Cluckwork.Application.Features.EggGrades;
 using Cluckwork.Application.Features.Inventory;
 using Cluckwork.Application.Features.Inventory.CreateInventoryItem;
+using Cluckwork.Application.Features.Inventory.RecordAdjustment;
+using Cluckwork.Application.Features.Inventory.RecordFeedUsage;
 using Cluckwork.Application.Features.Inventory.RecordPurchase;
 using Cluckwork.Application.Features.Inventory.UpdateInventoryItem;
 using Cluckwork.Application.Features.EggGrades.CreateEggGrade;
@@ -143,6 +145,7 @@ builder.Services.AddScoped<ISalesOrderAllocationRepository, SalesOrderAllocation
 builder.Services.AddScoped<IInventoryItemRepository, InventoryItemRepository>();
 builder.Services.AddScoped<IInventoryLotRepository, InventoryLotRepository>();
 builder.Services.AddScoped<IInventoryMovementRepository, InventoryMovementRepository>();
+builder.Services.AddScoped<IFeedUsageRepository, FeedUsageRepository>();
 builder.Services.AddScoped<IFlockRepository, FlockRepository>();
 builder.Services.AddScoped<IBirdMovementRepository, BirdMovementRepository>();
 builder.Services.AddScoped<ICustomerRepository, CustomerRepository>();
@@ -163,6 +166,8 @@ builder.Services.AddScoped<IValidator<VoidSaleCommand>, VoidSaleValidator>();
 builder.Services.AddScoped<IValidator<CreateInventoryItemCommand>, CreateInventoryItemValidator>();
 builder.Services.AddScoped<IValidator<UpdateInventoryItemCommand>, UpdateInventoryItemValidator>();
 builder.Services.AddScoped<IValidator<RecordPurchaseCommand>, RecordPurchaseValidator>();
+builder.Services.AddScoped<IValidator<RecordFeedUsageCommand>, RecordFeedUsageValidator>();
+builder.Services.AddScoped<IValidator<RecordAdjustmentCommand>, RecordAdjustmentValidator>();
 
 // --- Handlers (direct — no mediator, tech spec §2.1) ---
 builder.Services.AddScoped<RecordDailyEntryHandler>();
@@ -179,6 +184,8 @@ builder.Services.AddScoped<CreateInventoryItemHandler>();
 builder.Services.AddScoped<UpdateInventoryItemHandler>();
 builder.Services.AddScoped<SetInventoryItemActiveHandler>();
 builder.Services.AddScoped<RecordPurchaseHandler>();
+builder.Services.AddScoped<RecordFeedUsageHandler>();
+builder.Services.AddScoped<RecordAdjustmentHandler>();
 builder.Services.AddScoped<CreateFlockHandler>();
 builder.Services.AddScoped<DepleteFlockHandler>();
 builder.Services.AddScoped<CreateEggGradeHandler>();
