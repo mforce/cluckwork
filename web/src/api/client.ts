@@ -21,6 +21,14 @@ export function setOnUnauthenticated(cb: (() => void) | null): void {
   onUnauthenticated = cb;
 }
 
+// Called whenever a new token pair is saved (login or transparent refresh).
+// AuthContext re-derives the role from the fresh access token so a demotion
+// or promotion shows in the UI within one token lifetime, not at next reload.
+let onTokensChanged: (() => void) | null = null;
+export function setOnTokensChanged(cb: (() => void) | null): void {
+  onTokensChanged = cb;
+}
+
 async function parseError(res: Response): Promise<ApiError> {
   let title = res.statusText;
   let detail = res.statusText;
@@ -63,6 +71,7 @@ export async function login(body: LoginRequest): Promise<TokenPair> {
     body: JSON.stringify(body),
   });
   saveTokens(tokens);
+  onTokensChanged?.();
   return tokens;
 }
 
@@ -95,6 +104,7 @@ async function refreshTokens(): Promise<TokenPair> {
   })
     .then((tokens) => {
       saveTokens(tokens);
+      onTokensChanged?.();
       return tokens;
     })
     .finally(() => {

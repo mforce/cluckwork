@@ -48,6 +48,7 @@ public sealed class DatabaseSeeder(
         await SeedDefaultEggGradesAsync(ct);
         await SeedAdminRoleAsync();
         await SeedAdminUserAsync(o);
+        await SeedWorkerUserAsync(o);
     }
 
     // Spec §9.1 suggested defaults. Saleable grades are what daily-entry grade
@@ -196,6 +197,44 @@ public sealed class DatabaseSeeder(
 
         await EnsureInAdminRoleAsync(user);
         logger.LogInformation("Seeded admin user {Email}.", o.AdminEmail);
+    }
+
+    // Optional non-admin login (#73): created without any role so the worker
+    // experience is testable out of the box. Skipped unless BOTH Seed:WorkerEmail
+    // and Seed:WorkerPassword are supplied — never a fallback credential. An
+    // existing user's roles are left untouched (a later promotion must not be
+    // silently reverted on restart).
+    private async Task SeedWorkerUserAsync(SeedOptions o)
+    {
+        if (string.IsNullOrWhiteSpace(o.WorkerEmail) || string.IsNullOrWhiteSpace(o.WorkerPassword))
+            return;
+
+        var existing = await users.FindByEmailAsync(o.WorkerEmail);
+        if (existing is not null)
+        {
+            if (existing.AccountId != SeedDefaults.AccountId)
+                logger.LogError(
+                    "Seed:WorkerEmail {Email} already belongs to account {OtherAccount}, not the default " +
+                    "account {DefaultAccount}. Skipping worker seed.",
+                    o.WorkerEmail, existing.AccountId, SeedDefaults.AccountId);
+            return;
+        }
+
+        var user = new ApplicationUser
+        {
+            Id = Guid.NewGuid(),
+            UserName = o.WorkerEmail,
+            Email = o.WorkerEmail,
+            EmailConfirmed = true,
+            AccountId = SeedDefaults.AccountId,
+            DisplayName = "Worker",
+        };
+
+        var result = await users.CreateAsync(user, o.WorkerPassword);
+        if (result.Succeeded)
+            logger.LogInformation("Seeded worker user {Email}.", o.WorkerEmail);
+        else
+            logger.LogError("Failed to seed worker user {Email}: {Errors}", o.WorkerEmail, Describe(result));
     }
 
     private async Task EnsureInAdminRoleAsync(ApplicationUser user)

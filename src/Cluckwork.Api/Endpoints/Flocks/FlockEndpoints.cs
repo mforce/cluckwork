@@ -33,25 +33,32 @@ public static class FlockEndpoints
             .WithName("GetFlock")
             .WithSummary("Get a single flock by id.");
 
+        // Corrective/lifecycle actions are admin-only (#73): they rewrite or
+        // close history rather than record the day's work.
         group.MapPut("/{id:guid}", UpdateFlock)
             .WithName("UpdateFlock")
-            .WithSummary("Correct a flock's name, breed, placement date, or initial count.");
+            .WithSummary("Correct a flock's name, breed, placement date, or initial count.")
+            .RequireAuthorization(AuthPolicies.AdminOnly);
 
         group.MapPost("/{id:guid}/deplete", DepleteFlock)
             .WithName("DepleteFlock")
-            .WithSummary("Mark a flock as depleted.");
+            .WithSummary("Mark a flock as depleted.")
+            .RequireAuthorization(AuthPolicies.AdminOnly);
 
         group.MapPost("/{id:guid}/archive", ArchiveFlock)
             .WithName("ArchiveFlock")
-            .WithSummary("Archive a flock: hidden from pickers and dashboard, visible in the management view.");
+            .WithSummary("Archive a flock: hidden from pickers and dashboard, visible in the management view.")
+            .RequireAuthorization(AuthPolicies.AdminOnly);
 
         group.MapPost("/{id:guid}/reactivate", ReactivateFlock)
             .WithName("ReactivateFlock")
-            .WithSummary("Undo a deplete/archive: the flock returns to Active and accepts entries for any date again.");
+            .WithSummary("Undo a deplete/archive: the flock returns to Active and accepts entries for any date again.")
+            .RequireAuthorization(AuthPolicies.AdminOnly);
 
         group.MapPost("/{id:guid}/movements", RecordMovement)
             .WithName("RecordBirdMovement")
-            .WithSummary("Record a manual bird movement (Cull or Adjustment; mortality is generated from submitted daily entries).");
+            .WithSummary("Record a manual bird movement (Cull or Adjustment; mortality is generated from submitted daily entries).")
+            .RequireAuthorization(AuthPolicies.AdminOnly);
 
         group.MapGet("/{id:guid}/movements", ListMovements)
             .WithName("ListBirdMovements")

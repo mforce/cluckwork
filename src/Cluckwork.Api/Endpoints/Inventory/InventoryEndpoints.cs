@@ -25,21 +25,27 @@ public static class InventoryEndpoints
             .WithName("GetInventoryItem")
             .WithSummary("Get a single inventory item (active or not).");
 
+        // The item catalog is configuration — admin-only (#73). Receiving stock
+        // (purchases) and recording usage stay open: that's the day's work.
         group.MapPost("/items", CreateItem)
             .WithName("CreateInventoryItem")
-            .WithSummary("Create an inventory item (name unique per farm, case-insensitive; category immutable).");
+            .WithSummary("Create an inventory item (name unique per farm, case-insensitive; category immutable).")
+            .RequireAuthorization(AuthPolicies.AdminOnly);
 
         group.MapPut("/items/{id:guid}", UpdateItem)
             .WithName("UpdateInventoryItem")
-            .WithSummary("Rename an item or change its unit/default cost. Unit locks once stock has been received.");
+            .WithSummary("Rename an item or change its unit/default cost. Unit locks once stock has been received.")
+            .RequireAuthorization(AuthPolicies.AdminOnly);
 
         group.MapPost("/items/{id:guid}/deactivate", (Guid id, SetInventoryItemActiveHandler h, TenantContext t, CancellationToken ct) => SetActive(id, false, h, t, ct))
             .WithName("DeactivateInventoryItem")
-            .WithSummary("Deactivate an item: it leaves pickers; lots, stock, and history are unaffected.");
+            .WithSummary("Deactivate an item: it leaves pickers; lots, stock, and history are unaffected.")
+            .RequireAuthorization(AuthPolicies.AdminOnly);
 
         group.MapPost("/items/{id:guid}/activate", (Guid id, SetInventoryItemActiveHandler h, TenantContext t, CancellationToken ct) => SetActive(id, true, h, t, ct))
             .WithName("ActivateInventoryItem")
-            .WithSummary("Reactivate a previously deactivated item.");
+            .WithSummary("Reactivate a previously deactivated item.")
+            .RequireAuthorization(AuthPolicies.AdminOnly);
 
         group.MapPost("/items/{id:guid}/purchases", RecordPurchase)
             .WithName("RecordInventoryPurchase")
@@ -57,9 +63,12 @@ public static class InventoryEndpoints
             .WithName("RecordFeedUsage")
             .WithSummary("Record feed consumed by a flock: drains lots FIFO, appends Usage ledger rows, estimates cost from lot costs.");
 
+        // Stock corrections undo recorded history — admin-only (#73; owner
+        // decision: purchases are fine for workers, correcting them is not).
         group.MapPost("/items/{id:guid}/adjustments", RecordAdjustment)
             .WithName("RecordInventoryAdjustment")
-            .WithSummary("Correct a lot's stock (signed Adjustment) or write it off (Discard) via a compensating ledger row; reason required.");
+            .WithSummary("Correct a lot's stock (signed Adjustment) or write it off (Discard) via a compensating ledger row; reason required.")
+            .RequireAuthorization(AuthPolicies.AdminOnly);
 
         group.MapGet("/usage", ListFeedUsage)
             .WithName("ListFeedUsage")

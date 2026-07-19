@@ -5,6 +5,7 @@ import {
 } from "../api/cluckwork";
 import type { EggGrade } from "../api/cluckwork";
 import { ApiError } from "../api/client";
+import { useAuth } from "../auth/useAuth";
 
 const GRADE_TYPES = ["Size", "Quality", "Custom"];
 
@@ -17,6 +18,9 @@ function errorMessage(err: unknown): string {
 // and order items reference grades forever; deactivation only removes a grade
 // from capture/order pickers while history keeps rendering its name.
 export function GradesPage() {
+  // The grade catalog is configuration — management is admin-only (#73). The
+  // nav link hides for workers; a direct URL just renders the list read-only.
+  const { isAdmin } = useAuth();
   const [grades, setGrades] = useState<EggGrade[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -111,23 +115,25 @@ export function GradesPage() {
         removes it from pickers; existing stock and history are unaffected.
       </p>
 
-      <form className="inline-form" onSubmit={onCreate}>
-        <input placeholder="Name *" value={name} required maxLength={50}
-          onChange={(e) => setName(e.target.value)} />
-        <select value={gradeType} onChange={(e) => setGradeType(e.target.value)}>
-          {GRADE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-        </select>
-        <label className="muted">Sort
-          <input className="cell" type="number" value={sortOrder}
-            onChange={(e) => setSortOrder(e.target.valueAsNumber || 0)} />
-        </label>
-        <label className="muted check">
-          <input type="checkbox" checked={isSaleable}
-            onChange={(e) => setIsSaleable(e.target.checked)} />
-          saleable
-        </label>
-        <button type="submit" disabled={busy}>Add grade</button>
-      </form>
+      {isAdmin && (
+        <form className="inline-form" onSubmit={onCreate}>
+          <input placeholder="Name *" value={name} required maxLength={50}
+            onChange={(e) => setName(e.target.value)} />
+          <select value={gradeType} onChange={(e) => setGradeType(e.target.value)}>
+            {GRADE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+          </select>
+          <label className="muted">Sort
+            <input className="cell" type="number" value={sortOrder}
+              onChange={(e) => setSortOrder(e.target.valueAsNumber || 0)} />
+          </label>
+          <label className="muted check">
+            <input type="checkbox" checked={isSaleable}
+              onChange={(e) => setIsSaleable(e.target.checked)} />
+            saleable
+          </label>
+          <button type="submit" disabled={busy}>Add grade</button>
+        </form>
+      )}
 
       {error && <p className="error">{error}</p>}
 
@@ -169,18 +175,22 @@ export function GradesPage() {
                   <td>{g.isSaleable ? "yes" : "—"}</td>
                   <td>{g.active ? "Active" : <span className="warn">Inactive</span>}</td>
                   <td>
-                    <button className="link" disabled={busy}
-                      onClick={() => startEdit(g)}>edit</button>
-                    {g.active ? (
-                      <button className="link" disabled={busy}
-                        onClick={() => void run(`deactivate:${g.id}`, (key) => deactivateEggGrade(g.id, key))}>
-                        deactivate
-                      </button>
-                    ) : (
-                      <button className="link" disabled={busy}
-                        onClick={() => void run(`activate:${g.id}`, (key) => activateEggGrade(g.id, key))}>
-                        activate
-                      </button>
+                    {isAdmin && (
+                      <>
+                        <button className="link" disabled={busy}
+                          onClick={() => startEdit(g)}>edit</button>
+                        {g.active ? (
+                          <button className="link" disabled={busy}
+                            onClick={() => void run(`deactivate:${g.id}`, (key) => deactivateEggGrade(g.id, key))}>
+                            deactivate
+                          </button>
+                        ) : (
+                          <button className="link" disabled={busy}
+                            onClick={() => void run(`activate:${g.id}`, (key) => activateEggGrade(g.id, key))}>
+                            activate
+                          </button>
+                        )}
+                      </>
                     )}
                   </td>
                 </>

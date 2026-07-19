@@ -3,6 +3,7 @@ import type { FormEvent } from "react";
 import { listFlocks, listWaterUsage, recordWaterUsage, updateWaterUsage } from "../api/cluckwork";
 import type { Flock, WaterUsage } from "../api/cluckwork";
 import { ApiError } from "../api/client";
+import { useAuth } from "../auth/useAuth";
 import { todayIso } from "../lib/dates";
 
 const PAGE = 50;
@@ -21,6 +22,8 @@ function errText(err: unknown): string {
 // readings (quantity derives from the delta). Records are editable (no
 // stock behind them); flock and date stay fixed once recorded.
 export function WaterPage() {
+  // Recording is open to everyone; correcting a record is admin-only (#73).
+  const { isAdmin } = useAuth();
   const [rows, setRows] = useState<WaterUsage[] | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [flocks, setFlocks] = useState<Flock[]>([]);
@@ -275,7 +278,9 @@ export function WaterPage() {
                   <td>{r.meterStart !== null ? `${r.meterStart} → ${r.meterEnd}` : "—"}</td>
                   <td>{r.note ?? ""}</td>
                   <td>
-                    <button className="link" disabled={busy} onClick={() => startEdit(r)}>correct</button>
+                    {isAdmin && (
+                      <button className="link" disabled={busy} onClick={() => startEdit(r)}>correct</button>
+                    )}
                   </td>
                 </tr>
               ))}

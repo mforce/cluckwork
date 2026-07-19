@@ -5,7 +5,7 @@ import { useAuth } from "../auth/useAuth";
 // (daily entry #F1, stock #F2, customers/sales #F3, history #F4) — screens land
 // as their API slices ship.
 export function AppLayout() {
-  const { logout } = useAuth();
+  const { logout, isAdmin } = useAuth();
   const navigate = useNavigate();
 
   async function onLogout() {
@@ -29,7 +29,10 @@ export function AppLayout() {
           <NavLink to="/customers">Customers</NavLink>
           <NavLink to="/sales">Sales</NavLink>
           <NavLink to="/history">History</NavLink>
-          <NavLink to="/grades">Grades</NavLink>
+          {/* Admin-only screens (#73): the links hide for workers, and the API
+              enforces the role on every gated endpoint regardless. */}
+          {isAdmin && <NavLink to="/grades">Grades</NavLink>}
+          {isAdmin && <NavLink to="/users">Users</NavLink>}
           <NavLink to="/help">Help</NavLink>
         </nav>
         <button className="link" onClick={onLogout}>

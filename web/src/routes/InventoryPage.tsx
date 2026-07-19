@@ -7,6 +7,7 @@ import {
 } from "../api/cluckwork";
 import type { Account, Flock, InventoryItem, InventoryLot, InventoryMovement } from "../api/cluckwork";
 import { ApiError } from "../api/client";
+import { useAuth } from "../auth/useAuth";
 
 // Feed first (spec §12); the rest of the categories get their features later.
 const CATEGORIES = [
@@ -32,6 +33,9 @@ function errText(err: unknown): string {
 // how it's measured; lots carry quantities/cost; the movement ledger explains
 // every change. Feed usage (consumption) is the follow-up PR.
 export function InventoryPage() {
+  // Purchases and feed usage are the day's work — open to everyone. The item
+  // catalog and stock corrections are admin-only (#73).
+  const { isAdmin } = useAuth();
   const [items, setItems] = useState<InventoryItem[] | null>(null);
   // Account currency drives ALL money parsing/formatting here — costs may not
   // exist on an item yet, and assuming 2 decimals corrupts JPY/KWD amounts.
@@ -300,20 +304,22 @@ export function InventoryPage() {
         ledger. Recording feed usage against flocks arrives next.
       </p>
 
-      <form className="inline-form" onSubmit={onCreate}>
-        <input placeholder="Item name *" value={name} required maxLength={200}
-          onChange={(e) => setName(e.target.value)} />
-        <select value={category} onChange={(e) => setCategory(e.target.value)}>
-          {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-        </select>
-        <input placeholder="Unit *" value={unit} required maxLength={20} size={6}
-          onChange={(e) => setUnit(e.target.value)} />
-        <label className="muted">Default cost/unit
-          <input className="cell" type="number" min={0} step={costStep} value={defaultCost}
-            onChange={(e) => setDefaultCost(e.target.value)} />
-        </label>
-        <button type="submit" disabled={busy}>Add item</button>
-      </form>
+      {isAdmin && (
+        <form className="inline-form" onSubmit={onCreate}>
+          <input placeholder="Item name *" value={name} required maxLength={200}
+            onChange={(e) => setName(e.target.value)} />
+          <select value={category} onChange={(e) => setCategory(e.target.value)}>
+            {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+          <input placeholder="Unit *" value={unit} required maxLength={20} size={6}
+            onChange={(e) => setUnit(e.target.value)} />
+          <label className="muted">Default cost/unit
+            <input className="cell" type="number" min={0} step={costStep} value={defaultCost}
+              onChange={(e) => setDefaultCost(e.target.value)} />
+          </label>
+          <button type="submit" disabled={busy}>Add item</button>
+        </form>
+      )}
 
       {error && <p className="error">{error}</p>}
       {message && <p className="success">{message}</p>}
@@ -387,7 +393,9 @@ export function InventoryPage() {
           )}
 
           <h4>Correct stock</h4>
-          {lots.length === 0 ? (
+          {!isAdmin ? (
+            <p className="muted">Stock corrections need an admin.</p>
+          ) : lots.length === 0 ? (
             <p className="muted">No lots yet — corrections target a received lot.</p>
           ) : (
             <form className="form-grid" onSubmit={onAdjust}>
@@ -480,17 +488,21 @@ export function InventoryPage() {
                   <td>{i.active ? "Active" : <span className="warn">Inactive</span>}</td>
                   <td>
                     <button className="link" disabled={busy} onClick={() => void onOpen(i)}>open</button>
-                    <button className="link" disabled={busy} onClick={() => startEdit(i)}>edit</button>
-                    {i.active ? (
-                      <button className="link" disabled={busy}
-                        onClick={() => void run(`deactivate:${i.id}`, (key) => deactivateInventoryItem(i.id, key))}>
-                        deactivate
-                      </button>
-                    ) : (
-                      <button className="link" disabled={busy}
-                        onClick={() => void run(`activate:${i.id}`, (key) => activateInventoryItem(i.id, key))}>
-                        activate
-                      </button>
+                    {isAdmin && (
+                      <>
+                        <button className="link" disabled={busy} onClick={() => startEdit(i)}>edit</button>
+                        {i.active ? (
+                          <button className="link" disabled={busy}
+                            onClick={() => void run(`deactivate:${i.id}`, (key) => deactivateInventoryItem(i.id, key))}>
+                            deactivate
+                          </button>
+                        ) : (
+                          <button className="link" disabled={busy}
+                            onClick={() => void run(`activate:${i.id}`, (key) => activateInventoryItem(i.id, key))}>
+                            activate
+                          </button>
+                        )}
+                      </>
                     )}
                   </td>
                 </>

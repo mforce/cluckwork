@@ -9,12 +9,12 @@ using Microsoft.IdentityModel.Tokens;
 
 public interface IJwtTokenService
 {
-    TokenPair CreateTokenPair(ApplicationUser user, string refreshToken);
+    TokenPair CreateTokenPair(ApplicationUser user, IReadOnlyCollection<string> roles, string refreshToken);
 }
 
 public sealed class JwtTokenService(IOptions<JwtOptions> options, TimeProvider timeProvider) : IJwtTokenService
 {
-    public TokenPair CreateTokenPair(ApplicationUser user, string refreshToken)
+    public TokenPair CreateTokenPair(ApplicationUser user, IReadOnlyCollection<string> roles, string refreshToken)
     {
         var jwtOptions = options.Value;
         using var rsa = RSA.Create();
@@ -27,12 +27,15 @@ public sealed class JwtTokenService(IOptions<JwtOptions> options, TimeProvider t
             CryptoProviderFactory = new CryptoProviderFactory { CacheSignatureProviders = false }
         };
 
-        var claims = new[]
+        // "role" is the short claim name the API validates against
+        // (TokenValidationParameters.RoleClaimType) and the SPA decodes.
+        var claims = new List<Claim>
         {
-            new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
-            new Claim(JwtRegisteredClaimNames.Email, user.Email ?? string.Empty),
-            new Claim("account_id", user.AccountId.ToString())
+            new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
+            new(JwtRegisteredClaimNames.Email, user.Email ?? string.Empty),
+            new("account_id", user.AccountId.ToString())
         };
+        claims.AddRange(roles.Select(r => new Claim("role", r)));
 
         var token = new JwtSecurityToken(
             jwtOptions.Issuer,

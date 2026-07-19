@@ -20,21 +20,27 @@ public static class EggGradeEndpoints
             .WithName("GetEggGrade")
             .WithSummary("Get a single egg grade by id (active or not).");
 
+        // The grade catalog is configuration — admin-only (#73); reads stay open
+        // so capture screens can render names for any user.
         group.MapPost("/", CreateEggGrade)
             .WithName("CreateEggGrade")
-            .WithSummary("Create an egg grade (name unique per farm, case-insensitive).");
+            .WithSummary("Create an egg grade (name unique per farm, case-insensitive).")
+            .RequireAuthorization(AuthPolicies.AdminOnly);
 
         group.MapPut("/{id:guid}", UpdateEggGrade)
             .WithName("UpdateEggGrade")
-            .WithSummary("Rename a grade or change its sort order / saleability. Grade type is immutable.");
+            .WithSummary("Rename a grade or change its sort order / saleability. Grade type is immutable.")
+            .RequireAuthorization(AuthPolicies.AdminOnly);
 
         group.MapPost("/{id:guid}/deactivate", (Guid id, SetEggGradeActiveHandler h, TenantContext t, CancellationToken ct) => SetActive(id, false, h, t, ct))
             .WithName("DeactivateEggGrade")
-            .WithSummary("Deactivate a grade: it leaves capture/order pickers; existing stock and history are unaffected.");
+            .WithSummary("Deactivate a grade: it leaves capture/order pickers; existing stock and history are unaffected.")
+            .RequireAuthorization(AuthPolicies.AdminOnly);
 
         group.MapPost("/{id:guid}/activate", (Guid id, SetEggGradeActiveHandler h, TenantContext t, CancellationToken ct) => SetActive(id, true, h, t, ct))
             .WithName("ActivateEggGrade")
-            .WithSummary("Reactivate a previously deactivated grade.");
+            .WithSummary("Reactivate a previously deactivated grade.")
+            .RequireAuthorization(AuthPolicies.AdminOnly);
 
         return group;
     }

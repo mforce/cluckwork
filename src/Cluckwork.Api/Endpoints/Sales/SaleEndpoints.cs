@@ -43,9 +43,12 @@ public static class SaleEndpoints
             .WithName("ConfirmSale")
             .WithSummary("Confirm a sales order and allocate egg lots via FIFO (online-only).");
 
+        // Voiding undoes a confirmed sale — admin-only (#73). The draft
+        // lifecycle (create/edit/cancel/confirm) stays open: workers sell.
         group.MapPost("/{id:guid}/void", VoidSale)
             .WithName("VoidSale")
-            .WithSummary("Void a confirmed order, returning allocated stock to its source egg lots.");
+            .WithSummary("Void a confirmed order, returning allocated stock to its source egg lots.")
+            .RequireAuthorization(AuthPolicies.AdminOnly);
 
         group.MapGet("/{id:guid}", GetSalesOrder)
             .WithName("GetSalesOrder")
