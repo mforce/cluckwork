@@ -99,8 +99,9 @@ export function DailyEntryPage() {
     const target = `${flockId}|${date}`;
     // Voided entries vacate their day (#82): they must not prefill the form or
     // block a fresh save. limit > 1 because a re-recorded day keeps its voided
-    // siblings on the same date and ordering between them is by id.
-    listDailyEntries({ flockId, from: date, to: date, limit: 10 })
+    // siblings on the same date and ordering between them is by id; 100 (the
+    // server's default page) so the live row can't fall off the fetched set.
+    listDailyEntries({ flockId, from: date, to: date, limit: 100 })
       .then((entries) => {
         if (cancelled) return;
         const existing = entries.find((e) => e.date === date && e.status !== "Voided");
