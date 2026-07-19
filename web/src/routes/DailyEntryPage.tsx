@@ -76,20 +76,32 @@ export function DailyEntryPage() {
         const f = capturable(all);
         setFlocks(f);
         setGrades(g.filter((x) => x.isSaleable));
-        // Deep link from History's Draft "edit" (#85): ?flockId=…&date=…
-        // wins over the remembered flock; unknown/archived ids fall through
-        // to the defaults below. Read once on mount — route navigation here
-        // always remounts the page.
+        // Deep link from History's Draft "edit" (#85): ?flockId=…&date=….
+        // The pair is applied atomically — applying only the date against a
+        // fallback flock would open a DIFFERENT flock's day under the linked
+        // date (codex review of #86). Read once on mount — route navigation
+        // here always remounts the page.
         const params = new URLSearchParams(window.location.search);
         const wantedFlock = params.get("flockId");
         const wantedDate = params.get("date");
-        if (wantedDate && /^\d{4}-\d{2}-\d{2}$/.test(wantedDate) && wantedDate <= todayIso())
-          setDate(wantedDate);
+        // A real past-or-today calendar date — the regex alone admits
+        // impossibilities like 2026-13-01 that would fail the prefill fetch
+        // and block saving.
+        const dateOk = wantedDate !== null
+          && /^\d{4}-\d{2}-\d{2}$/.test(wantedDate)
+          && !Number.isNaN(Date.parse(`${wantedDate}T00:00:00Z`))
+          && new Date(`${wantedDate}T00:00:00Z`).toISOString().slice(0, 10) === wantedDate
+          && wantedDate <= todayIso();
+        const flockOk = wantedFlock !== null && f.some((x) => x.id === wantedFlock);
+        const deepLinked = flockOk && dateOk;
+        if (deepLinked) setDate(wantedDate!);
+        else if (wantedFlock || wantedDate)
+          setError("This edit link points at a flock or date that is no longer available — using the usual defaults instead.");
         const remembered = localStorage.getItem(LAST_FLOCK_KEY);
         // Default prefers an ACTIVE flock — depleted ones are backfill targets
         // you pick deliberately, not a default.
         const firstActive = f.find((x) => x.status === "Active") ?? f[0];
-        if (wantedFlock && f.some((x) => x.id === wantedFlock)) setFlockId(wantedFlock);
+        if (deepLinked) setFlockId(wantedFlock!);
         else if (remembered && f.some((x) => x.id === remembered)) setFlockId(remembered);
         else if (firstActive) setFlockId(firstActive.id);
       })

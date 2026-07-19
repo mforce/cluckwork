@@ -249,7 +249,8 @@ export function HelpPage() {
       <h3 id="mistakes">Fixing mistakes</h3>
       <p className="muted">
         Every fix in this table needs an admin sign-in (see "Who can do what")
-        — workers record, admins correct.
+        — workers record, admins correct. The one exception: a <em>draft</em>{" "}
+        is still recording, not correcting, so workers edit their own drafts.
       </p>
       <table className="data">
         <thead>

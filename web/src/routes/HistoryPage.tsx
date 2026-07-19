@@ -92,6 +92,13 @@ export function HistoryPage() {
   }, [load]);
 
   const flockName = (id: string) => flocks.find((f) => f.id === id)?.name ?? id.slice(0, 8);
+  // The Daily entry screen can't target archived flocks (capture excludes
+  // them), so an edit link for one would silently fall back to a different
+  // flock — worse than no link (codex review of #86).
+  const flockEditable = (id: string) => {
+    const f = flocks.find((x) => x.id === id);
+    return f !== undefined && f.status !== "Archived";
+  };
   const gradeName = (id: string) => grades.find((g) => g.id === id)?.name ?? id.slice(0, 8);
   const correctable = (e: DailyEntry) =>
     e.status === "Submitted" || e.status === "Locked" || e.status === "ManagerAdjusted";
@@ -352,7 +359,7 @@ export function HistoryPage() {
                   <td>
                     {/* Drafts are edited on the Daily entry screen (#85) —
                         open to workers too; adjust/void stay admin-only. */}
-                    {e.status === "Draft" && (
+                    {e.status === "Draft" && flockEditable(e.flockId) && (
                       <Link className="link"
                         to={`/daily-entry?flockId=${e.flockId}&date=${e.date}`}>
                         edit
