@@ -42,28 +42,51 @@ public sealed class ReportQueries(AppDbContext db) : IReportQueries
             .ToDictionaryAsync(g => g.Id, g => g.Name, ct);
 
         // Hen-days (spec §19.3): the farm's bird count on each day, summed over
-        // the range. Count(D) = Σ flocks placed by D of (initial − removals ≤ D)
-        // — computed as an event timeline: +initial at placement, −quantity at
-        // each movement, baseline before `from`, then walked day by day.
-        var placements = await db.Flocks
-            .Select(f => new { Date = f.PlacementDate, Delta = (long)f.InitialCount })
+        // the range, per flock so lifecycle can terminate a flock's
+        // contribution. A flock counts on day D only while placed and not yet
+        // depleted/archived (a depletion writes NO removal movement — without
+        // the terminator its remaining birds would count forever; codex review
+        // of #92). Start-of-day convention: the day's deaths do not shrink that
+        // day's denominator (industry hen-day practice), so a flock's count on
+        // D is initial − removals BEFORE D.
+        var flocks = await db.Flocks
+            .Select(f => new
+            {
+                f.Id,
+                f.PlacementDate,
+                f.InitialCount,
+                f.DepletedOn,
+                f.ArchivedOn,
+            })
             .ToListAsync(ct);
-        var removals = await db.BirdMovements
-            .GroupBy(m => m.Date)
-            .Select(g => new { Date = g.Key, Delta = -g.Sum(m => (long)m.Quantity) })
-            .ToListAsync(ct);
-        var deltasByDate = placements.Concat(removals)
-            .GroupBy(x => x.Date)
-            .ToDictionary(g => g.Key, g => g.Sum(x => x.Delta));
-
-        var baseline = deltasByDate.Where(kv => kv.Key < from).Sum(kv => kv.Value);
+        var removalsByFlock = (await db.BirdMovements
+            .GroupBy(m => new { m.FlockId, m.Date })
+            .Select(g => new { g.Key.FlockId, g.Key.Date, Quantity = g.Sum(m => (long)m.Quantity) })
+            .ToListAsync(ct))
+            .GroupBy(x => x.FlockId)
+            .ToDictionary(g => g.Key, g => g.OrderBy(x => x.Date).ToList());
 
         var days = new List<ProductionDay>();
-        var birds = baseline;
+        // Per flock: birds at start of `from` = initial − removals strictly
+        // before `from`; then walk, applying each day's removals AFTER counting.
+        var flockCounts = flocks.ToDictionary(
+            f => f.Id,
+            f => f.InitialCount
+                 - (removalsByFlock.GetValueOrDefault(f.Id)?.Where(r => r.Date < from).Sum(r => r.Quantity) ?? 0L));
         for (var d = from; d <= to; d = d.AddDays(1))
         {
-            birds += deltasByDate.GetValueOrDefault(d);
-            var henDays = Math.Max(birds, 0);
+            long henDays = 0;
+            foreach (var f in flocks)
+            {
+                var ended = (f.DepletedOn is { } dep && d > dep)
+                            || (f.ArchivedOn is { } arc && d > arc);
+                if (f.PlacementDate <= d && !ended)
+                    henDays += Math.Max(flockCounts[f.Id], 0);
+                var todaysRemovals = removalsByFlock.GetValueOrDefault(f.Id)
+                    ?.Where(r => r.Date == d).Sum(r => r.Quantity) ?? 0L;
+                flockCounts[f.Id] -= todaysRemovals;
+            }
+
             var row = perDay.GetValueOrDefault(d);
             var total = row?.Total ?? 0;
             var sellable = total - (row?.Cracked ?? 0) - (row?.Dirty ?? 0) - (row?.Discarded ?? 0);
@@ -71,6 +94,7 @@ public sealed class ReportQueries(AppDbContext db) : IReportQueries
                 d, total, row?.Cracked ?? 0, row?.Dirty ?? 0, row?.Discarded ?? 0,
                 sellable, row?.Deaths ?? 0, henDays,
                 henDays > 0 ? Math.Round(total * 100m / henDays, 1) : null));
+            if (d == DateOnly.MaxValue) break; // AddDays would overflow
         }
 
         var totalEggs = days.Sum(x => x.TotalEggs);

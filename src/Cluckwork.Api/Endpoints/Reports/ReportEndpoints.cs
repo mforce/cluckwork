@@ -48,6 +48,11 @@ public static class ReportEndpoints
         if (t.DayNumber - f.DayNumber >= MaxRangeDays)
             return Results.Problem($"Range cannot exceed {MaxRangeDays} days.",
                 statusCode: 400, title: "Report.RangeTooLarge");
+        // Reports describe the past; also guards the DateOnly.MaxValue walk
+        // (codex review of #92).
+        if (t > today)
+            return Results.Problem("'to' cannot be in the future.",
+                statusCode: 400, title: "Report.FutureRange");
         return null;
     }
 

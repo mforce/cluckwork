@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   formatMoney, getExpenseSummary, getProductionReport, getProfitReport, getSalesSummary,
 } from "../api/cluckwork";
@@ -14,10 +14,13 @@ function errText(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
+// Browser-LOCAL like todayIso() — mixing UTC here made the default range 6 or
+// 8 days near midnight UTC (codex review of #92).
 function daysAgoIso(n: number): string {
   const d = new Date();
-  d.setUTCDate(d.getUTCDate() - n);
-  return d.toISOString().slice(0, 10);
+  d.setDate(d.getDate() - n);
+  const pad = (x: number) => String(x).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
 // #91 — core reports. Production renders for everyone (workers record it,
@@ -33,22 +36,39 @@ export function ReportsPage() {
   const [profit, setProfit] = useState<ProfitReport | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  // Monotonic request id: a slow response for an OLD range must neither
+  // overwrite the current range's figures nor clear its loading state
+  // (codex review of #92).
+  const requestSeq = useRef(0);
 
   const load = useCallback(async () => {
+    const seq = ++requestSeq.current;
     setLoading(true);
     setError(null);
+    // All four sections clear together — a partial failure must not leave the
+    // new production table next to the previous range's money figures.
+    setProduction(null);
+    setSales(null);
+    setExpenses(null);
+    setProfit(null);
     try {
-      setProduction(await getProductionReport(from, to));
+      const prod = await getProductionReport(from, to);
+      if (seq !== requestSeq.current) return;
+      setProduction(prod);
       if (isAdmin) {
         // Sequential, not racing: each money card is one cheap aggregate.
-        setSales(await getSalesSummary(from, to));
-        setExpenses(await getExpenseSummary(from, to));
-        setProfit(await getProfitReport(from, to));
+        const s = await getSalesSummary(from, to);
+        const e = await getExpenseSummary(from, to);
+        const p = await getProfitReport(from, to);
+        if (seq !== requestSeq.current) return;
+        setSales(s);
+        setExpenses(e);
+        setProfit(p);
       }
     } catch (err) {
-      setError(errText(err));
+      if (seq === requestSeq.current) setError(errText(err));
     } finally {
-      setLoading(false);
+      if (seq === requestSeq.current) setLoading(false);
     }
   }, [from, to, isAdmin]);
 

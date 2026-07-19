@@ -2,6 +2,7 @@ namespace Cluckwork.Api.IntegrationTests;
 
 using System.Net;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+using Microsoft.EntityFrameworkCore;
 
 // #91 — core reports: production math (hen-days from the bird ledger, official
 // entries only), money summaries, the role split, and range guards.
@@ -71,18 +72,47 @@ public sealed class ReportsTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(80, day1.TotalEggs);
         Assert.Equal(77, day1.Sellable); // 80 − 2 − 1
         Assert.Equal(2, day1.Deaths);
-        // End-of-day count: 100 seeded − the day's 2 recorded deaths.
-        Assert.Equal(98, day1.HenDays);
-        Assert.Equal(81.6m, day1.HenDayPct); // 80/98
+        // Start-of-day convention (industry hen-day practice): the day's own
+        // deaths do not shrink that day's denominator.
+        Assert.Equal(100, day1.HenDays);
+        Assert.Equal(80.0m, day1.HenDayPct);
 
         var day2 = report.Days[1];
         Assert.Equal(90, day2.TotalEggs); // the draft's 500 is invisible
-        Assert.Equal(98, day2.HenDays);
+        Assert.Equal(98, day2.HenDays);   // yesterday's 2 deaths bite today
         Assert.Equal(170, report.TotalEggs);
-        Assert.Equal(196, report.TotalHenDays);
-        // Period % = 170/196 — not the average of daily percentages.
-        Assert.Equal(86.7m, report.PeriodHenDayPct);
+        Assert.Equal(198, report.TotalHenDays);
+        // Period % = 170/198 — not the average of daily percentages.
+        Assert.Equal(85.9m, report.PeriodHenDayPct);
         Assert.Equal(70 + 80, report.GradeTotals.Single().Quantity);
+    }
+
+    // Depletion writes no removal movement — the flock's contribution must
+    // terminate at DepletedOn anyway (codex review of #92).
+    [Fact]
+    public async Task Production_DepletedFlock_StopsCountingAfterDepletionDay()
+    {
+        var email = $"u-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var farmId = Guid.NewGuid();
+        // Flock A: 100 birds, stays active. Flock B: 100 birds, depleted 10
+        // days ago with birds still on the books.
+        await factory.SeedFlockAsync(accountId, farmId);
+        var flockB = await factory.SeedFlockAsync(accountId, farmId);
+        await factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            var f = await db.Flocks.SingleAsync(x => x.Id == flockB);
+            f.Deplete(Today.AddDays(-10));
+            await db.SaveChangesAsync();
+        });
+        var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
+
+        var report = await client.GetFromJsonAsync<ProductionDto>(
+            $"/api/v1/reports/production?from={Today.AddDays(-11):yyyy-MM-dd}&to={Today.AddDays(-9):yyyy-MM-dd}");
+
+        Assert.Equal(200, report!.Days[0].HenDays); // both flocks
+        Assert.Equal(200, report.Days[1].HenDays);  // counts THROUGH its depletion day
+        Assert.Equal(100, report.Days[2].HenDays);  // gone the day after
     }
 
     [Fact]
