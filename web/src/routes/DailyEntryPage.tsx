@@ -97,10 +97,13 @@ export function DailyEntryPage() {
     // overwrite window this guard closes (#61 review).
     setPrefillPending(true);
     const target = `${flockId}|${date}`;
-    listDailyEntries({ flockId, from: date, to: date, limit: 1 })
+    // Voided entries vacate their day (#82): they must not prefill the form or
+    // block a fresh save. limit > 1 because a re-recorded day keeps its voided
+    // siblings on the same date and ordering between them is by id.
+    listDailyEntries({ flockId, from: date, to: date, limit: 10 })
       .then((entries) => {
         if (cancelled) return;
-        const existing = entries.find((e) => e.date === date);
+        const existing = entries.find((e) => e.date === date && e.status !== "Voided");
         // A retry that recovers for the SAME flock+date must not zero the form:
         // the user may have typed while the banner was up, and with no server
         // entry there is nothing to overwrite.
@@ -296,7 +299,7 @@ export function DailyEntryPage() {
       {entryLocked && (
         <p className="warn">
           This day is already {existingStatus?.toLowerCase()} — its egg lots exist.
-          Corrections need a manager adjustment (coming later).
+          Corrections are made from History (admins: adjust or void).
         </p>
       )}
 

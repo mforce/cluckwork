@@ -238,6 +238,94 @@ public sealed class DailyEntryAdjustTests(CluckworkWebApplicationFactory factory
         Assert.Equal(HttpStatusCode.UnprocessableEntity, again.StatusCode);
     }
 
+    // #82 — voiding vacates the natural key: the same house/flock/day can be
+    // recorded again as a fresh entry, any number of times; a LIVE entry on
+    // the key still blocks re-recording (partial unique index).
+    [Fact]
+    public async Task Void_VacatesDay_SameKeyCanBeReRecorded()
+    {
+        var (client, accountId, farmId, flockId, grades) = await SetupAsync("Large");
+        var houseId = Guid.NewGuid();
+
+        async Task<(HttpStatusCode Status, Guid Id)> RecordAsync(int total, int graded)
+        {
+            var response = await client.PostWithKeyAsync(
+                "/api/v1/daily-entries", Guid.NewGuid().ToString(), new
+                {
+                    farmId,
+                    houseId,
+                    flockId,
+                    date = Today,
+                    totalEggs = total,
+                    crackedEggs = 0,
+                    dirtyEggs = 0,
+                    discardedEggs = 0,
+                    mortalityCount = 1,
+                    grades = new[] { new { eggGradeId = grades["Large"], quantity = graded } }
+                });
+            var id = response.StatusCode == HttpStatusCode.Created
+                ? (await response.Content.ReadFromJsonAsync<Created>())!.Id
+                : Guid.Empty;
+            return (response.StatusCode, id);
+        }
+
+        async Task VoidAsync(Guid id, string reason)
+        {
+            var current = await GetEntryAsync(client, id);
+            var response = await client.PostWithKeyAsync(
+                $"/api/v1/daily-entries/{id}/void", Guid.NewGuid().ToString(),
+                new { version = current.Version, reason });
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        }
+
+        var (_, firstId) = await RecordAsync(100, 90);
+        var submit = await client.PostWithKeyAsync(
+            $"/api/v1/daily-entries/{firstId}/submit", Guid.NewGuid().ToString());
+        Assert.Equal(HttpStatusCode.OK, submit.StatusCode);
+
+        // A live (submitted) entry still owns the key.
+        var (blocked, _) = await RecordAsync(50, 40);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, blocked);
+
+        await VoidAsync(firstId, "wrong numbers, starting over");
+
+        // Voided → the key is vacant: a fresh entry, not an edit of the old one.
+        var (reStatus, secondId) = await RecordAsync(60, 50);
+        Assert.Equal(HttpStatusCode.Created, reStatus);
+        Assert.NotEqual(firstId, secondId);
+
+        var first = await GetEntryAsync(client, firstId);
+        Assert.Equal("Voided", first.Status);
+        Assert.Equal(100, first.TotalEggs); // the voided entry keeps its history
+
+        var second = await GetEntryAsync(client, secondId);
+        Assert.Equal("Draft", second.Status);
+        Assert.Equal(60, second.TotalEggs);
+
+        // The full lifecycle works on the replacement, and voiding it too
+        // leaves TWO voided rows on the key — then a third entry still fits.
+        var submit2 = await client.PostWithKeyAsync(
+            $"/api/v1/daily-entries/{secondId}/submit", Guid.NewGuid().ToString());
+        Assert.Equal(HttpStatusCode.OK, submit2.StatusCode);
+        await VoidAsync(secondId, "still wrong");
+
+        var (thirdStatus, thirdId) = await RecordAsync(70, 10);
+        Assert.Equal(HttpStatusCode.Created, thirdStatus);
+
+        // History lists every row for the day, voided and live alike.
+        var list = await client.GetFromJsonAsync<List<EntryDto>>(
+            $"/api/v1/daily-entries?flockId={flockId}&from={Today:yyyy-MM-dd}&to={Today:yyyy-MM-dd}");
+        Assert.Equal(3, list!.Count);
+        Assert.Equal(2, list.Count(e => e.Status == "Voided"));
+        Assert.Contains(list, e => e.Id == thirdId && e.Status == "Draft");
+
+        // Bird ledger net: two submits each recorded 1 death, both voids
+        // reversed them; the draft's death isn't posted until submit → back to
+        // the seeded 100.
+        var flock = await client.GetFromJsonAsync<FlockDto>($"/api/v1/flocks/{flockId}");
+        Assert.Equal(100, flock!.CurrentBirds);
+    }
+
     [Fact]
     public async Task Void_WithSoldStock_Is422()
     {

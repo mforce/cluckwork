@@ -56,8 +56,8 @@ public sealed class DailyEntry : AggregateRoot<Guid>
         // Draft-only: submitting generates egg lots from the grade lines, and
         // editing a submitted entry would silently diverge from its (possibly
         // partially sold) lots. Post-submit corrections are the manager-adjust
-        // flow with lot reconciliation — a later slice. (Spec §8.1's
-        // worker-edit-until-cutoff moves there too.)
+        // flow with lot reconciliation (#69). (Spec §8.1's
+        // worker-edit-until-cutoff moved there too.)
         if (Status != DailyEntryStatus.Draft)
             return Result.Failure(Error.Domain(
                 "DailyEntry.Immutable", "Only draft entries can be edited."));

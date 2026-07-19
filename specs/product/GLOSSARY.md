@@ -75,8 +75,11 @@ graded breakdown of sellable eggs. One entry per flock per day (natural key).
   it generated is emptied (refused if any of its eggs were sold), the
   day's mortality is reversed by a compensating movement, and the entry is
   preserved as Voided. Mirrors the sales void (#60): compensating rows,
-  never deletions. Entries submitted before lot-to-entry tracking existed
-  can't prove which lots are theirs and refuse adjust/void.
+  never deletions. Voiding **vacates the day** (#82): the same
+  house/flock/date can be recorded again as a fresh entry — the natural-key
+  uniqueness is enforced only across live (non-voided) entries. Entries
+  submitted before lot-to-entry tracking existed can't prove which lots are
+  theirs and refuse adjust/void.
 
 **Sellable cap** — graded quantities must fit in
 `total − cracked − dirty − discarded`. You cannot grade more eggs than
