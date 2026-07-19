@@ -31,6 +31,7 @@ export function AppLayout() {
           <NavLink to="/history">History</NavLink>
           {/* Admin-only screens (#73): the links hide for workers, and the API
               enforces the role on every gated endpoint regardless. */}
+          {isAdmin && <NavLink to="/expenses">Expenses</NavLink>}
           {isAdmin && <NavLink to="/grades">Grades</NavLink>}
           {isAdmin && <NavLink to="/users">Users</NavLink>}
           <NavLink to="/help">Help</NavLink>

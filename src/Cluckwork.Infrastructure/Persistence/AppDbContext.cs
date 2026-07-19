@@ -2,6 +2,7 @@ namespace Cluckwork.Infrastructure.Persistence;
 
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Eggs;
+using Cluckwork.Domain.Expenses;
 using Cluckwork.Domain.Flocks;
 using Cluckwork.Domain.Inventory;
 using Cluckwork.Domain.Sales;
@@ -29,6 +30,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, TenantContext 
     public DbSet<InventoryMovement> InventoryMovements => Set<InventoryMovement>();
     public DbSet<FeedUsage> FeedUsages => Set<FeedUsage>();
     public DbSet<WaterUsage> WaterUsages => Set<WaterUsage>();
+    public DbSet<ExpenseCategory> ExpenseCategories => Set<ExpenseCategory>();
+    public DbSet<Expense> Expenses => Set<Expense>();
     public DbSet<IdempotencyRecord> IdempotencyRecords => Set<IdempotencyRecord>();
     public DbSet<DurableJob> DurableJobs => Set<DurableJob>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
@@ -59,5 +62,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, TenantContext 
         builder.Entity<InventoryMovement>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
         builder.Entity<FeedUsage>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
         builder.Entity<WaterUsage>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
+        builder.Entity<ExpenseCategory>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
+        builder.Entity<Expense>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
     }
 }

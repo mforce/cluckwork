@@ -5,6 +5,7 @@ using Cluckwork.Api.Endpoints.Auth;
 using Cluckwork.Api.Endpoints.Customers;
 using Cluckwork.Api.Endpoints.DailyEntries;
 using Cluckwork.Api.Endpoints.EggGrades;
+using Cluckwork.Api.Endpoints.Expenses;
 using Cluckwork.Api.Endpoints.Flocks;
 using Cluckwork.Api.Endpoints.Inventory;
 using Cluckwork.Api.Endpoints.Sales;
@@ -33,6 +34,11 @@ using Cluckwork.Application.Features.Inventory.UpdateInventoryItem;
 using Cluckwork.Application.Features.EggGrades.CreateEggGrade;
 using Cluckwork.Application.Features.EggGrades.SetEggGradeActive;
 using Cluckwork.Application.Features.EggGrades.UpdateEggGrade;
+using Cluckwork.Application.Features.Expenses;
+using Cluckwork.Application.Features.Expenses.AdjustExpense;
+using Cluckwork.Application.Features.Expenses.CreateExpense;
+using Cluckwork.Application.Features.Expenses.CreateExpenseCategory;
+using Cluckwork.Application.Features.Expenses.UpdateExpenseCategory;
 using Cluckwork.Application.Features.EggLots;
 using Cluckwork.Application.Features.Flocks;
 using Cluckwork.Application.Features.Flocks.ArchiveFlock;
@@ -157,6 +163,8 @@ builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<IDailyEntryRepository, DailyEntryRepository>();
 builder.Services.AddScoped<IEggLotRepository, EggLotRepository>();
 builder.Services.AddScoped<IEggGradeRepository, EggGradeRepository>();
+builder.Services.AddScoped<IExpenseCategoryRepository, ExpenseCategoryRepository>();
+builder.Services.AddScoped<IExpenseRepository, ExpenseRepository>();
 builder.Services.AddScoped<ISalesOrderRepository, SalesOrderRepository>();
 builder.Services.AddScoped<ISalesOrderAllocationRepository, SalesOrderAllocationRepository>();
 builder.Services.AddScoped<IInventoryItemRepository, InventoryItemRepository>();
@@ -178,6 +186,10 @@ builder.Services.AddScoped<IValidator<AddOrderItemCommand>, AddOrderItemValidato
 builder.Services.AddScoped<IValidator<UpdateOrderItemCommand>, UpdateOrderItemValidator>();
 builder.Services.AddScoped<IValidator<CreateEggGradeCommand>, CreateEggGradeValidator>();
 builder.Services.AddScoped<IValidator<UpdateEggGradeCommand>, UpdateEggGradeValidator>();
+builder.Services.AddScoped<IValidator<CreateExpenseCategoryCommand>, CreateExpenseCategoryValidator>();
+builder.Services.AddScoped<IValidator<UpdateExpenseCategoryCommand>, UpdateExpenseCategoryValidator>();
+builder.Services.AddScoped<IValidator<CreateExpenseCommand>, CreateExpenseValidator>();
+builder.Services.AddScoped<IValidator<AdjustExpenseCommand>, AdjustExpenseValidator>();
 builder.Services.AddScoped<IValidator<UpdateFlockCommand>, UpdateFlockValidator>();
 builder.Services.AddScoped<IValidator<RecordBirdMovementCommand>, RecordBirdMovementValidator>();
 builder.Services.AddScoped<IValidator<VoidSaleCommand>, VoidSaleValidator>();
@@ -216,6 +228,10 @@ builder.Services.AddScoped<DepleteFlockHandler>();
 builder.Services.AddScoped<CreateEggGradeHandler>();
 builder.Services.AddScoped<UpdateEggGradeHandler>();
 builder.Services.AddScoped<SetEggGradeActiveHandler>();
+builder.Services.AddScoped<CreateExpenseCategoryHandler>();
+builder.Services.AddScoped<UpdateExpenseCategoryHandler>();
+builder.Services.AddScoped<CreateExpenseHandler>();
+builder.Services.AddScoped<AdjustExpenseHandler>();
 builder.Services.AddScoped<UpdateFlockHandler>();
 builder.Services.AddScoped<ArchiveFlockHandler>();
 builder.Services.AddScoped<RecordBirdMovementHandler>();
@@ -309,6 +325,17 @@ app.MapGroup("/api/v1/egg-grades")
     .WithTags("EggGrades")
     .RequireAuthorization()
     .MapEggGradeEndpoints();
+
+// Money data — admin end to end (#87), reads included.
+app.MapGroup("/api/v1/expense-categories")
+    .WithTags("Expenses")
+    .RequireAuthorization(AuthPolicies.AdminOnly)
+    .MapExpenseCategoryEndpoints();
+
+app.MapGroup("/api/v1/expenses")
+    .WithTags("Expenses")
+    .RequireAuthorization(AuthPolicies.AdminOnly)
+    .MapExpenseEndpoints();
 
 app.MapGroup("/api/v1/account")
     .WithTags("Account")

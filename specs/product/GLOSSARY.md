@@ -187,6 +187,20 @@ from the account onto each order (JPY has 0 decimals, USD 2 — the snapshot
 records that too). Totals are recalculated from lines on every mutation,
 never incrementally patched.
 
+**Expense (#87)** — a money-out record (spec §16, basic cut): date, category,
+description, amount in minor units, optional flock link, optional note. The
+currency snapshots from the account at creation and is never editable — a
+later currency change must not re-denominate recorded spending. Corrections
+edit in place under the Version token (mismatch → 409, the F16 water
+pattern); there is no delete. Expenses are **admin-only end to end**, reads
+included — the money/production split.
+
+**Expense category (#87)** — per-farm buckets ("Feed", "Vet"), name unique
+per farm case-insensitively (precheck + `lower(Name)` index, the grade
+pattern). Deactivating hides a category from new expenses; recorded ones
+keep it (grandfathering). List/sum endpoints report a server-side period
+total — clients never sum pages.
+
 ## Cross-cutting
 
 **Account** — the tenant. Every row carries `AccountId`; the API enforces

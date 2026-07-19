@@ -72,6 +72,10 @@ public sealed class AdminGatingTests(CluckworkWebApplicationFactory factory)
             (HttpMethod.Post, $"/api/v1/daily-entries/{id}/adjust"),
             (HttpMethod.Post, $"/api/v1/daily-entries/{id}/void"),
             (HttpMethod.Post, "/api/v1/users"),
+            (HttpMethod.Post, "/api/v1/expense-categories"),
+            (HttpMethod.Put, $"/api/v1/expense-categories/{id}"),
+            (HttpMethod.Post, "/api/v1/expenses"),
+            (HttpMethod.Put, $"/api/v1/expenses/{id}"),
         ];
 
         foreach (var (method, url) in gated)
@@ -85,6 +89,13 @@ public sealed class AdminGatingTests(CluckworkWebApplicationFactory factory)
         var listUsers = await worker.GetAsync("/api/v1/users");
         Assert.Equal(HttpStatusCode.Forbidden, listUsers.StatusCode);
         Assert.Contains("Admin role", await listUsers.Content.ReadAsStringAsync());
+
+        // Expenses are money data: READS are gated too (#87), unlike the
+        // production screens where workers browse freely.
+        Assert.Equal(HttpStatusCode.Forbidden,
+            (await worker.GetAsync("/api/v1/expenses")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden,
+            (await worker.GetAsync("/api/v1/expense-categories")).StatusCode);
     }
 
     [Fact]
