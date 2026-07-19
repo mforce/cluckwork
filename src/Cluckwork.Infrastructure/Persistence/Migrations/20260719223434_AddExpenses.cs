@@ -53,6 +53,12 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                         principalTable: "ExpenseCategories",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_Expenses_Flocks_FlockId",
+                        column: x => x.FlockId,
+                        principalTable: "Flocks",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateIndex(
@@ -69,6 +75,11 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                 name: "IX_Expenses_ExpenseCategoryId",
                 table: "Expenses",
                 column: "ExpenseCategoryId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Expenses_FlockId",
+                table: "Expenses",
+                column: "FlockId");
 
             // Case-insensitive per-farm name uniqueness. Expression indexes
             // aren't representable in the EF model, so this lives as raw SQL

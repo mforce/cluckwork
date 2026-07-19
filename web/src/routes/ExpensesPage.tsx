@@ -22,6 +22,7 @@ export function ExpensesPage() {
   const [categories, setCategories] = useState<ExpenseCategory[]>([]);
   const [flocks, setFlocks] = useState<Flock[]>([]);
   const [items, setItems] = useState<Expense[] | null>(null);
+  const [hasMore, setHasMore] = useState(false);
   const [total, setTotal] = useState(0);
   const [currency, setCurrency] = useState<{ code: string; minor: number }>({ code: "", minor: 2 });
   const [error, setError] = useState<string | null>(null);
@@ -76,12 +77,17 @@ export function ExpensesPage() {
     return { from: `${m}-01`, to: `${m}-${String(last).padStart(2, "0")}` };
   }, []);
 
-  const load = useCallback(async () => {
+  // offset 0 replaces the page (fresh view after filters/mutations); a larger
+  // offset appends — months can exceed one page and every row must stay
+  // reachable for correction (codex review of #88). The total always covers
+  // the WHOLE filtered period regardless of paging.
+  const load = useCallback(async (offset = 0) => {
     const { from, to } = monthRange(month);
     const list = await listExpenses({
-      from, to, categoryId: filterCategory || undefined, limit: PAGE,
+      from, to, categoryId: filterCategory || undefined, limit: PAGE, offset,
     });
-    setItems(list.items);
+    setItems((prev) => (offset === 0 || prev === null) ? list.items : [...prev, ...list.items]);
+    setHasMore(list.items.length === PAGE);
     setTotal(list.totalMinorUnits);
     setCurrency({ code: list.currencyCode, minor: list.currencyMinorUnit });
   }, [month, filterCategory, monthRange]);
@@ -113,9 +119,20 @@ export function ExpensesPage() {
     ? activeCategories
     : categories.filter((c) => c.active || c.id === editing.expenseCategoryId);
 
-  const toMinorUnits = (display: string) => {
-    const v = Math.round(parseFloat(display) * 10 ** currency.minor);
-    if (!Number.isFinite(v) || v <= 0) throw new Error("Enter an amount greater than zero.");
+  // Exact decimal parsing — float multiplication silently mis-rounds edge
+  // amounts and hides excess decimals; the minor unit is the CALLER's because
+  // an old expense keeps its snapshotted denomination, which may differ from
+  // the account's current one (codex review of #88).
+  const toMinorUnits = (display: string, minor: number) => {
+    const m = display.trim().match(/^(\d+)(?:\.(\d+))?$/);
+    if (!m) throw new Error("Enter a valid amount.");
+    const frac = m[2] ?? "";
+    if (frac.length > minor)
+      throw new Error(minor === 0
+        ? "This currency has no decimal places."
+        : `At most ${minor} decimal places for this currency.`);
+    const v = Number(m[1]) * 10 ** minor + Number(frac.padEnd(minor, "0") || "0");
+    if (!Number.isSafeInteger(v) || v <= 0) throw new Error("Enter an amount greater than zero.");
     return v;
   };
 
@@ -142,15 +159,18 @@ export function ExpensesPage() {
         expenseCategoryId: categoryId,
         date,
         description: description.trim(),
-        amountMinorUnits: toMinorUnits(amount),
+        amountMinorUnits: toMinorUnits(amount, currency.minor),
         flockId: flockId || null,
         note: note.trim() || null,
       }, keyFor("add"));
-      await load();
-      setMessage("Expense recorded.");
+      // Reset BEFORE the refresh: if the reload fails after the write landed,
+      // a still-populated form invites a duplicate re-submit under a fresh
+      // key (codex review of #88).
       setDescription("");
       setAmount("");
       setNote("");
+      await load();
+      setMessage("Expense recorded.");
     });
   }
 
@@ -182,7 +202,7 @@ export function ExpensesPage() {
           expenseCategoryId: editCategory,
           date: editDate,
           description: editDescription.trim(),
-          amountMinorUnits: toMinorUnits(editAmount),
+          amountMinorUnits: toMinorUnits(editAmount, target.currencyMinorUnit),
           flockId: editFlock || null,
           note: editNote.trim() || null,
         }, keyFor(scope));
@@ -211,8 +231,8 @@ export function ExpensesPage() {
     const scope = `add-category:${newCategoryName.trim().toLowerCase()}`;
     void run(scope, async () => {
       await createExpenseCategory({ name: newCategoryName.trim() }, keyFor(scope));
-      setCategories(await listExpenseCategories({ includeInactive: true }));
       setNewCategoryName("");
+      setCategories(await listExpenseCategories({ includeInactive: true }));
       setMessage("Category created.");
     });
   }
@@ -290,7 +310,8 @@ export function ExpensesPage() {
             onChange={(e) => setDescription(e.target.value)} />
         </label>
         <label>Amount ({currency.code || "…"})
-          <input type="number" min="0.01" step="any" value={amount} required
+          <input type="number" min={(1 / 10 ** currency.minor).toFixed(currency.minor)}
+            step="any" value={amount} required
             onChange={(e) => setAmount(e.target.value)} />
         </label>
         <label>Flock (optional)
@@ -333,7 +354,9 @@ export function ExpensesPage() {
                 onChange={(e) => setEditDescription(e.target.value)} />
             </label>
             <label>Amount ({editing.currencyCode})
-              <input type="number" min="0.01" step="any" value={editAmount} required
+              <input type="number"
+                min={(1 / 10 ** editing.currencyMinorUnit).toFixed(editing.currencyMinorUnit)}
+                step="any" value={editAmount} required
                 onChange={(e) => setEditAmount(e.target.value)} />
             </label>
             <label>Flock (optional)
@@ -384,6 +407,12 @@ export function ExpensesPage() {
             ))}
           </tbody>
         </table>
+      )}
+      {hasMore && (
+        <button className="link" disabled={busy}
+          onClick={() => void load(items?.length ?? 0).catch((err) => setError(errText(err)))}>
+          load more
+        </button>
       )}
     </section>
   );

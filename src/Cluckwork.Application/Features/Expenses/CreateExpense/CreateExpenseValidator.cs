@@ -25,6 +25,10 @@ public sealed class CreateExpenseValidator : AbstractValidator<CreateExpenseComm
             // UTC "today" until farm-local timezones land (#35) — the same
             // convention every date-gated screen uses.
             .Must(d => d <= DateOnly.FromDateTime(DateTime.UtcNow))
-            .WithMessage("Expense date cannot be in the future.");
+            .WithMessage("Expense date cannot be in the future.")
+            // An omitted JSON date binds as 0001-01-01 — reject nonsense
+            // instead of persisting year-1 rows (codex review of #88).
+            .Must(d => d >= new DateOnly(2000, 1, 1))
+            .WithMessage("Expense date is missing or unrealistically old.");
     }
 }

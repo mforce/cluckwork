@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Cluckwork.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260719221532_AddExpenses")]
+    [Migration("20260719223434_AddExpenses")]
     partial class AddExpenses
     {
         /// <inheritdoc />
@@ -291,6 +291,8 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("ExpenseCategoryId");
+
+                    b.HasIndex("FlockId");
 
                     b.HasIndex("AccountId", "Date");
 
@@ -1173,6 +1175,11 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                         .HasForeignKey("ExpenseCategoryId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("Cluckwork.Domain.Flocks.Flock", null)
+                        .WithMany()
+                        .HasForeignKey("FlockId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("Cluckwork.Domain.Flocks.BirdMovement", b =>

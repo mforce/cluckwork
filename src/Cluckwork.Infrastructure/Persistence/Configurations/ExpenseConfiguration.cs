@@ -43,6 +43,12 @@ public sealed class ExpenseConfiguration : IEntityTypeConfiguration<Expense>
             .HasForeignKey(e => e.ExpenseCategoryId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        // The optional flock link must never dangle (feed/water pattern).
+        builder.HasOne<Cluckwork.Domain.Flocks.Flock>()
+            .WithMany()
+            .HasForeignKey(e => e.FlockId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         // The list/sum screens filter by tenant + date (+ category).
         builder.HasIndex(e => new { e.AccountId, e.Date });
         builder.HasIndex(e => new { e.AccountId, e.ExpenseCategoryId });

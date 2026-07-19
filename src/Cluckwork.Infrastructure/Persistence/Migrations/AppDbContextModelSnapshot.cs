@@ -289,6 +289,8 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("ExpenseCategoryId");
 
+                    b.HasIndex("FlockId");
+
                     b.HasIndex("AccountId", "Date");
 
                     b.HasIndex("AccountId", "ExpenseCategoryId");
@@ -1170,6 +1172,11 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                         .HasForeignKey("ExpenseCategoryId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("Cluckwork.Domain.Flocks.Flock", null)
+                        .WithMany()
+                        .HasForeignKey("FlockId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("Cluckwork.Domain.Flocks.BirdMovement", b =>
