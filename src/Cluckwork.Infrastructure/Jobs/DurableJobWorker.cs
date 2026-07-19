@@ -25,12 +25,52 @@ public sealed class DurableJobWorker(
     IServiceScopeFactory scopeFactory,
     ILogger<DurableJobWorker> logger) : BackgroundService
 {
+    private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan InitialBackoff = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan MaxBackoff = TimeSpan.FromMinutes(5);
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(30));
+        // A transient DB outage must not escape ExecuteAsync: the host default
+        // (BackgroundServiceExceptionBehavior.StopHost) would take the whole
+        // API down with it (#65). Failures log and retry with capped backoff;
+        // StopHost stays as the backstop for anything thrown OUTSIDE the
+        // guarded iteration (e.g. a fatal bug in the loop itself).
+        var backoff = TimeSpan.Zero;
+        using var timer = new PeriodicTimer(PollInterval);
         while (await timer.WaitForNextTickAsync(stoppingToken))
         {
-            await ProcessPendingJobsAsync(stoppingToken);
+            if (await TryProcessPendingJobsAsync(stoppingToken))
+            {
+                backoff = TimeSpan.Zero;
+                continue;
+            }
+
+            backoff = backoff == TimeSpan.Zero
+                ? InitialBackoff
+                : TimeSpan.FromTicks(Math.Min(backoff.Ticks * 2, MaxBackoff.Ticks));
+            logger.LogWarning("Durable job poll failed; next attempt in {Backoff}.", backoff);
+            await Task.Delay(backoff, stoppingToken);
+        }
+    }
+
+    // One guarded poll iteration. Returns false on failure instead of throwing;
+    // cancellation propagates so shutdown stays prompt.
+    internal async Task<bool> TryProcessPendingJobsAsync(CancellationToken ct)
+    {
+        try
+        {
+            await ProcessPendingJobsAsync(ct);
+            return true;
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Durable job poll iteration failed.");
+            return false;
         }
     }
 

@@ -227,7 +227,11 @@ builder.Services.AddScoped<DemoDataSeeder>();
 builder.Services.AddOpenApi();
 
 // --- Health checks ---
-builder.Services.AddHealthChecks();
+// Readiness includes the database (#65): during a DB outage the API stays up
+// (liveness green) while /health/ready turns 503 so orchestrators stop
+// routing traffic until the DB returns.
+builder.Services.AddHealthChecks()
+    .AddDbContextCheck<AppDbContext>("database");
 
 // --- Durable job scaffold (tech spec §9) ---
 builder.Services.AddHostedService<DurableJobWorker>();
@@ -335,8 +339,11 @@ app.MapGroup("/api/v1/users")
     .RequireAuthorization(AuthPolicies.AdminOnly)
     .MapUserEndpoints();
 
-// Health
-app.MapHealthChecks("/health/live");
+// Health: live = the process runs (no checks); ready = dependencies too.
+app.MapHealthChecks("/health/live", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    Predicate = _ => false
+});
 app.MapHealthChecks("/health/ready");
 
 app.Map("/error", (HttpContext context) =>
