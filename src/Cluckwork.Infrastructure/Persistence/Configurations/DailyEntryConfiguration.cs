@@ -29,9 +29,11 @@ public sealed class DailyEntryConfiguration : IEntityTypeConfiguration<DailyEntr
         // Natural-key uniqueness constraint (functional spec + tech spec §6.3).
         // Partial: voiding vacates the key (#82) — at most one LIVE entry per
         // house/flock/day, any number of voided ones preserved in history.
+        // Raw SQL because EF has no typed partial-index API; nameof keeps the
+        // filter honest against renames (Status stores enum names as strings).
         builder.HasIndex(e => new { e.AccountId, e.FarmId, e.HouseId, e.FlockId, e.Date })
             .IsUnique()
-            .HasFilter("\"Status\" <> 'Voided'")
+            .HasFilter($"\"{nameof(DailyEntry.Status)}\" <> '{nameof(DailyEntryStatus.Voided)}'")
             .HasDatabaseName("IX_DailyEntries_NaturalKey");
 
         // Grade lines — EF reads/writes via the "_grades" backing field; removing a
