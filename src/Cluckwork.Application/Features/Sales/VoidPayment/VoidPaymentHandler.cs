@@ -8,7 +8,8 @@ using Cluckwork.Domain.Sales;
 // the row stays for the ledger, and the order's outstanding grows back.
 public sealed class VoidPaymentHandler(
     IPaymentRepository payments,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    IAuditWriter audit)
 {
     public async Task<Result> HandleAsync(VoidPaymentCommand command, CancellationToken ct)
     {
@@ -25,6 +26,11 @@ public sealed class VoidPaymentHandler(
 
         var result = payment.Void(command.Reason);
         if (result.IsFailure) return result;
+
+        // Same SaveChanges as the change (#93): commits or fails with it.
+        await audit.WriteAsync("Payment.Void", nameof(Payment), payment.Id,
+            command.Reason,
+            new { payment.SalesOrderId, payment.AmountMinorUnits, payment.CurrencyCode }, ct);
 
         await unitOfWork.SaveChangesAsync(ct);
         return Result.Success();

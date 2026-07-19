@@ -13,7 +13,8 @@ using Cluckwork.Domain.Inventory;
 public sealed class UpdateWaterUsageHandler(
     IWaterUsageRepository waterUsages,
     IFlockRepository flocks,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    IAuditWriter audit)
 {
     public async Task<Result> HandleAsync(
         UpdateWaterUsageCommand command, CancellationToken ct)
@@ -44,6 +45,10 @@ public sealed class UpdateWaterUsageHandler(
             command.MeterStart, command.MeterEnd, command.Note);
         if (result.IsFailure)
             return result;
+
+        // Same SaveChanges as the change (#93).
+        await audit.WriteAsync("WaterUsage.Correct", nameof(WaterUsage), usage.Id,
+            reason: null, new { usage.Quantity, usage.Unit }, ct);
 
         // The EF Version token still backstops the microsecond window between
         // the check above and this save.

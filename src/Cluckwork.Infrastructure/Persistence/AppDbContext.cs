@@ -1,6 +1,7 @@
 namespace Cluckwork.Infrastructure.Persistence;
 
 using Cluckwork.Domain.Accounts;
+using Cluckwork.Domain.Auditing;
 using Cluckwork.Domain.Eggs;
 using Cluckwork.Domain.Expenses;
 using Cluckwork.Domain.Flocks;
@@ -33,6 +34,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, TenantContext 
     public DbSet<WaterUsage> WaterUsages => Set<WaterUsage>();
     public DbSet<ExpenseCategory> ExpenseCategories => Set<ExpenseCategory>();
     public DbSet<Expense> Expenses => Set<Expense>();
+    public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
     public DbSet<IdempotencyRecord> IdempotencyRecords => Set<IdempotencyRecord>();
     public DbSet<DurableJob> DurableJobs => Set<DurableJob>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
@@ -66,5 +68,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, TenantContext 
         builder.Entity<WaterUsage>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
         builder.Entity<ExpenseCategory>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
         builder.Entity<Expense>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
+        builder.Entity<AuditEvent>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
     }
 }

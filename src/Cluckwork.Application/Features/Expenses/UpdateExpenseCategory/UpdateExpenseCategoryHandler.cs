@@ -5,7 +5,8 @@ using Cluckwork.Domain.Common;
 
 public sealed class UpdateExpenseCategoryHandler(
     IExpenseCategoryRepository categories,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    IAuditWriter audit)
 {
     public async Task<Result> HandleAsync(UpdateExpenseCategoryCommand command, CancellationToken ct)
     {
@@ -28,6 +29,11 @@ public sealed class UpdateExpenseCategoryHandler(
             var flip = command.Active ? category.Activate() : category.Deactivate();
             if (flip.IsFailure) return flip;
         }
+
+        // Same SaveChanges as the change (#93).
+        await audit.WriteAsync("ExpenseCategory.Update",
+            nameof(Cluckwork.Domain.Expenses.ExpenseCategory), category.Id,
+            reason: null, new { category.Name, category.Active }, ct);
 
         await unitOfWork.SaveChangesAsync(ct);
         return Result.Success();

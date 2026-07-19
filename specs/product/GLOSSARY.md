@@ -187,6 +187,16 @@ from the account onto each order (JPY has 0 decimals, USD 2 — the snapshot
 records that too). Totals are recalculated from lines on every mutation,
 never incrementally patched.
 
+**Audit log (#93)** — append-only record of every corrective, destructive,
+or configuration change (the admin-gated action set): actor (user id +
+email snapshot), UTC timestamp, action code, entity reference, the reason
+where the command carried one, and a small details payload. Domain data,
+not telemetry (tech spec): written **in the same transaction** as the
+change — a rollback erases the event with the change, and there is no
+update or delete surface anywhere. Admin-only viewer at /audit. The
+entity-local snapshots (`AdjustedFromJson` etc.) remain — they are the
+record's own history; the audit log is the cross-cutting trail.
+
 **Hen-day % (#91)** — eggs collected ÷ hen-days × 100 (spec §19.3). A
 hen-day is one bird alive for one day; the day's bird count comes from the
 bird ledger (placements + movements). The production report shows it per

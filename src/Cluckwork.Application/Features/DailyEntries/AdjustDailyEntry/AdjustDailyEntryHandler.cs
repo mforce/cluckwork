@@ -21,7 +21,8 @@ public sealed class AdjustDailyEntryHandler(
     IEggGradeRepository eggGrades,
     IBirdMovementRepository birdMovements,
     IFlockRepository flocks,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    IAuditWriter audit)
 {
     public async Task<Result<AdjustDailyEntryResponse>> HandleAsync(
         AdjustDailyEntryCommand command, Guid accountId, CancellationToken ct)
@@ -167,6 +168,10 @@ public sealed class AdjustDailyEntryHandler(
                     note: MovementNote("Entry adjusted: ", entry.AdjustReason),
                     dailyEntryId: entry.Id), transactionCt);
             }
+
+            // Same transaction as the change (#93): rolls back with it.
+            await audit.WriteAsync("DailyEntry.Adjust", nameof(DailyEntry), entry.Id,
+                command.Reason, ct: transactionCt);
 
             return true;
         }, ct);

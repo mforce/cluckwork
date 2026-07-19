@@ -8,7 +8,8 @@ using Cluckwork.Domain.Flocks;
 public sealed class RecordBirdMovementHandler(
     IFlockRepository flocks,
     IBirdMovementRepository movements,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    IAuditWriter audit)
 {
     public async Task<Result<Guid>> HandleAsync(
         RecordBirdMovementCommand command, Guid accountId, CancellationToken ct)
@@ -30,6 +31,10 @@ public sealed class RecordBirdMovementHandler(
             command.Date, type, command.Quantity, command.Note);
 
         await movements.AddAsync(movement, ct);
+        // Same SaveChanges as the change (#93).
+        await audit.WriteAsync("Flock.BirdMovement", "Flock", flock.Id,
+            reason: command.Note, details: new { command.Type, command.Quantity }, ct: ct);
+
         await unitOfWork.SaveChangesAsync(ct);
         return Result.Success(movement.Id);
     }

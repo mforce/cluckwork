@@ -13,7 +13,8 @@ public sealed class RecordAdjustmentHandler(
     IInventoryLotRepository lots,
     IInventoryMovementRepository movements,
     IUnitOfWork unitOfWork,
-    IClock clock)
+    IClock clock,
+    IAuditWriter audit)
 {
     public async Task<Result<Guid>> HandleAsync(
         RecordAdjustmentCommand command, Guid accountId, CancellationToken ct)
@@ -62,6 +63,10 @@ public sealed class RecordAdjustmentHandler(
                 command.QuantityDelta, item.Unit, clock.UtcNow,
                 flockId: null, note: command.Reason);
             await movements.AddAsync(movement, transactionCt);
+
+            // Same transaction as the change (#93).
+            await audit.WriteAsync("InventoryItem.Adjust", nameof(InventoryItem), item.Id,
+                command.Reason, new { command.Type, command.QuantityDelta }, transactionCt);
 
             outcome = Result.Success(movement.Id);
             return true;

@@ -5,7 +5,8 @@ using Cluckwork.Domain.Common;
 
 public sealed class UpdateEggGradeHandler(
     IEggGradeRepository grades,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    IAuditWriter audit)
 {
     public async Task<Result> HandleAsync(UpdateEggGradeCommand command, CancellationToken ct)
     {
@@ -19,6 +20,10 @@ public sealed class UpdateEggGradeHandler(
 
         var result = grade.Update(command.Name, command.SortOrder, command.IsSaleable);
         if (result.IsFailure) return result;
+
+        // Same SaveChanges as the change (#93).
+        await audit.WriteAsync("EggGrade.Update", "EggGrade", grade.Id,
+            reason: null, details: new { grade.Name, grade.SortOrder, grade.IsSaleable }, ct: ct);
 
         await unitOfWork.SaveChangesAsync(ct);
         return Result.Success();

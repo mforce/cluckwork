@@ -35,6 +35,7 @@ export function AppLayout() {
           {isAdmin && <NavLink to="/expenses">Expenses</NavLink>}
           {isAdmin && <NavLink to="/grades">Grades</NavLink>}
           {isAdmin && <NavLink to="/users">Users</NavLink>}
+          {isAdmin && <NavLink to="/audit">Audit</NavLink>}
           <NavLink to="/help">Help</NavLink>
         </nav>
         <button className="link" onClick={onLogout}>

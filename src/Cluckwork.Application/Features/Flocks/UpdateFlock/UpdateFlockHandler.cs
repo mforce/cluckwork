@@ -7,7 +7,8 @@ using Cluckwork.Domain.Flocks;
 
 public sealed class UpdateFlockHandler(
     IFlockRepository flocks,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    IAuditWriter audit)
 {
     public async Task<Result> HandleAsync(UpdateFlockCommand command, CancellationToken ct)
     {
@@ -21,6 +22,10 @@ public sealed class UpdateFlockHandler(
             return result;
 
         flocks.Update(flock);
+        // Same SaveChanges as the change (#93).
+        await audit.WriteAsync("Flock.Update", "Flock", flock.Id,
+            reason: null, details: null, ct: ct);
+
         await unitOfWork.SaveChangesAsync(ct);
         return Result.Success();
     }

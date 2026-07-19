@@ -20,7 +20,8 @@ public sealed class VoidDailyEntryHandler(
     IEggGradeRepository eggGrades,
     IBirdMovementRepository birdMovements,
     IFlockRepository flocks,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    IAuditWriter audit)
 {
     public async Task<Result<VoidDailyEntryResponse>> HandleAsync(
         VoidDailyEntryCommand command, Guid accountId, CancellationToken ct)
@@ -95,6 +96,10 @@ public sealed class VoidDailyEntryHandler(
                         "Entry voided: ", entry.VoidReason),
                     dailyEntryId: entry.Id), transactionCt);
             }
+
+            // Same transaction as the change (#93): rolls back with it.
+            await audit.WriteAsync("DailyEntry.Void", nameof(DailyEntry), entry.Id,
+                command.Reason, ct: transactionCt);
 
             return true;
         }, ct);

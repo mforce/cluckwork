@@ -14,7 +14,8 @@ public sealed class IdentityProvider(
     IJwtTokenService jwtTokenService,
     AppDbContext db,
     IOptions<JwtOptions> jwtOptions,
-    TimeProvider timeProvider) : IIdentityProvider
+    TimeProvider timeProvider,
+    Cluckwork.Application.Common.IAuditWriter audit) : IIdentityProvider
 {
     // Pre-computed V3 PBKDF2 hash used to equalize login timing when the email is not found,
     // preventing user enumeration via response-time analysis.
@@ -115,6 +116,12 @@ public sealed class IdentityProvider(
             if (!addedToRole.Succeeded)
                 return Result.Failure<Guid>(Error.Validation("Users.CreateFailed", Describe(addedToRole)));
         }
+
+        // Same transaction as the creation (#93): the event needs its own
+        // SaveChanges because UserManager flushed its writes already.
+        await audit.WriteAsync("User.Create", "User", user.Id,
+            reason: null, details: new { email, role = isAdmin ? "Admin" : "Worker" }, ct: ct);
+        await db.SaveChangesAsync(ct);
 
         await transaction.CommitAsync(ct);
         return Result.Success(user.Id);
