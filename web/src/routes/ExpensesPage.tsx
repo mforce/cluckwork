@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import {
-  adjustExpense, createExpense, createExpenseCategory, formatMoney,
+  adjustExpense, createExpense, createExpenseCategory, formatMoney, getExpense,
   listExpenseCategories, listExpenses, listFlocks, updateExpenseCategory,
 } from "../api/cluckwork";
 import type { Expense, ExpenseCategory, Flock } from "../api/cluckwork";
@@ -193,12 +193,12 @@ export function ExpensesPage() {
       } catch (err) {
         // 409: someone else corrected it meanwhile — rebind the panel to the
         // fresh row (only unsent typing is lost, and the banner says why).
+        // Fetched by id, not by date: the winning correction may have MOVED
+        // the expense to another day (pi review of #88).
         if (err instanceof ApiError && err.status === 409) {
           settleKey(scope, err);
           await load();
-          const fresh = (await listExpenses({ from: target.date, to: target.date }))
-            .items.find((x) => x.id === target.id);
-          if (fresh) startEdit(fresh);
+          startEdit(await getExpense(target.id));
           throw new Error("This expense was changed by someone else — the form now shows the latest values; re-apply your correction.");
         }
         throw err;

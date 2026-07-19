@@ -487,6 +487,8 @@ export const listExpenses = (params?: {
   return apiGet<ExpenseList>(`/expenses${q.size > 0 ? `?${q}` : ""}`);
 };
 
+export const getExpense = (id: string) => apiGet<Expense>(`/expenses/${id}`);
+
 export const createExpense = (body: {
   expenseCategoryId: string; date: string; description: string;
   amountMinorUnits: number; flockId?: string | null; note?: string | null;
