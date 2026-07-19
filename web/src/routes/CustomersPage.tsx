@@ -1,12 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
-import { createCustomer, listCustomers } from "../api/cluckwork";
-import type { Customer } from "../api/cluckwork";
+import { createCustomer, formatMoney, listCustomerBalances, listCustomers } from "../api/cluckwork";
+import type { Customer, CustomerBalances } from "../api/cluckwork";
 import { ApiError } from "../api/client";
+import { useAuth } from "../auth/useAuth";
 
 // #23: customer book — name + phone required, the rest optional.
 export function CustomersPage() {
+  // Balances are money data (#89): the column renders for admins only and the
+  // API refuses workers regardless.
+  const { isAdmin } = useAuth();
   const [customers, setCustomers] = useState<Customer[] | null>(null);
+  const [balances, setBalances] = useState<CustomerBalances | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const [name, setName] = useState("");
@@ -21,6 +26,20 @@ export function CustomersPage() {
     listCustomers().then(setCustomers).catch(() => setError("Could not load customers."));
 
   useEffect(() => { void load(); }, []);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    listCustomerBalances()
+      .then(setBalances)
+      .catch(() => setError("Could not load customer balances."));
+  }, [isAdmin]);
+
+  const outstandingFor = (customerId: string) => {
+    if (balances === null) return null;
+    const row = balances.items.find((b) => b.customerId === customerId);
+    // No confirmed orders → nothing owed; render an explicit zero.
+    return row?.outstandingMinorUnits ?? 0;
+  };
 
   async function onCreate(e: FormEvent) {
     e.preventDefault();
@@ -71,7 +90,10 @@ export function CustomersPage() {
       ) : (
         <table className="data">
           <thead>
-            <tr><th>Name</th><th>Phone</th><th>Email</th><th>Address</th><th>Note</th></tr>
+            <tr>
+              <th>Name</th><th>Phone</th><th>Email</th><th>Address</th><th>Note</th>
+              {isAdmin && <th>Outstanding</th>}
+            </tr>
           </thead>
           <tbody>
             {customers.map((c) => (
@@ -81,6 +103,13 @@ export function CustomersPage() {
                 <td>{c.email ?? "—"}</td>
                 <td>{c.address ?? "—"}</td>
                 <td>{c.note ?? "—"}</td>
+                {isAdmin && (
+                  <td>
+                    {balances === null || outstandingFor(c.id) === null
+                      ? "…"
+                      : formatMoney(outstandingFor(c.id)!, balances.currencyCode, balances.currencyMinorUnit)}
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>

@@ -52,8 +52,10 @@ using Cluckwork.Application.Features.Sales.AddOrderItem;
 using Cluckwork.Application.Features.Sales.CancelSalesOrder;
 using Cluckwork.Application.Features.Sales.ConfirmSale;
 using Cluckwork.Application.Features.Sales.CreateSalesOrder;
+using Cluckwork.Application.Features.Sales.RecordPayment;
 using Cluckwork.Application.Features.Sales.RemoveOrderItem;
 using Cluckwork.Application.Features.Sales.UpdateOrderItem;
+using Cluckwork.Application.Features.Sales.VoidPayment;
 using Cluckwork.Application.Features.Sales.VoidSale;
 using Cluckwork.Application.Features.Users.CreateUser;
 using Cluckwork.Infrastructure.Identity;
@@ -167,6 +169,7 @@ builder.Services.AddScoped<IExpenseCategoryRepository, ExpenseCategoryRepository
 builder.Services.AddScoped<IExpenseRepository, ExpenseRepository>();
 builder.Services.AddScoped<ISalesOrderRepository, SalesOrderRepository>();
 builder.Services.AddScoped<ISalesOrderAllocationRepository, SalesOrderAllocationRepository>();
+builder.Services.AddScoped<IPaymentRepository, PaymentRepository>();
 builder.Services.AddScoped<IInventoryItemRepository, InventoryItemRepository>();
 builder.Services.AddScoped<IInventoryLotRepository, InventoryLotRepository>();
 builder.Services.AddScoped<IInventoryMovementRepository, InventoryMovementRepository>();
@@ -193,6 +196,8 @@ builder.Services.AddScoped<IValidator<AdjustExpenseCommand>, AdjustExpenseValida
 builder.Services.AddScoped<IValidator<UpdateFlockCommand>, UpdateFlockValidator>();
 builder.Services.AddScoped<IValidator<RecordBirdMovementCommand>, RecordBirdMovementValidator>();
 builder.Services.AddScoped<IValidator<VoidSaleCommand>, VoidSaleValidator>();
+builder.Services.AddScoped<IValidator<RecordPaymentCommand>, RecordPaymentValidator>();
+builder.Services.AddScoped<IValidator<VoidPaymentCommand>, VoidPaymentValidator>();
 builder.Services.AddScoped<IValidator<CreateInventoryItemCommand>, CreateInventoryItemValidator>();
 builder.Services.AddScoped<IValidator<UpdateInventoryItemCommand>, UpdateInventoryItemValidator>();
 builder.Services.AddScoped<IValidator<RecordPurchaseCommand>, RecordPurchaseValidator>();
@@ -215,6 +220,8 @@ builder.Services.AddScoped<RemoveOrderItemHandler>();
 builder.Services.AddScoped<UpdateOrderItemHandler>();
 builder.Services.AddScoped<ConfirmSaleHandler>();
 builder.Services.AddScoped<VoidSaleHandler>();
+builder.Services.AddScoped<RecordPaymentHandler>();
+builder.Services.AddScoped<VoidPaymentHandler>();
 builder.Services.AddScoped<CreateInventoryItemHandler>();
 builder.Services.AddScoped<UpdateInventoryItemHandler>();
 builder.Services.AddScoped<SetInventoryItemActiveHandler>();
@@ -365,12 +372,20 @@ app.MapGroup("/api/v1/stock")
 app.MapGroup("/api/v1/customers")
     .WithTags("Customers")
     .RequireAuthorization()
-    .MapCustomerEndpoints();
+    .MapCustomerEndpoints()
+    .MapCustomerBalanceEndpoints();
 
 app.MapGroup("/api/v1/sales")
     .WithTags("Sales")
     .RequireAuthorization()
-    .MapSaleEndpoints();
+    .MapSaleEndpoints()
+    .MapOrderPaymentEndpoints();
+
+// Money data — admin end to end (#89).
+app.MapGroup("/api/v1/payments")
+    .WithTags("Payments")
+    .RequireAuthorization(AuthPolicies.AdminOnly)
+    .MapPaymentEndpoints();
 
 app.MapGroup("/api/v1/users")
     .WithTags("Users")

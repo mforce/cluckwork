@@ -25,6 +25,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, TenantContext 
     public DbSet<SalesOrder> SalesOrders => Set<SalesOrder>();
     public DbSet<SalesOrderItem> SalesOrderItems => Set<SalesOrderItem>();
     public DbSet<SalesOrderAllocation> SalesOrderAllocations => Set<SalesOrderAllocation>();
+    public DbSet<Payment> Payments => Set<Payment>();
     public DbSet<InventoryItem> InventoryItems => Set<InventoryItem>();
     public DbSet<InventoryLot> InventoryLots => Set<InventoryLot>();
     public DbSet<InventoryMovement> InventoryMovements => Set<InventoryMovement>();
@@ -57,6 +58,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, TenantContext 
         builder.Entity<SalesOrder>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
         builder.Entity<SalesOrderItem>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
         builder.Entity<SalesOrderAllocation>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
+        builder.Entity<Payment>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
         builder.Entity<InventoryItem>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
         builder.Entity<InventoryLot>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
         builder.Entity<InventoryMovement>().HasQueryFilter(e => e.AccountId == tenant.AccountId);

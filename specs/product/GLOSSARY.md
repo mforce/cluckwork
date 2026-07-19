@@ -187,6 +187,21 @@ from the account onto each order (JPY has 0 decimals, USD 2 — the snapshot
 records that too). Totals are recalculated from lines on every mutation,
 never incrementally patched.
 
+**Payment (#89)** — money in against a **confirmed** sales order (spec
+§10.11): date, amount in minor units, method (cash / check / card / bank
+transfer / mobile payment / other), optional reference and note. The
+currency copies from the ORDER at creation. Partial payments are normal;
+**overpaying the outstanding amount is refused** (checked under the order's
+row lock, so racing payments can't overshoot). A wrong payment is **voided**
+with a reason — never deleted — and the outstanding grows back. An order
+with non-voided payments refuses to void ("void the payments first").
+Admin-only end to end, reads included.
+
+**Outstanding balance (#89)** — per order: confirmed total − non-voided
+payments; per customer: the same summed across their confirmed orders
+(server-side sums, never client-aggregated pages). Shown on the order's
+payments panel and the Customers page (admins).
+
 **Expense (#87)** — a money-out record (spec §16, basic cut): date, category,
 description, amount in minor units, optional flock link, optional note. The
 currency snapshots from the account at creation and is never editable — a

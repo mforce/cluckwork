@@ -63,9 +63,9 @@ export function HelpPage() {
           an admin: voiding orders, stock corrections, water-record corrections,
           editing flocks, deplete/archive/reactivate, culls and bird
           adjustments, and managing the grade and item catalogs. Money is
-          admin-only outright — the Expenses screen (viewing included) needs an
-          admin sign-in. Controls you can't use are hidden, and the server
-          refuses them regardless.
+          admin-only outright — the Expenses screen, order payments, and
+          customer balances (viewing included) need an admin sign-in. Controls
+          you can't use are hidden, and the server refuses them regardless.
         </li>
         <li>
           Admins create sign-ins on the <strong>Users</strong> screen — email,
@@ -227,6 +227,15 @@ export function HelpPage() {
           allocation tracking existed can't self-serve void — ask your
           administrator.)
         </li>
+        <li>
+          <strong>Payments</strong> (admin): a confirmed order's panel shows
+          its settlement history — record partial payments (date, amount,
+          method, optional reference) until the outstanding amount reaches
+          zero; overpaying is refused. A wrong payment is <strong>voided</strong>{" "}
+          (reason required) and the outstanding grows back. An order with
+          payments can't be voided until its payments are voided first. The
+          Customers page shows each customer's outstanding balance.
+        </li>
       </ul>
 
       <h3 id="expenses">Expenses (admin)</h3>
@@ -290,7 +299,18 @@ export function HelpPage() {
           </tr>
           <tr>
             <td>Confirmed the wrong sales order</td>
-            <td>Sales → open the order → <strong>Void order</strong> (stock returns to its lots; reason required)</td>
+            <td>
+              Sales → open the order → <strong>Void order</strong> (stock
+              returns to its lots; reason required). If payments were recorded
+              on it, void those first.
+            </td>
+          </tr>
+          <tr>
+            <td>Recorded a wrong payment</td>
+            <td>
+              Sales → open the order → payments → <strong>void</strong> (reason
+              required): the row is kept and the outstanding amount grows back.
+            </td>
           </tr>
           <tr>
             <td>Wrong <em>quantity</em> in a feed purchase / spoiled feed</td>
