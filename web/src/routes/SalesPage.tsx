@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   addOrderItem, cancelOrder, confirmOrder, createOrder, formatMoney, getOrder,
-  listCustomers, listEggGrades, listOrders, removeOrderItem, updateOrderItem, voidOrder,
+  listCustomers, listEggGrades, listOrderPayments, listOrders, recordPayment,
+  removeOrderItem, updateOrderItem, voidOrder, voidPayment,
 } from "../api/cluckwork";
-import type { Customer, EggGrade, SalesOrder } from "../api/cluckwork";
+import type { Customer, EggGrade, OrderPayments, SalesOrder } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 
@@ -68,6 +69,14 @@ export function SalesPage() {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
+  // Payments (#89, admin-only money data) — settlement state of the open
+  // confirmed order.
+  const [payments, setPayments] = useState<OrderPayments | null>(null);
+  const [payDate, setPayDate] = useState(todayIso());
+  const [payAmount, setPayAmount] = useState("");
+  const [payMethod, setPayMethod] = useState("Cash");
+  const [payRef, setPayRef] = useState("");
+
   const customerName = (id: string) => customers.find((c) => c.id === id)?.name ?? id.slice(0, 8);
   const gradeName = (id: string) => allGrades.find((g) => g.id === id)?.name ?? id.slice(0, 8);
 
@@ -101,6 +110,35 @@ export function SalesPage() {
   useEffect(() => {
     loadOrders().catch(() => setLoadError("Could not load orders."));
   }, [loadOrders]);
+
+  const activeId = active?.id ?? null;
+  const activeStatus = active?.status ?? null;
+  useEffect(() => {
+    if (activeId === null || activeStatus !== "Confirmed" || !isAdmin) {
+      setPayments(null);
+      return;
+    }
+    let cancelled = false;
+    listOrderPayments(activeId)
+      .then((p) => { if (!cancelled) setPayments(p); })
+      .catch(() => { if (!cancelled) setError("Could not load this order's payments."); });
+    return () => { cancelled = true; };
+  }, [activeId, activeStatus, isAdmin]);
+
+  // Exact decimal parsing in the ORDER's denomination (no float multiply —
+  // #88 review); excess decimals are rejected, not silently rounded.
+  const toMinor = (display: string, minor: number) => {
+    const m = display.trim().match(/^(\d+)(?:\.(\d+))?$/);
+    if (!m) throw new Error("Enter a valid amount.");
+    const frac = m[2] ?? "";
+    if (frac.length > minor)
+      throw new Error(minor === 0
+        ? "This currency has no decimal places."
+        : `At most ${minor} decimal places for this currency.`);
+    const v = Number(m[1]) * 10 ** minor + Number(frac.padEnd(minor, "0") || "0");
+    if (!Number.isSafeInteger(v) || v <= 0) throw new Error("Enter an amount greater than zero.");
+    return v;
+  };
 
   async function run(fn: () => Promise<void>) {
     if (inFlight.current) return;
@@ -194,6 +232,53 @@ export function SalesPage() {
   // Undo of a mistaken confirm (#60). Reason prompt doubles as the confirm
   // dialog, hoisted above run() like the other one-way actions; cancelling the
   // prompt aborts the void.
+  const refreshPayments = async (orderId: string) =>
+    setPayments(await listOrderPayments(orderId));
+
+  const onRecordPayment = () => void run(async () => {
+    if (!active || !payments) return;
+    const minorUnits = toMinor(payAmount, payments.currencyMinorUnit);
+    const scope = `pay:${active.id}`;
+    await recordPayment(active.id, {
+      paymentDate: payDate,
+      amountMinorUnits: minorUnits,
+      method: payMethod,
+      referenceNumber: payRef.trim() || null,
+    }, keyFor(scope));
+    // Reset before the refresh (#88 review): a reload failure after a landed
+    // write must not leave a populated form that re-submits as a duplicate.
+    setPayAmount("");
+    setPayRef("");
+    await refreshPayments(active.id);
+    clearKey(scope);
+    setMessage("Payment recorded.");
+  });
+
+  const onVoidPayment = (paymentId: string, version: number) => {
+    const reason = window.prompt(
+      "Void this payment? The order's outstanding amount grows back.\n\nReason (required):");
+    if (reason === null) return;
+    if (!reason.trim()) {
+      setError("A void reason is required.");
+      return;
+    }
+    void run(async () => {
+      if (!active) return;
+      const scope = `void-payment:${paymentId}`;
+      try {
+        await voidPayment(paymentId, { version, reason: reason.trim() }, keyFor(scope));
+        clearKey(scope);
+      } catch (err) {
+        // Version-guarded: any SERVER response settles the attempt (the base
+        // version prevents double-apply); only transport failures keep the key.
+        if (err instanceof ApiError) clearKey(scope);
+        throw err;
+      }
+      await refreshPayments(active.id);
+      setMessage("Payment voided — the outstanding amount grew back.");
+    });
+  };
+
   const onVoid = () => {
     const reason = window.prompt(
       "Void this confirmed order? The allocated stock returns to the exact "
@@ -325,6 +410,70 @@ export function SalesPage() {
                 <button className="link" disabled={busy} onClick={onCancel}>Cancel draft</button>
                 <button className="link" onClick={() => setActive(null)}>close</button>
               </div>
+            </>
+          )}
+          {active.status === "Confirmed" && isAdmin && payments && (
+            <>
+              <h4>Payments</h4>
+              {payments.items.length > 0 && (
+                <table className="data">
+                  <thead>
+                    <tr><th>Date</th><th>Amount</th><th>Method</th><th>Reference</th><th></th></tr>
+                  </thead>
+                  <tbody>
+                    {payments.items.map((p) => (
+                      <tr key={p.id} className={p.voided ? "inactive" : undefined}>
+                        <td>{p.paymentDate}</td>
+                        <td>{formatMoney(p.amountMinorUnits, p.currencyCode, p.currencyMinorUnit)}</td>
+                        <td>{p.method}</td>
+                        <td>{p.referenceNumber ?? "—"}</td>
+                        <td>
+                          {p.voided
+                            ? <span className="warn" title={p.voidReason ?? undefined}>Voided</span>
+                            : (
+                              <button className="link" disabled={busy}
+                                onClick={() => onVoidPayment(p.id, p.version)}>void</button>
+                            )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+              <p>
+                Paid {formatMoney(payments.paidMinorUnits, payments.currencyCode, payments.currencyMinorUnit)} —{" "}
+                <strong>
+                  outstanding {formatMoney(payments.outstandingMinorUnits, payments.currencyCode, payments.currencyMinorUnit)}
+                </strong>
+              </p>
+              {payments.outstandingMinorUnits > 0 && (
+                <div className="form-grid">
+                  <label>Date
+                    <input type="date" value={payDate} max={todayIso()}
+                      onChange={(e) => setPayDate(e.target.value)} />
+                  </label>
+                  <label>Amount ({payments.currencyCode})
+                    <input type="number"
+                      min={(1 / 10 ** payments.currencyMinorUnit).toFixed(payments.currencyMinorUnit)}
+                      step="any" value={payAmount}
+                      onChange={(e) => setPayAmount(e.target.value)} />
+                  </label>
+                  <label>Method
+                    <select value={payMethod} onChange={(e) => setPayMethod(e.target.value)}>
+                      {["Cash", "Check", "Card", "BankTransfer", "MobilePayment", "Other"].map((m) => (
+                        <option key={m} value={m}>{m}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>Reference (optional)
+                    <input value={payRef} maxLength={50}
+                      onChange={(e) => setPayRef(e.target.value)} />
+                  </label>
+                  <button disabled={busy || !payAmount} onClick={onRecordPayment}>
+                    Record payment
+                  </button>
+                </div>
+              )}
             </>
           )}
           {active.status === "Voided" && active.voidReason && (

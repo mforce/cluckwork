@@ -435,6 +435,60 @@ export function formatMoney(minorUnits: number, currencyCode: string, minorUnit:
   return `${value.toFixed(minorUnit)} ${currencyCode}`;
 }
 
+// --- Payments (#89, admin-only end to end — money data) ---
+
+export interface Payment {
+  id: string;
+  salesOrderId: string;
+  customerId: string;
+  paymentDate: string;
+  amountMinorUnits: number;
+  currencyCode: string;
+  currencyMinorUnit: number;
+  method: string;
+  referenceNumber: string | null;
+  note: string | null;
+  voided: boolean;
+  voidReason: string | null;
+  version: number;
+}
+
+export interface OrderPayments {
+  items: Payment[];
+  paidMinorUnits: number;
+  outstandingMinorUnits: number;
+  totalMinorUnits: number;
+  currencyCode: string;
+  currencyMinorUnit: number;
+}
+
+export interface CustomerBalance {
+  customerId: string;
+  confirmedTotalMinorUnits: number;
+  paidMinorUnits: number;
+  outstandingMinorUnits: number;
+}
+
+export interface CustomerBalances {
+  items: CustomerBalance[];
+  currencyCode: string;
+  currencyMinorUnit: number;
+}
+
+export const listOrderPayments = (orderId: string) =>
+  apiGet<OrderPayments>(`/sales/${orderId}/payments`);
+
+export const recordPayment = (orderId: string, body: {
+  paymentDate: string; amountMinorUnits: number; method: string;
+  referenceNumber?: string | null; note?: string | null;
+}, key?: string) => apiPost<Created>(`/sales/${orderId}/payments`, body, key);
+
+export const voidPayment = (id: string, body: { version: number; reason: string }, key?: string) =>
+  apiPost<Payment>(`/payments/${id}/void`, body, key);
+
+export const listCustomerBalances = () =>
+  apiGet<CustomerBalances>("/customers/balances");
+
 // --- Expenses (#87, admin-only end to end — money data) ---
 
 export interface ExpenseCategory {

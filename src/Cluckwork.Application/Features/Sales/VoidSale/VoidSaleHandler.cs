@@ -18,6 +18,7 @@ public sealed class VoidSaleHandler(
     ISalesOrderRepository salesOrders,
     ISalesOrderAllocationRepository allocations,
     IEggLotRepository eggLots,
+    IPaymentRepository payments,
     IUnitOfWork unitOfWork,
     IClock clock)
 {
@@ -42,6 +43,18 @@ public sealed class VoidSaleHandler(
             if (order.AccountId != accountId)
             {
                 outcome = Result.Failure<VoidSaleResponse>(AppError.TenantMismatch());
+                return false;
+            }
+
+            // Money first (#89): a voided order must not keep settled payments —
+            // the operator voids those explicitly (each needs its own reason)
+            // before the order can go. Checked under the order row lock, so a
+            // racing payment serializes and sees Voided instead.
+            if (await payments.AnyNonVoidedByOrderAsync(order.Id, transactionCt))
+            {
+                outcome = Result.Failure<VoidSaleResponse>(Error.Domain(
+                    "SalesOrder.HasPayments",
+                    "This order has recorded payments — void the payments first."));
                 return false;
             }
 
