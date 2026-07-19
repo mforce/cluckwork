@@ -37,6 +37,8 @@ export interface GradeLine {
   quantity: number;
 }
 
+// version = the base an admin correction must send back (stale → 409);
+// adjustedFrom = audit snapshot of the values the last adjust replaced.
 export interface DailyEntry {
   id: string;
   farmId: string;
@@ -50,6 +52,14 @@ export interface DailyEntry {
   discardedEggs: number;
   mortalityCount: number;
   grades: GradeLine[];
+  version: number;
+  adjustReason: string | null;
+  voidReason: string | null;
+  lockedAtUtc: string | null;
+  adjustedFrom: {
+    totalEggs: number; crackedEggs: number; dirtyEggs: number;
+    discardedEggs: number; mortalityCount: number; grades: GradeLine[];
+  } | null;
 }
 
 export interface StockRow {
@@ -144,6 +154,18 @@ export const recordDailyEntry = (body: {
 
 export const submitDailyEntry = (id: string, key?: string) =>
   apiPost<{ id: string; status: string; eggLotIds: string[] }>(`/daily-entries/${id}/submit`, undefined, key);
+
+// Admin-only (#69/#73): correct a submitted/locked entry. Stock and the bird
+// ledger reconcile server-side; version is the base the entry was loaded at.
+export const adjustDailyEntry = (id: string, body: {
+  version: number; totalEggs: number; crackedEggs: number; dirtyEggs: number;
+  discardedEggs: number; mortalityCount: number; reason: string; grades?: GradeLine[];
+}, key?: string) =>
+  apiPost<{ id: string; status: string; version: number }>(`/daily-entries/${id}/adjust`, body, key);
+
+// Admin-only (#69/#73): undo a whole submitted entry (refused once eggs sold).
+export const voidDailyEntry = (id: string, body: { version: number; reason: string }, key?: string) =>
+  apiPost<{ id: string; status: string; version: number }>(`/daily-entries/${id}/void`, body, key);
 
 export const listDailyEntries = (params?: {
   flockId?: string; from?: string; to?: string; limit?: number; offset?: number;
