@@ -122,16 +122,20 @@ export function HistoryPage() {
     if (err === undefined || err instanceof ApiError) clearKey(scope);
   }
 
-  // On a 409 the correction lost a race. Reload the list and re-bind the
-  // panel to the fresh version so the typed values survive; if the entry is
-  // no longer correctable (voided meanwhile), close the panel.
+  // On a 409 the correction lost a race. Reload, then re-bind the panel to
+  // the fresh entry with the OTHER admin's values in every field — keeping
+  // this admin's typed numbers could silently clobber a grade line the
+  // winner just added (pi review of PR #81). Only the reason survives; if
+  // the entry is no longer correctable (voided meanwhile), close the panel.
   async function rebindAfterConflict(entryId: string) {
     try {
       await load();
       const fresh = await getDailyEntry(entryId);
       if (correctable(fresh)) {
-        setAdjusting(fresh);
-        setError("This entry was changed by someone else — the form now targets the latest version; review and save again.");
+        const keptReason = reason;
+        startAdjust(fresh);
+        setReason(keptReason);
+        setError("This entry was changed by someone else — the form shows the latest values; re-apply your correction.");
       } else {
         setAdjusting(null);
         setError(`This entry is now ${fresh.status.toLowerCase()} — nothing left to adjust.`);
@@ -152,6 +156,14 @@ export function HistoryPage() {
       const lines = Object.entries(lineQty)
         .filter(([, q]) => q > 0)
         .map(([eggGradeId, quantity]) => ({ eggGradeId, quantity }));
+      // Mirror the server's sellable-cap rule for an instant message; the
+      // API remains the authority.
+      const sellable = total - cracked - dirty - discarded;
+      if (lines.reduce((sum, l) => sum + l.quantity, 0) > sellable) {
+        setError("Graded quantities cannot exceed total eggs minus cracked/dirty/discarded.");
+        setBusy(false);
+        return;
+      }
       await adjustDailyEntry(adjusting.id, {
         version: adjusting.version,
         totalEggs: total,
