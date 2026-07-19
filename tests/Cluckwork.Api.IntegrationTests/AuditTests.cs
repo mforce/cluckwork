@@ -110,6 +110,38 @@ public sealed class AuditTests(CluckworkWebApplicationFactory factory)
         Assert.Contains(depletions!, r => r.EntityId == flockId);
     }
 
+    // Cross-tenant isolation: the trail is scoped by the same global filter as
+    // every entity, and a foreign entityId is indistinguishable from a
+    // nonexistent one (no existence oracle).
+    [Fact]
+    public async Task Viewer_NeverCrossesTenants()
+    {
+        var (clientA, _, _, farmA, flockA, gradeA) = await SetupAsync();
+
+        // Tenant A produces an audited action.
+        var record = await clientA.PostWithKeyAsync("/api/v1/daily-entries", Guid.NewGuid().ToString(), new
+        {
+            farmId = farmA, houseId = Guid.NewGuid(), flockId = flockA, date = Today,
+            totalEggs = 50, crackedEggs = 0, dirtyEggs = 0, discardedEggs = 0,
+            mortalityCount = 0,
+            grades = new[] { new { eggGradeId = gradeA, quantity = 40 } }
+        });
+        var entryId = (await record.Content.ReadFromJsonAsync<Created>())!.Id;
+        await clientA.PostWithKeyAsync($"/api/v1/daily-entries/{entryId}/submit", Guid.NewGuid().ToString());
+        var version = (await clientA.GetFromJsonAsync<EntryDto>($"/api/v1/daily-entries/{entryId}"))!.Version;
+        await clientA.PostWithKeyAsync($"/api/v1/daily-entries/{entryId}/adjust", Guid.NewGuid().ToString(), new
+        {
+            version, totalEggs = 45, crackedEggs = 0, dirtyEggs = 0,
+            discardedEggs = 0, mortalityCount = 0, reason = "tenant A only"
+        });
+        Assert.Single((await clientA.GetFromJsonAsync<List<AuditRow>>($"/api/v1/audit?entityId={entryId}"))!);
+
+        // Tenant B's admin sees nothing — not by list, not by A's entity id.
+        var (clientB, _, _, _, _, _) = await SetupAsync();
+        Assert.Empty((await clientB.GetFromJsonAsync<List<AuditRow>>("/api/v1/audit"))!);
+        Assert.Empty((await clientB.GetFromJsonAsync<List<AuditRow>>($"/api/v1/audit?entityId={entryId}"))!);
+    }
+
     [Fact]
     public async Task Viewer_IsAdminOnly()
     {

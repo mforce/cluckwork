@@ -22,6 +22,14 @@ public sealed class AuditWriter(
         string? reason = null, object? details = null,
         CancellationToken ct = default)
     {
+        // Every capture point sits behind an authenticated, tenant-resolved
+        // endpoint today; this guard keeps a future non-HTTP caller (job,
+        // seeder) from stamping AccountId = Guid.Empty rows that no tenant
+        // filter would ever surface (background security review of #94).
+        if (!tenant.IsResolved)
+            throw new InvalidOperationException(
+                "Audit events require a resolved tenant — do not call IAuditWriter outside a tenant-scoped request.");
+
         var actorId = user.IsResolved ? user.UserId : Guid.Empty;
         var actorEmail = user.IsResolved ? user.Email : "(unresolved)";
 
