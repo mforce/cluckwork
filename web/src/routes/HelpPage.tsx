@@ -231,7 +231,13 @@ export function HelpPage() {
       <ul>
         <li>
           Browse recorded daily entries newest-first, filtered by flock and date
-          range. The status column distinguishes Drafts from Submitted entries.
+          range. The status column shows the entry's life: Draft, Submitted,
+          Locked (7+ days old), Adjusted (hover for the reason), or Voided.
+        </li>
+        <li>
+          Admins correct from here: <strong>adjust</strong> opens the entry's
+          numbers for editing (reason required), <strong>void</strong> undoes
+          the whole entry. Stock and the bird ledger follow automatically.
         </li>
       </ul>
 
@@ -287,7 +293,7 @@ export function HelpPage() {
           <tr>
             <td>Wrong numbers in a <em>submitted</em> daily entry</td>
             <td>
-              An admin can <strong>adjust</strong> it — totals, losses,
+              History → <strong>adjust</strong> (admin) — totals, losses,
               mortality, and grade split, with a required reason. Stock and
               the bird ledger update to match automatically, but eggs already
               sold can never be un-counted: shrinking a grade below what was
@@ -297,10 +303,11 @@ export function HelpPage() {
           <tr>
             <td>Entire <em>submitted</em> entry is wrong (wrong flock or day)</td>
             <td>
-              An admin can <strong>void</strong> it (reason required): its egg
+              History → <strong>void</strong> (admin, reason required): its egg
               lots empty, its deaths are reversed in the bird ledger, and the
               entry is kept as Voided. Refused if any of its eggs were already
-              sold — void the sale first. Then record the correct entry.
+              sold — void the sale first. Voiding frees the day: the correct
+              entry can then be recorded for the same flock and date.
             </td>
           </tr>
           <tr>

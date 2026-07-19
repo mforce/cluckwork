@@ -51,7 +51,10 @@ export function Dashboard() {
     });
   }, [today]);
 
-  const entryFor = (flockId: string) => entries?.find((e) => e.flockId === flockId);
+  // Voided entries vacate their day (#82): a voided row must not stand in for
+  // the flock's entry — a day with only voided rows counts as "no entry yet".
+  const entryFor = (flockId: string) =>
+    entries?.find((e) => e.flockId === flockId && e.status !== "Voided");
   const customerName = (id: string) =>
     customers.find((c) => c.id === id)?.name ?? id.slice(0, 8);
   // "no entry" is a missed-capture flag — only meaningful for active flocks.

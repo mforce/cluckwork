@@ -14,18 +14,23 @@ public sealed class DailyEntryRepository(AppDbContext db) : IDailyEntryRepositor
             .Include(e => e.Grades)
             .FirstOrDefaultAsync(e => e.Id == id, ct);
 
+    // Voided entries are excluded: voiding vacates the natural key (#82), so
+    // the day can be re-recorded as a fresh entry. The partial unique index
+    // (IX_DailyEntries_NaturalKey) guarantees at most one live match.
+    // The tenant query filter stays ON: the explicit AccountId predicate is
+    // belt-and-suspenders, not the only guard (pi review of #83).
     public Task<DailyEntry?> FindByNaturalKeyAsync(
         Guid accountId, Guid farmId, Guid houseId, Guid flockId, DateOnly date,
         CancellationToken ct = default) =>
         db.DailyEntries
-            .IgnoreQueryFilters()
             .Include(e => e.Grades)
             .FirstOrDefaultAsync(e =>
                 e.AccountId == accountId &&
                 e.FarmId == farmId &&
                 e.HouseId == houseId &&
                 e.FlockId == flockId &&
-                e.Date == date, ct);
+                e.Date == date &&
+                e.Status != DailyEntryStatus.Voided, ct);
 
     public Task<DailyEntry?> GetReadOnlyAsync(Guid id, CancellationToken ct = default) =>
         db.DailyEntries
