@@ -56,7 +56,8 @@ graded breakdown of sellable eggs. One entry per flock per day (natural key).
 `Draft → Submitted → Locked → ManagerAdjusted / Voided`:
 
 - **Draft** — editable; re-saving the same flock+date updates it in place.
-  Nothing downstream exists yet.
+  Nothing downstream exists yet. History links Draft rows straight back to
+  the entry form via **edit** (#85) — open to workers, unlike adjust/void.
 - **Submitted** — the day is frozen for workers. Submitting *generates* the
   downstream facts atomically: one **egg lot** per grade line (each lot
   carries a `DailyEntryId` link back to its entry), and a **mortality

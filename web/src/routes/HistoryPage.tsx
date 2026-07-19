@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
+import { Link } from "react-router-dom";
 import {
   adjustDailyEntry, getDailyEntry, listDailyEntries, listEggGrades, listFlocks, voidDailyEntry,
 } from "../api/cluckwork";
@@ -91,6 +92,13 @@ export function HistoryPage() {
   }, [load]);
 
   const flockName = (id: string) => flocks.find((f) => f.id === id)?.name ?? id.slice(0, 8);
+  // The Daily entry screen can't target archived flocks (capture excludes
+  // them), so an edit link for one would silently fall back to a different
+  // flock — worse than no link (codex review of #86).
+  const flockEditable = (id: string) => {
+    const f = flocks.find((x) => x.id === id);
+    return f !== undefined && f.status !== "Archived";
+  };
   const gradeName = (id: string) => grades.find((g) => g.id === id)?.name ?? id.slice(0, 8);
   const correctable = (e: DailyEntry) =>
     e.status === "Submitted" || e.status === "Locked" || e.status === "ManagerAdjusted";
@@ -331,7 +339,7 @@ export function HistoryPage() {
               <tr>
                 <th>Date</th><th>Flock</th><th>Status</th><th>Total</th>
                 <th>Losses (cr/di/ds)</th><th>Mortality</th><th>Graded</th>
-                {isAdmin && <th></th>}
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -348,18 +356,24 @@ export function HistoryPage() {
                       ? "—"
                       : e.grades.map((g) => `${gradeName(g.eggGradeId)} ${g.quantity}`).join(", ")}
                   </td>
-                  {isAdmin && (
-                    <td>
-                      {correctable(e) && (
-                        <>
-                          <button className="link" disabled={busy}
-                            onClick={() => startAdjust(e)}>adjust</button>
-                          <button className="link" disabled={busy}
-                            onClick={() => onVoid(e)}>void</button>
-                        </>
-                      )}
-                    </td>
-                  )}
+                  <td>
+                    {/* Drafts are edited on the Daily entry screen (#85) —
+                        open to workers too; adjust/void stay admin-only. */}
+                    {e.status === "Draft" && flockEditable(e.flockId) && (
+                      <Link className="link"
+                        to={`/daily-entry?flockId=${e.flockId}&date=${e.date}`}>
+                        edit
+                      </Link>
+                    )}
+                    {isAdmin && correctable(e) && (
+                      <>
+                        <button className="link" disabled={busy}
+                          onClick={() => startAdjust(e)}>adjust</button>
+                        <button className="link" disabled={busy}
+                          onClick={() => onVoid(e)}>void</button>
+                      </>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
