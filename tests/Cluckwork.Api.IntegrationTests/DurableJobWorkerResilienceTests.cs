@@ -1,5 +1,7 @@
 namespace Cluckwork.Api.IntegrationTests;
 
+using System.Net;
+using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Infrastructure.Jobs;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -47,5 +49,44 @@ public sealed class DurableJobWorkerResilienceTests
         var worker = Worker(() => new OperationCanceledException());
 
         Assert.False(await worker.TryProcessPendingJobsAsync(CancellationToken.None));
+    }
+
+    // The hosted loop itself: continuous failures must not fault ExecuteTask
+    // (StopHost fires off a faulted task), and shutdown must stay prompt even
+    // mid-backoff.
+    [Fact]
+    public async Task HostedLoop_SurvivesContinuousFailures_AndStopsPromptly()
+    {
+        var worker = new DurableJobWorker(
+            new ThrowingScopeFactory(() => new InvalidOperationException("DB is gone")),
+            NullLogger<DurableJobWorker>.Instance,
+            pollInterval: TimeSpan.FromMilliseconds(5),
+            initialBackoff: TimeSpan.FromMilliseconds(5));
+
+        await worker.StartAsync(CancellationToken.None);
+        await Task.Delay(TimeSpan.FromMilliseconds(150));
+        Assert.False(worker.ExecuteTask!.IsFaulted);
+
+        using var stopTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await worker.StopAsync(stopTimeout.Token);
+        Assert.True(worker.ExecuteTask.IsCompleted);
+        Assert.False(worker.ExecuteTask.IsFaulted);
+    }
+}
+
+// The live/ready split (#65): live runs no checks (process-up only), ready
+// includes the database check — healthy here because the test container is
+// migrated and reachable. The unhealthy side is covered by the outage drill
+// documented on PR #79 (stopping a container inside a test is prohibitively
+// slow for the suite).
+[Collection(IntegrationCollection.Name)]
+public sealed class HealthEndpointTests(CluckworkWebApplicationFactory factory)
+{
+    [Fact]
+    public async Task LiveAndReady_BothHealthy_WhenDatabaseIsUp()
+    {
+        var client = factory.CreateClient();
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/health/live")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/health/ready")).StatusCode);
     }
 }

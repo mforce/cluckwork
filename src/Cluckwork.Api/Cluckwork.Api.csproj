@@ -12,7 +12,6 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.*" />
-    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="10.*" />
     <!-- Pin patched Microsoft.OpenApi: transitive 2.0.0 has GHSA-v5pm-xwqc-g5wc (NU1903) -->
     <PackageReference Include="Microsoft.OpenApi" Version="2.10.0" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.*" />

@@ -227,11 +227,11 @@ builder.Services.AddScoped<DemoDataSeeder>();
 builder.Services.AddOpenApi();
 
 // --- Health checks ---
-// Readiness includes the database (#65): during a DB outage the API stays up
-// (liveness green) while /health/ready turns 503 so orchestrators stop
-// routing traffic until the DB returns.
+// Readiness includes the database (#65): during a DB outage — or with
+// migrations pending — the API stays up (liveness green) while /health/ready
+// turns 503 so orchestrators stop routing traffic until it recovers.
 builder.Services.AddHealthChecks()
-    .AddDbContextCheck<AppDbContext>("database");
+    .AddCheck<Cluckwork.Api.HealthChecks.DatabaseReadyHealthCheck>("database");
 
 // --- Durable job scaffold (tech spec §9) ---
 builder.Services.AddHostedService<DurableJobWorker>();

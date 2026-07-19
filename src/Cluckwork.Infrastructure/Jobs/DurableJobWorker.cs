@@ -21,13 +21,18 @@ public sealed class DurableJob
 
 public enum DurableJobStatus { Pending, Running, Completed, Failed }
 
+// Intervals are injectable for the loop-level tests only; DI fills the
+// defaults (ActivatorUtilities resolves optional parameters).
 public sealed class DurableJobWorker(
     IServiceScopeFactory scopeFactory,
-    ILogger<DurableJobWorker> logger) : BackgroundService
+    ILogger<DurableJobWorker> logger,
+    TimeSpan? pollInterval = null,
+    TimeSpan? initialBackoff = null) : BackgroundService
 {
-    private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(30);
-    private static readonly TimeSpan InitialBackoff = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan MaxBackoff = TimeSpan.FromMinutes(5);
+
+    private readonly TimeSpan pollInterval = pollInterval ?? TimeSpan.FromSeconds(30);
+    private readonly TimeSpan initialBackoff = initialBackoff ?? TimeSpan.FromSeconds(5);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -36,18 +41,24 @@ public sealed class DurableJobWorker(
         // API down with it (#65). Failures log and retry with capped backoff;
         // StopHost stays as the backstop for anything thrown OUTSIDE the
         // guarded iteration (e.g. a fatal bug in the loop itself).
+        //
+        // One scheduling mechanism only: success waits the poll interval,
+        // failure waits the backoff — a PeriodicTimer on top would stretch
+        // every retry back to the poll interval and make the logged backoff
+        // a lie (codex review of PR #79). Task.Delay throws on cancellation,
+        // which ends the loop as a normal shutdown.
         var backoff = TimeSpan.Zero;
-        using var timer = new PeriodicTimer(PollInterval);
-        while (await timer.WaitForNextTickAsync(stoppingToken))
+        while (!stoppingToken.IsCancellationRequested)
         {
             if (await TryProcessPendingJobsAsync(stoppingToken))
             {
                 backoff = TimeSpan.Zero;
+                await Task.Delay(pollInterval, stoppingToken);
                 continue;
             }
 
             backoff = backoff == TimeSpan.Zero
-                ? InitialBackoff
+                ? initialBackoff
                 : TimeSpan.FromTicks(Math.Min(backoff.Ticks * 2, MaxBackoff.Ticks));
             logger.LogWarning("Durable job poll failed; next attempt in {Backoff}.", backoff);
             await Task.Delay(backoff, stoppingToken);
