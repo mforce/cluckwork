@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { listAuditEvents } from "../api/cluckwork";
 import type { AuditEvent } from "../api/cluckwork";
 import { ApiError } from "../api/client";
@@ -18,20 +18,35 @@ export function AuditPage() {
   const [error, setError] = useState<string | null>(null);
   const [actionFilter, setActionFilter] = useState("");
   const [busy, setBusy] = useState(false);
+  // Stale responses for a previous filter must neither replace nor append to
+  // the current view, nor flip its busy state (codex review of #94).
+  const requestSeq = useRef(0);
 
   const load = useCallback(async (offset = 0) => {
+    const seq = ++requestSeq.current;
     setBusy(true);
+    if (offset === 0) setEvents(null); // fresh filter view; no mislabeled rows
     try {
       const page = await listAuditEvents({
         action: actionFilter || undefined, limit: PAGE, offset,
       });
-      setEvents((prev) => (offset === 0 || prev === null) ? page : [...prev, ...page]);
+      if (seq !== requestSeq.current) return;
+      // Dedupe by id on append: the log is append-only and newest-first, so a
+      // row inserted between pages can only push rows DEEPER — the next page
+      // may re-show the tail (duplicates), never skip (codex review of #94;
+      // its "skipped rows" half needs deletions, which never happen here).
+      setEvents((prev) => (offset === 0 || prev === null)
+        ? page
+        : [...prev, ...page.filter((p) => !prev.some((x) => x.id === p.id))]);
       setHasMore(page.length === PAGE);
       setError(null);
     } catch (err) {
+      if (seq !== requestSeq.current) return;
       setError(errText(err));
+      // End the "Loading…" state so the error is the only thing shown.
+      setEvents((prev) => prev ?? []);
     } finally {
-      setBusy(false);
+      if (seq === requestSeq.current) setBusy(false);
     }
   }, [actionFilter]);
 

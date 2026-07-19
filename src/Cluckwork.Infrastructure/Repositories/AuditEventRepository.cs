@@ -15,8 +15,11 @@ public sealed class AuditEventRepository(AppDbContext db) : IAuditEventRepositor
         var fromUtc = from is { } f
             ? new DateTimeOffset(f.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero)
             : (DateTimeOffset?)null;
+        // MaxValue guard: AddDays(1) on 9999-12-31 throws (codex review of #94).
         var toUtc = to is { } t
-            ? new DateTimeOffset(t.AddDays(1).ToDateTime(TimeOnly.MinValue), TimeSpan.Zero)
+            ? t == DateOnly.MaxValue
+                ? DateTimeOffset.MaxValue
+                : new DateTimeOffset(t.AddDays(1).ToDateTime(TimeOnly.MinValue), TimeSpan.Zero)
             : (DateTimeOffset?)null;
 
         return await db.AuditEvents
