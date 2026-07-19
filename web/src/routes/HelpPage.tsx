@@ -239,6 +239,11 @@ export function HelpPage() {
           numbers for editing (reason required), <strong>void</strong> undoes
           the whole entry. Stock and the bird ledger follow automatically.
         </li>
+        <li>
+          Draft rows have an <strong>edit</strong> link (everyone, not just
+          admins) that jumps back to the Daily entry screen with that flock
+          and day loaded — drafts are edited there, not adjusted.
+        </li>
       </ul>
 
       <h3 id="mistakes">Fixing mistakes</h3>
@@ -314,9 +319,11 @@ export function HelpPage() {
             <td>Mistake in a <em>draft</em> entry or order</td>
             <td>
               Edit it — draft numbers, grade lines, and order lines are all
-              editable. The flock/date of an entry and the customer/date of an
-              order are fixed, though: picked wrong, just record it again under
-              the right one (and cancel the wrong draft order).
+              editable (draft entries: History → <strong>edit</strong> jumps to
+              the Daily entry screen with the day loaded). The flock/date of an
+              entry and the customer/date of an order are fixed, though: picked
+              wrong, just record it again under the right one (and cancel the
+              wrong draft order).
             </td>
           </tr>
         </tbody>

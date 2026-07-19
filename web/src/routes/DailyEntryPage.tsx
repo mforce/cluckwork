@@ -76,11 +76,21 @@ export function DailyEntryPage() {
         const f = capturable(all);
         setFlocks(f);
         setGrades(g.filter((x) => x.isSaleable));
+        // Deep link from History's Draft "edit" (#85): ?flockId=…&date=…
+        // wins over the remembered flock; unknown/archived ids fall through
+        // to the defaults below. Read once on mount — route navigation here
+        // always remounts the page.
+        const params = new URLSearchParams(window.location.search);
+        const wantedFlock = params.get("flockId");
+        const wantedDate = params.get("date");
+        if (wantedDate && /^\d{4}-\d{2}-\d{2}$/.test(wantedDate) && wantedDate <= todayIso())
+          setDate(wantedDate);
         const remembered = localStorage.getItem(LAST_FLOCK_KEY);
         // Default prefers an ACTIVE flock — depleted ones are backfill targets
         // you pick deliberately, not a default.
         const firstActive = f.find((x) => x.status === "Active") ?? f[0];
-        if (remembered && f.some((x) => x.id === remembered)) setFlockId(remembered);
+        if (wantedFlock && f.some((x) => x.id === wantedFlock)) setFlockId(wantedFlock);
+        else if (remembered && f.some((x) => x.id === remembered)) setFlockId(remembered);
         else if (firstActive) setFlockId(firstActive.id);
       })
       .catch(() => setLoadError("Could not load flocks/grades. Is the API up?"))
