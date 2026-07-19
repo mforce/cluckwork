@@ -29,6 +29,7 @@ export function AppLayout() {
           <NavLink to="/customers">Customers</NavLink>
           <NavLink to="/sales">Sales</NavLink>
           <NavLink to="/history">History</NavLink>
+          <NavLink to="/reports">Reports</NavLink>
           {/* Admin-only screens (#73): the links hide for workers, and the API
               enforces the role on every gated endpoint regardless. */}
           {isAdmin && <NavLink to="/expenses">Expenses</NavLink>}

@@ -7,6 +7,7 @@ using Cluckwork.Api.Endpoints.DailyEntries;
 using Cluckwork.Api.Endpoints.EggGrades;
 using Cluckwork.Api.Endpoints.Expenses;
 using Cluckwork.Api.Endpoints.Flocks;
+using Cluckwork.Api.Endpoints.Reports;
 using Cluckwork.Api.Endpoints.Inventory;
 using Cluckwork.Api.Endpoints.Sales;
 using Cluckwork.Api.Endpoints.Water;
@@ -170,6 +171,7 @@ builder.Services.AddScoped<IExpenseRepository, ExpenseRepository>();
 builder.Services.AddScoped<ISalesOrderRepository, SalesOrderRepository>();
 builder.Services.AddScoped<ISalesOrderAllocationRepository, SalesOrderAllocationRepository>();
 builder.Services.AddScoped<IPaymentRepository, PaymentRepository>();
+builder.Services.AddScoped<Cluckwork.Application.Features.Reports.IReportQueries, ReportQueries>();
 builder.Services.AddScoped<IInventoryItemRepository, InventoryItemRepository>();
 builder.Services.AddScoped<IInventoryLotRepository, InventoryLotRepository>();
 builder.Services.AddScoped<IInventoryMovementRepository, InventoryMovementRepository>();
@@ -386,6 +388,13 @@ app.MapGroup("/api/v1/payments")
     .WithTags("Payments")
     .RequireAuthorization(AuthPolicies.AdminOnly)
     .MapPaymentEndpoints();
+
+// Reports (#91): production is open; the money routes carry their own
+// AdminOnly inside the group.
+app.MapGroup("/api/v1/reports")
+    .WithTags("Reports")
+    .RequireAuthorization()
+    .MapReportEndpoints();
 
 app.MapGroup("/api/v1/users")
     .WithTags("Users")
