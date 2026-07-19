@@ -22,15 +22,18 @@ public sealed class DurableJob
 public enum DurableJobStatus { Pending, Running, Completed, Failed }
 
 // Intervals are injectable for the loop-level tests only; DI fills the
-// defaults (ActivatorUtilities resolves optional parameters).
+// defaults (ActivatorUtilities resolves optional parameters and prefers the
+// registered heartbeat singleton).
 public sealed class DurableJobWorker(
     IServiceScopeFactory scopeFactory,
     ILogger<DurableJobWorker> logger,
+    DurableJobWorkerHeartbeat? heartbeat = null,
     TimeSpan? pollInterval = null,
     TimeSpan? initialBackoff = null) : BackgroundService
 {
     private static readonly TimeSpan MaxBackoff = TimeSpan.FromMinutes(5);
 
+    private readonly DurableJobWorkerHeartbeat heartbeat = heartbeat ?? new(TimeProvider.System);
     private readonly TimeSpan pollInterval = pollInterval ?? TimeSpan.FromSeconds(30);
     private readonly TimeSpan initialBackoff = initialBackoff ?? TimeSpan.FromSeconds(5);
 
@@ -47,11 +50,13 @@ public sealed class DurableJobWorker(
         // every retry back to the poll interval and make the logged backoff
         // a lie (codex review of PR #79). Task.Delay throws on cancellation,
         // which ends the loop as a normal shutdown.
+        heartbeat.MarkStarted();
         var backoff = TimeSpan.Zero;
         while (!stoppingToken.IsCancellationRequested)
         {
             if (await TryProcessPendingJobsAsync(stoppingToken))
             {
+                heartbeat.MarkSuccessfulPoll();
                 backoff = TimeSpan.Zero;
                 await Task.Delay(pollInterval, stoppingToken);
                 continue;

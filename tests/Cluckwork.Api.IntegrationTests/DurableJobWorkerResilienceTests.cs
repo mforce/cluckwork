@@ -74,6 +74,65 @@ public sealed class DurableJobWorkerResilienceTests
     }
 }
 
+// #65 — the worker heartbeat check: a stalled worker reports Degraded (never
+// Unhealthy — a background stall must not pull API traffic).
+public sealed class DurableJobWorkerHealthCheckTests
+{
+    private sealed class TestTimeProvider : TimeProvider
+    {
+        public DateTimeOffset Now { get; set; } = new(2026, 7, 19, 12, 0, 0, TimeSpan.Zero);
+        public override DateTimeOffset GetUtcNow() => Now;
+    }
+
+    private static readonly Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckContext Context = new();
+
+    [Fact]
+    public async Task NotStarted_IsDegraded()
+    {
+        var time = new TestTimeProvider();
+        var check = new Cluckwork.Api.HealthChecks.DurableJobWorkerHealthCheck(
+            new DurableJobWorkerHeartbeat(time), time);
+
+        var result = await check.CheckHealthAsync(Context);
+        Assert.Equal(Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Degraded, result.Status);
+    }
+
+    [Fact]
+    public async Task Started_WithinGrace_IsHealthy_ThenDegradesWithoutPolls()
+    {
+        var time = new TestTimeProvider();
+        var heartbeat = new DurableJobWorkerHeartbeat(time);
+        var check = new Cluckwork.Api.HealthChecks.DurableJobWorkerHealthCheck(heartbeat, time);
+
+        heartbeat.MarkStarted();
+        Assert.Equal(Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Healthy,
+            (await check.CheckHealthAsync(Context)).Status);
+
+        // From-boot outage: no successful poll ever — degraded once grace passes.
+        time.Now = time.Now.AddSeconds(91);
+        Assert.Equal(Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Degraded,
+            (await check.CheckHealthAsync(Context)).Status);
+    }
+
+    [Fact]
+    public async Task StalePoll_Degrades_AndRecoversOnNextSuccess()
+    {
+        var time = new TestTimeProvider();
+        var heartbeat = new DurableJobWorkerHeartbeat(time);
+        var check = new Cluckwork.Api.HealthChecks.DurableJobWorkerHealthCheck(heartbeat, time);
+
+        heartbeat.MarkStarted();
+        heartbeat.MarkSuccessfulPoll();
+        time.Now = time.Now.AddSeconds(91);
+        Assert.Equal(Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Degraded,
+            (await check.CheckHealthAsync(Context)).Status);
+
+        heartbeat.MarkSuccessfulPoll();
+        Assert.Equal(Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Healthy,
+            (await check.CheckHealthAsync(Context)).Status);
+    }
+}
+
 // The live/ready split (#65): live runs no checks (process-up only), ready
 // includes the database check — healthy here because the test container is
 // migrated and reachable. The unhealthy side is covered by the outage drill
