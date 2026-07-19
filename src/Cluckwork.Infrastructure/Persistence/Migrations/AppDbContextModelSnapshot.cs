@@ -68,7 +68,7 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(500)");
 
                     b.Property<string>("AdjustedFromJson")
-                        .HasColumnType("jsonb");
+                        .HasColumnType("text");
 
                     b.Property<int>("CrackedEggs")
                         .HasColumnType("integer");

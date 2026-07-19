@@ -106,22 +106,40 @@ public sealed class AdjustDailyEntryHandler(
 
             // Reconcile lots against the entry's (post-adjust) grade lines.
             // One lot per grade is the submit invariant; if duplicates ever
-            // exist the first (canonical order) carries the line, the rest zero.
+            // exist, every lot first keeps its sold floor (sold eggs are
+            // untouchable wherever they sit) and the first lot in canonical
+            // order carries the remainder.
             var targets = entry.Grades.ToDictionary(l => l.EggGradeId, l => l.Quantity);
-            var carried = new HashSet<Guid>();
-            foreach (var lot in lockedLots)
+            foreach (var gradeLots in lockedLots.GroupBy(l => l.EggGradeId))
             {
-                var target = !carried.Add(lot.EggGradeId)
-                    ? 0
-                    : targets.GetValueOrDefault(lot.EggGradeId, 0);
-                if (lot.QuantityProduced == target) continue;
-
-                var result = lot.AdjustProduction(target);
-                if (result.IsFailure)
+                var target = targets.GetValueOrDefault(gradeLots.Key, 0);
+                var lots = gradeLots.ToList();
+                var totalSold = lots.Sum(l => l.QuantityProduced - l.QuantityAvailable);
+                if (target < totalSold)
                 {
-                    failure = Result.Failure<AdjustDailyEntryResponse>(
-                        await NameGradeAsync(result.Error, lot.EggGradeId, transactionCt));
+                    failure = Result.Failure<AdjustDailyEntryResponse>(await NameGradeAsync(
+                        Error.Domain(
+                            "EggLot.SoldExceedsAdjusted",
+                            $"{totalSold} eggs of this grade are already sold or allocated; production cannot be set below that."),
+                        gradeLots.Key, transactionCt));
                     return false;
+                }
+
+                var remainder = target - totalSold;
+                for (var i = 0; i < lots.Count; i++)
+                {
+                    var sold = lots[i].QuantityProduced - lots[i].QuantityAvailable;
+                    var newQuantity = sold + (i == 0 ? remainder : 0);
+                    if (lots[i].QuantityProduced == newQuantity) continue;
+
+                    var result = lots[i].AdjustProduction(newQuantity);
+                    if (result.IsFailure)
+                    {
+                        // Unreachable given the sold floor above; backstop.
+                        failure = Result.Failure<AdjustDailyEntryResponse>(
+                            await NameGradeAsync(result.Error, gradeLots.Key, transactionCt));
+                        return false;
+                    }
                 }
             }
 
@@ -146,7 +164,7 @@ public sealed class AdjustDailyEntryHandler(
                     Guid.NewGuid(), accountId, entry.FlockId, entry.Date,
                     delta > 0 ? BirdMovementType.Mortality : BirdMovementType.Adjustment,
                     delta,
-                    note: "Entry adjusted: " + entry.AdjustReason,
+                    note: MovementNote("Entry adjusted: ", entry.AdjustReason),
                     dailyEntryId: entry.Id), transactionCt);
             }
 
@@ -166,6 +184,16 @@ public sealed class AdjustDailyEntryHandler(
     {
         var name = (await eggGrades.GetByIdAsync(gradeId, ct))?.Name ?? gradeId.ToString();
         return Error.Domain(error.Code, $"Grade '{name}': {error.Description}");
+    }
+
+    // A max-length reason would push the prefixed ledger note past the
+    // BirdMovement limit and throw — truncate the note, never the reason.
+    internal static string MovementNote(string prefix, string? reason)
+    {
+        var note = prefix + reason;
+        return note.Length <= Cluckwork.Domain.Flocks.BirdMovement.MaxNoteLength
+            ? note
+            : note[..Cluckwork.Domain.Flocks.BirdMovement.MaxNoteLength];
     }
 }
 

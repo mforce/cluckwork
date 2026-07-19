@@ -52,15 +52,31 @@ straight from Active for mistake-created flocks):
 eggs, loss counts (cracked / dirty / discarded), mortality count, and the
 graded breakdown of sellable eggs. One entry per flock per day (natural key).
 
-**Daily entry lifecycle** — `Draft → Submitted → Locked`:
+**Daily entry lifecycle** (#69) —
+`Draft → Submitted → Locked → ManagerAdjusted / Voided`:
 
 - **Draft** — editable; re-saving the same flock+date updates it in place.
   Nothing downstream exists yet.
-- **Submitted** — the day is frozen. Submitting *generates* the downstream
-  facts atomically: one **egg lot** per grade line, and a **mortality
-  movement** if the count is > 0. Corrections after this need a manager
-  adjustment (future slice).
-- **Locked** — closed to any change (period close; future use).
+- **Submitted** — the day is frozen for workers. Submitting *generates* the
+  downstream facts atomically: one **egg lot** per grade line (each lot
+  carries a `DailyEntryId` link back to its entry), and a **mortality
+  movement** if the count is > 0.
+- **Locked** — stamped automatically once a submitted entry is strictly
+  older than 7 farm-local days (spec §8.1 default; background sweep).
+  Locked ≠ untouchable: admins can still adjust or void.
+- **ManagerAdjusted** — an admin corrected the totals/grades of a
+  submitted or locked entry (reason required). The correction reconciles
+  the entry's egg lots in the same transaction — grown, shrunk, added, or
+  emptied — but **never below what a lot already sold**, and appends a
+  compensating bird movement for any mortality change. The replaced values
+  are kept as an audit snapshot on the entry until the audit log lands.
+  Adjusting again is allowed; each adjust snapshots what it replaced.
+- **Voided** — an admin undid the whole entry (reason required): every lot
+  it generated is emptied (refused if any of its eggs were sold), the
+  day's mortality is reversed by a compensating movement, and the entry is
+  preserved as Voided. Mirrors the sales void (#60): compensating rows,
+  never deletions. Entries submitted before lot-to-entry tracking existed
+  can't prove which lots are theirs and refuse adjust/void.
 
 **Sellable cap** — graded quantities must fit in
 `total − cracked − dirty − discarded`. You cannot grade more eggs than

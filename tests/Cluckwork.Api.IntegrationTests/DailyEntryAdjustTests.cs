@@ -289,6 +289,44 @@ public sealed class DailyEntryAdjustTests(CluckworkWebApplicationFactory factory
             $"blended write: entry {after.TotalEggs}, lot {lot.QuantityProduced}");
     }
 
+    // Void is a new aggregate mutation — AGENTS.md requires its own race
+    // test. Adjust vs void on the same base: exactly one wins; the loser's
+    // side effects (lot changes, movements) must not exist.
+    [Fact]
+    public async Task ParallelAdjustAndVoid_SameBaseVersion_ExactlyOneWins()
+    {
+        var (client, accountId, farmId, flockId, grades) = await SetupAsync("Large");
+        var entryId = await RecordAndSubmitAsync(client, farmId, flockId, Today, 100, 2,
+            (grades["Large"], 90));
+        var baseVersion = (await GetEntryAsync(client, entryId)).Version;
+
+        var voidRequest = new HttpRequestMessage(
+            HttpMethod.Post, $"/api/v1/daily-entries/{entryId}/void")
+        { Content = JsonContent.Create(new { version = baseVersion, reason = "void race" }) };
+        voidRequest.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
+
+        var responses = await Task.WhenAll(
+            AdjustAsync(client, entryId, new
+            {
+                version = baseVersion, totalEggs = 80, crackedEggs = 0, dirtyEggs = 0,
+                discardedEggs = 0, mortalityCount = 2, reason = "adjust race",
+                grades = new[] { new { eggGradeId = grades["Large"], quantity = 70 } }
+            }),
+            client.SendAsync(voidRequest));
+
+        Assert.Equal(1, responses.Count(r => r.StatusCode == HttpStatusCode.OK));
+        Assert.Equal(1, responses.Count(r => r.StatusCode == HttpStatusCode.Conflict));
+
+        var after = await GetEntryAsync(client, entryId);
+        Assert.Equal(baseVersion + 1, after.Version);
+        var lot = await factory.WithTenantScopeAsync(accountId, db =>
+            db.EggLots.SingleAsync(l => l.DailyEntryId == entryId));
+        Assert.True(
+            (after.Status == "ManagerAdjusted" && lot.QuantityProduced == 70)
+            || (after.Status == "Voided" && lot.QuantityProduced == 0),
+            $"blended outcome: {after.Status} / lot {lot.QuantityProduced}");
+    }
+
     [Fact]
     public async Task Adjust_Guards()
     {

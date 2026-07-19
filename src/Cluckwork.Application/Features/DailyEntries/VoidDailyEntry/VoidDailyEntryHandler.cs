@@ -91,7 +91,8 @@ public sealed class VoidDailyEntryHandler(
                 await birdMovements.AddAsync(BirdMovement.Create(
                     Guid.NewGuid(), accountId, entry.FlockId, entry.Date,
                     BirdMovementType.Adjustment, -mortalityToReverse,
-                    note: "Entry voided: " + entry.VoidReason,
+                    note: AdjustDailyEntry.AdjustDailyEntryHandler.MovementNote(
+                        "Entry voided: ", entry.VoidReason),
                     dailyEntryId: entry.Id), transactionCt);
             }
 

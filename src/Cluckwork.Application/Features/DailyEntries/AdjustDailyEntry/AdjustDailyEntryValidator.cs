@@ -14,8 +14,9 @@ public sealed class AdjustDailyEntryValidator : AbstractValidator<AdjustDailyEnt
         RuleFor(x => x.DirtyEggs).GreaterThanOrEqualTo(0);
         RuleFor(x => x.DiscardedEggs).GreaterThanOrEqualTo(0);
         RuleFor(x => x.MortalityCount).GreaterThanOrEqualTo(0);
+        // long accumulation — three ints can overflow past a positive total.
         RuleFor(x => x)
-            .Must(x => x.CrackedEggs + x.DirtyEggs + x.DiscardedEggs <= x.TotalEggs)
+            .Must(x => (long)x.CrackedEggs + x.DirtyEggs + x.DiscardedEggs <= x.TotalEggs)
             .WithName("Eggs")
             .WithMessage("Cracked + dirty + discarded cannot exceed total eggs.");
         // NotEmpty alone lets "   " through to the domain guard (500, not 400).

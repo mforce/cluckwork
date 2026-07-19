@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Cluckwork.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260719035802_AddDailyEntryAdjustments")]
+    [Migration("20260719041603_AddDailyEntryAdjustments")]
     partial class AddDailyEntryAdjustments
     {
         /// <inheritdoc />
@@ -71,7 +71,7 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(500)");
 
                     b.Property<string>("AdjustedFromJson")
-                        .HasColumnType("jsonb");
+                        .HasColumnType("text");
 
                     b.Property<int>("CrackedEggs")
                         .HasColumnType("integer");
@@ -204,6 +204,9 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("AccountId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("DailyEntryId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid>("EggGradeId")
                         .HasColumnType("uuid");
 
@@ -227,6 +230,9 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("DailyEntryId")
+                        .HasDatabaseName("IX_EggLots_DailyEntryId");
 
                     b.HasIndex("EggGradeId");
 

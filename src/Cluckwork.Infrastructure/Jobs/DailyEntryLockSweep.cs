@@ -49,9 +49,11 @@ public sealed class DailyEntryLockSweep(
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = scope.ServiceProvider.GetRequiredService<IClock>();
 
+        // Strictly OLDER than 7 days: an entry exactly 7 days old keeps its
+        // final editable day (codex review of PR #80).
         var cutoff = clock.TodayInZone(timeZoneId).AddDays(-LockAfterDays);
         var due = await db.DailyEntries
-            .Where(e => e.Status == DailyEntryStatus.Submitted && e.Date <= cutoff)
+            .Where(e => e.Status == DailyEntryStatus.Submitted && e.Date < cutoff)
             .OrderBy(e => e.Date)
             .Take(BatchSize)
             .ToListAsync(ct);

@@ -82,8 +82,13 @@ export function HelpPage() {
         <li>
           <strong>Save draft</strong> keeps the day editable. <strong>Submit</strong>{" "}
           makes it official: it creates the day's egg lots and records deaths in
-          the flock's bird ledger, and the entry can no longer be edited (an
-          admin correction feature is planned).
+          the flock's bird ledger. Workers can no longer edit it — an admin can
+          adjust or void it (see "Fixing mistakes").
+        </li>
+        <li>
+          Submitted entries <strong>lock automatically after 7 days</strong>.
+          Locked only means the correction window for routine fixes has
+          passed — admin adjust/void still works on locked entries.
         </li>
         <li>
           One entry per flock per day. Reopening a day that has a draft loads it
@@ -280,8 +285,23 @@ export function HelpPage() {
             </td>
           </tr>
           <tr>
-            <td>Mistake in a <em>submitted</em> daily entry</td>
-            <td><strong>Not yet undoable</strong> — an admin adjust/void feature is planned. Until then, contact your administrator.</td>
+            <td>Wrong numbers in a <em>submitted</em> daily entry</td>
+            <td>
+              An admin can <strong>adjust</strong> it — totals, losses,
+              mortality, and grade split, with a required reason. Stock and
+              the bird ledger update to match automatically, but eggs already
+              sold can never be un-counted: shrinking a grade below what was
+              sold is refused. The previous values stay visible on the entry.
+            </td>
+          </tr>
+          <tr>
+            <td>Entire <em>submitted</em> entry is wrong (wrong flock or day)</td>
+            <td>
+              An admin can <strong>void</strong> it (reason required): its egg
+              lots empty, its deaths are reversed in the bird ledger, and the
+              entry is kept as Voided. Refused if any of its eggs were already
+              sold — void the sale first. Then record the correct entry.
+            </td>
           </tr>
           <tr>
             <td>Mistake in a <em>draft</em> entry or order</td>
@@ -336,6 +356,12 @@ export function HelpPage() {
             <td>Stock corrections against a lot, reason required. Discard = write-off (spoilage).</td></tr>
           <tr><th scope="row">Admin / Worker</th>
             <td>The two sign-in roles. Workers record the day's work; anything that undoes, corrects, or configures needs an admin.</td></tr>
+          <tr><th scope="row">Locked (entry)</th>
+            <td>A submitted entry older than 7 days — closed to routine edits; admin adjust/void still works.</td></tr>
+          <tr><th scope="row">Adjust (entry)</th>
+            <td>Admin correction of a submitted entry. Stock and bird ledger reconcile automatically; sold eggs are untouchable; previous values stay visible.</td></tr>
+          <tr><th scope="row">Void (entry)</th>
+            <td>Admin undo of a whole submitted entry — lots empty, deaths reverse, entry preserved as Voided. Refused once its eggs are sold.</td></tr>
         </tbody>
       </table>
 

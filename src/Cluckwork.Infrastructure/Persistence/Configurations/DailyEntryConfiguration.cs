@@ -21,7 +21,9 @@ public sealed class DailyEntryConfiguration : IEntityTypeConfiguration<DailyEntr
             .IsRequired();
         builder.Property(e => e.AdjustReason).HasMaxLength(DailyEntry.MaxReasonLength);
         builder.Property(e => e.VoidReason).HasMaxLength(DailyEntry.MaxReasonLength);
-        builder.Property(e => e.AdjustedFromJson).HasColumnType("jsonb");
+        // Plain text, not jsonb — provider-portability rule (tech spec): the
+        // snapshot is opaque to SQL; only the API reads it.
+        builder.Property(e => e.AdjustedFromJson);
         builder.Property(e => e.Version).IsConcurrencyToken();
 
         // Natural-key uniqueness constraint (functional spec + tech spec §6.3)
