@@ -99,14 +99,19 @@ public static class PaymentEndpoints
         Guid id,
         VoidPaymentRequest request,
         VoidPaymentHandler handler,
+        IValidator<VoidPaymentCommand> validator,
         IPaymentRepository payments,
         TenantContext tenant,
         CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
 
-        var result = await handler.HandleAsync(
-            new VoidPaymentCommand(id, request.Version, request.Reason), ct);
+        var command = new VoidPaymentCommand(id, request.Version, request.Reason);
+        var validation = await validator.ValidateAsync(command, ct);
+        if (!validation.IsValid)
+            return Results.ValidationProblem(validation.ToDictionary());
+
+        var result = await handler.HandleAsync(command, ct);
         if (result.IsFailure) return MapFailure(result.Error);
 
         var updated = await payments.GetByIdAsync(id, ct);
@@ -133,7 +138,11 @@ public static class PaymentEndpoints
 
     private static IResult MapFailure(Cluckwork.Domain.Common.Error error)
     {
-        if (error.Code.EndsWith(".NotFound", StringComparison.Ordinal))
+        // TenantMismatch → NotFound: the locked order lookup bypasses the query
+        // filters, and a distinct status would reveal that a foreign tenant's
+        // order id exists (codex review of #90; sales-endpoint convention).
+        if (error.Code.EndsWith(".NotFound", StringComparison.Ordinal)
+            || error.Code == "Tenant.Mismatch")
             return Results.NotFound();
         return error.Code is "Payment.VersionMismatch" or "Payment.AlreadyVoided"
             ? Results.Problem(error.Description, statusCode: StatusCodes.Status409Conflict, title: error.Code)

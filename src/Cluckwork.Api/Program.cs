@@ -197,6 +197,7 @@ builder.Services.AddScoped<IValidator<UpdateFlockCommand>, UpdateFlockValidator>
 builder.Services.AddScoped<IValidator<RecordBirdMovementCommand>, RecordBirdMovementValidator>();
 builder.Services.AddScoped<IValidator<VoidSaleCommand>, VoidSaleValidator>();
 builder.Services.AddScoped<IValidator<RecordPaymentCommand>, RecordPaymentValidator>();
+builder.Services.AddScoped<IValidator<VoidPaymentCommand>, VoidPaymentValidator>();
 builder.Services.AddScoped<IValidator<CreateInventoryItemCommand>, CreateInventoryItemValidator>();
 builder.Services.AddScoped<IValidator<UpdateInventoryItemCommand>, UpdateInventoryItemValidator>();
 builder.Services.AddScoped<IValidator<RecordPurchaseCommand>, RecordPurchaseValidator>();

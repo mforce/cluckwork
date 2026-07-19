@@ -12,9 +12,12 @@ public sealed class RecordPaymentValidator : AbstractValidator<RecordPaymentComm
             .WithMessage("Payment amount must be greater than zero.");
 
         RuleFor(c => c.Method)
-            // TryParse alone accepts numeric strings like "999"; IsDefined pins
-            // the value to the declared enum members (grade-type pattern).
-            .Must(m => Enum.TryParse<PaymentMethod>(m, ignoreCase: true, out var parsed)
+            // TryParse alone accepts numeric strings — both out-of-range ("999")
+            // and in-range ("3") — so the digits check pins the contract to the
+            // NAMES only (codex review of #90).
+            .Must(m => m is not null
+                       && !m.Trim().All(char.IsDigit)
+                       && Enum.TryParse<PaymentMethod>(m, ignoreCase: true, out var parsed)
                        && Enum.IsDefined(parsed))
             .WithMessage("Method must be one of: Cash, Check, Card, BankTransfer, MobilePayment, Other.");
 

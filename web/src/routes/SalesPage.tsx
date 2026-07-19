@@ -76,6 +76,7 @@ export function SalesPage() {
   const [payAmount, setPayAmount] = useState("");
   const [payMethod, setPayMethod] = useState("Cash");
   const [payRef, setPayRef] = useState("");
+  const [payNote, setPayNote] = useState("");
 
   const customerName = (id: string) => customers.find((c) => c.id === id)?.name ?? id.slice(0, 8);
   const gradeName = (id: string) => allGrades.find((g) => g.id === id)?.name ?? id.slice(0, 8);
@@ -114,10 +115,12 @@ export function SalesPage() {
   const activeId = active?.id ?? null;
   const activeStatus = active?.status ?? null;
   useEffect(() => {
-    if (activeId === null || activeStatus !== "Confirmed" || !isAdmin) {
-      setPayments(null);
-      return;
-    }
+    // Cleared FIRST, unconditionally: while the new order's payments load (or
+    // if the load fails), stale rows from the previous order must never stay
+    // actionable — their Void buttons would target the wrong order's money
+    // (codex review of #90).
+    setPayments(null);
+    if (activeId === null || activeStatus !== "Confirmed" || !isAdmin) return;
     let cancelled = false;
     listOrderPayments(activeId)
       .then((p) => { if (!cancelled) setPayments(p); })
@@ -244,13 +247,18 @@ export function SalesPage() {
       amountMinorUnits: minorUnits,
       method: payMethod,
       referenceNumber: payRef.trim() || null,
+      note: payNote.trim() || null,
     }, keyFor(scope));
-    // Reset before the refresh (#88 review): a reload failure after a landed
-    // write must not leave a populated form that re-submits as a duplicate.
+    // The key rotates the moment the WRITE lands — if it survived until the
+    // refresh below succeeded, a failed refresh would make the NEXT payment
+    // reuse it and silently replay this 201 instead of recording new money
+    // (codex review of #90). The form reset before the refresh (#88 review)
+    // covers the duplicate-resubmit direction.
+    clearKey(scope);
     setPayAmount("");
     setPayRef("");
+    setPayNote("");
     await refreshPayments(active.id);
-    clearKey(scope);
     setMessage("Payment recorded.");
   });
 
@@ -422,7 +430,8 @@ export function SalesPage() {
                   </thead>
                   <tbody>
                     {payments.items.map((p) => (
-                      <tr key={p.id} className={p.voided ? "inactive" : undefined}>
+                      <tr key={p.id} className={p.voided ? "inactive" : undefined}
+                        title={p.note ?? undefined}>
                         <td>{p.paymentDate}</td>
                         <td>{formatMoney(p.amountMinorUnits, p.currencyCode, p.currencyMinorUnit)}</td>
                         <td>{p.method}</td>
@@ -468,6 +477,10 @@ export function SalesPage() {
                   <label>Reference (optional)
                     <input value={payRef} maxLength={50}
                       onChange={(e) => setPayRef(e.target.value)} />
+                  </label>
+                  <label>Note (optional)
+                    <input value={payNote} maxLength={500}
+                      onChange={(e) => setPayNote(e.target.value)} />
                   </label>
                   <button disabled={busy || !payAmount} onClick={onRecordPayment}>
                     Record payment
