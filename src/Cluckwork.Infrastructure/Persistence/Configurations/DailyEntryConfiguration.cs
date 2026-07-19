@@ -26,9 +26,12 @@ public sealed class DailyEntryConfiguration : IEntityTypeConfiguration<DailyEntr
         builder.Property(e => e.AdjustedFromJson);
         builder.Property(e => e.Version).IsConcurrencyToken();
 
-        // Natural-key uniqueness constraint (functional spec + tech spec §6.3)
+        // Natural-key uniqueness constraint (functional spec + tech spec §6.3).
+        // Partial: voiding vacates the key (#82) — at most one LIVE entry per
+        // house/flock/day, any number of voided ones preserved in history.
         builder.HasIndex(e => new { e.AccountId, e.FarmId, e.HouseId, e.FlockId, e.Date })
             .IsUnique()
+            .HasFilter("\"Status\" <> 'Voided'")
             .HasDatabaseName("IX_DailyEntries_NaturalKey");
 
         // Grade lines — EF reads/writes via the "_grades" backing field; removing a

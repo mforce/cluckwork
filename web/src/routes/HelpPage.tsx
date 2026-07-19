@@ -306,7 +306,8 @@ export function HelpPage() {
               History → <strong>void</strong> (admin, reason required): its egg
               lots empty, its deaths are reversed in the bird ledger, and the
               entry is kept as Voided. Refused if any of its eggs were already
-              sold — void the sale first. Then record the correct entry.
+              sold — void the sale first. Voiding frees the day: the correct
+              entry can then be recorded for the same flock and date.
             </td>
           </tr>
           <tr>
