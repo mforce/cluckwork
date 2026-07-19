@@ -435,6 +435,66 @@ export function formatMoney(minorUnits: number, currencyCode: string, minorUnit:
   return `${value.toFixed(minorUnit)} ${currencyCode}`;
 }
 
+// --- Reports (#91) ---
+
+export interface ProductionDay {
+  date: string;
+  totalEggs: number;
+  cracked: number;
+  dirty: number;
+  discarded: number;
+  sellable: number;
+  deaths: number;
+  henDays: number;
+  henDayPct: number | null;
+}
+
+export interface ProductionReport {
+  days: ProductionDay[];
+  totalEggs: number;
+  totalSellable: number;
+  totalDeaths: number;
+  totalHenDays: number;
+  periodHenDayPct: number | null;
+  gradeTotals: { eggGradeId: string; name: string; quantity: number }[];
+}
+
+export interface SalesSummary {
+  confirmedCount: number;
+  revenueMinorUnits: number;
+  paidMinorUnits: number;
+  outstandingMinorUnits: number;
+  voidedCount: number;
+  currencyCode: string;
+  currencyMinorUnit: number;
+}
+
+export interface ExpenseSummaryReport {
+  categories: { expenseCategoryId: string; name: string; totalMinorUnits: number }[];
+  grandTotalMinorUnits: number;
+  currencyCode: string;
+  currencyMinorUnit: number;
+}
+
+export interface ProfitReport {
+  revenueMinorUnits: number;
+  expensesMinorUnits: number;
+  profitMinorUnits: number;
+  currencyCode: string;
+  currencyMinorUnit: number;
+}
+
+const rangeQuery = (from: string, to: string) => `?from=${from}&to=${to}`;
+
+export const getProductionReport = (from: string, to: string) =>
+  apiGet<ProductionReport>(`/reports/production${rangeQuery(from, to)}`);
+export const getSalesSummary = (from: string, to: string) =>
+  apiGet<SalesSummary>(`/reports/sales${rangeQuery(from, to)}`);
+export const getExpenseSummary = (from: string, to: string) =>
+  apiGet<ExpenseSummaryReport>(`/reports/expenses${rangeQuery(from, to)}`);
+export const getProfitReport = (from: string, to: string) =>
+  apiGet<ProfitReport>(`/reports/profit${rangeQuery(from, to)}`);
+
 // --- Payments (#89, admin-only end to end — money data) ---
 
 export interface Payment {

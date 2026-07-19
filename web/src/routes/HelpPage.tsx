@@ -238,6 +238,22 @@ export function HelpPage() {
         </li>
       </ul>
 
+      <h3 id="reports">Reports</h3>
+      <ul>
+        <li>
+          <strong>Production</strong> (everyone): pick a date range — per-day
+          eggs, losses, sellable, deaths, and <strong>hen-day %</strong> (eggs
+          collected ÷ birds alive that day × 100), with period totals and a
+          by-grade breakdown. Draft and voided entries don't count.
+        </li>
+        <li>
+          <strong>Money</strong> (admin): sales summary for the range's orders
+          (revenue / paid / outstanding), expenses by category, and{" "}
+          <strong>basic profit</strong> — confirmed revenue minus recorded
+          expenses, no cost-of-goods.
+        </li>
+      </ul>
+
       <h3 id="expenses">Expenses (admin)</h3>
       <ul>
         <li>

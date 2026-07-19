@@ -187,6 +187,22 @@ from the account onto each order (JPY has 0 decimals, USD 2 — the snapshot
 records that too). Totals are recalculated from lines on every mutation,
 never incrementally patched.
 
+**Hen-day % (#91)** — eggs collected ÷ hen-days × 100 (spec §19.3). A
+hen-day is one bird alive for one day; the day's bird count comes from the
+bird ledger (placements + movements). The production report shows it per
+day and for the whole period (period eggs ÷ period hen-days — not an
+average of daily percentages).
+
+**Production report (#91)** — per-day official production over a range
+(Draft entries aren't submitted, Voided ones vacated their day — neither
+counts): eggs, losses, sellable, deaths, hen-day %, period totals, grade
+breakdown. Open to workers — it is their own recorded work.
+
+**Profit, basic (#91)** — confirmed order revenue − recorded expenses for
+the range, both operands shown. Deliberately no COGS or inventory
+valuation; those belong to a later accounting slice. Admin-only, as are
+the sales and expense summaries.
+
 **Payment (#89)** — money in against a **confirmed** sales order (spec
 §10.11): date, amount in minor units, method (cash / check / card / bank
 transfer / mobile payment / other), optional reference and note. The
