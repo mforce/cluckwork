@@ -1,7 +1,10 @@
 namespace Cluckwork.Api.Endpoints.DailyEntries;
 
+using System.Text.Json;
+using Cluckwork.Application.Features.DailyEntries.AdjustDailyEntry;
 using Cluckwork.Application.Features.DailyEntries.RecordDailyEntry;
 using Cluckwork.Application.Features.DailyEntries.SubmitDailyEntry;
+using Cluckwork.Application.Features.DailyEntries.VoidDailyEntry;
 using Cluckwork.Infrastructure.Persistence;
 using FluentValidation;
 
@@ -18,6 +21,18 @@ public static class DailyEntryEndpoints
         group.MapPost("/{id:guid}/submit", SubmitDailyEntry)
             .WithName("SubmitDailyEntry")
             .WithSummary("Submit a draft entry: locks it in and generates egg lots from its grade lines.");
+
+        // Correcting or undoing submitted history is admin work (#73/#69);
+        // both reconcile lots and the bird ledger in one transaction.
+        group.MapPost("/{id:guid}/adjust", AdjustDailyEntry)
+            .WithName("AdjustDailyEntry")
+            .WithSummary("Adjust a submitted/locked entry: totals + grade lines, with lot and bird-ledger reconciliation; reason required.")
+            .RequireAuthorization(AuthPolicies.AdminOnly);
+
+        group.MapPost("/{id:guid}/void", VoidDailyEntry)
+            .WithName("VoidDailyEntry")
+            .WithSummary("Void a submitted entry: empties its egg lots (blocked if sold), reverses its mortality; reason required.")
+            .RequireAuthorization(AuthPolicies.AdminOnly);
 
         group.MapGet("/{id:guid}", GetDailyEntry)
             .WithName("GetDailyEntry")
@@ -66,7 +81,68 @@ public static class DailyEntryEndpoints
     private static DailyEntryResponse ToResponse(Cluckwork.Domain.Eggs.DailyEntry e) => new(
         e.Id, e.FarmId, e.HouseId, e.FlockId, e.Date, e.Status.ToString(),
         e.TotalEggs, e.CrackedEggs, e.DirtyEggs, e.DiscardedEggs, e.MortalityCount,
-        e.Grades.Select(g => new GradeLineResponse(g.EggGradeId, g.Quantity)).ToList());
+        e.Grades.Select(g => new GradeLineResponse(g.EggGradeId, g.Quantity)).ToList(),
+        e.Version, e.AdjustReason, e.VoidReason, e.LockedAtUtc,
+        // The audit snapshot is stored as JSON; embed it as an object, not a string.
+        e.AdjustedFromJson is null ? null : JsonSerializer.Deserialize<JsonElement>(e.AdjustedFromJson));
+
+    private static async Task<IResult> AdjustDailyEntry(
+        Guid id,
+        AdjustDailyEntryRequest request,
+        AdjustDailyEntryHandler handler,
+        IValidator<AdjustDailyEntryCommand> validator,
+        TenantContext tenant,
+        CancellationToken ct)
+    {
+        if (!tenant.IsResolved) return Results.Unauthorized();
+
+        if (request.Grades is not null && request.Grades.Any(g => g is null))
+            return Results.ValidationProblem(new Dictionary<string, string[]>
+            {
+                ["Grades"] = ["Grade entries must not be null."]
+            });
+
+        var command = new AdjustDailyEntryCommand(
+            id, request.Version, request.TotalEggs, request.CrackedEggs, request.DirtyEggs,
+            request.DiscardedEggs, request.MortalityCount, request.Reason,
+            request.Grades?.Select(g => new GradeQuantityDto(g.EggGradeId, g.Quantity)).ToList());
+
+        var validation = await validator.ValidateAsync(command, ct);
+        if (!validation.IsValid)
+            return Results.ValidationProblem(validation.ToDictionary());
+
+        var result = await handler.HandleAsync(command, tenant.AccountId, ct);
+        return result.IsSuccess ? Results.Ok(result.Value) : MapAdjustFailure(result.Error);
+    }
+
+    private static async Task<IResult> VoidDailyEntry(
+        Guid id,
+        VoidDailyEntryRequest request,
+        VoidDailyEntryHandler handler,
+        IValidator<VoidDailyEntryCommand> validator,
+        TenantContext tenant,
+        CancellationToken ct)
+    {
+        if (!tenant.IsResolved) return Results.Unauthorized();
+
+        var command = new VoidDailyEntryCommand(id, request.Version, request.Reason);
+        var validation = await validator.ValidateAsync(command, ct);
+        if (!validation.IsValid)
+            return Results.ValidationProblem(validation.ToDictionary());
+
+        var result = await handler.HandleAsync(command, tenant.AccountId, ct);
+        return result.IsSuccess ? Results.Ok(result.Value) : MapAdjustFailure(result.Error);
+    }
+
+    private static IResult MapAdjustFailure(Cluckwork.Domain.Common.Error error)
+    {
+        if (error.Code.EndsWith(".NotFound", StringComparison.Ordinal))
+            return Results.NotFound();
+        // A stale base version is a genuine conflict, not a validation problem.
+        return error.Code == "DailyEntry.VersionMismatch"
+            ? Results.Problem(error.Description, statusCode: StatusCodes.Status409Conflict, title: error.Code)
+            : Results.Problem(error.Description, statusCode: 422, title: error.Code);
+    }
 
     private static async Task<IResult> SubmitDailyEntry(
         Guid id,
@@ -134,9 +210,20 @@ public sealed record RecordDailyEntryRequest(
 // lines into egg lots.
 public sealed record GradeQuantityRequest(Guid EggGradeId, int Quantity);
 
+// Version rides on every entry so corrections send it back as their base
+// (the PR #77 optimistic-concurrency contract). AdjustedFrom is the audit
+// snapshot of the values the last adjustment replaced.
 public sealed record DailyEntryResponse(
     Guid Id, Guid FarmId, Guid HouseId, Guid FlockId, DateOnly Date, string Status,
     int TotalEggs, int CrackedEggs, int DirtyEggs, int DiscardedEggs, int MortalityCount,
-    IReadOnlyList<GradeLineResponse> Grades);
+    IReadOnlyList<GradeLineResponse> Grades,
+    int Version, string? AdjustReason, string? VoidReason, DateTimeOffset? LockedAtUtc,
+    JsonElement? AdjustedFrom);
 
 public sealed record GradeLineResponse(Guid EggGradeId, int Quantity);
+
+public sealed record AdjustDailyEntryRequest(
+    int Version, int TotalEggs, int CrackedEggs, int DirtyEggs, int DiscardedEggs,
+    int MortalityCount, string Reason, List<GradeQuantityRequest>? Grades = null);
+
+public sealed record VoidDailyEntryRequest(int Version, string Reason);

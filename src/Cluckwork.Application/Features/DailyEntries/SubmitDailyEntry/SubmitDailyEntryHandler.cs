@@ -48,7 +48,8 @@ public sealed class SubmitDailyEntryHandler(
         {
             var lot = EggLot.Create(
                 Guid.NewGuid(), accountId, entry.FlockId,
-                entry.Date, line.EggGradeId, line.Quantity);
+                entry.Date, line.EggGradeId, line.Quantity,
+                dailyEntryId: entry.Id);
             await eggLots.AddAsync(lot, ct);
             lotIds.Add(lot.Id);
         }

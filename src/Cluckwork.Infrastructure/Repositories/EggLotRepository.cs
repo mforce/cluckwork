@@ -56,6 +56,25 @@ public sealed class EggLotRepository(AppDbContext db) : IEggLotRepository
             .ToListAsync(ct);
     }
 
+    // Entry adjust/void reconciliation (#69): every lot the entry's submit
+    // generated, via the DailyEntryId link — (flock, date) would collide with
+    // sibling entries from other houses on the same day. Emptied/restricted
+    // lots included. Same canonical ordering as the other FOR UPDATE paths.
+    public async Task<IReadOnlyList<EggLot>> GetByDailyEntryLockedAsync(
+        Guid accountId, Guid dailyEntryId, CancellationToken ct = default)
+    {
+        return await db.EggLots.FromSqlInterpolated($"""
+            SELECT *
+            FROM "EggLots"
+            WHERE "AccountId" = {accountId}
+              AND "DailyEntryId" = {dailyEntryId}
+            ORDER BY "ProductionDate", "Id"
+            FOR UPDATE
+            """)
+            .IgnoreQueryFilters()
+            .ToListAsync(ct);
+    }
+
     public async Task<IReadOnlyList<StockByGrade>> GetStockByGradeAsync(
         DateOnly asOfDate, CancellationToken ct = default)
     {

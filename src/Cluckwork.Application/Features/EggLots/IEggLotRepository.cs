@@ -24,6 +24,13 @@ public interface IEggLotRepository : IRepository<EggLot, Guid>
     // touching the same lots acquire locks in a consistent order.
     Task<IReadOnlyList<EggLot>> GetByIdsLockedAsync(
         Guid accountId, IReadOnlyList<Guid> lotIds, CancellationToken ct = default);
+
+    // FOR UPDATE lock on ALL lots a daily entry's submit generated — the
+    // entry adjust/void reconciliation path (#69). Includes emptied and
+    // restricted lots (reconciliation must see every lot the entry produced);
+    // same canonical (ProductionDate, Id) ordering as the other locking paths.
+    Task<IReadOnlyList<EggLot>> GetByDailyEntryLockedAsync(
+        Guid accountId, Guid dailyEntryId, CancellationToken ct = default);
 }
 
 public sealed record StockByGrade(

@@ -8,6 +8,13 @@ public sealed class EggLot : AggregateRoot<Guid>
     public int QuantityProduced { get; private set; }
     public int QuantityAvailable { get; private set; }
 
+    // The daily entry whose submit generated this lot (#69) — the adjust/void
+    // reconciliation surface. (flock, date) is NOT enough: multiple houses
+    // mean multiple entries per flock and day. Null on lots that predate the
+    // linkage and couldn't be backfilled unambiguously; their entries refuse
+    // adjust/void, like pre-#60 orders refuse void.
+    public Guid? DailyEntryId { get; private set; }
+
     // Null = unrestricted. Set when medication withdrawal applies.
     public DateOnly? RestrictedUntil { get; private set; }
 
@@ -19,7 +26,8 @@ public sealed class EggLot : AggregateRoot<Guid>
 
     public static EggLot Create(
         Guid id, Guid accountId, Guid flockId,
-        DateOnly productionDate, Guid eggGradeId, int quantity)
+        DateOnly productionDate, Guid eggGradeId, int quantity,
+        Guid? dailyEntryId = null)
     {
         if (eggGradeId == Guid.Empty)
             throw new ArgumentException("Egg grade id is required.", nameof(eggGradeId));
@@ -31,7 +39,8 @@ public sealed class EggLot : AggregateRoot<Guid>
             Id = id, AccountId = accountId,
             FlockId = flockId, ProductionDate = productionDate,
             EggGradeId = eggGradeId,
-            QuantityProduced = quantity, QuantityAvailable = quantity
+            QuantityProduced = quantity, QuantityAvailable = quantity,
+            DailyEntryId = dailyEntryId
         };
     }
 
@@ -71,6 +80,30 @@ public sealed class EggLot : AggregateRoot<Guid>
                 $"Requested {quantity} but only {QuantityAvailable} available."));
 
         QuantityAvailable -= quantity;
+        Version++;
+        return Result.Success();
+    }
+
+    // Entry adjust/void reconciliation (#69): re-state what this lot produced.
+    // The sold/allocated portion (Produced − Available) is untouchable — the
+    // eggs left the farm — so production can never be set below it; available
+    // absorbs the whole delta. Setting 0 empties an unsold lot (entry void or
+    // a grade line removed); the row stays for provenance. Call only inside
+    // the pessimistic FOR UPDATE transaction, like Allocate/Restore.
+    public Result AdjustProduction(int newQuantity)
+    {
+        if (newQuantity < 0)
+            return Result.Failure(Error.Validation(
+                "EggLot.InvalidQuantity", "Adjusted production cannot be negative."));
+
+        var sold = QuantityProduced - QuantityAvailable;
+        if (newQuantity < sold)
+            return Result.Failure(Error.Domain(
+                "EggLot.SoldExceedsAdjusted",
+                $"{sold} eggs from this lot are already sold or allocated; production cannot be set below that."));
+
+        QuantityProduced = newQuantity;
+        QuantityAvailable = newQuantity - sold;
         Version++;
         return Result.Success();
     }

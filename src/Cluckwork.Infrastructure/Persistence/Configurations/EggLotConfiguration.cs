@@ -24,5 +24,10 @@ public sealed class EggLotConfiguration : IEntityTypeConfiguration<EggLot>
         // Index supporting FIFO allocation queries
         builder.HasIndex(e => new { e.AccountId, e.EggGradeId, e.ProductionDate, e.QuantityAvailable })
             .HasDatabaseName("IX_EggLots_Allocation");
+
+        // Entry adjust/void locks lots by their generating entry (#69).
+        // ID-only reference by convention (no FK) — null on pre-link lots.
+        builder.HasIndex(e => e.DailyEntryId)
+            .HasDatabaseName("IX_EggLots_DailyEntryId");
     }
 }

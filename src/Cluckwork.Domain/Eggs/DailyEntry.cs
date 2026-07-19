@@ -1,7 +1,11 @@
 namespace Cluckwork.Domain.Eggs;
 
+using System.Text.Json;
+
 public sealed class DailyEntry : AggregateRoot<Guid>
 {
+    public const int MaxReasonLength = 500;
+
     private readonly List<DailyEntryGrade> _grades = [];
 
     public Guid FarmId { get; private set; }
@@ -18,6 +22,14 @@ public sealed class DailyEntry : AggregateRoot<Guid>
 
     // Sellable production by grade (Phase 1: eggs are graded at collection).
     public IReadOnlyList<DailyEntryGrade> Grades => _grades.AsReadOnly();
+
+    // Audit trail until the audit-log slice lands (#69): the last adjust's
+    // reason + the values it replaced (JSON snapshot), the void reason, and
+    // when the auto-lock job locked the entry.
+    public string? AdjustReason { get; private set; }
+    public string? AdjustedFromJson { get; private set; }
+    public string? VoidReason { get; private set; }
+    public DateTimeOffset? LockedAtUtc { get; private set; }
 
     // Optimistic concurrency token — functional spec §10.9.1
     public int Version { get; private set; }
@@ -80,30 +92,50 @@ public sealed class DailyEntry : AggregateRoot<Guid>
         return Result.Success();
     }
 
-    public Result Lock()
+    public Result Lock(DateTimeOffset lockedAtUtc)
     {
         if (Status != DailyEntryStatus.Submitted)
             return Result.Failure(Error.Domain(
                 "DailyEntry.NotSubmitted", "Only submitted entries can be locked."));
         Status = DailyEntryStatus.Locked;
+        LockedAtUtc = lockedAtUtc;
         Version++;
         return Result.Success();
     }
 
-    // NOTE for the future adjust handler: like RecordDailyEntryHandler, it must
-    // validate grade ids against the tenant's active saleable grades for the
-    // entry's farm before calling this — the aggregate can't check ownership.
+    // NOTE: like RecordDailyEntryHandler, the adjust handler must validate
+    // grade ids against the tenant's grades for the entry's farm before
+    // calling this — the aggregate can't check ownership. It must also
+    // reconcile the entry's egg lots and bird ledger in the same transaction.
+    //
+    // Spec §8.1 lets managers edit submitted entries pre-lock; MVP keeps one
+    // adjust path for Submitted AND Locked — both land in ManagerAdjusted.
+    // Re-adjusting a ManagerAdjusted entry is allowed (corrections can need
+    // correcting); each adjust snapshots the values it replaced.
     public Result ManagerAdjust(
         int totalEggs, int cracked, int dirty, int discarded, int mortality, string reason,
         IReadOnlyCollection<GradeQuantity>? grades = null)
     {
-        if (Status != DailyEntryStatus.Locked)
+        if (Status is not (DailyEntryStatus.Submitted or DailyEntryStatus.Locked
+            or DailyEntryStatus.ManagerAdjusted))
             return Result.Failure(Error.Domain(
-                "DailyEntry.NotLocked", "Manager adjustments require a locked entry."));
+                "DailyEntry.NotAdjustable",
+                "Only submitted, locked, or previously adjusted entries can be adjusted."));
+
+        if (string.IsNullOrWhiteSpace(reason))
+            return Result.Failure(Error.Validation(
+                "DailyEntry.ReasonRequired", "An adjustment reason is required."));
+        var trimmedReason = reason.Trim();
+        if (trimmedReason.Length > MaxReasonLength)
+            return Result.Failure(Error.Validation(
+                "DailyEntry.ReasonTooLong", $"Reason cannot exceed {MaxReasonLength} characters."));
 
         var effectiveGrades = grades ?? CurrentGradeQuantities();
         var gradeResult = ValidateGrades(totalEggs, cracked, dirty, discarded, effectiveGrades);
         if (gradeResult.IsFailure) return gradeResult;
+
+        AdjustedFromJson = SnapshotJson();
+        AdjustReason = trimmedReason;
 
         TotalEggs = totalEggs;
         CrackedEggs = cracked;
@@ -116,6 +148,43 @@ public sealed class DailyEntry : AggregateRoot<Guid>
         Version++;
         return Result.Success();
     }
+
+    // Spec §8.1/§9.5: the entry is preserved as Voided; the handler reverses
+    // its egg lots and appends the compensating bird movement in the same
+    // transaction. Drafts aren't voidable — they never generated anything.
+    public Result Void(string reason)
+    {
+        if (Status is not (DailyEntryStatus.Submitted or DailyEntryStatus.Locked
+            or DailyEntryStatus.ManagerAdjusted))
+            return Result.Failure(Error.Domain(
+                "DailyEntry.NotVoidable",
+                "Only submitted, locked, or adjusted entries can be voided."));
+
+        if (string.IsNullOrWhiteSpace(reason))
+            return Result.Failure(Error.Validation(
+                "DailyEntry.ReasonRequired", "A void reason is required."));
+        var trimmedReason = reason.Trim();
+        if (trimmedReason.Length > MaxReasonLength)
+            return Result.Failure(Error.Validation(
+                "DailyEntry.ReasonTooLong", $"Reason cannot exceed {MaxReasonLength} characters."));
+
+        VoidReason = trimmedReason;
+        Status = DailyEntryStatus.Voided;
+        Version++;
+        return Result.Success();
+    }
+
+    // camelCase to match the API's JSON convention — the endpoint embeds this
+    // snapshot verbatim in the entry response.
+    private string SnapshotJson() => JsonSerializer.Serialize(new
+    {
+        totalEggs = TotalEggs,
+        crackedEggs = CrackedEggs,
+        dirtyEggs = DirtyEggs,
+        discardedEggs = DiscardedEggs,
+        mortalityCount = MortalityCount,
+        grades = _grades.Select(g => new { eggGradeId = g.EggGradeId, quantity = g.Quantity }),
+    });
 
     private List<GradeQuantity> CurrentGradeQuantities() =>
         _grades.Select(l => new GradeQuantity(l.EggGradeId, l.Quantity)).ToList();
