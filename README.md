@@ -42,7 +42,7 @@ cp deploy/.env.example deploy/.env
 docker compose -f deploy/docker-compose.yml up --build
 ```
 
-The app comes up on **http://localhost:8080**. On first boot it applies migrations and seeds the default account + admin user, so you can log in with the `Seed__Admin*` credentials.
+The app comes up on **http://localhost:8080**. On first boot it applies migrations and seeds the default account + admin user, so you can log in with the `Seed__Admin*` credentials. Optionally set `Seed__WorkerEmail` / `Seed__WorkerPassword` to also seed a login **without** the Admin role — useful for testing the worker experience (corrective actions hidden and refused).
 
 ### Frontend development
 
