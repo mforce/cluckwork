@@ -62,8 +62,10 @@ export function HelpPage() {
           Anything that <strong>undoes, corrects, or configures</strong> needs
           an admin: voiding orders, stock corrections, water-record corrections,
           editing flocks, deplete/archive/reactivate, culls and bird
-          adjustments, and managing the grade and item catalogs. Controls you
-          can't use are hidden, and the server refuses them regardless.
+          adjustments, and managing the grade and item catalogs. Money is
+          admin-only outright — the Expenses screen (viewing included) needs an
+          admin sign-in. Controls you can't use are hidden, and the server
+          refuses them regardless.
         </li>
         <li>
           Admins create sign-ins on the <strong>Users</strong> screen — email,
@@ -224,6 +226,27 @@ export function HelpPage() {
           returns of delivered goods. (Orders confirmed before lot-level
           allocation tracking existed can't self-serve void — ask your
           administrator.)
+        </li>
+      </ul>
+
+      <h3 id="expenses">Expenses (admin)</h3>
+      <ul>
+        <li>
+          Record money going out: date, category, description, and amount (in
+          the farm's currency), optionally tied to a flock. The month picker
+          shows a running total; categories are managed on the same screen
+          (deactivating one hides it from new expenses — recorded ones keep
+          it).
+        </li>
+        <li>
+          Corrections edit the expense in place (<strong>correct</strong> on
+          the row). If someone else corrected it first, the form reloads their
+          values and asks you to re-apply. The currency an expense was
+          recorded in never changes.
+        </li>
+        <li>
+          Expenses are money data, so the whole screen — viewing included — is
+          admin-only, unlike the production screens where workers record.
         </li>
       </ul>
 

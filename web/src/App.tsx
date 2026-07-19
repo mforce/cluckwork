@@ -14,6 +14,7 @@ import { FlocksPage } from "./routes/FlocksPage";
 import { InventoryPage } from "./routes/InventoryPage";
 import { HelpPage } from "./routes/HelpPage";
 import { WaterPage } from "./routes/WaterPage";
+import { ExpensesPage } from "./routes/ExpensesPage";
 import { UsersPage } from "./routes/UsersPage";
 
 export function App() {
@@ -34,6 +35,7 @@ export function App() {
               <Route path="flocks" element={<FlocksPage />} />
               <Route path="inventory" element={<InventoryPage />} />
               <Route path="water" element={<WaterPage />} />
+              <Route path="expenses" element={<ExpensesPage />} />
               <Route path="users" element={<UsersPage />} />
               <Route path="help" element={<HelpPage />} />
             </Route>
