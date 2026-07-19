@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import {
-  adjustDailyEntry, listDailyEntries, listEggGrades, listFlocks, voidDailyEntry,
+  adjustDailyEntry, getDailyEntry, listDailyEntries, listEggGrades, listFlocks, voidDailyEntry,
 } from "../api/cluckwork";
 import type { DailyEntry, EggGrade, Flock } from "../api/cluckwork";
 import { ApiError } from "../api/client";
@@ -45,8 +45,17 @@ export function HistoryPage() {
   const [reason, setReason] = useState("");
   const [lineQty, setLineQty] = useState<Record<string, number>>({});
 
-  // Stable idempotency keys per logical mutation, rotated only after the full
-  // action (write + refresh) succeeds — same contract as the other screens.
+  // The panel renders above the table — move focus into it on open so
+  // opening from a lower row doesn't appear to do nothing (codex, PR #81).
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!adjusting || !panelRef.current) return;
+    panelRef.current.scrollIntoView({ block: "nearest" });
+    panelRef.current.querySelector("input")?.focus();
+  }, [adjusting]);
+
+  // Stable idempotency keys per logical mutation; see settleKey for the
+  // rotation rules on this screen.
   const keys = useRef(new Map<string, string>());
   const keyFor = (scope: string) => {
     const existing = keys.current.get(scope);
@@ -104,9 +113,32 @@ export function HistoryPage() {
     return grades.filter((g) => onEntry.has(g.id) || (g.active && g.isSaleable));
   }
 
-  async function refreshAfter(scope: string) {
-    await load();
-    clearKey(scope);
+  // Key lifecycle differs from the create screens (codex review of PR #81):
+  // a SERVER response — success or rejection — is a definite outcome, so the
+  // key rotates immediately and an edited retry is a fresh request (the
+  // version base already guards against double-apply). Only a transport
+  // failure (no response) keeps the key for an exact replay.
+  function settleKey(scope: string, err?: unknown) {
+    if (err === undefined || err instanceof ApiError) clearKey(scope);
+  }
+
+  // On a 409 the correction lost a race. Reload the list and re-bind the
+  // panel to the fresh version so the typed values survive; if the entry is
+  // no longer correctable (voided meanwhile), close the panel.
+  async function rebindAfterConflict(entryId: string) {
+    try {
+      await load();
+      const fresh = await getDailyEntry(entryId);
+      if (correctable(fresh)) {
+        setAdjusting(fresh);
+        setError("This entry was changed by someone else — the form now targets the latest version; review and save again.");
+      } else {
+        setAdjusting(null);
+        setError(`This entry is now ${fresh.status.toLowerCase()} — nothing left to adjust.`);
+      }
+    } catch {
+      setError("This entry was changed by someone else and the list could not be reloaded — reload the page before retrying.");
+    }
   }
 
   async function onAdjustSubmit(ev: FormEvent) {
@@ -130,14 +162,17 @@ export function HistoryPage() {
         reason: reason.trim(),
         grades: lines, // [] explicitly clears all lines
       }, keyFor(scope));
-      await refreshAfter(scope);
-      setMessage("Entry adjusted — stock and bird ledger updated to match.");
+      settleKey(scope);
       setAdjusting(null);
+      setMessage("Entry adjusted — stock and bird ledger updated to match.");
+      await load().catch(() =>
+        setError("The adjustment saved, but the list failed to reload — refresh the page."));
     } catch (err) {
-      setError(errText(err));
+      settleKey(scope, err);
       if (err instanceof ApiError && err.status === 409) {
-        await load().catch(() => undefined);
-        setAdjusting(null);
+        await rebindAfterConflict(adjusting.id);
+      } else {
+        setError(errText(err));
       }
     } finally {
       setBusy(false);
@@ -163,11 +198,21 @@ export function HistoryPage() {
       const scope = `void:${e.id}`;
       try {
         await voidDailyEntry(e.id, { version: e.version, reason: voidReason.trim() }, keyFor(scope));
-        await refreshAfter(scope);
-        setMessage("Entry voided — stock returned and deaths reversed.");
+        settleKey(scope);
+        // A stale adjust panel for the now-voided entry would only 409.
+        if (adjusting?.id === e.id) setAdjusting(null);
+        setMessage("Entry voided — its egg lots were emptied and its deaths reversed.");
+        await load().catch(() =>
+          setError("The void saved, but the list failed to reload — refresh the page."));
       } catch (err) {
-        setError(errText(err));
-        if (err instanceof ApiError && err.status === 409) await load().catch(() => undefined);
+        settleKey(scope, err);
+        if (err instanceof ApiError && err.status === 409) {
+          setError("This entry was changed by someone else — the list has been reloaded; retry.");
+          await load().catch(() => setError(
+            "This entry was changed by someone else and the list could not be reloaded — reload the page."));
+        } else {
+          setError(errText(err));
+        }
       } finally {
         setBusy(false);
       }
@@ -213,7 +258,7 @@ export function HistoryPage() {
       </div>
 
       {adjusting && (
-        <div className="order-panel">
+        <div className="order-panel" ref={panelRef}>
           <h3>Adjust — {adjusting.date}, {flockName(adjusting.flockId)}</h3>
           {adjusting.adjustedFrom && (
             <p className="muted">
@@ -260,8 +305,8 @@ export function HistoryPage() {
         </div>
       )}
 
-      {error && <p className="error">{error}</p>}
-      {message && <p className="success">{message}</p>}
+      {error && <p className="error" role="alert">{error}</p>}
+      {message && <p className="success" role="status">{message}</p>}
 
       {entries === null ? (
         <p className="muted">Loading…</p>

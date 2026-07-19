@@ -155,6 +155,8 @@ export const recordDailyEntry = (body: {
 export const submitDailyEntry = (id: string, key?: string) =>
   apiPost<{ id: string; status: string; eggLotIds: string[] }>(`/daily-entries/${id}/submit`, undefined, key);
 
+export const getDailyEntry = (id: string) => apiGet<DailyEntry>(`/daily-entries/${id}`);
+
 // Admin-only (#69/#73): correct a submitted/locked entry. Stock and the bird
 // ledger reconcile server-side; version is the base the entry was loaded at.
 export const adjustDailyEntry = (id: string, body: {
