@@ -17,8 +17,10 @@ using Cluckwork.Application.Features.Accounts;
 using Cluckwork.Application.Features.Customers;
 using Cluckwork.Application.Features.Customers.CreateCustomer;
 using Cluckwork.Application.Features.DailyEntries;
+using Cluckwork.Application.Features.DailyEntries.AdjustDailyEntry;
 using Cluckwork.Application.Features.DailyEntries.RecordDailyEntry;
 using Cluckwork.Application.Features.DailyEntries.SubmitDailyEntry;
+using Cluckwork.Application.Features.DailyEntries.VoidDailyEntry;
 using Cluckwork.Application.Features.EggGrades;
 using Cluckwork.Application.Features.Inventory;
 using Cluckwork.Application.Features.Inventory.CreateInventoryItem;
@@ -187,6 +189,8 @@ builder.Services.AddScoped<IValidator<RecordAdjustmentCommand>, RecordAdjustment
 builder.Services.AddScoped<IValidator<RecordWaterUsageCommand>, RecordWaterUsageValidator>();
 builder.Services.AddScoped<IValidator<UpdateWaterUsageCommand>, UpdateWaterUsageValidator>();
 builder.Services.AddScoped<IValidator<CreateUserCommand>, CreateUserValidator>();
+builder.Services.AddScoped<IValidator<AdjustDailyEntryCommand>, AdjustDailyEntryValidator>();
+builder.Services.AddScoped<IValidator<VoidDailyEntryCommand>, VoidDailyEntryValidator>();
 
 // --- Handlers (direct — no mediator, tech spec §2.1) ---
 builder.Services.AddScoped<RecordDailyEntryHandler>();
@@ -217,6 +221,8 @@ builder.Services.AddScoped<ArchiveFlockHandler>();
 builder.Services.AddScoped<RecordBirdMovementHandler>();
 builder.Services.AddScoped<ReactivateFlockHandler>();
 builder.Services.AddScoped<CreateUserHandler>();
+builder.Services.AddScoped<AdjustDailyEntryHandler>();
+builder.Services.AddScoped<VoidDailyEntryHandler>();
 
 // --- Startup seed (single-farm MVP) ---
 builder.Services.Configure<SeedOptions>(builder.Configuration.GetSection(SeedOptions.SectionName));
@@ -237,7 +243,8 @@ builder.Services.AddHealthChecks()
     .AddCheck<Cluckwork.Api.HealthChecks.DatabaseReadyHealthCheck>("database")
     .AddCheck<Cluckwork.Api.HealthChecks.DurableJobWorkerHealthCheck>("durable-job-worker");
 
-// --- Durable job scaffold (tech spec §9) ---
+// --- Durable job scaffold (tech spec §9) + recurring sweeps ---
+builder.Services.AddSingleton<DailyEntryLockSweep>();
 builder.Services.AddHostedService<DurableJobWorker>();
 
 // ----------------------------------------------------------------

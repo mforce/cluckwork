@@ -103,4 +103,49 @@ public sealed class EggLotTests
         Assert.True(lot.Restore(30).IsSuccess);
         Assert.Equal(100, lot.QuantityAvailable);
     }
+
+    // #69 — entry adjust/void reconciliation. The sold portion is untouchable;
+    // available absorbs the whole delta.
+    [Fact]
+    public void AdjustProduction_GrowAndShrink_PreservesSold()
+    {
+        var lot = MakeLot(100);
+        Assert.True(lot.Allocate(30, Today).IsSuccess); // sold 30, available 70
+
+        Assert.True(lot.AdjustProduction(120).IsSuccess);
+        Assert.Equal(120, lot.QuantityProduced);
+        Assert.Equal(90, lot.QuantityAvailable);
+
+        Assert.True(lot.AdjustProduction(40).IsSuccess);
+        Assert.Equal(40, lot.QuantityProduced);
+        Assert.Equal(10, lot.QuantityAvailable);
+    }
+
+    [Fact]
+    public void AdjustProduction_BelowSold_Fails()
+    {
+        var lot = MakeLot(100);
+        Assert.True(lot.Allocate(30, Today).IsSuccess);
+
+        var result = lot.AdjustProduction(29);
+        Assert.True(result.IsFailure);
+        Assert.Equal("EggLot.SoldExceedsAdjusted", result.Error.Code);
+        Assert.Equal(100, lot.QuantityProduced);
+    }
+
+    [Fact]
+    public void AdjustProduction_ToZero_EmptiesUnsoldLot()
+    {
+        var lot = MakeLot(100);
+        Assert.True(lot.AdjustProduction(0).IsSuccess);
+        Assert.Equal(0, lot.QuantityProduced);
+        Assert.Equal(0, lot.QuantityAvailable);
+    }
+
+    [Fact]
+    public void AdjustProduction_Negative_Fails()
+    {
+        var lot = MakeLot(100);
+        Assert.True(lot.AdjustProduction(-1).IsFailure);
+    }
 }

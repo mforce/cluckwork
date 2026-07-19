@@ -28,6 +28,7 @@ public sealed class DurableJobWorker(
     IServiceScopeFactory scopeFactory,
     ILogger<DurableJobWorker> logger,
     DurableJobWorkerHeartbeat? heartbeat = null,
+    DailyEntryLockSweep? lockSweep = null,
     TimeSpan? pollInterval = null,
     TimeSpan? initialBackoff = null) : BackgroundService
 {
@@ -103,6 +104,11 @@ public sealed class DurableJobWorker(
 
         if (jobs.Count > 0)
             logger.LogInformation("Durable job scaffold found {JobCount} pending jobs; no handlers are registered yet", jobs.Count);
+
+        // Recurring sweeps ride the same guarded iteration (null only in the
+        // resilience unit tests, which exercise the loop, not the sweeps).
+        if (lockSweep is not null)
+            await lockSweep.RunAsync(ct);
     }
 }
 

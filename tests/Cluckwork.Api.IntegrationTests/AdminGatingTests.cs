@@ -69,6 +69,8 @@ public sealed class AdminGatingTests(CluckworkWebApplicationFactory factory)
             (HttpMethod.Post, $"/api/v1/inventory/items/{id}/adjustments"),
             (HttpMethod.Post, $"/api/v1/sales/{id}/void"),
             (HttpMethod.Put, $"/api/v1/water-usage/{id}"),
+            (HttpMethod.Post, $"/api/v1/daily-entries/{id}/adjust"),
+            (HttpMethod.Post, $"/api/v1/daily-entries/{id}/void"),
             (HttpMethod.Post, "/api/v1/users"),
         ];
 

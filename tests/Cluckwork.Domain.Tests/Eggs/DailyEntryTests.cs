@@ -24,7 +24,7 @@ public sealed class DailyEntryTests
         var entry = MakeDraft();
         entry.RecordProduction(100, 0, 0, 0, 0);
         entry.Submit();
-        entry.Lock();
+        entry.Lock(DateTimeOffset.UtcNow);
         var result = entry.RecordProduction(200, 0, 0, 0, 0);
         Assert.True(result.IsFailure);
         Assert.Equal("DailyEntry.Immutable", result.Error.Code);
@@ -56,7 +56,7 @@ public sealed class DailyEntryTests
         var entry = MakeDraft();
         entry.RecordProduction(100, 0, 0, 0, 0);
         entry.Submit();
-        var result = entry.Lock();
+        var result = entry.Lock(DateTimeOffset.UtcNow);
         Assert.True(result.IsSuccess);
         Assert.Equal(DailyEntryStatus.Locked, entry.Status);
     }
@@ -184,7 +184,7 @@ public sealed class DailyEntryTests
         var entry = MakeDraft();
         entry.RecordProduction(100, 0, 0, 0, 0, [new GradeQuantity(GradeLarge, 50)]);
         entry.Submit();
-        entry.Lock();
+        entry.Lock(DateTimeOffset.UtcNow);
 
         var result = entry.RecordProduction(100, 0, 0, 0, 0, [new GradeQuantity(GradeLarge, 60)]);
         Assert.True(result.IsFailure);
@@ -198,7 +198,7 @@ public sealed class DailyEntryTests
         var entry = MakeDraft();
         entry.RecordProduction(100, 0, 0, 0, 0, [new GradeQuantity(GradeLarge, 50)]);
         entry.Submit();
-        entry.Lock();
+        entry.Lock(DateTimeOffset.UtcNow);
 
         var result = entry.ManagerAdjust(120, 0, 0, 0, 0, "recount",
             [new GradeQuantity(GradeLarge, 70)]);
@@ -206,5 +206,100 @@ public sealed class DailyEntryTests
         Assert.True(result.IsSuccess);
         Assert.Equal(DailyEntryStatus.ManagerAdjusted, entry.Status);
         Assert.Equal(70, entry.Grades.Single().Quantity);
+    }
+
+    [Fact]
+    public void Lock_StampsLockedAt()
+    {
+        var entry = MakeDraft();
+        entry.RecordProduction(100, 0, 0, 0, 0);
+        entry.Submit();
+        var at = new DateTimeOffset(2026, 7, 19, 6, 0, 0, TimeSpan.Zero);
+
+        Assert.True(entry.Lock(at).IsSuccess);
+        Assert.Equal(at, entry.LockedAtUtc);
+    }
+
+    // #69 — one adjust path for Submitted AND Locked (spec §8.1 MVP
+    // simplification); each adjust snapshots what it replaced.
+    [Fact]
+    public void ManagerAdjust_OnSubmitted_Succeeds_AndSnapshotsPreviousValues()
+    {
+        var entry = MakeDraft();
+        entry.RecordProduction(100, 5, 0, 0, 2, [new GradeQuantity(GradeLarge, 50)]);
+        entry.Submit();
+
+        var result = entry.ManagerAdjust(90, 5, 0, 0, 3, "  recount  ",
+            [new GradeQuantity(GradeLarge, 40)]);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(DailyEntryStatus.ManagerAdjusted, entry.Status);
+        Assert.Equal("recount", entry.AdjustReason);
+        Assert.Contains("\"totalEggs\":100", entry.AdjustedFromJson);
+        Assert.Contains("\"quantity\":50", entry.AdjustedFromJson);
+    }
+
+    [Fact]
+    public void ManagerAdjust_OnAdjusted_SucceedsAgain()
+    {
+        var entry = MakeDraft();
+        entry.RecordProduction(100, 0, 0, 0, 0);
+        entry.Submit();
+        entry.ManagerAdjust(90, 0, 0, 0, 0, "first");
+
+        var result = entry.ManagerAdjust(95, 0, 0, 0, 0, "second");
+        Assert.True(result.IsSuccess);
+        Assert.Equal("second", entry.AdjustReason);
+        Assert.Contains("\"totalEggs\":90", entry.AdjustedFromJson);
+    }
+
+    [Fact]
+    public void ManagerAdjust_OnDraft_Fails()
+    {
+        var entry = MakeDraft();
+        entry.RecordProduction(100, 0, 0, 0, 0);
+        var result = entry.ManagerAdjust(90, 0, 0, 0, 0, "nope");
+        Assert.True(result.IsFailure);
+        Assert.Equal("DailyEntry.NotAdjustable", result.Error.Code);
+    }
+
+    [Fact]
+    public void ManagerAdjust_BlankReason_Fails()
+    {
+        var entry = MakeDraft();
+        entry.RecordProduction(100, 0, 0, 0, 0);
+        entry.Submit();
+        var result = entry.ManagerAdjust(90, 0, 0, 0, 0, "   ");
+        Assert.True(result.IsFailure);
+        Assert.Equal("DailyEntry.ReasonRequired", result.Error.Code);
+    }
+
+    [Fact]
+    public void Void_FromSubmittedLockedAdjusted_Succeeds_FromDraftAndVoided_Fails()
+    {
+        var submitted = MakeDraft();
+        submitted.RecordProduction(100, 0, 0, 0, 0);
+        submitted.Submit();
+        Assert.True(submitted.Void("wrong flock").IsSuccess);
+        Assert.Equal(DailyEntryStatus.Voided, submitted.Status);
+        Assert.Equal("wrong flock", submitted.VoidReason);
+
+        // Already voided → refused.
+        Assert.Equal("DailyEntry.NotVoidable", submitted.Void("again").Error.Code);
+
+        var draft = MakeDraft();
+        draft.RecordProduction(100, 0, 0, 0, 0);
+        Assert.Equal("DailyEntry.NotVoidable", draft.Void("nope").Error.Code);
+    }
+
+    [Fact]
+    public void Void_BumpsVersion()
+    {
+        var entry = MakeDraft();
+        entry.RecordProduction(100, 0, 0, 0, 0);
+        entry.Submit();
+        var before = entry.Version;
+        entry.Void("mistake");
+        Assert.Equal(before + 1, entry.Version);
     }
 }

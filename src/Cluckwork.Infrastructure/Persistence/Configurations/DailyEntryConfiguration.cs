@@ -19,6 +19,9 @@ public sealed class DailyEntryConfiguration : IEntityTypeConfiguration<DailyEntr
             .HasConversion<string>()
             .HasMaxLength(32)
             .IsRequired();
+        builder.Property(e => e.AdjustReason).HasMaxLength(DailyEntry.MaxReasonLength);
+        builder.Property(e => e.VoidReason).HasMaxLength(DailyEntry.MaxReasonLength);
+        builder.Property(e => e.AdjustedFromJson).HasColumnType("jsonb");
         builder.Property(e => e.Version).IsConcurrencyToken();
 
         // Natural-key uniqueness constraint (functional spec + tech spec §6.3)
