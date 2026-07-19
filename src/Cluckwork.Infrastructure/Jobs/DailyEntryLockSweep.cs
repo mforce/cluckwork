@@ -38,7 +38,22 @@ public sealed class DailyEntryLockSweep(
         }
 
         foreach (var (accountId, timeZoneId) in accounts)
-            await LockDueEntriesAsync(accountId, timeZoneId, ct);
+        {
+            try
+            {
+                await LockDueEntriesAsync(accountId, timeZoneId, ct);
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                // One account's failure (bad timezone id, transient DB error)
+                // must not starve the remaining accounts of their sweep.
+                logger.LogError(ex, "Lock sweep failed for account {AccountId}.", accountId);
+            }
+        }
     }
 
     private async Task LockDueEntriesAsync(Guid accountId, string timeZoneId, CancellationToken ct)
@@ -59,12 +74,15 @@ public sealed class DailyEntryLockSweep(
             .ToListAsync(ct);
         if (due.Count == 0) return;
 
+        var lockedCount = 0;
         foreach (var entry in due)
         {
             var locked = entry.Lock(clock.UtcNow);
             if (locked.IsFailure)
                 // Unreachable given the Submitted filter; loud if it ever isn't.
                 logger.LogWarning("Could not lock entry {EntryId}: {Error}", entry.Id, locked.Error.Code);
+            else
+                lockedCount++;
         }
 
         // A concurrent adjust on one of these entries wins the Version token
@@ -72,6 +90,6 @@ public sealed class DailyEntryLockSweep(
         await db.SaveChangesAsync(ct);
         logger.LogInformation(
             "Locked {Count} submitted entries older than {Days} days for account {AccountId}.",
-            due.Count, LockAfterDays, accountId);
+            lockedCount, LockAfterDays, accountId);
     }
 }
