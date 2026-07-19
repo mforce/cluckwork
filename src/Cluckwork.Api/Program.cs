@@ -227,7 +227,15 @@ builder.Services.AddScoped<DemoDataSeeder>();
 builder.Services.AddOpenApi();
 
 // --- Health checks ---
-builder.Services.AddHealthChecks();
+// Readiness includes the database (#65): during a DB outage — or with
+// migrations pending — the API stays up (liveness green) while /health/ready
+// turns 503 so orchestrators stop routing traffic until it recovers. The job
+// worker reports via a heartbeat: a stall shows as Degraded (still HTTP 200 —
+// a dead background job must not pull API traffic).
+builder.Services.AddSingleton<DurableJobWorkerHeartbeat>();
+builder.Services.AddHealthChecks()
+    .AddCheck<Cluckwork.Api.HealthChecks.DatabaseReadyHealthCheck>("database")
+    .AddCheck<Cluckwork.Api.HealthChecks.DurableJobWorkerHealthCheck>("durable-job-worker");
 
 // --- Durable job scaffold (tech spec §9) ---
 builder.Services.AddHostedService<DurableJobWorker>();
@@ -335,8 +343,11 @@ app.MapGroup("/api/v1/users")
     .RequireAuthorization(AuthPolicies.AdminOnly)
     .MapUserEndpoints();
 
-// Health
-app.MapHealthChecks("/health/live");
+// Health: live = the process runs (no checks); ready = dependencies too.
+app.MapHealthChecks("/health/live", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    Predicate = _ => false
+});
 app.MapHealthChecks("/health/ready");
 
 app.Map("/error", (HttpContext context) =>

@@ -21,16 +21,72 @@ public sealed class DurableJob
 
 public enum DurableJobStatus { Pending, Running, Completed, Failed }
 
+// Intervals are injectable for the loop-level tests only; DI fills the
+// defaults (ActivatorUtilities resolves optional parameters and prefers the
+// registered heartbeat singleton).
 public sealed class DurableJobWorker(
     IServiceScopeFactory scopeFactory,
-    ILogger<DurableJobWorker> logger) : BackgroundService
+    ILogger<DurableJobWorker> logger,
+    DurableJobWorkerHeartbeat? heartbeat = null,
+    TimeSpan? pollInterval = null,
+    TimeSpan? initialBackoff = null) : BackgroundService
 {
+    private static readonly TimeSpan MaxBackoff = TimeSpan.FromMinutes(5);
+
+    private readonly DurableJobWorkerHeartbeat heartbeat = heartbeat ?? new(TimeProvider.System);
+    private readonly TimeSpan pollInterval = pollInterval ?? TimeSpan.FromSeconds(30);
+    private readonly TimeSpan initialBackoff = initialBackoff ?? TimeSpan.FromSeconds(5);
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(30));
-        while (await timer.WaitForNextTickAsync(stoppingToken))
+        // A transient DB outage must not escape ExecuteAsync: the host default
+        // (BackgroundServiceExceptionBehavior.StopHost) would take the whole
+        // API down with it (#65). Failures log and retry with capped backoff;
+        // StopHost stays as the backstop for anything thrown OUTSIDE the
+        // guarded iteration (e.g. a fatal bug in the loop itself).
+        //
+        // One scheduling mechanism only: success waits the poll interval,
+        // failure waits the backoff — a PeriodicTimer on top would stretch
+        // every retry back to the poll interval and make the logged backoff
+        // a lie (codex review of PR #79). Task.Delay throws on cancellation,
+        // which ends the loop as a normal shutdown.
+        heartbeat.MarkStarted();
+        var backoff = TimeSpan.Zero;
+        while (!stoppingToken.IsCancellationRequested)
         {
-            await ProcessPendingJobsAsync(stoppingToken);
+            if (await TryProcessPendingJobsAsync(stoppingToken))
+            {
+                heartbeat.MarkSuccessfulPoll();
+                backoff = TimeSpan.Zero;
+                await Task.Delay(pollInterval, stoppingToken);
+                continue;
+            }
+
+            backoff = backoff == TimeSpan.Zero
+                ? initialBackoff
+                : TimeSpan.FromTicks(Math.Min(backoff.Ticks * 2, MaxBackoff.Ticks));
+            logger.LogWarning("Durable job poll failed; next attempt in {Backoff}.", backoff);
+            await Task.Delay(backoff, stoppingToken);
+        }
+    }
+
+    // One guarded poll iteration. Returns false on failure instead of throwing;
+    // cancellation propagates so shutdown stays prompt.
+    internal async Task<bool> TryProcessPendingJobsAsync(CancellationToken ct)
+    {
+        try
+        {
+            await ProcessPendingJobsAsync(ct);
+            return true;
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Durable job poll iteration failed.");
+            return false;
         }
     }
 
