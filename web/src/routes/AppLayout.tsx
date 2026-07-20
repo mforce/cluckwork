@@ -34,6 +34,7 @@ export function AppLayout() {
               enforces the role on every gated endpoint regardless. */}
           {isAdmin && <NavLink to="/expenses">Expenses</NavLink>}
           {isAdmin && <NavLink to="/grades">Grades</NavLink>}
+          {isAdmin && <NavLink to="/products">Products</NavLink>}
           {isAdmin && <NavLink to="/users">Users</NavLink>}
           {isAdmin && <NavLink to="/audit">Audit</NavLink>}
           {isAdmin && <NavLink to="/export">Export</NavLink>}

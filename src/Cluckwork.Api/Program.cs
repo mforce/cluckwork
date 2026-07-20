@@ -3,6 +3,7 @@ using Cluckwork.Api;
 using Cluckwork.Api.Endpoints.Accounts;
 using Cluckwork.Api.Endpoints.Audit;
 using Cluckwork.Api.Endpoints.Auth;
+using Cluckwork.Api.Endpoints.Catalog;
 using Cluckwork.Api.Endpoints.Customers;
 using Cluckwork.Api.Endpoints.DailyEntries;
 using Cluckwork.Api.Endpoints.EggGrades;
@@ -175,6 +176,8 @@ builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<IDailyEntryRepository, DailyEntryRepository>();
 builder.Services.AddScoped<IEggLotRepository, EggLotRepository>();
 builder.Services.AddScoped<IEggGradeRepository, EggGradeRepository>();
+builder.Services.AddScoped<Cluckwork.Application.Features.Catalog.IProductRepository, ProductRepository>();
+builder.Services.AddScoped<Cluckwork.Application.Features.Catalog.IEggUnitConversionRepository, EggUnitConversionRepository>();
 builder.Services.AddScoped<IExpenseCategoryRepository, ExpenseCategoryRepository>();
 builder.Services.AddScoped<IExpenseRepository, ExpenseRepository>();
 builder.Services.AddScoped<ISalesOrderRepository, SalesOrderRepository>();
@@ -193,6 +196,10 @@ builder.Services.AddScoped<IAccountRepository, AccountRepository>();
 
 // --- Validators ---
 builder.Services.AddScoped<IValidator<RecordDailyEntryCommand>, RecordDailyEntryValidator>();
+builder.Services.AddScoped<IValidator<Cluckwork.Application.Features.Catalog.CreateProduct.CreateProductCommand>,
+    Cluckwork.Application.Features.Catalog.CreateProduct.CreateProductValidator>();
+builder.Services.AddScoped<IValidator<Cluckwork.Application.Features.Catalog.UpdateProduct.UpdateProductCommand>,
+    Cluckwork.Application.Features.Catalog.UpdateProduct.UpdateProductValidator>();
 builder.Services.AddScoped<IValidator<CreateFlockCommand>, CreateFlockValidator>();
 builder.Services.AddScoped<IValidator<CreateCustomerCommand>, CreateCustomerValidator>();
 builder.Services.AddScoped<IValidator<CreateSalesOrderCommand>, CreateSalesOrderValidator>();
@@ -244,6 +251,10 @@ builder.Services.AddScoped<UpdateWaterUsageHandler>();
 builder.Services.AddScoped<CreateFlockHandler>();
 builder.Services.AddScoped<DepleteFlockHandler>();
 builder.Services.AddScoped<CreateEggGradeHandler>();
+builder.Services.AddScoped<Cluckwork.Application.Features.Catalog.CreateProduct.CreateProductHandler>();
+builder.Services.AddScoped<Cluckwork.Application.Features.Catalog.UpdateProduct.UpdateProductHandler>();
+builder.Services.AddScoped<Cluckwork.Application.Features.Catalog.SetProductActive.SetProductActiveHandler>();
+builder.Services.AddScoped<Cluckwork.Application.Features.Catalog.UpdateEggUnitConversion.UpdateEggUnitConversionHandler>();
 builder.Services.AddScoped<UpdateEggGradeHandler>();
 builder.Services.AddScoped<SetEggGradeActiveHandler>();
 builder.Services.AddScoped<CreateExpenseCategoryHandler>();
@@ -343,6 +354,17 @@ app.MapGroup("/api/v1/egg-grades")
     .WithTags("EggGrades")
     .RequireAuthorization()
     .MapEggGradeEndpoints();
+
+// Product catalog + packed-unit conversions (#97): writes admin-gated inside.
+app.MapGroup("/api/v1/products")
+    .WithTags("Catalog")
+    .RequireAuthorization()
+    .MapProductEndpoints();
+
+app.MapGroup("/api/v1/egg-unit-conversions")
+    .WithTags("Catalog")
+    .RequireAuthorization()
+    .MapEggUnitConversionEndpoints();
 
 // Money data — admin end to end (#87), reads included.
 app.MapGroup("/api/v1/expense-categories")

@@ -61,6 +61,8 @@ export function AuditPage() {
     "WaterUsage.Correct", "Flock.BirdMovement", "Flock.Update", "Flock.Deplete",
     "Flock.Archive", "Flock.Reactivate", "EggGrade.Update", "EggGrade.Activate",
     "EggGrade.Deactivate", "User.Create", "Account.Export",
+    "Product.Create", "Product.Update", "Product.Activate",
+    "Product.Deactivate", "EggUnitConversion.Update",
   ];
 
   return (

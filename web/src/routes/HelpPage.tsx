@@ -144,6 +144,21 @@ export function HelpPage() {
         </li>
       </ul>
 
+      <h3 id="products">Products (admin)</h3>
+      <ul>
+        <li>
+          Products are what you sell — &quot;Large Eggs by the dozen&quot;,
+          &quot;Mixed carton&quot;. Each egg product points at an egg grade
+          (that&apos;s where its stock comes from) and carries a selling unit
+          and an optional default price. Only egg products exist for now.
+        </li>
+        <li>
+          <strong>Packed units</strong> set how many eggs each unit holds —
+          your carton might be 12, 18, or 30. Changing a unit only affects
+          future sales; past orders keep the count they were sold with.
+        </li>
+      </ul>
+
       <h3 id="stock">Stock</h3>
       <ul>
         <li>
