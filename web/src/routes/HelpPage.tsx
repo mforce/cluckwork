@@ -233,9 +233,13 @@ export function HelpPage() {
       <h3 id="sales">Customers &amp; sales</h3>
       <ul>
         <li>
-          Orders start as <strong>drafts</strong>: add graded lines with
-          quantities and prices, edit freely, or <strong>cancel</strong> (the
-          draft is kept, read-only).
+          Orders start as <strong>drafts</strong>: add lines by picking a{" "}
+          <strong>product</strong>, a packed unit (dozen, carton, …), a
+          quantity, and a price per unit (prefilled from the product&apos;s
+          default) — edit freely, or <strong>cancel</strong> (the draft is
+          kept, read-only). Each line remembers how many eggs its unit held
+          when it was added, so redefining a carton later never changes old
+          orders.
         </li>
         <li>
           <strong>Confirming</strong> an order allocates real stock — oldest

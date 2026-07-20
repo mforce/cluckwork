@@ -190,6 +190,15 @@ Cancelled`): drafts are fully editable (add/edit/remove lines, cancel);
 exist in the status enum for later phases; nothing sets them yet, and only
 `Confirmed` orders can be voided.)
 
+**Sales line (#99)** — sells a **product** in a packed unit. At line creation
+the line snapshots the product type, the grade the product mapped to, and the
+unit's eggs-per-unit factor (`base_unit_factor`, spec §10.5/§9.7); `quantity`
+is selling units, `quantity_base = quantity × factor` is individual eggs —
+allocation and the stock guard run on `quantity_base`. Re-pointing a
+product's grade or redefining a packed unit only affects future lines, never
+recorded ones. Price is per selling unit, prefilled from the product's
+default and editable per line.
+
 **Void** — undo of a mistaken confirm (requires a reason): the allocated
 quantities return to the *exact* egg lots they were drawn from (recorded at
 confirm as lot-level allocations), preserving FIFO order and any withdrawal

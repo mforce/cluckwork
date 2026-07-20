@@ -35,13 +35,29 @@ public sealed class SalesOrder : AggregateRoot<Guid>
         };
     }
 
-    public Result<SalesOrderItem> AddItem(Guid eggGradeId, int quantity, Money unitPrice)
+    // The line snapshots EVERYTHING it needs to stay meaningful forever (spec
+    // §10.5): the product type, the grade the product mapped to at this moment
+    // (re-pointing the mapping later must not rewrite history), and the
+    // eggs-per-unit factor (§9.7 — redefining a carton must not reinterpret
+    // recorded orders).
+    public Result<SalesOrderItem> AddItem(
+        Guid productId, Catalog.ProductType productTypeSnapshot, Guid eggGradeId,
+        Catalog.ProductUnit unit, int baseUnitFactor, int quantity, Money unitPrice)
     {
         if (Status != SalesOrderStatus.Draft)
             return Result.Failure<SalesOrderItem>(Error.Domain(
                 "SalesOrder.NotDraft", "Items can only be added to draft orders."));
+        if (baseUnitFactor < 1)
+            return Result.Failure<SalesOrderItem>(Error.Validation(
+                "SalesOrder.InvalidUnitFactor", "Eggs per unit must be at least 1."));
+        // quantity × factor is int math — wrap-around would allocate garbage.
+        if (quantity > 0 && quantity > int.MaxValue / baseUnitFactor)
+            return Result.Failure<SalesOrderItem>(Error.Validation(
+                "SalesOrder.QuantityTooLarge", "The line exceeds the supported egg count."));
 
-        var item = SalesOrderItem.Create(AccountId, Id, eggGradeId, quantity, unitPrice);
+        var item = SalesOrderItem.Create(
+            AccountId, Id, productId, productTypeSnapshot, eggGradeId,
+            unit, baseUnitFactor, quantity, unitPrice);
         _items.Add(item);
         RecalculateTotal();
         // Version is the concurrency token (EF never auto-increments it): without
@@ -146,8 +162,17 @@ public enum SalesOrderStatus { Draft, Confirmed, Shipped, Invoiced, Cancelled, V
 public sealed class SalesOrderItem : Entity<Guid>
 {
     public Guid SalesOrderId { get; private set; }
+    public Guid ProductId { get; private set; }
+    // Snapshots at line creation (spec §10.5/§9.7) — never re-resolved.
+    public Catalog.ProductType ProductTypeSnapshot { get; private set; }
     public Guid EggGradeId { get; private set; }
+    public Catalog.ProductUnit Unit { get; private set; }
+    public int BaseUnitFactor { get; private set; }
+    /// <summary>Quantity in selling units (dozens, cartons, ...).</summary>
     public int Quantity { get; private set; }
+    /// <summary>Always individual eggs: Quantity × BaseUnitFactor. Allocation runs on this.</summary>
+    public int QuantityBase { get; private set; }
+    /// <summary>Price per selling unit.</summary>
     public Money UnitPrice { get; private set; } = null!;
     public Money LineTotal => UnitPrice.Multiply(Quantity);
 
@@ -156,6 +181,7 @@ public sealed class SalesOrderItem : Entity<Guid>
     internal void Update(int quantity, Money unitPrice)
     {
         Quantity = quantity;
+        QuantityBase = quantity * BaseUnitFactor;
         UnitPrice = unitPrice;
     }
 
@@ -163,15 +189,21 @@ public sealed class SalesOrderItem : Entity<Guid>
     // already-tracked order is discovered as Modified (UPDATE of a nonexistent
     // row) — same trap as daily-entry grade lines.
     internal static SalesOrderItem Create(
-        Guid accountId, Guid orderId,
-        Guid eggGradeId, int quantity, Money unitPrice)
+        Guid accountId, Guid orderId, Guid productId,
+        Catalog.ProductType productTypeSnapshot, Guid eggGradeId,
+        Catalog.ProductUnit unit, int baseUnitFactor, int quantity, Money unitPrice)
     {
         return new SalesOrderItem
         {
             AccountId = accountId,
             SalesOrderId = orderId,
+            ProductId = productId,
+            ProductTypeSnapshot = productTypeSnapshot,
             EggGradeId = eggGradeId,
+            Unit = unit,
+            BaseUnitFactor = baseUnitFactor,
             Quantity = quantity,
+            QuantityBase = quantity * baseUnitFactor,
             UnitPrice = unitPrice
         };
     }

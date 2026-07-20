@@ -24,13 +24,15 @@ public sealed class PaymentsTests(CluckworkWebApplicationFactory factory)
 
     private static readonly DateOnly Today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
 
-    private async Task<(HttpClient Client, Guid AccountId, Guid FarmId, Guid FlockId, Guid GradeId)>
+    private async Task<(HttpClient Client, Guid AccountId, Guid FarmId, Guid FlockId, Guid ProductId)>
         SetupWithStockAsync(int stock = 600)
     {
         var email = $"u-{Guid.NewGuid():N}@test.local";
         var accountId = await factory.SeedAccountWithUserAsync(email);
         var farmId = Guid.NewGuid();
         var grades = await factory.SeedEggGradesAsync(accountId, farmId, "Large");
+        // #99: sales lines sell products (unit Egg → factor 1 keeps the math).
+        var productId = await factory.SeedProductAsync(accountId, farmId, grades["Large"], "Large Eggs");
         var flockId = await factory.SeedFlockAsync(accountId, farmId);
         var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
 
@@ -49,12 +51,12 @@ public sealed class PaymentsTests(CluckworkWebApplicationFactory factory)
         });
         var entryId = (await record.Content.ReadFromJsonAsync<Created>())!.Id;
         await client.PostWithKeyAsync($"/api/v1/daily-entries/{entryId}/submit", Guid.NewGuid().ToString());
-        return (client, accountId, farmId, flockId, grades["Large"]);
+        return (client, accountId, farmId, flockId, productId);
     }
 
     // Confirmed order: qty × 100 minor units → total = qty * 100.
     private static async Task<(Guid OrderId, Guid CustomerId)> CreateConfirmedOrderAsync(
-        HttpClient client, Guid gradeId, int qty)
+        HttpClient client, Guid productId, int qty)
     {
         var customer = await client.PostWithKeyAsync("/api/v1/customers", Guid.NewGuid().ToString(),
             new { name = $"Buyer {Guid.NewGuid():N}"[..20], phone = "555-0100" });
@@ -63,7 +65,7 @@ public sealed class PaymentsTests(CluckworkWebApplicationFactory factory)
             new { customerId, orderDate = Today });
         var orderId = (await order.Content.ReadFromJsonAsync<Created>())!.Id;
         await client.PostWithKeyAsync($"/api/v1/sales/{orderId}/items", Guid.NewGuid().ToString(),
-            new { eggGradeId = gradeId, quantity = qty, unitPriceMinorUnits = 100 });
+            new { productId, quantity = qty, unitPriceMinorUnits = 100 });
         var confirm = await client.PostWithKeyAsync(
             $"/api/v1/sales/{orderId}/confirm", Guid.NewGuid().ToString());
         Assert.Equal(HttpStatusCode.OK, confirm.StatusCode);
@@ -87,8 +89,8 @@ public sealed class PaymentsTests(CluckworkWebApplicationFactory factory)
     [Fact]
     public async Task Payments_PartialThenSettle_OverpayRefused_CurrencyFromOrder()
     {
-        var (client, _, _, _, gradeId) = await SetupWithStockAsync();
-        var (orderId, _) = await CreateConfirmedOrderAsync(client, gradeId, 50); // total 5000
+        var (client, _, _, _, productId) = await SetupWithStockAsync();
+        var (orderId, _) = await CreateConfirmedOrderAsync(client, productId, 50); // total 5000
 
         Assert.Equal(HttpStatusCode.Created, (await PayAsync(client, orderId, 2000, "Check", "chk 1")).StatusCode);
 
@@ -132,8 +134,8 @@ public sealed class PaymentsTests(CluckworkWebApplicationFactory factory)
     [Fact]
     public async Task VoidPayment_GrowsOutstandingBack_GuardsVersionAndDoubleVoid()
     {
-        var (client, _, _, _, gradeId) = await SetupWithStockAsync();
-        var (orderId, _) = await CreateConfirmedOrderAsync(client, gradeId, 10); // total 1000
+        var (client, _, _, _, productId) = await SetupWithStockAsync();
+        var (orderId, _) = await CreateConfirmedOrderAsync(client, productId, 10); // total 1000
         await PayAsync(client, orderId, 1000);
         var payment = (await GetPaymentsAsync(client, orderId)).Items.Single();
 
@@ -170,8 +172,8 @@ public sealed class PaymentsTests(CluckworkWebApplicationFactory factory)
     [Fact]
     public async Task VoidOrder_WithPayments_RefusedUntilPaymentsVoided()
     {
-        var (client, _, _, _, gradeId) = await SetupWithStockAsync();
-        var (orderId, _) = await CreateConfirmedOrderAsync(client, gradeId, 10);
+        var (client, _, _, _, productId) = await SetupWithStockAsync();
+        var (orderId, _) = await CreateConfirmedOrderAsync(client, productId, 10);
         await PayAsync(client, orderId, 500);
 
         var refused = await client.PostWithKeyAsync(
@@ -196,8 +198,8 @@ public sealed class PaymentsTests(CluckworkWebApplicationFactory factory)
     [Fact]
     public async Task ParallelPayments_CannotOvershootTheTotal()
     {
-        var (client, _, _, _, gradeId) = await SetupWithStockAsync();
-        var (orderId, _) = await CreateConfirmedOrderAsync(client, gradeId, 10); // total 1000
+        var (client, _, _, _, productId) = await SetupWithStockAsync();
+        var (orderId, _) = await CreateConfirmedOrderAsync(client, productId, 10); // total 1000
 
         var responses = await Task.WhenAll(
             PayAsync(client, orderId, 700),
@@ -214,8 +216,8 @@ public sealed class PaymentsTests(CluckworkWebApplicationFactory factory)
     [Fact]
     public async Task ParallelVoids_SameBaseVersion_ExactlyOneWins()
     {
-        var (client, _, _, _, gradeId) = await SetupWithStockAsync();
-        var (orderId, _) = await CreateConfirmedOrderAsync(client, gradeId, 10);
+        var (client, _, _, _, productId) = await SetupWithStockAsync();
+        var (orderId, _) = await CreateConfirmedOrderAsync(client, productId, 10);
         await PayAsync(client, orderId, 400);
         var payment = (await GetPaymentsAsync(client, orderId)).Items.Single();
 
@@ -235,9 +237,9 @@ public sealed class PaymentsTests(CluckworkWebApplicationFactory factory)
     [Fact]
     public async Task CustomerBalances_SumConfirmedMinusSettled()
     {
-        var (client, _, _, _, gradeId) = await SetupWithStockAsync();
-        var (order1, customer1) = await CreateConfirmedOrderAsync(client, gradeId, 20); // 2000
-        var (order2, customer2) = await CreateConfirmedOrderAsync(client, gradeId, 30); // 3000
+        var (client, _, _, _, productId) = await SetupWithStockAsync();
+        var (order1, customer1) = await CreateConfirmedOrderAsync(client, productId, 20); // 2000
+        var (order2, customer2) = await CreateConfirmedOrderAsync(client, productId, 30); // 3000
         await PayAsync(client, order1, 500);
         await PayAsync(client, order2, 3000);
 

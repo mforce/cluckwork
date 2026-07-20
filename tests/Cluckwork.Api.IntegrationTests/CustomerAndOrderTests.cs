@@ -18,15 +18,22 @@ public sealed class CustomerAndOrderTests(CluckworkWebApplicationFactory factory
         long TotalMinorUnits, string CurrencyCode, List<OrderItemDto> Items);
     private sealed record StockDto(Guid EggGradeId, int Available, int Restricted);
 
-    private async Task<(HttpClient Client, Guid AccountId, Guid FarmId, Dictionary<string, Guid> Grades)>
+    private async Task<(HttpClient Client, Guid AccountId, Guid FarmId,
+        Dictionary<string, Guid> Grades, Dictionary<string, Guid> Products)>
         SetupAsync(params string[] gradeNames)
     {
         var email = $"u-{Guid.NewGuid():N}@test.local";
         var accountId = await factory.SeedAccountWithUserAsync(email);
         var farmId = Guid.NewGuid();
         var grades = await factory.SeedEggGradesAsync(accountId, farmId, gradeNames);
+        // One product per grade (#99): sales lines sell products, unit Egg →
+        // factor 1, so the old per-egg quantities/prices read the same.
+        var products = new Dictionary<string, Guid>();
+        foreach (var (name, gradeId) in grades)
+            products[name] = await factory.SeedProductAsync(
+                accountId, farmId, gradeId, $"{name} Eggs");
         var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
-        return (client, accountId, farmId, grades);
+        return (client, accountId, farmId, grades, products);
     }
 
     private static async Task<Guid> CreatedId(HttpResponseMessage response)
@@ -38,7 +45,7 @@ public sealed class CustomerAndOrderTests(CluckworkWebApplicationFactory factory
     [Fact]
     public async Task Customer_CreateGetList_RoundTrips()
     {
-        var (client, _, _, _) = await SetupAsync("Large");
+        var (client, _, _, _, products) = await SetupAsync("Large");
 
         var create = await client.PostWithKeyAsync(
             "/api/v1/customers", Guid.NewGuid().ToString(),
@@ -59,7 +66,7 @@ public sealed class CustomerAndOrderTests(CluckworkWebApplicationFactory factory
     [Fact]
     public async Task Customer_MissingPhone_Rejected()
     {
-        var (client, _, _, _) = await SetupAsync("Large");
+        var (client, _, _, _, products) = await SetupAsync("Large");
         var response = await client.PostWithKeyAsync(
             "/api/v1/customers", Guid.NewGuid().ToString(), new { name = "No Phone" });
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
@@ -68,7 +75,7 @@ public sealed class CustomerAndOrderTests(CluckworkWebApplicationFactory factory
     [Fact]
     public async Task CreateOrder_UnknownCustomer_404()
     {
-        var (client, _, _, _) = await SetupAsync("Large");
+        var (client, _, _, _, products) = await SetupAsync("Large");
         var response = await client.PostWithKeyAsync(
             "/api/v1/sales", Guid.NewGuid().ToString(),
             new { customerId = Guid.NewGuid(), orderDate = DateOnly.FromDateTime(DateTime.UtcNow.Date) });
@@ -78,7 +85,7 @@ public sealed class CustomerAndOrderTests(CluckworkWebApplicationFactory factory
     [Fact]
     public async Task CreateOrder_ForeignCustomer_404()
     {
-        var (clientA, _, _, _) = await SetupAsync("Large");
+        var (clientA, _, _, _, _) = await SetupAsync("Large");
         var customerA = await CreatedId(await clientA.PostWithKeyAsync(
             "/api/v1/customers", Guid.NewGuid().ToString(), new { name = "A's customer", phone = "1" }));
 
@@ -93,9 +100,9 @@ public sealed class CustomerAndOrderTests(CluckworkWebApplicationFactory factory
     }
 
     [Fact]
-    public async Task AddItem_UnknownGrade_422_And_NonDraft_409()
+    public async Task AddItem_UnknownProduct_422_And_NonDraft_409()
     {
-        var (client, accountId, _, grades) = await SetupAsync("Large");
+        var (client, accountId, _, grades, products) = await SetupAsync("Large");
         await factory.SeedEggLotAsync(accountId, grades["Large"], 500);
 
         var customerId = await CreatedId(await client.PostWithKeyAsync(
@@ -104,21 +111,21 @@ public sealed class CustomerAndOrderTests(CluckworkWebApplicationFactory factory
             "/api/v1/sales", Guid.NewGuid().ToString(),
             new { customerId, orderDate = DateOnly.FromDateTime(DateTime.UtcNow.Date) }));
 
-        var unknownGrade = await client.PostWithKeyAsync(
+        var unknownProduct = await client.PostWithKeyAsync(
             $"/api/v1/sales/{orderId}/items", Guid.NewGuid().ToString(),
-            new { eggGradeId = Guid.NewGuid(), quantity = 10, unitPriceMinorUnits = 100 });
-        Assert.Equal(HttpStatusCode.UnprocessableEntity, unknownGrade.StatusCode);
+            new { productId = Guid.NewGuid(), quantity = 10, unitPriceMinorUnits = 100 });
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, unknownProduct.StatusCode);
 
         await client.PostWithKeyAsync(
             $"/api/v1/sales/{orderId}/items", Guid.NewGuid().ToString(),
-            new { eggGradeId = grades["Large"], quantity = 10, unitPriceMinorUnits = 100 });
+            new { productId = products["Large"], quantity = 10, unitPriceMinorUnits = 100 });
         var confirm = await client.PostWithKeyAsync(
             $"/api/v1/sales/{orderId}/confirm", Guid.NewGuid().ToString());
         Assert.Equal(HttpStatusCode.OK, confirm.StatusCode);
 
         var addAfterConfirm = await client.PostWithKeyAsync(
             $"/api/v1/sales/{orderId}/items", Guid.NewGuid().ToString(),
-            new { eggGradeId = grades["Large"], quantity = 5, unitPriceMinorUnits = 100 });
+            new { productId = products["Large"], quantity = 5, unitPriceMinorUnits = 100 });
         Assert.Equal(HttpStatusCode.Conflict, addAfterConfirm.StatusCode);
     }
 
@@ -129,7 +136,7 @@ public sealed class CustomerAndOrderTests(CluckworkWebApplicationFactory factory
         // parallel add-items both commit but the second overwrites the first's
         // TotalAmount. With the bump, the loser 409s and rolls back entirely —
         // either way the denormalized total must equal the sum of persisted lines.
-        var (client, _, _, grades) = await SetupAsync("Large");
+        var (client, _, _, grades, products) = await SetupAsync("Large");
         var customerId = await CreatedId(await client.PostWithKeyAsync(
             "/api/v1/customers", Guid.NewGuid().ToString(), new { name = "C", phone = "1" }));
         var orderId = await CreatedId(await client.PostWithKeyAsync(
@@ -137,9 +144,9 @@ public sealed class CustomerAndOrderTests(CluckworkWebApplicationFactory factory
             new { customerId, orderDate = DateOnly.FromDateTime(DateTime.UtcNow.Date) }));
 
         var a = client.PostWithKeyAsync($"/api/v1/sales/{orderId}/items", Guid.NewGuid().ToString(),
-            new { eggGradeId = grades["Large"], quantity = 10, unitPriceMinorUnits = 100 });
+            new { productId = products["Large"], quantity = 10, unitPriceMinorUnits = 100 });
         var b = client.PostWithKeyAsync($"/api/v1/sales/{orderId}/items", Guid.NewGuid().ToString(),
-            new { eggGradeId = grades["Large"], quantity = 20, unitPriceMinorUnits = 100 });
+            new { productId = products["Large"], quantity = 20, unitPriceMinorUnits = 100 });
         var responses = await Task.WhenAll(a, b);
 
         Assert.All(responses, r => Assert.True(
@@ -156,7 +163,7 @@ public sealed class CustomerAndOrderTests(CluckworkWebApplicationFactory factory
     [Fact]
     public async Task Customer_WhitespaceNamePhone_400NotServerError()
     {
-        var (client, _, _, _) = await SetupAsync("Large");
+        var (client, _, _, _, products) = await SetupAsync("Large");
         var response = await client.PostWithKeyAsync(
             "/api/v1/customers", Guid.NewGuid().ToString(), new { name = "   ", phone = "  " });
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
@@ -165,7 +172,7 @@ public sealed class CustomerAndOrderTests(CluckworkWebApplicationFactory factory
     [Fact]
     public async Task AddItem_OverflowingLineTotal_Rejected()
     {
-        var (client, _, _, grades) = await SetupAsync("Large");
+        var (client, _, _, grades, products) = await SetupAsync("Large");
         var customerId = await CreatedId(await client.PostWithKeyAsync(
             "/api/v1/customers", Guid.NewGuid().ToString(), new { name = "C", phone = "1" }));
         var orderId = await CreatedId(await client.PostWithKeyAsync(
@@ -174,14 +181,14 @@ public sealed class CustomerAndOrderTests(CluckworkWebApplicationFactory factory
 
         var response = await client.PostWithKeyAsync(
             $"/api/v1/sales/{orderId}/items", Guid.NewGuid().ToString(),
-            new { eggGradeId = grades["Large"], quantity = 2, unitPriceMinorUnits = long.MaxValue });
+            new { productId = products["Large"], quantity = 2, unitPriceMinorUnits = long.MaxValue });
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
     [Fact]
     public async Task CancelDraft_Succeeds_CancelConfirmed_409()
     {
-        var (client, accountId, _, grades) = await SetupAsync("Large");
+        var (client, accountId, _, grades, products) = await SetupAsync("Large");
         await factory.SeedEggLotAsync(accountId, grades["Large"], 500);
         var customerId = await CreatedId(await client.PostWithKeyAsync(
             "/api/v1/customers", Guid.NewGuid().ToString(), new { name = "C", phone = "1" }));
@@ -199,7 +206,7 @@ public sealed class CustomerAndOrderTests(CluckworkWebApplicationFactory factory
 
         var addToCancelled = await client.PostWithKeyAsync(
             $"/api/v1/sales/{draftId}/items", Guid.NewGuid().ToString(),
-            new { eggGradeId = grades["Large"], quantity = 1, unitPriceMinorUnits = 1 });
+            new { productId = products["Large"], quantity = 1, unitPriceMinorUnits = 1 });
         Assert.Equal(HttpStatusCode.Conflict, addToCancelled.StatusCode);
         var confirmCancelled = await client.PostWithKeyAsync(
             $"/api/v1/sales/{draftId}/confirm", Guid.NewGuid().ToString());
@@ -211,7 +218,7 @@ public sealed class CustomerAndOrderTests(CluckworkWebApplicationFactory factory
             new { customerId, orderDate = DateOnly.FromDateTime(DateTime.UtcNow.Date) }));
         await client.PostWithKeyAsync(
             $"/api/v1/sales/{confirmedId}/items", Guid.NewGuid().ToString(),
-            new { eggGradeId = grades["Large"], quantity = 10, unitPriceMinorUnits = 100 });
+            new { productId = products["Large"], quantity = 10, unitPriceMinorUnits = 100 });
         await client.PostWithKeyAsync(
             $"/api/v1/sales/{confirmedId}/confirm", Guid.NewGuid().ToString());
         var cancelConfirmed = await client.PostWithKeyAsync(
@@ -222,7 +229,7 @@ public sealed class CustomerAndOrderTests(CluckworkWebApplicationFactory factory
     [Fact]
     public async Task EditAndRemoveLines_TotalTracks()
     {
-        var (client, accountId, _, grades) = await SetupAsync("Large", "Medium");
+        var (client, accountId, _, grades, products) = await SetupAsync("Large", "Medium");
         // Stock so the confirm at the end actually succeeds (else the order stays
         // Draft and the final 409 assertion would be testing nothing).
         await factory.SeedEggLotAsync(accountId, grades["Medium"], 100);
@@ -234,10 +241,10 @@ public sealed class CustomerAndOrderTests(CluckworkWebApplicationFactory factory
 
         // two lines: 10x100 + 5x200 = 2000
         var addA = await client.PostWithKeyAsync($"/api/v1/sales/{orderId}/items", Guid.NewGuid().ToString(),
-            new { eggGradeId = grades["Large"], quantity = 10, unitPriceMinorUnits = 100 });
+            new { productId = products["Large"], quantity = 10, unitPriceMinorUnits = 100 });
         var itemA = (await addA.Content.ReadFromJsonAsync<ItemCreatedDto>())!.ItemId;
         await client.PostWithKeyAsync($"/api/v1/sales/{orderId}/items", Guid.NewGuid().ToString(),
-            new { eggGradeId = grades["Medium"], quantity = 5, unitPriceMinorUnits = 200 });
+            new { productId = products["Medium"], quantity = 5, unitPriceMinorUnits = 200 });
 
         // edit line A -> 4x250 = 1000; total 2000
         var put = new HttpRequestMessage(HttpMethod.Put, $"/api/v1/sales/{orderId}/items/{itemA}")
@@ -279,7 +286,7 @@ public sealed class CustomerAndOrderTests(CluckworkWebApplicationFactory factory
         // account/user/grades: record production -> submit -> lots -> customer ->
         // order -> items -> confirm -> stock decremented. This is what a real
         // client (the SPA) will do.
-        var (client, accountId, farmId, grades) = await SetupAsync("Large", "Medium");
+        var (client, accountId, farmId, grades, products) = await SetupAsync("Large", "Medium");
         var flockId = await factory.SeedFlockAsync(accountId, farmId);
         var today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
 
@@ -308,10 +315,10 @@ public sealed class CustomerAndOrderTests(CluckworkWebApplicationFactory factory
             new { customerId, orderDate = today }));
         await client.PostWithKeyAsync(
             $"/api/v1/sales/{orderId}/items", Guid.NewGuid().ToString(),
-            new { eggGradeId = grades["Large"], quantity = 250, unitPriceMinorUnits = 30 });
+            new { productId = products["Large"], quantity = 250, unitPriceMinorUnits = 30 });
         await client.PostWithKeyAsync(
             $"/api/v1/sales/{orderId}/items", Guid.NewGuid().ToString(),
-            new { eggGradeId = grades["Medium"], quantity = 100, unitPriceMinorUnits = 25 });
+            new { productId = products["Medium"], quantity = 100, unitPriceMinorUnits = 25 });
 
         // 3. confirm -> FIFO allocation
         var confirm = await client.PostWithKeyAsync(

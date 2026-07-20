@@ -109,6 +109,7 @@ public sealed class AdminGatingTests(CluckworkWebApplicationFactory factory)
     {
         var (admin, worker, accountId, farmId, flockId) = await SetupAsync();
         var grades = await factory.SeedEggGradesAsync(accountId, farmId, "Large");
+        var productId = await factory.SeedProductAsync(accountId, farmId, grades["Large"], "Large Eggs");
 
         // Entry → submit (creates the day's egg lots).
         var entry = await worker.PostWithKeyAsync("/api/v1/daily-entries", Guid.NewGuid().ToString(), new
@@ -140,7 +141,7 @@ public sealed class AdminGatingTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(HttpStatusCode.Created, order.StatusCode);
         var orderId = (await order.Content.ReadFromJsonAsync<Created>())!.Id;
         var line = await worker.PostWithKeyAsync($"/api/v1/sales/{orderId}/items", Guid.NewGuid().ToString(),
-            new { eggGradeId = grades["Large"], quantity = 30, unitPriceMinorUnits = 100 });
+            new { productId, quantity = 30, unitPriceMinorUnits = 100 });
         Assert.True(line.IsSuccessStatusCode);
         var confirm = await worker.PostWithKeyAsync(
             $"/api/v1/sales/{orderId}/confirm", Guid.NewGuid().ToString());

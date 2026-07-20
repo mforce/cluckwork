@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   addOrderItem, cancelOrder, confirmOrder, createOrder, formatMoney, getOrder,
-  listCustomers, listEggGrades, listOrderPayments, listOrders, recordPayment,
+  listCustomers, listOrderPayments, listOrders, listProducts, recordPayment,
   removeOrderItem, updateOrderItem, voidOrder, voidPayment,
 } from "../api/cluckwork";
-import type { Customer, EggGrade, OrderPayments, SalesOrder } from "../api/cluckwork";
+import type { Customer, OrderPayments, Product, SalesOrder } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 
@@ -29,8 +29,10 @@ export function SalesPage() {
   const [orders, setOrders] = useState<SalesOrder[] | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [grades, setGrades] = useState<EggGrade[]>([]);        // active + saleable (picker)
-  const [allGrades, setAllGrades] = useState<EggGrade[]>([]);  // inactive included (display names)
+  // #99: lines sell PRODUCTS. Active ones feed the picker; the full list
+  // (inactive included) resolves display names on existing lines.
+  const [products, setProducts] = useState<Product[]>([]);
+  const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   // list filters (#24: status/customer/paged)
@@ -42,7 +44,8 @@ export function SalesPage() {
   const [orderDate, setOrderDate] = useState(todayIso());
   // active draft being built
   const [active, setActive] = useState<SalesOrder | null>(null);
-  const [gradeId, setGradeId] = useState("");
+  const [productId, setProductId] = useState("");
+  const [unit, setUnit] = useState("Egg");
   const [qty, setQty] = useState(30);
   const [price, setPrice] = useState("0.30");
   // per-row edit state (draft orders)
@@ -79,7 +82,7 @@ export function SalesPage() {
   const [payNote, setPayNote] = useState("");
 
   const customerName = (id: string) => customers.find((c) => c.id === id)?.name ?? id.slice(0, 8);
-  const gradeName = (id: string) => allGrades.find((g) => g.id === id)?.name ?? id.slice(0, 8);
+  const productName = (id: string) => allProducts.find((p) => p.id === id)?.name ?? id.slice(0, 8);
 
   const loadOrders = useCallback(async (offset = 0) => {
     const page = await listOrders({
@@ -93,17 +96,20 @@ export function SalesPage() {
   }, [statusFilter, customerFilter]);
 
   useEffect(() => {
-    // includeInactive: existing order lines may reference deactivated grades,
-    // and their names must still resolve. The add-item picker filters back down
-    // to active + saleable.
-    Promise.all([listCustomers(), listEggGrades({ includeInactive: true })])
-      .then(([c, g]) => {
+    // includeInactive: existing order lines may reference deactivated
+    // products, and their names must still resolve. The add-item picker
+    // filters back down to active.
+    Promise.all([listCustomers(), listProducts({ includeInactive: true })])
+      .then(([c, p]) => {
         setCustomers(c);
-        setAllGrades(g);
-        const saleable = g.filter((x) => x.active && x.isSaleable);
-        setGrades(saleable);
+        setAllProducts(p);
+        const active = p.filter((x) => x.active);
+        setProducts(active);
         if (c.length > 0) setCustomerId(c[0].id);
-        if (saleable.length > 0) setGradeId(saleable[0].id);
+        if (active.length > 0) {
+          setProductId(active[0].id);
+          setUnit(active[0].defaultUnit);
+        }
       })
       .catch(() => setLoadError("Could not load sales data. Is the API up?"));
   }, []);
@@ -168,11 +174,15 @@ export function SalesPage() {
 
   const onAddItem = () => run(async () => {
     if (!active) return;
-    const minorUnits = Math.round(parseFloat(price) * 10 ** active.currencyMinorUnit);
-    if (!Number.isFinite(minorUnits) || minorUnits < 0) throw new Error("Invalid unit price.");
+    // Empty price → omit it: the server falls back to the product's default.
+    let minorUnits: number | undefined;
+    if (price.trim() !== "") {
+      minorUnits = Math.round(parseFloat(price) * 10 ** active.currencyMinorUnit);
+      if (!Number.isFinite(minorUnits) || minorUnits < 0) throw new Error("Invalid unit price.");
+    }
     const scope = `add-item:${active.id}`;
     await addOrderItem(active.id,
-      { eggGradeId: gradeId, quantity: qty, unitPriceMinorUnits: minorUnits },
+      { productId, quantity: qty, unit, unitPriceMinorUnits: minorUnits },
       keyFor(scope));
     setActive(await getOrder(active.id));
     clearKey(scope);
@@ -347,15 +357,18 @@ export function SalesPage() {
 
           {active.items.length > 0 && (
             <table className="data">
-              <thead><tr><th>Grade</th><th>Qty</th><th>Unit price</th><th>Line total</th><th></th></tr></thead>
+              <thead><tr><th>Product</th><th>Qty</th><th>Eggs</th><th>Unit price</th><th>Line total</th><th></th></tr></thead>
               <tbody>
                 {active.items.map((i) => (
                   <tr key={i.id}>
-                    <td>{gradeName(i.eggGradeId)}</td>
+                    <td>{productName(i.productId)}{" "}
+                      <span className="muted">per {i.unit.toLowerCase()}
+                        {i.baseUnitFactor > 1 ? ` (${i.baseUnitFactor} eggs)` : ""}</span></td>
                     {editItemId === i.id ? (
                       <>
                         <td><input className="cell" type="number" min={1} value={editQty}
                           onChange={(e) => setEditQty(Math.max(1, e.target.valueAsNumber || 1))} /></td>
+                        <td>—</td>
                         <td><input className="cell" type="number" min={0}
                           step={10 ** -active.currencyMinorUnit} value={editPrice}
                           onChange={(e) => setEditPrice(e.target.value)} /></td>
@@ -368,6 +381,7 @@ export function SalesPage() {
                     ) : (
                       <>
                         <td>{i.quantity}</td>
+                        <td>{i.quantityBase}</td>
                         <td>{formatMoney(i.unitPriceMinorUnits, i.currencyCode, i.currencyMinorUnit)}</td>
                         <td>{formatMoney(i.unitPriceMinorUnits * i.quantity, i.currencyCode, i.currencyMinorUnit)}</td>
                         <td>
@@ -396,9 +410,24 @@ export function SalesPage() {
           {active.status === "Draft" && (
             <>
               <div className="form-grid">
-                <label>Grade
-                  <select value={gradeId} onChange={(e) => setGradeId(e.target.value)}>
-                    {grades.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+                <label>Product
+                  <select value={productId} onChange={(e) => {
+                    setProductId(e.target.value);
+                    const p = products.find((x) => x.id === e.target.value);
+                    if (p) {
+                      setUnit(p.defaultUnit);
+                      setPrice(p.defaultPriceMinorUnits === null ? "" :
+                        (p.defaultPriceMinorUnits / 10 ** p.currencyMinorUnit)
+                          .toFixed(p.currencyMinorUnit));
+                    }
+                  }}>
+                    {products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </label>
+                <label>Per
+                  <select value={unit} onChange={(e) => setUnit(e.target.value)}>
+                    {["Egg", "Dozen", "Flat", "Tray", "Carton", "Case"].map((u) =>
+                      <option key={u} value={u}>{u}</option>)}
                   </select>
                 </label>
                 <label>Quantity
@@ -409,7 +438,7 @@ export function SalesPage() {
                   <input type="number" min={0} step={10 ** -active.currencyMinorUnit} value={price}
                     onChange={(e) => setPrice(e.target.value)} />
                 </label>
-                <button disabled={busy || !gradeId} onClick={onAddItem}>Add line</button>
+                <button disabled={busy || !productId} onClick={onAddItem}>Add line</button>
               </div>
               <div className="actions">
                 <button disabled={busy || active.items.length === 0} onClick={onConfirm}>

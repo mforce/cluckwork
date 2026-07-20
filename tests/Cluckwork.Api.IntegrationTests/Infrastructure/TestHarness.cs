@@ -117,6 +117,29 @@ internal static class TestHarness
         return ids;
     }
 
+    // Seeds an egg product mapped to a grade (#99 — sales lines sell products).
+    // Unit Egg → factor 1, so quantities behave exactly like the old raw-grade
+    // lines unless a test opts into packed units.
+    public static async Task<Guid> SeedProductAsync(
+        this CluckworkWebApplicationFactory factory, Guid accountId, Guid farmId,
+        Guid eggGradeId, string? name = null, long? defaultPriceMinorUnits = null)
+    {
+        var productId = Guid.NewGuid();
+        await factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            db.Products.Add(Cluckwork.Domain.Catalog.Product.Create(
+                productId, accountId, farmId,
+                name ?? $"Product-{productId.ToString()[..8]}",
+                Cluckwork.Domain.Catalog.ProductType.Egg,
+                Cluckwork.Domain.Catalog.ProductUnit.Egg,
+                defaultPriceMinorUnits, "USD", 2, notes: null));
+            db.ProductEggGradeMappings.Add(Cluckwork.Domain.Catalog.ProductEggGradeMapping.Create(
+                Guid.NewGuid(), accountId, productId, eggGradeId));
+            await db.SaveChangesAsync();
+        });
+        return productId;
+    }
+
     // Seeds an Active flock — daily entries now require a live flock row (#47),
     // so tests can no longer post entries against invented flock ids.
     public static async Task<Guid> SeedFlockAsync(
@@ -176,7 +199,21 @@ internal static class TestHarness
                 orderId, accountId, customer.Id,
                 $"SO-{orderId.ToString()[..8]}", DateOnly.FromDateTime(DateTime.UtcNow.Date), "USD");
             foreach (var (eggGradeId, quantity) in lines)
-                order.AddItem(eggGradeId, quantity, Cluckwork.Domain.Common.Money.Zero("USD"));
+            {
+                // #99: lines carry a product; seed one per grade line (unit Egg,
+                // factor 1 — quantities unchanged).
+                var product = Cluckwork.Domain.Catalog.Product.Create(
+                    Guid.NewGuid(), accountId, Guid.NewGuid(),
+                    $"P-{Guid.NewGuid():N}"[..20],
+                    Cluckwork.Domain.Catalog.ProductType.Egg,
+                    Cluckwork.Domain.Catalog.ProductUnit.Egg, null, "USD", 2, null);
+                db.Products.Add(product);
+                db.ProductEggGradeMappings.Add(Cluckwork.Domain.Catalog.ProductEggGradeMapping.Create(
+                    Guid.NewGuid(), accountId, product.Id, eggGradeId));
+                order.AddItem(product.Id, Cluckwork.Domain.Catalog.ProductType.Egg, eggGradeId,
+                    Cluckwork.Domain.Catalog.ProductUnit.Egg, 1, quantity,
+                    Cluckwork.Domain.Common.Money.Zero("USD"));
+            }
             db.SalesOrders.Add(order);
             await db.SaveChangesAsync();
         });

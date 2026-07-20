@@ -1,6 +1,7 @@
 namespace Cluckwork.Domain.Tests.Sales;
 
 using Cluckwork.Domain.Common;
+using Cluckwork.Domain.Catalog;
 using Cluckwork.Domain.Sales;
 
 public sealed class SalesOrderTests
@@ -26,7 +27,7 @@ public sealed class SalesOrderTests
     public void Cancel_Confirmed_Fails()
     {
         var order = MakeDraft();
-        order.AddItem(Guid.NewGuid(), 10, Money.Zero("USD"));
+        order.AddItem(Guid.NewGuid(), ProductType.Egg, Guid.NewGuid(), ProductUnit.Egg, 1, 10, Money.Zero("USD"));
         order.Confirm();
 
         var result = order.Cancel();
@@ -38,8 +39,8 @@ public sealed class SalesOrderTests
     public void RemoveItem_RecalculatesTotal_AndBumpsVersion()
     {
         var order = MakeDraft();
-        var keep = order.AddItem(Guid.NewGuid(), 10, new Money(100, "USD", 2)).Value;
-        var drop = order.AddItem(Guid.NewGuid(), 5, new Money(200, "USD", 2)).Value;
+        var keep = order.AddItem(Guid.NewGuid(), ProductType.Egg, Guid.NewGuid(), ProductUnit.Egg, 1, 10, new Money(100, "USD", 2)).Value;
+        var drop = order.AddItem(Guid.NewGuid(), ProductType.Egg, Guid.NewGuid(), ProductUnit.Egg, 1, 5, new Money(200, "USD", 2)).Value;
         var before = order.Version;
 
         var result = order.RemoveItem(drop.Id);
@@ -55,7 +56,7 @@ public sealed class SalesOrderTests
     public void UpdateItem_RecalculatesTotal()
     {
         var order = MakeDraft();
-        var item = order.AddItem(Guid.NewGuid(), 10, new Money(100, "USD", 2)).Value;
+        var item = order.AddItem(Guid.NewGuid(), ProductType.Egg, Guid.NewGuid(), ProductUnit.Egg, 1, 10, new Money(100, "USD", 2)).Value;
 
         var result = order.UpdateItem(item.Id, 4, new Money(250, "USD", 2));
 
@@ -77,7 +78,7 @@ public sealed class SalesOrderTests
     public void RemoveItem_OnConfirmed_Fails()
     {
         var order = MakeDraft();
-        var item = order.AddItem(Guid.NewGuid(), 10, Money.Zero("USD")).Value;
+        var item = order.AddItem(Guid.NewGuid(), ProductType.Egg, Guid.NewGuid(), ProductUnit.Egg, 1, 10, Money.Zero("USD")).Value;
         order.Confirm();
 
         var result = order.RemoveItem(item.Id);
@@ -91,7 +92,7 @@ public sealed class SalesOrderTests
         var order = MakeDraft();
         order.Cancel();
 
-        var result = order.AddItem(Guid.NewGuid(), 10, Money.Zero("USD"));
+        var result = order.AddItem(Guid.NewGuid(), ProductType.Egg, Guid.NewGuid(), ProductUnit.Egg, 1, 10, Money.Zero("USD"));
         Assert.True(result.IsFailure);
         Assert.Equal("SalesOrder.NotDraft", result.Error.Code);
     }
@@ -99,7 +100,7 @@ public sealed class SalesOrderTests
     private static SalesOrder MakeConfirmed()
     {
         var order = MakeDraft();
-        order.AddItem(Guid.NewGuid(), 10, Money.Zero("USD"));
+        order.AddItem(Guid.NewGuid(), ProductType.Egg, Guid.NewGuid(), ProductUnit.Egg, 1, 10, Money.Zero("USD"));
         order.Confirm();
         return order;
     }

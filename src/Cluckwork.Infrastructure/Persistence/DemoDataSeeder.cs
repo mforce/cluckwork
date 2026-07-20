@@ -6,6 +6,7 @@ using Cluckwork.Application.Features.DailyEntries.SubmitDailyEntry;
 using Cluckwork.Application.Features.EggGrades;
 using Cluckwork.Application.Features.Flocks.CreateFlock;
 using Cluckwork.Application.Features.Flocks.RecordBirdMovement;
+using Cluckwork.Application.Features.Catalog.CreateProduct;
 using Cluckwork.Application.Features.Sales.AddOrderItem;
 using Cluckwork.Application.Features.Sales.ConfirmSale;
 using Cluckwork.Application.Features.Sales.CreateSalesOrder;
@@ -33,6 +34,7 @@ public sealed class DemoDataSeeder(
     RecordDailyEntryHandler recordEntry,
     SubmitDailyEntryHandler submitEntry,
     RecordBirdMovementHandler recordMovement,
+    CreateProductHandler createProduct,
     CreateCustomerHandler createCustomer,
     CreateSalesOrderHandler createOrder,
     AddOrderItemHandler addItem,
@@ -174,20 +176,27 @@ public sealed class DemoDataSeeder(
         Require(await createCustomer.HandleAsync(new CreateCustomerCommand(
             "Hotel Paraíso", "555-0142"), accountId, ct));
 
+        // --- Products (#99): sales sell products, not raw grades. Prices are
+        // per individual egg (unit Egg → factor 1), preserving the old demo math.
+        var largeEggs = Require(await createProduct.HandleAsync(new CreateProductCommand(
+            "Large Eggs", "Egg", "Egg", 45, grades["Large"], null), accountId, ct));
+        var mediumEggs = Require(await createProduct.HandleAsync(new CreateProductCommand(
+            "Medium Eggs", "Egg", "Egg", 38, grades["Medium"], null), accountId, ct));
+
         // --- Orders: one confirmed (exercises FIFO allocation), one open draft.
         var confirmed = Require(await createOrder.HandleAsync(new CreateSalesOrderCommand(
             mercado, today.AddDays(-1)), accountId, ct));
         Require(await addItem.HandleAsync(new AddOrderItemCommand(
-            confirmed, grades["Large"], 360, 45), accountId, ct));
+            confirmed, largeEggs, 360, null, null), accountId, ct));
         Require(await addItem.HandleAsync(new AddOrderItemCommand(
-            confirmed, grades["Medium"], 180, 38), accountId, ct));
+            confirmed, mediumEggs, 180, null, null), accountId, ct));
         Check((await confirmSale.HandleAsync(new ConfirmSaleCommand(confirmed), accountId, ct))
             is { IsSuccess: true } ? Result.Success() : Result.Failure(Error.Domain("Demo.Confirm", "confirm failed")));
 
         var draft = Require(await createOrder.HandleAsync(new CreateSalesOrderCommand(
             kcc, today), accountId, ct));
         Require(await addItem.HandleAsync(new AddOrderItemCommand(
-            draft, grades["Large"], 240, 45), accountId, ct));
+            draft, largeEggs, 240, null, null), accountId, ct));
     }
 
     private static Guid Require(Result<Guid> result)

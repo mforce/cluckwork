@@ -88,9 +88,11 @@ public sealed class ExportQueries(AppDbContext db) : IExportQueries
 
             "sales-order-items" => Rows(db.SalesOrderItems.AsNoTracking()
                     .OrderBy(x => x.SalesOrderId).ThenBy(x => x.Id),
-                ["id", "salesOrderId", "eggGradeId", "quantity",
+                ["id", "salesOrderId", "productId", "productTypeSnapshot", "eggGradeId",
+                 "unit", "baseUnitFactor", "quantity", "quantityBase",
                  "unitPriceMinorUnits", "currencyCode", "currencyMinorUnit"],
-                x => [x.Id, x.SalesOrderId, x.EggGradeId, x.Quantity,
+                x => [x.Id, x.SalesOrderId, x.ProductId, x.ProductTypeSnapshot, x.EggGradeId,
+                      x.Unit, x.BaseUnitFactor, x.Quantity, x.QuantityBase,
                       x.UnitPrice.MinorUnits, x.UnitPrice.CurrencyCode, x.UnitPrice.CurrencyMinorUnit]),
 
             "sales-order-allocations" => Rows(db.SalesOrderAllocations.AsNoTracking()

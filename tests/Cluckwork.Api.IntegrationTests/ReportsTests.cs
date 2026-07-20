@@ -122,6 +122,7 @@ public sealed class ReportsTests(CluckworkWebApplicationFactory factory)
         var accountId = await factory.SeedAccountWithUserAsync(email);
         var farmId = Guid.NewGuid();
         var grades = await factory.SeedEggGradesAsync(accountId, farmId, "Large");
+        var productId = await factory.SeedProductAsync(accountId, farmId, grades["Large"], "Large Eggs");
         var flockId = await factory.SeedFlockAsync(accountId, farmId);
         var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
 
@@ -142,7 +143,7 @@ public sealed class ReportsTests(CluckworkWebApplicationFactory factory)
             new { customerId, orderDate = Today });
         var orderId = (await order.Content.ReadFromJsonAsync<Created>())!.Id;
         await client.PostWithKeyAsync($"/api/v1/sales/{orderId}/items", Guid.NewGuid().ToString(),
-            new { eggGradeId = grades["Large"], quantity = 40, unitPriceMinorUnits = 100 });
+            new { productId, quantity = 40, unitPriceMinorUnits = 100 });
         await client.PostWithKeyAsync($"/api/v1/sales/{orderId}/confirm", Guid.NewGuid().ToString());
         await client.PostWithKeyAsync($"/api/v1/sales/{orderId}/payments", Guid.NewGuid().ToString(),
             new { paymentDate = Today, amountMinorUnits = 1500, method = "Cash" });
