@@ -61,6 +61,29 @@ docker compose -f deploy/docker-compose.dev.yml up -d   # Postgres on :5432
 dotnet run --project src/Cluckwork.Api
 ```
 
+### Backup &amp; restore (self-hosted)
+
+Two complementary layers (spec §17.5):
+
+- **In-app**: an Admin can download any dataset as CSV — or the whole
+  account as a zip — from the **Export** screen (`/api/v1/export/...`).
+  Good for spreadsheets and keeping an offline copy; not a restore format.
+- **Database dump**: the real backup for disaster recovery.
+
+```bash
+# Backup (compressed custom format; uses the credentials from deploy/.env)
+docker compose -f deploy/docker-compose.yml --env-file deploy/.env exec db \
+  sh -c 'pg_dump -U "$POSTGRES_USER" -Fc "$POSTGRES_DB"' > cluckwork-$(date +%Y%m%d).dump
+
+# Restore into a fresh database (stop the API first)
+docker compose -f deploy/docker-compose.yml --env-file deploy/.env exec -T db \
+  sh -c 'pg_restore -U "$POSTGRES_USER" --clean --if-exists -d "$POSTGRES_DB"' < cluckwork-YYYYMMDD.dump
+```
+
+Dumps contain everything — credentials hashes, tokens, all tenants — so
+store them as secrets, not as shared files. Scheduled backups and health
+checks are Phase 1.5.
+
 ### Tests
 
 ```bash

@@ -7,6 +7,7 @@ using Cluckwork.Api.Endpoints.Customers;
 using Cluckwork.Api.Endpoints.DailyEntries;
 using Cluckwork.Api.Endpoints.EggGrades;
 using Cluckwork.Api.Endpoints.Expenses;
+using Cluckwork.Api.Endpoints.Export;
 using Cluckwork.Api.Endpoints.Flocks;
 using Cluckwork.Api.Endpoints.Reports;
 using Cluckwork.Api.Endpoints.Inventory;
@@ -99,6 +100,7 @@ builder.Services.AddScoped<Cluckwork.Application.Common.ICurrentUser>(sp =>
     sp.GetRequiredService<Cluckwork.Infrastructure.Identity.CurrentUserContext>());
 builder.Services.AddScoped<Cluckwork.Application.Common.IAuditWriter, AuditWriter>();
 builder.Services.AddScoped<Cluckwork.Application.Features.Audit.IAuditEventRepository, AuditEventRepository>();
+builder.Services.AddScoped<Cluckwork.Application.Features.Export.IExportQueries, ExportQueries>();
 
 // --- EF Core ---
 var dbProvider = builder.Configuration["Database:Provider"] ?? "Postgres";
@@ -413,6 +415,12 @@ app.MapGroup("/api/v1/users")
     .WithTags("Users")
     .RequireAuthorization(AuthPolicies.AdminOnly)
     .MapUserEndpoints();
+
+// Manual backup (#95): CSV export, read-only, admin-only.
+app.MapGroup("/api/v1/export")
+    .WithTags("Export")
+    .RequireAuthorization(AuthPolicies.AdminOnly)
+    .MapExportEndpoints();
 
 // Health: live = the process runs (no checks); ready = dependencies too.
 app.MapHealthChecks("/health/live", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions

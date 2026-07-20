@@ -279,3 +279,11 @@ access token and is re-read at every token refresh.
 with email, password, and role (Admin or Worker) and list existing ones.
 Editing roles/passwords and house-scoped permissions belong to the RBAC
 slice.
+
+**Export (manual backup) (#95)** — admin-only downloads of the account's
+data as CSV files: one file per dataset, or a **full account export** — a
+single zip with every dataset plus a manifest of row counts. CSVs are
+RFC 4180 (UTF-8 with BOM), dates ISO-8601, money as raw minor units with
+currency columns — a copy of what's stored, never a re-formatting. Cells
+that a spreadsheet would run as a formula are prefixed so they render as
+text. Scheduled backups belong to Phase 1.5 (spec §17.5).

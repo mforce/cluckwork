@@ -305,6 +305,22 @@ export function HelpPage() {
         </li>
       </ul>
 
+      <h3 id="export">Export &amp; backup (admin)</h3>
+      <ul>
+        <li>
+          The Export screen downloads your data as CSV files you can open in
+          any spreadsheet — one dataset at a time, or everything at once as a
+          zip (the <strong>full backup</strong>, with a manifest of row
+          counts). Keep a copy somewhere safe on your own schedule; automatic
+          scheduled backups come in a later phase.
+        </li>
+        <li>
+          Money columns hold minor units (cents) plus the currency — exact
+          values, not display formatting. Dates are ISO (YYYY-MM-DD), and
+          timestamps are UTC.
+        </li>
+      </ul>
+
       <h3 id="mistakes">Fixing mistakes</h3>
       <p className="muted">
         Every fix in this table needs an admin sign-in (see "Who can do what")

@@ -147,6 +147,48 @@ export function apiDelete<T>(path: string, idempotencyKey?: string): Promise<T> 
   });
 }
 
+// File download with the same auth + one transparent refresh-and-retry as
+// apiFetch. Returns the body as a Blob plus the server's suggested filename.
+export async function apiGetBlob(
+  path: string,
+): Promise<{ blob: Blob; filename: string | null }> {
+  const tokens = loadTokens();
+  if (!tokens) {
+    onUnauthenticated?.();
+    throw new ApiError(401, "NoSession", "Not authenticated.");
+  }
+
+  try {
+    return await rawBlob(path, tokens.accessToken);
+  } catch (err) {
+    if (!(err instanceof ApiError) || err.status !== 401) throw err;
+    try {
+      const refreshed = await refreshTokens();
+      return await rawBlob(path, refreshed.accessToken);
+    } catch {
+      clearTokens();
+      onUnauthenticated?.();
+      throw err;
+    }
+  }
+}
+
+async function rawBlob(
+  path: string,
+  accessToken: string,
+): Promise<{ blob: Blob; filename: string | null }> {
+  const res = await fetch(`${BASE}${path}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) throw await parseError(res);
+  const disposition = res.headers.get("Content-Disposition");
+  const match = disposition?.match(/filename\*?=(?:UTF-8''|")?([^";]+)/i);
+  return {
+    blob: await res.blob(),
+    filename: match ? decodeURIComponent(match[1]) : null,
+  };
+}
+
 export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
   const tokens = loadTokens();
   if (!tokens) {
