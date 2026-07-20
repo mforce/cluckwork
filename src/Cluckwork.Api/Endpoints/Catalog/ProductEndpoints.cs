@@ -126,17 +126,18 @@ public static class ProductEndpoints
 
     private static async Task<IResult> UpdateConversion(
         Guid id, UpdateEggUnitConversionRequest request,
-        UpdateEggUnitConversionHandler handler, TenantContext tenant, CancellationToken ct)
+        UpdateEggUnitConversionHandler handler,
+        IValidator<UpdateEggUnitConversionCommand> validator,
+        TenantContext tenant, CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
-        if (request.EggsPerUnit < 1)
-            return Results.ValidationProblem(new Dictionary<string, string[]>
-            {
-                ["eggsPerUnit"] = ["Eggs per unit must be at least 1."],
-            });
 
-        var result = await handler.HandleAsync(
-            new UpdateEggUnitConversionCommand(id, request.EggsPerUnit, request.Active), ct);
+        var command = new UpdateEggUnitConversionCommand(id, request.EggsPerUnit, request.Active);
+        var validation = await validator.ValidateAsync(command, ct);
+        if (!validation.IsValid)
+            return Results.ValidationProblem(validation.ToDictionary());
+
+        var result = await handler.HandleAsync(command, ct);
         return result.IsSuccess ? Results.NoContent() : MapFailure(result.Error);
     }
 

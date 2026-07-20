@@ -200,6 +200,8 @@ builder.Services.AddScoped<IValidator<Cluckwork.Application.Features.Catalog.Cre
     Cluckwork.Application.Features.Catalog.CreateProduct.CreateProductValidator>();
 builder.Services.AddScoped<IValidator<Cluckwork.Application.Features.Catalog.UpdateProduct.UpdateProductCommand>,
     Cluckwork.Application.Features.Catalog.UpdateProduct.UpdateProductValidator>();
+builder.Services.AddScoped<IValidator<Cluckwork.Application.Features.Catalog.UpdateEggUnitConversion.UpdateEggUnitConversionCommand>,
+    Cluckwork.Application.Features.Catalog.UpdateEggUnitConversion.UpdateEggUnitConversionValidator>();
 builder.Services.AddScoped<IValidator<CreateFlockCommand>, CreateFlockValidator>();
 builder.Services.AddScoped<IValidator<CreateCustomerCommand>, CreateCustomerValidator>();
 builder.Services.AddScoped<IValidator<CreateSalesOrderCommand>, CreateSalesOrderValidator>();

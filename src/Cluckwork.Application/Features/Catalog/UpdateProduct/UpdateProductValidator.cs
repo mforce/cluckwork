@@ -8,9 +8,11 @@ public sealed class UpdateProductValidator : AbstractValidator<UpdateProductComm
     public UpdateProductValidator()
     {
         RuleFor(x => x.Name).NotEmpty().MaximumLength(Product.MaxNameLength);
+        // All products are egg products this phase, so the egg-unit whitelist
+        // applies to updates too (codex review of #98).
         RuleFor(x => x.DefaultUnit)
-            .Must(u => Enum.TryParse<ProductUnit>(u, ignoreCase: true, out _))
-            .WithMessage("Unknown unit.");
+            .Must(CreateProduct.CreateProductValidator.IsEggUnit)
+            .WithMessage("Egg products sell per egg, dozen, flat, tray, carton, or case.");
         RuleFor(x => x.DefaultPriceMinorUnits).GreaterThanOrEqualTo(0)
             .When(x => x.DefaultPriceMinorUnits is not null);
         RuleFor(x => x.EggGradeId).NotEmpty()

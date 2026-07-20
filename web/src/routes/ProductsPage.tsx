@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import {
   activateProduct, createProduct, deactivateProduct, formatMoney,
-  listEggGrades, listEggUnitConversions, listProducts,
+  getAccount, listEggGrades, listEggUnitConversions, listProducts,
   updateEggUnitConversion, updateProduct,
 } from "../api/cluckwork";
 import type { EggGrade, EggUnitConversion, Product } from "../api/cluckwork";
@@ -11,7 +11,9 @@ import { useAuth } from "../auth/useAuth";
 
 // Spec §10.1 default_unit values usable for egg products; packed units resolve
 // through the conversions below at sale time (part 2 of #97).
-const EGG_UNITS = ["Egg", "Dozen", "Flat", "Tray", "Carton", "Case", "Other"];
+// "Other" is deliberately absent: it has no packed-unit conversion row this
+// phase, so an Other product could never resolve to eggs (codex review of #98).
+const EGG_UNITS = ["Egg", "Dozen", "Flat", "Tray", "Carton", "Case"];
 
 function errorMessage(err: unknown): string {
   if (err instanceof ApiError) return err.message;
@@ -47,11 +49,12 @@ export function ProductsPage() {
   // inline edit (conversions)
   const [editingConvId, setEditingConvId] = useState<string | null>(null);
   const [editEggs, setEditEggs] = useState(1);
+  const [editConvActive, setEditConvActive] = useState(true);
 
-  // The account's currency travels on every product row; before the first
-  // product exists we fall back to 2 decimals (matches the account default).
-  const minor = products?.[0]?.currencyMinorUnit ?? 2;
-  const code = products?.[0]?.currencyCode ?? "";
+  // CREATE prices parse with the ACCOUNT currency (what the new product will
+  // snapshot); EDIT prices parse with that product's own snapshot — never
+  // another row's precision (codex review of #98).
+  const [currency, setCurrency] = useState<{ code: string; minor: number }>({ code: "", minor: 2 });
 
   const keys = useRef(new Map<string, string>());
   const keyFor = (scope: string) => {
@@ -77,17 +80,19 @@ export function ProductsPage() {
       listProducts({ includeInactive: true }),
       listEggUnitConversions(),
       listEggGrades(),
+      getAccount(),
     ])
-      .then(([p, c, g]) => {
+      .then(([p, c, g, a]) => {
         setProducts(p);
         setConversions(c);
         setGrades(g.filter((x) => x.isSaleable));
+        setCurrency({ code: a.currencyCode, minor: a.currencyMinorUnit });
       })
       .catch(() => setError("Could not load the catalog. Is the API up?"));
   }, []);
 
   // Exact string parsing — never float × 10^n (money rule).
-  const toMinorUnits = (display: string): number | null => {
+  const toMinorUnits = (display: string, minor: number): number | null => {
     const trimmed = display.trim();
     if (!trimmed) return null;
     const match = /^(\d+)(?:\.(\d+))?$/.exec(trimmed);
@@ -122,7 +127,7 @@ export function ProductsPage() {
     e.preventDefault();
     let priceMinor: number | null;
     try {
-      priceMinor = toMinorUnits(price);
+      priceMinor = toMinorUnits(price, currency.minor);
     } catch (err) {
       setError(errorMessage(err));
       return;
@@ -155,9 +160,10 @@ export function ProductsPage() {
   }
 
   async function onSaveEdit(id: string) {
+    const target = products?.find((p) => p.id === id);
     let priceMinor: number | null;
     try {
-      priceMinor = toMinorUnits(editPrice);
+      priceMinor = toMinorUnits(editPrice, target?.currencyMinorUnit ?? currency.minor);
     } catch (err) {
       setError(errorMessage(err));
       return;
@@ -175,7 +181,7 @@ export function ProductsPage() {
 
   async function onSaveConversion(c: EggUnitConversion) {
     const ok = await run(`conv:${c.id}`, (key) =>
-      updateEggUnitConversion(c.id, { eggsPerUnit: editEggs, active: c.active }, key));
+      updateEggUnitConversion(c.id, { eggsPerUnit: editEggs, active: editConvActive }, key));
     if (ok) setEditingConvId(null);
   }
 
@@ -216,8 +222,8 @@ export function ProductsPage() {
               {EGG_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
             </select>
           </label>
-          <label>Default price{code ? ` (${code})` : ""}
-            <input type="number" min="0" step={(1 / 10 ** minor).toFixed(minor)}
+          <label>Default price{currency.code ? ` (${currency.code})` : ""}
+            <input type="number" min="0" step={(1 / 10 ** currency.minor).toFixed(currency.minor)}
               value={price} onChange={(e) => setPrice(e.target.value)} placeholder="optional" />
           </label>
           <label>Notes
@@ -250,7 +256,8 @@ export function ProductsPage() {
                         {EGG_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
                       </select>
                     </td>
-                    <td><input type="number" min="0" step={(1 / 10 ** minor).toFixed(minor)}
+                    <td><input type="number" min="0"
+                      step={(1 / 10 ** p.currencyMinorUnit).toFixed(p.currencyMinorUnit)}
                       value={editPrice} onChange={(e) => setEditPrice(e.target.value)} /></td>
                     <td>{p.active ? "Active" : "Inactive"}</td>
                     <td>
@@ -299,16 +306,20 @@ export function ProductsPage() {
       </p>
       <table className="data">
         <thead>
-          <tr><th>Unit</th><th>Eggs per unit</th>{isAdmin && <th>Actions</th>}</tr>
+          <tr><th>Unit</th><th>Eggs per unit</th><th>Status</th>{isAdmin && <th>Actions</th>}</tr>
         </thead>
         <tbody>
           {conversions.map((c) => (
-            <tr key={c.id}>
+            <tr key={c.id} className={c.active ? undefined : "muted"}>
               <td>{c.unitCode}</td>
               {editingConvId === c.id ? (
                 <>
                   <td><input type="number" min={1} value={editEggs}
                     onChange={(e) => setEditEggs(Number(e.target.value))} /></td>
+                  <td>
+                    <label><input type="checkbox" checked={editConvActive}
+                      onChange={(e) => setEditConvActive(e.target.checked)} /> active</label>
+                  </td>
                   <td>
                     <button className="link" disabled={busy} onClick={() => void onSaveConversion(c)}>save</button>{" "}
                     <button className="link" disabled={busy} onClick={() => setEditingConvId(null)}>cancel</button>
@@ -317,13 +328,18 @@ export function ProductsPage() {
               ) : (
                 <>
                   <td>{c.eggsPerUnit}</td>
+                  <td>{c.active ? "Active" : "Inactive"}</td>
                   {isAdmin && (
                     <td>
                       {c.unitCode === "Individual" ? (
                         <span className="muted">always 1</span>
                       ) : (
                         <button className="link" disabled={busy}
-                          onClick={() => { setEditingConvId(c.id); setEditEggs(c.eggsPerUnit); }}>
+                          onClick={() => {
+                            setEditingConvId(c.id);
+                            setEditEggs(c.eggsPerUnit);
+                            setEditConvActive(c.active);
+                          }}>
                           edit
                         </button>
                       )}

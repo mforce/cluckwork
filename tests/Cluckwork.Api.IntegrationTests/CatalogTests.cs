@@ -155,6 +155,93 @@ public sealed class CatalogTests(CluckworkWebApplicationFactory factory)
     }
 
     [Fact]
+    public async Task Create_RejectsNonEggUnits_AndNumericEnumValues()
+    {
+        var (client, _, _, grades) = await SetupAsync();
+
+        // Units that can't resolve through EggUnitConversion → 400.
+        foreach (var unit in new[] { "Bird", "Kg", "Package", "Other" })
+            Assert.Equal(HttpStatusCode.BadRequest,
+                (await CreateProductAsync(client, $"P-{unit}", grades["Large"], unit: unit)).StatusCode);
+
+        // Enum.TryParse accepts bare numerals — the validator must not.
+        Assert.Equal(HttpStatusCode.BadRequest,
+            (await CreateProductAsync(client, "P-num", grades["Large"], unit: "999")).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest,
+            (await CreateProductAsync(client, "P-numtype", grades["Large"], type: "1")).StatusCode);
+    }
+
+    // AGENTS.md race rule: every aggregate mutation bumps Version by exactly 1
+    // per success — parallel writers can conflict (409) but never lose updates.
+    [Fact]
+    public async Task ParallelWrites_NeverLoseUpdates()
+    {
+        var (client, _, _, grades) = await SetupAsync();
+        var created = await CreateProductAsync(client, "Race Eggs", grades["Large"]);
+        var id = (await created.Content.ReadFromJsonAsync<Created>())!.Id;
+
+        Task<HttpResponseMessage> Update(string name)
+        {
+            var put = new HttpRequestMessage(HttpMethod.Put, $"/api/v1/products/{id}")
+            {
+                Content = JsonContent.Create(new
+                {
+                    name, defaultUnit = "Dozen",
+                    defaultPriceMinorUnits = (long?)500, eggGradeId = grades["Large"],
+                    notes = (string?)null,
+                })
+            };
+            put.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
+            return client.SendAsync(put);
+        }
+
+        var responses = await Task.WhenAll(Update("Race Eggs A"), Update("Race Eggs B"));
+        var successes = responses.Count(r => r.StatusCode == HttpStatusCode.NoContent);
+        Assert.True(successes >= 1);
+        Assert.All(responses, r => Assert.Contains(r.StatusCode,
+            new[] { HttpStatusCode.NoContent, HttpStatusCode.Conflict }));
+
+        // Version moved exactly once per success — a lost update would show
+        // fewer bumps than successes.
+        var row = Assert.Single((await client.GetFromJsonAsync<List<ProductRow>>("/api/v1/products"))!);
+        Assert.Equal(successes, row.Version);
+
+        // Same rule for conversions.
+        var conversions = await client.GetFromJsonAsync<List<ConversionRow>>("/api/v1/egg-unit-conversions");
+        var carton = conversions!.Single(c => c.UnitCode == "Carton");
+        Task<HttpResponseMessage> UpdateConv(int eggs)
+        {
+            var put = new HttpRequestMessage(HttpMethod.Put, $"/api/v1/egg-unit-conversions/{carton.Id}")
+            { Content = JsonContent.Create(new { eggsPerUnit = eggs, active = true }) };
+            put.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
+            return client.SendAsync(put);
+        }
+        var convResponses = await Task.WhenAll(UpdateConv(18), UpdateConv(30));
+        var convSuccesses = convResponses.Count(r => r.StatusCode == HttpStatusCode.NoContent);
+        Assert.True(convSuccesses >= 1);
+        var after = (await client.GetFromJsonAsync<List<ConversionRow>>("/api/v1/egg-unit-conversions"))!
+            .Single(c => c.UnitCode == "Carton");
+        Assert.Equal(carton.Version + convSuccesses, after.Version);
+    }
+
+    // The lower(Name) unique index is the real duplicate guarantee — the
+    // repository pre-check alone can't stop simultaneous requests.
+    [Fact]
+    public async Task ParallelSameNameCreates_ExactlyOneWins()
+    {
+        var (client, _, _, grades) = await SetupAsync();
+
+        var responses = await Task.WhenAll(
+            CreateProductAsync(client, "Race Dozen", grades["Large"]),
+            CreateProductAsync(client, "race dozen", grades["Medium"]));
+
+        Assert.Equal(1, responses.Count(r => r.StatusCode == HttpStatusCode.Created));
+        Assert.Equal(1, responses.Count(r => r.StatusCode == HttpStatusCode.Conflict));
+        Assert.Single((await client.GetFromJsonAsync<List<ProductRow>>(
+            "/api/v1/products?includeInactive=true"))!);
+    }
+
+    [Fact]
     public async Task Writes_AreAdminOnly_ReadsOpen()
     {
         var (admin, accountId, _, grades) = await SetupAsync();
