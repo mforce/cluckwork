@@ -36,6 +36,27 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                         onDelete: ReferentialAction.Restrict);
                 });
 
+            // Opening balances (codex review of #102): lots that predate the
+            // ledger get one Reconciliation row equal to their current
+            // available quantity, so sum(QuantityDelta) == QuantityAvailable
+            // holds from the first moment on upgraded databases too. Fully
+            // sold-out lots (available 0) need no row — empty ledger sums to 0.
+            // NOT EXISTS keeps a re-run from double-opening.
+            migrationBuilder.Sql(
+                """
+                INSERT INTO "EggInventoryMovements"
+                    ("Id","EggLotId","MovementType","QuantityDelta","ReferenceType",
+                     "ReferenceId","Reason","CreatedAtUtc","AccountId")
+                SELECT gen_random_uuid(), l."Id", 'Reconciliation', l."QuantityAvailable",
+                       CASE WHEN l."DailyEntryId" IS NOT NULL THEN 'DailyEntry' ELSE 'EggLot' END,
+                       COALESCE(l."DailyEntryId", l."Id"),
+                       'Opening balance at ledger introduction', now(), l."AccountId"
+                FROM "EggLots" l
+                WHERE l."QuantityAvailable" <> 0
+                  AND NOT EXISTS (SELECT 1 FROM "EggInventoryMovements" m
+                                  WHERE m."EggLotId" = l."Id");
+                """);
+
             migrationBuilder.CreateIndex(
                 name: "IX_EggInventoryMovements_AccountId_EggLotId_CreatedAtUtc",
                 table: "EggInventoryMovements",

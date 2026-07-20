@@ -39,5 +39,17 @@ public sealed class EggLotConcurrencyTests(CluckworkWebApplicationFactory factor
         var remaining = await factory.WithTenantScopeAsync(accountId, async db =>
             (await db.EggLots.FirstAsync()).QuantityAvailable);
         Assert.Equal(0, remaining);
+
+        // #101 invariant under the race: the losing transaction rolled back its
+        // ledger row too — exactly one Sale movement (−100), and the ledger
+        // still sums to the cached balance.
+        var (saleMovements, ledgerSum) = await factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            var movements = await db.EggInventoryMovements.ToListAsync();
+            return (movements.Count(m => m.MovementType == Cluckwork.Domain.Eggs.EggMovementType.Sale),
+                    movements.Sum(m => m.QuantityDelta));
+        });
+        Assert.Equal(1, saleMovements);
+        Assert.Equal(remaining, ledgerSum);
     }
 }

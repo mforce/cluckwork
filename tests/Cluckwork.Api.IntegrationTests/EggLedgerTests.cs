@@ -35,11 +35,12 @@ public sealed class EggLedgerTests(CluckworkWebApplicationFactory factory)
     }
 
     private static async Task<(Guid EntryId, Guid LotId, int Version)> SubmitEntryAsync(
-        HttpClient client, Guid farmId, Guid flockId, Guid gradeId, int quantity)
+        HttpClient client, Guid farmId, Guid flockId, Guid gradeId, int quantity,
+        DateOnly? date = null)
     {
         var record = await client.PostWithKeyAsync("/api/v1/daily-entries", Guid.NewGuid().ToString(), new
         {
-            farmId, houseId = Guid.NewGuid(), flockId, date = Today,
+            farmId, houseId = Guid.NewGuid(), flockId, date = date ?? Today,
             totalEggs = quantity, crackedEggs = 0, dirtyEggs = 0, discardedEggs = 0,
             mortalityCount = 0,
             grades = new[] { new { eggGradeId = gradeId, quantity } }
@@ -98,7 +99,10 @@ public sealed class EggLedgerTests(CluckworkWebApplicationFactory factory)
 
         var afterSale = await MovementsAsync(client, lotId);
         var sale = Assert.Single(afterSale!, m => m.MovementType == "Sale");
-        Assert.Equal((-24, "SalesOrder", orderId), (sale.QuantityDelta, sale.ReferenceType, sale.ReferenceId));
+        // References the ALLOCATION (movement → allocation → item → order,
+        // spec §9.6), not the order directly.
+        Assert.Equal((-24, "SalesOrderAllocation"), (sale.QuantityDelta, sale.ReferenceType));
+        Assert.NotEqual(orderId, sale.ReferenceId);
         await AssertInvariantAsync(76);
 
         // 3. Void the sale → Void movement (+24) with the reason.
@@ -142,7 +146,9 @@ public sealed class EggLedgerTests(CluckworkWebApplicationFactory factory)
     public async Task MultiLotSale_WritesOneMovementPerLot_NewestFirst_LotsPage()
     {
         var (client, accountId, farmId, flockId, gradeId, productId) = await SetupAsync();
-        var (_, lotA, _) = await SubmitEntryAsync(client, farmId, flockId, gradeId, 20);
+        // Lot A is a day older — FIFO (ProductionDate, Id) drains it first
+        // deterministically; same-day lots would tie-break on random Guids.
+        var (_, lotA, _) = await SubmitEntryAsync(client, farmId, flockId, gradeId, 20, Today.AddDays(-1));
         var flockB = await factory.SeedFlockAsync(accountId, farmId);
         var (_, lotB, _) = await SubmitEntryAsync(client, farmId, flockB, gradeId, 30);
 
