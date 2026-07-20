@@ -2,7 +2,9 @@ namespace Cluckwork.Application.Features.Sales.VoidSale;
 
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.EggLots;
+using Cluckwork.Application.Features.Eggs;
 using Cluckwork.Domain.Common;
+using Cluckwork.Domain.Eggs;
 using Cluckwork.Domain.Sales;
 
 // Undo of a mistaken confirm (#60): Confirmed → Voided, returning every
@@ -20,6 +22,7 @@ public sealed class VoidSaleHandler(
     IEggLotRepository eggLots,
     IPaymentRepository payments,
     IUnitOfWork unitOfWork,
+    IEggInventoryMovementRepository eggMovements,
     IClock clock,
     IAuditWriter audit)
 {
@@ -103,6 +106,13 @@ public sealed class VoidSaleHandler(
                     outcome = Result.Failure<VoidSaleResponse>(restore.Error);
                     return false;
                 }
+
+                // Ledger row (#101): the returned eggs re-enter as an explicit
+                // Void movement, same transaction as the restore.
+                await eggMovements.AddAsync(EggInventoryMovement.Create(
+                    Guid.NewGuid(), accountId, lot.Id, EggMovementType.Void,
+                    perLot[lot.Id], nameof(SalesOrder), order.Id, clock.UtcNow,
+                    reason: command.Reason), transactionCt);
             }
 
             var releasedAt = clock.UtcNow;

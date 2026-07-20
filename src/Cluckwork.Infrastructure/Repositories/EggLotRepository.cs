@@ -10,6 +10,16 @@ public sealed class EggLotRepository(AppDbContext db) : IEggLotRepository
     public Task<EggLot?> GetByIdAsync(Guid id, CancellationToken ct = default) =>
         db.EggLots.FirstOrDefaultAsync(e => e.Id == id, ct);
 
+    public async Task<IReadOnlyList<EggLot>> ListAsync(
+        Guid? eggGradeId, int limit, int offset, CancellationToken ct = default) =>
+        await db.EggLots
+            .AsNoTracking()
+            .Where(l => eggGradeId == null || l.EggGradeId == eggGradeId)
+            .OrderByDescending(l => l.ProductionDate).ThenByDescending(l => l.Id)
+            .Skip(offset)
+            .Take(limit)
+            .ToListAsync(ct);
+
     // Acquires a pessimistic FOR UPDATE lock for FIFO sale allocation (tech spec §3.3).
     // Provider-specific SQL is isolated here behind the repository port.
     // ONE statement for all grades, ordered (ProductionDate, Id): every locking

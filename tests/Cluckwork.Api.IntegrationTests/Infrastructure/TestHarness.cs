@@ -171,6 +171,12 @@ internal static class TestHarness
                 productionDate ?? DateOnly.FromDateTime(DateTime.UtcNow.Date), eggGradeId, quantity);
             if (restrictedUntil is not null)
                 lot.SetWithdrawalRestriction(restrictedUntil.Value);
+            // Seeded lots keep the #101 ledger invariant: their opening
+            // balance exists as an explicit Production movement, exactly as
+            // the real submit path writes it.
+            db.EggInventoryMovements.Add(Cluckwork.Domain.Eggs.EggInventoryMovement.Create(
+                Guid.NewGuid(), accountId, lotId, Cluckwork.Domain.Eggs.EggMovementType.Production,
+                quantity, "DailyEntry", Guid.NewGuid(), DateTimeOffset.UtcNow));
             db.EggLots.Add(lot);
             await db.SaveChangesAsync();
         });

@@ -2,6 +2,7 @@ namespace Cluckwork.Application.Features.DailyEntries.SubmitDailyEntry;
 
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.EggLots;
+using Cluckwork.Application.Features.Eggs;
 using Cluckwork.Application.Features.Flocks;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Eggs;
@@ -18,7 +19,9 @@ public sealed class SubmitDailyEntryHandler(
     IDailyEntryRepository entries,
     IEggLotRepository eggLots,
     IBirdMovementRepository birdMovements,
+    IEggInventoryMovementRepository eggMovements,
     IFlockRepository flocks,
+    IClock clock,
     IUnitOfWork unitOfWork)
 {
     public async Task<Result<SubmitDailyEntryResponse>> HandleAsync(
@@ -52,6 +55,13 @@ public sealed class SubmitDailyEntryHandler(
                 dailyEntryId: entry.Id);
             await eggLots.AddAsync(lot, ct);
             lotIds.Add(lot.Id);
+
+            // Ledger row (#101): the lot's opening balance as an explicit
+            // Production movement — same transaction, so the cached
+            // QuantityAvailable always equals the sum of movements.
+            await eggMovements.AddAsync(EggInventoryMovement.Create(
+                Guid.NewGuid(), accountId, lot.Id, EggMovementType.Production,
+                line.Quantity, nameof(DailyEntry), entry.Id, clock.UtcNow), ct);
         }
 
         // The day's mortality becomes a ledger row so the flock's current count

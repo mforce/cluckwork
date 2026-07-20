@@ -31,6 +31,11 @@ public interface IEggLotRepository : IRepository<EggLot, Guid>
     // same canonical (ProductionDate, Id) ordering as the other locking paths.
     Task<IReadOnlyList<EggLot>> GetByDailyEntryLockedAsync(
         Guid accountId, Guid dailyEntryId, CancellationToken ct = default);
+
+    // Read-only lot listing for the stock drill-down (#101), newest production
+    // first, optionally filtered by grade. Capped by limit — the SPA pages.
+    Task<IReadOnlyList<EggLot>> ListAsync(
+        Guid? eggGradeId, int limit, int offset, CancellationToken ct = default);
 }
 
 public sealed record StockByGrade(

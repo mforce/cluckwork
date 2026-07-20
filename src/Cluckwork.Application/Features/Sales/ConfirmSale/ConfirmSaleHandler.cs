@@ -3,7 +3,9 @@ namespace Cluckwork.Application.Features.Sales.ConfirmSale;
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.EggGrades;
 using Cluckwork.Application.Features.EggLots;
+using Cluckwork.Application.Features.Eggs;
 using Cluckwork.Domain.Common;
+using Cluckwork.Domain.Eggs;
 using Cluckwork.Domain.Sales;
 
 public sealed class ConfirmSaleHandler(
@@ -11,6 +13,7 @@ public sealed class ConfirmSaleHandler(
     IEggLotRepository eggLots,
     IEggGradeRepository eggGrades,
     ISalesOrderAllocationRepository allocations,
+    IEggInventoryMovementRepository eggMovements,
     IUnitOfWork unitOfWork,
     IClock clock)
 {
@@ -67,8 +70,17 @@ public sealed class ConfirmSaleHandler(
                         failure = Result.Failure<ConfirmSaleResponse>(alloc.Error);
                         return false;
                     }
-                    allocationRows.Add(SalesOrderAllocation.Create(
-                        accountId, order.Id, item.Id, lot.Id, take));
+                    var allocation = SalesOrderAllocation.Create(
+                        accountId, order.Id, item.Id, lot.Id, take);
+                    allocationRows.Add(allocation);
+                    // Ledger row (#101): the draw leaves the lot as an explicit
+                    // Sale movement, same transaction. It references the
+                    // ALLOCATION, not the order — two same-grade lines drawing
+                    // from one lot stay distinguishable, completing the §9.6
+                    // chain movement → allocation → item → order (codex #102).
+                    await eggMovements.AddAsync(EggInventoryMovement.Create(
+                        Guid.NewGuid(), accountId, lot.Id, EggMovementType.Sale,
+                        -take, nameof(SalesOrderAllocation), allocation.Id, clock.UtcNow), transactionCt);
                     remaining -= take;
                 }
 

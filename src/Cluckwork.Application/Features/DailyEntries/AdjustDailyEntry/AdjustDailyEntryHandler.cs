@@ -4,6 +4,7 @@ using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.DailyEntries;
 using Cluckwork.Application.Features.EggGrades;
 using Cluckwork.Application.Features.EggLots;
+using Cluckwork.Application.Features.Eggs;
 using Cluckwork.Application.Features.Flocks;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Eggs;
@@ -21,6 +22,8 @@ public sealed class AdjustDailyEntryHandler(
     IEggGradeRepository eggGrades,
     IBirdMovementRepository birdMovements,
     IFlockRepository flocks,
+    IEggInventoryMovementRepository eggMovements,
+    IClock clock,
     IUnitOfWork unitOfWork,
     IAuditWriter audit)
 {
@@ -133,6 +136,7 @@ public sealed class AdjustDailyEntryHandler(
                     var newQuantity = sold + (i == 0 ? remainder : 0);
                     if (lots[i].QuantityProduced == newQuantity) continue;
 
+                    var availableBefore = lots[i].QuantityAvailable;
                     var result = lots[i].AdjustProduction(newQuantity);
                     if (result.IsFailure)
                     {
@@ -141,6 +145,15 @@ public sealed class AdjustDailyEntryHandler(
                             await NameGradeAsync(result.Error, gradeLots.Key, transactionCt));
                         return false;
                     }
+
+                    // Ledger row (#101): the reconciliation delta, explicit and
+                    // in-transaction.
+                    var availableDelta = lots[i].QuantityAvailable - availableBefore;
+                    if (availableDelta != 0)
+                        await eggMovements.AddAsync(EggInventoryMovement.Create(
+                            Guid.NewGuid(), accountId, lots[i].Id, EggMovementType.Adjustment,
+                            availableDelta, nameof(DailyEntry), entry.Id, clock.UtcNow,
+                            reason: command.Reason), transactionCt);
                 }
             }
 
@@ -149,10 +162,18 @@ public sealed class AdjustDailyEntryHandler(
             foreach (var (gradeId, quantity) in targets)
             {
                 if (lockedLots.Any(l => l.EggGradeId == gradeId)) continue;
-                await eggLots.AddAsync(EggLot.Create(
+                var newLot = EggLot.Create(
                     Guid.NewGuid(), accountId, entry.FlockId, entry.Date, gradeId, quantity,
-                    dailyEntryId: entry.Id),
-                    transactionCt);
+                    dailyEntryId: entry.Id);
+                await eggLots.AddAsync(newLot, transactionCt);
+                // Ledger row (#101): a lot born from an adjustment opens with an
+                // Adjustment movement, not Production — the entry was already
+                // submitted; this quantity is a correction.
+                if (quantity > 0)
+                    await eggMovements.AddAsync(EggInventoryMovement.Create(
+                        Guid.NewGuid(), accountId, newLot.Id, EggMovementType.Adjustment,
+                        quantity, nameof(DailyEntry), entry.Id, clock.UtcNow,
+                        reason: command.Reason), transactionCt);
             }
 
             // Mortality delta lands as a NEW ledger row tied to the entry —
