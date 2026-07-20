@@ -142,6 +142,46 @@ public sealed class SalesProductTests(CluckworkWebApplicationFactory factory)
             (await AddLineAsync(client, orderId, priceless, 1, price: 100)).StatusCode);
     }
 
+    // Tech spec §4.2: cross-tenant coverage for the new product→mapping→grade
+    // path. A foreign product id must behave exactly like a nonexistent one.
+    [Fact]
+    public async Task AddLine_ForeignTenantProduct_RejectedLikeNonexistent()
+    {
+        var (_, _, _, _, productB) = await SetupAsync();
+        var (clientA, _, _, _, _) = await SetupAsync();
+        var orderId = await CreateDraftAsync(clientA);
+
+        var foreign = await AddLineAsync(clientA, orderId, productB, 1, price: 100);
+        var missing = await AddLineAsync(clientA, orderId, Guid.NewGuid(), 1, price: 100);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, foreign.StatusCode);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, missing.StatusCode);
+        Assert.Equal(await missing.Content.ReadAsStringAsync(),
+            await foreign.Content.ReadAsStringAsync());
+    }
+
+    // The edit path recomputes QuantityBase with the stored factor — it needs
+    // the same overflow guard as add (a wrapped-negative base would confirm a
+    // sale that consumed no stock).
+    [Fact]
+    public async Task UpdateLine_OverflowingEggCount_Rejected()
+    {
+        var (client, _, _, _, productId) = await SetupAsync();
+        var orderId = await CreateDraftAsync(client);
+        var add = await AddLineAsync(client, orderId, productId, 1, unit: "Case"); // factor 360
+        var itemId = (await add.Content.ReadFromJsonAsync<ItemCreated>())!.ItemId;
+
+        var put = new HttpRequestMessage(HttpMethod.Put, $"/api/v1/sales/{orderId}/items/{itemId}")
+        { Content = JsonContent.Create(new { quantity = 6_000_000, unitPriceMinorUnits = 100 }) };
+        put.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
+        var response = await client.SendAsync(put);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+        Assert.Contains("QuantityTooLarge", await response.Content.ReadAsStringAsync());
+
+        // The line is untouched.
+        var order = await client.GetFromJsonAsync<OrderDto>($"/api/v1/sales/{orderId}");
+        Assert.Equal(360, Assert.Single(order!.Items).QuantityBase);
+    }
+
     // Re-pointing a product's grade affects future lines only — old lines keep
     // the grade they were sold against.
     [Fact]

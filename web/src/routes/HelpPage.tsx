@@ -463,6 +463,12 @@ export function HelpPage() {
             <td>Hide a finished flock from daily work. Reversible via Reactivate.</td></tr>
           <tr><th scope="row">Withdrawal restriction</th>
             <td>A hold on eggs during a medication withholding period. Coming with medication tracking — nothing sets restrictions yet, so manage withholding periods outside Cluckwork for now.</td></tr>
+          <tr><th scope="row">Product</th>
+            <td>What you sell — an egg product points at a grade (its stock source) and carries a selling unit and default price.</td></tr>
+          <tr><th scope="row">Packed unit</th>
+            <td>How many eggs a dozen/tray/carton/case holds on your farm. Each sale line keeps the count it was sold with.</td></tr>
+          <tr><th scope="row">Sales line</th>
+            <td>One product on an order: quantity in selling units, priced per unit; the eggs behind it are quantity × the unit&apos;s egg count.</td></tr>
           <tr><th scope="row">Confirm (order)</th>
             <td>Turns a draft order into a real sale and allocates stock. Undone only by voiding.</td></tr>
           <tr><th scope="row">Void (order)</th>

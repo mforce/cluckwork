@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   addOrderItem, cancelOrder, confirmOrder, createOrder, formatMoney, getOrder,
-  listCustomers, listOrderPayments, listOrders, listProducts, recordPayment,
+  listCustomers, listEggGrades, listOrderPayments, listOrders, listProducts,
+  recordPayment,
   removeOrderItem, updateOrderItem, voidOrder, voidPayment,
 } from "../api/cluckwork";
 import type { Customer, OrderPayments, Product, SalesOrder } from "../api/cluckwork";
@@ -47,7 +48,7 @@ export function SalesPage() {
   const [productId, setProductId] = useState("");
   const [unit, setUnit] = useState("Egg");
   const [qty, setQty] = useState(30);
-  const [price, setPrice] = useState("0.30");
+  const [price, setPrice] = useState("");
   // per-row edit state (draft orders)
   const [editItemId, setEditItemId] = useState<string | null>(null);
   const [editQty, setEditQty] = useState(1);
@@ -98,17 +99,32 @@ export function SalesPage() {
   useEffect(() => {
     // includeInactive: existing order lines may reference deactivated
     // products, and their names must still resolve. The add-item picker
-    // filters back down to active.
-    Promise.all([listCustomers(), listProducts({ includeInactive: true })])
-      .then(([c, p]) => {
+    // filters back down to sellable: active products whose mapped grade is
+    // still active + saleable — same rule the server enforces, so the picker
+    // never offers something Add line would 422 (codex review of #100).
+    Promise.all([
+      listCustomers(),
+      listProducts({ includeInactive: true }),
+      listEggGrades(),
+    ])
+      .then(([c, p, g]) => {
         setCustomers(c);
         setAllProducts(p);
-        const active = p.filter((x) => x.active);
-        setProducts(active);
+        const saleableGrades = new Set(g.filter((x) => x.isSaleable).map((x) => x.id));
+        const sellable = p.filter(
+          (x) => x.active && x.eggGradeId !== null && saleableGrades.has(x.eggGradeId));
+        setProducts(sellable);
         if (c.length > 0) setCustomerId(c[0].id);
-        if (active.length > 0) {
-          setProductId(active[0].id);
-          setUnit(active[0].defaultUnit);
+        if (sellable.length > 0) {
+          const first = sellable[0];
+          setProductId(first.id);
+          setUnit(first.defaultUnit);
+          // Prefill the price from the FIRST product too — the hard-coded
+          // starter value used to shadow the product default until the user
+          // changed the selection (codex review of #100).
+          setPrice(first.defaultPriceMinorUnits === null ? "" :
+            (first.defaultPriceMinorUnits / 10 ** first.currencyMinorUnit)
+              .toFixed(first.currencyMinorUnit));
         }
       })
       .catch(() => setLoadError("Could not load sales data. Is the API up?"));

@@ -93,6 +93,13 @@ public sealed class SalesOrder : AggregateRoot<Guid>
         if (item is null)
             return Result.Failure(Error.NotFound(nameof(SalesOrderItem), itemId));
 
+        // Same int-overflow guard as AddItem: a wrapped-negative QuantityBase
+        // would sail through allocation (no positive remainder) and confirm a
+        // sale that consumed no stock (codex review of #100).
+        if (quantity > 0 && quantity > int.MaxValue / item.BaseUnitFactor)
+            return Result.Failure(Error.Validation(
+                "SalesOrder.QuantityTooLarge", "The line exceeds the supported egg count."));
+
         item.Update(quantity, unitPrice);
         RecalculateTotal();
         Version++;

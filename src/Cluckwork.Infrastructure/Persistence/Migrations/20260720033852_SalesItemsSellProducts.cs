@@ -50,64 +50,67 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
 
 
             // ---- Backfill (frozen history, no money changes) ----
-            // 1) Every grade referenced by an existing sales line needs SOME
-            //    product mapped to it. Auto-create one per unmapped grade,
-            //    deliberately reusing the GRADE's Guid as the product id — a
-            //    deterministic link that avoids a RETURNING round-trip; the id
-            //    can't collide (Products never contained grade ids).
+            // Historical raw-grade lines are attributed to a DEDICATED
+            // backfill product per grade — never to a user-created product
+            // that happens to map to the same grade (it may never have sold
+            // those eggs). The grade's own Guid is reused as the product id:
+            // deterministic linkage, no RETURNING round-trip, idempotent on
+            // re-run. Name collisions (an existing product with the grade's
+            // name, or two same-named grades from different farms in this
+            // very insert) fall back to a full-grade-Guid suffix, which is
+            // unique among siblings and collides with an existing product
+            // only if someone literally named one "<grade>-<that guid>".
+            // Grade names cap at 50, so 50 + 1 + 36 fits the 100-char column.
             migrationBuilder.Sql(
                 """
                 INSERT INTO "Products"
                     ("Id","FarmId","Name","ProductType","DefaultUnit","DefaultPriceMinorUnits",
                      "CurrencyCode","CurrencyMinorUnit","Notes","Active","Version","AccountId")
-                SELECT g."Id", g."FarmId",
-                       CASE WHEN EXISTS (SELECT 1 FROM "Products" p
-                                         WHERE p."AccountId" = g."AccountId"
-                                           AND lower(p."Name") = lower(g."Name"))
-                            THEN g."Name" || '-' || left(g."Id"::text, 8)
-                            ELSE g."Name" END,
+                SELECT x."Id", x."FarmId",
+                       CASE WHEN x."NameTaken" OR x."SiblingDup"
+                            THEN x."Name" || '-' || x."Id"::text
+                            ELSE x."Name" END,
                        'Egg', 'Egg', NULL,
-                       a."DefaultCurrencyCode", a."DefaultCurrencyMinorUnit",
-                       NULL, TRUE, 0, g."AccountId"
-                FROM (SELECT DISTINCT i."AccountId", i."EggGradeId"
-                      FROM "SalesOrderItems" i
-                      WHERE NOT EXISTS (SELECT 1 FROM "ProductEggGradeMappings" m
-                                        WHERE m."AccountId" = i."AccountId"
-                                          AND m."EggGradeId" = i."EggGradeId")) x
-                JOIN "EggGrades" g ON g."Id" = x."EggGradeId"
-                JOIN "Accounts" a ON a."Id" = g."AccountId";
+                       x."DefaultCurrencyCode", x."DefaultCurrencyMinorUnit",
+                       NULL, TRUE, 0, x."AccountId"
+                FROM (
+                    SELECT g."Id", g."FarmId", g."Name", g."AccountId",
+                           a."DefaultCurrencyCode", a."DefaultCurrencyMinorUnit",
+                           EXISTS (SELECT 1 FROM "Products" p
+                                   WHERE p."AccountId" = g."AccountId"
+                                     AND lower(p."Name") = lower(g."Name")) AS "NameTaken",
+                           count(*) OVER (PARTITION BY g."AccountId", lower(g."Name")) > 1 AS "SiblingDup"
+                    FROM (SELECT DISTINCT i."AccountId", i."EggGradeId"
+                          FROM "SalesOrderItems" i) refs
+                    JOIN "EggGrades" g ON g."Id" = refs."EggGradeId"
+                    JOIN "Accounts" a ON a."Id" = g."AccountId"
+                    WHERE NOT EXISTS (SELECT 1 FROM "Products" p WHERE p."Id" = g."Id")
+                ) x;
                 """);
 
             migrationBuilder.Sql(
                 """
                 INSERT INTO "ProductEggGradeMappings" ("Id","ProductId","EggGradeId","AccountId")
-                SELECT gen_random_uuid(), g."Id", g."Id", g."AccountId"
-                FROM (SELECT DISTINCT i."AccountId", i."EggGradeId"
-                      FROM "SalesOrderItems" i
-                      WHERE NOT EXISTS (SELECT 1 FROM "ProductEggGradeMappings" m
-                                        WHERE m."AccountId" = i."AccountId"
-                                          AND m."EggGradeId" = i."EggGradeId")
-                        AND EXISTS (SELECT 1 FROM "Products" p WHERE p."Id" = i."EggGradeId")) x
-                JOIN "EggGrades" g ON g."Id" = x."EggGradeId";
+                SELECT gen_random_uuid(), p."Id", p."Id", p."AccountId"
+                FROM "Products" p
+                WHERE EXISTS (SELECT 1 FROM "EggGrades" g WHERE g."Id" = p."Id")
+                  AND NOT EXISTS (SELECT 1 FROM "ProductEggGradeMappings" m
+                                  WHERE m."ProductId" = p."Id");
                 """);
 
-            // 2) Existing lines were priced and counted per individual egg:
-            //    Unit=Egg, factor 1, QuantityBase = Quantity. One product per
-            //    grade picked deterministically when several map to it.
+            // Existing lines were priced and counted per individual egg. The
+            // product id IS the grade id (step 1), so the join is exact — no
+            // arbitrary pick among user mappings. The zero-Guid filter makes
+            // a re-run a no-op.
             migrationBuilder.Sql(
                 """
                 UPDATE "SalesOrderItems" i
-                SET "ProductId" = m."ProductId",
+                SET "ProductId" = i."EggGradeId",
                     "ProductTypeSnapshot" = 'Egg',
                     "Unit" = 'Egg',
                     "BaseUnitFactor" = 1,
                     "QuantityBase" = i."Quantity"
-                FROM (SELECT DISTINCT ON ("AccountId","EggGradeId")
-                             "AccountId","EggGradeId","ProductId"
-                      FROM "ProductEggGradeMappings"
-                      ORDER BY "AccountId","EggGradeId","Id") m
-                WHERE m."AccountId" = i."AccountId"
-                  AND m."EggGradeId" = i."EggGradeId";
+                WHERE i."ProductId" = '00000000-0000-0000-0000-000000000000';
                 """);
 
             migrationBuilder.CreateIndex(
