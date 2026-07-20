@@ -48,10 +48,13 @@ public sealed class UnassignFlockHandler(
     IUnitOfWork unitOfWork,
     IAuditWriter audit)
 {
-    public async Task<Result> HandleAsync(Guid assignmentId, CancellationToken ct)
+    public async Task<Result> HandleAsync(Guid userId, Guid assignmentId, CancellationToken ct)
     {
         var assignment = await assignments.GetByIdAsync(assignmentId, ct);
-        if (assignment is null)
+        // The assignment must belong to the ROUTE's user — a mismatched pair
+        // must not delete another worker's assignment (and thereby widen them
+        // back to account-wide access) — codex review of #104.
+        if (assignment is null || assignment.UserId != userId)
             return Result.Failure(Error.NotFound("UserRoleAssignment", assignmentId));
 
         assignments.Remove(assignment);

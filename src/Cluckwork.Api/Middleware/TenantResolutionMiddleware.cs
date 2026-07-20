@@ -20,8 +20,19 @@ public sealed class TenantResolutionMiddleware(RequestDelegate next)
             var sub = context.User.FindFirst("sub")?.Value;
             var email = context.User.FindFirst("email")?.Value;
             if (Guid.TryParse(sub, out var userId))
+            {
                 user.Resolve(userId, email ?? "",
                     context.User.FindAll("role").Select(c => c.Value).ToList());
+            }
+            else
+            {
+                // An AUTHENTICATED principal that cannot resolve to a user is
+                // rejected outright — downstream guards (flock scoping) treat
+                // "unresolved" as a non-HTTP system caller and must never see
+                // one over HTTP (codex review of #104).
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                return;
+            }
         }
 
         await next(context);

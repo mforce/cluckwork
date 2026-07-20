@@ -185,6 +185,135 @@ public sealed class RoleMatrixTests(CluckworkWebApplicationFactory factory)
             EntryBody(farmId, flockB, gradeId, eggs: 20))).StatusCode);
     }
 
+    // Multi-role principals resolve by precedence (highest wins) and unknown
+    // roles are denied outright, never treated as workers (#104 panel).
+    [Fact]
+    public async Task MultiRole_UsesPrecedence_UnknownRole_IsDenied()
+    {
+        var (accountId, farmId, flockId, gradeId) = await SeedFarmAsync();
+
+        // Owner+ReadOnly = Owner: the sales flow must NOT be vetoed.
+        var email = $"or-{Guid.NewGuid():N}@test.local";
+        await factory.SeedUserAsync(accountId, email, Roles.Owner);
+        await factory.AddRoleAsync(email, Roles.ReadOnly);
+        var ownerReadOnly = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
+        Assert.Equal(HttpStatusCode.Created, (await ownerReadOnly.PostWithKeyAsync(
+            "/api/v1/customers", Guid.NewGuid().ToString(),
+            new { name = "Precedence Buyer", phone = "1" })).StatusCode);
+        Assert.Equal(HttpStatusCode.Created, (await ownerReadOnly.PostWithKeyAsync(
+            "/api/v1/daily-entries", Guid.NewGuid().ToString(),
+            EntryBody(farmId, flockId, gradeId))).StatusCode);
+
+        // Sales+ReadOnly = Sales: still no production.
+        var srEmail = $"sr-{Guid.NewGuid():N}@test.local";
+        await factory.SeedUserAsync(accountId, srEmail, Roles.Sales);
+        await factory.AddRoleAsync(srEmail, Roles.ReadOnly);
+        var salesReadOnly = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(srEmail));
+        Assert.Equal(HttpStatusCode.Forbidden, (await salesReadOnly.PostWithKeyAsync(
+            "/api/v1/daily-entries", Guid.NewGuid().ToString(),
+            EntryBody(farmId, flockId, gradeId, eggs: 30))).StatusCode);
+
+        // A user carrying ONLY an unrecognized role: denied, not a worker.
+        var contractor = $"c-{Guid.NewGuid():N}@test.local";
+        await factory.SeedUserAsync(accountId, contractor, "Contractor");
+        var unknown = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(contractor));
+        Assert.Equal(HttpStatusCode.Forbidden, (await unknown.PostWithKeyAsync(
+            "/api/v1/daily-entries", Guid.NewGuid().ToString(),
+            EntryBody(farmId, flockId, gradeId, eggs: 20))).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await unknown.PostWithKeyAsync(
+            "/api/v1/customers", Guid.NewGuid().ToString(),
+            new { name = "Nope", phone = "1" })).StatusCode);
+    }
+
+    // Voiding a payment is the corrective tier — a Sales user must not void
+    // their own recorded payment (#104 panel: pocket the cash, reopen the
+    // balance, no Owner/Manager in the loop).
+    [Fact]
+    public async Task Sales_CanRecordPayments_ButNotVoidThem()
+    {
+        var (accountId, farmId, flockId, gradeId) = await SeedFarmAsync();
+        var productId = await factory.SeedProductAsync(accountId, farmId, gradeId, "Large Eggs", 100);
+        await factory.SeedEggLotAsync(accountId, gradeId, 100);
+        var sales = await ClientAsync(accountId, Roles.Sales);
+
+        var customer = await sales.PostWithKeyAsync("/api/v1/customers", Guid.NewGuid().ToString(),
+            new { name = "Void Buyer", phone = "1" });
+        var customerId = (await customer.Content.ReadFromJsonAsync<Created>())!.Id;
+        var order = await sales.PostWithKeyAsync("/api/v1/sales", Guid.NewGuid().ToString(),
+            new { customerId, orderDate = Today });
+        var orderId = (await order.Content.ReadFromJsonAsync<Created>())!.Id;
+        await sales.PostWithKeyAsync($"/api/v1/sales/{orderId}/items", Guid.NewGuid().ToString(),
+            new { productId, quantity = 10 });
+        Assert.Equal(HttpStatusCode.OK, (await sales.PostWithKeyAsync(
+            $"/api/v1/sales/{orderId}/confirm", Guid.NewGuid().ToString())).StatusCode);
+        var pay = await sales.PostWithKeyAsync($"/api/v1/sales/{orderId}/payments",
+            Guid.NewGuid().ToString(), new { paymentDate = Today, amountMinorUnits = 500, method = "Cash" });
+        Assert.Equal(HttpStatusCode.Created, pay.StatusCode);
+        var paymentId = (await pay.Content.ReadFromJsonAsync<PaymentCreated>())!.Id;
+
+        Assert.Equal(HttpStatusCode.Forbidden, (await sales.PostWithKeyAsync(
+            $"/api/v1/payments/{paymentId}/void", Guid.NewGuid().ToString(),
+            new { version = 0, reason = "mine" })).StatusCode);
+    }
+
+    // The remaining scope surfaces: feed usage shares the guard, an
+    // out-of-scope DRAFT cannot be submitted after unassignment, and a
+    // mismatched user/assignment pair deletes nothing.
+    [Fact]
+    public async Task FlockScope_CoversFeed_SubmitOfUnassignedDraft_AndMismatchedUnassign()
+    {
+        var (accountId, farmId, flockA, gradeId) = await SeedFarmAsync();
+        var flockB = await factory.SeedFlockAsync(accountId, farmId);
+        var owner = await ClientAsync(accountId, Roles.Owner);
+        var workerEmail = $"w2-{Guid.NewGuid():N}@test.local";
+        await factory.SeedUserAsync(accountId, workerEmail, (string?)null);
+        var worker = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(workerEmail));
+        var workerId = (await owner.GetFromJsonAsync<List<UserRow>>("/api/v1/users"))!
+            .Single(u => u.Email == workerEmail).Id;
+
+        // Draft on flock B while unscoped, then narrow to flock A.
+        var draft = await worker.PostWithKeyAsync("/api/v1/daily-entries", Guid.NewGuid().ToString(),
+            EntryBody(farmId, flockB, gradeId));
+        var draftId = (await draft.Content.ReadFromJsonAsync<Created>())!.Id;
+        await owner.PostWithKeyAsync($"/api/v1/users/{workerId}/flock-assignments",
+            Guid.NewGuid().ToString(), new { flockId = flockA });
+
+        // Submitting the now-out-of-scope draft is refused; the owner can.
+        var submit = await worker.PostWithKeyAsync(
+            $"/api/v1/daily-entries/{draftId}/submit", Guid.NewGuid().ToString());
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, submit.StatusCode);
+        Assert.Contains("FlockScope.NotAssigned", await submit.Content.ReadAsStringAsync());
+
+        // Feed usage shares the guard: item with stock, worker uses on flock B.
+        var item = await owner.PostWithKeyAsync("/api/v1/inventory/items", Guid.NewGuid().ToString(),
+            new { name = $"Feed-{Guid.NewGuid():N}"[..12], category = "Feed", unit = "kg" });
+        var itemId = (await item.Content.ReadFromJsonAsync<Created>())!.Id;
+        await owner.PostWithKeyAsync($"/api/v1/inventory/items/{itemId}/purchases",
+            Guid.NewGuid().ToString(),
+            new { receivedDate = Today, quantity = 100, unitCostMinorUnits = 50 });
+        var feed = await worker.PostWithKeyAsync($"/api/v1/inventory/items/{itemId}/usage",
+            Guid.NewGuid().ToString(), new { flockId = flockB, date = Today, quantity = 5 });
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, feed.StatusCode);
+        Assert.Contains("FlockScope.NotAssigned", await feed.Content.ReadAsStringAsync());
+
+        // Mismatched user/assignment pair: 404, nothing deleted.
+        var otherWorker = $"w3-{Guid.NewGuid():N}@test.local";
+        await factory.SeedUserAsync(accountId, otherWorker, (string?)null);
+        var otherId = (await owner.GetFromJsonAsync<List<UserRow>>("/api/v1/users"))!
+            .Single(u => u.Email == otherWorker).Id;
+        var assignments = await owner.GetFromJsonAsync<List<AssignmentRow>>(
+            $"/api/v1/users/{workerId}/flock-assignments");
+        var assignmentId = Assert.Single(assignments!).Id;
+        var mismatched = new HttpRequestMessage(HttpMethod.Delete,
+            $"/api/v1/users/{otherId}/flock-assignments/{assignmentId}");
+        mismatched.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
+        Assert.Equal(HttpStatusCode.NotFound, (await owner.SendAsync(mismatched)).StatusCode);
+        Assert.Single((await owner.GetFromJsonAsync<List<AssignmentRow>>(
+            $"/api/v1/users/{workerId}/flock-assignments"))!);
+    }
+
+    private sealed record PaymentCreated(Guid Id);
+
     [Fact]
     public async Task Assignments_AreTenantIsolated()
     {

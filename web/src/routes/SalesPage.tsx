@@ -26,7 +26,10 @@ function errText(err: unknown): string {
 // confirm (FIFO allocation), cancel drafts, browse/filter the order list.
 export function SalesPage() {
   // Void undoes a confirmed sale — admin-only (#73); the API enforces it too.
-  const { isAdmin } = useAuth();
+  const { isAdmin, role } = useAuth();
+  // Payments are the Sales tier (#104): Owner/Manager/Sales see and record;
+  // voiding a payment stays corrective (Owner/Manager) like every other undo.
+  const canSettle = isAdmin || role === "Sales";
   const [orders, setOrders] = useState<SalesOrder[] | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -142,13 +145,13 @@ export function SalesPage() {
     // actionable — their Void buttons would target the wrong order's money
     // (codex review of #90).
     setPayments(null);
-    if (activeId === null || activeStatus !== "Confirmed" || !isAdmin) return;
+    if (activeId === null || activeStatus !== "Confirmed" || !canSettle) return;
     let cancelled = false;
     listOrderPayments(activeId)
       .then((p) => { if (!cancelled) setPayments(p); })
       .catch(() => { if (!cancelled) setError("Could not load this order's payments."); });
     return () => { cancelled = true; };
-  }, [activeId, activeStatus, isAdmin]);
+  }, [activeId, activeStatus, canSettle]);
 
   // Exact decimal parsing in the ORDER's denomination (no float multiply —
   // #88 review); excess decimals are rejected, not silently rounded.
@@ -465,7 +468,7 @@ export function SalesPage() {
               </div>
             </>
           )}
-          {active.status === "Confirmed" && isAdmin && payments && (
+          {active.status === "Confirmed" && canSettle && payments && (
             <>
               <h4>Payments</h4>
               {payments.items.length > 0 && (
@@ -484,10 +487,10 @@ export function SalesPage() {
                         <td>
                           {p.voided
                             ? <span className="warn" title={p.voidReason ?? undefined}>Voided</span>
-                            : (
+                            : isAdmin ? (
                               <button className="link" disabled={busy}
                                 onClick={() => onVoidPayment(p.id, p.version)}>void</button>
-                            )}
+                            ) : null}
                         </td>
                       </tr>
                     ))}

@@ -66,7 +66,7 @@ public static class UserEndpoints
         TenantContext tenant, CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
-        var result = await handler.HandleAsync(assignmentId, ct);
+        var result = await handler.HandleAsync(id, assignmentId, ct);
         return result.IsSuccess
             ? Results.NoContent()
             : Results.NotFound();

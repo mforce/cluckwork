@@ -78,6 +78,25 @@ internal static class TestHarness
         }
     }
 
+    // #104 — pile a second role onto an existing user (multi-role principals
+    // are reachable via Identity even though the API assigns one; the policy
+    // precedence tests need them).
+    public static async Task AddRoleAsync(
+        this CluckworkWebApplicationFactory factory, string email, string role)
+    {
+        using var scope = factory.Services.CreateScope();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var roles = scope.ServiceProvider.GetRequiredService<RoleManager<ApplicationRole>>();
+        if (!await roles.RoleExistsAsync(role))
+            await roles.CreateAsync(new ApplicationRole { Id = Guid.NewGuid(), Name = role });
+        var user = await users.FindByEmailAsync(email)
+            ?? throw new InvalidOperationException($"No user {email}");
+        var added = await users.AddToRoleAsync(user, role);
+        if (!added.Succeeded)
+            throw new InvalidOperationException(
+                "AddRole failed: " + string.Join("; ", added.Errors.Select(e => e.Description)));
+    }
+
     // Opens a scope, resolves the tenant to accountId, and hands the AppDbContext to the
     // caller. The query filter and tenant-stamp interceptor then behave exactly as in a
     // real request for that account.
