@@ -22,7 +22,7 @@ public sealed class ExportQueries(AppDbContext db) : IExportQueries
         "sales-order-items", "sales-order-allocations", "payments",
         "inventory-items", "inventory-lots", "inventory-movements",
         "feed-usages", "water-usages", "expense-categories", "expenses",
-        "audit-events",
+        "egg-inventory-movements", "audit-events",
     ];
 
     public IReadOnlyList<string> Datasets => DatasetNames;
@@ -162,6 +162,13 @@ public sealed class ExportQueries(AppDbContext db) : IExportQueries
                 x => [x.Id, x.FarmId, x.ExpenseCategoryId, x.Date, x.Description,
                       x.AmountMinorUnits, x.CurrencyCode, x.CurrencyMinorUnit,
                       x.FlockId, x.Note, x.Version]),
+
+            "egg-inventory-movements" => Rows(db.EggInventoryMovements.AsNoTracking()
+                    .OrderBy(x => x.CreatedAtUtc).ThenBy(x => x.Id),
+                ["id", "eggLotId", "movementType", "quantityDelta",
+                 "referenceType", "referenceId", "reason", "createdAtUtc"],
+                x => [x.Id, x.EggLotId, x.MovementType, x.QuantityDelta,
+                      x.ReferenceType, x.ReferenceId, x.Reason, x.CreatedAtUtc]),
 
             "audit-events" => Rows(db.AuditEvents.AsNoTracking()
                     .OrderBy(x => x.OccurredAtUtc).ThenBy(x => x.Id),

@@ -101,6 +101,7 @@ builder.Services.AddScoped<Cluckwork.Application.Common.ICurrentUser>(sp =>
     sp.GetRequiredService<Cluckwork.Infrastructure.Identity.CurrentUserContext>());
 builder.Services.AddScoped<Cluckwork.Application.Common.IAuditWriter, AuditWriter>();
 builder.Services.AddScoped<Cluckwork.Application.Features.Audit.IAuditEventRepository, AuditEventRepository>();
+builder.Services.AddScoped<Cluckwork.Application.Features.Eggs.IEggInventoryMovementRepository, EggInventoryMovementRepository>();
 builder.Services.AddScoped<Cluckwork.Application.Features.Export.IExportQueries, ExportQueries>();
 
 // --- EF Core ---

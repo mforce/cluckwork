@@ -169,6 +169,13 @@ export function HelpPage() {
       <h3 id="stock">Stock</h3>
       <ul>
         <li>
+          Every grade expands into its <strong>lots</strong> (one per
+          submitted day), and every lot into its <strong>movement
+          ledger</strong> — an explicit line for each production, sale,
+          correction, or void. The running sum always equals the balance
+          shown; nothing changes stock without leaving a line.
+        </li>
+        <li>
           Stock is the sum of your egg lots per grade. The{" "}
           <strong>restricted</strong> column is reserved for medication
           withholding periods — that feature arrives with medication tracking.{" "}
@@ -451,6 +458,8 @@ export function HelpPage() {
             <td>A dated batch of sellable eggs of one grade, created by submitting an entry. Stock is the sum of lots.</td></tr>
           <tr><th scope="row">Grade</th>
             <td>A grading bucket (size, quality, or custom). Saleable grades can be sold.</td></tr>
+          <tr><th scope="row">Movement ledger</th>
+            <td>The line-by-line history behind a lot&apos;s balance: production in, sales out, corrections and voids signed accordingly.</td></tr>
           <tr><th scope="row">FIFO</th>
             <td>"First in, first out" — sales and feed usage always take the oldest stock first.</td></tr>
           <tr><th scope="row">Cull</th>

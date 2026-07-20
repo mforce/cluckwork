@@ -94,6 +94,14 @@ Shell), and custom buckets (Discarded/Internal Use), but the catalog is fully
 user-managed. `gradeType` (Size/Quality/Custom) records which axis a bucket
 is on and is immutable after creation.
 
+**Egg movement ledger (#101)** — every change to a lot's available quantity
+is an explicit, append-only signed row (spec §9.4): `Production` when a
+submitted entry creates the lot, `Sale` per confirmed allocation, `Void` when
+a sale or entry void returns/vacates eggs, `Adjustment` for manager
+corrections. Written in the same transaction as the lot change, so the cached
+`QuantityAvailable` always equals the sum of the lot's movements — the
+tech-spec rule that cached balances must be rebuildable from ledgers.
+
 **Saleable** — grades flagged saleable can receive graded production and be
 sold on orders. Non-saleable grades are bookkeeping buckets — losses are
 captured by the daily entry's counters, not grade lines. Names are unique per

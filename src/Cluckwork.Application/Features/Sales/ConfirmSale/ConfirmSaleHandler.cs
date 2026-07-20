@@ -3,7 +3,9 @@ namespace Cluckwork.Application.Features.Sales.ConfirmSale;
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.EggGrades;
 using Cluckwork.Application.Features.EggLots;
+using Cluckwork.Application.Features.Eggs;
 using Cluckwork.Domain.Common;
+using Cluckwork.Domain.Eggs;
 using Cluckwork.Domain.Sales;
 
 public sealed class ConfirmSaleHandler(
@@ -11,6 +13,7 @@ public sealed class ConfirmSaleHandler(
     IEggLotRepository eggLots,
     IEggGradeRepository eggGrades,
     ISalesOrderAllocationRepository allocations,
+    IEggInventoryMovementRepository eggMovements,
     IUnitOfWork unitOfWork,
     IClock clock)
 {
@@ -69,6 +72,11 @@ public sealed class ConfirmSaleHandler(
                     }
                     allocationRows.Add(SalesOrderAllocation.Create(
                         accountId, order.Id, item.Id, lot.Id, take));
+                    // Ledger row (#101): the draw leaves the lot as an explicit
+                    // Sale movement, same transaction as the allocation.
+                    await eggMovements.AddAsync(EggInventoryMovement.Create(
+                        Guid.NewGuid(), accountId, lot.Id, EggMovementType.Sale,
+                        -take, nameof(SalesOrder), order.Id, clock.UtcNow), transactionCt);
                     remaining -= take;
                 }
 

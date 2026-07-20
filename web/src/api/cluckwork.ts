@@ -184,6 +184,39 @@ export const listDailyEntries = (params?: {
 
 export const getStock = () => apiGet<StockRow[]>("/stock");
 
+// --- Egg movement ledger (#101) ---
+
+export interface EggLotRow {
+  id: string;
+  eggGradeId: string;
+  productionDate: string;
+  quantityProduced: number;
+  quantityAvailable: number;
+  restrictedUntil: string | null;
+  dailyEntryId: string | null;
+}
+
+export interface EggMovementRow {
+  id: string;
+  movementType: string;
+  quantityDelta: number;
+  referenceType: string;
+  referenceId: string;
+  reason: string | null;
+  createdAtUtc: string;
+}
+
+export const listEggLots = (params?: { gradeId?: string; limit?: number; offset?: number }) => {
+  const q = new URLSearchParams();
+  if (params?.gradeId) q.set("gradeId", params.gradeId);
+  if (params?.limit) q.set("limit", String(params.limit));
+  if (params?.offset) q.set("offset", String(params.offset));
+  return apiGet<EggLotRow[]>(`/stock/lots${q.size > 0 ? `?${q}` : ""}`);
+};
+
+export const listEggLotMovements = (lotId: string) =>
+  apiGet<EggMovementRow[]>(`/stock/lots/${lotId}/movements`);
+
 // --- Customers & sales (#23/#24) -------------------------------------------
 
 export interface Customer {
@@ -534,7 +567,7 @@ export const EXPORT_DATASETS = [
   "sales-order-items", "sales-order-allocations", "payments",
   "inventory-items", "inventory-lots", "inventory-movements",
   "feed-usages", "water-usages", "expense-categories", "expenses",
-  "audit-events",
+  "egg-inventory-movements", "audit-events",
 ] as const;
 
 export const downloadExportCsv = (dataset: string) =>

@@ -4,6 +4,7 @@ using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.DailyEntries;
 using Cluckwork.Application.Features.EggGrades;
 using Cluckwork.Application.Features.EggLots;
+using Cluckwork.Application.Features.Eggs;
 using Cluckwork.Application.Features.Flocks;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Eggs;
@@ -19,7 +20,9 @@ public sealed class VoidDailyEntryHandler(
     IEggLotRepository eggLots,
     IEggGradeRepository eggGrades,
     IBirdMovementRepository birdMovements,
+    IEggInventoryMovementRepository eggMovements,
     IFlockRepository flocks,
+    IClock clock,
     IUnitOfWork unitOfWork,
     IAuditWriter audit)
 {
@@ -74,6 +77,7 @@ public sealed class VoidDailyEntryHandler(
             foreach (var lot in lockedLots)
             {
                 if (lot.QuantityProduced == 0) continue;
+                var vacated = lot.QuantityAvailable;
                 var emptied = lot.AdjustProduction(0);
                 if (emptied.IsFailure)
                 {
@@ -83,6 +87,14 @@ public sealed class VoidDailyEntryHandler(
                         emptied.Error.Code, $"Grade '{name}': {emptied.Error.Description}"));
                     return false;
                 }
+
+                // Ledger row (#101): the vacated eggs leave as an explicit Void
+                // movement, same transaction.
+                if (vacated > 0)
+                    await eggMovements.AddAsync(EggInventoryMovement.Create(
+                        Guid.NewGuid(), accountId, lot.Id, EggMovementType.Void,
+                        -vacated, nameof(DailyEntry), entry.Id, clock.UtcNow,
+                        reason: command.Reason), transactionCt);
             }
 
             // The submit-generated Mortality row stays; a negative Adjustment

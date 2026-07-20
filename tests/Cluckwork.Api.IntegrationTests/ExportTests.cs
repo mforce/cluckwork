@@ -20,7 +20,7 @@ public sealed class ExportTests(CluckworkWebApplicationFactory factory)
         "sales-order-items", "sales-order-allocations", "payments",
         "inventory-items", "inventory-lots", "inventory-movements",
         "feed-usages", "water-usages", "expense-categories", "expenses",
-        "audit-events",
+        "egg-inventory-movements", "audit-events",
     ];
 
     private async Task<(HttpClient Client, Guid AccountId, Guid FarmId, Guid FlockId)> SetupAsync()

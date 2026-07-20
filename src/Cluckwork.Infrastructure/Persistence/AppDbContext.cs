@@ -23,6 +23,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, TenantContext 
     public DbSet<DailyEntryGrade> DailyEntryGrades => Set<DailyEntryGrade>();
     public DbSet<EggGrade> EggGrades => Set<EggGrade>();
     public DbSet<EggLot> EggLots => Set<EggLot>();
+    public DbSet<EggInventoryMovement> EggInventoryMovements => Set<EggInventoryMovement>();
     public DbSet<Customer> Customers => Set<Customer>();
     public DbSet<SalesOrder> SalesOrders => Set<SalesOrder>();
     public DbSet<SalesOrderItem> SalesOrderItems => Set<SalesOrderItem>();
@@ -60,6 +61,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, TenantContext 
         builder.Entity<DailyEntryGrade>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
         builder.Entity<EggGrade>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
         builder.Entity<EggLot>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
+        builder.Entity<EggInventoryMovement>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
         builder.Entity<Customer>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
         builder.Entity<SalesOrder>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
         builder.Entity<SalesOrderItem>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
