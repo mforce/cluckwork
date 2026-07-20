@@ -198,7 +198,8 @@ public sealed class AuditTests(CluckworkWebApplicationFactory factory)
     [Fact]
     public async Task MidTransactionFailure_WritesNothing_EventualVoidWritesOne()
     {
-        var (client, _, _, farmId, flockId, gradeId) = await SetupAsync();
+        var (client, _, accountId, farmId, flockId, gradeId) = await SetupAsync();
+        var productId = await factory.SeedProductAsync(accountId, farmId, gradeId);
 
         var record = await client.PostWithKeyAsync("/api/v1/daily-entries", Guid.NewGuid().ToString(), new
         {
@@ -217,7 +218,7 @@ public sealed class AuditTests(CluckworkWebApplicationFactory factory)
             new { customerId, orderDate = Today });
         var orderId = (await order.Content.ReadFromJsonAsync<Created>())!.Id;
         await client.PostWithKeyAsync($"/api/v1/sales/{orderId}/items", Guid.NewGuid().ToString(),
-            new { eggGradeId = gradeId, quantity = 10, unitPriceMinorUnits = 100 });
+            new { productId, quantity = 10, unitPriceMinorUnits = 100 });
         await client.PostWithKeyAsync($"/api/v1/sales/{orderId}/confirm", Guid.NewGuid().ToString());
         await client.PostWithKeyAsync($"/api/v1/sales/{orderId}/payments", Guid.NewGuid().ToString(),
             new { paymentDate = Today, amountMinorUnits = 500, method = "Cash" });

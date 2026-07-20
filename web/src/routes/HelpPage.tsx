@@ -233,9 +233,13 @@ export function HelpPage() {
       <h3 id="sales">Customers &amp; sales</h3>
       <ul>
         <li>
-          Orders start as <strong>drafts</strong>: add graded lines with
-          quantities and prices, edit freely, or <strong>cancel</strong> (the
-          draft is kept, read-only).
+          Orders start as <strong>drafts</strong>: add lines by picking a{" "}
+          <strong>product</strong>, a packed unit (dozen, carton, …), a
+          quantity, and a price per unit (prefilled from the product&apos;s
+          default) — edit freely, or <strong>cancel</strong> (the draft is
+          kept, read-only). Each line remembers how many eggs its unit held
+          when it was added, so redefining a carton later never changes old
+          orders.
         </li>
         <li>
           <strong>Confirming</strong> an order allocates real stock — oldest
@@ -459,6 +463,12 @@ export function HelpPage() {
             <td>Hide a finished flock from daily work. Reversible via Reactivate.</td></tr>
           <tr><th scope="row">Withdrawal restriction</th>
             <td>A hold on eggs during a medication withholding period. Coming with medication tracking — nothing sets restrictions yet, so manage withholding periods outside Cluckwork for now.</td></tr>
+          <tr><th scope="row">Product</th>
+            <td>What you sell — an egg product points at a grade (its stock source) and carries a selling unit and default price.</td></tr>
+          <tr><th scope="row">Packed unit</th>
+            <td>How many eggs a dozen/tray/carton/case holds on your farm. Each sale line keeps the count it was sold with.</td></tr>
+          <tr><th scope="row">Sales line</th>
+            <td>One product on an order: quantity in selling units, priced per unit; the eggs behind it are quantity × the unit&apos;s egg count.</td></tr>
           <tr><th scope="row">Confirm (order)</th>
             <td>Turns a draft order into a real sale and allocates stock. Undone only by voiding.</td></tr>
           <tr><th scope="row">Void (order)</th>

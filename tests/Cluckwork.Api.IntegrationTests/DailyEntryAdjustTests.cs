@@ -73,8 +73,11 @@ public sealed class DailyEntryAdjustTests(CluckworkWebApplicationFactory factory
         return client.SendAsync(request);
     }
 
-    private async Task ConfirmSaleAsync(HttpClient client, Guid gradeId, int quantity)
+    private async Task ConfirmSaleAsync(
+        HttpClient client, Guid accountId, Guid farmId, Guid gradeId, int quantity)
     {
+        // #99: sales lines sell products — one per call keeps the helper simple.
+        var productId = await factory.SeedProductAsync(accountId, farmId, gradeId);
         var customer = await client.PostWithKeyAsync("/api/v1/customers", Guid.NewGuid().ToString(),
             new { name = $"Buyer {Guid.NewGuid():N}"[..20], phone = "555-0100" });
         var customerId = (await customer.Content.ReadFromJsonAsync<Created>())!.Id;
@@ -82,7 +85,7 @@ public sealed class DailyEntryAdjustTests(CluckworkWebApplicationFactory factory
             new { customerId, orderDate = Today });
         var orderId = (await order.Content.ReadFromJsonAsync<Created>())!.Id;
         var item = await client.PostWithKeyAsync($"/api/v1/sales/{orderId}/items", Guid.NewGuid().ToString(),
-            new { eggGradeId = gradeId, quantity, unitPriceMinorUnits = 100 });
+            new { productId, quantity, unitPriceMinorUnits = 100 });
         Assert.True(item.IsSuccessStatusCode);
         var confirm = await client.PostWithKeyAsync(
             $"/api/v1/sales/{orderId}/confirm", Guid.NewGuid().ToString());
@@ -138,7 +141,7 @@ public sealed class DailyEntryAdjustTests(CluckworkWebApplicationFactory factory
         var (client, accountId, farmId, flockId, grades) = await SetupAsync("Large");
         var entryId = await RecordAndSubmitAsync(client, farmId, flockId, Today, 600, 0,
             (grades["Large"], 600));
-        await ConfirmSaleAsync(client, grades["Large"], 550);
+        await ConfirmSaleAsync(client, accountId, farmId, grades["Large"], 550);
 
         var current = await GetEntryAsync(client, entryId);
         var adjust = await AdjustAsync(client, entryId, new
@@ -329,10 +332,10 @@ public sealed class DailyEntryAdjustTests(CluckworkWebApplicationFactory factory
     [Fact]
     public async Task Void_WithSoldStock_Is422()
     {
-        var (client, _, farmId, flockId, grades) = await SetupAsync("Large");
+        var (client, accountId, farmId, flockId, grades) = await SetupAsync("Large");
         var entryId = await RecordAndSubmitAsync(client, farmId, flockId, Today, 600, 0,
             (grades["Large"], 600));
-        await ConfirmSaleAsync(client, grades["Large"], 10);
+        await ConfirmSaleAsync(client, accountId, farmId, grades["Large"], 10);
 
         var current = await GetEntryAsync(client, entryId);
         var voidResponse = await client.PostWithKeyAsync(

@@ -50,7 +50,10 @@ public sealed class ConfirmSaleHandler(
 
             foreach (var item in order.Items)
             {
-                var remaining = item.Quantity;
+                // Allocation always runs in individual eggs (spec §10.5
+                // quantity_base) — the line's packed-unit math is already
+                // snapshotted on the item.
+                var remaining = item.QuantityBase;
                 // Filtering preserves the FIFO order; QuantityAvailable already
                 // reflects earlier items' draws (same tracked instances).
                 foreach (var lot in lockedLots.Where(l => l.EggGradeId == item.EggGradeId))
@@ -77,7 +80,7 @@ public sealed class ConfirmSaleHandler(
                         ?? item.EggGradeId.ToString();
                     failure = Result.Failure<ConfirmSaleResponse>(Error.Domain(
                         "EggLot.InsufficientStock",
-                        $"Insufficient stock for grade '{gradeName}': {remaining} units unallocated."));
+                        $"Insufficient stock for grade '{gradeName}': {remaining} eggs unallocated."));
                     return false;
                 }
             }

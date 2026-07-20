@@ -61,6 +61,21 @@ public sealed class SalesOrderItemConfiguration : IEntityTypeConfiguration<Sales
             .WithMany()
             .HasForeignKey(i => i.EggGradeId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        // The sold product must not disappear from under historical lines
+        // (#99); product rows are deactivate-only anyway.
+        builder.Property(i => i.ProductId).IsRequired();
+        builder.HasOne<Cluckwork.Domain.Catalog.Product>()
+            .WithMany()
+            .HasForeignKey(i => i.ProductId)
+            .OnDelete(DeleteBehavior.Restrict);
+        builder.Property(i => i.ProductTypeSnapshot)
+            .HasConversion<string>().HasMaxLength(16).IsRequired();
+        builder.Property(i => i.Unit)
+            .HasConversion<string>().HasMaxLength(16).IsRequired();
+        builder.Property(i => i.BaseUnitFactor).IsRequired();
+        builder.Property(i => i.QuantityBase).IsRequired();
+
         builder.Property(i => i.Quantity).IsRequired();
 
         builder.OwnsOne(i => i.UnitPrice, m =>

@@ -197,8 +197,12 @@ export interface Customer {
 
 export interface OrderItem {
   id: string;
+  productId: string;
   eggGradeId: string;
+  unit: string;
+  baseUnitFactor: number;
   quantity: number;
+  quantityBase: number;
   unitPriceMinorUnits: number;
   currencyCode: string;
   currencyMinorUnit: number;
@@ -250,7 +254,7 @@ export const createOrder = (body: { customerId: string; orderDate: string }, key
 
 export const addOrderItem = (
   orderId: string,
-  body: { eggGradeId: string; quantity: number; unitPriceMinorUnits: number },
+  body: { productId: string; quantity: number; unit?: string; unitPriceMinorUnits?: number },
   key?: string,
 ) => apiPost<{ orderId: string; itemId: string }>(`/sales/${orderId}/items`, body, key);
 

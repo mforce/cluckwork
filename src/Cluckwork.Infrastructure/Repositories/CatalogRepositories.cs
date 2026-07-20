@@ -42,6 +42,9 @@ public sealed class EggUnitConversionRepository(AppDbContext db) : IEggUnitConve
     public Task<EggUnitConversion?> GetByIdAsync(Guid id, CancellationToken ct = default) =>
         db.EggUnitConversions.FirstOrDefaultAsync(c => c.Id == id, ct);
 
+    public Task<EggUnitConversion?> GetByUnitAsync(EggUnit unit, CancellationToken ct = default) =>
+        db.EggUnitConversions.FirstOrDefaultAsync(c => c.UnitCode == unit, ct);
+
     public async Task<IReadOnlyList<EggUnitConversion>> ListAsync(CancellationToken ct = default) =>
         await db.EggUnitConversions
             .AsNoTracking()

@@ -94,7 +94,7 @@ public static class SaleEndpoints
         if (!tenant.IsResolved) return Results.Unauthorized();
 
         var command = new AddOrderItemCommand(
-            id, request.EggGradeId, request.Quantity, request.UnitPriceMinorUnits);
+            id, request.ProductId, request.Quantity, request.Unit, request.UnitPriceMinorUnits);
         var validation = await validator.ValidateAsync(command, ct);
         if (!validation.IsValid)
             return Results.ValidationProblem(validation.ToDictionary());
@@ -209,7 +209,8 @@ public static class SaleEndpoints
         o.TotalAmount.MinorUnits, o.TotalAmount.CurrencyCode, o.TotalAmount.CurrencyMinorUnit,
         o.VoidReason,
         o.Items.Select(i => new SalesOrderItemResponse(
-            i.Id, i.EggGradeId, i.Quantity,
+            i.Id, i.ProductId, i.EggGradeId, i.Unit.ToString(), i.BaseUnitFactor,
+            i.Quantity, i.QuantityBase,
             i.UnitPrice.MinorUnits, i.UnitPrice.CurrencyCode, i.UnitPrice.CurrencyMinorUnit)).ToList());
 
     private static async Task<IResult> VoidSale(
@@ -289,10 +290,14 @@ public sealed record CreateSalesOrderRequest(Guid CustomerId, DateOnly OrderDate
 
 public sealed record VoidSaleRequest(string Reason);
 
-public sealed record AddOrderItemRequest(Guid EggGradeId, int Quantity, long UnitPriceMinorUnits);
+public sealed record AddOrderItemRequest(
+    Guid ProductId, int Quantity, string? Unit, long? UnitPriceMinorUnits);
 
 public sealed record UpdateOrderItemRequest(int Quantity, long UnitPriceMinorUnits);
 
+// Quantity is selling units; QuantityBase is individual eggs (Quantity ×
+// BaseUnitFactor, snapshotted at line creation — spec §10.5/§9.7).
 public sealed record SalesOrderItemResponse(
-    Guid Id, Guid EggGradeId, int Quantity,
+    Guid Id, Guid ProductId, Guid EggGradeId, string Unit, int BaseUnitFactor,
+    int Quantity, int QuantityBase,
     long UnitPriceMinorUnits, string CurrencyCode, int CurrencyMinorUnit);
