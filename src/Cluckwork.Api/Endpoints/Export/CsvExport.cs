@@ -5,20 +5,31 @@ using System.Text;
 using Cluckwork.Application.Features.Export;
 
 // #95 — RFC 4180 CSV: CRLF rows, quote-doubling, UTF-8 with BOM (Excel needs
-// the BOM to detect the encoding).
+// the BOM to detect the encoding). Rows stream straight from the source
+// enumerable to the output — an export never materializes in memory.
 public static class CsvExport
 {
-    public static byte[] ToBytes(ExportTable table)
+    /// <summary>Writes the dataset as CSV and returns the row count.</summary>
+    public static async Task<int> WriteAsync(ExportDataset dataset, Stream output, CancellationToken ct)
     {
-        var sb = new StringBuilder();
-        AppendRow(sb, table.Header);
-        foreach (var row in table.Rows)
-            AppendRow(sb, row.Select(FormatCell));
-        return [.. Encoding.UTF8.GetPreamble(), .. Encoding.UTF8.GetBytes(sb.ToString())];
+        await output.WriteAsync(Encoding.UTF8.GetPreamble(), ct);
+        var writer = new StreamWriter(output, new UTF8Encoding(false), leaveOpen: true);
+        await using (writer.ConfigureAwait(false))
+        {
+            await writer.WriteAsync(Line(dataset.Header));
+            var count = 0;
+            await foreach (var row in dataset.Rows.WithCancellation(ct))
+            {
+                await writer.WriteAsync(Line(row.Select(FormatCell)));
+                count++;
+            }
+            await writer.FlushAsync(ct);
+            return count;
+        }
     }
 
-    private static void AppendRow(StringBuilder sb, IEnumerable<string> cells)
-        => sb.AppendJoin(',', cells.Select(Escape)).Append("\r\n");
+    private static string Line(IEnumerable<string> cells)
+        => string.Join(',', cells.Select(Escape)) + "\r\n";
 
     private static string FormatCell(object? value) => value switch
     {

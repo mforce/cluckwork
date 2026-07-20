@@ -71,9 +71,13 @@ Two complementary layers (spec §17.5):
 - **Database dump**: the real backup for disaster recovery.
 
 ```bash
-# Backup (compressed custom format; uses the credentials from deploy/.env)
-docker compose -f deploy/docker-compose.yml --env-file deploy/.env exec db \
+# Backup (compressed custom format; uses the credentials from deploy/.env).
+# -T is required: a pseudo-TTY would corrupt the binary dump.
+docker compose -f deploy/docker-compose.yml --env-file deploy/.env exec -T db \
   sh -c 'pg_dump -U "$POSTGRES_USER" -Fc "$POSTGRES_DB"' > cluckwork-$(date +%Y%m%d).dump
+
+# Verify the dump is restorable before trusting it
+pg_restore --list cluckwork-$(date +%Y%m%d).dump > /dev/null && echo OK
 
 # Restore into a fresh database (stop the API first)
 docker compose -f deploy/docker-compose.yml --env-file deploy/.env exec -T db \

@@ -114,6 +114,28 @@ public sealed class ExportTests(CluckworkWebApplicationFactory factory)
         Assert.True(datasets.GetProperty("audit-events").GetInt32() >= 1);
     }
 
+    // Spec §18: export is an auditable action — the trail must show WHO bulk-
+    // copied the account, and the event lands before the stream starts.
+    [Fact]
+    public async Task Export_WritesAuditTrail()
+    {
+        var (client, _, _, _) = await SetupAsync();
+
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/v1/export/customers")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/v1/export/all")).StatusCode);
+
+        var rows = await client.GetFromJsonAsync<List<AuditRow>>("/api/v1/audit?action=Account.Export");
+        Assert.Equal(2, rows!.Count);
+        Assert.Contains(rows, r => r.DetailsJson!.Contains("\"dataset\":\"customers\""));
+        Assert.Contains(rows, r => r.DetailsJson!.Contains("\"scope\":\"all\""));
+
+        // A failed export (unknown dataset → 404) leaves no event.
+        await client.GetAsync("/api/v1/export/no-such-dataset");
+        Assert.Equal(2, (await client.GetFromJsonAsync<List<AuditRow>>("/api/v1/audit?action=Account.Export"))!.Count);
+    }
+
+    private sealed record AuditRow(Guid Id, string Action, string? DetailsJson);
+
     [Fact]
     public async Task Export_NeverCrossesTenants()
     {
