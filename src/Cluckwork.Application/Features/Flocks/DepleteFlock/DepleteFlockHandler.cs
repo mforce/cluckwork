@@ -7,7 +7,8 @@ using Cluckwork.Domain.Flocks;
 
 public sealed class DepleteFlockHandler(
     IFlockRepository flocks,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    IAuditWriter audit)
 {
     public async Task<Result> HandleAsync(Guid flockId, CancellationToken ct)
     {
@@ -21,6 +22,10 @@ public sealed class DepleteFlockHandler(
             return result;
 
         flocks.Update(flock);
+        // Same SaveChanges as the change (#93).
+        await audit.WriteAsync("Flock.Deplete", "Flock", flock.Id,
+            reason: null, details: null, ct: ct);
+
         await unitOfWork.SaveChangesAsync(ct);
         return Result.Success();
     }

@@ -20,7 +20,8 @@ public sealed class VoidSaleHandler(
     IEggLotRepository eggLots,
     IPaymentRepository payments,
     IUnitOfWork unitOfWork,
-    IClock clock)
+    IClock clock,
+    IAuditWriter audit)
 {
     public async Task<Result<VoidSaleResponse>> HandleAsync(
         VoidSaleCommand command, Guid accountId, CancellationToken ct)
@@ -107,6 +108,10 @@ public sealed class VoidSaleHandler(
             var releasedAt = clock.UtcNow;
             foreach (var row in rows)
                 row.MarkReleased(releasedAt);
+
+            // Same transaction as the change (#93): rolls back with it.
+            await audit.WriteAsync("SalesOrder.Void", nameof(SalesOrder), order.Id,
+                command.Reason, ct: transactionCt);
 
             outcome = Result.Success(new VoidSaleResponse(order.Id, order.Status.ToString()));
             return true;

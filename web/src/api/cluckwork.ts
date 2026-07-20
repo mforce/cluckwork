@@ -435,6 +435,33 @@ export function formatMoney(minorUnits: number, currencyCode: string, minorUnit:
   return `${value.toFixed(minorUnit)} ${currencyCode}`;
 }
 
+// --- Audit trail (#93, admin-only, read-only) ---
+
+export interface AuditEvent {
+  id: string;
+  occurredAtUtc: string;
+  actorEmail: string;
+  action: string;
+  entityType: string;
+  entityId: string;
+  reason: string | null;
+  detailsJson: string | null;
+}
+
+export const listAuditEvents = (params?: {
+  action?: string; entityId?: string; from?: string; to?: string;
+  limit?: number; offset?: number;
+}) => {
+  const q = new URLSearchParams();
+  if (params?.action) q.set("action", params.action);
+  if (params?.entityId) q.set("entityId", params.entityId);
+  if (params?.from) q.set("from", params.from);
+  if (params?.to) q.set("to", params.to);
+  if (params?.limit) q.set("limit", String(params.limit));
+  if (params?.offset) q.set("offset", String(params.offset));
+  return apiGet<AuditEvent[]>(`/audit${q.size > 0 ? `?${q}` : ""}`);
+};
+
 // --- Reports (#91) ---
 
 export interface ProductionDay {

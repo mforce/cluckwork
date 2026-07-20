@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using Cluckwork.Api;
 using Cluckwork.Api.Endpoints.Accounts;
+using Cluckwork.Api.Endpoints.Audit;
 using Cluckwork.Api.Endpoints.Auth;
 using Cluckwork.Api.Endpoints.Customers;
 using Cluckwork.Api.Endpoints.DailyEntries;
@@ -92,6 +93,12 @@ builder.Services.AddOpenTelemetry()
 
 // --- Multi-tenancy (scoped per request) ---
 builder.Services.AddScoped<TenantContext>();
+// The acting user, resolved beside the tenant (#93 audit trail).
+builder.Services.AddScoped<Cluckwork.Infrastructure.Identity.CurrentUserContext>();
+builder.Services.AddScoped<Cluckwork.Application.Common.ICurrentUser>(sp =>
+    sp.GetRequiredService<Cluckwork.Infrastructure.Identity.CurrentUserContext>());
+builder.Services.AddScoped<Cluckwork.Application.Common.IAuditWriter, AuditWriter>();
+builder.Services.AddScoped<Cluckwork.Application.Features.Audit.IAuditEventRepository, AuditEventRepository>();
 
 // --- EF Core ---
 var dbProvider = builder.Configuration["Database:Provider"] ?? "Postgres";
@@ -395,6 +402,12 @@ app.MapGroup("/api/v1/reports")
     .WithTags("Reports")
     .RequireAuthorization()
     .MapReportEndpoints();
+
+// Audit trail (#93): read-only, admin-only.
+app.MapGroup("/api/v1/audit")
+    .WithTags("Audit")
+    .RequireAuthorization(AuthPolicies.AdminOnly)
+    .MapAuditEndpoints();
 
 app.MapGroup("/api/v1/users")
     .WithTags("Users")

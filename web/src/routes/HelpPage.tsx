@@ -294,6 +294,17 @@ export function HelpPage() {
         </li>
       </ul>
 
+      <h3 id="audit">Audit log (admin)</h3>
+      <ul>
+        <li>
+          Every corrective, destructive, or configuration change lands in the
+          audit log automatically: who did it, when (UTC), what it touched,
+          and the reason where one was given. Written together with the change
+          itself — a failed action leaves no trace, a successful one always
+          does — and never editable, by anyone.
+        </li>
+      </ul>
+
       <h3 id="mistakes">Fixing mistakes</h3>
       <p className="muted">
         Every fix in this table needs an admin sign-in (see "Who can do what")

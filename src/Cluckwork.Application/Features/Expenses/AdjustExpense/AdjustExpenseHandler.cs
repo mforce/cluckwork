@@ -8,7 +8,8 @@ public sealed class AdjustExpenseHandler(
     IExpenseRepository expenses,
     IExpenseCategoryRepository categories,
     IFlockRepository flocks,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    IAuditWriter audit)
 {
     public async Task<Result> HandleAsync(AdjustExpenseCommand command, CancellationToken ct)
     {
@@ -43,10 +44,16 @@ public sealed class AdjustExpenseHandler(
                     "Expense.UnknownFlock", "The flock does not exist on this farm."));
         }
 
+        var previousAmount = expense.AmountMinorUnits;
         var result = expense.Adjust(
             command.ExpenseCategoryId, command.Date, command.Description,
             command.AmountMinorUnits, command.FlockId, command.Note);
         if (result.IsFailure) return result;
+
+        // Same SaveChanges as the change (#93): commits or fails with it.
+        await audit.WriteAsync("Expense.Adjust", nameof(Cluckwork.Domain.Expenses.Expense), expense.Id,
+            reason: null,
+            new { previousAmountMinorUnits = previousAmount, newAmountMinorUnits = expense.AmountMinorUnits }, ct);
 
         await unitOfWork.SaveChangesAsync(ct);
         return Result.Success();

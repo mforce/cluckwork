@@ -16,6 +16,7 @@ import { HelpPage } from "./routes/HelpPage";
 import { WaterPage } from "./routes/WaterPage";
 import { ExpensesPage } from "./routes/ExpensesPage";
 import { ReportsPage } from "./routes/ReportsPage";
+import { AuditPage } from "./routes/AuditPage";
 import { UsersPage } from "./routes/UsersPage";
 
 export function App() {
@@ -38,6 +39,7 @@ export function App() {
               <Route path="water" element={<WaterPage />} />
               <Route path="expenses" element={<ExpensesPage />} />
               <Route path="reports" element={<ReportsPage />} />
+              <Route path="audit" element={<AuditPage />} />
               <Route path="users" element={<UsersPage />} />
               <Route path="help" element={<HelpPage />} />
             </Route>

@@ -9,7 +9,8 @@ using Cluckwork.Domain.Common;
 // keep resolving the grade's name.
 public sealed class SetEggGradeActiveHandler(
     IEggGradeRepository grades,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    IAuditWriter audit)
 {
     public async Task<Result> HandleAsync(Guid eggGradeId, bool active, CancellationToken ct)
     {
@@ -19,6 +20,10 @@ public sealed class SetEggGradeActiveHandler(
 
         var result = active ? grade.Activate() : grade.Deactivate();
         if (result.IsFailure) return result;
+
+        // Same SaveChanges as the change (#93).
+        await audit.WriteAsync(active ? "EggGrade.Activate" : "EggGrade.Deactivate",
+            "EggGrade", grade.Id, ct: ct);
 
         await unitOfWork.SaveChangesAsync(ct);
         return Result.Success();
