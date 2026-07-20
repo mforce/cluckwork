@@ -102,6 +102,10 @@ builder.Services.AddScoped<Cluckwork.Application.Common.ICurrentUser>(sp =>
 builder.Services.AddScoped<Cluckwork.Application.Common.IAuditWriter, AuditWriter>();
 builder.Services.AddScoped<Cluckwork.Application.Features.Audit.IAuditEventRepository, AuditEventRepository>();
 builder.Services.AddScoped<Cluckwork.Application.Features.Eggs.IEggInventoryMovementRepository, EggInventoryMovementRepository>();
+builder.Services.AddScoped<Cluckwork.Application.Features.Users.IUserRoleAssignmentRepository, UserRoleAssignmentRepository>();
+builder.Services.AddScoped<Cluckwork.Application.Common.IFlockScopeGuard, FlockScopeGuard>();
+builder.Services.AddScoped<Cluckwork.Application.Features.Users.AssignFlock.AssignFlockHandler>();
+builder.Services.AddScoped<Cluckwork.Application.Features.Users.AssignFlock.UnassignFlockHandler>();
 builder.Services.AddScoped<Cluckwork.Application.Features.Export.IExportQueries, ExportQueries>();
 
 // --- EF Core ---
@@ -163,8 +167,7 @@ builder.Services
     });
 
 // #73 — Admin vs not-Admin only; house/flock-scoped RBAC is a later slice.
-builder.Services.AddAuthorization(opts =>
-    opts.AddPolicy(AuthPolicies.AdminOnly, p => p.RequireRole(AuthPolicies.AdminRole)));
+builder.Services.AddAuthorization(opts => opts.AddCluckworkPolicies());
 builder.Services.AddSingleton<Microsoft.AspNetCore.Authorization.IAuthorizationMiddlewareResultHandler,
     ForbiddenProblemResultHandler>();
 
@@ -417,10 +420,12 @@ app.MapGroup("/api/v1/sales")
     .MapSaleEndpoints()
     .MapOrderPaymentEndpoints();
 
-// Money data — admin end to end (#89).
+// Payments are the Sales role's job (spec §5.1, #103): Owner/Manager/Sales.
+// The rest of the money tier (expenses, money reports, audit, export) stays
+// Owner/Manager.
 app.MapGroup("/api/v1/payments")
     .WithTags("Payments")
-    .RequireAuthorization(AuthPolicies.AdminOnly)
+    .RequireAuthorization(AuthPolicies.SalesAccess)
     .MapPaymentEndpoints();
 
 // Reports (#91): production is open; the money routes carry their own
@@ -436,9 +441,11 @@ app.MapGroup("/api/v1/audit")
     .RequireAuthorization(AuthPolicies.AdminOnly)
     .MapAuditEndpoints();
 
+// User management is the OWNER's alone (#103) — Managers run the farm, the
+// Owner decides who works on it.
 app.MapGroup("/api/v1/users")
     .WithTags("Users")
-    .RequireAuthorization(AuthPolicies.AdminOnly)
+    .RequireAuthorization(AuthPolicies.OwnerOnly)
     .MapUserEndpoints();
 
 // Manual backup (#95): CSV export, read-only, admin-only.

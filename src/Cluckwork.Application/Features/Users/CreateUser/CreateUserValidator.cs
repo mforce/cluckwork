@@ -4,7 +4,7 @@ using FluentValidation;
 
 public sealed class CreateUserValidator : AbstractValidator<CreateUserCommand>
 {
-    public const string AdminRole = "Admin";
+    public const string AdminRole = Cluckwork.Domain.Accounts.Roles.Owner;
     public const string WorkerRole = "Worker";
 
     public CreateUserValidator()
@@ -19,7 +19,7 @@ public sealed class CreateUserValidator : AbstractValidator<CreateUserCommand>
             .Must(v => !string.IsNullOrWhiteSpace(v)).WithMessage("Password is required.")
             .MinimumLength(12);
         RuleFor(x => x.Role)
-            .Must(r => r is AdminRole or WorkerRole)
-            .WithMessage($"Role must be '{AdminRole}' or '{WorkerRole}'.");
+            .Must(r => r == WorkerRole || Cluckwork.Domain.Accounts.Roles.Assignable.Contains(r))
+            .WithMessage("Role must be Admin (owner), Manager, Sales, ReadOnly, or Worker.");
     }
 }

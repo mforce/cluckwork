@@ -462,6 +462,20 @@ export interface User {
 
 export const listUsers = () => apiGet<User[]>("/users");
 
+export interface FlockAssignment {
+  id: string;
+  flockId: string | null;
+}
+
+export const listFlockAssignments = (userId: string) =>
+  apiGet<FlockAssignment[]>(`/users/${userId}/flock-assignments`);
+
+export const assignFlock = (userId: string, flockId: string, key?: string) =>
+  apiPost<Created>(`/users/${userId}/flock-assignments`, { flockId }, key);
+
+export const unassignFlock = (userId: string, assignmentId: string, key?: string) =>
+  apiDelete<void>(`/users/${userId}/flock-assignments/${assignmentId}`, key);
+
 export const createUser = (body: {
   email: string; password: string; role: string;
 }, key?: string) => apiPost<Created>("/users", body, key);

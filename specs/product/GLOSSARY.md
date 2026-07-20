@@ -296,14 +296,16 @@ movements) don't need one.
 **Operational day** — dates are farm-local calendar dates. For the MVP,
 browser-local ≈ farm-local; true farm timezones are #35.
 
-**Admin / Worker (#73)** — the two sign-in roles, and the only role
-distinction before full RBAC. The dividing principle: anything that *records
-the day's work* (entries, purchases, feed/water usage, flock and customer
-creation, draft→confirm orders) is open to any signed-in user; anything that
-*undoes, corrects, or configures* (void, stock/water corrections, flock
-edit + lifecycle, culls/adjustments, grade and item catalogs, user creation)
-requires the Admin role. The SPA hides gated controls; the API returns 403
-with a problem body regardless. The role travels as a `role` claim in the
+**Roles (#103, spec §5.1)** — five shipped: **Admin (owner)** does
+everything including user management; **Manager** runs the farm — every
+corrective, config, and money capability except managing users; **Worker**
+(a user with no role) records the day's work, optionally narrowed to
+**assigned flocks** (spec §5.3 — no assignments = account-wide, the first
+assignment restricts); **Sales** handles customers, orders, and payments but
+no production capture; **Read-only** sees stock, history, and reports only.
+Vet/Consultant is deferred until a health module exists to gate, and
+house-level scoping until houses are real entities. The SPA hides gated
+controls; the API returns 403 with a problem body regardless. The role travels as a `role` claim in the
 access token and is re-read at every token refresh.
 
 **Users screen** — minimal admin-only user management (#73): create a user

@@ -175,15 +175,19 @@ public sealed class DatabaseSeeder(
         }
     }
 
+    // #103: every assignable role exists up front so role assignment never
+    // races role creation.
     private async Task SeedAdminRoleAsync()
     {
-        if (await roles.RoleExistsAsync(AdminRole)) return;
-
-        var result = await roles.CreateAsync(new ApplicationRole { Id = Guid.NewGuid(), Name = AdminRole });
-        if (result.Succeeded)
-            logger.LogInformation("Seeded {Role} role.", AdminRole);
-        else
-            logger.LogError("Failed to seed {Role} role: {Errors}", AdminRole, Describe(result));
+        foreach (var name in Cluckwork.Domain.Accounts.Roles.Assignable)
+        {
+            if (await roles.RoleExistsAsync(name)) continue;
+            var result = await roles.CreateAsync(new ApplicationRole { Id = Guid.NewGuid(), Name = name });
+            if (result.Succeeded)
+                logger.LogInformation("Seeded {Role} role.", name);
+            else
+                logger.LogError("Failed to seed {Role} role: {Errors}", name, Describe(result));
+        }
     }
 
     private async Task SeedAdminUserAsync(SeedOptions o)

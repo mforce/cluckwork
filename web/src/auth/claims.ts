@@ -1,18 +1,29 @@
 import { loadTokens } from "./tokenStore";
 
-// #73 — the API emits a short "role" claim (one per role) in the access token.
+// #103 — the shipped roles (spec §5.1). "Admin" is the Owner's stored name
+// (#73 heritage); a user with no role claim is a plain Worker. Typed here so
+// screens never compare raw strings (#84).
+export type Role = "Admin" | "Manager" | "Sales" | "ReadOnly" | "Worker";
+
 // This decode drives UI visibility only; the API enforces the policy on every
 // gated endpoint regardless of what the client shows.
-export function currentUserIsAdmin(): boolean {
+export function currentUserRole(): Role {
   const tokens = loadTokens();
-  if (!tokens) return false;
+  if (!tokens) return "Worker";
   try {
     let payloadPart = tokens.accessToken.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
     payloadPart = payloadPart.padEnd(payloadPart.length + ((4 - (payloadPart.length % 4)) % 4), "=");
     const payload = JSON.parse(atob(payloadPart)) as { role?: string | string[] };
     const roles = Array.isArray(payload.role) ? payload.role : [payload.role];
-    return roles.includes("Admin");
+    for (const r of ["Admin", "Manager", "Sales", "ReadOnly"] as const)
+      if (roles.includes(r)) return r;
+    return "Worker";
   } catch {
-    return false;
+    return "Worker";
   }
+}
+
+export function currentUserIsAdmin(): boolean {
+  const role = currentUserRole();
+  return role === "Admin" || role === "Manager";
 }

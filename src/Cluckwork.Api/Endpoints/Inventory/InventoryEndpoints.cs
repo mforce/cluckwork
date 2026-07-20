@@ -49,7 +49,8 @@ public static class InventoryEndpoints
 
         group.MapPost("/items/{id:guid}/purchases", RecordPurchase)
             .WithName("RecordInventoryPurchase")
-            .WithSummary("Receive stock: creates an inventory lot and its Purchase ledger row.");
+            .WithSummary("Receive stock: creates an inventory lot and its Purchase ledger row.")
+            .RequireAuthorization(AuthPolicies.ProductionWrite);
 
         group.MapGet("/items/{id:guid}/lots", ListLots)
             .WithName("ListInventoryLots")
@@ -61,7 +62,8 @@ public static class InventoryEndpoints
 
         group.MapPost("/items/{id:guid}/usage", RecordFeedUsage)
             .WithName("RecordFeedUsage")
-            .WithSummary("Record feed consumed by a flock: drains lots FIFO, appends Usage ledger rows, estimates cost from lot costs.");
+            .WithSummary("Record feed consumed by a flock: drains lots FIFO, appends Usage ledger rows, estimates cost from lot costs.")
+            .RequireAuthorization(AuthPolicies.ProductionWrite);
 
         // Stock corrections undo recorded history — admin-only (#73; owner
         // decision: purchases are fine for workers, correcting them is not).

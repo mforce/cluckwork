@@ -21,27 +21,33 @@ public static class SaleEndpoints
     {
         group.MapPost("/", CreateSalesOrder)
             .WithName("CreateSalesOrder")
-            .WithSummary("Create a draft sales order for a customer (currency snapshotted from the account).");
+            .WithSummary("Create a draft sales order for a customer (currency snapshotted from the account).")
+            .RequireAuthorization(AuthPolicies.SalesFlow);
 
         group.MapPost("/{id:guid}/items", AddOrderItem)
             .WithName("AddOrderItem")
-            .WithSummary("Add a graded line item to a draft order.");
+            .WithSummary("Add a graded line item to a draft order.")
+            .RequireAuthorization(AuthPolicies.SalesFlow);
 
         group.MapPut("/{id:guid}/items/{itemId:guid}", UpdateOrderItem)
             .WithName("UpdateOrderItem")
-            .WithSummary("Edit a line's quantity/unit price on a draft order.");
+            .WithSummary("Edit a line's quantity/unit price on a draft order.")
+            .RequireAuthorization(AuthPolicies.SalesFlow);
 
         group.MapDelete("/{id:guid}/items/{itemId:guid}", RemoveOrderItem)
             .WithName("RemoveOrderItem")
-            .WithSummary("Remove a line from a draft order.");
+            .WithSummary("Remove a line from a draft order.")
+            .RequireAuthorization(AuthPolicies.SalesFlow);
 
         group.MapPost("/{id:guid}/cancel", CancelSalesOrder)
             .WithName("CancelSalesOrder")
-            .WithSummary("Cancel a draft order (preserved as Cancelled, not deleted).");
+            .WithSummary("Cancel a draft order (preserved as Cancelled, not deleted).")
+            .RequireAuthorization(AuthPolicies.SalesFlow);
 
         group.MapPost("/{id:guid}/confirm", ConfirmSale)
             .WithName("ConfirmSale")
-            .WithSummary("Confirm a sales order and allocate egg lots via FIFO (online-only).");
+            .WithSummary("Confirm a sales order and allocate egg lots via FIFO (online-only).")
+            .RequireAuthorization(AuthPolicies.SalesFlow);
 
         // Voiding undoes a confirmed sale — admin-only (#73). The draft
         // lifecycle (create/edit/cancel/confirm) stays open: workers sell.

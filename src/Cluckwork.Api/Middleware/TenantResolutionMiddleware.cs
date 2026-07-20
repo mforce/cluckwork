@@ -20,7 +20,8 @@ public sealed class TenantResolutionMiddleware(RequestDelegate next)
             var sub = context.User.FindFirst("sub")?.Value;
             var email = context.User.FindFirst("email")?.Value;
             if (Guid.TryParse(sub, out var userId))
-                user.Resolve(userId, email ?? "");
+                user.Resolve(userId, email ?? "",
+                    context.User.FindAll("role").Select(c => c.Value).ToList());
         }
 
         await next(context);

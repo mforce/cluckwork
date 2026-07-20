@@ -59,25 +59,32 @@ export function HelpPage() {
       <h3 id="roles">Who can do what</h3>
       <ul>
         <li>
-          There are two kinds of sign-in: <strong>workers</strong> and{" "}
-          <strong>admins</strong>. Workers run the daily loop — record and
-          submit entries, receive feed purchases, record feed and water usage,
-          create flocks and customers, and take orders from draft through
-          confirm.
+          Five kinds of sign-in. <strong>Workers</strong> run the daily loop —
+          record and submit entries, receive feed, record feed and water usage,
+          create flocks and customers, take orders from draft through confirm.
+          A worker can be narrowed to <strong>assigned flocks</strong>: with no
+          assignments they can record for any flock; the first assignment
+          restricts them to the listed ones.
         </li>
         <li>
-          Anything that <strong>undoes, corrects, or configures</strong> needs
-          an admin: voiding orders, stock corrections, water-record corrections,
-          editing flocks, deplete/archive/reactivate, culls and bird
-          adjustments, and managing the grade and item catalogs. Money is
-          admin-only outright — the Expenses screen, order payments, and
-          customer balances (viewing included) need an admin sign-in. Controls
-          you can't use are hidden, and the server refuses them regardless.
+          <strong>Managers</strong> do everything workers do, plus everything
+          that <strong>undoes, corrects, or configures</strong>: voids, stock
+          and water corrections, flock lifecycle, culls, the grade/product/item
+          catalogs, expenses, money reports, the audit log, and exports.
         </li>
         <li>
-          Admins create sign-ins on the <strong>Users</strong> screen — email,
-          password, and role. Changing an existing user's role or password
-          comes with a later release.
+          <strong>Sales</strong> sign-ins handle customers, orders, and{" "}
+          <strong>payments</strong> — but no production capture and no
+          expenses. <strong>Read-only</strong> sign-ins see stock, history, and
+          reports, and can change nothing.
+        </li>
+        <li>
+          <strong>Admin (owner)</strong> does everything a manager does and is
+          the only role that manages users: creating sign-ins on the{" "}
+          <strong>Users</strong> screen (email, password, role) and assigning
+          workers to flocks. Changing an existing user&apos;s role or password
+          comes with a later release. Controls you can&apos;t use are hidden,
+          and the server refuses them regardless.
         </li>
       </ul>
 

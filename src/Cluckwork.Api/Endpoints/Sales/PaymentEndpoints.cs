@@ -17,12 +17,12 @@ public static class PaymentEndpoints
         group.MapGet("/{id:guid}/payments", ListOrderPayments)
             .WithName("ListOrderPayments")
             .WithSummary("List an order's payments (voided included) with paid/outstanding totals.")
-            .RequireAuthorization(AuthPolicies.AdminOnly);
+            .RequireAuthorization(AuthPolicies.SalesAccess);
 
         group.MapPost("/{id:guid}/payments", RecordPayment)
             .WithName("RecordPayment")
             .WithSummary("Record a payment against a confirmed order. Currency copies from the order; overpaying the outstanding amount is refused.")
-            .RequireAuthorization(AuthPolicies.AdminOnly);
+            .RequireAuthorization(AuthPolicies.SalesAccess);
 
         return group;
     }
@@ -43,7 +43,7 @@ public static class PaymentEndpoints
         group.MapGet("/balances", ListCustomerBalances)
             .WithName("ListCustomerBalances")
             .WithSummary("Per-customer confirmed totals, settled payments, and outstanding balance (server-side sums).")
-            .RequireAuthorization(AuthPolicies.AdminOnly);
+            .RequireAuthorization(AuthPolicies.SalesAccess);
 
         return group;
     }

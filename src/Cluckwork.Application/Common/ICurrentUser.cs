@@ -7,4 +7,6 @@ public interface ICurrentUser
     bool IsResolved { get; }
     Guid UserId { get; }
     string Email { get; }
+    /// <summary>Role names from the token (#103). Empty for plain workers.</summary>
+    IReadOnlyList<string> Roles { get; }
 }

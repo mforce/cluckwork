@@ -39,8 +39,14 @@ internal static class TestHarness
     }
 
     // Adds another user to an existing account (e.g. a worker beside the admin).
+    public static Task SeedUserAsync(
+        this CluckworkWebApplicationFactory factory, Guid accountId, string email, bool asAdmin) =>
+        factory.SeedUserAsync(accountId, email,
+            asAdmin ? Cluckwork.Domain.Accounts.Roles.Owner : null);
+
+    // #103 — seed a user with any role (null = plain worker).
     public static async Task SeedUserAsync(
-        this CluckworkWebApplicationFactory factory, Guid accountId, string email, bool asAdmin)
+        this CluckworkWebApplicationFactory factory, Guid accountId, string email, string? role)
     {
         using var scope = factory.Services.CreateScope();
         var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
@@ -56,16 +62,16 @@ internal static class TestHarness
             throw new InvalidOperationException(
                 "Seed user creation failed: " + string.Join("; ", result.Errors.Select(e => e.Description)));
 
-        if (asAdmin)
+        if (role is not null)
         {
             // The startup seeder doesn't run in tests (Seed:Enabled unset) — create
             // the role on first use. Tests in the collection run sequentially, so
             // the exists-then-create pair doesn't race.
             var roles = scope.ServiceProvider.GetRequiredService<RoleManager<ApplicationRole>>();
-            if (!await roles.RoleExistsAsync(DatabaseSeeder.AdminRole))
-                await roles.CreateAsync(new ApplicationRole { Id = Guid.NewGuid(), Name = DatabaseSeeder.AdminRole });
+            if (!await roles.RoleExistsAsync(role))
+                await roles.CreateAsync(new ApplicationRole { Id = Guid.NewGuid(), Name = role });
 
-            var added = await users.AddToRoleAsync(user, DatabaseSeeder.AdminRole);
+            var added = await users.AddToRoleAsync(user, role);
             if (!added.Succeeded)
                 throw new InvalidOperationException(
                     "Seed role assignment failed: " + string.Join("; ", added.Errors.Select(e => e.Description)));

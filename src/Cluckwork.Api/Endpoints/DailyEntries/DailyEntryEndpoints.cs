@@ -16,11 +16,13 @@ public static class DailyEntryEndpoints
     {
         group.MapPost("/", RecordDailyEntry)
             .WithName("RecordDailyEntry")
-            .WithSummary("Record or update the daily production entry for a flock/house.");
+            .WithSummary("Record or update the daily production entry for a flock/house.")
+            .RequireAuthorization(AuthPolicies.ProductionWrite);
 
         group.MapPost("/{id:guid}/submit", SubmitDailyEntry)
             .WithName("SubmitDailyEntry")
-            .WithSummary("Submit a draft entry: locks it in and generates egg lots from its grade lines.");
+            .WithSummary("Submit a draft entry: locks it in and generates egg lots from its grade lines.")
+            .RequireAuthorization(AuthPolicies.ProductionWrite);
 
         // Correcting or undoing submitted history is admin work (#73/#69);
         // both reconcile lots and the bird ledger in one transaction.

@@ -15,7 +15,8 @@ public static class CustomerEndpoints
     {
         group.MapPost("/", CreateCustomer)
             .WithName("CreateCustomer")
-            .WithSummary("Create a customer (name + phone required; email/address/note optional).");
+            .WithSummary("Create a customer (name + phone required; email/address/note optional).")
+            .RequireAuthorization(AuthPolicies.SalesFlow);
 
         group.MapGet("/", ListCustomers)
             .WithName("ListCustomers")

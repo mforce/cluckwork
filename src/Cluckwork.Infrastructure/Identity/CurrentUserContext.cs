@@ -9,11 +9,13 @@ public sealed class CurrentUserContext : ICurrentUser
     public bool IsResolved { get; private set; }
     public Guid UserId { get; private set; }
     public string Email { get; private set; } = string.Empty;
+    public IReadOnlyList<string> Roles { get; private set; } = [];
 
-    public void Resolve(Guid userId, string email)
+    public void Resolve(Guid userId, string email, IReadOnlyList<string>? roles = null)
     {
         UserId = userId;
         Email = email;
+        Roles = roles ?? [];
         IsResolved = true;
     }
 }
