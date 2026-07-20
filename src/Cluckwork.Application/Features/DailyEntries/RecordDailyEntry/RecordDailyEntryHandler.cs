@@ -12,6 +12,7 @@ public sealed class RecordDailyEntryHandler(
     IDailyEntryRepository repository,
     IEggGradeRepository eggGrades,
     IFlockRepository flocks,
+    IFlockScopeGuard flockScope,
     IUnitOfWork unitOfWork)
 {
     public async Task<Result<Guid>> HandleAsync(
@@ -19,6 +20,10 @@ public sealed class RecordDailyEntryHandler(
         Guid accountId,
         CancellationToken ct)
     {
+        // Spec §5.3 (#103): scoped workers may only record for assigned flocks.
+        var scope = await flockScope.CheckAsync(command.FlockId, ct);
+        if (scope.IsFailure) return Result.Failure<Guid>(scope.Error);
+
         // Production needs a live flock for the entry's date (#47): archived
         // flocks never accept entries; depleted flocks still accept backfill
         // dated on/before the depletion date (the final laying days are often

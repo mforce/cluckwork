@@ -1,6 +1,8 @@
 namespace Cluckwork.Api.Endpoints.Users;
 
 using Cluckwork.Application.Common;
+using Cluckwork.Application.Features.Users;
+using Cluckwork.Application.Features.Users.AssignFlock;
 using Cluckwork.Application.Features.Users.CreateUser;
 using Cluckwork.Infrastructure.Persistence;
 using FluentValidation;
@@ -19,7 +21,60 @@ public static class UserEndpoints
             .WithName("ListUsers")
             .WithSummary("List this account's users and their role.");
 
+        // #103 — flock scoping for workers (spec §5.3). Owner-only like the
+        // rest of the group.
+        group.MapGet("/{id:guid}/flock-assignments", ListAssignments)
+            .WithName("ListFlockAssignments")
+            .WithSummary("A user's flock assignments. No rows = account-wide access.");
+
+        group.MapPost("/{id:guid}/flock-assignments", AssignFlock)
+            .WithName("AssignFlock")
+            .WithSummary("Assign a flock to a worker. The first assignment narrows them to assigned flocks only.");
+
+        group.MapDelete("/{id:guid}/flock-assignments/{assignmentId:guid}", UnassignFlock)
+            .WithName("UnassignFlock")
+            .WithSummary("Remove a flock assignment. Removing the last one restores account-wide access.");
+
         return group;
+    }
+
+    private static async Task<IResult> ListAssignments(
+        Guid id, IUserRoleAssignmentRepository assignments, TenantContext tenant, CancellationToken ct)
+    {
+        if (!tenant.IsResolved) return Results.Unauthorized();
+        var list = await assignments.ListByUserAsync(id, ct);
+        return Results.Ok(list.Select(a => new FlockAssignmentResponse(a.Id, a.FlockId)));
+    }
+
+    private static async Task<IResult> AssignFlock(
+        Guid id, AssignFlockRequest request, AssignFlockHandler handler,
+        TenantContext tenant, CancellationToken ct)
+    {
+        if (!tenant.IsResolved) return Results.Unauthorized();
+        if (request.FlockId == Guid.Empty)
+            return Results.ValidationProblem(new Dictionary<string, string[]>
+            {
+                ["flockId"] = ["A flock id is required."],
+            });
+        var result = await handler.HandleAsync(id, request.FlockId, tenant.AccountId, ct);
+        if (result.IsSuccess)
+            return Results.Created($"/api/v1/users/{id}/flock-assignments", new { Id = result.Value });
+        if (result.Error.Code.EndsWith(".NotFound", StringComparison.Ordinal))
+            return Results.NotFound();
+        return result.Error.Code == "Users.AlreadyAssigned"
+            ? Results.Problem(result.Error.Description, statusCode: StatusCodes.Status409Conflict, title: result.Error.Code)
+            : Results.Problem(result.Error.Description, statusCode: 422, title: result.Error.Code);
+    }
+
+    private static async Task<IResult> UnassignFlock(
+        Guid id, Guid assignmentId, UnassignFlockHandler handler,
+        TenantContext tenant, CancellationToken ct)
+    {
+        if (!tenant.IsResolved) return Results.Unauthorized();
+        var result = await handler.HandleAsync(id, assignmentId, ct);
+        return result.IsSuccess
+            ? Results.NoContent()
+            : Results.NotFound();
     }
 
     private static async Task<IResult> CreateUser(
@@ -54,3 +109,7 @@ public static class UserEndpoints
 public sealed record CreateUserRequest(string Email, string Password, string Role);
 
 public sealed record UserResponse(Guid Id, string Email, string? DisplayName, string Role);
+
+public sealed record AssignFlockRequest(Guid FlockId);
+
+public sealed record FlockAssignmentResponse(Guid Id, Guid? FlockId);

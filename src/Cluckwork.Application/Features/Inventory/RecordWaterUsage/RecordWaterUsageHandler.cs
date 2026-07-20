@@ -10,12 +10,17 @@ using Cluckwork.Domain.Inventory;
 public sealed class RecordWaterUsageHandler(
     IWaterUsageRepository waterUsages,
     IFlockRepository flocks,
+    IFlockScopeGuard flockScope,
     IUnitOfWork unitOfWork,
     IClock clock)
 {
     public async Task<Result<Guid>> HandleAsync(
         RecordWaterUsageCommand command, Guid accountId, CancellationToken ct)
     {
+        // Spec §5.3 (#103): scoped workers may only record for assigned flocks.
+        var scope = await flockScope.CheckAsync(command.FlockId, ct);
+        if (scope.IsFailure) return Result.Failure<Guid>(scope.Error);
+
         // Tenant query filter scopes the lookup — foreign flocks read as null.
         var flock = await flocks.GetByIdAsync(command.FlockId, ct);
         if (flock is null)

@@ -16,7 +16,8 @@ public static class WaterUsageEndpoints
     {
         group.MapPost("/", RecordWaterUsage)
             .WithName("RecordWaterUsage")
-            .WithSummary("Record water consumed by a flock (direct quantity or meter readings).");
+            .WithSummary("Record water consumed by a flock (direct quantity or meter readings).")
+            .RequireAuthorization(AuthPolicies.ProductionWrite);
 
         // Recording water is the day's work; correcting a record is not (#73 —
         // same split the owner set for purchases vs purchase corrections).

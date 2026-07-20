@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
-import { createUser, listUsers } from "../api/cluckwork";
-import type { User } from "../api/cluckwork";
+import {
+  assignFlock, createUser, listFlockAssignments, listFlocks, listUsers, unassignFlock,
+} from "../api/cluckwork";
+import type { Flock, FlockAssignment, User } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 
 function errText(err: unknown): string {
@@ -21,6 +23,12 @@ export function UsersPage() {
   const [password, setPassword] = useState("");
   const [role, setRole] = useState("Worker");
 
+  // #103 flock scoping: expand a worker row to manage assignments.
+  const [openUser, setOpenUser] = useState<string | null>(null);
+  const [assignments, setAssignments] = useState<FlockAssignment[]>([]);
+  const [flocks, setFlocks] = useState<Flock[]>([]);
+  const [assignFlockId, setAssignFlockId] = useState("");
+
   // Stable idempotency keys per logical mutation, rotated only after the full
   // action (write + refresh) succeeds — same contract as the other screens.
   const keys = useRef(new Map<string, string>());
@@ -34,10 +42,67 @@ export function UsersPage() {
   const clearKey = (scope: string) => keys.current.delete(scope);
 
   useEffect(() => {
-    listUsers()
-      .then(setUsers)
+    Promise.all([listUsers(), listFlocks()])
+      .then(([u, f]) => {
+        setUsers(u);
+        const active = f.filter((x) => x.status === "Active");
+        setFlocks(active);
+        // Initialize from the ACTIVE list the dropdown shows — an inactive
+        // first flock would preselect an id no option carries, and Assign
+        // would 404 (conventions review of #104).
+        if (active.length > 0) setAssignFlockId(active[0].id);
+      })
       .catch((err) => setError(errText(err)));
   }, []);
+
+  async function toggleAssignments(userId: string) {
+    if (openUser === userId) {
+      setOpenUser(null);
+      return;
+    }
+    try {
+      setAssignments(await listFlockAssignments(userId));
+      setOpenUser(userId);
+      setError(null);
+    } catch (err) {
+      setError(errText(err));
+    }
+  }
+
+  async function onAssign() {
+    if (!openUser || !assignFlockId || busy) return;
+    setBusy(true);
+    setError(null);
+    const scope = `assign:${openUser}:${assignFlockId}`;
+    try {
+      await assignFlock(openUser, assignFlockId, keyFor(scope));
+      setAssignments(await listFlockAssignments(openUser));
+      clearKey(scope);
+    } catch (err) {
+      setError(errText(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onUnassign(assignmentId: string) {
+    if (!openUser || busy) return;
+    setBusy(true);
+    setError(null);
+    const scope = `unassign:${assignmentId}`;
+    try {
+      await unassignFlock(openUser, assignmentId, keyFor(scope));
+      setAssignments(await listFlockAssignments(openUser));
+      clearKey(scope);
+    } catch (err) {
+      setError(errText(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const flockName = (id: string | null) =>
+    flocks.find((f) => f.id === id)?.name ?? (id ? id.slice(0, 8) : "farm-wide");
 
   async function onCreate(e: FormEvent) {
     e.preventDefault();
@@ -68,8 +133,10 @@ export function UsersPage() {
     <section>
       <h2>Users</h2>
       <p className="muted">
-        Workers can record the day's work — entries, purchases, feed and water,
-        orders. Corrections, voids, catalogs, and flock lifecycle need an admin.
+        Workers record the day&apos;s work (optionally narrowed to assigned
+        flocks). Managers additionally correct, void, and configure. Sales
+        handles customers, orders, and payments. Read-only sees stock, history,
+        and reports. Admin (owner) does everything, including managing users.
       </p>
 
       <form className="inline-form" onSubmit={onCreate}>
@@ -81,7 +148,10 @@ export function UsersPage() {
           onChange={(e) => setPassword(e.target.value)} />
         <select value={role} onChange={(e) => setRole(e.target.value)}>
           <option value="Worker">Worker</option>
-          <option value="Admin">Admin</option>
+          <option value="Admin">Admin (owner)</option>
+          <option value="Manager">Manager</option>
+          <option value="Sales">Sales</option>
+          <option value="ReadOnly">Read-only</option>
         </select>
         <button type="submit" disabled={busy}>Create user</button>
       </form>
@@ -91,7 +161,7 @@ export function UsersPage() {
 
       <table className="data">
         <thead>
-          <tr><th>Email</th><th>Name</th><th>Role</th></tr>
+          <tr><th>Email</th><th>Name</th><th>Role</th><th></th></tr>
         </thead>
         <tbody>
           {users.map((u) => (
@@ -99,10 +169,49 @@ export function UsersPage() {
               <td>{u.email}</td>
               <td>{u.displayName ?? "—"}</td>
               <td>{u.role}</td>
+              <td>
+                {u.role === "Worker" && (
+                  <button className="link" onClick={() => void toggleAssignments(u.id)}>
+                    {openUser === u.id ? "hide flocks" : "flocks"}
+                  </button>
+                )}
+              </td>
             </tr>
           ))}
         </tbody>
       </table>
+
+      {openUser !== null && (
+        <>
+          <h3>Assigned flocks</h3>
+          <p className="muted">
+            No assignments = the worker can record for any flock. The first
+            assignment narrows them to the listed flocks only.
+          </p>
+          {assignments.length === 0 ? (
+            <p className="muted">No assignments — account-wide access.</p>
+          ) : (
+            <ul>
+              {assignments.map((a) => (
+                <li key={a.id}>
+                  {flockName(a.flockId)}{" "}
+                  <button className="link" disabled={busy} onClick={() => void onUnassign(a.id)}>
+                    remove
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="inline-form">
+            <select value={assignFlockId} onChange={(e) => setAssignFlockId(e.target.value)}>
+              {flocks.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+            </select>
+            <button disabled={busy || !assignFlockId} onClick={() => void onAssign()}>
+              Assign flock
+            </button>
+          </div>
+        </>
+      )}
     </section>
   );
 }

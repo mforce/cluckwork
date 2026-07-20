@@ -189,7 +189,7 @@ and feed.
 ## Sales
 
 **Customer** — name + phone required; email/address/note optional. No
-payments/balances yet (later 1.1 slice).
+payments and balances (spec §10.11, shipped #89).
 
 **Sales order lifecycle** — `Draft → Confirmed → Voided` (or `Draft →
 Cancelled`): drafts are fully editable (add/edit/remove lines, cancel);
@@ -252,7 +252,9 @@ currency copies from the ORDER at creation. Partial payments are normal;
 row lock, so racing payments can't overshoot). A wrong payment is **voided**
 with a reason — never deleted — and the outstanding grows back. An order
 with non-voided payments refuses to void ("void the payments first").
-Admin-only end to end, reads included.
+Recording and viewing payments is the Sales tier (Owner/Manager/Sales,
+spec §5.1); voiding a payment is corrective (Owner/Manager only), like every
+other undo.
 
 **Outstanding balance (#89)** — per order: confirmed total − non-voided
 payments; per customer: the same summed across their confirmed orders
@@ -296,20 +298,22 @@ movements) don't need one.
 **Operational day** — dates are farm-local calendar dates. For the MVP,
 browser-local ≈ farm-local; true farm timezones are #35.
 
-**Admin / Worker (#73)** — the two sign-in roles, and the only role
-distinction before full RBAC. The dividing principle: anything that *records
-the day's work* (entries, purchases, feed/water usage, flock and customer
-creation, draft→confirm orders) is open to any signed-in user; anything that
-*undoes, corrects, or configures* (void, stock/water corrections, flock
-edit + lifecycle, culls/adjustments, grade and item catalogs, user creation)
-requires the Admin role. The SPA hides gated controls; the API returns 403
-with a problem body regardless. The role travels as a `role` claim in the
+**Roles (#103, spec §5.1)** — five shipped: **Admin (owner)** does
+everything including user management; **Manager** runs the farm — every
+corrective, config, and money capability except managing users; **Worker**
+(a user with no role) records the day's work, optionally narrowed to
+**assigned flocks** (spec §5.3 — no assignments = account-wide, the first
+assignment restricts); **Sales** handles customers, orders, and payments but
+no production capture; **Read-only** sees stock, history, and reports only.
+Vet/Consultant is deferred until a health module exists to gate, and
+house-level scoping until houses are real entities. The SPA hides gated
+controls; the API returns 403 with a problem body regardless. The role travels as a `role` claim in the
 access token and is re-read at every token refresh.
 
-**Users screen** — minimal admin-only user management (#73): create a user
-with email, password, and role (Admin or Worker) and list existing ones.
-Editing roles/passwords and house-scoped permissions belong to the RBAC
-slice.
+**Users screen** — Owner-only user management (#103): create a user with
+email, password, and one of the five roles, and manage worker flock
+assignments (spec §5.3). Editing an existing user's role or password belongs
+to a later slice.
 
 **Export (manual backup) (#95)** — admin-only downloads of the account's
 data as CSV files: one file per dataset, or a **full account export** — a

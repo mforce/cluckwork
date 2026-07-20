@@ -18,6 +18,7 @@ public sealed class RecordFeedUsageHandler(
     IInventoryMovementRepository movements,
     IFeedUsageRepository usages,
     IFlockRepository flocks,
+    IFlockScopeGuard flockScope,
     IUnitOfWork unitOfWork,
     IClock clock)
 {
@@ -32,6 +33,10 @@ public sealed class RecordFeedUsageHandler(
         if (command.Date > clock.TodayUtc)
             return Result.Failure<RecordFeedUsageResponse>(Error.Validation(
                 "FeedUsage.FutureDate", "Usage date cannot be in the future."));
+
+        // Spec §5.3 (#103): scoped workers may only record for assigned flocks.
+        var scope = await flockScope.CheckAsync(command.FlockId, ct);
+        if (scope.IsFailure) return Result.Failure<RecordFeedUsageResponse>(scope.Error);
 
         Result<RecordFeedUsageResponse>? outcome = null;
 

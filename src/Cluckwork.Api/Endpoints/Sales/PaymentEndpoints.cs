@@ -7,8 +7,9 @@ using Cluckwork.Domain.Sales;
 using Cluckwork.Infrastructure.Persistence;
 using FluentValidation;
 
-// Customer payments (#89). Money data — every route here is AdminOnly, reads
-// included (the #87 money/production split).
+// Customer payments (#89/#104). Settlement is the Sales tier
+// (Owner/Manager/Sales — spec §5.1); voiding a payment is the corrective
+// tier (Owner/Manager only).
 public static class PaymentEndpoints
 {
     // Mounted on the /sales group: order-scoped settlement history + record.
@@ -17,12 +18,12 @@ public static class PaymentEndpoints
         group.MapGet("/{id:guid}/payments", ListOrderPayments)
             .WithName("ListOrderPayments")
             .WithSummary("List an order's payments (voided included) with paid/outstanding totals.")
-            .RequireAuthorization(AuthPolicies.AdminOnly);
+            .RequireAuthorization(AuthPolicies.SalesAccess);
 
         group.MapPost("/{id:guid}/payments", RecordPayment)
             .WithName("RecordPayment")
             .WithSummary("Record a payment against a confirmed order. Currency copies from the order; overpaying the outstanding amount is refused.")
-            .RequireAuthorization(AuthPolicies.AdminOnly);
+            .RequireAuthorization(AuthPolicies.SalesAccess);
 
         return group;
     }
@@ -30,9 +31,13 @@ public static class PaymentEndpoints
     // Own /payments group: cross-order actions.
     public static RouteGroupBuilder MapPaymentEndpoints(this RouteGroupBuilder group)
     {
+        // Voiding is the corrective tier (#104 panel): every other undo in
+        // the system is Owner/Manager, and a Sales user must not void their
+        // own recorded payment (pocket the cash, reopen the balance).
         group.MapPost("/{id:guid}/void", VoidPayment)
             .WithName("VoidPayment")
-            .WithSummary("Void a mistaken payment (reason required; base version; the row is kept).");
+            .WithSummary("Void a mistaken payment (reason required; base version; the row is kept).")
+            .RequireAuthorization(AuthPolicies.AdminOnly);
 
         return group;
     }
@@ -43,7 +48,7 @@ public static class PaymentEndpoints
         group.MapGet("/balances", ListCustomerBalances)
             .WithName("ListCustomerBalances")
             .WithSummary("Per-customer confirmed totals, settled payments, and outstanding balance (server-side sums).")
-            .RequireAuthorization(AuthPolicies.AdminOnly);
+            .RequireAuthorization(AuthPolicies.SalesAccess);
 
         return group;
     }

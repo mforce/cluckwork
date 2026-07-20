@@ -82,7 +82,7 @@ public sealed class IdentityProvider(
     }
 
     public async Task<Result<Guid>> CreateUserAsync(
-        Guid accountId, string email, string password, bool isAdmin, CancellationToken ct = default)
+        Guid accountId, string email, string password, string? role, CancellationToken ct = default)
     {
         // One transaction around create + role assignment: a failed admin
         // creation must not survive as a usable role-less worker account
@@ -102,17 +102,21 @@ public sealed class IdentityProvider(
         if (!created.Succeeded)
             return Result.Failure<Guid>(await CreateFailureAsync(created, email, accountId));
 
-        if (isAdmin)
+        if (role is not null)
         {
-            if (!await roleManager.RoleExistsAsync(DatabaseSeeder.AdminRole))
+            if (!Cluckwork.Domain.Accounts.Roles.Assignable.Contains(role))
+                return Result.Failure<Guid>(Error.Validation(
+                    "Users.UnknownRole", $"'{role}' is not an assignable role."));
+
+            if (!await roleManager.RoleExistsAsync(role))
             {
                 var roleCreated = await roleManager.CreateAsync(
-                    new ApplicationRole { Id = Guid.NewGuid(), Name = DatabaseSeeder.AdminRole });
+                    new ApplicationRole { Id = Guid.NewGuid(), Name = role });
                 if (!roleCreated.Succeeded)
                     return Result.Failure<Guid>(Error.Validation("Users.CreateFailed", Describe(roleCreated)));
             }
 
-            var addedToRole = await userManager.AddToRoleAsync(user, DatabaseSeeder.AdminRole);
+            var addedToRole = await userManager.AddToRoleAsync(user, role);
             if (!addedToRole.Succeeded)
                 return Result.Failure<Guid>(Error.Validation("Users.CreateFailed", Describe(addedToRole)));
         }
@@ -120,7 +124,7 @@ public sealed class IdentityProvider(
         // Same transaction as the creation (#93): the event needs its own
         // SaveChanges because UserManager flushed its writes already.
         await audit.WriteAsync("User.Create", "User", user.Id,
-            reason: null, details: new { email, role = isAdmin ? "Admin" : "Worker" }, ct: ct);
+            reason: null, details: new { email, role = role ?? "Worker" }, ct: ct);
         await db.SaveChangesAsync(ct);
 
         await transaction.CommitAsync(ct);
@@ -144,19 +148,35 @@ public sealed class IdentityProvider(
 
     public async Task<IReadOnlyList<UserSummary>> ListUsersAsync(Guid accountId, CancellationToken ct = default)
     {
-        var adminIds = await (
+        var roleByUser = await (
             from userRole in db.UserRoles
             join role in db.Roles on userRole.RoleId equals role.Id
-            where role.Name == DatabaseSeeder.AdminRole
-            select userRole.UserId).ToListAsync(ct);
+            select new { userRole.UserId, role.Name })
+            .ToListAsync(ct);
+        // Highest role wins, matching AuthPolicies.EffectiveRole — an
+        // Owner+ReadOnly user must list as Owner, not by insertion order
+        // (codex/conventions review of #104).
+        static int Rank(string? name) => name switch
+        {
+            Cluckwork.Domain.Accounts.Roles.Owner => 4,
+            Cluckwork.Domain.Accounts.Roles.Manager => 3,
+            Cluckwork.Domain.Accounts.Roles.Sales => 2,
+            Cluckwork.Domain.Accounts.Roles.ReadOnly => 1,
+            _ => 0,
+        };
+        var lookup = roleByUser
+            .GroupBy(x => x.UserId)
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(x => Rank(x.Name)).First().Name!);
 
-        return await db.Users
+        var rows = await db.Users
             .Where(u => u.AccountId == accountId)
             .OrderBy(u => u.Email)
-            .Select(u => new UserSummary(
-                u.Id, u.Email!, u.DisplayName,
-                adminIds.Contains(u.Id) ? DatabaseSeeder.AdminRole : "Worker"))
+            .Select(u => new { u.Id, u.Email, u.DisplayName })
             .ToListAsync(ct);
+        return rows
+            .Select(u => new UserSummary(
+                u.Id, u.Email!, u.DisplayName, lookup.GetValueOrDefault(u.Id, "Worker")))
+            .ToList();
     }
 
     private static string Describe(IdentityResult result) =>

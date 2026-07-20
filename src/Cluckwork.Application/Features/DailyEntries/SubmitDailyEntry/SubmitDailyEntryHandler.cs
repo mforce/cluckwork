@@ -21,6 +21,7 @@ public sealed class SubmitDailyEntryHandler(
     IBirdMovementRepository birdMovements,
     IEggInventoryMovementRepository eggMovements,
     IFlockRepository flocks,
+    IFlockScopeGuard flockScope,
     IClock clock,
     IUnitOfWork unitOfWork)
 {
@@ -41,6 +42,11 @@ public sealed class SubmitDailyEntryHandler(
             return Result.Failure<SubmitDailyEntryResponse>(Error.Validation(
                 "DailyEntry.FlockNotActive",
                 $"Flock '{flock.Name}' is {flock.Status.ToString().ToLowerInvariant()} — this entry can no longer be submitted."));
+
+        // Spec §5.3 (#103): submitting is recording too — same scope rule.
+        var scope = await flockScope.CheckAsync(entry.FlockId, ct);
+        if (scope.IsFailure)
+            return Result.Failure<SubmitDailyEntryResponse>(scope.Error);
 
         var submit = entry.Submit();
         if (submit.IsFailure)

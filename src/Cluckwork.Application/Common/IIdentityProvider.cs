@@ -12,10 +12,10 @@ public interface IIdentityProvider
 
     Task RevokeRefreshTokenAsync(string refreshToken, CancellationToken ct = default);
 
-    // #73 — minimal user management: admins create workers/admins for their own
-    // account. Full role/user administration belongs to the RBAC slice.
+    // #103 — role is one of Roles.Assignable, or null for a plain worker
+    // (workers deliberately carry no role row).
     Task<Result<Guid>> CreateUserAsync(
-        Guid accountId, string email, string password, bool isAdmin, CancellationToken ct = default);
+        Guid accountId, string email, string password, string? role, CancellationToken ct = default);
 
     Task<IReadOnlyList<UserSummary>> ListUsersAsync(Guid accountId, CancellationToken ct = default);
 }
