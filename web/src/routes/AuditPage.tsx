@@ -60,7 +60,7 @@ export function AuditPage() {
     "Expense.Adjust", "ExpenseCategory.Update", "InventoryItem.Adjust",
     "WaterUsage.Correct", "Flock.BirdMovement", "Flock.Update", "Flock.Deplete",
     "Flock.Archive", "Flock.Reactivate", "EggGrade.Update", "EggGrade.Activate",
-    "EggGrade.Deactivate", "User.Create",
+    "EggGrade.Deactivate", "User.Create", "Account.Export",
   ];
 
   return (
