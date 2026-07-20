@@ -52,6 +52,9 @@ export function AuditPage() {
 
   useEffect(() => { void load(); }, [load]);
 
+  // Must list every server-side capture-point action code — a missing entry
+  // is a silent filter gap ("All actions" still shows the rows). Centralizing
+  // these codes is part of the magic-strings debt (#84).
   const actions = [
     "DailyEntry.Adjust", "DailyEntry.Void", "SalesOrder.Void", "Payment.Void",
     "Expense.Adjust", "ExpenseCategory.Update", "InventoryItem.Adjust",

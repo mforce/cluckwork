@@ -142,6 +142,114 @@ public sealed class AuditTests(CluckworkWebApplicationFactory factory)
         Assert.Empty((await clientB.GetFromJsonAsync<List<AuditRow>>($"/api/v1/audit?entityId={entryId}"))!);
     }
 
+    // Paging over the append-only trail: limit/offset windows are disjoint and
+    // their concatenation is exactly the full newest-first list (Id tiebreak
+    // keeps same-instant rows stable).
+    [Fact]
+    public async Task Paging_WindowsAreDisjoint_AndStitchBackNewestFirst()
+    {
+        var (client, _, _, _, flockId, _) = await SetupAsync();
+        for (var i = 0; i < 3; i++)
+            await client.PostWithKeyAsync($"/api/v1/flocks/{flockId}/movements", Guid.NewGuid().ToString(),
+                new { type = "Cull", quantity = 1, date = Today, note = $"cull {i}" });
+
+        var all = await client.GetFromJsonAsync<List<AuditRow>>(
+            "/api/v1/audit?action=Flock.BirdMovement");
+        Assert.Equal(3, all!.Count);
+        Assert.True(all.Zip(all.Skip(1)).All(p => p.First.OccurredAtUtc >= p.Second.OccurredAtUtc));
+
+        var page1 = await client.GetFromJsonAsync<List<AuditRow>>(
+            "/api/v1/audit?action=Flock.BirdMovement&limit=2&offset=0");
+        var page2 = await client.GetFromJsonAsync<List<AuditRow>>(
+            "/api/v1/audit?action=Flock.BirdMovement&limit=2&offset=2");
+        Assert.Equal(2, page1!.Count);
+        Assert.Single(page2!);
+        Assert.Equal(all.Select(r => r.Id), page1.Concat(page2!).Select(r => r.Id));
+    }
+
+    // Date filters are inclusive calendar days; to=9999-12-31 must not 500
+    // (AddDays overflow guard from the codex round).
+    [Fact]
+    public async Task DateRange_IsInclusive_AndMaxDateIsSafe()
+    {
+        var (client, _, _, _, flockId, _) = await SetupAsync();
+        await client.PostWithKeyAsync($"/api/v1/flocks/{flockId}/movements", Guid.NewGuid().ToString(),
+            new { type = "Cull", quantity = 1, date = Today, note = "dated" });
+
+        // Anchor on the row's actual UTC day so a midnight rollover can't flake.
+        var row = Assert.Single((await client.GetFromJsonAsync<List<AuditRow>>(
+            "/api/v1/audit?action=Flock.BirdMovement"))!);
+        var day = DateOnly.FromDateTime(row.OccurredAtUtc.UtcDateTime);
+
+        Assert.Single((await client.GetFromJsonAsync<List<AuditRow>>(
+            $"/api/v1/audit?action=Flock.BirdMovement&from={day:yyyy-MM-dd}&to={day:yyyy-MM-dd}"))!);
+        Assert.Empty((await client.GetFromJsonAsync<List<AuditRow>>(
+            $"/api/v1/audit?action=Flock.BirdMovement&from={day.AddDays(1):yyyy-MM-dd}"))!);
+        Assert.Empty((await client.GetFromJsonAsync<List<AuditRow>>(
+            $"/api/v1/audit?action=Flock.BirdMovement&to={day.AddDays(-1):yyyy-MM-dd}"))!);
+        Assert.Single((await client.GetFromJsonAsync<List<AuditRow>>(
+            $"/api/v1/audit?action=Flock.BirdMovement&to=9999-12-31"))!);
+    }
+
+    // A MID-transaction domain failure (order void refused because payments
+    // exist — the guard runs inside the transaction) must leave no audit row;
+    // the eventual success writes exactly one. Also pins that Payment.Void
+    // details carry the voided amount for the admin viewer.
+    [Fact]
+    public async Task MidTransactionFailure_WritesNothing_EventualVoidWritesOne()
+    {
+        var (client, _, _, farmId, flockId, gradeId) = await SetupAsync();
+
+        var record = await client.PostWithKeyAsync("/api/v1/daily-entries", Guid.NewGuid().ToString(), new
+        {
+            farmId, houseId = Guid.NewGuid(), flockId, date = Today,
+            totalEggs = 100, crackedEggs = 0, dirtyEggs = 0, discardedEggs = 0,
+            mortalityCount = 0,
+            grades = new[] { new { eggGradeId = gradeId, quantity = 90 } }
+        });
+        var entryId = (await record.Content.ReadFromJsonAsync<Created>())!.Id;
+        await client.PostWithKeyAsync($"/api/v1/daily-entries/{entryId}/submit", Guid.NewGuid().ToString());
+
+        var customer = await client.PostWithKeyAsync("/api/v1/customers", Guid.NewGuid().ToString(),
+            new { name = "Audit Buyer", phone = "555-0100" });
+        var customerId = (await customer.Content.ReadFromJsonAsync<Created>())!.Id;
+        var order = await client.PostWithKeyAsync("/api/v1/sales", Guid.NewGuid().ToString(),
+            new { customerId, orderDate = Today });
+        var orderId = (await order.Content.ReadFromJsonAsync<Created>())!.Id;
+        await client.PostWithKeyAsync($"/api/v1/sales/{orderId}/items", Guid.NewGuid().ToString(),
+            new { eggGradeId = gradeId, quantity = 10, unitPriceMinorUnits = 100 });
+        await client.PostWithKeyAsync($"/api/v1/sales/{orderId}/confirm", Guid.NewGuid().ToString());
+        await client.PostWithKeyAsync($"/api/v1/sales/{orderId}/payments", Guid.NewGuid().ToString(),
+            new { paymentDate = Today, amountMinorUnits = 500, method = "Cash" });
+
+        // Void refused (payments exist) → the guard fails INSIDE the
+        // transaction, after work has been done — nothing may persist.
+        var refused = await client.PostWithKeyAsync($"/api/v1/sales/{orderId}/void",
+            Guid.NewGuid().ToString(), new { reason = "wrong order" });
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, refused.StatusCode);
+        Assert.Empty((await client.GetFromJsonAsync<List<AuditRow>>(
+            $"/api/v1/audit?action=SalesOrder.Void&entityId={orderId}"))!);
+
+        var payments = await client.GetFromJsonAsync<PaymentsPage>($"/api/v1/sales/{orderId}/payments");
+        var payment = Assert.Single(payments!.Items);
+        await client.PostWithKeyAsync($"/api/v1/payments/{payment.Id}/void", Guid.NewGuid().ToString(),
+            new { version = payment.Version, reason = "clearing for order void" });
+
+        var paymentVoid = Assert.Single((await client.GetFromJsonAsync<List<AuditRow>>(
+            $"/api/v1/audit?action=Payment.Void&entityId={payment.Id}"))!);
+        Assert.Contains("\"amountMinorUnits\":500", paymentVoid.DetailsJson);
+
+        var allowed = await client.PostWithKeyAsync($"/api/v1/sales/{orderId}/void",
+            Guid.NewGuid().ToString(), new { reason = "wrong order" });
+        Assert.Equal(HttpStatusCode.OK, allowed.StatusCode);
+        var orderVoid = Assert.Single((await client.GetFromJsonAsync<List<AuditRow>>(
+            $"/api/v1/audit?action=SalesOrder.Void&entityId={orderId}"))!);
+        Assert.Equal("wrong order", orderVoid.Reason);
+    }
+
+    private sealed record PaymentRow(Guid Id, int Version);
+    private sealed record PaymentsPage(List<PaymentRow> Items);
+
     [Fact]
     public async Task Viewer_IsAdminOnly()
     {
