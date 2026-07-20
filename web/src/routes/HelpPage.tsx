@@ -4,17 +4,24 @@
 // docs-sync rule (AGENTS.md) requires every user-visible change to update the
 // relevant section here and specs/product/GLOSSARY.md in the same PR.
 
+// Must mirror the <h3 id=...> sections below, in document order — a section
+// missing here is invisible to anyone who navigates by the contents list.
 const TOC = [
   ["daily-loop", "The daily loop"],
   ["roles", "Who can do what"],
   ["daily-entry", "Daily entry"],
   ["flocks", "Flocks & birds"],
   ["grades", "Egg grades"],
+  ["products", "Products"],
   ["stock", "Stock"],
   ["inventory", "Feed & inventory"],
   ["water", "Water"],
   ["sales", "Customers & sales"],
+  ["reports", "Reports"],
+  ["expenses", "Expenses"],
   ["history", "History"],
+  ["audit", "Audit log"],
+  ["export", "Export & backup"],
   ["mistakes", "Fixing mistakes"],
   ["glossary", "Glossary"],
 ] as const;
@@ -141,6 +148,21 @@ export function HelpPage() {
         </li>
         <li>
           The grade catalog is configuration — managing it is admin-only.
+        </li>
+      </ul>
+
+      <h3 id="products">Products (admin)</h3>
+      <ul>
+        <li>
+          Products are what you sell — &quot;Large Eggs by the dozen&quot;,
+          &quot;Mixed carton&quot;. Each egg product points at an egg grade
+          (that&apos;s where its stock comes from) and carries a selling unit
+          and an optional default price. Only egg products exist for now.
+        </li>
+        <li>
+          <strong>Packed units</strong> set how many eggs each unit holds —
+          your carton might be 12, 18, or 30. Changing a unit only affects
+          future sales; past orders keep the count they were sold with.
         </li>
       </ul>
 

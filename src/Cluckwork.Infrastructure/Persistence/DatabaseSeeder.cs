@@ -46,6 +46,7 @@ public sealed class DatabaseSeeder(
 
         await SeedDefaultAccountAsync(o, ct);
         await SeedDefaultEggGradesAsync(ct);
+        await SeedDefaultEggUnitConversionsAsync(ct);
         await SeedAdminRoleAsync();
         await SeedAdminUserAsync(o);
         await SeedWorkerUserAsync(o);
@@ -105,6 +106,35 @@ public sealed class DatabaseSeeder(
                 // Genuine failure: the tenant is left without default grades.
                 // Startup stays best-effort, but this must be loud, not "healthy".
                 logger.LogError(ex, "Failed to seed default egg grades.");
+        }
+    }
+
+    // Spec §9.7 packed-unit defaults (#97). Same only-into-an-empty-catalog rule
+    // as grades: once any row exists the conversions are user-managed, and
+    // re-seeding would resurrect deliberately deactivated units.
+    private async Task SeedDefaultEggUnitConversionsAsync(CancellationToken ct)
+    {
+        var any = await db.EggUnitConversions
+            .IgnoreQueryFilters()
+            .AnyAsync(c => c.AccountId == SeedDefaults.AccountId, ct);
+        if (any) return;
+
+        var defaults = Cluckwork.Domain.Catalog.EggUnitConversion.Defaults(SeedDefaults.AccountId);
+        db.EggUnitConversions.AddRange(defaults);
+        try
+        {
+            await db.SaveChangesAsync(ct);
+            logger.LogInformation("Seeded {Count} default egg unit conversions.", defaults.Count);
+        }
+        catch (DbUpdateException ex)
+        {
+            foreach (var row in defaults)
+                db.Entry(row).State = EntityState.Detached;
+
+            if (IsUniqueViolation(ex))
+                logger.LogInformation("Default egg unit conversions already present (concurrent insert); continuing.");
+            else
+                logger.LogError(ex, "Failed to seed default egg unit conversions.");
         }
     }
 

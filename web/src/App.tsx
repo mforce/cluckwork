@@ -18,6 +18,7 @@ import { ExpensesPage } from "./routes/ExpensesPage";
 import { ReportsPage } from "./routes/ReportsPage";
 import { AuditPage } from "./routes/AuditPage";
 import { ExportPage } from "./routes/ExportPage";
+import { ProductsPage } from "./routes/ProductsPage";
 import { UsersPage } from "./routes/UsersPage";
 
 export function App() {
@@ -35,6 +36,7 @@ export function App() {
               <Route path="sales" element={<SalesPage />} />
               <Route path="history" element={<HistoryPage />} />
               <Route path="grades" element={<GradesPage />} />
+              <Route path="products" element={<ProductsPage />} />
               <Route path="flocks" element={<FlocksPage />} />
               <Route path="inventory" element={<InventoryPage />} />
               <Route path="water" element={<WaterPage />} />

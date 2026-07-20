@@ -99,6 +99,20 @@ sold on orders. Non-saleable grades are bookkeeping buckets — losses are
 captured by the daily entry's counters, not grade lines. Names are unique per
 farm, case-insensitively.
 
+**Product (#97)** — what the farm sells (spec §10.1). Phase 1 supports egg
+products only: each maps to exactly one egg grade (sales will draw from that
+grade's lots), carries a selling unit (dozen/tray/carton/…), an optional
+default price, and a currency snapshotted from the account at creation. The
+product type is immutable; deactivation hides a product from pickers while
+history keeps it. Names are unique per account, case-insensitively.
+
+**Packed unit (egg unit conversion) (#97)** — how many individual eggs a
+selling unit holds (spec §9.7). No fixed factors: a carton is 12, 18, or 30
+eggs depending on the market, so each account defines its own (defaults:
+dozen 12, flat/tray 30, carton 12, case 360; individual is always 1 and
+immutable). Sales lines will snapshot the factor at line creation — redefining
+a unit never reinterprets recorded orders.
+
 **Deactivated grade** — removed from capture and order pickers; existing
 stock stays counted and order lines added before deactivation can still
 confirm, but the grade cannot go on *new* order lines (`AddOrderItem`
