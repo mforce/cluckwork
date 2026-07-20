@@ -136,6 +136,91 @@ public sealed class EggLedgerTests(CluckworkWebApplicationFactory factory)
         await AssertInvariantAsync(0);
     }
 
+    // A sale spanning two FIFO lots writes one Sale movement PER lot; movement
+    // lists come back newest first; /stock/lots pages.
+    [Fact]
+    public async Task MultiLotSale_WritesOneMovementPerLot_NewestFirst_LotsPage()
+    {
+        var (client, accountId, farmId, flockId, gradeId, productId) = await SetupAsync();
+        var (_, lotA, _) = await SubmitEntryAsync(client, farmId, flockId, gradeId, 20);
+        var flockB = await factory.SeedFlockAsync(accountId, farmId);
+        var (_, lotB, _) = await SubmitEntryAsync(client, farmId, flockB, gradeId, 30);
+
+        // 3 dozen = 36 eggs: FIFO drains lot A (20) then takes 16 from lot B.
+        var customer = await client.PostWithKeyAsync("/api/v1/customers", Guid.NewGuid().ToString(),
+            new { name = "FIFO Buyer", phone = "555-0100" });
+        var customerId = (await customer.Content.ReadFromJsonAsync<Created>())!.Id;
+        var order = await client.PostWithKeyAsync("/api/v1/sales", Guid.NewGuid().ToString(),
+            new { customerId, orderDate = Today });
+        var orderId = (await order.Content.ReadFromJsonAsync<Created>())!.Id;
+        await client.PostWithKeyAsync($"/api/v1/sales/{orderId}/items", Guid.NewGuid().ToString(),
+            new { productId, quantity = 3, unit = "Dozen" });
+        Assert.Equal(HttpStatusCode.OK, (await client.PostWithKeyAsync(
+            $"/api/v1/sales/{orderId}/confirm", Guid.NewGuid().ToString())).StatusCode);
+
+        var movementsA = await MovementsAsync(client, lotA);
+        var movementsB = await MovementsAsync(client, lotB);
+        Assert.Equal(-20, Assert.Single(movementsA!, m => m.MovementType == "Sale").QuantityDelta);
+        Assert.Equal(-16, Assert.Single(movementsB!, m => m.MovementType == "Sale").QuantityDelta);
+        Assert.Equal(0, (await LotAsync(client, lotA, gradeId)).QuantityAvailable);
+        Assert.Equal(0, movementsA!.Sum(m => m.QuantityDelta));
+        Assert.Equal(14, movementsB!.Sum(m => m.QuantityDelta));
+
+        // Newest first: the Sale precedes Production in each list.
+        Assert.Equal(new[] { "Sale", "Production" }, movementsA!.Select(m => m.MovementType));
+        Assert.True(movementsA![0].CreatedAtUtc >= movementsA[1].CreatedAtUtc);
+
+        // Paging: two windows of one, disjoint, covering both lots.
+        var page1 = await client.GetFromJsonAsync<List<LotRow>>(
+            $"/api/v1/stock/lots?gradeId={gradeId}&limit=1&offset=0");
+        var page2 = await client.GetFromJsonAsync<List<LotRow>>(
+            $"/api/v1/stock/lots?gradeId={gradeId}&limit=1&offset=1");
+        Assert.Single(page1!);
+        Assert.Single(page2!);
+        Assert.NotEqual(page1![0].Id, page2![0].Id);
+        Assert.Equal(new[] { lotA, lotB }.OrderBy(x => x),
+            page1.Concat(page2).Select(l => l.Id).OrderBy(x => x));
+    }
+
+    // Adjust UP writes a positive Adjustment; a grade line ADDED by the
+    // adjustment births a lot whose opening movement is Adjustment, not
+    // Production (the entry was already submitted).
+    [Fact]
+    public async Task AdjustUp_AndAdjustmentBornLot_WritePositiveAdjustments()
+    {
+        var (client, accountId, farmId, flockId, gradeId, _) = await SetupAsync();
+        var mediumId = (await factory.SeedEggGradesAsync(accountId, farmId, "Medium"))["Medium"];
+        var (entryId, largeLot, version) = await SubmitEntryAsync(client, farmId, flockId, gradeId, 50);
+
+        var adjust = await client.PostWithKeyAsync(
+            $"/api/v1/daily-entries/{entryId}/adjust", Guid.NewGuid().ToString(), new
+            {
+                version, totalEggs = 90, crackedEggs = 0, dirtyEggs = 0,
+                discardedEggs = 0, mortalityCount = 0, reason = "found more",
+                grades = new[]
+                {
+                    new { eggGradeId = gradeId, quantity = 70 },
+                    new { eggGradeId = mediumId, quantity = 20 },
+                }
+            });
+        Assert.Equal(HttpStatusCode.OK, adjust.StatusCode);
+
+        // Existing lot: Adjustment +20 (50 → 70), invariant holds.
+        var largeMovements = await MovementsAsync(client, largeLot);
+        Assert.Equal(20, Assert.Single(largeMovements!, m => m.MovementType == "Adjustment").QuantityDelta);
+        Assert.Equal(70, largeMovements!.Sum(m => m.QuantityDelta));
+
+        // Adjustment-born lot: opens with Adjustment +20, no Production row.
+        var mediumLots = await client.GetFromJsonAsync<List<LotRow>>(
+            $"/api/v1/stock/lots?gradeId={mediumId}");
+        var born = Assert.Single(mediumLots!);
+        var bornMovements = await MovementsAsync(client, born.Id);
+        var opening = Assert.Single(bornMovements!);
+        Assert.Equal(("Adjustment", 20, "found more"),
+            (opening.MovementType, opening.QuantityDelta, opening.Reason));
+        Assert.Equal(born.QuantityAvailable, bornMovements!.Sum(m => m.QuantityDelta));
+    }
+
     // A failed operation must leave no ledger rows — the movement commits and
     // rolls back with the lot change it records.
     [Fact]

@@ -30,6 +30,7 @@ export function StockPage() {
     try {
       setLots(await listEggLots({ gradeId }));
       setOpenGrade(gradeId);
+      setError(null);
     } catch {
       setError("Could not load the grade's lots.");
     }
@@ -44,6 +45,7 @@ export function StockPage() {
     try {
       setMovements(await listEggLotMovements(lotId));
       setOpenLot(lotId);
+      setError(null);
     } catch {
       setError("Could not load the lot's movements.");
     }

@@ -458,8 +458,8 @@ export function HelpPage() {
             <td>A dated batch of sellable eggs of one grade, created by submitting an entry. Stock is the sum of lots.</td></tr>
           <tr><th scope="row">Grade</th>
             <td>A grading bucket (size, quality, or custom). Saleable grades can be sold.</td></tr>
-          <tr><th scope="row">Movement ledger</th>
-            <td>The line-by-line history behind a lot&apos;s balance: production in, sales out, corrections and voids signed accordingly.</td></tr>
+          <tr><th scope="row">Egg movement ledger</th>
+            <td>The line-by-line history behind an egg lot&apos;s balance: production in, sales out, corrections and voids signed accordingly.</td></tr>
           <tr><th scope="row">FIFO</th>
             <td>"First in, first out" — sales and feed usage always take the oldest stock first.</td></tr>
           <tr><th scope="row">Cull</th>
@@ -488,8 +488,8 @@ export function HelpPage() {
             <td>A catalog entry for something you stock (feed, supplements…), with a fixed unit of measure.</td></tr>
           <tr><th scope="row">Inventory lot</th>
             <td>One received batch of an item, with its own cost. On-hand = sum of lots.</td></tr>
-          <tr><th scope="row">Movement ledger</th>
-            <td>The append-only trail of every stock change. Corrections are new rows, never edits.</td></tr>
+          <tr><th scope="row">Inventory movement ledger</th>
+            <td>The append-only trail of every feed/supply stock change. Corrections are new rows, never edits.</td></tr>
           <tr><th scope="row">Water usage</th>
             <td>What a flock drank on a day — direct amount or meter delta. Editable in place; flock/date fixed.</td></tr>
           <tr><th scope="row">Feed usage</th>
