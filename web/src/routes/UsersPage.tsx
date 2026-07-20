@@ -45,8 +45,12 @@ export function UsersPage() {
     Promise.all([listUsers(), listFlocks()])
       .then(([u, f]) => {
         setUsers(u);
-        setFlocks(f.filter((x) => x.status === "Active"));
-        if (f.length > 0) setAssignFlockId(f[0].id);
+        const active = f.filter((x) => x.status === "Active");
+        setFlocks(active);
+        // Initialize from the ACTIVE list the dropdown shows — an inactive
+        // first flock would preselect an id no option carries, and Assign
+        // would 404 (conventions review of #104).
+        if (active.length > 0) setAssignFlockId(active[0].id);
       })
       .catch((err) => setError(errText(err)));
   }, []);

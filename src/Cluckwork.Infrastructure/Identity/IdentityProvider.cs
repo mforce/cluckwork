@@ -153,9 +153,20 @@ public sealed class IdentityProvider(
             join role in db.Roles on userRole.RoleId equals role.Id
             select new { userRole.UserId, role.Name })
             .ToListAsync(ct);
+        // Highest role wins, matching AuthPolicies.EffectiveRole — an
+        // Owner+ReadOnly user must list as Owner, not by insertion order
+        // (codex/conventions review of #104).
+        static int Rank(string? name) => name switch
+        {
+            Cluckwork.Domain.Accounts.Roles.Owner => 4,
+            Cluckwork.Domain.Accounts.Roles.Manager => 3,
+            Cluckwork.Domain.Accounts.Roles.Sales => 2,
+            Cluckwork.Domain.Accounts.Roles.ReadOnly => 1,
+            _ => 0,
+        };
         var lookup = roleByUser
             .GroupBy(x => x.UserId)
-            .ToDictionary(g => g.Key, g => g.First().Name!);
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(x => Rank(x.Name)).First().Name!);
 
         var rows = await db.Users
             .Where(u => u.AccountId == accountId)

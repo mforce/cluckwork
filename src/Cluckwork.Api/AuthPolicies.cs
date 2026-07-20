@@ -26,6 +26,16 @@ public static class AuthPolicies
 
     public static void AddCluckworkPolicies(this Microsoft.AspNetCore.Authorization.AuthorizationOptions opts)
     {
+        // Bare RequireAuthorization() groups (the open production READS) use the
+        // default policy. Extend it so a principal whose only role is
+        // unrecognized is denied everywhere — reads included — matching the
+        // "unknown = denied" intent (codex review of #104). Worker (no role
+        // claims) and every known role still pass.
+        opts.DefaultPolicy = new Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder()
+            .RequireAuthenticatedUser()
+            .RequireAssertion(ctx => EffectiveRole(ctx.User) != DeniedRole)
+            .Build();
+
         // Owner + Manager: the "undo, correct, configure, see money" tier.
         // Every pre-#103 AdminOnly gate now admits Managers too (spec §5.1:
         // Manager = farm operations, inventory, reports).

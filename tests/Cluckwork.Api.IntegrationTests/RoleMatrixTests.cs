@@ -65,6 +65,79 @@ public sealed class RoleMatrixTests(CluckworkWebApplicationFactory factory)
             new { email = "x@test.local", password = "TestPassw0rd!23", role = "Worker" })).StatusCode);
     }
 
+    // Owner seeds a confirmed order carrying one payment; returns the ids so
+    // other roles can be tested against void.
+    private async Task<(Guid OrderId, Guid PaymentId)> ConfirmedOrderWithPaymentAsync(
+        Guid accountId, Guid farmId, Guid gradeId, HttpClient owner)
+    {
+        var productId = await factory.SeedProductAsync(accountId, farmId, gradeId, $"P-{Guid.NewGuid():N}"[..12], 100);
+        await factory.SeedEggLotAsync(accountId, gradeId, 200);
+        var customer = await owner.PostWithKeyAsync("/api/v1/customers", Guid.NewGuid().ToString(),
+            new { name = $"Buyer {Guid.NewGuid():N}"[..14], phone = "1" });
+        var customerId = (await customer.Content.ReadFromJsonAsync<Created>())!.Id;
+        var order = await owner.PostWithKeyAsync("/api/v1/sales", Guid.NewGuid().ToString(),
+            new { customerId, orderDate = Today });
+        var orderId = (await order.Content.ReadFromJsonAsync<Created>())!.Id;
+        await owner.PostWithKeyAsync($"/api/v1/sales/{orderId}/items", Guid.NewGuid().ToString(),
+            new { productId, quantity = 10 });
+        await owner.PostWithKeyAsync($"/api/v1/sales/{orderId}/confirm", Guid.NewGuid().ToString());
+        var pay = await owner.PostWithKeyAsync($"/api/v1/sales/{orderId}/payments",
+            Guid.NewGuid().ToString(), new { paymentDate = Today, amountMinorUnits = 300, method = "Cash" });
+        var paymentId = (await pay.Content.ReadFromJsonAsync<PaymentCreated>())!.Id;
+        return (orderId, paymentId);
+    }
+
+    // The widening's whole point: Manager gets the corrective tier including
+    // BOTH voids (a future narrowing to Owner-only would fail here).
+    [Fact]
+    public async Task Manager_CanVoidSaleAndPayment()
+    {
+        var (accountId, farmId, _, gradeId) = await SeedFarmAsync();
+        var owner = await ClientAsync(accountId, Roles.Owner);
+        var manager = await ClientAsync(accountId, Roles.Manager);
+        var (orderId, paymentId) = await ConfirmedOrderWithPaymentAsync(accountId, farmId, gradeId, owner);
+
+        var payment = (await owner.GetFromJsonAsync<PaymentsPage>($"/api/v1/sales/{orderId}/payments"))!
+            .Items.Single(p => p.Id == paymentId);
+        Assert.Equal(HttpStatusCode.OK, (await manager.PostWithKeyAsync(
+            $"/api/v1/payments/{paymentId}/void", Guid.NewGuid().ToString(),
+            new { version = payment.Version, reason = "manager void" })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await manager.PostWithKeyAsync(
+            $"/api/v1/sales/{orderId}/void", Guid.NewGuid().ToString(),
+            new { reason = "manager void" })).StatusCode);
+    }
+
+    // A plain Worker is refused across the entire corrective + money-config
+    // surface — the "missing gate" regression class this repo has shipped
+    // before (#104 panel).
+    [Fact]
+    public async Task Worker_DeniedFromCorrectiveAndMoneyConfig()
+    {
+        var (accountId, farmId, _, gradeId) = await SeedFarmAsync();
+        var owner = await ClientAsync(accountId, Roles.Owner);
+        var worker = await ClientAsync(accountId, (string?)null);
+        var (orderId, paymentId) = await ConfirmedOrderWithPaymentAsync(accountId, farmId, gradeId, owner);
+
+        foreach (var probe in new (string Method, string Path)[]
+        {
+            ("GET", "/api/v1/users"), ("GET", "/api/v1/audit"),
+            ("GET", "/api/v1/export/flocks"), ("GET", "/api/v1/expense-categories"),
+            ("GET", "/api/v1/reports/sales"),
+        })
+            Assert.Equal(HttpStatusCode.Forbidden,
+                (await worker.GetAsync(probe.Path)).StatusCode);
+
+        foreach (var (path, body) in new (string, object)[]
+        {
+            ($"/api/v1/sales/{orderId}/void", new { reason = "no" }),
+            ($"/api/v1/payments/{paymentId}/void", new { version = 0, reason = "no" }),
+            ("/api/v1/egg-grades", new { name = "Nope", gradeType = "Custom", sortOrder = 1, isSaleable = false }),
+            ("/api/v1/expenses", new { expenseCategoryId = Guid.NewGuid(), date = Today, description = "x", amountMinorUnits = 1 }),
+        })
+            Assert.Equal(HttpStatusCode.Forbidden,
+                (await worker.PostWithKeyAsync(path, Guid.NewGuid().ToString(), body)).StatusCode);
+    }
+
     [Fact]
     public async Task Sales_SellsAndSettles_ButNeverTouchesProductionOrExpenses()
     {
@@ -94,6 +167,11 @@ public sealed class RoleMatrixTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(HttpStatusCode.Forbidden, (await sales.GetAsync("/api/v1/expense-categories")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await sales.GetAsync("/api/v1/audit")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await sales.GetAsync("/api/v1/users")).StatusCode);
+
+        // Voiding a SALE is corrective too — not just voiding a payment.
+        Assert.Equal(HttpStatusCode.Forbidden, (await sales.PostWithKeyAsync(
+            $"/api/v1/sales/{orderId}/void", Guid.NewGuid().ToString(),
+            new { reason = "no" })).StatusCode);
     }
 
     [Fact]
@@ -120,6 +198,11 @@ public sealed class RoleMatrixTests(CluckworkWebApplicationFactory factory)
             "/api/v1/sales", Guid.NewGuid().ToString(),
             new { customerId = Guid.NewGuid(), orderDate = Today })).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await reader.GetAsync("/api/v1/expense-categories")).StatusCode);
+        // Money routes (SalesAccess) deny ReadOnly — reads included.
+        Assert.Equal(HttpStatusCode.Forbidden, (await reader.GetAsync("/api/v1/customers/balances")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await reader.PostWithKeyAsync(
+            $"/api/v1/sales/{Guid.NewGuid()}/payments", Guid.NewGuid().ToString(),
+            new { paymentDate = Today, amountMinorUnits = 1, method = "Cash" })).StatusCode);
     }
 
     [Fact]
@@ -204,7 +287,9 @@ public sealed class RoleMatrixTests(CluckworkWebApplicationFactory factory)
             "/api/v1/daily-entries", Guid.NewGuid().ToString(),
             EntryBody(farmId, flockId, gradeId))).StatusCode);
 
-        // Sales+ReadOnly = Sales: still no production.
+        // Sales+ReadOnly = Sales: still no production, but the sales flow WORKS
+        // (a lowest-wins reversal would let ReadOnly veto it — this asserts the
+        // success side the precedence fix guarantees).
         var srEmail = $"sr-{Guid.NewGuid():N}@test.local";
         await factory.SeedUserAsync(accountId, srEmail, Roles.Sales);
         await factory.AddRoleAsync(srEmail, Roles.ReadOnly);
@@ -212,8 +297,24 @@ public sealed class RoleMatrixTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(HttpStatusCode.Forbidden, (await salesReadOnly.PostWithKeyAsync(
             "/api/v1/daily-entries", Guid.NewGuid().ToString(),
             EntryBody(farmId, flockId, gradeId, eggs: 30))).StatusCode);
+        Assert.Equal(HttpStatusCode.Created, (await salesReadOnly.PostWithKeyAsync(
+            "/api/v1/customers", Guid.NewGuid().ToString(),
+            new { name = "SR Buyer", phone = "1" })).StatusCode);
 
-        // A user carrying ONLY an unrecognized role: denied, not a worker.
+        // Manager+Sales = Manager: production allowed (the exact pair the
+        // policy comment warns lowest-wins would break).
+        var msEmail = $"ms-{Guid.NewGuid():N}@test.local";
+        await factory.SeedUserAsync(accountId, msEmail, Roles.Manager);
+        await factory.AddRoleAsync(msEmail, Roles.Sales);
+        var managerSales = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(msEmail));
+        Assert.Equal(HttpStatusCode.Created, (await managerSales.PostWithKeyAsync(
+            "/api/v1/daily-entries", Guid.NewGuid().ToString(),
+            EntryBody(farmId, flockId, gradeId, eggs: 25))).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await managerSales.GetAsync("/api/v1/audit")).StatusCode);
+
+        // A user carrying ONLY an unrecognized role: denied everywhere — writes
+        // AND the open production READS (the DefaultPolicy excludes it, closing
+        // codex's read hole).
         var contractor = $"c-{Guid.NewGuid():N}@test.local";
         await factory.SeedUserAsync(accountId, contractor, "Contractor");
         var unknown = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(contractor));
@@ -223,6 +324,8 @@ public sealed class RoleMatrixTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(HttpStatusCode.Forbidden, (await unknown.PostWithKeyAsync(
             "/api/v1/customers", Guid.NewGuid().ToString(),
             new { name = "Nope", phone = "1" })).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await unknown.GetAsync("/api/v1/stock")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await unknown.GetAsync("/api/v1/flocks")).StatusCode);
     }
 
     // Voiding a payment is the corrective tier — a Sales user must not void
@@ -313,6 +416,8 @@ public sealed class RoleMatrixTests(CluckworkWebApplicationFactory factory)
     }
 
     private sealed record PaymentCreated(Guid Id);
+    private sealed record PaymentItem(Guid Id, int Version);
+    private sealed record PaymentsPage(List<PaymentItem> Items);
 
     [Fact]
     public async Task Assignments_AreTenantIsolated()

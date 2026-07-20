@@ -268,7 +268,8 @@ export function HelpPage() {
           administrator.)
         </li>
         <li>
-          <strong>Payments</strong> (admin): a confirmed order's panel shows
+          <strong>Payments</strong> (Sales, Manager, or admin — voiding a
+          payment is admin/manager only): a confirmed order's panel shows
           its settlement history — record partial payments (date, amount,
           method, optional reference) until the outstanding amount reaches
           zero; overpaying is refused. A wrong payment is <strong>voided</strong>{" "}
@@ -503,8 +504,8 @@ export function HelpPage() {
             <td>What a flock ate on a day; drains lots FIFO and estimates cost from them.</td></tr>
           <tr><th scope="row">Adjustment / Discard</th>
             <td>Stock corrections against a lot, reason required. Discard = write-off (spoilage).</td></tr>
-          <tr><th scope="row">Admin / Worker</th>
-            <td>The two sign-in roles. Workers record the day's work; anything that undoes, corrects, or configures needs an admin.</td></tr>
+          <tr><th scope="row">Roles</th>
+            <td>Admin (owner), Manager, Worker, Sales, Read-only — see "Who can do what". Workers record; managers also correct and configure; sales handles orders and payments; read-only just views.</td></tr>
           <tr><th scope="row">Locked (entry)</th>
             <td>A submitted entry older than 7 days — closed to routine edits; admin adjust/void still works.</td></tr>
           <tr><th scope="row">Adjust (entry)</th>

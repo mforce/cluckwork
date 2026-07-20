@@ -51,6 +51,11 @@ public static class UserEndpoints
         TenantContext tenant, CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
+        if (request.FlockId == Guid.Empty)
+            return Results.ValidationProblem(new Dictionary<string, string[]>
+            {
+                ["flockId"] = ["A flock id is required."],
+            });
         var result = await handler.HandleAsync(id, request.FlockId, tenant.AccountId, ct);
         if (result.IsSuccess)
             return Results.Created($"/api/v1/users/{id}/flock-assignments", new { Id = result.Value });
