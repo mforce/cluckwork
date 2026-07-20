@@ -4,17 +4,24 @@
 // docs-sync rule (AGENTS.md) requires every user-visible change to update the
 // relevant section here and specs/product/GLOSSARY.md in the same PR.
 
+// Must mirror the <h3 id=...> sections below, in document order — a section
+// missing here is invisible to anyone who navigates by the contents list.
 const TOC = [
   ["daily-loop", "The daily loop"],
   ["roles", "Who can do what"],
   ["daily-entry", "Daily entry"],
   ["flocks", "Flocks & birds"],
   ["grades", "Egg grades"],
+  ["products", "Products"],
   ["stock", "Stock"],
   ["inventory", "Feed & inventory"],
   ["water", "Water"],
   ["sales", "Customers & sales"],
+  ["reports", "Reports"],
+  ["expenses", "Expenses"],
   ["history", "History"],
+  ["audit", "Audit log"],
+  ["export", "Export & backup"],
   ["mistakes", "Fixing mistakes"],
   ["glossary", "Glossary"],
 ] as const;
