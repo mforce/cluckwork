@@ -42,17 +42,17 @@ export default defineConfig(({ mode }) => {
         ],
         reporter: ["text", "html"],
         thresholds: {
-          // Global regression floor, re-baselined as each batch of screen tests
-          // lands. After Grades + Customers (Tier-1 batch 1): lines 32.6 /
-          // branch 79.1 / funcs 39.9. A screen-test PR raises lines/functions;
-          // branches move either way (testing a screen exposes all its
-          // conditional branches, so a thinly-tested screen can lower the global
-          // branch rate even as lines rise) — so re-baseline branches in BOTH
-          // directions, keeping a little headroom for the next batch.
-          lines: 31,
-          statements: 31,
-          functions: 38,
-          branches: 77,
+          // Global regression floor, re-baselined as screen tests land. After the
+          // full Tier-1 screen sweep: lines 71.7 / branch 81.8 / funcs 60.0.
+          // (Dashboard + Reports stay untested pending the #52 revamp, and the
+          // static Help/shell screens are excluded-in-spirit — hence sub-100.)
+          // A screen-test PR raises lines/functions; branches move either way
+          // (testing a screen exposes all its conditional branches), so
+          // re-baseline branches in BOTH directions with a little headroom.
+          lines: 70,
+          statements: 70,
+          functions: 58,
+          branches: 80,
           // high-water locks on the fully-covered foundation
           "src/auth/**": { statements: 100, lines: 100, functions: 100, branches: 95 },
           "src/lib/**": { statements: 100, lines: 100, functions: 100, branches: 100 },
