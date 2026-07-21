@@ -99,10 +99,13 @@ describe("Login", () => {
     renderWithProviders(tree(), { route: "/login", token: null });
 
     fillCredentials("owner@farm.co", "pw");
-    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    });
 
-    // in-flight: label switches and the button is disabled (blocks a double submit)
-    expect(await screen.findByRole("button", { name: "Signing in…" })).toBeDisabled();
+    // in-flight (login promise still pending): label switched and the button is
+    // disabled, blocking a double submit.
+    expect(screen.getByRole("button", { name: "Signing in…" })).toBeDisabled();
 
     await act(async () => {
       rejectLogin(new ApiError(401, "Unauthorized", "bad creds"));
