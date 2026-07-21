@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   addOrderItem, cancelOrder, confirmOrder, createOrder, formatMoney, getOrder,
   listCustomers, listEggGrades, listOrderPayments, listOrders, listProducts,
-  recordPayment,
+  parseMoneyToMinorUnits, recordPayment,
   removeOrderItem, updateOrderItem, voidOrder, voidPayment,
 } from "../api/cluckwork";
 import type { Customer, OrderPayments, Product, SalesOrder } from "../api/cluckwork";
@@ -196,7 +196,7 @@ export function SalesPage() {
     // Empty price → omit it: the server falls back to the product's default.
     let minorUnits: number | undefined;
     if (price.trim() !== "") {
-      minorUnits = Math.round(parseFloat(price) * 10 ** active.currencyMinorUnit);
+      minorUnits = parseMoneyToMinorUnits(price, active.currencyMinorUnit);
       if (!Number.isFinite(minorUnits) || minorUnits < 0) throw new Error("Invalid unit price.");
     }
     const scope = `add-item:${active.id}`;
@@ -209,7 +209,7 @@ export function SalesPage() {
 
   const onUpdateItem = (itemId: string) => run(async () => {
     if (!active) return;
-    const minorUnits = Math.round(parseFloat(editPrice) * 10 ** active.currencyMinorUnit);
+    const minorUnits = parseMoneyToMinorUnits(editPrice, active.currencyMinorUnit);
     if (!Number.isFinite(minorUnits) || minorUnits < 0) throw new Error("Invalid unit price.");
     const scope = `update-item:${itemId}`;
     await updateOrderItem(active.id, itemId,

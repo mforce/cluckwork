@@ -486,6 +486,15 @@ export function formatMoney(minorUnits: number, currencyCode: string, minorUnit:
   return `${value.toFixed(minorUnit)} ${currencyCode}`;
 }
 
+// Inverse of formatMoney: parse a user-entered decimal amount into integer minor
+// units at the currency's scale. The `Math.round` absorbs binary-float artifacts
+// (e.g. 0.29 * 100 = 28.999… which would truncate to 28 without it). Returns NaN
+// for non-numeric input and may return a negative — callers apply their own
+// finite/non-negative guard and context-specific error message.
+export function parseMoneyToMinorUnits(text: string, minorUnit: number): number {
+  return Math.round(parseFloat(text) * 10 ** minorUnit);
+}
+
 // --- Audit trail (#93, admin-only, read-only) ---
 
 export interface AuditEvent {

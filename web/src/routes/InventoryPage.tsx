@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import {
   createInventoryItem, activateInventoryItem, deactivateInventoryItem, formatMoney, getAccount,
-  listFlocks, listInventoryItems, listInventoryLots, listInventoryMovements,
+  listFlocks, listInventoryItems, listInventoryLots, listInventoryMovements, parseMoneyToMinorUnits,
   recordFeedUsage, recordInventoryAdjustment, recordInventoryPurchase, updateInventoryItem,
 } from "../api/cluckwork";
 import type { Account, Flock, InventoryItem, InventoryLot, InventoryMovement } from "../api/cluckwork";
@@ -157,7 +157,7 @@ export function InventoryPage() {
 
   function toMinorUnits(text: string): number | null {
     if (!text.trim()) return null;
-    const parsed = Math.round(parseFloat(text) * 10 ** minorUnit);
+    const parsed = parseMoneyToMinorUnits(text, minorUnit);
     if (!Number.isFinite(parsed) || parsed < 0) throw new Error("Invalid cost.");
     return parsed;
   }
