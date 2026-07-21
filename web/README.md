@@ -46,8 +46,9 @@ cleanup). Tests sit next to the code they cover as `*.test.ts(x)`, and CI runs
 - Import `describe`/`it`/`expect` explicitly from `vitest` — globals are off so
   the app's strict tsconfig stays free of test-runner ambient types.
 - Start with pure, high-value logic (auth/role decode, money formatting). The
-  current suite covers `auth/claims.ts` role precedence + fail-closed decoding
-  and `formatMoney` currency scaling.
+  current suite covers `auth/claims.ts` role precedence + malformed-token
+  decoding and `formatMoney` currency scaling. Shared test helpers live in
+  `src/test/` (e.g. `jwt.ts` for seeding a decoded session).
 - End-to-end coverage stays the manual Playwright drill for now; a CI E2E
   harness is a separate later slice.
 
