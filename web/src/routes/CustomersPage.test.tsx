@@ -4,6 +4,7 @@ import { CustomersPage } from "./CustomersPage";
 import { renderWithProviders } from "../test/renderWithProviders";
 import { createCustomer, listCustomerBalances, listCustomers } from "../api/cluckwork";
 import type { Customer, CustomerBalances } from "../api/cluckwork";
+import { ApiError } from "../api/client";
 
 // Keep the real formatMoney (renders the outstanding column); stub the network.
 vi.mock("../api/cluckwork", async (importOriginal) => {
@@ -22,10 +23,12 @@ const mockCreate = vi.mocked(createCustomer);
 
 const C1: Customer = { id: "c1", name: "Acme Eggs", phone: "555-1", email: "a@x.co", address: "1 St", note: "vip" };
 const C2: Customer = { id: "c2", name: "Bravo Co", phone: "555-2", email: null, address: null, note: null };
-// c1 owes 500 (5.00); c2 has no confirmed orders → absent from the balance list.
+// c1 owes 500; c2 has no confirmed orders → absent from the balance list.
+// KWD (3 decimals) so the assertion pins formatMoney's currency scale — 500
+// renders "0.500 KWD", which a hard-coded 2-decimal formatter could not produce.
 const BALANCES: CustomerBalances = {
   items: [{ customerId: "c1", confirmedTotalMinorUnits: 1000, paidMinorUnits: 500, outstandingMinorUnits: 500 }],
-  currencyCode: "USD", currencyMinorUnit: 2,
+  currencyCode: "KWD", currencyMinorUnit: 3,
 };
 
 const ADMIN = { sub: "u1", role: "Admin" };
@@ -70,7 +73,36 @@ describe("CustomersPage create", () => {
     expect(body.email).toBeUndefined();
     expect(body.address).toBeUndefined();
     expect(body.note).toBeUndefined();
-    expect(screen.getByPlaceholderText("Name *")).toHaveValue(""); // reset on success
+    // both required fields clear on success
+    expect(screen.getByPlaceholderText("Name *")).toHaveValue("");
+    expect(screen.getByPlaceholderText("Phone *")).toHaveValue("");
+  });
+
+  it("replays the SAME create key after a failure, then rotates it after success", async () => {
+    mockCreate.mockRejectedValueOnce(new ApiError(500, "Server error", "boom"));
+    mockCreate.mockResolvedValue({ id: "c9" });
+    renderWithProviders(<CustomersPage />, { token: WORKER });
+    await screen.findByRole("row", { name: /Acme Eggs/ });
+    const fill = () => {
+      fireEvent.change(screen.getByPlaceholderText("Name *"), { target: { value: "Zeta" } });
+      fireEvent.change(screen.getByPlaceholderText("Phone *"), { target: { value: "999" } });
+    };
+
+    fill();
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Add customer" })); });
+    expect(await screen.findByText(/Server error|boom/)).toBeInTheDocument();
+
+    fill();
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Add customer" })); });
+
+    fill();
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Add customer" })); });
+
+    const k1 = mockCreate.mock.calls[0][1];
+    const k2 = mockCreate.mock.calls[1][1];
+    const k3 = mockCreate.mock.calls[2][1];
+    expect(k2).toBe(k1); // the failed create kept the key → exact replay
+    expect(k3).not.toBe(k2); // success rotated it → the next create is a fresh write
   });
 });
 
@@ -79,10 +111,11 @@ describe("CustomersPage outstanding balances (admin)", () => {
     renderWithProviders(<CustomersPage />, { token: ADMIN });
 
     const rowC1 = await screen.findByRole("row", { name: /Acme Eggs/ });
-    expect(within(rowC1).getByText("5.00 USD")).toBeInTheDocument(); // 500 outstanding
+    // balances load in a separate effect → await the cell (not a sync getByText)
+    expect(await within(rowC1).findByText("0.500 KWD")).toBeInTheDocument(); // 500 @ scale 3
     // c2 is absent from the balance list → outstandingFor returns an explicit 0
     const rowC2 = screen.getByRole("row", { name: /Bravo Co/ });
-    expect(within(rowC2).getByText("0.00 USD")).toBeInTheDocument();
+    expect(await within(rowC2).findByText("0.000 KWD")).toBeInTheDocument();
   });
 
   it("shows a placeholder in the outstanding cell until balances load", async () => {
@@ -92,7 +125,9 @@ describe("CustomersPage outstanding balances (admin)", () => {
 
     const rowC1 = await screen.findByRole("row", { name: /Acme Eggs/ });
     expect(within(rowC1).getByText("…")).toBeInTheDocument();
-    await act(async () => resolve(BALANCES)); // settle so the fetch doesn't dangle
+    await act(async () => resolve(BALANCES));
+    // placeholder → real value once balances resolve
+    expect(await within(rowC1).findByText("0.500 KWD")).toBeInTheDocument();
   });
 });
 

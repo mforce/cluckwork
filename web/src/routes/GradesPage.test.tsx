@@ -58,6 +58,7 @@ describe("GradesPage admin actions", () => {
     await renderReady(ADMIN);
 
     fireEvent.change(screen.getByPlaceholderText("Name *"), { target: { value: "Jumbo" } });
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "Quality" } }); // off the "Size" default
     fireEvent.change(screen.getByLabelText("Sort"), { target: { value: "3" } });
     fireEvent.click(screen.getByLabelText("saleable")); // default true → false
     await act(async () => {
@@ -65,8 +66,9 @@ describe("GradesPage admin actions", () => {
     });
 
     expect(mockCreate.mock.calls[0][0]).toEqual({
-      name: "Jumbo", gradeType: "Size", sortOrder: 3, isSaleable: false,
+      name: "Jumbo", gradeType: "Quality", sortOrder: 3, isSaleable: false,
     });
+    expect(mockCreate.mock.calls[0][1]).toEqual(expect.any(String)); // idempotency key
     expect(screen.getByPlaceholderText("Name *")).toHaveValue(""); // reset on success
   });
 
@@ -74,16 +76,22 @@ describe("GradesPage admin actions", () => {
     mockUpdate.mockResolvedValue(undefined);
     await renderReady(ADMIN);
 
+    // The <tr> node is stable across the switch to edit mode — reuse it rather
+    // than re-finding by /Grade A/ (which would depend on the input value
+    // contributing to the row's accessible name).
     const rowA = screen.getByRole("row", { name: /Grade A/ });
     fireEvent.click(within(rowA).getByRole("button", { name: "edit" }));
-    const editRow = screen.getByRole("row", { name: /Grade A/ });
-    fireEvent.change(within(editRow).getByRole("textbox"), { target: { value: "Large" } });
+    // change all three editable fields off their seeded values
+    fireEvent.change(within(rowA).getByRole("textbox"), { target: { value: "Large" } });
+    fireEvent.change(within(rowA).getByRole("spinbutton"), { target: { value: "5" } });
+    fireEvent.click(within(rowA).getByRole("checkbox")); // saleable true → false
     await act(async () => {
-      fireEvent.click(within(editRow).getByRole("button", { name: "save" }));
+      fireEvent.click(within(rowA).getByRole("button", { name: "save" }));
     });
 
     expect(mockUpdate.mock.calls[0][0]).toBe("g1");
-    expect(mockUpdate.mock.calls[0][1]).toEqual({ name: "Large", sortOrder: 1, isSaleable: true });
+    expect(mockUpdate.mock.calls[0][1]).toEqual({ name: "Large", sortOrder: 5, isSaleable: false });
+    expect(mockUpdate.mock.calls[0][2]).toEqual(expect.any(String)); // idempotency key
   });
 
   it("deactivates an active grade and activates an inactive one", async () => {
@@ -133,5 +141,6 @@ describe("GradesPage role gating", () => {
     expect(screen.queryByRole("button", { name: "Add grade" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "edit" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "deactivate" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "activate" })).not.toBeInTheDocument(); // inactive Legacy row too
   });
 });
