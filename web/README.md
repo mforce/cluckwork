@@ -32,25 +32,7 @@ integration-test path or Swagger.
 - `npm run dev` — dev server
 - `npm run build` — typecheck + production build to `dist/`
 - `npm run typecheck` — types only
-- `npm run test` — run the unit suite once (Vitest)
-- `npm run test:watch` — Vitest watch mode
 - `npm run preview` — serve the built bundle
-
-## Tests
-
-Unit tests run on [Vitest](https://vitest.dev) + Testing Library in a jsdom
-environment; setup lives in `src/test/setup.ts` (jest-dom matchers + per-test
-cleanup). Tests sit next to the code they cover as `*.test.ts(x)`, and CI runs
-`npm run test` on every PR (`.github/workflows/ci.yml`).
-
-- Import `describe`/`it`/`expect` explicitly from `vitest` — globals are off so
-  the app's strict tsconfig stays free of test-runner ambient types.
-- Start with pure, high-value logic (auth/role decode, money formatting). The
-  current suite covers `auth/claims.ts` role precedence + malformed-token
-  decoding and `formatMoney` currency scaling. Shared test helpers live in
-  `src/test/` (e.g. `jwt.ts` for seeding a decoded session).
-- End-to-end coverage stays the manual Playwright drill for now; a CI E2E
-  harness is a separate later slice.
 
 ## Structure
 

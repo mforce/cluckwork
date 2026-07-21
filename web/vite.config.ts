@@ -1,6 +1,4 @@
-/// <reference types="vitest/config" />
-import { defineConfig } from "vitest/config";
-import { loadEnv } from "vite";
+import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 
 // Dev-only proxy: the SPA calls same-origin "/api/..." and Vite forwards to the
@@ -16,15 +14,6 @@ export default defineConfig(({ mode }) => {
       proxy: {
         "/api": { target, changeOrigin: true },
       },
-    },
-    // Unit tests only (Vitest). E2E stays the manual Playwright drill (#105).
-    // Explicit vitest imports in each test — no globals — so the app's strict
-    // tsconfig stays clean of test-runner ambient types.
-    test: {
-      environment: "jsdom",
-      setupFiles: ["./src/test/setup.ts"],
-      globals: false,
-      include: ["src/**/*.test.{ts,tsx}"],
     },
   };
 });
