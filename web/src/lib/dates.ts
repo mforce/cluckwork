@@ -6,3 +6,12 @@ export function todayIso(): string {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
+
+// Whole weeks a flock has been placed, floored, never negative (a future
+// placement date reads as age 0). `nowMs` is injectable for testing; callers
+// pass a farm-local `placementDate` (YYYY-MM-DD), interpreted at local midnight.
+export function ageWeeks(placementDate: string, nowMs: number = Date.now()): number {
+  const placed = new Date(placementDate + "T00:00:00");
+  const days = (nowMs - placed.getTime()) / 86_400_000;
+  return Math.max(0, Math.floor(days / 7));
+}

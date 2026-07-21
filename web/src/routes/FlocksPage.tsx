@@ -7,17 +7,11 @@ import {
 import type { BirdMovement, Flock } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
-import { todayIso } from "../lib/dates";
+import { ageWeeks, todayIso } from "../lib/dates";
 
 function errorMessage(err: unknown): string {
   if (err instanceof ApiError) return err.message;
   return err instanceof Error ? err.message : String(err);
-}
-
-function ageWeeks(placementDate: string): number {
-  const placed = new Date(placementDate + "T00:00:00");
-  const days = (Date.now() - placed.getTime()) / 86_400_000;
-  return Math.max(0, Math.floor(days / 7));
 }
 
 // F7 (#47): manage flocks — create, correct identity fields, deplete, archive.
