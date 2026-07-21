@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { StockPage } from "./StockPage";
 import { getStock } from "../api/cluckwork";
 import type { StockRow } from "../api/cluckwork";
 
 // Mock the API seam so the screen renders against controlled data — no network,
 // no backend. This proves the component test harness handles an async data load,
-// the loading/error/empty branches, and the client-side total.
+// the loading/empty branches, and the client-side total.
 vi.mock("../api/cluckwork", () => ({
   getStock: vi.fn(),
   listEggLots: vi.fn(),
@@ -32,11 +32,15 @@ describe("StockPage", () => {
     await screen.findByText(/No stock yet/);
   });
 
-  // NOTE: the error-branch render (getStock rejects → "Could not load stock")
-  // is intentionally not covered here — Vitest 3 + React 19 flag the handled
-  // rejection as unhandled through an internal promise the test can't reach, and
-  // a hacky suppression isn't worth it. The fetch-client's own error/refresh
-  // handling is covered directly in api/client.test.ts.
+  // The error-branch render (getStock rejects → "Could not load stock. Is the
+  // API up?") is not asserted here: in this Vitest 3.2.7 + React 19.1 stack, a
+  // rejection the component *does* handle (its own `.catch` → setError) is still
+  // flagged as unhandled through an internal promise the test can't reach — a
+  // documented interaction (vitest-dev/vitest #7940, #5796). Every reviewer-
+  // suggested workaround (pending-promise + reject-in-act; a scoped no-op
+  // `.catch`) was tried and still tripped the detector. The error path itself is
+  // a fixed message on any getStock rejection; the fetch client's error + refresh
+  // transport is covered directly in api/client.test.ts (PR #111).
 
   it("shows the empty-state hint when there is no stock", async () => {
     mockGetStock.mockResolvedValue([]);
@@ -49,8 +53,10 @@ describe("StockPage", () => {
     render(<StockPage />);
 
     expect(await screen.findByText("Grade A")).toBeInTheDocument();
-    expect(screen.getByText("Grade B")).toBeInTheDocument();
-    expect(screen.getByText("5")).toBeInTheDocument(); // Grade B's restricted count
+    // Scope the restricted-count assertion to Grade B's row so it pins that
+    // cell, not just "some 5 rendered somewhere".
+    const gradeBRow = screen.getByRole("row", { name: /Grade B/ });
+    expect(within(gradeBRow).getByText("5")).toBeInTheDocument();
 
     // 100 + 50 = 150 across 2 grades — the client-side reduce.
     expect(
