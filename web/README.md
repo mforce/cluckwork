@@ -33,6 +33,7 @@ integration-test path or Swagger.
 - `npm run build` — typecheck + production build to `dist/`
 - `npm run typecheck` — types only
 - `npm run test` — run the unit suite once (Vitest)
+- `npm run test:coverage` — run the suite with the coverage gate (what CI runs)
 - `npm run test:watch` — Vitest watch mode
 - `npm run preview` — serve the built bundle
 
@@ -41,7 +42,15 @@ integration-test path or Swagger.
 Unit tests run on [Vitest](https://vitest.dev) + Testing Library in a jsdom
 environment; setup lives in `src/test/setup.ts` (jest-dom matchers + per-test
 cleanup). Tests sit next to the code they cover as `*.test.ts(x)`, and CI runs
-`npm run test` on every PR (`.github/workflows/ci.yml`).
+`npm run test:coverage` on every PR (`.github/workflows/ci.yml`).
+
+**New `web/` code ships with tests in the same PR** — components, hooks, utils,
+and API-layer logic all need Vitest coverage. A coverage gate (`vite.config.ts`
+→ `test.coverage.thresholds`) enforces it: a global regression floor that
+ratchets up as screens gain tests, plus per-directory high-water locks that hold
+the fully-covered foundation (`src/auth`, `src/lib`, `src/api/client.ts`) at
+~100% so it can't backslide. Raise the global floor in the same PR that adds a
+screen's tests.
 
 - Import `describe`/`it`/`expect` explicitly from `vitest` — globals are off so
   the app's strict tsconfig stays free of test-runner ambient types.
