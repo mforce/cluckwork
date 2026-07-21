@@ -218,20 +218,20 @@ export function FlocksPage() {
                 {editingId === f.id ? (
                   <>
                     <td>
-                      <input value={editName} maxLength={100}
+                      <input value={editName} maxLength={100} aria-label="Edit name"
                         onChange={(e) => setEditName(e.target.value)} />
                     </td>
                     <td>
-                      <input value={editBreed} maxLength={100}
+                      <input value={editBreed} maxLength={100} aria-label="Edit breed"
                         onChange={(e) => setEditBreed(e.target.value)} />
                     </td>
                     <td>
-                      <input type="date" value={editPlaced} max={todayIso()}
+                      <input type="date" value={editPlaced} max={todayIso()} aria-label="Edit placement date"
                         onChange={(e) => setEditPlaced(e.target.value)} />
                     </td>
                     <td>—</td>
                     <td>
-                      <input className="cell" type="number" min={1} value={editCount}
+                      <input className="cell" type="number" min={1} value={editCount} aria-label="Edit bird count"
                         onChange={(e) => setEditCount(Math.max(1, e.target.valueAsNumber || 1))} />
                     </td>
                     <td>{f.status}</td>

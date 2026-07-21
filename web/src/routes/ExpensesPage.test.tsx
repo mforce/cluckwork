@@ -126,18 +126,26 @@ describe("ExpensesPage record expense", () => {
     mockCreateExpense.mockResolvedValue({ id: "e-new" });
     await renderReady(code);
 
+    // Drive EVERY field off its default (date ≠ today, an explicit category, a
+    // chosen flock, a real note) so a dropped/renamed/swapped field can't ride
+    // through on a default value — the toEqual below then pins the whole body.
+    fireEvent.change(screen.getByLabelText("Date"), { target: { value: "2026-07-05" } });
     fireEvent.change(comboWithOption(/pick/), { target: { value: "cat-feed" } });
     fireEvent.change(screen.getByLabelText("Description"), { target: { value: "Layer feed" } });
     fireEvent.change(screen.getByLabelText(new RegExp(`Amount \\(${code}\\)`)), { target: { value: typed } });
+    fireEvent.change(comboWithOption(/none/), { target: { value: "f1" } });
+    fireEvent.change(screen.getByLabelText("Note (optional)"), { target: { value: "Bulk buy" } });
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Record expense" }));
     });
 
     const [body, key] = mockCreateExpense.mock.calls[0];
-    // full body: a swapped/dropped field (category, description, flock, note) fails too
-    expect(body).toMatchObject({
-      expenseCategoryId: "cat-feed", description: "Layer feed",
-      amountMinorUnits: expected, flockId: null, note: null,
+    // COMPLETE body via toEqual — every field the component sends, with the
+    // amount at the loaded currency's true scale. Any extra/missing/renamed key
+    // (or a field silently left at its default) now fails the assertion.
+    expect(body).toEqual({
+      expenseCategoryId: "cat-feed", date: "2026-07-05", description: "Layer feed",
+      amountMinorUnits: expected, flockId: "f1", note: "Bulk buy",
     });
     expect(typeof key).toBe("string");
     expect(key).toBeTruthy(); // an idempotency key accompanies the write
@@ -177,7 +185,7 @@ describe("ExpensesPage record expense", () => {
 });
 
 describe("ExpensesPage category filter", () => {
-  it("drives listExpenses with the selected categoryId (undefined for All categories)", async () => {
+  it("drives listExpenses with the selected month range + categoryId (full param object)", async () => {
     mockListExpenses.mockResolvedValue(emptyList("USD", 2));
     await renderReady("USD");
 
@@ -185,14 +193,51 @@ describe("ExpensesPage category filter", () => {
     expect(mockListExpenses.mock.calls[0][0]).toMatchObject({ limit: 100, offset: 0 });
     expect(mockListExpenses.mock.calls[0][0]!.categoryId).toBeUndefined();
 
+    // Pin a known month: February 2026 (non-leap) → the component must derive the
+    // exact inclusive boundaries 2026-02-01 … 2026-02-28, not just a YYYY-MM prefix.
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Month"), { target: { value: "2026-02" } });
+    });
     await act(async () => {
       fireEvent.change(comboWithOption(/All categories/), { target: { value: "cat-util" } });
     });
     await waitFor(() =>
-      expect(mockListExpenses.mock.calls.at(-1)![0]).toMatchObject({
+      // whole param object: from/to month boundaries + categoryId + limit + offset
+      expect(mockListExpenses.mock.calls.at(-1)![0]).toEqual({
+        from: "2026-02-01", to: "2026-02-28",
         categoryId: "cat-util", limit: 100, offset: 0,
       }),
     );
+  });
+});
+
+describe("ExpensesPage pagination", () => {
+  it("appends the next page when 'load more' is clicked (offset advances by a full page)", async () => {
+    // A full PAGE-length first page (items.length === PAGE) is what makes the
+    // component set hasMore and render "load more". A short second page clears it.
+    const page1: Expense[] = Array.from({ length: 100 }, (_, i) => ({
+      ...EXP_BHD, id: `p1-${i}`,
+      description: i === 0 ? "First page sentinel" : `First page ${i}`,
+    }));
+    const page2: Expense[] = [
+      { ...EXP_BHD, id: "p2-a", description: "Second page alpha" },
+      { ...EXP_BHD, id: "p2-b", description: "Second page beta" },
+    ];
+    mockListExpenses.mockResolvedValueOnce({ items: page1, totalMinorUnits: 0, currencyCode: "BHD", currencyMinorUnit: 3 });
+    mockListExpenses.mockResolvedValueOnce({ items: page2, totalMinorUnits: 0, currencyCode: "BHD", currencyMinorUnit: 3 });
+    renderWithProviders(<ExpensesPage />, { token: ADMIN });
+
+    // full first page loaded → hasMore (100 === PAGE) surfaces "load more"
+    await screen.findByRole("row", { name: /First page sentinel/ });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "load more" }));
+    });
+
+    // second fetch pages in at the page boundary (offset 100), same month/filter
+    expect(mockListExpenses.mock.calls.at(-1)![0]).toMatchObject({ offset: 100, limit: 100 });
+    // appended, not replaced: a first-page AND a second-page row now coexist
+    expect(await screen.findByRole("row", { name: /Second page alpha/ })).toBeInTheDocument();
+    expect(screen.getByRole("row", { name: /First page sentinel/ })).toBeInTheDocument();
   });
 });
 
@@ -281,7 +326,7 @@ describe("ExpensesPage access (admin-only money data)", () => {
   it.each([
     { label: "Admin", token: ADMIN },
     { label: "Worker (no role claim)", token: WORKER },
-  ])("$label mounts the screen and loads expenses — the gate is external + server-enforced", async ({ token }) => {
+  ])("$label — does not self-gate: renders the screen and fetches expenses for any authenticated role", async ({ token }) => {
     mockListExpenses.mockResolvedValue(emptyList("USD", 2));
     renderWithProviders(<ExpensesPage />, { token });
 

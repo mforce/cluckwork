@@ -151,12 +151,15 @@ describe("FlocksPage edit", () => {
     const row = screen.getByRole("row", { name: /Hen House 1/ });
     fireEvent.click(within(row).getByRole("button", { name: "edit" }));
 
-    const [nameInput, breedInput] = within(row).getAllByRole("textbox"); // name, then breed
-    fireEvent.change(nameInput, { target: { value: "Barn A" } });
-    fireEvent.change(breedInput, { target: { value: "Hy-Line" } });
-    fireEvent.change(within(row).getByRole("spinbutton"), { target: { value: "120" } }); // initialCount
-    // The date input has no role/label; target it by its seeded display value.
-    fireEvent.change(within(row).getByDisplayValue("2026-01-01"), { target: { value: "2026-02-02" } });
+    // Query each edit field by its accessible name (aria-label), scoped to the
+    // row — resilient to column reordering or added inputs, unlike DOM order /
+    // getByDisplayValue. All four move off ACTIVE's seeded values (Hen House 1 /
+    // ISA Brown / 2026-01-01 / 100) so the asserted body proves every field is
+    // wired through, not just the ones that happened to change.
+    fireEvent.change(within(row).getByRole("textbox", { name: "Edit name" }), { target: { value: "Barn A" } });
+    fireEvent.change(within(row).getByLabelText("Edit breed"), { target: { value: "Hy-Line" } });
+    fireEvent.change(within(row).getByLabelText("Edit placement date"), { target: { value: "2026-02-02" } });
+    fireEvent.change(within(row).getByRole("spinbutton", { name: "Edit bird count" }), { target: { value: "120" } });
     await act(async () => {
       fireEvent.click(within(row).getByRole("button", { name: "save" }));
     });
@@ -232,7 +235,9 @@ describe("FlocksPage lifecycle", () => {
     window.confirm = vi.fn(() => false);
     await renderReady(ADMIN, [ACTIVE]);
 
-    fireEvent.click(within(screen.getByRole("row", { name: /Hen House 1/ })).getByRole("button", { name: "deplete" }));
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole("row", { name: /Hen House 1/ })).getByRole("button", { name: "deplete" }));
+    });
 
     expect(window.confirm).toHaveBeenCalled();
     expect(mockDeplete).not.toHaveBeenCalled(); // confirm short-circuits the write
