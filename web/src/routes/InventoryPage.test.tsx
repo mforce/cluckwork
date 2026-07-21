@@ -5,7 +5,7 @@ import { renderWithProviders } from "../test/renderWithProviders";
 import {
   activateInventoryItem, createInventoryItem, deactivateInventoryItem, getAccount,
   listFlocks, listInventoryItems, listInventoryLots, listInventoryMovements,
-  recordFeedUsage, recordInventoryAdjustment, recordInventoryPurchase,
+  recordFeedUsage, recordInventoryAdjustment, recordInventoryPurchase, updateInventoryItem,
 } from "../api/cluckwork";
 import type { Account, Flock, InventoryItem, InventoryLot, InventoryMovement } from "../api/cluckwork";
 import { ApiError } from "../api/client";
@@ -38,6 +38,7 @@ const mockListItems = vi.mocked(listInventoryItems);
 const mockGetAccount = vi.mocked(getAccount);
 const mockListFlocks = vi.mocked(listFlocks);
 const mockCreate = vi.mocked(createInventoryItem);
+const mockUpdate = vi.mocked(updateInventoryItem);
 const mockActivate = vi.mocked(activateInventoryItem);
 const mockDeactivate = vi.mocked(deactivateInventoryItem);
 const mockPurchase = vi.mocked(recordInventoryPurchase);
@@ -71,12 +72,18 @@ const FLOCK: Flock = {
   id: "fl1", farmId: "f1", houseId: "h1", name: "Flock One", breed: "ISA",
   placementDate: "2026-01-01", initialCount: 100, currentBirds: 98, status: "Active",
 };
+// A second Active flock so the usage "Flock" select offers TWO options: picking
+// the second proves the request carries the chosen flockId, not a hard-coded index.
+const FLOCK2: Flock = { ...FLOCK, id: "fl2", name: "Flock Two" };
 
 const LOT: InventoryLot = {
   id: "lot1", inventoryItemId: "it1", receivedDate: "2026-07-01", lotNumber: "L-1",
   expiryDate: null, quantityReceived: 100, quantityAvailable: 80,
   unitCostMinorUnits: 4500, unitCostCurrencyCode: "USD", unitCostCurrencyMinorUnit: 2,
 };
+// A second lot so the correction "Lot" select offers TWO options: picking the
+// second proves the request carries the chosen inventoryLotId, not lots[0].
+const LOT2: InventoryLot = { ...LOT, id: "lot2", receivedDate: "2026-07-05", lotNumber: "L-2" };
 
 const MOVEMENT: InventoryMovement = {
   id: "mv1", inventoryItemId: "it1", inventoryLotId: "lot1", date: "2026-07-01", type: "Purchase",
@@ -140,10 +147,22 @@ describe("InventoryPage loading & display", () => {
   // on any mount rejection; the transport is covered in api/client tests.
 
   it("renders each item's formatted default cost and active/inactive status", async () => {
+    // Give the displayed feed a 3-decimal currency snapshot (BHD) so the assertion
+    // exercises the item's OWN scale via the REAL formatMoney: 1500 minor @ 3dp →
+    // "1.500 BHD". A hard-coded ÷100 (a 2dp assumption) would render "15.00" and
+    // fail, so this pins the scale-aware formatting.
+    const bhdFeed: InventoryItem = {
+      ...FEED, defaultCostMinorUnits: 1500,
+      defaultCostCurrencyCode: "BHD", defaultCostCurrencyMinorUnit: 3,
+    };
+    mockListItems.mockResolvedValue([bhdFeed, PACKAGING, INACTIVE]);
     await renderReady(ADMIN);
+
+    // The mount load must ask for inactive rows too (the status column needs them).
+    expect(mockListItems).toHaveBeenCalledWith({ includeInactive: true });
+
     const feedRow = screen.getByRole("row", { name: /Layer Feed/ });
-    // 4500 minor @ 2dp → "45.00 USD" via the REAL formatMoney (item's own scale).
-    expect(within(feedRow).getByText("45.00 USD")).toBeInTheDocument();
+    expect(within(feedRow).getByText("1.500 BHD")).toBeInTheDocument();
     expect(within(feedRow).getByText("Active")).toBeInTheDocument();
     expect(within(feedRow).getByText("200 kg")).toBeInTheDocument();
 
@@ -192,6 +211,37 @@ describe("InventoryPage create item", () => {
 
     expect(mockCreate.mock.calls[0][0]).toMatchObject({ name: "Water Additive" });
     expect(mockCreate.mock.calls[0][0].defaultUnitCostMinorUnits).toBeNull();
+  });
+});
+
+describe("InventoryPage inline edit", () => {
+  it("saves an inline edit: id, changed name/unit/cost + key, parsing cost at the account scale (BHD 3dp)", async () => {
+    // BHD has 3 decimals: "2.5" must become 2500 minor units, not 250 (a hard-coded
+    // ×100 would fail here). The edit parse honours account.currencyMinorUnit.
+    mockGetAccount.mockResolvedValue({ id: "a4", name: "BH Farm", currencyCode: "BHD", currencyMinorUnit: 3 });
+    mockUpdate.mockResolvedValue(undefined);
+    await renderReady(ADMIN);
+
+    // Enter edit mode on the Layer Feed row (admin-only "edit" control).
+    const row = screen.getByRole("row", { name: /Layer Feed/ });
+    fireEvent.click(within(row).getByRole("button", { name: "edit" }));
+
+    // The edit inputs live in the one row that now shows a "save" button. The two
+    // text inputs are name then unit (in DOM order); the cost is a number spinbutton.
+    const editRow = screen.getByRole("button", { name: "save" }).closest("tr") as HTMLElement;
+    const [nameInput, unitInput] = within(editRow).getAllByRole("textbox");
+    fireEvent.change(nameInput, { target: { value: "Layer Feed Plus" } });
+    fireEvent.change(unitInput, { target: { value: "bag" } });
+    fireEvent.change(within(editRow).getByRole("spinbutton"), { target: { value: "2.5" } });
+    await act(async () => {
+      fireEvent.click(within(editRow).getByRole("button", { name: "save" }));
+    });
+
+    expect(mockUpdate.mock.calls[0]).toEqual([
+      "it1",
+      { name: "Layer Feed Plus", unit: "bag", defaultUnitCostMinorUnits: 2500 },
+      expect.any(String), // idempotency key
+    ]);
   });
 });
 
@@ -255,12 +305,18 @@ describe("InventoryPage purchases", () => {
 });
 
 describe("InventoryPage feed usage", () => {
-  it("records feed usage with the flock, date, quantity + key against the opened item", async () => {
+  it("records feed usage against the SECOND selected flock, date, quantity + key on the opened item", async () => {
+    // TWO flocks so the select has two options and "fl1" is the prefilled default:
+    // choosing the second proves the request carries the selected flockId, not the
+    // default index.
+    mockListFlocks.mockResolvedValue([FLOCK, FLOCK2]);
     mockUsage.mockResolvedValue({ feedUsageId: "fu1", quantityUsed: 25, estimatedCostMinorUnits: 0, currencyCode: "USD" });
     await renderReady(WORKER); // usage is open to everyone, not just admins
     await openItem(FEED);
 
     const form = formBySubmit("Record usage");
+    // Move off the prefilled first flock (fl1) to the second (fl2).
+    fireEvent.change(within(form).getByLabelText(/Flock/), { target: { value: "fl2" } });
     fireEvent.change(within(form).getByLabelText(/Date/), { target: { value: "2026-07-10" } });
     fireEvent.change(within(form).getByLabelText(/Quantity/), { target: { value: "25" } });
     await act(async () => {
@@ -268,8 +324,8 @@ describe("InventoryPage feed usage", () => {
     });
 
     expect(mockUsage.mock.calls[0][0]).toBe("it1");
-    expect(mockUsage.mock.calls[0][1]).toMatchObject({
-      flockId: "fl1", date: "2026-07-10", quantity: 25, // flock prefilled from the first Active flock
+    expect(mockUsage.mock.calls[0][1]).toEqual({
+      flockId: "fl2", date: "2026-07-10", quantity: 25, note: undefined, // the CHOSEN flock, not fl1
     });
     expect(mockUsage.mock.calls[0][2]).toEqual(expect.any(String));
     expect(screen.getByText(/Feed usage recorded/)).toBeInTheDocument();
@@ -306,16 +362,35 @@ describe("InventoryPage lot & movement drill-down", () => {
     await openItem(FEED);
     expect(screen.getByText(/No movements yet/)).toBeInTheDocument();
   });
+
+  it("surfaces an error when the ledger fails to load on open", async () => {
+    // onOpen awaits loadLedger inside its OWN try/catch, so this rejection is a
+    // handled event-handler path — safe to test (unlike the mount-effect branch,
+    // whose rejection Vitest flags as unhandled). We drive the click inline rather
+    // than via openItem() because no "clean" ledger renders here.
+    mockListMovements.mockRejectedValueOnce(new ApiError(500, "Server error", "ledger down"));
+    await renderReady(ADMIN);
+    const row = screen.getByRole("row", { name: /Layer Feed/ });
+    await act(async () => {
+      fireEvent.click(within(row).getByRole("button", { name: "open" }));
+    });
+    expect(await screen.findByText("Could not load the movement ledger.")).toBeInTheDocument();
+  });
 });
 
 describe("InventoryPage adjustments", () => {
-  it("records a signed adjustment against the selected lot with a reason + key", async () => {
-    mockListLots.mockResolvedValue([LOT]);
+  it("records a signed adjustment against the SECOND selected lot with a reason + key", async () => {
+    // TWO lots so the "Lot" select has two options and "lot1" is the prefilled
+    // default: choosing the second proves the request targets the selected
+    // inventoryLotId, not lots[0].
+    mockListLots.mockResolvedValue([LOT, LOT2]);
     mockAdjust.mockResolvedValue({ movementId: "adj1" });
     await renderReady(ADMIN);
     await openItem(FEED);
 
     const form = formBySubmit("Record correction");
+    // Move off the prefilled first lot (lot1) to the second (lot2).
+    fireEvent.change(within(form).getByLabelText(/Lot/), { target: { value: "lot2" } });
     // negative quantity is passed through untouched for an "Adjustment"
     fireEvent.change(within(form).getByLabelText(/Quantity/), { target: { value: "-5" } });
     fireEvent.change(within(form).getByLabelText(/Reason/), { target: { value: "spillage" } });
@@ -325,7 +400,7 @@ describe("InventoryPage adjustments", () => {
 
     expect(mockAdjust.mock.calls[0][0]).toBe("it1");
     expect(mockAdjust.mock.calls[0][1]).toMatchObject({
-      inventoryLotId: "lot1", type: "Adjustment", quantityDelta: -5, reason: "spillage",
+      inventoryLotId: "lot2", type: "Adjustment", quantityDelta: -5, reason: "spillage", // the CHOSEN lot, not lot1
       date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
     });
     expect(mockAdjust.mock.calls[0][2]).toEqual(expect.any(String));

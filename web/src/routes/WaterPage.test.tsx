@@ -244,21 +244,65 @@ describe("WaterPage role gating — correcting is admin-only, recording is open"
 });
 
 describe("WaterPage list filter", () => {
-  it("re-queries water usage scoped to the selected flock filter", async () => {
+  it("re-queries with the full flock + from/to filter, resetting to the first page", async () => {
     await renderReadyForm(WORKER);
 
     // mount load: unscoped, first page of PAGE=50
     expect(mockListWaterUsage).toHaveBeenCalledWith(
-      expect.objectContaining({ flockId: undefined, limit: 50, offset: 0 }),
+      expect.objectContaining({ flockId: undefined, from: undefined, to: undefined, limit: 50, offset: 0 }),
     );
 
-    // second "Flock" combobox is the list filter
+    // Drive all three filters. The date inputs are queried by their <label> text
+    // (accessible name), not a fragile positional index, so a broken from/to
+    // propagation can't slip past a flockId-only assertion.
+    // Second "Flock" combobox is the list filter (the first is the capture picker).
     fireEvent.change(screen.getAllByLabelText("Flock")[1], { target: { value: "f2" } });
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-07-01" } });
+    fireEvent.change(screen.getByLabelText("To"), { target: { value: "2026-07-31" } });
 
+    // The complete request shape must carry every filter — full match, no
+    // objectContaining, because load() sends exactly these five keys.
+    await waitFor(() =>
+      expect(mockListWaterUsage).toHaveBeenCalledWith({
+        flockId: "f2", from: "2026-07-01", to: "2026-07-31", limit: 50, offset: 0,
+      }),
+    );
+  });
+});
+
+describe("WaterPage pagination", () => {
+  it("appends the next page and re-queries at offset 50 when 'load more' is clicked", async () => {
+    // A full page (PAGE=50) sets hasMore → the "load more" button renders. The
+    // first row of page one and the sole row of page two carry unique notes so
+    // we can prove page two is APPENDED to page one, not swapped in for it.
+    const page1: WaterUsage[] = Array.from({ length: 50 }, (_, i) => ({
+      ...ROW, id: `p1-${i}`, note: i === 0 ? "first-page-row" : `row-${i}`,
+    }));
+    const page2: WaterUsage[] = [{ ...ROW, id: "p2-0", note: "second-page-row" }];
+    mockListWaterUsage.mockResolvedValueOnce(page1);
+    mockListWaterUsage.mockResolvedValueOnce(page2);
+
+    renderWithProviders(<WaterPage />, { token: WORKER });
+    await screen.findByText("first-page-row"); // page one landed
+
+    // mount load fetched the first page at offset 0
+    expect(mockListWaterUsage).toHaveBeenCalledWith(
+      expect.objectContaining({ limit: 50, offset: 0 }),
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "load more" }));
+    });
+
+    // the next page is fetched at offset 50 — the current row count, not a reset
     await waitFor(() =>
       expect(mockListWaterUsage).toHaveBeenCalledWith(
-        expect.objectContaining({ flockId: "f2", offset: 0 }),
+        expect.objectContaining({ limit: 50, offset: 50 }),
       ),
     );
+
+    // both pages' rows are on screen → page two was appended, not substituted
+    expect(screen.getByText("second-page-row")).toBeInTheDocument();
+    expect(screen.getByText("first-page-row")).toBeInTheDocument();
   });
 });

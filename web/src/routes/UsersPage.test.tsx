@@ -60,14 +60,14 @@ async function renderReady(token: Record<string, unknown>) {
 }
 
 // Two comboboxes coexist once a worker's panel is open (the create-form role
-// select + the assign-flock select). Identify the flock one by its options
-// rather than DOM order.
+// select + the assign-flock select). Identify the flock one unambiguously by
+// scoping to the assignment panel's inline-form row — the one holding the
+// "Assign flock" button — rather than matching on shared option text, which
+// would latch onto the wrong control if the markup grew another "Coop A".
 function flockSelect(): HTMLElement {
-  const el = screen
-    .getAllByRole("combobox")
-    .find((c) => within(c).queryByRole("option", { name: "Coop A" }) !== null);
-  if (!el) throw new Error("flock select not found");
-  return el;
+  const row = screen.getByRole("button", { name: "Assign flock" }).closest(".inline-form");
+  if (!row) throw new Error("assign-flock panel not found");
+  return within(row as HTMLElement).getByRole("combobox");
 }
 
 describe("UsersPage load", () => {
@@ -108,8 +108,10 @@ describe("UsersPage create", () => {
     mockCreateUser.mockResolvedValue({ id: "u-new" });
     await renderReady(ADMIN);
 
+    // Runtime-generated credential — no literal secret in source (GitGuardian).
+    const password = `pw-${crypto.randomUUID()}`;
     fireEvent.change(screen.getByPlaceholderText("Email *"), { target: { value: "  New@Farm.test  " } });
-    fireEvent.change(screen.getByPlaceholderText(/Password/), { target: { value: "secret123456" } });
+    fireEvent.change(screen.getByPlaceholderText(/Password/), { target: { value: password } });
     fireEvent.change(screen.getByRole("combobox"), { target: { value: "Manager" } }); // off the "Worker" default
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Create user" }));
@@ -117,9 +119,8 @@ describe("UsersPage create", () => {
 
     const body = mockCreateUser.mock.calls[0][0];
     expect(body).toMatchObject({ email: "New@Farm.test", role: "Manager" }); // email trimmed, role chosen
-    // Assert only the password's presence/shape — never a real secret value.
-    expect(body.password).toEqual(expect.any(String));
-    expect(body.password.length).toBeGreaterThan(0);
+    // Pin that the exact typed password reaches the request body (not a shape check).
+    expect(body.password).toBe(password);
     expect(mockCreateUser.mock.calls[0][1]).toEqual(expect.any(String)); // idempotency key
 
     // Success surfaces a confirmation and resets the form.
@@ -138,7 +139,7 @@ describe("UsersPage create", () => {
 
     // Attempt 1 — same email → same scope; fails, so the key is kept.
     fireEvent.change(emailInput(), { target: { value: "one@farm.test" } });
-    fireEvent.change(pwInput(), { target: { value: "secret123456" } });
+    fireEvent.change(pwInput(), { target: { value: `pw-${crypto.randomUUID()}` } });
     await act(async () => { fireEvent.click(submit()); });
     expect(await screen.findByText(/Server error|boom/)).toBeInTheDocument();
 
@@ -147,7 +148,7 @@ describe("UsersPage create", () => {
 
     // Attempt 3 — success reset the form, so refill the same email → fresh key.
     fireEvent.change(emailInput(), { target: { value: "one@farm.test" } });
-    fireEvent.change(pwInput(), { target: { value: "secret123456" } });
+    fireEvent.change(pwInput(), { target: { value: `pw-${crypto.randomUUID()}` } });
     await act(async () => { fireEvent.click(submit()); });
 
     const k1 = mockCreateUser.mock.calls[0][1];
@@ -217,6 +218,39 @@ describe("UsersPage flock scoping", () => {
     expect(mockListAssignments).toHaveBeenLastCalledWith("u-w");
   });
 
+  it("replays the SAME assign key after a failure, and rotates it after success", async () => {
+    mockListAssignments.mockResolvedValue([]);
+    mockAssignFlock.mockRejectedValueOnce(new ApiError(500, "Server error", "boom"));
+    mockAssignFlock.mockResolvedValue({ id: "as-new" });
+    await renderReady(ADMIN);
+
+    const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
+    await act(async () => {
+      fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" }));
+    });
+    await screen.findByText(/account-wide access/);
+
+    // The assign scope keys off (openUser, selected flock); the default selection
+    // (first active flock, fl1) is unchanged across all three clicks → same scope.
+    const assign = () => screen.getByRole("button", { name: "Assign flock" });
+
+    // Attempt 1 — fails, so the key is kept.
+    await act(async () => { fireEvent.click(assign()); });
+    expect(await screen.findByText(/Server error|boom/)).toBeInTheDocument();
+
+    // Attempt 2 — resubmit the same selection → replay of the kept key.
+    await act(async () => { fireEvent.click(assign()); });
+
+    // Attempt 3 — the prior success cleared the key → a fresh one on the next write.
+    await act(async () => { fireEvent.click(assign()); });
+
+    const k1 = mockAssignFlock.mock.calls[0][2];
+    const k2 = mockAssignFlock.mock.calls[1][2];
+    const k3 = mockAssignFlock.mock.calls[2][2];
+    expect(k2).toBe(k1); // failure kept the key → exact replay
+    expect(k3).not.toBe(k2); // success rotated it → next write is fresh
+  });
+
   it("removes an assignment with the userId, the assignment id, and a key, then refreshes to empty", async () => {
     mockListAssignments.mockResolvedValueOnce([ASSIGN_1]).mockResolvedValueOnce([]);
     mockUnassignFlock.mockResolvedValue(undefined);
@@ -274,7 +308,7 @@ describe("UsersPage role gating", () => {
   // plus the API enforce it. UsersPage itself has no useAuth check, so it renders
   // identically for any authenticated session. Asserted here so a future
   // in-component gate that silently hid the form would trip this test.
-  it("renders the create form for a non-admin too (the gate is external, not in this screen)", async () => {
+  it("UsersPage does not self-gate — renders for any authenticated role", async () => {
     await renderReady(WORKER);
     expect(screen.getByRole("button", { name: "Create user" })).toBeInTheDocument();
     expect(screen.getByPlaceholderText("Email *")).toBeInTheDocument();

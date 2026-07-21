@@ -100,6 +100,9 @@ describe("ExportPage full backup", () => {
     });
 
     expect(mockBackup).toHaveBeenCalledTimes(1);
+    // downloadFullBackup takes no arguments — the whole account is the payload.
+    expect(mockBackup).toHaveBeenCalledWith();
+    // The per-dataset export path is never touched for a full backup.
     expect(mockCsv).not.toHaveBeenCalled();
     expect(global.URL.createObjectURL).toHaveBeenCalledTimes(1);
   });
@@ -147,8 +150,15 @@ describe("ExportPage busy state", () => {
       fireEvent.click(screen.getByRole("button", { name: "Download full backup (zip)" }));
     });
 
-    // The in-flight backup button flips to "Preparing…" and sibling dataset
-    // buttons are disabled so no second download can start.
+    // While the backup is in flight EVERY export button is disabled — the
+    // button that initiated the download (now "Preparing…") and every dataset
+    // button — so no second download can start.
+    const buttons = screen.getAllByRole("button");
+    expect(buttons).toHaveLength(EXPORT_DATASETS.length + 1);
+    for (const b of buttons) {
+      expect(b).toBeDisabled();
+    }
+    // The in-flight backup button flips to "Preparing…"; the rest keep their labels.
     expect(screen.getByRole("button", { name: "Preparing…" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "customers" })).toBeDisabled();
 

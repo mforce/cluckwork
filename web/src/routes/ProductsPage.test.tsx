@@ -82,10 +82,18 @@ async function renderReady(token: Record<string, unknown>) {
 }
 
 describe("ProductsPage loading + display", () => {
-  it("shows the loading placeholder until the catalog resolves", () => {
-    mockListProducts.mockReturnValue(new Promise(() => {})); // never resolves
+  it("shows the loading placeholder until the catalog resolves, then swaps in the rows", async () => {
+    let resolveProducts!: (value: Product[]) => void;
+    mockListProducts.mockReturnValue(new Promise<Product[]>((resolve) => { resolveProducts = resolve; }));
     renderWithProviders(<ProductsPage />, { token: ADMIN });
     expect(screen.getByText("Loading…")).toBeInTheDocument();
+
+    // Resolve the deferred catalog: the loading text must give way to a real row.
+    await act(async () => {
+      resolveProducts([P1, P2]);
+    });
+    expect(await screen.findByRole("row", { name: /Grade A Dozen/ })).toBeInTheDocument();
+    expect(screen.queryByText("Loading…")).not.toBeInTheDocument();
   });
 
   // Mount-effect error branch (catch → "Could not load…") is intentionally not
@@ -94,6 +102,10 @@ describe("ProductsPage loading + display", () => {
 
   it("renders each product with grade, unit, price and status", async () => {
     await renderReady(ADMIN);
+
+    // Mount load must request inactive items, else the Inactive Legacy row
+    // could only render by accident of the mock, not the real query.
+    expect(mockListProducts).toHaveBeenCalledWith({ includeInactive: true });
 
     const rowP1 = screen.getByRole("row", { name: /Grade A Dozen/ });
     expect(within(rowP1).getByText("Grade A")).toBeInTheDocument(); // grade name resolved by id
