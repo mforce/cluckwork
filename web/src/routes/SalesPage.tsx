@@ -386,9 +386,11 @@ export function SalesPage() {
                     {editItemId === i.id ? (
                       <>
                         <td><input className="cell" type="number" min={1} value={editQty}
+                          aria-label="Edit quantity"
                           onChange={(e) => setEditQty(Math.max(1, e.target.valueAsNumber || 1))} /></td>
                         <td>—</td>
                         <td><input className="cell" type="number" min={0}
+                          aria-label="Edit unit price"
                           step={10 ** -active.currencyMinorUnit} value={editPrice}
                           onChange={(e) => setEditPrice(e.target.value)} /></td>
                         <td>—</td>

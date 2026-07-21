@@ -30,19 +30,19 @@ const FLOCK: Flock = {
 };
 const ARCHIVED_FLOCK: Flock = { ...FLOCK, id: "f2", name: "Old Coop", status: "Archived" };
 const GRADE_A: EggGrade = { id: "gr1", farmId: "farm1", name: "Grade A", gradeType: "Size", sortOrder: 1, isSaleable: true, active: true };
+const GRADE_B: EggGrade = { id: "gr2", farmId: "farm1", name: "Grade B", gradeType: "Size", sortOrder: 2, isSaleable: true, active: true };
 
-// sellable = 100 − 2 − 3 − 5 = 90; grades sum 60 (within).
+// sellable = 100 − 2 − 3 − 5 = 90; two graded lines summing to 60 (within).
 const SUBMITTED: DailyEntry = {
   id: "de1", farmId: "farm1", houseId: "h1", flockId: "f1", date: "2026-07-19", status: "Submitted",
   totalEggs: 100, crackedEggs: 2, dirtyEggs: 3, discardedEggs: 5, mortalityCount: 1,
-  grades: [{ eggGradeId: "gr1", quantity: 60 }],
+  grades: [{ eggGradeId: "gr1", quantity: 40 }, { eggGradeId: "gr2", quantity: 20 }],
   version: 1, adjustReason: null, voidReason: null, lockedAtUtc: null, adjustedFrom: null,
 };
 const DRAFT: DailyEntry = { ...SUBMITTED, id: "de2", date: "2026-07-18", status: "Draft", grades: [] };
 const DRAFT_ARCHIVED: DailyEntry = { ...DRAFT, id: "de3", flockId: "f2" };
 
 const ADMIN = { sub: "u1", role: "Admin" };
-const WORKER = { sub: "u1" }; // no role claim → Worker → not admin
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -50,34 +50,40 @@ beforeEach(() => {
   // jsdom has no layout engine; the panel's focus effect calls scrollIntoView.
   Element.prototype.scrollIntoView = vi.fn();
   mockListFlocks.mockResolvedValue([FLOCK]);
-  mockListEggGrades.mockResolvedValue([GRADE_A]);
+  mockListEggGrades.mockResolvedValue([GRADE_A, GRADE_B]);
   mockListDailyEntries.mockResolvedValue([]);
 });
 
-describe("HistoryPage adjust — sellable guard", () => {
-  it("blocks the adjustment and warns when graded quantities exceed sellable", async () => {
-    mockListDailyEntries.mockResolvedValue([SUBMITTED]);
-    renderWithProviders(<HistoryPage />, { token: ADMIN });
-    fireEvent.click(await screen.findByRole("button", { name: "adjust" }));
+async function openAdjustPanel() {
+  renderWithProviders(<HistoryPage />, { token: ADMIN });
+  fireEvent.click(await screen.findByRole("button", { name: "adjust" }));
+}
 
-    // sellable is 90; push Grade A past it
-    fireEvent.change(screen.getByLabelText("Grade A"), { target: { value: "95" } });
+describe("HistoryPage adjust — sellable guard", () => {
+  it("blocks and warns when the graded lines SUM past sellable (neither line alone over)", async () => {
+    mockListDailyEntries.mockResolvedValue([SUBMITTED]);
+    await openAdjustPanel();
+
+    // 46 + 45 = 91 > sellable 90, yet neither line individually exceeds 90 —
+    // so this only fails if the guard actually SUMS the lines
+    fireEvent.change(screen.getByLabelText("Grade A"), { target: { value: "46" } });
+    fireEvent.change(screen.getByLabelText("Grade B"), { target: { value: "45" } });
     fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: "recount" } });
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Save adjustment" }));
     });
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/cannot exceed total eggs/);
-    expect(mockAdjustDailyEntry).not.toHaveBeenCalled(); // the client-side cap short-circuits the write
+    expect(mockAdjustDailyEntry).not.toHaveBeenCalled(); // client cap short-circuits the write
   });
 
-  it("submits the corrected grade lines when the sum is within sellable", async () => {
+  it("submits the corrected lines at the exact boundary sum === sellable (guard is >, not >=)", async () => {
     mockListDailyEntries.mockResolvedValue([SUBMITTED]);
     mockAdjustDailyEntry.mockResolvedValue({ id: "de1", status: "ManagerAdjusted", version: 2 });
-    renderWithProviders(<HistoryPage />, { token: ADMIN });
-    fireEvent.click(await screen.findByRole("button", { name: "adjust" }));
+    await openAdjustPanel();
 
-    fireEvent.change(screen.getByLabelText("Grade A"), { target: { value: "80" } }); // ≤ 90
+    fireEvent.change(screen.getByLabelText("Grade A"), { target: { value: "45" } });
+    fireEvent.change(screen.getByLabelText("Grade B"), { target: { value: "45" } }); // 90 === sellable
     fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: "recount" } });
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Save adjustment" }));
@@ -87,14 +93,14 @@ describe("HistoryPage adjust — sellable guard", () => {
     const [id, body] = mockAdjustDailyEntry.mock.calls[0];
     expect(id).toBe("de1");
     expect(body).toMatchObject({
-      version: 1, totalEggs: 100, crackedEggs: 2, dirtyEggs: 3, discardedEggs: 5,
-      reason: "recount", grades: [{ eggGradeId: "gr1", quantity: 80 }],
+      version: 1, totalEggs: 100, crackedEggs: 2, dirtyEggs: 3, discardedEggs: 5, mortalityCount: 1,
+      reason: "recount", grades: [{ eggGradeId: "gr1", quantity: 45 }, { eggGradeId: "gr2", quantity: 45 }],
     });
   });
 });
 
 describe("HistoryPage draft edit link", () => {
-  it("links a draft row to the Daily entry screen prefilled with its flock and date", async () => {
+  it("links a draft row to the Daily entry screen with its flock and date in the query", async () => {
     mockListDailyEntries.mockResolvedValue([DRAFT]);
     renderWithProviders(<HistoryPage />, { token: ADMIN });
 
@@ -107,20 +113,37 @@ describe("HistoryPage draft edit link", () => {
     mockListDailyEntries.mockResolvedValue([DRAFT_ARCHIVED]);
     renderWithProviders(<HistoryPage />, { token: ADMIN });
 
-    await screen.findByText("2026-07-18"); // the row rendered
-    // capture excludes archived flocks, so an edit link would fall back to the
-    // wrong flock — better to render none (codex review of #86)
+    // Wait for BOTH the row AND the flock metadata (the filter lists "Old Coop")
+    // so the missing link reflects the archived status — not an unrendered row or
+    // an unresolved flock (codex review of PR #122 / #86).
+    await screen.findByText("2026-07-18");
+    await screen.findByRole("option", { name: "Old Coop" });
     expect(screen.queryByRole("link", { name: "edit" })).not.toBeInTheDocument();
   });
 });
 
 describe("HistoryPage role gating", () => {
-  it("hides adjust and void controls from a non-admin", async () => {
+  // adjust/void are gated on isAdmin = Admin || Manager (claims.ts); every other
+  // role — including a plain Worker with no role claim — sees neither control.
+  it.each([
+    { label: "Admin", token: { sub: "u1", role: "Admin" }, allowed: true },
+    { label: "Manager", token: { sub: "u1", role: "Manager" }, allowed: true },
+    { label: "Sales", token: { sub: "u1", role: "Sales" }, allowed: false },
+    { label: "ReadOnly", token: { sub: "u1", role: "ReadOnly" }, allowed: false },
+    { label: "Worker (no role claim)", token: { sub: "u1" }, allowed: false },
+  ])("$label sees the adjust/void controls: $allowed", async ({ token, allowed }) => {
     mockListDailyEntries.mockResolvedValue([SUBMITTED]);
-    renderWithProviders(<HistoryPage />, { token: WORKER });
+    renderWithProviders(<HistoryPage />, { token });
 
-    await screen.findByText("2026-07-19"); // the submitted row rendered
-    expect(screen.queryByRole("button", { name: "adjust" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "void" })).not.toBeInTheDocument();
+    await screen.findByText("2026-07-19"); // the submitted (correctable) row
+    const adjust = screen.queryByRole("button", { name: "adjust" });
+    const voidBtn = screen.queryByRole("button", { name: "void" });
+    if (allowed) {
+      expect(adjust).toBeInTheDocument();
+      expect(voidBtn).toBeInTheDocument();
+    } else {
+      expect(adjust).not.toBeInTheDocument();
+      expect(voidBtn).not.toBeInTheDocument();
+    }
   });
 });
