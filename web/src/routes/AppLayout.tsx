@@ -1,12 +1,35 @@
+import { useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import {
+  Bird, Boxes, ChartColumn, CircleHelp, ClipboardList, Download, Egg, History,
+  LayoutDashboard, LogOut, Moon, Package, ScrollText, ShoppingCart, Sun, Tags,
+  UserCog, Users, Wallet, Droplets,
+} from "lucide-react";
 import { useAuth } from "../auth/useAuth";
+import { applyTheme, initialTheme, type Theme } from "../lib/theme";
 
-// Authenticated shell. Nav targets are placeholders for the Phase 1.0 slices
-// (daily entry #F1, stock #F2, customers/sales #F3, history #F4) — screens land
-// as their API slices ship.
+const ICON = 17;
+
+// Authenticated shell (#52 redesign): an aubergine sidebar — the brand's
+// navigation spine — with the 15+ destinations grouped by job, each with a
+// lucide glyph. Role-tiered (#103): links and whole groups hide per role; the
+// API enforces the policy on every gated endpoint regardless. Below 900px the
+// sidebar collapses to a wrapping top bar (styles.css). Design-only: same
+// routes, same role gates. Icons are decorative (aria-hidden) so link names —
+// and the tests that query them — are unchanged.
 export function AppLayout() {
   const { logout, isAdmin, role } = useAuth();
   const navigate = useNavigate();
+  const [theme, setTheme] = useState<Theme>(initialTheme);
+
+  // Sales users skip production capture; ReadOnly sees views only.
+  const canProduce = role !== "Sales" && role !== "ReadOnly";
+
+  function toggleTheme() {
+    const next: Theme = theme === "dark" ? "light" : "dark";
+    applyTheme(next);
+    setTheme(next);
+  }
 
   async function onLogout() {
     await logout();
@@ -15,36 +38,69 @@ export function AppLayout() {
 
   return (
     <div className="shell">
-      <header className="topbar">
-        <span className="brand">Cluckwork</span>
+      <aside className="sidebar">
+        <span className="brand">
+          <Egg size={20} aria-hidden className="brand-mark" /> Cluckwork
+        </span>
         <nav>
-          <NavLink to="/" end>
-            Dashboard
-          </NavLink>
-          {role !== "Sales" && role !== "ReadOnly" && <NavLink to="/daily-entry">Daily entry</NavLink>}
-          {/* Role-tiered nav (#103): links hide per role, and the API
-              enforces the policy on every gated endpoint regardless.
-              Sales users skip production capture; ReadOnly sees views only. */}
-          {role !== "Sales" && role !== "ReadOnly" && <NavLink to="/flocks">Flocks</NavLink>}
-          <NavLink to="/stock">Stock</NavLink>
-          {role !== "Sales" && role !== "ReadOnly" && <NavLink to="/inventory">Inventory</NavLink>}
-          {role !== "Sales" && role !== "ReadOnly" && <NavLink to="/water">Water</NavLink>}
-          {role !== "ReadOnly" && <NavLink to="/customers">Customers</NavLink>}
-          {role !== "ReadOnly" && <NavLink to="/sales">Sales</NavLink>}
-          <NavLink to="/history">History</NavLink>
-          <NavLink to="/reports">Reports</NavLink>
-          {isAdmin && <NavLink to="/expenses">Expenses</NavLink>}
-          {isAdmin && <NavLink to="/grades">Grades</NavLink>}
-          {isAdmin && <NavLink to="/products">Products</NavLink>}
-          {role === "Admin" && <NavLink to="/users">Users</NavLink>}
-          {isAdmin && <NavLink to="/audit">Audit</NavLink>}
-          {isAdmin && <NavLink to="/export">Export</NavLink>}
-          <NavLink to="/help">Help</NavLink>
+          <div className="nav-group">
+            <p className="nav-group-label">Overview</p>
+            <NavLink to="/" end><LayoutDashboard size={ICON} aria-hidden /><span>Dashboard</span></NavLink>
+          </div>
+
+          {canProduce && (
+            <div className="nav-group">
+              <p className="nav-group-label">Production</p>
+              <NavLink to="/daily-entry"><ClipboardList size={ICON} aria-hidden /><span>Daily entry</span></NavLink>
+              <NavLink to="/flocks"><Bird size={ICON} aria-hidden /><span>Flocks</span></NavLink>
+              <NavLink to="/water"><Droplets size={ICON} aria-hidden /><span>Water</span></NavLink>
+              <NavLink to="/inventory"><Boxes size={ICON} aria-hidden /><span>Inventory</span></NavLink>
+            </div>
+          )}
+
+          <div className="nav-group">
+            <p className="nav-group-label">Sales &amp; stock</p>
+            <NavLink to="/stock"><Egg size={ICON} aria-hidden /><span>Stock</span></NavLink>
+            {role !== "ReadOnly" && <NavLink to="/customers"><Users size={ICON} aria-hidden /><span>Customers</span></NavLink>}
+            {role !== "ReadOnly" && <NavLink to="/sales"><ShoppingCart size={ICON} aria-hidden /><span>Sales</span></NavLink>}
+            <NavLink to="/history"><History size={ICON} aria-hidden /><span>History</span></NavLink>
+          </div>
+
+          <div className="nav-group">
+            <p className="nav-group-label">Insights</p>
+            <NavLink to="/reports"><ChartColumn size={ICON} aria-hidden /><span>Reports</span></NavLink>
+            {isAdmin && <NavLink to="/expenses"><Wallet size={ICON} aria-hidden /><span>Expenses</span></NavLink>}
+          </div>
+
+          {isAdmin && (
+            <div className="nav-group">
+              <p className="nav-group-label">Setup</p>
+              <NavLink to="/grades"><Tags size={ICON} aria-hidden /><span>Grades</span></NavLink>
+              <NavLink to="/products"><Package size={ICON} aria-hidden /><span>Products</span></NavLink>
+              {role === "Admin" && <NavLink to="/users"><UserCog size={ICON} aria-hidden /><span>Users</span></NavLink>}
+              <NavLink to="/audit"><ScrollText size={ICON} aria-hidden /><span>Audit</span></NavLink>
+              <NavLink to="/export"><Download size={ICON} aria-hidden /><span>Export</span></NavLink>
+            </div>
+          )}
+
+          <div className="nav-group">
+            <p className="nav-group-label">Help</p>
+            <NavLink to="/help"><CircleHelp size={ICON} aria-hidden /><span>Help</span></NavLink>
+          </div>
         </nav>
-        <button className="link" onClick={onLogout}>
-          Sign out
-        </button>
-      </header>
+
+        <div className="sidebar-foot">
+          <button className="link theme-toggle" onClick={toggleTheme}
+            aria-label={theme === "dark" ? "Switch to light mode" : "Switch to night mode"}>
+            {theme === "dark" ? <Sun size={ICON} aria-hidden /> : <Moon size={ICON} aria-hidden />}
+            <span>{theme === "dark" ? "Light" : "Night"}</span>
+          </button>
+          <button className="link" onClick={onLogout}>
+            <LogOut size={ICON} aria-hidden /><span>Sign out</span>
+          </button>
+        </div>
+      </aside>
+
       <main className="content">
         <Outlet />
       </main>

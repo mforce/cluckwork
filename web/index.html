@@ -2,8 +2,19 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#4a154b" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#17121a" />
     <title>Cluckwork</title>
+    <script>
+      // Apply the saved theme before first paint so there is no light/dark flash.
+      try {
+        var t = localStorage.getItem("cluckwork.theme");
+        if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

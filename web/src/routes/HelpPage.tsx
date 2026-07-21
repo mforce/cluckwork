@@ -29,20 +29,26 @@ const TOC = [
 export function HelpPage() {
   return (
     <section className="help">
-      <h2>Help</h2>
-      <p className="muted">
-        How Cluckwork works, screen by screen — and how to undo mistakes.
-      </p>
+      <div className="help-head">
+        <p className="eyebrow">User guide</p>
+        <h2>Help</h2>
+        <p className="help-lead">
+          How Cluckwork works, screen by screen — and how to undo mistakes.
+        </p>
+      </div>
 
-      <nav aria-label="Help contents">
-        <ul>
-          {TOC.map(([id, label]) => (
-            <li key={id}><a href={`#${id}`}>{label}</a></li>
-          ))}
-        </ul>
-      </nav>
+      <div className="help-layout">
+        <nav className="help-toc" aria-label="Help contents">
+          <p className="eyebrow">Contents</p>
+          <ul>
+            {TOC.map(([id, label]) => (
+              <li key={id}><a href={`#${id}`}>{label}</a></li>
+            ))}
+          </ul>
+        </nav>
 
-      <h3 id="daily-loop">The daily loop</h3>
+        <div className="help-body">
+          <h3 id="daily-loop">The daily loop</h3>
       <p>
         Everything in Cluckwork hangs off one chain: you record a <strong>daily
         entry</strong> for each flock (eggs by grade, losses, deaths), you{" "}
@@ -515,10 +521,12 @@ export function HelpPage() {
         </tbody>
       </table>
 
-      <p className="muted">
-        Full spec-language definitions live in the repository's{" "}
-        <code>specs/product/GLOSSARY.md</code>.
-      </p>
+          <p className="muted">
+            Full spec-language definitions live in the repository's{" "}
+            <code>specs/product/GLOSSARY.md</code>.
+          </p>
+        </div>
+      </div>
     </section>
   );
 }

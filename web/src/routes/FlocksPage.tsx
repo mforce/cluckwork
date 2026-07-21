@@ -6,6 +6,7 @@ import {
 } from "../api/cluckwork";
 import type { BirdMovement, Flock } from "../api/cluckwork";
 import { ApiError } from "../api/client";
+import { StatusBadge } from "../components/StatusBadge";
 import { useAuth } from "../auth/useAuth";
 import { ageWeeks, todayIso } from "../lib/dates";
 
@@ -234,7 +235,7 @@ export function FlocksPage() {
                       <input className="cell" type="number" min={1} value={editCount} aria-label="Edit bird count"
                         onChange={(e) => setEditCount(Math.max(1, e.target.valueAsNumber || 1))} />
                     </td>
-                    <td>{f.status}</td>
+                    <td><StatusBadge status={f.status} /></td>
                     <td>
                       <button className="link" disabled={busy}
                         onClick={() => void onSaveEdit(f.id)}>save</button>
@@ -253,10 +254,7 @@ export function FlocksPage() {
                       {f.currentBirds !== f.initialCount &&
                         <span className="muted"> / {f.initialCount}</span>}
                     </td>
-                    <td>
-                      {f.status === "Active" ? "Active"
-                        : <span className="warn">{f.status}</span>}
-                    </td>
+                    <td><StatusBadge status={f.status} /></td>
                     <td>
                       <button className="link" disabled={busy}
                         onClick={() => void openLedger(f.id)}>

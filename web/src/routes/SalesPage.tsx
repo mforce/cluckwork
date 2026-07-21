@@ -8,6 +8,7 @@ import {
 import type { Customer, OrderPayments, Product, SalesOrder } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
+import { StatusBadge } from "../components/StatusBadge";
 
 const PAGE = 50;
 
@@ -371,7 +372,7 @@ export function SalesPage() {
         <div className="order-panel">
           <h3>
             {active.referenceNumber} — {customerName(active.customerId)}{" "}
-            <span className={active.status === "Draft" ? "muted" : "warn"}>[{active.status}]</span>
+            <StatusBadge status={active.status} />
           </h3>
 
           {active.items.length > 0 && (
@@ -488,7 +489,7 @@ export function SalesPage() {
                         <td>{p.referenceNumber ?? "—"}</td>
                         <td>
                           {p.voided
-                            ? <span className="warn" title={p.voidReason ?? undefined}>Voided</span>
+                            ? <span className="badge badge-danger" title={p.voidReason ?? undefined}>Voided</span>
                             : isAdmin ? (
                               <button className="link" disabled={busy}
                                 onClick={() => onVoidPayment(p.id, p.version)}>void</button>
@@ -593,7 +594,7 @@ export function SalesPage() {
                   <td>{o.referenceNumber}</td>
                   <td>{o.orderDate}</td>
                   <td>{customerName(o.customerId)}</td>
-                  <td>{o.status}</td>
+                  <td><StatusBadge status={o.status} /></td>
                   <td>{formatMoney(o.totalMinorUnits, o.currencyCode, o.currencyMinorUnit)}</td>
                   <td><button className="link" onClick={() => onOpen(o.id)}>open</button></td>
                 </tr>

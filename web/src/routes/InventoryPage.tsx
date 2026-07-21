@@ -8,6 +8,7 @@ import {
 import type { Account, Flock, InventoryItem, InventoryLot, InventoryMovement } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
+import { StatusBadge } from "../components/StatusBadge";
 
 // Feed first (spec §12); the rest of the categories get their features later.
 const CATEGORIES = [
@@ -471,7 +472,7 @@ export function InventoryPage() {
                     <input className="cell" type="number" min={0} step={costStep} value={editCost}
                       onChange={(e) => setEditCost(e.target.value)} />
                   </td>
-                  <td>{i.active ? "Active" : "Inactive"}</td>
+                  <td><StatusBadge status={i.active ? "Active" : "Inactive"} /></td>
                   <td>
                     <button className="link" disabled={busy}
                       onClick={() => void onSaveEdit(i)}>save</button>
@@ -485,7 +486,7 @@ export function InventoryPage() {
                   <td>{i.category}</td>
                   <td>{i.quantityOnHand} {i.unit}</td>
                   <td>{costText(i)}</td>
-                  <td>{i.active ? "Active" : <span className="warn">Inactive</span>}</td>
+                  <td><StatusBadge status={i.active ? "Active" : "Inactive"} /></td>
                   <td>
                     <button className="link" disabled={busy} onClick={() => void onOpen(i)}>open</button>
                     {isAdmin && (
