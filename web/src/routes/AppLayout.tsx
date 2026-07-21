@@ -1,12 +1,11 @@
-import { useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
   Bird, Boxes, ChartColumn, CircleHelp, ClipboardList, Download, Egg, History,
-  LayoutDashboard, LogOut, Moon, Package, ScrollText, ShoppingCart, Sun, Tags,
+  LayoutDashboard, LogOut, Package, ScrollText, ShoppingCart, Tags,
   UserCog, Users, Wallet, Droplets,
 } from "lucide-react";
 import { useAuth } from "../auth/useAuth";
-import { applyTheme, initialTheme, type Theme } from "../lib/theme";
+import { ThemeToggle } from "../components/ThemeToggle";
 
 const ICON = 17;
 
@@ -20,16 +19,8 @@ const ICON = 17;
 export function AppLayout() {
   const { logout, isAdmin, role } = useAuth();
   const navigate = useNavigate();
-  const [theme, setTheme] = useState<Theme>(initialTheme);
-
   // Sales users skip production capture; ReadOnly sees views only.
   const canProduce = role !== "Sales" && role !== "ReadOnly";
-
-  function toggleTheme() {
-    const next: Theme = theme === "dark" ? "light" : "dark";
-    applyTheme(next);
-    setTheme(next);
-  }
 
   async function onLogout() {
     await logout();
@@ -90,11 +81,7 @@ export function AppLayout() {
         </nav>
 
         <div className="sidebar-foot">
-          <button className="link theme-toggle" onClick={toggleTheme}
-            aria-label={theme === "dark" ? "Switch to light mode" : "Switch to night mode"}>
-            {theme === "dark" ? <Sun size={ICON} aria-hidden /> : <Moon size={ICON} aria-hidden />}
-            <span>{theme === "dark" ? "Light" : "Night"}</span>
-          </button>
+          <ThemeToggle iconSize={ICON} />
           <button className="link" onClick={onLogout}>
             <LogOut size={ICON} aria-hidden /><span>Sign out</span>
           </button>

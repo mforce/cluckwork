@@ -372,7 +372,7 @@ export function SalesPage() {
         <div className="order-panel">
           <h3>
             {active.referenceNumber} — {customerName(active.customerId)}{" "}
-            <StatusBadge status={active.status} />
+            <span className={active.status === "Draft" ? "muted" : "warn"}>[{active.status}]</span>
           </h3>
 
           {active.items.length > 0 && (

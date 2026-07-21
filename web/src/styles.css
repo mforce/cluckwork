@@ -29,7 +29,7 @@
   --row-hover: #faf5fc;
 
   /* Semantic */
-  --error: #cc4117;
+  --error: #bd3a14; /* darkened so the small danger badge clears AA (4.5:1) */
   --success: #007a5a;
   --warn: #8a5a00; /* amber that clears AA on white */
 
@@ -42,6 +42,9 @@
 
   /* Themeable component hooks (overridden wholesale in dark) */
   --stat-accent: var(--aubergine);
+  /* focus ring / accent-on-surface — theme-aware so it stays visible in dark;
+     the sidebar (aubergine) overrides this to a light ring below. */
+  --focus: var(--stat-accent);
   --auth-brand: var(--aubergine);
   --auth-card-border: rgba(255, 255, 255, 0.7);
   --auth-card-shadow: 0 20px 60px rgba(74, 21, 75, 0.14);
@@ -62,7 +65,7 @@
 
   font-family: var(--font);
   color: var(--ink);
-  color-scheme: light dark;
+  color-scheme: light; /* native controls follow the app's theme, not the OS, once toggled */
 }
 
 /* ---- Night mode: explicit toggle wins; otherwise follow the OS default ---- */
@@ -95,6 +98,7 @@
     radial-gradient(55% 55% at 82% 88%, rgba(45, 90, 70, 0.35) 0%, transparent 62%),
     var(--canvas);
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 10px 30px rgba(0, 0, 0, 0.35);
+  color-scheme: dark;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -127,6 +131,7 @@
       radial-gradient(55% 55% at 82% 88%, rgba(45, 90, 70, 0.35) 0%, transparent 62%),
       var(--canvas);
     --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 10px 30px rgba(0, 0, 0, 0.35);
+    color-scheme: dark;
   }
 }
 
@@ -193,8 +198,13 @@ button.link:hover:not(:disabled) {
 }
 
 :focus-visible {
-  outline: 2px solid var(--aubergine);
+  outline: 2px solid var(--focus);
   outline-offset: 2px;
+}
+
+/* An aubergine ring is invisible on the aubergine sidebar — use a light one. */
+.sidebar :focus-visible {
+  outline-color: var(--on-aubergine);
 }
 
 /* --------------------------------------------------------- Inputs & forms */
@@ -218,9 +228,9 @@ input, select, textarea {
 }
 
 input:focus, select:focus, textarea:focus {
-  outline: 2px solid var(--aubergine);
+  outline: 2px solid var(--focus);
   outline-offset: 0;
-  border-color: var(--aubergine);
+  border-color: var(--focus);
 }
 
 input[type="checkbox"] {
@@ -343,7 +353,7 @@ input.cell {
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: var(--aubergine);
+  background: var(--stat-accent); /* stays visible on the dark meter track */
 }
 
 .meter.is-warn > span { background: var(--warn); }
@@ -567,7 +577,7 @@ label.check {
 }
 
 .panel h3 a:hover {
-  color: var(--aubergine);
+  color: var(--stat-accent);
   text-decoration: none;
 }
 
@@ -623,11 +633,30 @@ label.check {
 
 /* --------------------------------------------- Login — the hero moment */
 .auth {
+  position: relative;
   min-height: 100dvh;
   display: grid;
   place-items: center;
   padding: 1.5rem;
   background: var(--auth-bg);
+}
+
+/* Corner theme toggle on the login screen (icon-only). Higher specificity than
+   button.link so it isn't painted link-blue. */
+.auth .auth-theme {
+  position: absolute;
+  top: 1.1rem;
+  right: 1.1rem;
+  color: var(--muted);
+  background: none;
+  padding: 0.45rem;
+  border-radius: var(--r-pill);
+}
+
+.auth .auth-theme:hover:not(:disabled) {
+  color: var(--stat-accent);
+  background: var(--tint-accent);
+  text-decoration: none;
 }
 
 .auth .card {

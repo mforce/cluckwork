@@ -3,6 +3,7 @@ import type { FormEvent } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/useAuth";
 import { ApiError } from "../api/client";
+import { ThemeToggle } from "../components/ThemeToggle";
 
 interface LocationState {
   from?: { pathname: string };
@@ -39,6 +40,7 @@ export function Login() {
 
   return (
     <main className="auth">
+      <ThemeToggle className="auth-theme" showLabel={false} iconSize={18} />
       <form className="card" onSubmit={onSubmit}>
         <h1>Cluckwork</h1>
         <label>
