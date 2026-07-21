@@ -712,9 +712,21 @@ label.check {
   text-decoration: none;
 }
 
-:root[data-theme="dark"] .help-toc li a:hover { color: var(--stat-accent); }
+/* current section (scroll-spy) */
+.help-toc li a.active {
+  color: var(--aubergine);
+  background: var(--tint-accent);
+  font-weight: 600;
+  box-shadow: inset 2px 0 0 var(--aubergine);
+}
+
+:root[data-theme="dark"] .help-toc li a:hover,
+:root[data-theme="dark"] .help-toc li a.active { color: var(--stat-accent); }
+:root[data-theme="dark"] .help-toc li a.active { box-shadow: inset 2px 0 0 var(--stat-accent); }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme]) .help-toc li a:hover { color: var(--stat-accent); }
+  :root:not([data-theme]) .help-toc li a:hover,
+  :root:not([data-theme]) .help-toc li a.active { color: var(--stat-accent); }
+  :root:not([data-theme]) .help-toc li a.active { box-shadow: inset 2px 0 0 var(--stat-accent); }
 }
 
 .help-body {
