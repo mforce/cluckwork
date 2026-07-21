@@ -16,6 +16,13 @@ describe("tokenStore", () => {
     expect(loadTokens()).toBeNull();
   });
 
+  it("overwrites an existing pair — the rotated token wins (refresh rotation)", () => {
+    saveTokens(PAIR);
+    const rotated = { accessToken: "at2", refreshToken: "rt2", expiresAt: "2099-06-01T00:00:00Z" };
+    saveTokens(rotated);
+    expect(loadTokens()).toEqual(rotated);
+  });
+
   it("clearTokens removes the stored pair", () => {
     saveTokens(PAIR);
     clearTokens();

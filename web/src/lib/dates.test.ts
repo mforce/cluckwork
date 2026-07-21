@@ -12,10 +12,19 @@ describe("todayIso", () => {
     expect(todayIso()).toBe("2026-01-05");
   });
 
+  it("zero-pads single-digit months and days", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 8, 9, 8, 0, 0)); // local Sep 9, 2026
+    expect(todayIso()).toBe("2026-09-09");
+  });
+
   it("uses the local calendar day, not UTC — a late-evening instant stays on today", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(2026, 10, 30, 23, 59, 0)); // local Nov 30, 2026 23:59
-    // toISOString() could report Dec 1 for east-of-UTC runners; todayIso must not.
+    // toISOString() would report Dec 1 for a runner WEST of UTC (negative offset,
+    // e.g. the Americas); todayIso reads local fields, so it stays on Nov 30. On a
+    // UTC/east runner both agree — this pins the local-field behavior, and only a
+    // west-of-UTC runner would additionally catch a regression to toISOString().
     expect(todayIso()).toBe("2026-11-30");
   });
 });
@@ -42,5 +51,17 @@ describe("ageWeeks", () => {
 
   it("clamps a not-yet-placed flock (future date) to 0, never negative", () => {
     expect(ageWeeks("2026-01-01", placedMs - 5 * DAY)).toBe(0);
+  });
+
+  it("reads the wall clock when nowMs is omitted (the FlocksPage call form)", () => {
+    // Pins the default-parameter overload that FlocksPage relies on — a refactor
+    // that dropped `= Date.now()` would otherwise slip through unnoticed.
+    vi.useFakeTimers();
+    vi.setSystemTime(placedMs + 8 * DAY);
+    try {
+      expect(ageWeeks("2026-01-01")).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
