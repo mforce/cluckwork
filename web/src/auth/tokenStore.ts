@@ -4,7 +4,9 @@ import type { TokenPair } from "../api/types";
 // token is short-lived and the refresh token is single-use + rotated server-side
 // (Cluckwork.Infrastructure/Identity), so this is an acceptable MVP trade-off.
 // Revisit (httpOnly cookie) if XSS surface grows.
-const KEY = "cluckwork.tokens";
+// Exported so tests can seed/read the same slot the app uses — no drift-prone
+// duplicated string literal (PR #106 review).
+export const KEY = "cluckwork.tokens";
 
 export function loadTokens(): TokenPair | null {
   const raw = localStorage.getItem(KEY);
