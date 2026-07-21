@@ -95,12 +95,16 @@ describe("StockPage drill-down", () => {
     const gradeA = screen.getByRole("row", { name: /Grade A\b/ });
     fireEvent.click(within(gradeA).getByRole("button", { name: "lots" }));
 
-    expect(await screen.findByText("2026-07-01")).toBeInTheDocument(); // lot production date
+    const lotRow = await screen.findByRole("row", { name: /2026-07-01/ });
     expect(mockListEggLots).toHaveBeenCalledWith({ gradeId: "g1" });
-    expect(screen.getByText("120")).toBeInTheDocument(); // quantityProduced
-    expect(screen.getByText("99")).toBeInTheDocument(); // quantityAvailable
-    // toggle text flips to "hide lots"
+    expect(mockListEggLots).toHaveBeenCalledTimes(1);
+    // Values scoped to the lot row — pins WHERE they render, not just that they exist.
+    expect(within(lotRow).getByText("120")).toBeInTheDocument(); // quantityProduced
+    expect(within(lotRow).getByText("99")).toBeInTheDocument(); // quantityAvailable
+    // toggle text flips to "hide lots"; the other grade is untouched (still "lots").
     expect(within(gradeA).getByRole("button", { name: "hide lots" })).toBeInTheDocument();
+    const gradeB = screen.getByRole("row", { name: /Grade B\b/ });
+    expect(within(gradeB).getByRole("button", { name: "lots" })).toBeInTheDocument();
   });
 
   it("shows the empty-lots hint when a grade has no lots", async () => {
@@ -133,9 +137,23 @@ describe("StockPage drill-down", () => {
     const lotRow = screen.getByRole("row", { name: /2026-07-01/ });
     fireEvent.click(within(lotRow).getByRole("button", { name: "history" }));
 
-    expect(await screen.findByText("Production")).toBeInTheDocument(); // movementType
+    const mvRow = await screen.findByRole("row", { name: /Production/ });
     expect(mockListEggLotMovements).toHaveBeenCalledWith("lot1");
-    expect(screen.getByText("+120")).toBeInTheDocument(); // signed positive delta
+    expect(within(mvRow).getByText("+120")).toBeInTheDocument(); // signed positive delta, scoped
+
+    // collapse: 'hide history' removes the ledger
+    fireEvent.click(within(lotRow).getByRole("button", { name: "hide history" }));
+    expect(screen.queryByText("Production")).not.toBeInTheDocument();
+  });
+
+  it("surfaces an error if the movement request fails", async () => {
+    mockListEggLots.mockResolvedValue(LOTS);
+    mockListEggLotMovements.mockRejectedValue(new Error("movements down"));
+    await renderWithData();
+    fireEvent.click(within(screen.getByRole("row", { name: /Grade A\b/ })).getByRole("button", { name: "lots" }));
+    const lotRow = await screen.findByRole("row", { name: /2026-07-01/ });
+    fireEvent.click(within(lotRow).getByRole("button", { name: "history" }));
+    expect(await screen.findByText(/Could not load the lot's movements/)).toBeInTheDocument();
   });
 
   it("surfaces an error if the lots request fails, without unmounting the grade table", async () => {
