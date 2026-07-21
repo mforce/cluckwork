@@ -36,7 +36,7 @@ export default defineConfig(({ mode }) => {
         exclude: [
           "src/main.tsx", // app entry: renders <App/>, nothing to unit-test
           "src/api/types.ts", // type-only DTOs (no runtime code)
-          "src/vite-env.d.ts",
+          "src/**/*.d.ts", // ambient declarations (vite-env.d.ts, etc.)
           "src/**/*.test.{ts,tsx}",
           "src/test/**", // test-only helpers (renderWithProviders, jwt, setup)
         ],
