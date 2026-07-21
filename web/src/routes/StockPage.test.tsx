@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, within, fireEvent } from "@testing-library/react";
 import { StockPage } from "./StockPage";
-import { getStock } from "../api/cluckwork";
-import type { StockRow } from "../api/cluckwork";
+import { getStock, listEggLots, listEggLotMovements } from "../api/cluckwork";
+import type { StockRow, EggLotRow, EggMovementRow } from "../api/cluckwork";
 
 // Mock the API seam so the screen renders against controlled data — no network,
 // no backend. This proves the component test harness handles an async data load,
@@ -14,13 +14,27 @@ vi.mock("../api/cluckwork", () => ({
 }));
 
 const mockGetStock = vi.mocked(getStock);
+const mockListEggLots = vi.mocked(listEggLots);
+const mockListEggLotMovements = vi.mocked(listEggLotMovements);
 
 const ROWS: StockRow[] = [
   { eggGradeId: "g1", gradeName: "Grade A", available: 100, restricted: 0 },
   { eggGradeId: "g2", gradeName: "Grade B", available: 50, restricted: 5 },
 ];
 
-beforeEach(() => mockGetStock.mockReset());
+const LOTS: EggLotRow[] = [
+  { id: "lot1", eggGradeId: "g1", productionDate: "2026-07-01", quantityProduced: 120, quantityAvailable: 99, restrictedUntil: null, dailyEntryId: "de1" },
+];
+
+const MOVEMENTS: EggMovementRow[] = [
+  { id: "mv1", movementType: "Production", quantityDelta: 120, referenceType: "DailyEntry", referenceId: "de1", reason: null, createdAtUtc: "2026-07-01T08:00:00Z" },
+];
+
+beforeEach(() => {
+  mockGetStock.mockReset();
+  mockListEggLots.mockReset();
+  mockListEggLotMovements.mockReset();
+});
 
 describe("StockPage", () => {
   it("shows a loading state until the stock request resolves", async () => {
@@ -55,7 +69,7 @@ describe("StockPage", () => {
     expect(await screen.findByText("Grade A")).toBeInTheDocument();
     // Scope the restricted-count assertion to Grade B's row so it pins that
     // cell, not just "some 5 rendered somewhere".
-    const gradeBRow = screen.getByRole("row", { name: /Grade B/ });
+    const gradeBRow = screen.getByRole("row", { name: /Grade B\b/ });
     expect(within(gradeBRow).getByText("5")).toBeInTheDocument();
 
     // 100 + 50 = 150 across 2 grades — the client-side reduce.
@@ -64,5 +78,73 @@ describe("StockPage", () => {
         (_, el) => el?.tagName === "P" && /^150 eggs available across 2 grade\(s\)\./.test(el.textContent ?? ""),
       ),
     ).toBeInTheDocument();
+  });
+});
+
+describe("StockPage drill-down", () => {
+  async function renderWithData() {
+    mockGetStock.mockResolvedValue(ROWS);
+    render(<StockPage />);
+    await screen.findByText("Grade A");
+  }
+
+  it("expands a grade into its lots on 'lots', scoped to that grade", async () => {
+    mockListEggLots.mockResolvedValue(LOTS);
+    await renderWithData();
+
+    const gradeA = screen.getByRole("row", { name: /Grade A\b/ });
+    fireEvent.click(within(gradeA).getByRole("button", { name: "lots" }));
+
+    expect(await screen.findByText("2026-07-01")).toBeInTheDocument(); // lot production date
+    expect(mockListEggLots).toHaveBeenCalledWith({ gradeId: "g1" });
+    expect(screen.getByText("120")).toBeInTheDocument(); // quantityProduced
+    expect(screen.getByText("99")).toBeInTheDocument(); // quantityAvailable
+    // toggle text flips to "hide lots"
+    expect(within(gradeA).getByRole("button", { name: "hide lots" })).toBeInTheDocument();
+  });
+
+  it("shows the empty-lots hint when a grade has no lots", async () => {
+    mockListEggLots.mockResolvedValue([]);
+    await renderWithData();
+    const gradeB = screen.getByRole("row", { name: /Grade B\b/ });
+    fireEvent.click(within(gradeB).getByRole("button", { name: "lots" }));
+    expect(await screen.findByText(/No lots for this grade yet/)).toBeInTheDocument();
+    expect(mockListEggLots).toHaveBeenCalledWith({ gradeId: "g2" });
+  });
+
+  it("collapses the lots again on 'hide lots'", async () => {
+    mockListEggLots.mockResolvedValue(LOTS);
+    await renderWithData();
+    const gradeA = screen.getByRole("row", { name: /Grade A\b/ });
+    fireEvent.click(within(gradeA).getByRole("button", { name: "lots" }));
+    await screen.findByText("2026-07-01");
+    fireEvent.click(within(gradeA).getByRole("button", { name: "hide lots" }));
+    expect(screen.queryByText("2026-07-01")).not.toBeInTheDocument();
+  });
+
+  it("expands a lot into its movement ledger on 'history'", async () => {
+    mockListEggLots.mockResolvedValue(LOTS);
+    mockListEggLotMovements.mockResolvedValue(MOVEMENTS);
+    await renderWithData();
+
+    fireEvent.click(within(screen.getByRole("row", { name: /Grade A\b/ })).getByRole("button", { name: "lots" }));
+    await screen.findByText("2026-07-01");
+    // the lot row's history button
+    const lotRow = screen.getByRole("row", { name: /2026-07-01/ });
+    fireEvent.click(within(lotRow).getByRole("button", { name: "history" }));
+
+    expect(await screen.findByText("Production")).toBeInTheDocument(); // movementType
+    expect(mockListEggLotMovements).toHaveBeenCalledWith("lot1");
+    expect(screen.getByText("+120")).toBeInTheDocument(); // signed positive delta
+  });
+
+  it("surfaces an error if the lots request fails, without unmounting the grade table", async () => {
+    // toggleGrade awaits inside try/catch (not a mount-effect chain), so a lazily
+    // created rejection is awaited immediately — no dangling unhandled promise.
+    mockListEggLots.mockRejectedValue(new Error("lots down"));
+    await renderWithData();
+    fireEvent.click(within(screen.getByRole("row", { name: /Grade A\b/ })).getByRole("button", { name: "lots" }));
+    expect(await screen.findByText(/Could not load the grade's lots/)).toBeInTheDocument();
+    expect(screen.getByText("Grade A")).toBeInTheDocument(); // table still there
   });
 });
