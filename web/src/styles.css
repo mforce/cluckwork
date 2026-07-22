@@ -941,8 +941,12 @@ label.check {
 
 /* ------------------------------------------------ Responsive (#49 kept) */
 @media (max-width: 900px) {
+  /* minmax(0, …), not plain 1fr: a bare `1fr` track floors at the item's
+     min-content, and the wrapping nav bar's is wider than a phone — the whole
+     page rendered ~510px wide on a 390px screen, pushing each screen's
+     "New …" button under the nav where it could not be tapped. */
   .shell {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   /* Sidebar becomes a full-width top bar; nav links flow in a wrapping row,
