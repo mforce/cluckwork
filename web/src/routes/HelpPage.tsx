@@ -180,9 +180,33 @@ export function HelpPage() {
       <h3 id="daily-entry">Daily entry</h3>
       <ul>
         <li>
-          Pick a flock and a date, enter total eggs, losses (cracked / dirty /
-          discarded), deaths, and the sellable eggs split across grades. Graded
-          quantities can never exceed total minus losses.
+          Pick the flock and date at the top, then work through two panes side
+          by side: <strong>1 Egg counts</strong> (total, cracked, dirty,
+          discarded, deaths) and <strong>2 Grading</strong>. The counts produce
+          a <strong>sellable</strong> figure, and that is the number the grades
+          have to add up to — they can never exceed it.
+        </li>
+        <li>
+          Grading counts <strong>down</strong>. Beside the grades is how many
+          sellable eggs you still have to place; it turns green the moment the
+          day adds up and red if you go over. You cannot submit while it is over.
+        </li>
+        <li>
+          Every count has <strong>−</strong> and <strong>+</strong> buttons.
+          Tap for one, or <strong>hold</strong> — it speeds up as you go, so a
+          few hundred eggs takes about a second. Easier than a keypad with
+          gloves on. A grade&apos;s <strong>+</strong> stops once the day is
+          fully graded, so you cannot overshoot with it.
+        </li>
+        <li>
+          Most days end the same way — one grade takes whatever is left.{" "}
+          <strong>Put all in…</strong> beside the remaining count does it in one
+          move: drag it onto a grade, or tap it and pick one.
+        </li>
+        <li>
+          Both save buttons stay in a bar at the bottom of the screen as you
+          scroll. On a phone that bar also shows the sellable count and how many
+          are left, so you never lose sight of whether the day adds up.
         </li>
         <li>
           <strong>Save draft</strong> keeps the day editable. <strong>Submit</strong>{" "}
@@ -197,8 +221,10 @@ export function HelpPage() {
         </li>
         <li>
           One entry per flock per day. Reopening a day that has a draft loads it
-          for editing; if prefill fails, saving is blocked until it succeeds so
-          an existing draft is never silently overwritten.
+          for editing and shows an <strong>Editing draft</strong> badge beside
+          the title, so picking up saved work never looks like starting fresh.
+          If prefill fails, saving is blocked until it succeeds so an existing
+          draft is never silently overwritten.
         </li>
         <li>
           Depleted flocks accept backfilled entries up to their depletion date;

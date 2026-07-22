@@ -76,6 +76,7 @@
   --shadow-card: 0 1px 2px rgba(29, 21, 33, 0.04), 0 8px 24px rgba(29, 21, 33, 0.05);
   --scrim: rgba(29, 21, 33, 0.42);
   --shadow-dialog: 0 24px 64px rgba(29, 21, 33, 0.24);
+  --shadow-bar: 0 -8px 24px rgba(29, 21, 33, 0.08);
 
   font-family: var(--font);
   color: var(--ink);
@@ -119,6 +120,7 @@
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 10px 30px rgba(0, 0, 0, 0.35);
   --scrim: rgba(0, 0, 0, 0.62);
   --shadow-dialog: 0 24px 64px rgba(0, 0, 0, 0.6);
+  --shadow-bar: 0 -8px 24px rgba(0, 0, 0, 0.45);
   color-scheme: dark;
 }
 
@@ -155,6 +157,14 @@
       radial-gradient(55% 55% at 82% 88%, rgba(45, 90, 70, 0.35) 0%, transparent 62%),
       var(--canvas);
     --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 10px 30px rgba(0, 0, 0, 0.35);
+    /* These three were missing here while :root[data-theme="dark"] had them,
+       so anyone on an OS-dark machine who had never touched the theme toggle
+       (no data-theme attribute — see lib/theme.ts) got dark surfaces under a
+       LIGHT scrim and a light shadow: every dialog since #131 rendered washed
+       out with no elevation. Found while adding --shadow-bar (F134). */
+    --scrim: rgba(0, 0, 0, 0.62);
+    --shadow-dialog: 0 24px 64px rgba(0, 0, 0, 0.6);
+    --shadow-bar: 0 -8px 24px rgba(0, 0, 0, 0.45);
     color-scheme: dark;
   }
 }
@@ -424,6 +434,317 @@ input.cell {
   align-items: center;
   gap: 0.9rem;
   margin-top: 0.4rem;
+}
+
+/* Off-screen but spoken. Used for the step numbers: the numeral itself is
+   drawn as a circle and aria-hidden, but "Step 1 of 3" carries information
+   document order cannot — how much of the form is left. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* -------------------------------------------- Daily entry (F134) */
+
+/* The three steps are a real sequence, not decoration: grading is capped by the
+   counts, which prefill against the flock and date. */
+.entry-step {
+  margin-bottom: 1.75rem;
+}
+
+.entry-step > h3 {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0;
+}
+
+/* Tabbing into a field the pinned bar is covering is a focus-order failure
+   (WCAG 2.4.3): measured 3 of 14 controls landing behind it at 390x844, the
+   worst by 114px. Scoped to this screen's controls rather than a global
+   scroll-padding, which would make focus scrolling overshoot everywhere else.
+   10rem clears the bar's tallest state. */
+.entry-step input,
+.entry-step select {
+  scroll-margin-bottom: 10rem;
+}
+
+/* Says "Step 1", not just "1" — a bare numeral asks the reader to infer that it
+   is a step at all. Only the " of 2" is screen-reader-only, because that part
+   genuinely is not on screen; everything visible is spoken exactly once. */
+.step-n {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  padding: 0.25rem 0.6rem;
+  border-radius: var(--r-pill);
+  background: var(--tint-accent);
+  color: var(--stat-accent);
+  font-size: 0.7rem;
+  font-weight: 700;
+  /* The headings carry negative display tracking; this is a label, so it opens
+     up instead. */
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* Flock + date sit above the two panes as context, not as a step. */
+.entry-context {
+  margin-bottom: 1.75rem;
+}
+
+/* The panes reconcile against each other — the sellable figure the left one
+   produces is the target the right one has to hit — so they sit side by side
+   and the whole day is one glance. minmax(0,1fr): a bare 1fr floors at the
+   content's min-content and would push the page wider than the viewport. */
+.entry-cols {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2rem 2.5rem;
+  align-items: start;
+}
+
+.entry-pane {
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-card);
+  padding: 1.35rem 1.5rem;
+}
+
+.entry-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+/* Name left, control right, on one line. The old wrapping flex grew every
+   field to fill 300px for a three-digit number and orphaned the fifth onto a
+   row of its own. */
+.entry-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1rem;
+}
+
+.entry-row > label {
+  font-size: 0.9rem;
+  color: var(--muted);
+  margin: 0;
+}
+
+/* Sellable, shown as a value rather than buried in a sentence. */
+.entry-readout {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 1.1rem 0 0;
+  padding-top: 0.9rem;
+  border-top: 1px dashed var(--hairline);
+}
+
+.entry-readout .k {
+  font-size: 0.8rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.entry-readout .v {
+  font-size: 1.6rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* How many eggs are still unaccounted for — the number the grading pane is
+   working towards. Counts down to zero, then confirms. */
+.entry-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  margin: 1.1rem 0 0;
+  padding: 0.5rem 1rem;
+  border-radius: var(--r-pill);
+  background: var(--tint-accent);
+}
+
+/* The chip's gap sits between ITS children, and the number + wording are now
+   wrapped together in the live region — so they need their own. */
+.entry-chip-text {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+
+.entry-chip b {
+  font-size: 1.35rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--stat-accent);
+}
+
+.entry-chip-text > span {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+/* Hand the whole remainder to one grade: drag it onto a row, or arm it with a
+   tap and pick. Most days are lopsided, so the last move is "and the rest are
+   Large" — worth one gesture rather than holding + four hundred times. */
+.entry-chip-grab {
+  margin-left: 0.35rem;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: transparent;
+  border: 1px dashed var(--stat-accent);
+  color: var(--stat-accent);
+  border-radius: var(--r-pill);
+  cursor: grab;
+  touch-action: none;
+}
+
+.entry-chip-grab[aria-pressed="true"] {
+  background: var(--stat-accent);
+  color: var(--surface);
+  border-style: solid;
+  cursor: grabbing;
+}
+
+/* Armed: every grade row becomes a target, so the whole pane reads as one. */
+.entry-row.taking {
+  outline: 1px dashed var(--stat-accent);
+  outline-offset: 0.35rem;
+  border-radius: var(--r-input);
+  /* The take button is appended, not swapped in, so the row grows a column. */
+  grid-template-columns: minmax(0, 1fr) auto auto;
+}
+
+.entry-take {
+  padding: 0.45rem 0.9rem;
+  font-size: 0.85rem;
+  background: var(--tint-accent);
+  color: var(--stat-accent);
+  border-radius: var(--r-input);
+  white-space: nowrap;
+}
+
+.entry-take:hover:not(:disabled) {
+  background: var(--stat-accent);
+  color: var(--surface);
+}
+
+.entry-chip.done { background: var(--tint-ok); }
+.entry-chip.done b { color: var(--success); }
+.entry-chip.over { background: var(--tint-danger); }
+.entry-chip.over b { color: var(--error); }
+
+/* ---- number entry with thumb-sized steppers (F134) ---- */
+.numfield {
+  display: inline-flex;
+  align-items: stretch;
+  gap: 0.3rem;
+}
+
+/* Sized to its content: an egg count is four digits, not three hundred pixels.
+   The native spinner is hidden — it is a 10px target and absent on touch. */
+.numfield input {
+  width: 4.75rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.numfield input::-webkit-outer-spin-button,
+.numfield input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.numfield-step {
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  padding: 0;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-input);
+  background: var(--surface-2);
+  color: var(--ink);
+  /* A held button must not select the label text or fire the OS long-press
+     menu under a thumb. */
+  user-select: none;
+  touch-action: manipulation;
+}
+
+.numfield-step:hover:not(:disabled) {
+  background: var(--tint-accent);
+  color: var(--stat-accent);
+}
+
+/* Pinned while the form scrolls underneath. The reconciliation line and the two
+   saves are the only things needed at every point in the flow, and on a phone
+   the grade grid used to push them off-screen entirely. Save feedback lives in
+   here too: anything below a sticky bar scrolls under it and is never seen. */
+.entry-foot {
+  position: sticky;
+  bottom: 0;
+  /* Above the page, below the dialog backdrop (50) — a confirmation must cover
+     the bar that opened it. */
+  z-index: 10;
+  background: var(--surface);
+  border-top: 1px solid var(--hairline);
+  box-shadow: var(--shadow-bar);
+  margin-top: 2rem;
+  padding: 0.9rem 0 calc(0.9rem + env(safe-area-inset-bottom));
+  /* Cancels .content's trailing padding so the bar lands flush at the end of
+     the page instead of lifting off the bottom edge for the last scroll step.
+     Coupled to .content by value — keep the two in step. */
+  margin-bottom: -4rem;
+}
+
+.entry-foot-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1.5rem;
+}
+
+.entry-foot p {
+  margin: 0;
+}
+
+/* Only where the panes have stacked out of view — see the mobile block. */
+.entry-foot-sum {
+  display: none;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.entry-foot-sum b {
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+.entry-foot-sum.done b { color: var(--success); }
+.entry-foot-sum.over b { color: var(--error); }
+
+/* The responsive pass (#49) makes any .actions sticky on a phone. Inside the
+   bar that would be a sticky within a sticky — the bar is the sticky thing
+   now. Specificity beats the media-query rule, which adds none. */
+.entry-foot .actions {
+  position: static;
+  margin: 0;
+  padding: 0;
 }
 
 /* -------------------------------------------- Toolbar (carded filter bar) */
@@ -1116,6 +1437,53 @@ label.check {
     background: var(--canvas);
     padding: 0.75rem 0;
     margin-top: 0.75rem;
+  }
+
+  /* Daily entry (F134). The bar runs edge to edge on a phone — inset by the
+     content gutter it would read as a floating card rather than a fixed rail,
+     and the negative margins buy back 2.3rem of width for two buttons that
+     have to sit side by side in a thumb's reach. */
+  .entry-foot {
+    margin-left: -1.15rem;
+    margin-right: -1.15rem;
+    padding-left: 1.15rem;
+    padding-right: 1.15rem;
+    margin-bottom: -5rem; /* .content's mobile padding-bottom */
+  }
+
+  /* One pane above the other: side by side on a phone would put four-digit
+     inputs in a 160px column. */
+  .entry-cols {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.5rem;
+  }
+
+  /* Barn use is one-handed and often gloved: 44px is the minimum comfortable
+     touch target, and the default padding lands under it. The take button
+     belongs here more than any of them — dragging does not work on touch, so on
+     a phone it is the ONLY way to hand the remainder to a grade. */
+  .entry-row input,
+  .entry-row .numfield-step,
+  .entry-row .entry-take,
+  .entry-chip-grab,
+  .entry-context input,
+  .entry-context select {
+    min-height: 2.75rem;
+  }
+
+  .entry-row .numfield-step {
+    width: 2.75rem;
+  }
+
+  .entry-foot-sum {
+    display: block;
+  }
+
+  /* Summary above, buttons below — side by side would squeeze both. */
+  .entry-foot-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.6rem;
   }
 
   /* On a phone the dialog becomes a bottom sheet — thumb-reachable, and it

@@ -52,6 +52,43 @@ straight from Active for mistake-created flocks):
 eggs, loss counts (cracked / dirty / discarded), mortality count, and the
 graded breakdown of sellable eggs. One entry per flock per day (natural key).
 
+**Daily entry steps (#134)** — the capture screen is two numbered panes side by
+side: **1 Egg counts** and **2 Grading**. Flock and date sit above them as
+context, not as a step — they say *which* day is being recorded, not part of
+recording it. The two panes reconcile: the **sellable** figure the counts
+produce is the target the grades have to hit, so they are placed where both can
+be read at once.
+
+**Left to grade (#134)** — grading counts **down** to zero rather than reporting
+*graded n of m*. The figure beside the grades is how many sellable eggs are
+still unaccounted for; it turns green when the day adds up exactly and red when
+the grades overshoot the sellable count. Submitting is blocked while it is over.
+
+**Entry footer (#134)** — both saves sit in a bar pinned to the bottom of the
+screen, along with save messages: anything below a pinned bar scrolls underneath
+it and is never read. On a phone the two panes stack and scroll away, so the bar
+also carries a compressed *n sellable · n left*; on a wider screen both panes are
+already visible and repeating it would be noise.
+
+**Steppers (#134)** — every count and grade field has **−** and **+** buttons
+either side. Holding one repeats, widening its stride from 1 to 5 to 10, so a
+few hundred eggs takes about a second. Built for the barn: the browser's own
+spinner is a ten-pixel target and disappears entirely on touch.
+
+A grade's **+** stops once the day is fully graded — the guided control will not
+build an over-graded entry. Typing still can: a draft is allowed to be over
+while it is being rearranged, and only submitting is blocked.
+
+**Put all in… (#134)** — hands the entire remainder to one grade in a single
+move, for the commonest last step of the day ("and the rest are Large"). Drag it
+onto a grade, or tap it and pick one. Both routes exist deliberately: dragging
+is unavailable on a phone and unreachable from a keyboard, so it is never the
+only way. It disappears when nothing is left to place.
+
+**Editing draft (#134)** — a badge beside the title when the day being captured
+already has a saved **Draft**, so re-opening work in progress is distinguishable
+from starting a fresh day. Only locked days carried a signal before.
+
 **Daily entry lifecycle** (#69) —
 `Draft → Submitted → Locked → ManagerAdjusted / Voided`:
 

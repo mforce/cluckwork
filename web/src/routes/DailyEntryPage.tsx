@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import {
   createFlock, listDailyEntries, listEggGrades, listFlocks,
@@ -7,11 +7,17 @@ import {
 import type { EggGrade, Flock } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { Dialog } from "../components/Dialog";
+import { StatusBadge } from "../components/StatusBadge";
+import { NumberField } from "../components/NumberField";
 import { useConfirm } from "../components/useConfirm";
 import { todayIso } from "../lib/dates";
 import { newId } from "../lib/ids";
 
 const LAST_FLOCK_KEY = "cluckwork.lastFlockId";
+
+// Marks OUR drag payload. Rows accept a drop only when they see this type, so
+// a file or a bit of text dragged in from elsewhere cannot assign the day.
+const REMAINDER_DRAG = "application/x-cluckwork-remainder";
 
 // Capture targets active flocks plus depleted ones — a depleted flock still
 // accepts backfilled entries up to its depletion date (the API gates exact
@@ -188,8 +194,66 @@ export function DailyEntryPage() {
   const lossesExceedTotal = losses > totalEggs;
   const selectedFlock = flocks.find((f) => f.id === flockId);
   const entryLocked = existingStatus !== null && existingStatus !== "Draft";
+  // The prefill found a draft for this flock+date: the form is EDITING it,
+  // not starting fresh, and nothing said so before (#134).
+  //
+  // Gated on a SETTLED prefill. existingStatus still holds the previous
+  // flock+date's value while a new one is in flight, and is never cleared if
+  // that fetch fails — so without this the badge claims "editing draft" for a
+  // day it knows nothing about, and keeps claiming it (codex review).
+  const editingDraft = existingStatus === "Draft" && !prefillPending && !prefillFailed;
+  // Grading counts DOWN to zero. "Graded 12 of 407" made the user do the
+  // subtraction; the number they are working towards is what is left.
+  const remaining = sellable - gradesSum;
+  // Derived once and rendered twice: in full beside the grades, and compressed
+  // in the pinned bar for phones, where both panes scroll out of sight.
+  // F134: dump the whole remainder into one grade. Most days are lopsided —
+  // one grade takes the bulk — so the last step is "and the rest are Large".
+  const [assigning, setAssigning] = useState(false);
 
-  const clamp0 = (v: number) => Math.max(0, v || 0);
+  const grading = lossesExceedTotal
+    ? { tone: "over", count: null, says: "Fix the counts first", short: "fix the counts" }
+    : remaining < 0
+      ? { tone: "over", count: -remaining, says: "over the sellable count", short: "over" }
+      : remaining === 0
+        ? { tone: "done", count: sellable, says: "graded — the day adds up", short: "all graded" }
+        : { tone: "", count: remaining, says: "left to grade", short: "left" };
+
+  // Not while the prefill is unsettled: the remainder is computed from counts
+  // that are about to be replaced, and handing those to a grade would assign
+  // a figure belonging to the previous day.
+  const canAssign = remaining > 0 && !entryLocked && !prefillPending && !prefillFailed;
+  // Nothing left to place (or the day just locked) — leave the mode rather than
+  // stranding rows showing a "+0 here" button.
+  useEffect(() => {
+    if (!canAssign && assigning) setAssigning(false);
+  }, [canAssign, assigning]);
+
+  // Changing the flock or the date starts a different day; staying armed over
+  // the new one would be a held gesture the user never aimed at it.
+  useEffect(() => setAssigning(false), [flockId, date]);
+
+  // NumberField owns its own input, so the row label points at it by id.
+  const fieldId = useId();
+  const idFor = (name: string) => `${fieldId}-${name}`;
+
+  // The counts are plain useState setters, so NumberField takes them as-is.
+  // A grade lives in a record, so its updater is adapted here — still the
+  // functional form, which the hold-to-repeat depends on.
+  function assignRest(gradeId: string) {
+    if (remaining <= 0 || entryLocked) return;
+    setGrade(gradeId)((prev) => prev + remaining);
+    setAssigning(false);
+  }
+
+  const setGrade = (gradeId: string) => (next: number | ((prev: number) => number)) => {
+    setGradesTouched(true);
+    setGradeQty((prev) => ({
+      ...prev,
+      [gradeId]: typeof next === "function" ? next(prev[gradeId] ?? 0) : next,
+    }));
+  };
+
 
   async function onCreateFlock(e: FormEvent) {
     e.preventDefault();
@@ -264,6 +328,10 @@ export function DailyEntryPage() {
         setExistingStatus(result.status);
         setMessage(`Submitted — ${result.eggLotIds.length} egg lot(s) created.`);
       } else {
+        // The day now has saved work, so the badge should say so immediately.
+        // Only the submit branch tracked status before, which left a first
+        // draft save unbadged until a reload re-prefilled the same day.
+        setExistingStatus("Draft");
         setMessage("Draft saved.");
       }
       saveKey.current = newId();
@@ -280,9 +348,20 @@ export function DailyEntryPage() {
 
   return (
     <section>
-      <h2>Daily entry</h2>
+      <div className="page-head">
+        <h2>Daily entry</h2>
+        {/* Always rendered so it is a live region BEFORE the prefill fills it;
+            a status container that appears at the same moment as its content is
+            unreliably announced. */}
+        <span role="status">
+          {editingDraft && <StatusBadge status="Draft" label="Editing draft" />}
+        </span>
+      </div>
 
-      <div className="form-grid">
+      {/* Context, not a step: choosing a flock and a date says WHICH day is
+          being recorded, it is not part of recording it. The two steps below
+          are the work, and they reconcile against each other. */}
+      <div className="form-grid entry-context">
         <label>
           Flock
           <select value={flockId} onChange={(e) => setFlockId(e.target.value)}>
@@ -293,6 +372,10 @@ export function DailyEntryPage() {
               </option>
             ))}
           </select>
+        </label>
+        <label>Date
+          <input type="date" value={date} max={todayIso()}
+            onChange={(e) => setDate(e.target.value)} />
         </label>
         <button className="link" type="button" onClick={() => { setError(null); setShowNewFlock(true); }}>
           + new flock
@@ -320,41 +403,17 @@ export function DailyEntryPage() {
             <input type="number" min={1} value={newFlockCount} required
               onChange={(e) => setNewFlockCount(Math.max(1, e.target.valueAsNumber || 1))} />
           </label>
-          {/* The dialog carries its own copy while it is up. */}
-      {error && !showNewFlock && <p className="error">{error}</p>}
+          {/* The dialog carries its own copy while it is up. This used to read
+              `!showNewFlock` here, inside a dialog that only exists WHEN
+              showNewFlock — so a failed create rendered no error anywhere and
+              the button just appeared to do nothing (F134 review of #131). */}
+          {error && <p className="error">{error}</p>}
           <div className="dialog-foot">
             <button type="button" className="link" onClick={() => setShowNewFlock(false)}>Cancel</button>
             <button type="submit">Create flock</button>
           </div>
         </form>
       </Dialog>
-
-      <div className="form-grid">
-        <label>Date
-          <input type="date" value={date} max={todayIso()}
-            onChange={(e) => setDate(e.target.value)} />
-        </label>
-        <label>Total eggs
-          <input type="number" min={0} value={totalEggs} disabled={entryLocked}
-            onChange={(e) => setTotalEggs(clamp0(e.target.valueAsNumber))} />
-        </label>
-        <label>Cracked
-          <input type="number" min={0} value={cracked} disabled={entryLocked}
-            onChange={(e) => setCracked(clamp0(e.target.valueAsNumber))} />
-        </label>
-        <label>Dirty
-          <input type="number" min={0} value={dirty} disabled={entryLocked}
-            onChange={(e) => setDirty(clamp0(e.target.valueAsNumber))} />
-        </label>
-        <label>Discarded
-          <input type="number" min={0} value={discarded} disabled={entryLocked}
-            onChange={(e) => setDiscarded(clamp0(e.target.valueAsNumber))} />
-        </label>
-        <label>Mortality
-          <input type="number" min={0} value={mortality} disabled={entryLocked}
-            onChange={(e) => setMortality(clamp0(e.target.valueAsNumber))} />
-        </label>
-      </div>
 
       {entryLocked && (
         <p className="warn">
@@ -372,36 +431,173 @@ export function DailyEntryPage() {
         </p>
       )}
 
-      <h3>Sellable production by grade</h3>
-      <div className="form-grid">
-        {visibleGrades.map((g) => (
-          <label key={g.id}>{g.name}{g.active ? "" : " (deactivated)"}
-            <input type="number" min={0} value={gradeQty[g.id] ?? 0} disabled={entryLocked}
-              onChange={(e) => {
-                setGradesTouched(true);
-                setGradeQty((prev) => ({ ...prev, [g.id]: clamp0(e.target.valueAsNumber) }));
-              }} />
-          </label>
-        ))}
+      {/* Side by side, because the two panes reconcile: the sellable figure the
+          left one produces is the target the right one has to hit. Reading one
+          while the other was a screen away was the whole problem. */}
+      <div className="entry-cols">
+        <section className="entry-step">
+          <h3><span className="step-n">Step 1<span className="sr-only"> of 2: </span></span>Egg counts</h3>
+          <div className="entry-pane">
+            <div className="entry-rows">
+              <div className="entry-row">
+                <label htmlFor={idFor("total")}>Total eggs</label>
+                <NumberField id={idFor("total")} label="total eggs"
+                  value={totalEggs} onChange={setTotalEggs} disabled={entryLocked} />
+              </div>
+              <div className="entry-row">
+                <label htmlFor={idFor("cracked")}>Cracked</label>
+                <NumberField id={idFor("cracked")} label="cracked"
+                  value={cracked} onChange={setCracked} disabled={entryLocked} />
+              </div>
+              <div className="entry-row">
+                <label htmlFor={idFor("dirty")}>Dirty</label>
+                <NumberField id={idFor("dirty")} label="dirty"
+                  value={dirty} onChange={setDirty} disabled={entryLocked} />
+              </div>
+              <div className="entry-row">
+                <label htmlFor={idFor("discarded")}>Discarded</label>
+                <NumberField id={idFor("discarded")} label="discarded"
+                  value={discarded} onChange={setDiscarded} disabled={entryLocked} />
+              </div>
+              <div className="entry-row">
+                <label htmlFor={idFor("mortality")}>Mortality</label>
+                <NumberField id={idFor("mortality")} label="mortality"
+                  value={mortality} onChange={setMortality} disabled={entryLocked} />
+              </div>
+            </div>
+
+            {lossesExceedTotal ? (
+              <p className="entry-readout error">
+                Cracked + dirty + discarded ({losses}) exceed total eggs ({totalEggs}).
+              </p>
+            ) : (
+              /* Shown as a value, not buried in a sentence — it is the target
+                 the grading pane has to hit. */
+              <p className="entry-readout">
+                <span className="k">Sellable<br />{totalEggs} − {cracked} − {dirty} − {discarded}</span>
+                <span className="v">{sellable}</span>
+              </p>
+            )}
+          </div>
+        </section>
+
+        <section className="entry-step">
+          <h3><span className="step-n">Step 2<span className="sr-only"> of 2: </span></span>Grading</h3>
+          <div className="entry-pane">
+            <div className="entry-rows">
+              {visibleGrades.map((g) => (
+                <div
+                  className={`entry-row${assigning ? " taking" : ""}`}
+                  key={g.id}
+                  onDragOver={assigning ? (e) => {
+                    if (e.dataTransfer.types.includes(REMAINDER_DRAG)) e.preventDefault();
+                  } : undefined}
+                  onDrop={assigning ? (e) => {
+                    if (!e.dataTransfer.types.includes(REMAINDER_DRAG)) return;
+                    e.preventDefault();
+                    assignRest(g.id);
+                  } : undefined}
+                >
+                  <label htmlFor={idFor(g.id)}>{g.name}{g.active ? "" : " (deactivated)"}</label>
+                  <NumberField id={idFor(g.id)} label={g.name.toLowerCase()}
+                    value={gradeQty[g.id] ?? 0} onChange={setGrade(g.id)}
+                    max={(gradeQty[g.id] ?? 0) + Math.max(0, remaining)}
+                    disabled={entryLocked} />
+                  {/* Dragging alone would be a dead end on the phone this screen
+                      is used on, and unreachable by keyboard (WCAG 2.5.7), so
+                      arming turns every row into a plain button too. It sits
+                      BESIDE the field rather than replacing it: which grade
+                      should take the rest is a decision made by looking at what
+                      each one already holds. */}
+                  {assigning && (
+                    <button type="button" className="entry-take"
+                      aria-label={`Put all ${remaining} remaining in ${g.name}`}
+                      onClick={() => assignRest(g.id)}>
+                      +{remaining}
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* role=status: the count changes as they type, and it is the only
+                feedback that the day adds up. */}
+            <div className={`entry-chip ${grading.tone}`}>
+              {/* role=status on the text alone: the chip now contains a control,
+                  and a live region that also holds a button re-announces the
+                  button every time the number ticks. */}
+              {/* <s> means "no longer accurate" — wrong for a current reading;
+                  it was only ever reached for as a short inline tag. And the
+                  space is real, not the flex gap: CSS contributes no whitespace
+                  to the accessible name, so this used to be read out as
+                  "60left to grade" (codex review of PR #137). */}
+              <span className="entry-chip-text" role="status">
+                {grading.count !== null && <><b>{grading.count}</b>{" "}</>}
+                <span>{grading.says}</span>
+              </span>
+              {canAssign && (
+                <button
+                  type="button"
+                  className="entry-chip-grab"
+                  draggable
+                  aria-pressed={assigning}
+                  aria-label={assigning
+                    ? "Cancel choosing a grade"
+                    : `Choose a grade for the remaining ${remaining}`}
+                  onDragStart={(e) => {
+                    e.dataTransfer.effectAllowed = "move";
+                    // A private type, checked on drop: without it any dragged
+                    // text, link or file dropped on a row silently assigned the
+                    // whole remainder (codex review of PR #137).
+                    e.dataTransfer.setData(REMAINDER_DRAG, String(remaining));
+                    // Firefox refuses to start a drag with an empty payload.
+                    e.dataTransfer.setData("text/plain", String(remaining));
+                    setAssigning(true);
+                  }}
+                  onDragEnd={() => setAssigning(false)}
+                  onClick={() => setAssigning((on) => !on)}
+                >
+                  {assigning ? "pick a grade…" : "put all in…"}
+                </button>
+              )}
+            </div>
+          </div>
+        </section>
       </div>
-      <p className={gradesSum > sellable || lossesExceedTotal ? "error" : "muted"}>
-        {lossesExceedTotal
-          ? `Cracked + dirty + discarded (${losses}) exceed total eggs (${totalEggs}).`
-          : `Graded ${gradesSum} of ${sellable} sellable (total − cracked − dirty − discarded).`}
-      </p>
 
-      {/* The dialog carries its own copy while it is up. */}
-      {error && !showNewFlock && <p className="error">{error}</p>}
-      {message && <p className="success">{message}</p>}
-
-      <div className="actions">
-        <button disabled={busy || !flockId || lossesExceedTotal || entryLocked || prefillFailed || prefillPending}
-          onClick={() => onSave(false)}>Save draft</button>
-        <button
-          disabled={busy || !flockId || lossesExceedTotal || gradesSum > sellable || entryLocked || prefillFailed || prefillPending}
-          onClick={() => onSave(true)}>
-          Save &amp; submit (creates egg lots)
-        </button>
+      {/* Save feedback lives with the saves: anything below a pinned bar
+          scrolls underneath it and is never read. */}
+      <div className="entry-foot">
+        {/* The dialog carries its own copy while it is up. */}
+        {error && !showNewFlock && <p className="error">{error}</p>}
+        {message && <p className="success">{message}</p>}
+        <div className="entry-foot-row">
+          {/* Phones only (see styles.css): the two panes stack there, so the
+              figures that say whether the day adds up scroll away while the
+              counts are being typed. On desktop both are already on screen and
+              repeating them here would just be noise. */}
+          <p className={`entry-foot-sum ${grading.tone}`} role="status">
+            {/* `sellable` goes NEGATIVE once the losses pass the total, and this
+                copy is phone-only — so the barn was the one place that got
+                "-1 sellable" (review of PR #137). Pane 1 already branches to the
+                explanation; say the same thing here rather than a broken sum. */}
+            {lossesExceedTotal ? "Losses exceed the total — fix the counts" : (
+              <>
+                <b>{sellable}</b> sellable
+                {grading.count !== null && <> · <b>{grading.count}</b> {grading.short}</>}
+              </>
+            )}
+          </p>
+          <div className="actions">
+            <button disabled={busy || !flockId || lossesExceedTotal || entryLocked || prefillFailed || prefillPending}
+              onClick={() => onSave(false)}>Save draft</button>
+            <button
+              disabled={busy || !flockId || lossesExceedTotal || gradesSum > sellable || entryLocked || prefillFailed || prefillPending}
+              onClick={() => onSave(true)}>
+              Save &amp; submit (creates egg lots)
+            </button>
+          </div>
+        </div>
       </div>
 
       {confirmDialog}
