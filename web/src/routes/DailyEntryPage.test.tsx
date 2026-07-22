@@ -122,6 +122,12 @@ describe("DailyEntryPage accuracy gating", () => {
     setNum("Dirty", 3);
     setNum("Discarded", 6); // losses 11 > 10
 
+    // The phone-only footer summary must not print a negative sum: `sellable`
+    // is total - losses, so it goes below zero exactly here.
+    const footSum = document.querySelector(".entry-foot-sum") as HTMLElement;
+    expect(footSum).toHaveTextContent("Losses exceed the total — fix the counts");
+    expect(footSum.textContent).not.toMatch(/-\d/);
+
     // In the counts pane, replacing the sellable figure — it is a counts
     // problem, so it belongs beside the counts and not under the grades.
     const msg = sellableReadout();
@@ -360,7 +366,26 @@ describe("DailyEntryPage draft badge", () => {
 
   it("does not claim a draft while the prefill for a new day is still in flight", async () => {
     // Day one has a draft; switching to day two leaves existingStatus holding
-    // the OLD day's value until the fetch lands — and for ever if it fails.
+    // the OLD day's value until the fetch lands.
+    mockListDailyEntries.mockResolvedValueOnce([draftFor(todayIso())]);
+    render(<DailyEntryPage />);
+    expect(await screen.findByText("Editing draft")).toBeInTheDocument();
+
+    // Hold the next prefill open so the assertion lands INSIDE the pending
+    // window. Waiting for it to settle would only ever exercise the
+    // !prefillFailed half of the guard (review of PR #137).
+    let settle!: (entries: DailyEntry[]) => void;
+    mockListDailyEntries.mockReturnValueOnce(new Promise((r) => { settle = r; }));
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Date"), { target: { value: "2026-07-01" } });
+    });
+
+    expect(screen.queryByText("Editing draft")).toBeNull(); // still in flight
+    await act(async () => settle([]));
+    expect(screen.queryByText("Editing draft")).toBeNull(); // and no draft found
+  });
+
+  it("does not claim a draft when the prefill for a new day fails", async () => {
     mockListDailyEntries.mockResolvedValueOnce([draftFor(todayIso())]);
     render(<DailyEntryPage />);
     expect(await screen.findByText("Editing draft")).toBeInTheDocument();

@@ -576,9 +576,16 @@ export function DailyEntryPage() {
               counts are being typed. On desktop both are already on screen and
               repeating them here would just be noise. */}
           <p className={`entry-foot-sum ${grading.tone}`} role="status">
-            <b>{sellable}</b> sellable
-            {grading.count !== null && <> · <b>{grading.count}</b> {grading.short}</>}
-            {grading.count === null && <> · {grading.short}</>}
+            {/* `sellable` goes NEGATIVE once the losses pass the total, and this
+                copy is phone-only — so the barn was the one place that got
+                "-1 sellable" (review of PR #137). Pane 1 already branches to the
+                explanation; say the same thing here rather than a broken sum. */}
+            {lossesExceedTotal ? "Losses exceed the total — fix the counts" : (
+              <>
+                <b>{sellable}</b> sellable
+                {grading.count !== null && <> · <b>{grading.count}</b> {grading.short}</>}
+              </>
+            )}
           </p>
           <div className="actions">
             <button disabled={busy || !flockId || lossesExceedTotal || entryLocked || prefillFailed || prefillPending}
