@@ -354,6 +354,10 @@ export function ExpensesPage() {
         open={editing !== null}
         title={editing ? `Correct — ${editing.date}, ${editing.description}` : "Correct expense"}
         onClose={() => setEditing(null)}
+        // A 409 rebinds this dialog to the server's newer row; the record
+        // identity changing pulls focus back to the first field rather than
+        // swapping the form out from under the user's cursor.
+        focusKey={editing}
       >
         {editing && (
           <form className="form-grid" onSubmit={onSaveEdit}>

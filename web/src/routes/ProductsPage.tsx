@@ -232,7 +232,8 @@ export function ProductsPage() {
       {/* A dialog renders its own copy of the error; don't double it. */}
       {error && !dialogOpen && <p className="error" role="alert">{error}</p>}
 
-      <Dialog open={creating} title="New product" onClose={() => setCreating(false)}>
+      {/* Gated like the inline form was: a role change mid-edit closes it. */}
+      <Dialog open={creating && isAdmin} title="New product" onClose={() => setCreating(false)}>
         <form onSubmit={(e) => void onCreate(e)} className="inline-form">
           <label>Name
             <input value={name} onChange={(e) => setName(e.target.value)} required maxLength={100} />
@@ -263,8 +264,11 @@ export function ProductsPage() {
         </form>
       </Dialog>
 
-      <Dialog open={editingProduct !== null} title="Edit product" onClose={() => setEditingId(null)}>
-        <form onSubmit={(e) => void onSaveEdit(e)} className="inline-form">
+      <Dialog open={editingProduct !== null && isAdmin} title="Edit product" onClose={() => setEditingId(null)}>
+        {/* noValidate: the row's save used to be a plain button, so the browser
+            never enforced min/step — the price parser's own message
+            ("At most N decimal places for this currency") did. */}
+        <form onSubmit={(e) => void onSaveEdit(e)} className="inline-form" noValidate>
           <label>Name
             <input value={editName} onChange={(e) => setEditName(e.target.value)} maxLength={100} />
           </label>
@@ -284,9 +288,8 @@ export function ProductsPage() {
               step={editingProduct ? (1 / 10 ** editingProduct.currencyMinorUnit).toFixed(editingProduct.currencyMinorUnit) : "0.01"}
               value={editPrice} onChange={(e) => setEditPrice(e.target.value)} />
           </label>
-          <label>Notes
-            <input value={editNotes} onChange={(e) => setEditNotes(e.target.value)} maxLength={500} />
-          </label>
+          {/* No notes field: the inline edit had none, and #131 changes shape,
+              not capability. editNotes stays seeded so the body round-trips. */}
           {error && <p className="error" role="alert">{error}</p>}
           <div className="dialog-foot">
             <button type="button" className="link" onClick={() => setEditingId(null)}>Cancel</button>
@@ -296,11 +299,11 @@ export function ProductsPage() {
       </Dialog>
 
       <Dialog
-        open={editingConv !== null}
+        open={editingConv !== null && isAdmin}
         title={editingConv ? `Eggs per ${editingConv.unitCode}` : "Packed unit"}
         onClose={() => setEditingConvId(null)}
       >
-        <form onSubmit={(e) => void onSaveConversion(e)} className="inline-form">
+        <form onSubmit={(e) => void onSaveConversion(e)} className="inline-form" noValidate>
           <label>Eggs per unit
             <input type="number" min={1} value={editEggs}
               onChange={(e) => setEditEggs(Number(e.target.value))} />

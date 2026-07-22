@@ -281,6 +281,10 @@ export function HistoryPage() {
         open={adjusting !== null}
         title={adjusting ? `Adjust — ${adjusting.date}, ${flockName(adjusting.flockId)}` : "Adjust entry"}
         onClose={() => setAdjusting(null)}
+        // A 409 swaps the server's newer entry into the open dialog; the record
+        // identity changing pulls focus back to the first field, so the form is
+        // not silently replaced under the user's cursor.
+        focusKey={adjusting}
       >
         {adjusting && (
           <>

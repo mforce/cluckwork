@@ -220,8 +220,11 @@ export function FlocksPage() {
         </form>
       </Dialog>
 
-      <Dialog open={editingId !== null} title="Edit flock" onClose={() => setEditingId(null)}>
-        <form className="inline-form" onSubmit={onSaveEdit}>
+      {/* Editing is admin-only, so a role change mid-edit closes it. */}
+      <Dialog open={editingId !== null && isAdmin} title="Edit flock" onClose={() => setEditingId(null)}>
+        {/* noValidate: the row's save used to be a plain button — native
+            constraint validation never ran on these fields. */}
+        <form className="inline-form" noValidate onSubmit={onSaveEdit}>
           <label>Edit name
             <input value={editName} maxLength={100}
               onChange={(e) => setEditName(e.target.value)} />
@@ -339,7 +342,7 @@ export function FlocksPage() {
             </button>
           )}
 
-          <Dialog open={recording} title="Record bird movement" onClose={() => setRecording(false)}>
+          <Dialog open={recording && isAdmin} title="Record bird movement" onClose={() => setRecording(false)}>
             <form className="inline-form" onSubmit={onRecordMovement}>
               <label>Date
                 <input type="date" value={mvDate} max={todayIso()}

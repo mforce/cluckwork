@@ -142,7 +142,8 @@ export function GradesPage() {
         removes it from pickers; existing stock and history are unaffected.
       </p>
 
-      <Dialog open={creating} title="New grade" onClose={() => setCreating(false)}>
+      {/* Gated like the inline form was: a role change mid-edit closes it. */}
+      <Dialog open={creating && isAdmin} title="New grade" onClose={() => setCreating(false)}>
         <form className="inline-form" onSubmit={onCreate}>
           <label>Name *
             <input value={name} required maxLength={50}
@@ -170,10 +171,12 @@ export function GradesPage() {
         </form>
       </Dialog>
 
-      <Dialog open={editingId !== null} title="Edit grade" onClose={() => setEditingId(null)}>
-        <form className="inline-form" onSubmit={onSaveEdit}>
-          <label>Name *
-            <input value={editName} required maxLength={50}
+      <Dialog open={editingId !== null && isAdmin} title="Edit grade" onClose={() => setEditingId(null)}>
+        {/* noValidate: the row's save used to be a plain button, so native
+            constraint validation never ran on these fields. */}
+        <form className="inline-form" noValidate onSubmit={onSaveEdit}>
+          <label>Name
+            <input value={editName} maxLength={50}
               onChange={(e) => setEditName(e.target.value)} />
           </label>
           <label>Sort

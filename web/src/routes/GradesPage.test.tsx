@@ -86,9 +86,11 @@ describe("GradesPage admin actions", () => {
 
     const rowA = screen.getByRole("row", { name: /Grade A/ });
     fireEvent.click(within(rowA).getByRole("button", { name: "edit" }));
-    // the dialog is seeded from the row, then all three fields move off it
-    expect(within(dialog()).getByLabelText("Name *")).toHaveValue("Grade A");
-    fireEvent.change(within(dialog()).getByLabelText("Name *"), { target: { value: "Large" } });
+    // the dialog is seeded from the row, then all three fields move off it.
+    // The edit field is "Name", not "Name *": the row's save was a plain button,
+    // so it never carried a required marker — the dialog keeps that parity.
+    expect(within(dialog()).getByLabelText("Name")).toHaveValue("Grade A");
+    fireEvent.change(within(dialog()).getByLabelText("Name"), { target: { value: "Large" } });
     fireEvent.change(within(dialog()).getByLabelText("Sort"), { target: { value: "5" } });
     fireEvent.click(within(dialog()).getByLabelText("saleable")); // saleable true → false
     await act(async () => {

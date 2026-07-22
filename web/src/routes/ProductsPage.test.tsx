@@ -287,6 +287,26 @@ describe("ProductsPage packed-unit conversions", () => {
   });
 });
 
+describe("ProductsPage edit validation parity", () => {
+  // The row's save used to be a plain button, so the browser never enforced
+  // min/step and an over-precise price reached the screen's own parser. The
+  // dialog turned that button into a form submit, which would hand the check
+  // to native validation and swallow the specific message — hence noValidate.
+  it("surfaces the currency-scale message rather than letting the browser block the submit", async () => {
+    await renderReady(ADMIN);
+    fireEvent.click(within(screen.getByRole("row", { name: /Grade A Dozen/ })).getByRole("button", { name: "edit" }));
+
+    // KWD is 3dp: a 4th decimal is the parser's error, not the browser's.
+    fireEvent.change(within(dialog()).getByLabelText(/Default price/), { target: { value: "1.2345" } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Save" }));
+    });
+
+    expect(within(dialog()).getByText("At most 3 decimal places for this currency.")).toBeInTheDocument();
+    expect(mockUpdate).not.toHaveBeenCalled();
+  });
+});
+
 describe("ProductsPage dialog dismissal", () => {
   it("closes the create dialog on Cancel without writing", async () => {
     await renderReady(ADMIN);

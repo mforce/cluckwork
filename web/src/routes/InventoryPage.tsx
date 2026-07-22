@@ -331,7 +331,8 @@ export function InventoryPage() {
         ledger. Recording feed usage against flocks arrives next.
       </p>
 
-      <Dialog open={creating} title="New inventory item" onClose={() => setCreating(false)}>
+      {/* Gated like the inline form was: a role change mid-edit closes it. */}
+      <Dialog open={creating && isAdmin} title="New inventory item" onClose={() => setCreating(false)}>
         <form className="inline-form" onSubmit={onCreate}>
           <label>Item name *
             <input value={name} required maxLength={200}
@@ -358,8 +359,10 @@ export function InventoryPage() {
         </form>
       </Dialog>
 
-      <Dialog open={editingId !== null} title="Edit item" onClose={() => setEditingId(null)}>
-        <form className="inline-form" onSubmit={onSaveEdit}>
+      <Dialog open={editingId !== null && isAdmin} title="Edit item" onClose={() => setEditingId(null)}>
+        {/* noValidate: the row's save used to be a plain button, so the browser
+            never enforced min/step — toMinorUnits' own message did. */}
+        <form className="inline-form" noValidate onSubmit={onSaveEdit}>
           <label>Item name
             <input value={editName} maxLength={200}
               onChange={(e) => setEditName(e.target.value)} />
@@ -488,7 +491,7 @@ export function InventoryPage() {
             </form>
           </Dialog>
 
-          <Dialog open={adjusting} title={`Correct stock — ${active.name}`} onClose={() => setAdjusting(false)}>
+          <Dialog open={adjusting && isAdmin} title={`Correct stock — ${active.name}`} onClose={() => setAdjusting(false)}>
             <form className="form-grid" onSubmit={onAdjust}>
               <label>Lot
                 <select value={adjustLotId} onChange={(e) => setAdjustLotId(e.target.value)}>
