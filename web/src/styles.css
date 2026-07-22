@@ -572,6 +572,14 @@ input.cell {
   background: var(--tint-accent);
 }
 
+/* The chip's gap sits between ITS children, and the number + wording are now
+   wrapped together in the live region — so they need their own. */
+.entry-chip-text {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+
 .entry-chip b {
   font-size: 1.35rem;
   font-weight: 800;

@@ -508,7 +508,7 @@ export function DailyEntryPage() {
               {/* role=status on the text alone: the chip now contains a control,
                   and a live region that also holds a button re-announces the
                   button every time the number ticks. */}
-              <span role="status">
+              <span className="entry-chip-text" role="status">
                 {grading.count !== null && <b>{grading.count}</b>}
                 <s>{grading.says}</s>
               </span>
