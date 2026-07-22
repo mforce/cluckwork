@@ -9,6 +9,7 @@ import { ApiError } from "../api/client";
 import { Dialog } from "../components/Dialog";
 import { useConfirm } from "../components/useConfirm";
 import { todayIso } from "../lib/dates";
+import { newId } from "../lib/ids";
 
 const LAST_FLOCK_KEY = "cluckwork.lastFlockId";
 
@@ -58,8 +59,8 @@ export function DailyEntryPage() {
   // Stable idempotency keys per logical mutation: regenerated only after a
   // definitive success, so a retry after an ambiguous network failure dedupes
   // server-side instead of repeating the write.
-  const saveKey = useRef<string>(crypto.randomUUID());
-  const flockKey = useRef<string>(crypto.randomUUID());
+  const saveKey = useRef<string>(newId());
+  const flockKey = useRef<string>(newId());
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -200,7 +201,7 @@ export function DailyEntryPage() {
         placementDate: newFlockPlaced,
         initialCount: newFlockCount,
       }, flockKey.current);
-      flockKey.current = crypto.randomUUID();
+      flockKey.current = newId();
       const refreshed = capturable(await listFlocks());
       setFlocks(refreshed);
       setFlockId(created.id);
@@ -265,7 +266,7 @@ export function DailyEntryPage() {
       } else {
         setMessage("Draft saved.");
       }
-      saveKey.current = crypto.randomUUID();
+      saveKey.current = newId();
     } catch (err) {
       setError(errorMessage(err));
     } finally {

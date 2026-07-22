@@ -11,6 +11,7 @@ import { ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 import { Dialog } from "../components/Dialog";
 import { StatusBadge } from "../components/StatusBadge";
+import { newId } from "../lib/ids";
 
 // Spec §10.1 default_unit values usable for egg products; packed units resolve
 // through the conversions below at sale time (part 2 of #97).
@@ -64,7 +65,7 @@ export function ProductsPage() {
   const keyFor = (scope: string) => {
     const existing = keys.current.get(scope);
     if (existing) return existing;
-    const fresh = crypto.randomUUID();
+    const fresh = newId();
     keys.current.set(scope, fresh);
     return fresh;
   };

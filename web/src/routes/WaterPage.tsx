@@ -5,6 +5,7 @@ import type { Flock, WaterUsage } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 import { todayIso } from "../lib/dates";
+import { newId } from "../lib/ids";
 
 const PAGE = 50;
 const SOURCES = ["Well", "Municipal", "Tank", "Other"];
@@ -57,7 +58,7 @@ export function WaterPage() {
   const keyFor = (scope: string) => {
     const existing = keys.current.get(scope);
     if (existing) return existing;
-    const fresh = crypto.randomUUID();
+    const fresh = newId();
     keys.current.set(scope, fresh);
     return fresh;
   };

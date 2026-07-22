@@ -6,6 +6,7 @@ import type { Customer, CustomerBalances } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 import { Dialog } from "../components/Dialog";
+import { newId } from "../lib/ids";
 
 // #23: customer book — name + phone required, the rest optional.
 export function CustomersPage() {
@@ -23,7 +24,7 @@ export function CustomersPage() {
   const [address, setAddress] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
-  const createKey = useRef<string>(crypto.randomUUID());
+  const createKey = useRef<string>(newId());
 
   const load = () =>
     listCustomers().then(setCustomers).catch(() => setError("Could not load customers."));
@@ -56,7 +57,7 @@ export function CustomersPage() {
         address: address || undefined,
         note: note || undefined,
       }, createKey.current);
-      createKey.current = crypto.randomUUID();
+      createKey.current = newId();
       setName(""); setPhone(""); setEmail(""); setAddress(""); setNote("");
       setCreating(false);
       await load();

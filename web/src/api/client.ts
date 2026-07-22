@@ -1,5 +1,6 @@
 import type { LoginRequest, ProblemDetails, TokenPair } from "./types";
 import { clearTokens, loadTokens, saveTokens } from "../auth/tokenStore";
+import { newId } from "../lib/ids";
 
 const BASE = "/api/v1";
 
@@ -127,7 +128,7 @@ export function apiGet<T>(path: string): Promise<T> {
 export function apiPost<T>(path: string, body?: unknown, idempotencyKey?: string): Promise<T> {
   return apiFetch<T>(path, {
     method: "POST",
-    headers: { "Idempotency-Key": idempotencyKey ?? crypto.randomUUID() },
+    headers: { "Idempotency-Key": idempotencyKey ?? newId() },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
 }
@@ -135,7 +136,7 @@ export function apiPost<T>(path: string, body?: unknown, idempotencyKey?: string
 export function apiPut<T>(path: string, body: unknown, idempotencyKey?: string): Promise<T> {
   return apiFetch<T>(path, {
     method: "PUT",
-    headers: { "Idempotency-Key": idempotencyKey ?? crypto.randomUUID() },
+    headers: { "Idempotency-Key": idempotencyKey ?? newId() },
     body: JSON.stringify(body),
   });
 }
@@ -143,7 +144,7 @@ export function apiPut<T>(path: string, body: unknown, idempotencyKey?: string):
 export function apiDelete<T>(path: string, idempotencyKey?: string): Promise<T> {
   return apiFetch<T>(path, {
     method: "DELETE",
-    headers: { "Idempotency-Key": idempotencyKey ?? crypto.randomUUID() },
+    headers: { "Idempotency-Key": idempotencyKey ?? newId() },
   });
 }
 
