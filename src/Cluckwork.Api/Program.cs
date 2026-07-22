@@ -17,6 +17,7 @@ using Cluckwork.Api.Endpoints.Water;
 using Cluckwork.Api.Endpoints.Stock;
 using Cluckwork.Api.Endpoints.Users;
 using Cluckwork.Api.Middleware;
+using Cluckwork.Api.RateLimiting;
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Accounts;
 using Cluckwork.Application.Features.Customers;
@@ -80,6 +81,8 @@ using Microsoft.IdentityModel.Tokens;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Serilog;
+using System.Globalization;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -135,6 +138,42 @@ builder.Services
     .AddRoles<ApplicationRole>()
     .AddEntityFrameworkStores<AppDbContext>()
     .AddDefaultTokenProviders();
+
+// --- Auth rate limiting (#143) ---
+// Per-client-IP fixed window on the anonymous auth endpoints. Trusted-proxy
+// CIDRs are parsed eagerly so a bad value fails at boot, not per request.
+var rateLimiting = builder.Configuration.GetSection(RateLimitingOptions.SectionName)
+    .Get<RateLimitingOptions>() ?? new RateLimitingOptions();
+var trustedProxies = rateLimiting.ParseTrustedProxies();
+builder.Services.AddRateLimiter(limiter =>
+{
+    limiter.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    limiter.OnRejected = static async (context, ct) =>
+    {
+        if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
+            context.HttpContext.Response.Headers.RetryAfter =
+                ((int)Math.Ceiling(retryAfter.TotalSeconds)).ToString(CultureInfo.InvariantCulture);
+        await Results.Problem(
+                title: "Too many requests",
+                detail: "Too many authentication attempts from this address. Try again later.",
+                statusCode: StatusCodes.Status429TooManyRequests)
+            .ExecuteAsync(context.HttpContext);
+    };
+    limiter.AddPolicy(RateLimitingOptions.AuthPolicyName, context =>
+    {
+        var forwardedFor = context.Request.Headers["X-Forwarded-For"].ToString();
+        var key = ClientIp.Resolve(
+            context.Connection.RemoteIpAddress,
+            forwardedFor.Length > 0 ? forwardedFor : null,
+            trustedProxies);
+        return RateLimitPartition.GetFixedWindowLimiter(key, _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = rateLimiting.Auth.PermitLimit,
+            Window = TimeSpan.FromSeconds(rateLimiting.Auth.WindowSeconds),
+            QueueLimit = 0
+        });
+    });
+});
 
 // --- JWT Bearer (asymmetric signing; tech spec §7.4) ---
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
@@ -338,6 +377,10 @@ app.UseHttpsRedirection();
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
+// Endpoint rate-limit policies (#143) — no global limiter, only routes that
+// opt in via RequireRateLimiting are affected.
+app.UseRateLimiter();
+
 app.UseAuthentication();
 app.UseMiddleware<TenantResolutionMiddleware>();
 // Authorization must run BEFORE idempotency: the replay path returns cached
@@ -349,6 +392,8 @@ app.UseMiddleware<IdempotencyMiddleware>();
 // --- Endpoint groups (URL versioned: /api/v1/...) ---
 app.MapGroup("/api/v1/auth")
     .WithTags("Auth")
+    // Policy on the group so future auth endpoints inherit it (#143).
+    .RequireRateLimiting(RateLimitingOptions.AuthPolicyName)
     .MapAuthEndpoints();
 
 app.MapGroup("/api/v1/flocks")

@@ -10,6 +10,12 @@ services:
       ASPNETCORE_URLS: http://+:8080
       Database__Provider: Postgres
       ConnectionStrings__Default: Host=db;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+      # #143: the auth rate limiter takes the client IP from X-Forwarded-For only
+      # when the request arrives from a trusted proxy — traefik, on the compose
+      # network (docker's default address pool). Override if your network differs;
+      # without a trusted proxy the limiter would key on traefik's IP and throttle
+      # all users as one client.
+      RateLimiting__TrustedProxies__0: ${TRUSTED_PROXY_CIDR:-172.16.0.0/12}
     depends_on:
       db:
         condition: service_healthy
