@@ -3,7 +3,7 @@ import { screen, within, fireEvent, act } from "@testing-library/react";
 import { HistoryPage } from "./HistoryPage";
 import { renderWithProviders } from "../test/renderWithProviders";
 import {
-  adjustDailyEntry, listDailyEntries, listEggGrades, listFlocks,
+  adjustDailyEntry, listDailyEntries, listEggGrades, listFlocks, voidDailyEntry,
 } from "../api/cluckwork";
 import type { DailyEntry, EggGrade, Flock } from "../api/cluckwork";
 
@@ -159,5 +159,67 @@ describe("HistoryPage role gating", () => {
       expect(adjust).not.toBeInTheDocument();
       expect(voidBtn).not.toBeInTheDocument();
     }
+  });
+});
+
+// F135: voiding used to be a window.prompt whose "reason required" check ran
+// only after the popup had closed — a blank answer cost the user everything
+// they had typed. It is now a dialog that validates in place.
+describe("HistoryPage void — reason dialog", () => {
+  const voidDialog = () => screen.getByRole("dialog");
+
+  async function openVoid() {
+    mockListDailyEntries.mockResolvedValue([SUBMITTED]);
+    renderWithProviders(<HistoryPage />, { token: ADMIN });
+    fireEvent.click(await screen.findByRole("button", { name: "void" }));
+  }
+
+  it("asks before writing, naming the entry it is about to void", async () => {
+    await openVoid();
+
+    expect(voidDialog()).toHaveAccessibleName(
+      "Void the 2026-07-19 entry for Hen House 1?");
+    expect(vi.mocked(voidDailyEntry)).not.toHaveBeenCalled();
+  });
+
+  it("refuses a blank reason inline and keeps the dialog open", async () => {
+    await openVoid();
+
+    fireEvent.change(within(voidDialog()).getByLabelText("Reason *"), { target: { value: "   " } });
+    await act(async () => {
+      fireEvent.click(within(voidDialog()).getByRole("button", { name: "Void entry" }));
+    });
+
+    expect(screen.getByText("A reason is required.")).toBeInTheDocument();
+    expect(voidDialog()).toBeInTheDocument();
+    expect(vi.mocked(voidDailyEntry)).not.toHaveBeenCalled();
+  });
+
+  it("sends the trimmed reason with the entry's loaded version", async () => {
+    vi.mocked(voidDailyEntry).mockResolvedValue(undefined as never);
+    await openVoid();
+
+    fireEvent.change(within(voidDialog()).getByLabelText("Reason *"),
+      { target: { value: "  miscounted the trays  " } });
+    await act(async () => {
+      fireEvent.click(within(voidDialog()).getByRole("button", { name: "Void entry" }));
+    });
+
+    expect(vi.mocked(voidDailyEntry)).toHaveBeenCalledWith(
+      "de1",
+      { version: 1, reason: "miscounted the trays" },
+      expect.any(String),
+    );
+  });
+
+  it("writes nothing when the void is dismissed", async () => {
+    await openVoid();
+
+    await act(async () => {
+      fireEvent.click(within(voidDialog()).getByRole("button", { name: "Cancel" }));
+    });
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(vi.mocked(voidDailyEntry)).not.toHaveBeenCalled();
   });
 });

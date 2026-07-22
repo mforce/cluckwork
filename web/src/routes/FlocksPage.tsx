@@ -9,6 +9,7 @@ import type { BirdMovement, Flock } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { Dialog } from "../components/Dialog";
 import { StatusBadge } from "../components/StatusBadge";
+import { useConfirm } from "../components/useConfirm";
 import { useAuth } from "../auth/useAuth";
 import { ageWeeks, todayIso } from "../lib/dates";
 
@@ -24,6 +25,7 @@ export function FlocksPage() {
   // Creating a flock records the day's work (birds arrived); corrections,
   // lifecycle changes, and manual movements are admin-only (#73).
   const { isAdmin } = useAuth();
+  const { confirm, confirmDialog } = useConfirm();
   const [flocks, setFlocks] = useState<Flock[] | null>(null);
   const [showArchived, setShowArchived] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -92,6 +94,28 @@ export function FlocksPage() {
     } finally {
       setBusy(false);
     }
+  }
+
+  // F135: the two lifecycle changes ask first. Named handlers rather than the
+  // inline row lambdas they replace, because the ask is now awaited.
+  async function onDeplete(f: Flock) {
+    const ok = await confirm({
+      title: `Deplete "${f.name}"?`,
+      body: "The flock stops accepting new entries. Backfilling past dates still works.",
+      confirmLabel: "Deplete flock",
+      destructive: true,
+    });
+    if (ok) await run(`deplete:${f.id}`, (key) => depleteFlock(f.id, key));
+  }
+
+  async function onArchive(f: Flock) {
+    const ok = await confirm({
+      title: `Archive "${f.name}"?`,
+      body: "It disappears from pickers and the dashboard, and accepts nothing new.",
+      confirmLabel: "Archive flock",
+      destructive: true,
+    });
+    if (ok) await run(`archive:${f.id}`, (key) => archiveFlock(f.id, key));
   }
 
   async function onCreate(e: FormEvent) {
@@ -294,19 +318,13 @@ export function FlocksPage() {
                   )}
                   {isAdmin && f.status === "Active" && (
                     <button className="link" disabled={busy}
-                      onClick={() => {
-                        if (window.confirm(`Deplete "${f.name}"? The flock stops accepting new entries (backfill for past dates still works).`))
-                          void run(`deplete:${f.id}`, (key) => depleteFlock(f.id, key));
-                      }}>
+                      onClick={() => void onDeplete(f)}>
                       deplete
                     </button>
                   )}
                   {isAdmin && f.status !== "Archived" && (
                     <button className="link" disabled={busy}
-                      onClick={() => {
-                        if (window.confirm(`Archive "${f.name}"? It disappears from pickers and the dashboard and accepts nothing new.`))
-                          void run(`archive:${f.id}`, (key) => archiveFlock(f.id, key));
-                      }}>
+                      onClick={() => void onArchive(f)}>
                       archive
                     </button>
                   )}
@@ -394,6 +412,8 @@ export function FlocksPage() {
           )}
         </div>
       )}
+
+      {confirmDialog}
     </section>
   );
 }

@@ -10,6 +10,7 @@ import type { Customer, OrderPayments, Product, SalesOrder } from "../api/cluckw
 import { ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 import { Dialog } from "../components/Dialog";
+import { useConfirm } from "../components/useConfirm";
 import { StatusBadge } from "../components/StatusBadge";
 
 const PAGE = 50;
@@ -33,6 +34,7 @@ export function SalesPage() {
   // Payments are the Sales tier (#104): Owner/Manager/Sales see and record;
   // voiding a payment stays corrective (Owner/Manager) like every other undo.
   const canSettle = isAdmin || role === "Sales";
+  const { confirm, askReason, confirmDialog } = useConfirm();
   const [orders, setOrders] = useState<SalesOrder[] | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -238,10 +240,14 @@ export function SalesPage() {
 
   // One-way actions (#59). Confirm BEFORE run() so buttons don't flash
   // disabled while the user decides.
-  const onConfirm = () => {
-    if (!window.confirm(
-      "Confirm this order? Stock is allocated from inventory (FIFO). "
-      + "A mistaken confirm can be undone with Void, which returns the stock.")) return;
+  const onConfirm = async () => {
+    const ok = await confirm({
+      title: "Confirm this order?",
+      body: "Stock is allocated from inventory, oldest lots first (FIFO). "
+        + "A mistaken confirm can be undone with Void, which returns the stock.",
+      confirmLabel: "Confirm order",
+    });
+    if (!ok) return;
     void run(async () => {
       if (!active) return;
       const scope = `confirm:${active.id}`;
@@ -254,11 +260,16 @@ export function SalesPage() {
     });
   };
 
-  const onCancel = () => {
+  const onCancel = async () => {
     // Cancel is a status change: the order keeps its lines but becomes
     // read-only and can't be confirmed.
-    if (!window.confirm(
-      "Cancel this draft? The order becomes cancelled and can no longer be edited or confirmed.")) return;
+    const ok = await confirm({
+      title: "Cancel this draft?",
+      body: "The order becomes cancelled and can no longer be edited or confirmed.",
+      confirmLabel: "Cancel draft",
+      destructive: true,
+    });
+    if (!ok) return;
     void run(async () => {
       if (!active) return;
       const scope = `cancel:${active.id}`;
@@ -301,19 +312,19 @@ export function SalesPage() {
     setPaying(false); // only on success — a throw keeps the dialog up
   });
 
-  const onVoidPayment = (paymentId: string, version: number) => {
-    const reason = window.prompt(
-      "Void this payment? The order's outstanding amount grows back.\n\nReason (required):");
+  const onVoidPayment = async (paymentId: string, version: number) => {
+    const reason = await askReason({
+      title: "Void this payment?",
+      body: "The order's outstanding amount grows back by the payment's value.",
+      confirmLabel: "Void payment",
+      destructive: true,
+    });
     if (reason === null) return;
-    if (!reason.trim()) {
-      setError("A void reason is required.");
-      return;
-    }
     void run(async () => {
       if (!active) return;
       const scope = `void-payment:${paymentId}`;
       try {
-        await voidPayment(paymentId, { version, reason: reason.trim() }, keyFor(scope));
+        await voidPayment(paymentId, { version, reason }, keyFor(scope));
         clearKey(scope);
       } catch (err) {
         // Version-guarded: any SERVER response settles the attempt (the base
@@ -326,19 +337,18 @@ export function SalesPage() {
     });
   };
 
-  const onVoid = () => {
-    const reason = window.prompt(
-      "Void this confirmed order? The allocated stock returns to the exact "
-      + "egg lots it came from.\n\nReason (required):");
+  const onVoid = async () => {
+    const reason = await askReason({
+      title: "Void this confirmed order?",
+      body: "The allocated stock returns to the exact egg lots it came from.",
+      confirmLabel: "Void order",
+      destructive: true,
+    });
     if (reason === null) return;
-    if (!reason.trim()) {
-      setError("A void reason is required.");
-      return;
-    }
     void run(async () => {
       if (!active) return;
       const scope = `void:${active.id}`;
-      await voidOrder(active.id, reason.trim(), keyFor(scope));
+      await voidOrder(active.id, reason, keyFor(scope));
       const refreshed = await getOrder(active.id);
       setActive(refreshed);
       setMessage(`Order ${refreshed.referenceNumber} voided — stock returned to inventory.`);
@@ -489,10 +499,10 @@ export function SalesPage() {
                 <button disabled={busy || !productId} onClick={onAddItem}>Add line</button>
               </div>
               <div className="actions">
-                <button disabled={busy || active.items.length === 0} onClick={onConfirm}>
+                <button disabled={busy || active.items.length === 0} onClick={() => void onConfirm()}>
                   Confirm order (allocates stock)
                 </button>
-                <button className="link" disabled={busy} onClick={onCancel}>Cancel draft</button>
+                <button className="link" disabled={busy} onClick={() => void onCancel()}>Cancel draft</button>
                 <button className="link" onClick={() => setActive(null)}>close</button>
               </div>
             </>
@@ -518,7 +528,7 @@ export function SalesPage() {
                             ? <span className="badge badge-danger" title={p.voidReason ?? undefined}>Voided</span>
                             : isAdmin ? (
                               <button className="link" disabled={busy}
-                                onClick={() => onVoidPayment(p.id, p.version)}>void</button>
+                                onClick={() => void onVoidPayment(p.id, p.version)}>void</button>
                             ) : null}
                         </td>
                       </tr>
@@ -585,7 +595,7 @@ export function SalesPage() {
           {active.status !== "Draft" && (
             <div className="actions">
               {active.status === "Confirmed" && isAdmin && (
-                <button className="link" disabled={busy} onClick={onVoid}>
+                <button className="link" disabled={busy} onClick={() => void onVoid()}>
                   Void order (returns stock)
                 </button>
               )}
@@ -647,6 +657,8 @@ export function SalesPage() {
           )}
         </>
       )}
+
+      {confirmDialog}
     </section>
   );
 }

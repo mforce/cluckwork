@@ -33,6 +33,14 @@
   --success: #007a5a;
   --warn: #8a5a00; /* amber that clears AA on white */
 
+  /* Destructive action fill (F135). Themed, unlike --aubergine: no single red
+     clears BOTH 4.5:1 for its white label and 3:1 against the surface behind it
+     in light and dark at once. Press is the lighter step, matching
+     --aubergine-press. Light 6.71/6.71 rest, 5.56/5.56 press. */
+  --danger: #a8320f;
+  --danger-press: #bd3a14;
+  --on-danger: #ffffff;
+
   /* Tinted badge fills (soft, theme-aware) */
   --tint-accent: #f3e9f5;
   --tint-ok: #e2f2ec;
@@ -85,6 +93,11 @@
   --error: #ff8666;
   --success: #4bbf97;
   --warn: #e0a44a;
+  /* Lifted off the light values so the fill clears 3:1 against the dark
+     surface while its white label still clears 4.5:1 — 3.05/5.53 rest,
+     3.67/4.60 press. The band that satisfies both at once is narrow. */
+  --danger: #bc3c14;
+  --danger-press: #d44028;
   --tint-accent: #33203a;
   --tint-ok: #14342b;
   --tint-warn: #3a2e18;
@@ -120,6 +133,9 @@
     --error: #ff8666;
     --success: #4bbf97;
     --warn: #e0a44a;
+    /* Keep in step with the :root[data-theme="dark"] block above. */
+    --danger: #bc3c14;
+    --danger-press: #d44028;
     --tint-accent: #33203a;
     --tint-ok: #14342b;
     --tint-warn: #3a2e18;
@@ -182,6 +198,18 @@ button:active:not(:disabled) {
 button:disabled {
   opacity: 0.5;
   cursor: default;
+}
+
+/* The confirming action of a destructive dialog (F135). Deliberately the only
+   red fill in the app: it means "this cannot be taken back", so spending it
+   anywhere else would blunt it. */
+button.btn-danger {
+  background: var(--danger);
+  color: var(--on-danger);
+}
+
+button.btn-danger:hover:not(:disabled) {
+  background: var(--danger-press);
 }
 
 /* Inline action / navigation buttons — text, not pills. Blue, like links. */
@@ -336,6 +364,18 @@ input.cell {
   padding: 1.35rem 1.5rem 1.5rem;
 }
 
+/* A confirmation is prose, not fields — the consequence is the whole point, so
+   it gets reading leading rather than the tight rhythm a form wants (F135). */
+.dialog .confirm-body {
+  color: var(--muted);
+  line-height: 1.55;
+  margin-bottom: 1.1rem;
+}
+
+.dialog .confirm-body strong {
+  color: var(--ink);
+}
+
 /* Row-shaped page forms become a stacked column once they are in a dialog —
    there is no list to sit above any more, so fields get the full width. */
 .dialog .inline-form,
@@ -352,6 +392,12 @@ input.cell {
 .dialog select,
 .dialog textarea {
   width: 100%;
+}
+
+/* Height is the user's to adjust; width is not — dragging the default
+   both-axis handle wider than the panel breaks the dialog's layout. */
+.dialog textarea {
+  resize: vertical;
 }
 
 /* A checkbox keeps its own small box: `.inline-form input` (10rem) outranks the

@@ -1,7 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within, fireEvent, waitFor, act } from "@testing-library/react";
 import { DailyEntryPage } from "./DailyEntryPage";
-import { listFlocks, listEggGrades, listDailyEntries, createFlock } from "../api/cluckwork";
+import {
+  listFlocks, listEggGrades, listDailyEntries, createFlock, recordDailyEntry, submitDailyEntry,
+} from "../api/cluckwork";
 import type { Flock, EggGrade, DailyEntry } from "../api/cluckwork";
 import { todayIso } from "../lib/dates";
 
@@ -207,5 +209,65 @@ describe("DailyEntryPage new-flock dialog", () => {
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(mockCreateFlock).not.toHaveBeenCalled();
+  });
+});
+
+// F135: submit is one-way — it freezes the day and creates egg lots — so it
+// asks first, in the app's own dialog rather than window.confirm.
+describe("DailyEntryPage submit confirmation", () => {
+  async function readyWithCounts() {
+    await renderReady();
+    fireEvent.change(screen.getByLabelText("Flock"), { target: { value: "f1" } });
+    setNum("Total eggs", 10);
+    await waitFor(() => expect(submitBtn()).toBeEnabled());
+  }
+
+  it("writes nothing until the question is answered", async () => {
+    await readyWithCounts();
+
+    await act(async () => { fireEvent.click(submitBtn()); });
+
+    expect(screen.getByRole("dialog")).toHaveAccessibleName("Submit this day?");
+    expect(vi.mocked(recordDailyEntry)).not.toHaveBeenCalled();
+    expect(vi.mocked(submitDailyEntry)).not.toHaveBeenCalled();
+  });
+
+  it("saves and submits once confirmed", async () => {
+    vi.mocked(recordDailyEntry).mockResolvedValue({ id: "e1" } as never);
+    vi.mocked(submitDailyEntry).mockResolvedValue({ status: "Submitted" } as never);
+    await readyWithCounts();
+
+    await act(async () => { fireEvent.click(submitBtn()); });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Submit day" }));
+    });
+
+    expect(vi.mocked(recordDailyEntry)).toHaveBeenCalled();
+    expect(vi.mocked(submitDailyEntry)).toHaveBeenCalledWith("e1", expect.any(String));
+  });
+
+  it("abandons the submit on Cancel, leaving the day untouched", async () => {
+    await readyWithCounts();
+
+    await act(async () => { fireEvent.click(submitBtn()); });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    });
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(vi.mocked(recordDailyEntry)).not.toHaveBeenCalled();
+    // The form is still live afterwards — dismissing is not a dead end.
+    expect(submitBtn()).toBeEnabled();
+  });
+
+  it("saves a draft without asking — only submit is one-way", async () => {
+    vi.mocked(recordDailyEntry).mockResolvedValue({ id: "e1" } as never);
+    await readyWithCounts();
+
+    await act(async () => { fireEvent.click(saveDraftBtn()); });
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(vi.mocked(recordDailyEntry)).toHaveBeenCalled();
+    expect(vi.mocked(submitDailyEntry)).not.toHaveBeenCalled();
   });
 });

@@ -158,6 +158,21 @@ export function HelpPage() {
           expense, and adding lines to a draft order. Those you use every day —
           no extra click.
         </li>
+        <li>
+          <strong>Actions that cannot be undone ask first.</strong> Submitting
+          a day, confirming or cancelling an order, depleting or archiving a
+          flock — each one says what is about to happen and waits. The keyboard
+          starts on <strong>Cancel</strong>, so pressing Enter by habit never
+          goes through with it. Anything that destroys or freezes something has
+          a red button.
+        </li>
+        <li>
+          <strong>Voids need a reason.</strong> Voiding a daily entry, a
+          payment, or a confirmed order asks the same way but wants a written
+          reason first — it is stored with the void and shown wherever that
+          record turns up afterwards, so write what actually happened. Leave it
+          empty and the popup says so on the spot, keeping whatever you typed.
+        </li>
       </ul>
 
       <h3 id="daily-entry">Daily entry</h3>

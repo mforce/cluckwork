@@ -334,3 +334,16 @@ what the old inline form submitted: same fields, same validation, same
 idempotency and version guards. Screens whose whole job is capture keep their
 form on the page: **Daily entry**, **Water**, recording an expense, and
 adding lines to a draft order.
+
+**Confirmation (#135)** — the dialog a one-way action asks through before it
+runs. Submitting a day, confirming or cancelling an order, depleting or
+archiving a flock: each states what is about to happen and waits. **Cancel**
+is what the keyboard lands on, so a stray Enter never takes the action, and
+Escape or a click outside means no. Actions that destroy or freeze something
+colour their button red — the only red fill in the app.
+
+**Void reason (#135)** — voiding a daily entry, a payment, or a confirmed
+order asks in the same dialog, plus a required **Reason**. The reason is
+stored with the void and shown wherever the voided record appears, so it is
+the record of why. An empty reason is refused in place and what has been
+typed stays put.
