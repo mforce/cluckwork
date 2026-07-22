@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import {
   createFlock, listDailyEntries, listEggGrades, listFlocks,
@@ -8,6 +8,7 @@ import type { EggGrade, Flock } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { Dialog } from "../components/Dialog";
 import { StatusBadge } from "../components/StatusBadge";
+import { NumberField } from "../components/NumberField";
 import { useConfirm } from "../components/useConfirm";
 import { todayIso } from "../lib/dates";
 
@@ -196,8 +197,34 @@ export function DailyEntryPage() {
   // that fetch fails — so without this the badge claims "editing draft" for a
   // day it knows nothing about, and keeps claiming it (codex review).
   const editingDraft = existingStatus === "Draft" && !prefillPending && !prefillFailed;
+  // Grading counts DOWN to zero. "Graded 12 of 407" made the user do the
+  // subtraction; the number they are working towards is what is left.
+  const remaining = sellable - gradesSum;
+  // Derived once and rendered twice: in full beside the grades, and compressed
+  // in the pinned bar for phones, where both panes scroll out of sight.
+  const grading = lossesExceedTotal
+    ? { tone: "over", count: null, says: "Fix the counts first", short: "fix the counts" }
+    : remaining < 0
+      ? { tone: "over", count: -remaining, says: "over the sellable count", short: "over" }
+      : remaining === 0
+        ? { tone: "done", count: sellable, says: "graded — the day adds up", short: "all graded" }
+        : { tone: "", count: remaining, says: "left to grade", short: "left" };
 
-  const clamp0 = (v: number) => Math.max(0, v || 0);
+  // NumberField owns its own input, so the row label points at it by id.
+  const fieldId = useId();
+  const idFor = (name: string) => `${fieldId}-${name}`;
+
+  // The counts are plain useState setters, so NumberField takes them as-is.
+  // A grade lives in a record, so its updater is adapted here — still the
+  // functional form, which the hold-to-repeat depends on.
+  const setGrade = (gradeId: string) => (next: number | ((prev: number) => number)) => {
+    setGradesTouched(true);
+    setGradeQty((prev) => ({
+      ...prev,
+      [gradeId]: typeof next === "function" ? next(prev[gradeId] ?? 0) : next,
+    }));
+  };
+
 
   async function onCreateFlock(e: FormEvent) {
     e.preventDefault();
@@ -294,9 +321,6 @@ export function DailyEntryPage() {
     <section>
       <div className="page-head">
         <h2>Daily entry</h2>
-        {/* F134: the prefill can land on a day that already has a draft. Only
-            LOCKED days got a banner before, so editing an existing draft was
-            indistinguishable from starting a fresh one. */}
         {/* Always rendered so it is a live region BEFORE the prefill fills it;
             a status container that appears at the same moment as its content is
             unreliably announced. */}
@@ -305,32 +329,29 @@ export function DailyEntryPage() {
         </span>
       </div>
 
-      {/* F134: numbered because the order is real, not decoration — the grading
-          in section 3 is capped by the counts in section 2, which need a flock
-          and date in section 1 to prefill against. */}
-      <section className="entry-step">
-        <h3><span className="sr-only">Step 1 of 3: </span><span className="step-n" aria-hidden>1</span>Flock &amp; date</h3>
-        <div className="form-grid">
-          <label>
-            Flock
-            <select value={flockId} onChange={(e) => setFlockId(e.target.value)}>
-              {flocks.length === 0 && <option value="">— no flocks yet —</option>}
-              {flocks.map((f) => (
-                <option key={f.id} value={f.id}>
-                  {f.name} ({f.breed}){f.status === "Depleted" ? " — depleted, backfill only" : ""}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>Date
-            <input type="date" value={date} max={todayIso()}
-              onChange={(e) => setDate(e.target.value)} />
-          </label>
-          <button className="link" type="button" onClick={() => { setError(null); setShowNewFlock(true); }}>
-            + new flock
-          </button>
-        </div>
-      </section>
+      {/* Context, not a step: choosing a flock and a date says WHICH day is
+          being recorded, it is not part of recording it. The two steps below
+          are the work, and they reconcile against each other. */}
+      <div className="form-grid entry-context">
+        <label>
+          Flock
+          <select value={flockId} onChange={(e) => setFlockId(e.target.value)}>
+            {flocks.length === 0 && <option value="">— no flocks yet —</option>}
+            {flocks.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.name} ({f.breed}){f.status === "Depleted" ? " — depleted, backfill only" : ""}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>Date
+          <input type="date" value={date} max={todayIso()}
+            onChange={(e) => setDate(e.target.value)} />
+        </label>
+        <button className="link" type="button" onClick={() => { setError(null); setShowNewFlock(true); }}>
+          + new flock
+        </button>
+      </div>
 
       {/* F131: creating a flock is catalog work, not capture — it belongs in a
           dialog like every other create, instead of shoving the entry grid
@@ -365,32 +386,6 @@ export function DailyEntryPage() {
         </form>
       </Dialog>
 
-      <section className="entry-step">
-        <h3><span className="sr-only">Step 2 of 3: </span><span className="step-n" aria-hidden>2</span>Egg counts</h3>
-        <div className="form-grid">
-          <label>Total eggs
-            <input type="number" min={0} value={totalEggs} disabled={entryLocked}
-              onChange={(e) => setTotalEggs(clamp0(e.target.valueAsNumber))} />
-          </label>
-          <label>Cracked
-            <input type="number" min={0} value={cracked} disabled={entryLocked}
-              onChange={(e) => setCracked(clamp0(e.target.valueAsNumber))} />
-          </label>
-          <label>Dirty
-            <input type="number" min={0} value={dirty} disabled={entryLocked}
-              onChange={(e) => setDirty(clamp0(e.target.valueAsNumber))} />
-          </label>
-          <label>Discarded
-            <input type="number" min={0} value={discarded} disabled={entryLocked}
-              onChange={(e) => setDiscarded(clamp0(e.target.valueAsNumber))} />
-          </label>
-          <label>Mortality
-            <input type="number" min={0} value={mortality} disabled={entryLocked}
-              onChange={(e) => setMortality(clamp0(e.target.valueAsNumber))} />
-          </label>
-        </div>
-      </section>
-
       {entryLocked && (
         <p className="warn">
           This day is already {existingStatus?.toLowerCase()} — its egg lots exist.
@@ -407,35 +402,94 @@ export function DailyEntryPage() {
         </p>
       )}
 
-      <section className="entry-step">
-        <h3><span className="sr-only">Step 3 of 3: </span><span className="step-n" aria-hidden>3</span>Sellable production by grade</h3>
-        <div className="form-grid">
-          {visibleGrades.map((g) => (
-            <label key={g.id}>{g.name}{g.active ? "" : " (deactivated)"}
-              <input type="number" min={0} value={gradeQty[g.id] ?? 0} disabled={entryLocked}
-                onChange={(e) => {
-                  setGradesTouched(true);
-                  setGradeQty((prev) => ({ ...prev, [g.id]: clamp0(e.target.valueAsNumber) }));
-                }} />
-            </label>
-          ))}
-        </div>
-      </section>
+      {/* Side by side, because the two panes reconcile: the sellable figure the
+          left one produces is the target the right one has to hit. Reading one
+          while the other was a screen away was the whole problem. */}
+      <div className="entry-cols">
+        <section className="entry-step">
+          <h3><span className="sr-only">Step 1 of 2: </span><span className="step-n" aria-hidden>1</span>Egg counts</h3>
+          <div className="entry-pane">
+            <div className="entry-rows">
+              <div className="entry-row">
+                <label htmlFor={idFor("total")}>Total eggs</label>
+                <NumberField id={idFor("total")} label="total eggs"
+                  value={totalEggs} onChange={setTotalEggs} disabled={entryLocked} />
+              </div>
+              <div className="entry-row">
+                <label htmlFor={idFor("cracked")}>Cracked</label>
+                <NumberField id={idFor("cracked")} label="cracked"
+                  value={cracked} onChange={setCracked} disabled={entryLocked} />
+              </div>
+              <div className="entry-row">
+                <label htmlFor={idFor("dirty")}>Dirty</label>
+                <NumberField id={idFor("dirty")} label="dirty"
+                  value={dirty} onChange={setDirty} disabled={entryLocked} />
+              </div>
+              <div className="entry-row">
+                <label htmlFor={idFor("discarded")}>Discarded</label>
+                <NumberField id={idFor("discarded")} label="discarded"
+                  value={discarded} onChange={setDiscarded} disabled={entryLocked} />
+              </div>
+              <div className="entry-row">
+                <label htmlFor={idFor("mortality")}>Mortality</label>
+                <NumberField id={idFor("mortality")} label="mortality"
+                  value={mortality} onChange={setMortality} disabled={entryLocked} />
+              </div>
+            </div>
 
-      {/* F134: the reconciliation line and both saves ride along at the bottom
-          of the viewport. They are the only things on this screen you need
-          while scrolling, and on a phone the grade grid used to push them out
-          of sight entirely. Save feedback lives in here too — anything below a
-          sticky bar scrolls underneath it and is never seen. */}
+            {lossesExceedTotal ? (
+              <p className="entry-readout error">
+                Cracked + dirty + discarded ({losses}) exceed total eggs ({totalEggs}).
+              </p>
+            ) : (
+              /* Shown as a value, not buried in a sentence — it is the target
+                 the grading pane has to hit. */
+              <p className="entry-readout">
+                <span className="k">Sellable<br />{totalEggs} − {cracked} − {dirty} − {discarded}</span>
+                <span className="v">{sellable}</span>
+              </p>
+            )}
+          </div>
+        </section>
+
+        <section className="entry-step">
+          <h3><span className="sr-only">Step 2 of 2: </span><span className="step-n" aria-hidden>2</span>Grading</h3>
+          <div className="entry-pane">
+            <div className="entry-rows">
+              {visibleGrades.map((g) => (
+                <div className="entry-row" key={g.id}>
+                  <label htmlFor={idFor(g.id)}>{g.name}{g.active ? "" : " (deactivated)"}</label>
+                  <NumberField id={idFor(g.id)} label={g.name.toLowerCase()}
+                    value={gradeQty[g.id] ?? 0} onChange={setGrade(g.id)} disabled={entryLocked} />
+                </div>
+              ))}
+            </div>
+
+            {/* role=status: the count changes as they type, and it is the only
+                feedback that the day adds up. */}
+            <p className={`entry-chip ${grading.tone}`} role="status">
+              {grading.count !== null && <b>{grading.count}</b>}
+              <s>{grading.says}</s>
+            </p>
+          </div>
+        </section>
+      </div>
+
+      {/* Save feedback lives with the saves: anything below a pinned bar
+          scrolls underneath it and is never read. */}
       <div className="entry-foot">
         {/* The dialog carries its own copy while it is up. */}
         {error && !showNewFlock && <p className="error">{error}</p>}
         {message && <p className="success">{message}</p>}
         <div className="entry-foot-row">
-          <p className={gradesSum > sellable || lossesExceedTotal ? "error" : "muted"}>
-            {lossesExceedTotal
-              ? `Cracked + dirty + discarded (${losses}) exceed total eggs (${totalEggs}).`
-              : `Graded ${gradesSum} of ${sellable} sellable (total − cracked − dirty − discarded).`}
+          {/* Phones only (see styles.css): the two panes stack there, so the
+              figures that say whether the day adds up scroll away while the
+              counts are being typed. On desktop both are already on screen and
+              repeating them here would just be noise. */}
+          <p className={`entry-foot-sum ${grading.tone}`}>
+            <b>{sellable}</b> sellable
+            {grading.count !== null && <> · <b>{grading.count}</b> {grading.short}</>}
+            {grading.count === null && <> · {grading.short}</>}
           </p>
           <div className="actions">
             <button disabled={busy || !flockId || lossesExceedTotal || entryLocked || prefillFailed || prefillPending}

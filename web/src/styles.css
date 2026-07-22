@@ -491,6 +491,148 @@ input.cell {
   font-weight: 700;
 }
 
+/* Flock + date sit above the two panes as context, not as a step. */
+.entry-context {
+  margin-bottom: 1.75rem;
+}
+
+/* The panes reconcile against each other — the sellable figure the left one
+   produces is the target the right one has to hit — so they sit side by side
+   and the whole day is one glance. minmax(0,1fr): a bare 1fr floors at the
+   content's min-content and would push the page wider than the viewport. */
+.entry-cols {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2rem 2.5rem;
+  align-items: start;
+}
+
+.entry-pane {
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-card);
+  padding: 1.35rem 1.5rem;
+}
+
+.entry-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+/* Name left, control right, on one line. The old wrapping flex grew every
+   field to fill 300px for a three-digit number and orphaned the fifth onto a
+   row of its own. */
+.entry-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1rem;
+}
+
+.entry-row > label {
+  font-size: 0.9rem;
+  color: var(--muted);
+  margin: 0;
+}
+
+/* Sellable, shown as a value rather than buried in a sentence. */
+.entry-readout {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 1.1rem 0 0;
+  padding-top: 0.9rem;
+  border-top: 1px dashed var(--hairline);
+}
+
+.entry-readout .k {
+  font-size: 0.8rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.entry-readout .v {
+  font-size: 1.6rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* How many eggs are still unaccounted for — the number the grading pane is
+   working towards. Counts down to zero, then confirms. */
+.entry-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  margin: 1.1rem 0 0;
+  padding: 0.5rem 1rem;
+  border-radius: var(--r-pill);
+  background: var(--tint-accent);
+}
+
+.entry-chip b {
+  font-size: 1.35rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--stat-accent);
+}
+
+.entry-chip s {
+  text-decoration: none;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.entry-chip.done { background: var(--tint-ok); }
+.entry-chip.done b { color: var(--success); }
+.entry-chip.over { background: var(--tint-danger); }
+.entry-chip.over b { color: var(--error); }
+
+/* ---- number entry with thumb-sized steppers (F134) ---- */
+.numfield {
+  display: inline-flex;
+  align-items: stretch;
+  gap: 0.3rem;
+}
+
+/* Sized to its content: an egg count is four digits, not three hundred pixels.
+   The native spinner is hidden — it is a 10px target and absent on touch. */
+.numfield input {
+  width: 4.75rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.numfield input::-webkit-outer-spin-button,
+.numfield input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.numfield-step {
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  padding: 0;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-input);
+  background: var(--surface-2);
+  color: var(--ink);
+  /* A held button must not select the label text or fire the OS long-press
+     menu under a thumb. */
+  user-select: none;
+  touch-action: manipulation;
+}
+
+.numfield-step:hover:not(:disabled) {
+  background: var(--tint-accent);
+  color: var(--stat-accent);
+}
+
 /* Pinned while the form scrolls underneath. The reconciliation line and the two
    saves are the only things needed at every point in the flow, and on a phone
    the grade grid used to push them off-screen entirely. Save feedback lives in
@@ -523,6 +665,21 @@ input.cell {
 .entry-foot p {
   margin: 0;
 }
+
+/* Only where the panes have stacked out of view — see the mobile block. */
+.entry-foot-sum {
+  display: none;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.entry-foot-sum b {
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+.entry-foot-sum.done b { color: var(--success); }
+.entry-foot-sum.over b { color: var(--error); }
 
 /* The responsive pass (#49) makes any .actions sticky on a phone. Inside the
    bar that would be a sticky within a sticky — the bar is the sticky thing
@@ -1237,18 +1394,35 @@ label.check {
     margin-bottom: -5rem; /* .content's mobile padding-bottom */
   }
 
-  /* Counts stay two-up rather than stacking. The issue asked for one column,
-     but five stacked number fields lengthen exactly the scroll this slice
-     exists to shorten; the pair-per-row grid is denser and still thumb-sized. */
-  .entry-step .form-grid label {
-    flex: 1 1 40%;
+  /* One pane above the other: side by side on a phone would put four-digit
+     inputs in a 160px column. */
+  .entry-cols {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.5rem;
   }
 
   /* Barn use is one-handed and often gloved: 44px is the minimum comfortable
-     touch target, and the default input padding lands under it. */
-  .entry-step input,
-  .entry-step select {
+     touch target, and the default padding lands under it. */
+  .entry-row input,
+  .entry-row .numfield-step,
+  .entry-context input,
+  .entry-context select {
     min-height: 2.75rem;
+  }
+
+  .entry-row .numfield-step {
+    width: 2.75rem;
+  }
+
+  .entry-foot-sum {
+    display: block;
+  }
+
+  /* Summary above, buttons below — side by side would squeeze both. */
+  .entry-foot-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.6rem;
   }
 
   /* On a phone the dialog becomes a bottom sheet — thumb-reachable, and it

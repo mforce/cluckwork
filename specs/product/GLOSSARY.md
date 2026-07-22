@@ -52,16 +52,28 @@ straight from Active for mistake-created flocks):
 eggs, loss counts (cracked / dirty / discarded), mortality count, and the
 graded breakdown of sellable eggs. One entry per flock per day (natural key).
 
-**Daily entry steps (#134)** — the capture screen is three numbered sections in
-the order the work happens: **1 Flock & date**, **2 Egg counts**, **3 Sellable
-production by grade**. The numbering is not decoration — grading in 3 is capped
-by the counts in 2, which prefill against the flock and date in 1.
+**Daily entry steps (#134)** — the capture screen is two numbered panes side by
+side: **1 Egg counts** and **2 Grading**. Flock and date sit above them as
+context, not as a step — they say *which* day is being recorded, not part of
+recording it. The two panes reconcile: the **sellable** figure the counts
+produce is the target the grades have to hit, so they are placed where both can
+be read at once.
 
-**Entry footer (#134)** — the reconciliation line (*Graded n of m sellable*, or
-the losses-exceed-total error) and both saves sit in a bar pinned to the bottom
-of the screen. They are the only things needed at every point in the flow, and
-on a phone the grade grid used to push them out of sight. Save messages appear
-in the same bar: anything below it would scroll underneath and never be read.
+**Left to grade (#134)** — grading counts **down** to zero rather than reporting
+*graded n of m*. The figure beside the grades is how many sellable eggs are
+still unaccounted for; it turns green when the day adds up exactly and red when
+the grades overshoot the sellable count. Submitting is blocked while it is over.
+
+**Entry footer (#134)** — both saves sit in a bar pinned to the bottom of the
+screen, along with save messages: anything below a pinned bar scrolls underneath
+it and is never read. On a phone the two panes stack and scroll away, so the bar
+also carries a compressed *n sellable · n left*; on a wider screen both panes are
+already visible and repeating it would be noise.
+
+**Steppers (#134)** — every count and grade field has **−** and **+** buttons
+either side. Holding one repeats, widening its stride from 1 to 5 to 10, so a
+few hundred eggs takes about a second. Built for the barn: the browser's own
+spinner is a ten-pixel target and disappears entirely on touch.
 
 **Editing draft (#134)** — a badge beside the title when the day being captured
 already has a saved **Draft**, so re-opening work in progress is distinguishable

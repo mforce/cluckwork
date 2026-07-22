@@ -180,16 +180,27 @@ export function HelpPage() {
       <h3 id="daily-entry">Daily entry</h3>
       <ul>
         <li>
-          The screen runs in three numbered steps, in the order the work
-          happens: <strong>1 Flock &amp; date</strong>, <strong>2 Egg counts</strong>{" "}
-          (total, cracked, dirty, discarded, deaths), then{" "}
-          <strong>3 Sellable production by grade</strong>. Graded quantities can
-          never exceed total minus losses.
+          Pick the flock and date at the top, then work through two panes side
+          by side: <strong>1 Egg counts</strong> (total, cracked, dirty,
+          discarded, deaths) and <strong>2 Grading</strong>. The counts produce
+          a <strong>sellable</strong> figure, and that is the number the grades
+          have to add up to — they can never exceed it.
         </li>
         <li>
-          The running total — <em>Graded n of m sellable</em> — and both save
-          buttons stay in a bar at the bottom of the screen as you scroll, so on
-          a phone you never lose sight of where you are or how to save.
+          Grading counts <strong>down</strong>. Beside the grades is how many
+          sellable eggs you still have to place; it turns green the moment the
+          day adds up and red if you go over. You cannot submit while it is over.
+        </li>
+        <li>
+          Every count has <strong>−</strong> and <strong>+</strong> buttons.
+          Tap for one, or <strong>hold</strong> — it speeds up as you go, so a
+          few hundred eggs takes about a second. Easier than a keypad with
+          gloves on.
+        </li>
+        <li>
+          Both save buttons stay in a bar at the bottom of the screen as you
+          scroll. On a phone that bar also shows the sellable count and how many
+          are left, so you never lose sight of whether the day adds up.
         </li>
         <li>
           <strong>Save draft</strong> keeps the day editable. <strong>Submit</strong>{" "}
