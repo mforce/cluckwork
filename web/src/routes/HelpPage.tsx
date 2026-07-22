@@ -163,8 +163,10 @@ export function HelpPage() {
           a day, confirming or cancelling an order, depleting or archiving a
           flock — each one says what is about to happen and waits. The keyboard
           starts on <strong>Cancel</strong>, so pressing Enter by habit never
-          goes through with it. Anything that destroys or freezes something has
-          a red button.
+          goes through with it. A <strong>red</strong> button means the action
+          undoes or retires something: voiding, cancelling a draft, depleting,
+          archiving. Submitting a day and confirming an order cannot be taken
+          back either, but they are the normal way through the week.
         </li>
         <li>
           <strong>Voids need a reason.</strong> Voiding a daily entry, a

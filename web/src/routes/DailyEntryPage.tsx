@@ -225,10 +225,18 @@ export function DailyEntryPage() {
         confirmLabel: "Submit day",
       });
       if (!ok) return;
-      // The guard above ran before the await. window.confirm blocked the thread
-      // so nothing could slip through; the dialog does not, so re-check it —
-      // the state it guards may have moved while the question was on screen.
-      if (inFlight.current || !selectedFlock || prefillFailed || prefillPending) return;
+      // Only the ref is worth re-reading. window.confirm blocked the thread, so
+      // the guard above could not go stale; the dialog does not block, and a
+      // double-click can land two onSave calls before either sets inFlight.
+      // (The second confirm settles the first as dismissed, so the loser
+      // returns above — this catches the ordering where it does not.)
+      //
+      // The other three are state, so re-reading them here would return the
+      // render-time closure, not what is true now. They are left out rather
+      // than mirrored in a ref: none of them can change while the dialog is up.
+      // flock and date sit behind the backdrop, and a prefill cannot start
+      // meanwhile because both save buttons are disabled while one is pending.
+      if (inFlight.current) return;
     }
     inFlight.current = true;
     setBusy(true);

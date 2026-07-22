@@ -339,8 +339,11 @@ adding lines to a draft order.
 runs. Submitting a day, confirming or cancelling an order, depleting or
 archiving a flock: each states what is about to happen and waits. **Cancel**
 is what the keyboard lands on, so a stray Enter never takes the action, and
-Escape or a click outside means no. Actions that destroy or freeze something
-colour their button red — the only red fill in the app.
+Escape or a click outside means no. The ones that **undo or retire** something
+— void, cancel a draft, deplete, archive — colour their button red, the only
+red fill in the app. Submitting a day and confirming an order are just as
+irreversible but are the ordinary path through the week, so they stay
+aubergine: a red button on the most routine action would say nothing.
 
 **Void reason (#135)** — voiding a daily entry, a payment, or a confirmed
 order asks in the same dialog, plus a required **Reason**. The reason is

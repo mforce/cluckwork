@@ -9,7 +9,13 @@ interface AskBase {
   body: ReactNode;
   /** The action button's label. Use the same verb the trigger used. */
   confirmLabel: string;
-  /** Paints the action red. For anything that destroys or freezes state. */
+  /**
+   * Paints the action red. For the ones that UNDO or RETIRE something — void,
+   * cancel, deplete, archive. Not for one-way steps that simply move a record
+   * forward: submitting a day and confirming an order are irreversible too, but
+   * they are the ordinary path through the week, and a red button on the most
+   * routine action of all would spend the colour where it says nothing.
+   */
   destructive?: boolean;
 }
 
@@ -37,6 +43,7 @@ export function useConfirm() {
   // rides alongside, so cancelling never has to re-derive which shape is up.
   const resolveRef = useRef<((value: boolean | string | null) => void) | null>(null);
   const dismissValueRef = useRef<boolean | null>(false);
+  const reasonRef = useRef<HTMLTextAreaElement>(null);
 
   const settle = useCallback((value: boolean | string | null) => {
     const resolve = resolveRef.current;
@@ -103,28 +110,44 @@ export function useConfirm() {
       // Inline, and the dialog stays open: window.prompt validated only after
       // it had closed, so a blank reason cost the user everything they typed.
       setReasonError("A reason is required.");
+      // Back to the field, not left on the button that just refused. Sighted
+      // users get the cursor where the work is; a screen reader announces the
+      // error, which it reaches through aria-describedby on focus.
+      reasonRef.current?.focus();
       return;
     }
     settle(text);
   };
 
-  const reasonId = useId();
+  const ids = useId();
+  const reasonId = `${ids}-reason`;
+  const errorId = `${ids}-error`;
+  const bodyId = `${ids}-body`;
 
   // Focus lands by DOM order, which puts it in the right place for free:
   // Cancel for a yes/no (a stray Enter must not deplete a flock), the textarea
   // for a reason (there is nothing to decide until they have typed).
   const confirmDialog = (
-    <Dialog open={pending !== null} title={pending?.title ?? ""} onClose={dismiss}>
+    <Dialog
+      open={pending !== null}
+      title={pending?.title ?? ""}
+      onClose={dismiss}
+      describedBy={pending ? bodyId : undefined}
+    >
       {pending && (
         <>
-          <div className="confirm-body">{pending.body}</div>
+          <div className="confirm-body" id={bodyId}>{pending.body}</div>
           {pending.kind === "reason" && (
             <label htmlFor={reasonId}>
               Reason *
               <textarea
                 id={reasonId}
+                ref={reasonRef}
                 rows={3}
+                required
                 value={reason}
+                aria-invalid={reasonError !== null}
+                aria-describedby={reasonError ? errorId : undefined}
                 onChange={(e) => {
                   setReason(e.target.value);
                   if (reasonError) setReasonError(null);
@@ -132,7 +155,7 @@ export function useConfirm() {
               />
             </label>
           )}
-          {reasonError && <p className="error">{reasonError}</p>}
+          {reasonError && <p className="error" id={errorId}>{reasonError}</p>}
           <div className="dialog-foot">
             <button type="button" className="link" onClick={dismiss}>Cancel</button>
             <button

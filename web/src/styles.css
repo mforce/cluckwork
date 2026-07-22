@@ -39,6 +39,10 @@
      --aubergine-press. Light 6.71/6.71 rest, 5.56/5.56 press. */
   --danger: #a8320f;
   --danger-press: #bd3a14;
+  /* Deliberately NOT re-declared in the dark blocks, unlike its two siblings:
+     white is the only label that works on all four fills (4.60–6.71), and the
+     dark values were picked so it stays that way. Black would fail on the dark
+     rest fill at 3.79. */
   --on-danger: #ffffff;
 
   /* Tinted badge fills (soft, theme-aware) */
@@ -389,14 +393,15 @@ input.cell {
 .dialog .inline-form input:not([type="checkbox"]),
 .dialog .form-grid input:not([type="checkbox"]),
 .dialog input.cell,
-.dialog select,
-.dialog textarea {
+.dialog select {
   width: 100%;
 }
 
-/* Height is the user's to adjust; width is not — dragging the default
-   both-axis handle wider than the panel breaks the dialog's layout. */
+/* Split out of the rule above rather than stacked after it: `resize` is
+   meaningless on an input or a select. Height is the user's to adjust, width
+   is not — the default both-axis handle drags wider than the panel. */
 .dialog textarea {
+  width: 100%;
   resize: vertical;
 }
 

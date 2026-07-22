@@ -129,6 +129,41 @@ describe("useConfirm", () => {
     await waitFor(() => expect(onSettle).toHaveBeenCalledWith("wrong lot"));
   });
 
+  it("describes the dialog with the consequence, not just the title", async () => {
+    const user = userEvent.setup();
+    render(<Host />);
+    await openConfirm(user);
+
+    // Focus goes straight to a button, so without an accessible description a
+    // screen reader announces the question and the control and never what the
+    // action actually does — which is the only reason the dialog exists.
+    expect(screen.getByRole("dialog")).toHaveAccessibleDescription(
+      "The flock stops accepting new entries.");
+  });
+
+  it("wires the blank-reason error to the field and puts the cursor back in it", async () => {
+    const user = userEvent.setup();
+    render(<Host />);
+    await openReason(user);
+
+    const field = screen.getByLabelText("Reason *");
+    expect(field).toHaveAttribute("aria-invalid", "false");
+    expect(field).not.toHaveAttribute("aria-describedby");
+
+    await user.click(screen.getByRole("button", { name: "Void order" }));
+
+    // Announced rather than merely displayed: a screen reader reaches the
+    // message through the field, and focus is moved back to hear it.
+    const error = screen.getByText("A reason is required.");
+    expect(field).toHaveAttribute("aria-invalid", "true");
+    expect(field).toHaveAttribute("aria-describedby", error.id);
+    expect(field).toHaveFocus();
+
+    await user.keyboard("lot was double-counted");
+    expect(field).toHaveAttribute("aria-invalid", "false");
+    expect(field).not.toHaveAttribute("aria-describedby");
+  });
+
   it("paints the action red only when the caller says it is destructive", async () => {
     const user = userEvent.setup();
     const { unmount } = render(<Host destructive />);
