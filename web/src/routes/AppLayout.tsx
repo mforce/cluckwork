@@ -1,8 +1,9 @@
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Egg, LogOut } from "lucide-react";
 import { useAuth } from "../auth/useAuth";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { BottomNav } from "../components/BottomNav";
+import { ErrorBoundary } from "../components/ErrorBoundary";
 import { navGroups, tabEntries } from "./nav";
 
 const ICON = 17;
@@ -18,6 +19,7 @@ const ICON = 17;
 export function AppLayout() {
   const { logout, isAdmin, role } = useAuth();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
 
   const groups = navGroups(role, isAdmin);
   const tabs = tabEntries(groups);
@@ -55,7 +57,11 @@ export function AppLayout() {
       </aside>
 
       <main className="content">
-        <Outlet />
+        {/* Contain a routed screen's render throw to this pane — the sidebar and
+            tab bar stay usable, and navigating (resetKey) clears it (#140). */}
+        <ErrorBoundary scope="screen" resetKey={pathname}>
+          <Outlet />
+        </ErrorBoundary>
       </main>
 
       <BottomNav groups={groups} tabs={tabs} onLogout={onLogout} />

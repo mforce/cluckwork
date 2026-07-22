@@ -260,6 +260,55 @@ button.link:hover:not(:disabled) {
   outline-color: var(--on-aubergine);
 }
 
+/* Error-boundary fallback (#140). Reads like a page, in both themes: the
+   screen-scope version sits inside the content pane with the shell around it;
+   the app-scope version is the whole page, so it carries its own gutters. */
+.crash {
+  max-width: 32rem;
+  margin: 2.5rem auto;
+  padding: 0 1.15rem;
+  text-align: center;
+}
+
+.crash h2 {
+  margin: 0 0 0.5rem;
+}
+
+.crash-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.9rem;
+  margin: 1.4rem 0 1rem;
+}
+
+.crash-home {
+  font-weight: 600;
+}
+
+.crash-detail {
+  margin-top: 1rem;
+  text-align: left;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.crash-detail summary {
+  cursor: pointer;
+}
+
+.crash-detail pre {
+  margin: 0.6rem 0 0;
+  padding: 0.75rem;
+  background: var(--surface-2);
+  border-radius: var(--r-input);
+  font-size: 0.82rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-x: auto;
+}
+
 /* --------------------------------------------------------- Inputs & forms */
 label {
   display: flex;

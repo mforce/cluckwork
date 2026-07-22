@@ -97,6 +97,13 @@ export function HelpPage() {
           your role — a worker gets Daily entry, someone in sales gets Sales.
           Everything else is one tap away under <strong>More</strong>.
         </li>
+        <li>
+          If a screen ever shows <strong>"Something went wrong"</strong>, that is
+          the app catching an error instead of leaving you on a blank page.
+          Nothing you entered is lost — tap <strong>Reload</strong>, or{" "}
+          <strong>Back to the dashboard</strong> and try again. If it keeps
+          happening, open "Error details" and send a screenshot.
+        </li>
       </ul>
 
       <h3 id="daily-loop">The daily loop</h3>
@@ -592,6 +599,8 @@ export function HelpPage() {
         <tbody>
           <tr><th scope="row">Navigation</th>
             <td>Screens live in the left sidebar on a computer; on a phone the four you use most are tabs across the bottom, the rest under More.</td></tr>
+          <tr><th scope="row">&quot;Something went wrong&quot; screen</th>
+            <td>What a screen shows when it hits an error, instead of going blank. Your data is safe; tap Reload or Back to the dashboard. &quot;Error details&quot; holds the message for a screenshot.</td></tr>
           <tr><th scope="row">Daily entry</th>
             <td>One flock's day: eggs by grade, losses, deaths. Draft until submitted.</td></tr>
           <tr><th scope="row">Egg lot</th>
