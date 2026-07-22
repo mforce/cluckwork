@@ -19,7 +19,7 @@ const ICON = 17;
 export function AppLayout() {
   const { logout, isAdmin, role } = useAuth();
   const navigate = useNavigate();
-  const { pathname } = useLocation();
+  const location = useLocation();
 
   const groups = navGroups(role, isAdmin);
   const tabs = tabEntries(groups);
@@ -58,8 +58,13 @@ export function AppLayout() {
 
       <main className="content">
         {/* Contain a routed screen's render throw to this pane — the sidebar and
-            tab bar stay usable, and navigating (resetKey) clears it (#140). */}
-        <ErrorBoundary scope="screen" resetKey={pathname}>
+            tab bar stay usable (#140). Keyed by location.key so every navigation
+            remounts a fresh boundary: that recovers the screen on nav — even a
+            same-path retry when the dashboard ("/") itself crashed, since
+            react-router mints a new key each time — and avoids the double-catch
+            a resetKey-diffing boundary hits when you navigate into a screen that
+            throws on its first render. */}
+        <ErrorBoundary key={location.key} scope="screen">
           <Outlet />
         </ErrorBoundary>
       </main>

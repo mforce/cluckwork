@@ -1,4 +1,4 @@
-import { Component, type ErrorInfo, type ReactNode } from "react";
+import { Component, useEffect, useRef, type ErrorInfo, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 
 // #140: without a boundary, any throw during render unmounts the whole tree and
@@ -20,14 +20,17 @@ type Props = {
   // "screen": the nav shell is still on screen, only the routed pane failed.
   // "app": the shell itself threw, so the fallback is the whole page.
   scope: Scope;
-  // When this changes, the boundary clears its error. The router passes the
-  // pathname, so navigating away — including via the fallback's "Back to the
-  // dashboard" link — recovers the screen boundary without a full reload.
-  resetKey?: unknown;
 };
 
 type State = { error: Error | null };
 
+// Recovery is by REMOUNT, not by an internal reset prop: the screen boundary is
+// mounted with `key={location.key}` (see AppLayout), so every navigation —
+// including the fallback's "Back to the dashboard" link, and a same-path retry
+// when the dashboard itself crashed — gives a fresh instance with no error. A
+// resetKey-diffing componentDidUpdate would double-catch when you navigate
+// straight into a screen that throws (the prop change and the freshly-caught
+// error land in one commit), so we deliberately don't have one.
 export class ErrorBoundary extends Component<Props, State> {
   state: State = { error: null };
 
@@ -41,12 +44,6 @@ export class ErrorBoundary extends Component<Props, State> {
     console.error("Render error caught by boundary:", error, info.componentStack);
   }
 
-  componentDidUpdate(prev: Props) {
-    if (this.state.error && prev.resetKey !== this.props.resetKey) {
-      this.setState({ error: null });
-    }
-  }
-
   render() {
     if (this.state.error) return <ErrorFallback error={this.state.error} scope={this.props.scope} />;
     return this.props.children;
@@ -54,12 +51,20 @@ export class ErrorBoundary extends Component<Props, State> {
 }
 
 function ErrorFallback({ error, scope }: { error: Error; scope: Scope }) {
+  // Move focus to the fallback when it appears. React unmounts the crashed
+  // subtree, so a keyboard user's focus would otherwise be stranded on a
+  // now-gone element; role="alert" announces it, and this lands focus on it too.
+  const ref = useRef<HTMLElement>(null);
+  useEffect(() => {
+    ref.current?.focus();
+  }, []);
+
   return (
-    <section className="crash" role="alert">
+    <section className="crash" role="alert" tabIndex={-1} ref={ref}>
       <h2>Something went wrong</h2>
       <p className="muted">
         {scope === "screen"
-          ? "This screen ran into a problem and couldn’t finish loading. Nothing you entered was lost, and the rest of the app still works."
+          ? "This screen ran into a problem and couldn’t finish loading. Anything you’d already saved is safe, but anything you were still typing here may need to be entered again. The rest of the app still works."
           : "The app ran into a problem and couldn’t finish loading. Reloading usually clears it."}
       </p>
       <div className="crash-actions">

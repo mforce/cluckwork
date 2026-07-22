@@ -24,12 +24,15 @@ import { UsersPage } from "./routes/UsersPage";
 
 export function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        {/* Outer net: catches a throw from the shell itself (AppLayout, the
-            protected-route gate) that the per-screen boundary — nested inside
-            the shell — cannot see. Rare, but its absence is the blank page. */}
-        <ErrorBoundary scope="app">
+    // Outer net, outside the providers: catches a throw from the shell
+    // (AppLayout, the protected-route gate) OR from AuthProvider/BrowserRouter
+    // themselves — AuthProvider reads storage during render, so it can throw.
+    // The per-screen boundary is nested inside the shell and cannot see any of
+    // these; without this one they are the blank page. Its fallback is a plain
+    // anchor, so it needs no router.
+    <ErrorBoundary scope="app">
+      <AuthProvider>
+        <BrowserRouter>
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route element={<ProtectedRoute />}>
@@ -55,8 +58,8 @@ export function App() {
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
-        </ErrorBoundary>
-      </BrowserRouter>
-    </AuthProvider>
+        </BrowserRouter>
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }

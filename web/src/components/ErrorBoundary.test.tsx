@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter, useLocation } from "react-router-dom";
+import { Link, MemoryRouter, useLocation } from "react-router-dom";
 import { ErrorBoundary } from "./ErrorBoundary";
 
 // A child that throws during render — the exact case a boundary exists for.
@@ -74,13 +74,16 @@ describe("ErrorBoundary", () => {
     expect(reload).toHaveBeenCalledOnce();
   });
 
-  it("recovers the screen boundary on navigation (resetKey change)", async () => {
-    // Mirrors AppLayout's wiring: the pathname is the resetKey, so following the
-    // fallback's "Back to the dashboard" link clears the error without a reload.
+  it("recovers the screen boundary when navigation remounts it (keyed by location.key)", async () => {
+    // Mirrors AppLayout's wiring: the boundary is remounted per navigation via
+    // key={location.key}. The child throws as a pure function of pathname (so it
+    // throws deterministically on every render at /boom, surviving React's
+    // synchronous error-retry), and following the fallback's link to "/" changes
+    // the key — remounting a fresh boundary — onto a route that renders.
     function Wrapper() {
-      const { pathname } = useLocation();
+      const { pathname, key } = useLocation();
       return (
-        <ErrorBoundary scope="screen" resetKey={pathname}>
+        <ErrorBoundary key={key} scope="screen">
           {pathname === "/boom" ? <Boom /> : <p>recovered</p>}
         </ErrorBoundary>
       );
@@ -93,7 +96,41 @@ describe("ErrorBoundary", () => {
     expect(screen.queryByText("Something went wrong")).not.toBeInTheDocument();
   });
 
-  it("offers a link back to the dashboard in both scopes", () => {
+  it("catches and logs exactly once when it mounts straight into a throwing screen", () => {
+    // Guards the resetKey-race that a componentDidUpdate reset would introduce:
+    // navigating into a screen that throws on first render must not clear-then-
+    // rethrow. The remount model has no componentDidUpdate, so the boundary
+    // catches once — one log, not two.
+    inRouter(
+      <ErrorBoundary scope="screen">
+        <Boom message="on mount" />
+      </ErrorBoundary>,
+    );
+    expect(screen.getByText("Something went wrong")).toBeInTheDocument();
+    const ourLogs = errorSpy.mock.calls.filter((c) => c[0] === "Render error caught by boundary:");
+    expect(ourLogs).toHaveLength(1);
+  });
+
+  it("mints a fresh location.key on a same-path navigation (the dashboard-latch fix)", async () => {
+    // Why resetKey is key, not pathname: if the dashboard ("/") is what crashed,
+    // "Back to the dashboard" navigates to "/" — the same path. pathname would
+    // not change and the boundary would stay latched; location.key does change,
+    // so the reset fires. This pins react-router's behaviour the fix relies on.
+    const keys: string[] = [];
+    function Probe() {
+      keys.push(useLocation().key);
+      return <Link to="/">rego</Link>;
+    }
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <Probe />
+      </MemoryRouter>,
+    );
+    await userEvent.click(screen.getByRole("link", { name: "rego" }));
+    expect(keys.at(-1)).not.toBe(keys[0]);
+  });
+
+  it("recovers the screen boundary via a router Link, but needs no router for the app boundary", () => {
     const { unmount } = inRouter(
       <ErrorBoundary scope="screen">
         <Boom />
@@ -102,7 +139,11 @@ describe("ErrorBoundary", () => {
     expect(screen.getByRole("link", { name: "Back to the dashboard" })).toHaveAttribute("href", "/");
     unmount();
 
-    inRouter(
+    // No MemoryRouter here on purpose: the app boundary sits ABOVE the router, so
+    // its fallback must not depend on it. It uses a plain anchor — rendering a
+    // <Link> without a router context would throw, so this render passing proves
+    // the scope distinction, not just a matching href.
+    render(
       <ErrorBoundary scope="app">
         <Boom />
       </ErrorBoundary>,
