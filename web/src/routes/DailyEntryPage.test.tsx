@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
+import { render, screen, within, fireEvent, waitFor, act } from "@testing-library/react";
 import { DailyEntryPage } from "./DailyEntryPage";
-import { listFlocks, listEggGrades, listDailyEntries } from "../api/cluckwork";
+import { listFlocks, listEggGrades, listDailyEntries, createFlock } from "../api/cluckwork";
 import type { Flock, EggGrade, DailyEntry } from "../api/cluckwork";
 import { todayIso } from "../lib/dates";
 
@@ -18,6 +18,7 @@ vi.mock("../api/cluckwork", () => ({
 const mockListFlocks = vi.mocked(listFlocks);
 const mockListEggGrades = vi.mocked(listEggGrades);
 const mockListDailyEntries = vi.mocked(listDailyEntries);
+const mockCreateFlock = vi.mocked(createFlock);
 
 const FLOCK: Flock = {
   id: "f1", farmId: "farm1", houseId: "h1", name: "Hen House 1", breed: "ISA",
@@ -159,5 +160,52 @@ describe("DailyEntryPage prefill gating", () => {
     expect(screen.getByLabelText("Total eggs")).toBeDisabled();
     expect(submitBtn()).toBeDisabled();
     expect(saveDraftBtn()).toBeDisabled();
+  });
+});
+
+// F131: the "+ new flock" form used to unfold inline and push the whole entry
+// grid down the page. It is a catalog create like any other, so it lives in a
+// dialog now.
+describe("DailyEntryPage new-flock dialog", () => {
+  const dialog = () => screen.getByRole("dialog");
+  const openNewFlock = () =>
+    fireEvent.click(screen.getByRole("button", { name: "+ new flock" }));
+
+  it("creates the flock with the full body and a key, then closes and selects it", async () => {
+    mockCreateFlock.mockResolvedValue({ id: "f2" });
+    const CREATED: Flock = { ...FLOCK, id: "f2", name: "Rhode Reds", breed: "Rhode Island Red" };
+    await renderReady();
+    // the refresh after the create must return the new flock so it can be selected
+    mockListFlocks.mockResolvedValue([FLOCK, CREATED]);
+    openNewFlock();
+
+    // every field off its default (placed = today, birds = 100, name/breed = "")
+    fireEvent.change(within(dialog()).getByLabelText("Name"), { target: { value: "Rhode Reds" } });
+    fireEvent.change(within(dialog()).getByLabelText("Breed"), { target: { value: "Rhode Island Red" } });
+    fireEvent.change(within(dialog()).getByLabelText("Placed"), { target: { value: "2026-05-10" } });
+    fireEvent.change(within(dialog()).getByLabelText("Birds"), { target: { value: "250" } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Create flock" }));
+    });
+
+    expect(mockCreateFlock.mock.calls[0][0]).toEqual({
+      name: "Rhode Reds", breed: "Rhode Island Red",
+      placementDate: "2026-05-10", initialCount: 250,
+    });
+    expect(mockCreateFlock.mock.calls[0][1]).toEqual(expect.any(String)); // idempotency key
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument(); // success dismisses it
+    // the freshly created flock becomes the capture target
+    expect(screen.getByLabelText("Flock")).toHaveValue("f2");
+  });
+
+  it("closes on Cancel without creating anything", async () => {
+    await renderReady();
+    openNewFlock();
+    fireEvent.change(within(dialog()).getByLabelText("Name"), { target: { value: "Abandoned" } });
+
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(mockCreateFlock).not.toHaveBeenCalled();
   });
 });
