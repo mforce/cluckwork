@@ -43,19 +43,16 @@ export default defineConfig(({ mode }) => {
         reporter: ["text", "html"],
         thresholds: {
           // Global regression floor, re-baselined as screen tests land. After
-          // the F135 confirm/reason dialogs: lines 89.9 / branch 83.4 / funcs
-          // 70.1 — the one-way actions (submit day, confirm/cancel/void order,
-          // void payment, void entry, deplete/archive flock) all had ZERO
-          // coverage while they lived behind window.confirm/prompt, because a
-          // stubbed native popup tests nothing but the stub. Reports stays
-          // untested; the static Help/shell screens are excluded-in-spirit —
-          // hence sub-100. A screen-test PR raises lines/functions; branches
-          // move either way (testing a screen exposes all its conditional
-          // branches), so re-baseline branches in BOTH directions with headroom.
-          lines: 89,
-          statements: 89,
-          functions: 69,
-          branches: 82,
+          // the mobile bottom-nav (nav model + BottomNav, both ~100%): lines
+          // 90.6 / branch 84.4 / funcs 71.1. Reports stays untested; the static
+          // Help/shell screens are excluded-in-spirit — hence sub-100. A
+          // screen-test PR raises lines/functions; branches move either way
+          // (testing a screen exposes all its conditional branches), so
+          // re-baseline branches in BOTH directions with headroom.
+          lines: 90,
+          statements: 90,
+          functions: 70,
+          branches: 83,
           // high-water locks on the fully-covered foundation
           "src/auth/**": { statements: 100, lines: 100, functions: 100, branches: 95 },
           "src/lib/**": { statements: 100, lines: 100, functions: 100, branches: 100 },

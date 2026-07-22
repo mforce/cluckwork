@@ -46,6 +46,18 @@ straight from Active for mistake-created flocks):
   Its lifecycle dates are cleared, so full capture (any date) is restored. A
   flock archived after depletion carries both dates; reactivation clears both.
 
+## Getting around
+
+**Navigation** — where the app's screens live. Above 900px wide they sit in the
+aubergine **sidebar**, grouped by job (Overview, Production, Sales & stock,
+Insights, Setup, Help). Below 900px — a phone — the sidebar gives way to a
+**bottom tab bar**: the four most-used destinations the current role can reach,
+plus **More**, which opens a sheet with the complete grouped list. The four
+tabs are chosen per role from a fixed priority order (Daily entry, Stock, Sales,
+History, …), so a worker leads with Daily entry and a ReadOnly viewer, who has
+neither production nor sales, leads with Stock. Both navs are built from one
+model, so the role gates cannot drift between them.
+
 ## Production
 
 **Daily entry** — one flock's production record for one operational day: total

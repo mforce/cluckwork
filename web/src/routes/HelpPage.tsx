@@ -9,6 +9,7 @@ import { useEffect, useState } from "react";
 // Must mirror the <h3 id=...> sections below, in document order — a section
 // missing here is invisible to anyone who navigates by the contents list.
 const TOC = [
+  ["getting-around", "Getting around"],
   ["daily-loop", "The daily loop"],
   ["roles", "Who can do what"],
   ["dialogs", "Adding & correcting"],
@@ -84,7 +85,21 @@ export function HelpPage() {
         </nav>
 
         <div className="help-body">
-          <h3 id="daily-loop">The daily loop</h3>
+          <h3 id="getting-around">Getting around</h3>
+      <ul>
+        <li>
+          On a computer, every screen sits in the <strong>sidebar</strong> on
+          the left, grouped by job.
+        </li>
+        <li>
+          On a phone, the screens you use most are <strong>tabs across the
+          bottom</strong>, in easy thumb reach. Which four you get depends on
+          your role — a worker gets Daily entry, someone in sales gets Sales.
+          Everything else is one tap away under <strong>More</strong>.
+        </li>
+      </ul>
+
+      <h3 id="daily-loop">The daily loop</h3>
       <p>
         Everything in Cluckwork hangs off one chain: you record a <strong>daily
         entry</strong> for each flock (eggs by grade, losses, deaths), you{" "}
@@ -575,6 +590,8 @@ export function HelpPage() {
       <h3 id="glossary">Glossary</h3>
       <table className="data">
         <tbody>
+          <tr><th scope="row">Navigation</th>
+            <td>Screens live in the left sidebar on a computer; on a phone the four you use most are tabs across the bottom, the rest under More.</td></tr>
           <tr><th scope="row">Daily entry</th>
             <td>One flock's day: eggs by grade, losses, deaths. Draft until submitted.</td></tr>
           <tr><th scope="row">Egg lot</th>
