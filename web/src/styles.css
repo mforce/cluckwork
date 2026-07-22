@@ -71,6 +71,10 @@
   --r-card: 16px;
   --r-pill: 999px;
   --sidebar-w: 244px;
+  /* Height reserved for the mobile tab bar. Zero on desktop, where the bar is
+     hidden — so `bottom: var(--tabbar-h)` on the sticky footers is a no-op
+     there and lifts them above the bar on a phone. */
+  --tabbar-h: 0px;
 
   --font: "Inter Variable", Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --shadow-card: 0 1px 2px rgba(29, 21, 33, 0.04), 0 8px 24px rgba(29, 21, 33, 0.05);
@@ -696,7 +700,8 @@ input.cell {
    here too: anything below a sticky bar scrolls under it and is never seen. */
 .entry-foot {
   position: sticky;
-  bottom: 0;
+  /* Sits above the mobile tab bar (var is 0 on desktop, where there is none). */
+  bottom: var(--tabbar-h);
   /* Above the page, below the dialog backdrop (50) — a confirmation must cover
      the bar that opened it. */
   z-index: 10;
@@ -951,6 +956,102 @@ input.cell {
 .sidebar button.link:hover:not(:disabled) {
   color: var(--on-aubergine);
   text-decoration: none;
+}
+
+/* -------------------------------------------- Bottom nav (mobile) */
+
+/* The tab bar and its More sheet own navigation below 900px; the sidebar owns
+   it above. Hidden here so both can live in the DOM at once — CSS, not JS,
+   decides which is active, so there is no flash and no media-query listener. */
+.tabbar {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .tabbar {
+    display: grid;
+    grid-auto-columns: 1fr;
+    grid-auto-flow: column;
+    position: fixed;
+    inset: auto 0 0 0;
+    z-index: 20; /* over the page + the entry footer (10), under the dialog (50) */
+    background: var(--surface);
+    border-top: 1px solid var(--hairline);
+    box-shadow: var(--shadow-bar);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .tab {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.15rem;
+    /* Clears the 44px touch target the rest of the app now holds to. */
+    min-height: 3.4rem;
+    padding: 0.4rem 0.25rem;
+    background: none;
+    border: none;
+    border-radius: 0;
+    color: var(--muted);
+    font-size: 0.66rem;
+    font-weight: 600;
+    letter-spacing: 0;
+    text-decoration: none;
+  }
+
+  .tab svg { opacity: 0.85; }
+
+  .tab.active {
+    color: var(--stat-accent);
+  }
+
+  .tab.active svg { opacity: 1; }
+}
+
+/* The More sheet reuses the Dialog shell, so these only style its contents. */
+.more-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.more-group-label {
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0.9rem 0 0.15rem;
+}
+
+.more-nav a {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.7rem 0.5rem;
+  border-radius: var(--r-input);
+  color: var(--ink);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.more-nav a svg { color: var(--muted); flex: none; }
+
+.more-nav a.active {
+  background: var(--tint-accent);
+  color: var(--stat-accent);
+}
+
+.more-nav a.active svg { color: var(--stat-accent); }
+
+.more-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--hairline);
 }
 
 .content {
@@ -1321,59 +1422,25 @@ label.check {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  /* Sidebar becomes a full-width top bar; nav links flow in a wrapping row,
-     group labels hide so the bar stays compact (no JS drawer needed). */
+  /* Reserve the real bar height so the sticky footers clear it and the page can
+     scroll its last row out from under it. Must sit on a selector, not bare in
+     the @media — a loose custom-property declaration is invalid and the parser
+     drops it AND the rule after it. */
+  :root {
+    --tabbar-h: 3.6rem;
+  }
+
+  /* The sidebar gives way to the bottom tab bar (BottomNav). It used to become
+     a wrapping top bar that cost ~298px — a third of the screen. */
   .sidebar {
-    position: static;
-    height: auto;
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: center;
-    padding: 0.75rem 1rem;
-    gap: 0.15rem 0.4rem;
-  }
-
-  .brand {
-    padding: 0;
-    margin-right: 0.5rem;
-    flex: 0 0 auto;
-  }
-
-  .nav-group {
-    display: contents;
-  }
-
-  .nav-group-label {
     display: none;
   }
 
-  .sidebar nav {
-    flex-direction: row;
-    flex-wrap: wrap;
-    gap: 0.15rem 0.25rem;
-  }
-
-  .sidebar nav a {
-    padding: 0.5rem 0.7rem;
-    border-left: none;
-    border-radius: var(--r-pill);
-    font-size: 0.9rem;
-  }
-
-  .sidebar nav a.active {
-    border-left: none;
-  }
-
-  .sidebar-foot {
-    flex-direction: row;
-    margin: 0 0 0 auto;
-    padding: 0;
-    border-top: none;
-    gap: 0.25rem;
-  }
-
   .content {
-    padding: 1.5rem 1.15rem 5rem;
+    /* Exactly the tab bar (plus the home indicator) below the content, so a
+       sticky footer parked at `bottom: var(--tabbar-h)` reaches its flow rest
+       at the same line it stuck to — clearing the bar without a gap. */
+    padding: 1.5rem 1.15rem calc(var(--tabbar-h) + env(safe-area-inset-bottom));
   }
 
   .content > section > h2,
@@ -1433,7 +1500,7 @@ label.check {
 
   .actions {
     position: sticky;
-    bottom: 0;
+    bottom: var(--tabbar-h); /* clear the tab bar */
     background: var(--canvas);
     padding: 0.75rem 0;
     margin-top: 0.75rem;
@@ -1448,7 +1515,10 @@ label.check {
     margin-right: -1.15rem;
     padding-left: 1.15rem;
     padding-right: 1.15rem;
-    margin-bottom: -5rem; /* .content's mobile padding-bottom */
+    /* Cancel the content's whole bottom padding so the footer's flow rest lands
+       exactly on its stuck line (bottom: var(--tabbar-h)) — flush above the tab
+       bar, no gap and no overlap. */
+    margin-bottom: calc(-1 * (var(--tabbar-h) + env(safe-area-inset-bottom)));
   }
 
   /* One pane above the other: side by side on a phone would put four-digit

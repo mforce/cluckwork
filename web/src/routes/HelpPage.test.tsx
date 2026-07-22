@@ -35,14 +35,14 @@ describe("HelpPage", () => {
     render(<HelpPage />);
     const toc = screen.getByRole("navigation", { name: "Help contents" });
 
-    // first item is current by default
-    expect(within(toc).getByRole("link", { name: "The daily loop" })).toHaveAttribute("aria-current", "location");
+    // first item is current by default (Getting around leads the guide now)
+    expect(within(toc).getByRole("link", { name: "Getting around" })).toHaveAttribute("aria-current", "location");
 
     // 'Flocks & birds' scrolls into view → it becomes current, the previous clears
     act(() => ioCallback?.([{ isIntersecting: true, target: { id: "flocks" }, boundingClientRect: { top: 12 } }]));
     const flocks = within(toc).getByRole("link", { name: "Flocks & birds" });
     expect(flocks).toHaveClass("active");
     expect(flocks).toHaveAttribute("aria-current", "location");
-    expect(within(toc).getByRole("link", { name: "The daily loop" })).not.toHaveAttribute("aria-current");
+    expect(within(toc).getByRole("link", { name: "Getting around" })).not.toHaveAttribute("aria-current");
   });
 });
