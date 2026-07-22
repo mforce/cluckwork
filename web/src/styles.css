@@ -100,7 +100,7 @@
   --lavender: #241c2a;
   --hairline: #3a2f40;
   --row-hover: #2b2231;
-  --scroll-cue: rgba(0, 0, 0, 0.5); /* edge fade for scrolling tables (#150) — dark on dark reads as depth */
+  --scroll-cue: rgba(255, 255, 255, 0.16); /* edge cue for scrolling tables (#150) — a light glow, since a dark shadow vanishes on the dark surface */
   --error: #ff8666;
   --success: #4bbf97;
   --warn: #e0a44a;
@@ -142,7 +142,7 @@
     --lavender: #241c2a;
     --hairline: #3a2f40;
     --row-hover: #2b2231;
-    --scroll-cue: rgba(0, 0, 0, 0.5); /* edge fade for scrolling tables (#150) */
+    --scroll-cue: rgba(255, 255, 255, 0.16); /* edge cue for scrolling tables (#150) — light glow; dark shadow vanishes on the dark surface */
     --error: #ff8666;
     --success: #4bbf97;
     --warn: #e0a44a;
@@ -1464,18 +1464,22 @@ label.check {
     /* Scroll-shadow affordance (#150). Overlay scrollbars vanish at rest, so a
        wide table gives no sign the last column is clipped. Two "cover" layers
        (surface -> transparent) are pinned to the CONTENT (attachment: local):
-       they ride the row and mask the shadow at whichever edge you have reached.
-       Two "shadow" layers (--scroll-cue -> transparent) are pinned to the
-       SCROLLER (attachment: scroll): they sit at the element edges and show
-       through wherever content still overflows past them. Result: a right fade
-       while there is more right, a left fade once scrolled, neither at rest with
-       no overflow — theme-aware via the tokens, no JS, no per-table markup, so
-       it covers every data table at once. (Lea Verou's technique.) */
+       they ride the row and mask the cue at whichever edge you have reached.
+       Two "cue" layers (--scroll-cue -> transparent) are pinned to the SCROLLER
+       (attachment: scroll): they sit at the element edges and show through
+       wherever content still overflows past them. Result: a right fade while
+       there is more right, a left fade once scrolled, neither at rest with no
+       overflow — theme-aware via the tokens, no JS, no per-table markup, so it
+       covers every data table at once. (Lea Verou's technique.) The cue layers
+       are LINEAR (not Verou's radial): a radial cue fades out toward the top and
+       bottom rows, so on a tall table the edge reads unevenly — a linear bar is
+       uniform down the whole edge. The cover's solid stop (40% of 2.25rem =
+       0.9rem) fully spans the 0.85rem cue, so nothing peeks at the rested edge. */
     background:
-      linear-gradient(to right, var(--surface) 35%, transparent) 0 0 / 2.25rem 100% no-repeat local,
-      linear-gradient(to left, var(--surface) 35%, transparent) 100% 0 / 2.25rem 100% no-repeat local,
-      radial-gradient(farthest-side at 0 50%, var(--scroll-cue), transparent) 0 0 / 0.85rem 100% no-repeat scroll,
-      radial-gradient(farthest-side at 100% 50%, var(--scroll-cue), transparent) 100% 0 / 0.85rem 100% no-repeat scroll;
+      linear-gradient(to right, var(--surface) 40%, transparent) 0 0 / 2.25rem 100% no-repeat local,
+      linear-gradient(to left, var(--surface) 40%, transparent) 100% 0 / 2.25rem 100% no-repeat local,
+      linear-gradient(to right, var(--scroll-cue), transparent) 0 0 / 0.85rem 100% no-repeat scroll,
+      linear-gradient(to left, var(--scroll-cue), transparent) 100% 0 / 0.85rem 100% no-repeat scroll;
   }
 
   .help table.data {
