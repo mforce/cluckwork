@@ -4,7 +4,7 @@ import { SalesPage } from "./SalesPage";
 import { renderWithProviders } from "../test/renderWithProviders";
 import {
   addOrderItem, createOrder, getOrder, listCustomers, listEggGrades,
-  listOrderPayments, listOrders, listProducts, updateOrderItem,
+  listOrderPayments, listOrders, listProducts, recordPayment, updateOrderItem,
 } from "../api/cluckwork";
 import type { Customer, EggGrade, OrderItem, Product, SalesOrder } from "../api/cluckwork";
 
@@ -44,6 +44,7 @@ const mockCreateOrder = vi.mocked(createOrder);
 const mockGetOrder = vi.mocked(getOrder);
 const mockAddOrderItem = vi.mocked(addOrderItem);
 const mockUpdateOrderItem = vi.mocked(updateOrderItem);
+const mockRecordPayment = vi.mocked(recordPayment);
 
 const CUSTOMER: Customer = { id: "c1", name: "Acme Eggs", phone: "555", email: null, address: null, note: null };
 // Only gr1 is saleable → the picker offers PRODUCT_A only; gr2/PRODUCT_B exists
@@ -109,18 +110,22 @@ beforeEach(() => {
   });
 });
 
-// The create form only appears once customers + the (initially empty) order list
-// have loaded; wait on it so the mount effects have settled.
+// The "New order" action only appears once customers have loaded; wait on it so
+// the mount effects have settled.
 async function renderReady() {
   renderWithProviders(<SalesPage />, { token: ADMIN });
-  await screen.findByRole("button", { name: "New draft order" });
+  await screen.findByRole("button", { name: "New order" });
 }
+
+// F131: starting an order goes through a dialog now.
+const dialog = () => screen.getByRole("dialog");
 
 async function createDraft(order: SalesOrder) {
   mockCreateOrder.mockResolvedValue({ id: order.id });
   mockGetOrder.mockResolvedValue(order);
+  fireEvent.click(screen.getByRole("button", { name: "New order" }));
   await act(async () => {
-    fireEvent.click(screen.getByRole("button", { name: "New draft order" }));
+    fireEvent.click(within(dialog()).getByRole("button", { name: "New draft order" }));
   });
   await screen.findByText(new RegExp(order.referenceNumber)); // panel header
 }
@@ -231,5 +236,76 @@ describe("SalesPage unit-price parsing", () => {
     expect(mockUpdateOrderItem.mock.calls[0][2]).toMatchObject({
       quantity: 3, unitPriceMinorUnits: expected, // quantity prefilled from the item, unchanged
     });
+  });
+});
+
+// F131: taking a payment is a discrete per-order action, so it moved behind a
+// "Record payment" button into a dialog. Payments had no coverage before this
+// slice — the money path is asserted at a 3-decimal scale so a hard-coded ×100
+// cannot pass.
+describe("SalesPage payment dialog", () => {
+  // A confirmed BHD order (3dp) with 12.000 outstanding.
+  const CONFIRMED: SalesOrder = {
+    ...draftEmpty(3, "BHD", "o9"), referenceNumber: "SO-9", status: "Confirmed",
+    totalMinorUnits: 12000, items: [ITEM_A],
+  };
+
+  async function openWithOutstanding() {
+    mockListOrderPayments.mockResolvedValue({
+      items: [], paidMinorUnits: 0, outstandingMinorUnits: 12000, totalMinorUnits: 12000,
+      currencyCode: "BHD", currencyMinorUnit: 3,
+    });
+    await openOrder(CONFIRMED, /Grade A Dozen/);
+    fireEvent.click(await screen.findByRole("button", { name: "Record payment" }));
+  }
+
+  it("records the payment with the full body at the order's currency scale, then closes", async () => {
+    mockRecordPayment.mockResolvedValue({ id: "pay1" });
+    await openWithOutstanding();
+
+    // every field off its default (date = today, method = Cash, blanks)
+    fireEvent.change(within(dialog()).getByLabelText("Date"), { target: { value: "2026-07-21" } });
+    fireEvent.change(within(dialog()).getByLabelText(/Amount/), { target: { value: "1.5" } }); // BHD 3dp → 1500
+    fireEvent.change(within(dialog()).getByLabelText("Method"), { target: { value: "BankTransfer" } });
+    fireEvent.change(within(dialog()).getByLabelText(/Reference/), { target: { value: "TRX-7" } });
+    fireEvent.change(within(dialog()).getByLabelText(/Note/), { target: { value: "part payment" } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Record payment" }));
+    });
+
+    expect(mockRecordPayment.mock.calls[0][0]).toBe("o9");
+    expect(mockRecordPayment.mock.calls[0][1]).toEqual({
+      paymentDate: "2026-07-21",
+      amountMinorUnits: 1500, // "1.5" at 3dp — a 2dp path would send 150
+      method: "BankTransfer",
+      referenceNumber: "TRX-7",
+      note: "part payment",
+    });
+    expect(mockRecordPayment.mock.calls[0][2]).toEqual(expect.any(String)); // idempotency key
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument(); // success dismisses it
+  });
+
+  it("nulls the blank optional fields", async () => {
+    mockRecordPayment.mockResolvedValue({ id: "pay2" });
+    await openWithOutstanding();
+
+    fireEvent.change(within(dialog()).getByLabelText(/Amount/), { target: { value: "2" } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Record payment" }));
+    });
+
+    const body = mockRecordPayment.mock.calls[0][1];
+    expect(body.referenceNumber).toBeNull();
+    expect(body.note).toBeNull();
+  });
+
+  it("closes on Cancel without recording anything", async () => {
+    await openWithOutstanding();
+    fireEvent.change(within(dialog()).getByLabelText(/Amount/), { target: { value: "5" } });
+
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(mockRecordPayment).not.toHaveBeenCalled();
   });
 });

@@ -135,15 +135,16 @@ export function HelpPage() {
         <li>
           Adding and correcting happen in a popup. Look for the{" "}
           <strong>New …</strong> button beside the screen&apos;s title — new
-          grade, product, customer, flock, item, user. Each row&apos;s{" "}
+          grade, product, customer, flock, item, user, order. Each row&apos;s{" "}
           <strong>edit</strong> or <strong>correct</strong> link opens the same
           popup with that row&apos;s values already filled in.
         </li>
         <li>
           Drill-downs work the same way. Open a flock&apos;s{" "}
-          <strong>birds</strong> ledger to record a cull, or an inventory
-          item to record a purchase, feed usage, or a stock correction — the
-          ledger stays where it is and the form comes to you.
+          <strong>birds</strong> ledger to record a cull, an inventory item to
+          record a purchase, feed usage, or a stock correction, or an order to{" "}
+          <strong>record a payment</strong> — the ledger stays where it is and
+          the form comes to you.
         </li>
         <li>
           <strong>Cancel</strong>, Escape, or a click outside closes the popup
@@ -153,8 +154,9 @@ export function HelpPage() {
         </li>
         <li>
           The screens whose whole job is capture keep their form on the page:{" "}
-          <strong>Daily entry</strong>, <strong>Water</strong>, and recording an
-          expense. Those you use every day — no extra click.
+          <strong>Daily entry</strong>, <strong>Water</strong>, recording an
+          expense, and adding lines to a draft order. Those you use every day —
+          no extra click.
         </li>
       </ul>
 

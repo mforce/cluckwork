@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Plus } from "lucide-react";
 import {
   addOrderItem, cancelOrder, confirmOrder, createOrder, formatMoney, getOrder,
   listCustomers, listEggGrades, listOrderPayments, listOrders, listProducts,
@@ -8,6 +9,7 @@ import {
 import type { Customer, OrderPayments, Product, SalesOrder } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
+import { Dialog } from "../components/Dialog";
 import { StatusBadge } from "../components/StatusBadge";
 
 const PAGE = 50;
@@ -45,6 +47,11 @@ export function SalesPage() {
   const [customerFilter, setCustomerFilter] = useState("");
 
   // create-order form
+  // F131: starting an order and taking a payment are discrete actions, not the
+  // order builder itself — they open dialogs. Adding lines stays inline: the
+  // draft panel IS the work surface.
+  const [creatingOrder, setCreatingOrder] = useState(false);
+  const [paying, setPaying] = useState(false);
   const [customerId, setCustomerId] = useState("");
   const [orderDate, setOrderDate] = useState(todayIso());
   // active draft being built
@@ -190,6 +197,7 @@ export function SalesPage() {
     setActive(await getOrder(created.id));
     await loadOrders();
     clearKey("create-order");
+    setCreatingOrder(false); // only on success — a throw keeps the dialog up
   });
 
   const onAddItem = () => run(async () => {
@@ -290,6 +298,7 @@ export function SalesPage() {
     setPayNote("");
     await refreshPayments(active.id);
     setMessage("Payment recorded.");
+    setPaying(false); // only on success — a throw keeps the dialog up
   });
 
   const onVoidPayment = (paymentId: string, version: number) => {
@@ -349,11 +358,23 @@ export function SalesPage() {
 
   return (
     <section>
-      <h2>Sales</h2>
+      <div className="page-head">
+        <h2>Sales</h2>
+        {customers.length > 0 && (
+          <button type="button" onClick={() => { setError(null); setCreatingOrder(true); }}>
+            <Plus size={16} aria-hidden /> New order
+          </button>
+        )}
+      </div>
 
-      {customers.length === 0 ? (
+      {customers.length === 0 && (
         <p className="muted">Add a customer first (Customers page), then create an order.</p>
-      ) : (
+      )}
+
+      {/* Deliberately NOT a <form>: these controls were button-driven, so
+          wrapping them in one would newly enforce min/step and swallow the
+          screen's own money messages (codex review of #132). */}
+      <Dialog open={creatingOrder} title="New order" onClose={() => setCreatingOrder(false)}>
         <div className="form-grid">
           <label>Customer
             <select value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
@@ -364,9 +385,14 @@ export function SalesPage() {
             <input type="date" value={orderDate} max={todayIso()}
               onChange={(e) => setOrderDate(e.target.value)} />
           </label>
-          <button disabled={busy || !customerId} onClick={onCreateOrder}>New draft order</button>
+          {/* An open dialog renders its own copy of the error. */}
+      {error && !creatingOrder && !paying && <p className="error">{error}</p>}
+          <div className="dialog-foot">
+            <button type="button" className="link" onClick={() => setCreatingOrder(false)}>Cancel</button>
+            <button disabled={busy || !customerId} onClick={onCreateOrder}>New draft order</button>
+          </div>
         </div>
-      )}
+      </Dialog>
 
       {active && (
         <div className="order-panel">
@@ -507,6 +533,14 @@ export function SalesPage() {
                 </strong>
               </p>
               {payments.outstandingMinorUnits > 0 && (
+                <div className="panel-actions">
+                  <button type="button" onClick={() => { setError(null); setPaying(true); }}>
+                    Record payment
+                  </button>
+                </div>
+              )}
+
+              <Dialog open={paying} title="Record payment" onClose={() => setPaying(false)}>
                 <div className="form-grid">
                   <label>Date
                     <input type="date" value={payDate} max={todayIso()}
@@ -533,11 +567,16 @@ export function SalesPage() {
                     <input value={payNote} maxLength={500}
                       onChange={(e) => setPayNote(e.target.value)} />
                   </label>
-                  <button disabled={busy || !payAmount} onClick={onRecordPayment}>
-                    Record payment
-                  </button>
+                  {/* An open dialog renders its own copy of the error. */}
+      {error && !creatingOrder && !paying && <p className="error">{error}</p>}
+                  <div className="dialog-foot">
+                    <button type="button" className="link" onClick={() => setPaying(false)}>Cancel</button>
+                    <button disabled={busy || !payAmount} onClick={onRecordPayment}>
+                      Record payment
+                    </button>
+                  </div>
                 </div>
-              )}
+              </Dialog>
             </>
           )}
           {active.status === "Voided" && active.voidReason && (
@@ -559,7 +598,8 @@ export function SalesPage() {
         </div>
       )}
 
-      {error && <p className="error">{error}</p>}
+      {/* An open dialog renders its own copy of the error. */}
+      {error && !creatingOrder && !paying && <p className="error">{error}</p>}
       {message && <p className="success">{message}</p>}
 
       <h3>Orders</h3>
