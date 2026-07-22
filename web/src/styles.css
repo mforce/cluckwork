@@ -1,15 +1,138 @@
+/* Cluckwork visual identity (#52) — adapted from web/DESIGN.md ("Slacc"
+   aubergine system). The marketing language becomes a farm-ops app: the
+   brand's chromatic monotheism (aubergine) is the navigation spine, the
+   pastel-mesh flourish is reserved for the login front door, and data
+   screens take a hairline treatment lifted with badges, meters, and carded
+   toolbars. Light/night is user-toggled (data-theme) over the OS default.
+   Design-only: markup semantics are unchanged. */
+
 :root {
-  --bg: #f6f5f0;
-  --card: #ffffff;
-  --ink: #2b2620;
-  /* 4.6:1 on --bg — body-sized muted text must clear WCAG AA (was #8a8378
-     at 3.4:1; flagged in the #74 accuracy review). */
-  --muted: #6d675d;
-  --accent: #d98a1f;
-  --error: #b00020;
-  --border: #e4e0d7;
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  /* Brand — the one accent, reused everywhere it matters (DESIGN.md monotheism) */
+  --aubergine: #4a154b;
+  --aubergine-press: #611f69;
+  --aubergine-tint: #592466;
+  --on-aubergine: #ffffff;
+  --on-aubergine-mute: #d9bdde;
+
+  /* Ink & links (blue is the only chromatic departure from aubergine) */
+  --ink: #1d1d1d;
+  --muted: #696969;
+  --link: #1264a3;
+  --link-hover: #3860be;
+
+  /* Surfaces */
+  --canvas: #faf7fc; /* app background — a whisper of lavender */
+  --surface: #ffffff;
+  --surface-2: #f6f1f8; /* subtle inset (toolbars, meter tracks) */
+  --lavender: #f9f0ff;
+  --hairline: #e6e6e6;
+  --row-hover: #faf5fc;
+
+  /* Semantic */
+  --error: #bd3a14; /* darkened so the small danger badge clears AA (4.5:1) */
+  --success: #007a5a;
+  --warn: #8a5a00; /* amber that clears AA on white */
+
+  /* Tinted badge fills (soft, theme-aware) */
+  --tint-accent: #f3e9f5;
+  --tint-ok: #e2f2ec;
+  --tint-warn: #f7ecd9;
+  --tint-danger: #f9e5df;
+  --tint-muted: #eeeaf0;
+
+  /* Themeable component hooks (overridden wholesale in dark) */
+  --stat-accent: var(--aubergine);
+  /* focus ring / accent-on-surface — theme-aware so it stays visible in dark;
+     the sidebar (aubergine) overrides this to a light ring below. */
+  --focus: var(--stat-accent);
+  --auth-brand: var(--aubergine);
+  --auth-card-border: rgba(255, 255, 255, 0.7);
+  --auth-card-shadow: 0 20px 60px rgba(74, 21, 75, 0.14);
+  --auth-bg:
+    radial-gradient(60% 55% at 12% 18%, #ffe6d3 0%, transparent 60%),
+    radial-gradient(55% 50% at 88% 12%, #ecdcff 0%, transparent 60%),
+    radial-gradient(55% 55% at 82% 88%, #d9f0e2 0%, transparent 62%),
+    radial-gradient(50% 50% at 18% 90%, #f7e4ff 0%, transparent 60%),
+    var(--lavender);
+
+  --r-input: 8px;
+  --r-card: 16px;
+  --r-pill: 999px;
+  --sidebar-w: 244px;
+
+  --font: "Inter Variable", Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --shadow-card: 0 1px 2px rgba(29, 21, 33, 0.04), 0 8px 24px rgba(29, 21, 33, 0.05);
+
+  font-family: var(--font);
   color: var(--ink);
+  color-scheme: light; /* native controls follow the app's theme, not the OS, once toggled */
+}
+
+/* ---- Night mode: explicit toggle wins; otherwise follow the OS default ---- */
+:root[data-theme="dark"] {
+  --ink: #f2ecf4;
+  --muted: #b3a8b8;
+  --link: #7fb4e6;
+  --link-hover: #a9cef0;
+  --canvas: #17121a;
+  --surface: #221a26;
+  --surface-2: #2b2231;
+  --lavender: #241c2a;
+  --hairline: #3a2f40;
+  --row-hover: #2b2231;
+  --error: #ff8666;
+  --success: #4bbf97;
+  --warn: #e0a44a;
+  --tint-accent: #33203a;
+  --tint-ok: #14342b;
+  --tint-warn: #3a2e18;
+  --tint-danger: #3a2019;
+  --tint-muted: #2c2333;
+  --stat-accent: #e6c7ec;
+  --auth-brand: #e6c7ec;
+  --auth-card-border: var(--hairline);
+  --auth-card-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  --auth-bg:
+    radial-gradient(60% 55% at 12% 18%, rgba(122, 47, 132, 0.5) 0%, transparent 60%),
+    radial-gradient(55% 50% at 88% 12%, rgba(74, 21, 75, 0.6) 0%, transparent 60%),
+    radial-gradient(55% 55% at 82% 88%, rgba(45, 90, 70, 0.35) 0%, transparent 62%),
+    var(--canvas);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 10px 30px rgba(0, 0, 0, 0.35);
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --ink: #f2ecf4;
+    --muted: #b3a8b8;
+    --link: #7fb4e6;
+    --link-hover: #a9cef0;
+    --canvas: #17121a;
+    --surface: #221a26;
+    --surface-2: #2b2231;
+    --lavender: #241c2a;
+    --hairline: #3a2f40;
+    --row-hover: #2b2231;
+    --error: #ff8666;
+    --success: #4bbf97;
+    --warn: #e0a44a;
+    --tint-accent: #33203a;
+    --tint-ok: #14342b;
+    --tint-warn: #3a2e18;
+    --tint-danger: #3a2019;
+    --tint-muted: #2c2333;
+    --stat-accent: #e6c7ec;
+    --auth-brand: #e6c7ec;
+    --auth-card-border: var(--hairline);
+    --auth-card-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    --auth-bg:
+      radial-gradient(60% 55% at 12% 18%, rgba(122, 47, 132, 0.5) 0%, transparent 60%),
+      radial-gradient(55% 50% at 88% 12%, rgba(74, 21, 75, 0.6) 0%, transparent 60%),
+      radial-gradient(55% 55% at 82% 88%, rgba(45, 90, 70, 0.35) 0%, transparent 62%),
+      var(--canvas);
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 10px 30px rgba(0, 0, 0, 0.35);
+    color-scheme: dark;
+  }
 }
 
 * {
@@ -18,152 +141,122 @@
 
 body {
   margin: 0;
-  background: var(--bg);
+  background: var(--canvas);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
 }
 
-/* --- Auth screen --- */
-.auth {
-  min-height: 100dvh;
-  display: grid;
-  place-items: center;
-  padding: 1rem;
+h1, h2, h3, h4 {
+  font-weight: 800;
+  letter-spacing: -0.02em; /* DESIGN.md: negative tracking on display sizes */
+  line-height: 1.15;
 }
 
-.card {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 2rem;
-  width: min(360px, 100%);
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+/* ---------------------------------------------------------------- Buttons */
+button {
+  padding: 0.66rem 1.5rem;
+  border: none;
+  border-radius: var(--r-pill);
+  background: var(--aubergine);
+  color: var(--on-aubergine);
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  transition: background 0.12s ease, transform 0.05s ease;
 }
 
-.card h1 {
-  margin: 0 0 0.5rem;
-  text-align: center;
+button:hover:not(:disabled) {
+  background: var(--aubergine-press);
 }
 
+button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* Inline action / navigation buttons — text, not pills. Blue, like links. */
+button.link {
+  background: none;
+  color: var(--link);
+  font-weight: 600;
+  font-size: 0.9rem;
+  letter-spacing: 0;
+  padding: 0.3rem 0.4rem;
+  border-radius: var(--r-input);
+}
+
+button.link:hover:not(:disabled) {
+  background: none;
+  color: var(--link-hover);
+  text-decoration: underline;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* An aubergine ring is invisible on the aubergine sidebar — use a light one. */
+.sidebar :focus-visible {
+  outline-color: var(--on-aubergine);
+}
+
+/* --------------------------------------------------------- Inputs & forms */
 label {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
-  font-size: 0.9rem;
-  color: var(--muted);
-}
-
-input {
-  padding: 0.6rem 0.7rem;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  font-size: 1rem;
-  color: var(--ink);
-  background: #fff;
-}
-
-input:focus {
-  outline: 2px solid var(--accent);
-  border-color: var(--accent);
-}
-
-button {
-  padding: 0.6rem 1rem;
-  border: none;
-  border-radius: 8px;
-  background: var(--accent);
-  color: #fff;
-  font-size: 1rem;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-button:disabled {
-  opacity: 0.6;
-  cursor: default;
-}
-
-button.link {
-  background: none;
-  color: var(--muted);
+  font-size: 0.85rem;
   font-weight: 500;
-  padding: 0.3rem 0.5rem;
-}
-
-.error {
-  color: var(--error);
-  margin: 0;
-  font-size: 0.9rem;
-}
-
-.muted {
   color: var(--muted);
 }
 
-/* --- Authenticated shell --- */
-.topbar {
-  display: flex;
-  align-items: center;
-  gap: 1.25rem;
-  padding: 0.75rem 1.5rem;
-  background: var(--card);
-  border-bottom: 1px solid var(--border);
-}
-
-.brand {
-  font-weight: 700;
-  color: var(--accent);
-}
-
-.topbar nav {
-  display: flex;
-  gap: 1rem;
-  flex: 1;
-}
-
-.topbar nav a {
-  text-decoration: none;
-  color: var(--muted);
-  font-weight: 500;
-}
-
-.topbar nav a.active {
+input, select, textarea {
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-input);
+  font: inherit;
+  font-size: 0.95rem;
   color: var(--ink);
+  background: var(--surface);
 }
 
-.content {
-  padding: 2rem 1.5rem;
-  max-width: 960px;
+input:focus, select:focus, textarea:focus {
+  outline: 2px solid var(--focus);
+  outline-offset: 0;
+  border-color: var(--focus);
 }
 
-/* --- Forms & tables (F1/F2) --- */
+input[type="checkbox"] {
+  accent-color: var(--aubergine);
+  width: 1rem;
+  height: 1rem;
+}
+
 .form-grid {
   display: flex;
   flex-wrap: wrap;
   gap: 1rem;
   align-items: end;
-  margin: 0.75rem 0;
+  margin: 0.75rem 0 1.25rem;
 }
 
 .form-grid label {
   min-width: 8rem;
 }
 
-select {
-  padding: 0.55rem 0.7rem;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  font-size: 1rem;
-  background: #fff;
-  color: var(--ink);
-}
-
 .inline-form {
   display: flex;
   gap: 0.5rem;
-  margin: 0.5rem 0 1rem;
+  margin: 0.5rem 0 1.25rem;
   flex-wrap: wrap;
+  align-items: center;
 }
 
 .inline-form input {
@@ -173,92 +266,282 @@ select {
 .actions {
   display: flex;
   gap: 0.75rem;
-  margin-top: 1rem;
-}
-
-.success {
-  color: #2e7d32;
-  margin: 0.5rem 0 0;
-}
-
-.warn {
-  color: #b26a00;
-  font-weight: 600;
-}
-
-table.data {
-  border-collapse: collapse;
-  margin-top: 0.5rem;
-  min-width: 24rem;
-}
-
-table.data th,
-table.data td {
-  text-align: left;
-  padding: 0.5rem 1rem 0.5rem 0;
-  border-bottom: 1px solid var(--border);
-}
-
-table.data th {
-  color: var(--muted);
-  font-weight: 600;
-  font-size: 0.85rem;
-}
-
-/* Row headers (glossary terms) read as body text, not column-header chrome. */
-table.data th[scope="row"] {
-  color: var(--ink);
-  font-size: 1rem;
-  vertical-align: top;
-}
-
-.order-panel {
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 1rem 1.25rem;
-  margin: 1rem 0;
-  background: var(--card);
-}
-
-/* --- Dashboard (F5) --- */
-.dash-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
-  align-items: flex-start;
-}
-
-.panel {
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 1rem 1.25rem;
-  background: var(--card);
-  flex: 1 1 18rem;
-}
-
-.panel h3 {
-  margin: 0 0 0.25rem;
-}
-
-.panel h3 a {
-  color: var(--ink);
-  text-decoration: none;
-}
-
-.panel h3 a:hover {
-  color: var(--accent);
-}
-
-.panel table.data {
-  min-width: 0;
-  width: 100%;
+  margin-top: 1.25rem;
 }
 
 input.cell {
   width: 6.5rem;
 }
 
-/* --- Grades (F6) --- */
+/* -------------------------------------------- Toolbar (carded filter bar) */
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: end;
+  padding: 1rem 1.25rem;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow-card);
+  margin: 0.5rem 0 1.5rem;
+}
+
+.toolbar .form-grid,
+.toolbar .inline-form {
+  margin: 0;
+}
+
+/* ------------------------------------------------- Semantic text & badges */
+.muted {
+  color: var(--muted);
+}
+
+.error {
+  color: var(--error);
+  margin: 0.4rem 0;
+  font-size: 0.92rem;
+}
+
+.success {
+  color: var(--success);
+  font-weight: 600;
+  margin: 0.5rem 0 0;
+}
+
+.warn {
+  color: var(--warn);
+  font-weight: 700;
+}
+
+/* Status badges — a pill with a tinted fill; screens map states to variants. */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.16rem 0.6rem;
+  border-radius: var(--r-pill);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  background: var(--tint-muted);
+  color: var(--muted);
+}
+
+.badge-ok { background: var(--tint-ok); color: var(--success); }
+.badge-warn { background: var(--tint-warn); color: var(--warn); }
+.badge-danger { background: var(--tint-danger); color: var(--error); }
+.badge-accent { background: var(--tint-accent); color: var(--aubergine); }
+
+:root[data-theme="dark"] .badge-accent { color: var(--stat-accent); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) .badge-accent { color: var(--stat-accent); }
+}
+
+/* Meter — a slim track + fill for availability / percentage cells. */
+.meter {
+  height: 6px;
+  min-width: 4rem;
+  border-radius: var(--r-pill);
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.meter > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--stat-accent); /* stays visible on the dark meter track */
+}
+
+.meter.is-warn > span { background: var(--warn); }
+
+/* Eyebrow caps pill (section labels) */
+.eyebrow {
+  display: inline-block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* ------------------------------------------------------- Sidebar shell */
+.shell {
+  display: grid;
+  grid-template-columns: var(--sidebar-w) 1fr;
+  min-height: 100dvh;
+}
+
+.sidebar {
+  background: var(--aubergine);
+  color: var(--on-aubergine);
+  display: flex;
+  flex-direction: column;
+  padding: 1.5rem 0 1rem;
+  position: sticky;
+  top: 0;
+  height: 100dvh;
+  overflow-y: auto;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--on-aubergine);
+  padding: 0 1.5rem 1.25rem;
+}
+
+.brand-mark {
+  color: var(--on-aubergine-mute);
+}
+
+.nav-group {
+  padding: 0.35rem 0;
+}
+
+.nav-group-label {
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--on-aubergine-mute);
+  padding: 0 1.5rem;
+  margin: 0.6rem 0 0.3rem;
+}
+
+.sidebar nav {
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar nav a {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  color: var(--on-aubergine-mute);
+  text-decoration: none;
+  padding: 0.5rem 1.5rem;
+  font-size: 0.94rem;
+  font-weight: 500;
+  border-left: 3px solid transparent;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.sidebar nav a svg {
+  flex: 0 0 auto;
+  opacity: 0.8;
+}
+
+.sidebar nav a:hover {
+  color: var(--on-aubergine);
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.sidebar nav a:hover svg { opacity: 1; }
+
+.sidebar nav a.active {
+  color: var(--on-aubergine);
+  background: rgba(255, 255, 255, 0.11);
+  border-left-color: var(--on-aubergine-mute);
+  font-weight: 600;
+}
+
+.sidebar nav a.active svg { opacity: 1; }
+
+.sidebar-foot {
+  margin-top: auto;
+  padding: 0.75rem 1.25rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Foot buttons sit on aubergine — override the blue .link treatment */
+.sidebar button.link {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  color: var(--on-aubergine-mute);
+  padding: 0.5rem 0.25rem;
+  font-size: 0.9rem;
+}
+
+.sidebar button.link:hover:not(:disabled) {
+  color: var(--on-aubergine);
+  text-decoration: none;
+}
+
+.content {
+  padding: 2.5rem 2.75rem 4rem;
+  max-width: 1120px;
+  width: 100%;
+}
+
+.content > section > h2 {
+  font-size: 1.9rem;
+  margin: 0 0 1.25rem;
+}
+
+.content h3 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.content a {
+  color: var(--link);
+  text-decoration: none;
+}
+
+.content a:hover {
+  color: var(--link-hover);
+  text-decoration: underline;
+}
+
+/* ---------------------------------------------------------------- Tables */
+table.data {
+  border-collapse: collapse;
+  margin-top: 0.5rem;
+  min-width: 24rem;
+  width: 100%;
+}
+
+table.data th,
+table.data td {
+  text-align: left;
+  padding: 0.6rem 1rem 0.6rem 0;
+  border-bottom: 1px solid var(--hairline);
+}
+
+table.data th {
+  color: var(--muted);
+  font-weight: 700;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+table.data tbody tr:hover {
+  background: var(--row-hover);
+}
+
+table.data th[scope="row"] {
+  color: var(--ink);
+  font-size: 1rem;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+  vertical-align: top;
+}
+
 tr.inactive td {
   color: var(--muted);
 }
@@ -269,81 +552,320 @@ label.check {
   gap: 0.4rem;
 }
 
-/* --- Help page (F18, #71) ---
-   Deliberately minimal: prose width for readability, inline TOC. The 1.5
-   redesign (#52) restyles this with everything else. */
-.help {
-  max-width: 46rem;
+/* ------------------------------------------------------ Cards & panels */
+.card,
+.panel,
+.order-panel {
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow-card);
 }
 
-.help nav ul {
-  list-style: none;
-  padding: 0;
+.panel {
+  padding: 1.5rem;
+  flex: 1 1 18rem;
+}
+
+.panel h3 {
+  margin: 0 0 0.5rem;
+}
+
+.panel h3 a {
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.panel h3 a:hover {
+  color: var(--stat-accent);
+  text-decoration: none;
+}
+
+.panel table.data {
+  min-width: 0;
+}
+
+.order-panel {
+  padding: 1.5rem 1.75rem;
+  margin: 1.25rem 0;
+}
+
+.dash-grid {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.25rem 1rem;
+  gap: 1.25rem;
+  align-items: flex-start;
 }
 
-.help h3 {
-  margin-top: 1.75rem;
-  /* Anchor targets clear the sticky-less topbar comfortably. */
-  scroll-margin-top: 1rem;
+/* ------------------------------------------- Stat cards (dashboard) */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1.25rem;
+  margin: 0.5rem 0 1.75rem;
 }
 
-.help ul {
-  padding-left: 1.25rem;
+.stat {
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow-card);
+  padding: 1.5rem 1.75rem;
 }
 
-.help li {
-  margin-bottom: 0.4rem;
+.stat-value {
+  font-size: 2.6rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  color: var(--stat-accent);
+  font-variant-numeric: tabular-nums;
 }
 
-/* --- Responsive pass (F9, #49) ---
-   Phones/tablets per spec KD-6 + the mobile daily-entry wireframe. */
-
-/* Topbar wraps at every width: on desktop the 8 links fit one line so nothing
-   changes; below that the nav flows to extra rows instead of overflowing the
-   page (there is no "gap" band where it can't fit and can't wrap either). */
-.topbar {
-  flex-wrap: wrap;
-  row-gap: 0.25rem;
+.stat-label {
+  margin-top: 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--muted);
 }
 
-.topbar nav {
-  flex-wrap: wrap;
-  gap: 0.25rem 0.9rem;
+/* --------------------------------------------- Login — the hero moment */
+.auth {
+  position: relative;
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  background: var(--auth-bg);
 }
 
-@media (max-width: 700px) {
-  /* Brand + sign-out keep the first row; nav takes its own row(s). */
-  .topbar {
-    padding: 0.5rem 1rem;
+/* Corner theme toggle on the login screen (icon-only). Higher specificity than
+   button.link so it isn't painted link-blue. */
+.auth .auth-theme {
+  position: absolute;
+  top: 1.1rem;
+  right: 1.1rem;
+  color: var(--muted);
+  background: none;
+  padding: 0.45rem;
+  border-radius: var(--r-pill);
+}
+
+.auth .auth-theme:hover:not(:disabled) {
+  color: var(--stat-accent);
+  background: var(--tint-accent);
+  text-decoration: none;
+}
+
+.auth .card {
+  width: min(380px, 100%);
+  padding: 2.5rem;
+  gap: 1rem;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--auth-card-border);
+  box-shadow: var(--auth-card-shadow);
+}
+
+.auth h1 {
+  margin: 0 0 0.75rem;
+  text-align: center;
+  color: var(--auth-brand);
+  font-size: 2rem;
+  letter-spacing: -0.03em;
+}
+
+.auth button[type="submit"] {
+  margin-top: 0.25rem;
+  padding: 0.8rem 1.5rem;
+  font-size: 1rem;
+}
+
+/* ---------------------------------------------------- Help (docs layout) */
+.help-head {
+  margin-bottom: 1.75rem;
+}
+
+.help-head .eyebrow {
+  margin-bottom: 0.35rem;
+}
+
+.help-lead {
+  font-size: 1.1rem;
+  color: var(--muted);
+  max-width: 44rem;
+  margin: 0;
+}
+
+/* A sticky contents rail beside the guide body (collapses on mobile). */
+.help-layout {
+  display: grid;
+  grid-template-columns: 210px minmax(0, 1fr);
+  gap: 2.5rem;
+  align-items: start;
+}
+
+.help-toc {
+  position: sticky;
+  top: 1.5rem;
+}
+
+.help-toc .eyebrow {
+  padding: 0 0.6rem;
+}
+
+.help-toc ul {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+}
+
+.help-toc li a {
+  display: block;
+  padding: 0.32rem 0.6rem;
+  border-radius: var(--r-input);
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 0.88rem;
+  line-height: 1.35;
+}
+
+.help-toc li a:hover {
+  color: var(--aubergine);
+  background: var(--tint-accent);
+  text-decoration: none;
+}
+
+/* current section (scroll-spy) */
+.help-toc li a.active {
+  color: var(--aubergine);
+  background: var(--tint-accent);
+  font-weight: 600;
+  box-shadow: inset 2px 0 0 var(--aubergine);
+}
+
+:root[data-theme="dark"] .help-toc li a:hover,
+:root[data-theme="dark"] .help-toc li a.active { color: var(--stat-accent); }
+:root[data-theme="dark"] .help-toc li a.active { box-shadow: inset 2px 0 0 var(--stat-accent); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) .help-toc li a:hover,
+  :root:not([data-theme]) .help-toc li a.active { color: var(--stat-accent); }
+  :root:not([data-theme]) .help-toc li a.active { box-shadow: inset 2px 0 0 var(--stat-accent); }
+}
+
+.help-body {
+  max-width: 48rem;
+}
+
+.help-body h3 {
+  margin: 2.5rem 0 0.75rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--hairline);
+  font-size: 1.3rem;
+  scroll-margin-top: 1.5rem;
+}
+
+.help-body h3:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}
+
+.help-body p,
+.help-body li {
+  line-height: 1.65;
+}
+
+.help-body ul {
+  padding-left: 1.15rem;
+}
+
+.help-body li {
+  margin-bottom: 0.5rem;
+}
+
+.help-body code {
+  background: var(--surface-2);
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  font-size: 0.85em;
+}
+
+.help table.data th[scope="row"] {
+  padding-right: 1.5rem;
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------ Responsive (#49 kept) */
+@media (max-width: 900px) {
+  .shell {
+    grid-template-columns: 1fr;
   }
 
-  .topbar nav {
-    order: 3;
-    flex-basis: 100%;
+  /* Sidebar becomes a full-width top bar; nav links flow in a wrapping row,
+     group labels hide so the bar stays compact (no JS drawer needed). */
+  .sidebar {
+    position: static;
+    height: auto;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    gap: 0.15rem 0.4rem;
   }
 
-  .topbar nav a {
-    /* 44px-ish tap targets (WCAG 2.5.5) for primary navigation */
-    padding: 0.65rem 0.35rem;
+  .brand {
+    padding: 0;
+    margin-right: 0.5rem;
+    flex: 0 0 auto;
   }
 
-  button.link {
-    /* row actions: bigger than desktop, denser than nav — these live inside
-       nowrap table rows and full 44px would balloon them */
-    padding: 0.5rem 0.5rem;
-    min-height: 40px;
+  .nav-group {
+    display: contents;
+  }
+
+  .nav-group-label {
+    display: none;
+  }
+
+  .sidebar nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 0.15rem 0.25rem;
+  }
+
+  .sidebar nav a {
+    padding: 0.5rem 0.7rem;
+    border-left: none;
+    border-radius: var(--r-pill);
+    font-size: 0.9rem;
+  }
+
+  .sidebar nav a.active {
+    border-left: none;
+  }
+
+  .sidebar-foot {
+    flex-direction: row;
+    margin: 0 0 0 auto;
+    padding: 0;
+    border-top: none;
+    gap: 0.25rem;
   }
 
   .content {
-    padding: 1rem;
+    padding: 1.5rem 1.15rem 5rem;
   }
 
-  /* Wide tables scroll inside their own box — the page never scrolls
-     sideways. display:block turns the table into its own scroll container
-     without wrapper markup on every screen. */
+  .content > section > h2 {
+    font-size: 1.5rem;
+  }
+
   table.data {
     display: block;
     max-width: 100%;
@@ -352,14 +874,30 @@ label.check {
     min-width: 0;
   }
 
-  /* Help tables are prose, not data grids — nowrap would turn them into
-     screen-wide horizontal scrollers on phones. Let the text wrap. */
   .help table.data {
     white-space: normal;
   }
 
-  /* Flex children default to min-width:auto and refuse to shrink below their
-     table content — the dashboard panels then push the page wide. */
+  .help-layout {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  .help-toc {
+    position: static;
+  }
+
+  .help-toc ul {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+  }
+
+  .help-toc li a {
+    border: 1px solid var(--hairline);
+    border-radius: var(--r-pill);
+  }
+
   .panel {
     min-width: 0;
     flex: 1 1 100%;
@@ -378,12 +916,10 @@ label.check {
     flex: 1 1 100%;
   }
 
-  /* Primary actions: sticky full-width bar at the bottom of the viewport,
-     one-thumb reachable (mobile daily-entry wireframe). */
   .actions {
     position: sticky;
     bottom: 0;
-    background: var(--bg);
+    background: var(--canvas);
     padding: 0.75rem 0;
     margin-top: 0.75rem;
   }
@@ -391,5 +927,12 @@ label.check {
   .actions button {
     flex: 1;
     padding: 0.85rem 0.5rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
   }
 }

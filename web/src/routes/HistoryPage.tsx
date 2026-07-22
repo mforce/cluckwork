@@ -7,6 +7,7 @@ import {
 import type { DailyEntry, EggGrade, Flock } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
+import { StatusBadge } from "../components/StatusBadge";
 
 const PAGE = 50;
 
@@ -240,13 +241,16 @@ export function HistoryPage() {
   }
 
   function statusCell(e: DailyEntry) {
+    // Colored status pills (#52). The three states with tooltips keep an
+    // explicit <span> so the title survives (StatusBadge takes no title);
+    // plain states (Submitted → ok, Draft → neutral) go through StatusBadge.
     if (e.status === "Voided")
-      return <span className="warn" title={e.voidReason ?? undefined}>Voided</span>;
+      return <span className="badge badge-danger" title={e.voidReason ?? undefined}>Voided</span>;
     if (e.status === "ManagerAdjusted")
-      return <span title={e.adjustReason ?? undefined}>Adjusted</span>;
+      return <span className="badge badge-warn" title={e.adjustReason ?? undefined}>Adjusted</span>;
     if (e.status === "Locked")
-      return <span className="muted" title={e.lockedAtUtc ? `Locked ${e.lockedAtUtc}` : undefined}>Locked</span>;
-    return <>{e.status}</>;
+      return <span className="badge badge-accent" title={e.lockedAtUtc ? `Locked ${e.lockedAtUtc}` : undefined}>Locked</span>;
+    return <StatusBadge status={e.status} />;
   }
 
   if (error && entries === null) return <section><h2>History</h2><p className="error">{error}</p></section>;

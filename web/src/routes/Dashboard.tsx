@@ -6,6 +6,7 @@ import {
 import type { Customer, DailyEntry, Flock, SalesOrder, StockRow } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { todayIso } from "../lib/dates";
+import { StatusBadge } from "../components/StatusBadge";
 
 const RECENT_ORDERS = 5;
 // Server clamps list limits at 500. One farm won't exceed that in Phase 1.x;
@@ -62,6 +63,14 @@ export function Dashboard() {
   const visibleFlocks = (flocks ?? []).filter((f) => f.status === "Active" || entryFor(f.id));
   const totalAvailable = (stock ?? []).reduce((a, r) => a + r.available, 0);
 
+  // Headline figures for the stat row — null when that fetch failed (the card
+  // shows "—" rather than a misleading zero, matching the panels' degrade-alone
+  // behaviour).
+  const todaysEggs = entries === null ? null
+    : entries.filter((e) => e.status !== "Voided").reduce((a, e) => a + e.totalEggs, 0);
+  const eggsAvailable = stock === null ? null : totalAvailable;
+  const activeFlocks = flocks === null ? null : flocks.filter((f) => f.status === "Active").length;
+
   if (loading) return <section><h2>Dashboard</h2><p className="muted">Loading…</p></section>;
   if (error) return <section><h2>Dashboard</h2><p className="error">{error}</p></section>;
 
@@ -71,6 +80,21 @@ export function Dashboard() {
     <section>
       <h2>Dashboard</h2>
       <p className="muted">{today}</p>
+
+      <div className="stat-grid">
+        <div className="stat">
+          <div className="stat-value">{todaysEggs ?? "—"}</div>
+          <div className="stat-label">Eggs collected today</div>
+        </div>
+        <div className="stat">
+          <div className="stat-value">{eggsAvailable ?? "—"}</div>
+          <div className="stat-label">Eggs available</div>
+        </div>
+        <div className="stat">
+          <div className="stat-value">{activeFlocks ?? "—"}</div>
+          <div className="stat-label">Active flocks</div>
+        </div>
+      </div>
 
       <div className="dash-grid">
         <div className="panel">
@@ -88,7 +112,7 @@ export function Dashboard() {
                   return (
                     <tr key={f.id}>
                       <td>{f.name}</td>
-                      <td>{e ? e.status : <span className="warn">no entry</span>}</td>
+                      <td>{e ? <StatusBadge status={e.status} /> : <span className="badge badge-warn">no entry</span>}</td>
                       <td>{e ? e.totalEggs : "—"}</td>
                       <td>{e ? e.crackedEggs + e.dirtyEggs + e.discardedEggs : "—"}</td>
                       <td>{e ? e.mortalityCount : "—"}</td>
@@ -139,7 +163,7 @@ export function Dashboard() {
                   <tr key={o.id}>
                     <td>{o.referenceNumber}</td>
                     <td>{customerName(o.customerId)}</td>
-                    <td>{o.status}</td>
+                    <td><StatusBadge status={o.status} /></td>
                     <td>{formatMoney(o.totalMinorUnits, o.currencyCode, o.currencyMinorUnit)}</td>
                   </tr>
                 ))}

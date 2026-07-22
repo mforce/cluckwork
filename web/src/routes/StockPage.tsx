@@ -57,6 +57,9 @@ export function StockPage() {
   if (rows === null) return <section><h2>Stock</h2><p className="muted">Loading…</p></section>;
 
   const totalAvailable = rows.reduce((a, r) => a + r.available, 0);
+  // Largest available across the loaded rows scales every meter fill so the bars
+  // read as relative stock. Guard the divide-by-zero when all rows are empty.
+  const maxAvailable = rows.reduce((m, r) => Math.max(m, r.available), 0);
 
   return (
     <section>
@@ -74,8 +77,13 @@ export function StockPage() {
               {rows.map((r) => (
                 <tr key={r.eggGradeId}>
                   <td>{r.gradeName}</td>
-                  <td>{r.available}</td>
-                  <td>{r.restricted > 0 ? <span className="warn">{r.restricted}</span> : "—"}</td>
+                  <td>
+                    {r.available}
+                    <div className="meter" aria-hidden="true">
+                      <span style={{ width: (maxAvailable > 0 ? (r.available / maxAvailable) * 100 : 0) + "%" }} />
+                    </div>
+                  </td>
+                  <td>{r.restricted > 0 ? <span className="badge badge-warn">{r.restricted}</span> : "—"}</td>
                   <td>
                     <button className="link" onClick={() => void toggleGrade(r.eggGradeId)}>
                       {openGrade === r.eggGradeId ? "hide lots" : "lots"}

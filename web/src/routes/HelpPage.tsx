@@ -1,8 +1,10 @@
-// F18 (#71): in-app user guide + glossary. Content-first and structurally
-// boring on purpose — plain headings/paragraphs with existing classes, so the
-// Phase 1.5 redesign (#52) restyles it for free. KEEP THIS PAGE CURRENT: the
-// docs-sync rule (AGENTS.md) requires every user-visible change to update the
-// relevant section here and specs/product/GLOSSARY.md in the same PR.
+import { useEffect, useState } from "react";
+
+// F18 (#71): in-app user guide + glossary. #52 restyled it into a docs layout
+// with a sticky contents rail that scroll-spies the section in view. KEEP THIS
+// PAGE CURRENT: the docs-sync rule (AGENTS.md) requires every user-visible
+// change to update the relevant section here and specs/product/GLOSSARY.md in
+// the same PR.
 
 // Must mirror the <h3 id=...> sections below, in document order — a section
 // missing here is invisible to anyone who navigates by the contents list.
@@ -27,22 +29,61 @@ const TOC = [
 ] as const;
 
 export function HelpPage() {
+  // Scroll-spy the contents rail: highlight the section currently in view.
+  const [activeId, setActiveId] = useState<string>(TOC[0][0]);
+
+  useEffect(() => {
+    // jsdom (tests) has no IntersectionObserver — the rail still works as plain
+    // anchors, it just doesn't auto-highlight there.
+    if (typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const inView = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+        if (inView[0]) setActiveId(inView[0].target.id);
+      },
+      // "active" once a heading reaches the top ~30% of the viewport
+      { rootMargin: "0px 0px -70% 0px", threshold: 0 },
+    );
+    for (const [id] of TOC) {
+      const el = document.getElementById(id);
+      if (el) observer.observe(el);
+    }
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <section className="help">
-      <h2>Help</h2>
-      <p className="muted">
-        How Cluckwork works, screen by screen — and how to undo mistakes.
-      </p>
+      <div className="help-head">
+        <p className="eyebrow">User guide</p>
+        <h2>Help</h2>
+        <p className="help-lead">
+          How Cluckwork works, screen by screen — and how to undo mistakes.
+        </p>
+      </div>
 
-      <nav aria-label="Help contents">
-        <ul>
-          {TOC.map(([id, label]) => (
-            <li key={id}><a href={`#${id}`}>{label}</a></li>
-          ))}
-        </ul>
-      </nav>
+      <div className="help-layout">
+        <nav className="help-toc" aria-label="Help contents">
+          <p className="eyebrow">Contents</p>
+          <ul>
+            {TOC.map(([id, label]) => (
+              <li key={id}>
+                <a
+                  href={`#${id}`}
+                  className={activeId === id ? "active" : undefined}
+                  aria-current={activeId === id ? "location" : undefined}
+                  onClick={() => setActiveId(id)}
+                >
+                  {label}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </nav>
 
-      <h3 id="daily-loop">The daily loop</h3>
+        <div className="help-body">
+          <h3 id="daily-loop">The daily loop</h3>
       <p>
         Everything in Cluckwork hangs off one chain: you record a <strong>daily
         entry</strong> for each flock (eggs by grade, losses, deaths), you{" "}
@@ -515,10 +556,12 @@ export function HelpPage() {
         </tbody>
       </table>
 
-      <p className="muted">
-        Full spec-language definitions live in the repository's{" "}
-        <code>specs/product/GLOSSARY.md</code>.
-      </p>
+          <p className="muted">
+            Full spec-language definitions live in the repository's{" "}
+            <code>specs/product/GLOSSARY.md</code>.
+          </p>
+        </div>
+      </div>
     </section>
   );
 }

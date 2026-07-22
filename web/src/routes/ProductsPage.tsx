@@ -8,6 +8,7 @@ import {
 import type { EggGrade, EggUnitConversion, Product } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
+import { StatusBadge } from "../components/StatusBadge";
 
 // Spec §10.1 default_unit values usable for egg products; packed units resolve
 // through the conversions below at sale time (part 2 of #97).
@@ -259,7 +260,7 @@ export function ProductsPage() {
                     <td><input type="number" min="0"
                       step={(1 / 10 ** p.currencyMinorUnit).toFixed(p.currencyMinorUnit)}
                       value={editPrice} onChange={(e) => setEditPrice(e.target.value)} /></td>
-                    <td>{p.active ? "Active" : "Inactive"}</td>
+                    <td><StatusBadge status={p.active ? "Active" : "Inactive"} /></td>
                     <td>
                       <button className="link" disabled={busy} onClick={() => void onSaveEdit(p.id)}>save</button>{" "}
                       <button className="link" disabled={busy} onClick={() => setEditingId(null)}>cancel</button>
@@ -273,7 +274,7 @@ export function ProductsPage() {
                     <td>{p.defaultPriceMinorUnits === null
                       ? "—"
                       : formatMoney(p.defaultPriceMinorUnits, p.currencyCode, p.currencyMinorUnit)}</td>
-                    <td>{p.active ? "Active" : "Inactive"}</td>
+                    <td><StatusBadge status={p.active ? "Active" : "Inactive"} /></td>
                     {isAdmin && (
                       <td>
                         <button className="link" disabled={busy} onClick={() => startEdit(p)}>edit</button>{" "}

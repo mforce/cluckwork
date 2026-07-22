@@ -49,9 +49,9 @@ export default defineConfig(({ mode }) => {
           // hence sub-100.) A screen-test PR raises lines/functions; branches
           // move either way (testing a screen exposes all its conditional
           // branches), so re-baseline branches in BOTH directions with headroom.
-          lines: 72,
-          statements: 72,
-          functions: 62,
+          lines: 80,
+          statements: 80,
+          functions: 63,
           branches: 82,
           // high-water locks on the fully-covered foundation
           "src/auth/**": { statements: 100, lines: 100, functions: 100, branches: 95 },

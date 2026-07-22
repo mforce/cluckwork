@@ -6,6 +6,7 @@ import {
 import type { EggGrade } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
+import { StatusBadge } from "../components/StatusBadge";
 
 const GRADE_TYPES = ["Size", "Quality", "Custom"];
 
@@ -159,7 +160,7 @@ export function GradesPage() {
                     <input type="checkbox" checked={editSaleable}
                       onChange={(e) => setEditSaleable(e.target.checked)} />
                   </td>
-                  <td>{g.active ? "Active" : "Inactive"}</td>
+                  <td><StatusBadge status={g.active ? "Active" : "Inactive"} /></td>
                   <td>
                     <button className="link" disabled={busy}
                       onClick={() => void onSaveEdit(g.id)}>save</button>
@@ -172,8 +173,8 @@ export function GradesPage() {
                   <td>{g.name}</td>
                   <td>{g.gradeType}</td>
                   <td>{g.sortOrder}</td>
-                  <td>{g.isSaleable ? "yes" : "—"}</td>
-                  <td>{g.active ? "Active" : <span className="warn">Inactive</span>}</td>
+                  <td>{g.isSaleable ? <span className="badge badge-ok">yes</span> : "—"}</td>
+                  <td><StatusBadge status={g.active ? "Active" : "Inactive"} /></td>
                   <td>
                     {isAdmin && (
                       <>
