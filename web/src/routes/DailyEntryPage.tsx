@@ -424,7 +424,7 @@ export function DailyEntryPage() {
           while the other was a screen away was the whole problem. */}
       <div className="entry-cols">
         <section className="entry-step">
-          <h3><span className="sr-only">Step 1 of 2: </span><span className="step-n" aria-hidden>1</span>Egg counts</h3>
+          <h3><span className="step-n">Step 1<span className="sr-only"> of 2: </span></span>Egg counts</h3>
           <div className="entry-pane">
             <div className="entry-rows">
               <div className="entry-row">
@@ -470,7 +470,7 @@ export function DailyEntryPage() {
         </section>
 
         <section className="entry-step">
-          <h3><span className="sr-only">Step 2 of 2: </span><span className="step-n" aria-hidden>2</span>Grading</h3>
+          <h3><span className="step-n">Step 2<span className="sr-only"> of 2: </span></span>Grading</h3>
           <div className="entry-pane">
             <div className="entry-rows">
               {visibleGrades.map((g) => (

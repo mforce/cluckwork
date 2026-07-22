@@ -476,19 +476,23 @@ input.cell {
   scroll-margin-bottom: 10rem;
 }
 
-/* aria-hidden in the markup — the heading text already reads correctly alone,
-   so the numeral is for the eye only and must not be spoken twice. */
+/* Says "Step 1", not just "1" — a bare numeral asks the reader to infer that it
+   is a step at all. Only the " of 2" is screen-reader-only, because that part
+   genuinely is not on screen; everything visible is spoken exactly once. */
 .step-n {
-  display: inline-grid;
-  place-items: center;
+  display: inline-flex;
+  align-items: center;
   flex: none;
-  width: 1.65rem;
-  height: 1.65rem;
-  border-radius: 50%;
+  padding: 0.25rem 0.6rem;
+  border-radius: var(--r-pill);
   background: var(--tint-accent);
   color: var(--stat-accent);
-  font-size: 0.85rem;
+  font-size: 0.7rem;
   font-weight: 700;
+  /* The headings carry negative display tracking; this is a label, so it opens
+     up instead. */
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 /* Flock + date sit above the two panes as context, not as a step. */
