@@ -14,6 +14,10 @@ import { todayIso } from "../lib/dates";
 
 const LAST_FLOCK_KEY = "cluckwork.lastFlockId";
 
+// Marks OUR drag payload. Rows accept a drop only when they see this type, so
+// a file or a bit of text dragged in from elsewhere cannot assign the day.
+const REMAINDER_DRAG = "application/x-cluckwork-remainder";
+
 // Capture targets active flocks plus depleted ones — a depleted flock still
 // accepts backfilled entries up to its depletion date (the API gates exact
 // dates), matching the Flocks screen's promise and the feed-usage picker.
@@ -214,12 +218,19 @@ export function DailyEntryPage() {
         ? { tone: "done", count: sellable, says: "graded — the day adds up", short: "all graded" }
         : { tone: "", count: remaining, says: "left to grade", short: "left" };
 
-  const canAssign = remaining > 0 && !entryLocked;
+  // Not while the prefill is unsettled: the remainder is computed from counts
+  // that are about to be replaced, and handing those to a grade would assign
+  // a figure belonging to the previous day.
+  const canAssign = remaining > 0 && !entryLocked && !prefillPending && !prefillFailed;
   // Nothing left to place (or the day just locked) — leave the mode rather than
   // stranding rows showing a "+0 here" button.
   useEffect(() => {
     if (!canAssign && assigning) setAssigning(false);
   }, [canAssign, assigning]);
+
+  // Changing the flock or the date starts a different day; staying armed over
+  // the new one would be a held gesture the user never aimed at it.
+  useEffect(() => setAssigning(false), [flockId, date]);
 
   // NumberField owns its own input, so the row label points at it by id.
   const fieldId = useId();
@@ -477,8 +488,14 @@ export function DailyEntryPage() {
                 <div
                   className={`entry-row${assigning ? " taking" : ""}`}
                   key={g.id}
-                  onDragOver={canAssign ? (e) => e.preventDefault() : undefined}
-                  onDrop={canAssign ? (e) => { e.preventDefault(); assignRest(g.id); } : undefined}
+                  onDragOver={assigning ? (e) => {
+                    if (e.dataTransfer.types.includes(REMAINDER_DRAG)) e.preventDefault();
+                  } : undefined}
+                  onDrop={assigning ? (e) => {
+                    if (!e.dataTransfer.types.includes(REMAINDER_DRAG)) return;
+                    e.preventDefault();
+                    assignRest(g.id);
+                  } : undefined}
                 >
                   <label htmlFor={idFor(g.id)}>{g.name}{g.active ? "" : " (deactivated)"}</label>
                   <NumberField id={idFor(g.id)} label={g.name.toLowerCase()}
@@ -508,9 +525,14 @@ export function DailyEntryPage() {
               {/* role=status on the text alone: the chip now contains a control,
                   and a live region that also holds a button re-announces the
                   button every time the number ticks. */}
+              {/* <s> means "no longer accurate" — wrong for a current reading;
+                  it was only ever reached for as a short inline tag. And the
+                  space is real, not the flex gap: CSS contributes no whitespace
+                  to the accessible name, so this used to be read out as
+                  "60left to grade" (codex review of PR #137). */}
               <span className="entry-chip-text" role="status">
-                {grading.count !== null && <b>{grading.count}</b>}
-                <s>{grading.says}</s>
+                {grading.count !== null && <><b>{grading.count}</b>{" "}</>}
+                <span>{grading.says}</span>
               </span>
               {canAssign && (
                 <button
@@ -523,6 +545,10 @@ export function DailyEntryPage() {
                     : `Choose a grade for the remaining ${remaining}`}
                   onDragStart={(e) => {
                     e.dataTransfer.effectAllowed = "move";
+                    // A private type, checked on drop: without it any dragged
+                    // text, link or file dropped on a row silently assigned the
+                    // whole remainder (codex review of PR #137).
+                    e.dataTransfer.setData(REMAINDER_DRAG, String(remaining));
                     // Firefox refuses to start a drag with an empty payload.
                     e.dataTransfer.setData("text/plain", String(remaining));
                     setAssigning(true);
@@ -549,7 +575,7 @@ export function DailyEntryPage() {
               figures that say whether the day adds up scroll away while the
               counts are being typed. On desktop both are already on screen and
               repeating them here would just be noise. */}
-          <p className={`entry-foot-sum ${grading.tone}`}>
+          <p className={`entry-foot-sum ${grading.tone}`} role="status">
             <b>{sellable}</b> sellable
             {grading.count !== null && <> · <b>{grading.count}</b> {grading.short}</>}
             {grading.count === null && <> · {grading.short}</>}

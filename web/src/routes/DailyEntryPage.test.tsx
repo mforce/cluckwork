@@ -80,7 +80,7 @@ describe("DailyEntryPage accuracy gating", () => {
 
     expect(sellableReadout()).toHaveTextContent("90");
     // 90 sellable − 85 graded: the number the counter is working towards.
-    expect(remainingChip()).toHaveTextContent("5left to grade");
+    expect(remainingChip()).toHaveTextContent("5 left to grade");
     expect(remainingChip()).not.toHaveClass("over");
     expect(remainingChip()).not.toHaveClass("done");
     expect(submitBtn()).toBeEnabled();
@@ -95,7 +95,7 @@ describe("DailyEntryPage accuracy gating", () => {
     setNum("Grade A", 95); // graded 95 > 90
 
     // Over-graded reads as an overage, not as a bigger number than the target.
-    expect(remainingChip()).toHaveTextContent("5over the sellable count");
+    expect(remainingChip()).toHaveTextContent("5 over the sellable count");
     expect(remainingChip()).toHaveClass("over");
     expect(submitBtn()).toBeDisabled();
     expect(saveDraftBtn()).toBeEnabled(); // an over-graded draft is allowed
@@ -109,7 +109,7 @@ describe("DailyEntryPage accuracy gating", () => {
     setNum("Discarded", 5); // sellable 90
     setNum("Grade A", 90); // graded 90 === 90
 
-    expect(remainingChip()).toHaveTextContent("90graded — the day adds up");
+    expect(remainingChip()).toHaveTextContent("90 graded — the day adds up");
     expect(remainingChip()).toHaveClass("done");
     expect(remainingChip()).not.toHaveClass("over");
     expect(submitBtn()).toBeEnabled();
@@ -433,7 +433,7 @@ describe("DailyEntryPage assign the remainder", () => {
 
   it("hands the whole remainder to the grade that is picked", async () => {
     await readyWithRemainder();
-    expect(remainingChip()).toHaveTextContent("60left to grade");
+    expect(remainingChip()).toHaveTextContent("60 left to grade");
 
     fireEvent.click(arm());
     // Named per grade: "+60" alone would be identical on every row.
@@ -444,15 +444,32 @@ describe("DailyEntryPage assign the remainder", () => {
     expect(remainingChip()).toHaveClass("done");
   });
 
+  // Our own payload type. Rows accept a drop only when they see it.
+  const OURS = "application/x-cluckwork-remainder";
+  const dt = (types: string[]) => ({ setData: () => {}, effectAllowed: "", types });
+
   it("takes the same drop from a drag, for anyone using a mouse", async () => {
     await readyWithRemainder();
-    fireEvent.dragStart(arm(), { dataTransfer: { setData: () => {}, effectAllowed: "" } });
+    fireEvent.dragStart(arm(), { dataTransfer: dt([OURS]) });
 
     const rowB = screen.getByLabelText("Grade B").closest(".entry-row")!;
-    fireEvent.dragOver(rowB);
-    fireEvent.drop(rowB);
+    fireEvent.dragOver(rowB, { dataTransfer: dt([OURS]) });
+    fireEvent.drop(rowB, { dataTransfer: dt([OURS]) });
 
     expect(screen.getByLabelText("Grade B")).toHaveValue(60);
+  });
+
+  it("ignores anything dragged in from outside the app", async () => {
+    await readyWithRemainder();
+    fireEvent.dragStart(arm(), { dataTransfer: dt([OURS]) });
+
+    // A file, a link, a selection from another window — the row used to accept
+    // any of these and assign the whole remainder (codex review of PR #137).
+    const rowB = screen.getByLabelText("Grade B").closest(".entry-row")!;
+    fireEvent.drop(rowB, { dataTransfer: dt(["Files", "text/plain"]) });
+
+    expect(screen.getByLabelText("Grade B")).toHaveValue(0);
+    expect(remainingChip()).toHaveTextContent("60 left to grade");
   });
 
   it("can be armed and dismissed without changing anything", async () => {

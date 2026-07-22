@@ -37,6 +37,18 @@ export function NumberField({
 }: NumberFieldProps) {
   const timer = useRef<number | null>(null);
   const tick = useRef(0);
+  // A press fires once but its repeat outlives the render that started it. Both
+  // of these can move mid-hold — a prefill landing changes `sellable`, and it
+  // can also discover a submitted entry and lock the form — so the repeat reads
+  // them live instead of from the closure it was created in. An earlier version
+  // captured them and argued `max` was invariant during a hold; it is not.
+  const live = useRef({ value, max, disabled });
+  live.current = { value, max, disabled };
+
+  // Enter and Space on a focused button dispatch `click`, never `pointerdown`,
+  // so pointer-only handlers leave these buttons completely dead to the
+  // keyboard. A pointer press also fires click after pointerup, hence the flag.
+  const pointerDrove = useRef(false);
 
   const stop = useCallback(() => {
     if (timer.current !== null) window.clearTimeout(timer.current);
@@ -50,6 +62,11 @@ export function NumberField({
 
   const start = useCallback((direction: 1 | -1) => {
     if (disabled) return;
+    // Two fingers on the same field — one on −, one on + — fire two pointerDowns
+    // with no stop between them, and this is a phone-first screen. Without this
+    // the first timer is orphaned: stop() only ever clears the CURRENT handle,
+    // so the older repeat would keep counting until the component unmounted.
+    stop();
     // The updater form is not optional: every repeat reads the value the last
     // one produced, and a captured `value` would make each tick recompute from
     // the number that was on screen when the press began.
@@ -58,25 +75,40 @@ export function NumberField({
     // (this field + what is unallocated), and that sum does not move while this
     // field is the one being incremented.
     const bump = (by: number) =>
-      onChange((prev) => Math.min(max, Math.max(0, prev + direction * by)));
+      onChange((prev) => Math.min(live.current.max, Math.max(0, prev + direction * by)));
 
     bump(1); // the press itself lands immediately
     const repeat = () => {
+      // Read live, and BEFORE bumping: a repeat wedged against the floor or the
+      // ceiling should terminate rather than reschedule for ever. The updater
+      // cannot report this — React defers it, so anything it sets is still
+      // unset when the call returns.
+      const { value: now, max: ceiling, disabled: locked } = live.current;
+      if (locked || (direction > 0 ? now >= ceiling : now <= 0)) {
+        stop();
+        return;
+      }
       tick.current += 1;
       bump(stepFor(tick.current));
       timer.current = window.setTimeout(repeat, REPEAT_EVERY_MS);
     };
     timer.current = window.setTimeout(repeat, FIRST_REPEAT_MS);
-  }, [disabled, onChange, max]);
+  }, [disabled, onChange, stop]);
 
   // pointer* rather than mouse*, so one set of handlers covers touch and pen.
   // Cancel and leave both stop it: dragging off a held button must not leave it
   // counting, and neither must a touch the browser takes over for a scroll.
   const held = (direction: 1 | -1) => ({
-    onPointerDown: () => start(direction),
+    onPointerDown: () => { pointerDrove.current = true; start(direction); },
     onPointerUp: stop,
     onPointerLeave: stop,
     onPointerCancel: stop,
+    // Keyboard and assistive-technology activation only ever reach us here.
+    onClick: () => {
+      if (pointerDrove.current) { pointerDrove.current = false; return; }
+      if (disabled) return;
+      onChange((prev) => Math.min(live.current.max, Math.max(0, prev + direction)));
+    },
   });
 
   return (

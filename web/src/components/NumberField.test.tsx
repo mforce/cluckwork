@@ -166,3 +166,114 @@ describe("NumberField ceiling", () => {
     expect(plus()).toBeDisabled();
   });
 });
+
+// Two fingers on the same field — one on −, one on + — fire two pointerDowns
+// with no stop between them. This is a phone-first screen, so it is reachable.
+describe("NumberField overlapping presses", () => {
+  it("leaves no orphaned timer when a second press starts before the first stops", async () => {
+    vi.useFakeTimers();
+    render(<Host start={100} />);
+
+    await act(async () => { fireEvent.pointerDown(plus()); });
+    await act(async () => { vi.advanceTimersByTime(600); });
+    // second finger lands without the first having lifted
+    await act(async () => { fireEvent.pointerDown(minus()); });
+    await act(async () => { vi.advanceTimersByTime(600); });
+    // both lifted
+    await act(async () => { fireEvent.pointerUp(minus()); });
+    await act(async () => { fireEvent.pointerUp(plus()); });
+
+    const settled = (field() as HTMLInputElement).value;
+    // Nothing may still be counting: an orphaned repeat would keep running
+    // until unmount, silently rewriting the count in the barn.
+    await act(async () => { vi.advanceTimersByTime(3000); });
+    expect(field()).toHaveValue(Number(settled));
+  });
+});
+
+// Enter and Space on a focused button dispatch `click`, never `pointerdown`.
+// Pointer-only handlers therefore leave these buttons entirely dead to the
+// keyboard and to assistive technology (codex review of PR #137).
+describe("NumberField keyboard", () => {
+  it("steps on keyboard activation, which arrives as a click", async () => {
+    const user = (await import("@testing-library/user-event")).default.setup();
+    render(<Host start={4} />);
+
+    plus().focus();
+    await user.keyboard("{Enter}");
+    expect(field()).toHaveValue(5);
+
+    await user.keyboard(" ");
+    expect(field()).toHaveValue(6);
+
+    minus().focus();
+    await user.keyboard("{Enter}");
+    expect(field()).toHaveValue(5);
+  });
+
+  it("does not double-count a pointer press, which also emits a click", async () => {
+    vi.useFakeTimers();
+    render(<Host start={0} />);
+
+    await act(async () => { fireEvent.pointerDown(plus()); });
+    await act(async () => { fireEvent.pointerUp(plus()); });
+    await act(async () => { fireEvent.click(plus()); }); // the browser's own follow-up
+
+    expect(field()).toHaveValue(1);
+  });
+});
+
+describe("NumberField live limits", () => {
+  // The repeat outlives the render that started it, so it must not hold on to
+  // the ceiling or the disabled flag it was created with.
+  function Shrinking() {
+    const [value, setValue] = useState(0);
+    const [max, setMax] = useState(1000);
+    return (
+      <>
+        <NumberField id="n" label="total eggs" value={value} onChange={setValue} max={max} />
+        <button onClick={() => setMax(5)}>shrink</button>
+      </>
+    );
+  }
+
+  it("obeys a ceiling that drops mid-hold", async () => {
+    vi.useFakeTimers();
+    render(<Shrinking />);
+
+    await act(async () => { fireEvent.pointerDown(plus()); });
+    await act(async () => { vi.advanceTimersByTime(500); });
+    // e.g. a prefill lands and lowers the sellable count under the hold
+    await act(async () => { fireEvent.click(screen.getByText("shrink")); });
+    await act(async () => { vi.advanceTimersByTime(2000); });
+    await act(async () => { fireEvent.pointerUp(plus()); });
+
+    expect(Number((field() as HTMLInputElement).value)).toBeLessThanOrEqual(5);
+  });
+
+  it("stops doing work once it is wedged against a limit", async () => {
+    vi.useFakeTimers();
+    // Counting updates rather than timers: React keeps scheduler timeouts of
+    // its own, so a raw timer count asserts an implementation detail we do not
+    // own. What matters is that a wedged repeat stops calling back.
+    const onChange = vi.fn();
+    function Counting() {
+      const [value, setValue] = useState(2);
+      return (
+        <NumberField id="n" label="total eggs" value={value}
+          onChange={(next) => { onChange(); setValue(next); }} />
+      );
+    }
+    render(<Counting />);
+
+    await act(async () => { fireEvent.pointerDown(minus()); });
+    await act(async () => { vi.advanceTimersByTime(2000); });
+    expect(field()).toHaveValue(0);
+
+    const settled = onChange.mock.calls.length;
+    await act(async () => { vi.advanceTimersByTime(10_000); });
+    expect(onChange).toHaveBeenCalledTimes(settled);
+
+    await act(async () => { fireEvent.pointerUp(minus()); });
+  });
+});
