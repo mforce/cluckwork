@@ -79,6 +79,17 @@ describe("StockPage", () => {
       ),
     ).toBeInTheDocument();
   });
+
+  it("renders the grade table as a table.data scroller (the scroll-cue hook, #150)", async () => {
+    // The mobile scroll-shadow affordance keys entirely off `table.data` in the
+    // stylesheet (no JS, no wrapper), so the class IS the contract: drop it in a
+    // refactor and the last-column-clipped cue silently disappears. jsdom can't
+    // render the gradient, but it can guard the hook the CSS depends on.
+    mockGetStock.mockResolvedValue(ROWS);
+    const { container } = render(<StockPage />);
+    await screen.findByText("Grade A");
+    expect(container.querySelector("table.data")).not.toBeNull();
+  });
 });
 
 describe("StockPage drill-down", () => {
