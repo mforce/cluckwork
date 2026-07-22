@@ -12,6 +12,7 @@ import { StatusBadge } from "../components/StatusBadge";
 import { useConfirm } from "../components/useConfirm";
 import { useAuth } from "../auth/useAuth";
 import { ageWeeks, todayIso } from "../lib/dates";
+import { newId } from "../lib/ids";
 
 function errorMessage(err: unknown): string {
   if (err instanceof ApiError) return err.message;
@@ -60,7 +61,7 @@ export function FlocksPage() {
   const keyFor = (scope: string) => {
     const existing = keys.current.get(scope);
     if (existing) return existing;
-    const fresh = crypto.randomUUID();
+    const fresh = newId();
     keys.current.set(scope, fresh);
     return fresh;
   };

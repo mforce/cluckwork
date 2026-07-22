@@ -8,6 +8,7 @@ import type { Expense, ExpenseCategory, Flock } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { Dialog } from "../components/Dialog";
 import { todayIso } from "../lib/dates";
+import { newId } from "../lib/ids";
 
 function errText(err: unknown): string {
   if (err instanceof ApiError) return err.message;
@@ -63,7 +64,7 @@ export function ExpensesPage() {
   const keyFor = (scope: string) => {
     const existing = keys.current.get(scope);
     if (existing) return existing;
-    const fresh = crypto.randomUUID();
+    const fresh = newId();
     keys.current.set(scope, fresh);
     return fresh;
   };

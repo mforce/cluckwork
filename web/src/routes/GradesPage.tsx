@@ -9,6 +9,7 @@ import { ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 import { Dialog } from "../components/Dialog";
 import { StatusBadge } from "../components/StatusBadge";
+import { newId } from "../lib/ids";
 
 const GRADE_TYPES = ["Size", "Quality", "Custom"];
 
@@ -47,7 +48,7 @@ export function GradesPage() {
   const keyFor = (scope: string) => {
     const existing = keys.current.get(scope);
     if (existing) return existing;
-    const fresh = crypto.randomUUID();
+    const fresh = newId();
     keys.current.set(scope, fresh);
     return fresh;
   };

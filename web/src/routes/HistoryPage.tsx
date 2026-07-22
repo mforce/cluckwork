@@ -10,6 +10,7 @@ import { useAuth } from "../auth/useAuth";
 import { Dialog } from "../components/Dialog";
 import { useConfirm } from "../components/useConfirm";
 import { StatusBadge } from "../components/StatusBadge";
+import { newId } from "../lib/ids";
 
 const PAGE = 50;
 
@@ -60,7 +61,7 @@ export function HistoryPage() {
   const keyFor = (scope: string) => {
     const existing = keys.current.get(scope);
     if (existing) return existing;
-    const fresh = crypto.randomUUID();
+    const fresh = newId();
     keys.current.set(scope, fresh);
     return fresh;
   };

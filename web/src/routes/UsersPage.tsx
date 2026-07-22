@@ -7,6 +7,7 @@ import {
 import type { Flock, FlockAssignment, User } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { Dialog } from "../components/Dialog";
+import { newId } from "../lib/ids";
 
 function errText(err: unknown): string {
   if (err instanceof ApiError) return err.message;
@@ -38,7 +39,7 @@ export function UsersPage() {
   const keyFor = (scope: string) => {
     const existing = keys.current.get(scope);
     if (existing) return existing;
-    const fresh = crypto.randomUUID();
+    const fresh = newId();
     keys.current.set(scope, fresh);
     return fresh;
   };
