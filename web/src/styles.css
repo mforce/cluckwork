@@ -76,6 +76,7 @@
   --shadow-card: 0 1px 2px rgba(29, 21, 33, 0.04), 0 8px 24px rgba(29, 21, 33, 0.05);
   --scrim: rgba(29, 21, 33, 0.42);
   --shadow-dialog: 0 24px 64px rgba(29, 21, 33, 0.24);
+  --shadow-bar: 0 -8px 24px rgba(29, 21, 33, 0.08);
 
   font-family: var(--font);
   color: var(--ink);
@@ -119,6 +120,7 @@
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 10px 30px rgba(0, 0, 0, 0.35);
   --scrim: rgba(0, 0, 0, 0.62);
   --shadow-dialog: 0 24px 64px rgba(0, 0, 0, 0.6);
+  --shadow-bar: 0 -8px 24px rgba(0, 0, 0, 0.45);
   color-scheme: dark;
 }
 
@@ -155,6 +157,14 @@
       radial-gradient(55% 55% at 82% 88%, rgba(45, 90, 70, 0.35) 0%, transparent 62%),
       var(--canvas);
     --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 10px 30px rgba(0, 0, 0, 0.35);
+    /* These three were missing here while :root[data-theme="dark"] had them,
+       so anyone on an OS-dark machine who had never touched the theme toggle
+       (no data-theme attribute — see lib/theme.ts) got dark surfaces under a
+       LIGHT scrim and a light shadow: every dialog since #131 rendered washed
+       out with no elevation. Found while adding --shadow-bar (F134). */
+    --scrim: rgba(0, 0, 0, 0.62);
+    --shadow-dialog: 0 24px 64px rgba(0, 0, 0, 0.6);
+    --shadow-bar: 0 -8px 24px rgba(0, 0, 0, 0.45);
     color-scheme: dark;
   }
 }
@@ -424,6 +434,78 @@ input.cell {
   align-items: center;
   gap: 0.9rem;
   margin-top: 0.4rem;
+}
+
+/* -------------------------------------------- Daily entry (F134) */
+
+/* The three steps are a real sequence, not decoration: grading is capped by the
+   counts, which prefill against the flock and date. */
+.entry-step {
+  margin-bottom: 1.75rem;
+}
+
+.entry-step > h3 {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0;
+}
+
+/* aria-hidden in the markup — the heading text already reads correctly alone,
+   so the numeral is for the eye only and must not be spoken twice. */
+.step-n {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 1.65rem;
+  height: 1.65rem;
+  border-radius: 50%;
+  background: var(--tint-accent);
+  color: var(--stat-accent);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+/* Pinned while the form scrolls underneath. The reconciliation line and the two
+   saves are the only things needed at every point in the flow, and on a phone
+   the grade grid used to push them off-screen entirely. Save feedback lives in
+   here too: anything below a sticky bar scrolls under it and is never seen. */
+.entry-foot {
+  position: sticky;
+  bottom: 0;
+  /* Above the page, below the dialog backdrop (50) — a confirmation must cover
+     the bar that opened it. */
+  z-index: 10;
+  background: var(--surface);
+  border-top: 1px solid var(--hairline);
+  box-shadow: var(--shadow-bar);
+  margin-top: 2rem;
+  padding: 0.9rem 0 calc(0.9rem + env(safe-area-inset-bottom));
+  /* Cancels .content's trailing padding so the bar lands flush at the end of
+     the page instead of lifting off the bottom edge for the last scroll step.
+     Coupled to .content by value — keep the two in step. */
+  margin-bottom: -4rem;
+}
+
+.entry-foot-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1.5rem;
+}
+
+.entry-foot p {
+  margin: 0;
+}
+
+/* The responsive pass (#49) makes any .actions sticky on a phone. Inside the
+   bar that would be a sticky within a sticky — the bar is the sticky thing
+   now. Specificity beats the media-query rule, which adds none. */
+.entry-foot .actions {
+  position: static;
+  margin: 0;
+  padding: 0;
 }
 
 /* -------------------------------------------- Toolbar (carded filter bar) */
@@ -1116,6 +1198,32 @@ label.check {
     background: var(--canvas);
     padding: 0.75rem 0;
     margin-top: 0.75rem;
+  }
+
+  /* Daily entry (F134). The bar runs edge to edge on a phone — inset by the
+     content gutter it would read as a floating card rather than a fixed rail,
+     and the negative margins buy back 2.3rem of width for two buttons that
+     have to sit side by side in a thumb's reach. */
+  .entry-foot {
+    margin-left: -1.15rem;
+    margin-right: -1.15rem;
+    padding-left: 1.15rem;
+    padding-right: 1.15rem;
+    margin-bottom: -5rem; /* .content's mobile padding-bottom */
+  }
+
+  /* Counts stay two-up rather than stacking. The issue asked for one column,
+     but five stacked number fields lengthen exactly the scroll this slice
+     exists to shorten; the pair-per-row grid is denser and still thumb-sized. */
+  .entry-step .form-grid label {
+    flex: 1 1 40%;
+  }
+
+  /* Barn use is one-handed and often gloved: 44px is the minimum comfortable
+     touch target, and the default input padding lands under it. */
+  .entry-step input,
+  .entry-step select {
+    min-height: 2.75rem;
   }
 
   /* On a phone the dialog becomes a bottom sheet — thumb-reachable, and it

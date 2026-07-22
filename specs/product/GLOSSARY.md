@@ -52,6 +52,21 @@ straight from Active for mistake-created flocks):
 eggs, loss counts (cracked / dirty / discarded), mortality count, and the
 graded breakdown of sellable eggs. One entry per flock per day (natural key).
 
+**Daily entry steps (#134)** — the capture screen is three numbered sections in
+the order the work happens: **1 Flock & date**, **2 Egg counts**, **3 Sellable
+production by grade**. The numbering is not decoration — grading in 3 is capped
+by the counts in 2, which prefill against the flock and date in 1.
+
+**Entry footer (#134)** — the reconciliation line (*Graded n of m sellable*, or
+the losses-exceed-total error) and both saves sit in a bar pinned to the bottom
+of the screen. They are the only things needed at every point in the flow, and
+on a phone the grade grid used to push them out of sight. Save messages appear
+in the same bar: anything below it would scroll underneath and never be read.
+
+**Editing draft (#134)** — a badge beside the title when the day being captured
+already has a saved **Draft**, so re-opening work in progress is distinguishable
+from starting a fresh day. Only locked days carried a signal before.
+
 **Daily entry lifecycle** (#69) —
 `Draft → Submitted → Locked → ManagerAdjusted / Voided`:
 

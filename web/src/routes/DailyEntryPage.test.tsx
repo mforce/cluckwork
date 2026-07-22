@@ -271,3 +271,95 @@ describe("DailyEntryPage submit confirmation", () => {
     expect(vi.mocked(submitDailyEntry)).not.toHaveBeenCalled();
   });
 });
+
+// F134: the screen is one undifferentiated pile of fields no more — three
+// numbered steps in the order the work actually happens, with the
+// reconciliation line and both saves pinned in a footer.
+describe("DailyEntryPage structure", () => {
+  it("labels the three steps without speaking the numerals twice", async () => {
+    await renderReady();
+
+    // The numeral is aria-hidden, so the accessible name is the words alone.
+    expect(screen.getByRole("heading", { name: "Flock & date" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Egg counts" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Sellable production by grade" }))
+      .toBeInTheDocument();
+  });
+
+  it("keeps the math line and both saves together in the footer", async () => {
+    await renderReady();
+    const foot = document.querySelector(".entry-foot")!;
+
+    expect(within(foot as HTMLElement).getByText(/Graded \d+ of \d+ sellable/)).toBeInTheDocument();
+    expect(within(foot as HTMLElement).getByRole("button", { name: /Save draft/ })).toBeInTheDocument();
+    expect(within(foot as HTMLElement).getByRole("button", { name: /Save & submit/ })).toBeInTheDocument();
+  });
+
+  it("shows the losses error in the footer in place of the math line", async () => {
+    await renderReady();
+    setNum("Total eggs", 10);
+    setNum("Cracked", 20);
+
+    const foot = document.querySelector(".entry-foot") as HTMLElement;
+    expect(within(foot).getByText(/exceed total eggs/)).toBeInTheDocument();
+    expect(within(foot).queryByText(/Graded \d+ of \d+ sellable/)).toBeNull();
+  });
+});
+
+describe("DailyEntryPage draft badge", () => {
+  const draftFor = (date: string) => ({
+    id: "de1", farmId: "farm1", houseId: "h1", flockId: "f1", date, status: "Draft",
+    totalEggs: 40, crackedEggs: 1, dirtyEggs: 0, discardedEggs: 0, mortalityCount: 0,
+    grades: [], version: 1, adjustReason: null, voidReason: null,
+    lockedAtUtc: null, adjustedFrom: null,
+  } as DailyEntry);
+
+  it("says so when the prefill lands on an existing draft", async () => {
+    mockListDailyEntries.mockResolvedValue([draftFor(todayIso())]);
+    render(<DailyEntryPage />);
+    await screen.findByLabelText("Grade A");
+
+    // Without this the form looked identical whether it was a fresh day or an
+    // edit of work already saved — only LOCKED days got any signal.
+    expect(await screen.findByText("Editing draft")).toBeInTheDocument();
+    expect(screen.getByLabelText("Total eggs")).toHaveValue(40);
+  });
+
+  it("stays absent on a fresh day", async () => {
+    await renderReady();
+    expect(screen.queryByText("Editing draft")).toBeNull();
+  });
+
+  it("stays absent on a locked day, which has its own banner", async () => {
+    mockListDailyEntries.mockResolvedValue([
+      { ...draftFor(todayIso()), status: "Submitted" },
+    ]);
+    render(<DailyEntryPage />);
+
+    expect(await screen.findByText(/already submitted/)).toBeInTheDocument();
+    expect(screen.queryByText("Editing draft")).toBeNull();
+    expect(screen.getByLabelText("Total eggs")).toBeDisabled();
+  });
+});
+
+describe("DailyEntryPage new-flock dialog errors", () => {
+  it("shows a failed create inside the dialog instead of nowhere", async () => {
+    mockCreateFlock.mockRejectedValue(new Error("Flock name already used."));
+    await renderReady();
+    fireEvent.click(screen.getByRole("button", { name: "+ new flock" }));
+
+    const d = screen.getByRole("dialog");
+    fireEvent.change(within(d).getByLabelText("Name"), { target: { value: "Dupe" } });
+    fireEvent.change(within(d).getByLabelText("Breed"), { target: { value: "ISA" } });
+    await act(async () => {
+      fireEvent.click(within(d).getByRole("button", { name: "Create flock" }));
+    });
+
+    // The error render used to be gated on !showNewFlock while sitting INSIDE a
+    // dialog that only exists when showNewFlock — so it could never appear and
+    // the button looked inert (#131 regression, fixed in F134).
+    expect(within(screen.getByRole("dialog")).getByText("Flock name already used."))
+      .toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toBeInTheDocument(); // stays open to retry
+  });
+});

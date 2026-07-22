@@ -180,9 +180,16 @@ export function HelpPage() {
       <h3 id="daily-entry">Daily entry</h3>
       <ul>
         <li>
-          Pick a flock and a date, enter total eggs, losses (cracked / dirty /
-          discarded), deaths, and the sellable eggs split across grades. Graded
-          quantities can never exceed total minus losses.
+          The screen runs in three numbered steps, in the order the work
+          happens: <strong>1 Flock &amp; date</strong>, <strong>2 Egg counts</strong>{" "}
+          (total, cracked, dirty, discarded, deaths), then{" "}
+          <strong>3 Sellable production by grade</strong>. Graded quantities can
+          never exceed total minus losses.
+        </li>
+        <li>
+          The running total — <em>Graded n of m sellable</em> — and both save
+          buttons stay in a bar at the bottom of the screen as you scroll, so on
+          a phone you never lose sight of where you are or how to save.
         </li>
         <li>
           <strong>Save draft</strong> keeps the day editable. <strong>Submit</strong>{" "}
@@ -197,8 +204,10 @@ export function HelpPage() {
         </li>
         <li>
           One entry per flock per day. Reopening a day that has a draft loads it
-          for editing; if prefill fails, saving is blocked until it succeeds so
-          an existing draft is never silently overwritten.
+          for editing and shows an <strong>Editing draft</strong> badge beside
+          the title, so picking up saved work never looks like starting fresh.
+          If prefill fails, saving is blocked until it succeeds so an existing
+          draft is never silently overwritten.
         </li>
         <li>
           Depleted flocks accept backfilled entries up to their depletion date;

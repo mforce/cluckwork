@@ -7,6 +7,7 @@ import {
 import type { EggGrade, Flock } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { Dialog } from "../components/Dialog";
+import { StatusBadge } from "../components/StatusBadge";
 import { useConfirm } from "../components/useConfirm";
 import { todayIso } from "../lib/dates";
 
@@ -187,6 +188,9 @@ export function DailyEntryPage() {
   const lossesExceedTotal = losses > totalEggs;
   const selectedFlock = flocks.find((f) => f.id === flockId);
   const entryLocked = existingStatus !== null && existingStatus !== "Draft";
+  // The prefill found a draft for this flock+date: the form is EDITING it,
+  // not starting fresh, and nothing said so before (#134).
+  const editingDraft = existingStatus === "Draft";
 
   const clamp0 = (v: number) => Math.max(0, v || 0);
 
@@ -279,24 +283,40 @@ export function DailyEntryPage() {
 
   return (
     <section>
-      <h2>Daily entry</h2>
-
-      <div className="form-grid">
-        <label>
-          Flock
-          <select value={flockId} onChange={(e) => setFlockId(e.target.value)}>
-            {flocks.length === 0 && <option value="">— no flocks yet —</option>}
-            {flocks.map((f) => (
-              <option key={f.id} value={f.id}>
-                {f.name} ({f.breed}){f.status === "Depleted" ? " — depleted, backfill only" : ""}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button className="link" type="button" onClick={() => { setError(null); setShowNewFlock(true); }}>
-          + new flock
-        </button>
+      <div className="page-head">
+        <h2>Daily entry</h2>
+        {/* F134: the prefill can land on a day that already has a draft. Only
+            LOCKED days got a banner before, so editing an existing draft was
+            indistinguishable from starting a fresh one. */}
+        {editingDraft && <StatusBadge status="Draft" label="Editing draft" />}
       </div>
+
+      {/* F134: numbered because the order is real, not decoration — the grading
+          in section 3 is capped by the counts in section 2, which need a flock
+          and date in section 1 to prefill against. */}
+      <section className="entry-step">
+        <h3><span className="step-n" aria-hidden>1</span>Flock &amp; date</h3>
+        <div className="form-grid">
+          <label>
+            Flock
+            <select value={flockId} onChange={(e) => setFlockId(e.target.value)}>
+              {flocks.length === 0 && <option value="">— no flocks yet —</option>}
+              {flocks.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.name} ({f.breed}){f.status === "Depleted" ? " — depleted, backfill only" : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>Date
+            <input type="date" value={date} max={todayIso()}
+              onChange={(e) => setDate(e.target.value)} />
+          </label>
+          <button className="link" type="button" onClick={() => { setError(null); setShowNewFlock(true); }}>
+            + new flock
+          </button>
+        </div>
+      </section>
 
       {/* F131: creating a flock is catalog work, not capture — it belongs in a
           dialog like every other create, instead of shoving the entry grid
@@ -319,8 +339,11 @@ export function DailyEntryPage() {
             <input type="number" min={1} value={newFlockCount} required
               onChange={(e) => setNewFlockCount(Math.max(1, e.target.valueAsNumber || 1))} />
           </label>
-          {/* The dialog carries its own copy while it is up. */}
-      {error && !showNewFlock && <p className="error">{error}</p>}
+          {/* The dialog carries its own copy while it is up. This used to read
+              `!showNewFlock` here, inside a dialog that only exists WHEN
+              showNewFlock — so a failed create rendered no error anywhere and
+              the button just appeared to do nothing (F134 review of #131). */}
+          {error && <p className="error">{error}</p>}
           <div className="dialog-foot">
             <button type="button" className="link" onClick={() => setShowNewFlock(false)}>Cancel</button>
             <button type="submit">Create flock</button>
@@ -328,32 +351,31 @@ export function DailyEntryPage() {
         </form>
       </Dialog>
 
-      <div className="form-grid">
-        <label>Date
-          <input type="date" value={date} max={todayIso()}
-            onChange={(e) => setDate(e.target.value)} />
-        </label>
-        <label>Total eggs
-          <input type="number" min={0} value={totalEggs} disabled={entryLocked}
-            onChange={(e) => setTotalEggs(clamp0(e.target.valueAsNumber))} />
-        </label>
-        <label>Cracked
-          <input type="number" min={0} value={cracked} disabled={entryLocked}
-            onChange={(e) => setCracked(clamp0(e.target.valueAsNumber))} />
-        </label>
-        <label>Dirty
-          <input type="number" min={0} value={dirty} disabled={entryLocked}
-            onChange={(e) => setDirty(clamp0(e.target.valueAsNumber))} />
-        </label>
-        <label>Discarded
-          <input type="number" min={0} value={discarded} disabled={entryLocked}
-            onChange={(e) => setDiscarded(clamp0(e.target.valueAsNumber))} />
-        </label>
-        <label>Mortality
-          <input type="number" min={0} value={mortality} disabled={entryLocked}
-            onChange={(e) => setMortality(clamp0(e.target.valueAsNumber))} />
-        </label>
-      </div>
+      <section className="entry-step">
+        <h3><span className="step-n" aria-hidden>2</span>Egg counts</h3>
+        <div className="form-grid">
+          <label>Total eggs
+            <input type="number" min={0} value={totalEggs} disabled={entryLocked}
+              onChange={(e) => setTotalEggs(clamp0(e.target.valueAsNumber))} />
+          </label>
+          <label>Cracked
+            <input type="number" min={0} value={cracked} disabled={entryLocked}
+              onChange={(e) => setCracked(clamp0(e.target.valueAsNumber))} />
+          </label>
+          <label>Dirty
+            <input type="number" min={0} value={dirty} disabled={entryLocked}
+              onChange={(e) => setDirty(clamp0(e.target.valueAsNumber))} />
+          </label>
+          <label>Discarded
+            <input type="number" min={0} value={discarded} disabled={entryLocked}
+              onChange={(e) => setDiscarded(clamp0(e.target.valueAsNumber))} />
+          </label>
+          <label>Mortality
+            <input type="number" min={0} value={mortality} disabled={entryLocked}
+              onChange={(e) => setMortality(clamp0(e.target.valueAsNumber))} />
+          </label>
+        </div>
+      </section>
 
       {entryLocked && (
         <p className="warn">
@@ -371,36 +393,46 @@ export function DailyEntryPage() {
         </p>
       )}
 
-      <h3>Sellable production by grade</h3>
-      <div className="form-grid">
-        {visibleGrades.map((g) => (
-          <label key={g.id}>{g.name}{g.active ? "" : " (deactivated)"}
-            <input type="number" min={0} value={gradeQty[g.id] ?? 0} disabled={entryLocked}
-              onChange={(e) => {
-                setGradesTouched(true);
-                setGradeQty((prev) => ({ ...prev, [g.id]: clamp0(e.target.valueAsNumber) }));
-              }} />
-          </label>
-        ))}
-      </div>
-      <p className={gradesSum > sellable || lossesExceedTotal ? "error" : "muted"}>
-        {lossesExceedTotal
-          ? `Cracked + dirty + discarded (${losses}) exceed total eggs (${totalEggs}).`
-          : `Graded ${gradesSum} of ${sellable} sellable (total − cracked − dirty − discarded).`}
-      </p>
+      <section className="entry-step">
+        <h3><span className="step-n" aria-hidden>3</span>Sellable production by grade</h3>
+        <div className="form-grid">
+          {visibleGrades.map((g) => (
+            <label key={g.id}>{g.name}{g.active ? "" : " (deactivated)"}
+              <input type="number" min={0} value={gradeQty[g.id] ?? 0} disabled={entryLocked}
+                onChange={(e) => {
+                  setGradesTouched(true);
+                  setGradeQty((prev) => ({ ...prev, [g.id]: clamp0(e.target.valueAsNumber) }));
+                }} />
+            </label>
+          ))}
+        </div>
+      </section>
 
-      {/* The dialog carries its own copy while it is up. */}
-      {error && !showNewFlock && <p className="error">{error}</p>}
-      {message && <p className="success">{message}</p>}
-
-      <div className="actions">
-        <button disabled={busy || !flockId || lossesExceedTotal || entryLocked || prefillFailed || prefillPending}
-          onClick={() => onSave(false)}>Save draft</button>
-        <button
-          disabled={busy || !flockId || lossesExceedTotal || gradesSum > sellable || entryLocked || prefillFailed || prefillPending}
-          onClick={() => onSave(true)}>
-          Save &amp; submit (creates egg lots)
-        </button>
+      {/* F134: the reconciliation line and both saves ride along at the bottom
+          of the viewport. They are the only things on this screen you need
+          while scrolling, and on a phone the grade grid used to push them out
+          of sight entirely. Save feedback lives in here too — anything below a
+          sticky bar scrolls underneath it and is never seen. */}
+      <div className="entry-foot">
+        {/* The dialog carries its own copy while it is up. */}
+        {error && !showNewFlock && <p className="error">{error}</p>}
+        {message && <p className="success">{message}</p>}
+        <div className="entry-foot-row">
+          <p className={gradesSum > sellable || lossesExceedTotal ? "error" : "muted"}>
+            {lossesExceedTotal
+              ? `Cracked + dirty + discarded (${losses}) exceed total eggs (${totalEggs}).`
+              : `Graded ${gradesSum} of ${sellable} sellable (total − cracked − dirty − discarded).`}
+          </p>
+          <div className="actions">
+            <button disabled={busy || !flockId || lossesExceedTotal || entryLocked || prefillFailed || prefillPending}
+              onClick={() => onSave(false)}>Save draft</button>
+            <button
+              disabled={busy || !flockId || lossesExceedTotal || gradesSum > sellable || entryLocked || prefillFailed || prefillPending}
+              onClick={() => onSave(true)}>
+              Save &amp; submit (creates egg lots)
+            </button>
+          </div>
+        </div>
       </div>
 
       {confirmDialog}
