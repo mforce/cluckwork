@@ -44,10 +44,11 @@ public class CluckworkWebApplicationFactory : WebApplicationFactory<Program>, IA
         builder.UseSetting("Jwt:PublicKeyPem", TestJwtKeys.PublicKeyPem);
         builder.UseSetting("Jwt:Issuer", "cluckwork-test");
         builder.UseSetting("Jwt:Audience", "cluckwork-api-test");
-        // The suite logs in constantly from one in-process "client"; keep the
-        // auth rate limit (#143) out of the way. RateLimitingTests derive a
-        // factory that tightens it back down.
-        builder.UseSetting("RateLimiting:Auth:PermitLimit", "1000000");
+        // The suite logs in and refreshes constantly from one in-process
+        // "client"; keep the auth rate limits (#143) out of the way.
+        // RateLimitingTests derive a factory that tightens them back down.
+        builder.UseSetting("RateLimiting:Login:PermitLimit", "1000000");
+        builder.UseSetting("RateLimiting:Refresh:PermitLimit", "1000000");
     }
 }
 

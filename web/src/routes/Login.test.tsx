@@ -81,6 +81,19 @@ describe("Login", () => {
     expect(screen.queryByText("dashboard (protected)")).not.toBeInTheDocument();
   });
 
+  it("shows a rate-limit message on a 429 and stays on /login", async () => {
+    mockApiLogin.mockRejectedValue(new ApiError(429, "Too many requests", "slow down"));
+    renderWithProviders(tree(), { route: "/login", token: null });
+
+    fillCredentials("owner@farm.co", "pw");
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    });
+
+    expect(await screen.findByText(/Too many sign-in attempts/)).toBeInTheDocument();
+    expect(screen.queryByText("dashboard (protected)")).not.toBeInTheDocument();
+  });
+
   it("shows a generic error when the network fails (a non-ApiError rejection)", async () => {
     mockApiLogin.mockRejectedValue(new TypeError("Failed to fetch"));
     renderWithProviders(tree(), { route: "/login", token: null });

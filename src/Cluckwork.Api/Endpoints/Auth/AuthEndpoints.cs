@@ -1,21 +1,30 @@
 namespace Cluckwork.Api.Endpoints.Auth;
 
+using Cluckwork.Api.RateLimiting;
 using Cluckwork.Application.Common;
 
 public static class AuthEndpoints
 {
     public static RouteGroupBuilder MapAuthEndpoints(this RouteGroupBuilder group)
     {
+        // Strict limit — login is the password-spraying target (#143).
         group.MapPost("/login", Login)
             .AllowAnonymous()
+            .RequireRateLimiting(RateLimitingOptions.LoginPolicyName)
             .WithName("Login")
             .WithSummary("Exchange user credentials for an asymmetric JWT access token.");
 
+        // Looser limit — refresh guards a high-entropy token AND carries
+        // legitimate automatic session traffic, so it must not share login's
+        // budget (several users behind one NAT IP would starve it).
         group.MapPost("/refresh", Refresh)
             .AllowAnonymous()
+            .RequireRateLimiting(RateLimitingOptions.RefreshPolicyName)
             .WithName("RefreshToken")
             .WithSummary("Refresh an access token using a durable refresh token.");
 
+        // Authenticated — out of the anonymous rate-limit scope. Not limited so
+        // an exhausted login bucket can never block a user from logging out.
         group.MapPost("/logout", Logout)
             .RequireAuthorization()
             .WithName("Logout")

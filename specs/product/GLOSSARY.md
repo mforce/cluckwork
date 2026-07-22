@@ -339,6 +339,18 @@ header. Retrying the same key replays the original response instead of
 repeating the write — the safety net for flaky barn connectivity and the
 backbone of the future offline mode (#50).
 
+**Auth rate limiting (#143)** — the anonymous auth endpoints are throttled per
+client IP to blunt password spraying and token replay: **login** strictly
+(default 10 / 15 min), **refresh** more loosely (default 60 / 15 min — it also
+carries legitimate automatic session traffic, so it must not share login's
+budget). Over the limit returns HTTP 429 with a `Retry-After`; the SPA surfaces
+it as "Too many sign-in attempts" and never tears down an already-signed-in
+session. The real client IP comes from the reverse proxy's `X-Forwarded-For`
+via the framework's forwarded-headers handling (trusted-proxy networks are
+configured; a direct caller can't spoof the header). Limits and trusted proxies
+are configuration; in-process (single instance today — distributed limiting
+would be a later concern if the API is ever scaled horizontally).
+
 **Version (concurrency token)** — every mutable aggregate carries a `Version`
 that each mutation bumps. Two concurrent edits: first save wins, second gets
 a 409 and retries against fresh state. Append-only aggregates (bird

@@ -250,6 +250,21 @@ describe("apiFetch — refresh failure is fail-closed and non-recursive", () => 
     expect(loadTokens()).toBeNull();
   });
 
+  it("does NOT clear the session when refresh is rate-limited (429) — keeps tokens and rethrows the 429", async () => {
+    // A 429 during transparent refresh is transient throttling (#143), not a
+    // dead session. Wiping tokens here would force a re-login through the same
+    // rate limit; instead the refresh token is kept and the 429 surfaces.
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ title: "expired" }, 401)) // original 401
+      .mockResolvedValueOnce(jsonResponse({ title: "Too many requests" }, 429)); // refresh 429
+
+    const err = await apiGet("/stock").catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as ApiError).status).toBe(429); // the 429, not the original 401
+    expect(onUnauth).not.toHaveBeenCalled(); // session preserved
+    expect(loadTokens()?.refreshToken).toBe("rt1"); // tokens untouched
+  });
+
   it("recovers on the next request after a failed refresh — the latch is cleared on failure too", async () => {
     fetchMock
       .mockResolvedValueOnce(jsonResponse({ title: "expired" }, 401)) // req 1 original

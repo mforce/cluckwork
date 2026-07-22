@@ -73,7 +73,9 @@ using Cluckwork.Infrastructure.Repositories;
 using Cluckwork.Infrastructure.Time;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -140,11 +142,30 @@ builder.Services
     .AddDefaultTokenProviders();
 
 // --- Auth rate limiting (#143) ---
-// Per-client-IP fixed window on the anonymous auth endpoints. Trusted-proxy
-// CIDRs are parsed eagerly so a bad value fails at boot, not per request.
+// Per-client-IP fixed windows on the anonymous auth endpoints. The real client
+// IP is resolved by the framework ForwardedHeaders middleware below (not by
+// hand-parsing X-Forwarded-For); this only buckets by it. Config is validated
+// eagerly so a bad value fails at boot, not on the first login request.
 var rateLimiting = builder.Configuration.GetSection(RateLimitingOptions.SectionName)
     .Get<RateLimitingOptions>() ?? new RateLimitingOptions();
+rateLimiting.Validate();
 var trustedProxies = rateLimiting.ParseTrustedProxies();
+
+// Only X-Forwarded-For (the client IP for the limiter). X-Forwarded-Proto,
+// HSTS and the rest of the reverse-proxy story are deliberately left to #144.
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor;
+    // Bound the trusted hop chain by network membership, not a fixed count.
+    options.ForwardLimit = null;
+    // Replace the framework defaults (which trust loopback) with exactly the
+    // configured proxy networks — an untrusted peer's XFF is then ignored.
+    options.KnownIPNetworks.Clear();
+    options.KnownProxies.Clear();
+    foreach (var network in trustedProxies)
+        options.KnownIPNetworks.Add(network);
+});
+
 builder.Services.AddRateLimiter(limiter =>
 {
     limiter.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -159,20 +180,21 @@ builder.Services.AddRateLimiter(limiter =>
                 statusCode: StatusCodes.Status429TooManyRequests)
             .ExecuteAsync(context.HttpContext);
     };
-    limiter.AddPolicy(RateLimitingOptions.AuthPolicyName, context =>
-    {
-        var forwardedFor = context.Request.Headers["X-Forwarded-For"].ToString();
-        var key = ClientIp.Resolve(
-            context.Connection.RemoteIpAddress,
-            forwardedFor.Length > 0 ? forwardedFor : null,
-            trustedProxies);
-        return RateLimitPartition.GetFixedWindowLimiter(key, _ => new FixedWindowRateLimiterOptions
-        {
-            PermitLimit = rateLimiting.Auth.PermitLimit,
-            Window = TimeSpan.FromSeconds(rateLimiting.Auth.WindowSeconds),
-            QueueLimit = 0
-        });
-    });
+    AddFixedWindowByClientIp(limiter, RateLimitingOptions.LoginPolicyName, rateLimiting.Login);
+    AddFixedWindowByClientIp(limiter, RateLimitingOptions.RefreshPolicyName, rateLimiting.Refresh);
+
+    static void AddFixedWindowByClientIp(
+        Microsoft.AspNetCore.RateLimiting.RateLimiterOptions limiter,
+        string policyName, RateLimitingOptions.FixedWindow window) =>
+        limiter.AddPolicy(policyName, context =>
+            RateLimitPartition.GetFixedWindowLimiter(
+                RateLimitKey.ForClient(context.Connection.RemoteIpAddress),
+                _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = window.PermitLimit,
+                    Window = TimeSpan.FromSeconds(window.WindowSeconds),
+                    QueueLimit = 0
+                }));
 });
 
 // --- JWT Bearer (asymmetric signing; tech spec §7.4) ---
@@ -361,6 +383,11 @@ var app = builder.Build();
     await demoScope.ServiceProvider.GetRequiredService<DemoDataSeeder>().SeedAsync();
 }
 
+// Resolve the real client IP from a trusted proxy's X-Forwarded-For before any
+// middleware reads RemoteIpAddress (the rate limiter, below, is the first to
+// need it). Scoped to the IP only — #144 extends this for proto/HSTS.
+app.UseForwardedHeaders();
+
 app.UseExceptionHandler(new ExceptionHandlerOptions
 {
     AllowStatusCode404Response = true,
@@ -392,8 +419,8 @@ app.UseMiddleware<IdempotencyMiddleware>();
 // --- Endpoint groups (URL versioned: /api/v1/...) ---
 app.MapGroup("/api/v1/auth")
     .WithTags("Auth")
-    // Policy on the group so future auth endpoints inherit it (#143).
-    .RequireRateLimiting(RateLimitingOptions.AuthPolicyName)
+    // Rate-limit policies are applied per endpoint inside MapAuthEndpoints:
+    // login and refresh differ, and authenticated /logout is not limited (#143).
     .MapAuthEndpoints();
 
 app.MapGroup("/api/v1/flocks")
