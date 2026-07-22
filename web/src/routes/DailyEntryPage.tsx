@@ -190,7 +190,12 @@ export function DailyEntryPage() {
   const entryLocked = existingStatus !== null && existingStatus !== "Draft";
   // The prefill found a draft for this flock+date: the form is EDITING it,
   // not starting fresh, and nothing said so before (#134).
-  const editingDraft = existingStatus === "Draft";
+  //
+  // Gated on a SETTLED prefill. existingStatus still holds the previous
+  // flock+date's value while a new one is in flight, and is never cleared if
+  // that fetch fails — so without this the badge claims "editing draft" for a
+  // day it knows nothing about, and keeps claiming it (codex review).
+  const editingDraft = existingStatus === "Draft" && !prefillPending && !prefillFailed;
 
   const clamp0 = (v: number) => Math.max(0, v || 0);
 
@@ -267,6 +272,10 @@ export function DailyEntryPage() {
         setExistingStatus(result.status);
         setMessage(`Submitted — ${result.eggLotIds.length} egg lot(s) created.`);
       } else {
+        // The day now has saved work, so the badge should say so immediately.
+        // Only the submit branch tracked status before, which left a first
+        // draft save unbadged until a reload re-prefilled the same day.
+        setExistingStatus("Draft");
         setMessage("Draft saved.");
       }
       saveKey.current = crypto.randomUUID();
@@ -288,14 +297,19 @@ export function DailyEntryPage() {
         {/* F134: the prefill can land on a day that already has a draft. Only
             LOCKED days got a banner before, so editing an existing draft was
             indistinguishable from starting a fresh one. */}
-        {editingDraft && <StatusBadge status="Draft" label="Editing draft" />}
+        {/* Always rendered so it is a live region BEFORE the prefill fills it;
+            a status container that appears at the same moment as its content is
+            unreliably announced. */}
+        <span role="status">
+          {editingDraft && <StatusBadge status="Draft" label="Editing draft" />}
+        </span>
       </div>
 
       {/* F134: numbered because the order is real, not decoration — the grading
           in section 3 is capped by the counts in section 2, which need a flock
           and date in section 1 to prefill against. */}
       <section className="entry-step">
-        <h3><span className="step-n" aria-hidden>1</span>Flock &amp; date</h3>
+        <h3><span className="sr-only">Step 1 of 3: </span><span className="step-n" aria-hidden>1</span>Flock &amp; date</h3>
         <div className="form-grid">
           <label>
             Flock
@@ -352,7 +366,7 @@ export function DailyEntryPage() {
       </Dialog>
 
       <section className="entry-step">
-        <h3><span className="step-n" aria-hidden>2</span>Egg counts</h3>
+        <h3><span className="sr-only">Step 2 of 3: </span><span className="step-n" aria-hidden>2</span>Egg counts</h3>
         <div className="form-grid">
           <label>Total eggs
             <input type="number" min={0} value={totalEggs} disabled={entryLocked}
@@ -394,7 +408,7 @@ export function DailyEntryPage() {
       )}
 
       <section className="entry-step">
-        <h3><span className="step-n" aria-hidden>3</span>Sellable production by grade</h3>
+        <h3><span className="sr-only">Step 3 of 3: </span><span className="step-n" aria-hidden>3</span>Sellable production by grade</h3>
         <div className="form-grid">
           {visibleGrades.map((g) => (
             <label key={g.id}>{g.name}{g.active ? "" : " (deactivated)"}

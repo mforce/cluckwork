@@ -279,10 +279,12 @@ describe("DailyEntryPage structure", () => {
   it("labels the three steps without speaking the numerals twice", async () => {
     await renderReady();
 
-    // The numeral is aria-hidden, so the accessible name is the words alone.
-    expect(screen.getByRole("heading", { name: "Flock & date" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Egg counts" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Sellable production by grade" }))
+    // The drawn numeral is aria-hidden; an off-screen "Step n of 3" carries the
+    // ordering instead, because "of 3" is information document order cannot
+    // give — the numeral must be spoken once, not twice and not never.
+    expect(screen.getByRole("heading", { name: "Step 1 of 3: Flock & date" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Step 2 of 3: Egg counts" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Step 3 of 3: Sellable production by grade" }))
       .toBeInTheDocument();
   });
 
@@ -330,6 +332,36 @@ describe("DailyEntryPage draft badge", () => {
     expect(screen.queryByText("Editing draft")).toBeNull();
   });
 
+  it("appears as soon as a first draft is saved, not only after a reload", async () => {
+    vi.mocked(recordDailyEntry).mockResolvedValue({ id: "e1" } as never);
+    await renderReady();
+    fireEvent.change(screen.getByLabelText("Flock"), { target: { value: "f1" } });
+    setNum("Total eggs", 12);
+    expect(screen.queryByText("Editing draft")).toBeNull();
+
+    await act(async () => { fireEvent.click(saveDraftBtn()); });
+
+    // Only the submit path tracked status before, so the day had saved work
+    // that the badge did not admit to until something re-prefilled it.
+    expect(screen.getByText("Editing draft")).toBeInTheDocument();
+  });
+
+  it("does not claim a draft while the prefill for a new day is still in flight", async () => {
+    // Day one has a draft; switching to day two leaves existingStatus holding
+    // the OLD day's value until the fetch lands — and for ever if it fails.
+    mockListDailyEntries.mockResolvedValueOnce([draftFor(todayIso())]);
+    render(<DailyEntryPage />);
+    expect(await screen.findByText("Editing draft")).toBeInTheDocument();
+
+    mockListDailyEntries.mockRejectedValueOnce(new Error("offline"));
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Date"), { target: { value: "2026-07-01" } });
+    });
+
+    expect(await screen.findByText(/Could not check whether this day/)).toBeInTheDocument();
+    expect(screen.queryByText("Editing draft")).toBeNull();
+  });
+
   it("stays absent on a locked day, which has its own banner", async () => {
     mockListDailyEntries.mockResolvedValue([
       { ...draftFor(todayIso()), status: "Submitted" },
@@ -338,7 +370,12 @@ describe("DailyEntryPage draft badge", () => {
 
     expect(await screen.findByText(/already submitted/)).toBeInTheDocument();
     expect(screen.queryByText("Editing draft")).toBeNull();
-    expect(screen.getByLabelText("Total eggs")).toBeDisabled();
+    // Every field, not just the first: the restructure moved all six
+    // disabled={entryLocked} bindings, and checking one would let a slip on any
+    // of the others through (review of PR #137).
+    for (const label of ["Total eggs", "Cracked", "Dirty", "Discarded", "Mortality", "Grade A"]) {
+      expect(screen.getByLabelText(label)).toBeDisabled();
+    }
   });
 });
 
@@ -358,8 +395,11 @@ describe("DailyEntryPage new-flock dialog errors", () => {
     // The error render used to be gated on !showNewFlock while sitting INSIDE a
     // dialog that only exists when showNewFlock — so it could never appear and
     // the button looked inert (#131 regression, fixed in F134).
-    expect(within(screen.getByRole("dialog")).getByText("Flock name already used."))
-      .toBeInTheDocument();
-    expect(screen.getByRole("dialog")).toBeInTheDocument(); // stays open to retry
+    const dlg = screen.getByRole("dialog");
+    expect(within(dlg).getByText("Flock name already used.")).toBeInTheDocument();
+    expect(dlg).toBeInTheDocument(); // stays open to retry
+    // Exactly once: the footer copy stays suppressed while the dialog is up, so
+    // dropping that guard to "fix" the dialog would show the error twice.
+    expect(screen.getAllByText("Flock name already used.")).toHaveLength(1);
   });
 });

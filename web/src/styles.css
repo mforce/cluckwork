@@ -436,6 +436,21 @@ input.cell {
   margin-top: 0.4rem;
 }
 
+/* Off-screen but spoken. Used for the step numbers: the numeral itself is
+   drawn as a circle and aria-hidden, but "Step 1 of 3" carries information
+   document order cannot — how much of the form is left. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
 /* -------------------------------------------- Daily entry (F134) */
 
 /* The three steps are a real sequence, not decoration: grading is capped by the
@@ -449,6 +464,16 @@ input.cell {
   align-items: center;
   gap: 0.6rem;
   margin: 0;
+}
+
+/* Tabbing into a field the pinned bar is covering is a focus-order failure
+   (WCAG 2.4.3): measured 3 of 14 controls landing behind it at 390x844, the
+   worst by 114px. Scoped to this screen's controls rather than a global
+   scroll-padding, which would make focus scrolling overshoot everywhere else.
+   10rem clears the bar's tallest state. */
+.entry-step input,
+.entry-step select {
+  scroll-margin-bottom: 10rem;
 }
 
 /* aria-hidden in the markup — the heading text already reads correctly alone,
