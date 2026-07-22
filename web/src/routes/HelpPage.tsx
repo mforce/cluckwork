@@ -11,6 +11,7 @@ import { useEffect, useState } from "react";
 const TOC = [
   ["daily-loop", "The daily loop"],
   ["roles", "Who can do what"],
+  ["dialogs", "Adding & correcting"],
   ["daily-entry", "Daily entry"],
   ["flocks", "Flocks & birds"],
   ["grades", "Egg grades"],
@@ -126,6 +127,36 @@ export function HelpPage() {
           workers to flocks. Changing an existing user&apos;s role or password
           comes with a later release. Controls you can&apos;t use are hidden,
           and the server refuses them regardless.
+        </li>
+      </ul>
+
+      <h3 id="dialogs">Adding &amp; correcting</h3>
+      <ul>
+        <li>
+          Adding and correcting happen in a popup. Look for the{" "}
+          <strong>New …</strong> button beside the screen&apos;s title — new
+          grade, product, customer, flock, item, user, order. Each row&apos;s{" "}
+          <strong>edit</strong> or <strong>correct</strong> link opens the same
+          popup with that row&apos;s values already filled in.
+        </li>
+        <li>
+          Drill-downs work the same way. Open a flock&apos;s{" "}
+          <strong>birds</strong> ledger to record a cull, an inventory item to
+          record a purchase, feed usage, or a stock correction, or an order to{" "}
+          <strong>record a payment</strong> — the ledger stays where it is and
+          the form comes to you.
+        </li>
+        <li>
+          <strong>Cancel</strong>, Escape, or a click outside closes the popup
+          and changes nothing. If a save fails, the popup stays open with your
+          values and the reason, so you can fix it and try again — retrying is
+          safe, it never records the same thing twice.
+        </li>
+        <li>
+          The screens whose whole job is capture keep their form on the page:{" "}
+          <strong>Daily entry</strong>, <strong>Water</strong>, recording an
+          expense, and adding lines to a draft order. Those you use every day —
+          no extra click.
         </li>
       </ul>
 

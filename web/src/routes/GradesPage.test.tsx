@@ -40,6 +40,11 @@ async function renderReady(token: Record<string, unknown>) {
   await screen.findByText("Grade A");
 }
 
+// F131: add/edit moved out of the page into a dialog. The behavioural
+// assertions below are unchanged — they just open the dialog first.
+const openCreate = () => fireEvent.click(screen.getByRole("button", { name: "New grade" }));
+const dialog = () => screen.getByRole("dialog");
+
 describe("GradesPage display", () => {
   it("renders each grade with saleable + status columns", async () => {
     await renderReady(ADMIN);
@@ -53,45 +58,49 @@ describe("GradesPage display", () => {
 });
 
 describe("GradesPage admin actions", () => {
-  it("creates a grade with the form values, then clears the name", async () => {
+  it("creates a grade with the form values, then closes and clears the form", async () => {
     mockCreate.mockResolvedValue({ id: "g3" });
     await renderReady(ADMIN);
+    openCreate();
 
-    fireEvent.change(screen.getByPlaceholderText("Name *"), { target: { value: "Jumbo" } });
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "Quality" } }); // off the "Size" default
-    fireEvent.change(screen.getByLabelText("Sort"), { target: { value: "3" } });
-    fireEvent.click(screen.getByLabelText("saleable")); // default true → false
+    fireEvent.change(within(dialog()).getByLabelText("Name *"), { target: { value: "Jumbo" } });
+    fireEvent.change(within(dialog()).getByLabelText("Type"), { target: { value: "Quality" } }); // off the "Size" default
+    fireEvent.change(within(dialog()).getByLabelText("Sort"), { target: { value: "3" } });
+    fireEvent.click(within(dialog()).getByLabelText("saleable")); // default true → false
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Add grade" }));
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Add grade" }));
     });
 
     expect(mockCreate.mock.calls[0][0]).toEqual({
       name: "Jumbo", gradeType: "Quality", sortOrder: 3, isSaleable: false,
     });
     expect(mockCreate.mock.calls[0][1]).toEqual(expect.any(String)); // idempotency key
-    expect(screen.getByPlaceholderText("Name *")).toHaveValue(""); // reset on success
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument(); // success dismisses it
+    openCreate();
+    expect(within(dialog()).getByLabelText("Name *")).toHaveValue(""); // reset on success
   });
 
-  it("saves an inline edit with the edited name/sort/saleable", async () => {
+  it("saves an edit with the edited name/sort/saleable", async () => {
     mockUpdate.mockResolvedValue(undefined);
     await renderReady(ADMIN);
 
-    // The <tr> node is stable across the switch to edit mode — reuse it rather
-    // than re-finding by /Grade A/ (which would depend on the input value
-    // contributing to the row's accessible name).
     const rowA = screen.getByRole("row", { name: /Grade A/ });
     fireEvent.click(within(rowA).getByRole("button", { name: "edit" }));
-    // change all three editable fields off their seeded values
-    fireEvent.change(within(rowA).getByRole("textbox"), { target: { value: "Large" } });
-    fireEvent.change(within(rowA).getByRole("spinbutton"), { target: { value: "5" } });
-    fireEvent.click(within(rowA).getByRole("checkbox")); // saleable true → false
+    // the dialog is seeded from the row, then all three fields move off it.
+    // The edit field is "Name", not "Name *": the row's save was a plain button,
+    // so it never carried a required marker — the dialog keeps that parity.
+    expect(within(dialog()).getByLabelText("Name")).toHaveValue("Grade A");
+    fireEvent.change(within(dialog()).getByLabelText("Name"), { target: { value: "Large" } });
+    fireEvent.change(within(dialog()).getByLabelText("Sort"), { target: { value: "5" } });
+    fireEvent.click(within(dialog()).getByLabelText("saleable")); // saleable true → false
     await act(async () => {
-      fireEvent.click(within(rowA).getByRole("button", { name: "save" }));
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Save" }));
     });
 
     expect(mockUpdate.mock.calls[0][0]).toBe("g1");
     expect(mockUpdate.mock.calls[0][1]).toEqual({ name: "Large", sortOrder: 5, isSaleable: false });
     expect(mockUpdate.mock.calls[0][2]).toEqual(expect.any(String)); // idempotency key
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("deactivates an active grade and activates an inactive one", async () => {
@@ -115,17 +124,25 @@ describe("GradesPage admin actions", () => {
     mockCreate.mockRejectedValueOnce(new ApiError(500, "Server error", "boom"));
     mockCreate.mockResolvedValue({ id: "g3" });
     await renderReady(ADMIN);
-    const name = () => screen.getByPlaceholderText("Name *");
+    openCreate();
+    const name = () => within(dialog()).getByLabelText("Name *");
+    const submit = async () => {
+      await act(async () => {
+        fireEvent.click(within(dialog()).getByRole("button", { name: "Add grade" }));
+      });
+    };
 
     fireEvent.change(name(), { target: { value: "One" } });
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Add grade" })); });
-    expect(await screen.findByText(/Server error|boom/)).toBeInTheDocument();
+    await submit();
+    // A failed save keeps the dialog up, with the error inside it.
+    expect(within(dialog()).getByText(/Server error|boom/)).toBeInTheDocument();
 
     fireEvent.change(name(), { target: { value: "One" } });
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Add grade" })); });
+    await submit();
 
+    openCreate(); // success closed it
     fireEvent.change(name(), { target: { value: "Two" } });
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Add grade" })); });
+    await submit();
 
     const k1 = mockCreate.mock.calls[0][1];
     const k2 = mockCreate.mock.calls[1][1];
@@ -135,10 +152,33 @@ describe("GradesPage admin actions", () => {
   });
 });
 
+describe("GradesPage dialog dismissal", () => {
+  it("closes the create dialog on Cancel without writing", async () => {
+    await renderReady(ADMIN);
+    openCreate();
+    fireEvent.change(within(dialog()).getByLabelText("Name *"), { target: { value: "Abandoned" } });
+
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(mockCreate).not.toHaveBeenCalled();
+  });
+
+  it("closes the edit dialog on Cancel without writing", async () => {
+    await renderReady(ADMIN);
+    fireEvent.click(within(screen.getByRole("row", { name: /Grade A/ })).getByRole("button", { name: "edit" }));
+
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(mockUpdate).not.toHaveBeenCalled();
+  });
+});
+
 describe("GradesPage role gating", () => {
   it("renders read-only for a non-admin — no create form, no row actions", async () => {
     await renderReady(WORKER);
-    expect(screen.queryByRole("button", { name: "Add grade" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "New grade" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "edit" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "deactivate" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "activate" })).not.toBeInTheDocument(); // inactive Legacy row too

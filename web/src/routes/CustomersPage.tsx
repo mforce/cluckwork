@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
+import { Plus } from "lucide-react";
 import { createCustomer, formatMoney, listCustomerBalances, listCustomers } from "../api/cluckwork";
 import type { Customer, CustomerBalances } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
+import { Dialog } from "../components/Dialog";
 
 // #23: customer book — name + phone required, the rest optional.
 export function CustomersPage() {
@@ -14,6 +16,7 @@ export function CustomersPage() {
   const [balances, setBalances] = useState<CustomerBalances | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const [creating, setCreating] = useState(false); // F131: capture moved into a dialog
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
@@ -55,6 +58,7 @@ export function CustomersPage() {
       }, createKey.current);
       createKey.current = crypto.randomUUID();
       setName(""); setPhone(""); setEmail(""); setAddress(""); setNote("");
+      setCreating(false);
       await load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : String(err));
@@ -65,23 +69,40 @@ export function CustomersPage() {
 
   return (
     <section>
-      <h2>Customers</h2>
+      <div className="page-head">
+        <h2>Customers</h2>
+        <button type="button" onClick={() => { setError(null); setCreating(true); }}>
+          <Plus size={16} aria-hidden /> New customer
+        </button>
+      </div>
 
-      <form className="inline-form" onSubmit={onCreate}>
-        <input placeholder="Name *" value={name} required
-          onChange={(e) => setName(e.target.value)} />
-        <input placeholder="Phone *" value={phone} required
-          onChange={(e) => setPhone(e.target.value)} />
-        <input placeholder="Email" type="email" value={email}
-          onChange={(e) => setEmail(e.target.value)} />
-        <input placeholder="Address" value={address}
-          onChange={(e) => setAddress(e.target.value)} />
-        <input placeholder="Note" value={note}
-          onChange={(e) => setNote(e.target.value)} />
-        <button type="submit" disabled={busy}>Add customer</button>
-      </form>
+      <Dialog open={creating} title="New customer" onClose={() => setCreating(false)}>
+        <form className="inline-form" onSubmit={onCreate}>
+          <label>Name *
+            <input value={name} required onChange={(e) => setName(e.target.value)} />
+          </label>
+          <label>Phone *
+            <input value={phone} required onChange={(e) => setPhone(e.target.value)} />
+          </label>
+          <label>Email
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+          </label>
+          <label>Address
+            <input value={address} onChange={(e) => setAddress(e.target.value)} />
+          </label>
+          <label>Note
+            <input value={note} onChange={(e) => setNote(e.target.value)} />
+          </label>
+          {error && <p className="error">{error}</p>}
+          <div className="dialog-foot">
+            <button type="button" className="link" onClick={() => setCreating(false)}>Cancel</button>
+            <button type="submit" disabled={busy}>Add customer</button>
+          </div>
+        </form>
+      </Dialog>
 
-      {error && <p className="error">{error}</p>}
+      {/* The dialog carries its own copy while it is up. */}
+      {error && !creating && <p className="error">{error}</p>}
 
       {customers === null ? (
         <p className="muted">Loading…</p>

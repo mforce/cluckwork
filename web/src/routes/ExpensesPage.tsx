@@ -6,6 +6,7 @@ import {
 } from "../api/cluckwork";
 import type { Expense, ExpenseCategory, Flock } from "../api/cluckwork";
 import { ApiError } from "../api/client";
+import { Dialog } from "../components/Dialog";
 import { todayIso } from "../lib/dates";
 
 function errText(err: unknown): string {
@@ -43,6 +44,7 @@ export function ExpensesPage() {
 
   // category management
   const [showCategories, setShowCategories] = useState(false);
+  const [addingCategory, setAddingCategory] = useState(false); // F131: in a dialog
   const [newCategoryName, setNewCategoryName] = useState("");
 
   // edit panel (admin correction, version-guarded)
@@ -53,7 +55,6 @@ export function ExpensesPage() {
   const [editAmount, setEditAmount] = useState("");
   const [editFlock, setEditFlock] = useState("");
   const [editNote, setEditNote] = useState("");
-  const panelRef = useRef<HTMLDivElement | null>(null);
 
   // Stable idempotency keys per logical mutation. Version-guarded edits rotate
   // on ANY server response (the version base prevents double-apply); only a
@@ -184,10 +185,8 @@ export function ExpensesPage() {
     setEditNote(x.note ?? "");
     setMessage(null);
     setError(null);
-    requestAnimationFrame(() => {
-      panelRef.current?.scrollIntoView({ block: "nearest" });
-      panelRef.current?.querySelector("input")?.focus();
-    });
+    // F131: the correction form is a dialog now — it takes focus itself, so
+    // there is nothing to scroll to.
   }
 
   function onSaveEdit(e: FormEvent) {
@@ -232,6 +231,7 @@ export function ExpensesPage() {
     void run(scope, async () => {
       await createExpenseCategory({ name: newCategoryName.trim() }, keyFor(scope));
       setNewCategoryName("");
+      setAddingCategory(false);
       setCategories(await listExpenseCategories({ includeInactive: true }));
       setMessage("Category created.");
     });
@@ -273,11 +273,26 @@ export function ExpensesPage() {
       {showCategories && (
         <div className="order-panel">
           <h3>Expense categories</h3>
-          <form className="inline-form" onSubmit={onAddCategory}>
-            <input placeholder="New category name" value={newCategoryName} required
-              onChange={(e) => setNewCategoryName(e.target.value)} />
-            <button type="submit" disabled={busy}>Add category</button>
-          </form>
+          <div className="panel-actions">
+            <button type="button" onClick={() => { setError(null); setAddingCategory(true); }}>
+              New category
+            </button>
+          </div>
+
+          <Dialog open={addingCategory} title="New expense category" onClose={() => setAddingCategory(false)}>
+            <form className="inline-form" onSubmit={onAddCategory}>
+              <label>Category name
+                <input value={newCategoryName} required
+                  onChange={(e) => setNewCategoryName(e.target.value)} />
+              </label>
+              {error && <p className="error">{error}</p>}
+              <div className="dialog-foot">
+                <button type="button" className="link" onClick={() => setAddingCategory(false)}>Cancel</button>
+                <button type="submit" disabled={busy}>Add category</button>
+              </div>
+            </form>
+          </Dialog>
+
           <ul>
             {categories.map((c) => (
               <li key={c.id}>
@@ -331,12 +346,20 @@ export function ExpensesPage() {
         <p className="muted">Add a category first — every expense needs one.</p>
       )}
 
-      {error && <p className="error" role="alert">{error}</p>}
+      {/* An open dialog renders its own copy of the error. */}
+      {error && !addingCategory && editing === null && <p className="error" role="alert">{error}</p>}
       {message && <p className="success" role="status">{message}</p>}
 
-      {editing !== null && (
-        <div className="order-panel" ref={panelRef}>
-          <h3>Correct — {editing.date}, {editing.description}</h3>
+      <Dialog
+        open={editing !== null}
+        title={editing ? `Correct — ${editing.date}, ${editing.description}` : "Correct expense"}
+        onClose={() => setEditing(null)}
+        // A 409 rebinds this dialog to the server's newer row; the record
+        // identity changing pulls focus back to the first field rather than
+        // swapping the form out from under the user's cursor.
+        focusKey={editing}
+      >
+        {editing && (
           <form className="form-grid" onSubmit={onSaveEdit}>
             <label>Date
               <input type="date" value={editDate} max={todayIso()} required
@@ -368,14 +391,17 @@ export function ExpensesPage() {
             <label>Note (optional)
               <input value={editNote} maxLength={500} onChange={(e) => setEditNote(e.target.value)} />
             </label>
-            <div className="actions">
-              <button type="submit" disabled={busy}>Save correction</button>
+            {/* The 409 rebind reports through here, so the conflict banner stays
+                next to the form it is telling you to re-apply. */}
+            {error && <p className="error" role="alert">{error}</p>}
+            <div className="dialog-foot">
               <button type="button" className="link" disabled={busy}
-                onClick={() => setEditing(null)}>cancel</button>
+                onClick={() => setEditing(null)}>Cancel</button>
+              <button type="submit" disabled={busy}>Save correction</button>
             </div>
           </form>
-        </div>
-      )}
+        )}
+      </Dialog>
 
       {items === null ? (
         <p className="muted">Loading…</p>

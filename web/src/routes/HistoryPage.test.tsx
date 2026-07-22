@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, fireEvent, act } from "@testing-library/react";
+import { screen, within, fireEvent, act } from "@testing-library/react";
 import { HistoryPage } from "./HistoryPage";
 import { renderWithProviders } from "../test/renderWithProviders";
 import {
@@ -47,7 +47,8 @@ const ADMIN = { sub: "u1", role: "Admin" };
 beforeEach(() => {
   vi.clearAllMocks();
   localStorage.clear();
-  // jsdom has no layout engine; the panel's focus effect calls scrollIntoView.
+  // jsdom has no layout engine; keep the stub so any scroll a control triggers
+  // (e.g. a browser autoscroll on focus) can't throw mid-test.
   Element.prototype.scrollIntoView = vi.fn();
   mockListFlocks.mockResolvedValue([FLOCK]);
   mockListEggGrades.mockResolvedValue([GRADE_A, GRADE_B]);
@@ -58,6 +59,19 @@ async function openAdjustPanel() {
   renderWithProviders(<HistoryPage />, { token: ADMIN });
   fireEvent.click(await screen.findByRole("button", { name: "adjust" }));
 }
+
+describe("HistoryPage dialog dismissal", () => {
+  it("closes the adjust dialog on Cancel without writing", async () => {
+    mockListDailyEntries.mockResolvedValue([SUBMITTED]);
+    await openAdjustPanel();
+    fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: "typed then abandoned" } });
+
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(mockAdjustDailyEntry).not.toHaveBeenCalled();
+  });
+});
 
 describe("HistoryPage adjust — sellable guard", () => {
   it("blocks and warns when the graded lines SUM past sellable (neither line alone over)", async () => {

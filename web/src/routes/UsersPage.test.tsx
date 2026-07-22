@@ -103,18 +103,23 @@ describe("UsersPage load", () => {
   });
 });
 
+// F131: create moved into a dialog — open it, then assert the same behaviour.
+const openCreate = () => fireEvent.click(screen.getByRole("button", { name: "New user" }));
+const dialog = () => screen.getByRole("dialog");
+
 describe("UsersPage create", () => {
   it("creates a user with the entered email + role (off default) and a present password + idempotency key", async () => {
     mockCreateUser.mockResolvedValue({ id: "u-new" });
     await renderReady(ADMIN);
+    openCreate();
 
     // Runtime-generated credential — no literal secret in source (GitGuardian).
     const password = `pw-${crypto.randomUUID()}`;
-    fireEvent.change(screen.getByPlaceholderText("Email *"), { target: { value: "  New@Farm.test  " } });
-    fireEvent.change(screen.getByPlaceholderText(/Password/), { target: { value: password } });
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "Manager" } }); // off the "Worker" default
+    fireEvent.change(within(dialog()).getByLabelText("Email *"), { target: { value: "  New@Farm.test  " } });
+    fireEvent.change(within(dialog()).getByLabelText(/Password/), { target: { value: password } });
+    fireEvent.change(within(dialog()).getByLabelText("Role"), { target: { value: "Manager" } }); // off the "Worker" default
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Create user" }));
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Create user" }));
     });
 
     const body = mockCreateUser.mock.calls[0][0];
@@ -123,9 +128,12 @@ describe("UsersPage create", () => {
     expect(body.password).toBe(password);
     expect(mockCreateUser.mock.calls[0][1]).toEqual(expect.any(String)); // idempotency key
 
-    // Success surfaces a confirmation and resets the form.
+    // Success surfaces a confirmation on the page, dismisses the dialog, and
+    // resets the form behind it.
     expect(await screen.findByText(/Manager account created for New@Farm\.test/)).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("Email *")).toHaveValue("");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    openCreate();
+    expect(within(dialog()).getByLabelText("Email *")).toHaveValue("");
   });
 
   it("replays the SAME create key after a failure, and rotates it after success", async () => {
@@ -133,20 +141,24 @@ describe("UsersPage create", () => {
     mockCreateUser.mockResolvedValue({ id: "u-new" });
     await renderReady(ADMIN);
 
-    const emailInput = () => screen.getByPlaceholderText("Email *");
-    const pwInput = () => screen.getByPlaceholderText(/Password/);
-    const submit = () => screen.getByRole("button", { name: "Create user" });
+    openCreate();
+    const emailInput = () => within(dialog()).getByLabelText("Email *");
+    const pwInput = () => within(dialog()).getByLabelText(/Password/);
+    const submit = () => within(dialog()).getByRole("button", { name: "Create user" });
 
     // Attempt 1 — same email → same scope; fails, so the key is kept.
     fireEvent.change(emailInput(), { target: { value: "one@farm.test" } });
     fireEvent.change(pwInput(), { target: { value: `pw-${crypto.randomUUID()}` } });
     await act(async () => { fireEvent.click(submit()); });
-    expect(await screen.findByText(/Server error|boom/)).toBeInTheDocument();
+    // A failure keeps the dialog up with the error inside it.
+    expect(within(dialog()).getByText(/Server error|boom/)).toBeInTheDocument();
 
     // Attempt 2 — email/password survive a failure; resubmit as-is → replay.
     await act(async () => { fireEvent.click(submit()); });
 
-    // Attempt 3 — success reset the form, so refill the same email → fresh key.
+    // Attempt 3 — success closed the dialog and reset the form, so reopen and
+    // refill the same email → fresh key.
+    openCreate();
     fireEvent.change(emailInput(), { target: { value: "one@farm.test" } });
     fireEvent.change(pwInput(), { target: { value: `pw-${crypto.randomUUID()}` } });
     await act(async () => { fireEvent.click(submit()); });
@@ -156,6 +168,19 @@ describe("UsersPage create", () => {
     const k3 = mockCreateUser.mock.calls[2][1];
     expect(k2).toBe(k1); // failure kept the key → exact replay
     expect(k3).not.toBe(k2); // success rotated it → next write is fresh
+  });
+});
+
+describe("UsersPage dialog dismissal", () => {
+  it("closes the create dialog on Cancel without writing", async () => {
+    await renderReady(ADMIN);
+    openCreate();
+    fireEvent.change(within(dialog()).getByLabelText("Email *"), { target: { value: "nope@farm.test" } });
+
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(mockCreateUser).not.toHaveBeenCalled();
   });
 });
 
@@ -310,7 +335,8 @@ describe("UsersPage role gating", () => {
   // in-component gate that silently hid the form would trip this test.
   it("UsersPage does not self-gate — renders for any authenticated role", async () => {
     await renderReady(WORKER);
-    expect(screen.getByRole("button", { name: "Create user" })).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("Email *")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "New user" })).toBeInTheDocument();
+    openCreate();
+    expect(within(dialog()).getByLabelText("Email *")).toBeInTheDocument();
   });
 });

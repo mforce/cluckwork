@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
+import { Plus } from "lucide-react";
 import {
   activateProduct, createProduct, deactivateProduct, formatMoney,
   getAccount, listEggGrades, listEggUnitConversions, listProducts,
@@ -8,6 +9,7 @@ import {
 import type { EggGrade, EggUnitConversion, Product } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
+import { Dialog } from "../components/Dialog";
 import { StatusBadge } from "../components/StatusBadge";
 
 // Spec §10.1 default_unit values usable for egg products; packed units resolve
@@ -32,14 +34,15 @@ export function ProductsPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  // create form
+  // create form (F131: in a dialog)
+  const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
   const [unit, setUnit] = useState("Dozen");
   const [gradeId, setGradeId] = useState("");
   const [price, setPrice] = useState("");
   const [notes, setNotes] = useState("");
 
-  // inline edit (products)
+  // edit (products) — dialog seeded from the row
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editUnit, setEditUnit] = useState("Dozen");
@@ -47,7 +50,7 @@ export function ProductsPage() {
   const [editPrice, setEditPrice] = useState("");
   const [editNotes, setEditNotes] = useState("");
 
-  // inline edit (conversions)
+  // edit (conversions) — dialog seeded from the row
   const [editingConvId, setEditingConvId] = useState<string | null>(null);
   const [editEggs, setEditEggs] = useState(1);
   const [editConvActive, setEditConvActive] = useState(true);
@@ -146,10 +149,14 @@ export function ProductsPage() {
       setName("");
       setPrice("");
       setNotes("");
+      setCreating(false);
     }
   }
 
   function startEdit(p: Product) {
+    setError(null);
+    setCreating(false);
+    setEditingConvId(null);
     setEditingId(p.id);
     setEditName(p.name);
     setEditUnit(p.defaultUnit);
@@ -160,7 +167,10 @@ export function ProductsPage() {
     setEditNotes(p.notes ?? "");
   }
 
-  async function onSaveEdit(id: string) {
+  async function onSaveEdit(e: FormEvent) {
+    e.preventDefault();
+    const id = editingId;
+    if (id === null) return;
     const target = products?.find((p) => p.id === id);
     let priceMinor: number | null;
     try {
@@ -180,9 +190,12 @@ export function ProductsPage() {
     if (ok) setEditingId(null);
   }
 
-  async function onSaveConversion(c: EggUnitConversion) {
-    const ok = await run(`conv:${c.id}`, (key) =>
-      updateEggUnitConversion(c.id, { eggsPerUnit: editEggs, active: editConvActive }, key));
+  async function onSaveConversion(e: FormEvent) {
+    e.preventDefault();
+    const id = editingConvId;
+    if (id === null) return;
+    const ok = await run(`conv:${id}`, (key) =>
+      updateEggUnitConversion(id, { eggsPerUnit: editEggs, active: editConvActive }, key));
     if (ok) setEditingConvId(null);
   }
 
@@ -196,18 +209,31 @@ export function ProductsPage() {
     return <section><h2>Products</h2><p className="muted">Loading…</p></section>;
   }
 
+  const editingProduct = products.find((p) => p.id === editingId) ?? null;
+  const editingConv = conversions.find((c) => c.id === editingConvId) ?? null;
+  const dialogOpen = creating || editingProduct !== null || editingConv !== null;
+
   return (
     <section>
-      <h2>Products</h2>
+      <div className="page-head">
+        <h2>Products</h2>
+        {isAdmin && (
+          <button type="button" onClick={() => { setError(null); setEditingId(null); setEditingConvId(null); setCreating(true); }}>
+            <Plus size={16} aria-hidden /> New product
+          </button>
+        )}
+      </div>
       <p className="muted">
         What the farm sells. Each egg product maps to an egg grade — sales draw
         stock from that grade&apos;s lots. Deactivating removes a product from
         pickers; history keeps its name.
       </p>
 
-      {error && <p className="error" role="alert">{error}</p>}
+      {/* A dialog renders its own copy of the error; don't double it. */}
+      {error && !dialogOpen && <p className="error" role="alert">{error}</p>}
 
-      {isAdmin && (
+      {/* Gated like the inline form was: a role change mid-edit closes it. */}
+      <Dialog open={creating && isAdmin} title="New product" onClose={() => setCreating(false)}>
         <form onSubmit={(e) => void onCreate(e)} className="inline-form">
           <label>Name
             <input value={name} onChange={(e) => setName(e.target.value)} required maxLength={100} />
@@ -230,9 +256,69 @@ export function ProductsPage() {
           <label>Notes
             <input value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={500} />
           </label>
-          <button disabled={busy}>Add product</button>
+          {error && <p className="error" role="alert">{error}</p>}
+          <div className="dialog-foot">
+            <button type="button" className="link" onClick={() => setCreating(false)}>Cancel</button>
+            <button disabled={busy}>Add product</button>
+          </div>
         </form>
-      )}
+      </Dialog>
+
+      <Dialog open={editingProduct !== null && isAdmin} title="Edit product" onClose={() => setEditingId(null)}>
+        {/* noValidate: the row's save used to be a plain button, so the browser
+            never enforced min/step — the price parser's own message
+            ("At most N decimal places for this currency") did. */}
+        <form onSubmit={(e) => void onSaveEdit(e)} className="inline-form" noValidate>
+          <label>Name
+            <input value={editName} onChange={(e) => setEditName(e.target.value)} maxLength={100} />
+          </label>
+          <label>Grade
+            <select value={editGradeId} onChange={(e) => setEditGradeId(e.target.value)}>
+              {grades.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+            </select>
+          </label>
+          <label>Sold per
+            <select value={editUnit} onChange={(e) => setEditUnit(e.target.value)}>
+              {EGG_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
+            </select>
+          </label>
+          {/* Stepped by THIS product's snapshot precision, not the account's. */}
+          <label>Default price{editingProduct ? ` (${editingProduct.currencyCode})` : ""}
+            <input type="number" min="0"
+              step={editingProduct ? (1 / 10 ** editingProduct.currencyMinorUnit).toFixed(editingProduct.currencyMinorUnit) : "0.01"}
+              value={editPrice} onChange={(e) => setEditPrice(e.target.value)} />
+          </label>
+          {/* No notes field: the inline edit had none, and #131 changes shape,
+              not capability. editNotes stays seeded so the body round-trips. */}
+          {error && <p className="error" role="alert">{error}</p>}
+          <div className="dialog-foot">
+            <button type="button" className="link" onClick={() => setEditingId(null)}>Cancel</button>
+            <button type="submit" disabled={busy}>Save</button>
+          </div>
+        </form>
+      </Dialog>
+
+      <Dialog
+        open={editingConv !== null && isAdmin}
+        title={editingConv ? `Eggs per ${editingConv.unitCode}` : "Packed unit"}
+        onClose={() => setEditingConvId(null)}
+      >
+        <form onSubmit={(e) => void onSaveConversion(e)} className="inline-form" noValidate>
+          <label>Eggs per unit
+            <input type="number" min={1} value={editEggs}
+              onChange={(e) => setEditEggs(Number(e.target.value))} />
+          </label>
+          <label className="check">
+            <input type="checkbox" checked={editConvActive}
+              onChange={(e) => setEditConvActive(e.target.checked)} /> active
+          </label>
+          {error && <p className="error" role="alert">{error}</p>}
+          <div className="dialog-foot">
+            <button type="button" className="link" onClick={() => setEditingConvId(null)}>Cancel</button>
+            <button type="submit" disabled={busy}>Save</button>
+          </div>
+        </form>
+      </Dialog>
 
       {products.length === 0 ? (
         <p className="muted">No products yet.</p>
@@ -244,54 +330,28 @@ export function ProductsPage() {
           <tbody>
             {products.map((p) => (
               <tr key={p.id} className={p.active ? undefined : "muted"}>
-                {editingId === p.id ? (
-                  <>
-                    <td><input value={editName} onChange={(e) => setEditName(e.target.value)} maxLength={100} /></td>
-                    <td>
-                      <select value={editGradeId} onChange={(e) => setEditGradeId(e.target.value)}>
-                        {grades.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
-                      </select>
-                    </td>
-                    <td>
-                      <select value={editUnit} onChange={(e) => setEditUnit(e.target.value)}>
-                        {EGG_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
-                      </select>
-                    </td>
-                    <td><input type="number" min="0"
-                      step={(1 / 10 ** p.currencyMinorUnit).toFixed(p.currencyMinorUnit)}
-                      value={editPrice} onChange={(e) => setEditPrice(e.target.value)} /></td>
-                    <td><StatusBadge status={p.active ? "Active" : "Inactive"} /></td>
-                    <td>
-                      <button className="link" disabled={busy} onClick={() => void onSaveEdit(p.id)}>save</button>{" "}
-                      <button className="link" disabled={busy} onClick={() => setEditingId(null)}>cancel</button>
-                    </td>
-                  </>
-                ) : (
-                  <>
-                    <td title={p.notes ?? undefined}>{p.name}</td>
-                    <td>{gradeName(p.eggGradeId)}</td>
-                    <td>{p.defaultUnit}</td>
-                    <td>{p.defaultPriceMinorUnits === null
-                      ? "—"
-                      : formatMoney(p.defaultPriceMinorUnits, p.currencyCode, p.currencyMinorUnit)}</td>
-                    <td><StatusBadge status={p.active ? "Active" : "Inactive"} /></td>
-                    {isAdmin && (
-                      <td>
-                        <button className="link" disabled={busy} onClick={() => startEdit(p)}>edit</button>{" "}
-                        {p.active ? (
-                          <button className="link" disabled={busy}
-                            onClick={() => void run(`deact:${p.id}`, (key) => deactivateProduct(p.id, key))}>
-                            deactivate
-                          </button>
-                        ) : (
-                          <button className="link" disabled={busy}
-                            onClick={() => void run(`act:${p.id}`, (key) => activateProduct(p.id, key))}>
-                            activate
-                          </button>
-                        )}
-                      </td>
+                <td title={p.notes ?? undefined}>{p.name}</td>
+                <td>{gradeName(p.eggGradeId)}</td>
+                <td>{p.defaultUnit}</td>
+                <td>{p.defaultPriceMinorUnits === null
+                  ? "—"
+                  : formatMoney(p.defaultPriceMinorUnits, p.currencyCode, p.currencyMinorUnit)}</td>
+                <td><StatusBadge status={p.active ? "Active" : "Inactive"} /></td>
+                {isAdmin && (
+                  <td>
+                    <button className="link" disabled={busy} onClick={() => startEdit(p)}>edit</button>{" "}
+                    {p.active ? (
+                      <button className="link" disabled={busy}
+                        onClick={() => void run(`deact:${p.id}`, (key) => deactivateProduct(p.id, key))}>
+                        deactivate
+                      </button>
+                    ) : (
+                      <button className="link" disabled={busy}
+                        onClick={() => void run(`act:${p.id}`, (key) => activateProduct(p.id, key))}>
+                        activate
+                      </button>
                     )}
-                  </>
+                  </td>
                 )}
               </tr>
             ))}
@@ -313,40 +373,26 @@ export function ProductsPage() {
           {conversions.map((c) => (
             <tr key={c.id} className={c.active ? undefined : "muted"}>
               <td>{c.unitCode}</td>
-              {editingConvId === c.id ? (
-                <>
-                  <td><input type="number" min={1} value={editEggs}
-                    onChange={(e) => setEditEggs(Number(e.target.value))} /></td>
-                  <td>
-                    <label><input type="checkbox" checked={editConvActive}
-                      onChange={(e) => setEditConvActive(e.target.checked)} /> active</label>
-                  </td>
-                  <td>
-                    <button className="link" disabled={busy} onClick={() => void onSaveConversion(c)}>save</button>{" "}
-                    <button className="link" disabled={busy} onClick={() => setEditingConvId(null)}>cancel</button>
-                  </td>
-                </>
-              ) : (
-                <>
-                  <td>{c.eggsPerUnit}</td>
-                  <td>{c.active ? "Active" : "Inactive"}</td>
-                  {isAdmin && (
-                    <td>
-                      {c.unitCode === "Individual" ? (
-                        <span className="muted">always 1</span>
-                      ) : (
-                        <button className="link" disabled={busy}
-                          onClick={() => {
-                            setEditingConvId(c.id);
-                            setEditEggs(c.eggsPerUnit);
-                            setEditConvActive(c.active);
-                          }}>
-                          edit
-                        </button>
-                      )}
-                    </td>
+              <td>{c.eggsPerUnit}</td>
+              <td>{c.active ? "Active" : "Inactive"}</td>
+              {isAdmin && (
+                <td>
+                  {c.unitCode === "Individual" ? (
+                    <span className="muted">always 1</span>
+                  ) : (
+                    <button className="link" disabled={busy}
+                      onClick={() => {
+                        setError(null);
+                        setCreating(false);
+                        setEditingId(null);
+                        setEditingConvId(c.id);
+                        setEditEggs(c.eggsPerUnit);
+                        setEditConvActive(c.active);
+                      }}>
+                      edit
+                    </button>
                   )}
-                </>
+                </td>
               )}
             </tr>
           ))}

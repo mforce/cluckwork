@@ -322,3 +322,15 @@ RFC 4180 (UTF-8 with BOM), dates ISO-8601, money as raw minor units with
 currency columns — a copy of what's stored, never a re-formatting. Cells
 that a spreadsheet would run as a formula are prefixed so they render as
 text. Scheduled backups belong to Phase 1.5 (spec §17.5).
+
+**Dialog (#131)** — the popup that adding and correcting happen in. A
+**New …** button sits beside the screen's title, and each row's **edit** or
+**correct** link opens the same form seeded with that row's values; a
+drill-down panel's actions (record a purchase, feed usage, a stock
+correction, a bird movement, a customer payment) work the same way. The list
+never shifts to make room for a form, and closing — **Cancel**, Escape, or a
+click outside — leaves the data untouched. What a dialog submits is exactly
+what the old inline form submitted: same fields, same validation, same
+idempotency and version guards. Screens whose whole job is capture keep their
+form on the page: **Daily entry**, **Water**, recording an expense, and
+adding lines to a draft order.

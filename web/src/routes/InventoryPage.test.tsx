@@ -118,13 +118,15 @@ async function openItem(item: InventoryItem) {
   await screen.findByRole("heading", { name: new RegExp(item.name) });
 }
 
-// Scope a fill to one form when several forms (purchase/usage/adjust/create)
-// render together and share labels ("Quantity", "Note"). Assertions stay on the
-// mock-call arguments; this only picks which input to type into.
-function formBySubmit(name: string): HTMLElement {
-  const form = screen.getByRole("button", { name }).closest("form");
-  if (!form) throw new Error(`no form for submit button "${name}"`);
-  return form as HTMLElement;
+// F131: every capture form on this screen lives in a dialog now. Open the one
+// under test, then scope fills to it — the forms still share labels
+// ("Quantity", "Note"), but only one is mounted at a time. Assertions stay on
+// the mock-call arguments.
+const dialog = () => screen.getByRole("dialog");
+
+function openDialog(opener: string): HTMLElement {
+  fireEvent.click(screen.getByRole("button", { name: opener }));
+  return dialog();
 }
 
 describe("InventoryPage loading & display", () => {
@@ -183,30 +185,32 @@ describe("InventoryPage create item", () => {
     mockCreate.mockResolvedValue({ id: "new1" });
     await renderReady(ADMIN);
 
-    const form = formBySubmit("Add item");
-    fireEvent.change(screen.getByPlaceholderText("Item name *"), { target: { value: "Bulk Grain" } });
-    fireEvent.change(within(form).getByRole("combobox"), { target: { value: "Supplement" } });
-    fireEvent.change(screen.getByPlaceholderText("Unit *"), { target: { value: "kg" } });
+    const form = openDialog("New item");
+    fireEvent.change(within(form).getByLabelText("Item name *"), { target: { value: "Bulk Grain" } });
+    fireEvent.change(within(form).getByLabelText("Category"), { target: { value: "Supplement" } });
+    fireEvent.change(within(form).getByLabelText("Unit *"), { target: { value: "kg" } });
     fireEvent.change(within(form).getByLabelText(/Default cost/), { target: { value: "5" } });
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Add item" }));
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Add item" }));
     });
 
     expect(mockCreate.mock.calls[0][0]).toEqual({
       name: "Bulk Grain", category: "Supplement", unit: "kg", defaultUnitCostMinorUnits: 5,
     });
     expect(mockCreate.mock.calls[0][1]).toEqual(expect.any(String)); // idempotency key
-    expect(screen.getByPlaceholderText("Item name *")).toHaveValue(""); // reset on success
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument(); // success dismisses it
     expect(screen.getByText("Item created.")).toBeInTheDocument();
+    expect(within(openDialog("New item")).getByLabelText("Item name *")).toHaveValue(""); // reset on success
   });
 
   it("sends a null default cost when the cost field is left blank", async () => {
     mockCreate.mockResolvedValue({ id: "new2" });
     await renderReady(ADMIN);
 
-    fireEvent.change(screen.getByPlaceholderText("Item name *"), { target: { value: "Water Additive" } });
+    const form = openDialog("New item");
+    fireEvent.change(within(form).getByLabelText("Item name *"), { target: { value: "Water Additive" } });
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Add item" }));
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Add item" }));
     });
 
     expect(mockCreate.mock.calls[0][0]).toMatchObject({ name: "Water Additive" });
@@ -214,27 +218,25 @@ describe("InventoryPage create item", () => {
   });
 });
 
-describe("InventoryPage inline edit", () => {
-  it("saves an inline edit: id, changed name/unit/cost + key, parsing cost at the account scale (BHD 3dp)", async () => {
+describe("InventoryPage edit", () => {
+  it("saves an edit: id, changed name/unit/cost + key, parsing cost at the account scale (BHD 3dp)", async () => {
     // BHD has 3 decimals: "2.5" must become 2500 minor units, not 250 (a hard-coded
     // ×100 would fail here). The edit parse honours account.currencyMinorUnit.
     mockGetAccount.mockResolvedValue({ id: "a4", name: "BH Farm", currencyCode: "BHD", currencyMinorUnit: 3 });
     mockUpdate.mockResolvedValue(undefined);
     await renderReady(ADMIN);
 
-    // Enter edit mode on the Layer Feed row (admin-only "edit" control).
+    // Open the edit dialog from the Layer Feed row (admin-only "edit" control).
     const row = screen.getByRole("row", { name: /Layer Feed/ });
     fireEvent.click(within(row).getByRole("button", { name: "edit" }));
 
-    // The edit inputs live in the one row that now shows a "save" button. The two
-    // text inputs are name then unit (in DOM order); the cost is a number spinbutton.
-    const editRow = screen.getByRole("button", { name: "save" }).closest("tr") as HTMLElement;
-    const [nameInput, unitInput] = within(editRow).getAllByRole("textbox");
-    fireEvent.change(nameInput, { target: { value: "Layer Feed Plus" } });
-    fireEvent.change(unitInput, { target: { value: "bag" } });
-    fireEvent.change(within(editRow).getByRole("spinbutton"), { target: { value: "2.5" } });
+    // The dialog is seeded from the row before anything is changed.
+    expect(within(dialog()).getByLabelText("Item name")).toHaveValue("Layer Feed");
+    fireEvent.change(within(dialog()).getByLabelText("Item name"), { target: { value: "Layer Feed Plus" } });
+    fireEvent.change(within(dialog()).getByLabelText("Unit"), { target: { value: "bag" } });
+    fireEvent.change(within(dialog()).getByLabelText(/Default cost/), { target: { value: "2.5" } });
     await act(async () => {
-      fireEvent.click(within(editRow).getByRole("button", { name: "save" }));
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Save" }));
     });
 
     expect(mockUpdate.mock.calls[0]).toEqual([
@@ -259,7 +261,7 @@ describe("InventoryPage purchases", () => {
     await renderReady(ADMIN);
     await openItem(PACKAGING);
 
-    const form = formBySubmit("Record purchase");
+    const form = openDialog("Record purchase");
     fireEvent.change(within(form).getByLabelText(/Received/), { target: { value: "2026-07-10" } });
     fireEvent.change(within(form).getByLabelText(/Quantity/), { target: { value: "12.5" } });
     fireEvent.change(within(form).getByLabelText(/Unit cost/), { target: { value: typed } });
@@ -267,7 +269,7 @@ describe("InventoryPage purchases", () => {
     fireEvent.change(within(form).getByLabelText(/Expiry/), { target: { value: "2026-08-01" } });
     fireEvent.change(within(form).getByLabelText(/Note/), { target: { value: "carton batch" } });
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Record purchase" }));
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Record purchase" }));
     });
 
     expect(mockPurchase.mock.calls[0][0]).toBe("it2"); // the opened item's id
@@ -284,10 +286,10 @@ describe("InventoryPage purchases", () => {
     await renderReady(ADMIN);
     await openItem(PACKAGING);
 
-    const form = formBySubmit("Record purchase");
+    const form = openDialog("Record purchase");
     fireEvent.change(within(form).getByLabelText(/Quantity/), { target: { value: "3" } });
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Record purchase" }));
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Record purchase" }));
     });
 
     const body = mockPurchase.mock.calls[0][1];
@@ -314,13 +316,13 @@ describe("InventoryPage feed usage", () => {
     await renderReady(WORKER); // usage is open to everyone, not just admins
     await openItem(FEED);
 
-    const form = formBySubmit("Record usage");
+    const form = openDialog("Record usage");
     // Move off the prefilled first flock (fl1) to the second (fl2).
     fireEvent.change(within(form).getByLabelText(/Flock/), { target: { value: "fl2" } });
     fireEvent.change(within(form).getByLabelText(/Date/), { target: { value: "2026-07-10" } });
     fireEvent.change(within(form).getByLabelText(/Quantity/), { target: { value: "25" } });
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Record usage" }));
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Record usage" }));
     });
 
     expect(mockUsage.mock.calls[0][0]).toBe("it1");
@@ -388,14 +390,14 @@ describe("InventoryPage adjustments", () => {
     await renderReady(ADMIN);
     await openItem(FEED);
 
-    const form = formBySubmit("Record correction");
+    const form = openDialog("Correct stock");
     // Move off the prefilled first lot (lot1) to the second (lot2).
     fireEvent.change(within(form).getByLabelText(/Lot/), { target: { value: "lot2" } });
     // negative quantity is passed through untouched for an "Adjustment"
     fireEvent.change(within(form).getByLabelText(/Quantity/), { target: { value: "-5" } });
     fireEvent.change(within(form).getByLabelText(/Reason/), { target: { value: "spillage" } });
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Record correction" }));
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Record correction" }));
     });
 
     expect(mockAdjust.mock.calls[0][0]).toBe("it1");
@@ -412,12 +414,12 @@ describe("InventoryPage adjustments", () => {
     await renderReady(ADMIN);
     await openItem(FEED);
 
-    const form = formBySubmit("Record correction");
+    const form = openDialog("Correct stock");
     fireEvent.change(within(form).getByLabelText(/Type/), { target: { value: "Discard" } });
     fireEvent.change(within(form).getByLabelText(/Quantity/), { target: { value: "5" } }); // positive input
     fireEvent.change(within(form).getByLabelText(/Reason/), { target: { value: "expired" } });
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Record correction" }));
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Record correction" }));
     });
 
     expect(mockAdjust.mock.calls[0][1]).toMatchObject({
@@ -431,17 +433,25 @@ describe("InventoryPage idempotency & lifecycle", () => {
     mockCreate.mockRejectedValueOnce(new ApiError(500, "Server error", "boom"));
     mockCreate.mockResolvedValue({ id: "ok" });
     await renderReady(ADMIN);
-    const name = () => screen.getByPlaceholderText("Item name *");
+    openDialog("New item");
+    const name = () => within(dialog()).getByLabelText("Item name *");
+    const submit = async () => {
+      await act(async () => {
+        fireEvent.click(within(dialog()).getByRole("button", { name: "Add item" }));
+      });
+    };
 
     fireEvent.change(name(), { target: { value: "One" } });
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Add item" })); });
-    expect(await screen.findByText(/boom/)).toBeInTheDocument();
+    await submit();
+    // A failure keeps the dialog up, with the error inside it.
+    expect(within(dialog()).getByText(/boom/)).toBeInTheDocument();
 
     fireEvent.change(name(), { target: { value: "One" } }); // retry after failure
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Add item" })); });
+    await submit();
 
+    openDialog("New item"); // success closed it
     fireEvent.change(name(), { target: { value: "Two" } }); // next write after success
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Add item" })); });
+    await submit();
 
     const k1 = mockCreate.mock.calls[0][1];
     const k2 = mockCreate.mock.calls[1][1];
@@ -467,18 +477,75 @@ describe("InventoryPage idempotency & lifecycle", () => {
   });
 });
 
+describe("InventoryPage dialog dismissal", () => {
+  it("closes the create dialog on Cancel without writing", async () => {
+    await renderReady(ADMIN);
+    const form = openDialog("New item");
+    fireEvent.change(within(form).getByLabelText("Item name *"), { target: { value: "Abandoned" } });
+
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(mockCreate).not.toHaveBeenCalled();
+  });
+
+  it("closes the edit dialog on Cancel without writing", async () => {
+    await renderReady(ADMIN);
+    fireEvent.click(within(screen.getByRole("row", { name: /Layer Feed/ })).getByRole("button", { name: "edit" }));
+
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
+  it("closes the purchase dialog on Cancel without writing", async () => {
+    await renderReady(ADMIN);
+    await openItem(PACKAGING);
+    openDialog("Record purchase");
+
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(mockPurchase).not.toHaveBeenCalled();
+  });
+
+  it("closes the usage dialog on Cancel without writing", async () => {
+    await renderReady(ADMIN);
+    await openItem(FEED);
+    openDialog("Record usage");
+
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(mockUsage).not.toHaveBeenCalled();
+  });
+
+  it("closes the correction dialog on Cancel without writing", async () => {
+    mockListLots.mockResolvedValue([LOT]);
+    await renderReady(ADMIN);
+    await openItem(FEED);
+    openDialog("Correct stock");
+
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(mockAdjust).not.toHaveBeenCalled();
+  });
+});
+
 describe("InventoryPage role gating", () => {
   it("hides admin-only controls from a worker but keeps purchases available", async () => {
     await renderReady(WORKER);
-    expect(screen.queryByRole("button", { name: "Add item" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "New item" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "edit" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "deactivate" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "activate" })).not.toBeInTheDocument();
 
     await openItem(FEED);
-    // corrections are admin-only; the purchase form stays open to everyone
+    // corrections are admin-only; recording a purchase stays open to everyone
     expect(screen.getByText(/Stock corrections need an admin/)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Record correction" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Correct stock" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Record purchase" })).toBeInTheDocument();
   });
 });

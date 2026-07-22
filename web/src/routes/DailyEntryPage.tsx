@@ -6,6 +6,7 @@ import {
 } from "../api/cluckwork";
 import type { EggGrade, Flock } from "../api/cluckwork";
 import { ApiError } from "../api/client";
+import { Dialog } from "../components/Dialog";
 import { todayIso } from "../lib/dates";
 
 const LAST_FLOCK_KEY = "cluckwork.lastFlockId";
@@ -14,7 +15,7 @@ const LAST_FLOCK_KEY = "cluckwork.lastFlockId";
 // accepts backfilled entries up to its depletion date (the API gates exact
 // dates), matching the Flocks screen's promise and the feed-usage picker.
 // Archived flocks accept nothing and stay hidden. Every flock refresh on this
-// page (initial load AND inline create) must go through this filter.
+// page (initial load AND the new-flock dialog) must go through this filter.
 const capturable = (flocks: Flock[]) => flocks.filter((x) => x.status !== "Archived");
 
 function errorMessage(err: unknown): string {
@@ -271,26 +272,40 @@ export function DailyEntryPage() {
             ))}
           </select>
         </label>
-        <button className="link" type="button" onClick={() => setShowNewFlock((v) => !v)}>
-          {showNewFlock ? "cancel" : "+ new flock"}
+        <button className="link" type="button" onClick={() => { setError(null); setShowNewFlock(true); }}>
+          + new flock
         </button>
       </div>
 
-      {showNewFlock && (
+      {/* F131: creating a flock is catalog work, not capture — it belongs in a
+          dialog like every other create, instead of shoving the entry grid
+          down the page the moment the picker has nothing to offer yet. */}
+      <Dialog open={showNewFlock} title="New flock" onClose={() => setShowNewFlock(false)}>
         <form className="inline-form" onSubmit={onCreateFlock}>
-          <input placeholder="Name" value={newFlockName} required
-            onChange={(e) => setNewFlockName(e.target.value)} />
-          <input placeholder="Breed" value={newFlockBreed} required
-            onChange={(e) => setNewFlockBreed(e.target.value)} />
-          <label className="muted">Placed
+          <label>Name
+            <input value={newFlockName} required
+              onChange={(e) => setNewFlockName(e.target.value)} />
+          </label>
+          <label>Breed
+            <input value={newFlockBreed} required
+              onChange={(e) => setNewFlockBreed(e.target.value)} />
+          </label>
+          <label>Placed
             <input type="date" value={newFlockPlaced} max={todayIso()} required
               onChange={(e) => setNewFlockPlaced(e.target.value)} />
           </label>
-          <input type="number" min={1} value={newFlockCount} required
-            onChange={(e) => setNewFlockCount(Math.max(1, e.target.valueAsNumber || 1))} />
-          <button type="submit">Create flock</button>
+          <label>Birds
+            <input type="number" min={1} value={newFlockCount} required
+              onChange={(e) => setNewFlockCount(Math.max(1, e.target.valueAsNumber || 1))} />
+          </label>
+          {/* The dialog carries its own copy while it is up. */}
+      {error && !showNewFlock && <p className="error">{error}</p>}
+          <div className="dialog-foot">
+            <button type="button" className="link" onClick={() => setShowNewFlock(false)}>Cancel</button>
+            <button type="submit">Create flock</button>
+          </div>
         </form>
-      )}
+      </Dialog>
 
       <div className="form-grid">
         <label>Date
@@ -353,7 +368,8 @@ export function DailyEntryPage() {
           : `Graded ${gradesSum} of ${sellable} sellable (total − cracked − dirty − discarded).`}
       </p>
 
-      {error && <p className="error">{error}</p>}
+      {/* The dialog carries its own copy while it is up. */}
+      {error && !showNewFlock && <p className="error">{error}</p>}
       {message && <p className="success">{message}</p>}
 
       <div className="actions">

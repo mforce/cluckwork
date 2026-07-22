@@ -68,7 +68,8 @@ const WORKER = { sub: "u1" };
 beforeEach(() => {
   vi.clearAllMocks();
   localStorage.clear();
-  // startEdit's focus effect calls scrollIntoView; jsdom has no layout engine.
+  // jsdom has no layout engine; keep the stub so any scroll a control triggers
+  // (e.g. a browser autoscroll on focus) can't throw mid-test.
   Element.prototype.scrollIntoView = vi.fn();
   // Mount-load defaults (both effects): categories + flocks, then expenses.
   mockListCategories.mockResolvedValue([CAT_FEED, CAT_UTIL, CAT_OLD]);
@@ -301,16 +302,37 @@ describe("ExpensesPage categories", () => {
     renderWithProviders(<ExpensesPage />, { token: ADMIN });
 
     fireEvent.click(await screen.findByRole("button", { name: "manage categories" }));
-    fireEvent.change(screen.getByPlaceholderText("New category name"), { target: { value: "Utilities" } });
+    // F131: the category form is a dialog opened from the panel.
+    const openNewCategory = () => fireEvent.click(screen.getByRole("button", { name: "New category" }));
+    const dialog = () => screen.getByRole("dialog");
+    openNewCategory();
+    fireEvent.change(within(dialog()).getByLabelText("Category name"), { target: { value: "Utilities" } });
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Add category" }));
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Add category" }));
     });
 
     const [body, key] = mockCreateCategory.mock.calls[0];
     expect(body).toEqual({ name: "Utilities" });
     expect(key).toBeTruthy();
-    expect(screen.getByPlaceholderText("New category name")).toHaveValue(""); // reset on success
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument(); // success dismisses it
+    openNewCategory();
+    expect(within(dialog()).getByLabelText("Category name")).toHaveValue(""); // reset on success
     expect(mockListCategories).toHaveBeenCalledTimes(2); // mount load + post-create refresh
+  });
+});
+
+describe("ExpensesPage dialog dismissal", () => {
+  it("closes the correction dialog on Cancel without writing", async () => {
+    mockListExpenses.mockResolvedValue({ items: [EXP_OLD], totalMinorUnits: 1500, currencyCode: "JPY", currencyMinorUnit: 0 });
+    renderWithProviders(<ExpensesPage />, { token: ADMIN });
+
+    const row = await screen.findByRole("row", { name: /Generator diesel/ });
+    fireEvent.click(within(row).getByRole("button", { name: "correct" }));
+
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(mockAdjustExpense).not.toHaveBeenCalled();
   });
 });
 
