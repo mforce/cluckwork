@@ -7,6 +7,7 @@ import {
 import type { EggGrade, Flock } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { Dialog } from "../components/Dialog";
+import { useConfirm } from "../components/useConfirm";
 import { todayIso } from "../lib/dates";
 
 const LAST_FLOCK_KEY = "cluckwork.lastFlockId";
@@ -27,6 +28,7 @@ function errorMessage(err: unknown): string {
 // turns grade lines into egg lots (stock).
 export function DailyEntryPage() {
   const [loading, setLoading] = useState(true);
+  const { confirm, confirmDialog } = useConfirm();
   const [flocks, setFlocks] = useState<Flock[]>([]);
   const [grades, setGrades] = useState<EggGrade[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -215,8 +217,27 @@ export function DailyEntryPage() {
   async function onSave(submit: boolean) {
     if (inFlight.current || !selectedFlock || prefillFailed || prefillPending) return;   // sync re-entry guard
     // One-way action (#59): submit freezes the day and creates egg lots.
-    if (submit && !window.confirm(
-      "Submit this day? Egg lots are created and the entry can no longer be edited — corrections need a manager adjustment.")) return;
+    if (submit) {
+      const ok = await confirm({
+        title: "Submit this day?",
+        body: "Egg lots are created and the entry can no longer be edited. "
+          + "Corrections after this need a manager adjustment.",
+        confirmLabel: "Submit day",
+      });
+      if (!ok) return;
+      // Only the ref is worth re-reading. window.confirm blocked the thread, so
+      // the guard above could not go stale; the dialog does not block, and a
+      // double-click can land two onSave calls before either sets inFlight.
+      // (The second confirm settles the first as dismissed, so the loser
+      // returns above — this catches the ordering where it does not.)
+      //
+      // The other three are state, so re-reading them here would return the
+      // render-time closure, not what is true now. They are left out rather
+      // than mirrored in a ref: none of them can change while the dialog is up.
+      // flock and date sit behind the backdrop, and a prefill cannot start
+      // meanwhile because both save buttons are disabled while one is pending.
+      if (inFlight.current) return;
+    }
     inFlight.current = true;
     setBusy(true);
     setError(null);
@@ -381,6 +402,8 @@ export function DailyEntryPage() {
           Save &amp; submit (creates egg lots)
         </button>
       </div>
+
+      {confirmDialog}
     </section>
   );
 }

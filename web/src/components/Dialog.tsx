@@ -46,6 +46,13 @@ interface DialogProps {
    * the one they were filling in any more.
    */
   focusKey?: unknown;
+  /**
+   * Id of the element describing what the dialog is for, read out after its
+   * name. Matters where the prose IS the content — a confirmation's whole job
+   * is to say what is about to happen, and focus lands on a button, so without
+   * this a screen reader announces the title and the control and nothing else.
+   */
+  describedBy?: string;
   children: ReactNode;
 }
 
@@ -55,7 +62,7 @@ interface DialogProps {
 //
 // Portalled to <body> so the backdrop covers the whole viewport regardless of
 // where it is mounted in the shell grid.
-export function Dialog({ open, title, onClose, focusKey, children }: DialogProps) {
+export function Dialog({ open, title, onClose, focusKey, describedBy, children }: DialogProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   const returnFocusTo = useRef<Element | null>(null);
@@ -159,6 +166,7 @@ export function Dialog({ open, title, onClose, focusKey, children }: DialogProps
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
+        aria-describedby={describedBy}
         ref={panelRef}
         tabIndex={-1}
       >

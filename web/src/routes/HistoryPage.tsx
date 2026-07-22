@@ -8,6 +8,7 @@ import type { DailyEntry, EggGrade, Flock } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 import { Dialog } from "../components/Dialog";
+import { useConfirm } from "../components/useConfirm";
 import { StatusBadge } from "../components/StatusBadge";
 
 const PAGE = 50;
@@ -26,6 +27,7 @@ function errText(err: unknown): string {
 // stock and the bird ledger and enforces the role either way.
 export function HistoryPage() {
   const { isAdmin } = useAuth();
+  const { askReason, confirmDialog } = useConfirm();
   const [entries, setEntries] = useState<DailyEntry[] | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [flocks, setFlocks] = useState<Flock[]>([]);
@@ -196,17 +198,18 @@ export function HistoryPage() {
     }
   }
 
-  function onVoid(e: DailyEntry) {
-    // F13-style: the reason prompt doubles as the confirmation.
-    const voidReason = window.prompt(
-      `Void the ${e.date} entry for ${flockName(e.flockId)}? Its egg lots empty and its `
-      + "deaths are reversed; the entry is kept as Voided. Refused if any of its "
-      + "eggs were already sold.\n\nReason (required):");
+  async function onVoid(e: DailyEntry) {
+    // F13-style: the reason ask doubles as the confirmation. F135: it is the
+    // app's own dialog, so the required check is inline and the typed text
+    // survives it — window.prompt validated only after it had closed.
+    const voidReason = await askReason({
+      title: `Void the ${e.date} entry for ${flockName(e.flockId)}?`,
+      body: "Its egg lots empty and its deaths are reversed. The entry is kept as Voided. "
+        + "Refused if any of its eggs were already sold.",
+      confirmLabel: "Void entry",
+      destructive: true,
+    });
     if (voidReason === null) return;
-    if (!voidReason.trim()) {
-      setError("A void reason is required.");
-      return;
-    }
     void (async () => {
       if (busy) return;
       setBusy(true);
@@ -214,7 +217,7 @@ export function HistoryPage() {
       setMessage(null);
       const scope = `void:${e.id}`;
       try {
-        await voidDailyEntry(e.id, { version: e.version, reason: voidReason.trim() }, keyFor(scope));
+        await voidDailyEntry(e.id, { version: e.version, reason: voidReason }, keyFor(scope));
         settleKey(scope);
         // A stale adjust panel for the now-voided entry would only 409.
         if (adjusting?.id === e.id) setAdjusting(null);
@@ -384,7 +387,7 @@ export function HistoryPage() {
                         <button className="link" disabled={busy}
                           onClick={() => startAdjust(e)}>adjust</button>
                         <button className="link" disabled={busy}
-                          onClick={() => onVoid(e)}>void</button>
+                          onClick={() => void onVoid(e)}>void</button>
                       </>
                     )}
                   </td>
@@ -400,6 +403,8 @@ export function HistoryPage() {
           )}
         </>
       )}
+
+      {confirmDialog}
     </section>
   );
 }

@@ -65,9 +65,15 @@ beforeEach(() => {
   mockArchive.mockResolvedValue(undefined);
   mockReactivate.mockResolvedValue(undefined);
   mockListMovements.mockResolvedValue([]);
-  // deplete/archive are gated behind a confirm() dialog — default to accept.
-  window.confirm = vi.fn(() => true);
 });
+
+// F135: deplete/archive ask in the app's own dialog, not window.confirm, so the
+// tests drive the real thing — click the trigger, then answer the question.
+async function answer(name: string) {
+  await act(async () => {
+    fireEvent.click(await screen.findByRole("button", { name }));
+  });
+}
 
 // The mount-load error branch (listFlocks rejects → "Could not load flocks. Is
 // the API up?") is intentionally not asserted: in this Vitest 3.2.7 + React 19
@@ -265,20 +271,25 @@ describe("FlocksPage lifecycle", () => {
       fireEvent.click(within(screen.getByRole("row", { name: /Hen House 1/ })).getByRole("button", { name: "deplete" }));
     });
 
-    expect(window.confirm).toHaveBeenCalled();
+    // The question names the flock, so a mis-clicked row is visible before it
+    // is too late — window.confirm's one-liner is now a titled dialog.
+    expect(screen.getByRole("dialog")).toHaveAccessibleName('Deplete "Hen House 1"?');
+    expect(mockDeplete).not.toHaveBeenCalled(); // nothing written until answered
+
+    await answer("Deplete flock");
     expect(mockDeplete).toHaveBeenCalledWith("f1", expect.any(String));
   });
 
   it("does not deplete when the confirm dialog is cancelled", async () => {
-    window.confirm = vi.fn(() => false);
     await renderReady(ADMIN, [ACTIVE]);
 
     await act(async () => {
       fireEvent.click(within(screen.getByRole("row", { name: /Hen House 1/ })).getByRole("button", { name: "deplete" }));
     });
 
-    expect(window.confirm).toHaveBeenCalled();
-    expect(mockDeplete).not.toHaveBeenCalled(); // confirm short-circuits the write
+    await answer("Cancel");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(mockDeplete).not.toHaveBeenCalled(); // dismissal short-circuits the write
   });
 
   it("archives a non-archived flock after confirmation", async () => {
@@ -289,7 +300,8 @@ describe("FlocksPage lifecycle", () => {
       fireEvent.click(within(screen.getByRole("row", { name: /Depleted Flock/ })).getByRole("button", { name: "archive" }));
     });
 
-    expect(window.confirm).toHaveBeenCalled();
+    expect(screen.getByRole("dialog")).toHaveAccessibleName('Archive "Depleted Flock"?');
+    await answer("Archive flock");
     expect(mockArchive).toHaveBeenCalledWith("f2", expect.any(String));
   });
 
@@ -302,7 +314,7 @@ describe("FlocksPage lifecycle", () => {
     });
 
     expect(mockReactivate).toHaveBeenCalledWith("f2", expect.any(String));
-    expect(window.confirm).not.toHaveBeenCalled(); // reactivate is the undo — no guard
+    expect(screen.queryByRole("dialog")).toBeNull(); // reactivate is the undo — no guard
   });
 });
 

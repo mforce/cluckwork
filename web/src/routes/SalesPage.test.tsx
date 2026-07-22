@@ -3,8 +3,8 @@ import { screen, within, fireEvent, act } from "@testing-library/react";
 import { SalesPage } from "./SalesPage";
 import { renderWithProviders } from "../test/renderWithProviders";
 import {
-  addOrderItem, createOrder, getOrder, listCustomers, listEggGrades,
-  listOrderPayments, listOrders, listProducts, recordPayment, updateOrderItem,
+  addOrderItem, cancelOrder, confirmOrder, createOrder, getOrder, listCustomers, listEggGrades,
+  listOrderPayments, listOrders, listProducts, recordPayment, updateOrderItem, voidOrder, voidPayment,
 } from "../api/cluckwork";
 import type { Customer, EggGrade, OrderItem, Product, SalesOrder } from "../api/cluckwork";
 
@@ -307,5 +307,102 @@ describe("SalesPage payment dialog", () => {
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(mockRecordPayment).not.toHaveBeenCalled();
+  });
+});
+
+// F135: the four one-way order actions asked through window.confirm /
+// window.prompt. They now ask in the app's own dialog — same guards, same
+// idempotency scoping, but the reason checks land inline instead of after the
+// popup has already thrown the text away.
+describe("SalesPage one-way actions", () => {
+  const CONFIRMED: SalesOrder = {
+    ...draftEmpty(2, "USD", "o9"), referenceNumber: "SO-9", status: "Confirmed",
+    totalMinorUnits: 2900, items: [ITEM_A, ITEM_B],
+  };
+
+  it("allocates nothing until the confirm is answered, then confirms", async () => {
+    await openOrder(DRAFT_TWO, /Grade A Dozen/);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /Confirm order/ }));
+    });
+
+    expect(dialog()).toHaveAccessibleName("Confirm this order?");
+    expect(vi.mocked(confirmOrder)).not.toHaveBeenCalled();
+
+    vi.mocked(confirmOrder).mockResolvedValue(undefined as never);
+    mockGetOrder.mockResolvedValue({ ...DRAFT_TWO, status: "Confirmed" });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Confirm order" }));
+    });
+
+    expect(vi.mocked(confirmOrder)).toHaveBeenCalledWith("o2", expect.any(String));
+  });
+
+  it("leaves the draft alone when the cancel is dismissed", async () => {
+    await openOrder(DRAFT_TWO, /Grade A Dozen/);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Cancel draft" }));
+    });
+
+    expect(dialog()).toHaveAccessibleName("Cancel this draft?");
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+    });
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(vi.mocked(cancelOrder)).not.toHaveBeenCalled();
+    // The draft is still open and still workable — dismissing is not a dead end.
+    expect(screen.getByRole("button", { name: "Cancel draft" })).toBeEnabled();
+  });
+
+  it("refuses a blank void reason inline, then sends the trimmed one", async () => {
+    await openOrder(CONFIRMED, /Grade A Dozen/);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /Void order/ }));
+    });
+
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Void order" }));
+    });
+    expect(screen.getByText("A reason is required.")).toBeInTheDocument();
+    expect(vi.mocked(voidOrder)).not.toHaveBeenCalled();
+
+    vi.mocked(voidOrder).mockResolvedValue(undefined as never);
+    mockGetOrder.mockResolvedValue({ ...CONFIRMED, status: "Voided", voidReason: "double sold" });
+    fireEvent.change(within(dialog()).getByLabelText("Reason *"),
+      { target: { value: "  double sold  " } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Void order" }));
+    });
+
+    expect(vi.mocked(voidOrder)).toHaveBeenCalledWith("o9", "double sold", expect.any(String));
+  });
+
+  it("voids a payment with its own reason and loaded version", async () => {
+    mockListOrderPayments.mockResolvedValue({
+      items: [{
+        id: "pay1", salesOrderId: "o9", customerId: "c1", amountMinorUnits: 500, currencyCode: "USD",
+        currencyMinorUnit: 2, method: "Cash", paymentDate: "2026-07-20",
+        referenceNumber: null, note: null, voided: false, voidReason: null, version: 3,
+      }],
+      paidMinorUnits: 500, outstandingMinorUnits: 2400, totalMinorUnits: 2900,
+      currencyCode: "USD", currencyMinorUnit: 2,
+    });
+    await openOrder(CONFIRMED, /Grade A Dozen/);
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "void" }));
+    });
+    expect(dialog()).toHaveAccessibleName("Void this payment?");
+
+    vi.mocked(voidPayment).mockResolvedValue(undefined as never);
+    fireEvent.change(within(dialog()).getByLabelText("Reason *"),
+      { target: { value: "posted to the wrong order" } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Void payment" }));
+    });
+
+    expect(vi.mocked(voidPayment)).toHaveBeenCalledWith(
+      "pay1", { version: 3, reason: "posted to the wrong order" }, expect.any(String));
   });
 });
