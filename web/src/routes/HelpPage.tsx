@@ -195,7 +195,13 @@ export function HelpPage() {
           Every count has <strong>−</strong> and <strong>+</strong> buttons.
           Tap for one, or <strong>hold</strong> — it speeds up as you go, so a
           few hundred eggs takes about a second. Easier than a keypad with
-          gloves on.
+          gloves on. A grade&apos;s <strong>+</strong> stops once the day is
+          fully graded, so you cannot overshoot with it.
+        </li>
+        <li>
+          Most days end the same way — one grade takes whatever is left.{" "}
+          <strong>Put all in…</strong> beside the remaining count does it in one
+          move: drag it onto a grade, or tap it and pick one.
         </li>
         <li>
           Both save buttons stay in a bar at the bottom of the screen as you

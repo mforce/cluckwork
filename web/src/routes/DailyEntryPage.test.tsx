@@ -415,3 +415,97 @@ describe("DailyEntryPage new-flock dialog errors", () => {
     expect(screen.getAllByText("Flock name already used.")).toHaveLength(1);
   });
 });
+
+// F134: one gesture for the commonest last move — "and the rest are Large".
+describe("DailyEntryPage assign the remainder", () => {
+  // The chip's control ARMS the choice; the row buttons make it. Distinct
+  // labels, because "put all in one grade" and "put all in Grade B" read the
+  // same to anyone hearing them one at a time.
+  const arm = () => screen.getByRole("button", { name: /Choose a grade for the remaining/ });
+  const disarm = () => screen.getByRole("button", { name: "Cancel choosing a grade" });
+
+  async function readyWithRemainder() {
+    await renderReady();
+    setNum("Total eggs", 100);
+    setNum("Cracked", 10); // sellable 90
+    setNum("Grade A", 30); // 60 left
+  }
+
+  it("hands the whole remainder to the grade that is picked", async () => {
+    await readyWithRemainder();
+    expect(remainingChip()).toHaveTextContent("60left to grade");
+
+    fireEvent.click(arm());
+    // Named per grade: "+60" alone would be identical on every row.
+    fireEvent.click(screen.getByRole("button", { name: "Put all 60 remaining in Grade B" }));
+
+    // Grade B took all 60; the day now adds up exactly.
+    expect(screen.getByLabelText("Grade B")).toHaveValue(60);
+    expect(remainingChip()).toHaveClass("done");
+  });
+
+  it("takes the same drop from a drag, for anyone using a mouse", async () => {
+    await readyWithRemainder();
+    fireEvent.dragStart(arm(), { dataTransfer: { setData: () => {}, effectAllowed: "" } });
+
+    const rowB = screen.getByLabelText("Grade B").closest(".entry-row")!;
+    fireEvent.dragOver(rowB);
+    fireEvent.drop(rowB);
+
+    expect(screen.getByLabelText("Grade B")).toHaveValue(60);
+  });
+
+  it("can be armed and dismissed without changing anything", async () => {
+    await readyWithRemainder();
+    fireEvent.click(arm());
+    expect(screen.getByRole("button", { name: "Put all 60 remaining in Grade B" })).toBeInTheDocument();
+
+    fireEvent.click(disarm());
+    expect(screen.queryByRole("button", { name: /Put all 60 remaining in/ })).toBeNull();
+    expect(screen.getByLabelText("Grade B")).toHaveValue(0);
+  });
+
+  it("offers nothing to hand over once the day adds up", async () => {
+    await renderReady();
+    setNum("Total eggs", 100);
+    setNum("Cracked", 10);
+    setNum("Grade A", 90); // exactly sellable
+
+    expect(remainingChip()).toHaveClass("done");
+    expect(screen.queryByRole("button", { name: /Choose a grade/ })).toBeNull();
+  });
+
+  it("disarms itself if the remainder disappears while armed", async () => {
+    await readyWithRemainder();
+    fireEvent.click(arm());
+    expect(screen.getByRole("button", { name: "Put all 60 remaining in Grade A" })).toBeInTheDocument();
+
+    // Typing the rest in by hand leaves nothing to place.
+    setNum("Grade B", 60);
+
+    // Rows must not be left offering "+0".
+    expect(screen.queryByRole("button", { name: /Put all \d+ remaining in/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Choose a grade/ })).toBeNull();
+  });
+});
+
+// F134: the + refuses to build an over-graded day. Typing still can, because a
+// draft is allowed to be over while it is being rearranged.
+describe("DailyEntryPage grading ceiling", () => {
+  it("stops + at the point the day is fully graded", async () => {
+    await renderReady();
+    setNum("Total eggs", 10);
+    setNum("Grade A", 9); // sellable 10, one left
+
+    const plusA = screen.getByRole("button", { name: "Increase grade a" });
+    expect(plusA).toBeEnabled();
+    fireEvent.pointerDown(plusA);
+    fireEvent.pointerUp(plusA);
+
+    expect(screen.getByLabelText("Grade A")).toHaveValue(10);
+    expect(remainingChip()).toHaveClass("done");
+    // Nothing unallocated, so no grade can take more.
+    expect(screen.getByRole("button", { name: "Increase grade a" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Increase grade b" })).toBeDisabled();
+  });
+});

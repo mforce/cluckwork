@@ -585,6 +585,52 @@ input.cell {
   color: var(--muted);
 }
 
+/* Hand the whole remainder to one grade: drag it onto a row, or arm it with a
+   tap and pick. Most days are lopsided, so the last move is "and the rest are
+   Large" — worth one gesture rather than holding + four hundred times. */
+.entry-chip-grab {
+  margin-left: 0.35rem;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: transparent;
+  border: 1px dashed var(--stat-accent);
+  color: var(--stat-accent);
+  border-radius: var(--r-pill);
+  cursor: grab;
+  touch-action: none;
+}
+
+.entry-chip-grab[aria-pressed="true"] {
+  background: var(--stat-accent);
+  color: var(--surface);
+  border-style: solid;
+  cursor: grabbing;
+}
+
+/* Armed: every grade row becomes a target, so the whole pane reads as one. */
+.entry-row.taking {
+  outline: 1px dashed var(--stat-accent);
+  outline-offset: 0.35rem;
+  border-radius: var(--r-input);
+  /* The take button is appended, not swapped in, so the row grows a column. */
+  grid-template-columns: minmax(0, 1fr) auto auto;
+}
+
+.entry-take {
+  padding: 0.45rem 0.9rem;
+  font-size: 0.85rem;
+  background: var(--tint-accent);
+  color: var(--stat-accent);
+  border-radius: var(--r-input);
+  white-space: nowrap;
+}
+
+.entry-take:hover:not(:disabled) {
+  background: var(--stat-accent);
+  color: var(--surface);
+}
+
 .entry-chip.done { background: var(--tint-ok); }
 .entry-chip.done b { color: var(--success); }
 .entry-chip.over { background: var(--tint-danger); }

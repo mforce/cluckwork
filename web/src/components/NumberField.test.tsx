@@ -129,3 +129,40 @@ describe("NumberField", () => {
     warn.mockRestore();
   });
 });
+
+// F134: the + is capped where adding more would make the day invalid — the
+// counter should not be able to build an over-graded entry with the guided
+// control. Typing stays free: a draft may be over-graded while it is rearranged.
+describe("NumberField ceiling", () => {
+  function Capped({ start = 0, max }: { start?: number; max: number }) {
+    const [value, setValue] = useState(start);
+    // Same label as Host, so the shared plus()/field() queries apply.
+    return <NumberField id="n" label="total eggs" value={value} onChange={setValue} max={max} />;
+  }
+
+  it("disables + on arrival at the ceiling", async () => {
+    vi.useFakeTimers();
+    render(<Capped start={9} max={10} />);
+
+    await hold(plus(), 0);
+    expect(field()).toHaveValue(10);
+    expect(plus()).toBeDisabled();
+  });
+
+  it("stops a hold dead at the ceiling instead of running past it", async () => {
+    vi.useFakeTimers();
+    render(<Capped start={0} max={12} />);
+
+    // Long enough to add ~40 unclamped.
+    await hold(plus(), 1300);
+    expect(field()).toHaveValue(12);
+  });
+
+  it("still lets the value be typed past the ceiling", async () => {
+    render(<Capped start={0} max={10} />);
+    fireEvent.change(field(), { target: { value: "25" } });
+    expect(field()).toHaveValue(25);
+    // and the + refuses to make it worse
+    expect(plus()).toBeDisabled();
+  });
+});

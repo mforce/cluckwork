@@ -20,13 +20,21 @@ interface NumberFieldProps {
   value: number;
   /** Takes React's setState directly: the repeat MUST use the updater form. */
   onChange: Dispatch<SetStateAction<number>>;
+  /**
+   * Ceiling for the + button and its repeat. Typing is deliberately NOT capped:
+   * a draft is allowed to be over-graded while the counter rearranges it, and
+   * only the guided control refuses to create that state in the first place.
+   */
+  max?: number;
   disabled?: boolean;
 }
 
 // F134: number entry for the barn. The native spinner is a 10px hit target and
 // vanishes entirely on touch, so counts get typed on a phone keypad one digit
 // at a time. These are thumb-sized, and holding one accelerates.
-export function NumberField({ id, label, value, onChange, disabled = false }: NumberFieldProps) {
+export function NumberField({
+  id, label, value, onChange, max = Number.POSITIVE_INFINITY, disabled = false,
+}: NumberFieldProps) {
   const timer = useRef<number | null>(null);
   const tick = useRef(0);
 
@@ -45,7 +53,12 @@ export function NumberField({ id, label, value, onChange, disabled = false }: Nu
     // The updater form is not optional: every repeat reads the value the last
     // one produced, and a captured `value` would make each tick recompute from
     // the number that was on screen when the press began.
-    const bump = (by: number) => onChange((prev) => Math.max(0, prev + direction * by));
+    // Clamped inside the updater so a hold stops dead at the ceiling instead of
+    // running past it. `max` is captured, which is correct: for a grade it is
+    // (this field + what is unallocated), and that sum does not move while this
+    // field is the one being incremented.
+    const bump = (by: number) =>
+      onChange((prev) => Math.min(max, Math.max(0, prev + direction * by)));
 
     bump(1); // the press itself lands immediately
     const repeat = () => {
@@ -54,7 +67,7 @@ export function NumberField({ id, label, value, onChange, disabled = false }: Nu
       timer.current = window.setTimeout(repeat, REPEAT_EVERY_MS);
     };
     timer.current = window.setTimeout(repeat, FIRST_REPEAT_MS);
-  }, [disabled, onChange]);
+  }, [disabled, onChange, max]);
 
   // pointer* rather than mouse*, so one set of handlers covers touch and pen.
   // Cancel and leave both stop it: dragging off a held button must not leave it
@@ -81,7 +94,7 @@ export function NumberField({ id, label, value, onChange, disabled = false }: Nu
         onChange={(e) => onChange(Math.max(0, e.target.valueAsNumber || 0))}
       />
       <button type="button" className="numfield-step"
-        aria-label={`Increase ${label}`} disabled={disabled} {...held(1)}>
+        aria-label={`Increase ${label}`} disabled={disabled || value >= max} {...held(1)}>
         <Plus size={16} aria-hidden />
       </button>
     </span>

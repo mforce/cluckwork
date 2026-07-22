@@ -202,6 +202,10 @@ export function DailyEntryPage() {
   const remaining = sellable - gradesSum;
   // Derived once and rendered twice: in full beside the grades, and compressed
   // in the pinned bar for phones, where both panes scroll out of sight.
+  // F134: dump the whole remainder into one grade. Most days are lopsided —
+  // one grade takes the bulk — so the last step is "and the rest are Large".
+  const [assigning, setAssigning] = useState(false);
+
   const grading = lossesExceedTotal
     ? { tone: "over", count: null, says: "Fix the counts first", short: "fix the counts" }
     : remaining < 0
@@ -210,6 +214,13 @@ export function DailyEntryPage() {
         ? { tone: "done", count: sellable, says: "graded — the day adds up", short: "all graded" }
         : { tone: "", count: remaining, says: "left to grade", short: "left" };
 
+  const canAssign = remaining > 0 && !entryLocked;
+  // Nothing left to place (or the day just locked) — leave the mode rather than
+  // stranding rows showing a "+0 here" button.
+  useEffect(() => {
+    if (!canAssign && assigning) setAssigning(false);
+  }, [canAssign, assigning]);
+
   // NumberField owns its own input, so the row label points at it by id.
   const fieldId = useId();
   const idFor = (name: string) => `${fieldId}-${name}`;
@@ -217,6 +228,12 @@ export function DailyEntryPage() {
   // The counts are plain useState setters, so NumberField takes them as-is.
   // A grade lives in a record, so its updater is adapted here — still the
   // functional form, which the hold-to-repeat depends on.
+  function assignRest(gradeId: string) {
+    if (remaining <= 0 || entryLocked) return;
+    setGrade(gradeId)((prev) => prev + remaining);
+    setAssigning(false);
+  }
+
   const setGrade = (gradeId: string) => (next: number | ((prev: number) => number)) => {
     setGradesTouched(true);
     setGradeQty((prev) => ({
@@ -457,20 +474,66 @@ export function DailyEntryPage() {
           <div className="entry-pane">
             <div className="entry-rows">
               {visibleGrades.map((g) => (
-                <div className="entry-row" key={g.id}>
+                <div
+                  className={`entry-row${assigning ? " taking" : ""}`}
+                  key={g.id}
+                  onDragOver={canAssign ? (e) => e.preventDefault() : undefined}
+                  onDrop={canAssign ? (e) => { e.preventDefault(); assignRest(g.id); } : undefined}
+                >
                   <label htmlFor={idFor(g.id)}>{g.name}{g.active ? "" : " (deactivated)"}</label>
                   <NumberField id={idFor(g.id)} label={g.name.toLowerCase()}
-                    value={gradeQty[g.id] ?? 0} onChange={setGrade(g.id)} disabled={entryLocked} />
+                    value={gradeQty[g.id] ?? 0} onChange={setGrade(g.id)}
+                    max={(gradeQty[g.id] ?? 0) + Math.max(0, remaining)}
+                    disabled={entryLocked} />
+                  {/* Dragging alone would be a dead end on the phone this screen
+                      is used on, and unreachable by keyboard (WCAG 2.5.7), so
+                      arming turns every row into a plain button too. It sits
+                      BESIDE the field rather than replacing it: which grade
+                      should take the rest is a decision made by looking at what
+                      each one already holds. */}
+                  {assigning && (
+                    <button type="button" className="entry-take"
+                      aria-label={`Put all ${remaining} remaining in ${g.name}`}
+                      onClick={() => assignRest(g.id)}>
+                      +{remaining}
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
 
             {/* role=status: the count changes as they type, and it is the only
                 feedback that the day adds up. */}
-            <p className={`entry-chip ${grading.tone}`} role="status">
-              {grading.count !== null && <b>{grading.count}</b>}
-              <s>{grading.says}</s>
-            </p>
+            <div className={`entry-chip ${grading.tone}`}>
+              {/* role=status on the text alone: the chip now contains a control,
+                  and a live region that also holds a button re-announces the
+                  button every time the number ticks. */}
+              <span role="status">
+                {grading.count !== null && <b>{grading.count}</b>}
+                <s>{grading.says}</s>
+              </span>
+              {canAssign && (
+                <button
+                  type="button"
+                  className="entry-chip-grab"
+                  draggable
+                  aria-pressed={assigning}
+                  aria-label={assigning
+                    ? "Cancel choosing a grade"
+                    : `Choose a grade for the remaining ${remaining}`}
+                  onDragStart={(e) => {
+                    e.dataTransfer.effectAllowed = "move";
+                    // Firefox refuses to start a drag with an empty payload.
+                    e.dataTransfer.setData("text/plain", String(remaining));
+                    setAssigning(true);
+                  }}
+                  onDragEnd={() => setAssigning(false)}
+                  onClick={() => setAssigning((on) => !on)}
+                >
+                  {assigning ? "pick a grade…" : "put all in…"}
+                </button>
+              )}
+            </div>
           </div>
         </section>
       </div>

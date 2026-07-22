@@ -75,6 +75,16 @@ either side. Holding one repeats, widening its stride from 1 to 5 to 10, so a
 few hundred eggs takes about a second. Built for the barn: the browser's own
 spinner is a ten-pixel target and disappears entirely on touch.
 
+A grade's **+** stops once the day is fully graded — the guided control will not
+build an over-graded entry. Typing still can: a draft is allowed to be over
+while it is being rearranged, and only submitting is blocked.
+
+**Put all in… (#134)** — hands the entire remainder to one grade in a single
+move, for the commonest last step of the day ("and the rest are Large"). Drag it
+onto a grade, or tap it and pick one. Both routes exist deliberately: dragging
+is unavailable on a phone and unreachable from a keyboard, so it is never the
+only way. It disappears when nothing is left to place.
+
 **Editing draft (#134)** — a badge beside the title when the day being captured
 already has a saved **Draft**, so re-opening work in progress is distinguishable
 from starting a fresh day. Only locked days carried a signal before.
