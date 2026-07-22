@@ -126,19 +126,27 @@ describe("ProductsPage loading + display", () => {
   });
 });
 
+// F131: create/edit moved into dialogs — open first, same assertions after.
+const openCreate = () => fireEvent.click(screen.getByRole("button", { name: "New product" }));
+const dialog = () => screen.getByRole("dialog");
+const submitCreate = async () => {
+  await act(async () => {
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Add product" }));
+  });
+};
+
 describe("ProductsPage create", () => {
   it("creates a product with the full form body at the account currency scale, then clears the name/price/notes", async () => {
     mockCreate.mockResolvedValue({ id: "p9" });
     await renderReady(ADMIN);
+    openCreate();
 
-    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Jumbo Carton" } });
-    fireEvent.change(screen.getByLabelText("Grade"), { target: { value: "g2" } });       // off the "" default
-    fireEvent.change(screen.getByLabelText("Sold per"), { target: { value: "Flat" } });  // off the "Dozen" default
-    fireEvent.change(screen.getByLabelText(/Default price/), { target: { value: "0.5" } }); // KWD 3dp → 500
-    fireEvent.change(screen.getByLabelText("Notes"), { target: { value: "bulk" } });
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Add product" }));
-    });
+    fireEvent.change(within(dialog()).getByLabelText("Name"), { target: { value: "Jumbo Carton" } });
+    fireEvent.change(within(dialog()).getByLabelText("Grade"), { target: { value: "g2" } });       // off the "" default
+    fireEvent.change(within(dialog()).getByLabelText("Sold per"), { target: { value: "Flat" } });  // off the "Dozen" default
+    fireEvent.change(within(dialog()).getByLabelText(/Default price/), { target: { value: "0.5" } }); // KWD 3dp → 500
+    fireEvent.change(within(dialog()).getByLabelText("Notes"), { target: { value: "bulk" } });
+    await submitCreate();
 
     // Full body with non-default values → a hard-coded body (or a 2dp price
     // path, which would send 50) fails here.
@@ -151,20 +159,21 @@ describe("ProductsPage create", () => {
       notes: "bulk",
     });
     expect(mockCreate.mock.calls[0][1]).toEqual(expect.any(String)); // idempotency key
-    expect(screen.getByLabelText("Name")).toHaveValue(""); // reset on success
-    expect(screen.getByLabelText(/Default price/)).toHaveValue(null);
-    expect(screen.getByLabelText("Notes")).toHaveValue("");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument(); // success dismisses it
+    openCreate();
+    expect(within(dialog()).getByLabelText("Name")).toHaveValue(""); // reset on success
+    expect(within(dialog()).getByLabelText(/Default price/)).toHaveValue(null);
+    expect(within(dialog()).getByLabelText("Notes")).toHaveValue("");
   });
 
   it("sends notes: null when the notes field is left blank", async () => {
     mockCreate.mockResolvedValue({ id: "p9" });
     await renderReady(ADMIN);
+    openCreate();
 
-    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "No-Notes Product" } });
-    fireEvent.change(screen.getByLabelText("Grade"), { target: { value: "g1" } });
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Add product" }));
-    });
+    fireEvent.change(within(dialog()).getByLabelText("Name"), { target: { value: "No-Notes Product" } });
+    fireEvent.change(within(dialog()).getByLabelText("Grade"), { target: { value: "g1" } });
+    await submitCreate();
 
     const body = mockCreate.mock.calls[0][0];
     expect(body.notes).toBeNull();
@@ -177,20 +186,23 @@ describe("ProductsPage idempotency-key contract (create)", () => {
     mockCreate.mockRejectedValueOnce(new ApiError(500, "Server error", "boom"));
     mockCreate.mockResolvedValue({ id: "p9" });
     await renderReady(ADMIN);
+    openCreate();
     const fill = () => {
-      fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Repeatable" } });
-      fireEvent.change(screen.getByLabelText("Grade"), { target: { value: "g1" } });
+      fireEvent.change(within(dialog()).getByLabelText("Name"), { target: { value: "Repeatable" } });
+      fireEvent.change(within(dialog()).getByLabelText("Grade"), { target: { value: "g1" } });
     };
 
     fill();
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Add product" })); });
-    expect(await screen.findByText(/Server error|boom/)).toBeInTheDocument();
+    await submitCreate();
+    // a failed create keeps the dialog up, with the error inside it
+    expect(within(dialog()).getByText(/Server error|boom/)).toBeInTheDocument();
 
     fill();
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Add product" })); });
+    await submitCreate();
 
+    openCreate(); // success closed it
     fill();
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Add product" })); });
+    await submitCreate();
 
     const k1 = mockCreate.mock.calls[0][1];
     const k2 = mockCreate.mock.calls[1][1];
@@ -200,27 +212,26 @@ describe("ProductsPage idempotency-key contract (create)", () => {
   });
 });
 
-describe("ProductsPage inline edit", () => {
+describe("ProductsPage edit", () => {
   it("saves an edit with the changed name/grade/unit/price at the product's own currency scale", async () => {
     mockUpdate.mockResolvedValue(undefined);
     await renderReady(ADMIN);
 
-    // The <tr> node is stable across the switch to edit mode — reuse it rather
-    // than re-finding by a name that depends on the edited input values.
     const rowP1 = screen.getByRole("row", { name: /Grade A Dozen/ });
     fireEvent.click(within(rowP1).getByRole("button", { name: "edit" }));
 
-    const combos = within(rowP1).getAllByRole("combobox"); // DOM order: [0] grade, [1] unit
-    fireEvent.change(within(rowP1).getByRole("textbox"), { target: { value: "Grade A Half-Dozen" } });
-    fireEvent.change(combos[0], { target: { value: "g2" } });      // grade g1 → g2
-    fireEvent.change(combos[1], { target: { value: "Carton" } });  // unit Dozen → Carton
-    fireEvent.change(within(rowP1).getByRole("spinbutton"), { target: { value: "1.25" } }); // KWD 3dp → 1250
+    // The dialog is seeded from the row before anything is changed.
+    expect(within(dialog()).getByLabelText("Name")).toHaveValue("Grade A Dozen");
+    fireEvent.change(within(dialog()).getByLabelText("Name"), { target: { value: "Grade A Half-Dozen" } });
+    fireEvent.change(within(dialog()).getByLabelText("Grade"), { target: { value: "g2" } });     // grade g1 → g2
+    fireEvent.change(within(dialog()).getByLabelText("Sold per"), { target: { value: "Carton" } }); // unit Dozen → Carton
+    fireEvent.change(within(dialog()).getByLabelText(/Default price/), { target: { value: "1.25" } }); // KWD 3dp → 1250
     await act(async () => {
-      fireEvent.click(within(rowP1).getByRole("button", { name: "save" }));
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Save" }));
     });
 
     expect(mockUpdate.mock.calls[0][0]).toBe("p1");
-    // notes carries the seeded "premium" (there's no inline notes field to edit).
+    // notes carries the seeded "premium" — the dialog seeds it and it is untouched.
     expect(mockUpdate.mock.calls[0][1]).toEqual({
       name: "Grade A Half-Dozen",
       defaultUnit: "Carton",
@@ -262,10 +273,12 @@ describe("ProductsPage packed-unit conversions", () => {
 
     const rowCarton = screen.getByRole("row", { name: /Carton/ });
     fireEvent.click(within(rowCarton).getByRole("button", { name: "edit" }));
-    fireEvent.change(within(rowCarton).getByRole("spinbutton"), { target: { value: "18" } }); // 30 → 18
-    fireEvent.click(within(rowCarton).getByRole("checkbox")); // active true → false
+    // The dialog is titled for the unit it edits, so two packed units can't be confused.
+    expect(dialog()).toHaveAccessibleName("Eggs per Carton");
+    fireEvent.change(within(dialog()).getByLabelText("Eggs per unit"), { target: { value: "18" } }); // 30 → 18
+    fireEvent.click(within(dialog()).getByLabelText("active")); // active true → false
     await act(async () => {
-      fireEvent.click(within(rowCarton).getByRole("button", { name: "save" }));
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Save" }));
     });
 
     expect(mockUpdateConversion.mock.calls[0][0]).toBe("conv-carton");
@@ -274,11 +287,44 @@ describe("ProductsPage packed-unit conversions", () => {
   });
 });
 
+describe("ProductsPage dialog dismissal", () => {
+  it("closes the create dialog on Cancel without writing", async () => {
+    await renderReady(ADMIN);
+    openCreate();
+    fireEvent.change(within(dialog()).getByLabelText("Name"), { target: { value: "Abandoned" } });
+
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(mockCreate).not.toHaveBeenCalled();
+  });
+
+  it("closes the edit dialog on Cancel without writing", async () => {
+    await renderReady(ADMIN);
+    fireEvent.click(within(screen.getByRole("row", { name: /Grade A Dozen/ })).getByRole("button", { name: "edit" }));
+
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
+  it("closes the packed-unit dialog on Cancel without writing", async () => {
+    await renderReady(ADMIN);
+    fireEvent.click(within(screen.getByRole("row", { name: /Carton/ })).getByRole("button", { name: "edit" }));
+
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(mockUpdateConversion).not.toHaveBeenCalled();
+  });
+});
+
 describe("ProductsPage role gating", () => {
   it("renders read-only for a non-admin — no create form, no row actions, no Actions columns", async () => {
     await renderReady(WORKER);
 
-    expect(screen.queryByRole("button", { name: "Add product" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "New product" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "edit" })).not.toBeInTheDocument();       // product + conversion edits
     expect(screen.queryByRole("button", { name: "deactivate" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "activate" })).not.toBeInTheDocument();    // inactive Legacy row too

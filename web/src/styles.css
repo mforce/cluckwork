@@ -62,6 +62,8 @@
 
   --font: "Inter Variable", Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --shadow-card: 0 1px 2px rgba(29, 21, 33, 0.04), 0 8px 24px rgba(29, 21, 33, 0.05);
+  --scrim: rgba(29, 21, 33, 0.42);
+  --shadow-dialog: 0 24px 64px rgba(29, 21, 33, 0.24);
 
   font-family: var(--font);
   color: var(--ink);
@@ -98,6 +100,8 @@
     radial-gradient(55% 55% at 82% 88%, rgba(45, 90, 70, 0.35) 0%, transparent 62%),
     var(--canvas);
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 10px 30px rgba(0, 0, 0, 0.35);
+  --scrim: rgba(0, 0, 0, 0.62);
+  --shadow-dialog: 0 24px 64px rgba(0, 0, 0, 0.6);
   color-scheme: dark;
 }
 
@@ -271,6 +275,104 @@ input[type="checkbox"] {
 
 input.cell {
   width: 6.5rem;
+}
+
+/* ------------------------------------------------------ Modal dialogs (F131) */
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: var(--scrim);
+}
+
+.dialog {
+  width: 100%;
+  max-width: 30rem;
+  max-height: calc(100vh - 3rem);
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow-dialog);
+  animation: dialog-rise 0.16s ease-out;
+}
+
+@keyframes dialog-rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+.dialog-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.15rem 1.5rem;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.dialog-head h3 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.dialog-close {
+  display: flex;
+  align-items: center;
+  color: var(--muted);
+  padding: 0.25rem;
+}
+
+.dialog-close:hover:not(:disabled) {
+  color: var(--stat-accent);
+  text-decoration: none;
+}
+
+.dialog-body {
+  padding: 1.35rem 1.5rem 1.5rem;
+}
+
+/* Row-shaped page forms become a stacked column once they are in a dialog —
+   there is no list to sit above any more, so fields get the full width. */
+.dialog .inline-form,
+.dialog .form-grid {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.9rem;
+  margin: 0;
+}
+
+.dialog .inline-form input:not([type="checkbox"]),
+.dialog .form-grid input:not([type="checkbox"]),
+.dialog input.cell,
+.dialog select,
+.dialog textarea {
+  width: 100%;
+}
+
+/* A checkbox keeps its own small box: `.inline-form input` (10rem) outranks the
+   base `input[type="checkbox"]` rule, so it needs winning back explicitly. */
+.dialog input[type="checkbox"] {
+  width: 1rem;
+  flex: none;
+}
+
+.dialog label.check {
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.dialog .dialog-foot {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.9rem;
+  margin-top: 0.4rem;
 }
 
 /* -------------------------------------------- Toolbar (carded filter bar) */
@@ -488,6 +590,42 @@ input.cell {
 .content > section > h2 {
   font-size: 1.9rem;
   margin: 0 0 1.25rem;
+}
+
+/* Page header (F131): title left, the screen's primary "New …" action right. */
+.page-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin: 0 0 1.25rem;
+}
+
+.content .page-head h2 {
+  font-size: 1.9rem;
+  margin: 0;
+}
+
+.page-head button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+/* Actions that open a drill-down panel's dialogs, in one row above its ledger. */
+.panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0.9rem 0 1.1rem;
+}
+
+.panel-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
 }
 
 .content h3 {
@@ -862,7 +1000,8 @@ label.check {
     padding: 1.5rem 1.15rem 5rem;
   }
 
-  .content > section > h2 {
+  .content > section > h2,
+  .content .page-head h2 {
     font-size: 1.5rem;
   }
 
@@ -922,6 +1061,31 @@ label.check {
     background: var(--canvas);
     padding: 0.75rem 0;
     margin-top: 0.75rem;
+  }
+
+  /* On a phone the dialog becomes a bottom sheet — thumb-reachable, and it
+     stops a tall form from being centred with dead space above and below. */
+  .dialog-backdrop {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .dialog {
+    max-width: none;
+    max-height: 88vh;
+    border-radius: var(--r-card) var(--r-card) 0 0;
+    border-bottom: none;
+    animation-name: dialog-sheet;
+  }
+
+  @keyframes dialog-sheet {
+    from { transform: translateY(16px); }
+    to { transform: none; }
+  }
+
+  .dialog .dialog-foot button {
+    flex: 1;
+    padding: 0.85rem 0.5rem;
   }
 
   .actions button {

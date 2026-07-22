@@ -56,26 +56,36 @@ describe("CustomersPage list", () => {
   });
 });
 
+// F131: create moved into a dialog — open it, then assert the same behaviour.
+const openCreate = () => fireEvent.click(screen.getByRole("button", { name: "New customer" }));
+const dialog = () => screen.getByRole("dialog");
+const submit = async () => {
+  await act(async () => {
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Add customer" }));
+  });
+};
+
 describe("CustomersPage create", () => {
   it("omits blank optional fields from the request and resets the form", async () => {
     mockCreate.mockResolvedValue({ id: "c9" });
     renderWithProviders(<CustomersPage />, { token: WORKER });
     await screen.findByRole("row", { name: /Acme Eggs/ });
+    openCreate();
 
-    fireEvent.change(screen.getByPlaceholderText("Name *"), { target: { value: "Zeta" } });
-    fireEvent.change(screen.getByPlaceholderText("Phone *"), { target: { value: "999" } });
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Add customer" }));
-    });
+    fireEvent.change(within(dialog()).getByLabelText("Name *"), { target: { value: "Zeta" } });
+    fireEvent.change(within(dialog()).getByLabelText("Phone *"), { target: { value: "999" } });
+    await submit();
 
     const body = mockCreate.mock.calls[0][0];
     expect(body).toMatchObject({ name: "Zeta", phone: "999" });
     expect(body.email).toBeUndefined();
     expect(body.address).toBeUndefined();
     expect(body.note).toBeUndefined();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument(); // success dismisses it
     // both required fields clear on success
-    expect(screen.getByPlaceholderText("Name *")).toHaveValue("");
-    expect(screen.getByPlaceholderText("Phone *")).toHaveValue("");
+    openCreate();
+    expect(within(dialog()).getByLabelText("Name *")).toHaveValue("");
+    expect(within(dialog()).getByLabelText("Phone *")).toHaveValue("");
   });
 
   it("replays the SAME create key after a failure, then rotates it after success", async () => {
@@ -83,26 +93,43 @@ describe("CustomersPage create", () => {
     mockCreate.mockResolvedValue({ id: "c9" });
     renderWithProviders(<CustomersPage />, { token: WORKER });
     await screen.findByRole("row", { name: /Acme Eggs/ });
+    openCreate();
     const fill = () => {
-      fireEvent.change(screen.getByPlaceholderText("Name *"), { target: { value: "Zeta" } });
-      fireEvent.change(screen.getByPlaceholderText("Phone *"), { target: { value: "999" } });
+      fireEvent.change(within(dialog()).getByLabelText("Name *"), { target: { value: "Zeta" } });
+      fireEvent.change(within(dialog()).getByLabelText("Phone *"), { target: { value: "999" } });
     };
 
     fill();
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Add customer" })); });
-    expect(await screen.findByText(/Server error|boom/)).toBeInTheDocument();
+    await submit();
+    // a failed create keeps the dialog up, error inside it
+    expect(within(dialog()).getByText(/Server error|boom/)).toBeInTheDocument();
 
     fill();
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Add customer" })); });
+    await submit();
 
+    openCreate(); // success closed it
     fill();
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Add customer" })); });
+    await submit();
 
     const k1 = mockCreate.mock.calls[0][1];
     const k2 = mockCreate.mock.calls[1][1];
     const k3 = mockCreate.mock.calls[2][1];
     expect(k2).toBe(k1); // the failed create kept the key → exact replay
     expect(k3).not.toBe(k2); // success rotated it → the next create is a fresh write
+  });
+});
+
+describe("CustomersPage dialog dismissal", () => {
+  it("closes the create dialog on Cancel without writing", async () => {
+    renderWithProviders(<CustomersPage />, { token: WORKER });
+    await screen.findByRole("row", { name: /Acme Eggs/ });
+    openCreate();
+    fireEvent.change(within(dialog()).getByLabelText("Name *"), { target: { value: "Abandoned" } });
+
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(mockCreate).not.toHaveBeenCalled();
   });
 });
 

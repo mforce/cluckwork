@@ -7,6 +7,7 @@ import {
 import type { DailyEntry, EggGrade, Flock } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
+import { Dialog } from "../components/Dialog";
 import { StatusBadge } from "../components/StatusBadge";
 
 const PAGE = 50;
@@ -47,14 +48,9 @@ export function HistoryPage() {
   const [reason, setReason] = useState("");
   const [lineQty, setLineQty] = useState<Record<string, number>>({});
 
-  // The panel renders above the table — move focus into it on open so
-  // opening from a lower row doesn't appear to do nothing (codex, PR #81).
-  const panelRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    if (!adjusting || !panelRef.current) return;
-    panelRef.current.scrollIntoView({ block: "nearest" });
-    panelRef.current.querySelector("input")?.focus();
-  }, [adjusting]);
+  // F131: the correction form is a dialog — it takes focus itself, so the
+  // scroll-and-focus dance the old above-the-table panel needed is gone
+  // (codex, PR #81).
 
   // Stable idempotency keys per logical mutation; see settleKey for the
   // rotation rules on this screen.
@@ -281,16 +277,20 @@ export function HistoryPage() {
         </label>
       </div>
 
-      {adjusting && (
-        <div className="order-panel" ref={panelRef}>
-          <h3>Adjust — {adjusting.date}, {flockName(adjusting.flockId)}</h3>
-          {adjusting.adjustedFrom && (
-            <p className="muted">
-              Previously adjusted (was total {adjusting.adjustedFrom.totalEggs},
-              mortality {adjusting.adjustedFrom.mortalityCount} — "{adjusting.adjustReason}").
-            </p>
-          )}
-          <form className="form-grid" onSubmit={onAdjustSubmit}>
+      <Dialog
+        open={adjusting !== null}
+        title={adjusting ? `Adjust — ${adjusting.date}, ${flockName(adjusting.flockId)}` : "Adjust entry"}
+        onClose={() => setAdjusting(null)}
+      >
+        {adjusting && (
+          <>
+            {adjusting.adjustedFrom && (
+              <p className="muted">
+                Previously adjusted (was total {adjusting.adjustedFrom.totalEggs},
+                mortality {adjusting.adjustedFrom.mortalityCount} — "{adjusting.adjustReason}").
+              </p>
+            )}
+            <form className="form-grid" onSubmit={onAdjustSubmit}>
             <label>Total eggs
               <input type="number" min={0} value={total} required
                 onChange={(e) => setTotal(Math.max(0, e.target.valueAsNumber || 0))} />
@@ -323,13 +323,19 @@ export function HistoryPage() {
               <input value={reason} maxLength={500} required
                 onChange={(e) => setReason(e.target.value)} />
             </label>
-            <button type="submit" disabled={busy || !reason.trim()}>Save adjustment</button>
-            <button type="button" className="link" onClick={() => setAdjusting(null)}>cancel</button>
-          </form>
-        </div>
-      )}
+            {/* The 409 rebind reports here, beside the form it asks you to re-apply. */}
+            {error && <p className="error" role="alert">{error}</p>}
+            <div className="dialog-foot">
+              <button type="button" className="link" onClick={() => setAdjusting(null)}>Cancel</button>
+              <button type="submit" disabled={busy || !reason.trim()}>Save adjustment</button>
+            </div>
+            </form>
+          </>
+        )}
+      </Dialog>
 
-      {error && <p className="error" role="alert">{error}</p>}
+      {/* The dialog carries its own copy while it is up. */}
+      {error && adjusting === null && <p className="error" role="alert">{error}</p>}
       {message && <p className="success" role="status">{message}</p>}
 
       {entries === null ? (

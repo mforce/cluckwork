@@ -79,9 +79,13 @@ beforeEach(() => {
 async function renderReady(token: Record<string, unknown>, flocks: Flock[] = [ACTIVE, DEPLETED]) {
   mockListFlocks.mockResolvedValue(flocks);
   renderWithProviders(<FlocksPage />, { token });
-  // The create form only renders once the initial load resolves (flocks !== null).
-  await screen.findByRole("button", { name: "Add flock" });
+  // The create action only renders once the initial load resolves (flocks !== null).
+  await screen.findByRole("button", { name: "New flock" });
 }
+
+// F131: add/edit/record moved into dialogs — open first, same assertions after.
+const openCreate = () => fireEvent.click(screen.getByRole("button", { name: "New flock" }));
+const dialog = () => screen.getByRole("dialog");
 
 describe("FlocksPage loading + list", () => {
   it("shows a loading state until the flocks request resolves", async () => {
@@ -123,45 +127,46 @@ describe("FlocksPage create", () => {
   it("creates a flock with the full form body and a key, then resets the name", async () => {
     mockCreate.mockResolvedValue({ id: "new" });
     await renderReady(ADMIN, [ACTIVE]);
+    openCreate();
 
     // Drive every field off its default (placed=today, count=100, name/breed="").
-    fireEvent.change(screen.getByPlaceholderText("Name *"), { target: { value: "Rhode Reds" } });
-    fireEvent.change(screen.getByPlaceholderText("Breed *"), { target: { value: "Rhode Island Red" } });
-    fireEvent.change(screen.getByLabelText("Placed"), { target: { value: "2026-05-10" } });
-    fireEvent.change(screen.getByLabelText("Birds"), { target: { value: "250" } });
+    fireEvent.change(within(dialog()).getByLabelText("Name *"), { target: { value: "Rhode Reds" } });
+    fireEvent.change(within(dialog()).getByLabelText("Breed *"), { target: { value: "Rhode Island Red" } });
+    fireEvent.change(within(dialog()).getByLabelText("Placed"), { target: { value: "2026-05-10" } });
+    fireEvent.change(within(dialog()).getByLabelText("Birds"), { target: { value: "250" } });
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Add flock" }));
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Add flock" }));
     });
 
     expect(mockCreate.mock.calls[0][0]).toEqual({
       name: "Rhode Reds", breed: "Rhode Island Red", placementDate: "2026-05-10", initialCount: 250,
     });
     expect(mockCreate.mock.calls[0][1]).toEqual(expect.any(String)); // idempotency key
-    expect(screen.getByPlaceholderText("Name *")).toHaveValue(""); // reset on success
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument(); // success dismisses it
+    openCreate();
+    expect(within(dialog()).getByLabelText("Name *")).toHaveValue(""); // reset on success
   });
 });
 
 describe("FlocksPage edit", () => {
-  it("saves an inline edit with the edited identity fields and a key", async () => {
+  it("saves an edit with the edited identity fields and a key", async () => {
     mockUpdate.mockResolvedValue(undefined);
     await renderReady(ADMIN, [ACTIVE]);
 
-    // The <tr> node is stable across the switch to edit mode — capture it before
-    // clicking, since the edit inputs would otherwise change its accessible name.
     const row = screen.getByRole("row", { name: /Hen House 1/ });
     fireEvent.click(within(row).getByRole("button", { name: "edit" }));
 
-    // Query each edit field by its accessible name (aria-label), scoped to the
-    // row — resilient to column reordering or added inputs, unlike DOM order /
-    // getByDisplayValue. All four move off ACTIVE's seeded values (Hen House 1 /
-    // ISA Brown / 2026-01-01 / 100) so the asserted body proves every field is
-    // wired through, not just the ones that happened to change.
-    fireEvent.change(within(row).getByRole("textbox", { name: "Edit name" }), { target: { value: "Barn A" } });
-    fireEvent.change(within(row).getByLabelText("Edit breed"), { target: { value: "Hy-Line" } });
-    fireEvent.change(within(row).getByLabelText("Edit placement date"), { target: { value: "2026-02-02" } });
-    fireEvent.change(within(row).getByRole("spinbutton", { name: "Edit bird count" }), { target: { value: "120" } });
+    // Query each edit field by its accessible name, scoped to the dialog. All
+    // four move off ACTIVE's seeded values (Hen House 1 / ISA Brown /
+    // 2026-01-01 / 100) so the asserted body proves every field is wired
+    // through, not just the ones that happened to change.
+    expect(within(dialog()).getByLabelText("Edit name")).toHaveValue("Hen House 1"); // seeded from the row
+    fireEvent.change(within(dialog()).getByRole("textbox", { name: "Edit name" }), { target: { value: "Barn A" } });
+    fireEvent.change(within(dialog()).getByLabelText("Edit breed"), { target: { value: "Hy-Line" } });
+    fireEvent.change(within(dialog()).getByLabelText("Edit placement date"), { target: { value: "2026-02-02" } });
+    fireEvent.change(within(dialog()).getByRole("spinbutton", { name: "Edit bird count" }), { target: { value: "120" } });
     await act(async () => {
-      fireEvent.click(within(row).getByRole("button", { name: "save" }));
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Save" }));
     });
 
     expect(mockUpdate.mock.calls[0][0]).toBe("f1");
@@ -198,16 +203,14 @@ describe("FlocksPage bird ledger", () => {
 
     fireEvent.click(within(screen.getByRole("row", { name: /Hen House 1/ })).getByRole("button", { name: "birds" }));
 
-    // The create form AND the movement form both label an input "Birds"; scope
-    // the field lookups to the movement form (the one owning the Record button).
-    const recordBtn = await screen.findByRole("button", { name: "Record" });
-    const form = recordBtn.closest("form")!;
-    fireEvent.change(within(form).getByLabelText("Date"), { target: { value: "2026-05-01" } });
-    fireEvent.change(within(form).getByRole("combobox"), { target: { value: "Adjustment" } }); // off "Cull" default
-    fireEvent.change(within(form).getByLabelText("Birds"), { target: { value: "-5" } });
-    fireEvent.change(within(form).getByPlaceholderText("Note"), { target: { value: "miscount" } });
+    // The movement form lives in its own dialog, opened from the ledger panel.
+    fireEvent.click(await screen.findByRole("button", { name: "Record movement" }));
+    fireEvent.change(within(dialog()).getByLabelText("Date"), { target: { value: "2026-05-01" } });
+    fireEvent.change(within(dialog()).getByLabelText("Type"), { target: { value: "Adjustment" } }); // off "Cull" default
+    fireEvent.change(within(dialog()).getByLabelText("Birds"), { target: { value: "-5" } });
+    fireEvent.change(within(dialog()).getByLabelText("Note"), { target: { value: "miscount" } });
     await act(async () => {
-      fireEvent.click(recordBtn);
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Record" }));
     });
 
     expect(mockRecordMovement.mock.calls[0][0]).toBe("f1");
@@ -215,6 +218,41 @@ describe("FlocksPage bird ledger", () => {
       date: "2026-05-01", type: "Adjustment", quantity: -5, note: "miscount",
     });
     expect(mockRecordMovement.mock.calls[0][2]).toEqual(expect.any(String)); // idempotency key
+  });
+});
+
+describe("FlocksPage dialog dismissal", () => {
+  it("closes the create dialog on Cancel without writing", async () => {
+    await renderReady(ADMIN, [ACTIVE]);
+    openCreate();
+    fireEvent.change(within(dialog()).getByLabelText("Name *"), { target: { value: "Abandoned" } });
+
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(mockCreate).not.toHaveBeenCalled();
+  });
+
+  it("closes the edit dialog on Cancel without writing", async () => {
+    await renderReady(ADMIN, [ACTIVE]);
+    fireEvent.click(within(screen.getByRole("row", { name: /Hen House 1/ })).getByRole("button", { name: "edit" }));
+
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
+  it("closes the movement dialog on Cancel without writing", async () => {
+    mockListMovements.mockResolvedValue([]);
+    await renderReady(ADMIN, [ACTIVE]);
+    fireEvent.click(within(screen.getByRole("row", { name: /Hen House 1/ })).getByRole("button", { name: "birds" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Record movement" }));
+
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(mockRecordMovement).not.toHaveBeenCalled();
   });
 });
 
@@ -273,21 +311,30 @@ describe("FlocksPage idempotency", () => {
     mockCreate.mockRejectedValueOnce(new ApiError(500, "Server error", "boom"));
     mockCreate.mockResolvedValue({ id: "new" });
     await renderReady(ADMIN, [ACTIVE]);
-    const name = () => screen.getByPlaceholderText("Name *");
-    const breed = () => screen.getByPlaceholderText("Breed *");
+    openCreate();
+    const name = () => within(dialog()).getByLabelText("Name *");
+    const breed = () => within(dialog()).getByLabelText("Breed *");
+    const submit = async () => {
+      await act(async () => {
+        fireEvent.click(within(dialog()).getByRole("button", { name: "Add flock" }));
+      });
+    };
 
     fireEvent.change(name(), { target: { value: "One" } });
     fireEvent.change(breed(), { target: { value: "ISA" } });
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Add flock" })); });
-    expect(await screen.findByText(/boom/)).toBeInTheDocument();
+    await submit();
+    // A failure keeps the dialog up, with the error inside it.
+    expect(within(dialog()).getByText(/boom/)).toBeInTheDocument();
 
     // Failure kept the form values → the resubmit replays the same write.
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Add flock" })); });
+    await submit();
 
-    // Success cleared the form → refill for a genuinely fresh write.
+    // Success closed the dialog and cleared the form → reopen and refill for a
+    // genuinely fresh write.
+    openCreate();
     fireEvent.change(name(), { target: { value: "Two" } });
     fireEvent.change(breed(), { target: { value: "Hy-Line" } });
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Add flock" })); });
+    await submit();
 
     const k1 = mockCreate.mock.calls[0][1];
     const k2 = mockCreate.mock.calls[1][1];
@@ -302,7 +349,7 @@ describe("FlocksPage role gating", () => {
     await renderReady(WORKER, [ACTIVE, DEPLETED]);
 
     // Creating a flock records the day's work — it is NOT admin-gated.
-    expect(screen.getByRole("button", { name: "Add flock" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "New flock" })).toBeInTheDocument();
 
     const row = screen.getByRole("row", { name: /Hen House 1/ });
     expect(within(row).getByRole("button", { name: "birds" })).toBeInTheDocument(); // ledger read is open to all
@@ -321,7 +368,8 @@ describe("FlocksPage role gating", () => {
     fireEvent.click(within(screen.getByRole("row", { name: /Hen House 1/ })).getByRole("button", { name: "birds" }));
 
     await screen.findByRole("row", { name: /Cull/ }); // rows render read-only
-    expect(screen.queryByRole("button", { name: "Record" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("combobox")).not.toBeInTheDocument(); // no type picker → no record form
+    // No way in: the action that opens the movement dialog is admin-only.
+    expect(screen.queryByRole("button", { name: "Record movement" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });

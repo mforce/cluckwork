@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
+import { Plus } from "lucide-react";
 import {
   createInventoryItem, activateInventoryItem, deactivateInventoryItem, formatMoney, getAccount,
   listFlocks, listInventoryItems, listInventoryLots, listInventoryMovements, parseMoneyToMinorUnits,
@@ -8,6 +9,7 @@ import {
 import type { Account, Flock, InventoryItem, InventoryLot, InventoryMovement } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
+import { Dialog } from "../components/Dialog";
 import { StatusBadge } from "../components/StatusBadge";
 
 // Feed first (spec §12); the rest of the categories get their features later.
@@ -45,13 +47,14 @@ export function InventoryPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  // create form
+  // create form (F131: every capture form on this screen is a dialog)
+  const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
   const [category, setCategory] = useState("Feed");
   const [unit, setUnit] = useState("kg");
   const [defaultCost, setDefaultCost] = useState("");
 
-  // inline edit
+  // edit — dialog seeded from the row
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editUnit, setEditUnit] = useState("");
@@ -62,6 +65,10 @@ export function InventoryPage() {
   const [movements, setMovements] = useState<InventoryMovement[]>([]);
   const [lots, setLots] = useState<InventoryLot[]>([]);
   const [flocks, setFlocks] = useState<Flock[]>([]);
+  // the open item's three capture dialogs
+  const [purchasing, setPurchasing] = useState(false);
+  const [usingStock, setUsingStock] = useState(false);
+  const [adjusting, setAdjusting] = useState(false);
   // usage form
   const [usageFlockId, setUsageFlockId] = useState("");
   const [usageDate, setUsageDate] = useState(todayIso());
@@ -174,10 +181,13 @@ export function InventoryPage() {
       setName("");
       setDefaultCost("");
       setMessage("Item created.");
+      setCreating(false);
     }
   }
 
   function startEdit(i: InventoryItem) {
+    setError(null);
+    setCreating(false);
     setEditingId(i.id);
     setEditName(i.name);
     setEditUnit(i.unit);
@@ -186,9 +196,12 @@ export function InventoryPage() {
       : (i.defaultCostMinorUnits / 10 ** minorUnit).toFixed(minorUnit));
   }
 
-  async function onSaveEdit(i: InventoryItem) {
-    const ok = await run(`update:${i.id}`, (key) =>
-      updateInventoryItem(i.id, {
+  async function onSaveEdit(e: FormEvent) {
+    e.preventDefault();
+    const id = editingId;
+    if (id === null) return;
+    const ok = await run(`update:${id}`, (key) =>
+      updateInventoryItem(id, {
         name: editName, unit: editUnit,
         defaultUnitCostMinorUnits: toMinorUnits(editCost),
       }, key));
@@ -229,6 +242,7 @@ export function InventoryPage() {
       setExpiryDate("");
       setPurchaseNote("");
       setMessage("Purchase recorded — stock received.");
+      setPurchasing(false);
     }
   }
 
@@ -251,6 +265,7 @@ export function InventoryPage() {
       setUsageQty("");
       setUsageNote("");
       setMessage("Feed usage recorded — stock drained oldest lots first.");
+      setUsingStock(false);
     }
   }
 
@@ -278,6 +293,7 @@ export function InventoryPage() {
       setAdjustQty("");
       setAdjustReason("");
       setMessage("Correction recorded in the ledger.");
+      setAdjusting(false);
     }
   }
 
@@ -297,76 +313,151 @@ export function InventoryPage() {
     return <section><h2>Feed &amp; inventory</h2><p className="muted">Loading…</p></section>;
   }
 
+  const dialogOpen = creating || editingId !== null || purchasing || usingStock || adjusting;
+  const canFeed = active !== null && FEEDABLE_CATEGORIES.includes(active.category);
+
   return (
     <section>
-      <h2>Feed &amp; inventory</h2>
+      <div className="page-head">
+        <h2>Feed &amp; inventory</h2>
+        {isAdmin && (
+          <button type="button" onClick={() => { setError(null); setEditingId(null); setCreating(true); }}>
+            <Plus size={16} aria-hidden /> New item
+          </button>
+        )}
+      </div>
       <p className="muted">
         Receive stock as purchases; every change lands in the item's movement
         ledger. Recording feed usage against flocks arrives next.
       </p>
 
-      {isAdmin && (
+      <Dialog open={creating} title="New inventory item" onClose={() => setCreating(false)}>
         <form className="inline-form" onSubmit={onCreate}>
-          <input placeholder="Item name *" value={name} required maxLength={200}
-            onChange={(e) => setName(e.target.value)} />
-          <select value={category} onChange={(e) => setCategory(e.target.value)}>
-            {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
-          <input placeholder="Unit *" value={unit} required maxLength={20} size={6}
-            onChange={(e) => setUnit(e.target.value)} />
-          <label className="muted">Default cost/unit
+          <label>Item name *
+            <input value={name} required maxLength={200}
+              onChange={(e) => setName(e.target.value)} />
+          </label>
+          <label>Category
+            <select value={category} onChange={(e) => setCategory(e.target.value)}>
+              {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </label>
+          <label>Unit *
+            <input value={unit} required maxLength={20}
+              onChange={(e) => setUnit(e.target.value)} />
+          </label>
+          <label>Default cost/unit
             <input className="cell" type="number" min={0} step={costStep} value={defaultCost}
               onChange={(e) => setDefaultCost(e.target.value)} />
           </label>
-          <button type="submit" disabled={busy}>Add item</button>
+          {error && <p className="error">{error}</p>}
+          <div className="dialog-foot">
+            <button type="button" className="link" onClick={() => setCreating(false)}>Cancel</button>
+            <button type="submit" disabled={busy}>Add item</button>
+          </div>
         </form>
-      )}
+      </Dialog>
 
-      {error && <p className="error">{error}</p>}
+      <Dialog open={editingId !== null} title="Edit item" onClose={() => setEditingId(null)}>
+        <form className="inline-form" onSubmit={onSaveEdit}>
+          <label>Item name
+            <input value={editName} maxLength={200}
+              onChange={(e) => setEditName(e.target.value)} />
+          </label>
+          <label>Unit
+            <input value={editUnit} maxLength={20}
+              onChange={(e) => setEditUnit(e.target.value)} />
+          </label>
+          <label>Default cost/unit
+            <input className="cell" type="number" min={0} step={costStep} value={editCost}
+              onChange={(e) => setEditCost(e.target.value)} />
+          </label>
+          {error && <p className="error">{error}</p>}
+          <div className="dialog-foot">
+            <button type="button" className="link" onClick={() => setEditingId(null)}>Cancel</button>
+            <button type="submit" disabled={busy}>Save</button>
+          </div>
+        </form>
+      </Dialog>
+
+      {/* Whichever dialog is open renders its own copy of the error. */}
+      {error && !dialogOpen && <p className="error">{error}</p>}
       {message && <p className="success">{message}</p>}
 
       {active && (
         <div className="order-panel">
           <h3>{active.name} — {active.quantityOnHand} {active.unit} on hand</h3>
 
-          <form className="form-grid" onSubmit={onPurchase}>
-            <label>Received
-              <input type="date" value={purchaseDate} max={todayIso()} required
-                onChange={(e) => setPurchaseDate(e.target.value)} />
-            </label>
-            <label>Quantity ({active.unit})
-              <input type="number" min={0.001} step={0.001} value={purchaseQty} required
-                onChange={(e) => setPurchaseQty(e.target.value)} />
-            </label>
-            <label>Unit cost {active.defaultCostCurrencyCode ? `(${active.defaultCostCurrencyCode})` : ""}
-              <input type="number" min={0} step={costStep} value={purchaseCost}
-                placeholder={active.defaultCostMinorUnits !== null ? "item default" : "required"}
-                onChange={(e) => setPurchaseCost(e.target.value)} />
-            </label>
-            <label>Lot #
-              <input value={lotNumber} maxLength={100}
-                onChange={(e) => setLotNumber(e.target.value)} />
-            </label>
-            <label>Expiry
-              <input type="date" value={expiryDate} min={purchaseDate}
-                onChange={(e) => setExpiryDate(e.target.value)} />
-            </label>
-            <label>Note
-              <input value={purchaseNote} maxLength={500}
-                onChange={(e) => setPurchaseNote(e.target.value)} />
-            </label>
-            <button type="submit" disabled={busy}>Record purchase</button>
-          </form>
+          {/* One row of actions; each opens its own dialog so the ledger below
+              stays put instead of being pushed down by three stacked forms. */}
+          <div className="panel-actions">
+            <button type="button" onClick={() => { setError(null); setPurchasing(true); }}>
+              <Plus size={16} aria-hidden /> Record purchase
+            </button>
+            {canFeed && flocks.length > 0 && (
+              <button type="button" onClick={() => { setError(null); setUsingStock(true); }}>
+                Record usage
+              </button>
+            )}
+            {isAdmin && lots.length > 0 && (
+              <button type="button" className="link" onClick={() => { setError(null); setAdjusting(true); }}>
+                Correct stock
+              </button>
+            )}
+          </div>
 
-          <h4>Record usage</h4>
-          {!FEEDABLE_CATEGORIES.includes(active.category) ? (
+          {/* Why an action is unavailable, in the place the button would be. */}
+          {!canFeed && (
             <p className="muted">
-              {active.category} items aren't fed to flocks — usage applies to
+              {active.category} items aren&apos;t fed to flocks — usage applies to
               Feed, Supplement, and Additive items only.
             </p>
-          ) : flocks.length === 0 ? (
+          )}
+          {canFeed && flocks.length === 0 && (
             <p className="muted">No flocks — usage needs a flock to feed.</p>
-          ) : (
+          )}
+          {!isAdmin ? (
+            <p className="muted">Stock corrections need an admin.</p>
+          ) : lots.length === 0 ? (
+            <p className="muted">No lots yet — corrections target a received lot.</p>
+          ) : null}
+
+          <Dialog open={purchasing} title={`Record purchase — ${active.name}`} onClose={() => setPurchasing(false)}>
+            <form className="form-grid" onSubmit={onPurchase}>
+              <label>Received
+                <input type="date" value={purchaseDate} max={todayIso()} required
+                  onChange={(e) => setPurchaseDate(e.target.value)} />
+              </label>
+              <label>Quantity ({active.unit})
+                <input type="number" min={0.001} step={0.001} value={purchaseQty} required
+                  onChange={(e) => setPurchaseQty(e.target.value)} />
+              </label>
+              <label>Unit cost {active.defaultCostCurrencyCode ? `(${active.defaultCostCurrencyCode})` : ""}
+                <input type="number" min={0} step={costStep} value={purchaseCost}
+                  placeholder={active.defaultCostMinorUnits !== null ? "item default" : "required"}
+                  onChange={(e) => setPurchaseCost(e.target.value)} />
+              </label>
+              <label>Lot #
+                <input value={lotNumber} maxLength={100}
+                  onChange={(e) => setLotNumber(e.target.value)} />
+              </label>
+              <label>Expiry
+                <input type="date" value={expiryDate} min={purchaseDate}
+                  onChange={(e) => setExpiryDate(e.target.value)} />
+              </label>
+              <label>Note
+                <input value={purchaseNote} maxLength={500}
+                  onChange={(e) => setPurchaseNote(e.target.value)} />
+              </label>
+              {error && <p className="error">{error}</p>}
+              <div className="dialog-foot">
+                <button type="button" className="link" onClick={() => setPurchasing(false)}>Cancel</button>
+                <button type="submit" disabled={busy}>Record purchase</button>
+              </div>
+            </form>
+          </Dialog>
+
+          <Dialog open={usingStock} title={`Record usage — ${active.name}`} onClose={() => setUsingStock(false)}>
             <form className="form-grid" onSubmit={onRecordUsage}>
               <label>Flock
                 <select value={usageFlockId} onChange={(e) => setUsageFlockId(e.target.value)}>
@@ -389,16 +480,15 @@ export function InventoryPage() {
                 <input value={usageNote} maxLength={500}
                   onChange={(e) => setUsageNote(e.target.value)} />
               </label>
-              <button type="submit" disabled={busy || !usageFlockId}>Record usage</button>
+              {error && <p className="error">{error}</p>}
+              <div className="dialog-foot">
+                <button type="button" className="link" onClick={() => setUsingStock(false)}>Cancel</button>
+                <button type="submit" disabled={busy || !usageFlockId}>Record usage</button>
+              </div>
             </form>
-          )}
+          </Dialog>
 
-          <h4>Correct stock</h4>
-          {!isAdmin ? (
-            <p className="muted">Stock corrections need an admin.</p>
-          ) : lots.length === 0 ? (
-            <p className="muted">No lots yet — corrections target a received lot.</p>
-          ) : (
+          <Dialog open={adjusting} title={`Correct stock — ${active.name}`} onClose={() => setAdjusting(false)}>
             <form className="form-grid" onSubmit={onAdjust}>
               <label>Lot
                 <select value={adjustLotId} onChange={(e) => setAdjustLotId(e.target.value)}>
@@ -420,9 +510,13 @@ export function InventoryPage() {
                 <input value={adjustReason} maxLength={500} required
                   onChange={(e) => setAdjustReason(e.target.value)} />
               </label>
-              <button type="submit" disabled={busy || !adjustLotId}>Record correction</button>
+              {error && <p className="error">{error}</p>}
+              <div className="dialog-foot">
+                <button type="button" className="link" onClick={() => setAdjusting(false)}>Cancel</button>
+                <button type="submit" disabled={busy || !adjustLotId}>Record correction</button>
+              </div>
             </form>
-          )}
+          </Dialog>
 
           {movements.length > 0 ? (
             <table className="data">
@@ -456,58 +550,30 @@ export function InventoryPage() {
         <tbody>
           {items.map((i) => (
             <tr key={i.id} className={i.active ? undefined : "inactive"}>
-              {editingId === i.id ? (
-                <>
-                  <td>
-                    <input value={editName} maxLength={200}
-                      onChange={(e) => setEditName(e.target.value)} />
-                  </td>
-                  <td>{i.category}</td>
-                  <td>
-                    {i.quantityOnHand}{" "}
-                    <input className="cell" value={editUnit} maxLength={20} size={4}
-                      onChange={(e) => setEditUnit(e.target.value)} />
-                  </td>
-                  <td>
-                    <input className="cell" type="number" min={0} step={costStep} value={editCost}
-                      onChange={(e) => setEditCost(e.target.value)} />
-                  </td>
-                  <td><StatusBadge status={i.active ? "Active" : "Inactive"} /></td>
-                  <td>
-                    <button className="link" disabled={busy}
-                      onClick={() => void onSaveEdit(i)}>save</button>
-                    <button className="link" disabled={busy}
-                      onClick={() => setEditingId(null)}>cancel</button>
-                  </td>
-                </>
-              ) : (
-                <>
-                  <td>{i.name}</td>
-                  <td>{i.category}</td>
-                  <td>{i.quantityOnHand} {i.unit}</td>
-                  <td>{costText(i)}</td>
-                  <td><StatusBadge status={i.active ? "Active" : "Inactive"} /></td>
-                  <td>
-                    <button className="link" disabled={busy} onClick={() => void onOpen(i)}>open</button>
-                    {isAdmin && (
-                      <>
-                        <button className="link" disabled={busy} onClick={() => startEdit(i)}>edit</button>
-                        {i.active ? (
-                          <button className="link" disabled={busy}
-                            onClick={() => void run(`deactivate:${i.id}`, (key) => deactivateInventoryItem(i.id, key))}>
-                            deactivate
-                          </button>
-                        ) : (
-                          <button className="link" disabled={busy}
-                            onClick={() => void run(`activate:${i.id}`, (key) => activateInventoryItem(i.id, key))}>
-                            activate
-                          </button>
-                        )}
-                      </>
+              <td>{i.name}</td>
+              <td>{i.category}</td>
+              <td>{i.quantityOnHand} {i.unit}</td>
+              <td>{costText(i)}</td>
+              <td><StatusBadge status={i.active ? "Active" : "Inactive"} /></td>
+              <td>
+                <button className="link" disabled={busy} onClick={() => void onOpen(i)}>open</button>
+                {isAdmin && (
+                  <>
+                    <button className="link" disabled={busy} onClick={() => startEdit(i)}>edit</button>
+                    {i.active ? (
+                      <button className="link" disabled={busy}
+                        onClick={() => void run(`deactivate:${i.id}`, (key) => deactivateInventoryItem(i.id, key))}>
+                        deactivate
+                      </button>
+                    ) : (
+                      <button className="link" disabled={busy}
+                        onClick={() => void run(`activate:${i.id}`, (key) => activateInventoryItem(i.id, key))}>
+                        activate
+                      </button>
                     )}
-                  </td>
-                </>
-              )}
+                  </>
+                )}
+              </td>
             </tr>
           ))}
         </tbody>

@@ -42,16 +42,16 @@ export default defineConfig(({ mode }) => {
         ],
         reporter: ["text", "html"],
         thresholds: {
-          // Global regression floor, re-baselined as screen tests land. After the
-          // Tier-1 sweep + its hardening pass: lines 72.6 / branch 82.6 /
-          // funcs 63.8. (Dashboard + Reports stay untested pending the #52
-          // revamp, and the static Help/shell screens are excluded-in-spirit —
-          // hence sub-100.) A screen-test PR raises lines/functions; branches
-          // move either way (testing a screen exposes all its conditional
-          // branches), so re-baseline branches in BOTH directions with headroom.
-          lines: 80,
-          statements: 80,
-          functions: 63,
+          // Global regression floor, re-baselined as screen tests land. After
+          // the F131 modal migration: lines 84.4 / branch 83.0 / funcs 64.6.
+          // (Reports stays untested; the static Help/shell screens are
+          // excluded-in-spirit — hence sub-100.) A screen-test PR raises
+          // lines/functions; branches move either way (testing a screen exposes
+          // all its conditional branches), so re-baseline branches in BOTH
+          // directions with headroom.
+          lines: 84,
+          statements: 84,
+          functions: 64,
           branches: 82,
           // high-water locks on the fully-covered foundation
           "src/auth/**": { statements: 100, lines: 100, functions: 100, branches: 95 },

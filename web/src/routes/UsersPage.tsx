@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
+import { Plus } from "lucide-react";
 import {
   assignFlock, createUser, listFlockAssignments, listFlocks, listUsers, unassignFlock,
 } from "../api/cluckwork";
 import type { Flock, FlockAssignment, User } from "../api/cluckwork";
 import { ApiError } from "../api/client";
+import { Dialog } from "../components/Dialog";
 
 function errText(err: unknown): string {
   if (err instanceof ApiError) return err.message;
@@ -19,6 +21,7 @@ export function UsersPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  const [creating, setCreating] = useState(false); // F131: create moved into a dialog
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState("Worker");
@@ -119,6 +122,7 @@ export function UsersPage() {
       setEmail("");
       setPassword("");
       setRole("Worker");
+      setCreating(false);
     } catch (err) {
       setError(errText(err));
     } finally {
@@ -131,7 +135,12 @@ export function UsersPage() {
 
   return (
     <section>
-      <h2>Users</h2>
+      <div className="page-head">
+        <h2>Users</h2>
+        <button type="button" onClick={() => { setError(null); setMessage(null); setCreating(true); }}>
+          <Plus size={16} aria-hidden /> New user
+        </button>
+      </div>
       <p className="muted">
         Workers record the day&apos;s work (optionally narrowed to assigned
         flocks). Managers additionally correct, void, and configure. Sales
@@ -139,24 +148,37 @@ export function UsersPage() {
         and reports. Admin (owner) does everything, including managing users.
       </p>
 
-      <form className="inline-form" onSubmit={onCreate}>
-        <input type="email" placeholder="Email *" value={email} required maxLength={256}
-          autoComplete="off"
-          onChange={(e) => setEmail(e.target.value)} />
-        <input type="password" placeholder="Password (min 12 chars) *" value={password}
-          required minLength={12} autoComplete="new-password"
-          onChange={(e) => setPassword(e.target.value)} />
-        <select value={role} onChange={(e) => setRole(e.target.value)}>
-          <option value="Worker">Worker</option>
-          <option value="Admin">Admin (owner)</option>
-          <option value="Manager">Manager</option>
-          <option value="Sales">Sales</option>
-          <option value="ReadOnly">Read-only</option>
-        </select>
-        <button type="submit" disabled={busy}>Create user</button>
-      </form>
+      <Dialog open={creating} title="New user" onClose={() => setCreating(false)}>
+        <form className="inline-form" onSubmit={onCreate}>
+          <label>Email *
+            <input type="email" value={email} required maxLength={256}
+              autoComplete="off"
+              onChange={(e) => setEmail(e.target.value)} />
+          </label>
+          <label>Password (min 12 chars) *
+            <input type="password" value={password}
+              required minLength={12} autoComplete="new-password"
+              onChange={(e) => setPassword(e.target.value)} />
+          </label>
+          <label>Role
+            <select value={role} onChange={(e) => setRole(e.target.value)}>
+              <option value="Worker">Worker</option>
+              <option value="Admin">Admin (owner)</option>
+              <option value="Manager">Manager</option>
+              <option value="Sales">Sales</option>
+              <option value="ReadOnly">Read-only</option>
+            </select>
+          </label>
+          {error && <p className="error">{error}</p>}
+          <div className="dialog-foot">
+            <button type="button" className="link" onClick={() => setCreating(false)}>Cancel</button>
+            <button type="submit" disabled={busy}>Create user</button>
+          </div>
+        </form>
+      </Dialog>
 
-      {error && <p className="error">{error}</p>}
+      {/* The dialog carries its own copy while it is up. */}
+      {error && !creating && <p className="error">{error}</p>}
       {message && <p className="success">{message}</p>}
 
       <table className="data">
