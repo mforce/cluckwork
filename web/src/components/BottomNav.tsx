@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { NavLink } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { NavLink, useLocation } from "react-router-dom";
 import { LogOut, Menu } from "lucide-react";
 import { Dialog } from "./Dialog";
 import { ThemeToggle } from "./ThemeToggle";
@@ -21,6 +21,25 @@ export function BottomNav({
   onLogout: () => void;
 }) {
   const [moreOpen, setMoreOpen] = useState(false);
+  const { pathname } = useLocation();
+
+  // When the current screen is not one of the four tabs, it lives under More —
+  // so More carries the current-page marker, otherwise the bar shows nothing
+  // active at all on those routes. NavLink's own `end` matching decides the
+  // tabs; this mirrors it for the overflow.
+  const onATab = tabs.some((t) => (t.end ? pathname === t.to : pathname.startsWith(t.to)));
+
+  // A sheet opened on a phone must not survive a resize past the breakpoint —
+  // it would hang as a modal over the restored sidebar, and closing would try
+  // to return focus to a now-hidden trigger. matchMedia is guarded for jsdom,
+  // which does not implement it (see lib/theme.ts).
+  useEffect(() => {
+    if (typeof window.matchMedia !== "function") return;
+    const desktop = window.matchMedia("(min-width: 901px)");
+    const closeOnDesktop = () => { if (desktop.matches) setMoreOpen(false); };
+    desktop.addEventListener("change", closeOnDesktop);
+    return () => desktop.removeEventListener("change", closeOnDesktop);
+  }, []);
 
   return (
     <>
@@ -33,9 +52,10 @@ export function BottomNav({
         ))}
         <button
           type="button"
-          className="tab"
+          className={onATab ? "tab" : "tab active"}
           aria-haspopup="dialog"
           aria-expanded={moreOpen}
+          aria-current={onATab ? undefined : "page"}
           onClick={() => setMoreOpen(true)}
         >
           <Menu size={ICON} aria-hidden />

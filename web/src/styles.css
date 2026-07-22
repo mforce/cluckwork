@@ -1427,7 +1427,10 @@ label.check {
      the @media — a loose custom-property declaration is invalid and the parser
      drops it AND the rule after it. */
   :root {
-    --tabbar-h: 3.6rem;
+    /* Includes the home-indicator inset, so the sticky footers that offset by
+       this token clear the bar on a notched phone too — the bar's own physical
+       height is its content plus that same inset. */
+    --tabbar-h: calc(3.6rem + env(safe-area-inset-bottom));
   }
 
   /* The sidebar gives way to the bottom tab bar (BottomNav). It used to become
@@ -1437,10 +1440,11 @@ label.check {
   }
 
   .content {
-    /* Exactly the tab bar (plus the home indicator) below the content, so a
-       sticky footer parked at `bottom: var(--tabbar-h)` reaches its flow rest
-       at the same line it stuck to — clearing the bar without a gap. */
-    padding: 1.5rem 1.15rem calc(var(--tabbar-h) + env(safe-area-inset-bottom));
+    /* Exactly the tab bar below the content (the token already carries the
+       home-indicator inset), so a sticky footer parked at
+       `bottom: var(--tabbar-h)` reaches its flow rest on its stuck line —
+       clearing the bar without a gap. */
+    padding: 1.5rem 1.15rem var(--tabbar-h);
   }
 
   .content > section > h2,
@@ -1518,7 +1522,7 @@ label.check {
     /* Cancel the content's whole bottom padding so the footer's flow rest lands
        exactly on its stuck line (bottom: var(--tabbar-h)) — flush above the tab
        bar, no gap and no overlap. */
-    margin-bottom: calc(-1 * (var(--tabbar-h) + env(safe-area-inset-bottom)));
+    margin-bottom: calc(-1 * var(--tabbar-h));
   }
 
   /* One pane above the other: side by side on a phone would put four-digit

@@ -80,4 +80,18 @@ describe("AppLayout bottom tabs", () => {
     fireEvent.click(within(screen.getByRole("dialog")).getByRole("link", { name: "Grades" }));
     expect(screen.queryByRole("dialog")).toBeNull();
   });
+
+  it("marks More as current when the screen is not one of the tabs", () => {
+    // /grades is an admin overflow route — no tab points at it, so the bar
+    // would otherwise show nothing active there.
+    renderWithProviders(<AppLayout />, { token: { sub: "u1", role: "Admin" }, route: "/grades" });
+    const more = tabbar().getByRole("button", { name: "More" });
+    expect(more).toHaveAttribute("aria-current", "page");
+    expect(more).toHaveClass("active");
+  });
+
+  it("does not mark More current when a tab owns the screen", () => {
+    renderWithProviders(<AppLayout />, { token: { sub: "u1", role: "Admin" }, route: "/stock" });
+    expect(tabbar().getByRole("button", { name: "More" })).not.toHaveAttribute("aria-current");
+  });
 });

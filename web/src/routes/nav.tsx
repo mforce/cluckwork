@@ -25,8 +25,12 @@ export interface NavGroup {
 // reach. Same conditions the sidebar has always used (#103): the API enforces
 // the policy regardless, this is only what to bother showing.
 export function navGroups(role: Role, isAdmin: boolean): NavGroup[] {
-  const canProduce = role !== "Sales" && role !== "ReadOnly";
-  const notReadOnly = role !== "ReadOnly";
+  // Denied is a token whose role claims none of the app understood (claims.ts):
+  // the API refuses it everywhere, so it gets only the reads every principal
+  // has, never a production or sales destination that would 403. Folding it in
+  // here fixes the sidebar and the tab bar at once — the point of one model.
+  const canProduce = role !== "Sales" && role !== "ReadOnly" && role !== "Denied";
+  const notReadOnly = role !== "ReadOnly" && role !== "Denied";
 
   const groups: NavGroup[] = [
     { label: "Overview", entries: [{ to: "/", label: "Dashboard", Icon: LayoutDashboard, end: true }] },

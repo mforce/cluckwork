@@ -590,6 +590,8 @@ export function HelpPage() {
       <h3 id="glossary">Glossary</h3>
       <table className="data">
         <tbody>
+          <tr><th scope="row">Navigation</th>
+            <td>Screens live in the left sidebar on a computer; on a phone the four you use most are tabs across the bottom, the rest under More.</td></tr>
           <tr><th scope="row">Daily entry</th>
             <td>One flock's day: eggs by grade, losses, deaths. Draft until submitted.</td></tr>
           <tr><th scope="row">Egg lot</th>
