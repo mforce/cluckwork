@@ -89,7 +89,9 @@ refresh can't park the lock forever — it's aborted after a bounded timeout so
 other tabs recover. Server reuse-detection stays strict; browsers without
 `navigator.locks` fall back to the per-tab single-flight only.
 
-One residual a page-owned lock can't close: if a tab is closed in the sub-second
-between sending a refresh and receiving the rotated cookie, the lock releases
-while the cookie is still stale, so the next tab can still trip reuse-detection.
-Narrow; the full fix needs an idempotent server refresh (tracked in #176).
+One residual a page-owned lock can't close on its own: if a tab is closed in the
+sub-second between sending a refresh and receiving the rotated cookie, the lock
+releases while the cookie is still stale. The server covers this with a short
+**idempotency grace** (#176) — reuse-detection treats a just-rotated token whose
+replacement is still live as a benign retry (fresh token instead of family
+revocation), while any genuinely stale/replayed token still revokes the family.

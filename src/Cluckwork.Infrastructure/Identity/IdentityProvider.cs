@@ -94,12 +94,26 @@ public sealed class IdentityProvider(
         if (stored is null)
             return Result.Failure<TokenPair>(Error.Validation("Identity.InvalidRefreshToken", "Refresh token is invalid."));
 
-        // Presenting an already-rotated/revoked token means it was replayed — treat as a
-        // possible theft and revoke every active token for the user (breaks the chain).
+        // Presenting an already-rotated/revoked token normally means it was replayed —
+        // treat as a possible theft and revoke every active token for the user.
         if (stored.RevokedAt is not null)
         {
-            await RevokeAllActiveForUserAsync(stored.UserId, now, ct);
-            return Result.Failure<TokenPair>(Error.Validation("Identity.InvalidRefreshToken", "Refresh token is invalid."));
+            // #176 — idempotency grace: a token rotated within the last
+            // RefreshReuseGraceSeconds whose replacement is still the live tip is a
+            // benign concurrent/dead-tab retry (the #169 residual), not a replay.
+            // Advance the still-active replacement (fall through to the normal
+            // rotation below) and hand the caller a fresh token instead of revoking
+            // the family. For the actual tab-death case the replacement was never
+            // delivered, so this does not fork the chain. Anything else — a stale
+            // token, an expired grace, or a replacement already gone — is a genuine
+            // replay and still burns the family down.
+            var graced = await TryGraceReplacementAsync(stored, now, ct);
+            if (graced is null)
+            {
+                await RevokeAllActiveForUserAsync(stored.UserId, now, ct);
+                return Result.Failure<TokenPair>(Error.Validation("Identity.InvalidRefreshToken", "Refresh token is invalid."));
+            }
+            stored = graced;
         }
 
         if (stored.ExpiresAt <= now)
@@ -247,6 +261,24 @@ public sealed class IdentityProvider(
             CreatedAt = now,
             ExpiresAt = now.AddDays(jwtOptions.Value.RefreshTokenDays)
         };
+    }
+
+    // #176 — returns the live replacement to rotate when `revoked` is a benign
+    // grace retry (rotated within the grace window and its replacement is still
+    // active), or null when it is a genuine replay that must revoke the family.
+    private async Task<RefreshToken?> TryGraceReplacementAsync(
+        RefreshToken revoked, DateTimeOffset now, CancellationToken ct)
+    {
+        var graceSeconds = jwtOptions.Value.RefreshReuseGraceSeconds;
+        if (graceSeconds <= 0                       // grace disabled → strict replay
+            || revoked.ReplacedByTokenHash is null
+            || revoked.RevokedAt is null
+            || now - revoked.RevokedAt.Value > TimeSpan.FromSeconds(graceSeconds))
+            return null;
+
+        var replacement = await db.RefreshTokens
+            .FirstOrDefaultAsync(t => t.TokenHash == revoked.ReplacedByTokenHash, ct);
+        return replacement is not null && replacement.IsActive(now) ? replacement : null;
     }
 
     private async Task RevokeAllActiveForUserAsync(Guid userId, DateTimeOffset now, CancellationToken ct)

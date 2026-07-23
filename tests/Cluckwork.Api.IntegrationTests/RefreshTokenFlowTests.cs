@@ -2,6 +2,7 @@ namespace Cluckwork.Api.IntegrationTests;
 
 using System.Net;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 
 // tech spec §7.4: refresh tokens are durable and rotating. Refresh issues a new
@@ -38,44 +39,51 @@ public sealed class RefreshTokenFlowTests(CluckworkWebApplicationFactory factory
         Assert.NotEqual(rotated.RefreshToken, rotatedAgain.RefreshToken);
     }
 
+    // #176 — a token rotated moments ago whose replacement is still the live tip
+    // is a BENIGN concurrent/dead-tab retry (the #169 residual), not a replay: the
+    // caller is handed a fresh token instead of the session being torn down.
     [Fact]
-    public async Task Refresh_WithRotatedToken_IsRejected()
+    public async Task Refresh_ImmediateReplayWithinGrace_Succeeds_WithoutRevokingTheSession()
     {
         var email = $"u-{Guid.NewGuid():N}@test.local";
         await factory.SeedAccountWithUserAsync(email);
         var client = factory.CreateClient(Cookieless);
 
         var initial = await factory.LoginAsync(email);
-        await RefreshAsync(client, initial.RefreshToken); // rotates initial → revoked
+        await RefreshAsync(client, initial.RefreshToken); // initial → live (delivered)
 
-        // Replaying the now-revoked original token must fail.
+        // The dead tab's retry: it still holds `initial` (never saw the rotation).
+        // Within the grace window this is honoured rather than read as theft.
         var replay = await client.PostRefreshAsync(initial.RefreshToken);
-        Assert.Equal(HttpStatusCode.Unauthorized, replay.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, replay.StatusCode);
+
+        // The handed-back token is a working member of a live session — nothing
+        // was revoked (a family revocation would make this refresh 401).
+        var handed = await TestHarness.ReadTokensAsync(replay);
+        var next = await client.PostRefreshAsync(handed.RefreshToken);
+        Assert.Equal(HttpStatusCode.OK, next.StatusCode);
     }
 
-    // #169 — reuse-detection stays strict: replaying a revoked token revokes the
-    // WHOLE family, not just the replayed one. This is exactly the "both tabs
-    // logged out" cascade the client-side Web Lock (#169) exists to avoid ever
-    // triggering — but a genuinely stolen/replayed token must still burn the
-    // family down. The server behaviour is deliberately unchanged by #169.
+    // #176 — theft-detection stays strict once the chain has moved on: replaying a
+    // token whose replacement is itself already rotated away (not the live tip) is
+    // a genuine replay and revokes the WHOLE family, not just the replayed token.
     [Fact]
-    public async Task Refresh_ReuseDetection_RevokesTheWholeFamily()
+    public async Task Refresh_ReplayAfterChainMovedOn_RevokesTheWholeFamily()
     {
         var email = $"u-{Guid.NewGuid():N}@test.local";
         await factory.SeedAccountWithUserAsync(email);
         var client = factory.CreateClient(Cookieless);
 
         var initial = await factory.LoginAsync(email);
-        // The "legit tab" rotates once: `initial` → `live` (the current token).
-        var live = await RefreshAsync(client, initial.RefreshToken);
+        var r1 = await RefreshAsync(client, initial.RefreshToken); // initial → r1
+        var live = await RefreshAsync(client, r1.RefreshToken);     // r1 → r2 (r1 no longer the tip)
 
-        // A replay of the already-rotated `initial` is read as theft → the family
-        // is revoked.
+        // Replaying `initial` now: its replacement r1 is already revoked, so this
+        // is not a benign grace retry — it is a replay → revoke the family.
         var replay = await client.PostRefreshAsync(initial.RefreshToken);
         Assert.Equal(HttpStatusCode.Unauthorized, replay.StatusCode);
 
-        // The still-"live" sibling token is now dead too — the whole session is
-        // torn down, which is precisely the multi-tab pain #169 addresses.
+        // The still-live tip r2 is dead too — the whole session is torn down.
         var afterCascade = await client.PostRefreshAsync(live.RefreshToken);
         Assert.Equal(HttpStatusCode.Unauthorized, afterCascade.StatusCode);
     }
@@ -105,5 +113,45 @@ public sealed class RefreshTokenFlowTests(CluckworkWebApplicationFactory factory
         // The revoked token can no longer be refreshed.
         var afterLogout = await factory.CreateClient(Cookieless).PostRefreshAsync(tokens.RefreshToken);
         Assert.Equal(HttpStatusCode.Unauthorized, afterLogout.StatusCode);
+    }
+}
+
+// #176 — the idempotency grace is configurable; with it DISABLED (0s) even an
+// immediate replay is strict theft-detection. Proves the grace gate is
+// load-bearing (not that every revoked token is always accepted).
+public sealed class RefreshGraceDisabledFactory : CluckworkWebApplicationFactory
+{
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        base.ConfigureWebHost(builder);
+        builder.UseSetting("Jwt:RefreshReuseGraceSeconds", "0");
+    }
+}
+
+public sealed class RefreshGraceDisabledTests(RefreshGraceDisabledFactory factory)
+    : IClassFixture<RefreshGraceDisabledFactory>
+{
+    private static readonly WebApplicationFactoryClientOptions Cookieless =
+        new() { HandleCookies = false };
+
+    [Fact]
+    public async Task Refresh_ImmediateReplay_WithGraceDisabled_RevokesTheWholeFamily()
+    {
+        var email = $"u-{Guid.NewGuid():N}@test.local";
+        await factory.SeedAccountWithUserAsync(email);
+        var client = factory.CreateClient(Cookieless);
+
+        var initial = await factory.LoginAsync(email);
+        var live = await client.PostRefreshAsync(initial.RefreshToken); // initial → live
+        live.EnsureSuccessStatusCode();
+        var liveTokens = await TestHarness.ReadTokensAsync(live);
+
+        // Grace off → an immediate replay is strict theft, no benign window.
+        var replay = await client.PostRefreshAsync(initial.RefreshToken);
+        Assert.Equal(HttpStatusCode.Unauthorized, replay.StatusCode);
+
+        // Family revoked: the live tip is dead too.
+        var afterCascade = await client.PostRefreshAsync(liveTokens.RefreshToken);
+        Assert.Equal(HttpStatusCode.Unauthorized, afterCascade.StatusCode);
     }
 }

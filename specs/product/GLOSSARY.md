@@ -443,7 +443,13 @@ second would trip theft-detection, logging both out; refresh is therefore
 **serialised across tabs** via the browser Web Locks API (#169) so only one tab
 refreshes at a time and the next presents the freshly-rotated cookie. Server
 theft-detection stays strict; browsers without the API fall back to per-tab
-coordination only.
+coordination only. As the server-side safety net for the case a lock can't cover
+(a tab dying between sending a refresh and receiving the rotated cookie),
+reuse-detection carries a short **idempotency grace** (#176): a token rotated in
+the last few seconds whose replacement is still the live tip is treated as a
+benign retry — the caller gets a fresh token instead of the family being revoked.
+The grace is deliberately tiny (default 10s) vs the ~15-min refresh cadence, so a
+genuinely replayed/stale token is still caught and revokes the whole family.
 
 **Version (concurrency token)** — every mutable aggregate carries a `Version`
 that each mutation bumps. Two concurrent edits: first save wins, second gets
