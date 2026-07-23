@@ -151,6 +151,14 @@ public sealed class FarmLogoTests(CluckworkWebApplicationFactory factory)
         var fetched = await client.GetAsync(LogoPath);
         Assert.Equal("image/jpeg", fetched.Content.Headers.ContentType?.MediaType);
 
+        // The BYTES, not just the metadata around them: keeping the old PNG
+        // content while updating type, hash and dimensions satisfied every
+        // other assertion in this test (codex review of #168).
+        var served = await fetched.Content.ReadAsByteArrayAsync();
+        Assert.NotEqual(TinyPng, served);
+        Assert.Equal(0xFF, served[0]);
+        Assert.Equal(0xD8, served[1]);
+
         // Replace, not accumulate.
         var rows = await factory.WithTenantScopeAsync(accountId, db => db.FarmLogos.CountAsync());
         Assert.Equal(1, rows);
@@ -168,6 +176,101 @@ public sealed class FarmLogoTests(CluckworkWebApplicationFactory factory)
 
         Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync(LogoPath)).StatusCode);
         Assert.Null((await client.GetFromJsonAsync<AccountDto>(AccountPath))!.LogoContentHash);
+    }
+
+    [Fact]
+    public async Task AWebpLogoMakesTheSameRoundTrip()
+    {
+        // The unit tests cover the WebP walk; this covers the third format
+        // actually surviving the endpoint, the column and the serve path.
+        var (client, _, _) = await AdminAsync();
+
+        var upload = await PutLogoAsync(client, TinyWebp, contentType: "image/webp");
+        Assert.Equal(HttpStatusCode.OK, upload.StatusCode);
+
+        var meta = (await upload.Content.ReadFromJsonAsync<LogoDto>())!;
+        Assert.Equal("image/webp", meta.ContentType);
+        Assert.Equal(64, meta.Width);
+        Assert.Equal(48, meta.Height);
+
+        var fetched = await client.GetAsync(LogoPath);
+        Assert.Equal("image/webp", fetched.Content.Headers.ContentType?.MediaType);
+        Assert.Equal(TinyWebp, await fetched.Content.ReadAsByteArrayAsync());
+    }
+
+    [Fact]
+    public async Task TwoUploadsAtOnceLeaveExactlyOneLogo()
+    {
+        // Two uploads in flight at once must leave one logo, whether they
+        // actually interleave or the host serialises them — this asserts the
+        // OUTCOME, and does not claim to prove the unique index was reached.
+        // ASecondLogoRowCannotExist below is what proves the constraint is real
+        // (all four reviewers of #168 asked for concurrency cover; this is the
+        // honest split between the two questions).
+        var (client, accountId, _) = await AdminAsync();
+
+        var results = await Task.WhenAll(
+            PutLogoAsync(client, TinyPng),
+            PutLogoAsync(client, JpegWith(Exif), contentType: "image/jpeg"));
+
+        Assert.Contains(results, r => r.StatusCode == HttpStatusCode.OK);
+        foreach (var r in results)
+            Assert.True(
+                r.StatusCode is HttpStatusCode.OK or HttpStatusCode.Conflict,
+                $"unexpected {(int)r.StatusCode} from a concurrent upload");
+
+        var rows = await factory.WithTenantScopeAsync(accountId, db => db.FarmLogos.CountAsync());
+        Assert.Equal(1, rows);
+
+        // Whichever won, the row describes the image it actually holds — the
+        // fields are rewritten together, so a mix of two uploads is not
+        // reachable even under last-write-wins.
+        var stored = await factory.WithTenantScopeAsync(accountId, db => db.FarmLogos
+            .Select(l => new { l.Content, l.ContentType, l.ByteLength })
+            .FirstAsync());
+        Assert.Equal(stored.Content.Length, stored.ByteLength);
+        Assert.Equal(stored.ContentType == "image/png" ? TinyPng.Length : stored.ByteLength, stored.ByteLength);
+    }
+
+    [Fact]
+    public async Task ASecondLogoRowCannotExist()
+    {
+        // The constraint itself, driven straight at the database so the result
+        // does not depend on whether two HTTP requests happened to interleave.
+        // Without the unique index the handler's read-then-write would let two
+        // first-uploads both insert.
+        var (client, accountId, _) = await AdminAsync();
+        await PutLogoAsync(client, TinyPng);
+
+        var duplicate = await Record.ExceptionAsync(() =>
+            factory.WithTenantScopeAsync(accountId, async db =>
+            {
+                var image = ImageSanitizer.Sanitize(TinyPng).Value;
+                db.FarmLogos.Add(FarmLogo.Create(
+                    Guid.NewGuid(), accountId, SeedDefaults.FarmId, image, DateTimeOffset.UtcNow));
+                await db.SaveChangesAsync();
+            }));
+
+        Assert.IsAssignableFrom<DbUpdateException>(duplicate);
+
+        var rows = await factory.WithTenantScopeAsync(accountId, db => db.FarmLogos.CountAsync());
+        Assert.Equal(1, rows);
+    }
+
+    [Fact]
+    public async Task AnAnimatedLogoIsRefused()
+    {
+        var (client, _, _) = await AdminAsync();
+        var apng = (byte[])TinyPng.Clone();
+        // Rename the IDAT chunk type to acTL — enough to make the walk see an
+        // animation control chunk without building a whole APNG.
+        "acTL"u8.CopyTo(apng.AsSpan(37));
+
+        var response = await PutLogoAsync(client, apng);
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+        Assert.Equal("FarmLogo.AnimationNotSupported",
+            (await response.Content.ReadFromJsonAsync<ProblemDto>())!.Title);
     }
 
     // --- what the stored image is allowed to be ----------------------------
@@ -421,6 +524,30 @@ public sealed class FarmLogoTests(CluckworkWebApplicationFactory factory)
 
     private static readonly byte[] Exif =
         [.. "Exif\0\0"u8, .. "GPSLatitude 51.5074 GPSLongitude -0.1278"u8];
+
+    // RIFF/WEBP wrapping a single lossless bitstream chunk: 0x2F signature,
+    // then width-1 in the low 14 bits and height-1 in the next 14.
+    private static readonly byte[] TinyWebp = BuildWebp(64, 48);
+
+    private static byte[] BuildWebp(int width, int height)
+    {
+        var payload = new byte[5];
+        payload[0] = 0x2F;
+        BinaryPrimitives.WriteUInt32LittleEndian(
+            payload.AsSpan(1), (uint)(width - 1) | ((uint)(height - 1) << 14));
+
+        var chunk = new byte[8 + payload.Length + (payload.Length & 1)];
+        "VP8L"u8.CopyTo(chunk);
+        BinaryPrimitives.WriteUInt32LittleEndian(chunk.AsSpan(4), (uint)payload.Length);
+        payload.CopyTo(chunk, 8);
+
+        var file = new byte[12 + chunk.Length];
+        "RIFF"u8.CopyTo(file);
+        BinaryPrimitives.WriteUInt32LittleEndian(file.AsSpan(4), (uint)(4 + chunk.Length));
+        "WEBP"u8.CopyTo(file.AsSpan(8));
+        chunk.CopyTo(file, 12);
+        return file;
+    }
 
     private static byte[] JpegWith(byte[] app1) =>
     [

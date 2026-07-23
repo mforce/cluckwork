@@ -21,6 +21,7 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                     ContentType = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
                     Width = table.Column<int>(type: "integer", nullable: false),
                     Height = table.Column<int>(type: "integer", nullable: false),
+                    ByteLength = table.Column<int>(type: "integer", nullable: false),
                     ContentHash = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
                     UpdatedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
                     AccountId = table.Column<Guid>(type: "uuid", nullable: false)

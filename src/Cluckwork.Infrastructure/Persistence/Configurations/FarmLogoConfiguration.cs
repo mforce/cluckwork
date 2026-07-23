@@ -26,6 +26,7 @@ public sealed class FarmLogoConfiguration : IEntityTypeConfiguration<FarmLogo>
         builder.Property(l => l.ContentType).HasMaxLength(32).IsRequired();
         builder.Property(l => l.Width).IsRequired();
         builder.Property(l => l.Height).IsRequired();
+        builder.Property(l => l.ByteLength).IsRequired();
         // Hex SHA-256.
         builder.Property(l => l.ContentHash).HasMaxLength(64).IsRequired();
         builder.Property(l => l.UpdatedAt).IsRequired();
@@ -35,9 +36,17 @@ public sealed class FarmLogoConfiguration : IEntityTypeConfiguration<FarmLogo>
         // elsewhere in this folder.
         //
         // Unique because the upload handler reads-then-writes: without it two
-        // concurrent uploads would both miss the existing row and insert, and
-        // the farm would have two logos with an arbitrary winner on read. With
-        // it the second insert fails, which /error already maps to a 409.
+        // concurrent FIRST uploads would both miss the existing row and insert,
+        // and the farm would have two logos with an arbitrary winner on read.
+        // With it the second insert fails, which /error already maps to a 409.
+        //
+        // It does NOT order two concurrent REPLACEMENTS — no constraint fires
+        // when both update an existing row, and there is no concurrency token,
+        // so the later commit wins. That is deliberate for branding: a logo has
+        // no base version a raw-body PUT could carry, and `Replace` rewrites
+        // content, type, dimensions and hash together, so whichever upload wins
+        // leaves an internally consistent row. Last-write-wins, never a mix of
+        // two images (review of #168).
         builder.HasIndex(l => new { l.AccountId, l.FarmId }).IsUnique();
 
         builder.ToTable(t => t.HasCheckConstraint(

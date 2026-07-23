@@ -49,8 +49,11 @@ public static class FarmLogoEndpoints
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
 
-        var logo = await logos.GetContentAsync(ct);
-        if (logo is null) return Results.NotFound();
+        // Metadata first: the projection leaves the bytes in the database.
+        var metadata = await logos.GetMetadataAsync(ct);
+        if (metadata is null) return Results.NotFound();
+
+        var etag = new EntityTagHeaderValue($"\"{metadata.ContentHash}\"");
 
         // Revalidate every time. A logo is replaced rarely but visibly, and any
         // max-age window is a window in which the farm sees the old one after
@@ -61,9 +64,24 @@ public static class FarmLogoEndpoints
         // no shared cache may keep a copy.
         http.Response.Headers.CacheControl = "private, no-cache";
 
-        // Results.Bytes handles If-None-Match / If-Modified-Since itself. Doing
-        // that here instead would mean writing conditional-request semantics by
-        // hand to save one query on a request the SPA makes once per load.
+        // Answered BEFORE the content query. Results.Bytes would reach the same
+        // 304 on its own, but only after a megabyte had come out of Postgres to
+        // be thrown away — and with `no-cache` this is the request browsers
+        // make most. The tech spec says the bytes are read only on a cache
+        // miss; this is what makes that true (codex review of #168).
+        if (MatchesIfNoneMatch(http.Request, etag))
+        {
+            http.Response.Headers.ETag = etag.ToString();
+            return Results.StatusCode(StatusCodes.Status304NotModified);
+        }
+
+        var logo = await logos.GetContentAsync(ct);
+        // Removed between the two reads.
+        if (logo is null) return Results.NotFound();
+
+        // Results.Bytes still owns the rest of the conditional-request
+        // semantics — If-Modified-Since, and If-None-Match for anything the
+        // check above deliberately does not model.
         return Results.Bytes(
             logo.Content,
             contentType: logo.ContentType,
@@ -72,6 +90,23 @@ public static class FarmLogoEndpoints
             fileDownloadName: null,
             lastModified: logo.UpdatedAt,
             entityTag: new EntityTagHeaderValue($"\"{logo.ContentHash}\""));
+    }
+
+    // Weak comparison, per RFC 9110 for If-None-Match: a 304 only has to mean
+    // "the representation you hold is still good", not "byte-identical
+    // encoding". `*` matches any existing representation.
+    private static bool MatchesIfNoneMatch(HttpRequest request, EntityTagHeaderValue etag)
+    {
+        var candidates = request.GetTypedHeaders().IfNoneMatch;
+        if (candidates is null || candidates.Count == 0) return false;
+
+        foreach (var candidate in candidates)
+        {
+            if (EntityTagHeaderValue.Any.Equals(candidate)) return true;
+            if (candidate.Compare(etag, useStrongComparison: false)) return true;
+        }
+
+        return false;
     }
 
     private static async Task<IResult> SetLogo(
@@ -84,36 +119,43 @@ public static class FarmLogoEndpoints
         if (http.Request.ContentLength > ImageSanitizer.MaxByteLength)
             return MapFailure(ImageSanitizer.TooLarge);
 
-        // Kestrel's default ceiling is 30 MB. Lowering it for this endpoint
-        // stops an oversized upload at the transport rather than streaming it
-        // into the process first. Kestrel then raises BadHttpRequestException
-        // with a 413, which the /error handler already maps.
+        // Kestrel's default ceiling is 30 MB; lowering it here cuts an oversized
+        // upload off at the transport instead of streaming it into the process.
+        // Best-effort only — the feature is absent under TestServer and turns
+        // read-only once the body has been touched — so it is a nicety, never
+        // the guarantee. The read loop below is the guarantee.
         var sizeLimit = http.Features.Get<IHttpMaxRequestBodySizeFeature>();
         if (sizeLimit is { IsReadOnly: false })
             sizeLimit.MaxRequestBodySize = ImageSanitizer.MaxByteLength;
 
-        // One byte past the cap, so "exactly at the limit" and "over it" are
-        // distinguishable without trusting Content-Length.
+        // THE LOOP BOUND IS THE MEMORY GUARANTEE: the condition and the slice
+        // both stop at the cap, so a body with no declared length — or a lying
+        // one — is read that far and no further, whatever the client meant to
+        // send.
         //
-        // THE LOOP BOUND IS THE MEMORY GUARANTEE, not the check after it: the
-        // condition and the slice both stop at `cap`, so a body with no
-        // declared length — or a lying one — is read to 1 MB and one byte and
-        // no further, whatever the client intended to send.
-        var cap = ImageSanitizer.MaxByteLength + 1;
-        var buffer = ArrayPool<byte>.Shared.Rent(cap);
+        // Rented at exactly the cap, not cap+1. ArrayPool's largest bucket is
+        // 1 MB, so asking for one byte more misses the pool entirely and
+        // allocates a fresh megabyte on the heap every upload (pi review of
+        // #168). The extra byte only ever existed to tell "exactly at the cap"
+        // from "over it", and the probe read below does that without it.
+        var buffer = ArrayPool<byte>.Shared.Rent(ImageSanitizer.MaxByteLength);
         try
         {
             var total = 0;
             int read;
-            while (total < cap
-                && (read = await http.Request.Body.ReadAsync(buffer.AsMemory(total, cap - total), ct)) > 0)
+            while (total < ImageSanitizer.MaxByteLength
+                && (read = await http.Request.Body.ReadAsync(
+                    buffer.AsMemory(total, ImageSanitizer.MaxByteLength - total), ct)) > 0)
                 total += read;
 
-            // Deliberately the same verdict ImageSanitizer would reach on its
-            // own length check — kept as an early exit so an oversize body
-            // doesn't pay for a handler call and a database round trip, not
-            // because the sanitizer needs the help.
-            if (total > ImageSanitizer.MaxByteLength) return MapFailure(ImageSanitizer.TooLarge);
+            // A body that exactly filled the buffer might have more behind it.
+            // One byte settles it.
+            if (total == ImageSanitizer.MaxByteLength)
+            {
+                var probe = new byte[1];
+                if (await http.Request.Body.ReadAsync(probe, ct) > 0)
+                    return MapFailure(ImageSanitizer.TooLarge);
+            }
 
             var result = await handler.HandleAsync(buffer.AsMemory(0, total), tenant.AccountId, ct);
             return result.IsSuccess
