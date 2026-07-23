@@ -129,6 +129,38 @@ farms
 - updated_at
 ```
 
+A farm may also have a **logo**, used as branding in the app chrome. It is not a
+column on the row above: the farm record is read on every dated and every priced
+operation, and an image would then be fetched along with it every time. The image
+lives in its own one-row-per-farm table (#123).
+
+```text
+farm_logos
+- id
+- account_id
+- farm_id: unique — one logo per farm
+- content: the image bytes, PNG / JPEG / WebP only, 1 MB max, still images only
+- content_type: sniffed from the bytes, never the uploaded declaration
+- width / height: read from the image header, capped
+- byte_length: stored, not derived — see below
+- version: optimistic concurrency token — orders two writers replacing the same logo
+- content_hash: identifies the current logo; serves as the HTTP ETag
+- updated_at
+```
+
+`byte_length` is a column rather than a `length(content)` call because `content`
+is TOAST-compressed: measuring it would fetch and decompress the megabyte, which
+is exactly what the metadata-only reads exist to avoid.
+
+Uploads are Owner/Manager only. SVG is refused outright — it is a document that
+can carry script, and the app renders this image back to every user of the farm.
+What is stored is never the uploaded file: the container is walked and rewritten,
+which drops metadata blocks (EXIF on a phone photo carries GPS coordinates —
+for a farm, its physical location) and discards anything appended past the
+image's own end marker. Animation is refused in both formats: an animated WebP
+frame nests its own chunk stream, which a flat sweep cannot reach, and holding
+PNG to the same rule keeps it one sentence rather than a per-format footnote.
+
 ```text
 houses
 - id

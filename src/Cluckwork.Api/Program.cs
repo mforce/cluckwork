@@ -297,6 +297,7 @@ builder.Services.AddScoped<IBirdMovementRepository, BirdMovementRepository>();
 builder.Services.AddScoped<ICustomerRepository, CustomerRepository>();
 builder.Services.AddScoped<IAccountRepository, AccountRepository>();
 builder.Services.AddScoped<Cluckwork.Application.Features.Accounts.ICurrencyBoundRowProbe, CurrencyBoundRowProbe>();
+builder.Services.AddScoped<Cluckwork.Application.Features.Accounts.IFarmLogoRepository, FarmLogoRepository>();
 
 // --- Validators ---
 builder.Services.AddScoped<IValidator<RecordDailyEntryCommand>, RecordDailyEntryValidator>();
@@ -378,6 +379,10 @@ builder.Services.AddScoped<CreateUserHandler>();
 builder.Services.AddScoped<AdjustDailyEntryHandler>();
 builder.Services.AddScoped<
     Cluckwork.Application.Features.Accounts.UpdateFarmSettings.UpdateFarmSettingsHandler>();
+builder.Services.AddScoped<
+    Cluckwork.Application.Features.Accounts.SetFarmLogo.SetFarmLogoHandler>();
+builder.Services.AddScoped<
+    Cluckwork.Application.Features.Accounts.RemoveFarmLogo.RemoveFarmLogoHandler>();
 builder.Services.AddScoped<VoidDailyEntryHandler>();
 
 // --- Startup seed (single-farm MVP) ---
@@ -516,7 +521,8 @@ app.MapGroup("/api/v1/expenses")
 app.MapGroup("/api/v1/account")
     .WithTags("Account")
     .RequireAuthorization()
-    .MapAccountEndpoints();
+    .MapAccountEndpoints()
+    .MapFarmLogoEndpoints();
 
 app.MapGroup("/api/v1/inventory")
     .WithTags("Inventory")

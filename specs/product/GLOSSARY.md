@@ -361,6 +361,25 @@ what carries number and date conventions. Saving uses the same **version
 (concurrency token)** as everything else: whoever saves second against a stale
 copy gets a 409 and reloads.
 
+**Farm logo (#123)** — an image shown as branding in the app chrome, falling
+back to Cluckwork's own branding when none is set. Owner and Manager can upload
+or clear it; everyone sees it. **PNG, JPEG or WebP, up to 1 MB and 4096 pixels
+a side, and it must be a still image.** SVG is refused: it is a document that
+can carry script, and this image is rendered back to every user of the farm.
+Animated PNG and animated WebP are refused too — an animated frame can hide
+data inside itself where the check that cleans the rest of the file never
+looks.
+
+What gets stored is never quite the file that was uploaded. The image is taken
+apart and rebuilt, which drops two things on purpose: **embedded metadata** — a
+photo taken on a phone carries the coordinates of where it was taken, which for
+a farm is its address — and **anything appended after the image ends**, which is
+the usual way something that is not an image hides inside one. The format is
+decided by reading the file, not by trusting its name or what the browser called
+it. A picture far larger than it looks is refused too: dimensions come from the
+image's own header, so a small file claiming to be 30000 pixels across is turned
+away before it can lock up the browser of everyone who loads the page.
+
 **Currency change rule (spec §4.6)** — the farm currency can only be changed
 while the farm has **written down no amount at all** in the current one: no
 sales orders, no payments, no expenses, no priced product, and no feed money
