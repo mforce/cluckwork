@@ -1,5 +1,6 @@
 namespace Cluckwork.Api.IntegrationTests;
 
+using System.Linq;
 using System.Net;
 using System.Net.Http.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
@@ -63,6 +64,23 @@ public sealed class AccountLockoutTests(CluckworkWebApplicationFactory factory)
 
         Assert.Equal(HttpStatusCode.OK,
             (await PostLoginAsync(client, email, TestHarness.Password)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Parallel_failed_attempts_are_all_counted_and_still_lock()
+    {
+        var email = await SeedUserAsync();
+
+        // Fire the threshold's worth of wrong-password logins concurrently. Each
+        // uses its own client (own request scope + DbContext). AccessFailedAsync
+        // persists under an optimistic-concurrency stamp, so without the retry the
+        // racing increments would be dropped and the account would NOT lock; the
+        // retry makes every failure count.
+        await Task.WhenAll(Enumerable.Range(0, MaxAttempts).Select(_ =>
+            PostLoginAsync(factory.CreateClient(), email, WrongPassword)));
+
+        Assert.Equal(HttpStatusCode.Unauthorized,
+            (await PostLoginAsync(factory.CreateClient(), email, TestHarness.Password)).StatusCode);
     }
 
     [Fact]
