@@ -628,15 +628,24 @@ app.Map("/error", (HttpContext context) =>
     };
 });
 
+// An unknown /api/* path must 404 as an API error — NOT fall through to the SPA
+// fallback below (which would return index.html, i.e. a 200 text/html page, and
+// #141 would then stamp a Cache-Control header on an /api response). Real
+// endpoints have literal segments and outrank this catch-all; the SPA fallback
+// is a bare non-file catch-all, so this /api-prefixed one wins for /api paths.
+app.Map("/api/{**rest}", () => Results.Problem(
+    statusCode: StatusCodes.Status404NotFound, title: "Not found"))
+    .ExcludeFromDescription();
+
 // SPA client-side routing: any non-API, non-file request falls back to
 // index.html. Lowest route priority, so the /api/v1 endpoints and /health above
 // always match first. No-op in dev (no wwwroot) — dev uses the Vite server.
-// #141 — the fallback carries the same no-cache header as a direct GET
-// /index.html (the request path here is the unknown SPA route, never /assets),
-// so a new deploy propagates immediately even through a fronting CDN.
+// #141 — the fallback ALWAYS serves index.html, so it unconditionally emits
+// no-cache (AlwaysRevalidateHeader): a new deploy propagates immediately even
+// through a fronting CDN, and a missing /assets/x can never be pinned immutable.
 app.MapFallbackToFile("index.html", new StaticFileOptions
 {
-    OnPrepareResponse = StaticAssetCaching.ApplyCacheHeaders
+    OnPrepareResponse = StaticAssetCaching.AlwaysRevalidateHeader
 });
 
 app.Run();

@@ -32,7 +32,12 @@ frontend onto a separate CDN origin.
 
 1. **Proxy the domain.** Point the DNS record for your Cluckwork host at the
    origin with the orange-cloud proxy **on**. Traefik still terminates TLS at
-   the origin (Cloudflare "Full" mode).
+   the origin — use Cloudflare **"Full (strict)"**, not plain "Full": Full does
+   **not** validate the origin certificate, so an on-path attacker could present
+   any cert and intercept the (authenticated) API traffic. Give Traefik a
+   publicly-trusted or Cloudflare Origin CA certificate for the host, and
+   ideally lock the origin to Cloudflare (Authenticated Origin Pulls or an
+   IP allowlist) so it can't be reached directly.
 2. **Respect origin headers.** Leave Cloudflare's caching on "Standard" /
    "respect existing headers" so it honours the `immutable` assets and
    revalidates `index.html` as above — don't override with a blanket Edge TTL.
