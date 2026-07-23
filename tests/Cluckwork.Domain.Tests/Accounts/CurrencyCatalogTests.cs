@@ -23,9 +23,29 @@ public sealed class CurrencyCatalogTests
     [InlineData("USD", "$")]
     [InlineData("EUR", "€")]
     [InlineData("GBP", "£")]
-    [InlineData("JPY", "¥")]
+    [InlineData("JPY", "¥")]   // halfwidth yen, never the fullwidth U+FFE5
     public void Symbol_ComesFromTheFrameworksCldrData(string code, string expected) =>
         Assert.Equal(expected, CurrencyCatalog.Resolve(code).Symbol);
+
+    [Theory]
+    [InlineData("USD")]
+    [InlineData("EUR")]
+    [InlineData("GBP")]
+    [InlineData("JPY")]
+    [InlineData("KRW")]
+    [InlineData("CNY")]
+    [InlineData("MXN")]
+    public void Symbol_IsWidthNormalized(string code)
+    {
+        // ICU builds disagree on the width of some symbols (¥ vs ￥, ₩ vs ￦),
+        // and both forms are one character, so no tiebreak can separate them.
+        // Without normalization the table differs between a dev machine and
+        // the server — which is how this was found, as a CI-only failure.
+        var symbol = CurrencyCatalog.Resolve(code).Symbol;
+
+        Assert.True(symbol.IsNormalized(System.Text.NormalizationForm.FormKC),
+            $"{code} resolved to a non-canonical symbol: {string.Join(" ", symbol.Select(c => $"U+{(int)c:X4}"))}");
+    }
 
     [Fact]
     public void UnknownCode_FallsBackToCodeAndTwoDigits()

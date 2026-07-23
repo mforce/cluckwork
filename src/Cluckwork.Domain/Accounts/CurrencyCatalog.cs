@@ -2,6 +2,7 @@ namespace Cluckwork.Domain.Accounts;
 
 using System.Collections.Frozen;
 using System.Globalization;
+using System.Text;
 
 // Spec §4.6 "Currency derivation fallback": Phase 1 ships a static ISO 4217
 // lookup. Symbol and minor unit come from deliberately DIFFERENT sources:
@@ -75,13 +76,13 @@ public static class CurrencyCatalog
             var code = region.ISOCurrencySymbol;
             if (!IsWellFormedCode(code)) continue;
 
-            var symbol = culture.NumberFormat.CurrencySymbol;
+            var symbol = Canonicalize(culture.NumberFormat.CurrencySymbol);
             if (string.IsNullOrWhiteSpace(symbol)) continue;
 
             // Cultures sharing a currency can disagree on the symbol ("$" vs
             // "US$"). Resolve it deterministically — shortest symbol wins, ties
-            // by culture name — so the table cannot shift between machines or
-            // ICU versions and drag a test with it.
+            // by culture name — so a farm does not see a different symbol than
+            // the one it was shown when it picked the currency.
             if (!best.TryGetValue(code, out var current)
                 || symbol.Length < current.Symbol.Length
                 || (symbol.Length == current.Symbol.Length
@@ -94,6 +95,18 @@ public static class CurrencyCatalog
         return best.ToFrozenDictionary(
             kv => kv.Key, kv => kv.Value.Symbol, StringComparer.OrdinalIgnoreCase);
     }
+
+    // ICU versions disagree on the WIDTH of some currency symbols: one build
+    // gives ja-JP the halfwidth yen sign (U+00A5 ¥), the next the fullwidth one
+    // (U+FFE5 ￥). They are the same character to a reader and the same length
+    // to a tiebreak, so nothing above can choose between them — the table would
+    // quietly differ between a dev machine and the server. Compatibility
+    // normalization is the framework's own answer: it folds every fullwidth
+    // form onto its canonical one.
+    private static string Canonicalize(string symbol) =>
+        symbol.IsNormalized(NormalizationForm.FormKC)
+            ? symbol
+            : symbol.Normalize(NormalizationForm.FormKC);
 }
 
 public sealed record CurrencyInfo(string Code, string Symbol, int MinorUnit);
