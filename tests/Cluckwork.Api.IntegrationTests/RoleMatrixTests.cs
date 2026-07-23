@@ -127,6 +127,11 @@ public sealed class RoleMatrixTests(CluckworkWebApplicationFactory factory)
             Assert.Equal(HttpStatusCode.Forbidden,
                 (await worker.GetAsync(probe.Path)).StatusCode);
 
+        // ...but the sell-flow reads stay OPEN: workers build orders, so the
+        // customer directory + order book are SalesFlow, not SalesAccess (#127).
+        Assert.Equal(HttpStatusCode.OK, (await worker.GetAsync("/api/v1/customers")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await worker.GetAsync("/api/v1/sales")).StatusCode);
+
         foreach (var (path, body) in new (string, object)[]
         {
             ($"/api/v1/sales/{orderId}/void", new { reason = "no" }),
@@ -159,6 +164,13 @@ public sealed class RoleMatrixTests(CluckworkWebApplicationFactory factory)
             new { productId, quantity = 1 })).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await sales.GetAsync(
             $"/api/v1/sales/{orderId}/payments")).StatusCode);
+
+        // The customer directory + order book reads (#127) — SalesAccess ⊂ SalesFlow.
+        // List and by-id, both groups: the SalesFlow tier reaches all four.
+        Assert.Equal(HttpStatusCode.OK, (await sales.GetAsync("/api/v1/customers")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await sales.GetAsync($"/api/v1/customers/{customerId}")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await sales.GetAsync("/api/v1/sales")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await sales.GetAsync($"/api/v1/sales/{orderId}")).StatusCode);
 
         // Production capture and money config: refused.
         Assert.Equal(HttpStatusCode.Forbidden, (await sales.PostWithKeyAsync(
@@ -198,6 +210,12 @@ public sealed class RoleMatrixTests(CluckworkWebApplicationFactory factory)
             "/api/v1/sales", Guid.NewGuid().ToString(),
             new { customerId = Guid.NewGuid(), orderDate = Today })).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await reader.GetAsync("/api/v1/expense-categories")).StatusCode);
+        // Customer directory + order book reads (PII + order financials) deny
+        // ReadOnly (#127): these were ungated and leaked to every tier.
+        Assert.Equal(HttpStatusCode.Forbidden, (await reader.GetAsync("/api/v1/customers")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await reader.GetAsync($"/api/v1/customers/{Guid.NewGuid()}")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await reader.GetAsync("/api/v1/sales")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await reader.GetAsync($"/api/v1/sales/{Guid.NewGuid()}")).StatusCode);
         // Money routes (SalesAccess) deny ReadOnly — reads included.
         Assert.Equal(HttpStatusCode.Forbidden, (await reader.GetAsync("/api/v1/customers/balances")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await reader.PostWithKeyAsync(

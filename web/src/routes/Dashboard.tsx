@@ -7,6 +7,7 @@ import type { Customer, DailyEntry, Flock, SalesOrder, StockRow } from "../api/c
 import { ApiError } from "../api/client";
 import { todayIso } from "../lib/dates";
 import { StatusBadge } from "../components/StatusBadge";
+import { useAuth } from "../auth/useAuth";
 
 const RECENT_ORDERS = 5;
 // Server clamps list limits at 500. One farm won't exceed that in Phase 1.x;
@@ -30,27 +31,35 @@ export function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // ReadOnly/Denied can't read customers or orders — the API now returns 403
+  // (#127) — so skip those two fetches and hide the sales panel, matching the
+  // nav's own gate. Fetching them anyway would blank the panel with an error.
+  const { role } = useAuth();
+  const canSeeSales = role !== "ReadOnly" && role !== "Denied";
+
   useEffect(() => {
     Promise.allSettled([
       listFlocks({ limit: MAX_PAGE }),
       listDailyEntries({ from: today, to: today, limit: MAX_PAGE }),
       getStock(),
-      listOrders({ limit: RECENT_ORDERS }),
-      listCustomers({ limit: MAX_PAGE }),
+      canSeeSales ? listOrders({ limit: RECENT_ORDERS }) : Promise.resolve<SalesOrder[]>([]),
+      canSeeSales ? listCustomers({ limit: MAX_PAGE }) : Promise.resolve<Customer[]>([]),
     ]).then(([f, e, s, o, c]) => {
       if (f.status === "fulfilled") setFlocks(f.value);
       if (e.status === "fulfilled") setEntries(e.value);
       if (s.status === "fulfilled") setStock(s.value);
       if (o.status === "fulfilled") setOrders(o.value);
       if (c.status === "fulfilled") setCustomers(c.value);
-      const settled = [f, e, s, o, c];
-      if (settled.every((r) => r.status === "rejected")) {
-        const reason = (settled[0] as PromiseRejectedResult).reason;
+      // Only the fetches we actually issued count toward "everything failed":
+      // the two sales reads are inert placeholders when the role can't see them.
+      const issued = canSeeSales ? [f, e, s, o, c] : [f, e, s];
+      if (issued.every((r) => r.status === "rejected")) {
+        const reason = (issued[0] as PromiseRejectedResult).reason;
         setError(reason instanceof ApiError ? reason.message : "Could not load dashboard. Is the API up?");
       }
       setLoading(false);
     });
-  }, [today]);
+  }, [today, canSeeSales]);
 
   // Voided entries vacate their day (#82): a voided row must not stand in for
   // the flock's entry — a day with only voided rows counts as "no entry yet".
@@ -149,6 +158,7 @@ export function Dashboard() {
           )}
         </div>
 
+        {canSeeSales && (
         <div className="panel">
           <h3><Link to="/sales">Recent sales</Link></h3>
           {orders === null ? panelError : orders.length === 0 ? (
@@ -171,6 +181,7 @@ export function Dashboard() {
             </table>
           )}
         </div>
+        )}
       </div>
     </section>
   );

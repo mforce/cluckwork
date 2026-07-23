@@ -18,13 +18,18 @@ public static class CustomerEndpoints
             .WithSummary("Create a customer (name + phone required; email/address/note optional).")
             .RequireAuthorization(AuthPolicies.SalesFlow);
 
+        // Customer directory carries PII (name/phone/email/address). Gate the
+        // reads to the sell-flow tier — workers build orders, ReadOnly is fenced
+        // out — matching the writes above and the money reads on /payments (#127).
         group.MapGet("/", ListCustomers)
             .WithName("ListCustomers")
-            .WithSummary("List the account's customers by name (paged).");
+            .WithSummary("List the account's customers by name (paged).")
+            .RequireAuthorization(AuthPolicies.SalesFlow);
 
         group.MapGet("/{id:guid}", GetCustomer)
             .WithName("GetCustomer")
-            .WithSummary("Get a single customer by id.");
+            .WithSummary("Get a single customer by id.")
+            .RequireAuthorization(AuthPolicies.SalesFlow);
 
         return group;
     }
