@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { getAccessToken, setAccessToken, clearAccessToken, purgeLegacyTokens } from "./tokenStore";
 
 // The in-memory access token is reset after every test in src/test/setup.ts.
@@ -34,6 +34,24 @@ describe("tokenStore (in-memory access token, #145)", () => {
     localStorage.setItem("cluckwork.tokens", JSON.stringify({ accessToken: "old", refreshToken: "old" }));
     purgeLegacyTokens();
     expect(localStorage.getItem("cluckwork.tokens")).toBeNull();
+  });
+
+  it("purgeLegacyTokens survives storage being unavailable", () => {
+    // Safari private mode and hardened browser profiles throw from the storage
+    // API rather than returning null. The purge runs at startup, so an
+    // uncaught throw here would take the whole app down before first paint.
+    const removeItem = vi
+      .spyOn(Storage.prototype, "removeItem")
+      .mockImplementation(() => {
+        throw new DOMException("The operation is insecure.", "SecurityError");
+      });
+
+    try {
+      expect(() => purgeLegacyTokens()).not.toThrow();
+      expect(removeItem).toHaveBeenCalled();
+    } finally {
+      removeItem.mockRestore();
+    }
   });
 
   it("purgeLegacyTokens is a no-op when there is nothing to purge", () => {
