@@ -27,7 +27,7 @@ public static class AccountEndpoints
         group.MapPut("/settings", UpdateSettings)
             .RequireAuthorization(AuthPolicies.AdminOnly)
             .WithName("UpdateFarmSettings")
-            .WithSummary("Replace the farm settings (base version required; mismatch is a 409). Currency is locked once financial rows exist (§4.6).");
+            .WithSummary("Replace the farm settings (base version required; mismatch is a 409). Currency is locked once anything has recorded an amount in it (§4.6).");
 
         return group;
     }
@@ -42,7 +42,7 @@ public static class AccountEndpoints
 
     private static async Task<IResult> GetSettings(
         IAccountRepository accounts,
-        IFinancialRowProbe financialRows,
+        ICurrencyBoundRowProbe currencyBoundRows,
         TenantContext tenant,
         CancellationToken ct)
     {
@@ -52,7 +52,7 @@ public static class AccountEndpoints
 
         // Surfaced so the screen can disable the currency field with an
         // explanation instead of letting the user discover the rule as a 422.
-        var canChangeCurrency = !await financialRows.AnyFinancialRowsAsync(ct);
+        var canChangeCurrency = !await currencyBoundRows.AnyAsync(ct);
         return Results.Ok(new FarmSettingsResponse(ToResponse(account), canChangeCurrency));
     }
 

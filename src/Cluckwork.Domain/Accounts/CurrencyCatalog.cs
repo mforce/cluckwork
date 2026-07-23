@@ -23,6 +23,10 @@ public static class CurrencyCatalog
 {
     public const int DefaultMinorUnit = 2;
 
+    // The stored column's width. A symbol that will not fit is dropped in
+    // favour of the code rather than truncated into nonsense.
+    public const int MaxSymbolLength = 8;
+
     // ISO 4217 currencies whose minor unit is not 2. Everything else is 2.
     private static readonly FrozenDictionary<string, int> MinorUnitExceptions =
         new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
@@ -77,7 +81,10 @@ public static class CurrencyCatalog
             if (!IsWellFormedCode(code)) continue;
 
             var symbol = Canonicalize(culture.NumberFormat.CurrencySymbol);
-            if (string.IsNullOrWhiteSpace(symbol)) continue;
+            // Nothing renderable left, or too long for the column: this culture
+            // does not get to speak for the currency. If no culture does, the
+            // code itself is the symbol (§4.6).
+            if (symbol.Length is 0 or > MaxSymbolLength) continue;
 
             // Cultures sharing a currency can disagree on the symbol ("$" vs
             // "US$"). Resolve it deterministically — shortest symbol wins, ties
@@ -96,17 +103,34 @@ public static class CurrencyCatalog
             kv => kv.Key, kv => kv.Value.Symbol, StringComparer.OrdinalIgnoreCase);
     }
 
-    // ICU versions disagree on the WIDTH of some currency symbols: one build
-    // gives ja-JP the halfwidth yen sign (U+00A5 ¥), the next the fullwidth one
-    // (U+FFE5 ￥). They are the same character to a reader and the same length
-    // to a tiebreak, so nothing above can choose between them — the table would
-    // quietly differ between a dev machine and the server. Compatibility
-    // normalization is the framework's own answer: it folds every fullwidth
-    // form onto its canonical one.
-    private static string Canonicalize(string symbol) =>
-        symbol.IsNormalized(NormalizationForm.FormKC)
+    // ICU's currency symbols need two passes before they are safe to display.
+    //
+    // Width: ICU versions disagree on it — one build gives ja-JP the halfwidth
+    // yen sign (U+00A5 ¥), the next the fullwidth one (U+FFE5 ￥). Same
+    // character to a reader and the same length to the tiebreak above, so
+    // nothing could choose between them and the table quietly differed between
+    // a dev machine and the server. Compatibility normalization folds every
+    // fullwidth form onto its canonical one.
+    //
+    // Invisibles: ICU wraps several symbols in bidi marks (a trailing U+200F
+    // RIGHT-TO-LEFT MARK on the Gulf currencies), and at least one — CVE —
+    // arrives as a bare U+200B ZERO WIDTH SPACE. Those are category Cf, which
+    // is NOT whitespace to .NET, so they survive a blank check; worse, being
+    // one character each, the shortest-symbol rule actively PREFERS them. A
+    // farm would render every amount with an invisible currency marker, or a
+    // stray direction flip mid-sentence.
+    private static string Canonicalize(string symbol)
+    {
+        var normalized = symbol.IsNormalized(NormalizationForm.FormKC)
             ? symbol
             : symbol.Normalize(NormalizationForm.FormKC);
+
+        return string.Concat(normalized.Where(IsRenderable)).Trim();
+    }
+
+    private static bool IsRenderable(char c) =>
+        !char.IsControl(c)
+        && CharUnicodeInfo.GetUnicodeCategory(c) != UnicodeCategory.Format;
 }
 
 public sealed record CurrencyInfo(string Code, string Symbol, int MinorUnit);

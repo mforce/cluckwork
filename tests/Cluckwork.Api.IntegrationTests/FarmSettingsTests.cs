@@ -24,6 +24,7 @@ public sealed class FarmSettingsTests(CluckworkWebApplicationFactory factory)
     private sealed record IdDto(Guid Id);
 
     private const string SettingsPath = "/api/v1/account/settings";
+    private static readonly Guid FarmId = Cluckwork.Domain.Accounts.SeedDefaults.FarmId;
 
     private async Task<(HttpClient Client, Guid AccountId, string Email)> AdminAsync()
     {
@@ -89,9 +90,15 @@ public sealed class FarmSettingsTests(CluckworkWebApplicationFactory factory)
         await factory.SeedUserAsync(accountId, viewerEmail, Cluckwork.Domain.Accounts.Roles.ReadOnly);
         var viewer = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(viewerEmail));
 
-        var response = await viewer.GetAsync("/api/v1/account");
+        var account = await GetAccountAsync(viewer);
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        // Asserting on the PAYLOAD, not just a 200: /api/v1/account existed
+        // before #123 inside the same open group, so a status-only check would
+        // pass with this whole slice reverted (adversarial review of #159).
+        Assert.Equal("en-US", account.Locale);
+        Assert.Equal("UTC", account.TimeZoneId);
+        Assert.Equal("$", account.CurrencySymbol);
+        Assert.Equal("Metric", account.UnitSystem);
     }
 
     // --- write ------------------------------------------------------------
@@ -186,6 +193,63 @@ public sealed class FarmSettingsTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(current.Name, (await GetAccountAsync(admin)).Name);
     }
 
+    // Every role that is NOT the gate, not only the worker: AdminOnly admits
+    // Owner and Manager since #103, so Sales and ReadOnly need their own cases
+    // and Manager needs proof it is genuinely admitted, not just tolerated by a
+    // test that never tries (adversarial review of #159).
+    [Theory]
+    [InlineData(Cluckwork.Domain.Accounts.Roles.Sales)]
+    [InlineData(Cluckwork.Domain.Accounts.Roles.ReadOnly)]
+    public async Task SettingsWrite_IsRefusedTo(string role)
+    {
+        var (admin, accountId, _) = await AdminAsync();
+        var current = await GetAccountAsync(admin);
+
+        var email = $"r-{Guid.NewGuid():N}@test.local";
+        await factory.SeedUserAsync(accountId, email, role);
+        var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
+
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync(SettingsPath)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden,
+            (await PutSettingsAsync(client, Body(current, name: $"{role} rename"))).StatusCode);
+    }
+
+    [Fact]
+    public async Task Manager_CanEditSettings()
+    {
+        // The whole point of AdminOnly post-#103: it is Owner + Manager, not
+        // Owner alone. Farm configuration is a Manager capability (§5.1).
+        var (admin, accountId, _) = await AdminAsync();
+        var current = await GetAccountAsync(admin);
+
+        var email = $"m-{Guid.NewGuid():N}@test.local";
+        await factory.SeedUserAsync(accountId, email, Cluckwork.Domain.Accounts.Roles.Manager);
+        var manager = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
+
+        Assert.Equal(HttpStatusCode.OK, (await manager.GetAsync(SettingsPath)).StatusCode);
+        var saved = await PutSettingsAsync(manager, Body(current, name: "Manager rename"));
+
+        Assert.Equal(HttpStatusCode.NoContent, saved.StatusCode);
+        Assert.Equal("Manager rename", (await GetAccountAsync(admin)).Name);
+    }
+
+    [Fact]
+    public async Task OneFarmsSettingsWrite_CannotReachAnother()
+    {
+        var (_, accountA, _) = await AdminAsync();
+        var (clientB, _, _) = await AdminAsync();
+        var currentB = await GetAccountAsync(clientB);
+
+        var saved = await PutSettingsAsync(clientB, Body(currentB, name: "B renamed itself"));
+        Assert.Equal(HttpStatusCode.NoContent, saved.StatusCode);
+
+        // A's row is untouched — the settings write names no account, it takes
+        // the one the tenant filter hands it.
+        var nameOfA = await factory.WithTenantScopeAsync(accountA, async db =>
+            (await db.Accounts.AsNoTracking().SingleAsync()).Name);
+        Assert.Equal("Test Farm Co", nameOfA);
+    }
+
     // --- §4.6 currency lock -----------------------------------------------
 
     [Fact]
@@ -226,6 +290,128 @@ public sealed class FarmSettingsTests(CluckworkWebApplicationFactory factory)
         var after = await GetAccountAsync(client);
         Assert.Equal("USD", after.CurrencyCode);
         Assert.NotEqual("Renamed too", after.Name);
+    }
+
+    // Each of the four currency-bound tables gets its own case: with only the
+    // expense case, dropping any of the other three probes would leave the
+    // suite green (codex review of #159).
+    [Fact]
+    public async Task CurrencyChange_AfterASalesOrderExists_IsRefused()
+    {
+        var (client, accountId, _) = await AdminAsync();
+        var grades = await factory.SeedEggGradesAsync(accountId, FarmId, "A");
+        await factory.SeedSalesOrderAsync(accountId, grades["A"], quantity: 10);
+
+        await AssertCurrencyLockedAsync(client);
+    }
+
+    [Fact]
+    public async Task CurrencyChange_AfterAPricedProductExists_IsRefused()
+    {
+        // §4.6 names three tables, then says future financial tables follow the
+        // same rule. A product's default price is a raw minor-unit integer in
+        // the currency it snapshotted, and an order line that takes that
+        // default stamps it with the ORDER's currency — so a $12.34 default
+        // would sell as ¥1,234 after a change to JPY.
+        var (client, accountId, _) = await AdminAsync();
+        var grades = await factory.SeedEggGradesAsync(accountId, FarmId, "A");
+        await factory.SeedProductAsync(
+            accountId, FarmId, grades["A"], "Priced dozen", defaultPriceMinorUnits: 12_34);
+
+        await AssertCurrencyLockedAsync(client);
+    }
+
+    [Fact]
+    public async Task CurrencyChange_WithOnlyAnUnpricedProduct_IsStillAllowed()
+    {
+        // The mirror: nothing reads an unpriced product's currency as an
+        // amount, so it must not lock a farm out of a currency it has not
+        // started trading in.
+        var (client, accountId, _) = await AdminAsync();
+        var grades = await factory.SeedEggGradesAsync(accountId, FarmId, "A");
+        await factory.SeedProductAsync(
+            accountId, FarmId, grades["A"], "Unpriced dozen", defaultPriceMinorUnits: null);
+
+        var settings = await client.GetFromJsonAsync<SettingsDto>(SettingsPath);
+        Assert.True(settings!.CanChangeCurrency);
+
+        var saved = await PutSettingsAsync(client, Body(settings.Settings, currencyCode: "JPY"));
+        Assert.Equal(HttpStatusCode.NoContent, saved.StatusCode);
+    }
+
+    private async Task AssertCurrencyLockedAsync(HttpClient client)
+    {
+        var settings = await client.GetFromJsonAsync<SettingsDto>(SettingsPath);
+        Assert.False(settings!.CanChangeCurrency);
+
+        var response = await PutSettingsAsync(client, Body(settings.Settings, currencyCode: "JPY"));
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+        Assert.Equal("Account.CurrencyLocked",
+            (await response.Content.ReadFromJsonAsync<ProblemDto>())!.Title);
+        Assert.Equal("USD", (await GetAccountAsync(client)).CurrencyCode);
+    }
+
+    [Fact]
+    public async Task CurrencyChange_AfterFeedMoneyExists_IsRefused()
+    {
+        // Not on §4.6's list of three, but a purchase falls back to the item's
+        // default cost, which still carries the OLD currency — and feed-usage
+        // costing sums lot costs without comparing their currencies
+        // (adversarial review of #159).
+        var (client, _, _) = await AdminAsync();
+
+        var item = await client.PostWithKeyAsync("/api/v1/inventory/items", Guid.NewGuid().ToString(),
+            new { name = $"Feed {Guid.NewGuid():N}"[..14], category = "Feed", unit = "kg", defaultUnitCostMinorUnits = 100L });
+        Assert.Equal(HttpStatusCode.Created, item.StatusCode);
+
+        await AssertCurrencyLockedAsync(client);
+    }
+
+    [Fact]
+    public async Task RejectedSave_LeavesNoAuditRow()
+    {
+        // The audit write rides the same unit of work; a refused save must not
+        // leave a record of a change that never happened.
+        var (client, accountId, _) = await AdminAsync();
+        var grades = await factory.SeedEggGradesAsync(accountId, FarmId, "A");
+        await factory.SeedSalesOrderAsync(accountId, grades["A"], quantity: 10);
+        var current = await GetAccountAsync(client);
+
+        var refused = await PutSettingsAsync(client, Body(current, currencyCode: "JPY"));
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, refused.StatusCode);
+
+        var events = await factory.WithTenantScopeAsync(accountId, async db =>
+            await db.AuditEvents.AsNoTracking()
+                .CountAsync(e => e.Action == "Account.UpdateSettings"));
+        Assert.Equal(0, events);
+    }
+
+    [Fact]
+    public async Task ParallelSaves_SameBaseVersion_ExactlyOneWins()
+    {
+        // The sequential StaleVersion test above passes on the handler's own
+        // in-memory check alone. This one only passes because Version is a real
+        // database concurrency token: both requests read version 0 before
+        // either commits, so nothing in application code can separate them
+        // (codex review of #159).
+        var (client, _, _) = await AdminAsync();
+        var before = await GetAccountAsync(client);
+
+        var responses = await Task.WhenAll(
+            PutSettingsAsync(client, Body(before, name: "Writer A", locale: "es-MX")),
+            PutSettingsAsync(client, Body(before, name: "Writer B", locale: "ja-JP")));
+
+        Assert.Equal(1, responses.Count(r => r.StatusCode == HttpStatusCode.NoContent));
+        Assert.Equal(1, responses.Count(r => r.StatusCode == HttpStatusCode.Conflict));
+
+        var after = await GetAccountAsync(client);
+        Assert.Equal(before.Version + 1, after.Version);
+        // Whole-payload consistency — the winner's name AND locale, not a blend.
+        Assert.True(
+            (after.Name == "Writer A" && after.Locale == "es-MX")
+            || (after.Name == "Writer B" && after.Locale == "ja-JP"),
+            $"blended write: {after.Name} / {after.Locale}");
     }
 
     [Fact]

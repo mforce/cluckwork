@@ -17,7 +17,7 @@ public sealed class AccountConfiguration : IEntityTypeConfiguration<Account>
         builder.Property(e => e.TimeZoneId).HasMaxLength(Account.MaxTimeZoneIdLength).IsRequired();
         builder.Property(e => e.Locale).HasMaxLength(Account.MaxLocaleLength).IsRequired();
         builder.Property(e => e.DefaultCurrencyCode).HasMaxLength(3).IsRequired();
-        builder.Property(e => e.DefaultCurrencySymbol).HasMaxLength(8);
+        builder.Property(e => e.DefaultCurrencySymbol).HasMaxLength(CurrencyCatalog.MaxSymbolLength);
         builder.Property(e => e.UnitSystem)
             .HasConversion<string>()
             .HasMaxLength(16)

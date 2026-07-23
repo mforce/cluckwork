@@ -211,4 +211,40 @@ public sealed class SalesProductTests(CluckworkWebApplicationFactory factory)
         Assert.Contains(order!.Items, i => i.Quantity == 5 && i.EggGradeId == grades["Large"]);
         Assert.Contains(order.Items, i => i.Quantity == 3 && i.EggGradeId == grades["Medium"]);
     }
+
+    // #123 backstop. A catalog default price is a raw minor-unit integer in the
+    // currency the product snapshotted, and the line stamps it with the ORDER's
+    // currency — so if those ever diverge, $12.34 (1234) sells as ¥1,234. The
+    // farm-settings currency lock is what keeps them equal; this proves the
+    // sale refuses rather than mis-prices if anything gets past it.
+    [Fact]
+    public async Task ProductPricedInAnotherCurrency_IsRefused_NotSilentlyRelabelled()
+    {
+        var (client, accountId, farmId, grades, _) = await SetupAsync();
+        var orderId = await CreateDraftAsync(client);
+
+        // A product priced in JPY on a USD farm — the state a currency change
+        // would leave behind if the lock ever failed.
+        var foreign = Guid.NewGuid();
+        await factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            db.Products.Add(Cluckwork.Domain.Catalog.Product.Create(
+                foreign, accountId, farmId, "Yen-priced dozen",
+                Cluckwork.Domain.Catalog.ProductType.Egg,
+                Cluckwork.Domain.Catalog.ProductUnit.Egg,
+                defaultPriceMinorUnits: 12_34, "JPY", 0, notes: null));
+            db.ProductEggGradeMappings.Add(Cluckwork.Domain.Catalog.ProductEggGradeMapping.Create(
+                Guid.NewGuid(), accountId, foreign, grades["Large"]));
+            await db.SaveChangesAsync();
+        });
+
+        var defaulted = await AddLineAsync(client, orderId, foreign, 1);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, defaulted.StatusCode);
+        Assert.Contains("ProductPriceCurrencyMismatch", await defaulted.Content.ReadAsStringAsync());
+
+        // An explicit price is the caller's own number in the order's currency,
+        // so it is unaffected — the guard is about the DEFAULT, not the product.
+        Assert.Equal(HttpStatusCode.Created,
+            (await AddLineAsync(client, orderId, foreign, 1, price: 500)).StatusCode);
+    }
 }

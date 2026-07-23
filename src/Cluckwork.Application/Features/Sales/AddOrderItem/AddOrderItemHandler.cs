@@ -58,6 +58,21 @@ public sealed class AddOrderItemHandler(
             return Result.Failure<Guid>(Error.Validation(
                 "SalesOrder.PriceRequired",
                 "The product has no default price — a unit price is required."));
+
+        // A catalog price is a raw minor-unit integer in the currency the
+        // product snapshotted, and the line below stamps it with the ORDER's
+        // currency. If those ever differ, $12.34 (1234) silently becomes
+        // ¥1,234 — the same number read a hundred times too large. #123's
+        // currency lock is what keeps them equal; this is the backstop that
+        // refuses rather than mis-prices if anything ever gets past it.
+        // An explicitly supplied price is the caller's own number in the
+        // order's currency, so it is unaffected.
+        if (command.UnitPriceMinorUnits is null
+            && !string.Equals(product.CurrencyCode, order.TotalAmount.CurrencyCode, StringComparison.OrdinalIgnoreCase))
+            return Result.Failure<Guid>(Error.Validation(
+                "SalesOrder.ProductPriceCurrencyMismatch",
+                $"This product's default price is in {product.CurrencyCode} but the order is in " +
+                $"{order.TotalAmount.CurrencyCode}. Re-price the product or enter a unit price."));
         // The validator's overflow guard only sees an explicit price — the
         // product-default path needs the same check (Money.Multiply is unchecked).
         if (priceMinorUnits.Value > long.MaxValue / command.Quantity)

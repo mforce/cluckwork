@@ -78,6 +78,7 @@ public sealed class AdminGatingTests(CluckworkWebApplicationFactory factory)
             (HttpMethod.Put, $"/api/v1/expenses/{id}"),
             (HttpMethod.Post, $"/api/v1/sales/{id}/payments"),
             (HttpMethod.Post, $"/api/v1/payments/{id}/void"),
+            (HttpMethod.Put, "/api/v1/account/settings"),
         ];
 
         foreach (var (method, url) in gated)
@@ -98,6 +99,14 @@ public sealed class AdminGatingTests(CluckworkWebApplicationFactory factory)
             (await worker.GetAsync("/api/v1/expenses")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden,
             (await worker.GetAsync("/api/v1/expense-categories")).StatusCode);
+
+        // Farm settings (#123): the settings SCREEN is admin-only, but the
+        // plain account read stays open — §4.5 formatting applies to every
+        // screen a worker sees.
+        Assert.Equal(HttpStatusCode.Forbidden,
+            (await worker.GetAsync("/api/v1/account/settings")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK,
+            (await worker.GetAsync("/api/v1/account")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden,
             (await worker.GetAsync($"/api/v1/sales/{id}/payments")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden,

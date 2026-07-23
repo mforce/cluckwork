@@ -10,6 +10,17 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            // Name was `text` and is becoming varchar(120). Postgres refuses the
+            // ALTER outright if any row is longer, which would block the whole
+            // deployment — and a self-hosted operator can set `Seed:AccountName`
+            // to anything. Trim first: the name is editable in the UI from this
+            // slice on, so a trimmed one is visible and correctable, where a
+            // failed migration is neither.
+            migrationBuilder.Sql(
+                """
+                UPDATE "Accounts" SET "Name" = left("Name", 120) WHERE length("Name") > 120;
+                """);
+
             migrationBuilder.AlterColumn<string>(
                 name: "TimeZoneId",
                 table: "Accounts",

@@ -108,6 +108,20 @@ public sealed class UpdateFarmSettingsValidatorTests
         Assert.True(Fails(Valid() with { FirstDayOfWeek = "Funday" },
             nameof(UpdateFarmSettingsCommand.FirstDayOfWeek)));
 
+    // Enum.TryParse ORs comma-separated values together for ANY enum, flags or
+    // not, and the result is usually a defined member — so "Monday,Tuesday"
+    // parsed to Wednesday and stored it, and "Metric,Imperial" stored Imperial
+    // (adversarial review of #159).
+    [Fact]
+    public void CommaListedDays_Fail_RatherThanStoringTheirSum() =>
+        Assert.True(Fails(Valid() with { FirstDayOfWeek = "Monday,Tuesday" },
+            nameof(UpdateFarmSettingsCommand.FirstDayOfWeek)));
+
+    [Fact]
+    public void CommaListedUnitSystems_Fail() =>
+        Assert.True(Fails(Valid() with { UnitSystem = "Metric,Imperial" },
+            nameof(UpdateFarmSettingsCommand.UnitSystem)));
+
     // --- format overrides -------------------------------------------------
 
     [Theory]

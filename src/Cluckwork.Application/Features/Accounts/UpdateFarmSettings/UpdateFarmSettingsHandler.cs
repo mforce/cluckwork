@@ -1,11 +1,12 @@
 namespace Cluckwork.Application.Features.Accounts.UpdateFarmSettings;
 
+using System.Data;
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Accounts;
 
 public sealed class UpdateFarmSettingsHandler(
     IAccountRepository accounts,
-    IFinancialRowProbe financialRows,
+    ICurrencyBoundRowProbe currencyBoundRows,
     IUnitOfWork unitOfWork,
     IAuditWriter audit)
 {
@@ -23,13 +24,52 @@ public sealed class UpdateFarmSettingsHandler(
 
         var currencyChanging = !string.Equals(
             command.CurrencyCode.Trim(), account.DefaultCurrencyCode, StringComparison.OrdinalIgnoreCase);
-        // Only pay for the probe when the answer can matter (§4.6 only gates a
-        // currency CHANGE); a plain name or locale save skips three EXISTS.
-        var financialRowsExist = currencyChanging && await financialRows.AnyFinancialRowsAsync(ct);
 
-        var before = Snapshot(account);
+        // The ordinary save — a rename, a locale, a timezone — has nothing to
+        // read-then-decide, so it stays a plain write. §4.6 only gates a
+        // currency CHANGE, and only that path pays for the probe or the
+        // stricter isolation below.
+        if (!currencyChanging)
+        {
+            var before = Snapshot(account);
+            var plain = Apply(account, command, currencyBoundRowsExist: false);
+            if (plain.IsFailure) return plain;
+            await WriteAuditAsync(account, before, ct);
+            await unitOfWork.SaveChangesAsync(ct);
+            return Result.Success();
+        }
 
-        var result = account.UpdateSettings(
+        // A currency change decides on the strength of "this farm has no money
+        // rows at all" and then writes the new currency. Under READ COMMITTED
+        // those are two moments: another request can book the farm's first sale
+        // or expense in between, and the change commits anyway — leaving rows
+        // in one denomination and the farm in another, which is precisely what
+        // §4.6 exists to prevent.
+        //
+        // SERIALIZABLE closes it: the probe's scans take predicate locks, so a
+        // concurrent insert into any of those tables makes one of the two
+        // transactions fail to serialize (SQLSTATE 40001 → 409, same as any
+        // other concurrency conflict). It costs nothing in practice — a farm
+        // changes currency about once, at setup.
+        Result result = Result.Success();
+        await unitOfWork.ExecuteInTransactionAsync(async token =>
+        {
+            var exists = await currencyBoundRows.AnyAsync(token);
+            var before = Snapshot(account);
+
+            result = Apply(account, command, exists);
+            if (result.IsFailure) return false;
+
+            await WriteAuditAsync(account, before, token);
+            return true;
+        }, IsolationLevel.Serializable, ct);
+
+        return result;
+    }
+
+    private static Result Apply(
+        Account account, UpdateFarmSettingsCommand command, bool currencyBoundRowsExist) =>
+        account.UpdateSettings(
             command.Name,
             command.TimeZoneId,
             command.Locale,
@@ -40,21 +80,17 @@ public sealed class UpdateFarmSettingsHandler(
                 : Enum.Parse<DayOfWeek>(command.FirstDayOfWeek, ignoreCase: true),
             command.DateFormatOverride,
             command.TimeFormatOverride,
-            financialRowsExist);
-        if (result.IsFailure) return result;
+            currencyBoundRowsExist);
 
-        // Same SaveChanges as the change (#93). Settings decide how every date
-        // and every amount on the farm is read, so the trail records the whole
-        // block on both sides, not just "someone saved".
-        await audit.WriteAsync(
+    // Same SaveChanges as the change (#93). Settings decide how every date and
+    // every amount on the farm is read, so the trail records the whole block on
+    // both sides, not just "someone saved".
+    private Task WriteAuditAsync(Account account, object before, CancellationToken ct) =>
+        audit.WriteAsync(
             "Account.UpdateSettings", nameof(Account), account.Id,
             reason: null,
             details: new { before, after = Snapshot(account) },
             ct: ct);
-
-        await unitOfWork.SaveChangesAsync(ct);
-        return Result.Success();
-    }
 
     private static object Snapshot(Account a) => new
     {

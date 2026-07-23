@@ -362,10 +362,15 @@ what carries number and date conventions. Saving uses the same **version
 copy gets a 409 and reloads.
 
 **Currency change rule (spec §4.6)** — the farm currency can only be changed
-while the farm has **no financial history at all**: no sales orders, no
-payments, no expenses. Each of those rows snapshots the currency it was
-recorded in and keeps it forever, so changing the farm currency afterwards
-would leave the books reading in two denominations at once. The settings screen
+while the farm has **written down no amount at all** in the current one: no
+sales orders, no payments, no expenses, no priced product, and no feed money
+(a purchase, a stock lot, or an item's default cost). Every one of those keeps
+the currency it was recorded in and keeps it forever, so changing the farm
+currency afterwards would leave the books reading in two denominations at once
+— and a catalog price is worse than stale, because an order line that takes it
+re-labels the raw number with the *order's* currency: $12.34 sold as ¥1,234.
+The spec names the first three; the rest follow the same rule for the same
+reason. The settings screen
 shows the field locked with the reason before it is tried; the API refuses it
 either way, and refuses the whole save, not just that field. A farm that truly
 changes operating currency gets a new farm record — history is never

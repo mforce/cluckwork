@@ -64,15 +64,19 @@ public sealed class UpdateFarmSettingsValidator : AbstractValidator<UpdateFarmSe
             .GreaterThanOrEqualTo(0);
     }
 
-    // Names only. Enum.TryParse also accepts the underlying numbers, so a bare
-    // "0" would quietly mean Metric — the API's wire contract is the name
-    // everywhere else, and an ordinal is not something a client should be able
-    // to rely on across an enum reorder.
+    // Exactly one name, nothing else. Enum.TryParse is far more permissive than
+    // it looks: it accepts the underlying number ("0" → Metric) and — for any
+    // enum, flags or not — a comma-separated list whose values it ORs together,
+    // so "Monday,Tuesday" parses to Wednesday and passes Enum.IsDefined. Both
+    // would be stored as something the caller never asked for.
+    //
+    // Round-tripping the parse back to its name is the check that admits only
+    // what the wire contract actually offers.
     private static bool BeEnumName<TEnum>(string? value) where TEnum : struct, Enum =>
         value is { Length: > 0 }
-        && char.IsLetter(value[0])
         && Enum.TryParse<TEnum>(value, ignoreCase: true, out var parsed)
-        && Enum.IsDefined(parsed);
+        && Enum.IsDefined(parsed)
+        && string.Equals(parsed.ToString(), value.Trim(), StringComparison.OrdinalIgnoreCase);
 
     private static bool BeAKnownTimeZone(string? timeZoneId)
     {
