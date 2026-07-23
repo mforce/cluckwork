@@ -1,7 +1,7 @@
 import {
   Bird, Boxes, ChartColumn, CircleHelp, ClipboardList, Download, Egg, History,
-  LayoutDashboard, Package, ScrollText, ShoppingCart, Tags, UserCog, Users,
-  Wallet, Droplets,
+  LayoutDashboard, Package, ScrollText, Settings, ShoppingCart, Tags, UserCog,
+  Users, Wallet, Droplets,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { Role } from "../auth/claims";
@@ -72,6 +72,9 @@ export function navGroups(role: Role, isAdmin: boolean): NavGroup[] {
     groups.push({
       label: "Setup",
       entries: [
+        // Same gate as the API's /account/settings (AdminOnly = Owner or
+        // Manager), not the narrower Users one.
+        { to: "/settings", label: "Farm settings", Icon: Settings },
         { to: "/grades", label: "Grades", Icon: Tags },
         { to: "/products", label: "Products", Icon: Package },
         ...(role === "Admin" ? [{ to: "/users", label: "Users", Icon: UserCog }] : []),

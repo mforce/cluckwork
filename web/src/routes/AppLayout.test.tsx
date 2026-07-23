@@ -30,6 +30,14 @@ describe("AppLayout sidebar", () => {
     expect(screen.queryByRole("link", { name: "Sales" })).not.toBeInTheDocument();
   });
 
+  it("brands the shell with the app's own name when no farm has loaded (#123)", () => {
+    // No FarmProvider here — the default context, which is also what the real
+    // shell shows while /account is in flight and after one that failed.
+    renderWithProviders(<AppLayout />, { token: { sub: "u1", role: "Admin" } });
+    expect(screen.getByText("Cluckwork")).toBeInTheDocument();
+    expect(screen.queryByRole("presentation")).not.toBeInTheDocument();
+  });
+
   it("toggles light ↔ night, flipping the control and the root data-theme", () => {
     renderWithProviders(<AppLayout />, { token: { sub: "u1", role: "Admin" } });
     // jsdom has no matchMedia → initial theme resolves to light, so the control

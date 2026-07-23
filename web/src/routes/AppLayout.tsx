@@ -1,9 +1,10 @@
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { Egg, LogOut } from "lucide-react";
+import { LogOut } from "lucide-react";
 import { useAuth } from "../auth/useAuth";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { BottomNav } from "../components/BottomNav";
 import { ErrorBoundary } from "../components/ErrorBoundary";
+import { FarmBrand } from "../components/FarmBrand";
 import { navGroups, tabEntries } from "./nav";
 
 const ICON = 17;
@@ -32,9 +33,7 @@ export function AppLayout() {
   return (
     <div className="shell">
       <aside className="sidebar">
-        <span className="brand">
-          <Egg size={20} aria-hidden className="brand-mark" /> Cluckwork
-        </span>
+        <FarmBrand />
         <nav aria-label="Primary">
           {groups.map((g) => (
             <div className="nav-group" key={g.label}>

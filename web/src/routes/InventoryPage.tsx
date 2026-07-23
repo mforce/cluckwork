@@ -12,6 +12,7 @@ import { useAuth } from "../auth/useAuth";
 import { Dialog } from "../components/Dialog";
 import { StatusBadge } from "../components/StatusBadge";
 import { newId } from "../lib/ids";
+import { useFarmToday } from "../farm/useFarm";
 
 // Feed first (spec §12); the rest of the categories get their features later.
 const CATEGORIES = [
@@ -22,12 +23,6 @@ const CATEGORIES = [
 // Only these can be recorded as flock feed usage (mirrors the API gate).
 const FEEDABLE_CATEGORIES = ["Feed", "Supplement", "Additive"];
 
-function todayIso(): string {
-  const d = new Date();
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
-
 function errText(err: unknown): string {
   if (err instanceof ApiError) return err.message;
   return err instanceof Error ? err.message : String(err);
@@ -37,6 +32,9 @@ function errText(err: unknown): string {
 // how it's measured; lots carry quantities/cost; the movement ledger explains
 // every change. Feed usage (consumption) is the follow-up PR.
 export function InventoryPage() {
+  // Farm-local, not browser-local: since #35 the API judges "is this date in
+  // the future?" against the FARM's day, so the pickers must agree (#123).
+  const today = useFarmToday();
   // Purchases and feed usage are the day's work — open to everyone. The item
   // catalog and stock corrections are admin-only (#73).
   const { isAdmin } = useAuth();
@@ -72,7 +70,7 @@ export function InventoryPage() {
   const [adjusting, setAdjusting] = useState(false);
   // usage form
   const [usageFlockId, setUsageFlockId] = useState("");
-  const [usageDate, setUsageDate] = useState(todayIso());
+  const [usageDate, setUsageDate] = useState(today);
   const [usageQty, setUsageQty] = useState("");
   const [usageNote, setUsageNote] = useState("");
   // adjustment form
@@ -80,7 +78,7 @@ export function InventoryPage() {
   const [adjustType, setAdjustType] = useState("Adjustment");
   const [adjustQty, setAdjustQty] = useState("");
   const [adjustReason, setAdjustReason] = useState("");
-  const [purchaseDate, setPurchaseDate] = useState(todayIso());
+  const [purchaseDate, setPurchaseDate] = useState(today);
   const [purchaseQty, setPurchaseQty] = useState("");
   const [purchaseCost, setPurchaseCost] = useState("");
   const [lotNumber, setLotNumber] = useState("");
@@ -285,7 +283,7 @@ export function InventoryPage() {
     const ok = await run(`adjust:${active.id}:${adjustLotId}`, (key) =>
       recordInventoryAdjustment(active.id, {
         inventoryLotId: adjustLotId,
-        date: todayIso(),
+        date: today,
         type: adjustType,
         quantityDelta: adjustType === "Discard" ? -Math.abs(delta) : delta,
         reason: adjustReason.trim(),
@@ -429,7 +427,7 @@ export function InventoryPage() {
           <Dialog open={purchasing} title={`Record purchase — ${active.name}`} onClose={() => setPurchasing(false)}>
             <form className="form-grid" onSubmit={onPurchase}>
               <label>Received
-                <input type="date" value={purchaseDate} max={todayIso()} required
+                <input type="date" value={purchaseDate} max={today} required
                   onChange={(e) => setPurchaseDate(e.target.value)} />
               </label>
               <label>Quantity ({active.unit})
@@ -473,7 +471,7 @@ export function InventoryPage() {
                 </select>
               </label>
               <label>Date
-                <input type="date" value={usageDate} max={todayIso()} required
+                <input type="date" value={usageDate} max={today} required
                   onChange={(e) => setUsageDate(e.target.value)} />
               </label>
               <label>Quantity ({active.unit})

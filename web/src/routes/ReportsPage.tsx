@@ -6,7 +6,8 @@ import type {
   ExpenseSummaryReport, ProductionReport, ProfitReport, SalesSummary,
 } from "../api/cluckwork";
 import { ApiError } from "../api/client";
-import { todayIso } from "../lib/dates";
+import { daysBefore } from "../lib/dates";
+import { useFarmToday } from "../farm/useFarm";
 import { useAuth } from "../auth/useAuth";
 
 function errText(err: unknown): string {
@@ -14,22 +15,16 @@ function errText(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
-// Browser-LOCAL like todayIso() — mixing UTC here made the default range 6 or
-// 8 days near midnight UTC (codex review of #92).
-function daysAgoIso(n: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() - n);
-  const pad = (x: number) => String(x).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
-
 // #91 — core reports. Production renders for everyone (workers record it,
 // workers read it); the money cards are admin-only and the API refuses
 // workers on those routes regardless.
 export function ReportsPage() {
+  // Farm-local, not browser-local: since #35 the API judges "is this date in
+  // the future?" against the FARM's day, so the pickers must agree (#123).
+  const today = useFarmToday();
   const { isAdmin } = useAuth();
-  const [from, setFrom] = useState(daysAgoIso(6));
-  const [to, setTo] = useState(todayIso());
+  const [from, setFrom] = useState(daysBefore(today, 6));
+  const [to, setTo] = useState(today);
   const [production, setProduction] = useState<ProductionReport | null>(null);
   const [sales, setSales] = useState<SalesSummary | null>(null);
   const [expenses, setExpenses] = useState<ExpenseSummaryReport | null>(null);
@@ -84,7 +79,7 @@ export function ReportsPage() {
             onChange={(e) => setFrom(e.target.value)} />
         </label>
         <label>To
-          <input type="date" value={to} max={todayIso()}
+          <input type="date" value={to} max={today}
             onChange={(e) => setTo(e.target.value)} />
         </label>
       </div>

@@ -27,6 +27,7 @@ const TOC = [
   ["history", "History"],
   ["audit", "Audit log"],
   ["export", "Export & backup"],
+  ["farm-settings", "Farm settings"],
   ["mistakes", "Fixing mistakes"],
   ["glossary", "Glossary"],
 ] as const;
@@ -541,6 +542,40 @@ export function HelpPage() {
         </li>
       </ul>
 
+      <h3 id="farm-settings">Farm settings (admin)</h3>
+      <ul>
+        <li>
+          <strong>Setup → Farm settings</strong> holds the farm&apos;s name and
+          the four things that decide how everything reads:{" "}
+          <strong>timezone</strong>, <strong>locale</strong>,{" "}
+          <strong>currency</strong> and <strong>unit system</strong>. First day
+          of week and the date and time formats are optional — leave them blank
+          and the locale decides. Saved changes show everywhere straight away.
+        </li>
+        <li>
+          The <strong>timezone</strong> is the farm&apos;s day. Every date field
+          in the app opens on it and refuses to go past it, whatever day the
+          phone or laptop in your hand is on — so a device travelling ahead of
+          the farm can no longer offer a date the save then refuses.
+        </li>
+        <li>
+          The <strong>currency</strong> locks the moment the farm records its
+          first amount — a sale, a payment, an expense, a priced product, or
+          money spent on feed. The field shows as locked with the reason rather
+          than letting you type a code that would be refused. Nothing already
+          recorded is ever re-priced, which is exactly why it locks.
+        </li>
+        <li>
+          The <strong>logo</strong> replaces the Cluckwork mark in the sidebar
+          for everyone at the farm. PNG, JPEG or WebP, up to 1 MB and 4096
+          pixels a side, still images only. What gets stored is a rebuilt copy:
+          camera and location details are stripped out on the way in — a photo
+          taken on a phone carries where it was taken, and for a farm that is
+          its address. Remove it and the sidebar goes back to the Cluckwork
+          mark.
+        </li>
+      </ul>
+
       <h3 id="mistakes">Fixing mistakes</h3>
       <p className="muted">
         Every fix in this table needs an admin sign-in (see "Who can do what")
@@ -642,7 +677,7 @@ export function HelpPage() {
           <tr><th scope="row">Navigation</th>
             <td>Screens live in the left sidebar on a computer; on a phone the four you use most are tabs across the bottom, the rest under More.</td></tr>
           <tr><th scope="row">Operational day</th>
-            <td>Dates mean your farm&apos;s calendar day, worked out from the farm&apos;s own timezone rather than a clock somewhere else. It is the same &quot;today&quot; everywhere: what counts as a future date when you record work, when eggs leave a withdrawal period, which eggs a sale can take, the day a flock is depleted or archived on, and the range reports open on.</td></tr>
+            <td>Dates mean your farm&apos;s calendar day, worked out from the farm&apos;s own timezone rather than a clock somewhere else. It is the same &quot;today&quot; everywhere: what counts as a future date when you record work, when eggs leave a withdrawal period, which eggs a sale can take, the day a flock is depleted or archived on, and the range reports open on. Every date field opens on it and will not go past it, whatever day the device in your hand is on.</td></tr>
           <tr><th scope="row">Too many sign-in attempts</th>
             <td>Sign-in is rate limited to slow password guessing: too many attempts from one place in a few minutes are refused with this message until a short cool-off passes. It never affects an already signed-in session.</td></tr>
           <tr><th scope="row">&quot;Something went wrong&quot; screen</th>
@@ -699,6 +734,12 @@ export function HelpPage() {
             <td>Admin correction of a submitted entry. Stock and bird ledger reconcile automatically; sold eggs are untouchable; previous values stay visible.</td></tr>
           <tr><th scope="row">Void (entry)</th>
             <td>Admin undo of a whole submitted entry — lots empty, deaths reverse, entry preserved as Voided. Refused once its eggs are sold.</td></tr>
+          <tr><th scope="row">Farm settings</th>
+            <td>The farm&apos;s name, timezone, locale, currency and unit system, plus optional first day of week and date/time formats. Setup → Farm settings; owners and managers edit, everyone reads — formatting money and dates is not a permission.</td></tr>
+          <tr><th scope="row">Currency lock</th>
+            <td>The farm currency stops being editable once anything has recorded an amount in it — a sale, a payment, an expense, a priced product, money spent on feed. The field shows locked with the reason. Nothing already recorded is ever re-priced, which is the whole point.</td></tr>
+          <tr><th scope="row">Farm logo</th>
+            <td>Your own image in place of the Cluckwork mark in the sidebar, uploaded from Farm settings. PNG, JPEG or WebP, up to 1 MB, still images only. Stored as a rebuilt copy with camera and location details stripped out.</td></tr>
         </tbody>
       </table>
 

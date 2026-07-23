@@ -350,7 +350,8 @@ on the account row while there is exactly one farm.
 that decide how it reads: **timezone**, **locale**, **currency**, and **unit
 system**, with optional **first day of week** and date/time format overrides.
 Owner and Manager can edit them; everyone reads them, because formatting money,
-dates and numbers is not a permission.
+dates and numbers is not a permission. They live on one screen — **Setup → Farm
+settings** — which is also where the logo is uploaded and cleared.
 
 Each one has teeth. The **timezone** is the farm's **operational day** — change
 it and every date rule moves with it the same minute, so a timezone that the
@@ -461,6 +462,13 @@ eggs still inside a medication withholding period — would read as available a
 day early. A farm ahead of UTC has the mirror problem: its legitimate today
 looks like tomorrow. Recording a genuinely future day is refused outright; there
 is no longer any day-either-side slack.
+
+The date fields agree with it (#123). Every picker in the app opens on the
+farm's today and refuses to go past it — the farm's, not the one on the device
+in your hand. A phone travelling ahead of the farm used to offer a day the save
+would then refuse, and a phone behind it hid a day that was perfectly legal;
+both are gone. Change the farm's timezone and every picker follows on the next
+screen you open.
 
 **Roles (#103, spec §5.1)** — five shipped: **Admin (owner)** does
 everything including user management; **Manager** runs the farm — every

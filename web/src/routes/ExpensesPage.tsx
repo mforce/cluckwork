@@ -7,7 +7,7 @@ import {
 import type { Expense, ExpenseCategory, Flock } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { Dialog } from "../components/Dialog";
-import { todayIso } from "../lib/dates";
+import { useFarmToday } from "../farm/useFarm";
 import { newId } from "../lib/ids";
 
 function errText(err: unknown): string {
@@ -21,6 +21,9 @@ const PAGE = 100;
 // Admin-only end to end: the route hides for workers and every endpoint
 // carries the Admin policy — money data, unlike the production screens.
 export function ExpensesPage() {
+  // Farm-local, not browser-local: since #35 the API judges "is this date in
+  // the future?" against the FARM's day, so the pickers must agree (#123).
+  const today = useFarmToday();
   const [categories, setCategories] = useState<ExpenseCategory[]>([]);
   const [flocks, setFlocks] = useState<Flock[]>([]);
   const [items, setItems] = useState<Expense[] | null>(null);
@@ -32,11 +35,11 @@ export function ExpensesPage() {
   const [busy, setBusy] = useState(false);
 
   // filters
-  const [month, setMonth] = useState(todayIso().slice(0, 7)); // YYYY-MM
+  const [month, setMonth] = useState(today.slice(0, 7)); // YYYY-MM
   const [filterCategory, setFilterCategory] = useState("");
 
   // add form
-  const [date, setDate] = useState(todayIso());
+  const [date, setDate] = useState(today);
   const [categoryId, setCategoryId] = useState("");
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
@@ -253,7 +256,7 @@ export function ExpensesPage() {
 
       <div className="filters">
         <label>Month
-          <input type="month" value={month} max={todayIso().slice(0, 7)}
+          <input type="month" value={month} max={today.slice(0, 7)}
             onChange={(e) => setMonth(e.target.value)} />
         </label>
         <label>Category
@@ -312,7 +315,7 @@ export function ExpensesPage() {
       <h3>Record an expense</h3>
       <form className="form-grid" onSubmit={onAdd}>
         <label>Date
-          <input type="date" value={date} max={todayIso()} required
+          <input type="date" value={date} max={today} required
             onChange={(e) => setDate(e.target.value)} />
         </label>
         <label>Category
@@ -363,7 +366,7 @@ export function ExpensesPage() {
         {editing && (
           <form className="form-grid" onSubmit={onSaveEdit}>
             <label>Date
-              <input type="date" value={editDate} max={todayIso()} required
+              <input type="date" value={editDate} max={today} required
                 onChange={(e) => setEditDate(e.target.value)} />
             </label>
             <label>Category

@@ -4,7 +4,7 @@ import { listFlocks, listWaterUsage, recordWaterUsage, updateWaterUsage } from "
 import type { Flock, WaterUsage } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
-import { todayIso } from "../lib/dates";
+import { useFarmToday } from "../farm/useFarm";
 import { newId } from "../lib/ids";
 
 const PAGE = 50;
@@ -23,6 +23,9 @@ function errText(err: unknown): string {
 // readings (quantity derives from the delta). Records are editable (no
 // stock behind them); flock and date stay fixed once recorded.
 export function WaterPage() {
+  // Farm-local, not browser-local: since #35 the API judges "is this date in
+  // the future?" against the FARM's day, so the pickers must agree (#123).
+  const today = useFarmToday();
   // Recording is open to everyone; correcting a record is admin-only (#73).
   const { isAdmin } = useAuth();
   const [rows, setRows] = useState<WaterUsage[] | null>(null);
@@ -38,7 +41,7 @@ export function WaterPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingVersion, setEditingVersion] = useState(0);
   const [flockId, setFlockId] = useState("");
-  const [date, setDate] = useState(todayIso());
+  const [date, setDate] = useState(today);
   const [source, setSource] = useState("Well");
   const [unit, setUnit] = useState("L");
   const [useMeters, setUseMeters] = useState(false);
@@ -108,7 +111,7 @@ export function WaterPage() {
     setMeterEnd("");
     setNote("");
     setUseMeters(false);
-    setDate(todayIso());
+    setDate(today);
     setSource("Well");
     setUnit("L");
     const firstActive = flocks.find((f) => f.status === "Active")
@@ -196,7 +199,7 @@ export function WaterPage() {
           </select>
         </label>
         <label>Date
-          <input type="date" value={date} max={todayIso()} required disabled={editingId !== null}
+          <input type="date" value={date} max={today} required disabled={editingId !== null}
             onChange={(e) => setDate(e.target.value)} />
         </label>
         <label>Source

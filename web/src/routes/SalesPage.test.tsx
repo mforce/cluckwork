@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, within, fireEvent, act } from "@testing-library/react";
 import { SalesPage } from "./SalesPage";
 import { renderWithProviders } from "../test/renderWithProviders";
+import { account } from "../test/fixtures";
 import {
   addOrderItem, cancelOrder, confirmOrder, createOrder, getOrder, listCustomers, listEggGrades,
   listOrderPayments, listOrders, listProducts, recordPayment, updateOrderItem, voidOrder, voidPayment,
@@ -236,6 +237,87 @@ describe("SalesPage unit-price parsing", () => {
     expect(mockUpdateOrderItem.mock.calls[0][2]).toMatchObject({
       quantity: 3, unitPriceMinorUnits: expected, // quantity prefilled from the item, unchanged
     });
+  });
+});
+
+// #123 — the price field is READ at one scale and WRITTEN at another, and the
+// two used to be different objects: the prefill divided by the PRODUCT's minor
+// unit while the submit multiplied by the ORDER's. Every case below gives the
+// product a scale the order does not share, so the old code renders a value a
+// hundred or a thousand times out and these fail. They cannot diverge in
+// production (#159 locks a priced product to the farm currency), which is
+// exactly why only a test can hold the line.
+describe("SalesPage price scale", () => {
+  // The screen mounts before any order exists, so its first prefill has only
+  // the farm to go on — and the order it will be typed into carries the farm's
+  // currency.
+  const KWD_FARM = account({ currencyCode: "KWD", currencyMinorUnit: 3 });
+
+  async function renderWithFarm(farm = KWD_FARM) {
+    renderWithProviders(<SalesPage />, { token: ADMIN, farm });
+    await screen.findByRole("button", { name: "New order" });
+  }
+
+  it("prefills the first product at the FARM's scale, not the product's", async () => {
+    await renderWithFarm();
+    await createDraft(draftEmpty(3, "KWD"));
+
+    // PRODUCT_A: 300 minor units, its own row says 2dp. At the farm's 3dp that
+    // is 0.300; reading the product's would show 3.00 — the same number priced
+    // ten times higher.
+    expect(screen.getByLabelText(/Unit price/)).toHaveValue(0.3);
+  });
+
+  it("re-prefills at the ORDER's scale when the product is changed", async () => {
+    // Both grades saleable, so the picker offers two products to switch between.
+    mockListEggGrades.mockResolvedValue([GRADE, { ...GRADE, id: "gr2", name: "Grade B" }]);
+    await renderWithFarm();
+    await createDraft(draftEmpty(3, "KWD"));
+
+    fireEvent.change(screen.getByLabelText("Product"), { target: { value: "p2" } });
+
+    // PRODUCT_B: 1000 minor units. Order 3dp → 1.000; the product's 2dp would
+    // put 10.00 in the field.
+    expect(screen.getByLabelText(/Unit price/)).toHaveValue(1);
+  });
+
+  it("prefills the row editor at the ORDER's scale, not the line's own snapshot", async () => {
+    // A line whose stored scale disagrees with its order's. The edit is
+    // submitted at the order's, so it must be read at the order's too.
+    const order: SalesOrder = {
+      ...draftEmpty(3, "KWD", "o7"),
+      referenceNumber: "SO-7",
+      totalMinorUnits: 4500,
+      items: [{
+        id: "e7", productId: "p1", eggGradeId: "gr1", unit: "Dozen", baseUnitFactor: 12,
+        quantity: 3, quantityBase: 36, unitPriceMinorUnits: 1500,
+        currencyCode: "KWD", currencyMinorUnit: 2,
+      }],
+    };
+    mockListOrders.mockResolvedValue([order]);
+    mockGetOrder.mockResolvedValue(order);
+    await renderWithFarm();
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "open" })); });
+
+    const row = await screen.findByRole("row", { name: /Grade A Dozen/ });
+    fireEvent.click(within(row).getByRole("button", { name: "edit" }));
+
+    // 1500 at the order's 3dp is 1.500; at the line's 2dp it would read 15.00.
+    const editRow = screen.getByRole("row", { name: /Grade A Dozen/ });
+    expect(within(editRow).getByRole("spinbutton", { name: /unit price/i })).toHaveValue(1.5);
+  });
+
+  it("leaves the price blank rather than guessing when no farm has loaded", async () => {
+    // /account failed: the scale is unknown, and an empty field falls back to
+    // the server's own default for the line. A guessed 2dp would be a silent
+    // 100x on a JPY or KWD farm.
+    renderWithProviders(<SalesPage />, { token: ADMIN });
+    await screen.findByRole("button", { name: "New order" });
+    await createDraft(draftEmpty(3, "KWD"));
+
+    // The mount prefill ran with no scale to divide by. The old code divided by
+    // the product's and would show 3.00 here.
+    expect(screen.getByLabelText(/Unit price/)).toHaveValue(null);
   });
 });
 

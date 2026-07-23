@@ -47,6 +47,30 @@ public sealed class SecurityHeadersTests(CluckworkWebApplicationFactory factory)
     }
 
     [Fact]
+    public async Task Csp_allows_blob_images_and_nothing_else_off_origin()
+    {
+        var csp = (await factory.CreateClient().GetAsync("/health/live"))
+            .Headers.GetValues("Content-Security-Policy").Single();
+
+        // #123: the farm logo is auth-gated, so the SPA fetches the bytes and
+        // renders them from an object URL — which img-src has to admit.
+        Assert.Contains("img-src 'self' blob:", csp);
+
+        // The concession is exactly one scheme on exactly one directive: one
+        // occurrence in the whole policy, and it is the one asserted above. So
+        // copying `blob:` onto script-src — where it is an eval-shaped hole,
+        // since a blob URL can carry any code this page cares to write — fails
+        // here rather than shipping.
+        Assert.Equal(1, csp.Split("blob:").Length - 1);
+
+        // Nothing else was loosened alongside it.
+        Assert.DoesNotContain("*", csp);
+        Assert.DoesNotContain("data:", csp);
+        foreach (var directive in new[] { "default-src", "script-src", "style-src", "font-src", "connect-src" })
+            Assert.Contains($"{directive} 'self';", csp);
+    }
+
+    [Fact]
     public async Task Hsts_is_absent_on_plain_http()
     {
         // No forwarded proto → the request is http → HSTS must not be emitted.

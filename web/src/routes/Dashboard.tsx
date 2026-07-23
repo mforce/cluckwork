@@ -5,9 +5,9 @@ import {
 } from "../api/cluckwork";
 import type { Customer, DailyEntry, Flock, SalesOrder, StockRow } from "../api/cluckwork";
 import { ApiError } from "../api/client";
-import { todayIso } from "../lib/dates";
 import { StatusBadge } from "../components/StatusBadge";
 import { useAuth } from "../auth/useAuth";
+import { useFarmToday } from "../farm/useFarm";
 
 const RECENT_ORDERS = 5;
 // Server clamps list limits at 500. One farm won't exceed that in Phase 1.x;
@@ -21,8 +21,9 @@ const MAX_PAGE = 500;
 // Panels degrade independently: one failed fetch blanks its panel, not the page.
 export function Dashboard() {
   // Captured once at mount so the header date always matches the queried day
-  // even if the tab stays open across midnight.
-  const [today] = useState(todayIso);
+  // even if the tab stays open across midnight. Farm-local, not browser-local
+  // (#123): the entries it queries are stamped in the farm's day.
+  const [today] = useState(useFarmToday());
   const [flocks, setFlocks] = useState<Flock[] | null>(null);
   const [entries, setEntries] = useState<DailyEntry[] | null>(null);
   const [stock, setStock] = useState<StockRow[] | null>(null);

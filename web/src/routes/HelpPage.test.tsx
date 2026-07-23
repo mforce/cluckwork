@@ -31,6 +31,31 @@ describe("HelpPage", () => {
     expect(screen.getByRole("rowheader", { name: "FIFO" })).toBeInTheDocument();
   });
 
+  it("keeps the contents rail and the sections in step, in document order", () => {
+    // The rail is hand-maintained beside the sections it points at ("must
+    // mirror the <h3 id=...> sections below, in document order"). A section
+    // added without its entry is invisible to anyone navigating by contents,
+    // and an entry without its section is a dead link — neither shows up in a
+    // test that only asserts the sections it happens to name.
+    const { container } = render(<HelpPage />);
+    const toc = screen.getByRole("navigation", { name: "Help contents" });
+
+    const linked = within(toc).getAllByRole("link")
+      .map((a) => a.getAttribute("href")?.slice(1));
+    const sections = Array.from(container.querySelectorAll("h3[id]")).map((h) => h.id);
+
+    expect(sections.length).toBeGreaterThan(0);
+    expect(linked).toEqual(sections);
+  });
+
+  it("documents farm settings, the currency lock and the logo (#123)", () => {
+    render(<HelpPage />);
+    expect(screen.getByRole("heading", { name: "Farm settings (admin)", level: 3 })).toBeInTheDocument();
+    expect(screen.getByRole("rowheader", { name: "Farm settings" })).toBeInTheDocument();
+    expect(screen.getByRole("rowheader", { name: "Currency lock" })).toBeInTheDocument();
+    expect(screen.getByRole("rowheader", { name: "Farm logo" })).toBeInTheDocument();
+  });
+
   it("explains the per-account sign-in lock as temporary, without a non-existent admin reset", () => {
     render(<HelpPage />);
     const signIn = screen.getByRole("heading", { name: "Signing in", level: 3 });

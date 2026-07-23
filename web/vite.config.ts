@@ -43,19 +43,23 @@ export default defineConfig(({ mode }) => {
         reporter: ["text", "html"],
         thresholds: {
           // Global regression floor, re-baselined as screen tests land. After
-          // the mobile bottom-nav (nav model + BottomNav, both ~100%): lines
-          // 90.6 / branch 84.4 / funcs 71.1. Reports stays untested; the static
+          // the farm settings screen + farm context (#123): lines 91.3 /
+          // branch 85.3 / funcs 71.9. Reports stays untested; the static
           // Help/shell screens are excluded-in-spirit — hence sub-100. A
           // screen-test PR raises lines/functions; branches move either way
           // (testing a screen exposes all its conditional branches), so
           // re-baseline branches in BOTH directions with headroom.
-          lines: 90,
-          statements: 90,
-          functions: 70,
-          branches: 83,
+          lines: 91,
+          statements: 91,
+          functions: 71,
+          branches: 85,
           // high-water locks on the fully-covered foundation
           "src/auth/**": { statements: 100, lines: 100, functions: 100, branches: 95 },
           "src/lib/**": { statements: 100, lines: 100, functions: 100, branches: 100 },
+          // The farm context joins them (#123): every screen with a date field
+          // now reads its timezone through it, so a hole here is a hole in all
+          // of them at once.
+          "src/farm/**": { statements: 100, lines: 100, functions: 100, branches: 100 },
           "src/api/client.ts": { statements: 95, lines: 95, functions: 100, branches: 85 },
         },
       },

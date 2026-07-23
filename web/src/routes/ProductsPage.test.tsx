@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, within, fireEvent, act } from "@testing-library/react";
 import { ProductsPage } from "./ProductsPage";
 import { renderWithProviders } from "../test/renderWithProviders";
+import { account } from "../test/fixtures";
 import {
   activateProduct, createProduct, deactivateProduct, getAccount,
   listEggGrades, listEggUnitConversions, listProducts,
@@ -46,7 +47,7 @@ const GRADE_B: EggGrade = { id: "g2", farmId: "f", name: "Grade B", gradeType: "
 
 // KWD (3 decimals) throughout so a hard-coded 2-decimal money path fails: 500
 // minor units renders "0.500 KWD" and typed "0.5" parses to 500 (not 50).
-const ACCOUNT: Account = { id: "a1", name: "Farm", currencyCode: "KWD", currencyMinorUnit: 3 };
+const ACCOUNT: Account = account({ name: "Farm", currencyCode: "KWD", currencyMinorUnit: 3 });
 
 const P1: Product = {
   id: "p1", name: "Grade A Dozen", productType: "Egg", defaultUnit: "Dozen",
