@@ -8,6 +8,7 @@ import {
   apiGetBlob,
   login,
   logout,
+  restoreSession,
   ApiError,
   setOnUnauthenticated,
   setOnTokensChanged,
@@ -430,5 +431,137 @@ describe("auth endpoints", () => {
     await expect(logout()).resolves.toBeUndefined();
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect((fetchMock.mock.calls[0] as Call)[0]).toBe("/api/v1/auth/logout");
+  });
+});
+
+describe("cross-tab refresh coordination (#169)", () => {
+  // A minimal Web Locks stand-in that is NAME-SCOPED, like the real API: each
+  // lock name has its own FIFO queue, and different names never contend. Modelling
+  // the scoping is what makes "the SUT waits behind the SAME name" a meaningful
+  // assertion — if the fake ignored the name, a per-tab (non-shared) lock name
+  // would look identical and the #169 fix could silently regress.
+  function fakeLockManager() {
+    const tails = new Map<string, Promise<unknown>>();
+    const request = vi.fn((name: string, cb: () => Promise<unknown>) => {
+      const prev = tails.get(name) ?? Promise.resolve();
+      const run = prev.then(() => cb());
+      tails.set(name, run.catch(() => {})); // next waiter proceeds even if this one throws
+      return run;
+    });
+    return { request };
+  }
+
+  // The SUT's OWN lock acquisition (asserting on `toHaveBeenCalledWith` alone
+  // would be satisfied by a test's own setup call, proving nothing about the code).
+  function sutLockName(locks: ReturnType<typeof fakeLockManager>): string | undefined {
+    return locks.request.mock.calls.at(-1)?.[0] as string | undefined;
+  }
+
+  it("waits for another tab's in-progress refresh before hitting the server (no cross-tab replay)", async () => {
+    const locks = fakeLockManager();
+    vi.stubGlobal("navigator", { locks });
+
+    // Occupy the lock as 'another tab' still rotating the cookie; ours must queue.
+    const otherTab = deferred<void>();
+    locks.request("cluckwork.auth.refresh", () => otherTab.promise);
+
+    clearAccessToken(); // next call forces a silent refresh
+    fetchMock.mockImplementation(async (url: string) =>
+      url.endsWith("/auth/refresh") ? accessResponse("at2") : jsonResponse({ ok: true }),
+    );
+
+    const inflight = apiGet<{ ok: boolean }>("/a");
+    await drain();
+
+    // Blocked behind the other tab: our refresh has NOT reached the server yet.
+    expect(callsTo(fetchMock, "/auth/refresh")).toHaveLength(0);
+
+    otherTab.resolve(); // the other tab finished; the cookie is now the fresh token
+    const a = await inflight;
+
+    expect(a).toEqual({ ok: true });
+    // Serialized strictly after the other tab — exactly one refresh, no replay.
+    expect(callsTo(fetchMock, "/auth/refresh")).toHaveLength(1);
+    // The SUT acquired the SHARED, stable lock name — the crux of cross-tab
+    // coordination. (Asserted on the code's own call, not the setup call above.)
+    expect(sutLockName(locks)).toBe("cluckwork.auth.refresh");
+    expect(getAccessToken()).toBe("at2");
+  });
+
+  it("a lock held under a DIFFERENT name does not block refresh (fake is name-scoped, like the real API)", async () => {
+    const locks = fakeLockManager();
+    vi.stubGlobal("navigator", { locks });
+
+    // Some unrelated feature holds a different lock — must NOT serialise refresh.
+    const unrelated = deferred<void>();
+    locks.request("some-other-feature", () => unrelated.promise);
+
+    clearAccessToken();
+    fetchMock.mockImplementation(async (url: string) =>
+      url.endsWith("/auth/refresh") ? accessResponse("at2") : jsonResponse({ ok: true }),
+    );
+
+    const a = await apiGet<{ ok: boolean }>("/a"); // proceeds despite the other lock
+    unrelated.resolve();
+
+    expect(a).toEqual({ ok: true });
+    expect(callsTo(fetchMock, "/auth/refresh")).toHaveLength(1);
+  });
+
+  it("clears the single-flight latch after a lock-guarded refresh FAILS, so a later refresh retries", async () => {
+    // Covers the lock-wrapped rejection path specifically (the existing latch test
+    // runs in jsdom with no navigator.locks, i.e. only the fallback branch).
+    vi.stubGlobal("navigator", { locks: fakeLockManager() });
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ title: "boom" }, 500)) // refresh 1 (under lock) fails
+      .mockResolvedValueOnce(accessResponse("at2")); // refresh 2 succeeds
+
+    await expect(restoreSession()).resolves.toBe(false);
+    await expect(restoreSession()).resolves.toBe(true);
+
+    // A stuck latch would have refused the second refresh entirely.
+    expect(callsTo(fetchMock, "/auth/refresh")).toHaveLength(2);
+    expect(getAccessToken()).toBe("at2");
+  });
+
+  it("aborts and releases the lock if a refresh hangs past the timeout (no cross-tab starvation)", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.stubGlobal("navigator", { locks: fakeLockManager() });
+      // A hung server: the fetch never resolves on its own — only the abort signal
+      // (fired by our lock timeout) can settle it.
+      fetchMock.mockImplementation(
+        (_url: string, init: RequestInit) =>
+          new Promise((_resolve, reject) =>
+            init.signal?.addEventListener("abort", () =>
+              reject(new DOMException("timed out", "AbortError")),
+            ),
+          ),
+      );
+
+      const restored = restoreSession(); // parks on the hung refresh
+      await vi.advanceTimersByTimeAsync(20_000); // past REFRESH_TIMEOUT_MS
+
+      // The timeout aborted the fetch and released the lock: the promise settles
+      // (does not hang forever) — restoreSession catches the abort and reports no
+      // session, but crucially the lock is freed for other tabs.
+      await expect(restored).resolves.toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("degrades gracefully when the Web Locks API is unavailable (older browsers)", async () => {
+    vi.stubGlobal("navigator", {}); // no .locks — like jsdom / older Safari
+    clearAccessToken();
+    fetchMock.mockImplementation(async (url: string) =>
+      url.endsWith("/auth/refresh") ? accessResponse("at2") : jsonResponse({ ok: true }),
+    );
+
+    const a = await apiGet<{ ok: boolean }>("/a");
+
+    expect(a).toEqual({ ok: true });
+    expect(callsTo(fetchMock, "/auth/refresh")).toHaveLength(1); // still refreshes, just uncoordinated
+    expect(getAccessToken()).toBe("at2");
   });
 });

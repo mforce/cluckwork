@@ -437,7 +437,13 @@ CSRF is covered by SameSite=Strict plus a custom header (`X-Cluckwork-Auth`) tha
 a cross-site request cannot set. Rotation + theft-detection (single-use, revoke
 the whole family on replay) are unchanged — this moved the storage, not the
 hygiene. Deploying #145 forces one re-login (the old localStorage token is
-purged on first load).
+purged on first load). Because the refresh token now lives only in the shared
+cookie, two tabs refreshing at once would each present the same value and the
+second would trip theft-detection, logging both out; refresh is therefore
+**serialised across tabs** via the browser Web Locks API (#169) so only one tab
+refreshes at a time and the next presents the freshly-rotated cookie. Server
+theft-detection stays strict; browsers without the API fall back to per-tab
+coordination only.
 
 **Version (concurrency token)** — every mutable aggregate carries a `Version`
 that each mutation bumps. Two concurrent edits: first save wins, second gets

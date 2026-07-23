@@ -41,6 +41,8 @@ describe("HelpPage", () => {
     expect(screen.queryByText(/administrator to set a new password/i)).not.toBeInTheDocument();
     // #145 — the session-persistence + post-update re-login note.
     expect(screen.getByText(/kept in your browser securely/i)).toBeInTheDocument();
+    // #169 — the session survives the app being open in several tabs at once.
+    expect(screen.getByText(/several tabs/i)).toBeInTheDocument();
     expect(signIn).toBeInTheDocument();
   });
 
