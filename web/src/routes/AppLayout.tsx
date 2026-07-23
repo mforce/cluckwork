@@ -5,6 +5,7 @@ import { ThemeToggle } from "../components/ThemeToggle";
 import { BottomNav } from "../components/BottomNav";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { FarmBrand } from "../components/FarmBrand";
+import { useFarm } from "../farm/useFarm";
 import { navGroups, tabEntries } from "./nav";
 
 const ICON = 17;
@@ -19,6 +20,7 @@ const ICON = 17;
 // navs render from the same nav model, so the role gates live in one place.
 export function AppLayout() {
   const { logout, isAdmin, role } = useAuth();
+  const { farm, loadFailed, refresh } = useFarm();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -56,6 +58,21 @@ export function AppLayout() {
       </aside>
 
       <main className="content">
+        {/* A farm we never got is not a cosmetic loss: §4.5 formatting and —
+            since #123 — every date field's ceiling come from it, so without a
+            farm the pickers silently follow the DEVICE's day and the screen
+            looks perfectly healthy while being a day out. Say so, and offer the
+            read again, rather than degrade in silence (codex review of #123). */}
+        {farm === null && loadFailed && (
+          <p className="warn farm-warning" role="alert">
+            Could not load this farm&apos;s settings, so dates follow this device
+            rather than the farm.{" "}
+            <button type="button" className="link" onClick={() => void refresh()}>
+              Try again
+            </button>
+          </p>
+        )}
+
         {/* Contain a routed screen's render throw to this pane — the sidebar and
             tab bar stay usable (#140). Keyed by location.key so every navigation
             remounts a fresh boundary: that recovers the screen on nav — even a

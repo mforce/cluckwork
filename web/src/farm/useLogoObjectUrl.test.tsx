@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import { useLogoObjectUrl } from "./useLogoObjectUrl";
 import { getFarmLogo } from "../api/cluckwork";
 
@@ -17,8 +17,14 @@ let minted: string[] = [];
 let revoked: string[] = [];
 
 function Probe({ hash }: { hash: string | null }) {
-  const url = useLogoObjectUrl(hash);
+  const { url } = useLogoObjectUrl(hash);
   return <p data-testid="url">{url ?? "none"}</p>;
+}
+
+function Status({ hash }: { hash: string | null }) {
+  const { url, loading, failed } = useLogoObjectUrl(hash);
+  const state = loading ? "loading" : failed ? "failed" : url ?? "none";
+  return <p data-testid="status">{state}</p>;
 }
 
 const logo = (body = "png-bytes") => ({ blob: new Blob([body]), filename: null });
@@ -106,6 +112,39 @@ describe("useLogoObjectUrl", () => {
     await waitFor(() => expect(mockGetFarmLogo).toHaveBeenCalled());
     expect(minted).toEqual([]);
     expect(revoked).toEqual([]);
+  });
+
+  it("touches no state when the FAILURE arrives after unmount", async () => {
+    let reject: ((reason: Error) => void) | undefined;
+    mockGetFarmLogo.mockReturnValue(new Promise((_, r) => { reject = r; }));
+
+    const { unmount } = render(<Probe hash="abc" />);
+    unmount();
+    reject!(new Error("500"));
+
+    // The success path guards against a late response; the failure path has to
+    // as well, or an unmounted hook sets `failed` on a component that is gone.
+    await waitFor(() => expect(mockGetFarmLogo).toHaveBeenCalled());
+    expect(minted).toEqual([]);
+    expect(revoked).toEqual([]);
+  });
+
+  it("reports loading, then failure, so a caller can tell them apart", async () => {
+    let reject: ((reason: Error) => void) | undefined;
+    mockGetFarmLogo.mockReturnValue(new Promise((_, r) => { reject = r; }));
+
+    render(<Status hash="abc" />);
+    // Three different reasons there is no URL, and the caller must not report
+    // "no logo set" for the other two.
+    expect(screen.getByTestId("status")).toHaveTextContent("loading");
+
+    await act(async () => { reject!(new Error("500")); });
+    expect(screen.getByTestId("status")).toHaveTextContent("failed");
+  });
+
+  it("reports neither loading nor failed when there is simply no logo", () => {
+    render(<Status hash={null} />);
+    expect(screen.getByTestId("status")).toHaveTextContent("none");
   });
 
   it("stays silent when the fetch fails — the caller renders its own fallback", async () => {

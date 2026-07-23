@@ -550,13 +550,18 @@ export function HelpPage() {
           <strong>timezone</strong>, <strong>locale</strong>,{" "}
           <strong>currency</strong> and <strong>unit system</strong>. First day
           of week and the date and time formats are optional — leave them blank
-          and the locale decides. Saved changes show everywhere straight away.
+          and the locale decides. The timezone takes effect everywhere the
+          moment it is saved; the rest are recorded against the farm and will
+          drive how amounts, dates and measurements are displayed once that
+          formatting lands.
         </li>
         <li>
-          The <strong>timezone</strong> is the farm&apos;s day. Every date field
-          in the app opens on it and refuses to go past it, whatever day the
-          phone or laptop in your hand is on — so a device travelling ahead of
-          the farm can no longer offer a date the save then refuses.
+          The <strong>timezone</strong> is the farm&apos;s day. Every field that
+          records work — daily entry, flocks, water, feed, expenses, sales —
+          opens on it and refuses to go past it, whatever day the phone or
+          laptop in your hand is on, so a device travelling ahead of the farm
+          can no longer offer a date the save then refuses. The date ranges you
+          filter History and Water by are yours to set and are not capped.
         </li>
         <li>
           The <strong>currency</strong> locks the moment the farm records its
@@ -568,7 +573,8 @@ export function HelpPage() {
         <li>
           The <strong>logo</strong> replaces the Cluckwork mark in the sidebar
           for everyone at the farm. PNG, JPEG or WebP, up to 1 MB and 4096
-          pixels a side, still images only. What gets stored is a rebuilt copy:
+          pixels a side. Animated images are refused rather than flattened.
+          What gets stored is a rebuilt copy:
           camera and location details are stripped out on the way in — a photo
           taken on a phone carries where it was taken, and for a farm that is
           its address. Remove it and the sidebar goes back to the Cluckwork
@@ -677,7 +683,7 @@ export function HelpPage() {
           <tr><th scope="row">Navigation</th>
             <td>Screens live in the left sidebar on a computer; on a phone the four you use most are tabs across the bottom, the rest under More.</td></tr>
           <tr><th scope="row">Operational day</th>
-            <td>Dates mean your farm&apos;s calendar day, worked out from the farm&apos;s own timezone rather than a clock somewhere else. It is the same &quot;today&quot; everywhere: what counts as a future date when you record work, when eggs leave a withdrawal period, which eggs a sale can take, the day a flock is depleted or archived on, and the range reports open on. Every date field opens on it and will not go past it, whatever day the device in your hand is on.</td></tr>
+            <td>Dates mean your farm&apos;s calendar day, worked out from the farm&apos;s own timezone rather than a clock somewhere else. It is the same &quot;today&quot; everywhere: what counts as a future date when you record work, when eggs leave a withdrawal period, which eggs a sale can take, the day a flock is depleted or archived on, and the range reports open on. Every field that RECORDS work opens on it and will not go past it, whatever day the device in your hand is on; the History and Water date filters are yours to set and are not capped.</td></tr>
           <tr><th scope="row">Too many sign-in attempts</th>
             <td>Sign-in is rate limited to slow password guessing: too many attempts from one place in a few minutes are refused with this message until a short cool-off passes. It never affects an already signed-in session.</td></tr>
           <tr><th scope="row">&quot;Something went wrong&quot; screen</th>

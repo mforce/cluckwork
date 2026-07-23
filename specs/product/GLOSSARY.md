@@ -353,6 +353,15 @@ Owner and Manager can edit them; everyone reads them, because formatting money,
 dates and numbers is not a permission. They live on one screen — **Setup → Farm
 settings** — which is also where the logo is uploaded and cleared.
 
+What each one *does today* is not yet what it will do. The **timezone** is fully
+wired: it decides the operational day, and every capture screen's date field
+follows it the moment it is saved. **Locale**, **unit system** and the
+date/time **format overrides** are stored and validated, and nothing renders
+through them yet — money still prints as `12.34 USD` and dates as ISO. They are
+recorded now so the display work (#45, the i18n infrastructure) has settings to
+read rather than a migration to run; the settings screen says as much rather
+than promising an effect the app does not yet have.
+
 Each one has teeth. The **timezone** is the farm's **operational day** — change
 it and every date rule moves with it the same minute, so a timezone that the
 system cannot resolve is refused outright rather than stored (the clock refuses
@@ -463,12 +472,15 @@ day early. A farm ahead of UTC has the mirror problem: its legitimate today
 looks like tomorrow. Recording a genuinely future day is refused outright; there
 is no longer any day-either-side slack.
 
-The date fields agree with it (#123). Every picker in the app opens on the
-farm's today and refuses to go past it — the farm's, not the one on the device
-in your hand. A phone travelling ahead of the farm used to offer a day the save
-would then refuse, and a phone behind it hid a day that was perfectly legal;
-both are gone. Change the farm's timezone and every picker follows on the next
-screen you open.
+The date fields agree with it (#123). Every picker that RECORDS work — daily
+entry, flock placement and bird movements, water, feed purchase and usage,
+expenses, sales orders and payments — opens on the farm's today and refuses to
+go past it, the farm's and not the one on the device in your hand. A phone
+travelling ahead of the farm used to offer a day the save would then refuse, and
+a phone behind it hid a day that was perfectly legal; both are gone. The
+read-only date ranges on History and Water are filters, not records, and stay
+uncapped. Change the farm's timezone and every capped picker follows on the next
+screen that renders.
 
 **Roles (#103, spec §5.1)** — five shipped: **Admin (owner)** does
 everything including user management; **Manager** runs the farm — every

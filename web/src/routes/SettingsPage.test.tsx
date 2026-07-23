@@ -2,14 +2,13 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within, fireEvent, act, waitFor } from "@testing-library/react";
 import { SettingsPage } from "./SettingsPage";
 import { FarmContext } from "../farm/FarmContext";
-import type { FarmState } from "../farm/FarmContext";
 import {
   LOGO_MAX_BYTES, getFarmLogo, getFarmSettings, removeFarmLogo, updateFarmSettings,
   uploadFarmLogo,
 } from "../api/cluckwork";
 import type { Account, FarmSettings } from "../api/cluckwork";
 import { ApiError } from "../api/client";
-import { account } from "../test/fixtures";
+import { account, farmState } from "../test/fixtures";
 
 vi.mock("../api/cluckwork", async () => {
   const actual = await vi.importActual<typeof import("../api/cluckwork")>("../api/cluckwork");
@@ -47,10 +46,10 @@ let refreshed = 0;
 
 async function renderReady(payload: FarmSettings = SETTINGS()) {
   mockGetSettings.mockResolvedValue(payload);
-  const value: FarmState = {
+  const value = farmState({
     farm: payload.settings,
     refresh: async () => { refreshed += 1; },
-  };
+  });
   const result = render(
     <FarmContext.Provider value={value}><SettingsPage /></FarmContext.Provider>);
   expect(await screen.findByLabelText("Farm name")).toBeInTheDocument();
@@ -127,7 +126,7 @@ describe("SettingsPage saving", () => {
       version: 7,
     });
     expect(key).toBeTruthy();
-    expect(screen.getByRole("status")).toHaveTextContent("Settings saved.");
+    expect(screen.getByText("Settings saved.")).toBeInTheDocument();
   });
 
   it("sends a blank override as null, not an empty string", async () => {
@@ -183,6 +182,68 @@ describe("SettingsPage saving", () => {
     expect(first).not.toBe(second);
   });
 
+  it("re-uses the key when the SAME payload is retried after a failure", async () => {
+    await renderReady();
+    mockUpdate.mockRejectedValueOnce(new Error("connection lost"));
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save settings" })); });
+
+    mockUpdate.mockResolvedValueOnce(undefined);
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save settings" })); });
+
+    // The write may have landed before the response was lost — the server has
+    // to dedupe, not write again.
+    expect(mockUpdate.mock.calls[0][1]).toBe(mockUpdate.mock.calls[1][1]);
+  });
+
+  it("takes a NEW key when the payload changed after a failure", async () => {
+    await renderReady();
+    mockUpdate.mockRejectedValueOnce(new Error("connection lost"));
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save settings" })); });
+
+    fireEvent.change(screen.getByLabelText("Farm name"), { target: { value: "Coop Co" } });
+    mockUpdate.mockResolvedValueOnce(undefined);
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save settings" })); });
+
+    // Re-using it would replay the FIRST payload's stored response: the screen
+    // reports success and the new name is never written (review of #123).
+    expect(mockUpdate.mock.calls[0][1]).not.toBe(mockUpdate.mock.calls[1][1]);
+    expect(mockUpdate.mock.calls[1][0].name).toBe("Coop Co");
+  });
+
+  it("reports a failed read-back as a REFRESH failure, and refuses to save again", async () => {
+    mockUpdate.mockResolvedValue(undefined);
+    await renderReady();
+    mockGetSettings.mockRejectedValueOnce(new Error("offline"));
+
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save settings" })); });
+
+    // Calling this "could not save" is how a user makes the same change twice —
+    // and the screen still holds the OLD version, so a second save would 409
+    // and blame someone else for this user's own write.
+    expect(screen.getByRole("alert")).toHaveTextContent(/Saved\. This screen could not read the settings back/);
+    expect(screen.getByRole("button", { name: "Save settings" })).toBeDisabled();
+  });
+
+  it("warns when the timezone is one this browser cannot format", async () => {
+    await renderReady();
+    fireEvent.change(screen.getByLabelText("Timezone"), { target: { value: "Mars/Olympus_Mons" } });
+
+    // The server validates against ITS tzdata. A zone it accepts but the
+    // browser cannot format saves fine and then sends every date field back to
+    // the device's day — silently, without this.
+    expect(screen.getByText(/does not know that timezone/)).toBeInTheDocument();
+    const tz = screen.getByLabelText("Timezone");
+    const describedBy = tz.getAttribute("aria-describedby");
+    expect(describedBy).toBeTruthy();
+    expect(document.getElementById(describedBy!)).toHaveTextContent(/does not know that timezone/);
+  });
+
+  it("says nothing about a timezone the browser does know", async () => {
+    await renderReady();
+    fireEvent.change(screen.getByLabelText("Timezone"), { target: { value: "Asia/Tokyo" } });
+    expect(screen.queryByText(/does not know that timezone/)).not.toBeInTheDocument();
+  });
+
   it("explains a 409 as someone else's save, not as a validation error", async () => {
     mockUpdate.mockRejectedValue(new ApiError(409, "Account.VersionMismatch", "Version mismatch."));
     await renderReady();
@@ -190,7 +251,7 @@ describe("SettingsPage saving", () => {
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save settings" })); });
 
     expect(screen.getByRole("alert")).toHaveTextContent(/Someone else changed these settings/i);
-    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.queryByText("Settings saved.")).not.toBeInTheDocument();
   });
 
   it("surfaces the server's message for any other refusal", async () => {
@@ -206,14 +267,30 @@ describe("SettingsPage saving", () => {
 describe("SettingsPage currency lock (§4.6)", () => {
   it("leaves the field editable while the farm has recorded nothing", async () => {
     await renderReady(SETTINGS({}, true));
-    expect(screen.getByLabelText("Currency")).toBeEnabled();
-    expect(screen.queryByText(/The currency is fixed at/)).not.toBeInTheDocument();
+    const currency = screen.getByLabelText("Currency");
+    expect(currency).not.toHaveAttribute("readonly");
+    expect(currency).not.toHaveAttribute("aria-describedby");
+    expect(screen.queryByText(/currency is fixed at/i)).not.toBeInTheDocument();
   });
 
-  it("disables it with the reason once amounts exist — before the user meets the 422", async () => {
+  it("locks it with the reason once amounts exist — before the user meets the 422", async () => {
     await renderReady(SETTINGS({}, false));
-    expect(screen.getByLabelText("Currency")).toBeDisabled();
+    const currency = screen.getByLabelText("Currency");
+    // readOnly rather than disabled: a disabled control leaves the tab order,
+    // taking the explanation with it.
+    expect(currency).toHaveAttribute("readonly");
+    expect(currency).not.toBeDisabled();
     expect(screen.getByText(/The currency is fixed at USD/)).toBeInTheDocument();
+  });
+
+  it("names the field 'Currency' and carries the reason as a DESCRIPTION", async () => {
+    await renderReady(SETTINGS({}, false));
+    const currency = screen.getByLabelText("Currency");
+    // A note nested inside the <label> would join the accessible name, so the
+    // field would announce itself as "Currency The currency is fixed at USD…".
+    const describedBy = currency.getAttribute("aria-describedby");
+    expect(describedBy).toBeTruthy();
+    expect(document.getElementById(describedBy!)).toHaveTextContent(/fixed at USD/);
   });
 });
 
@@ -302,6 +379,175 @@ describe("SettingsPage logo", () => {
 
     expect(mockRemove).toHaveBeenCalledTimes(1);
     expect(refreshed).toBe(1);
+  });
+
+  it("keeps unsaved form edits when a logo is uploaded", async () => {
+    // The whole reason the logo write no longer re-reads the settings: load()
+    // re-seeds every field, so an admin who types a new name and THEN uploads
+    // a logo would watch the name revert with no message (review of #123).
+    mockUpload.mockResolvedValue({
+      contentType: "image/png", contentHash: "newhash", width: 64, height: 64,
+      byteLength: 900, updatedAt: "2026-07-23T00:00:00Z",
+    });
+    await renderReady(SETTINGS({ logoContentHash: null }));
+
+    fireEvent.change(screen.getByLabelText("Farm name"), { target: { value: "Coop Co" } });
+    fireEvent.change(screen.getByLabelText("Locale"), { target: { value: "es-MX" } });
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Upload a logo"),
+        { target: { files: [imageOfSize(900)] } });
+    });
+
+    expect(screen.getByLabelText("Farm name")).toHaveValue("Coop Co");
+    expect(screen.getByLabelText("Locale")).toHaveValue("es-MX");
+    // And no second read to land out of order with a save's.
+    expect(mockGetSettings).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps unsaved form edits when the logo is removed", async () => {
+    mockRemove.mockResolvedValue(undefined);
+    await renderReady(SETTINGS({ logoContentHash: "deadbeef" }));
+
+    fireEvent.change(screen.getByLabelText("Farm name"), { target: { value: "Coop Co" } });
+    fireEvent.click(screen.getByRole("button", { name: /Remove/ }));
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Remove logo" }));
+    });
+
+    expect(screen.getByLabelText("Farm name")).toHaveValue("Coop Co");
+    expect(mockGetSettings).toHaveBeenCalledTimes(1);
+  });
+
+  it("takes the new hash from the upload response, so the preview follows", async () => {
+    mockUpload.mockResolvedValue({
+      contentType: "image/png", contentHash: "newhash", width: 64, height: 64,
+      byteLength: 900, updatedAt: "2026-07-23T00:00:00Z",
+    });
+    await renderReady(SETTINGS({ logoContentHash: null }));
+    expect(mockGetLogo).not.toHaveBeenCalled();
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Upload a logo"),
+        { target: { files: [imageOfSize(900)] } });
+    });
+
+    // No re-read of the settings, so this is the response's own hash driving
+    // the fetch — the panel now offers Replace/Remove and pulls the bytes.
+    expect(await screen.findByAltText("Current farm logo")).toBeInTheDocument();
+    expect(mockGetLogo).toHaveBeenCalledTimes(1);
+  });
+
+  it("gives two different files two different idempotency keys", async () => {
+    mockUpload.mockResolvedValue({
+      contentType: "image/png", contentHash: "h", width: 1, height: 1,
+      byteLength: 10, updatedAt: "2026-07-23T00:00:00Z",
+    });
+    await renderReady(SETTINGS({ logoContentHash: null }));
+    const input = screen.getByLabelText("Upload a logo");
+
+    await act(async () => {
+      fireEvent.change(input, { target: { files: [imageOfSize(10, "one.png")] } });
+    });
+    await act(async () => {
+      fireEvent.change(input, { target: { files: [imageOfSize(20, "two.png")] } });
+    });
+
+    // Sharing a key would make the server replay the FIRST image's response for
+    // the second upload — reported as success, with image one still stored.
+    expect(mockUpload.mock.calls[0][1]).not.toBe(mockUpload.mock.calls[1][1]);
+  });
+
+  it("takes a NEW key when a DIFFERENT file is picked after a failure", async () => {
+    // The whole point of binding the key to the payload. With the key kept
+    // across a payload change, the server replays the FIRST image's stored
+    // response: the upload reports success and image one is still what is
+    // stored (review of #123). The success-path test above cannot see this —
+    // the key is cleared on success either way.
+    await renderReady(SETTINGS({ logoContentHash: null }));
+    const input = screen.getByLabelText("Upload a logo");
+
+    mockUpload.mockRejectedValueOnce(new Error("connection lost"));
+    await act(async () => {
+      fireEvent.change(input, { target: { files: [imageOfSize(900, "one.png")] } });
+    });
+    mockUpload.mockResolvedValueOnce({
+      contentType: "image/png", contentHash: "h", width: 1, height: 1,
+      byteLength: 900, updatedAt: "2026-07-23T00:00:00Z",
+    });
+    await act(async () => {
+      fireEvent.change(input, { target: { files: [imageOfSize(950, "two.png")] } });
+    });
+
+    expect(mockUpload.mock.calls[0][1]).not.toBe(mockUpload.mock.calls[1][1]);
+  });
+
+  it("re-uses the key when the SAME file is retried after a failure", async () => {
+    await renderReady(SETTINGS({ logoContentHash: null }));
+    const input = screen.getByLabelText("Upload a logo");
+    const file = imageOfSize(900, "one.png");
+
+    mockUpload.mockRejectedValueOnce(new Error("connection lost"));
+    await act(async () => { fireEvent.change(input, { target: { files: [file] } }); });
+    mockUpload.mockResolvedValueOnce({
+      contentType: "image/png", contentHash: "h", width: 1, height: 1,
+      byteLength: 900, updatedAt: "2026-07-23T00:00:00Z",
+    });
+    await act(async () => { fireEvent.change(input, { target: { files: [file] } }); });
+
+    // The point of the key: the first attempt may have landed before the
+    // response was lost, and the server must dedupe rather than store twice.
+    expect(mockUpload.mock.calls[0][1]).toBe(mockUpload.mock.calls[1][1]);
+  });
+
+  it("announces the result of a logo write", async () => {
+    mockRemove.mockResolvedValue(undefined);
+    await renderReady(SETTINGS({ logoContentHash: "deadbeef" }));
+
+    fireEvent.click(screen.getByRole("button", { name: /Remove/ }));
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Remove logo" }));
+    });
+
+    // Otherwise the only signal is an <img> disappearing, which a screen
+    // reader does not see.
+    expect(screen.getByText("Logo removed.")).toBeInTheDocument();
+  });
+
+  it("moves focus off the Remove button it just destroyed", async () => {
+    mockRemove.mockResolvedValue(undefined);
+    await renderReady(SETTINGS({ logoContentHash: "deadbeef" }));
+
+    fireEvent.click(screen.getByRole("button", { name: /Remove/ }));
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Remove logo" }));
+    });
+
+    // Dialog restores focus only to a trigger still in the document, and the
+    // Remove button unmounts with the logo — so without this the keyboard user
+    // is dumped on <body> at the top of the page.
+    expect(document.activeElement).toBe(screen.getByLabelText("Upload a logo"));
+  });
+
+  it("says the logo is loading, not that there is none", async () => {
+    let resolve: ((value: { blob: Blob; filename: string | null }) => void) | undefined;
+    mockGetLogo.mockReturnValue(new Promise((r) => { resolve = r; }));
+    await renderReady(SETTINGS({ logoContentHash: "deadbeef" }));
+
+    // "No logo set" beside a Remove button is a contradiction the reader has
+    // no way to resolve.
+    expect(screen.getByText("Loading the logo…")).toBeInTheDocument();
+    expect(screen.queryByText(/No logo set/)).not.toBeInTheDocument();
+
+    await act(async () => { resolve!({ blob: new Blob(["png"]), filename: null }); });
+    expect(await screen.findByAltText("Current farm logo")).toBeInTheDocument();
+  });
+
+  it("says the logo could not be loaded, not that there is none", async () => {
+    mockGetLogo.mockRejectedValue(new Error("500"));
+    await renderReady(SETTINGS({ logoContentHash: "deadbeef" }));
+
+    expect(await screen.findByText("The logo could not be loaded.")).toBeInTheDocument();
+    expect(screen.queryByText(/No logo set/)).not.toBeInTheDocument();
   });
 
   it("does nothing when the confirm is dismissed", async () => {

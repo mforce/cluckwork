@@ -395,7 +395,13 @@ export function SalesPage() {
       <div className="page-head">
         <h2>Sales</h2>
         {customers.length > 0 && (
-          <button type="button" onClick={() => { setError(null); setCreatingOrder(true); }}>
+          // Re-seeded on open, not only at mount: a tab left open across
+          // farm-midnight would otherwise offer yesterday as the order date
+          // while the picker's own ceiling had already moved on (codex review
+          // of #123).
+          <button type="button" onClick={() => {
+            setError(null); setOrderDate(today); setCreatingOrder(true);
+          }}>
             <Plus size={16} aria-hidden /> New order
           </button>
         )}
@@ -569,7 +575,9 @@ export function SalesPage() {
               </p>
               {payments.outstandingMinorUnits > 0 && (
                 <div className="panel-actions">
-                  <button type="button" onClick={() => { setError(null); setPaying(true); }}>
+                  <button type="button" onClick={() => {
+                    setError(null); setPayDate(today); setPaying(true);
+                  }}>
                     Record payment
                   </button>
                 </div>

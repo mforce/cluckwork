@@ -4,6 +4,7 @@ import { render } from "@testing-library/react";
 import { AuthProvider } from "../auth/AuthContext";
 import { FarmContext } from "../farm/FarmContext";
 import type { Account } from "../api/cluckwork";
+import { farmState } from "./fixtures";
 import { setStoredToken } from "./jwt";
 import { clearAccessToken } from "../auth/tokenStore";
 
@@ -27,7 +28,7 @@ export function renderWithProviders(
   if (opts.token) setStoredToken(opts.token);
   else clearAccessToken();
 
-  const farmValue = { farm: opts.farm ?? null, refresh: async () => {} };
+  const farmValue = farmState({ farm: opts.farm ?? null });
 
   return render(
     <MemoryRouter initialEntries={[opts.route ?? "/"]}>

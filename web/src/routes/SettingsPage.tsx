@@ -1,15 +1,16 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import { Trash2, Upload } from "lucide-react";
 import {
   LOGO_ACCEPT, LOGO_MAX_BYTES, getFarmSettings, removeFarmLogo, updateFarmSettings,
   uploadFarmLogo,
 } from "../api/cluckwork";
-import type { FarmSettings } from "../api/cluckwork";
+import type { FarmSettings, UpdateFarmSettings } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { useConfirm } from "../components/useConfirm";
 import { useFarm } from "../farm/useFarm";
 import { useLogoObjectUrl } from "../farm/useLogoObjectUrl";
+import { isKnownTimeZone } from "../lib/dates";
 import { newId } from "../lib/ids";
 
 // Mirrors the server's validators (UpdateFarmSettingsValidator + Account) so a
@@ -28,7 +29,19 @@ const WEEKDAYS = [
 // browser can also FORMAT with — the same table todayIso() reads. The server
 // keeps its own (newer or older) list and remains the authority; a zone typed
 // by hand is still accepted if it validates there.
-const TIME_ZONES = Intl.supportedValuesOf("timeZone");
+//
+// Guarded because this runs at MODULE LOAD, and App.tsx imports this screen
+// statically: on a browser without Intl.supportedValuesOf the throw would
+// happen before React mounts, outside every ErrorBoundary, and white-screen the
+// whole app rather than degrade one Setup screen (review of #123). An empty
+// list leaves the field a plain text input, which the server validates anyway.
+const TIME_ZONES: string[] = (() => {
+  try {
+    return Intl.supportedValuesOf("timeZone");
+  } catch {
+    return [];
+  }
+})();
 
 function errText(err: unknown): string {
   if (err instanceof ApiError) return err.message;
@@ -39,8 +52,28 @@ function errText(err: unknown): string {
 // rather than "".
 const orNull = (value: string): string | null => (value.trim() === "" ? null : value.trim());
 
+// An idempotency key and the exact payload it was minted for.
+//
+// A key identifies ONE attempt at ONE write. Rotating only on success is right
+// for retrying the same thing after an ambiguous failure — the server replays
+// instead of writing twice — but wrong the moment the payload changes: upload
+// logo-v1, lose the response after the server committed it, pick logo-v2
+// instead, and the same key replays v1's stored 200. The upload reports success
+// and v1 stays (review of #123). Binding the key to the payload keeps the
+// retry-dedupe and drops the wrong replay.
+interface Attempt {
+  key: string;
+  payload: string;
+}
+
+function keyFor(attempt: Attempt | null, payload: string): Attempt {
+  return attempt !== null && attempt.payload === payload
+    ? attempt
+    : { key: newId(), payload };
+}
+
 // #123 — farm settings (admin). The §4.5 localization set plus the logo, with
-// §4.6's currency lock surfaced as a disabled field instead of a 422 the user
+// §4.6's currency lock surfaced as a locked field instead of a 422 the user
 // only meets after typing.
 export function SettingsPage() {
   const { refresh } = useFarm();
@@ -61,18 +94,33 @@ export function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
-  const saveKey = useRef<string>(newId());
+  // Set when a save landed but the follow-up read did not: the screen still
+  // holds the OLD version, so another save from here would 409 and blame
+  // someone else for this user's own write.
+  const [stale, setStale] = useState(false);
+  const saveAttempt = useRef<Attempt | null>(null);
 
   const [logoBusy, setLogoBusy] = useState(false);
   const [logoError, setLogoError] = useState<string | null>(null);
-  const logoKey = useRef<string>(newId());
+  const [logoMessage, setLogoMessage] = useState<string | null>(null);
+  const logoAttempt = useRef<Attempt | null>(null);
+  const uploadInput = useRef<HTMLInputElement>(null);
+
+  const currencyNoteId = useId();
+  const timeZoneNoteId = useId();
+  const logoRulesId = useId();
 
   const logoHash = loaded?.settings.logoContentHash ?? null;
   const hasLogo = logoHash !== null;
-  const logoUrl = useLogoObjectUrl(logoHash);
+  const logo = useLogoObjectUrl(logoHash);
 
-  // Re-reads after every write: the save bumps the farm's version, and both
-  // logo writes change the content hash the preview keys off.
+  const timeZoneUnknown = timeZoneId.trim() !== "" && !isKnownTimeZone(timeZoneId.trim());
+
+  // Seeds every field from the server. Called on mount, and after a save (the
+  // version moved, and the currency may have locked). NOT after a logo write:
+  // that would overwrite whatever the user had typed but not yet saved, which
+  // is exactly what the empty dependency list below exists to prevent (review
+  // of #123).
   async function load() {
     const next = await getFarmSettings();
     setLoaded(next);
@@ -87,6 +135,17 @@ export function SettingsPage() {
     setTimeFormat(s.timeFormatOverride ?? "");
   }
 
+  // A logo write changes exactly one thing in this payload — the content hash —
+  // and the upload response carries it. No re-read, so nothing the user has
+  // typed is disturbed and there is no second in-flight GET to land out of
+  // order with the save's.
+  function applyLogoHash(contentHash: string | null) {
+    setLoaded((prev) => prev === null ? prev : {
+      ...prev,
+      settings: { ...prev.settings, logoContentHash: contentHash },
+    });
+  }
+
   // Once, on mount. `load` is re-created every render but must not re-run on
   // one: it overwrites the fields, so a reload mid-edit would discard whatever
   // the user had typed.
@@ -96,35 +155,49 @@ export function SettingsPage() {
 
   async function onSave(e: FormEvent) {
     e.preventDefault();
-    if (saving || loaded === null) return;
+    if (saving || stale || loaded === null) return;
     setSaving(true);
     setSaveError(null);
     setSaved(false);
+
+    const body: UpdateFarmSettings = {
+      name: name.trim(),
+      timeZoneId: timeZoneId.trim(),
+      locale: locale.trim(),
+      currencyCode: currencyCode.trim().toUpperCase(),
+      unitSystem,
+      firstDayOfWeek: orNull(firstDayOfWeek),
+      dateFormatOverride: orNull(dateFormat),
+      timeFormatOverride: orNull(timeFormat),
+      version: loaded.settings.version,
+    };
+    const attempt = keyFor(saveAttempt.current, JSON.stringify(body));
+    saveAttempt.current = attempt;
+
     try {
-      await updateFarmSettings({
-        name: name.trim(),
-        timeZoneId: timeZoneId.trim(),
-        locale: locale.trim(),
-        currencyCode: currencyCode.trim().toUpperCase(),
-        unitSystem,
-        firstDayOfWeek: orNull(firstDayOfWeek),
-        dateFormatOverride: orNull(dateFormat),
-        timeFormatOverride: orNull(timeFormat),
-        version: loaded.settings.version,
-      }, saveKey.current);
-      // A fresh key: reusing it would make the NEXT save replay this response
-      // instead of writing.
-      saveKey.current = newId();
-      await load();
-      // The chrome and every date input read the farm from context — this is
-      // what makes the change show without a reload (§4.5).
-      await refresh();
-      setSaved(true);
+      await updateFarmSettings(body, attempt.key);
     } catch (err) {
       setSaveError(
         err instanceof ApiError && err.status === 409
           ? "Someone else changed these settings while this screen was open. Reload and try again."
           : errText(err));
+      setSaving(false);
+      return;
+    }
+
+    // Written. Anything that fails from here is a REFRESH failure, and saying
+    // "could not save" about a save that landed is how a user ends up making
+    // the same change twice.
+    saveAttempt.current = null;
+    setSaved(true);
+    try {
+      await load();
+      // The chrome and every date input read the farm from context — this is
+      // what makes the change show without a reload (§4.5).
+      await refresh();
+    } catch {
+      setStale(true);
+      setSaveError("Saved. This screen could not read the settings back — reload the page before saving again.");
     } finally {
       setSaving(false);
     }
@@ -138,6 +211,7 @@ export function SettingsPage() {
     if (file === undefined) return;
 
     setLogoError(null);
+    setLogoMessage(null);
     // The server refuses this too (413). Checking here spares a megabyte on
     // the wire and gives the size back in the message.
     if (file.size > LOGO_MAX_BYTES) {
@@ -145,11 +219,17 @@ export function SettingsPage() {
       return;
     }
 
+    // Identity, not contents: two different files are two different writes and
+    // must not share a key.
+    const attempt = keyFor(logoAttempt.current, `${file.name}:${file.size}:${file.lastModified}`);
+    logoAttempt.current = attempt;
+
     setLogoBusy(true);
     try {
-      await uploadFarmLogo(file, logoKey.current);
-      logoKey.current = newId();
-      await load();
+      const stored = await uploadFarmLogo(file, attempt.key);
+      logoAttempt.current = null;
+      applyLogoHash(stored.contentHash);
+      setLogoMessage("Logo updated.");
       await refresh();
     } catch (err) {
       setLogoError(errText(err));
@@ -168,11 +248,22 @@ export function SettingsPage() {
     if (!ok) return;
 
     setLogoError(null);
+    setLogoMessage(null);
+    const attempt = keyFor(logoAttempt.current, "remove");
+    logoAttempt.current = attempt;
+
     setLogoBusy(true);
     try {
-      await removeFarmLogo(logoKey.current);
-      logoKey.current = newId();
-      await load();
+      await removeFarmLogo(attempt.key);
+      logoAttempt.current = null;
+      applyLogoHash(null);
+      setLogoMessage("Logo removed.");
+      // The Remove button that was just clicked unmounts with the logo, and
+      // Dialog only restores focus to a trigger still in the document — so
+      // without this the keyboard lands back on <body>, at the top of the page.
+      // The file input is visually hidden but focusable, and its label draws
+      // the ring (styles.css .logo-file:focus-within).
+      uploadInput.current?.focus();
       await refresh();
     } catch (err) {
       setLogoError(errText(err));
@@ -199,16 +290,23 @@ export function SettingsPage() {
     <section>
       <h2>Farm settings</h2>
       <p className="muted">
-        How this farm names itself, and the locale, timezone and currency every
-        date and amount in the app is shown in.
+        How this farm names itself, and the locale, timezone and currency it
+        records and reads its work in.
       </p>
 
       <h3>Logo</h3>
       <div className="logo-panel">
-        {logoUrl === null ? (
-          <p className="muted logo-empty">No logo set — the sidebar shows the Cluckwork mark.</p>
+        {logo.url !== null ? (
+          <img className="logo-preview" src={logo.url} alt="Current farm logo" />
         ) : (
-          <img className="logo-preview" src={logoUrl} alt="Current farm logo" />
+          // Three different reasons there is no image on screen, and only one
+          // of them is "no logo set" — saying that while a Remove button sits
+          // beside it is a contradiction the reader cannot resolve.
+          <p className="muted logo-empty">
+            {logo.loading ? "Loading the logo…"
+              : logo.failed ? "The logo could not be loaded."
+                : "No logo set — the sidebar shows the Cluckwork mark."}
+          </p>
         )}
         <div className="logo-actions">
           {/* A real labelled file input rather than a button driving a hidden
@@ -216,7 +314,8 @@ export function SettingsPage() {
               keeps it reachable by keyboard and by name. */}
           <label className="logo-file">
             <Upload size={16} aria-hidden /> {hasLogo ? "Replace the logo" : "Upload a logo"}
-            <input type="file" accept={LOGO_ACCEPT} disabled={logoBusy}
+            <input ref={uploadInput} type="file" accept={LOGO_ACCEPT} disabled={logoBusy}
+              aria-describedby={logoRulesId}
               onChange={(e) => void onPickLogo(e)} />
           </label>
           {hasLogo && (
@@ -227,10 +326,15 @@ export function SettingsPage() {
           )}
         </div>
       </div>
-      <p className="muted">
-        PNG, JPEG or WebP, up to 1 MB and 4096&nbsp;px a side. The image is
-        stored re-written: camera and location metadata are stripped, and
-        animation is not kept.
+      <p className="muted" id={logoRulesId}>
+        PNG, JPEG or WebP, up to 1 MB and 4096&nbsp;px a side. Animated images
+        are not accepted. The image is stored re-written, with camera and
+        location metadata removed.
+      </p>
+      {/* Both the upload and the removal are silent otherwise — the only signal
+          is an image appearing, which a screen reader does not see. */}
+      <p className="success" role="status">
+        {logoBusy ? "Working…" : logoMessage ?? ""}
       </p>
       {logoError !== null && <p className="error" role="alert">{logoError}</p>}
 
@@ -243,11 +347,26 @@ export function SettingsPage() {
 
         <label>Timezone
           <input list="tz-options" value={timeZoneId} required maxLength={MAX_TIMEZONE}
+            aria-describedby={timeZoneUnknown ? timeZoneNoteId : undefined}
             onChange={(e) => setTimeZoneId(e.target.value)} />
           <datalist id="tz-options">
             {TIME_ZONES.map((tz) => <option key={tz} value={tz} />)}
           </datalist>
         </label>
+        {/* Outside the <label>, deliberately: a note nested in one becomes part
+            of the field's accessible NAME, so the control would announce itself
+            as "Currency Fixed at USD this farm has already…". aria-describedby
+            is how a note reaches a control without renaming it. */}
+        {timeZoneUnknown && (
+          <p className="warn field-note" id={timeZoneNoteId}>
+            {/* The server validates against ITS tzdata, which can be newer than
+                this browser's. A zone it accepts but the browser cannot format
+                saves fine and then quietly sends every date field back to the
+                device's day — the one thing this whole slice removes. */}
+            This browser does not know that timezone, so dates here would follow
+            the device instead of the farm. Pick one from the list.
+          </p>
+        )}
 
         <label>Locale
           <input value={locale} required maxLength={MAX_LOCALE} placeholder="en-US"
@@ -255,10 +374,25 @@ export function SettingsPage() {
         </label>
 
         <label>Currency
+          {/* readOnly, not disabled: a disabled input leaves the tab order, so
+              a keyboard user never reaches the field OR the reason it is
+              locked. Read-only keeps both, and aria-describedby carries the
+              reason with the control. */}
           <input value={currencyCode} required maxLength={3}
-            disabled={!loaded.canChangeCurrency}
+            readOnly={!loaded.canChangeCurrency}
+            aria-describedby={loaded.canChangeCurrency ? undefined : currencyNoteId}
             onChange={(e) => setCurrencyCode(e.target.value.toUpperCase())} />
         </label>
+        {/* §4.6: the rule, at the field it locks, rather than as a 422 after
+            the user has typed a new code. */}
+        {!loaded.canChangeCurrency && (
+          <p className="warn field-note" id={currencyNoteId}>
+            The currency is fixed at {loaded.settings.currencyCode}: this farm
+            has already recorded amounts in it. Recorded money is never
+            re-priced, so changing this would leave every stored total meaning
+            something else.
+          </p>
+        )}
 
         <label>Unit system
           <select value={unitSystem} onChange={(e) => setUnitSystem(e.target.value)}>
@@ -284,24 +418,26 @@ export function SettingsPage() {
         </label>
 
         <div className="actions">
-          <button type="submit" disabled={saving}>
+          <button type="submit" disabled={saving || stale}>
             {saving ? "Saving…" : "Save settings"}
           </button>
         </div>
       </form>
 
-      {/* §4.6: the rule, where the field it disables is, rather than as a 422
-          after the user has typed a new code. */}
-      {!loaded.canChangeCurrency && (
-        <p className="warn">
-          The currency is fixed at {loaded.settings.currencyCode}: this farm has
-          already recorded amounts in it. Money that has been recorded is never
-          re-denominated, so changing it would leave every stored total meaning
-          something else.
-        </p>
-      )}
+      {/* What actually acts on a save today. The timezone reaches every date
+          field immediately (#123); the rest are stored on the farm and take
+          effect as the screens that would render through them adopt them (#45
+          carries the display formatting). Saying "everywhere, straight away"
+          would be a promise the app does not keep. */}
+      <p className="muted">
+        The timezone applies everywhere as soon as it is saved. Locale, unit
+        system and the format overrides are recorded against the farm and will
+        drive how amounts, dates and measurements are displayed once that
+        formatting lands.
+      </p>
+
       {saveError !== null && <p className="error" role="alert">{saveError}</p>}
-      {saved && <p className="success" role="status">Settings saved.</p>}
+      {saved && saveError === null && <p className="success" role="status">Settings saved.</p>}
 
       {confirmDialog}
     </section>

@@ -1765,3 +1765,46 @@ label.check {
   outline: 2px solid var(--aubergine);
   outline-offset: 2px;
 }
+
+/* The shell's "no farm loaded" strip — above the routed screen, so it is the
+   first thing read, and quiet enough not to compete with the screen itself. */
+.farm-warning {
+  margin: 0 0 1rem;
+  padding: 0.6rem 0.85rem;
+  border-radius: var(--r-card);
+  background: var(--tint-warn);
+  font-size: 0.9rem;
+}
+
+.farm-warning button.link {
+  font-size: 0.9rem;
+}
+
+/* The logo panel's live region stays mounted with nothing in it — a region
+   added to the DOM at the same moment as its text is not reliably announced —
+   so an empty one must cost no vertical space. */
+.success:empty {
+  margin: 0;
+}
+
+/* A locked field (the currency, once the farm has recorded an amount) is
+   read-only rather than disabled, so it keeps its place in the tab order and
+   carries its own explanation. It should still LOOK unavailable. */
+input:read-only {
+  background: var(--surface-2);
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+/* A note attached to a field by aria-describedby — the currency lock's reason,
+   the unknown-timezone warning. It sits beside the label rather than inside it
+   (a nested note joins the control's accessible NAME) and takes the full row so
+   it reads as belonging to the field above it, not to the one next along. */
+.form-grid .field-note {
+  flex-basis: 100%;
+  margin: -0.5rem 0 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  line-height: 1.4;
+  max-width: 44rem;
+}

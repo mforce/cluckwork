@@ -1,6 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { screen, fireEvent, within } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { renderWithProviders } from "../test/renderWithProviders";
+import { AuthProvider } from "../auth/AuthContext";
+import { FarmContext } from "../farm/FarmContext";
+import { account, farmState } from "../test/fixtures";
 import { AppLayout } from "./AppLayout";
 
 // The theme toggle writes data-theme on the document root — reset it between
@@ -36,6 +40,45 @@ describe("AppLayout sidebar", () => {
     renderWithProviders(<AppLayout />, { token: { sub: "u1", role: "Admin" } });
     expect(screen.getByText("Cluckwork")).toBeInTheDocument();
     expect(screen.queryByRole("presentation")).not.toBeInTheDocument();
+  });
+
+  it("brands the shell with the farm's own name once it is known", () => {
+    renderWithProviders(<AppLayout />, {
+      token: { sub: "u1", role: "Admin" },
+      farm: account({ name: "Hen House" }),
+    });
+    expect(screen.getByText("Hen House")).toBeInTheDocument();
+    expect(screen.queryByText("Cluckwork")).not.toBeInTheDocument();
+  });
+
+  it("says so — and offers the read again — when the farm could not be loaded", async () => {
+    // Silence here is the failure: without a banner the pickers follow the
+    // DEVICE's day and the screen looks perfectly healthy (codex review of
+    // #123).
+    let retried = 0;
+    render(
+      <MemoryRouter>
+        <AuthProvider>
+          <FarmContext.Provider value={farmState({
+            farm: null, loadFailed: true, refresh: async () => { retried += 1; },
+          })}>
+            <AppLayout />
+          </FarmContext.Provider>
+        </AuthProvider>
+      </MemoryRouter>);
+
+    const banner = screen.getByRole("alert");
+    expect(banner).toHaveTextContent(/dates follow this device rather than the farm/);
+    fireEvent.click(within(banner).getByRole("button", { name: "Try again" }));
+    expect(retried).toBe(1);
+  });
+
+  it("says nothing about the farm while one is loaded", () => {
+    renderWithProviders(<AppLayout />, {
+      token: { sub: "u1", role: "Admin" },
+      farm: account({ name: "Hen House" }),
+    });
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("toggles light ↔ night, flipping the control and the root data-theme", () => {

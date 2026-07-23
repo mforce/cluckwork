@@ -54,7 +54,14 @@ public sealed class SecurityHeadersTests(CluckworkWebApplicationFactory factory)
 
         // #123: the farm logo is auth-gated, so the SPA fetches the bytes and
         // renders them from an object URL — which img-src has to admit.
-        Assert.Contains("img-src 'self' blob:", csp);
+        //
+        // The COMPLETE token set, not a prefix: `Contains` alone would pass a
+        // policy that had grown to `img-src 'self' blob: https:` or picked up a
+        // named remote origin (codex review of #123).
+        var imgSrc = csp
+            .Split(';', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+            .Single(d => d.StartsWith("img-src ", StringComparison.Ordinal));
+        Assert.Equal(new[] { "img-src", "'self'", "blob:" }, imgSrc.Split(' '));
 
         // The concession is exactly one scheme on exactly one directive: one
         // occurrence in the whole policy, and it is the one asserted above. So

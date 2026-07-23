@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { todayIso, ageWeeks, daysBefore } from "./dates";
+import { todayIso, ageWeeks, daysBefore, isKnownTimeZone } from "./dates";
 
 describe("todayIso", () => {
   afterEach(() => vi.useRealTimers());
@@ -46,16 +46,16 @@ describe("todayIso in a farm timezone (#123)", () => {
     expect(todayIso("UTC")).toBe("2026-07-15");
   });
 
-  it("disagrees with browser-local when the two are on different days", () => {
-    // The guarantee stated from the inside: a farm nine hours ahead of the
-    // runner is on tomorrow. Comparing against todayIso() with no argument
-    // fails if the timezone argument is ever quietly ignored, whatever zone
-    // the CI box runs in — unless the runner is itself Tokyo, which the
-    // explicit UTC comparison above already pins.
+  it("reads the far side of the date line", () => {
+    // UTC+14, the earliest zone there is: at this instant it is already the
+    // 16th there while UTC is on the 15th. Paired with the UTC assertion above,
+    // one clock produces two different farm days — which no implementation
+    // that ignores its timezone argument can do, on any runner.
     vi.useFakeTimers();
     vi.setSystemTime(ACROSS_MIDNIGHT);
-    const farm = todayIso("Pacific/Kiritimati"); // UTC+14 — always ahead
+    const farm = todayIso("Pacific/Kiritimati");
     expect(farm).toBe("2026-07-16");
+    expect(todayIso("UTC")).toBe("2026-07-15");
     expect(daysBefore(farm, 1)).toBe("2026-07-15");
   });
 
@@ -71,8 +71,19 @@ describe("todayIso in a farm timezone (#123)", () => {
     // every date field on the screen down with it.
     vi.useFakeTimers();
     vi.setSystemTime(new Date(2026, 2, 4, 12, 0, 0)); // local Mar 4, 2026
+    // The literal is what carries this: the second assertion would hold by
+    // construction if the timezone argument were ignored entirely.
     expect(todayIso("Mars/Olympus_Mons")).toBe("2026-03-04");
     expect(todayIso("Mars/Olympus_Mons")).toBe(todayIso());
+  });
+
+  it("reports whether this browser can format in a zone at all", () => {
+    // What the settings screen checks with, so an admin is told at the field
+    // rather than discovering it as every date silently following the device.
+    expect(isKnownTimeZone("Asia/Tokyo")).toBe(true);
+    expect(isKnownTimeZone("UTC")).toBe(true);
+    expect(isKnownTimeZone("Mars/Olympus_Mons")).toBe(false);
+    expect(isKnownTimeZone("")).toBe(false);
   });
 });
 
@@ -92,13 +103,20 @@ describe("daysBefore", () => {
     expect(daysBefore("2026-03-01", 1)).toBe("2026-02-28");
   });
 
-  it("is unaffected by a DST transition in the runner's own zone", () => {
-    // US DST springs forward on 2026-03-08. Arithmetic on a local Date lands an
-    // hour short across it, which near midnight is the wrong square; this shifts
-    // date parts through UTC, so the answer is the calendar's either way.
+  it("crosses a DST boundary as plain calendar days", () => {
+    // US DST springs forward on 2026-03-08 and falls back on 2026-11-01.
+    //
+    // Stated honestly, because the obvious framing does not hold: these cases
+    // would ALSO pass a naive `getTime() - days * 86400000` on a UTC runner,
+    // and nothing here pins TZ (agent review of #123). They pin the calendar
+    // answer across the two dates a timezone-sensitive implementation is most
+    // likely to get wrong, not the absence of a specific bug — the guarantee
+    // that this function never touches the runner's zone is structural, and is
+    // asserted where it can be: the farm-timezone cases above, which do
+    // discriminate on every runner.
     expect(daysBefore("2026-03-09", 1)).toBe("2026-03-08");
     expect(daysBefore("2026-03-09", 2)).toBe("2026-03-07");
-    expect(daysBefore("2026-11-02", 1)).toBe("2026-11-01"); // and back again
+    expect(daysBefore("2026-11-02", 1)).toBe("2026-11-01");
   });
 });
 

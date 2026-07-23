@@ -39,13 +39,28 @@ export function todayIso(timeZone?: string): string {
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 }
 
+// True when THIS browser can format in `timeZone`. The server's IANA table can
+// be newer than the browser's, so a zone it accepts on save may be one the SPA
+// cannot use — in which case todayIso() below falls back to browser-local and
+// every date field quietly stops following the farm. The settings screen checks
+// with this so the admin is told at the field instead (review of #123).
+export function isKnownTimeZone(timeZone: string): boolean {
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // N days before a farm-local calendar date (YYYY-MM-DD in, YYYY-MM-DD out).
 //
 // Arithmetic on the DATE PARTS through UTC, never on a local Date: a farm-local
-// day is a calendar square, not an instant, and subtracting 24-hour spans from
-// a local Date lands an hour early or late across a DST change — which near
-// midnight is the previous or next square (the bug codex found in #92's default
-// range, in its browser-local form).
+// day is a calendar square, not an instant. `new Date(y, m, d - n)` would work
+// too — it normalizes, and it is what ReportsPage used before this — but it
+// resolves through the RUNNER's zone, and this function's inputs and outputs
+// are the FARM's calendar. Going through UTC keeps the browser's own offset,
+// and any DST rule it carries, out of the arithmetic entirely.
 export function daysBefore(isoDate: string, days: number): string {
   const [year, month, day] = isoDate.split("-").map(Number);
   const shifted = new Date(Date.UTC(year, month - 1, day - days));

@@ -10,10 +10,15 @@ export function useFarm() {
 // initial value — goes through here, because since #35 the API judges "is this
 // in the future?" against the farm's day, not the browser's.
 //
-// Read on every render rather than frozen in state, so a screen that re-renders
-// after farm-midnight offers the new day. Nothing re-renders it on the clock
-// alone — a screen sitting idle across midnight still shows the old `max` until
-// something else moves.
+// Inside a provider the value comes from the provider, which keeps it current
+// as the farm's day rolls over, so a tab left open past farm-midnight starts
+// offering the new day instead of capping at yesterday. Outside one — screens
+// rendered on their own in tests — it is computed live, browser-local.
+//
+// A field that seeds its INITIAL value from this still holds whatever the day
+// was when it mounted; a dialog that can outlive a rollover re-seeds when it
+// opens (SalesPage).
 export function useFarmToday(): string {
-  return todayIso(useFarm().farm?.timeZoneId);
+  const { farm, today } = useFarm();
+  return today ?? todayIso(farm?.timeZoneId);
 }

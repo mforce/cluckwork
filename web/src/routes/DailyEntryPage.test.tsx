@@ -7,7 +7,7 @@ import {
 import type { Flock, EggGrade, DailyEntry } from "../api/cluckwork";
 import { todayIso } from "../lib/dates";
 import { FarmContext } from "../farm/FarmContext";
-import { account } from "../test/fixtures";
+import { account, farmState } from "../test/fixtures";
 
 // DailyEntry has no auth/router deps — mock only the API seam it loads from.
 vi.mock("../api/cluckwork", () => ({
@@ -560,7 +560,7 @@ describe("DailyEntryPage grading ceiling", () => {
 // farm) or hides a legitimate one (device behind).
 describe("DailyEntryPage farm-local date", () => {
   const farmed = (timeZoneId: string) => render(
-    <FarmContext.Provider value={{ farm: account({ timeZoneId }), refresh: async () => {} }}>
+    <FarmContext.Provider value={farmState({ farm: account({ timeZoneId }) })}>
       <DailyEntryPage />
     </FarmContext.Provider>);
 
