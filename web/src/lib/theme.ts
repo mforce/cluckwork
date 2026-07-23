@@ -1,6 +1,7 @@
-// Light / night theme, user-controllable and persisted (#52). An inline script
-// in index.html applies the saved choice before first paint; this module is the
-// runtime source of truth for the toggle. With no explicit choice the app
+// Light / night theme, user-controllable and persisted (#52). A same-origin
+// pre-paint script (public/theme-init.js, loaded from index.html) applies the
+// saved choice before first paint; this module is the runtime source of truth
+// for the toggle. With no explicit choice the app
 // follows the OS setting (CSS `prefers-color-scheme`), so `initialTheme` only
 // resolves a concrete value for the toggle's own state.
 export type Theme = "light" | "dark";

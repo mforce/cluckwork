@@ -16,6 +16,11 @@ services:
       # without a trusted proxy the limiter would key on traefik's IP and throttle
       # all users as one client.
       RateLimiting__TrustedProxies__0: ${TRUSTED_PROXY_CIDR:-172.16.0.0/12}
+      # #144: pin host filtering to the public hostname traefik routes, so a
+      # forged Host header is rejected (400). Loopback is always allowed, so the
+      # container healthcheck (Host: localhost) keeps working. HSTS + CSP + the
+      # other security headers are emitted automatically outside Development.
+      AllowedHosts: ${CLUCKWORK_HOST}
     depends_on:
       db:
         condition: service_healthy
