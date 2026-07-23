@@ -18,6 +18,7 @@ using Cluckwork.Api.Endpoints.Stock;
 using Cluckwork.Api.Endpoints.Users;
 using Cluckwork.Api.Middleware;
 using Cluckwork.Api.RateLimiting;
+using Cluckwork.Api.Security;
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Accounts;
 using Cluckwork.Application.Features.Customers;
@@ -75,6 +76,7 @@ using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.HostFiltering;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -151,11 +153,12 @@ var rateLimiting = builder.Configuration.GetSection(RateLimitingOptions.SectionN
 rateLimiting.Validate();
 var trustedProxies = rateLimiting.ParseTrustedProxies();
 
-// Only X-Forwarded-For (the client IP for the limiter). X-Forwarded-Proto,
-// HSTS and the rest of the reverse-proxy story are deliberately left to #144.
+// X-Forwarded-For (the client IP for the limiter) and X-Forwarded-Proto (the
+// real scheme, so HttpsRedirection/HSTS behave behind the proxy — #144). Both
+// are honoured only from the trusted proxy networks below.
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
-    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor;
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
     // Bound the trusted hop chain by network membership, not a fixed count.
     options.ForwardLimit = null;
     // Replace the framework defaults (which trust loopback) with exactly the
@@ -164,6 +167,31 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
     options.KnownProxies.Clear();
     foreach (var network in trustedProxies)
         options.KnownIPNetworks.Add(network);
+});
+
+// HSTS (#144) — emitted outside Development once the forwarded proto tells the
+// app the request is really HTTPS. A year, subdomains included.
+builder.Services.AddHsts(options =>
+{
+    options.MaxAge = TimeSpan.FromDays(365);
+    options.IncludeSubDomains = true;
+});
+
+// Host pinning (#144): the framework host-filtering middleware reads the
+// `AllowedHosts` config value; deployments set it to the public hostname so a
+// forged Host header is rejected (400). Loopback is force-added whenever a
+// specific host is pinned, so in-container health probes (Host: localhost) keep
+// working no matter what the operator configured. A "*" value disables pinning.
+builder.Services.PostConfigure<HostFilteringOptions>(options =>
+{
+    if (options.AllowedHosts.Contains("*")) return;
+    // Config binds AllowedHosts as a fixed-size array; replace it with a list
+    // that also admits loopback, rather than mutating the array in place.
+    var hosts = new List<string>(options.AllowedHosts);
+    foreach (var loopback in new[] { "localhost", "127.0.0.1", "[::1]" })
+        if (!hosts.Contains(loopback))
+            hosts.Add(loopback);
+    options.AllowedHosts = hosts;
 });
 
 builder.Services.AddRateLimiter(limiter =>
@@ -387,10 +415,19 @@ var app = builder.Build();
     await demoScope.ServiceProvider.GetRequiredService<DemoDataSeeder>().SeedAsync();
 }
 
-// Resolve the real client IP from a trusted proxy's X-Forwarded-For before any
-// middleware reads RemoteIpAddress (the rate limiter, below, is the first to
-// need it). Scoped to the IP only — #144 extends this for proto/HSTS.
+// Resolve the real client IP and scheme from a trusted proxy's forwarded
+// headers before anything reads RemoteIpAddress or Request.Scheme (the rate
+// limiter, HTTPS redirection and HSTS all depend on it) — #143/#144.
 app.UseForwardedHeaders();
+
+// Security response headers on every response (#144). Outermost after the
+// forwarded headers so it also covers static files and error responses.
+app.UseSecurityHeaders();
+
+// HSTS outside Development — only meaningful now the forwarded proto is trusted
+// so Request.IsHttps reflects the real client scheme.
+if (!app.Environment.IsDevelopment())
+    app.UseHsts();
 
 app.UseExceptionHandler(new ExceptionHandlerOptions
 {

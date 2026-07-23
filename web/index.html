@@ -8,13 +8,10 @@
     <meta name="theme-color" media="(prefers-color-scheme: light)" content="#4a154b" />
     <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#17121a" />
     <title>Cluckwork</title>
-    <script>
-      // Apply the saved theme before first paint so there is no light/dark flash.
-      try {
-        var t = localStorage.getItem("cluckwork.theme");
-        if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
-      } catch (e) {}
-    </script>
+    <!-- External (not inline) so the CSP can stay script-src 'self' with no hash
+         to maintain (#144). Render-blocking in <head>: runs before first paint,
+         same no-flash behaviour as the old inline script. -->
+    <script src="/theme-init.js"></script>
   </head>
   <body>
     <div id="root"></div>
