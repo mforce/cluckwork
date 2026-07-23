@@ -27,6 +27,7 @@
   --lavender: #f9f0ff;
   --hairline: #e6e6e6;
   --row-hover: #faf5fc;
+  --scroll-cue: rgba(29, 21, 33, 0.22); /* edge fade for horizontally-scrolling tables (#150) */
 
   /* Semantic */
   --error: #bd3a14; /* darkened so the small danger badge clears AA (4.5:1) */
@@ -99,6 +100,7 @@
   --lavender: #241c2a;
   --hairline: #3a2f40;
   --row-hover: #2b2231;
+  --scroll-cue: rgba(255, 255, 255, 0.16); /* edge cue for scrolling tables (#150) — a light glow, since a dark shadow vanishes on the dark surface */
   --error: #ff8666;
   --success: #4bbf97;
   --warn: #e0a44a;
@@ -140,6 +142,7 @@
     --lavender: #241c2a;
     --hairline: #3a2f40;
     --row-hover: #2b2231;
+    --scroll-cue: rgba(255, 255, 255, 0.16); /* edge cue for scrolling tables (#150) — light glow; dark shadow vanishes on the dark surface */
     --error: #ff8666;
     --success: #4bbf97;
     --warn: #e0a44a;
@@ -255,6 +258,55 @@ button.link:hover:not(:disabled) {
 /* An aubergine ring is invisible on the aubergine sidebar — use a light one. */
 .sidebar :focus-visible {
   outline-color: var(--on-aubergine);
+}
+
+/* Error-boundary fallback (#140). Reads like a page, in both themes: the
+   screen-scope version sits inside the content pane with the shell around it;
+   the app-scope version is the whole page, so it carries its own gutters. */
+.crash {
+  max-width: 32rem;
+  margin: 2.5rem auto;
+  padding: 0 1.15rem;
+  text-align: center;
+}
+
+.crash h2 {
+  margin: 0 0 0.5rem;
+}
+
+.crash-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.9rem;
+  margin: 1.4rem 0 1rem;
+}
+
+.crash-home {
+  font-weight: 600;
+}
+
+.crash-detail {
+  margin-top: 1rem;
+  text-align: left;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.crash-detail summary {
+  cursor: pointer;
+}
+
+.crash-detail pre {
+  margin: 0.6rem 0 0;
+  padding: 0.75rem;
+  background: var(--surface-2);
+  border-radius: var(--r-input);
+  font-size: 0.82rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-x: auto;
 }
 
 /* --------------------------------------------------------- Inputs & forms */
@@ -1458,6 +1510,25 @@ label.check {
     overflow-x: auto;
     white-space: nowrap;
     min-width: 0;
+    /* Scroll-shadow affordance (#150). Overlay scrollbars vanish at rest, so a
+       wide table gives no sign the last column is clipped. Two "cover" layers
+       (surface -> transparent) are pinned to the CONTENT (attachment: local):
+       they ride the row and mask the cue at whichever edge you have reached.
+       Two "cue" layers (--scroll-cue -> transparent) are pinned to the SCROLLER
+       (attachment: scroll): they sit at the element edges and show through
+       wherever content still overflows past them. Result: a right fade while
+       there is more right, a left fade once scrolled, neither at rest with no
+       overflow — theme-aware via the tokens, no JS, no per-table markup, so it
+       covers every data table at once. (Lea Verou's technique.) The cue layers
+       are LINEAR (not Verou's radial): a radial cue fades out toward the top and
+       bottom rows, so on a tall table the edge reads unevenly — a linear bar is
+       uniform down the whole edge. The cover's solid stop (40% of 2.25rem =
+       0.9rem) fully spans the 0.85rem cue, so nothing peeks at the rested edge. */
+    background:
+      linear-gradient(to right, var(--surface) 40%, transparent) 0 0 / 2.25rem 100% no-repeat local,
+      linear-gradient(to left, var(--surface) 40%, transparent) 100% 0 / 2.25rem 100% no-repeat local,
+      linear-gradient(to right, var(--scroll-cue), transparent) 0 0 / 0.85rem 100% no-repeat scroll,
+      linear-gradient(to left, var(--scroll-cue), transparent) 100% 0 / 0.85rem 100% no-repeat scroll;
   }
 
   .help table.data {

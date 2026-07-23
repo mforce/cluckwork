@@ -98,6 +98,14 @@ export function HelpPage() {
           your role — a worker gets Daily entry, someone in sales gets Sales.
           Everything else is one tap away under <strong>More</strong>.
         </li>
+        <li>
+          If a screen ever shows <strong>"Something went wrong"</strong>, that is
+          the app catching an error instead of leaving you on a blank page.
+          Anything you had already saved is safe (anything you were still typing
+          may need to be entered again) — tap <strong>Reload</strong>, or{" "}
+          <strong>Back to the dashboard</strong> and try again. If it keeps
+          happening, open "Error details" and send a screenshot.
+        </li>
       </ul>
 
       <h3 id="signing-in">Signing in</h3>
@@ -175,9 +183,10 @@ export function HelpPage() {
         <li>
           Drill-downs work the same way. Open a flock&apos;s{" "}
           <strong>birds</strong> ledger to record a cull, an inventory item to
-          record a purchase, feed usage, or a stock correction, or an order to{" "}
-          <strong>record a payment</strong> — the ledger stays where it is and
-          the form comes to you.
+          record a purchase, feed usage, or a stock correction, an order to{" "}
+          <strong>record a payment</strong>, or a worker&apos;s{" "}
+          <strong>flocks</strong> to manage their access — the ledger stays
+          where it is and the form comes to you.
         </li>
         <li>
           <strong>Cancel</strong>, Escape, or a click outside closes the popup
@@ -612,6 +621,8 @@ export function HelpPage() {
             <td>Screens live in the left sidebar on a computer; on a phone the four you use most are tabs across the bottom, the rest under More.</td></tr>
           <tr><th scope="row">Too many sign-in attempts</th>
             <td>Sign-in is rate limited to slow password guessing: too many attempts from one place in a few minutes are refused with this message until a short cool-off passes. It never affects an already signed-in session.</td></tr>
+          <tr><th scope="row">&quot;Something went wrong&quot; screen</th>
+            <td>What a screen shows when it hits an error, instead of going blank. Saved data is safe — anything you were still typing may need re-entering; tap Reload or Back to the dashboard. &quot;Error details&quot; holds the message for a screenshot.</td></tr>
           <tr><th scope="row">Daily entry</th>
             <td>One flock's day: eggs by grade, losses, deaths. Draft until submitted.</td></tr>
           <tr><th scope="row">Egg lot</th>
