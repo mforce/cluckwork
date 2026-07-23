@@ -114,6 +114,35 @@ describe("useLogoObjectUrl", () => {
     expect(revoked).toEqual([]);
   });
 
+  it("ignores a failure that belongs to a hash it has moved on from", async () => {
+    // The observable form of the cancellation guard. Unmounting proves nothing
+    // — a setState on an unmounted component is a silent no-op in React 19, so
+    // the old test passed with the guard deleted (round 2: codex + pi). Here
+    // the component is still mounted and mid-flight on a SECOND hash, so a
+    // leaked `failed` from the first would be visible.
+    let rejectFirst: ((reason: Error) => void) | undefined;
+    mockGetFarmLogo.mockReturnValueOnce(new Promise((_, r) => { rejectFirst = r; }));
+    const { rerender } = render(<Status hash="abc" />);
+
+    mockGetFarmLogo.mockReturnValueOnce(new Promise(() => {}));
+    rerender(<Status hash="def" />);
+
+    await act(async () => { rejectFirst!(new Error("500")); });
+
+    // Still loading "def" — not failed on "abc"'s account.
+    expect(screen.getByTestId("status")).toHaveTextContent("loading");
+  });
+
+  it("says it is loading from the very first render, not one commit later", () => {
+    // No await: the assertion is about the SYNCHRONOUS first render. A
+    // `loading` flag set inside the effect is false here, and a caller keyed on
+    // it renders "no logo" for a farm that has one — which is both a visible
+    // contradiction and, in the settings test, an intermittent failure.
+    mockGetFarmLogo.mockReturnValue(new Promise(() => {}));
+    render(<Status hash="abc" />);
+    expect(screen.getByTestId("status")).toHaveTextContent("loading");
+  });
+
   it("touches no state when the FAILURE arrives after unmount", async () => {
     let reject: ((reason: Error) => void) | undefined;
     mockGetFarmLogo.mockReturnValue(new Promise((_, r) => { reject = r; }));

@@ -26,36 +26,38 @@ export interface FarmLogoImage {
 // does. Passing null (no logo set) skips the request entirely.
 export function useLogoObjectUrl(logoHash: string | null): FarmLogoImage {
   const [url, setUrl] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [failed, setFailed] = useState(false);
+  // The hash whose request has finished, whichever way it went. Compared
+  // against the CURRENT hash to derive `loading` — a `loading` boolean set
+  // inside the effect is false for the commit in which the hash first becomes
+  // non-null, so a farm that has a logo rendered as one that has none for a
+  // frame, beside its own Remove button (round 2: codex, and two agents, one
+  // of which reproduced it as an intermittent test failure).
+  const [settledHash, setSettledHash] = useState<string | null>(null);
+  const [failedHash, setFailedHash] = useState<string | null>(null);
 
   useEffect(() => {
     if (logoHash === null) {
       setUrl(null);
-      setLoading(false);
-      setFailed(false);
       return;
     }
 
     let objectUrl: string | null = null;
     let cancelled = false;
-    setLoading(true);
-    setFailed(false);
 
     getFarmLogo()
       .then(({ blob }) => {
         if (cancelled) return;
         objectUrl = URL.createObjectURL(blob);
         setUrl(objectUrl);
-        setLoading(false);
+        setSettledHash(logoHash);
       })
       .catch(() => {
         if (cancelled) return;
         // Reported through `failed` rather than thrown: callers show their own
         // fallback, and a logo that will not load is not worth taking a screen
         // down over.
-        setFailed(true);
-        setLoading(false);
+        setFailedHash(logoHash);
+        setSettledHash(logoHash);
       });
 
     return () => {
@@ -67,5 +69,11 @@ export function useLogoObjectUrl(logoHash: string | null): FarmLogoImage {
     };
   }, [logoHash]);
 
-  return { url, loading, failed };
+  return {
+    url,
+    // Derived, so it is true from the very first render on which there is a
+    // logo to fetch — not one commit later.
+    loading: logoHash !== null && settledHash !== logoHash,
+    failed: logoHash !== null && failedHash === logoHash,
+  };
 }

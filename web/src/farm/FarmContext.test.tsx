@@ -1,4 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { useState } from "react";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { FarmProvider } from "./FarmContext";
@@ -32,6 +33,11 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.useRealTimers();
 });
+
+// Restored here as well as in each body: a failing assertion between
+// useFakeTimers and useRealTimers would otherwise leak fake timers into
+// whatever ran next (agent review of #123).
+afterEach(() => vi.useRealTimers());
 
 describe("FarmProvider", () => {
   it("holds the shell until /account settles, then supplies the farm", async () => {
@@ -130,6 +136,31 @@ describe("useFarmToday", () => {
     expect(screen.getByTestId("today")).toHaveTextContent("2026-07-15");
     expect(screen.getByTestId("name")).toHaveTextContent("no farm");
     vi.useRealTimers();
+  });
+
+  // The shell holds rendering until /account settles precisely so a screen can
+  // seed a date field at mount and have it be right. That guarantee lives or
+  // dies on the value being correct in the commit the children MOUNT in, which
+  // is not what a probe reading it live on every render can see.
+  it.each([
+    { zone: "Pacific/Kiritimati", day: "2026-07-16" }, // UTC+14 — ahead of every runner
+    { zone: "Pacific/Niue", day: "2026-07-15" },       // UTC-11 — behind every runner
+  ])("hands $zone's day to a screen that captures it AT MOUNT", async ({ zone, day }) => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date("2026-07-15T23:30:00Z"));
+    mockGetAccount.mockResolvedValue(account({ timeZoneId: zone }));
+
+    // Exactly what Dashboard and every capture screen do: freeze the day at
+    // mount. No runner sits in both zones, so one of these two cases catches a
+    // value that came from the device rather than the farm, whatever machine
+    // this runs on.
+    function SeedsAtMount() {
+      const [seeded] = useState(useFarmToday());
+      return <p data-testid="seeded">{seeded}</p>;
+    }
+
+    render(<FarmProvider><SeedsAtMount /></FarmProvider>);
+    expect(await screen.findByTestId("seeded")).toHaveTextContent(day);
   });
 
   it("does not blow up when the default refresh is called", async () => {

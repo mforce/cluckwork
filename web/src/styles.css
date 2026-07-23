@@ -1789,8 +1789,13 @@ label.check {
 
 /* A locked field (the currency, once the farm has recorded an amount) is
    read-only rather than disabled, so it keeps its place in the tab order and
-   carries its own explanation. It should still LOOK unavailable. */
-input:read-only {
+   carries its own explanation. It should still LOOK unavailable.
+
+   A class, NOT `input:read-only`: that pseudo-class matches any input the
+   readonly attribute does not APPLY to — every checkbox, radio and file input
+   in the app — so the blanket rule painted "not-allowed" on live, clickable
+   controls across Grades, Flocks, Water and Products (round 2: codex + agent). */
+input.locked {
   background: var(--surface-2);
   color: var(--muted);
   cursor: not-allowed;

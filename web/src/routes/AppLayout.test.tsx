@@ -60,7 +60,7 @@ describe("AppLayout sidebar", () => {
       <MemoryRouter>
         <AuthProvider>
           <FarmContext.Provider value={farmState({
-            farm: null, loadFailed: true, refresh: async () => { retried += 1; },
+            farm: null, loadFailed: true, refresh: async () => { retried += 1; return true; },
           })}>
             <AppLayout />
           </FarmContext.Provider>
@@ -71,6 +71,27 @@ describe("AppLayout sidebar", () => {
     expect(banner).toHaveTextContent(/dates follow this device rather than the farm/);
     fireEvent.click(within(banner).getByRole("button", { name: "Try again" }));
     expect(retried).toBe(1);
+  });
+
+  it("says the farm may be out of date when a LATER read failed", async () => {
+    // The interesting half: a farm is still held (the provider keeps the last
+    // good one on purpose), so a banner keyed on `farm === null` stays silent
+    // while the timezone on screen is the one a save was meant to replace
+    // (round 2: codex + pi).
+    render(
+      <MemoryRouter>
+        <AuthProvider>
+          <FarmContext.Provider value={farmState({
+            farm: account({ name: "Hen House" }), loadFailed: true,
+          })}>
+            <AppLayout />
+          </FarmContext.Provider>
+        </AuthProvider>
+      </MemoryRouter>);
+
+    expect(screen.getByRole("alert")).toHaveTextContent(/may be out of date/);
+    // ...and not the never-loaded wording, which would be wrong here.
+    expect(screen.queryByText(/dates follow this device/)).not.toBeInTheDocument();
   });
 
   it("says nothing about the farm while one is loaded", () => {

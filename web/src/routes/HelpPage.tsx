@@ -557,11 +557,13 @@ export function HelpPage() {
         </li>
         <li>
           The <strong>timezone</strong> is the farm&apos;s day. Every field that
-          records work — daily entry, flocks, water, feed, expenses, sales —
-          opens on it and refuses to go past it, whatever day the phone or
-          laptop in your hand is on, so a device travelling ahead of the farm
-          can no longer offer a date the save then refuses. The date ranges you
-          filter History and Water by are yours to set and are not capped.
+          records <em>when something happened</em> — daily entry, flocks, water,
+          feed usage and purchases, expenses, orders and payments — opens on it
+          and refuses to go past it, whatever day the phone or laptop in your
+          hand is on, so a device travelling ahead of the farm can no longer
+          offer a date the save then refuses. Dates that are meant to be in the
+          future are not capped: a feed batch&apos;s <strong>expiry</strong>, and
+          the date ranges you filter History and Water by.
         </li>
         <li>
           The <strong>currency</strong> locks the moment the farm records its
@@ -683,7 +685,7 @@ export function HelpPage() {
           <tr><th scope="row">Navigation</th>
             <td>Screens live in the left sidebar on a computer; on a phone the four you use most are tabs across the bottom, the rest under More.</td></tr>
           <tr><th scope="row">Operational day</th>
-            <td>Dates mean your farm&apos;s calendar day, worked out from the farm&apos;s own timezone rather than a clock somewhere else. It is the same &quot;today&quot; everywhere: what counts as a future date when you record work, when eggs leave a withdrawal period, which eggs a sale can take, the day a flock is depleted or archived on, and the range reports open on. Every field that RECORDS work opens on it and will not go past it, whatever day the device in your hand is on; the History and Water date filters are yours to set and are not capped.</td></tr>
+            <td>Dates mean your farm&apos;s calendar day, worked out from the farm&apos;s own timezone rather than a clock somewhere else. It is the same &quot;today&quot; everywhere: what counts as a future date when you record work, when eggs leave a withdrawal period, which eggs a sale can take, the day a flock is depleted or archived on, and the range reports open on. Every field that records WHEN SOMETHING HAPPENED opens on it and will not go past it, whatever day the device in your hand is on. Dates meant to fall in the future are not capped — a feed batch&apos;s expiry, and the History and Water filters.</td></tr>
           <tr><th scope="row">Too many sign-in attempts</th>
             <td>Sign-in is rate limited to slow password guessing: too many attempts from one place in a few minutes are refused with this message until a short cool-off passes. It never affects an already signed-in session.</td></tr>
           <tr><th scope="row">&quot;Something went wrong&quot; screen</th>

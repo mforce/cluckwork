@@ -63,10 +63,18 @@ export function AppLayout() {
             farm the pickers silently follow the DEVICE's day and the screen
             looks perfectly healthy while being a day out. Say so, and offer the
             read again, rather than degrade in silence (codex review of #123). */}
-        {farm === null && loadFailed && (
+        {loadFailed && (
           <p className="warn farm-warning" role="alert">
-            Could not load this farm&apos;s settings, so dates follow this device
-            rather than the farm.{" "}
+            {farm === null
+              // Never got one: §4.5 formatting and every date field's ceiling
+              // come from the farm, so without it the pickers follow the
+              // DEVICE's day.
+              ? "Could not load this farm's settings, so dates follow this device rather than the farm."
+              // Got one, then a re-read failed. The farm on screen is whatever
+              // was last read — which after a settings save is the value the
+              // save was meant to replace, so a new timezone silently does not
+              // apply anywhere (round 2: codex + pi).
+              : "Could not re-read this farm's settings, so what you see here may be out of date."}{" "}
             <button type="button" className="link" onClick={() => void refresh()}>
               Try again
             </button>

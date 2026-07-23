@@ -34,7 +34,7 @@ export function farmState(overrides: Partial<FarmState> = {}): FarmState {
     farm: null,
     loadFailed: false,
     today: null,
-    refresh: async () => {},
+    refresh: async () => true,
     ...overrides,
   };
 }

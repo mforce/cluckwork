@@ -472,14 +472,17 @@ day early. A farm ahead of UTC has the mirror problem: its legitimate today
 looks like tomorrow. Recording a genuinely future day is refused outright; there
 is no longer any day-either-side slack.
 
-The date fields agree with it (#123). Every picker that RECORDS work — daily
-entry, flock placement and bird movements, water, feed purchase and usage,
-expenses, sales orders and payments — opens on the farm's today and refuses to
-go past it, the farm's and not the one on the device in your hand. A phone
-travelling ahead of the farm used to offer a day the save would then refuse, and
-a phone behind it hid a day that was perfectly legal; both are gone. The
-read-only date ranges on History and Water are filters, not records, and stay
-uncapped. Change the farm's timezone and every capped picker follows on the next
+The date fields agree with it (#123). Every picker that records *when something
+happened* — daily entry, flock placement and bird movements, water, feed
+purchase and usage, expenses, sales orders and payments, and the `to` end of a
+report range — opens on the farm's today and refuses to go past it, the farm's
+and not the one on the device in your hand. A phone travelling ahead of the farm
+used to offer a day the save would then refuse, and a phone behind it hid a day
+that was perfectly legal; both are gone.
+
+Three date fields are deliberately *not* capped, because a future date is the
+point of them: a feed lot's **expiry**, and the range filters on History and
+Water. Change the farm's timezone and every capped picker follows on the next
 screen that renders.
 
 **Roles (#103, spec §5.1)** — five shipped: **Admin (owner)** does

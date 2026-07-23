@@ -101,9 +101,11 @@ export function SettingsPage() {
   const saveAttempt = useRef<Attempt | null>(null);
 
   const [logoBusy, setLogoBusy] = useState(false);
+  const [focusUploadAfterRemove, setFocusUploadAfterRemove] = useState(false);
   const [logoError, setLogoError] = useState<string | null>(null);
   const [logoMessage, setLogoMessage] = useState<string | null>(null);
-  const logoAttempt = useRef<Attempt | null>(null);
+  const uploadAttempt = useRef<Attempt | null>(null);
+  const removeAttempt = useRef<Attempt | null>(null);
   const uploadInput = useRef<HTMLInputElement>(null);
 
   const currencyNoteId = useId();
@@ -153,9 +155,18 @@ export function SettingsPage() {
     load().catch(() => setLoadError("Could not load farm settings."));
   }, []);
 
+  // Focus lands here only once the upload input is enabled again — a disabled
+  // control silently refuses focus() and the keyboard would be left on <body>.
+  // Verified rather than assumed, for the same reason.
+  useEffect(() => {
+    if (!focusUploadAfterRemove || logoBusy) return;
+    setFocusUploadAfterRemove(false);
+    uploadInput.current?.focus();
+  }, [focusUploadAfterRemove, logoBusy]);
+
   async function onSave(e: FormEvent) {
     e.preventDefault();
-    if (saving || stale || loaded === null) return;
+    if (saving || logoBusy || stale || loaded === null) return;
     setSaving(true);
     setSaveError(null);
     setSaved(false);
@@ -177,10 +188,17 @@ export function SettingsPage() {
     try {
       await updateFarmSettings(body, attempt.key);
     } catch (err) {
-      setSaveError(
-        err instanceof ApiError && err.status === 409
-          ? "Someone else changed these settings while this screen was open. Reload and try again."
-          : errText(err));
+      if (err instanceof ApiError && err.status === 409) {
+        // The version this screen holds is now definitively wrong, and a retry
+        // sends the same one: the middleware caches only 2xx, so it re-executes
+        // and 409s again, forever. Disable the button so it agrees with the
+        // message rather than inviting the loop (pi round 2).
+        setStale(true);
+        setSaveError(
+          "Someone else changed these settings while this screen was open. Reload and try again.");
+      } else {
+        setSaveError(errText(err));
+      }
       setSaving(false);
       return;
     }
@@ -192,15 +210,24 @@ export function SettingsPage() {
     setSaved(true);
     try {
       await load();
-      // The chrome and every date input read the farm from context — this is
-      // what makes the change show without a reload (§4.5).
-      await refresh();
     } catch {
       setStale(true);
-      setSaveError("Saved. This screen could not read the settings back — reload the page before saving again.");
-    } finally {
+      setSaveError(
+        "Saved. This screen could not read the settings back — reload the page before saving again.");
       setSaving(false);
+      return;
     }
+
+    // The chrome and every date input read the farm from context — this is what
+    // makes the change show without a reload (§4.5). It cannot throw (the
+    // provider has to survive a failed read), so it REPORTS: relying on a throw
+    // meant a failed /account left the save looking fully applied while the
+    // shell still held the old timezone (codex round 2).
+    const refreshed = await refresh();
+    if (!refreshed)
+      setSaveError(
+        "Saved. The rest of the app could not pick the change up — reload the page to be sure it is applied everywhere.");
+    setSaving(false);
   }
 
   async function onPickLogo(e: ChangeEvent<HTMLInputElement>) {
@@ -210,6 +237,7 @@ export function SettingsPage() {
     e.target.value = "";
     if (file === undefined) return;
 
+    if (saving || logoBusy) return;
     setLogoError(null);
     setLogoMessage(null);
     // The server refuses this too (413). Checking here spares a megabyte on
@@ -221,13 +249,13 @@ export function SettingsPage() {
 
     // Identity, not contents: two different files are two different writes and
     // must not share a key.
-    const attempt = keyFor(logoAttempt.current, `${file.name}:${file.size}:${file.lastModified}`);
-    logoAttempt.current = attempt;
+    const attempt = keyFor(uploadAttempt.current, `${file.name}:${file.size}:${file.lastModified}`);
+    uploadAttempt.current = attempt;
 
     setLogoBusy(true);
     try {
       const stored = await uploadFarmLogo(file, attempt.key);
-      logoAttempt.current = null;
+      uploadAttempt.current = null;
       applyLogoHash(stored.contentHash);
       setLogoMessage("Logo updated.");
       await refresh();
@@ -246,24 +274,31 @@ export function SettingsPage() {
       destructive: true,
     });
     if (!ok) return;
+    if (saving || logoBusy) return;
 
     setLogoError(null);
     setLogoMessage(null);
-    const attempt = keyFor(logoAttempt.current, "remove");
-    logoAttempt.current = attempt;
+    // Bound to the hash being removed, not a bare "remove": after an ambiguous
+    // removal of H1 another admin can upload H2, and a retry on a shared key
+    // would replay H1's 204 — reporting success while H2 quietly survives
+    // (codex round 2).
+    const attempt = keyFor(removeAttempt.current, `remove:${logoHash ?? ""}`);
+    removeAttempt.current = attempt;
 
     setLogoBusy(true);
     try {
       await removeFarmLogo(attempt.key);
-      logoAttempt.current = null;
+      removeAttempt.current = null;
       applyLogoHash(null);
       setLogoMessage("Logo removed.");
-      // The Remove button that was just clicked unmounts with the logo, and
-      // Dialog only restores focus to a trigger still in the document — so
-      // without this the keyboard lands back on <body>, at the top of the page.
-      // The file input is visually hidden but focusable, and its label draws
-      // the ring (styles.css .logo-file:focus-within).
-      uploadInput.current?.focus();
+      // Deferred to an effect rather than called here. The Remove button that
+      // was just clicked unmounts with the logo and Dialog only restores focus
+      // to a trigger still in the document, so focus would land on <body> — but
+      // calling focus() at this point does nothing either, because the upload
+      // input is still `disabled={logoBusy}` and focus() on a disabled control
+      // is a no-op (the same hazard Dialog.tsx documents). It has to happen
+      // after the busy state clears (round 2: two agents).
+      setFocusUploadAfterRemove(true);
       await refresh();
     } catch (err) {
       setLogoError(errText(err));
@@ -314,12 +349,12 @@ export function SettingsPage() {
               keeps it reachable by keyboard and by name. */}
           <label className="logo-file">
             <Upload size={16} aria-hidden /> {hasLogo ? "Replace the logo" : "Upload a logo"}
-            <input ref={uploadInput} type="file" accept={LOGO_ACCEPT} disabled={logoBusy}
+            <input ref={uploadInput} type="file" accept={LOGO_ACCEPT} disabled={logoBusy || saving}
               aria-describedby={logoRulesId}
               onChange={(e) => void onPickLogo(e)} />
           </label>
           {hasLogo && (
-            <button type="button" className="btn-danger" disabled={logoBusy}
+            <button type="button" className="btn-danger" disabled={logoBusy || saving}
               onClick={() => void onRemoveLogo()}>
               <Trash2 size={16} aria-hidden /> Remove
             </button>
@@ -379,6 +414,7 @@ export function SettingsPage() {
               locked. Read-only keeps both, and aria-describedby carries the
               reason with the control. */}
           <input value={currencyCode} required maxLength={3}
+            className={loaded.canChangeCurrency ? undefined : "locked"}
             readOnly={!loaded.canChangeCurrency}
             aria-describedby={loaded.canChangeCurrency ? undefined : currencyNoteId}
             onChange={(e) => setCurrencyCode(e.target.value.toUpperCase())} />
@@ -418,7 +454,12 @@ export function SettingsPage() {
         </label>
 
         <div className="actions">
-          <button type="submit" disabled={saving || stale}>
+          {/* Disabled while a logo write is in flight too: the save issues its
+              own GET, and a delayed one landing after the logo write would
+              restore the hash the logo write had just replaced — the very
+              stale-response class removing load() from the logo path was meant
+              to close (codex round 2). */}
+          <button type="submit" disabled={saving || logoBusy || stale}>
             {saving ? "Saving…" : "Save settings"}
           </button>
         </div>
@@ -437,7 +478,12 @@ export function SettingsPage() {
       </p>
 
       {saveError !== null && <p className="error" role="alert">{saveError}</p>}
-      {saved && saveError === null && <p className="success" role="status">Settings saved.</p>}
+      {/* Always mounted, like the logo's — a live region inserted at the same
+          moment as its text is not reliably announced, and the logo panel two
+          sections up already says so. */}
+      <p className="success" role="status">
+        {saved && saveError === null ? "Settings saved." : ""}
+      </p>
 
       {confirmDialog}
     </section>

@@ -21,7 +21,12 @@ export interface FarmState {
   // branding slot and every date input pick the change up without a reload
   // (#123, §4.5 "settings changes reflect immediately"). Also the banner's
   // retry.
-  refresh: () => Promise<void>;
+  //
+  // Resolves TRUE when the read succeeded. It cannot throw — the provider must
+  // survive a failed read — so a caller that needs to know has to be told, and
+  // the previous version left the settings screen reporting a save as fully
+  // applied when the shell had in fact kept the old timezone (codex round 2).
+  refresh: () => Promise<boolean>;
 }
 
 // How often the farm's day is re-checked. A minute is far finer than the thing
@@ -41,7 +46,7 @@ export const FarmContext = createContext<FarmState>({
   farm: null,
   loadFailed: false,
   today: null,
-  refresh: async () => {},
+  refresh: async () => false,
 });
 
 // One /account read for the whole authenticated shell (#123). Before this,
@@ -57,6 +62,11 @@ export function FarmProvider({ children }: { children: ReactNode }) {
     try {
       setFarm(await getAccount());
       setLoadFailed(false);
+      // Marked settled on BOTH paths rather than in a `finally`: nothing can
+      // escape the catch, so the finally's exceptional path was a branch no
+      // test could ever reach — and this file is held at 100%.
+      setLoaded(true);
+      return true;
     } catch {
       // The farm we already had is KEPT: a failed refresh after a save leaves a
       // stale name on screen, but clearing would drop the farm's timezone and
@@ -64,8 +74,8 @@ export function FarmProvider({ children }: { children: ReactNode }) {
       // has nothing to keep, so it stays null — and the flag makes the shell
       // say so rather than quietly using the device's day.
       setLoadFailed(true);
-    } finally {
       setLoaded(true);
+      return false;
     }
   }, []);
 
@@ -74,19 +84,23 @@ export function FarmProvider({ children }: { children: ReactNode }) {
   }, [refresh]);
 
   const timeZoneId = farm?.timeZoneId;
-  const [today, setToday] = useState(() => todayIso(timeZoneId));
 
-  // The farm's day is read once per render everywhere it is used, but nothing
-  // re-renders on the clock alone — so a tab left open across farm-midnight
-  // would keep offering yesterday as the latest selectable date (codex review
-  // of #123). This is the thing that moves.
+  // DERIVED in render, never seeded into state. Held in state it was wrong for
+  // exactly one commit — the initialiser runs while `farm` is still null, and
+  // the commit that flips `loaded` is the same commit the children MOUNT in, so
+  // every date field seeded its initial value from the device's day and froze
+  // it there. That is the bug the gate below exists to prevent, reintroduced by
+  // the fix for the midnight rollover (round 2: all four reviewers).
+  const today = todayIso(timeZoneId);
+
+  // What the rollover needs is not a stored value but a reason to re-render.
+  // The poll stores the day it last saw; when the farm crosses midnight the
+  // string changes, the context value changes with it, and consumers recompute.
+  // While the day is unchanged React bails out of the update and nothing
+  // re-renders at all.
+  const [, setSeenDay] = useState(today);
   useEffect(() => {
-    setToday(todayIso(timeZoneId));
-    const timer = setInterval(
-      // Same string → React bails out of the update, so the common case costs
-      // nothing beyond the comparison.
-      () => setToday(todayIso(timeZoneId)),
-      DAY_POLL_MS);
+    const timer = setInterval(() => setSeenDay(todayIso(timeZoneId)), DAY_POLL_MS);
     return () => clearInterval(timer);
   }, [timeZoneId]);
 
