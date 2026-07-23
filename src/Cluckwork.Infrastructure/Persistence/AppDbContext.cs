@@ -44,6 +44,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, TenantContext 
     public DbSet<DurableJob> DurableJobs => Set<DurableJob>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<UserRoleAssignment> UserRoleAssignments => Set<UserRoleAssignment>();
+    public DbSet<FarmLogo> FarmLogos => Set<FarmLogo>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -80,5 +81,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, TenantContext 
         builder.Entity<ProductEggGradeMapping>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
         builder.Entity<EggUnitConversion>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
         builder.Entity<UserRoleAssignment>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
+        builder.Entity<FarmLogo>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
     }
 }

@@ -129,6 +129,30 @@ farms
 - updated_at
 ```
 
+A farm may also have a **logo**, used as branding in the app chrome. It is not a
+column on the row above: the farm record is read on every dated and every priced
+operation, and an image would then be fetched along with it every time. The image
+lives in its own one-row-per-farm table (#123).
+
+```text
+farm_logos
+- id
+- account_id
+- farm_id: unique — one logo per farm
+- content: the image bytes, PNG / JPEG / WebP only, 1 MB max
+- content_type: sniffed from the bytes, never the uploaded declaration
+- width / height: read from the image header, capped
+- content_hash: identifies the current logo; serves as the HTTP ETag
+- updated_at
+```
+
+Uploads are Owner/Manager only. SVG is refused outright — it is a document that
+can carry script, and the app renders this image back to every user of the farm.
+What is stored is never the uploaded file: the container is walked and rewritten,
+which drops metadata blocks (EXIF on a phone photo carries GPS coordinates —
+for a farm, its physical location) and discards anything appended past the
+image's own end marker.
+
 ```text
 houses
 - id
