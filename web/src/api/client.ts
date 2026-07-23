@@ -1,8 +1,13 @@
-import type { LoginRequest, ProblemDetails, TokenPair } from "./types";
-import { clearTokens, loadTokens, saveTokens } from "../auth/tokenStore";
+import type { AccessTokenResponse, LoginRequest, ProblemDetails } from "./types";
+import { clearAccessToken, getAccessToken, setAccessToken } from "../auth/tokenStore";
 import { newId } from "../lib/ids";
 
 const BASE = "/api/v1";
+
+// #145 — refresh/logout ride the HttpOnly refresh cookie; this custom header
+// (which a cross-site simple request cannot set) is the CSRF second factor
+// alongside the cookie's SameSite=Strict. Mirrors AuthCookies.CsrfHeaderName.
+const CSRF_HEADER = "X-Cluckwork-Auth";
 
 export class ApiError extends Error {
   constructor(
@@ -66,53 +71,64 @@ async function raw<T>(
 
 // --- Auth endpoints -------------------------------------------------------
 
-export async function login(body: LoginRequest): Promise<TokenPair> {
-  const tokens = await raw<TokenPair>("/auth/login", {
+export async function login(body: LoginRequest): Promise<void> {
+  // The server sets the HttpOnly refresh cookie; the body returns only the
+  // access token, which lives in memory for this tab's lifetime.
+  const res = await raw<AccessTokenResponse>("/auth/login", {
     method: "POST",
     body: JSON.stringify(body),
   });
-  saveTokens(tokens);
+  setAccessToken(res.accessToken);
   onTokensChanged?.();
-  return tokens;
 }
 
 export async function logout(): Promise<void> {
-  const tokens = loadTokens();
-  clearTokens();
-  if (!tokens) return;
+  clearAccessToken();
   try {
-    await raw<void>(
-      "/auth/logout",
-      { method: "POST", body: JSON.stringify({ refreshToken: tokens.refreshToken }) },
-      tokens.accessToken,
-    );
+    // Cookie-authenticated: the HttpOnly refresh cookie rides along and the CSRF
+    // header satisfies the check. No bearer (so it works even if the access token
+    // had expired) and no Idempotency-Key (the request is anonymous). Always
+    // fires — JS can't read the HttpOnly cookie to know whether a session exists,
+    // so we always ask the server to revoke + clear it.
+    await raw<void>("/auth/logout", { method: "POST", headers: { [CSRF_HEADER]: "1" } });
   } catch {
-    // best-effort revoke; local tokens already cleared
+    // best-effort revoke; the in-memory token is already cleared
   }
 }
 
-// Single-flight refresh: concurrent 401s share one in-flight refresh call.
-let refreshInFlight: Promise<TokenPair> | null = null;
+// Single-flight refresh: concurrent 401s (and the load-time bootstrap) share one
+// in-flight refresh call. The refresh token rides the cookie; no body is sent.
+let refreshInFlight: Promise<string> | null = null;
 
-async function refreshTokens(): Promise<TokenPair> {
+async function refreshTokens(): Promise<string> {
   if (refreshInFlight) return refreshInFlight;
-  const current = loadTokens();
-  if (!current) throw new ApiError(401, "NoSession", "Not authenticated.");
 
-  refreshInFlight = raw<TokenPair>("/auth/refresh", {
+  refreshInFlight = raw<AccessTokenResponse>("/auth/refresh", {
     method: "POST",
-    body: JSON.stringify({ refreshToken: current.refreshToken }),
+    headers: { [CSRF_HEADER]: "1" },
   })
-    .then((tokens) => {
-      saveTokens(tokens);
+    .then((res) => {
+      setAccessToken(res.accessToken);
       onTokensChanged?.();
-      return tokens;
+      return res.accessToken;
     })
     .finally(() => {
       refreshInFlight = null;
     });
 
   return refreshInFlight;
+}
+
+// Session bootstrap (page load): the access token is memory-only, so it's gone
+// after a reload — try one silent refresh against the cookie. Resolves true if a
+// session was restored, false if unauthenticated (→ clean login, no error flash).
+export async function restoreSession(): Promise<boolean> {
+  try {
+    await refreshTokens();
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 // --- Authenticated request with one transparent refresh-and-retry ---------
@@ -153,22 +169,17 @@ export function apiDelete<T>(path: string, idempotencyKey?: string): Promise<T> 
 export async function apiGetBlob(
   path: string,
 ): Promise<{ blob: Blob; filename: string | null }> {
-  const tokens = loadTokens();
-  if (!tokens) {
-    onUnauthenticated?.();
-    throw new ApiError(401, "NoSession", "Not authenticated.");
-  }
-
+  const token = await currentAccessToken();
   try {
-    return await rawBlob(path, tokens.accessToken);
+    return await rawBlob(path, token);
   } catch (err) {
     if (!(err instanceof ApiError) || err.status !== 401) throw err;
     try {
       const refreshed = await refreshTokens();
-      return await rawBlob(path, refreshed.accessToken);
+      return await rawBlob(path, refreshed);
     } catch (refreshErr) {
       if (isTransientRefreshFailure(refreshErr)) throw refreshErr;
-      clearTokens();
+      clearAccessToken();
       onUnauthenticated?.();
       throw err;
     }
@@ -192,25 +203,34 @@ async function rawBlob(
 }
 
 export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const tokens = loadTokens();
-  if (!tokens) {
-    onUnauthenticated?.();
-    throw new ApiError(401, "NoSession", "Not authenticated.");
-  }
-
+  const token = await currentAccessToken();
   try {
-    return await raw<T>(path, init, tokens.accessToken);
+    return await raw<T>(path, init, token);
   } catch (err) {
     if (!(err instanceof ApiError) || err.status !== 401) throw err;
     try {
       const refreshed = await refreshTokens();
-      return await raw<T>(path, init, refreshed.accessToken);
+      return await raw<T>(path, init, refreshed);
     } catch (refreshErr) {
       if (isTransientRefreshFailure(refreshErr)) throw refreshErr;
-      clearTokens();
+      clearAccessToken();
       onUnauthenticated?.();
       throw err;
     }
+  }
+}
+
+// The in-memory access token, or one obtained via a silent refresh when memory
+// is empty (e.g. a request racing the load-time bootstrap). Throws + signals
+// unauthenticated if no session can be established.
+async function currentAccessToken(): Promise<string> {
+  const token = getAccessToken();
+  if (token) return token;
+  try {
+    return await refreshTokens();
+  } catch {
+    onUnauthenticated?.();
+    throw new ApiError(401, "NoSession", "Not authenticated.");
   }
 }
 

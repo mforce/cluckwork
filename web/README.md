@@ -72,7 +72,10 @@ src/
 
 ## Auth flow
 
-`login` → `POST /api/v1/auth/login` → tokens in localStorage. Authenticated
-requests attach the bearer token; a 401 triggers one transparent
-`POST /api/v1/auth/refresh` + retry (single-flight). If refresh fails, tokens
-clear and the router bounces to `/login`.
+`login` → `POST /api/v1/auth/login` → the **access token lives in JS memory only**
+(never localStorage/sessionStorage) and the **refresh token is an HttpOnly cookie**
+the browser attaches automatically (#145). Authenticated requests attach the
+bearer access token; a 401 triggers one transparent `POST /api/v1/auth/refresh`
+(cookie-carried, `X-Cluckwork-Auth` header) + retry (single-flight). On page load
+the session is restored by a silent refresh against the cookie; if that fails the
+router bounces to `/login`. `logout` revokes server-side and expires the cookie.

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, act } from "@testing-library/react";
 import { AuthProvider } from "./AuthContext";
 import { useAuth } from "./useAuth";
 import { setStoredToken } from "../test/jwt";
@@ -43,8 +43,13 @@ describe("AuthProvider (real context)", () => {
     expect(screen.getByTestId("auth")).toHaveTextContent("true");
   });
 
-  it("no token → Worker, not admin, not authenticated", () => {
-    renderWithAuth();
+  it("no token → Worker, not admin, not authenticated", async () => {
+    // No in-memory token → the load-time silent refresh runs; the default test
+    // fetch (setup.ts) 401s, so bootstrap settles unauthenticated. Wrap in act so
+    // that async settle is flushed before we assert.
+    await act(async () => {
+      renderWithAuth();
+    });
     expect(screen.getByTestId("role")).toHaveTextContent("Worker");
     expect(screen.getByTestId("admin")).toHaveTextContent("false");
     expect(screen.getByTestId("auth")).toHaveTextContent("false");

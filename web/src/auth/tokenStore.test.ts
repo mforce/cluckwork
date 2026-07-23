@@ -1,44 +1,43 @@
 import { describe, it, expect } from "vitest";
-import { loadTokens, saveTokens, clearTokens, KEY } from "./tokenStore";
-import type { TokenPair } from "../api/types";
+import { getAccessToken, setAccessToken, clearAccessToken, purgeLegacyTokens } from "./tokenStore";
 
-// localStorage is reset after every test in src/test/setup.ts.
+// The in-memory access token is reset after every test in src/test/setup.ts.
 
-const PAIR: TokenPair = { accessToken: "at", refreshToken: "rt", expiresAt: "2099-01-01T00:00:00Z" };
-
-describe("tokenStore", () => {
-  it("round-trips a saved token pair", () => {
-    saveTokens(PAIR);
-    expect(loadTokens()).toEqual(PAIR);
+describe("tokenStore (in-memory access token, #145)", () => {
+  it("starts empty", () => {
+    expect(getAccessToken()).toBeNull();
   });
 
-  it("returns null when nothing is stored", () => {
-    expect(loadTokens()).toBeNull();
+  it("round-trips the access token", () => {
+    setAccessToken("at1");
+    expect(getAccessToken()).toBe("at1");
   });
 
-  it("overwrites an existing pair — the rotated token wins (refresh rotation)", () => {
-    saveTokens(PAIR);
-    const rotated = { accessToken: "at2", refreshToken: "rt2", expiresAt: "2099-06-01T00:00:00Z" };
-    saveTokens(rotated);
-    expect(loadTokens()).toEqual(rotated);
+  it("overwrites on rotation — the newest token wins", () => {
+    setAccessToken("at1");
+    setAccessToken("at2");
+    expect(getAccessToken()).toBe("at2");
   });
 
-  it("clearTokens removes the stored pair", () => {
-    saveTokens(PAIR);
-    clearTokens();
-    expect(loadTokens()).toBeNull();
-    expect(localStorage.getItem(KEY)).toBeNull();
+  it("clearAccessToken drops the token", () => {
+    setAccessToken("at1");
+    clearAccessToken();
+    expect(getAccessToken()).toBeNull();
   });
 
-  it("evicts a corrupt entry and returns null (self-healing)", () => {
-    localStorage.setItem(KEY, "{ not valid json");
-    expect(loadTokens()).toBeNull();
-    // the bad value is removed so it can't wedge every future load
-    expect(localStorage.getItem(KEY)).toBeNull();
+  it("never touches localStorage — the token is memory-only", () => {
+    setAccessToken("at1");
+    expect(localStorage.length).toBe(0);
   });
 
-  it("persists under the shared KEY the rest of the app reads", () => {
-    saveTokens(PAIR);
-    expect(JSON.parse(localStorage.getItem(KEY)!)).toEqual(PAIR);
+  it("purgeLegacyTokens removes a pre-#145 localStorage token", () => {
+    localStorage.setItem("cluckwork.tokens", JSON.stringify({ accessToken: "old", refreshToken: "old" }));
+    purgeLegacyTokens();
+    expect(localStorage.getItem("cluckwork.tokens")).toBeNull();
+  });
+
+  it("purgeLegacyTokens is a no-op when there is nothing to purge", () => {
+    expect(() => purgeLegacyTokens()).not.toThrow();
+    expect(getAccessToken()).toBeNull();
   });
 });

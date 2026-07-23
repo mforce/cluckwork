@@ -48,8 +48,7 @@ beforeEach(() => vi.resetAllMocks());
 describe("Login", () => {
   it("bounces an unauthenticated visit to /login, then returns to the original route after sign-in", async () => {
     mockApiLogin.mockImplementation(async () => {
-      setStoredToken({ sub: "u1", role: "Sales" }); // server issued a session
-      return { accessToken: "a", refreshToken: "r", expiresAt: "2099-01-01T00:00:00Z" };
+      setStoredToken({ sub: "u1", role: "Sales" }); // server issued a session (token in memory)
     });
     // Land on the protected route while logged out → ProtectedRoute redirects to
     // /login, preserving `from = /dashboard` in router state.
@@ -66,6 +65,22 @@ describe("Login", () => {
     expect(mockApiLogin).toHaveBeenCalledWith({ email: "owner@farm.co", password: "pw" });
     // Returned to the originally requested route, now authenticated.
     expect(await screen.findByText("dashboard (protected)")).toBeInTheDocument();
+  });
+
+  it("redirects an ALREADY-authenticated visit AT /login away from the form (#145 silent-refresh restore)", async () => {
+    // A seeded token = authenticated at mount; mounting Login itself must not
+    // strand the user on the form — its effect navigates to home.
+    function withHome() {
+      return (
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/" element={<div>home landing</div>} />
+        </Routes>
+      );
+    }
+    renderWithProviders(withHome(), { route: "/login", token: { sub: "u1", role: "Admin" } });
+    expect(await screen.findByText("home landing")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Sign in" })).not.toBeInTheDocument();
   });
 
   it("shows an invalid-credentials message on a 401 and stays on /login", async () => {

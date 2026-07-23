@@ -406,6 +406,20 @@ counter, and each failure is counted even under parallel attempts. Where rate
 limiting blunts a spray across many accounts from one address, lockout blunts a
 focused guess at one account from many addresses.
 
+**Session tokens (#145)** — the short-lived **access token** (15 min) lives only
+in the SPA's JavaScript memory and is sent as an `Authorization: Bearer` header;
+it is never written to `localStorage`/`sessionStorage`, so an XSS payload has no
+durable credential to steal and the 15-minute lifetime bounds any exposure. The
+durable **refresh token** is an `HttpOnly; Secure; SameSite=Strict` cookie
+path-scoped to `/api/v1/auth` — the browser attaches it automatically and JS
+cannot read it. A page reload (memory cleared) silently refreshes against the
+cookie to restore the session; an expired/absent cookie lands cleanly on login.
+CSRF is covered by SameSite=Strict plus a custom header (`X-Cluckwork-Auth`) that
+a cross-site request cannot set. Rotation + theft-detection (single-use, revoke
+the whole family on replay) are unchanged — this moved the storage, not the
+hygiene. Deploying #145 forces one re-login (the old localStorage token is
+purged on first load).
+
 **Version (concurrency token)** — every mutable aggregate carries a `Version`
 that each mutation bumps. Two concurrent edits: first save wins, second gets
 a 409 and retries against fresh state. Append-only aggregates (bird

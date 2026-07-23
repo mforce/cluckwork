@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
 import { currentUserRole, currentUserIsAdmin } from "./claims";
-import { KEY } from "./tokenStore";
 import { setStoredToken, setRawAccessToken } from "../test/jwt";
 
 // localStorage is reset after every test in src/test/setup.ts (single source of
@@ -80,11 +79,6 @@ describe("currentUserRole", () => {
 
     it("a payload segment that is not valid base64/JSON → Worker", () => {
       setRawAccessToken("aaa.!!!not-json!!!.sig");
-      expect(currentUserRole()).toBe("Worker");
-    });
-
-    it("corrupt token-store JSON → Worker", () => {
-      localStorage.setItem(KEY, "{not json");
       expect(currentUserRole()).toBe("Worker");
     });
   });

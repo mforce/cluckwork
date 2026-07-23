@@ -1,9 +1,9 @@
 // Mirrors the backend contract (Cluckwork.Api /api/v1/auth).
-// TokenPair: src/Cluckwork.Application/Common/IIdentityProvider.cs
-export interface TokenPair {
+// #145 — login/refresh return only the access token; the refresh token is
+// delivered as an HttpOnly cookie (AccessTokenResponse in AuthEndpoints.cs).
+export interface AccessTokenResponse {
   accessToken: string;
-  refreshToken: string;
-  expiresAt: string; // ISO-8601
+  accessTokenExpiry: string; // ISO-8601
 }
 
 export interface LoginRequest {

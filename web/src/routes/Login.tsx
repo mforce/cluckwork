@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/useAuth";
@@ -20,10 +20,16 @@ function messageFor(err: unknown): string {
 }
 
 export function Login() {
-  const { login } = useAuth();
+  const { login, isAuthenticated, isLoading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const from = (location.state as LocationState | null)?.from?.pathname ?? "/";
+
+  // If the load-time silent refresh (#145) restores a session while we're on
+  // /login, don't strand the user on the form — send them to their destination.
+  useEffect(() => {
+    if (!isLoading && isAuthenticated) navigate(from, { replace: true });
+  }, [isLoading, isAuthenticated, from, navigate]);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

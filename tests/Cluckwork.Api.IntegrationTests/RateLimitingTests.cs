@@ -1,6 +1,7 @@
 namespace Cluckwork.Api.IntegrationTests;
 
 using System.Net;
+using Cluckwork.Api.Endpoints.Auth;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -70,9 +71,15 @@ public sealed class RateLimitingTests : IClassFixture<RateLimitFactory>
         client.PostAsJsonAsync("/api/v1/auth/login",
             new { email = "nobody@example.com", password = "WrongPassw0rd!" });
 
-    private static Task<HttpResponseMessage> PostRefreshAsync(HttpClient client) =>
-        client.PostAsJsonAsync("/api/v1/auth/refresh",
-            new { refreshToken = "bogus-refresh-token" });
+    // #145 — refresh reads the token from the cookie and needs the CSRF header;
+    // with the header but no cookie it still lands on 401 within the limit (and
+    // 429 over it), which is all this rate-limit probe needs.
+    private static Task<HttpResponseMessage> PostRefreshAsync(HttpClient client)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/refresh");
+        request.Headers.Add(AuthCookies.CsrfHeaderName, "1");
+        return client.SendAsync(request);
+    }
 
     [Fact]
     public async Task Login_within_limit_is_unaffected_and_over_limit_returns_429_problem()
@@ -157,13 +164,16 @@ public sealed class RateLimitingTests : IClassFixture<RateLimitFactory>
     {
         var client = ProxiedClient("203.0.113.40");
 
-        // Hammer logout (unauthenticated → 401) well past the login limit; it
-        // must never 429, so an exhausted login bucket can't block logout.
+        // Hammer logout well past the login limit; it must never 429, so an
+        // exhausted login bucket can't block logout. Logout is anonymous +
+        // cookie-authenticated (#145): with no CSRF header it lands on 403 — the
+        // point is it reaches the handler and is never rate-limited.
         for (var i = 0; i < RateLimitFactory.LoginLimit + 3; i++)
         {
             var res = await client.PostAsJsonAsync("/api/v1/auth/logout",
                 new { refreshToken = "whatever" });
-            Assert.Equal(HttpStatusCode.Unauthorized, res.StatusCode);
+            Assert.NotEqual(HttpStatusCode.TooManyRequests, res.StatusCode);
+            Assert.Equal(HttpStatusCode.Forbidden, res.StatusCode);
         }
     }
 
