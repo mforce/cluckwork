@@ -164,13 +164,16 @@ public sealed class RateLimitingTests : IClassFixture<RateLimitFactory>
     {
         var client = ProxiedClient("203.0.113.40");
 
-        // Hammer logout (unauthenticated → 401) well past the login limit; it
-        // must never 429, so an exhausted login bucket can't block logout.
+        // Hammer logout well past the login limit; it must never 429, so an
+        // exhausted login bucket can't block logout. Logout is anonymous +
+        // cookie-authenticated (#145): with no CSRF header it lands on 403 — the
+        // point is it reaches the handler and is never rate-limited.
         for (var i = 0; i < RateLimitFactory.LoginLimit + 3; i++)
         {
             var res = await client.PostAsJsonAsync("/api/v1/auth/logout",
                 new { refreshToken = "whatever" });
-            Assert.Equal(HttpStatusCode.Unauthorized, res.StatusCode);
+            Assert.NotEqual(HttpStatusCode.TooManyRequests, res.StatusCode);
+            Assert.Equal(HttpStatusCode.Forbidden, res.StatusCode);
         }
     }
 

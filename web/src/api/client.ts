@@ -83,17 +83,14 @@ export async function login(body: LoginRequest): Promise<void> {
 }
 
 export async function logout(): Promise<void> {
-  const token = getAccessToken();
   clearAccessToken();
-  if (!token) return;
   try {
-    // The refresh cookie rides along automatically; the server revokes it and
-    // expires the cookie. Custom header satisfies the CSRF check.
-    await raw<void>(
-      "/auth/logout",
-      { method: "POST", headers: { [CSRF_HEADER]: "1" } },
-      token,
-    );
+    // Cookie-authenticated: the HttpOnly refresh cookie rides along and the CSRF
+    // header satisfies the check. No bearer (so it works even if the access token
+    // had expired) and no Idempotency-Key (the request is anonymous). Always
+    // fires — JS can't read the HttpOnly cookie to know whether a session exists,
+    // so we always ask the server to revoke + clear it.
+    await raw<void>("/auth/logout", { method: "POST", headers: { [CSRF_HEADER]: "1" } });
   } catch {
     // best-effort revoke; the in-memory token is already cleared
   }

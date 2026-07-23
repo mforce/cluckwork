@@ -39,6 +39,8 @@ describe("HelpPage", () => {
     expect(screen.getByText(/too many wrong passwords for/i)).toBeInTheDocument();
     expect(screen.getByText(/wait up to about 15 minutes/i)).toBeInTheDocument();
     expect(screen.queryByText(/administrator to set a new password/i)).not.toBeInTheDocument();
+    // #145 — the session-persistence + post-update re-login note.
+    expect(screen.getByText(/kept in your browser securely/i)).toBeInTheDocument();
     expect(signIn).toBeInTheDocument();
   });
 

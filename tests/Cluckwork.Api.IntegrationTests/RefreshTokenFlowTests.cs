@@ -62,16 +62,17 @@ public sealed class RefreshTokenFlowTests(CluckworkWebApplicationFactory factory
     }
 
     [Fact]
-    public async Task Logout_RevokesRefreshToken()
+    public async Task Logout_RevokesRefreshToken_CookieAuthenticated_NoBearerOrKey()
     {
         var email = $"u-{Guid.NewGuid():N}@test.local";
         await factory.SeedAccountWithUserAsync(email);
 
         var tokens = await factory.LoginAsync(email);
-        var authed = factory.CreateAuthedClient(tokens.AccessToken);
 
-        // Logout is an authenticated write endpoint (Idempotency-Key + CSRF header).
-        var logout = await authed.PostLogoutAsync(Guid.NewGuid().ToString(), tokens.RefreshToken);
+        // The real SPA logout: cookie + CSRF header, no bearer and no
+        // Idempotency-Key. It must succeed (an authenticated/keyless logout would
+        // 400 at the idempotency middleware — #145 review) and revoke the token.
+        var logout = await factory.CreateClient(Cookieless).PostLogoutAsync(tokens.RefreshToken);
         Assert.Equal(HttpStatusCode.NoContent, logout.StatusCode);
 
         // The revoked token can no longer be refreshed.

@@ -67,6 +67,22 @@ describe("Login", () => {
     expect(await screen.findByText("dashboard (protected)")).toBeInTheDocument();
   });
 
+  it("redirects an ALREADY-authenticated visit AT /login away from the form (#145 silent-refresh restore)", async () => {
+    // A seeded token = authenticated at mount; mounting Login itself must not
+    // strand the user on the form — its effect navigates to home.
+    function withHome() {
+      return (
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/" element={<div>home landing</div>} />
+        </Routes>
+      );
+    }
+    renderWithProviders(withHome(), { route: "/login", token: { sub: "u1", role: "Admin" } });
+    expect(await screen.findByText("home landing")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Sign in" })).not.toBeInTheDocument();
+  });
+
   it("shows an invalid-credentials message on a 401 and stays on /login", async () => {
     mockApiLogin.mockRejectedValue(new ApiError(401, "Unauthorized", "bad creds"));
     renderWithProviders(tree(), { route: "/login", token: null });

@@ -316,12 +316,13 @@ internal static class TestHarness
         return client.SendAsync(request);
     }
 
-    // POST /auth/logout (authenticated write): cookie + CSRF header + idempotency.
+    // POST /auth/logout the SPA way (#145): anonymous, cookie-authenticated —
+    // the refresh cookie + CSRF header, no bearer and no Idempotency-Key (an
+    // authenticated logout would resolve a tenant and then need one).
     public static Task<HttpResponseMessage> PostLogoutAsync(
-        this HttpClient client, string idempotencyKey, string? refreshToken, bool csrf = true)
+        this HttpClient client, string? refreshToken, bool csrf = true)
     {
         var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/logout");
-        request.Headers.Add("Idempotency-Key", idempotencyKey);
         if (csrf) request.Headers.Add(AuthCookies.CsrfHeaderName, "1");
         if (refreshToken is not null)
             request.Headers.Add("Cookie", $"{AuthCookies.RefreshCookieName}={refreshToken}");

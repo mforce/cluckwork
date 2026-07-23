@@ -62,15 +62,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
     let cancelled = false;
-    void restoreSession().then((restored) => {
-      if (cancelled) return;
-      if (restored) {
-        setIsAuthenticated(true);
-        setIsAdmin(currentUserIsAdmin());
-        setRole(currentUserRole());
-      }
-      setIsLoading(false);
-    });
+    void restoreSession()
+      .then((restored) => {
+        if (cancelled) return;
+        if (restored) {
+          setIsAuthenticated(true);
+          setIsAdmin(currentUserIsAdmin());
+          setRole(currentUserRole());
+        }
+      })
+      // restoreSession never rejects today, but clearing isLoading here too keeps
+      // a future throw from wedging the router on a permanent blank screen.
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
+      });
     return () => {
       cancelled = true;
     };

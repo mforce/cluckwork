@@ -129,6 +129,11 @@ export function HelpPage() {
           password still says <strong>Invalid email or password</strong>. The
           lock is temporary — wait up to about 15 minutes and try again.
         </li>
+        <li>
+          Your sign-in is kept in your browser securely and stays active as you
+          work, even across reloads. After the app is <strong>updated</strong> you
+          may be asked to sign in once more — that&apos;s expected.
+        </li>
       </ul>
 
       <h3 id="daily-loop">The daily loop</h3>

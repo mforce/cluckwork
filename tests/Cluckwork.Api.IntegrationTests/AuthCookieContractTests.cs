@@ -67,9 +67,8 @@ public sealed class AuthCookieContractTests(CluckworkWebApplicationFactory facto
     {
         var email = await SeedAsync();
         var tokens = await factory.LoginAsync(email);
-        var authed = factory.CreateAuthedClient(tokens.AccessToken);
-        var response = await authed.PostLogoutAsync(
-            Guid.NewGuid().ToString(), tokens.RefreshToken, csrf: false);
+        var response = await factory.CreateClient(Cookieless)
+            .PostLogoutAsync(tokens.RefreshToken, csrf: false);
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 

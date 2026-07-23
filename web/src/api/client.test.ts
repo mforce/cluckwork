@@ -403,7 +403,7 @@ describe("auth endpoints", () => {
     expect(new Headers(init.headers).get("Authorization")).toBeNull(); // login is unauthenticated
   });
 
-  it("logout revokes server-side (cookie + CSRF header, no body), then clears the token", async () => {
+  it("logout revokes cookie-authenticated (CSRF header, NO bearer, no body), then clears the token", async () => {
     fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
     await logout();
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -412,7 +412,9 @@ describe("auth endpoints", () => {
     expect(init.method).toBe("POST");
     expect(init.body).toBeUndefined(); // refresh token is in the cookie, not the body
     expect(headerOf(fetchMock.mock.calls[0] as Call, CSRF)).toBe("1");
-    expect(authOf(fetchMock.mock.calls[0] as Call)).toBe("Bearer at1");
+    // No bearer: logout authenticates by the cookie so it works even with an
+    // expired access token and needs no Idempotency-Key (#145 review).
+    expect(authOf(fetchMock.mock.calls[0] as Call)).toBeNull();
     expect(getAccessToken()).toBeNull();
   });
 
@@ -422,9 +424,11 @@ describe("auth endpoints", () => {
     expect(getAccessToken()).toBeNull();
   });
 
-  it("logout with no active session is a no-op (no request)", async () => {
+  it("logout always calls the endpoint — a cookie may exist even with no in-memory token", async () => {
     clearAccessToken();
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
     await expect(logout()).resolves.toBeUndefined();
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect((fetchMock.mock.calls[0] as Call)[0]).toBe("/api/v1/auth/logout");
   });
 });

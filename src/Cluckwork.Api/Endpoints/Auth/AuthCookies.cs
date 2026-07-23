@@ -15,14 +15,14 @@ public static class AuthCookies
     // Scoped so the cookie rides only the auth endpoints, never every API call.
     private const string CookiePath = "/api/v1/auth";
 
-    public static void SetRefreshCookie(HttpResponse response, string refreshToken, int lifetimeDays) =>
+    public static void SetRefreshCookie(HttpResponse response, string refreshToken, int lifetimeDays, bool secure) =>
         response.Cookies.Append(RefreshCookieName, refreshToken,
-            BuildOptions(response.HttpContext, o => o.Expires = DateTimeOffset.UtcNow.AddDays(lifetimeDays)));
+            BuildOptions(secure, o => o.Expires = DateTimeOffset.UtcNow.AddDays(lifetimeDays)));
 
     // Delete with the SAME attributes (path/secure/samesite) so the browser
     // matches and removes the cookie rather than leaving a stale one behind.
-    public static void ClearRefreshCookie(HttpResponse response) =>
-        response.Cookies.Delete(RefreshCookieName, BuildOptions(response.HttpContext, _ => { }));
+    public static void ClearRefreshCookie(HttpResponse response, bool secure) =>
+        response.Cookies.Delete(RefreshCookieName, BuildOptions(secure, _ => { }));
 
     public static string? ReadRefreshCookie(HttpRequest request) =>
         request.Cookies.TryGetValue(RefreshCookieName, out var value) && !string.IsNullOrEmpty(value)
@@ -32,15 +32,15 @@ public static class AuthCookies
     public static bool HasCsrfHeader(HttpRequest request) =>
         request.Headers.ContainsKey(CsrfHeaderName);
 
-    private static CookieOptions BuildOptions(HttpContext context, Action<CookieOptions> extra)
+    private static CookieOptions BuildOptions(bool secure, Action<CookieOptions> extra)
     {
         var options = new CookieOptions
         {
             HttpOnly = true,
-            // HTTPS in production (the forwarded proto from #144 makes IsHttps
-            // reflect the real client scheme); off for plain-HTTP local dev so the
-            // browser will still store it.
-            Secure = context.Request.IsHttps,
+            // Secure in every non-Development environment so a misconfigured
+            // forwarded-proto can never emit a non-Secure auth cookie in prod; off
+            // only for plain-HTTP local dev so the browser will still store it.
+            Secure = secure,
             SameSite = SameSiteMode.Strict,
             Path = CookiePath,
             IsEssential = true, // an auth cookie is not subject to consent gating
