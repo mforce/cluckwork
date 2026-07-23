@@ -9,7 +9,7 @@ using Testcontainers.PostgreSql;
 
 // Full-stack integration tests run against a real Postgres container (tech spec §5.4).
 // SQLite is deliberately NOT used — EF Core SQL semantics differ too much.
-public sealed class CluckworkWebApplicationFactory : WebApplicationFactory<Program>, IAsyncLifetime
+public class CluckworkWebApplicationFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder()
         .WithImage("postgres:16-alpine")
@@ -44,6 +44,11 @@ public sealed class CluckworkWebApplicationFactory : WebApplicationFactory<Progr
         builder.UseSetting("Jwt:PublicKeyPem", TestJwtKeys.PublicKeyPem);
         builder.UseSetting("Jwt:Issuer", "cluckwork-test");
         builder.UseSetting("Jwt:Audience", "cluckwork-api-test");
+        // The suite logs in and refreshes constantly from one in-process
+        // "client"; keep the auth rate limits (#143) out of the way.
+        // RateLimitingTests derive a factory that tightens them back down.
+        builder.UseSetting("RateLimiting:Login:PermitLimit", "1000000");
+        builder.UseSetting("RateLimiting:Refresh:PermitLimit", "1000000");
     }
 }
 

@@ -166,7 +166,8 @@ export async function apiGetBlob(
     try {
       const refreshed = await refreshTokens();
       return await rawBlob(path, refreshed.accessToken);
-    } catch {
+    } catch (refreshErr) {
+      if (isTransientRefreshFailure(refreshErr)) throw refreshErr;
       clearTokens();
       onUnauthenticated?.();
       throw err;
@@ -204,10 +205,18 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
     try {
       const refreshed = await refreshTokens();
       return await raw<T>(path, init, refreshed.accessToken);
-    } catch {
+    } catch (refreshErr) {
+      if (isTransientRefreshFailure(refreshErr)) throw refreshErr;
       clearTokens();
       onUnauthenticated?.();
       throw err;
     }
   }
+}
+
+// A 429 during refresh is transient throttling (#143), not an invalid session:
+// the refresh token is still good, so keep it and surface the error rather than
+// clearing tokens — which would force a re-login through the same rate limit.
+function isTransientRefreshFailure(err: unknown): boolean {
+  return err instanceof ApiError && err.status === 429;
 }

@@ -10,6 +10,7 @@ import { useEffect, useState } from "react";
 // missing here is invisible to anyone who navigates by the contents list.
 const TOC = [
   ["getting-around", "Getting around"],
+  ["signing-in", "Signing in"],
   ["daily-loop", "The daily loop"],
   ["roles", "Who can do what"],
   ["dialogs", "Adding & correcting"],
@@ -104,6 +105,23 @@ export function HelpPage() {
           may need to be entered again) — tap <strong>Reload</strong>, or{" "}
           <strong>Back to the dashboard</strong> and try again. If it keeps
           happening, open "Error details" and send a screenshot.
+        </li>
+      </ul>
+
+      <h3 id="signing-in">Signing in</h3>
+      <ul>
+        <li>
+          Sign in with the email and password your administrator set up. A wrong
+          password just says <strong>Invalid email or password</strong> — try
+          again.
+        </li>
+        <li>
+          To slow down anyone guessing passwords, sign-in attempts from the same
+          place are <strong>limited</strong>. After too many tries in a few
+          minutes you&apos;ll see <strong>&quot;Too many sign-in
+          attempts&quot;</strong> — that isn&apos;t a fault, just wait a few
+          minutes and try again. Being <em>signed in</em> already is never
+          affected; your work carries on normally.
         </li>
       </ul>
 
@@ -601,6 +619,8 @@ export function HelpPage() {
         <tbody>
           <tr><th scope="row">Navigation</th>
             <td>Screens live in the left sidebar on a computer; on a phone the four you use most are tabs across the bottom, the rest under More.</td></tr>
+          <tr><th scope="row">Too many sign-in attempts</th>
+            <td>Sign-in is rate limited to slow password guessing: too many attempts from one place in a few minutes are refused with this message until a short cool-off passes. It never affects an already signed-in session.</td></tr>
           <tr><th scope="row">&quot;Something went wrong&quot; screen</th>
             <td>What a screen shows when it hits an error, instead of going blank. Saved data is safe — anything you were still typing may need re-entering; tap Reload or Back to the dashboard. &quot;Error details&quot; holds the message for a screenshot.</td></tr>
           <tr><th scope="row">Daily entry</th>
