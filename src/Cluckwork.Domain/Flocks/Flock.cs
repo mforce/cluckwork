@@ -14,9 +14,10 @@ public sealed class Flock : AggregateRoot<Guid>
     public DateOnly PlacementDate { get; private set; }
     public int InitialCount { get; private set; }
     public FlockStatus Status { get; private set; }
-    // Lifecycle stamps: the operational date the action was taken (farm-local ≈
-    // UTC for the MVP, issue #35). DepletedOn lets historical daily entries
-    // dated on/before it stay recordable after depletion.
+    // Lifecycle stamps: the operational date the action was taken, on the farm's
+    // own calendar (#35/#155). DepletedOn lets historical daily entries dated
+    // on/before it stay recordable after depletion — so a stamp on the wrong
+    // calendar day silently moves that cutoff.
     public DateOnly? DepletedOn { get; private set; }
     public DateOnly? ArchivedOn { get; private set; }
     public int Version { get; private set; }

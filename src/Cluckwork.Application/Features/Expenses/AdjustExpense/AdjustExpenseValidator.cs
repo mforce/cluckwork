@@ -1,11 +1,12 @@
 namespace Cluckwork.Application.Features.Expenses.AdjustExpense;
 
 using Cluckwork.Domain.Expenses;
+using Cluckwork.Application.Common;
 using FluentValidation;
 
 public sealed class AdjustExpenseValidator : AbstractValidator<AdjustExpenseCommand>
 {
-    public AdjustExpenseValidator()
+    public AdjustExpenseValidator(IFarmClock farmClock)
     {
         RuleFor(c => c.Description)
             .Must(d => !string.IsNullOrWhiteSpace(d))
@@ -22,7 +23,8 @@ public sealed class AdjustExpenseValidator : AbstractValidator<AdjustExpenseComm
             .WithMessage($"Note cannot exceed {Expense.MaxNoteLength} characters.");
 
         RuleFor(c => c.Date)
-            .Must(d => d <= DateOnly.FromDateTime(DateTime.UtcNow))
+            // The farm's own today (#35).
+            .MustAsync(async (d, ct) => d <= await farmClock.TodayAsync(ct))
             .WithMessage("Expense date cannot be in the future.")
             // An omitted JSON date binds as 0001-01-01 — reject nonsense
             // instead of persisting year-1 rows (codex review of #88).

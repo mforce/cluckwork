@@ -1,10 +1,11 @@
 namespace Cluckwork.Application.Features.Flocks.CreateFlock;
 
+using Cluckwork.Application.Common;
 using FluentValidation;
 
 public sealed class CreateFlockValidator : AbstractValidator<CreateFlockCommand>
 {
-    public CreateFlockValidator()
+    public CreateFlockValidator(IFarmClock farmClock)
     {
         // Must-not-whitespace instead of bare NotEmpty: whitespace-only input
         // would pass NotEmpty and throw inside Flock.Create (a 500, not a 400).
@@ -20,7 +21,8 @@ public sealed class CreateFlockValidator : AbstractValidator<CreateFlockCommand>
         RuleFor(x => x.PlacementDate)
             .NotEqual(default(DateOnly))
             .WithMessage("Placement date is required.")
-            .LessThanOrEqualTo(_ => DateOnly.FromDateTime(DateTime.UtcNow.Date))
+            // The farm's own today (#35).
+            .MustAsync(async (d, ct) => d <= await farmClock.TodayAsync(ct))
             .WithMessage("Placement date cannot be in the future.");
     }
 }

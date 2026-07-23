@@ -20,7 +20,8 @@ public sealed class RecordFeedUsageHandler(
     IFlockRepository flocks,
     IFlockScopeGuard flockScope,
     IUnitOfWork unitOfWork,
-    IClock clock)
+    IClock clock,
+    IFarmClock farmClock)
 {
     // Categories a flock can plausibly eat. Recording packaging or equipment
     // parts as feed would poison the §19 feed-cost KPIs.
@@ -30,7 +31,7 @@ public sealed class RecordFeedUsageHandler(
     public async Task<Result<RecordFeedUsageResponse>> HandleAsync(
         RecordFeedUsageCommand command, Guid accountId, CancellationToken ct)
     {
-        if (command.Date > clock.TodayUtc)
+        if (command.Date > await farmClock.TodayAsync(ct))
             return Result.Failure<RecordFeedUsageResponse>(Error.Validation(
                 "FeedUsage.FutureDate", "Usage date cannot be in the future."));
 

@@ -14,7 +14,8 @@ public sealed class RecordPurchaseHandler(
     IInventoryMovementRepository movements,
     IAccountRepository accounts,
     IUnitOfWork unitOfWork,
-    IClock clock)
+    IClock clock,
+    IFarmClock farmClock)
 {
     public async Task<Result<Guid>> HandleAsync(
         RecordPurchaseCommand command, Guid accountId, CancellationToken ct)
@@ -38,7 +39,7 @@ public sealed class RecordPurchaseHandler(
             }
 
             // Backdated receipts are normal (paper catch-up); future ones are not.
-            if (command.ReceivedDate > clock.TodayUtc)
+            if (command.ReceivedDate > await farmClock.TodayAsync(ct))
             {
                 outcome = Result.Failure<Guid>(Error.Validation(
                     "InventoryLot.FutureDate", "Received date cannot be in the future."));

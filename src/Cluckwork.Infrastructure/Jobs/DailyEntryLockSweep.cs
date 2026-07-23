@@ -8,8 +8,9 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 // #69 — spec §8.1 default: submitted entries lock automatically once they are
-// older than 7 farm-local days (account timezone; real farm timezones are
-// #35). Runs from the DurableJobWorker poll; idempotent — an entry is locked
+// older than 7 farm-local days, counted in the account's own timezone (the
+// boundary every date rule now shares — #35/#155). Runs from the
+// DurableJobWorker poll; idempotent — an entry is locked
 // at most once (Submitted → Locked), and a concurrent admin adjust that wins
 // the Version race simply leaves nothing for the sweep to lock.
 public sealed class DailyEntryLockSweep(
