@@ -16,6 +16,7 @@ using Cluckwork.Api.Endpoints.Sales;
 using Cluckwork.Api.Endpoints.Water;
 using Cluckwork.Api.Endpoints.Stock;
 using Cluckwork.Api.Endpoints.Users;
+using Cluckwork.Api.Hosting;
 using Cluckwork.Api.Middleware;
 using Cluckwork.Api.RateLimiting;
 using Cluckwork.Api.Security;
@@ -453,8 +454,13 @@ app.UseHttpsRedirection();
 
 // Serve the built SPA (copied to wwwroot in the Docker image). Static assets are
 // public — mounted before auth. API routes and the SPA fallback are wired below.
+// #141 — hashed /assets/* are immutable-forever, index.html revalidates, so a
+// fronting CDN (and browsers) can cache aggressively without serving a stale app.
 app.UseDefaultFiles();
-app.UseStaticFiles();
+app.UseStaticFiles(new StaticFileOptions
+{
+    OnPrepareResponse = StaticAssetCaching.ApplyCacheHeaders
+});
 
 // Endpoint rate-limit policies (#143) — no global limiter, only routes that
 // opt in via RequireRateLimiting are affected.
@@ -622,10 +628,25 @@ app.Map("/error", (HttpContext context) =>
     };
 });
 
+// An unknown /api/* path must 404 as an API error — NOT fall through to the SPA
+// fallback below (which would return index.html, i.e. a 200 text/html page, and
+// #141 would then stamp a Cache-Control header on an /api response). Real
+// endpoints have literal segments and outrank this catch-all; the SPA fallback
+// is a bare non-file catch-all, so this /api-prefixed one wins for /api paths.
+app.Map("/api/{**rest}", () => Results.Problem(
+    statusCode: StatusCodes.Status404NotFound, title: "Not found"))
+    .ExcludeFromDescription();
+
 // SPA client-side routing: any non-API, non-file request falls back to
 // index.html. Lowest route priority, so the /api/v1 endpoints and /health above
 // always match first. No-op in dev (no wwwroot) — dev uses the Vite server.
-app.MapFallbackToFile("index.html");
+// #141 — the fallback ALWAYS serves index.html, so it unconditionally emits
+// no-cache (AlwaysRevalidateHeader): a new deploy propagates immediately even
+// through a fronting CDN, and a missing /assets/x can never be pinned immutable.
+app.MapFallbackToFile("index.html", new StaticFileOptions
+{
+    OnPrepareResponse = StaticAssetCaching.AlwaysRevalidateHeader
+});
 
 app.Run();
 
