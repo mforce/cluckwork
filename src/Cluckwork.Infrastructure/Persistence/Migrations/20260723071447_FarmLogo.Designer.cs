@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Cluckwork.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260723060350_FarmLogo")]
+    [Migration("20260723071447_FarmLogo")]
     partial class FarmLogo
     {
         /// <inheritdoc />
@@ -124,6 +124,10 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
 
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("integer");
 
                     b.Property<int>("Width")
                         .HasColumnType("integer");

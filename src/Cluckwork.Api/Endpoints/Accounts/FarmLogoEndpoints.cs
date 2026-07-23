@@ -95,14 +95,28 @@ public static class FarmLogoEndpoints
     // Weak comparison, per RFC 9110 for If-None-Match: a 304 only has to mean
     // "the representation you hold is still good", not "byte-identical
     // encoding". `*` matches any existing representation.
+    //
+    // Returns false — deferring to Results.Bytes — whenever this cannot be the
+    // whole answer. RFC 9110 evaluates If-Match BEFORE If-None-Match, and a
+    // failed If-Match is a 412; short-circuiting to 304 here would answer the
+    // lower-precedence condition and skip the higher one entirely (codex round
+    // 2 of #168). Those requests cost a byte load, which is the right price for
+    // not reimplementing precedence.
     private static bool MatchesIfNoneMatch(HttpRequest request, EntityTagHeaderValue etag)
     {
-        var candidates = request.GetTypedHeaders().IfNoneMatch;
+        var headers = request.GetTypedHeaders();
+        if (request.Headers.ContainsKey(HeaderNames.IfMatch)
+            || request.Headers.ContainsKey(HeaderNames.IfUnmodifiedSince))
+            return false;
+
+        var candidates = headers.IfNoneMatch;
         if (candidates is null || candidates.Count == 0) return false;
 
         foreach (var candidate in candidates)
         {
-            if (EntityTagHeaderValue.Any.Equals(candidate)) return true;
+            // Compared on the tag itself rather than through Any.Equals, so
+            // this does not depend on the parser handing back the singleton.
+            if (candidate.Tag == "*") return true;
             if (candidate.Compare(etag, useStrongComparison: false)) return true;
         }
 

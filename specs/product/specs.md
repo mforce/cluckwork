@@ -143,6 +143,7 @@ farm_logos
 - content_type: sniffed from the bytes, never the uploaded declaration
 - width / height: read from the image header, capped
 - byte_length: stored, not derived — see below
+- version: optimistic concurrency token — orders two writers replacing the same logo
 - content_hash: identifies the current logo; serves as the HTTP ETag
 - updated_at
 ```

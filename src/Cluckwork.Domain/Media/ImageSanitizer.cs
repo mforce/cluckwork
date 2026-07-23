@@ -25,7 +25,17 @@ using Cluckwork.Domain.Common;
 //  3. Metadata containers are dropped, so a logo photographed on a phone stops
 //     carrying the farm's GPS coordinates. The rule is an allowlist — a chunk
 //     type nobody had invented when this was written is dropped by default
-//     rather than carried by default.
+//     rather than carried by default — and every kept chunk whose size the
+//     specification fixes is held to it, because a keep-listed chunk is copied
+//     WHOLE and its surplus would ride along.
+//
+//     The limit, stated rather than glossed: three kept chunks are variable by
+//     nature — PNG IDAT, PNG iCCP, and a JPEG ICC APP2 — and arbitrary bytes
+//     can sit inside them. No sanitizer that declines to decode can prevent
+//     that; pixel data can carry anything by construction. It is accepted here
+//     because the response is served with a sniffed Content-Type under nosniff
+//     and the #144 CSP, so an inert blob is not an execution vector, and
+//     because uploads are Owner/Manager only.
 //  4. Declared dimensions are read from the header and capped. This is the one
 //     bomb vector the no-decode approach still has to answer for: our server
 //     never allocates the pixels, but the browsers of everyone on the farm
@@ -116,6 +126,40 @@ public static class ImageSanitizer
         // outright, in both formats. See AnimationNotSupported.
     }.Select(Fcc).ToFrozenSet();
 
+    // The size each allowlisted chunk is allowed to declare.
+    //
+    // Where the PNG specification fixes or bounds a chunk's size, this enforces
+    // it, and surplus bytes are refused rather than copied. Two entries are
+    // deliberately absent because their size is genuinely variable:
+    //
+    //   IDAT — compressed pixel data.
+    //   iCCP — a compressed colour profile.
+    //
+    // Arbitrary bytes CAN ride inside those two, and no sanitizer that declines
+    // to decode can prevent that (pixel data can carry anything by
+    // construction). That is an accepted limit, not an oversight: the response
+    // is served with a sniffed Content-Type under X-Content-Type-Options:
+    // nosniff and the #144 CSP, so an inert blob is not an execution vector,
+    // and uploads are Owner/Manager only. What this table stops is the case
+    // where the surplus is unambiguous because the specification left no room
+    // for it.
+    private static bool PngChunkLengthIsLegal(uint type, int length)
+    {
+        if (type == Ihdr) return length == 13;
+        if (type == Iend) return length == 0;
+        if (type == Srgb) return length == 1;
+        if (type == Gama) return length == 4;
+        if (type == Chrm) return length == 32;
+        if (type == Phys) return length == 9;
+        if (type == Sbit) return length is >= 1 and <= 4;
+        if (type == Bkgd) return length is 1 or 2 or 6;
+        // Palette entries are RGB triples, 256 of them at most.
+        if (type == Plte) return length is > 0 and <= 768 && length % 3 == 0;
+        // Alpha for at most a full palette, or a single colour key.
+        if (type == Trns) return length is > 0 and <= 256;
+        return true;
+    }
+
     private static Result<SanitizedImage> SanitizePng(ReadOnlySpan<byte> data)
     {
         // The rewrite only ever drops, so the input length is a safe ceiling.
@@ -141,13 +185,16 @@ public static class ImageSanitizer
             var dataStart = pos + 8;
             var length = (int)declared;
 
+            // Length first, so the header read below is against a chunk whose
+            // size the specification agrees with.
+            if (!PngChunkLengthIsLegal(type, length))
+                return Result.Failure<SanitizedImage>(Malformed);
+
             if (!sawHeader)
             {
                 // IHDR is required to be the first chunk, and it is where the
-                // dimensions live, so nothing can precede it. Its length is
-                // fixed at 13 — accepting a longer one would copy the surplus
-                // through as part of an allowlisted chunk.
-                if (type != Ihdr || length != 13) return Result.Failure<SanitizedImage>(Malformed);
+                // dimensions live, so nothing can precede it.
+                if (type != Ihdr) return Result.Failure<SanitizedImage>(Malformed);
                 width = (int)BinaryPrimitives.ReadUInt32BigEndian(data[dataStart..]);
                 height = (int)BinaryPrimitives.ReadUInt32BigEndian(data[(dataStart + 4)..]);
                 sawHeader = true;
@@ -156,14 +203,6 @@ public static class ImageSanitizer
             {
                 return Result.Failure<SanitizedImage>(Malformed);
             }
-
-            // IEND's data field is empty by specification, and it is on the
-            // allowlist — so a declared length here is surplus that gets copied
-            // through inside the very chunk that is supposed to END the file.
-            // That is the polyglot hole reopened from the inside: the payload
-            // sits before the terminator, not after it, so truncating at IEND
-            // does not remove it (codex review of #168).
-            if (type == Iend && length != 0) return Result.Failure<SanitizedImage>(Malformed);
 
             // Animation is refused rather than silently flattened — see the
             // WebP walk for why the two formats are held to one rule.
@@ -264,8 +303,18 @@ public static class ImageSanitizer
             if (marker is >= 0xC0 and <= 0xCF && marker != 0xC4 && marker != 0xC8 && marker != 0xCC)
             {
                 if (payload.Length < 5) return Result.Failure<SanitizedImage>(Malformed);
+
+                // Exactly the WebP duplicate-bitstream bug, in the format I
+                // fixed it for and then left standing here (codex round 2 of
+                // #168). Every SOF overwrote the dimensions and only the last
+                // pair was capped, so SOF0(65535x65535) followed by SOF0(1x1)
+                // reported 1x1 and shipped the bomb header. A still image has
+                // one frame header.
+                if (sawFrame) return Result.Failure<SanitizedImage>(Malformed);
+
                 height = BinaryPrimitives.ReadUInt16BigEndian(payload[1..]);
                 width = BinaryPrimitives.ReadUInt16BigEndian(payload[3..]);
+                if (Exceeds(width, height)) return Result.Failure<SanitizedImage>(DimensionsTooLarge);
                 sawFrame = true;
             }
 
@@ -343,8 +392,14 @@ public static class ImageSanitizer
             // this strip is meant to clean (codex review of #168). Density is no
             // loss either way — a logo is laid out by CSS, not by DPI.
             //
-            // APP2 survives only when it really is an ICC colour profile. Same
-            // reasoning as iCCP in PNG: dropping that shifts the brand colour.
+            // APP2 survives only when it claims to be an ICC colour profile.
+            // Same reasoning as iCCP in PNG: dropping that shifts the brand
+            // colour, which for a logo is the one silent change to avoid.
+            //
+            // This is a PREFIX check, not validation — an ICC profile has no
+            // fixed size, so the bytes after the marker are unbounded and could
+            // be anything. That is the accepted variable-length channel
+            // described in the header comment, not an oversight.
             return marker == 0xE2 && payload.StartsWith("ICC_PROFILE\0"u8);
         }
 
@@ -362,7 +417,7 @@ public static class ImageSanitizer
     {
         "VP8 ", "VP8L", "VP8X",   // the image itself, lossy / lossless / extended
         "ALPH",                   // alpha plane
-        "ICCP"                    // colour profile — see the PNG note
+        "ICCP"                    // colour profile — variable size, see PngChunkLengthIsLegal
         // ANIM/ANMF are absent by design: an ANMF frame nests its own chunk
         // stream, which a flat allowlist cannot sweep. Animation is refused.
     }.Select(Fcc).ToFrozenSet();
@@ -408,7 +463,12 @@ public static class ImageSanitizer
                 // A second VP8X would overwrite the first one's canvas. A
                 // decoder reads the first; we would report the second.
                 if (sawCanvas) return Result.Failure<SanitizedImage>(Malformed);
-                if (payload.Length < 10) return Result.Failure<SanitizedImage>(Malformed);
+                // EXACTLY ten: flags, three reserved, then two 24-bit canvas
+                // fields. VP8X is on the keep-list and keep-listed chunks are
+                // copied whole, so a longer one smuggles its surplus through —
+                // the same hole as PNG's fixed-size chunks, checked here with
+                // `<` instead of `!=` (adversarial review, round 2 of #168).
+                if (payload.Length != 10) return Result.Failure<SanitizedImage>(Malformed);
                 // Canvas size is stored minus one, as two 24-bit LE fields.
                 var canvasWidth = ReadUInt24LittleEndian(payload[4..]) + 1;
                 var canvasHeight = ReadUInt24LittleEndian(payload[7..]) + 1;
@@ -472,7 +532,14 @@ public static class ImageSanitizer
         if (!sawImage) return Result.Failure<SanitizedImage>(Malformed);
 
         // VP8X flags, MSB first: Rsv Rsv ICC Alpha EXIF XMP Anim Rsv.
-        if (vp8xFlagsAt >= 0) output[vp8xFlagsAt] &= 0xF3;
+        //
+        // EXIF (0x08) and XMP (0x04) go because those chunks were dropped, and
+        // Anim (0x02) goes with them: a VP8X can advertise animation while
+        // carrying no ANIM chunk, which slips past the rejection above (there
+        // is nothing there to reject) and leaves the stored file claiming
+        // frames it does not have — something decoders are entitled to treat as
+        // an error (pi and codex, round 2 of #168).
+        if (vp8xFlagsAt >= 0) output[vp8xFlagsAt] &= 0xF1;
 
         // The chunks that were dropped came out of the middle, so the declared
         // size no longer matches what we are storing.
@@ -530,6 +597,14 @@ public static class ImageSanitizer
     private static readonly uint Ihdr = Fcc("IHDR");
     private static readonly uint Idat = Fcc("IDAT");
     private static readonly uint Iend = Fcc("IEND");
+    private static readonly uint Plte = Fcc("PLTE");
+    private static readonly uint Srgb = Fcc("sRGB");
+    private static readonly uint Gama = Fcc("gAMA");
+    private static readonly uint Chrm = Fcc("cHRM");
+    private static readonly uint Phys = Fcc("pHYs");
+    private static readonly uint Sbit = Fcc("sBIT");
+    private static readonly uint Bkgd = Fcc("bKGD");
+    private static readonly uint Trns = Fcc("tRNS");
     private static readonly uint Vp8 = Fcc("VP8 ");
     private static readonly uint Vp8L = Fcc("VP8L");
     private static readonly uint Vp8x = Fcc("VP8X");

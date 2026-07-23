@@ -24,6 +24,7 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                     ByteLength = table.Column<int>(type: "integer", nullable: false),
                     ContentHash = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
                     UpdatedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
+                    Version = table.Column<int>(type: "integer", nullable: false),
                     AccountId = table.Column<Guid>(type: "uuid", nullable: false)
                 },
                 constraints: table =>
