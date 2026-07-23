@@ -59,18 +59,23 @@ export function UsersPage() {
       .catch((err) => setError(errText(err)));
   }, []);
 
-  async function toggleAssignments(userId: string) {
-    if (openUser === userId) {
-      setOpenUser(null);
-      return;
-    }
+  // F133: flock scoping is a per-worker action, so it opens in the shared dialog
+  // like the other per-row surfaces (#131) — the row button opens it, the dialog
+  // closes it. Load the assignments before opening so the panel is never empty
+  // mid-flight; a load failure surfaces on the page and the dialog stays shut.
+  async function openAssignments(userId: string) {
     try {
       setAssignments(await listFlockAssignments(userId));
-      setOpenUser(userId);
       setError(null);
+      setOpenUser(userId);
     } catch (err) {
       setError(errText(err));
     }
+  }
+
+  function closeAssignments() {
+    setOpenUser(null);
+    setError(null);
   }
 
   async function onAssign() {
@@ -178,8 +183,8 @@ export function UsersPage() {
         </form>
       </Dialog>
 
-      {/* The dialog carries its own copy while it is up. */}
-      {error && !creating && <p className="error">{error}</p>}
+      {/* Each dialog carries its own error copy while it is up. */}
+      {error && !creating && openUser === null && <p className="error">{error}</p>}
       {message && <p className="success">{message}</p>}
 
       <table className="data">
@@ -194,8 +199,8 @@ export function UsersPage() {
               <td>{u.role}</td>
               <td>
                 {u.role === "Worker" && (
-                  <button className="link" onClick={() => void toggleAssignments(u.id)}>
-                    {openUser === u.id ? "hide flocks" : "flocks"}
+                  <button className="link" onClick={() => void openAssignments(u.id)}>
+                    flocks
                   </button>
                 )}
               </td>
@@ -204,37 +209,42 @@ export function UsersPage() {
         </tbody>
       </table>
 
-      {openUser !== null && (
-        <>
-          <h3>Assigned flocks</h3>
-          <p className="muted">
-            No assignments = the worker can record for any flock. The first
-            assignment narrows them to the listed flocks only.
-          </p>
-          {assignments.length === 0 ? (
-            <p className="muted">No assignments — account-wide access.</p>
-          ) : (
-            <ul>
-              {assignments.map((a) => (
-                <li key={a.id}>
-                  {flockName(a.flockId)}{" "}
-                  <button className="link" disabled={busy} onClick={() => void onUnassign(a.id)}>
-                    remove
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-          <div className="inline-form">
-            <select value={assignFlockId} onChange={(e) => setAssignFlockId(e.target.value)}>
-              {flocks.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
-            </select>
-            <button disabled={busy || !assignFlockId} onClick={() => void onAssign()}>
-              Assign flock
-            </button>
-          </div>
-        </>
-      )}
+      <Dialog
+        open={openUser !== null}
+        title={`Flock access — ${users.find((u) => u.id === openUser)?.email ?? ""}`}
+        onClose={closeAssignments}
+      >
+        <p className="muted">
+          No assignments = the worker can record for any flock. The first
+          assignment narrows them to the listed flocks only.
+        </p>
+        {assignments.length === 0 ? (
+          <p className="muted">No assignments — account-wide access.</p>
+        ) : (
+          <ul>
+            {assignments.map((a) => (
+              <li key={a.id}>
+                {flockName(a.flockId)}{" "}
+                <button className="link" disabled={busy} onClick={() => void onUnassign(a.id)}>
+                  remove
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="inline-form">
+          <select value={assignFlockId} onChange={(e) => setAssignFlockId(e.target.value)}>
+            {flocks.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+          </select>
+          <button disabled={busy || !assignFlockId} onClick={() => void onAssign()}>
+            Assign flock
+          </button>
+        </div>
+        {error && <p className="error">{error}</p>}
+        <div className="dialog-foot">
+          <button type="button" className="link" onClick={closeAssignments}>Done</button>
+        </div>
+      </Dialog>
     </section>
   );
 }

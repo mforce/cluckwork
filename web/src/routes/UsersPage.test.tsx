@@ -195,14 +195,14 @@ describe("UsersPage flock scoping", () => {
     });
 
     expect(mockListAssignments).toHaveBeenCalledWith("u-w");
-    expect(await screen.findByText("Assigned flocks")).toBeInTheDocument();
+    // F133: the per-worker panel now opens in the shared dialog, titled with the
+    // worker's email (its accessible name).
+    const panel = await screen.findByRole("dialog", { name: /Flock access — worker@farm.test/ });
     // The assignment's flock id resolves to a name via the loaded flocks list.
     // Scope to the <li> so it doesn't collide with the dropdown's "Coop A" option.
-    const item = screen.getByRole("listitem");
+    const item = within(panel).getByRole("listitem");
     expect(within(item).getByText("Coop A")).toBeInTheDocument();
     expect(within(item).getByRole("button", { name: "remove" })).toBeInTheDocument();
-    // Toggle flips to "hide flocks".
-    expect(within(workerRow).getByRole("button", { name: "hide flocks" })).toBeInTheDocument();
   });
 
   it("shows the empty-assignments hint (account-wide access) and lists only ACTIVE flocks to assign", async () => {
@@ -294,18 +294,18 @@ describe("UsersPage flock scoping", () => {
     expect(await screen.findByText(/No assignments — account-wide access/)).toBeInTheDocument();
   });
 
-  it("collapses the panel again on 'hide flocks'", async () => {
+  it("closes the flock dialog on Done", async () => {
     mockListAssignments.mockResolvedValue([ASSIGN_1]);
     await renderReady(ADMIN);
 
-    const workerRow = () => screen.getByRole("row", { name: /worker@farm.test/ });
+    const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
     await act(async () => {
-      fireEvent.click(within(workerRow()).getByRole("button", { name: "flocks" }));
+      fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" }));
     });
-    expect(await screen.findByText("Assigned flocks")).toBeInTheDocument();
+    const panel = await screen.findByRole("dialog", { name: /Flock access/ });
 
-    fireEvent.click(within(workerRow()).getByRole("button", { name: "hide flocks" }));
-    expect(screen.queryByText("Assigned flocks")).not.toBeInTheDocument();
+    fireEvent.click(within(panel).getByRole("button", { name: "Done" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("surfaces an error when an assign fails, keeping the panel open", async () => {
@@ -323,7 +323,7 @@ describe("UsersPage flock scoping", () => {
     });
 
     expect(await screen.findByText(/already assigned|Conflict/)).toBeInTheDocument();
-    expect(screen.getByText("Assigned flocks")).toBeInTheDocument(); // panel stayed open
+    expect(screen.getByRole("dialog")).toBeInTheDocument(); // dialog stayed open
   });
 });
 

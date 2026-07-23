@@ -165,9 +165,10 @@ export function HelpPage() {
         <li>
           Drill-downs work the same way. Open a flock&apos;s{" "}
           <strong>birds</strong> ledger to record a cull, an inventory item to
-          record a purchase, feed usage, or a stock correction, or an order to{" "}
-          <strong>record a payment</strong> — the ledger stays where it is and
-          the form comes to you.
+          record a purchase, feed usage, or a stock correction, an order to{" "}
+          <strong>record a payment</strong>, or a worker&apos;s{" "}
+          <strong>flocks</strong> to manage their access — the ledger stays
+          where it is and the form comes to you.
         </li>
         <li>
           <strong>Cancel</strong>, Escape, or a click outside closes the popup
