@@ -24,6 +24,7 @@ cluckwork/
   web/               React + Vite SPA (see web/README.md)
   tests/             domain, application, and API integration tests
   deploy/            Docker Compose (prod + dev DB), Traefik, .env.example
+                     (see deploy/README.md: topology, static caching, CDN-in-front)
   specs/             product & technical specification, wireframes, CHANGELOG
 ```
 
