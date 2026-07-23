@@ -15,7 +15,8 @@ public sealed class ConfirmSaleHandler(
     ISalesOrderAllocationRepository allocations,
     IEggInventoryMovementRepository eggMovements,
     IUnitOfWork unitOfWork,
-    IClock clock)
+    IClock clock,
+    IFarmClock farmClock)
 {
     // Implements functional spec §10.9.1 pessimistic-lock FIFO allocation:
     //   BEGIN
@@ -35,7 +36,10 @@ public sealed class ConfirmSaleHandler(
         if (order.AccountId != accountId)
             return Result.Failure<ConfirmSaleResponse>(AppError.TenantMismatch());
 
-        var allocationDate = clock.TodayUtc;
+        // #35: farm-local, matching the stock read's restriction boundary —
+        // allocating against a UTC date would let a sale draw from a lot the
+        // farm still has under medication withdrawal.
+        var allocationDate = await farmClock.TodayAsync(ct);
         Result<ConfirmSaleResponse>? failure = null;
 
         await unitOfWork.ExecuteInTransactionAsync(async transactionCt =>

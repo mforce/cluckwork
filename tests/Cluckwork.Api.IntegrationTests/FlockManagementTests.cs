@@ -97,6 +97,44 @@ public sealed class FlockManagementTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(HttpStatusCode.NoContent, archive.StatusCode);
     }
 
+    // #35 review: the 422 lifecycle branch above can no longer be reached with a
+    // future date, so reach it the way real farms do — a flock depleted days ago
+    // refuses an entry dated after that depletion but still in the past. Deplete
+    // stamps DepletedOn = today over the API, so the past depletion is set on the
+    // aggregate directly.
+    [Fact]
+    public async Task DailyEntry_AfterAPastDepletion_IsRefusedByTheLifecycleRule_Not400()
+    {
+        var (client, accountId) = await SetupAsync();
+        var id = await CreateFlockAsync(client);
+        var flock = await client.GetFromJsonAsync<FlockDto>($"/api/v1/flocks/{id}");
+        var today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
+
+        await factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            var entity = await db.Flocks.SingleAsync(f => f.Id == id);
+            entity.Deplete(today.AddDays(-5));
+            await db.SaveChangesAsync();
+        });
+
+        // Dated after the depletion but before today: passes the future-date
+        // rule, so it reaches — and is stopped by — the lifecycle rule.
+        var afterDepletion = await client.PostWithKeyAsync(
+            "/api/v1/daily-entries", Guid.NewGuid().ToString(), new
+            {
+                farmId = flock!.FarmId,
+                houseId = flock.HouseId,
+                flockId = id,
+                date = today.AddDays(-2),
+                totalEggs = 10,
+                crackedEggs = 0,
+                dirtyEggs = 0,
+                discardedEggs = 0,
+                mortalityCount = 0,
+            });
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, afterDepletion.StatusCode);
+    }
+
     [Fact]
     public async Task DailyEntry_FlockLifecycle_GatesByDate()
     {
@@ -128,11 +166,17 @@ public sealed class FlockManagementTests(CluckworkWebApplicationFactory factory)
             "/api/v1/daily-entries", Guid.NewGuid().ToString(), EntryBody(today.AddDays(-1)));
         Assert.Equal(HttpStatusCode.Created, backfill.StatusCode);
 
-        // A date after depletion is refused (tomorrow passes the future-date
-        // validator slack but not the lifecycle rule).
+        // Tomorrow is refused. It used to reach the lifecycle rule (422) through
+        // the validator's +1-day UTC slack; #35 replaced that with the farm-local
+        // boundary, so a future date is now rejected up front (400).
+        //
+        // The lifecycle rule itself still fires end to end — see
+        // DailyEntry_AfterAPastDepletion_IsRefusedByTheLifecycleRule_Not400,
+        // which depletes in the past so a date after the depletion is still in
+        // the past, and FlockTests.CanRecordProductionOn_* at the domain level.
         var rejected = await client.PostWithKeyAsync(
             "/api/v1/daily-entries", Guid.NewGuid().ToString(), EntryBody(today.AddDays(1)));
-        Assert.Equal(HttpStatusCode.UnprocessableEntity, rejected.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, rejected.StatusCode);
 
         // Archived: nothing is recordable, not even backfill.
         await client.PostWithKeyAsync($"/api/v1/flocks/{id}/archive", Guid.NewGuid().ToString());

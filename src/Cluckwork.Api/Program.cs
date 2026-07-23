@@ -235,6 +235,10 @@ builder.Services.AddSingleton<Microsoft.AspNetCore.Authorization.IAuthorizationM
 // --- Application ports ---
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddScoped<IClock, SystemClock>();
+// #35: farm-local date boundary, shared by the stock read, sale allocation and
+// the future-date validators. Scoped so one request resolves the tenant's
+// timezone once and every boundary in it agrees.
+builder.Services.AddScoped<IFarmClock, FarmClock>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<IIdentityProvider, IdentityProvider>();
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();

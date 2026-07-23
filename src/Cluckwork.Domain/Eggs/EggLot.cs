@@ -70,6 +70,15 @@ public sealed class EggLot : AggregateRoot<Guid>
                 "EggLot.WithdrawalRestricted",
                 "This egg lot is under withdrawal restriction and cannot be sold."));
 
+        // Eggs that have not been produced yet cannot be sold. The FIFO query
+        // filters these out too; this is the domain's own guard so the rule does
+        // not live only in SQL (#35). Such lots exist in older data — the
+        // +1-day validator slack let an entry be dated tomorrow.
+        if (ProductionDate > allocationDate)
+            return Result.Failure(Error.Domain(
+                "EggLot.NotYetProduced",
+                "This egg lot is dated in the future and cannot be sold yet."));
+
         if (quantity <= 0)
             return Result.Failure(Error.Validation(
                 "EggLot.InvalidQuantity", "Allocation quantity must be positive."));

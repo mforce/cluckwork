@@ -57,14 +57,13 @@ public static class StockEndpoints
     }
 
     private static async Task<IResult> GetStock(
-        IEggLotRepository eggLots, TenantContext tenant, IClock clock, CancellationToken ct)
+        IEggLotRepository eggLots, TenantContext tenant, IFarmClock farmClock, CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
-        // TodayUtc: the restriction boundary should use the farm-local date
-        // (accounts carry TimeZoneId), but the allocation path (ConfirmSale) also
-        // uses UTC today — both convert together in the timezone follow-up issue
-        // rather than diverging here.
-        var rows = await eggLots.GetStockByGradeAsync(clock.TodayUtc, ct);
+        // #35: the restriction boundary is the FARM-local date, not UTC — the
+        // same boundary the allocation path (ConfirmSale) now uses, so a lot
+        // can never read available here and restricted there.
+        var rows = await eggLots.GetStockByGradeAsync(await farmClock.TodayAsync(ct), ct);
         return Results.Ok(rows.Select(r => new StockResponse(
             r.EggGradeId, r.GradeName, r.Available, r.Restricted)));
     }

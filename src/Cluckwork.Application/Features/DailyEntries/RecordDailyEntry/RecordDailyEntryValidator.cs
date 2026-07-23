@@ -1,20 +1,22 @@
 namespace Cluckwork.Application.Features.DailyEntries.RecordDailyEntry;
 
+using Cluckwork.Application.Common;
 using FluentValidation;
 
 public sealed class RecordDailyEntryValidator : AbstractValidator<RecordDailyEntryCommand>
 {
-    public RecordDailyEntryValidator()
+    public RecordDailyEntryValidator(IFarmClock farmClock)
     {
         RuleFor(x => x.FarmId).NotEmpty();
         RuleFor(x => x.HouseId).NotEmpty();
         RuleFor(x => x.FlockId).NotEmpty();
+        // #35: the boundary is the farm's own today. The old rule compared
+        // against UTC today + 1 day of slack, which was a stopgap for farms
+        // ahead of UTC — it let a farm behind UTC post a genuinely future day.
         RuleFor(x => x.Date)
             .NotEmpty()
-            .LessThanOrEqualTo(_ => DateOnly.FromDateTime(DateTime.UtcNow.Date).AddDays(1))
+            .MustAsync(async (date, ct) => date <= await farmClock.TodayAsync(ct))
             .WithMessage("Entry date cannot be in the future.");
-        // AddDays(1): a farm ahead of UTC legitimately records "today" that is
-        // UTC-tomorrow. Proper farm-local handling is the timezone follow-up.
         RuleFor(x => x.TotalEggs).GreaterThanOrEqualTo(0);
         RuleFor(x => x.CrackedEggs).GreaterThanOrEqualTo(0);
         RuleFor(x => x.DirtyEggs).GreaterThanOrEqualTo(0);

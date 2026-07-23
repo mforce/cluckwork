@@ -20,13 +20,14 @@ internal static class TestHarness
     // Users are Admin by default — #73 gated the corrective endpoints, and most tests
     // exercise them; pass asAdmin: false for a worker.
     public static async Task<Guid> SeedAccountWithUserAsync(
-        this CluckworkWebApplicationFactory factory, string email, bool asAdmin = true)
+        this CluckworkWebApplicationFactory factory, string email, bool asAdmin = true,
+        string timeZoneId = "UTC")
     {
         var accountId = Guid.NewGuid();
 
         await factory.WithTenantScopeAsync(accountId, async db =>
         {
-            db.Accounts.Add(Account.Create(accountId, "Test Farm Co", "UTC", "USD"));
+            db.Accounts.Add(Account.Create(accountId, "Test Farm Co", timeZoneId, "USD"));
             // Every account carries the packed-unit defaults (#97) — mirrors the
             // startup seeder's SeedDefaultEggUnitConversionsAsync.
             db.EggUnitConversions.AddRange(
