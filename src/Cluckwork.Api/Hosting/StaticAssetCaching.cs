@@ -28,15 +28,26 @@ public static class StaticAssetCaching
     // The hashed-asset directory Vite writes to (served at /assets/...).
     private const string HashedAssetPath = "/assets";
 
-    // Wired into StaticFileOptions.OnPrepareResponse for both the static-file
-    // middleware and the SPA fallback. For the fallback the request path is the
-    // unknown SPA route (e.g. /dashboard), never under /assets, so it correctly
-    // lands on no-cache — matching a direct GET /index.html.
+    // OnPrepareResponse for the plain static-file middleware, which only fires
+    // once a physical file has been matched. So a served path under /assets IS a
+    // real hashed asset -> immutable; anything else at the root (index.html,
+    // favicon, manifest, …) revalidates. Ordinal (not IgnoreCase) to mirror the
+    // case-sensitive file lookup on Linux: if a file was served, its request
+    // path already matches the on-disk casing under /assets.
     public static void ApplyCacheHeaders(StaticFileResponseContext ctx)
     {
         var immutable = ctx.Context.Request.Path.StartsWithSegments(
-            HashedAssetPath, StringComparison.OrdinalIgnoreCase);
+            HashedAssetPath, StringComparison.Ordinal);
         ctx.Context.Response.Headers[HeaderNames.CacheControl] =
             immutable ? ImmutableAsset : AlwaysRevalidate;
     }
+
+    // OnPrepareResponse for the SPA fallback, which ALWAYS serves index.html no
+    // matter the requested URL (a missing /assets/x, an unknown route, …), so it
+    // unconditionally revalidates. Deliberately does NOT key off the request
+    // path: ASP.NET rewrites it to /index.html before serving, but relying on
+    // that internal detail is exactly what makes this look wrong at a glance —
+    // an explicit always-no-cache callback is correct regardless.
+    public static void AlwaysRevalidateHeader(StaticFileResponseContext ctx) =>
+        ctx.Context.Response.Headers[HeaderNames.CacheControl] = AlwaysRevalidate;
 }

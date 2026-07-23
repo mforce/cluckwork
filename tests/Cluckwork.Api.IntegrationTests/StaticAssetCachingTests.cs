@@ -100,4 +100,47 @@ public sealed class StaticAssetCachingTests(StaticCachingFactory factory)
         Assert.False(res.Headers.Contains("Cache-Control"),
             "API responses must not carry the static cache header");
     }
+
+    [Theory]
+    [InlineData("/assets/missing-route")] // extensionless miss under /assets
+    [InlineData("/assets")]               // exactly /assets, no file there
+    public async Task Missing_asset_path_falls_back_to_index_and_is_never_immutable(string path)
+    {
+        // A miss under /assets is served by the SPA fallback as index.html. It
+        // MUST get no-cache, never `immutable` — otherwise a CDN would pin the
+        // app HTML for a year at that URL. (This locks the exact regression two
+        // reviewers predicted; the framework rewrites the path to /index.html,
+        // and AlwaysRevalidateHeader makes it correct regardless.)
+        var res = await factory.CreateClient().GetAsync(path);
+
+        Assert.Equal(HttpStatusCode.OK, res.StatusCode);
+        Assert.Equal("text/html", res.Content.Headers.ContentType?.MediaType);
+        Assert.Equal(StaticAssetCaching.AlwaysRevalidate, CacheControl(res));
+    }
+
+    [Fact]
+    public async Task Missing_asset_with_a_file_extension_is_a_plain_404_no_cache_header()
+    {
+        // A dotted miss (looks like a file) is excluded from the SPA fallback's
+        // non-file constraint, so it 404s from the static pipeline with no header.
+        var res = await factory.CreateClient().GetAsync("/assets/missing.js");
+
+        Assert.Equal(HttpStatusCode.NotFound, res.StatusCode);
+        Assert.False(res.Headers.Contains("Cache-Control"));
+    }
+
+    [Fact]
+    public async Task Unknown_api_path_404s_as_an_api_error_not_the_cached_spa()
+    {
+        // An unmatched /api/* route must NOT fall through to the SPA fallback
+        // (index.html + no-cache) — it must be a clean API 404 with no cache
+        // header, so the '/api is unaffected' guarantee actually holds. (Regressed
+        // silently before the /api catch-all: unknown /api returned 200 html.)
+        var res = await factory.CreateClient().GetAsync("/api/v1/not-a-real-endpoint");
+
+        Assert.Equal(HttpStatusCode.NotFound, res.StatusCode);
+        Assert.NotEqual("text/html", res.Content.Headers.ContentType?.MediaType);
+        Assert.False(res.Headers.Contains("Cache-Control"),
+            "an unknown API path must not carry the static cache header");
+    }
 }
