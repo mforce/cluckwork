@@ -369,6 +369,46 @@ public sealed class FarmSettingsTests(CluckworkWebApplicationFactory factory)
     }
 
     [Fact]
+    public async Task CurrencyChange_AfterAStockLotExists_IsRefused()
+    {
+        // The item-with-a-default-cost case above leaves the InventoryLots and
+        // FeedUsages probes untested — drop either and it stays green (codex
+        // review of #159). A purchase writes a lot, and every lot stores a cost.
+        var (client, _, _) = await AdminAsync();
+
+        var item = await client.PostWithKeyAsync("/api/v1/inventory/items", Guid.NewGuid().ToString(),
+            new { name = $"Feed {Guid.NewGuid():N}"[..14], category = "Feed", unit = "kg", defaultUnitCostMinorUnits = (long?)null });
+        var itemId = (await item.Content.ReadFromJsonAsync<IdDto>())!.Id;
+
+        var purchase = await client.PostWithKeyAsync(
+            $"/api/v1/inventory/items/{itemId}/purchases", Guid.NewGuid().ToString(),
+            new { receivedDate = DateOnly.FromDateTime(DateTime.UtcNow.Date), quantity = 10m, unitCostMinorUnits = 100L, lotNumber = (string?)null, expiryDate = (DateOnly?)null, note = (string?)null });
+        Assert.Equal(HttpStatusCode.Created, purchase.StatusCode);
+
+        await AssertCurrencyLockedAsync(client);
+    }
+
+    [Fact]
+    public async Task CurrencyChange_WithOnlyACostlessInventoryItem_IsStillAllowed()
+    {
+        // The mirror of the case above, and the one that proves the owned-Money
+        // null check translates to real SQL rather than matching everything: an
+        // item carrying no default cost has recorded no amount, so it must not
+        // lock the farm out of a currency it has not started trading in.
+        var (client, _, _) = await AdminAsync();
+
+        var item = await client.PostWithKeyAsync("/api/v1/inventory/items", Guid.NewGuid().ToString(),
+            new { name = $"Feed {Guid.NewGuid():N}"[..14], category = "Feed", unit = "kg", defaultUnitCostMinorUnits = (long?)null });
+        Assert.Equal(HttpStatusCode.Created, item.StatusCode);
+
+        var settings = await client.GetFromJsonAsync<SettingsDto>(SettingsPath);
+        Assert.True(settings!.CanChangeCurrency);
+
+        var saved = await PutSettingsAsync(client, Body(settings.Settings, currencyCode: "JPY"));
+        Assert.Equal(HttpStatusCode.NoContent, saved.StatusCode);
+    }
+
+    [Fact]
     public async Task RejectedSave_LeavesNoAuditRow()
     {
         // The audit write rides the same unit of work; a refused save must not

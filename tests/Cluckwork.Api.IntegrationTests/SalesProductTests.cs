@@ -247,4 +247,66 @@ public sealed class SalesProductTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(HttpStatusCode.Created,
             (await AddLineAsync(client, orderId, foreign, 1, price: 500)).StatusCode);
     }
+
+    // The trap the guard above would otherwise spring (codex review of #159).
+    // An UNPRICED product does not lock the farm currency, so this sequence is
+    // entirely legal: create it unpriced, change the farm currency, then give
+    // the product its first price. If that price kept the product's
+    // creation-time currency, every order would refuse the default and no API
+    // call could fix it. The first price binds to the currency the farm uses
+    // now.
+    [Fact]
+    public async Task FirstPriceOnAnUnpricedProduct_BindsToTheFarmsCurrentCurrency()
+    {
+        // Nothing priced anywhere on this farm — otherwise the currency lock
+        // fires first and the sequence under test is unreachable.
+        var (client, accountId, farmId, grades, _) = await SetupAsync(defaultPrice: null);
+        var productId = await factory.SeedProductAsync(
+            accountId, farmId, grades["Large"], "Unpriced dozen", defaultPriceMinorUnits: null);
+
+        // The farm leaves USD — allowed, nothing has recorded an amount yet.
+        var settings = await client.GetFromJsonAsync<SettingsView>("/api/v1/account/settings");
+        Assert.True(settings!.CanChangeCurrency);
+        var change = new HttpRequestMessage(HttpMethod.Put, "/api/v1/account/settings")
+        {
+            Content = JsonContent.Create(new
+            {
+                settings.Settings.Name,
+                settings.Settings.TimeZoneId,
+                settings.Settings.Locale,
+                currencyCode = "JPY",
+                settings.Settings.UnitSystem,
+                firstDayOfWeek = (string?)null,
+                dateFormatOverride = (string?)null,
+                timeFormatOverride = (string?)null,
+                settings.Settings.Version
+            })
+        };
+        change.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
+        Assert.Equal(HttpStatusCode.NoContent, (await client.SendAsync(change)).StatusCode);
+
+        // Now price it for the first time.
+        var put = new HttpRequestMessage(HttpMethod.Put, $"/api/v1/products/{productId}")
+        {
+            Content = JsonContent.Create(new
+            {
+                name = "Unpriced dozen", defaultUnit = "Egg",
+                defaultPriceMinorUnits = (long?)500, eggGradeId = grades["Large"],
+                notes = (string?)null,
+            })
+        };
+        put.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
+        Assert.Equal(HttpStatusCode.NoContent, (await client.SendAsync(put)).StatusCode);
+
+        // A JPY order takes that default without complaint.
+        var orderId = await CreateDraftAsync(client);
+        Assert.Equal(HttpStatusCode.Created,
+            (await AddLineAsync(client, orderId, productId, 1)).StatusCode);
+    }
+
+    private sealed record SettingsView(AccountView Settings, bool CanChangeCurrency);
+    private sealed record AccountView(
+        Guid Id, string Name, string CurrencyCode, int CurrencyMinorUnit, string CurrencySymbol,
+        string TimeZoneId, string Locale, string UnitSystem, string? FirstDayOfWeek,
+        string? DateFormatOverride, string? TimeFormatOverride, int Version);
 }

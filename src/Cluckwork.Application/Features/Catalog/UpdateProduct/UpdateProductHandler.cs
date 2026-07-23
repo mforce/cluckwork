@@ -1,6 +1,7 @@
 namespace Cluckwork.Application.Features.Catalog.UpdateProduct;
 
 using Cluckwork.Application.Common;
+using Cluckwork.Application.Features.Accounts;
 using Cluckwork.Application.Features.EggGrades;
 using Cluckwork.Domain.Catalog;
 using Cluckwork.Domain.Common;
@@ -8,6 +9,7 @@ using Cluckwork.Domain.Common;
 public sealed class UpdateProductHandler(
     IProductRepository products,
     IEggGradeRepository grades,
+    IAccountRepository accounts,
     IUnitOfWork unitOfWork,
     IAuditWriter audit)
 {
@@ -29,11 +31,19 @@ public sealed class UpdateProductHandler(
             return Result.Failure(Error.Validation(
                 "Product.InactiveGrade", "The egg grade is inactive."));
 
+        // Needed only for the unpriced → priced transition, but the account is
+        // a single filtered row and this path is not hot.
+        var account = await accounts.GetCurrentAsync(ct);
+        if (account is null)
+            return Result.Failure(Error.NotFound("Account", "current"));
+
         var result = product.Update(
             command.Name,
             Enum.Parse<ProductUnit>(command.DefaultUnit, ignoreCase: true),
             command.DefaultPriceMinorUnits,
-            command.Notes);
+            command.Notes,
+            account.DefaultCurrencyCode,
+            account.DefaultCurrencyMinorUnit);
         if (result.IsFailure) return result;
 
         // Re-pointing the grade is safe: sold lines snapshot at sale time

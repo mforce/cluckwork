@@ -16,4 +16,7 @@ public sealed class AccountRepository(AppDbContext db) : IAccountRepository
     // through the shared unit of work (#123).
     public Task<Account?> GetCurrentForUpdateAsync(CancellationToken ct = default) =>
         db.Accounts.FirstOrDefaultAsync(ct);
+
+    public void DiscardChanges(Account account) =>
+        db.Entry(account).State = EntityState.Unchanged;
 }

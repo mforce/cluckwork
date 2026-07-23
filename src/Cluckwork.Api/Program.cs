@@ -568,9 +568,10 @@ app.Map("/error", (HttpContext context) =>
             title: "Data conflict"),
         // Locking paths (confirm/void) share one canonical lock order so this
         // shouldn't fire; if it ever does, it's a retryable conflict, not a 500.
-        // 40001 is the serializable path (#123's currency lock): Postgres could
-        // not order this transaction against a concurrent one, which is the
-        // guard working, not a fault.
+        // 40001 is a serialization failure — reachable from the snapshot-
+        // isolated reads (the export's RepeatableRead transaction). Postgres
+        // could not order this transaction against a concurrent one, which is
+        // a retryable conflict, not a fault.
         Npgsql.PostgresException { SqlState: "40P01" or "40001" } => Results.Problem(
             detail: "The request conflicted with a concurrent operation. Retry.",
             statusCode: StatusCodes.Status409Conflict,

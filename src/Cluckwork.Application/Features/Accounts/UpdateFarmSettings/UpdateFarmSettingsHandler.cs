@@ -1,6 +1,5 @@
 namespace Cluckwork.Application.Features.Accounts.UpdateFarmSettings;
 
-using System.Data;
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Accounts;
 
@@ -27,8 +26,7 @@ public sealed class UpdateFarmSettingsHandler(
 
         // The ordinary save — a rename, a locale, a timezone — has nothing to
         // read-then-decide, so it stays a plain write. §4.6 only gates a
-        // currency CHANGE, and only that path pays for the probe or the
-        // stricter isolation below.
+        // currency CHANGE, and only that path pays for the probes below.
         if (!currencyChanging)
         {
             var before = Snapshot(account);
@@ -39,33 +37,61 @@ public sealed class UpdateFarmSettingsHandler(
             return Result.Success();
         }
 
-        // A currency change decides on the strength of "this farm has no money
-        // rows at all" and then writes the new currency. Under READ COMMITTED
-        // those are two moments: another request can book the farm's first sale
-        // or expense in between, and the change commits anyway — leaving rows
-        // in one denomination and the farm in another, which is precisely what
-        // §4.6 exists to prevent.
+        // A currency change decides on the strength of "this farm has recorded
+        // no amount at all" and then writes the new currency. Those are two
+        // moments, and another request can book the farm's first sale or
+        // expense in between.
         //
-        // SERIALIZABLE closes it: the probe's scans take predicate locks, so a
-        // concurrent insert into any of those tables makes one of the two
-        // transactions fail to serialize (SQLSTATE 40001 → 409, same as any
-        // other concurrency conflict). It costs nothing in practice — a farm
-        // changes currency about once, at setup.
+        // What does NOT fix this, tested rather than assumed
+        // (CurrencyLockSerializationTests): running THIS transaction at
+        // SERIALIZABLE. Postgres only tracks read-write conflicts among
+        // transactions that are all serializable, and every money-writing
+        // handler runs at the default isolation — several do their currency
+        // read and their insert as separate autocommit statements. The
+        // interleaving is therefore invisible to SSI and commits happily. A
+        // real close needs every money-writing path to take a shared lock on
+        // the account row it reads the currency from; that is a change across
+        // half a dozen handlers on a hot row, and it belongs in its own slice.
+        //
+        // What this does instead is bound the window. Both probes run inside
+        // the transaction, one before the decision and one immediately before
+        // the commit; under READ COMMITTED each statement takes a fresh
+        // snapshot, so the second sees anything committed since the first. What
+        // is left is the gap between that last probe and the commit — sub-
+        // millisecond, against a window that was previously the whole handler.
         Result result = Result.Success();
-        await unitOfWork.ExecuteInTransactionAsync(async token =>
+        var committed = await unitOfWork.ExecuteInTransactionAsync(async token =>
         {
-            var exists = await currencyBoundRows.AnyAsync(token);
             var before = Snapshot(account);
 
-            result = Apply(account, command, exists);
+            result = Apply(account, command, await currencyBoundRows.AnyAsync(token));
             if (result.IsFailure) return false;
+
+            // Last look before committing. A row that landed while we were
+            // deciding still refuses the change rather than stranding itself in
+            // the old denomination.
+            if (await currencyBoundRows.AnyAsync(token))
+            {
+                result = Result.Failure(CurrencyLandedMidFlight);
+                return false;
+            }
 
             await WriteAuditAsync(account, before, token);
             return true;
-        }, IsolationLevel.Serializable, ct);
+        }, ct);
+
+        // The rollback undid the row, but the tracked entity still carries the
+        // new currency; anything that saves later in this request — the
+        // idempotency record, for one — would flush it (pi review of #159).
+        if (!committed) accounts.DiscardChanges(account);
 
         return result;
     }
+
+    private static readonly Error CurrencyLandedMidFlight = Error.Conflict(
+        "Account.CurrencyLocked",
+        "The farm currency cannot be changed once sales orders, payments, expenses, priced " +
+        "products or feed costs exist. One was recorded while these settings were being saved.");
 
     private static Result Apply(
         Account account, UpdateFarmSettingsCommand command, bool currencyBoundRowsExist) =>
