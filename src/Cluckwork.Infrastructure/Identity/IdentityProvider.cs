@@ -33,8 +33,26 @@ public sealed class IdentityProvider(
             return Result.Failure<TokenPair>(Error.Validation("Identity.InvalidCredentials", "Invalid email or password."));
         }
 
-        if (!await userManager.CheckPasswordAsync(user, password))
+        // Account lockout (#128): once failures reach the configured threshold the
+        // account is locked for a cool-off window. A locked account is refused with
+        // the SAME generic error (and PBKDF2 is still paid) as a wrong password, so
+        // the reply never reveals whether an account exists or is locked.
+        if (await userManager.IsLockedOutAsync(user))
+        {
+            // ?? DummyHash guards the (currently unreachable) passwordless-user case
+            // so this stays a 401, never an NRE/500 that would leak account state.
+            userManager.PasswordHasher.VerifyHashedPassword(user, user.PasswordHash ?? DummyHash, password);
             return Result.Failure<TokenPair>(Error.Validation("Identity.InvalidCredentials", "Invalid email or password."));
+        }
+
+        if (!await userManager.CheckPasswordAsync(user, password))
+        {
+            await RecordFailedAccessAsync(user);
+            return Result.Failure<TokenPair>(Error.Validation("Identity.InvalidCredentials", "Invalid email or password."));
+        }
+
+        // Correct password — clear any accumulated failures (no-op DB-wise if zero).
+        await userManager.ResetAccessFailedCountAsync(user);
 
         var (rawToken, tokenHash) = GenerateRefreshToken();
         db.RefreshTokens.Add(NewToken(user, tokenHash));
@@ -42,6 +60,29 @@ public sealed class IdentityProvider(
 
         var roles = await userManager.GetRolesAsync(user);
         return Result.Success(jwtTokenService.CreateTokenPair(user, [.. roles], rawToken));
+    }
+
+    // AccessFailedAsync persists the increment under the user row's optimistic
+    // concurrency stamp. Parallel failed logins for one account would otherwise
+    // drop the losing writer's increment, letting a distributed burst dodge the
+    // threshold — the exact attack per-account lockout (vs the per-IP limiter)
+    // exists to stop. Retry against a freshly reloaded user until it commits.
+    private async Task RecordFailedAccessAsync(ApplicationUser user)
+    {
+        // Bounded generously: only the concurrency-conflict path retries, and the
+        // per-account contention that produces conflicts is itself capped by the
+        // per-IP rate limiter (#143). The cap prevents an unbounded loop while
+        // still letting every real failure land under normal contention.
+        for (var attempt = 0; attempt < 10; attempt++)
+        {
+            if ((await userManager.AccessFailedAsync(user)).Succeeded)
+                return;
+            // The write lost the concurrency race. FindById would hand back the
+            // same identity-map instance (stale stamp), so refresh the tracked
+            // entity's values from the DB before retrying — `db` is the same
+            // scoped context the UserManager store writes through.
+            await db.Entry(user).ReloadAsync();
+        }
     }
 
     public async Task<Result<TokenPair>> RefreshAsync(string refreshToken, CancellationToken ct = default)

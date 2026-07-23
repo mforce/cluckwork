@@ -31,6 +31,17 @@ describe("HelpPage", () => {
     expect(screen.getByRole("rowheader", { name: "FIFO" })).toBeInTheDocument();
   });
 
+  it("explains the per-account sign-in lock as temporary, without a non-existent admin reset", () => {
+    render(<HelpPage />);
+    const signIn = screen.getByRole("heading", { name: "Signing in", level: 3 });
+    // the lock is described as temporary (wait it out) — the app has no admin
+    // password-reset/unlock action, and a reset wouldn't clear the lock anyway.
+    expect(screen.getByText(/too many wrong passwords for/i)).toBeInTheDocument();
+    expect(screen.getByText(/wait up to about 15 minutes/i)).toBeInTheDocument();
+    expect(screen.queryByText(/administrator to set a new password/i)).not.toBeInTheDocument();
+    expect(signIn).toBeInTheDocument();
+  });
+
   it("scroll-spies the contents rail — the section in view is marked current", () => {
     render(<HelpPage />);
     const toc = screen.getByRole("navigation", { name: "Help contents" });

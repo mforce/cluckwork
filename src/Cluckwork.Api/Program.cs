@@ -137,7 +137,12 @@ builder.Services
     .AddIdentityCore<ApplicationUser>(opts =>
     {
         opts.Password.RequiredLength = 12;
+        // Per-account lockout (#128): 5 failures locks the account for a 15-minute
+        // cool-off (matching the #143 per-IP login window). Enforced in
+        // IdentityProvider.LoginAsync; CreateAsync enables lockout on new users
+        // via AllowedForNewUsers (default true).
         opts.Lockout.MaxFailedAccessAttempts = 5;
+        opts.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
     })
     .AddRoles<ApplicationRole>()
     .AddEntityFrameworkStores<AppDbContext>()
