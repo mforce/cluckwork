@@ -16,6 +16,7 @@ using Cluckwork.Api.Endpoints.Sales;
 using Cluckwork.Api.Endpoints.Water;
 using Cluckwork.Api.Endpoints.Stock;
 using Cluckwork.Api.Endpoints.Users;
+using Cluckwork.Api.Hosting;
 using Cluckwork.Api.Middleware;
 using Cluckwork.Api.RateLimiting;
 using Cluckwork.Api.Security;
@@ -453,8 +454,13 @@ app.UseHttpsRedirection();
 
 // Serve the built SPA (copied to wwwroot in the Docker image). Static assets are
 // public — mounted before auth. API routes and the SPA fallback are wired below.
+// #141 — hashed /assets/* are immutable-forever, index.html revalidates, so a
+// fronting CDN (and browsers) can cache aggressively without serving a stale app.
 app.UseDefaultFiles();
-app.UseStaticFiles();
+app.UseStaticFiles(new StaticFileOptions
+{
+    OnPrepareResponse = StaticAssetCaching.ApplyCacheHeaders
+});
 
 // Endpoint rate-limit policies (#143) — no global limiter, only routes that
 // opt in via RequireRateLimiting are affected.
@@ -625,7 +631,13 @@ app.Map("/error", (HttpContext context) =>
 // SPA client-side routing: any non-API, non-file request falls back to
 // index.html. Lowest route priority, so the /api/v1 endpoints and /health above
 // always match first. No-op in dev (no wwwroot) — dev uses the Vite server.
-app.MapFallbackToFile("index.html");
+// #141 — the fallback carries the same no-cache header as a direct GET
+// /index.html (the request path here is the unknown SPA route, never /assets),
+// so a new deploy propagates immediately even through a fronting CDN.
+app.MapFallbackToFile("index.html", new StaticFileOptions
+{
+    OnPrepareResponse = StaticAssetCaching.ApplyCacheHeaders
+});
 
 app.Run();
 
