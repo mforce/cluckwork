@@ -583,6 +583,13 @@ export function HelpPage() {
           its address. Remove it and the sidebar goes back to the Cluckwork
           mark.
         </li>
+        <li>
+          Use a <strong>square</strong> logo. It shows small in the sidebar, so
+          a simple, tightly-cropped mark — a symbol or a single letter — reads
+          much better there than a wide wordmark or a detailed picture, which
+          shrink to something unreadable. Keep a detailed logo for print or a
+          website; give the app a clean little mark.
+        </li>
       </ul>
 
       <h3 id="mistakes">Fixing mistakes</h3>
@@ -748,7 +755,7 @@ export function HelpPage() {
           <tr><th scope="row">Currency lock</th>
             <td>The farm currency stops being editable once anything has recorded an amount in it — a sale, a payment, an expense, a priced product, money spent on feed. The field shows locked with the reason. Nothing already recorded is ever re-priced, which is the whole point.</td></tr>
           <tr><th scope="row">Farm logo</th>
-            <td>Your own image in place of the Cluckwork mark in the sidebar, uploaded from Farm settings. PNG, JPEG or WebP (2 MB by default), still images only. Stored as a rebuilt copy with camera and location details stripped out.</td></tr>
+            <td>Your own image in place of the Cluckwork mark in the sidebar, uploaded from Farm settings. PNG, JPEG or WebP (2 MB by default), still images only; a square, simple mark reads best at the small sidebar size. Stored as a rebuilt copy with camera and location details stripped out.</td></tr>
         </tbody>
       </table>
 

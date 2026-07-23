@@ -388,6 +388,12 @@ export function SettingsPage() {
         are not accepted. The image is stored re-written, with camera and
         location metadata removed.
       </p>
+      <p className="muted">
+        Use a <strong>square</strong> image — the logo shows small in the
+        sidebar, so a simple, tightly-cropped mark (a symbol or a single letter)
+        reads far better there than a wide or detailed picture. A transparent
+        background on a light design works best.
+      </p>
       {/* Both the upload and the removal are silent otherwise — the only signal
           is an image appearing, which a screen reader does not see. */}
       <p className="success" role="status">

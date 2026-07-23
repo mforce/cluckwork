@@ -358,6 +358,14 @@ describe("SettingsPage logo", () => {
     expect(mockGetLogo).not.toHaveBeenCalled();
   });
 
+  it("tells the admin a square, simple mark reads best in the sidebar", async () => {
+    await renderReady(SETTINGS({ logoContentHash: null }));
+    // The guidance discovered through use: the slot is small and square, so a
+    // detailed or wide logo shrinks to mush.
+    expect(screen.getByText(/Use a/)).toHaveTextContent(/square/);
+    expect(screen.getByText(/reads far better there/)).toBeInTheDocument();
+  });
+
   it("previews the stored logo and offers replace + remove", async () => {
     await renderReady(SETTINGS({ logoContentHash: "deadbeef" }));
     const img = await screen.findByAltText("Current farm logo");

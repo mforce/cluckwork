@@ -380,6 +380,13 @@ Animated PNG and animated WebP are refused too — an animated frame can hide
 data inside itself where the check that cleans the rest of the file never
 looks.
 
+The chrome renders it in a small **square** slot, so the guidance is to upload a
+square, simple mark — a symbol or a single letter, tightly cropped — rather than
+a wide wordmark or a detailed illustration, which shrink to something unreadable
+at sidebar size. The slot fits the whole image (`object-fit: contain`), so a
+wide logo keeps its aspect and loses its height. A larger surface for a detailed
+logo (a post-login splash) is a separate follow-up (#179).
+
 What gets stored is never quite the file that was uploaded. The image is taken
 apart and rebuilt, which drops two things on purpose: **embedded metadata** — a
 photo taken on a phone carries the coordinates of where it was taken, which for
