@@ -143,10 +143,13 @@ public sealed class BirdMovementTests(CluckworkWebApplicationFactory factory)
             $"/api/v1/flocks/{flockId}/movements", Guid.NewGuid().ToString(),
             new { date = today.AddDays(-1), type = "Cull", quantity = 1 });
         Assert.Equal(HttpStatusCode.Created, backfill.StatusCode);
+        // Tomorrow is refused up front (400) rather than by the lifecycle rule:
+        // #35 replaced the validator's +1-day UTC slack with the farm-local
+        // boundary, so a future date never reaches the depleted-flock check.
         var late = await client.PostWithKeyAsync(
             $"/api/v1/flocks/{flockId}/movements", Guid.NewGuid().ToString(),
             new { date = today.AddDays(1), type = "Cull", quantity = 1 });
-        Assert.Equal(HttpStatusCode.UnprocessableEntity, late.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, late.StatusCode);
 
         await client.PostWithKeyAsync($"/api/v1/flocks/{flockId}/archive", Guid.NewGuid().ToString());
         var archived = await client.PostWithKeyAsync(

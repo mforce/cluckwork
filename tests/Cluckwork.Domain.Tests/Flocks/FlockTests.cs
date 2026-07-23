@@ -26,6 +26,34 @@ public sealed class FlockTests
         Assert.Equal(FlockStatus.Depleted, flock.Status);
     }
 
+    // The "depleted accepts backfill only" boundary. It used to be exercised
+    // end-to-end by posting tomorrow's date, which only reached the lifecycle
+    // rule because the validator carried a +1-day slack; #35 removed that slack,
+    // so a post-depletion date is now rejected as future before it gets here.
+    // The rule itself is unchanged and still matters for a flock depleted in the
+    // past, so it is pinned directly.
+    [Fact]
+    public void CanRecordProductionOn_Depleted_AllowsOnOrBeforeDepletion_RefusesAfter()
+    {
+        var flock = Make();
+        var depletedOn = new DateOnly(2026, 7, 16);
+        flock.Deplete(depletedOn);
+
+        Assert.True(flock.CanRecordProductionOn(depletedOn.AddDays(-1)));
+        Assert.True(flock.CanRecordProductionOn(depletedOn));
+        Assert.False(flock.CanRecordProductionOn(depletedOn.AddDays(1)));
+    }
+
+    [Fact]
+    public void CanRecordProductionOn_Archived_RefusesEvenBackfill()
+    {
+        var flock = Make();
+        flock.Deplete(new DateOnly(2026, 7, 16));
+        flock.Archive(new DateOnly(2026, 7, 17));
+
+        Assert.False(flock.CanRecordProductionOn(new DateOnly(2026, 7, 1)));
+    }
+
     [Fact]
     public void Deplete_WhenAlreadyDepleted_Fails()
     {
