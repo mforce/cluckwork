@@ -3,7 +3,7 @@ import { render, screen, within, fireEvent, act, waitFor } from "@testing-librar
 import { SettingsPage } from "./SettingsPage";
 import { FarmContext } from "../farm/FarmContext";
 import {
-  LOGO_MAX_BYTES, getFarmLogo, getFarmSettings, removeFarmLogo, updateFarmSettings,
+  getFarmLogo, getFarmSettings, removeFarmLogo, updateFarmSettings,
   uploadFarmLogo,
 } from "../api/cluckwork";
 import type { Account, FarmSettings } from "../api/cluckwork";
@@ -28,6 +28,10 @@ const mockUpload = vi.mocked(uploadFarmLogo);
 const mockRemove = vi.mocked(removeFarmLogo);
 const mockGetLogo = vi.mocked(getFarmLogo);
 
+// A fixed cap for the size-boundary tests, independent of the production
+// default — the point is the > vs >= behaviour, not the number.
+const MAX_UPLOAD = 2 * 1024 * 1024;
+
 const SETTINGS = (over: Partial<Account> = {}, canChangeCurrency = true): FarmSettings => ({
   settings: account({
     name: "Hen House",
@@ -40,6 +44,7 @@ const SETTINGS = (over: Partial<Account> = {}, canChangeCurrency = true): FarmSe
     ...over,
   }),
   canChangeCurrency,
+  logoMaxUploadBytes: MAX_UPLOAD,
 });
 
 let refreshed = 0;
@@ -383,23 +388,43 @@ describe("SettingsPage logo", () => {
 
     const input = screen.getByLabelText("Upload a logo");
     await act(async () => {
-      fireEvent.change(input, { target: { files: [imageOfSize(LOGO_MAX_BYTES + 1)] } });
+      fireEvent.change(input, { target: { files: [imageOfSize(MAX_UPLOAD + 1)] } });
     });
 
     expect(mockUpload).not.toHaveBeenCalled();
-    expect(screen.getByRole("alert")).toHaveTextContent(/The limit is 1024 KB/);
+    // The limit in the message is the server's, from the payload (2048 KB), not
+    // a client constant.
+    expect(screen.getByRole("alert")).toHaveTextContent(/The limit is 2048 KB/);
+  });
+
+  it("takes the upload cap from the server payload, not a hardcoded constant", async () => {
+    // A farm configured BELOW the default: both the copy and the pre-check must
+    // follow the payload, or a config change silently diverges from what the
+    // client enforces (#123).
+    await renderReady({ ...SETTINGS({ logoContentHash: null }), logoMaxUploadBytes: 512 * 1024 });
+
+    // The stated cap reflects the payload...
+    expect(screen.getByText(/up to 0\.5 MB/)).toBeInTheDocument();
+
+    // ...and so does the refusal: a 600 KB file is over THIS farm's 512 KB.
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Upload a logo"),
+        { target: { files: [imageOfSize(600 * 1024)] } });
+    });
+    expect(mockUpload).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent(/The limit is 512 KB/);
   });
 
   it("sends a file exactly at the cap — the guard is > not >=", async () => {
     mockUpload.mockResolvedValue({
       contentType: "image/png", contentHash: "h", width: 1, height: 1,
-      byteLength: LOGO_MAX_BYTES, updatedAt: "2026-07-23T00:00:00Z",
+      byteLength: MAX_UPLOAD, updatedAt: "2026-07-23T00:00:00Z",
     });
     await renderReady(SETTINGS({ logoContentHash: null }));
 
     await act(async () => {
       fireEvent.change(screen.getByLabelText("Upload a logo"),
-        { target: { files: [imageOfSize(LOGO_MAX_BYTES)] } });
+        { target: { files: [imageOfSize(MAX_UPLOAD)] } });
     });
 
     expect(mockUpload).toHaveBeenCalledTimes(1);

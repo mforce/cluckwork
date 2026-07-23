@@ -574,9 +574,10 @@ export function HelpPage() {
         </li>
         <li>
           The <strong>logo</strong> replaces the Cluckwork mark in the sidebar
-          for everyone at the farm. PNG, JPEG or WebP, up to 1 MB and 4096
-          pixels a side. Animated images are refused rather than flattened.
-          What gets stored is a rebuilt copy:
+          for everyone at the farm. PNG, JPEG or WebP, up to the size limit shown
+          on the screen (2 MB by default) and 4096 pixels a side.
+          Animated images are refused rather than flattened. What gets stored
+          is a rebuilt copy:
           camera and location details are stripped out on the way in — a photo
           taken on a phone carries where it was taken, and for a farm that is
           its address. Remove it and the sidebar goes back to the Cluckwork
@@ -747,7 +748,7 @@ export function HelpPage() {
           <tr><th scope="row">Currency lock</th>
             <td>The farm currency stops being editable once anything has recorded an amount in it — a sale, a payment, an expense, a priced product, money spent on feed. The field shows locked with the reason. Nothing already recorded is ever re-priced, which is the whole point.</td></tr>
           <tr><th scope="row">Farm logo</th>
-            <td>Your own image in place of the Cluckwork mark in the sidebar, uploaded from Farm settings. PNG, JPEG or WebP, up to 1 MB, still images only. Stored as a rebuilt copy with camera and location details stripped out.</td></tr>
+            <td>Your own image in place of the Cluckwork mark in the sidebar, uploaded from Farm settings. PNG, JPEG or WebP (2 MB by default), still images only. Stored as a rebuilt copy with camera and location details stripped out.</td></tr>
         </tbody>
       </table>
 

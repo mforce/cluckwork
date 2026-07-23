@@ -3,9 +3,11 @@ namespace Cluckwork.Api.Endpoints.Accounts;
 using Cluckwork.Application.Features.Accounts;
 using Cluckwork.Application.Features.Accounts.UpdateFarmSettings;
 using Cluckwork.Domain.Accounts;
+using Cluckwork.Api.Configuration;
 using Cluckwork.Domain.Common;
 using Cluckwork.Infrastructure.Persistence;
 using FluentValidation;
+using Microsoft.Extensions.Options;
 
 public static class AccountEndpoints
 {
@@ -50,6 +52,7 @@ public static class AccountEndpoints
         IAccountRepository accounts,
         ICurrencyBoundRowProbe currencyBoundRows,
         IFarmLogoRepository logos,
+        IOptionsSnapshot<FarmLogoOptions> logoOptions,
         TenantContext tenant,
         CancellationToken ct)
     {
@@ -61,8 +64,14 @@ public static class AccountEndpoints
         // explanation instead of letting the user discover the rule as a 422.
         var canChangeCurrency = !await currencyBoundRows.AnyAsync(ct);
         var logo = await logos.GetMetadataAsync(ct);
+        // The upload cap travels with the settings the upload screen reads, so
+        // the client-side pre-check and the "up to N MB" copy cannot drift from
+        // what the server enforces (#123). It IS config, so the SPA must not
+        // carry its own copy.
         return Results.Ok(new FarmSettingsResponse(
-            ToResponse(account, logo?.ContentHash), canChangeCurrency));
+            ToResponse(account, logo?.ContentHash),
+            canChangeCurrency,
+            logoOptions.Value.MaxUploadBytes));
     }
 
     private static async Task<IResult> UpdateSettings(
@@ -135,7 +144,12 @@ public sealed record AccountResponse(
     // both identifies the current logo and changes when it is replaced (#123).
     string? LogoContentHash);
 
-public sealed record FarmSettingsResponse(AccountResponse Settings, bool CanChangeCurrency);
+public sealed record FarmSettingsResponse(
+    AccountResponse Settings,
+    bool CanChangeCurrency,
+    // The farm-logo upload cap in bytes (#123), from config. The SPA reads it
+    // for the client-side size pre-check and the "up to N MB" copy.
+    int LogoMaxUploadBytes);
 
 public sealed record UpdateFarmSettingsRequest(
     string Name,

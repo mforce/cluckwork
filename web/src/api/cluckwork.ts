@@ -348,6 +348,10 @@ export interface FarmSettings {
   // §4.6 locks the currency for good. Surfaced so the screen can disable the
   // field with a reason instead of letting the user find out as a 422.
   canChangeCurrency: boolean;
+  // The logo upload cap in bytes (#123). It is server CONFIG, so it rides here
+  // rather than being duplicated as a client constant — a hardcoded copy would
+  // silently diverge from the server the moment the config changed.
+  logoMaxUploadBytes: number;
 }
 
 export interface UpdateFarmSettings {
@@ -384,7 +388,6 @@ export interface FarmLogo {
 // The formats the sanitizer accepts. SVG is refused server-side (it is a
 // script container); listing them here only spares the user a round trip.
 export const LOGO_ACCEPT = "image/png,image/jpeg,image/webp";
-export const LOGO_MAX_BYTES = 1024 * 1024;
 
 // Fetched through the API client rather than pointed at by an <img src>: the
 // endpoint is behind the Authorization header, which an <img> cannot send. The

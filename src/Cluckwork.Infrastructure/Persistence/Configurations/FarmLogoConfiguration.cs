@@ -55,8 +55,14 @@ public sealed class FarmLogoConfiguration : IEntityTypeConfiguration<FarmLogo>
 
         builder.Property(l => l.Version).IsConcurrencyToken();
 
+        // The HARD ceiling, not the operational limit: this is a data-integrity
+        // backstop against any write that bypasses the sanitizer, so it holds
+        // the most the column will ever tolerate. The day-to-day upload cap is
+        // config (FarmLogoOptions), validated to stay at or under this — which
+        // lets the cap move without a migration while nothing can store past
+        // what the constraint permits (#123).
         builder.ToTable(t => t.HasCheckConstraint(
             "ck_farm_logos_content_length",
-            $"octet_length(\"Content\") > 0 AND octet_length(\"Content\") <= {ImageSanitizer.MaxByteLength}"));
+            $"octet_length(\"Content\") > 0 AND octet_length(\"Content\") <= {ImageSanitizer.MaxByteLengthCeiling}"));
     }
 }

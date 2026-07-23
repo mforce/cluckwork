@@ -454,7 +454,7 @@ public sealed class FarmLogoTests(CluckworkWebApplicationFactory factory)
     public async Task AnUploadDeclaringItIsOverTheCapIsRefusedBeforeItIsRead()
     {
         var (client, _, _) = await AdminAsync();
-        var oversize = new byte[ImageSanitizer.MaxByteLength + 4096];
+        var oversize = new byte[CluckworkWebApplicationFactory.LogoUploadCap + 4096];
         TinyPng.CopyTo(oversize, 0);
 
         var response = await PutLogoAsync(client, oversize);
@@ -471,7 +471,7 @@ public sealed class FarmLogoTests(CluckworkWebApplicationFactory factory)
         // thing standing between the process and an unbounded body is the cap
         // on the read loop itself.
         var (client, _, _) = await AdminAsync();
-        var oversize = new byte[ImageSanitizer.MaxByteLength + 4096];
+        var oversize = new byte[CluckworkWebApplicationFactory.LogoUploadCap + 4096];
         TinyPng.CopyTo(oversize, 0);
 
         var request = new HttpRequestMessage(HttpMethod.Put, LogoPath)
@@ -493,10 +493,10 @@ public sealed class FarmLogoTests(CluckworkWebApplicationFactory factory)
     public async Task AnUploadExactlyAtTheCapIsStillJudgedOnItsContent()
     {
         // The boundary itself: at the cap the size check must pass and the
-        // sanitizer must be the thing that decides. Padding a PNG to 1 MB puts
-        // the padding after IEND, so this also lands on the truncation path.
+        // sanitizer must be the thing that decides. Padding a PNG to the cap
+        // puts the padding after IEND, so this also lands on the truncation path.
         var (client, _, _) = await AdminAsync();
-        var atCap = new byte[ImageSanitizer.MaxByteLength];
+        var atCap = new byte[CluckworkWebApplicationFactory.LogoUploadCap];
         TinyPng.CopyTo(atCap, 0);
 
         var response = await PutLogoAsync(client, atCap);

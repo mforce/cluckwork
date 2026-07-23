@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import { Trash2, Upload } from "lucide-react";
 import {
-  LOGO_ACCEPT, LOGO_MAX_BYTES, getFarmSettings, removeFarmLogo, updateFarmSettings,
+  LOGO_ACCEPT, getFarmSettings, removeFarmLogo, updateFarmSettings,
   uploadFarmLogo,
 } from "../api/cluckwork";
 import type { FarmSettings, UpdateFarmSettings } from "../api/cluckwork";
@@ -115,6 +115,12 @@ export function SettingsPage() {
   const logoHash = loaded?.settings.logoContentHash ?? null;
   const hasLogo = logoHash !== null;
   const logo = useLogoObjectUrl(logoHash);
+
+  // Server config, carried on the settings payload — never a client constant,
+  // so it cannot drift from what the server enforces (#123).
+  const maxUploadBytes = loaded?.logoMaxUploadBytes ?? 0;
+  const maxUploadKb = Math.floor(maxUploadBytes / 1024);
+  const maxUploadMb = maxUploadBytes / (1024 * 1024);
 
   const timeZoneUnknown = timeZoneId.trim() !== "" && !isKnownTimeZone(timeZoneId.trim());
 
@@ -240,10 +246,11 @@ export function SettingsPage() {
     if (saving || logoBusy) return;
     setLogoError(null);
     setLogoMessage(null);
-    // The server refuses this too (413). Checking here spares a megabyte on
-    // the wire and gives the size back in the message.
-    if (file.size > LOGO_MAX_BYTES) {
-      setLogoError(`That image is ${Math.ceil(file.size / 1024)} KB. The limit is 1024 KB.`);
+    // The server refuses this too (413). Checking here spares the upload on
+    // the wire and gives the size back in the message. The limit is the server's
+    // own, fetched with the settings.
+    if (file.size > maxUploadBytes) {
+      setLogoError(`That image is ${Math.ceil(file.size / 1024)} KB. The limit is ${maxUploadKb} KB.`);
       return;
     }
 
@@ -362,7 +369,7 @@ export function SettingsPage() {
         </div>
       </div>
       <p className="muted" id={logoRulesId}>
-        PNG, JPEG or WebP, up to 1 MB and 4096&nbsp;px a side. Animated images
+        PNG, JPEG or WebP, up to {maxUploadMb} MB and 4096&nbsp;px a side. Animated images
         are not accepted. The image is stored re-written, with camera and
         location metadata removed.
       </p>

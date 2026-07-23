@@ -1,6 +1,6 @@
 namespace Cluckwork.Api.Endpoints.Accounts;
 
-using System.Buffers;
+using Cluckwork.Api.Configuration;
 using Cluckwork.Application.Features.Accounts;
 using Cluckwork.Application.Features.Accounts.RemoveFarmLogo;
 using Cluckwork.Application.Features.Accounts.SetFarmLogo;
@@ -8,6 +8,7 @@ using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Media;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Http.Features;
+using Microsoft.Extensions.Options;
 using Microsoft.Net.Http.Headers;
 
 // #123 — the farm logo: upload, serve, remove.
@@ -33,7 +34,8 @@ public static class FarmLogoEndpoints
             .RequireAuthorization(AuthPolicies.AdminOnly)
             .WithName("SetFarmLogo")
             .WithSummary(
-                "Upload or replace the farm logo. Raw image body (PNG/JPEG/WebP), 1 MB max. " +
+                "Upload or replace the farm logo. Raw image body (PNG/JPEG/WebP), capped by the " +
+                "configured limit (2 MB by default). " +
                 "The stored image is a rewritten copy with metadata and trailing bytes removed.");
 
         group.MapDelete("/logo", RemoveLogo)
@@ -124,14 +126,19 @@ public static class FarmLogoEndpoints
     }
 
     private static async Task<IResult> SetLogo(
-        SetFarmLogoHandler handler, TenantContext tenant, HttpContext http, CancellationToken ct)
+        SetFarmLogoHandler handler, IOptionsSnapshot<FarmLogoOptions> logoOptions,
+        TenantContext tenant, HttpContext http, CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
 
+        // The OPERATIONAL cap, from config and validated at startup to sit at or
+        // under ImageSanitizer.MaxByteLengthCeiling (#123).
+        var maxBytes = logoOptions.Value.MaxUploadBytes;
+
         // A declared oversize is refused without reading a byte. Content-Length
         // is only a claim, which is why the read below is capped as well.
-        if (http.Request.ContentLength > ImageSanitizer.MaxByteLength)
-            return MapFailure(ImageSanitizer.TooLarge);
+        if (http.Request.ContentLength > maxBytes)
+            return MapFailure(ImageSanitizer.TooLarge(maxBytes));
 
         // Kestrel's default ceiling is 30 MB; lowering it here cuts an oversized
         // upload off at the transport instead of streaming it into the process.
@@ -140,49 +147,41 @@ public static class FarmLogoEndpoints
         // the guarantee. The read loop below is the guarantee.
         var sizeLimit = http.Features.Get<IHttpMaxRequestBodySizeFeature>();
         if (sizeLimit is { IsReadOnly: false })
-            sizeLimit.MaxRequestBodySize = ImageSanitizer.MaxByteLength;
+            sizeLimit.MaxRequestBodySize = maxBytes;
 
         // THE LOOP BOUND IS THE MEMORY GUARANTEE: the condition and the slice
         // both stop at the cap, so a body with no declared length — or a lying
         // one — is read that far and no further, whatever the client meant to
         // send.
         //
-        // Rented at exactly the cap, not cap+1. ArrayPool's largest bucket is
-        // 1 MB, so asking for one byte more misses the pool entirely and
-        // allocates a fresh megabyte on the heap every upload (pi review of
-        // #168). The extra byte only ever existed to tell "exactly at the cap"
-        // from "over it", and the probe read below does that without it.
-        var buffer = ArrayPool<byte>.Shared.Rent(ImageSanitizer.MaxByteLength);
-        try
-        {
-            var total = 0;
-            int read;
-            while (total < ImageSanitizer.MaxByteLength
-                && (read = await http.Request.Body.ReadAsync(
-                    buffer.AsMemory(total, ImageSanitizer.MaxByteLength - total), ct)) > 0)
-                total += read;
+        // Allocated directly rather than rented from ArrayPool. The pool's
+        // largest bucket is 1 MB, so at the 2 MB default cap a rent misses the
+        // pool and allocates a fresh array on the Large Object Heap anyway —
+        // the pooling the earlier code preserved (pi review of #168) no longer
+        // applies above 1 MB, and pretending otherwise would only leave a
+        // comment that lies. A fresh array also has no prior tenant, so the
+        // clear-on-return that guarded the shared pool is not needed either.
+        var buffer = new byte[maxBytes];
+        var total = 0;
+        int read;
+        while (total < maxBytes
+            && (read = await http.Request.Body.ReadAsync(
+                buffer.AsMemory(total, maxBytes - total), ct)) > 0)
+            total += read;
 
-            // A body that exactly filled the buffer might have more behind it.
-            // One byte settles it.
-            if (total == ImageSanitizer.MaxByteLength)
-            {
-                var probe = new byte[1];
-                if (await http.Request.Body.ReadAsync(probe, ct) > 0)
-                    return MapFailure(ImageSanitizer.TooLarge);
-            }
-
-            var result = await handler.HandleAsync(buffer.AsMemory(0, total), tenant.AccountId, ct);
-            return result.IsSuccess
-                ? Results.Ok(ToResponse(result.Value))
-                : MapFailure(result.Error);
-        }
-        finally
+        // A body that exactly filled the buffer might have more behind it.
+        // One byte settles it.
+        if (total == maxBytes)
         {
-            // Cleared on return: the pool is process-wide, so a later rent by
-            // another tenant's request must not be able to read the tail of
-            // this one's upload.
-            ArrayPool<byte>.Shared.Return(buffer, clearArray: true);
+            var probe = new byte[1];
+            if (await http.Request.Body.ReadAsync(probe, ct) > 0)
+                return MapFailure(ImageSanitizer.TooLarge(maxBytes));
         }
+
+        var result = await handler.HandleAsync(buffer.AsMemory(0, total), tenant.AccountId, maxBytes, ct);
+        return result.IsSuccess
+            ? Results.Ok(ToResponse(result.Value))
+            : MapFailure(result.Error);
     }
 
     private static async Task<IResult> RemoveLogo(

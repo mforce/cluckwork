@@ -373,8 +373,8 @@ copy gets a 409 and reloads.
 
 **Farm logo (#123)** — an image shown as branding in the app chrome, falling
 back to Cluckwork's own branding when none is set. Owner and Manager can upload
-or clear it; everyone sees it. **PNG, JPEG or WebP, up to 1 MB and 4096 pixels
-a side, and it must be a still image.** SVG is refused: it is a document that
+or clear it; everyone sees it. **PNG, JPEG or WebP, up to a configurable cap (2 MB by default) and 4096
+pixels a side, and it must be a still image.** SVG is refused: it is a document that
 can carry script, and this image is rendered back to every user of the farm.
 Animated PNG and animated WebP are refused too — an animated frame can hide
 data inside itself where the check that cleans the rest of the file never
