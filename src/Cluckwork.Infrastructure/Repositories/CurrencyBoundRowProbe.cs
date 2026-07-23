@@ -30,4 +30,15 @@ public sealed class CurrencyBoundRowProbe(AppDbContext db) : ICurrencyBoundRowPr
         || await db.InventoryLots.AnyAsync(ct)
         || await db.FeedUsages.AnyAsync(ct)
         || await db.InventoryItems.AnyAsync(i => i.DefaultUnitCost != null, ct);
+
+    // Two of these seven cannot be tested in isolation, and it is worth saying
+    // why rather than leaving them looking like coverage gaps (adversarial
+    // review of #159 counted them as such).
+    //
+    // A payment only exists against a sales order, and a feed usage only exists
+    // against a lot it drew from — so the SalesOrders and InventoryLots probes
+    // above always answer first, and no fixture can reach a farm that has one
+    // without the other. They stay because "implied by another row today" is a
+    // property of the current write paths, not of the rule: the rule is that a
+    // row carrying an amount locks the currency, and these carry one.
 }

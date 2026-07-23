@@ -12,7 +12,7 @@ public sealed class UpdateFarmSettingsHandler(
     public async Task<Result> HandleAsync(UpdateFarmSettingsCommand command, CancellationToken ct)
     {
         // Tracked, so the mutation below is enough — no repository Update call.
-        var account = await accounts.GetCurrentForUpdateAsync(ct);
+        var account = await accounts.GetCurrentTrackedAsync(ct);
         if (account is null)
             return Result.Failure(Error.NotFound(nameof(Account), "current"));
 
@@ -80,10 +80,21 @@ public sealed class UpdateFarmSettingsHandler(
             return true;
         }, ct);
 
-        // The rollback undid the row, but the tracked entity still carries the
-        // new currency; anything that saves later in this request — the
-        // idempotency record, for one — would flush it (pi review of #159).
-        if (!committed) accounts.DiscardChanges(account);
+        if (!committed)
+        {
+            // The rollback undid the row, but the tracked entity still carries
+            // the new currency; anything that saves later in this request — the
+            // idempotency record, for one — would flush it (pi review of #159).
+            accounts.DiscardChanges(account);
+
+            // The two only agree because every `return false` above sets
+            // `result` first. Adding a third and forgetting would report a
+            // rolled-back save as 204, so don't rely on remembering.
+            if (result.IsSuccess)
+                result = Result.Failure(Error.Conflict(
+                    "Account.SettingsNotSaved",
+                    "The settings could not be saved. Reload them and try again."));
+        }
 
         return result;
     }

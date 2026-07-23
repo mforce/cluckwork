@@ -14,7 +14,7 @@ public sealed class AccountRepository(AppDbContext db) : IAccountRepository
 
     // Tracked — the settings handler mutates the returned entity and saves it
     // through the shared unit of work (#123).
-    public Task<Account?> GetCurrentForUpdateAsync(CancellationToken ct = default) =>
+    public Task<Account?> GetCurrentTrackedAsync(CancellationToken ct = default) =>
         db.Accounts.FirstOrDefaultAsync(ct);
 
     public void DiscardChanges(Account account) =>

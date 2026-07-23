@@ -295,6 +295,28 @@ public sealed class FarmSettingsTests(CluckworkWebApplicationFactory factory)
     // Each of the four currency-bound tables gets its own case: with only the
     // expense case, dropping any of the other three probes would leave the
     // suite green (codex review of #159).
+    // There is no allowlist of "supported" currencies — validation is ISO 4217
+    // shape only, the symbol comes from ICU and the minor unit from the
+    // standard. These two are pinned end-to-end because they were asked for by
+    // name, and because they are the two shapes worth having a real example of:
+    // one with its own symbol, one that shares "$" with the dollar.
+    [Theory]
+    [InlineData("PHP", "₱", 2)]
+    [InlineData("MXN", "$", 2)]
+    public async Task AFarmCanOperateIn(string currencyCode, string symbol, int minorUnit)
+    {
+        var (client, _, _) = await AdminAsync();
+        var current = await GetAccountAsync(client);
+
+        var saved = await PutSettingsAsync(client, Body(current, currencyCode: currencyCode));
+        Assert.Equal(HttpStatusCode.NoContent, saved.StatusCode);
+
+        var after = await GetAccountAsync(client);
+        Assert.Equal(currencyCode, after.CurrencyCode);
+        Assert.Equal(symbol, after.CurrencySymbol);
+        Assert.Equal(minorUnit, after.CurrencyMinorUnit);
+    }
+
     [Fact]
     public async Task CurrencyChange_AfterASalesOrderExists_IsRefused()
     {

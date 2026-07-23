@@ -10,7 +10,9 @@ public interface IAccountRepository
 
     // Same row, tracked, for the settings write (#123). Kept separate so the
     // hot read paths (IFarmClock on every dated request) stay untracked.
-    Task<Account?> GetCurrentForUpdateAsync(CancellationToken ct = default);
+    // Tracked, NOT locked — there is no FOR UPDATE here. #162 is where the row
+    // lock belongs, and naming this "ForUpdate" implied one it never took.
+    Task<Account?> GetCurrentTrackedAsync(CancellationToken ct = default);
 
     // Put a tracked account back the way the database has it. A rolled-back
     // transaction undoes the row but not the in-memory entity, and something

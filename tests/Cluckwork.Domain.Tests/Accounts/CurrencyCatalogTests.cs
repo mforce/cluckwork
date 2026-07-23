@@ -46,6 +46,7 @@ public sealed class CurrencyCatalogTests
     [InlineData("USD", 2)]
     [InlineData("EUR", 2)]
     [InlineData("MXN", 2)]
+    [InlineData("PHP", 2)]
     [InlineData("GBP", 2)]
     [InlineData("INR", 2)]
     public void MinorUnit_FollowsIso4217(string code, int expected) =>
@@ -56,6 +57,8 @@ public sealed class CurrencyCatalogTests
     [InlineData("EUR", "€")]
     [InlineData("GBP", "£")]
     [InlineData("JPY", "¥")]   // halfwidth yen, never the fullwidth U+FFE5
+    [InlineData("PHP", "₱")]
+    [InlineData("MXN", "$")]   // CLDR's own choice for es-MX; §4.5 shows it as "$1,234.56 MXN"
     public void Symbol_ComesFromTheFrameworksCldrData(string code, string expected) =>
         Assert.Equal(expected, CurrencyCatalog.Resolve(code).Symbol);
 
@@ -67,6 +70,7 @@ public sealed class CurrencyCatalogTests
     [InlineData("KRW")]
     [InlineData("CNY")]
     [InlineData("MXN")]
+    [InlineData("PHP")]
     public void Symbol_IsWidthNormalized(string code)
     {
         // ICU builds disagree on the width of some symbols (¥ vs ￥, ₩ vs ￦),
@@ -111,6 +115,12 @@ public sealed class CurrencyCatalogTests
                 == System.Globalization.UnicodeCategory.Format);
     }
 
+    // An invariant, NOT coverage of the over-length branch in BuildSymbols.
+    // Enumerating every specific culture on this ICU produces no symbol longer
+    // than the column, so that branch cannot be reached from real data and this
+    // test passes with it removed (adversarial review of #159). It is kept as a
+    // canary: if an ICU update ever ships a longer symbol, the fallback is what
+    // stops a truncation error at the database, and this is what says so.
     [Theory]
     [InlineData("USD")]
     [InlineData("KWD")]
@@ -118,8 +128,6 @@ public sealed class CurrencyCatalogTests
     [InlineData("INR")]
     [InlineData("VND")]
     public void Symbol_FitsTheStoredColumn(string code) =>
-        // Otherwise the save fails on a string-truncation error at the database
-        // rather than here, and only for whoever picked that currency.
         Assert.True(CurrencyCatalog.Resolve(code).Symbol.Length <= CurrencyCatalog.MaxSymbolLength);
 
     [Fact]

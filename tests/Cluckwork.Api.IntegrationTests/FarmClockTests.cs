@@ -35,7 +35,7 @@ public sealed class FarmClockTests
         }
 
         // The clock never writes; only the settings handler uses these.
-        public Task<Account?> GetCurrentForUpdateAsync(CancellationToken ct = default) =>
+        public Task<Account?> GetCurrentTrackedAsync(CancellationToken ct = default) =>
             throw new NotSupportedException();
 
         public void DiscardChanges(Account account) => throw new NotSupportedException();
