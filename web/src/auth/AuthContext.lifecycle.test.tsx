@@ -4,7 +4,7 @@ import { AuthProvider } from "./AuthContext";
 import { useAuth } from "./useAuth";
 import { setStoredToken } from "../test/jwt";
 import { clearAccessToken } from "./tokenStore";
-import { login as apiLogin, logout as apiLogout, setOnTokensChanged, setOnUnauthenticated } from "../api/client";
+import { login as apiLogin, logout as apiLogout, restoreSession, setOnTokensChanged, setOnUnauthenticated } from "../api/client";
 
 // Mock the transport: AuthProvider drives session STATE, the client drives the
 // network. We simulate the server side (login stores a token, logout clears it)
@@ -22,6 +22,7 @@ const mockApiLogin = vi.mocked(apiLogin);
 const mockApiLogout = vi.mocked(apiLogout);
 const mockSetOnTokensChanged = vi.mocked(setOnTokensChanged);
 const mockSetOnUnauthenticated = vi.mocked(setOnUnauthenticated);
+const mockRestoreSession = vi.mocked(restoreSession);
 
 function Probe() {
   const { role, isAdmin, isAuthenticated, login, logout } = useAuth();
@@ -74,6 +75,31 @@ describe("AuthProvider lifecycle", () => {
     expect(screen.getByTestId("role")).toHaveTextContent("Sales");
     expect(screen.getByTestId("admin")).toHaveTextContent("false");
     expect(screen.getByTestId("auth")).toHaveTextContent("true");
+  });
+
+  it("adopts the session the load-time silent refresh restores", async () => {
+    // The success half of the #145 bootstrap. Every other case here starts
+    // either already-authenticated or with restoreSession resolving false, so
+    // the branch that actually ADOPTS a restored session was never executed --
+    // which is what put src/auth under its coverage floor and turned main red.
+    //
+    // The real client stores the rotated access token before resolving, so the
+    // mock does the same: the provider must derive the role from the TOKEN, not
+    // from the boolean. A Manager token proves that — hard-coding Admin or
+    // Worker on this path fails.
+    mockRestoreSession.mockImplementationOnce(async () => {
+      setStoredToken({ sub: "u1", role: "Manager" });
+      return true;
+    });
+
+    await act(async () => {
+      renderAuth();
+    });
+
+    expect(mockRestoreSession).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("auth")).toHaveTextContent("true");
+    expect(screen.getByTestId("role")).toHaveTextContent("Manager");
+    expect(screen.getByTestId("admin")).toHaveTextContent("true");
   });
 
   it("logout clears auth state back to Worker", async () => {
