@@ -367,8 +367,19 @@ that each mutation bumps. Two concurrent edits: first save wins, second gets
 a 409 and retries against fresh state. Append-only aggregates (bird
 movements) don't need one.
 
-**Operational day** — dates are farm-local calendar dates. For the MVP,
-browser-local ≈ farm-local; true farm timezones are #35.
+**Operational day** — dates are farm-local calendar dates, resolved from the
+farm's own timezone rather than UTC (#35). This is what "today" means for the
+rules that turn on a date: whether an egg lot is still under **withdrawal
+restriction**, which lots a sale may draw on, and whether a daily entry or bird
+movement is dated in the future. All of them read the same boundary, so a lot
+can never count as sellable on one screen and restricted on another.
+
+It matters most around midnight. At 18:00 on July 15 in Los Angeles it is
+already July 16 in UTC, so on a UTC boundary a lot restricted through the 15th —
+eggs still inside a medication withholding period — would read as available a
+day early. A farm ahead of UTC has the mirror problem: its legitimate today
+looks like tomorrow. Recording a genuinely future day is refused outright; there
+is no longer any day-either-side slack.
 
 **Roles (#103, spec §5.1)** — five shipped: **Admin (owner)** does
 everything including user management; **Manager** runs the farm — every

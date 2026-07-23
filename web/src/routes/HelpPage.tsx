@@ -262,6 +262,13 @@ export function HelpPage() {
           passed — admin adjust/void still works on locked entries.
         </li>
         <li>
+          &quot;Today&quot; means <strong>your farm&apos;s today</strong>, not the
+          clock in some other part of the world. You can record any day up to and
+          including it; a day that has not happened yet on the farm is refused.
+          The same date decides when eggs come out of a withdrawal period and
+          which eggs a sale can take, so stock and sales always agree.
+        </li>
+        <li>
           One entry per flock per day. Reopening a day that has a draft loads it
           for editing and shows an <strong>Editing draft</strong> badge beside
           the title, so picking up saved work never looks like starting fresh.

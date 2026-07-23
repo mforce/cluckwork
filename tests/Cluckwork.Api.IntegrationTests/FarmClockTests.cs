@@ -66,23 +66,41 @@ public sealed class FarmClockTests
         Assert.Equal(new DateOnly(2026, 7, 16), await farmClock.TodayAsync());
     }
 
+    // The three "cannot resolve the boundary" cases all FAIL CLOSED. Falling
+    // back to UTC would be failing open on a medication-safety rule: UTC is the
+    // exact wrong answer this class exists to stop, so it would release a lot
+    // restricted through today precisely when the farm is misconfigured.
+
     [Fact]
-    public async Task NoAccount_FallsBackToUtc()
+    public async Task NoAccount_Throws_RatherThanAssumingUtc()
     {
         var clock = new FrozenClock(new DateTime(2026, 7, 16, 1, 0, 0, DateTimeKind.Utc));
         var farmClock = Build(new StubAccounts(null), clock);
 
-        Assert.Equal(clock.TodayUtc, await farmClock.TodayAsync());
+        await Assert.ThrowsAsync<FarmTimeZoneException>(() => farmClock.TodayAsync());
     }
 
     [Fact]
-    public async Task UnusableTimeZone_FallsBackToUtc_RatherThanThrowing()
+    public async Task UnusableTimeZone_Throws_RatherThanAssumingUtc()
     {
-        // A bad id must not 500 the stock screen and every sale.
         var clock = new FrozenClock(new DateTime(2026, 7, 16, 1, 0, 0, DateTimeKind.Utc));
         var farmClock = Build(new StubAccounts(AccountIn("Not/AZone")), clock);
 
-        Assert.Equal(clock.TodayUtc, await farmClock.TodayAsync());
+        await Assert.ThrowsAsync<FarmTimeZoneException>(() => farmClock.TodayAsync());
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task BlankTimeZone_Throws_RatherThanAssumingUtc(string blank)
+    {
+        // FindSystemTimeZoneById throws ArgumentException — not
+        // TimeZoneNotFoundException — for a blank id, so this case would escape
+        // a filter that only caught the timezone-specific exceptions.
+        var clock = new FrozenClock(new DateTime(2026, 7, 16, 1, 0, 0, DateTimeKind.Utc));
+        var farmClock = Build(new StubAccounts(AccountIn(blank)), clock);
+
+        await Assert.ThrowsAsync<FarmTimeZoneException>(() => farmClock.TodayAsync());
     }
 
     [Fact]

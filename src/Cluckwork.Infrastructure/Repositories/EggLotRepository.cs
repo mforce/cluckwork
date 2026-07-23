@@ -38,6 +38,12 @@ public sealed class EggLotRepository(AppDbContext db) : IEggLotRepository
             WHERE "AccountId" = {accountId}
               AND "EggGradeId" = ANY({eggGradeIds.ToArray()})
               AND "QuantityAvailable" > 0
+              -- Same future-production guard the stock read applies (#35): without
+              -- it a lot dated ahead of today is invisible in stock yet allocatable
+              -- by a sale, so the two paths disagree about what exists. Such lots
+              -- can be in the data already — the +1-day validator slack removed in
+              -- this change is exactly what let an entry be dated tomorrow.
+              AND "ProductionDate" <= {allocationDate}
               AND ("RestrictedUntil" IS NULL OR "RestrictedUntil" < {allocationDate})
             ORDER BY "ProductionDate", "Id"
             FOR UPDATE
