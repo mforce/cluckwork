@@ -30,6 +30,12 @@ export function UsersPage() {
   // #103 flock scoping: expand a worker row to manage assignments.
   const [openUser, setOpenUser] = useState<string | null>(null);
   const [assignments, setAssignments] = useState<FlockAssignment[]>([]);
+  // The user the dialog is CURRENTLY for, tracked synchronously (before state
+  // commits). An assign/remove refresh, or a load, that resolves after the
+  // dialog was closed and reopened for a different worker must not splice the
+  // old worker's list or error into the new one (#154 review) — post-await
+  // writes commit only while this still matches the request's target.
+  const activeUser = useRef<string | null>(null);
   const [flocks, setFlocks] = useState<Flock[]>([]);
   const [assignFlockId, setAssignFlockId] = useState("");
 
@@ -64,47 +70,61 @@ export function UsersPage() {
   // closes it. Load the assignments before opening so the panel is never empty
   // mid-flight; a load failure surfaces on the page and the dialog stays shut.
   async function openAssignments(userId: string) {
+    activeUser.current = userId;
     try {
-      setAssignments(await listFlockAssignments(userId));
+      const list = await listFlockAssignments(userId);
+      if (activeUser.current !== userId) return; // superseded by another open/close
+      setAssignments(list);
+      // Start every worker's dialog on the first active flock. Without this the
+      // dropdown keeps the last worker's pick — open A, choose fl2, close, open
+      // B, and B shows fl2 — so a distracted admin could assign the wrong flock.
+      setAssignFlockId(flocks[0]?.id ?? "");
       setError(null);
       setOpenUser(userId);
     } catch (err) {
+      if (activeUser.current !== userId) return;
+      activeUser.current = null; // load failed → no dialog; surface on the page
       setError(errText(err));
     }
   }
 
   function closeAssignments() {
+    activeUser.current = null;
     setOpenUser(null);
     setError(null);
   }
 
   async function onAssign() {
-    if (!openUser || !assignFlockId || busy) return;
+    const target = openUser;
+    if (!target || !assignFlockId || busy) return;
     setBusy(true);
     setError(null);
-    const scope = `assign:${openUser}:${assignFlockId}`;
+    const scope = `assign:${target}:${assignFlockId}`;
     try {
-      await assignFlock(openUser, assignFlockId, keyFor(scope));
-      setAssignments(await listFlockAssignments(openUser));
+      await assignFlock(target, assignFlockId, keyFor(scope));
+      const fresh = await listFlockAssignments(target);
       clearKey(scope);
+      if (activeUser.current === target) setAssignments(fresh);
     } catch (err) {
-      setError(errText(err));
+      if (activeUser.current === target) setError(errText(err));
     } finally {
       setBusy(false);
     }
   }
 
   async function onUnassign(assignmentId: string) {
-    if (!openUser || busy) return;
+    const target = openUser;
+    if (!target || busy) return;
     setBusy(true);
     setError(null);
     const scope = `unassign:${assignmentId}`;
     try {
-      await unassignFlock(openUser, assignmentId, keyFor(scope));
-      setAssignments(await listFlockAssignments(openUser));
+      await unassignFlock(target, assignmentId, keyFor(scope));
+      const fresh = await listFlockAssignments(target);
       clearKey(scope);
+      if (activeUser.current === target) setAssignments(fresh);
     } catch (err) {
-      setError(errText(err));
+      if (activeUser.current === target) setError(errText(err));
     } finally {
       setBusy(false);
     }
