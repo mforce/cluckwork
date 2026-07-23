@@ -54,7 +54,9 @@ public sealed class Product : AggregateRoot<Guid>
 
     // ProductType stays immutable — sold lines will snapshot it (spec §10.5),
     // and retyping a product would silently reinterpret what was sold.
-    public Result Update(string name, ProductUnit defaultUnit, long? defaultPriceMinorUnits, string? notes)
+    public Result Update(
+        string name, ProductUnit defaultUnit, long? defaultPriceMinorUnits, string? notes,
+        string farmCurrencyCode, int farmCurrencyMinorUnit)
     {
         if (string.IsNullOrWhiteSpace(name))
             return Result.Failure(Error.Validation("Product.NameRequired", "Product name is required."));
@@ -64,6 +66,22 @@ public sealed class Product : AggregateRoot<Guid>
         if (defaultPriceMinorUnits is < 0)
             return Result.Failure(Error.Validation(
                 "Product.NegativePrice", "Default price cannot be negative."));
+
+        // An UNPRICED product still carries the currency it was created under,
+        // and it does not lock the farm's currency (§4.6 / #123 — nothing reads
+        // its currency as an amount), so the farm may have moved on since. Its
+        // FIRST price therefore binds to the currency the farm uses now;
+        // otherwise every order taking that default would be refused as a
+        // cross-currency price with no way to fix it through the API.
+        //
+        // An already-priced product is never re-stamped: that would silently
+        // re-denominate a real price. It cannot need to be, either — a priced
+        // product locks the farm currency, so the two already agree.
+        if (DefaultPriceMinorUnits is null && defaultPriceMinorUnits is not null)
+        {
+            CurrencyCode = farmCurrencyCode;
+            CurrencyMinorUnit = farmCurrencyMinorUnit;
+        }
 
         Name = name.Trim();
         DefaultUnit = defaultUnit;

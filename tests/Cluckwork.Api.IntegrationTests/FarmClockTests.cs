@@ -33,6 +33,12 @@ public sealed class FarmClockTests
             Calls++;
             return Task.FromResult(account);
         }
+
+        // The clock never writes; only the settings handler uses these.
+        public Task<Account?> GetCurrentTrackedAsync(CancellationToken ct = default) =>
+            throw new NotSupportedException();
+
+        public void DiscardChanges(Account account) => throw new NotSupportedException();
     }
 
     private static Account AccountIn(string timeZoneId) =>
