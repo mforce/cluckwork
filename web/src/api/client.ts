@@ -102,15 +102,31 @@ export async function logout(): Promise<void> {
 // that as a replay and revokes the whole family — logging BOTH tabs out. The Web
 // Locks API lets only one tab refresh at a time: the next tab runs its refresh
 // only AFTER the first has rotated the cookie, so it presents the fresh token,
-// not a replay. Server-side reuse-detection stays strict (unchanged). The lock
-// auto-releases if a holding tab is closed or crashes — no deadlock. Browsers
-// without navigator.locks (older Safari) degrade to per-tab single-flight only:
-// no cross-tab guarantee, but never worse than before #169.
+// not a replay. Server-side reuse-detection stays strict (unchanged). Browsers
+// without navigator.locks (older Safari, insecure origins) degrade to per-tab
+// single-flight only: no cross-tab guarantee, but never worse than before #169.
+//
+// Residual (a page-owned lock cannot make server rotation + cookie receipt
+// atomic): if a tab is closed in the sub-second between sending a refresh and
+// receiving the rotated cookie, the lock auto-releases while the cookie is still
+// the old value, so the next tab can still trip reuse-detection. Narrow, but a
+// full fix needs an idempotent server refresh — tracked in #176.
 const REFRESH_LOCK = "cluckwork.auth.refresh";
 
-function withRefreshLock<T>(run: () => Promise<T>): Promise<T> {
+// Cap how long one tab may hold the cross-tab lock. fetch() has no default
+// timeout, so a hung /auth/refresh would otherwise keep the lock — and every
+// other tab's refresh — parked indefinitely (#169 review). On timeout we abort,
+// which releases the lock; the aborting tab recovers on its next request.
+const REFRESH_TIMEOUT_MS = 15_000;
+
+function withRefreshLock<T>(run: (signal: AbortSignal) => Promise<T>): Promise<T> {
+  const attempt = () => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), REFRESH_TIMEOUT_MS);
+    return run(controller.signal).finally(() => clearTimeout(timer));
+  };
   const locks: LockManager | undefined = globalThis.navigator?.locks;
-  return locks ? (locks.request(REFRESH_LOCK, run) as Promise<T>) : run();
+  return locks ? (locks.request(REFRESH_LOCK, attempt) as Promise<T>) : attempt();
 }
 
 // Single-flight refresh: concurrent 401s (and the load-time bootstrap) share one
@@ -122,10 +138,11 @@ let refreshInFlight: Promise<string> | null = null;
 async function refreshTokens(): Promise<string> {
   if (refreshInFlight) return refreshInFlight;
 
-  refreshInFlight = withRefreshLock(() =>
+  refreshInFlight = withRefreshLock((signal) =>
     raw<AccessTokenResponse>("/auth/refresh", {
       method: "POST",
       headers: { [CSRF_HEADER]: "1" },
+      signal,
     }),
   )
     .then((res) => {
@@ -255,9 +272,12 @@ async function currentAccessToken(): Promise<string> {
   }
 }
 
-// A 429 during refresh is transient throttling (#143), not an invalid session:
-// the refresh token is still good, so keep it and surface the error rather than
-// clearing tokens — which would force a re-login through the same rate limit.
+// A refresh failure is "transient" when the session is likely still valid, so we
+// keep the tokens and surface the error rather than forcing a re-login:
+//   - 429: rate-limit throttling (#143) — re-logging in hits the same limit.
+//   - AbortError: our own cross-tab lock timeout (#169) fired on a slow/hung
+//     refresh; the cookie is untouched, so the next attempt can still succeed.
 function isTransientRefreshFailure(err: unknown): boolean {
-  return err instanceof ApiError && err.status === 429;
+  if (err instanceof ApiError && err.status === 429) return true;
+  return err instanceof DOMException && err.name === "AbortError";
 }

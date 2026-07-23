@@ -84,6 +84,12 @@ Refresh is serialised **across tabs** via the Web Locks API (#169): the refresh
 token lives only in the shared cookie, so two tabs refreshing at once would each
 present the same value and the second would trip the server's rotation/reuse
 detection, revoking the family and logging both tabs out. The lock lets one tab
-refresh at a time; the next tab then presents the freshly-rotated cookie. Server
-reuse-detection stays strict; browsers without `navigator.locks` fall back to the
-per-tab single-flight only.
+refresh at a time; the next tab then presents the freshly-rotated cookie. A hung
+refresh can't park the lock forever — it's aborted after a bounded timeout so
+other tabs recover. Server reuse-detection stays strict; browsers without
+`navigator.locks` fall back to the per-tab single-flight only.
+
+One residual a page-owned lock can't close: if a tab is closed in the sub-second
+between sending a refresh and receiving the rotated cookie, the lock releases
+while the cookie is still stale, so the next tab can still trip reuse-detection.
+Narrow; the full fix needs an idempotent server refresh (tracked in #176).
