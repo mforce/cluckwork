@@ -40,14 +40,20 @@ public sealed class FarmLogoConfiguration : IEntityTypeConfiguration<FarmLogo>
         // and the farm would have two logos with an arbitrary winner on read.
         // With it the second insert fails, which /error already maps to a 409.
         //
-        // It does NOT order two concurrent REPLACEMENTS — no constraint fires
-        // when both update an existing row, and there is no concurrency token,
-        // so the later commit wins. That is deliberate for branding: a logo has
-        // no base version a raw-body PUT could carry, and `Replace` rewrites
-        // content, type, dimensions and hash together, so whichever upload wins
-        // leaves an internally consistent row. Last-write-wins, never a mix of
-        // two images (review of #168).
+        // Concurrent REPLACEMENTS are ordered by the Version token instead — no
+        // unique constraint fires when both writers update an existing row.
+        //
+        // The comment that stood here claimed a token was unnecessary because
+        // `Replace` rewrites every field together, so the loser would merely
+        // overwrite the winner with a coherent row. That was false: EF writes
+        // only the properties that differ from each context's own snapshot, so
+        // a second writer whose type/dimensions/length happen to match the
+        // ORIGINAL row updates just the bytes and leaves the first writer's
+        // metadata describing them. See FarmLogo.Version (codex round 2 of
+        // #168).
         builder.HasIndex(l => new { l.AccountId, l.FarmId }).IsUnique();
+
+        builder.Property(l => l.Version).IsConcurrencyToken();
 
         builder.ToTable(t => t.HasCheckConstraint(
             "ck_farm_logos_content_length",

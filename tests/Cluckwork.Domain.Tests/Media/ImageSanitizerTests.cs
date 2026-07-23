@@ -171,6 +171,67 @@ public sealed class ImageSanitizerTests
         Assert.Equal(ImageSanitizer.Malformed, result.Error);
     }
 
+    // The IEND lesson generalized. Every kept chunk the specification gives a
+    // fixed size to can smuggle a payload in its surplus, because kept chunks
+    // are copied whole — closing IHDR and IEND alone left six siblings open
+    // (round 2 of #168).
+    [Theory]
+    [InlineData("sRGB", 1)]
+    [InlineData("gAMA", 4)]
+    [InlineData("cHRM", 32)]
+    [InlineData("pHYs", 9)]
+    [InlineData("sBIT", 4)]
+    [InlineData("bKGD", 6)]
+    public void Png_RefusesSurplusInAFixedSizeChunk(string type, int legalLength)
+    {
+        var payload = "GPSLatitude 51.5074 GPSLongitude -0.1278"u8.ToArray();
+        var oversize = new byte[legalLength + payload.Length];
+        payload.CopyTo(oversize, legalLength);
+
+        var png = Png(
+            PngChunk("IHDR", Ihdr(8, 8)),
+            PngChunk(type, oversize),
+            PngChunk("IDAT", [1, 2, 3]),
+            PngChunk("IEND", []));
+
+        var result = ImageSanitizer.Sanitize(png);
+
+        Assert.True(result.IsFailure, $"{type} carried {payload.Length} surplus bytes through");
+        Assert.Equal(ImageSanitizer.Malformed, result.Error);
+    }
+
+    [Theory]
+    [InlineData("sRGB", 1)]
+    [InlineData("gAMA", 4)]
+    [InlineData("cHRM", 32)]
+    [InlineData("pHYs", 9)]
+    public void Png_AcceptsThoseChunksAtTheirLegalSize(string type, int legalLength)
+    {
+        // The other half: the length rule must not refuse ordinary files.
+        var png = Png(
+            PngChunk("IHDR", Ihdr(8, 8)),
+            PngChunk(type, new byte[legalLength]),
+            PngChunk("IDAT", [1, 2, 3]),
+            PngChunk("IEND", []));
+
+        Assert.True(ImageSanitizer.Sanitize(png).IsSuccess);
+    }
+
+    [Fact]
+    public void Png_RefusesAPaletteThatIsNotWholeColours()
+    {
+        var png = Png(
+            PngChunk("IHDR", Ihdr(8, 8)),
+            PngChunk("PLTE", new byte[10]),   // not a multiple of 3
+            PngChunk("IDAT", [1, 2, 3]),
+            PngChunk("IEND", []));
+
+        var result = ImageSanitizer.Sanitize(png);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ImageSanitizer.Malformed, result.Error);
+    }
+
     [Fact]
     public void Png_RefusesAnOversizeHeaderChunk()
     {
@@ -469,6 +530,47 @@ public sealed class ImageSanitizerTests
         Assert.Equal(20, result.Value.Height);
     }
 
+    // The WebP duplicate-bitstream bug in the format it was NOT fixed for the
+    // first time round: every SOF overwrote the dimensions and only the last
+    // pair was capped, so a huge frame header followed by a tiny one reported
+    // tiny and shipped the bomb (codex round 2 of #168).
+    [Fact]
+    public void Jpeg_CannotBeTalkedIntoMeasuringTheSecondFrameHeader()
+    {
+        var jpeg = Jpeg(
+            Sof0(65535, 65535),
+            JpegSegment(0xDA, [1, 0, 0, 0x3F, 0]),
+            [0x12],
+            Sof0(1, 1),
+            JpegSegment(0xDA, [1, 0, 0, 0x3F, 0]),
+            [0x34],
+            [0xFF, 0xD9]);
+
+        var result = ImageSanitizer.Sanitize(jpeg);
+
+        Assert.True(result.IsFailure);
+        Assert.NotEqual(ImageSanitizer.Empty, result.Error);
+    }
+
+    [Fact]
+    public void Jpeg_RejectsASecondFrameHeader()
+    {
+        // Both within the cap, so only the duplicate rule can refuse this.
+        var jpeg = Jpeg(
+            Sof0(32, 32),
+            JpegSegment(0xDA, [1, 0, 0, 0x3F, 0]),
+            [0x12],
+            Sof0(16, 16),
+            JpegSegment(0xDA, [1, 0, 0, 0x3F, 0]),
+            [0x34],
+            [0xFF, 0xD9]);
+
+        var result = ImageSanitizer.Sanitize(jpeg);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ImageSanitizer.Malformed, result.Error);
+    }
+
     [Fact]
     public void Jpeg_RejectsASegmentLengthThatWouldStallTheWalk()
     {
@@ -712,24 +814,67 @@ public sealed class ImageSanitizerTests
         Assert.Equal(ImageSanitizer.DimensionsTooLarge, result.Error);
     }
 
-    [Fact]
-    public void Webp_RefusesAnimation()
+    // An ANMF frame nests its own chunk stream, so the flat allowlist never
+    // looks inside and metadata rides through in a chunk it never sees.
+    // Sweeping that means recursing the walk into every frame; refusing
+    // animation is the smaller surface (codex review of #168).
+    //
+    // Each chunk on its own, because the first version put ANIM before ANMF —
+    // ANIM returned immediately, so deleting the ANMF guard left the test green
+    // and the branch was never exercised at all (codex round 2).
+    [Theory]
+    [InlineData("ANIM")]
+    [InlineData("ANMF")]
+    public void Webp_RefusesAnimation(string chunk)
     {
-        // An ANMF frame nests its own chunk stream, so the flat allowlist never
-        // looks inside and metadata rides through in a chunk it never sees.
-        // Sweeping that means recursing the walk into every frame; refusing
-        // animation is the smaller surface (codex review of #168).
         var hidden = "GPSLatitude 51.5074"u8.ToArray();
+        var payload = chunk == "ANIM"
+            ? new byte[] { 0, 0, 0, 0, 0, 0 }
+            : [.. new byte[16], .. "JUNK"u8, .. new byte[4], .. hidden];
+
         var webp = Webp(
             WebpChunk("VP8X", Vp8XPayload(64, 64, 0x02)),
-            WebpChunk("ANIM", [0, 0, 0, 0, 0, 0]),
-            WebpChunk("ANMF", [.. new byte[16], .. "JUNK"u8, .. new byte[4], .. hidden]),
+            WebpChunk(chunk, payload),
             WebpChunk("VP8L", Vp8LPayload(64, 64)));
 
         var result = ImageSanitizer.Sanitize(webp);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ImageSanitizer.AnimationNotSupported, result.Error);
+    }
+
+    [Fact]
+    public void Webp_RefusesSurplusInTheCanvasHeader()
+    {
+        // VP8X is exactly ten bytes and is copied whole, so a longer one
+        // smuggles its surplus through — the PNG fixed-size hole, in the chunk
+        // that was checked with `<` instead of `!=` (round 2 of #168).
+        var payload = "GPSLatitude 51.5074"u8.ToArray();
+        var webp = Webp(
+            WebpChunk("VP8X", [.. Vp8XPayload(64, 64, 0), .. payload]),
+            WebpChunk("VP8L", Vp8LPayload(64, 64)));
+
+        var result = ImageSanitizer.Sanitize(webp);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ImageSanitizer.Malformed, result.Error);
+    }
+
+    [Fact]
+    public void Webp_ClearsTheAnimationFlagItCannotHonour()
+    {
+        // A VP8X may advertise animation while carrying no ANIM chunk, which
+        // slips past the rejection above because there is nothing there to
+        // reject. Leaving the bit set stores a file claiming frames it does not
+        // have (pi and codex, round 2 of #168).
+        var webp = Webp(
+            WebpChunk("VP8X", Vp8XPayload(64, 64, 0x02)),
+            WebpChunk("VP8L", Vp8LPayload(64, 64)));
+
+        var result = ImageSanitizer.Sanitize(webp);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(0, result.Value.Content[20] & 0x02);
     }
 
     // --- the dimension cap -------------------------------------------------
