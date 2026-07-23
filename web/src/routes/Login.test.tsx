@@ -48,8 +48,7 @@ beforeEach(() => vi.resetAllMocks());
 describe("Login", () => {
   it("bounces an unauthenticated visit to /login, then returns to the original route after sign-in", async () => {
     mockApiLogin.mockImplementation(async () => {
-      setStoredToken({ sub: "u1", role: "Sales" }); // server issued a session
-      return { accessToken: "a", refreshToken: "r", expiresAt: "2099-01-01T00:00:00Z" };
+      setStoredToken({ sub: "u1", role: "Sales" }); // server issued a session (token in memory)
     });
     // Land on the protected route while logged out → ProtectedRoute redirects to
     // /login, preserving `from = /dashboard` in router state.

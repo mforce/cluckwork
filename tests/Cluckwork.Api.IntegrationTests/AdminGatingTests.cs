@@ -201,11 +201,13 @@ public sealed class AdminGatingTests(CluckworkWebApplicationFactory factory)
             Assert.True((await users.RemoveFromRoleAsync(user!, "Admin")).Succeeded);
         }
 
-        var client = factory.CreateClient();
-        var refreshed = await client.PostAsJsonAsync(
-            "/api/v1/auth/refresh", new { pair.RefreshToken });
+        var client = factory.CreateClient(new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions
+        {
+            HandleCookies = false,
+        });
+        var refreshed = await client.PostRefreshAsync(pair.RefreshToken);
         Assert.Equal(HttpStatusCode.OK, refreshed.StatusCode);
-        var newPair = (await refreshed.Content.ReadFromJsonAsync<TokenPairDto>())!;
+        var newPair = await TestHarness.ReadTokensAsync(refreshed);
 
         Assert.Null(RoleClaim(newPair.AccessToken));
         var demoted = factory.CreateAuthedClient(newPair.AccessToken);

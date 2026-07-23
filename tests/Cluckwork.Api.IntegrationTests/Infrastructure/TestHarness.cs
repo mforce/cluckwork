@@ -1,12 +1,15 @@
 namespace Cluckwork.Api.IntegrationTests.Infrastructure;
 
+using System.Linq;
 using System.Net.Http.Headers;
+using Cluckwork.Api.Endpoints.Auth;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Eggs;
 using Cluckwork.Domain.Sales;
 using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
 // Seeding + auth helpers shared by the integration tests. Each helper that touches the
@@ -252,15 +255,21 @@ internal static class TestHarness
         return orderId;
     }
 
-    // Logs in over HTTP and returns the full token pair.
+    // Cookies are managed explicitly in these tests (login reads the Set-Cookie,
+    // refresh/logout send it back by hand), so the client must NOT keep its own
+    // jar — otherwise an explicit Cookie header collides with the container.
+    private static readonly WebApplicationFactoryClientOptions Cookieless = new() { HandleCookies = false };
+
+    // Logs in over HTTP; the access token comes from the body and the refresh
+    // token from the HttpOnly Set-Cookie (#145).
     public static async Task<TokenPairDto> LoginAsync(
         this CluckworkWebApplicationFactory factory, string email)
     {
-        var client = factory.CreateClient();
+        var client = factory.CreateClient(Cookieless);
         var response = await client.PostAsJsonAsync(
             "/api/v1/auth/login", new { email, password = Password });
         response.EnsureSuccessStatusCode();
-        return (await response.Content.ReadFromJsonAsync<TokenPairDto>())!;
+        return await ReadTokensAsync(response);
     }
 
     public static async Task<string> LoginForAccessTokenAsync(
@@ -270,9 +279,53 @@ internal static class TestHarness
     public static HttpClient CreateAuthedClient(
         this CluckworkWebApplicationFactory factory, string accessToken)
     {
-        var client = factory.CreateClient();
+        var client = factory.CreateClient(Cookieless);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
         return client;
+    }
+
+    // Reads an AccessTokenResponse body + the rotated refresh cookie into the
+    // TokenPairDto shape the auth tests assert against.
+    public static async Task<TokenPairDto> ReadTokensAsync(HttpResponseMessage response)
+    {
+        var body = (await response.Content.ReadFromJsonAsync<AccessTokenResponse>())!;
+        return new TokenPairDto(body.AccessToken, ExtractRefreshCookie(response), body.AccessTokenExpiry);
+    }
+
+    // Pulls the refresh-token value out of the Set-Cookie header (empty when the
+    // cookie is being cleared, e.g. logout / failed refresh).
+    public static string ExtractRefreshCookie(HttpResponseMessage response)
+    {
+        if (!response.Headers.TryGetValues("Set-Cookie", out var cookies))
+            return string.Empty;
+        var prefix = AuthCookies.RefreshCookieName + "=";
+        var cookie = cookies.FirstOrDefault(c => c.StartsWith(prefix, StringComparison.Ordinal));
+        if (cookie is null) return string.Empty;
+        return cookie[prefix.Length..].Split(';', 2)[0];
+    }
+
+    // POST /auth/refresh the cookie way: refresh token in the cookie, the #145
+    // CSRF header present. Pass csrf: false to exercise the missing-header path.
+    public static Task<HttpResponseMessage> PostRefreshAsync(
+        this HttpClient client, string? refreshToken, bool csrf = true)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/refresh");
+        if (csrf) request.Headers.Add(AuthCookies.CsrfHeaderName, "1");
+        if (refreshToken is not null)
+            request.Headers.Add("Cookie", $"{AuthCookies.RefreshCookieName}={refreshToken}");
+        return client.SendAsync(request);
+    }
+
+    // POST /auth/logout (authenticated write): cookie + CSRF header + idempotency.
+    public static Task<HttpResponseMessage> PostLogoutAsync(
+        this HttpClient client, string idempotencyKey, string? refreshToken, bool csrf = true)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/logout");
+        request.Headers.Add("Idempotency-Key", idempotencyKey);
+        if (csrf) request.Headers.Add(AuthCookies.CsrfHeaderName, "1");
+        if (refreshToken is not null)
+            request.Headers.Add("Cookie", $"{AuthCookies.RefreshCookieName}={refreshToken}");
+        return client.SendAsync(request);
     }
 
     // POST with the Idempotency-Key write endpoints require. Optional JSON body.

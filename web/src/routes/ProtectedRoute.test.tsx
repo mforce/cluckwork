@@ -17,9 +17,11 @@ function tree() {
 }
 
 describe("ProtectedRoute", () => {
-  it("redirects to /login when there is no session", () => {
+  it("redirects to /login when there is no session", async () => {
+    // No in-memory token → the load-time silent refresh runs first (the route
+    // holds, rendering nothing); when it fails (no cookie) the gate redirects.
     renderWithProviders(tree(), { route: "/", token: null });
-    expect(screen.getByText("login screen")).toBeInTheDocument();
+    expect(await screen.findByText("login screen")).toBeInTheDocument();
     expect(screen.queryByText("protected home")).not.toBeInTheDocument();
   });
 

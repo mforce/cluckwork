@@ -2,17 +2,22 @@ namespace Cluckwork.Api.IntegrationTests;
 
 using System.Net;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+using Microsoft.AspNetCore.Mvc.Testing;
 
-// tech spec §7.4: refresh tokens are durable and rotating. Refresh issues a new pair,
-// the old token is single-use, reuse is rejected, and logout revokes.
+// tech spec §7.4: refresh tokens are durable and rotating. Refresh issues a new
+// pair, the old token is single-use, reuse is rejected, and logout revokes.
+// Since #145 the refresh token travels in an HttpOnly cookie, never the body.
 [Collection(IntegrationCollection.Name)]
 public sealed class RefreshTokenFlowTests(CluckworkWebApplicationFactory factory)
 {
+    private static readonly WebApplicationFactoryClientOptions Cookieless =
+        new() { HandleCookies = false };
+
     private async Task<TokenPairDto> RefreshAsync(HttpClient client, string refreshToken)
     {
-        var response = await client.PostAsJsonAsync("/api/v1/auth/refresh", new { refreshToken });
+        var response = await client.PostRefreshAsync(refreshToken);
         response.EnsureSuccessStatusCode();
-        return (await response.Content.ReadFromJsonAsync<TokenPairDto>())!;
+        return await TestHarness.ReadTokensAsync(response);
     }
 
     [Fact]
@@ -20,7 +25,7 @@ public sealed class RefreshTokenFlowTests(CluckworkWebApplicationFactory factory
     {
         var email = $"u-{Guid.NewGuid():N}@test.local";
         await factory.SeedAccountWithUserAsync(email);
-        var client = factory.CreateClient();
+        var client = factory.CreateClient(Cookieless);
 
         var initial = await factory.LoginAsync(email);
         var rotated = await RefreshAsync(client, initial.RefreshToken);
@@ -38,23 +43,21 @@ public sealed class RefreshTokenFlowTests(CluckworkWebApplicationFactory factory
     {
         var email = $"u-{Guid.NewGuid():N}@test.local";
         await factory.SeedAccountWithUserAsync(email);
-        var client = factory.CreateClient();
+        var client = factory.CreateClient(Cookieless);
 
         var initial = await factory.LoginAsync(email);
         await RefreshAsync(client, initial.RefreshToken); // rotates initial → revoked
 
         // Replaying the now-revoked original token must fail.
-        var replay = await client.PostAsJsonAsync(
-            "/api/v1/auth/refresh", new { refreshToken = initial.RefreshToken });
+        var replay = await client.PostRefreshAsync(initial.RefreshToken);
         Assert.Equal(HttpStatusCode.Unauthorized, replay.StatusCode);
     }
 
     [Fact]
     public async Task Refresh_WithGarbageToken_IsRejected()
     {
-        var client = factory.CreateClient();
-        var response = await client.PostAsJsonAsync(
-            "/api/v1/auth/refresh", new { refreshToken = "not-a-real-token" });
+        var client = factory.CreateClient(Cookieless);
+        var response = await client.PostRefreshAsync("not-a-real-token");
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
@@ -67,14 +70,12 @@ public sealed class RefreshTokenFlowTests(CluckworkWebApplicationFactory factory
         var tokens = await factory.LoginAsync(email);
         var authed = factory.CreateAuthedClient(tokens.AccessToken);
 
-        // Logout is an authenticated write endpoint, so it requires an Idempotency-Key.
-        var logout = await authed.PostWithKeyAsync(
-            "/api/v1/auth/logout", Guid.NewGuid().ToString(), new { refreshToken = tokens.RefreshToken });
+        // Logout is an authenticated write endpoint (Idempotency-Key + CSRF header).
+        var logout = await authed.PostLogoutAsync(Guid.NewGuid().ToString(), tokens.RefreshToken);
         Assert.Equal(HttpStatusCode.NoContent, logout.StatusCode);
 
         // The revoked token can no longer be refreshed.
-        var afterLogout = await factory.CreateClient().PostAsJsonAsync(
-            "/api/v1/auth/refresh", new { refreshToken = tokens.RefreshToken });
+        var afterLogout = await factory.CreateClient(Cookieless).PostRefreshAsync(tokens.RefreshToken);
         Assert.Equal(HttpStatusCode.Unauthorized, afterLogout.StatusCode);
     }
 }

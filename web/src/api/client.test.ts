@@ -12,19 +12,27 @@ import {
   setOnUnauthenticated,
   setOnTokensChanged,
 } from "./client";
-import { saveTokens, loadTokens, clearTokens } from "../auth/tokenStore";
+import { getAccessToken, setAccessToken, clearAccessToken } from "../auth/tokenStore";
 
 // The fetch client owns the SPA's session lifecycle: bearer-attach, one
 // transparent refresh-and-retry on 401, single-flight refresh, and fail-closed
-// teardown. All exercised here against a stubbed global fetch — no network.
+// teardown. Since #145 the refresh token rides an HttpOnly cookie (the browser
+// attaches it), so refresh/logout send NO refresh body — only the CSRF header.
+// All exercised here against a stubbed global fetch — no network.
 
 const FUTURE = "2099-01-01T00:00:00Z";
+const CSRF = "X-Cluckwork-Auth";
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: { "Content-Type": "application/json" },
   });
+}
+
+// The access-token body login/refresh now return (no refresh token).
+function accessResponse(accessToken: string, status = 200): Response {
+  return jsonResponse({ accessToken, accessTokenExpiry: FUTURE }, status);
 }
 
 type Call = [string, RequestInit];
@@ -64,14 +72,14 @@ beforeEach(() => {
   onTokens = vi.fn();
   setOnUnauthenticated(onUnauth);
   setOnTokensChanged(onTokens);
-  saveTokens({ accessToken: "at1", refreshToken: "rt1", expiresAt: FUTURE });
+  setAccessToken("at1");
 });
 
 afterEach(() => {
   vi.unstubAllGlobals();
   setOnUnauthenticated(null);
   setOnTokensChanged(null);
-  clearTokens();
+  clearAccessToken();
 });
 
 describe("apiFetch — happy path", () => {
@@ -82,7 +90,7 @@ describe("apiFetch — happy path", () => {
     const [url, init] = fetchMock.mock.calls[0] as Call;
     expect(url).toBe("/api/v1/stock");
     expect(new Headers(init.headers).get("Authorization")).toBe("Bearer at1");
-    expect(onTokens).not.toHaveBeenCalled(); // a plain GET must not touch the token pair
+    expect(onTokens).not.toHaveBeenCalled(); // a plain GET must not touch the token
   });
 
   it("returns undefined for 204 No Content", async () => {
@@ -91,12 +99,25 @@ describe("apiFetch — happy path", () => {
   });
 });
 
-describe("apiFetch — no session", () => {
-  it("throws 401 and fires onUnauthenticated without calling fetch", async () => {
-    clearTokens();
+describe("apiFetch — no in-memory token", () => {
+  it("attempts one silent refresh; on failure throws 401 and fires onUnauthenticated", async () => {
+    clearAccessToken();
+    fetchMock.mockResolvedValueOnce(jsonResponse({ title: "no cookie" }, 401)); // the bootstrap refresh
     await expect(apiGet("/stock")).rejects.toMatchObject({ status: 401 });
     expect(onUnauth).toHaveBeenCalledTimes(1);
-    expect(fetchMock).not.toHaveBeenCalled();
+    // exactly one fetch — the refresh attempt — and it targeted /auth/refresh
+    expect(callsTo(fetchMock, "/auth/refresh")).toHaveLength(1);
+    expect(callsTo(fetchMock, "/stock")).toHaveLength(0);
+  });
+
+  it("uses the refreshed token when the silent refresh succeeds", async () => {
+    clearAccessToken();
+    fetchMock
+      .mockResolvedValueOnce(accessResponse("at2")) // silent refresh
+      .mockResolvedValueOnce(jsonResponse({ ok: true })); // the request, now authed
+    const body = await apiGet<{ ok: boolean }>("/stock");
+    expect(body).toEqual({ ok: true });
+    expect(authOf(callsTo(fetchMock, "/stock")[0])).toBe("Bearer at2");
   });
 });
 
@@ -127,7 +148,7 @@ describe("apiFetch — transparent refresh", () => {
   it("on 401, refreshes once and retries the original request with the new token", async () => {
     fetchMock
       .mockResolvedValueOnce(jsonResponse({ title: "expired" }, 401)) // original
-      .mockResolvedValueOnce(jsonResponse({ accessToken: "at2", refreshToken: "rt2", expiresAt: FUTURE })) // refresh
+      .mockResolvedValueOnce(accessResponse("at2")) // refresh
       .mockResolvedValueOnce(jsonResponse({ ok: true })); // retry
 
     const body = await apiGet<{ ok: boolean }>("/stock");
@@ -135,23 +156,24 @@ describe("apiFetch — transparent refresh", () => {
     expect(fetchMock).toHaveBeenCalledTimes(3);
 
     const calls = fetchMock.mock.calls as Call[];
-    // Refresh request contract: POST /auth/refresh with the stored refresh
-    // token and NO bearer (it authenticates by the refresh token alone).
+    // Refresh request contract (#145): POST /auth/refresh with NO body and NO
+    // bearer — it authenticates by the HttpOnly cookie — plus the CSRF header.
     expect(calls[1][0]).toBe("/api/v1/auth/refresh");
     expect(calls[1][1].method).toBe("POST");
-    expect(calls[1][1].body).toBe(JSON.stringify({ refreshToken: "rt1" }));
+    expect(calls[1][1].body).toBeUndefined();
     expect(authOf(calls[1])).toBeNull();
+    expect(headerOf(calls[1], CSRF)).toBe("1");
     // Retry hits the same URL with the refreshed token.
     expect(calls[2][0]).toBe("/api/v1/stock");
     expect(authOf(calls[2])).toBe("Bearer at2");
     expect(onTokens).toHaveBeenCalledTimes(1);
-    expect(loadTokens()?.accessToken).toBe("at2");
+    expect(getAccessToken()).toBe("at2");
   });
 
   it("replays a write across a refresh with the SAME idempotency key and body", async () => {
     fetchMock
       .mockResolvedValueOnce(jsonResponse({ title: "expired" }, 401)) // original POST
-      .mockResolvedValueOnce(jsonResponse({ accessToken: "at2", refreshToken: "rt2", expiresAt: FUTURE })) // refresh
+      .mockResolvedValueOnce(accessResponse("at2")) // refresh
       .mockResolvedValueOnce(jsonResponse({ id: "1" })); // retry POST
 
     await apiPost("/customers", { name: "x" }, "fixed-key");
@@ -175,7 +197,7 @@ describe("apiFetch — transparent refresh", () => {
         refreshes += 1;
         if (refreshes > 1) throw new Error("a second refresh must not start while one is in flight");
         await gate.promise; // hold open until both 401s have parked on this refresh
-        return jsonResponse({ accessToken: "at2", refreshToken: "rt2", expiresAt: FUTURE });
+        return accessResponse("at2");
       }
       const auth = new Headers(init.headers).get("Authorization");
       return auth === "Bearer at1" ? jsonResponse({ title: "expired" }, 401) : jsonResponse({ ok: true });
@@ -195,16 +217,16 @@ describe("apiFetch — transparent refresh", () => {
   it("refreshes again on a later 401 — the single-flight latch is cleared on success", async () => {
     fetchMock
       .mockResolvedValueOnce(jsonResponse({ title: "expired" }, 401)) // cycle 1 original
-      .mockResolvedValueOnce(jsonResponse({ accessToken: "at2", refreshToken: "rt2", expiresAt: FUTURE }))
+      .mockResolvedValueOnce(accessResponse("at2"))
       .mockResolvedValueOnce(jsonResponse({ ok: 1 })) // cycle 1 retry
       .mockResolvedValueOnce(jsonResponse({ title: "expired" }, 401)) // cycle 2 original
-      .mockResolvedValueOnce(jsonResponse({ accessToken: "at3", refreshToken: "rt3", expiresAt: FUTURE }))
+      .mockResolvedValueOnce(accessResponse("at3"))
       .mockResolvedValueOnce(jsonResponse({ ok: 2 })); // cycle 2 retry
 
     await apiGet("/a");
     await apiGet("/b");
     expect(callsTo(fetchMock, "/auth/refresh")).toHaveLength(2); // a stuck latch would only refresh once
-    expect(loadTokens()?.accessToken).toBe("at3");
+    expect(getAccessToken()).toBe("at3");
   });
 });
 
@@ -220,13 +242,13 @@ describe("apiFetch — refresh failure is fail-closed and non-recursive", () => 
     expect((err as ApiError).title).toBe("expired"); // original, not the refresh error
     expect(fetchMock).toHaveBeenCalledTimes(2); // no retry after refresh failed
     expect(onUnauth).toHaveBeenCalledTimes(1);
-    expect(loadTokens()).toBeNull();
+    expect(getAccessToken()).toBeNull();
   });
 
   it("does NOT retry-refresh when the retry itself 401s (one transparent refresh only)", async () => {
     fetchMock
       .mockResolvedValueOnce(jsonResponse({ title: "expired" }, 401)) // original
-      .mockResolvedValueOnce(jsonResponse({ accessToken: "at2", refreshToken: "rt2", expiresAt: FUTURE })) // refresh ok
+      .mockResolvedValueOnce(accessResponse("at2")) // refresh ok
       .mockResolvedValueOnce(jsonResponse({ title: "still 401" }, 401)); // retry 401
 
     const err = await apiGet("/stock").catch((e: unknown) => e);
@@ -235,7 +257,7 @@ describe("apiFetch — refresh failure is fail-closed and non-recursive", () => 
     expect(fetchMock).toHaveBeenCalledTimes(3); // original + one refresh + one retry, then stop
     expect(callsTo(fetchMock, "/auth/refresh")).toHaveLength(1);
     expect(onUnauth).toHaveBeenCalledTimes(1);
-    expect(loadTokens()).toBeNull();
+    expect(getAccessToken()).toBeNull();
   });
 
   it("surfaces the original 401 when the refresh network call rejects", async () => {
@@ -247,13 +269,13 @@ describe("apiFetch — refresh failure is fail-closed and non-recursive", () => 
     expect(err).toBeInstanceOf(ApiError);
     expect((err as ApiError).status).toBe(401);
     expect(onUnauth).toHaveBeenCalledTimes(1);
-    expect(loadTokens()).toBeNull();
+    expect(getAccessToken()).toBeNull();
   });
 
-  it("does NOT clear the session when refresh is rate-limited (429) — keeps tokens and rethrows the 429", async () => {
+  it("does NOT clear the session when refresh is rate-limited (429) — keeps the token and rethrows the 429", async () => {
     // A 429 during transparent refresh is transient throttling (#143), not a
-    // dead session. Wiping tokens here would force a re-login through the same
-    // rate limit; instead the refresh token is kept and the 429 surfaces.
+    // dead session. Wiping the token here would force a re-login through the same
+    // rate limit; instead the token is kept and the 429 surfaces.
     fetchMock
       .mockResolvedValueOnce(jsonResponse({ title: "expired" }, 401)) // original 401
       .mockResolvedValueOnce(jsonResponse({ title: "Too many requests" }, 429)); // refresh 429
@@ -262,7 +284,7 @@ describe("apiFetch — refresh failure is fail-closed and non-recursive", () => 
     expect(err).toBeInstanceOf(ApiError);
     expect((err as ApiError).status).toBe(429); // the 429, not the original 401
     expect(onUnauth).not.toHaveBeenCalled(); // session preserved
-    expect(loadTokens()?.refreshToken).toBe("rt1"); // tokens untouched
+    expect(getAccessToken()).toBe("at1"); // token untouched
   });
 
   it("recovers on the next request after a failed refresh — the latch is cleared on failure too", async () => {
@@ -271,12 +293,12 @@ describe("apiFetch — refresh failure is fail-closed and non-recursive", () => 
       .mockResolvedValueOnce(jsonResponse({ title: "bad refresh" }, 401)); // req 1 refresh fails
     await apiGet("/a").catch(() => {});
 
-    // Session was torn down; a fresh login reseeds tokens and the next 401 must
+    // Session was torn down; a fresh login reseeds the token and the next 401 must
     // be able to start a brand-new refresh (not reuse a rejected latch).
-    saveTokens({ accessToken: "at1b", refreshToken: "rt1b", expiresAt: FUTURE });
+    setAccessToken("at1b");
     fetchMock
       .mockResolvedValueOnce(jsonResponse({ title: "expired" }, 401)) // req 2 original
-      .mockResolvedValueOnce(jsonResponse({ accessToken: "at2", refreshToken: "rt2", expiresAt: FUTURE })) // refresh ok
+      .mockResolvedValueOnce(accessResponse("at2")) // refresh ok
       .mockResolvedValueOnce(jsonResponse({ ok: true })); // req 2 retry
     await expect(apiGet<{ ok: boolean }>("/b")).resolves.toEqual({ ok: true });
     expect(callsTo(fetchMock, "/auth/refresh")).toHaveLength(2);
@@ -349,7 +371,7 @@ describe("apiGetBlob — file download", () => {
   it("transparently refreshes on 401 and retries the download with the new token", async () => {
     fetchMock
       .mockResolvedValueOnce(jsonResponse({ title: "expired" }, 401)) // original blob request
-      .mockResolvedValueOnce(jsonResponse({ accessToken: "at2", refreshToken: "rt2", expiresAt: FUTURE })) // refresh
+      .mockResolvedValueOnce(accessResponse("at2")) // refresh
       .mockResolvedValueOnce(new Response("data", { status: 200 })); // retry
 
     const { blob } = await apiGetBlob("/export/all");
@@ -358,47 +380,50 @@ describe("apiGetBlob — file download", () => {
     expect(authOf(fetchMock.mock.calls[2] as Call)).toBe("Bearer at2");
   });
 
-  it("with no session, throws 401 + fires onUnauthenticated and never fetches", async () => {
-    clearTokens();
+  it("with no session, attempts one refresh, then throws 401 + fires onUnauthenticated", async () => {
+    clearAccessToken();
+    fetchMock.mockResolvedValueOnce(jsonResponse({ title: "no cookie" }, 401)); // silent refresh
     await expect(apiGetBlob("/export/all")).rejects.toMatchObject({ status: 401 });
     expect(onUnauth).toHaveBeenCalledTimes(1);
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(callsTo(fetchMock, "/auth/refresh")).toHaveLength(1);
+    expect(callsTo(fetchMock, "/export/all")).toHaveLength(0);
   });
 });
 
 describe("auth endpoints", () => {
-  it("login stores the token pair and notifies listeners", async () => {
-    clearTokens();
-    fetchMock.mockResolvedValueOnce(jsonResponse({ accessToken: "atL", refreshToken: "rtL", expiresAt: FUTURE }));
-    const tokens = await login({ email: "a@b.co", password: "pw" });
-    expect(tokens.accessToken).toBe("atL");
-    expect(loadTokens()?.accessToken).toBe("atL");
+  it("login stores the access token (memory only) and notifies listeners", async () => {
+    clearAccessToken();
+    fetchMock.mockResolvedValueOnce(accessResponse("atL"));
+    await login({ email: "a@b.co", password: "pw" });
+    expect(getAccessToken()).toBe("atL");
+    expect(localStorage.length).toBe(0); // never persisted
     expect(onTokens).toHaveBeenCalledTimes(1);
     const [url, init] = fetchMock.mock.calls[0] as Call;
     expect(url).toBe("/api/v1/auth/login");
     expect(new Headers(init.headers).get("Authorization")).toBeNull(); // login is unauthenticated
   });
 
-  it("logout revokes the refresh token server-side, then clears local tokens", async () => {
+  it("logout revokes server-side (cookie + CSRF header, no body), then clears the token", async () => {
     fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
     await logout();
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, init] = fetchMock.mock.calls[0] as Call;
     expect(url).toBe("/api/v1/auth/logout");
     expect(init.method).toBe("POST");
-    expect(init.body).toBe(JSON.stringify({ refreshToken: "rt1" }));
+    expect(init.body).toBeUndefined(); // refresh token is in the cookie, not the body
+    expect(headerOf(fetchMock.mock.calls[0] as Call, CSRF)).toBe("1");
     expect(authOf(fetchMock.mock.calls[0] as Call)).toBe("Bearer at1");
-    expect(loadTokens()).toBeNull();
+    expect(getAccessToken()).toBeNull();
   });
 
-  it("logout clears local tokens even when the server revoke fails", async () => {
+  it("logout clears the local token even when the server revoke fails", async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ title: "revoke failed" }, 500));
     await expect(logout()).resolves.toBeUndefined(); // best-effort, does not throw
-    expect(loadTokens()).toBeNull();
+    expect(getAccessToken()).toBeNull();
   });
 
-  it("logout with no stored session is a no-op (no request)", async () => {
-    clearTokens();
+  it("logout with no active session is a no-op (no request)", async () => {
+    clearAccessToken();
     await expect(logout()).resolves.toBeUndefined();
     expect(fetchMock).not.toHaveBeenCalled();
   });

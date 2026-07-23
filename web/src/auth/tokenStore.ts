@@ -1,28 +1,35 @@
-import type { TokenPair } from "../api/types";
+// #145 — the access token lives ONLY in JS memory, never in localStorage/
+// sessionStorage. An XSS payload therefore can't read a durable credential; the
+// token's short (15-min) lifetime bounds the exposure. The refresh token is an
+// HttpOnly cookie the browser attaches automatically and JS cannot read.
+//
+// A page reload clears this module's memory, so the session is restored by a
+// silent refresh against the cookie (see client.restoreSession / AuthContext).
 
-// Token persistence. localStorage keeps the session across reloads; the access
-// token is short-lived and the refresh token is single-use + rotated server-side
-// (Cluckwork.Infrastructure/Identity), so this is an acceptable MVP trade-off.
-// Revisit (httpOnly cookie) if XSS surface grows.
-// Exported so tests can seed/read the same slot the app uses — no drift-prone
-// duplicated string literal (PR #106 review).
-export const KEY = "cluckwork.tokens";
+// Pre-#145 sessions persisted the token pair here; purged on first load so those
+// users cleanly re-login (a stale access token is never trusted from storage).
+const LEGACY_KEY = "cluckwork.tokens";
 
-export function loadTokens(): TokenPair | null {
-  const raw = localStorage.getItem(KEY);
-  if (!raw) return null;
+let accessToken: string | null = null;
+
+export function getAccessToken(): string | null {
+  return accessToken;
+}
+
+export function setAccessToken(token: string | null): void {
+  accessToken = token;
+}
+
+export function clearAccessToken(): void {
+  accessToken = null;
+}
+
+// Remove any token left in localStorage by the pre-#145 scheme. Called once at
+// startup; safe to call when storage is unavailable (private mode).
+export function purgeLegacyTokens(): void {
   try {
-    return JSON.parse(raw) as TokenPair;
+    localStorage.removeItem(LEGACY_KEY);
   } catch {
-    localStorage.removeItem(KEY);
-    return null;
+    // storage unavailable — nothing to purge
   }
-}
-
-export function saveTokens(tokens: TokenPair): void {
-  localStorage.setItem(KEY, JSON.stringify(tokens));
-}
-
-export function clearTokens(): void {
-  localStorage.removeItem(KEY);
 }

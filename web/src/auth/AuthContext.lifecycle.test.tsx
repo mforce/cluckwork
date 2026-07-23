@@ -3,15 +3,17 @@ import { render, screen, fireEvent, act } from "@testing-library/react";
 import { AuthProvider } from "./AuthContext";
 import { useAuth } from "./useAuth";
 import { setStoredToken } from "../test/jwt";
-import { clearTokens } from "./tokenStore";
+import { clearAccessToken } from "./tokenStore";
 import { login as apiLogin, logout as apiLogout, setOnTokensChanged, setOnUnauthenticated } from "../api/client";
 
 // Mock the transport: AuthProvider drives session STATE, the client drives the
 // network. We simulate the server side (login stores a token, logout clears it)
-// and capture the refresh/unauth callbacks AuthProvider registers.
+// and capture the refresh/unauth callbacks AuthProvider registers. restoreSession
+// is the load-time bootstrap — default it to "no session".
 vi.mock("../api/client", () => ({
   login: vi.fn(),
   logout: vi.fn(),
+  restoreSession: vi.fn().mockResolvedValue(false),
   setOnTokensChanged: vi.fn(),
   setOnUnauthenticated: vi.fn(),
 }));
@@ -38,7 +40,7 @@ const renderAuth = () => render(<AuthProvider><Probe /></AuthProvider>);
 
 beforeEach(() => {
   vi.clearAllMocks();
-  clearTokens();
+  clearAccessToken();
 });
 
 describe("AuthProvider lifecycle", () => {
@@ -52,11 +54,14 @@ describe("AuthProvider lifecycle", () => {
         new Promise((resolve) => {
           resolveLogin = () => {
             setStoredToken({ sub: "u1", role: "Sales" }); // server issued a Sales token
-            resolve({ accessToken: "a", refreshToken: "r", expiresAt: "2099-01-01T00:00:00Z" });
+            resolve(); // login now returns void; the token comes from the store
           };
         }),
     );
-    renderAuth();
+    // Logged out at mount → the bootstrap silent refresh runs (mocked: no session).
+    await act(async () => {
+      renderAuth();
+    });
     expect(screen.getByTestId("auth")).toHaveTextContent("false");
 
     fireEvent.click(screen.getByText("login"));
@@ -73,7 +78,7 @@ describe("AuthProvider lifecycle", () => {
 
   it("logout clears auth state back to Worker", async () => {
     setStoredToken({ sub: "u1", role: "Admin" }); // start logged in
-    mockApiLogout.mockImplementation(async () => clearTokens());
+    mockApiLogout.mockImplementation(async () => clearAccessToken());
     renderAuth();
     expect(screen.getByTestId("admin")).toHaveTextContent("true");
 
