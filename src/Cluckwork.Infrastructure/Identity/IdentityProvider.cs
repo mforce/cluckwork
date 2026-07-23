@@ -33,8 +33,26 @@ public sealed class IdentityProvider(
             return Result.Failure<TokenPair>(Error.Validation("Identity.InvalidCredentials", "Invalid email or password."));
         }
 
-        if (!await userManager.CheckPasswordAsync(user, password))
+        // Account lockout (#128): once failures reach the configured threshold the
+        // account is locked for a cool-off window. A locked account is refused with
+        // the SAME generic error and SAME PBKDF2 cost as a wrong password, so lockout
+        // state is neither a user-enumeration nor a valid-account oracle.
+        if (await userManager.IsLockedOutAsync(user))
+        {
+            userManager.PasswordHasher.VerifyHashedPassword(user, user.PasswordHash!, password);
             return Result.Failure<TokenPair>(Error.Validation("Identity.InvalidCredentials", "Invalid email or password."));
+        }
+
+        if (!await userManager.CheckPasswordAsync(user, password))
+        {
+            // Count the failure; Identity locks the account once it hits the
+            // threshold (no-op when lockout is disabled for the user).
+            await userManager.AccessFailedAsync(user);
+            return Result.Failure<TokenPair>(Error.Validation("Identity.InvalidCredentials", "Invalid email or password."));
+        }
+
+        // Correct password — clear any accumulated failures (no-op DB-wise if zero).
+        await userManager.ResetAccessFailedCountAsync(user);
 
         var (rawToken, tokenHash) = GenerateRefreshToken();
         db.RefreshTokens.Add(NewToken(user, tokenHash));

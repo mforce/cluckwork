@@ -123,6 +123,13 @@ export function HelpPage() {
           minutes and try again. Being <em>signed in</em> already is never
           affected; your work carries on normally.
         </li>
+        <li>
+          Separately, too many wrong passwords for <em>one account</em> briefly
+          lock <em>that</em> account. While it is locked, even the correct
+          password still says <strong>Invalid email or password</strong> — wait
+          a few minutes and try again, or ask an administrator to set a new
+          password.
+        </li>
       </ul>
 
       <h3 id="daily-loop">The daily loop</h3>

@@ -362,6 +362,15 @@ configured; a direct caller can't spoof the header). Limits and trusted proxies
 are configuration; in-process (single instance today — distributed limiting
 would be a later concern if the API is ever scaled horizontally).
 
+**Account lockout (#128)** — a complement to the per-IP rate limit, working per
+**account**: repeated failed logins (default 5) lock that one account for a
+cool-off window (15 min), after which even the correct password is refused. The
+response is the SAME generic "Invalid email or password" and same timing as a
+wrong password, so lockout state can't be used to tell whether an account
+exists. A successful login clears the counter. Where rate limiting blunts a
+spray across many accounts from one address, lockout blunts a focused guess at
+one account from many addresses.
+
 **Version (concurrency token)** — every mutable aggregate carries a `Version`
 that each mutation bumps. Two concurrent edits: first save wins, second gets
 a 409 and retries against fresh state. Append-only aggregates (bird
