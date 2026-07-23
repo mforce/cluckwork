@@ -56,13 +56,18 @@ public static class SaleEndpoints
             .WithSummary("Void a confirmed order, returning allocated stock to its source egg lots.")
             .RequireAuthorization(AuthPolicies.AdminOnly);
 
+        // Order book carries financials (totals + line pricing). Gate the reads
+        // to the sell-flow tier — workers build orders, ReadOnly is fenced out —
+        // matching the writes above and the money reads on /payments (#127).
         group.MapGet("/{id:guid}", GetSalesOrder)
             .WithName("GetSalesOrder")
-            .WithSummary("Get a sales order with its line items.");
+            .WithSummary("Get a sales order with its line items.")
+            .RequireAuthorization(AuthPolicies.SalesFlow);
 
         group.MapGet("/", ListSalesOrders)
             .WithName("ListSalesOrders")
-            .WithSummary("List sales orders, newest first (optional status/customer filters, paged).");
+            .WithSummary("List sales orders, newest first (optional status/customer filters, paged).")
+            .RequireAuthorization(AuthPolicies.SalesFlow);
 
         return group;
     }
