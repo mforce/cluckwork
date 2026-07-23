@@ -195,14 +195,14 @@ describe("UsersPage flock scoping", () => {
     });
 
     expect(mockListAssignments).toHaveBeenCalledWith("u-w");
-    expect(await screen.findByText("Assigned flocks")).toBeInTheDocument();
+    // F133: the per-worker panel now opens in the shared dialog, titled with the
+    // worker's email (its accessible name).
+    const panel = await screen.findByRole("dialog", { name: /Flock access — worker@farm.test/ });
     // The assignment's flock id resolves to a name via the loaded flocks list.
     // Scope to the <li> so it doesn't collide with the dropdown's "Coop A" option.
-    const item = screen.getByRole("listitem");
+    const item = within(panel).getByRole("listitem");
     expect(within(item).getByText("Coop A")).toBeInTheDocument();
     expect(within(item).getByRole("button", { name: "remove" })).toBeInTheDocument();
-    // Toggle flips to "hide flocks".
-    expect(within(workerRow).getByRole("button", { name: "hide flocks" })).toBeInTheDocument();
   });
 
   it("shows the empty-assignments hint (account-wide access) and lists only ACTIVE flocks to assign", async () => {
@@ -294,18 +294,81 @@ describe("UsersPage flock scoping", () => {
     expect(await screen.findByText(/No assignments — account-wide access/)).toBeInTheDocument();
   });
 
-  it("collapses the panel again on 'hide flocks'", async () => {
+  it("resets the assign dropdown to the first active flock each time the dialog opens", async () => {
+    mockListAssignments.mockResolvedValue([]);
+    await renderReady(ADMIN);
+
+    const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
+    // Open, switch the pick off the default (fl1 -> fl2), then close.
+    await act(async () => {
+      fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" }));
+    });
+    await screen.findByRole("dialog", { name: /Flock access/ });
+    fireEvent.change(flockSelect(), { target: { value: "fl2" } });
+    expect(flockSelect()).toHaveValue("fl2");
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+
+    // Reopen — the dropdown is back on the first active flock, not the stale fl2,
+    // so a distracted admin can't assign the previous worker's pick by accident.
+    await act(async () => {
+      fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" }));
+    });
+    await screen.findByRole("dialog", { name: /Flock access/ });
+    expect(flockSelect()).toHaveValue("fl1");
+  });
+
+  it("closes the flock dialog on Done", async () => {
     mockListAssignments.mockResolvedValue([ASSIGN_1]);
     await renderReady(ADMIN);
 
-    const workerRow = () => screen.getByRole("row", { name: /worker@farm.test/ });
+    const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
     await act(async () => {
-      fireEvent.click(within(workerRow()).getByRole("button", { name: "flocks" }));
+      fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" }));
     });
-    expect(await screen.findByText("Assigned flocks")).toBeInTheDocument();
+    const panel = await screen.findByRole("dialog", { name: /Flock access/ });
 
-    fireEvent.click(within(workerRow()).getByRole("button", { name: "hide flocks" }));
-    expect(screen.queryByText("Assigned flocks")).not.toBeInTheDocument();
+    fireEvent.click(within(panel).getByRole("button", { name: "Done" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("discards a stale refresh from a worker whose dialog was closed and reopened for another", async () => {
+    const WORKER_2: User = { id: "u-w2", email: "worker2@farm.test", displayName: "Walt", role: "Worker" };
+    mockListUsers.mockResolvedValue([WORKER_USER, WORKER_2, ADMIN_USER]);
+    // Call 1: open A (has Coop A). Call 2: A's post-remove refresh — hung.
+    // Call 3: open B (empty). If the guard fails, A's refresh overwrites B.
+    let resolveStale!: (v: FlockAssignment[]) => void;
+    mockListAssignments
+      .mockResolvedValueOnce([ASSIGN_1])
+      .mockImplementationOnce(() => new Promise<FlockAssignment[]>((r) => { resolveStale = r; }))
+      .mockResolvedValueOnce([]);
+    mockUnassignFlock.mockResolvedValue(undefined);
+
+    renderWithProviders(<UsersPage />, { token: ADMIN });
+    await screen.findByText("worker@farm.test");
+
+    // Open worker A, remove its assignment — the refresh now hangs (busy).
+    const rowA = screen.getByRole("row", { name: /worker@farm\.test/ });
+    await act(async () => {
+      fireEvent.click(within(rowA).getByRole("button", { name: "flocks" }));
+    });
+    const panelA = await screen.findByRole("dialog", { name: /Flock access — worker@farm\.test/ });
+    await act(async () => {
+      fireEvent.click(within(panelA).getByRole("button", { name: "remove" }));
+    });
+
+    // Close A and open worker B while A's refresh is still in flight.
+    fireEvent.click(within(panelA).getByRole("button", { name: "Done" }));
+    const rowB = screen.getByRole("row", { name: /worker2@farm\.test/ });
+    await act(async () => {
+      fireEvent.click(within(rowB).getByRole("button", { name: "flocks" }));
+    });
+    const panelB = await screen.findByRole("dialog", { name: /Flock access — worker2@farm\.test/ });
+    expect(within(panelB).getByText(/No assignments — account-wide access/)).toBeInTheDocument();
+
+    // A's refresh finally resolves — it must NOT splice A's list into B's dialog.
+    await act(async () => { resolveStale([ASSIGN_1]); });
+    expect(within(panelB).queryByRole("listitem")).toBeNull();
+    expect(within(panelB).getByText(/No assignments — account-wide access/)).toBeInTheDocument();
   });
 
   it("surfaces an error when an assign fails, keeping the panel open", async () => {
@@ -323,7 +386,7 @@ describe("UsersPage flock scoping", () => {
     });
 
     expect(await screen.findByText(/already assigned|Conflict/)).toBeInTheDocument();
-    expect(screen.getByText("Assigned flocks")).toBeInTheDocument(); // panel stayed open
+    expect(screen.getByRole("dialog")).toBeInTheDocument(); // dialog stayed open
   });
 });
 
