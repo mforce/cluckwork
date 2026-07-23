@@ -262,6 +262,7 @@ builder.Services.AddScoped<IFlockRepository, FlockRepository>();
 builder.Services.AddScoped<IBirdMovementRepository, BirdMovementRepository>();
 builder.Services.AddScoped<ICustomerRepository, CustomerRepository>();
 builder.Services.AddScoped<IAccountRepository, AccountRepository>();
+builder.Services.AddScoped<Cluckwork.Application.Features.Accounts.IFinancialRowProbe, FinancialRowProbe>();
 
 // --- Validators ---
 builder.Services.AddScoped<IValidator<RecordDailyEntryCommand>, RecordDailyEntryValidator>();
@@ -297,6 +298,9 @@ builder.Services.AddScoped<IValidator<UpdateWaterUsageCommand>, UpdateWaterUsage
 builder.Services.AddScoped<IValidator<CreateUserCommand>, CreateUserValidator>();
 builder.Services.AddScoped<IValidator<AdjustDailyEntryCommand>, AdjustDailyEntryValidator>();
 builder.Services.AddScoped<IValidator<VoidDailyEntryCommand>, VoidDailyEntryValidator>();
+builder.Services.AddScoped<
+    IValidator<Cluckwork.Application.Features.Accounts.UpdateFarmSettings.UpdateFarmSettingsCommand>,
+    Cluckwork.Application.Features.Accounts.UpdateFarmSettings.UpdateFarmSettingsValidator>();
 
 // --- Handlers (direct — no mediator, tech spec §2.1) ---
 builder.Services.AddScoped<RecordDailyEntryHandler>();
@@ -338,6 +342,8 @@ builder.Services.AddScoped<RecordBirdMovementHandler>();
 builder.Services.AddScoped<ReactivateFlockHandler>();
 builder.Services.AddScoped<CreateUserHandler>();
 builder.Services.AddScoped<AdjustDailyEntryHandler>();
+builder.Services.AddScoped<
+    Cluckwork.Application.Features.Accounts.UpdateFarmSettings.UpdateFarmSettingsHandler>();
 builder.Services.AddScoped<VoidDailyEntryHandler>();
 
 // --- Startup seed (single-farm MVP) ---

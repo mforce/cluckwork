@@ -149,6 +149,7 @@ Goal: ship single-tenant, carry zero code debt that blocks multi-tenant later. A
 
 - Every business table already carries `account_id` (functional spec). This is the tenant key.
 - One self-hosted deployment today runs exactly one account row. The code never assumes that.
+- The functional spec models the §4.5 localization settings (timezone, locale, currency, unit system, first day of week, format overrides) on `farms`. There is no farms aggregate yet — `SeedDefaults.FarmId` is a stand-in id — so while a deployment runs exactly one farm those columns live on the `accounts` row (#123). That is where `IFarmClock` already reads the timezone from and where financial rows already copy the currency at creation, so no consumer changes when a real farms table arrives: the settings move, the ports do not.
 - Tenant strategy is **shared-database/shared-schema**. This is the most SaaS-portable and is invisible in single-tenant mode (one account). DB-per-tenant is deliberately *not* chosen — it complicates migrations and is unnecessary at expected scale.
 
 ## 4.2 Enforcement (the important part)

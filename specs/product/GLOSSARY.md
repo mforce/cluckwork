@@ -343,7 +343,36 @@ infrastructure dormant.
 
 **Farm / House** — physical hierarchy. Present as ids from day one, but real
 Farm/House management arrives with later phases; the MVP runs on one seeded
-farm and house.
+farm and house. The farm's *settings* are already real (see below) — they live
+on the account row while there is exactly one farm.
+
+**Farm settings (#123, spec §4.5)** — the farm's own name plus the four things
+that decide how it reads: **timezone**, **locale**, **currency**, and **unit
+system**, with optional **first day of week** and date/time format overrides.
+Owner and Manager can edit them; everyone reads them, because formatting money,
+dates and numbers is not a permission.
+
+Each one has teeth. The **timezone** is the farm's **operational day** — change
+it and every date rule moves with it the same minute, so a timezone that the
+system cannot resolve is refused outright rather than stored (the clock refuses
+to guess a date, so an unusable zone must never reach the column). The
+**locale** must name a real region — `en-US`, not `en` — because a region is
+what carries number and date conventions. Saving uses the same **version
+(concurrency token)** as everything else: whoever saves second against a stale
+copy gets a 409 and reloads.
+
+**Currency change rule (spec §4.6)** — the farm currency can only be changed
+while the farm has **no financial history at all**: no sales orders, no
+payments, no expenses. Each of those rows snapshots the currency it was
+recorded in and keeps it forever, so changing the farm currency afterwards
+would leave the books reading in two denominations at once. The settings screen
+shows the field locked with the reason before it is tried; the API refuses it
+either way, and refuses the whole save, not just that field. A farm that truly
+changes operating currency gets a new farm record — history is never
+re-denominated. When the change *is* allowed, the currency's **symbol** and
+**minor unit** are re-derived from the standard: `JPY` has no decimals, `KWD`
+has three, an unrecognized code falls back to showing the code itself and two
+decimals.
 
 **Idempotency key** — every write request carries an `Idempotency-Key`
 header. Retrying the same key replays the original response instead of
