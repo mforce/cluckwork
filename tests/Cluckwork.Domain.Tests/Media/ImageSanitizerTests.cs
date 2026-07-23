@@ -133,8 +133,11 @@ public sealed class ImageSanitizerTests
     }
 
     [Fact]
-    public void Png_KeepsApngAnimationChunks()
+    public void Png_RefusesAnimation()
     {
+        // Refused rather than flattened to its first frame: silently turning
+        // someone's animated logo into a still one is a surprise, and the rule
+        // is the same for both formats (see Webp_RefusesAnimation).
         var png = Png(
             PngChunk("IHDR", Ihdr(8, 8)),
             PngChunk("acTL", [0, 0, 0, 2, 0, 0, 0, 0]),
@@ -145,9 +148,43 @@ public sealed class ImageSanitizerTests
 
         var result = ImageSanitizer.Sanitize(png);
 
-        Assert.True(result.IsSuccess);
-        foreach (var kept in new[] { "acTL", "fcTL", "fdAT" })
-            Assert.True(Contains(result.Value.Content, Encoding.ASCII.GetBytes(kept)), kept);
+        Assert.True(result.IsFailure);
+        Assert.Equal(ImageSanitizer.AnimationNotSupported, result.Error);
+    }
+
+    // The polyglot hole reopened from the inside. IEND is on the allowlist and
+    // allowlisted chunks are copied WHOLE, so a declared length on the
+    // terminator smuggles its payload through — and truncating at IEND does not
+    // remove it, because it sits before the terminator, not after it.
+    [Fact]
+    public void Png_RefusesAPayloadHidingInsideTheEndChunk()
+    {
+        var payload = "<html><script>alert(1)</script></html>"u8.ToArray();
+        var png = Png(
+            PngChunk("IHDR", Ihdr(8, 8)),
+            PngChunk("IDAT", [1, 2, 3]),
+            PngChunk("IEND", payload));
+
+        var result = ImageSanitizer.Sanitize(png);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ImageSanitizer.Malformed, result.Error);
+    }
+
+    [Fact]
+    public void Png_RefusesAnOversizeHeaderChunk()
+    {
+        // IHDR is fixed at 13 bytes. A longer one is surplus that would be
+        // copied through inside an allowlisted chunk, same as the IEND case.
+        var png = Png(
+            PngChunk("IHDR", [.. Ihdr(8, 8), .. "trailing junk"u8]),
+            PngChunk("IDAT", [1, 2, 3]),
+            PngChunk("IEND", []));
+
+        var result = ImageSanitizer.Sanitize(png);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ImageSanitizer.Malformed, result.Error);
     }
 
     // The headline case for the whole no-decode approach. A polyglot is a valid
@@ -286,13 +323,12 @@ public sealed class ImageSanitizerTests
     }
 
     [Fact]
-    public void Jpeg_KeepsJfifDensityAndTheIccProfile()
+    public void Jpeg_KeepsTheIccProfile()
     {
         // Same reasoning as PNG's iCCP: an ICC profile is not personal data,
         // and dropping it moves the brand colour.
         var icc = Concat("ICC_PROFILE\0"u8.ToArray(), [1, 1, 0, 0, 0, 0x0C]);
         var jpeg = Jpeg(
-            JpegSegment(0xE0, Concat("JFIF\0"u8.ToArray(), [1, 1, 0, 0, 1, 0, 1, 0, 0])),
             JpegSegment(0xE2, icc),
             Sof0(10, 10),
             JpegSegment(0xDA, [1, 0, 0, 0x3F, 0]),
@@ -302,8 +338,60 @@ public sealed class ImageSanitizerTests
         var result = ImageSanitizer.Sanitize(jpeg);
 
         Assert.True(result.IsSuccess);
-        Assert.True(Contains(result.Value.Content, "JFIF\0"u8.ToArray()));
         Assert.True(Contains(result.Value.Content, "ICC_PROFILE\0"u8.ToArray()));
+    }
+
+    [Fact]
+    public void Jpeg_DropsApp0BecauseJfifCanEmbedAThumbnail()
+    {
+        // A JFIF APP0 carries a thumbnail in its trailing bytes, and JFXX
+        // exists for nothing else — a whole second image inside the segment
+        // this strip is supposed to clean. Density is no loss: a logo is laid
+        // out by CSS, not DPI (codex review of #168).
+        var thumbnail = "RGB-THUMBNAIL-PIXELS"u8.ToArray();
+        var jfifWithThumb = Concat(
+            "JFIF\0"u8.ToArray(),
+            [.. new byte[] { 1, 1, 0, 0, 1, 0, 1, 2, 2 }, .. thumbnail]);
+        var jpeg = Jpeg(
+            JpegSegment(0xE0, jfifWithThumb),
+            Sof0(10, 10),
+            JpegSegment(0xDA, [1, 0, 0, 0x3F, 0]),
+            [0x12],
+            [0xFF, 0xD9]);
+
+        var result = ImageSanitizer.Sanitize(jpeg);
+
+        Assert.True(result.IsSuccess);
+        Assert.False(Contains(result.Value.Content, thumbnail));
+        Assert.False(Contains(result.Value.Content, "JFIF\0"u8.ToArray()));
+    }
+
+    // JPEG permits any run of FF as padding before a marker, so FF FF D9 is a
+    // legal EOI. Skipping two bytes on a fill run ate the second FF -- the real
+    // marker prefix -- and walked straight past the terminator, rejecting a
+    // perfectly good file (codex review of #168).
+    //
+    // Both parities, deliberately. With an even number of fill bytes a
+    // two-at-a-time skip still happens to land on the marker, so a fixture that
+    // tested only that case passed with the bug still in place -- which is what
+    // the first version of this test did.
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    public void Jpeg_AcceptsTheLegalFillBytesBeforeAMarker(int fillBytes)
+    {
+        var jpeg = Jpeg(
+            Sof0(24, 16),
+            JpegSegment(0xDA, [1, 0, 0, 0x3F, 0]),
+            [0x12, 0x34],
+            [.. Enumerable.Repeat((byte)0xFF, fillBytes), 0xFF, 0xD9]);
+
+        var result = ImageSanitizer.Sanitize(jpeg);
+
+        Assert.True(result.IsSuccess, $"{fillBytes} fill byte(s) before EOI was rejected");
+        Assert.Equal(24, result.Value.Width);
+        Assert.Equal(16, result.Value.Height);
     }
 
     [Fact]
@@ -546,6 +634,102 @@ public sealed class ImageSanitizerTests
 
         Assert.True(result.IsFailure);
         Assert.Equal(ImageSanitizer.Malformed, result.Error);
+    }
+
+    [Fact]
+    public void Webp_RejectsAHeaderWithNoPixelsBehindIt()
+    {
+        // VP8X only declares a canvas and which optional chunks follow. Without
+        // VP8 or VP8L there are no pixels, and a ten-byte file was being stored
+        // and served as image/webp (codex review of #168).
+        var result = ImageSanitizer.Sanitize(Webp(WebpChunk("VP8X", Vp8XPayload(64, 64, 0))));
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ImageSanitizer.Malformed, result.Error);
+    }
+
+    [Fact]
+    public void Webp_RejectsASecondBitstreamChunk()
+    {
+        // Only the first chunk after the WEBP FourCC is the image — libwebp
+        // stops looking there. A second one is something a decoder will never
+        // read, so there is no honest reason for it to be in the file.
+        var webp = Webp(
+            WebpChunk("VP8L", Vp8LPayload(64, 64)),
+            WebpChunk("VP8L", Vp8LPayload(32, 32)));
+
+        var result = ImageSanitizer.Sanitize(webp);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ImageSanitizer.Malformed, result.Error);
+    }
+
+    // The cap turned inside out. A decoder acts on the FIRST bitstream while
+    // the walk was recording the LAST, so declaring the bomb first and
+    // something harmless second shipped the file with a 1x1 verdict. Both the
+    // per-chunk cap and the duplicate rejection now stand between that and a
+    // stored image; this pins the outcome rather than which guard gets there.
+    [Fact]
+    public void Webp_CannotBeTalkedIntoMeasuringTheHarmlessChunk()
+    {
+        var webp = Webp(
+            WebpChunk("VP8L", Vp8LPayload(16384, 16384)),
+            WebpChunk("VP8L", Vp8LPayload(1, 1)));
+
+        var result = ImageSanitizer.Sanitize(webp);
+
+        Assert.True(result.IsFailure);
+    }
+
+    [Fact]
+    public void Webp_RejectsASecondCanvasHeader()
+    {
+        // Same shape one level up: a small second VP8X masking a large first.
+        var webp = Webp(
+            WebpChunk("VP8X", Vp8XPayload(64, 64, 0)),
+            WebpChunk("VP8X", Vp8XPayload(1, 1, 0)),
+            WebpChunk("VP8L", Vp8LPayload(64, 64)));
+
+        var result = ImageSanitizer.Sanitize(webp);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ImageSanitizer.Malformed, result.Error);
+    }
+
+    [Fact]
+    public void Webp_JudgesTheFrameEvenWhenTheCanvasIsTheNumberItReports()
+    {
+        // A tiny canvas does not excuse a huge frame. Every dimension the file
+        // declares has to clear the cap, because we cannot know which one a
+        // given decoder will act on.
+        var webp = Webp(
+            WebpChunk("VP8X", Vp8XPayload(1, 1, 0)),
+            WebpChunk("VP8L", Vp8LPayload(16384, 16384)));
+
+        var result = ImageSanitizer.Sanitize(webp);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ImageSanitizer.DimensionsTooLarge, result.Error);
+    }
+
+    [Fact]
+    public void Webp_RefusesAnimation()
+    {
+        // An ANMF frame nests its own chunk stream, so the flat allowlist never
+        // looks inside and metadata rides through in a chunk it never sees.
+        // Sweeping that means recursing the walk into every frame; refusing
+        // animation is the smaller surface (codex review of #168).
+        var hidden = "GPSLatitude 51.5074"u8.ToArray();
+        var webp = Webp(
+            WebpChunk("VP8X", Vp8XPayload(64, 64, 0x02)),
+            WebpChunk("ANIM", [0, 0, 0, 0, 0, 0]),
+            WebpChunk("ANMF", [.. new byte[16], .. "JUNK"u8, .. new byte[4], .. hidden]),
+            WebpChunk("VP8L", Vp8LPayload(64, 64)));
+
+        var result = ImageSanitizer.Sanitize(webp);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ImageSanitizer.AnimationNotSupported, result.Error);
     }
 
     // --- the dimension cap -------------------------------------------------

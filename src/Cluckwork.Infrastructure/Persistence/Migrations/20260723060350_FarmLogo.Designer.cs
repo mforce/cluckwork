@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Cluckwork.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260723053708_FarmLogo")]
+    [Migration("20260723060350_FarmLogo")]
     partial class FarmLogo
     {
         /// <inheritdoc />
@@ -98,6 +98,9 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
 
                     b.Property<Guid>("AccountId")
                         .HasColumnType("uuid");
+
+                    b.Property<int>("ByteLength")
+                        .HasColumnType("integer");
 
                     b.Property<byte[]>("Content")
                         .IsRequired()

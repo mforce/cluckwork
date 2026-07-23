@@ -16,7 +16,7 @@ public sealed class FarmLogoRepository(AppDbContext db) : IFarmLogoRepository
         db.FarmLogos
             .AsNoTracking()
             .Select(l => new FarmLogoMetadata(
-                l.ContentType, l.ContentHash, l.Width, l.Height, l.Content.Length, l.UpdatedAt))
+                l.ContentType, l.ContentHash, l.Width, l.Height, l.ByteLength, l.UpdatedAt))
             .FirstOrDefaultAsync(ct);
 
     public Task<FarmLogoContent?> GetContentAsync(CancellationToken ct = default) =>
