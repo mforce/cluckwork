@@ -1,8 +1,9 @@
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Egg, LogOut } from "lucide-react";
 import { useAuth } from "../auth/useAuth";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { BottomNav } from "../components/BottomNav";
+import { ErrorBoundary } from "../components/ErrorBoundary";
 import { navGroups, tabEntries } from "./nav";
 
 const ICON = 17;
@@ -18,6 +19,7 @@ const ICON = 17;
 export function AppLayout() {
   const { logout, isAdmin, role } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const groups = navGroups(role, isAdmin);
   const tabs = tabEntries(groups);
@@ -55,7 +57,16 @@ export function AppLayout() {
       </aside>
 
       <main className="content">
-        <Outlet />
+        {/* Contain a routed screen's render throw to this pane — the sidebar and
+            tab bar stay usable (#140). Keyed by location.key so every navigation
+            remounts a fresh boundary: that recovers the screen on nav — even a
+            same-path retry when the dashboard ("/") itself crashed, since
+            react-router mints a new key each time — and avoids the double-catch
+            a resetKey-diffing boundary hits when you navigate into a screen that
+            throws on its first render. */}
+        <ErrorBoundary key={location.key} scope="screen">
+          <Outlet />
+        </ErrorBoundary>
       </main>
 
       <BottomNav groups={groups} tabs={tabs} onLogout={onLogout} />

@@ -58,6 +58,17 @@ History, …), so a worker leads with Daily entry and a ReadOnly viewer, who has
 neither production nor sales, leads with Stock. Both navs are built from one
 model, so the role gates cannot drift between them.
 
+**"Something went wrong" screen** — the error-boundary fallback. If a screen
+throws while rendering, the app catches it and shows this — a short message,
+**Reload**, and **Back to the dashboard** — instead of unmounting to a blank
+page (the failure mode #138 hit on a phone). The screen boundary keeps the nav
+shell around it, so the rest of the app stays reachable; a second boundary wraps
+the whole app — outside the auth and router providers — for the rarer case where
+the shell or that setup itself throws. The error text
+sits under a collapsed **Error details** for a support screenshot. It catches
+render/lifecycle throws only — event-handler and network failures still surface
+as each screen's own inline error.
+
 ## Production
 
 **Daily entry** — one flock's production record for one operational day: total
