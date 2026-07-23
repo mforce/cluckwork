@@ -13,9 +13,12 @@ using Microsoft.Extensions.DependencyInjection;
 // work: at 10:00 on July 16 in Auckland it is still July 15 in UTC, so the
 // farm's own today looked like tomorrow and was rejected as "in the future".
 //
-// These would all pass against the old UTC code if the farm were on UTC, so the
-// non-UTC timezone is the whole point — reverting any converted site to
-// clock.TodayUtc / DateTime.UtcNow fails the matching case here.
+// The non-UTC timezone is the whole point: on a UTC farm these would pass
+// against the old code too. This class covers the ahead-of-UTC direction for a
+// validator, the deplete stamp and the report future guard; the behind-UTC
+// direction, the inventory/water handlers, the archive stamp and the report
+// default window are in FarmLocalBoundaryBehindUtcTests, and the remaining
+// validators in Cluckwork.Application.Tests' FarmLocalDateRuleTests.
 [Collection(IntegrationCollection.Name)]
 public sealed class FarmLocalBoundarySweepTests(CluckworkWebApplicationFactory factory)
 {

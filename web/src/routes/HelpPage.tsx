@@ -264,9 +264,13 @@ export function HelpPage() {
         <li>
           &quot;Today&quot; means <strong>your farm&apos;s today</strong>, not the
           clock in some other part of the world. You can record any day up to and
-          including it; a day that has not happened yet on the farm is refused.
-          The same date decides when eggs come out of a withdrawal period and
-          which eggs a sale can take, so stock and sales always agree.
+          including it; a day that has not happened yet on the farm is refused —
+          here and everywhere else you enter a date: feed and water use, feed
+          purchases and stock corrections, expenses, payments, and a flock&apos;s
+          placement date. The same date decides when eggs come out of a
+          withdrawal period, which eggs a sale can take, the day a flock is
+          depleted or archived on, and the range reports open on — so nothing
+          disagrees about what day it is.
         </li>
         <li>
           One entry per flock per day. Reopening a day that has a draft loads it
@@ -626,6 +630,8 @@ export function HelpPage() {
         <tbody>
           <tr><th scope="row">Navigation</th>
             <td>Screens live in the left sidebar on a computer; on a phone the four you use most are tabs across the bottom, the rest under More.</td></tr>
+          <tr><th scope="row">Operational day</th>
+            <td>Dates mean your farm&apos;s calendar day, worked out from the farm&apos;s own timezone rather than a clock somewhere else. It is the same &quot;today&quot; everywhere: what counts as a future date when you record work, when eggs leave a withdrawal period, which eggs a sale can take, the day a flock is depleted or archived on, and the range reports open on.</td></tr>
           <tr><th scope="row">Too many sign-in attempts</th>
             <td>Sign-in is rate limited to slow password guessing: too many attempts from one place in a few minutes are refused with this message until a short cool-off passes. It never affects an already signed-in session.</td></tr>
           <tr><th scope="row">&quot;Something went wrong&quot; screen</th>
