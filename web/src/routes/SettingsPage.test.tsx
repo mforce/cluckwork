@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within, fireEvent, act, waitFor } from "@testing-library/react";
-import { SettingsPage } from "./SettingsPage";
+import { SettingsPage, formatByteCap } from "./SettingsPage";
 import { FarmContext } from "../farm/FarmContext";
 import {
   getFarmLogo, getFarmSettings, removeFarmLogo, updateFarmSettings,
@@ -404,7 +404,7 @@ describe("SettingsPage logo", () => {
     await renderReady({ ...SETTINGS({ logoContentHash: null }), logoMaxUploadBytes: 512 * 1024 });
 
     // The stated cap reflects the payload...
-    expect(screen.getByText(/up to 0\.5 MB/)).toBeInTheDocument();
+    expect(screen.getByText(/up to 512 KB/)).toBeInTheDocument();
 
     // ...and so does the refusal: a 600 KB file is over THIS farm's 512 KB.
     await act(async () => {
@@ -698,5 +698,27 @@ describe("SettingsPage logo", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(mockRemove).not.toHaveBeenCalled();
     expect(refreshed).toBe(0);
+  });
+});
+
+
+describe("formatByteCap", () => {
+  it("shows a whole number of MB without a decimal", () => {
+    expect(formatByteCap(2 * 1024 * 1024)).toBe("2 MB");
+    expect(formatByteCap(5 * 1024 * 1024)).toBe("5 MB");
+  });
+
+  it("shows one decimal for a fractional MB, never binary-fraction noise", () => {
+    expect(formatByteCap(1.5 * 1024 * 1024)).toBe("1.5 MB");
+    // 1,000,000 bytes is the case codex named: a plain division prints
+    // "0.95367431640625 MB".
+    expect(formatByteCap(1_000_000)).toBe("976 KB"); // floored, never overstating the limit
+  });
+
+  it("shows KB below 1 MiB", () => {
+    expect(formatByteCap(512 * 1024)).toBe("512 KB");
+    expect(formatByteCap(64 * 1024)).toBe("64 KB");
+    // 1,536 bytes — the other case codex named — is 1 KB floored, not a bogus MB.
+    expect(formatByteCap(1536)).toBe("1 KB");
   });
 });

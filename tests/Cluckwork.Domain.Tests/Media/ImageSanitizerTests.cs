@@ -50,15 +50,23 @@ public sealed class ImageSanitizerTests
     {
         // A blob that a small cap rejects is accepted under a larger one — the
         // limit is genuinely the argument, not a constant.
-        var padded = new byte[8192];
-        RealPng.CopyTo(padded, 0);
+        var small = new byte[8192];
+        RealPng.CopyTo(small, 0);
 
-        Assert.True(ImageSanitizer.Sanitize(padded, 4096).IsFailure);
-        Assert.True(ImageSanitizer.Sanitize(padded, 16384).IsSuccess);
+        Assert.True(ImageSanitizer.Sanitize(small, 4096).IsFailure);
+        Assert.True(ImageSanitizer.Sanitize(small, 16384).IsSuccess);
 
-        // The default is the ceiling — 5 MB — so a caller that does not care
-        // about size (the format/metadata tests) need not state one.
-        Assert.True(ImageSanitizer.Sanitize(padded).IsSuccess);
+        // The default is the CEILING, and the assertion has to be able to tell
+        // it from the old 1 MB value it used to be: a blob just over 1 MB is
+        // rejected under a 1 MB cap but accepted under the default. Padding
+        // lands after IEND, so the sanitizer truncates it back — the input size
+        // is what the cap judges, which is the point (agent + codex review of
+        // #123; the earlier 8 KB blob passed under any default >= 8 KB).
+        var overOneMb = new byte[(1024 * 1024) + 4096];
+        RealPng.CopyTo(overOneMb, 0);
+
+        Assert.True(ImageSanitizer.Sanitize(overOneMb, 1024 * 1024).IsFailure);
+        Assert.True(ImageSanitizer.Sanitize(overOneMb).IsSuccess);
         Assert.Equal(5 * 1024 * 1024, ImageSanitizer.MaxByteLengthCeiling);
     }
 

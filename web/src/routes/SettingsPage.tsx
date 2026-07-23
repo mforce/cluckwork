@@ -52,6 +52,22 @@ function errText(err: unknown): string {
 // rather than "".
 const orNull = (value: string): string | null => (value.trim() === "" ? null : value.trim());
 
+// A byte cap as a short human string (#123). The cap is admin CONFIG, so it is
+// not always a round power of two: 2 MB reads "2 MB", 512 KB reads "512 KB",
+// and 1,000,000 bytes reads "977 KB" rather than the raw "0.95367… MB" a plain
+// division would print (codex review). MB is used at or above 1 MiB, trimmed to
+// at most one decimal; KB below it.
+export function formatByteCap(bytes: number): string {
+  const mib = 1024 * 1024;
+  if (bytes >= mib) {
+    const mb = bytes / mib;
+    // A whole number of MB drops the decimal; otherwise one place is enough for
+    // a size limit and never runs off into binary-fraction noise.
+    return `${Number.isInteger(mb) ? mb : mb.toFixed(1)} MB`;
+  }
+  return `${Math.floor(bytes / 1024)} KB`;
+}
+
 // An idempotency key and the exact payload it was minted for.
 //
 // A key identifies ONE attempt at ONE write. Rotating only on success is right
@@ -120,7 +136,6 @@ export function SettingsPage() {
   // so it cannot drift from what the server enforces (#123).
   const maxUploadBytes = loaded?.logoMaxUploadBytes ?? 0;
   const maxUploadKb = Math.floor(maxUploadBytes / 1024);
-  const maxUploadMb = maxUploadBytes / (1024 * 1024);
 
   const timeZoneUnknown = timeZoneId.trim() !== "" && !isKnownTimeZone(timeZoneId.trim());
 
@@ -369,7 +384,7 @@ export function SettingsPage() {
         </div>
       </div>
       <p className="muted" id={logoRulesId}>
-        PNG, JPEG or WebP, up to {maxUploadMb} MB and 4096&nbsp;px a side. Animated images
+        PNG, JPEG or WebP, up to {formatByteCap(maxUploadBytes)} and 4096&nbsp;px a side. Animated images
         are not accepted. The image is stored re-written, with camera and
         location metadata removed.
       </p>

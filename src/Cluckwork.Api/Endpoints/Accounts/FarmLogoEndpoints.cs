@@ -1,5 +1,6 @@
 namespace Cluckwork.Api.Endpoints.Accounts;
 
+using System.Buffers;
 using Cluckwork.Api.Configuration;
 using Cluckwork.Application.Features.Accounts;
 using Cluckwork.Application.Features.Accounts.RemoveFarmLogo;
@@ -152,36 +153,47 @@ public static class FarmLogoEndpoints
         // THE LOOP BOUND IS THE MEMORY GUARANTEE: the condition and the slice
         // both stop at the cap, so a body with no declared length — or a lying
         // one — is read that far and no further, whatever the client meant to
-        // send.
+        // send. The bound is `maxBytes`, not `buffer.Length`: a rented array can
+        // be LARGER than requested, so the logical cap — never the physical
+        // array — is what limits the read.
         //
-        // Allocated directly rather than rented from ArrayPool. The pool's
-        // largest bucket is 1 MB, so at the 2 MB default cap a rent misses the
-        // pool and allocates a fresh array on the Large Object Heap anyway —
-        // the pooling the earlier code preserved (pi review of #168) no longer
-        // applies above 1 MB, and pretending otherwise would only leave a
-        // comment that lies. A fresh array also has no prior tenant, so the
-        // clear-on-return that guarded the shared pool is not needed either.
-        var buffer = new byte[maxBytes];
-        var total = 0;
-        int read;
-        while (total < maxBytes
-            && (read = await http.Request.Body.ReadAsync(
-                buffer.AsMemory(total, maxBytes - total), ct)) > 0)
-            total += read;
-
-        // A body that exactly filled the buffer might have more behind it.
-        // One byte settles it.
-        if (total == maxBytes)
+        // Rented from ArrayPool, not freshly allocated. Verified empirically on
+        // .NET 10: Shared pools arrays well past 1 MB — 2 MB, 4 MB and the 5 MB
+        // ceiling all come back as the same instance — so at these sizes the
+        // rent genuinely reuses a buffer and spares the LOH/Gen2 churn a fresh
+        // `new byte[maxBytes]` per upload would create (codex review of #123
+        // corrected an earlier claim, and my own memory, that the pool stopped
+        // at 1 MB). Cleared on return because the pool is process-wide: a later
+        // rent by another tenant's request must not read the tail of this one's
+        // upload.
+        var buffer = ArrayPool<byte>.Shared.Rent(maxBytes);
+        try
         {
-            var probe = new byte[1];
-            if (await http.Request.Body.ReadAsync(probe, ct) > 0)
-                return MapFailure(ImageSanitizer.TooLarge(maxBytes));
-        }
+            var total = 0;
+            int read;
+            while (total < maxBytes
+                && (read = await http.Request.Body.ReadAsync(
+                    buffer.AsMemory(total, maxBytes - total), ct)) > 0)
+                total += read;
 
-        var result = await handler.HandleAsync(buffer.AsMemory(0, total), tenant.AccountId, maxBytes, ct);
-        return result.IsSuccess
-            ? Results.Ok(ToResponse(result.Value))
-            : MapFailure(result.Error);
+            // A body that exactly filled the cap might have more behind it.
+            // One byte settles it.
+            if (total == maxBytes)
+            {
+                var probe = new byte[1];
+                if (await http.Request.Body.ReadAsync(probe, ct) > 0)
+                    return MapFailure(ImageSanitizer.TooLarge(maxBytes));
+            }
+
+            var result = await handler.HandleAsync(buffer.AsMemory(0, total), tenant.AccountId, maxBytes, ct);
+            return result.IsSuccess
+                ? Results.Ok(ToResponse(result.Value))
+                : MapFailure(result.Error);
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(buffer, clearArray: true);
+        }
     }
 
     private static async Task<IResult> RemoveLogo(

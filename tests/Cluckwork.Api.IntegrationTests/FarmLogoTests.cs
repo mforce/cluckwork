@@ -9,6 +9,7 @@ using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Media;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 // #123 slice 2 — the farm logo over the wire: who may upload one, what a stored
 // image is allowed to be, and what comes back out.
@@ -504,6 +505,72 @@ public sealed class FarmLogoTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var meta = (await response.Content.ReadFromJsonAsync<LogoDto>())!;
         Assert.Equal(TinyPng.Length, meta.ByteLength);
+    }
+
+    [Fact]
+    public async Task TheDbConstraintAdmitsContentAboveTheOldOneMbLimit()
+    {
+        // The migration widened ck_farm_logos_content_length from 1 MB to the
+        // 5 MB ceiling (#123). The endpoint tests all run under a small
+        // operational cap, so nothing there exercises a stored image between the
+        // old and new limits — this writes one straight through the DbContext,
+        // bypassing the upload cap, to prove the CONSTRAINT itself now permits it
+        // (codex review). A row at 2 MB commits; one past the ceiling is rejected
+        // by the check constraint, so the ceiling is real and not just the old
+        // 1 MB in disguise.
+        var (_, accountId, _) = await AdminAsync();
+
+        var twoMb = new SanitizedImage(ImageKind.Png, new byte[2 * 1024 * 1024], 16, 16);
+        var okId = Guid.NewGuid();
+        await factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            db.FarmLogos.Add(FarmLogo.Create(okId, accountId, SeedDefaults.FarmId, twoMb, DateTimeOffset.UtcNow));
+            await db.SaveChangesAsync();
+        });
+        var storedBytes = await factory.WithTenantScopeAsync(accountId,
+            db => db.FarmLogos.Where(l => l.Id == okId).Select(l => l.ByteLength).FirstAsync());
+        Assert.Equal(2 * 1024 * 1024, storedBytes);
+
+        // And the ceiling still bites: past it, the check constraint refuses.
+        // The existing row is cleared first so the failure can only be the
+        // CHECK constraint — leaving it would trip the (AccountId, FarmId)
+        // unique index instead, a DbUpdateException for the wrong reason.
+        var overCeiling = new SanitizedImage(
+            ImageKind.Png, new byte[ImageSanitizer.MaxByteLengthCeiling + 1], 16, 16);
+        var rejected = await Record.ExceptionAsync(() =>
+            factory.WithTenantScopeAsync(accountId, async db =>
+            {
+                await db.FarmLogos.Where(l => l.AccountId == accountId).ExecuteDeleteAsync();
+                db.FarmLogos.Add(FarmLogo.Create(
+                    Guid.NewGuid(), accountId, SeedDefaults.FarmId, overCeiling, DateTimeOffset.UtcNow));
+                await db.SaveChangesAsync();
+            }));
+        var dbEx = Assert.IsType<DbUpdateException>(rejected);
+        // 23514 = check_violation, specifically ck_farm_logos_content_length —
+        // not a unique or not-null violation masquerading as a rejection.
+        var postgres = Assert.IsType<Npgsql.PostgresException>(dbEx.InnerException);
+        Assert.Equal("23514", postgres.SqlState);
+        Assert.Equal("ck_farm_logos_content_length", postgres.ConstraintName);
+    }
+
+    [Fact]
+    public void AnOverCeilingCap_FailsTheBoot_NotTheFirstUpload()
+    {
+        // The validator's logic is unit-tested (FarmLogoOptionsTests), but that
+        // does not prove it is WIRED: deleting the registration or the
+        // ValidateOnStart call would leave those green (codex review). This goes
+        // through the real host with an over-ceiling cap and asserts the start
+        // itself throws — so the wiring is what is under test, not the rule.
+        using var badHost = factory.WithWebHostBuilder(builder =>
+            builder.UseSetting(
+                "FarmLogo:MaxUploadBytes",
+                (ImageSanitizer.MaxByteLengthCeiling + 1).ToString()));
+
+        // CreateClient builds and STARTS the host, which runs ValidateOnStart.
+        var boot = Record.Exception(() => badHost.CreateClient());
+
+        var validation = Assert.IsType<OptionsValidationException>(boot);
+        Assert.Contains("ceiling", string.Join(" ", validation.Failures));
     }
 
     // --- the sanitizer's guarantees, end to end ----------------------------
