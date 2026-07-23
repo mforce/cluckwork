@@ -139,19 +139,26 @@ farm_logos
 - id
 - account_id
 - farm_id: unique — one logo per farm
-- content: the image bytes, PNG / JPEG / WebP only, 1 MB max
+- content: the image bytes, PNG / JPEG / WebP only, 1 MB max, still images only
 - content_type: sniffed from the bytes, never the uploaded declaration
 - width / height: read from the image header, capped
+- byte_length: stored, not derived — see below
 - content_hash: identifies the current logo; serves as the HTTP ETag
 - updated_at
 ```
+
+`byte_length` is a column rather than a `length(content)` call because `content`
+is TOAST-compressed: measuring it would fetch and decompress the megabyte, which
+is exactly what the metadata-only reads exist to avoid.
 
 Uploads are Owner/Manager only. SVG is refused outright — it is a document that
 can carry script, and the app renders this image back to every user of the farm.
 What is stored is never the uploaded file: the container is walked and rewritten,
 which drops metadata blocks (EXIF on a phone photo carries GPS coordinates —
 for a farm, its physical location) and discards anything appended past the
-image's own end marker.
+image's own end marker. Animation is refused in both formats: an animated WebP
+frame nests its own chunk stream, which a flat sweep cannot reach, and holding
+PNG to the same rule keeps it one sentence rather than a per-format footnote.
 
 ```text
 houses

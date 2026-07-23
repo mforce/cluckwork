@@ -96,6 +96,9 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("AccountId")
                         .HasColumnType("uuid");
 
+                    b.Property<int>("ByteLength")
+                        .HasColumnType("integer");
+
                     b.Property<byte[]>("Content")
                         .IsRequired()
                         .HasColumnType("bytea");

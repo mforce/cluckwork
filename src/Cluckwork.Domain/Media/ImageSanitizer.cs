@@ -63,6 +63,20 @@ public static class ImageSanitizer
         "FarmLogo.DimensionsTooLarge",
         $"The logo must be at most {MaxPixelDimension}x{MaxPixelDimension} pixels.");
 
+    // Animated PNG and animated WebP are both refused.
+    //
+    // WebP forces the decision: an ANMF frame carries its OWN nested chunk
+    // stream, so a flat allowlist never looks inside it and metadata rides
+    // through untouched in a JUNK chunk (codex review of #168). Sweeping that
+    // means recursing the walk into every frame.
+    //
+    // APNG has no such nesting and could safely have been kept. It is refused
+    // anyway so the product rule is one sentence — a logo is a still image —
+    // rather than a per-format footnote, and so the surface stays small.
+    public static readonly Error AnimationNotSupported = Error.Validation(
+        "FarmLogo.AnimationNotSupported",
+        "The logo must be a still image. Animated PNG and animated WebP are not accepted.");
+
     private static readonly byte[] PngSignature = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
 
     public static Result<SanitizedImage> Sanitize(ReadOnlySpan<byte> data)
@@ -97,9 +111,9 @@ public static class ImageSanitizer
         // Ancillary, but they change how the image LOOKS. iCCP especially: drop
         // a colour profile and the farm's brand colour shifts, which for a logo
         // feature is the one thing we must not silently do.
-        "tRNS", "gAMA", "cHRM", "sRGB", "iCCP", "sBIT", "bKGD", "pHYs",
-        // APNG. Animated WebP is accepted below, so an animated PNG is too.
-        "acTL", "fcTL", "fdAT"
+        "tRNS", "gAMA", "cHRM", "sRGB", "iCCP", "sBIT", "bKGD", "pHYs"
+        // APNG's acTL/fcTL/fdAT are deliberately absent — animation is refused
+        // outright, in both formats. See AnimationNotSupported.
     }.Select(Fcc).ToFrozenSet();
 
     private static Result<SanitizedImage> SanitizePng(ReadOnlySpan<byte> data)
@@ -130,8 +144,10 @@ public static class ImageSanitizer
             if (!sawHeader)
             {
                 // IHDR is required to be the first chunk, and it is where the
-                // dimensions live, so nothing can precede it.
-                if (type != Ihdr || length < 13) return Result.Failure<SanitizedImage>(Malformed);
+                // dimensions live, so nothing can precede it. Its length is
+                // fixed at 13 — accepting a longer one would copy the surplus
+                // through as part of an allowlisted chunk.
+                if (type != Ihdr || length != 13) return Result.Failure<SanitizedImage>(Malformed);
                 width = (int)BinaryPrimitives.ReadUInt32BigEndian(data[dataStart..]);
                 height = (int)BinaryPrimitives.ReadUInt32BigEndian(data[(dataStart + 4)..]);
                 sawHeader = true;
@@ -140,6 +156,19 @@ public static class ImageSanitizer
             {
                 return Result.Failure<SanitizedImage>(Malformed);
             }
+
+            // IEND's data field is empty by specification, and it is on the
+            // allowlist — so a declared length here is surplus that gets copied
+            // through inside the very chunk that is supposed to END the file.
+            // That is the polyglot hole reopened from the inside: the payload
+            // sits before the terminator, not after it, so truncating at IEND
+            // does not remove it (codex review of #168).
+            if (type == Iend && length != 0) return Result.Failure<SanitizedImage>(Malformed);
+
+            // Animation is refused rather than silently flattened — see the
+            // WebP walk for why the two formats are held to one rule.
+            if (type == Actl || type == Fctl || type == Fdat)
+                return Result.Failure<SanitizedImage>(AnimationNotSupported);
 
             if (type == Idat) sawPixels = true;
 
@@ -275,7 +304,21 @@ public static class ImageSanitizer
             if (data[i] != 0xFF) { i++; continue; }
 
             var next = data[i + 1];
-            if (next == 0x00 || next == 0xFF || next is >= 0xD0 and <= 0xD7)
+
+            // A fill byte, not a marker. Advance ONE, so the FF just examined is
+            // discarded and the next one is still available as a marker prefix.
+            // Skipping two here consumed the real prefix, and `FF FF D9` — a
+            // legal way to write EOI — was walked straight past, leaving a
+            // perfectly good JPEG rejected as malformed (codex review of #168).
+            if (next == 0xFF)
+            {
+                i++;
+                continue;
+            }
+
+            // FF 00 is a stuffed FF inside entropy data; RSTn are restart
+            // markers. Both are two bytes and neither ends the scan.
+            if (next == 0x00 || next is >= 0xD0 and <= 0xD7)
             {
                 i += 2;
                 continue;
@@ -294,10 +337,14 @@ public static class ImageSanitizer
         // range except the two below is the allowlist.
         if (marker is >= 0xE0 and <= 0xEF)
         {
-            // APP0/JFIF is pixel-density housekeeping, no personal data.
-            if (marker == 0xE0) return true;
-            // APP2 is usually an ICC colour profile. Same reasoning as iCCP in
-            // PNG: dropping it shifts the brand colour.
+            // APP0 is NOT kept, despite being "just" JFIF density housekeeping:
+            // a JFIF APP0 can embed a thumbnail, and a JFXX APP0 exists only to
+            // carry one. That is a whole second image riding inside the segment
+            // this strip is meant to clean (codex review of #168). Density is no
+            // loss either way — a logo is laid out by CSS, not by DPI.
+            //
+            // APP2 survives only when it really is an ICC colour profile. Same
+            // reasoning as iCCP in PNG: dropping that shifts the brand colour.
             return marker == 0xE2 && payload.StartsWith("ICC_PROFILE\0"u8);
         }
 
@@ -315,8 +362,9 @@ public static class ImageSanitizer
     {
         "VP8 ", "VP8L", "VP8X",   // the image itself, lossy / lossless / extended
         "ALPH",                   // alpha plane
-        "ANIM", "ANMF",           // animation
         "ICCP"                    // colour profile — see the PNG note
+        // ANIM/ANMF are absent by design: an ANMF frame nests its own chunk
+        // stream, which a flat allowlist cannot sweep. Animation is refused.
     }.Select(Fcc).ToFrozenSet();
 
     private static Result<SanitizedImage> SanitizeWebp(ReadOnlySpan<byte> data)
@@ -352,13 +400,23 @@ public static class ImageSanitizer
 
             var payload = data.Slice(pos + 8, (int)payloadLength);
 
+            if (type == Anim || type == Anmf)
+                return Result.Failure<SanitizedImage>(AnimationNotSupported);
+
             if (type == Vp8x)
             {
+                // A second VP8X would overwrite the first one's canvas. A
+                // decoder reads the first; we would report the second.
+                if (sawCanvas) return Result.Failure<SanitizedImage>(Malformed);
                 if (payload.Length < 10) return Result.Failure<SanitizedImage>(Malformed);
                 // Canvas size is stored minus one, as two 24-bit LE fields.
-                width = ReadUInt24LittleEndian(payload[4..]) + 1;
-                height = ReadUInt24LittleEndian(payload[7..]) + 1;
-                sawImage = true;
+                var canvasWidth = ReadUInt24LittleEndian(payload[4..]) + 1;
+                var canvasHeight = ReadUInt24LittleEndian(payload[7..]) + 1;
+                if (Exceeds(canvasWidth, canvasHeight))
+                    return Result.Failure<SanitizedImage>(DimensionsTooLarge);
+
+                width = canvasWidth;
+                height = canvasHeight;
                 sawCanvas = true;
                 // Remembered so the EXIF/XMP flag bits can be cleared after the
                 // copy — a decoder that trusts them would go looking for chunks
@@ -367,16 +425,29 @@ public static class ImageSanitizer
             }
             else if (type == Vp8 || type == Vp8L)
             {
+                // Only the FIRST bitstream chunk is the image. libwebp reads the
+                // one following the WEBP FourCC and stops looking; a second
+                // would be ignored by the decoder but was still overwriting the
+                // dimensions we judge. That turned the cap inside out — declare
+                // 16384x16384 first and 1x1 second and the bomb shipped with a
+                // 1x1 verdict (adversarial review of #168).
+                if (sawImage) return Result.Failure<SanitizedImage>(Malformed);
+
                 int frameWidth = 0, frameHeight = 0;
                 var read = type == Vp8
                     ? TryReadLossyDimensions(payload, ref frameWidth, ref frameHeight)
                     : TryReadLosslessDimensions(payload, ref frameWidth, ref frameHeight);
                 if (!read) return Result.Failure<SanitizedImage>(Malformed);
 
-                // VP8X carries the CANVAS size and comes first; a frame inside
-                // it may be smaller. The canvas is what a decoder allocates, so
-                // it is the number the cap has to judge — don't let the frame
-                // overwrite it.
+                // Judged on its own account, whether or not it is the number we
+                // go on to report. EVERY dimension the file declares has to
+                // clear the cap, because we cannot know which one a given
+                // decoder will act on.
+                if (Exceeds(frameWidth, frameHeight))
+                    return Result.Failure<SanitizedImage>(DimensionsTooLarge);
+
+                // VP8X carries the CANVAS size, which is what a decoder
+                // allocates; a frame inside it may be smaller.
                 if (!sawCanvas)
                 {
                     width = frameWidth;
@@ -395,6 +466,9 @@ public static class ImageSanitizer
             pos = (int)chunkEnd;
         }
 
+        // VP8X alone is not an image: it only declares a canvas and which
+        // optional features follow. Actual pixels live in VP8 or VP8L, and
+        // without one there is nothing to render (codex review of #168).
         if (!sawImage) return Result.Failure<SanitizedImage>(Malformed);
 
         // VP8X flags, MSB first: Rsv Rsv ICC Alpha EXIF XMP Anim Rsv.
@@ -435,11 +509,13 @@ public static class ImageSanitizer
         ImageKind kind, byte[] output, int written, int width, int height)
     {
         if (width <= 0 || height <= 0) return Result.Failure<SanitizedImage>(Malformed);
-        if (width > MaxPixelDimension || height > MaxPixelDimension)
-            return Result.Failure<SanitizedImage>(DimensionsTooLarge);
+        if (Exceeds(width, height)) return Result.Failure<SanitizedImage>(DimensionsTooLarge);
 
         return Result.Success(new SanitizedImage(kind, output[..written], width, height));
     }
+
+    private static bool Exceeds(int width, int height) =>
+        width > MaxPixelDimension || height > MaxPixelDimension;
 
     private static int ReadUInt24LittleEndian(ReadOnlySpan<byte> b) =>
         b[0] | (b[1] << 8) | (b[2] << 16);
@@ -457,4 +533,9 @@ public static class ImageSanitizer
     private static readonly uint Vp8 = Fcc("VP8 ");
     private static readonly uint Vp8L = Fcc("VP8L");
     private static readonly uint Vp8x = Fcc("VP8X");
+    private static readonly uint Anim = Fcc("ANIM");
+    private static readonly uint Anmf = Fcc("ANMF");
+    private static readonly uint Actl = Fcc("acTL");
+    private static readonly uint Fctl = Fcc("fcTL");
+    private static readonly uint Fdat = Fcc("fdAT");
 }

@@ -30,6 +30,13 @@ public sealed class FarmLogo : AggregateRoot<Guid>
     public int Width { get; private set; }
     public int Height { get; private set; }
 
+    // Stored rather than derived from Content. `l.Content.Length` does
+    // translate — Npgsql emits `length("Content")` — but bytea is EXTENDED
+    // storage, so length() on a compressed out-of-line value has to fetch and
+    // decompress it. That would put the megabyte back into exactly the
+    // metadata-only reads that exist to avoid it (review of #168).
+    public int ByteLength { get; private set; }
+
     // Hex SHA-256 of Content. Derived here rather than at the endpoint so it
     // cannot drift from the bytes it describes: the two only ever change
     // together, inside this class. The serve endpoint quotes it into an HTTP
@@ -57,6 +64,7 @@ public sealed class FarmLogo : AggregateRoot<Guid>
         ContentType = image.ContentType;
         Width = image.Width;
         Height = image.Height;
+        ByteLength = image.Content.Length;
         ContentHash = Convert.ToHexString(SHA256.HashData(image.Content)).ToLowerInvariant();
         UpdatedAt = now;
     }
