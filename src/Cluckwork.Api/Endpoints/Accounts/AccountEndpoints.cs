@@ -33,16 +33,23 @@ public static class AccountEndpoints
     }
 
     private static async Task<IResult> GetAccount(
-        IAccountRepository accounts, TenantContext tenant, CancellationToken ct)
+        IAccountRepository accounts, IFarmLogoRepository logos, TenantContext tenant, CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
         var account = await accounts.GetCurrentAsync(ct);
-        return account is null ? Results.NotFound() : Results.Ok(ToResponse(account));
+        if (account is null) return Results.NotFound();
+
+        // Metadata only — the projection leaves the bytes in the database. This
+        // tells the chrome whether to fetch /logo at all, and gives it a value
+        // that changes when the logo does.
+        var logo = await logos.GetMetadataAsync(ct);
+        return Results.Ok(ToResponse(account, logo?.ContentHash));
     }
 
     private static async Task<IResult> GetSettings(
         IAccountRepository accounts,
         ICurrencyBoundRowProbe currencyBoundRows,
+        IFarmLogoRepository logos,
         TenantContext tenant,
         CancellationToken ct)
     {
@@ -53,7 +60,9 @@ public static class AccountEndpoints
         // Surfaced so the screen can disable the currency field with an
         // explanation instead of letting the user discover the rule as a 422.
         var canChangeCurrency = !await currencyBoundRows.AnyAsync(ct);
-        return Results.Ok(new FarmSettingsResponse(ToResponse(account), canChangeCurrency));
+        var logo = await logos.GetMetadataAsync(ct);
+        return Results.Ok(new FarmSettingsResponse(
+            ToResponse(account, logo?.ContentHash), canChangeCurrency));
     }
 
     private static async Task<IResult> UpdateSettings(
@@ -95,14 +104,15 @@ public static class AccountEndpoints
         _ => Results.Problem(error.Description, statusCode: 422, title: error.Code)
     };
 
-    private static AccountResponse ToResponse(Account a) => new(
+    private static AccountResponse ToResponse(Account a, string? logoContentHash) => new(
         a.Id, a.Name,
         a.DefaultCurrencyCode, a.DefaultCurrencyMinorUnit, a.CurrencySymbol,
         a.TimeZoneId, a.Locale,
         a.UnitSystem.ToString(),
         a.FirstDayOfWeek?.ToString(),
         a.DateFormatOverride, a.TimeFormatOverride,
-        a.Version);
+        a.Version,
+        logoContentHash);
 }
 
 // CurrencyCode/CurrencyMinorUnit keep their names and positions from the
@@ -119,7 +129,11 @@ public sealed record AccountResponse(
     string? FirstDayOfWeek,
     string? DateFormatOverride,
     string? TimeFormatOverride,
-    int Version);
+    int Version,
+    // Null when the farm has no logo — the chrome falls back to app branding
+    // and never calls /logo. Otherwise the stored image's content hash, which
+    // both identifies the current logo and changes when it is replaced (#123).
+    string? LogoContentHash);
 
 public sealed record FarmSettingsResponse(AccountResponse Settings, bool CanChangeCurrency);
 
