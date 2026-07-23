@@ -166,8 +166,11 @@ public sealed class RoleMatrixTests(CluckworkWebApplicationFactory factory)
             $"/api/v1/sales/{orderId}/payments")).StatusCode);
 
         // The customer directory + order book reads (#127) — SalesAccess ⊂ SalesFlow.
+        // List and by-id, both groups: the SalesFlow tier reaches all four.
         Assert.Equal(HttpStatusCode.OK, (await sales.GetAsync("/api/v1/customers")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await sales.GetAsync($"/api/v1/customers/{customerId}")).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await sales.GetAsync("/api/v1/sales")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await sales.GetAsync($"/api/v1/sales/{orderId}")).StatusCode);
 
         // Production capture and money config: refused.
         Assert.Equal(HttpStatusCode.Forbidden, (await sales.PostWithKeyAsync(

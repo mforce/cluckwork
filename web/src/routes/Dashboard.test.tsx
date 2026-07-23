@@ -73,3 +73,23 @@ describe("Dashboard stat cards", () => {
     expect(statFor("Active flocks")).toHaveTextContent("3");
   });
 });
+
+// #127 — the customer/sales reads now 403 for ReadOnly; the dashboard must not
+// fetch them or render the sales panel (it would blank with an error otherwise).
+describe("Dashboard sales panel role gate (#127)", () => {
+  it("neither fetches nor shows sales for a ReadOnly user", async () => {
+    renderWithProviders(<Dashboard />, { token: { sub: "u1", role: "ReadOnly" } });
+    // a core panel still resolves, so the dashboard did mount
+    expect(await screen.findByText("Eggs collected today")).toBeInTheDocument();
+    expect(screen.queryByText("Recent sales")).not.toBeInTheDocument();
+    expect(mockOrders).not.toHaveBeenCalled();
+    expect(mockCustomers).not.toHaveBeenCalled();
+  });
+
+  it("fetches and shows the sales panel for a non-ReadOnly user", async () => {
+    renderWithProviders(<Dashboard />, { token: { sub: "u1", role: "Sales" } });
+    expect(await screen.findByText("Recent sales")).toBeInTheDocument();
+    expect(mockOrders).toHaveBeenCalled();
+    expect(mockCustomers).toHaveBeenCalled();
+  });
+});
