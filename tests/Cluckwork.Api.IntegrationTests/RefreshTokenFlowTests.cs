@@ -53,6 +53,33 @@ public sealed class RefreshTokenFlowTests(CluckworkWebApplicationFactory factory
         Assert.Equal(HttpStatusCode.Unauthorized, replay.StatusCode);
     }
 
+    // #169 — reuse-detection stays strict: replaying a revoked token revokes the
+    // WHOLE family, not just the replayed one. This is exactly the "both tabs
+    // logged out" cascade the client-side Web Lock (#169) exists to avoid ever
+    // triggering — but a genuinely stolen/replayed token must still burn the
+    // family down. The server behaviour is deliberately unchanged by #169.
+    [Fact]
+    public async Task Refresh_ReuseDetection_RevokesTheWholeFamily()
+    {
+        var email = $"u-{Guid.NewGuid():N}@test.local";
+        await factory.SeedAccountWithUserAsync(email);
+        var client = factory.CreateClient(Cookieless);
+
+        var initial = await factory.LoginAsync(email);
+        // The "legit tab" rotates once: `initial` → `live` (the current token).
+        var live = await RefreshAsync(client, initial.RefreshToken);
+
+        // A replay of the already-rotated `initial` is read as theft → the family
+        // is revoked.
+        var replay = await client.PostRefreshAsync(initial.RefreshToken);
+        Assert.Equal(HttpStatusCode.Unauthorized, replay.StatusCode);
+
+        // The still-"live" sibling token is now dead too — the whole session is
+        // torn down, which is precisely the multi-tab pain #169 addresses.
+        var afterCascade = await client.PostRefreshAsync(live.RefreshToken);
+        Assert.Equal(HttpStatusCode.Unauthorized, afterCascade.StatusCode);
+    }
+
     [Fact]
     public async Task Refresh_WithGarbageToken_IsRejected()
     {

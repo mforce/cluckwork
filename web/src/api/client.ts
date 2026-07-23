@@ -96,17 +96,38 @@ export async function logout(): Promise<void> {
   }
 }
 
+// #169 — serialise refresh across tabs. The refresh token lives only in the
+// shared HttpOnly cookie (#145), so two tabs refreshing at once each present the
+// SAME cookie value; the second hits an already-rotated token, the server reads
+// that as a replay and revokes the whole family — logging BOTH tabs out. The Web
+// Locks API lets only one tab refresh at a time: the next tab runs its refresh
+// only AFTER the first has rotated the cookie, so it presents the fresh token,
+// not a replay. Server-side reuse-detection stays strict (unchanged). The lock
+// auto-releases if a holding tab is closed or crashes — no deadlock. Browsers
+// without navigator.locks (older Safari) degrade to per-tab single-flight only:
+// no cross-tab guarantee, but never worse than before #169.
+const REFRESH_LOCK = "cluckwork.auth.refresh";
+
+function withRefreshLock<T>(run: () => Promise<T>): Promise<T> {
+  const locks: LockManager | undefined = globalThis.navigator?.locks;
+  return locks ? (locks.request(REFRESH_LOCK, run) as Promise<T>) : run();
+}
+
 // Single-flight refresh: concurrent 401s (and the load-time bootstrap) share one
 // in-flight refresh call. The refresh token rides the cookie; no body is sent.
+// The per-tab latch dedupes within a tab; the cross-tab Web Lock (above) then
+// serialises whatever refresh each tab still needs against the other tabs.
 let refreshInFlight: Promise<string> | null = null;
 
 async function refreshTokens(): Promise<string> {
   if (refreshInFlight) return refreshInFlight;
 
-  refreshInFlight = raw<AccessTokenResponse>("/auth/refresh", {
-    method: "POST",
-    headers: { [CSRF_HEADER]: "1" },
-  })
+  refreshInFlight = withRefreshLock(() =>
+    raw<AccessTokenResponse>("/auth/refresh", {
+      method: "POST",
+      headers: { [CSRF_HEADER]: "1" },
+    }),
+  )
     .then((res) => {
       setAccessToken(res.accessToken);
       onTokensChanged?.();

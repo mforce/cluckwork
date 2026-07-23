@@ -432,3 +432,62 @@ describe("auth endpoints", () => {
     expect((fetchMock.mock.calls[0] as Call)[0]).toBe("/api/v1/auth/logout");
   });
 });
+
+describe("cross-tab refresh coordination (#169)", () => {
+  // A minimal exclusive Web Locks stand-in: requests run FIFO, one holder at a
+  // time. Lets a test hold the lock as "another tab" mid-refresh and observe
+  // that our tab's refresh WAITS rather than presenting the now-stale shared
+  // cookie (which the server would read as a replay and revoke the family).
+  function fakeLockManager() {
+    let tail: Promise<unknown> = Promise.resolve();
+    const request = vi.fn((_name: string, cb: () => Promise<unknown>) => {
+      const run = tail.then(() => cb());
+      tail = run.catch(() => {}); // the next waiter proceeds even if this one throws
+      return run;
+    });
+    return { request };
+  }
+
+  it("waits for another tab's in-progress refresh before hitting the server (no cross-tab replay)", async () => {
+    const locks = fakeLockManager();
+    vi.stubGlobal("navigator", { locks });
+
+    // Occupy the lock as 'another tab' still rotating the cookie; ours must queue.
+    const otherTab = deferred<void>();
+    locks.request("cluckwork.auth.refresh", () => otherTab.promise);
+
+    clearAccessToken(); // next call forces a silent refresh
+    fetchMock.mockImplementation(async (url: string) =>
+      url.endsWith("/auth/refresh") ? accessResponse("at2") : jsonResponse({ ok: true }),
+    );
+
+    const inflight = apiGet<{ ok: boolean }>("/a");
+    await drain();
+
+    // Blocked behind the other tab: our refresh has NOT reached the server yet.
+    expect(callsTo(fetchMock, "/auth/refresh")).toHaveLength(0);
+
+    otherTab.resolve(); // the other tab finished; the cookie is now the fresh token
+    const a = await inflight;
+
+    expect(a).toEqual({ ok: true });
+    // Serialized strictly after the other tab — exactly one refresh, no replay.
+    expect(callsTo(fetchMock, "/auth/refresh")).toHaveLength(1);
+    expect(locks.request).toHaveBeenCalledWith("cluckwork.auth.refresh", expect.any(Function));
+    expect(getAccessToken()).toBe("at2");
+  });
+
+  it("degrades gracefully when the Web Locks API is unavailable (older browsers)", async () => {
+    vi.stubGlobal("navigator", {}); // no .locks — like jsdom / older Safari
+    clearAccessToken();
+    fetchMock.mockImplementation(async (url: string) =>
+      url.endsWith("/auth/refresh") ? accessResponse("at2") : jsonResponse({ ok: true }),
+    );
+
+    const a = await apiGet<{ ok: boolean }>("/a");
+
+    expect(a).toEqual({ ok: true });
+    expect(callsTo(fetchMock, "/auth/refresh")).toHaveLength(1); // still refreshes, just uncoordinated
+    expect(getAccessToken()).toBe("at2");
+  });
+});

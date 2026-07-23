@@ -79,3 +79,11 @@ bearer access token; a 401 triggers one transparent `POST /api/v1/auth/refresh`
 (cookie-carried, `X-Cluckwork-Auth` header) + retry (single-flight). On page load
 the session is restored by a silent refresh against the cookie; if that fails the
 router bounces to `/login`. `logout` revokes server-side and expires the cookie.
+
+Refresh is serialised **across tabs** via the Web Locks API (#169): the refresh
+token lives only in the shared cookie, so two tabs refreshing at once would each
+present the same value and the second would trip the server's rotation/reuse
+detection, revoking the family and logging both tabs out. The lock lets one tab
+refresh at a time; the next tab then presents the freshly-rotated cookie. Server
+reuse-detection stays strict; browsers without `navigator.locks` fall back to the
+per-tab single-flight only.
