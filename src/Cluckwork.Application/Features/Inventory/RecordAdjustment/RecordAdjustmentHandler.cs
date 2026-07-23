@@ -14,6 +14,7 @@ public sealed class RecordAdjustmentHandler(
     IInventoryMovementRepository movements,
     IUnitOfWork unitOfWork,
     IClock clock,
+    IFarmClock farmClock,
     IAuditWriter audit)
 {
     public async Task<Result<Guid>> HandleAsync(
@@ -23,7 +24,7 @@ public sealed class RecordAdjustmentHandler(
         if (item is null)
             return Result.Failure<Guid>(Error.NotFound(nameof(InventoryItem), command.InventoryItemId));
 
-        if (command.Date > clock.TodayUtc)
+        if (command.Date > await farmClock.TodayAsync(ct))
             return Result.Failure<Guid>(Error.Validation(
                 "InventoryMovement.FutureDate", "Adjustment date cannot be in the future."));
 

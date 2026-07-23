@@ -1,11 +1,12 @@
 namespace Cluckwork.Application.Features.Sales.RecordPayment;
 
 using Cluckwork.Domain.Sales;
+using Cluckwork.Application.Common;
 using FluentValidation;
 
 public sealed class RecordPaymentValidator : AbstractValidator<RecordPaymentCommand>
 {
-    public RecordPaymentValidator()
+    public RecordPaymentValidator(IFarmClock farmClock)
     {
         RuleFor(c => c.AmountMinorUnits)
             .GreaterThan(0)
@@ -30,8 +31,9 @@ public sealed class RecordPaymentValidator : AbstractValidator<RecordPaymentComm
             .WithMessage($"Note cannot exceed {Payment.MaxNoteLength} characters.");
 
         RuleFor(c => c.PaymentDate)
-            // UTC "today" until farm-local timezones land (#35).
-            .Must(d => d <= DateOnly.FromDateTime(DateTime.UtcNow))
+            // The farm's own today (#35), the same boundary every other
+            // date-gated rule reads.
+            .MustAsync(async (d, ct) => d <= await farmClock.TodayAsync(ct))
             .WithMessage("Payment date cannot be in the future.")
             // An omitted JSON date binds as 0001-01-01 (codex review of #88).
             .Must(d => d >= new DateOnly(2000, 1, 1))

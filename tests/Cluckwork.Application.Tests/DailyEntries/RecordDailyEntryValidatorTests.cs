@@ -1,20 +1,16 @@
 namespace Cluckwork.Application.Tests.DailyEntries;
 
-using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.DailyEntries.RecordDailyEntry;
+using Cluckwork.Application.Tests.Common;
 
 public sealed class RecordDailyEntryValidatorTests
 {
     // A fixed farm-local today, so the date rule is deterministic instead of
-    // riding on the machine's clock (#35).
-    private static readonly DateOnly FarmToday = new(2026, 7, 15);
+    // riding on the machine's clock (#35). Shared with the other validator
+    // tests (#155) so "today" means the same date across all of them.
+    private static readonly DateOnly FarmToday = FixedFarmClock.Today;
 
-    private sealed class FixedFarmClock(DateOnly today) : IFarmClock
-    {
-        public Task<DateOnly> TodayAsync(CancellationToken ct = default) => Task.FromResult(today);
-    }
-
-    private readonly RecordDailyEntryValidator _validator = new(new FixedFarmClock(FarmToday));
+    private readonly RecordDailyEntryValidator _validator = new(FixedFarmClock.AtDefault());
 
     private static RecordDailyEntryCommand Valid() => new(
         Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),

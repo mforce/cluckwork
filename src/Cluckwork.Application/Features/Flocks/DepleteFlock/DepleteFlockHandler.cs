@@ -8,7 +8,8 @@ using Cluckwork.Domain.Flocks;
 public sealed class DepleteFlockHandler(
     IFlockRepository flocks,
     IUnitOfWork unitOfWork,
-    IAuditWriter audit)
+    IAuditWriter audit,
+    IFarmClock farmClock)
 {
     public async Task<Result> HandleAsync(Guid flockId, CancellationToken ct)
     {
@@ -16,8 +17,10 @@ public sealed class DepleteFlockHandler(
         if (flock is null)
             return Result.Failure(Error.NotFound(nameof(Flock), flockId));
 
-        // Operational date of the action (farm-local ≈ UTC for the MVP, #35).
-        var result = flock.Deplete(DateOnly.FromDateTime(DateTime.UtcNow.Date));
+        // Operational date of the action, on the farm's own calendar (#35) —
+        // this date is STORED, so a UTC one persists the wrong day and then
+        // silently decides which backfill entries the flock still accepts.
+        var result = flock.Deplete(await farmClock.TodayAsync(ct));
         if (result.IsFailure)
             return result;
 

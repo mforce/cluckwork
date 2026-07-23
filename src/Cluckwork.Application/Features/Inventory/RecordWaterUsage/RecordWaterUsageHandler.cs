@@ -12,7 +12,8 @@ public sealed class RecordWaterUsageHandler(
     IFlockRepository flocks,
     IFlockScopeGuard flockScope,
     IUnitOfWork unitOfWork,
-    IClock clock)
+    IClock clock,
+    IFarmClock farmClock)
 {
     public async Task<Result<Guid>> HandleAsync(
         RecordWaterUsageCommand command, Guid accountId, CancellationToken ct)
@@ -32,7 +33,7 @@ public sealed class RecordWaterUsageHandler(
                 "WaterUsage.FlockNotActive",
                 $"Flock '{flock.Name}' is {flock.Status.ToString().ToLowerInvariant()} — water cannot be recorded for this date."));
 
-        if (command.Date > clock.TodayUtc)
+        if (command.Date > await farmClock.TodayAsync(ct))
             return Result.Failure<Guid>(Error.Validation(
                 "WaterUsage.FutureDate", "Usage date cannot be in the future."));
 

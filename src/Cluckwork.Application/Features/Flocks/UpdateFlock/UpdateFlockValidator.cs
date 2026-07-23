@@ -1,11 +1,12 @@
 namespace Cluckwork.Application.Features.Flocks.UpdateFlock;
 
 using Cluckwork.Domain.Flocks;
+using Cluckwork.Application.Common;
 using FluentValidation;
 
 public sealed class UpdateFlockValidator : AbstractValidator<UpdateFlockCommand>
 {
-    public UpdateFlockValidator()
+    public UpdateFlockValidator(IFarmClock farmClock)
     {
         RuleFor(x => x.FlockId).NotEmpty();
 
@@ -23,7 +24,8 @@ public sealed class UpdateFlockValidator : AbstractValidator<UpdateFlockCommand>
         RuleFor(x => x.PlacementDate)
             .NotEqual(default(DateOnly))
             .WithMessage("Placement date is required.")
-            .LessThanOrEqualTo(_ => DateOnly.FromDateTime(DateTime.UtcNow.Date))
+            // The farm's own today (#35).
+            .MustAsync(async (d, ct) => d <= await farmClock.TodayAsync(ct))
             .WithMessage("Placement date cannot be in the future.");
     }
 }

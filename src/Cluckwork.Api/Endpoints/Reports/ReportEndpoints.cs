@@ -1,5 +1,6 @@
 namespace Cluckwork.Api.Endpoints.Reports;
 
+using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Reports;
 using Cluckwork.Infrastructure.Persistence;
 
@@ -36,10 +37,15 @@ public static class ReportEndpoints
         return group;
     }
 
-    private static IResult? ValidateRange(DateOnly? from, DateOnly? to, out DateOnly f, out DateOnly t)
+    // `today` is passed in rather than read from the clock here: it is the FARM's
+    // today (#155), so both the default window and the future guard line up with
+    // the dates the capture screens will accept. Computing it from UTC in here
+    // shifted a Los Angeles farm's default "last 7 days" a day ahead, and
+    // rejected an Auckland farm's legitimate today as being in the future.
+    private static IResult? ValidateRange(
+        DateOnly today, DateOnly? from, DateOnly? to, out DateOnly f, out DateOnly t)
     {
-        // Default: the last 7 days (inclusive), UTC until #35.
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        // Default: the last 7 days (inclusive).
         f = from ?? today.AddDays(-6);
         t = to ?? today;
         if (f > t)
@@ -57,41 +63,41 @@ public static class ReportEndpoints
     }
 
     private static async Task<IResult> Production(
-        IReportQueries reports, TenantContext tenant, CancellationToken ct,
+        IReportQueries reports, TenantContext tenant, IFarmClock farmClock, CancellationToken ct,
         DateOnly? from = null, DateOnly? to = null)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
-        var bad = ValidateRange(from, to, out var f, out var t);
+        var bad = ValidateRange(await farmClock.TodayAsync(ct), from, to, out var f, out var t);
         if (bad is not null) return bad;
         return Results.Ok(await reports.GetProductionAsync(f, t, ct));
     }
 
     private static async Task<IResult> Sales(
-        IReportQueries reports, TenantContext tenant, CancellationToken ct,
+        IReportQueries reports, TenantContext tenant, IFarmClock farmClock, CancellationToken ct,
         DateOnly? from = null, DateOnly? to = null)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
-        var bad = ValidateRange(from, to, out var f, out var t);
+        var bad = ValidateRange(await farmClock.TodayAsync(ct), from, to, out var f, out var t);
         if (bad is not null) return bad;
         return Results.Ok(await reports.GetSalesAsync(f, t, ct));
     }
 
     private static async Task<IResult> Expenses(
-        IReportQueries reports, TenantContext tenant, CancellationToken ct,
+        IReportQueries reports, TenantContext tenant, IFarmClock farmClock, CancellationToken ct,
         DateOnly? from = null, DateOnly? to = null)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
-        var bad = ValidateRange(from, to, out var f, out var t);
+        var bad = ValidateRange(await farmClock.TodayAsync(ct), from, to, out var f, out var t);
         if (bad is not null) return bad;
         return Results.Ok(await reports.GetExpensesAsync(f, t, ct));
     }
 
     private static async Task<IResult> Profit(
-        IReportQueries reports, TenantContext tenant, CancellationToken ct,
+        IReportQueries reports, TenantContext tenant, IFarmClock farmClock, CancellationToken ct,
         DateOnly? from = null, DateOnly? to = null)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
-        var bad = ValidateRange(from, to, out var f, out var t);
+        var bad = ValidateRange(await farmClock.TodayAsync(ct), from, to, out var f, out var t);
         if (bad is not null) return bad;
         return Results.Ok(await reports.GetProfitAsync(f, t, ct));
     }
