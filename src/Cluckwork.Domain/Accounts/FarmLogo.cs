@@ -46,6 +46,23 @@ public sealed class FarmLogo : AggregateRoot<Guid>
 
     public DateTimeOffset UpdatedAt { get; private set; }
 
+    // Optimistic concurrency, like every other mutable aggregate here.
+    //
+    // The previous slice argued a logo needed none — worst case last-write-wins,
+    // and `Replace` rewrites every field together so the row stays coherent.
+    // That was wrong, and the way it was wrong is worth keeping: EF updates only
+    // the properties that differ from EACH CONTEXT'S OWN snapshot. Two writers
+    // replacing the same logo, one with a 32x32 JPEG and one with a different
+    // 1x1 PNG of the same byte length, produce an UPDATE from the second that
+    // touches Content and ContentHash but not type, dimensions or length —
+    // because relative to ITS snapshot those did not change. The row ends up
+    // holding PNG bytes labelled image/jpeg at 32x32 (codex round 2 of #168).
+    //
+    // No client sends this: a raw-body PUT has no base version to carry. It is
+    // server-side only, and the loser gets the 409 that Program.cs already maps
+    // from DbUpdateConcurrencyException.
+    public int Version { get; private set; }
+
     private FarmLogo() { }
 
     public static FarmLogo Create(
@@ -67,5 +84,6 @@ public sealed class FarmLogo : AggregateRoot<Guid>
         ByteLength = image.Content.Length;
         ContentHash = Convert.ToHexString(SHA256.HashData(image.Content)).ToLowerInvariant();
         UpdatedAt = now;
+        Version++;
     }
 }

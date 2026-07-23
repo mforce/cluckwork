@@ -113,6 +113,26 @@ public sealed class FarmLogoTests(CluckworkWebApplicationFactory factory)
     }
 
     [Fact]
+    public async Task AFailedIfMatchWins_EvenWhenIfNoneMatchWouldHaveMatched()
+    {
+        // RFC 9110 evaluates If-Match BEFORE If-None-Match. The metadata-first
+        // short-circuit answered the lower-precedence condition and skipped the
+        // higher one, turning a 412 into a 304 (codex round 2 of #168).
+        var (client, _, _) = await AdminAsync();
+        await PutLogoAsync(client, TinyPng);
+
+        var current = (await client.GetAsync(LogoPath)).Headers.ETag!;
+
+        var request = new HttpRequestMessage(HttpMethod.Get, LogoPath);
+        request.Headers.TryAddWithoutValidation("If-Match", "\"something-else\"");
+        request.Headers.IfNoneMatch.Add(current);
+
+        var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.PreconditionFailed, response.StatusCode);
+    }
+
+    [Fact]
     public async Task NoLogo_Is404_SoTheChromeKnowsToFallBack()
     {
         var (client, _, _) = await AdminAsync();
@@ -221,15 +241,105 @@ public sealed class FarmLogoTests(CluckworkWebApplicationFactory factory)
 
         var rows = await factory.WithTenantScopeAsync(accountId, db => db.FarmLogos.CountAsync());
         Assert.Equal(1, rows);
+        await AssertRowDescribesItsOwnBytesAsync(accountId);
+    }
 
-        // Whichever won, the row describes the image it actually holds — the
-        // fields are rewritten together, so a mix of two uploads is not
-        // reachable even under last-write-wins.
+    [Fact]
+    public async Task TwoReplacementsAtOnceCannotMixOneImageWithTheOthersLabels()
+    {
+        // Driven at the context level, not over HTTP. Two simultaneous PUTs do
+        // not reproduce this: the test host serialises them, and the test still
+        // passed with the concurrency token removed -- so it proved nothing
+        // about the mechanism. This holds two snapshots open at once, which is
+        // the actual precondition.
+        //
+        // EF writes only the properties that differ from EACH CONTEXT'S OWN
+        // snapshot. Writer A commits a 32x32 JPEG. Writer B then commits a
+        // different PNG whose type, dimensions and byte length all match the
+        // ORIGINAL row -- so relative to B's snapshot only the bytes and the
+        // hash changed, and B's UPDATE leaves A's metadata describing B's
+        // pixels: PNG bytes labelled image/jpeg at 32x32 (codex round 2 of
+        // #168). The Version token turns B into a 409 instead.
+        var (client, accountId, _) = await AdminAsync();
+        await PutLogoAsync(client, TinyPng);
+
+        var conflict = await Record.ExceptionAsync(() =>
+            factory.WithTenantScopeAsync(accountId, dbA =>
+                factory.WithTenantScopeAsync(accountId, async dbB =>
+                {
+                    var a = await dbA.FarmLogos.FirstAsync();
+                    var b = await dbB.FarmLogos.FirstAsync();
+
+                    a.Replace(ImageSanitizer.Sanitize(JpegWith(Exif)).Value, DateTimeOffset.UtcNow);
+                    await dbA.SaveChangesAsync();
+
+                    b.Replace(ImageSanitizer.Sanitize(AnotherTinyPng).Value, DateTimeOffset.UtcNow);
+                    await dbB.SaveChangesAsync();
+                })));
+
+        Assert.IsType<DbUpdateConcurrencyException>(conflict);
+        await AssertRowDescribesItsOwnBytesAsync(accountId);
+    }
+
+    [Fact]
+    public async Task TwoReplacementsOverHttpLeaveACoherentRow()
+    {
+        // The end-to-end companion. It cannot prove the token fires -- the host
+        // may serialise the two requests -- so it asserts only the invariant
+        // that must hold either way.
+        var (client, accountId, _) = await AdminAsync();
+        await PutLogoAsync(client, TinyPng);
+
+        var results = await Task.WhenAll(
+            PutLogoAsync(client, JpegWith(Exif), contentType: "image/jpeg"),
+            PutLogoAsync(client, AnotherTinyPng));
+
+        foreach (var r in results)
+            Assert.True(
+                r.StatusCode is HttpStatusCode.OK or HttpStatusCode.Conflict,
+                $"unexpected {(int)r.StatusCode} from a concurrent replacement");
+
+        await AssertRowDescribesItsOwnBytesAsync(accountId);
+    }
+
+    [Fact]
+    public async Task ReplacingWithADifferentSizeUpdatesTheStoredLength()
+    {
+        // ByteLength is a stored column now, so it can drift from the bytes it
+        // describes if any write path forgets it.
+        var (client, accountId, _) = await AdminAsync();
+
+        await PutLogoAsync(client, JpegWith(Exif), contentType: "image/jpeg");
+        await PutLogoAsync(client, TinyPng);
+
+        await AssertRowDescribesItsOwnBytesAsync(accountId);
         var stored = await factory.WithTenantScopeAsync(accountId, db => db.FarmLogos
-            .Select(l => new { l.Content, l.ContentType, l.ByteLength })
+            .Select(l => new { l.ByteLength, l.ContentType })
             .FirstAsync());
+        Assert.Equal("image/png", stored.ContentType);
+        Assert.Equal(TinyPng.Length, stored.ByteLength);
+    }
+
+    // Every stored field must describe the bytes actually in the row: the hash
+    // must be their hash, the length their length, and the declared type the
+    // one their leading bytes imply. A row assembled out of two uploads fails
+    // at least one of these.
+    private async Task AssertRowDescribesItsOwnBytesAsync(Guid accountId)
+    {
+        var stored = await factory.WithTenantScopeAsync(accountId, db => db.FarmLogos
+            .Select(l => new { l.Content, l.ContentType, l.ContentHash, l.ByteLength, l.Width, l.Height })
+            .FirstAsync());
+
         Assert.Equal(stored.Content.Length, stored.ByteLength);
-        Assert.Equal(stored.ContentType == "image/png" ? TinyPng.Length : stored.ByteLength, stored.ByteLength);
+        Assert.Equal(
+            Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(stored.Content)).ToLowerInvariant(),
+            stored.ContentHash);
+
+        var sanitized = ImageSanitizer.Sanitize(stored.Content);
+        Assert.True(sanitized.IsSuccess, "the stored bytes are not a valid image");
+        Assert.Equal(sanitized.Value.ContentType, stored.ContentType);
+        Assert.Equal(sanitized.Value.Width, stored.Width);
+        Assert.Equal(sanitized.Value.Height, stored.Height);
     }
 
     [Fact]
@@ -524,6 +634,21 @@ public sealed class FarmLogoTests(CluckworkWebApplicationFactory factory)
 
     private static readonly byte[] Exif =
         [.. "Exif\0\0"u8, .. "GPSLatitude 51.5074 GPSLongitude -0.1278"u8];
+
+    // Same format, same dimensions and same byte length as TinyPng, different
+    // pixel bytes. That combination is what made the mixed-row bug reachable:
+    // relative to the original row, only Content and ContentHash differ.
+    private static readonly byte[] AnotherTinyPng = BuildTwinPng();
+
+    private static byte[] BuildTwinPng()
+    {
+        var twin = (byte[])TinyPng.Clone();
+        // Perturb a byte inside IDAT's compressed data. The walk copies pixel
+        // bytes through unread, so this stays a valid container of identical
+        // shape and length.
+        twin[45] ^= 0xFF;
+        return twin;
+    }
 
     // RIFF/WEBP wrapping a single lossless bitstream chunk: 0x2F signature,
     // then width-1 in the low 14 bits and height-1 in the next 14.
