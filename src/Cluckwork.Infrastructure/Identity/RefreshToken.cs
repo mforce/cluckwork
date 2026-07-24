@@ -20,6 +20,19 @@ public sealed class RefreshToken
     public DateTimeOffset? RevokedAt { get; set; }
     public string? ReplacedByTokenHash { get; set; }
 
+    // #176 — set when this token was revoked BY a grace-advance (not a normal
+    // rotation). Reuse-detection refuses to grace such a token again, so the
+    // idempotency grace is bounded to a SINGLE hop off a normal rotation and
+    // cannot be leap-frogged down the chain to extend a stolen session.
+    public bool RevokedByGrace { get; set; }
+
+    // #176 — optimistic-concurrency token, regenerated on every rotation. Two
+    // concurrent presentations of the same token both load the same stamp; only
+    // the first UPDATE (WHERE ConcurrencyStamp = old) matches a row, so the loser
+    // throws DbUpdateConcurrencyException and RefreshAsync fails it closed —
+    // preventing a fork into two live sessions from one token.
+    public string ConcurrencyStamp { get; set; } = Guid.NewGuid().ToString();
+
     public bool IsActive(DateTimeOffset now) => RevokedAt is null && ExpiresAt > now;
 }
 
@@ -33,7 +46,17 @@ public sealed class RefreshTokenConfiguration : IEntityTypeConfiguration<Refresh
         builder.Property(e => e.AccountId).IsRequired();
         builder.Property(e => e.TokenHash).HasMaxLength(64).IsRequired();
         builder.Property(e => e.ReplacedByTokenHash).HasMaxLength(64);
+        builder.Property(e => e.RevokedByGrace).HasDefaultValue(false);
         builder.HasIndex(e => e.TokenHash).IsUnique();
         builder.HasIndex(e => e.UserId);
+
+        // #176 — consuming a refresh token (revoke-and-rotate) must be an atomic
+        // compare-and-swap: two concurrent presentations of the same token would
+        // otherwise both read it active and each mint a live child (a fork that,
+        // on the grace path, spawns multiple sessions AND skips theft-detection).
+        // The stamp is regenerated on every rotation, so a concurrent writer's
+        // UPDATE matches no row and throws DbUpdateConcurrencyException, which
+        // RefreshAsync fails closed.
+        builder.Property(e => e.ConcurrencyStamp).IsConcurrencyToken().HasMaxLength(36);
     }
 }
