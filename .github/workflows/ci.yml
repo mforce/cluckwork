@@ -28,8 +28,13 @@ jobs:
           cache: true
           cache-dependency-path: "**/*.csproj"
 
+      # --locked-mode: restore must match the committed packages.lock.json
+      # exactly, so a dependency can't float to a different resolved version
+      # between a green local run and CI. Fails with NU1004 when a package was
+      # added/bumped without regenerating — run `dotnet restore` and commit the
+      # updated lock files (#146).
       - name: Restore dependencies
-        run: dotnet restore Cluckwork.sln
+        run: dotnet restore Cluckwork.sln --locked-mode
 
       # BLOCKING gate (#146). `dotnet list package --vulnerable` always exits 0,
       # so the script parses its JSON and fails the job on any advisory at high or

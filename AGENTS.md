@@ -69,6 +69,14 @@ CI fails a PR when a dependency carries a known **high+** advisory:
   dep. Needs the repo's **Dependency graph** (Settings → Advanced Security); while
   it's off the step self-skips with a loud CI warning and activates automatically
   once enabled.
+
+**NuGet lock files.** `Directory.Build.props` sets `RestorePackagesWithLockFile`,
+so every project has a committed `packages.lock.json` and CI restores with
+`--locked-mode`. This does two things: the dependency graph sees the full
+transitive closure (80 packages, not just the 20 direct `PackageReference`s), and
+restores are deterministic. **When you add or bump a package, run `dotnet restore`
+and commit the changed lock files in the same commit** — otherwise CI fails the
+restore with `NU1004`.
 - **CodeQL** (`.github/workflows/codeql.yml`) — SAST, **advisory** (reports to the
   Security tab; not a required check). Make it blocking via branch protection.
 
