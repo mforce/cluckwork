@@ -19,7 +19,7 @@ public sealed class FarmSettingsTests(CluckworkWebApplicationFactory factory)
         Guid Id, string Name, string CurrencyCode, int CurrencyMinorUnit, string CurrencySymbol,
         string TimeZoneId, string Locale, string UnitSystem, string? FirstDayOfWeek,
         string? DateFormatOverride, string? TimeFormatOverride, int Version);
-    private sealed record SettingsDto(AccountDto Settings, bool CanChangeCurrency);
+    private sealed record SettingsDto(AccountDto Settings, bool CanChangeCurrency, int LogoMaxUploadBytes);
     private sealed record ProblemDto(string? Title);
     private sealed record IdDto(Guid Id);
 
@@ -251,6 +251,19 @@ public sealed class FarmSettingsTests(CluckworkWebApplicationFactory factory)
     }
 
     // --- §4.6 currency lock -----------------------------------------------
+
+    [Fact]
+    public async Task Settings_CarryTheConfiguredLogoUploadCap()
+    {
+        // The SPA reads this rather than hardcoding a limit (#123). The test
+        // host configures the cap (CluckworkWebApplicationFactory), so the
+        // payload must report exactly it.
+        var (client, _, _) = await AdminAsync();
+
+        var settings = await client.GetFromJsonAsync<SettingsDto>(SettingsPath);
+
+        Assert.Equal(CluckworkWebApplicationFactory.LogoUploadCap, settings!.LogoMaxUploadBytes);
+    }
 
     [Fact]
     public async Task CurrencyChange_OnAFarmWithNoFinancialRows_RederivesSymbolAndMinorUnit()

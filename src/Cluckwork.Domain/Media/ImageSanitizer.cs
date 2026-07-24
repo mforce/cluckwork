@@ -11,8 +11,9 @@ using Cluckwork.Domain.Common;
 // in the request path (the BCL has had no cross-platform one since
 // System.Drawing.Common went Windows-only in .NET 7) and hand an attacker-
 // controlled buffer to it, and it is decoding that makes a decompression bomb
-// expensive. Walking the container costs one pass over at most 1 MB and adds no
-// dependency.
+// expensive. Walking the container costs one linear pass over the upload — a
+// few MB at the configured cap, never above the 5 MB ceiling below — and adds
+// no dependency.
 //
 // What the walk buys, in order of how much it matters:
 //
@@ -46,9 +47,22 @@ using Cluckwork.Domain.Common;
 // stored and renders broken. That is a display bug, not a security one.
 public static class ImageSanitizer
 {
-    // Generous for a logo — a 512x512 PNG is tens of KB — and small enough that
-    // buffering the whole upload in memory is not itself the attack.
-    public const int MaxByteLength = 1024 * 1024;
+    // The HARD ceiling: the most the stored-bytes column will ever physically
+    // tolerate, backing the DB check constraint (FarmLogoConfiguration) and the
+    // upper bound the configured operational limit is validated against
+    // (FarmLogoOptions). It is a schema invariant, not a policy knob — a
+    // constraint is baked into the schema and cannot read config, so it holds
+    // the ceiling while config sets the day-to-day limit under it.
+    //
+    // The OPERATIONAL limit — what an upload is actually held to — is the
+    // `maxByteLength` argument to Sanitize, supplied from config by the
+    // endpoint. It defaults to the ceiling only so a caller that does not care
+    // about size (the format/metadata tests) need not state one; the endpoint
+    // always passes the configured value.
+    //
+    // 5 MB is generous for a logo — a 512x512 PNG is tens of KB — and small
+    // enough that buffering one upload in memory is not itself the attack.
+    public const int MaxByteLengthCeiling = 5 * 1024 * 1024;
 
     // Above this a decode is measured in gigabytes of client RAM. 4096 is far
     // past any sane logo and still renders on a 4K display at 1:1.
@@ -57,9 +71,12 @@ public static class ImageSanitizer
     public static readonly Error Empty = Error.Validation(
         "FarmLogo.Empty", "The uploaded file is empty.");
 
-    public static readonly Error TooLarge = Error.Validation(
+    // A factory, not a field: the limit is configurable now, so the message has
+    // to carry whatever it was actually held to. The CODE stays "FarmLogo.TooLarge"
+    // so the status mapping (413) and the SPA's switch on it do not move.
+    public static Error TooLarge(int maxByteLength) => Error.Validation(
         "FarmLogo.TooLarge",
-        $"The logo must be {MaxByteLength / 1024} KB or smaller.");
+        $"The logo must be {maxByteLength / 1024} KB or smaller.");
 
     public static readonly Error UnsupportedFormat = Error.Validation(
         "FarmLogo.UnsupportedFormat",
@@ -89,10 +106,11 @@ public static class ImageSanitizer
 
     private static readonly byte[] PngSignature = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
 
-    public static Result<SanitizedImage> Sanitize(ReadOnlySpan<byte> data)
+    public static Result<SanitizedImage> Sanitize(
+        ReadOnlySpan<byte> data, int maxByteLength = MaxByteLengthCeiling)
     {
         if (data.Length == 0) return Result.Failure<SanitizedImage>(Empty);
-        if (data.Length > MaxByteLength) return Result.Failure<SanitizedImage>(TooLarge);
+        if (data.Length > maxByteLength) return Result.Failure<SanitizedImage>(TooLarge(maxByteLength));
 
         if (data.StartsWith(PngSignature)) return SanitizePng(data);
 

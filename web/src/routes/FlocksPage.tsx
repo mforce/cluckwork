@@ -11,7 +11,8 @@ import { Dialog } from "../components/Dialog";
 import { StatusBadge } from "../components/StatusBadge";
 import { useConfirm } from "../components/useConfirm";
 import { useAuth } from "../auth/useAuth";
-import { ageWeeks, todayIso } from "../lib/dates";
+import { ageWeeks } from "../lib/dates";
+import { useFarmToday } from "../farm/useFarm";
 import { newId } from "../lib/ids";
 
 function errorMessage(err: unknown): string {
@@ -23,6 +24,9 @@ function errorMessage(err: unknown): string {
 // Archived flocks leave pickers and the dashboard; this screen still shows them
 // behind a toggle. Current bird count math is the mortality slice, not this one.
 export function FlocksPage() {
+  // Farm-local, not browser-local: since #35 the API judges "is this date in
+  // the future?" against the FARM's day, so the pickers must agree (#123).
+  const today = useFarmToday();
   // Creating a flock records the day's work (birds arrived); corrections,
   // lifecycle changes, and manual movements are admin-only (#73).
   const { isAdmin } = useAuth();
@@ -36,7 +40,7 @@ export function FlocksPage() {
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
   const [breed, setBreed] = useState("");
-  const [placed, setPlaced] = useState(todayIso());
+  const [placed, setPlaced] = useState(today);
   const [count, setCount] = useState(100);
 
   // edit — dialog seeded from the row
@@ -49,7 +53,7 @@ export function FlocksPage() {
   // bird ledger (#54): one flock's movements open at a time
   const [ledgerFlockId, setLedgerFlockId] = useState<string | null>(null);
   const [movements, setMovements] = useState<BirdMovement[] | null>(null);
-  const [mvDate, setMvDate] = useState(todayIso());
+  const [mvDate, setMvDate] = useState(today);
   const [mvType, setMvType] = useState("Cull");
   const [mvQty, setMvQty] = useState(1);
   const [mvNote, setMvNote] = useState("");
@@ -126,7 +130,7 @@ export function FlocksPage() {
     if (ok) {
       setName("");
       setBreed("");
-      setPlaced(todayIso());
+      setPlaced(today);
       setCount(100);
       setCreating(false);
     }
@@ -167,7 +171,7 @@ export function FlocksPage() {
     }
     setLedgerFlockId(id);
     setMovements(null);
-    setMvDate(todayIso());
+    setMvDate(today);
     ledgerRequest.current = id;
     try {
       const rows = await listBirdMovements(id, { limit: 50 });
@@ -230,7 +234,7 @@ export function FlocksPage() {
               onChange={(e) => setBreed(e.target.value)} />
           </label>
           <label>Placed
-            <input type="date" value={placed} max={todayIso()} required
+            <input type="date" value={placed} max={today} required
               onChange={(e) => setPlaced(e.target.value)} />
           </label>
           <label>Birds
@@ -259,7 +263,7 @@ export function FlocksPage() {
               onChange={(e) => setEditBreed(e.target.value)} />
           </label>
           <label>Edit placement date
-            <input type="date" value={editPlaced} max={todayIso()}
+            <input type="date" value={editPlaced} max={today}
               onChange={(e) => setEditPlaced(e.target.value)} />
           </label>
           <label>Edit bird count
@@ -364,7 +368,7 @@ export function FlocksPage() {
           <Dialog open={recording && isAdmin} title="Record bird movement" onClose={() => setRecording(false)}>
             <form className="inline-form" onSubmit={onRecordMovement}>
               <label>Date
-                <input type="date" value={mvDate} max={todayIso()}
+                <input type="date" value={mvDate} max={today}
                   onChange={(e) => setMvDate(e.target.value)} />
               </label>
               <label>Type

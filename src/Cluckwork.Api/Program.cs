@@ -1,5 +1,7 @@
 using System.Security.Cryptography;
 using Cluckwork.Api;
+using Cluckwork.Api.Configuration;
+using Microsoft.Extensions.Options;
 using Cluckwork.Api.Endpoints.Accounts;
 using Cluckwork.Api.Endpoints.Audit;
 using Cluckwork.Api.Endpoints.Auth;
@@ -384,6 +386,14 @@ builder.Services.AddScoped<
 builder.Services.AddScoped<
     Cluckwork.Application.Features.Accounts.RemoveFarmLogo.RemoveFarmLogoHandler>();
 builder.Services.AddScoped<VoidDailyEntryHandler>();
+
+// --- Farm logo upload cap (#123): operational limit under the domain ceiling,
+// validated at startup so a value above the ceiling fails the boot, not the
+// first upload.
+builder.Services.AddOptions<FarmLogoOptions>()
+    .Bind(builder.Configuration.GetSection(FarmLogoOptions.SectionName))
+    .ValidateOnStart();
+builder.Services.AddSingleton<IValidateOptions<FarmLogoOptions>, FarmLogoOptionsValidator>();
 
 // --- Startup seed (single-farm MVP) ---
 builder.Services.Configure<SeedOptions>(builder.Configuration.GetSection(SeedOptions.SectionName));

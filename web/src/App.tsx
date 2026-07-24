@@ -1,6 +1,7 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider } from "./auth/AuthContext";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { FarmProvider } from "./farm/FarmContext";
 import { ProtectedRoute } from "./routes/ProtectedRoute";
 import { AppLayout } from "./routes/AppLayout";
 import { Login } from "./routes/Login";
@@ -21,6 +22,7 @@ import { AuditPage } from "./routes/AuditPage";
 import { ExportPage } from "./routes/ExportPage";
 import { ProductsPage } from "./routes/ProductsPage";
 import { UsersPage } from "./routes/UsersPage";
+import { SettingsPage } from "./routes/SettingsPage";
 
 export function App() {
   return (
@@ -36,7 +38,10 @@ export function App() {
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route element={<ProtectedRoute />}>
-              <Route element={<AppLayout />}>
+              {/* Inside the auth gate (it needs a token to read /account) and
+                  outside the shell, so the sidebar's branding slot and every
+                  screen's date fields read the same farm (#123). */}
+              <Route element={<FarmProvider><AppLayout /></FarmProvider>}>
                 <Route index element={<Dashboard />} />
                 <Route path="daily-entry" element={<DailyEntryPage />} />
                 <Route path="stock" element={<StockPage />} />
@@ -53,6 +58,7 @@ export function App() {
                 <Route path="audit" element={<AuditPage />} />
                 <Route path="export" element={<ExportPage />} />
                 <Route path="users" element={<UsersPage />} />
+                <Route path="settings" element={<SettingsPage />} />
                 <Route path="help" element={<HelpPage />} />
               </Route>
             </Route>

@@ -3,6 +3,7 @@ import {
   apiGet,
   apiPost,
   apiPut,
+  apiPutBytes,
   apiDelete,
   apiFetch,
   apiGetBlob,
@@ -337,6 +338,54 @@ describe("write idempotency", () => {
     expect(url).toBe("/api/v1/egg-grades/1");
     expect(init.method).toBe("PUT");
     expect(headerOf(fetchMock.mock.calls[0] as Call, "Idempotency-Key")).toBe("put-key");
+  });
+
+  it("apiPut declares JSON — the default no caller has to state", async () => {
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
+    await apiPut("/egg-grades/1", { name: "A" }, "put-key");
+    expect(headerOf(fetchMock.mock.calls[0] as Call, "Content-Type")).toBe("application/json");
+  });
+
+  it("apiPutBytes sends the body as-is under its own content type (#123 logo upload)", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ contentHash: "abc" }));
+    const bytes = new Blob([new Uint8Array([1, 2, 3])], { type: "image/png" });
+
+    await apiPutBytes("/account/logo", bytes, "image/png", "logo-key");
+
+    const [url, init] = fetchMock.mock.calls[0] as Call;
+    expect(url).toBe("/api/v1/account/logo");
+    expect(init.method).toBe("PUT");
+    // The caller's type survives: raw() must not overwrite it with JSON, or the
+    // body would go up declared as something it is not.
+    expect(headerOf(fetchMock.mock.calls[0] as Call, "Content-Type")).toBe("image/png");
+    expect(headerOf(fetchMock.mock.calls[0] as Call, "Idempotency-Key")).toBe("logo-key");
+    // Not JSON-encoded — the Blob itself is the body.
+    expect(init.body).toBe(bytes);
+  });
+
+  it("apiPutBytes generates a key when none is given", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ contentHash: "abc" }));
+    await apiPutBytes("/account/logo", new Blob(["x"]), "application/octet-stream");
+    expect(headerOf(fetchMock.mock.calls[0] as Call, "Idempotency-Key")).toBeTruthy();
+  });
+
+  it("apiPutBytes retries the SAME bytes after a 401 refresh", async () => {
+    setAccessToken("stale");
+    const bytes = new Blob(["png"], { type: "image/png" });
+    fetchMock
+      .mockResolvedValueOnce(new Response(null, { status: 401 }))   // the write
+      .mockResolvedValueOnce(accessResponse("fresh"))               // the refresh
+      .mockResolvedValueOnce(jsonResponse({ contentHash: "abc" })); // the retry
+
+    await apiPutBytes("/account/logo", bytes, "image/png", "logo-key");
+
+    const writes = callsTo(fetchMock, "/account/logo");
+    expect(writes).toHaveLength(2);
+    // A body consumed by the first attempt would make the retry upload nothing;
+    // a Blob can be read again, which is why the retry is safe at all.
+    expect(writes[1][1].body).toBe(bytes);
+    expect(authOf(writes[1])).toBe("Bearer fresh");
+    expect(headerOf(writes[1], "Idempotency-Key")).toBe("logo-key");
   });
 
   it("apiDelete sends method DELETE with an Idempotency-Key", async () => {

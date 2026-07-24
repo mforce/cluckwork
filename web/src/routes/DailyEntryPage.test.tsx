@@ -6,6 +6,8 @@ import {
 } from "../api/cluckwork";
 import type { Flock, EggGrade, DailyEntry } from "../api/cluckwork";
 import { todayIso } from "../lib/dates";
+import { FarmContext } from "../farm/FarmContext";
+import { account, farmState } from "../test/fixtures";
 
 // DailyEntry has no auth/router deps — mock only the API seam it loads from.
 vi.mock("../api/cluckwork", () => ({
@@ -549,5 +551,46 @@ describe("DailyEntryPage grading ceiling", () => {
     // Nothing unallocated, so no grade can take more.
     expect(screen.getByRole("button", { name: "Increase grade a" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Increase grade b" })).toBeDisabled();
+  });
+});
+
+// #123 — the date field's ceiling comes from the FARM's clock. Since #35 the
+// API judges "is this in the future?" against the farm's day, so a picker on
+// the browser's day offers a date the save then refuses (device ahead of the
+// farm) or hides a legitimate one (device behind).
+describe("DailyEntryPage farm-local date", () => {
+  const farmed = (timeZoneId: string) => render(
+    <FarmContext.Provider value={farmState({ farm: account({ timeZoneId }) })}>
+      <DailyEntryPage />
+    </FarmContext.Provider>);
+
+  it("opens on the farm's today and refuses to go past it", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    // One instant, three farm days: still the 15th in UTC and Los Angeles,
+    // already the 16th in Tokyo.
+    vi.setSystemTime(new Date("2026-07-15T23:30:00Z"));
+    try {
+      farmed("Asia/Tokyo");
+      await screen.findByLabelText("Grade A");
+      const date = screen.getByLabelText("Date");
+      expect(date).toHaveAttribute("max", "2026-07-16");
+      expect(date).toHaveValue("2026-07-16");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("gives a different farm a different ceiling at the same instant", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date("2026-07-15T23:30:00Z"));
+    try {
+      farmed("America/Los_Angeles");
+      await screen.findByLabelText("Grade A");
+      // The pair is the assertion: one clock, two farms, two days. A picker
+      // reading the runner's zone cannot produce both.
+      expect(screen.getByLabelText("Date")).toHaveAttribute("max", "2026-07-15");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

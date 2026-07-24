@@ -350,7 +350,17 @@ on the account row while there is exactly one farm.
 that decide how it reads: **timezone**, **locale**, **currency**, and **unit
 system**, with optional **first day of week** and date/time format overrides.
 Owner and Manager can edit them; everyone reads them, because formatting money,
-dates and numbers is not a permission.
+dates and numbers is not a permission. They live on one screen — **Setup → Farm
+settings** — which is also where the logo is uploaded and cleared.
+
+What each one *does today* is not yet what it will do. The **timezone** is fully
+wired: it decides the operational day, and every capture screen's date field
+follows it the moment it is saved. **Locale**, **unit system** and the
+date/time **format overrides** are stored and validated, and nothing renders
+through them yet — money still prints as `12.34 USD` and dates as ISO. They are
+recorded now so the display work (#45, the i18n infrastructure) has settings to
+read rather than a migration to run; the settings screen says as much rather
+than promising an effect the app does not yet have.
 
 Each one has teeth. The **timezone** is the farm's **operational day** — change
 it and every date rule moves with it the same minute, so a timezone that the
@@ -363,12 +373,19 @@ copy gets a 409 and reloads.
 
 **Farm logo (#123)** — an image shown as branding in the app chrome, falling
 back to Cluckwork's own branding when none is set. Owner and Manager can upload
-or clear it; everyone sees it. **PNG, JPEG or WebP, up to 1 MB and 4096 pixels
-a side, and it must be a still image.** SVG is refused: it is a document that
+or clear it; everyone sees it. **PNG, JPEG or WebP, up to a configurable cap (2 MB by default) and 4096
+pixels a side, and it must be a still image.** SVG is refused: it is a document that
 can carry script, and this image is rendered back to every user of the farm.
 Animated PNG and animated WebP are refused too — an animated frame can hide
 data inside itself where the check that cleans the rest of the file never
 looks.
+
+The chrome renders it in a small **square** slot, so the guidance is to upload a
+square, simple mark — a symbol or a single letter, tightly cropped — rather than
+a wide wordmark or a detailed illustration, which shrink to something unreadable
+at sidebar size. The slot fits the whole image (`object-fit: contain`), so a
+wide logo keeps its aspect and loses its height. A larger surface for a detailed
+logo (a post-login splash) is a separate follow-up (#179).
 
 What gets stored is never quite the file that was uploaded. The image is taken
 apart and rebuilt, which drops two things on purpose: **embedded metadata** — a
@@ -467,6 +484,19 @@ eggs still inside a medication withholding period — would read as available a
 day early. A farm ahead of UTC has the mirror problem: its legitimate today
 looks like tomorrow. Recording a genuinely future day is refused outright; there
 is no longer any day-either-side slack.
+
+The date fields agree with it (#123). Every picker that records *when something
+happened* — daily entry, flock placement and bird movements, water, feed
+purchase and usage, expenses, sales orders and payments, and the `to` end of a
+report range — opens on the farm's today and refuses to go past it, the farm's
+and not the one on the device in your hand. A phone travelling ahead of the farm
+used to offer a day the save would then refuse, and a phone behind it hid a day
+that was perfectly legal; both are gone.
+
+Three date fields are deliberately *not* capped, because a future date is the
+point of them: a feed lot's **expiry**, and the range filters on History and
+Water. Change the farm's timezone and every capped picker follows on the next
+screen that renders.
 
 **Roles (#103, spec §5.1)** — five shipped: **Admin (owner)** does
 everything including user management; **Manager** runs the farm — every

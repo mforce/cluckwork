@@ -17,10 +17,14 @@ public sealed class SetFarmLogoHandler(
     IAuditWriter audit,
     IClock clock)
 {
+    // `maxByteLength` is the OPERATIONAL cap, supplied by the endpoint from
+    // config (#123). The Application layer takes it as a plain int rather than
+    // reading the API's options type — the sanitizer is the authority on
+    // "too large", and this is the size it judges against.
     public async Task<Result<FarmLogoMetadata>> HandleAsync(
-        ReadOnlyMemory<byte> upload, Guid accountId, CancellationToken ct)
+        ReadOnlyMemory<byte> upload, Guid accountId, int maxByteLength, CancellationToken ct)
     {
-        var sanitized = ImageSanitizer.Sanitize(upload.Span);
+        var sanitized = ImageSanitizer.Sanitize(upload.Span, maxByteLength);
         if (sanitized.IsFailure) return Result.Failure<FarmLogoMetadata>(sanitized.Error);
 
         var image = sanitized.Value;

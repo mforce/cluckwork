@@ -13,11 +13,20 @@ public static class SecurityHeaders
     // index.html into a same-origin file precisely so script-src needs no hash
     // or nonce (#144). frame-ancestors 'none' blocks clickjacking; object-src
     // 'none' and base-uri 'self' close the usual injection escape hatches.
+    //
+    // img-src carries `blob:` for one reason (#123): the farm logo is served
+    // from an endpoint behind the Authorization header, which an <img src> to
+    // /api/v1/account/logo cannot send. The SPA fetches the bytes through the
+    // API client and renders them from an object URL, and `blob:` is what lets
+    // that <img> paint. It widens img-src only to URLs this document itself
+    // minted — a blob: URL is same-origin, opaque and unguessable, and cannot
+    // be pointed at a remote host — so it does not reopen an exfiltration
+    // channel the way adding a scheme like https: would.
     public const string ContentSecurityPolicy =
         "default-src 'self'; " +
         "script-src 'self'; " +
         "style-src 'self'; " +
-        "img-src 'self'; " +
+        "img-src 'self' blob:; " +
         "font-src 'self'; " +
         "connect-src 'self'; " +
         "frame-src 'none'; " +

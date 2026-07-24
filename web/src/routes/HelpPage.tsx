@@ -27,6 +27,7 @@ const TOC = [
   ["history", "History"],
   ["audit", "Audit log"],
   ["export", "Export & backup"],
+  ["farm-settings", "Farm settings"],
   ["mistakes", "Fixing mistakes"],
   ["glossary", "Glossary"],
 ] as const;
@@ -543,6 +544,56 @@ export function HelpPage() {
         </li>
       </ul>
 
+      <h3 id="farm-settings">Farm settings (admin)</h3>
+      <ul>
+        <li>
+          <strong>Setup → Farm settings</strong> holds the farm&apos;s name and
+          the four things that decide how everything reads:{" "}
+          <strong>timezone</strong>, <strong>locale</strong>,{" "}
+          <strong>currency</strong> and <strong>unit system</strong>. First day
+          of week and the date and time formats are optional — leave them blank
+          and the locale decides. The timezone takes effect everywhere the
+          moment it is saved; the rest are recorded against the farm and will
+          drive how amounts, dates and measurements are displayed once that
+          formatting lands.
+        </li>
+        <li>
+          The <strong>timezone</strong> is the farm&apos;s day. Every field that
+          records <em>when something happened</em> — daily entry, flocks, water,
+          feed usage and purchases, expenses, orders and payments — opens on it
+          and refuses to go past it, whatever day the phone or laptop in your
+          hand is on, so a device travelling ahead of the farm can no longer
+          offer a date the save then refuses. Dates that are meant to be in the
+          future are not capped: a feed batch&apos;s <strong>expiry</strong>, and
+          the date ranges you filter History and Water by.
+        </li>
+        <li>
+          The <strong>currency</strong> locks the moment the farm records its
+          first amount — a sale, a payment, an expense, a priced product, or
+          money spent on feed. The field shows as locked with the reason rather
+          than letting you type a code that would be refused. Nothing already
+          recorded is ever re-priced, which is exactly why it locks.
+        </li>
+        <li>
+          The <strong>logo</strong> replaces the Cluckwork mark in the sidebar
+          for everyone at the farm. PNG, JPEG or WebP, up to the size limit shown
+          on the screen (2 MB by default) and 4096 pixels a side.
+          Animated images are refused rather than flattened. What gets stored
+          is a rebuilt copy:
+          camera and location details are stripped out on the way in — a photo
+          taken on a phone carries where it was taken, and for a farm that is
+          its address. Remove it and the sidebar goes back to the Cluckwork
+          mark.
+        </li>
+        <li>
+          Use a <strong>square</strong> logo. It shows small in the sidebar, so
+          a simple, tightly-cropped mark — a symbol or a single letter — reads
+          much better there than a wide wordmark or a detailed picture, which
+          shrink to something unreadable. Keep a detailed logo for print or a
+          website; give the app a clean little mark.
+        </li>
+      </ul>
+
       <h3 id="mistakes">Fixing mistakes</h3>
       <p className="muted">
         Every fix in this table needs an admin sign-in (see "Who can do what")
@@ -644,7 +695,7 @@ export function HelpPage() {
           <tr><th scope="row">Navigation</th>
             <td>Screens live in the left sidebar on a computer; on a phone the four you use most are tabs across the bottom, the rest under More.</td></tr>
           <tr><th scope="row">Operational day</th>
-            <td>Dates mean your farm&apos;s calendar day, worked out from the farm&apos;s own timezone rather than a clock somewhere else. It is the same &quot;today&quot; everywhere: what counts as a future date when you record work, when eggs leave a withdrawal period, which eggs a sale can take, the day a flock is depleted or archived on, and the range reports open on.</td></tr>
+            <td>Dates mean your farm&apos;s calendar day, worked out from the farm&apos;s own timezone rather than a clock somewhere else. It is the same &quot;today&quot; everywhere: what counts as a future date when you record work, when eggs leave a withdrawal period, which eggs a sale can take, the day a flock is depleted or archived on, and the range reports open on. Every field that records WHEN SOMETHING HAPPENED opens on it and will not go past it, whatever day the device in your hand is on. Dates meant to fall in the future are not capped — a feed batch&apos;s expiry, and the History and Water filters.</td></tr>
           <tr><th scope="row">Too many sign-in attempts</th>
             <td>Sign-in is rate limited to slow password guessing: too many attempts from one place in a few minutes are refused with this message until a short cool-off passes. It never affects an already signed-in session.</td></tr>
           <tr><th scope="row">&quot;Something went wrong&quot; screen</th>
@@ -701,6 +752,12 @@ export function HelpPage() {
             <td>Admin correction of a submitted entry. Stock and bird ledger reconcile automatically; sold eggs are untouchable; previous values stay visible.</td></tr>
           <tr><th scope="row">Void (entry)</th>
             <td>Admin undo of a whole submitted entry — lots empty, deaths reverse, entry preserved as Voided. Refused once its eggs are sold.</td></tr>
+          <tr><th scope="row">Farm settings</th>
+            <td>The farm&apos;s name, timezone, locale, currency and unit system, plus optional first day of week and date/time formats. Setup → Farm settings; owners and managers edit, everyone reads — formatting money and dates is not a permission.</td></tr>
+          <tr><th scope="row">Currency lock</th>
+            <td>The farm currency stops being editable once anything has recorded an amount in it — a sale, a payment, an expense, a priced product, money spent on feed. The field shows locked with the reason. Nothing already recorded is ever re-priced, which is the whole point.</td></tr>
+          <tr><th scope="row">Farm logo</th>
+            <td>Your own image in place of the Cluckwork mark in the sidebar, uploaded from Farm settings. PNG, JPEG or WebP (2 MB by default), still images only; a square, simple mark reads best at the small sidebar size. Stored as a rebuilt copy with camera and location details stripped out.</td></tr>
         </tbody>
       </table>
 

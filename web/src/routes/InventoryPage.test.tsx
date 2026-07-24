@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, within, fireEvent, act } from "@testing-library/react";
 import { InventoryPage } from "./InventoryPage";
 import { renderWithProviders } from "../test/renderWithProviders";
+import { account } from "../test/fixtures";
 import {
   activateInventoryItem, createInventoryItem, deactivateInventoryItem, getAccount,
   listFlocks, listInventoryItems, listInventoryLots, listInventoryMovements,
@@ -51,7 +52,7 @@ const mockListMovements = vi.mocked(listInventoryMovements);
 const ADMIN = { sub: "u1", role: "Admin" };
 const WORKER = { sub: "u1" };
 
-const USD_ACCOUNT: Account = { id: "a1", name: "Farm", currencyCode: "USD", currencyMinorUnit: 2 };
+const USD_ACCOUNT: Account = account({ name: "Farm" });
 
 // Feed → feedable; Packaging → NOT feedable (isolates the purchase form: no usage
 // form renders, and with no lots no adjust form either); one inactive row proves
@@ -181,7 +182,7 @@ describe("InventoryPage create item", () => {
   it("creates an item with the full body + key, parsing cost at the account currency scale (JPY 0dp)", async () => {
     // JPY has 0 decimals: "5" must become 5 minor units, not 500 (a hard-coded
     // ×100 would fail here). The parse honours account.currencyMinorUnit.
-    mockGetAccount.mockResolvedValue({ id: "a2", name: "JP Farm", currencyCode: "JPY", currencyMinorUnit: 0 });
+    mockGetAccount.mockResolvedValue(account({ id: "a2", name: "JP Farm", currencyCode: "JPY", currencyMinorUnit: 0 }));
     mockCreate.mockResolvedValue({ id: "new1" });
     await renderReady(ADMIN);
 
@@ -222,7 +223,7 @@ describe("InventoryPage edit", () => {
   it("saves an edit: id, changed name/unit/cost + key, parsing cost at the account scale (BHD 3dp)", async () => {
     // BHD has 3 decimals: "2.5" must become 2500 minor units, not 250 (a hard-coded
     // ×100 would fail here). The edit parse honours account.currencyMinorUnit.
-    mockGetAccount.mockResolvedValue({ id: "a4", name: "BH Farm", currencyCode: "BHD", currencyMinorUnit: 3 });
+    mockGetAccount.mockResolvedValue(account({ id: "a4", name: "BH Farm", currencyCode: "BHD", currencyMinorUnit: 3 }));
     mockUpdate.mockResolvedValue(undefined);
     await renderReady(ADMIN);
 
@@ -256,7 +257,7 @@ describe("InventoryPage purchases", () => {
     { code: "JPY", minorUnit: 0, typed: "5", expected: 5 },
     { code: "BHD", minorUnit: 3, typed: "1.5", expected: 1500 },
   ])("records a purchase with unit cost parsed at the $code scale, full body + key ($typed → $expected)", async ({ code, minorUnit, typed, expected }) => {
-    mockGetAccount.mockResolvedValue({ id: "a3", name: "Farm", currencyCode: code, currencyMinorUnit: minorUnit });
+    mockGetAccount.mockResolvedValue(account({ id: "a3", name: "Farm", currencyCode: code, currencyMinorUnit: minorUnit }));
     mockPurchase.mockResolvedValue({ lotId: "lot9" });
     await renderReady(ADMIN);
     await openItem(PACKAGING);

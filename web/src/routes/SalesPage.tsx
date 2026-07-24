@@ -13,23 +13,32 @@ import { Dialog } from "../components/Dialog";
 import { useConfirm } from "../components/useConfirm";
 import { StatusBadge } from "../components/StatusBadge";
 import { newId } from "../lib/ids";
+import { useFarm, useFarmToday } from "../farm/useFarm";
 
 const PAGE = 50;
-
-function todayIso(): string {
-  const d = new Date();
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
 
 function errText(err: unknown): string {
   if (err instanceof ApiError) return err.message;
   return err instanceof Error ? err.message : String(err);
 }
 
+// A stored price as the decimal string the price field holds, at `scale` minor
+// units. Blank when the product carries no default, and blank rather than a
+// guess when the scale is not known yet — a wrong scale here is a price out by
+// a factor of a hundred, and an empty field simply falls back to the server's
+// own default for the line.
+function priceInput(defaultPriceMinorUnits: number | null, scale: number | null): string {
+  if (defaultPriceMinorUnits === null || scale === null) return "";
+  return (defaultPriceMinorUnits / 10 ** scale).toFixed(scale);
+}
+
 // #23 + #24 (orders half): create a draft order, add/edit/remove graded lines,
 // confirm (FIFO allocation), cancel drafts, browse/filter the order list.
 export function SalesPage() {
+  // Farm-local, not browser-local: since #35 the API judges "is this date in
+  // the future?" against the FARM's day, so the pickers must agree (#123).
+  const today = useFarmToday();
+  const { farm } = useFarm();
   // Void undoes a confirmed sale — admin-only (#73); the API enforces it too.
   const { isAdmin, role } = useAuth();
   // Payments are the Sales tier (#104): Owner/Manager/Sales see and record;
@@ -56,13 +65,27 @@ export function SalesPage() {
   const [creatingOrder, setCreatingOrder] = useState(false);
   const [paying, setPaying] = useState(false);
   const [customerId, setCustomerId] = useState("");
-  const [orderDate, setOrderDate] = useState(todayIso());
+  const [orderDate, setOrderDate] = useState(today);
   // active draft being built
   const [active, setActive] = useState<SalesOrder | null>(null);
   const [productId, setProductId] = useState("");
   const [unit, setUnit] = useState("Egg");
   const [qty, setQty] = useState(30);
   const [price, setPrice] = useState("");
+
+  // ONE scale for every price this screen reads or writes (#123). The two
+  // sources are the same currency by construction — an order is created in the
+  // farm's currency, and since #159 a priced product locks the farm to it — so
+  // this is one number reached two ways, not a choice between two answers.
+  //
+  // It used to be a choice: the prefill divided by the PRODUCT's minor unit
+  // while the submit multiplied by the ORDER's. Latent while they cannot
+  // differ, and an accepted prefill 100x out on the day they can — arriving as
+  // an EXPLICIT price, which is exactly the case the server's
+  // ProductPriceCurrencyMismatch guard does not fire on.
+  const farmScale = farm?.currencyMinorUnit ?? null;
+  const priceScale = active?.currencyMinorUnit ?? farmScale;
+
   // per-row edit state (draft orders)
   const [editItemId, setEditItemId] = useState<string | null>(null);
   const [editQty, setEditQty] = useState(1);
@@ -90,7 +113,7 @@ export function SalesPage() {
   // Payments (#89, admin-only money data) — settlement state of the open
   // confirmed order.
   const [payments, setPayments] = useState<OrderPayments | null>(null);
-  const [payDate, setPayDate] = useState(todayIso());
+  const [payDate, setPayDate] = useState(today);
   const [payAmount, setPayAmount] = useState("");
   const [payMethod, setPayMethod] = useState("Cash");
   const [payRef, setPayRef] = useState("");
@@ -135,10 +158,10 @@ export function SalesPage() {
           setUnit(first.defaultUnit);
           // Prefill the price from the FIRST product too — the hard-coded
           // starter value used to shadow the product default until the user
-          // changed the selection (codex review of #100).
-          setPrice(first.defaultPriceMinorUnits === null ? "" :
-            (first.defaultPriceMinorUnits / 10 ** first.currencyMinorUnit)
-              .toFixed(first.currencyMinorUnit));
+          // changed the selection (codex review of #100). At the farm's scale:
+          // there is no order yet, and the order this will be typed into will
+          // carry the farm's currency.
+          setPrice(priceInput(first.defaultPriceMinorUnits, farmScale));
         }
       })
       .catch(() => setLoadError("Could not load sales data. Is the API up?"));
@@ -372,7 +395,13 @@ export function SalesPage() {
       <div className="page-head">
         <h2>Sales</h2>
         {customers.length > 0 && (
-          <button type="button" onClick={() => { setError(null); setCreatingOrder(true); }}>
+          // Re-seeded on open, not only at mount: a tab left open across
+          // farm-midnight would otherwise offer yesterday as the order date
+          // while the picker's own ceiling had already moved on (codex review
+          // of #123).
+          <button type="button" onClick={() => {
+            setError(null); setOrderDate(today); setCreatingOrder(true);
+          }}>
             <Plus size={16} aria-hidden /> New order
           </button>
         )}
@@ -393,7 +422,7 @@ export function SalesPage() {
             </select>
           </label>
           <label>Date
-            <input type="date" value={orderDate} max={todayIso()}
+            <input type="date" value={orderDate} max={today}
               onChange={(e) => setOrderDate(e.target.value)} />
           </label>
           {/* An open dialog renders its own copy of the error. */}
@@ -449,8 +478,11 @@ export function SalesPage() {
                               <button className="link" disabled={busy} onClick={() => {
                                 setEditItemId(i.id);
                                 setEditQty(i.quantity);
-                                setEditPrice((i.unitPriceMinorUnits / 10 ** i.currencyMinorUnit)
-                                  .toFixed(i.currencyMinorUnit));
+                                // The ORDER's scale, not the line's own
+                                // snapshot: the edit is submitted at the
+                                // order's, and reading the row's would be the
+                                // same two-scales bug one field over.
+                                setEditPrice(priceInput(i.unitPriceMinorUnits, priceScale));
                               }}>edit</button>
                               <button className="link" disabled={busy}
                                 onClick={() => onRemoveItem(i.id)}>remove</button>
@@ -475,9 +507,7 @@ export function SalesPage() {
                     const p = products.find((x) => x.id === e.target.value);
                     if (p) {
                       setUnit(p.defaultUnit);
-                      setPrice(p.defaultPriceMinorUnits === null ? "" :
-                        (p.defaultPriceMinorUnits / 10 ** p.currencyMinorUnit)
-                          .toFixed(p.currencyMinorUnit));
+                      setPrice(priceInput(p.defaultPriceMinorUnits, priceScale));
                     }
                   }}>
                     {products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -545,7 +575,9 @@ export function SalesPage() {
               </p>
               {payments.outstandingMinorUnits > 0 && (
                 <div className="panel-actions">
-                  <button type="button" onClick={() => { setError(null); setPaying(true); }}>
+                  <button type="button" onClick={() => {
+                    setError(null); setPayDate(today); setPaying(true);
+                  }}>
                     Record payment
                   </button>
                 </div>
@@ -554,7 +586,7 @@ export function SalesPage() {
               <Dialog open={paying} title="Record payment" onClose={() => setPaying(false)}>
                 <div className="form-grid">
                   <label>Date
-                    <input type="date" value={payDate} max={todayIso()}
+                    <input type="date" value={payDate} max={today}
                       onChange={(e) => setPayDate(e.target.value)} />
                   </label>
                   <label>Amount ({payments.currencyCode})

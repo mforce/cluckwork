@@ -1,6 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { screen, fireEvent, within } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { renderWithProviders } from "../test/renderWithProviders";
+import { AuthProvider } from "../auth/AuthContext";
+import { FarmContext } from "../farm/FarmContext";
+import { account, farmState } from "../test/fixtures";
 import { AppLayout } from "./AppLayout";
 
 // The theme toggle writes data-theme on the document root — reset it between
@@ -28,6 +32,74 @@ describe("AppLayout sidebar", () => {
     expect(screen.queryByRole("link", { name: "Daily entry" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Users" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Sales" })).not.toBeInTheDocument();
+  });
+
+  it("brands the shell with the app's own name when no farm has loaded (#123)", () => {
+    // No FarmProvider here — the default context, which is also what the real
+    // shell shows while /account is in flight and after one that failed.
+    renderWithProviders(<AppLayout />, { token: { sub: "u1", role: "Admin" } });
+    expect(screen.getByText("Cluckwork")).toBeInTheDocument();
+    expect(screen.queryByRole("presentation")).not.toBeInTheDocument();
+  });
+
+  it("brands the shell with the farm's own name once it is known", () => {
+    renderWithProviders(<AppLayout />, {
+      token: { sub: "u1", role: "Admin" },
+      farm: account({ name: "Hen House" }),
+    });
+    expect(screen.getByText("Hen House")).toBeInTheDocument();
+    expect(screen.queryByText("Cluckwork")).not.toBeInTheDocument();
+  });
+
+  it("says so — and offers the read again — when the farm could not be loaded", async () => {
+    // Silence here is the failure: without a banner the pickers follow the
+    // DEVICE's day and the screen looks perfectly healthy (codex review of
+    // #123).
+    let retried = 0;
+    render(
+      <MemoryRouter>
+        <AuthProvider>
+          <FarmContext.Provider value={farmState({
+            farm: null, loadFailed: true, refresh: async () => { retried += 1; return true; },
+          })}>
+            <AppLayout />
+          </FarmContext.Provider>
+        </AuthProvider>
+      </MemoryRouter>);
+
+    const banner = screen.getByRole("alert");
+    expect(banner).toHaveTextContent(/dates follow this device rather than the farm/);
+    fireEvent.click(within(banner).getByRole("button", { name: "Try again" }));
+    expect(retried).toBe(1);
+  });
+
+  it("says the farm may be out of date when a LATER read failed", async () => {
+    // The interesting half: a farm is still held (the provider keeps the last
+    // good one on purpose), so a banner keyed on `farm === null` stays silent
+    // while the timezone on screen is the one a save was meant to replace
+    // (round 2: codex + pi).
+    render(
+      <MemoryRouter>
+        <AuthProvider>
+          <FarmContext.Provider value={farmState({
+            farm: account({ name: "Hen House" }), loadFailed: true,
+          })}>
+            <AppLayout />
+          </FarmContext.Provider>
+        </AuthProvider>
+      </MemoryRouter>);
+
+    expect(screen.getByRole("alert")).toHaveTextContent(/may be out of date/);
+    // ...and not the never-loaded wording, which would be wrong here.
+    expect(screen.queryByText(/dates follow this device/)).not.toBeInTheDocument();
+  });
+
+  it("says nothing about the farm while one is loaded", () => {
+    renderWithProviders(<AppLayout />, {
+      token: { sub: "u1", role: "Admin" },
+      farm: account({ name: "Hen House" }),
+    });
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("toggles light ↔ night, flipping the control and the root data-theme", () => {

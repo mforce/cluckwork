@@ -60,7 +60,9 @@ async function raw<T>(
   accessToken?: string,
 ): Promise<T> {
   const headers = new Headers(init.headers);
-  headers.set("Content-Type", "application/json");
+  // A caller that declared its own type keeps it: the farm-logo upload (#123)
+  // PUTs raw image bytes, not JSON.
+  if (!headers.has("Content-Type")) headers.set("Content-Type", "application/json");
   if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
 
   const res = await fetch(`${BASE}${path}`, { ...init, headers });
@@ -192,6 +194,27 @@ export function apiPut<T>(path: string, body: unknown, idempotencyKey?: string):
     method: "PUT",
     headers: { "Idempotency-Key": idempotencyKey ?? newId() },
     body: JSON.stringify(body),
+  });
+}
+
+// Raw-bytes write (#123's logo upload): same auth and the same transparent
+// refresh-and-retry as apiPut, but the body goes up as it is instead of being
+// JSON-encoded. Safe to retry — a Blob can be read more than once. The declared
+// content type is courtesy only: the API sniffs the format from the bytes and
+// ignores what the client claims.
+export function apiPutBytes<T>(
+  path: string,
+  body: Blob,
+  contentType: string,
+  idempotencyKey?: string,
+): Promise<T> {
+  return apiFetch<T>(path, {
+    method: "PUT",
+    headers: {
+      "Content-Type": contentType,
+      "Idempotency-Key": idempotencyKey ?? newId(),
+    },
+    body,
   });
 }
 

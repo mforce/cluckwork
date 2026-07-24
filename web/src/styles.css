@@ -933,6 +933,28 @@ input.cell {
   color: var(--on-aubergine-mute);
 }
 
+/* The farm's own logo in the branding slot (#123). On a white plate because
+   the sidebar is aubergine and a dark logo would otherwise disappear into it;
+   `contain` keeps a wide wordmark from being cropped to a square. */
+.brand-logo {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
+  background: #fff;
+  border-radius: 4px;
+  padding: 2px;
+}
+
+/* Farm names are user text and can be long — the slot ellipsises rather than
+   pushing the sidebar wider or wrapping onto the nav. */
+.brand-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .nav-group {
   padding: 0.35rem 0;
 }
@@ -1667,4 +1689,127 @@ label.check {
     transition: none !important;
     animation: none !important;
   }
+}
+
+/* ------------------------------------------------- Farm settings (#123) */
+
+/* The logo and its two actions side by side, wrapping on a narrow screen so
+   the preview never squeezes the buttons off the row. */
+.logo-panel {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+  margin: 0.75rem 0;
+}
+
+/* A checkerboard-free plate: logos are often transparent PNGs, and on the
+   page surface a white mark would be invisible without one. Sized by height so
+   a wide wordmark and a square badge both read at the same optical weight. */
+.logo-preview {
+  height: 72px;
+  max-width: 240px;
+  object-fit: contain;
+  background: #fff;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-card);
+  padding: 0.5rem;
+}
+
+.logo-empty {
+  margin: 0;
+}
+
+.logo-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+/* The file input is the control; the label is what it looks like. Styled as a
+   button so it sits beside Remove, but it stays a label wrapping a real
+   <input type="file"> — keyboard and screen readers get the native picker. */
+.logo-file {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.92rem;
+  color: var(--on-aubergine);
+  background: var(--aubergine);
+  border-radius: 90px;
+  padding: 0.6rem 1.15rem;
+  margin: 0;
+}
+
+.logo-file:hover {
+  background: var(--aubergine-press);
+}
+
+.logo-file:has(input:disabled) {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* Hidden visually but still focusable, so the label's ring follows it. */
+.logo-file input[type="file"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.logo-file:focus-within {
+  outline: 2px solid var(--aubergine);
+  outline-offset: 2px;
+}
+
+/* The shell's "no farm loaded" strip — above the routed screen, so it is the
+   first thing read, and quiet enough not to compete with the screen itself. */
+.farm-warning {
+  margin: 0 0 1rem;
+  padding: 0.6rem 0.85rem;
+  border-radius: var(--r-card);
+  background: var(--tint-warn);
+  font-size: 0.9rem;
+}
+
+.farm-warning button.link {
+  font-size: 0.9rem;
+}
+
+/* The logo panel's live region stays mounted with nothing in it — a region
+   added to the DOM at the same moment as its text is not reliably announced —
+   so an empty one must cost no vertical space. */
+.success:empty {
+  margin: 0;
+}
+
+/* A locked field (the currency, once the farm has recorded an amount) is
+   read-only rather than disabled, so it keeps its place in the tab order and
+   carries its own explanation. It should still LOOK unavailable.
+
+   A class, NOT `input:read-only`: that pseudo-class matches any input the
+   readonly attribute does not APPLY to — every checkbox, radio and file input
+   in the app — so the blanket rule painted "not-allowed" on live, clickable
+   controls across Grades, Flocks, Water and Products (round 2: codex + agent). */
+input.locked {
+  background: var(--surface-2);
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+/* A note attached to a field by aria-describedby — the currency lock's reason,
+   the unknown-timezone warning. It sits beside the label rather than inside it
+   (a nested note joins the control's accessible NAME) and takes the full row so
+   it reads as belonging to the field above it, not to the one next along. */
+.form-grid .field-note {
+  flex-basis: 100%;
+  margin: -0.5rem 0 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  line-height: 1.4;
+  max-width: 44rem;
 }

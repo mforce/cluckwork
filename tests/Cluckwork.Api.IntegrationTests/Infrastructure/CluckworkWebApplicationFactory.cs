@@ -49,7 +49,14 @@ public class CluckworkWebApplicationFactory : WebApplicationFactory<Program>, IA
         // RateLimitingTests derive a factory that tightens them back down.
         builder.UseSetting("RateLimiting:Login:PermitLimit", "1000000");
         builder.UseSetting("RateLimiting:Refresh:PermitLimit", "1000000");
+        // A small logo cap (#123) so the size-boundary tests allocate KB, not
+        // megabytes. Well under the 5 MB ceiling, so it validates at startup.
+        builder.UseSetting("FarmLogo:MaxUploadBytes", LogoUploadCap.ToString());
     }
+
+    // Mirrors the FarmLogo:MaxUploadBytes above so the size tests can size their
+    // fixtures against the cap this host actually enforces.
+    public const int LogoUploadCap = 64 * 1024;
 }
 
 internal static class TestJwtKeys

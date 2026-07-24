@@ -1,5 +1,5 @@
 // Typed wrappers over the Cluckwork JSON API (mirrors the endpoint DTOs).
-import { apiDelete, apiGet, apiGetBlob, apiPost, apiPut } from "./client";
+import { apiDelete, apiGet, apiGetBlob, apiPost, apiPut, apiPutBytes } from "./client";
 
 export interface EggGrade {
   id: string;
@@ -313,16 +313,98 @@ export const voidOrder = (orderId: string, reason: string, key?: string) =>
 
 // --- Account ---
 
+// The full §4.5 localization set. currencyCode/currencyMinorUnit keep their
+// names and meaning from before #123 — every money field parses with them.
 export interface Account {
   id: string;
   name: string;
   currencyCode: string;
   currencyMinorUnit: number;
+  currencySymbol: string;
+  timeZoneId: string;
+  locale: string;
+  unitSystem: string;
+  // Null means "follow the locale" rather than a day.
+  firstDayOfWeek: string | null;
+  dateFormatOverride: string | null;
+  timeFormatOverride: string | null;
+  // Optimistic-concurrency token — sent back on save; a mismatch is a 409.
+  version: number;
+  // Null when the farm has no logo: the chrome shows app branding and never
+  // calls /account/logo. Otherwise it changes whenever the logo is replaced,
+  // which is what makes the cached blob URL self-invalidating.
+  logoContentHash: string | null;
 }
 
 // Clients need the account currency to parse money input correctly — a JPY
-// amount has 0 decimals, so assuming 2 silently multiplies costs by 100.
+// amount has 0 decimals, so assuming 2 silently multiplies costs by 100 — and
+// the timezone to cap date inputs at the FARM's today rather than the
+// browser's (#123). Readable by every authenticated role.
 export const getAccount = () => apiGet<Account>("/account");
+
+export interface FarmSettings {
+  settings: Account;
+  // False once any sales order, payment or expense has recorded an amount:
+  // §4.6 locks the currency for good. Surfaced so the screen can disable the
+  // field with a reason instead of letting the user find out as a 422.
+  canChangeCurrency: boolean;
+  // The logo upload cap in bytes (#123). It is server CONFIG, so it rides here
+  // rather than being duplicated as a client constant — a hardcoded copy would
+  // silently diverge from the server the moment the config changed.
+  logoMaxUploadBytes: number;
+}
+
+export interface UpdateFarmSettings {
+  name: string;
+  timeZoneId: string;
+  locale: string;
+  currencyCode: string;
+  unitSystem: string;
+  firstDayOfWeek: string | null;
+  dateFormatOverride: string | null;
+  timeFormatOverride: string | null;
+  version: number;
+}
+
+// Admin-gated (the read too — it carries canChangeCurrency).
+export const getFarmSettings = () => apiGet<FarmSettings>("/account/settings");
+
+export const updateFarmSettings = (body: UpdateFarmSettings, key?: string) =>
+  apiPut<void>("/account/settings", body, key);
+
+// --- Farm logo (#123) ---
+
+// What the server STORED, not what the browser sent: the upload is rewritten
+// without metadata, so the type and byte length can both differ from the file.
+export interface FarmLogo {
+  contentType: string;
+  contentHash: string;
+  width: number;
+  height: number;
+  byteLength: number;
+  updatedAt: string;
+}
+
+// The formats the sanitizer accepts. SVG is refused server-side (it is a
+// script container); listing them here only spares the user a round trip.
+export const LOGO_ACCEPT = "image/png,image/jpeg,image/webp";
+
+// Fetched through the API client rather than pointed at by an <img src>: the
+// endpoint is behind the Authorization header, which an <img> cannot send. The
+// caller renders the blob and revokes the URL.
+export const getFarmLogo = () => apiGetBlob("/account/logo");
+
+export const uploadFarmLogo = (file: File, key?: string) =>
+  apiPutBytes<FarmLogo>(
+    "/account/logo",
+    file,
+    // A browser that could not guess the type still uploads: the server sniffs
+    // the bytes and this header is never read.
+    file.type || "application/octet-stream",
+    key,
+  );
+
+export const removeFarmLogo = (key?: string) => apiDelete<void>("/account/logo", key);
 
 // --- Feed & inventory (#66) ---
 

@@ -1,6 +1,7 @@
 namespace Cluckwork.Api.Endpoints.Accounts;
 
 using System.Buffers;
+using Cluckwork.Api.Configuration;
 using Cluckwork.Application.Features.Accounts;
 using Cluckwork.Application.Features.Accounts.RemoveFarmLogo;
 using Cluckwork.Application.Features.Accounts.SetFarmLogo;
@@ -8,6 +9,7 @@ using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Media;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Http.Features;
+using Microsoft.Extensions.Options;
 using Microsoft.Net.Http.Headers;
 
 // #123 — the farm logo: upload, serve, remove.
@@ -33,7 +35,8 @@ public static class FarmLogoEndpoints
             .RequireAuthorization(AuthPolicies.AdminOnly)
             .WithName("SetFarmLogo")
             .WithSummary(
-                "Upload or replace the farm logo. Raw image body (PNG/JPEG/WebP), 1 MB max. " +
+                "Upload or replace the farm logo. Raw image body (PNG/JPEG/WebP), capped by the " +
+                "configured limit (2 MB by default). " +
                 "The stored image is a rewritten copy with metadata and trailing bytes removed.");
 
         group.MapDelete("/logo", RemoveLogo)
@@ -124,14 +127,19 @@ public static class FarmLogoEndpoints
     }
 
     private static async Task<IResult> SetLogo(
-        SetFarmLogoHandler handler, TenantContext tenant, HttpContext http, CancellationToken ct)
+        SetFarmLogoHandler handler, IOptionsSnapshot<FarmLogoOptions> logoOptions,
+        TenantContext tenant, HttpContext http, CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
 
+        // The OPERATIONAL cap, from config and validated at startup to sit at or
+        // under ImageSanitizer.MaxByteLengthCeiling (#123).
+        var maxBytes = logoOptions.Value.MaxUploadBytes;
+
         // A declared oversize is refused without reading a byte. Content-Length
         // is only a claim, which is why the read below is capped as well.
-        if (http.Request.ContentLength > ImageSanitizer.MaxByteLength)
-            return MapFailure(ImageSanitizer.TooLarge);
+        if (http.Request.ContentLength > maxBytes)
+            return MapFailure(ImageSanitizer.TooLarge(maxBytes));
 
         // Kestrel's default ceiling is 30 MB; lowering it here cuts an oversized
         // upload off at the transport instead of streaming it into the process.
@@ -140,47 +148,50 @@ public static class FarmLogoEndpoints
         // the guarantee. The read loop below is the guarantee.
         var sizeLimit = http.Features.Get<IHttpMaxRequestBodySizeFeature>();
         if (sizeLimit is { IsReadOnly: false })
-            sizeLimit.MaxRequestBodySize = ImageSanitizer.MaxByteLength;
+            sizeLimit.MaxRequestBodySize = maxBytes;
 
         // THE LOOP BOUND IS THE MEMORY GUARANTEE: the condition and the slice
         // both stop at the cap, so a body with no declared length — or a lying
         // one — is read that far and no further, whatever the client meant to
-        // send.
+        // send. The bound is `maxBytes`, not `buffer.Length`: a rented array can
+        // be LARGER than requested, so the logical cap — never the physical
+        // array — is what limits the read.
         //
-        // Rented at exactly the cap, not cap+1. ArrayPool's largest bucket is
-        // 1 MB, so asking for one byte more misses the pool entirely and
-        // allocates a fresh megabyte on the heap every upload (pi review of
-        // #168). The extra byte only ever existed to tell "exactly at the cap"
-        // from "over it", and the probe read below does that without it.
-        var buffer = ArrayPool<byte>.Shared.Rent(ImageSanitizer.MaxByteLength);
+        // Rented from ArrayPool, not freshly allocated. Verified empirically on
+        // .NET 10: Shared pools arrays well past 1 MB — 2 MB, 4 MB and the 5 MB
+        // ceiling all come back as the same instance — so at these sizes the
+        // rent genuinely reuses a buffer and spares the LOH/Gen2 churn a fresh
+        // `new byte[maxBytes]` per upload would create (codex review of #123
+        // corrected an earlier claim, and my own memory, that the pool stopped
+        // at 1 MB). Cleared on return because the pool is process-wide: a later
+        // rent by another tenant's request must not read the tail of this one's
+        // upload.
+        var buffer = ArrayPool<byte>.Shared.Rent(maxBytes);
         try
         {
             var total = 0;
             int read;
-            while (total < ImageSanitizer.MaxByteLength
+            while (total < maxBytes
                 && (read = await http.Request.Body.ReadAsync(
-                    buffer.AsMemory(total, ImageSanitizer.MaxByteLength - total), ct)) > 0)
+                    buffer.AsMemory(total, maxBytes - total), ct)) > 0)
                 total += read;
 
-            // A body that exactly filled the buffer might have more behind it.
+            // A body that exactly filled the cap might have more behind it.
             // One byte settles it.
-            if (total == ImageSanitizer.MaxByteLength)
+            if (total == maxBytes)
             {
                 var probe = new byte[1];
                 if (await http.Request.Body.ReadAsync(probe, ct) > 0)
-                    return MapFailure(ImageSanitizer.TooLarge);
+                    return MapFailure(ImageSanitizer.TooLarge(maxBytes));
             }
 
-            var result = await handler.HandleAsync(buffer.AsMemory(0, total), tenant.AccountId, ct);
+            var result = await handler.HandleAsync(buffer.AsMemory(0, total), tenant.AccountId, maxBytes, ct);
             return result.IsSuccess
                 ? Results.Ok(ToResponse(result.Value))
                 : MapFailure(result.Error);
         }
         finally
         {
-            // Cleared on return: the pool is process-wide, so a later rent by
-            // another tenant's request must not be able to read the tail of
-            // this one's upload.
             ArrayPool<byte>.Shared.Return(buffer, clearArray: true);
         }
     }

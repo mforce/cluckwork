@@ -10,7 +10,7 @@ import { Dialog } from "../components/Dialog";
 import { StatusBadge } from "../components/StatusBadge";
 import { NumberField } from "../components/NumberField";
 import { useConfirm } from "../components/useConfirm";
-import { todayIso } from "../lib/dates";
+import { useFarmToday } from "../farm/useFarm";
 import { newId } from "../lib/ids";
 
 const LAST_FLOCK_KEY = "cluckwork.lastFlockId";
@@ -34,6 +34,9 @@ function errorMessage(err: unknown): string {
 // F1 (#21): record the day's production by grade, then submit — submitting
 // turns grade lines into egg lots (stock).
 export function DailyEntryPage() {
+  // Farm-local, not browser-local: since #35 the API judges "is this date in
+  // the future?" against the FARM's day, so the pickers must agree (#123).
+  const today = useFarmToday();
   const [loading, setLoading] = useState(true);
   const { confirm, confirmDialog } = useConfirm();
   const [flocks, setFlocks] = useState<Flock[]>([]);
@@ -41,7 +44,7 @@ export function DailyEntryPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [flockId, setFlockId] = useState("");
-  const [date, setDate] = useState(todayIso());
+  const [date, setDate] = useState(today);
   const [totalEggs, setTotalEggs] = useState(0);
   const [cracked, setCracked] = useState(0);
   const [dirty, setDirty] = useState(0);
@@ -74,7 +77,7 @@ export function DailyEntryPage() {
   const [showNewFlock, setShowNewFlock] = useState(false);
   const [newFlockName, setNewFlockName] = useState("");
   const [newFlockBreed, setNewFlockBreed] = useState("");
-  const [newFlockPlaced, setNewFlockPlaced] = useState(todayIso());
+  const [newFlockPlaced, setNewFlockPlaced] = useState(today);
   const [newFlockCount, setNewFlockCount] = useState(100);
 
   useEffect(() => {
@@ -101,7 +104,7 @@ export function DailyEntryPage() {
           && /^\d{4}-\d{2}-\d{2}$/.test(wantedDate)
           && !Number.isNaN(Date.parse(`${wantedDate}T00:00:00Z`))
           && new Date(`${wantedDate}T00:00:00Z`).toISOString().slice(0, 10) === wantedDate
-          && wantedDate <= todayIso();
+          && wantedDate <= today;
         const flockOk = wantedFlock !== null && f.some((x) => x.id === wantedFlock);
         const deepLinked = flockOk && dateOk;
         if (deepLinked) setDate(wantedDate!);
@@ -272,7 +275,7 @@ export function DailyEntryPage() {
       setShowNewFlock(false);
       setNewFlockName("");
       setNewFlockBreed("");
-      setNewFlockPlaced(todayIso());
+      setNewFlockPlaced(today);
       setNewFlockCount(100);
     } catch (err) {
       setError(errorMessage(err));
@@ -374,7 +377,7 @@ export function DailyEntryPage() {
           </select>
         </label>
         <label>Date
-          <input type="date" value={date} max={todayIso()}
+          <input type="date" value={date} max={today}
             onChange={(e) => setDate(e.target.value)} />
         </label>
         <button className="link" type="button" onClick={() => { setError(null); setShowNewFlock(true); }}>
@@ -396,7 +399,7 @@ export function DailyEntryPage() {
               onChange={(e) => setNewFlockBreed(e.target.value)} />
           </label>
           <label>Placed
-            <input type="date" value={newFlockPlaced} max={todayIso()} required
+            <input type="date" value={newFlockPlaced} max={today} required
               onChange={(e) => setNewFlockPlaced(e.target.value)} />
           </label>
           <label>Birds

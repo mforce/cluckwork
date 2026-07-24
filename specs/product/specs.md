@@ -139,7 +139,9 @@ farm_logos
 - id
 - account_id
 - farm_id: unique — one logo per farm
-- content: the image bytes, PNG / JPEG / WebP only, 1 MB max, still images only
+- content: the image bytes, PNG / JPEG / WebP only, still images only. Size is
+  capped by config (`FarmLogo:MaxUploadBytes`, 2 MB default) under a fixed 5 MB
+  schema ceiling the check constraint enforces (#123)
 - content_type: sniffed from the bytes, never the uploaded declaration
 - width / height: read from the image header, capped
 - byte_length: stored, not derived — see below

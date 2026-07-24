@@ -29,15 +29,45 @@ public sealed class ImageSanitizerTests
     }
 
     [Fact]
-    public void Rejects_AnythingOverTheSizeCap()
+    public void Rejects_AnythingOverTheOperationalLimit()
     {
-        var oversize = new byte[ImageSanitizer.MaxByteLength + 1];
+        // One byte past the supplied cap. The cap is the caller's now (config in
+        // production), so the test states an explicit small one.
+        const int cap = 4096;
+        var oversize = new byte[cap + 1];
         RealPng.CopyTo(oversize, 0);
 
-        var result = ImageSanitizer.Sanitize(oversize);
+        var result = ImageSanitizer.Sanitize(oversize, cap);
 
         Assert.True(result.IsFailure);
-        Assert.Equal(ImageSanitizer.TooLarge, result.Error);
+        Assert.Equal(ImageSanitizer.TooLarge(cap).Code, result.Error.Code);
+        // The message carries the cap it was actually held to, in KB.
+        Assert.Contains($"{cap / 1024} KB", result.Error.Description);
+    }
+
+    [Fact]
+    public void AcceptsUpToTheSuppliedCap_AndDefaultsToTheCeiling()
+    {
+        // A blob that a small cap rejects is accepted under a larger one — the
+        // limit is genuinely the argument, not a constant.
+        var small = new byte[8192];
+        RealPng.CopyTo(small, 0);
+
+        Assert.True(ImageSanitizer.Sanitize(small, 4096).IsFailure);
+        Assert.True(ImageSanitizer.Sanitize(small, 16384).IsSuccess);
+
+        // The default is the CEILING, and the assertion has to be able to tell
+        // it from the old 1 MB value it used to be: a blob just over 1 MB is
+        // rejected under a 1 MB cap but accepted under the default. Padding
+        // lands after IEND, so the sanitizer truncates it back — the input size
+        // is what the cap judges, which is the point (agent + codex review of
+        // #123; the earlier 8 KB blob passed under any default >= 8 KB).
+        var overOneMb = new byte[(1024 * 1024) + 4096];
+        RealPng.CopyTo(overOneMb, 0);
+
+        Assert.True(ImageSanitizer.Sanitize(overOneMb, 1024 * 1024).IsFailure);
+        Assert.True(ImageSanitizer.Sanitize(overOneMb).IsSuccess);
+        Assert.Equal(5 * 1024 * 1024, ImageSanitizer.MaxByteLengthCeiling);
     }
 
     // The allowlist is by leading bytes. SVG is the one that matters: it is a
