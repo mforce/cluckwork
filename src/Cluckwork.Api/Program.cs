@@ -335,6 +335,10 @@ builder.Services.AddScoped<IValidator<UpdateWaterUsageCommand>, UpdateWaterUsage
 builder.Services.AddScoped<IValidator<CreateUserCommand>, CreateUserValidator>();
 builder.Services.AddScoped<IValidator<Cluckwork.Application.Features.Users.UpdateUser.UpdateUserCommand>,
     Cluckwork.Application.Features.Users.UpdateUser.UpdateUserValidator>();
+builder.Services.AddScoped<IValidator<Cluckwork.Application.Features.Users.SetUserPassword.SetUserPasswordCommand>,
+    Cluckwork.Application.Features.Users.SetUserPassword.SetUserPasswordValidator>();
+builder.Services.AddScoped<IValidator<Cluckwork.Application.Features.Users.ChangeOwnPassword.ChangeOwnPasswordCommand>,
+    Cluckwork.Application.Features.Users.ChangeOwnPassword.ChangeOwnPasswordValidator>();
 builder.Services.AddScoped<IValidator<AdjustDailyEntryCommand>, AdjustDailyEntryValidator>();
 builder.Services.AddScoped<IValidator<VoidDailyEntryCommand>, VoidDailyEntryValidator>();
 builder.Services.AddScoped<
@@ -381,6 +385,8 @@ builder.Services.AddScoped<RecordBirdMovementHandler>();
 builder.Services.AddScoped<ReactivateFlockHandler>();
 builder.Services.AddScoped<CreateUserHandler>();
 builder.Services.AddScoped<Cluckwork.Application.Features.Users.UpdateUser.UpdateUserHandler>();
+builder.Services.AddScoped<Cluckwork.Application.Features.Users.SetUserPassword.SetUserPasswordHandler>();
+builder.Services.AddScoped<Cluckwork.Application.Features.Users.ChangeOwnPassword.ChangeOwnPasswordHandler>();
 builder.Services.AddScoped<AdjustDailyEntryHandler>();
 builder.Services.AddScoped<
     Cluckwork.Application.Features.Accounts.UpdateFarmSettings.UpdateFarmSettingsHandler>();

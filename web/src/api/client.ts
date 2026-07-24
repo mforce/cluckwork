@@ -84,6 +84,19 @@ export async function login(body: LoginRequest): Promise<void> {
   onTokensChanged?.();
 }
 
+// #165 — self-service password change. The server revokes every session for the
+// user (other devices are signed out) and hands this one a fresh pair, so we
+// swap in the returned access token; the rotated refresh cookie is set by the
+// response. Goes through apiPost for the bearer + Idempotency-Key a write needs.
+export async function changePassword(
+  body: { currentPassword: string; newPassword: string },
+  idempotencyKey?: string,
+): Promise<void> {
+  const res = await apiPost<AccessTokenResponse>("/auth/change-password", body, idempotencyKey);
+  setAccessToken(res.accessToken);
+  onTokensChanged?.();
+}
+
 export async function logout(): Promise<void> {
   clearAccessToken();
   try {

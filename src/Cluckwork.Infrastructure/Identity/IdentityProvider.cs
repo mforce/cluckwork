@@ -235,6 +235,71 @@ public sealed class IdentityProvider(
         return Result.Success();
     }
 
+    public async Task<Result> SetUserPasswordAsync(
+        Guid accountId, Guid userId, string newPassword, CancellationToken ct = default)
+    {
+        // Account-scoped, exactly like UpdateUserAsync: a foreign user id doesn't
+        // match and falls through to NotFound rather than resetting someone else's
+        // tenant's credentials.
+        var user = await db.Users.FirstOrDefaultAsync(
+            u => u.Id == userId && u.AccountId == accountId, ct);
+        if (user is null)
+            return Result.Failure(Error.NotFound("Users", userId));
+
+        // Reset via a generated token — Identity's supported way to set a password
+        // without the current one. It applies the full password policy and rotates
+        // the SecurityStamp.
+        var resetToken = await userManager.GeneratePasswordResetTokenAsync(user);
+        var reset = await userManager.ResetPasswordAsync(user, resetToken, newPassword);
+        if (!reset.Succeeded)
+            return Result.Failure(Error.Validation("Users.PasswordRejected", Describe(reset)));
+
+        // A reset must actually evict whoever held the old password, so every
+        // refresh token for the target dies. (An access token already issued stays
+        // valid until it expires — there is no denylist; see IIdentityProvider.)
+        await RevokeAllActiveForUserAsync(user.Id, timeProvider.GetUtcNow(), ct);
+        await audit.WriteAsync("User.PasswordSet", "User", user.Id,
+            reason: null, details: null, ct: ct);
+        await db.SaveChangesAsync(ct);
+        return Result.Success();
+    }
+
+    public async Task<Result<TokenPair>> ChangeOwnPasswordAsync(
+        Guid userId, string currentPassword, string newPassword, CancellationToken ct = default)
+    {
+        var user = await userManager.FindByIdAsync(userId.ToString());
+        if (user is null)
+            return Result.Failure<TokenPair>(Error.Validation(
+                "Identity.InvalidCredentials", "Invalid email or password."));
+
+        // ChangePasswordAsync verifies the current password AND applies the policy.
+        var changed = await userManager.ChangePasswordAsync(user, currentPassword, newPassword);
+        if (!changed.Succeeded)
+        {
+            // Distinguish "your current password is wrong" from "the new one is
+            // too weak" — the user needs to know which to fix. Neither leaks
+            // anything: the caller is already authenticated as this user.
+            var wrongCurrent = changed.Errors.Any(e => e.Code == "PasswordMismatch");
+            return Result.Failure<TokenPair>(wrongCurrent
+                ? Error.Validation("Users.CurrentPasswordIncorrect", "Current password is incorrect.")
+                : Error.Validation("Users.PasswordRejected", Describe(changed)));
+        }
+
+        // Every session dies (other devices are signed out), then this caller gets
+        // a fresh pair so the device that made the change stays signed in.
+        var now = timeProvider.GetUtcNow();
+        await RevokeAllActiveForUserAsync(user.Id, now, ct);
+
+        var (rawToken, tokenHash) = GenerateRefreshToken();
+        db.RefreshTokens.Add(NewToken(user, tokenHash));
+        await audit.WriteAsync("User.PasswordChanged", "User", user.Id,
+            reason: null, details: null, ct: ct);
+        await db.SaveChangesAsync(ct);
+
+        var roles = await userManager.GetRolesAsync(user);
+        return Result.Success(jwtTokenService.CreateTokenPair(user, [.. roles], rawToken));
+    }
+
     // Identity's duplicate-email wording is only surfaced when the email
     // already belongs to THIS account. A duplicate in another tenant gets a
     // generic message so the endpoint is not a cross-tenant registration

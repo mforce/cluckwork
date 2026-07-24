@@ -10,6 +10,7 @@ import {
   login,
   logout,
   restoreSession,
+  changePassword,
   ApiError,
   setOnUnauthenticated,
   setOnTokensChanged,
@@ -480,6 +481,35 @@ describe("auth endpoints", () => {
     await expect(logout()).resolves.toBeUndefined();
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect((fetchMock.mock.calls[0] as Call)[0]).toBe("/api/v1/auth/logout");
+  });
+});
+
+describe("changePassword (#165)", () => {
+  it("posts to /auth/change-password with the key, then swaps in the returned access token", async () => {
+    fetchMock.mockResolvedValueOnce(accessResponse("at-after-change"));
+    // Runtime-generated so no literal secret lands in source.
+    const currentPassword = `Aa1!${crypto.randomUUID()}`;
+    const newPassword = `Aa1!${crypto.randomUUID()}`;
+
+    await changePassword({ currentPassword, newPassword }, "key-165");
+
+    const call = fetchMock.mock.calls[0] as Call;
+    expect(call[0]).toBe("/api/v1/auth/change-password");
+    expect(headerOf(call, "Idempotency-Key")).toBe("key-165");
+    expect(authOf(call)).toBe("Bearer at1"); // authenticated write
+    expect(JSON.parse(String(call[1].body))).toEqual({ currentPassword, newPassword });
+
+    // The server rotated the session; the returned token replaces the old one so
+    // this tab keeps working after every other session was revoked.
+    expect(getAccessToken()).toBe("at-after-change");
+    expect(onTokens).toHaveBeenCalled();
+  });
+
+  it("propagates a rejection (e.g. wrong current password) and leaves the token alone", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ title: "Current password is incorrect." }, 400));
+
+    await expect(changePassword({ currentPassword: "x", newPassword: "y" })).rejects.toThrow(ApiError);
+    expect(getAccessToken()).toBe("at1"); // unchanged
   });
 });
 

@@ -15,6 +15,7 @@ import { GradesPage } from "./routes/GradesPage";
 import { FlocksPage } from "./routes/FlocksPage";
 import { InventoryPage } from "./routes/InventoryPage";
 import { HelpPage } from "./routes/HelpPage";
+import { AccountPage } from "./routes/AccountPage";
 import { WaterPage } from "./routes/WaterPage";
 import { ExpensesPage } from "./routes/ExpensesPage";
 import { ReportsPage } from "./routes/ReportsPage";
@@ -59,6 +60,7 @@ export function App() {
                 <Route path="export" element={<ExportPage />} />
                 <Route path="users" element={<UsersPage />} />
                 <Route path="settings" element={<SettingsPage />} />
+                <Route path="account" element={<AccountPage />} />
                 <Route path="help" element={<HelpPage />} />
               </Route>
             </Route>

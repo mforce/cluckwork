@@ -83,6 +83,13 @@ describe("AuditPage load + render", () => {
     expect(screen.getByRole("option", { name: "User.Update" })).toBeInTheDocument();
   });
 
+  it("offers both password actions as filterable (#165)", async () => {
+    render(<AuditPage />);
+    await screen.findByText("No audit events yet.");
+    expect(screen.getByRole("option", { name: "User.PasswordSet" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "User.PasswordChanged" })).toBeInTheDocument();
+  });
+
   it("maps each audit event's actor, action, entity and reason into its row", async () => {
     mockListAuditEvents.mockResolvedValue([EVENT_A, EVENT_B]);
     render(<AuditPage />);

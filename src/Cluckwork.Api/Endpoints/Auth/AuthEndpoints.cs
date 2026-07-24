@@ -2,7 +2,9 @@ namespace Cluckwork.Api.Endpoints.Auth;
 
 using Cluckwork.Api.RateLimiting;
 using Cluckwork.Application.Common;
+using Cluckwork.Application.Features.Users.ChangeOwnPassword;
 using Cluckwork.Infrastructure.Identity;
+using FluentValidation;
 using Microsoft.Extensions.Options;
 
 public static class AuthEndpoints
@@ -37,6 +39,18 @@ public static class AuthEndpoints
             .AllowAnonymous()
             .WithName("Logout")
             .WithSummary("Revoke the refresh token and expire its cookie.");
+
+        // #165 — self-service password change, for EVERY role (so it can't live in
+        // the Owner-only users group). Lives here because the response rotates the
+        // refresh cookie, which is path-scoped to /api/v1/auth. It verifies a
+        // credential, so it carries the login rate limit: an attacker holding a
+        // stolen access token must not be able to brute-force the current password
+        // and take the account over.
+        group.MapPost("/change-password", ChangePassword)
+            .RequireAuthorization()
+            .RequireRateLimiting(RateLimitingOptions.LoginPolicyName)
+            .WithName("ChangeOwnPassword")
+            .WithSummary("Change your own password; signs out other devices.");
 
         return group;
     }
@@ -85,6 +99,31 @@ public static class AuthEndpoints
         return Results.Ok(new AccessTokenResponse(result.Value.AccessToken, result.Value.AccessTokenExpiry));
     }
 
+    private static async Task<IResult> ChangePassword(
+        ChangeOwnPasswordRequest request, ChangeOwnPasswordHandler handler,
+        IValidator<ChangeOwnPasswordCommand> validator, ICurrentUser currentUser,
+        HttpResponse response, IOptions<JwtOptions> jwt, IWebHostEnvironment env,
+        CancellationToken ct)
+    {
+        if (!currentUser.IsResolved) return Results.Unauthorized();
+
+        var command = new ChangeOwnPasswordCommand(request.CurrentPassword, request.NewPassword);
+        var validation = await validator.ValidateAsync(command, ct);
+        if (!validation.IsValid)
+            return Results.ValidationProblem(validation.ToDictionary());
+
+        // The user id comes from the token, never the request: a caller can only
+        // ever change their OWN password here.
+        var result = await handler.HandleAsync(command, currentUser.UserId, ct);
+        if (!result.IsSuccess)
+            return Results.Problem(result.Error.Description, statusCode: 400, title: result.Error.Code);
+
+        // Every prior session was revoked; hand this device a fresh cookie + access
+        // token so the one that made the change stays signed in.
+        AuthCookies.SetRefreshCookie(response, result.Value.RefreshToken, jwt.Value.RefreshTokenDays, CookieSecure(env));
+        return Results.Ok(new AccessTokenResponse(result.Value.AccessToken, result.Value.AccessTokenExpiry));
+    }
+
     private static async Task<IResult> Logout(
         HttpRequest request, HttpResponse response, IIdentityProvider identity,
         IWebHostEnvironment env, CancellationToken ct)
@@ -101,6 +140,8 @@ public static class AuthEndpoints
 }
 
 public sealed record LoginRequest(string Email, string Password);
+
+public sealed record ChangeOwnPasswordRequest(string CurrentPassword, string NewPassword);
 
 // #145 — the refresh token is delivered as a cookie, so the body returns only
 // the access token and its expiry.
