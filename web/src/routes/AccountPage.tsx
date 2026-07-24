@@ -1,8 +1,7 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import type { FormEvent } from "react";
 import { changePassword, ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
-import { newId } from "../lib/ids";
 
 function errText(err: unknown): string {
   if (err instanceof ApiError) return err.message;
@@ -23,9 +22,6 @@ export function AccountPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  // Same idempotency-key discipline as the other write screens: kept for an
-  // exact replay while the write is unconfirmed, rotated the moment it lands.
-  const key = useRef<string | null>(null);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -45,9 +41,10 @@ export function AccountPage() {
 
     setBusy(true);
     try {
-      key.current ??= newId();
-      await changePassword({ currentPassword: current, newPassword: next }, key.current);
-      key.current = null; // confirmed — the next change gets a fresh key
+      // No key threaded here: the server exempts this route from the response
+      // cache (#165 review), since replaying it would hand back the access token
+      // without the rotated refresh cookie.
+      await changePassword({ currentPassword: current, newPassword: next });
       setMessage("Password changed. Any other devices have been signed out.");
       setCurrent("");
       setNext("");

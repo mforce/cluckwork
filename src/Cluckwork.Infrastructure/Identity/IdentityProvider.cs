@@ -246,6 +246,12 @@ public sealed class IdentityProvider(
         if (user is null)
             return Result.Failure(Error.NotFound("Users", userId));
 
+        // The password change and the session revocation must land together, or
+        // not at all: Identity commits the new password itself and the bulk revoke
+        // is immediate SQL, so without a transaction a later failure would leave
+        // the password changed with old sessions alive (#165 review).
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+
         // Reset via a generated token — Identity's supported way to set a password
         // without the current one. It applies the full password policy and rotates
         // the SecurityStamp.
@@ -261,6 +267,7 @@ public sealed class IdentityProvider(
         await audit.WriteAsync("User.PasswordSet", "User", user.Id,
             reason: null, details: null, ct: ct);
         await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
         return Result.Success();
     }
 
@@ -271,6 +278,11 @@ public sealed class IdentityProvider(
         if (user is null)
             return Result.Failure<TokenPair>(Error.Validation(
                 "Identity.InvalidCredentials", "Invalid email or password."));
+
+        // One transaction around change + revoke + re-issue: the bulk revoke is
+        // immediate SQL, so a failure before the fresh token is saved would sign
+        // the caller out of everything while reporting an error (#165 review).
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
 
         // ChangePasswordAsync verifies the current password AND applies the policy.
         var changed = await userManager.ChangePasswordAsync(user, currentPassword, newPassword);
@@ -295,6 +307,7 @@ public sealed class IdentityProvider(
         await audit.WriteAsync("User.PasswordChanged", "User", user.Id,
             reason: null, details: null, ct: ct);
         await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
 
         var roles = await userManager.GetRolesAsync(user);
         return Result.Success(jwtTokenService.CreateTokenPair(user, [.. roles], rawToken));

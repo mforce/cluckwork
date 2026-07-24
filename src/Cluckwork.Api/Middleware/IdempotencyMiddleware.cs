@@ -11,12 +11,32 @@ public sealed class IdempotencyMiddleware(RequestDelegate next)
     private const string HeaderName = "Idempotency-Key";
     private static readonly ConcurrentDictionary<string, SemaphoreSlim> Locks = new();
 
+    // #165 — routes whose RESPONSE must never be cached or replayed. A record
+    // stores only status/content-type/body, so caching one of these would both
+    // (a) persist that body — here a live access token — in idempotency_records,
+    // and (b) replay it WITHOUT Set-Cookie, handing the client a fresh access
+    // token while its refresh cookie stays the old, now-revoked one: a session
+    // that dies silently ~15 minutes later. Caching buys nothing here anyway —
+    // a password change is self-invalidating, because a replayed request's
+    // current-password no longer matches.
+    private static readonly string[] ResponseNotCacheable =
+    [
+        "/api/v1/auth/change-password",
+    ];
+
     public async Task InvokeAsync(HttpContext context, AppDbContext db, TenantContext tenant)
     {
         if (!HttpMethods.IsPost(context.Request.Method)
             && !HttpMethods.IsPut(context.Request.Method)
             && !HttpMethods.IsPatch(context.Request.Method)
             && !HttpMethods.IsDelete(context.Request.Method))
+        {
+            await next(context);
+            return;
+        }
+
+        if (ResponseNotCacheable.Any(p =>
+                context.Request.Path.StartsWithSegments(p, StringComparison.OrdinalIgnoreCase)))
         {
             await next(context);
             return;

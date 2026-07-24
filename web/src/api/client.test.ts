@@ -485,17 +485,20 @@ describe("auth endpoints", () => {
 });
 
 describe("changePassword (#165)", () => {
-  it("posts to /auth/change-password with the key, then swaps in the returned access token", async () => {
+  it("posts to /auth/change-password and swaps in the returned access token", async () => {
     fetchMock.mockResolvedValueOnce(accessResponse("at-after-change"));
     // Runtime-generated so no literal secret lands in source.
     const currentPassword = `Aa1!${crypto.randomUUID()}`;
     const newPassword = `Aa1!${crypto.randomUUID()}`;
 
-    await changePassword({ currentPassword, newPassword }, "key-165");
+    await changePassword({ currentPassword, newPassword });
 
     const call = fetchMock.mock.calls[0] as Call;
     expect(call[0]).toBe("/api/v1/auth/change-password");
-    expect(headerOf(call, "Idempotency-Key")).toBe("key-165");
+    // A key rides along (apiPost adds one to every write) but is inert: the
+    // SERVER exempts this route from the response cache, because replaying it
+    // would return the token without the rotated Set-Cookie (#165 review). The
+    // exemption itself is asserted server-side in UserPasswordTests.
     expect(authOf(call)).toBe("Bearer at1"); // authenticated write
     expect(JSON.parse(String(call[1].body))).toEqual({ currentPassword, newPassword });
 

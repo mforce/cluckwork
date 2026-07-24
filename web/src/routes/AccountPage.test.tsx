@@ -35,7 +35,7 @@ function fill(current: string, next: string, confirm: string) {
 const submit = () => fireEvent.click(screen.getByRole("button", { name: "Change password" }));
 
 describe("AccountPage (#165 self-service password change)", () => {
-  it("changes the password, sends an idempotency key, and reports the other devices were signed out", async () => {
+  it("changes the password and reports the other devices were signed out", async () => {
     mockChangePassword.mockResolvedValue(undefined);
     renderWithProviders(<AccountPage />, { token: WORKER });
 
@@ -45,7 +45,7 @@ describe("AccountPage (#165 self-service password change)", () => {
     await act(async () => { submit(); });
 
     expect(mockChangePassword).toHaveBeenCalledWith(
-      { currentPassword: current, newPassword: next }, expect.any(String));
+      { currentPassword: current, newPassword: next });
     expect(await screen.findByText(/signed out/i)).toBeInTheDocument();
     // The form is cleared so the credentials don't linger on screen.
     expect(screen.getByLabelText(/Current password/)).toHaveValue("");

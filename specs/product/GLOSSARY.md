@@ -529,8 +529,13 @@ knowing the current one (#165) — the forgot-password path, since there is no
 email reset. Editing an existing user's *role* still belongs to a later slice.
 
 **Password change (#165)** — two paths with different rules. An Owner sets any
-user's password from the Users screen without the current one; any signed-in
-user changes their OWN from the **Account** screen by proving the current one.
+*other* user's password from the Users screen without the current one; any
+signed-in user changes their OWN from the **Account** screen by proving the
+current one. The Owner path **refuses self-targeting**: skipping the
+current-password proof for your own account would turn a stolen access token
+into a permanent takeover, so an Owner changes their own password like everyone
+else. One Owner *can* reset a co-Owner's password (all Owners are equivalent);
+it is audited (`User.PasswordSet`) but not otherwise restricted.
 Both revoke every refresh token for that user, so other devices are signed out
 — the self-service path hands the device that made the change a fresh pair so it
 stays signed in. Eviction is bounded by the access-token lifetime: an

@@ -206,6 +206,10 @@ export function UsersPage() {
 
   function closePassword() {
     activePw.current = null;
+    // Don't leave the typed plaintext sitting in component state after the
+    // dialog is gone (#165 review).
+    setPwValue("");
+    setPwConfirm("");
     setPwUser(null);
   }
 

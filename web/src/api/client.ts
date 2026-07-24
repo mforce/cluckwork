@@ -87,12 +87,18 @@ export async function login(body: LoginRequest): Promise<void> {
 // #165 — self-service password change. The server revokes every session for the
 // user (other devices are signed out) and hands this one a fresh pair, so we
 // swap in the returned access token; the rotated refresh cookie is set by the
-// response. Goes through apiPost for the bearer + Idempotency-Key a write needs.
+// response.
+//
+// apiPost attaches an Idempotency-Key like any write, but the SERVER exempts
+// this route from the response cache, so that key is inert here. Caching this
+// response would persist the access token and, on replay, return it WITHOUT the
+// rotated Set-Cookie — leaving the client holding a revoked refresh cookie
+// (#165 review). Replay protection isn't needed anyway: a repeat can't re-apply,
+// because the current password no longer matches.
 export async function changePassword(
   body: { currentPassword: string; newPassword: string },
-  idempotencyKey?: string,
 ): Promise<void> {
-  const res = await apiPost<AccessTokenResponse>("/auth/change-password", body, idempotencyKey);
+  const res = await apiPost<AccessTokenResponse>("/auth/change-password", body);
   setAccessToken(res.accessToken);
   onTokensChanged?.();
 }
