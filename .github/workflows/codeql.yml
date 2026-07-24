@@ -1,0 +1,63 @@
+name: CodeQL
+
+# SAST (#146). CodeQL scans both languages in the repo and reports findings to
+# the Security tab / PR "Code scanning" checks.
+#
+# Mode: ADVISORY. This workflow does not gate merges on its own — a finding shows
+# as a neutral PR annotation, not a required failure, so a false positive can't
+# wedge an unrelated PR. To make it blocking, add "CodeQL" to the branch
+# protection required checks; nothing in this file has to change.
+#
+# build-mode: none — CodeQL's buildless analysis, so the scan needs neither the
+# .NET SDK nor npm install. Chosen for speed and to avoid coupling the scan to a
+# preview .NET 10 toolchain; if C# coverage ever needs the compiler's view,
+# switch that language to build-mode: autobuild.
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  schedule:
+    # Weekly, Monday 07:00 UTC — catches advisories in CodeQL's own query packs
+    # that land between commits, so a quiet week is still scanned.
+    - cron: "0 7 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Analyze ${{ matrix.language }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      security-events: write # upload findings to the Security tab
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: csharp
+          - language: javascript-typescript
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+          # security-and-quality adds maintainability queries on top of the
+          # default security set; keep it since this is advisory, not gating.
+          queries: security-and-quality
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"

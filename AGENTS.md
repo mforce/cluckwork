@@ -57,6 +57,27 @@ dotnet test  Cluckwork.sln                 # 42 tests; integration needs Docker
 `web/` files are staged. Integration tests are deliberately excluded (Docker,
 slow) — CI is the authority. Skip once with `--no-verify`.
 
+## CI security gates (#146)
+
+CI fails a PR when a dependency carries a known **high+** advisory:
+
+- **NuGet** — `dotnet list package --vulnerable` (parsed; the CLI always exits 0).
+- **npm, production deps** — `npm audit --omit=dev`. Dev-only advisories (vite,
+  vitest, eslint…) are **advisory only** — logged, never blocking, since they
+  don't ship to users. Promote to blocking, or bump the dep, when one appears.
+- **Dependency review** — PR-only; fails when the diff *introduces* a vulnerable dep.
+- **CodeQL** (`.github/workflows/codeql.yml`) — SAST, **advisory** (reports to the
+  Security tab; not a required check). Make it blocking via branch protection.
+
+Both audit gates run through `.github/scripts/vuln-gate.mjs` (self-tested with
+`node --test`), which shares one **escape hatch**: `.github/security-exceptions.json`.
+Add a `{ id: GHSA-…, ecosystem, reason, expires }` entry to mute one advisory
+until a **required** date — past it, the advisory blocks again and CI warns the
+entry is stale. Reach for it only when there's no fixed version to move to; prefer
+bumping the package or pinning a patched transitive version (npm `overrides` /
+direct NuGet reference) first. The same file feeds dependency-review's allowlist,
+so the gates never disagree.
+
 ## Git / PR workflow
 
 - `origin` = GitHub (`github.com/mforce/cluckwork`); `gitea` = backup mirror. Use `gh` for PRs.

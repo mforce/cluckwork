@@ -1,0 +1,26 @@
+{
+  "_readme": [
+    "Escape hatch for the CI vulnerability gates (#146). An entry here mutes ONE advisory",
+    "in ONE ecosystem until a stated date, so an unfixable upstream advisory cannot block",
+    "every unrelated PR — while never becoming a permanent, forgotten hole.",
+    "",
+    "Add an entry only when there is no fixed version to move to (or the fix is a breaking",
+    "major that needs its own PR — file that PR and link it in the reason).",
+    "Prefer, in order: bump the package; npm `overrides` / a direct NuGet pin to force a",
+    "patched transitive version; only then an exception.",
+    "",
+    "Fields:",
+    "  id        GHSA id from the advisory URL, e.g. GHSA-93q8-gq69-wqmw (matched case-insensitively).",
+    "  ecosystem npm | nuget | any.",
+    "  reason    why it cannot be fixed now, and what unblocks it — a reviewer reads this.",
+    "  expires   YYYY-MM-DD. REQUIRED. Past that date the advisory blocks again and CI",
+    "            warns that the entry is stale. An entry with no parseable expiry never",
+    "            suppresses anything, so leaving it off does not buy an indefinite mute.",
+    "",
+    "Example:",
+    "  { \"id\": \"GHSA-93q8-gq69-wqmw\", \"ecosystem\": \"npm\",",
+    "    \"reason\": \"no patched release upstream; not reachable from our code path — tracked in #999\",",
+    "    \"expires\": \"2026-10-01\" }"
+  ],
+  "exceptions": []
+}
