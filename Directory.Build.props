@@ -1,0 +1,23 @@
+<Project>
+
+  <PropertyGroup>
+    <!-- #146: emit a committed packages.lock.json per project.
+         Two reasons, both about seeing the dependencies we actually ship:
+         1. GitHub's dependency graph reads .csproj for NuGet, which lists only
+            DIRECT PackageReferences (20 of our 180 resolved packages). A lock
+            file gives it the full transitive closure, so the PR-scoped
+            dependency-review gate can catch a vulnerable transitive package a
+            PR pulls in, not just a direct one. The tree-scoped
+            `dotnet list package` vulnerability gate already sees all 180; this
+            closes the diff-scoped half.
+         2. Restores become deterministic: CI restores in locked mode, so a
+            dependency cannot silently float to a different resolved version
+            between a green local run and CI.
+
+         Bumping or adding a package regenerates the lock file: commit it with
+         the change. If CI fails with NU1004, run `dotnet restore` locally and
+         commit the updated lock files. -->
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+  </PropertyGroup>
+
+</Project>

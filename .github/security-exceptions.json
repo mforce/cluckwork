@@ -1,0 +1,31 @@
+{
+  "_readme": [
+    "Escape hatch for the CI vulnerability gates (#146). An entry here mutes ONE advisory",
+    "in ONE ecosystem until a stated date, so an unfixable upstream advisory cannot block",
+    "every unrelated PR — while never becoming a permanent, forgotten hole.",
+    "",
+    "Add an entry only when there is no fixed version to move to (or the fix is a breaking",
+    "major that needs its own PR — file that PR and link it in the reason).",
+    "Prefer, in order: bump the package; npm `overrides` / a direct NuGet pin to force a",
+    "patched transitive version; only then an exception.",
+    "",
+    "Every field is validated; a malformed entry is IGNORED (it never suppresses)",
+    "and CI prints a warning naming the problem. Fields:",
+    "  id        EXACT canonical GHSA, e.g. GHSA-93q8-gq69-wqmw (matched case-insensitively).",
+    "            Only a whole GHSA is accepted — a value with extra text, a comma, or a",
+    "            newline is rejected. An advisory with no GHSA (a bare CVE/other) cannot be",
+    "            excepted; bump or pin the package instead.",
+    "  ecosystem npm | nuget | any. REQUIRED — a missing scope is rejected, not treated as any.",
+    "  reason    why it cannot be fixed now, and what unblocks it — a reviewer reads this. REQUIRED.",
+    "  expires   YYYY-MM-DD. REQUIRED, and must be a real calendar date (2026-02-30 is rejected).",
+    "            Inclusive through the END of that UTC day; the next day the advisory blocks",
+    "            again and CI warns the entry is stale. A missing/non-ISO/impossible date never",
+    "            suppresses, so an indefinite mute is impossible.",
+    "",
+    "Example:",
+    "  { \"id\": \"GHSA-93q8-gq69-wqmw\", \"ecosystem\": \"npm\",",
+    "    \"reason\": \"no patched release upstream; not reachable from our code path — tracked in #999\",",
+    "    \"expires\": \"2026-10-01\" }"
+  ],
+  "exceptions": []
+}

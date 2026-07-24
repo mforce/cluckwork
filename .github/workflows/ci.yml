@@ -28,8 +28,24 @@ jobs:
           cache: true
           cache-dependency-path: "**/*.csproj"
 
+      # --locked-mode: restore must match the committed packages.lock.json
+      # exactly, so a dependency can't float to a different resolved version
+      # between a green local run and CI. Fails with NU1004 when a package was
+      # added/bumped without regenerating — run `dotnet restore` and commit the
+      # updated lock files (#146).
       - name: Restore dependencies
-        run: dotnet restore Cluckwork.sln
+        run: dotnet restore Cluckwork.sln --locked-mode
+
+      # BLOCKING gate (#146). `dotnet list package --vulnerable` always exits 0,
+      # so the script parses its JSON and fails the job on any advisory at high or
+      # above. After restore (it needs the resolved graph), before build, so a
+      # vulnerable dependency is caught even when compilation would fail later.
+      # `--output-version 1` pins the JSON schema so a future CLI bump can't
+      # silently change the shape the parser depends on.
+      - name: Audit NuGet dependencies (high+, blocking)
+        run: |
+          dotnet list package --vulnerable --include-transitive --format json --output-version 1 \
+            | node .github/scripts/vuln-gate.mjs --ecosystem nuget --level high
 
       - name: Build
         run: dotnet build Cluckwork.sln --configuration Release --no-restore
@@ -57,11 +73,105 @@ jobs:
           # Resolved from the repo root — setup-node ignores defaults.run.working-directory.
           cache-dependency-path: web/package-lock.json
 
+      # The gate ships with its own node:test self-tests; run them before trusting
+      # its verdict. No app toolchain needed — pure Node, so it runs before npm ci.
+      # Referenced via ../ from the job's web working-directory; node:test imports
+      # are relative to the test file, so the cwd doesn't matter.
+      - name: Test the vulnerability gate
+        run: node --test ../.github/scripts/vuln-gate.test.mjs
+
       - name: Install dependencies
         run: npm ci
+
+      # BLOCKING gate (#146) on PRODUCTION dependencies: shipped code carries no
+      # known high+ advisory. `--omit=dev` scopes it to what reaches the browser.
+      #
+      # `npm audit` exits non-zero whenever it finds ANY vulnerability, at any
+      # severity. Under Actions' default `pipefail`, piping it straight into the
+      # gate would let npm's exit — not the gate's threshold — decide the step, so
+      # a below-high advisory would wrongly fail it. Capture to a file (`|| true`
+      # drops npm's exit) and let the gate be the sole arbiter.
+      # `--exceptions ../…`: this job runs from `web/`, so the gate's default
+      # (repo-root) exceptions path would resolve to a nonexistent
+      # `web/.github/…` and silently drop every npm exception — leaving an
+      # excepted advisory blocking anyway (#146 review). Point it at the real file.
+      - name: Audit prod npm dependencies (high+, blocking)
+        run: |
+          npm audit --omit=dev --json > npm-audit-prod.json || true
+          node ../.github/scripts/vuln-gate.mjs --ecosystem npm --level high \
+            --exceptions ../.github/security-exceptions.json < npm-audit-prod.json
+
+      # ADVISORY only (never blocks) on the full tree, dev dependencies included.
+      # A build-tooling advisory (vite, vitest, eslint…) does not ship to users,
+      # so it surfaces in the log without wedging unrelated PRs. Bump the dep, or
+      # promote this to a blocking step, when one actually appears.
+      - name: Audit all npm dependencies (moderate+, advisory only)
+        run: |
+          npm audit --json > npm-audit-all.json || true
+          node ../.github/scripts/vuln-gate.mjs --ecosystem npm --level moderate --warn-only \
+            --exceptions ../.github/security-exceptions.json < npm-audit-all.json
 
       - name: Test with coverage gate
         run: npm run test:coverage
 
       - name: Typecheck and build
         run: npm run build
+
+  # PR-only: fails when a PR ADDS a dependency with a known vulnerability, before
+  # it lands on main. Complements the audit gates (which score the whole tree) by
+  # scoring the DIFF, so a newly introduced bad dep is named in the PR itself.
+  dependency-review:
+    name: Dependency review
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      # dependency-review needs the repo's Dependency graph, a one-time owner
+      # toggle (Settings → Advanced Security → Dependency graph) with no API to
+      # flip it. Probe for it and branch on the HTTP status: only a definitive
+      # graph-disabled response (403/404) skips the review — with a loud warning
+      # naming the setting, so the gate self-activates on the next PR once the
+      # toggle is on. A transient/unexpected status does NOT skip; the review
+      # runs and surfaces the real error rather than silently disabling the gate
+      # (#146 review). The warning fires on every graph-less run, so the gap
+      # can't hide.
+      - name: Check the Dependency graph is enabled
+        id: graph
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          code="$(gh api "repos/$REPO/dependency-graph/sbom" --silent -i 2>/dev/null \
+            | awk 'toupper($1) ~ /^HTTP/ {print $2; exit}')"
+          case "$code" in
+            200)
+              echo "available=true" >> "$GITHUB_OUTPUT" ;;
+            403|404)
+              echo "available=false" >> "$GITHUB_OUTPUT"
+              echo "::warning title=Dependency review inactive::Enable the Dependency graph at Settings → Advanced Security → Dependency graph; this gate activates automatically once it is on (#146)." ;;
+            *)
+              echo "available=true" >> "$GITHUB_OUTPUT"
+              echo "::warning title=Dependency graph probe inconclusive::sbom probe returned '${code:-no response}'; running dependency-review anyway so a real error is not masked (#146)." ;;
+          esac
+
+      # Same source of truth as the audit gates: the live (unexpired) GHSA ids in
+      # security-exceptions.json become this action's allowlist, so the two gates
+      # can never disagree about what is currently excepted. emitAllowlist yields
+      # only bare, canonical GHSA ids; `tr -d` strips any stray newline as
+      # defence-in-depth so a single value can never forge a second GITHUB_OUTPUT
+      # record (#146 review).
+      - name: Compute allowlist from security exceptions
+        if: steps.graph.outputs.available == 'true'
+        id: allow
+        run: |
+          ghsas="$(node .github/scripts/vuln-gate.mjs --emit-allowlist | tr -d '\r\n')"
+          printf 'ghsas=%s\n' "$ghsas" >> "$GITHUB_OUTPUT"
+
+      - name: Review dependency changes
+        if: steps.graph.outputs.available == 'true'
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+          allow-ghsas: ${{ steps.allow.outputs.ghsas }}

@@ -6,3 +6,5 @@ dist-ssr
 .vite
 *.tsbuildinfo
 coverage
+# CI vulnerability-gate capture files (#146)
+npm-audit-*.json

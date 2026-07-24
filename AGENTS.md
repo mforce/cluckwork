@@ -57,6 +57,42 @@ dotnet test  Cluckwork.sln                 # 42 tests; integration needs Docker
 `web/` files are staged. Integration tests are deliberately excluded (Docker,
 slow) — CI is the authority. Skip once with `--no-verify`.
 
+## CI security gates (#146)
+
+CI fails a PR when a dependency carries a known **high+** advisory:
+
+- **NuGet** — `dotnet list package --vulnerable` (parsed; the CLI always exits 0).
+- **npm, production deps** — `npm audit --omit=dev`. Dev-only advisories (vite,
+  vitest, eslint…) are **advisory only** — logged, never blocking, since they
+  don't ship to users. Promote to blocking, or bump the dep, when one appears.
+- **Dependency review** — PR-only; fails when the diff *introduces* a vulnerable
+  dep. Needs the repo's **Dependency graph** (Settings → Advanced Security); while
+  it's off the step self-skips with a loud CI warning and activates automatically
+  once enabled.
+
+**NuGet lock files.** `Directory.Build.props` sets `RestorePackagesWithLockFile`,
+so every project has a committed `packages.lock.json` and CI restores with
+`--locked-mode`. This does two things: the dependency graph sees the full
+transitive closure (80 packages, not just the 20 direct `PackageReference`s), and
+restores are deterministic. **When you add or bump a package, run `dotnet restore`
+and commit the changed lock files in the same commit** — otherwise CI fails the
+restore with `NU1004`.
+- **CodeQL** (`.github/workflows/codeql.yml`) — SAST, **advisory** (reports to the
+  Security tab; not a required check). Make it blocking via branch protection.
+
+Both audit gates run through `.github/scripts/vuln-gate.mjs` (self-tested with
+`node --test`), which shares one **escape hatch**: `.github/security-exceptions.json`.
+Add a `{ id: GHSA-…, ecosystem, reason, expires }` entry to mute one advisory
+until a **required** calendar date — past it, the advisory blocks again and CI
+warns the entry is stale. The gate **fails closed**: a malformed report (e.g. an
+`npm audit` registry error), an unknown severity, or a malformed exception
+(missing scope/reason, impossible date, non-GHSA id) all block rather than pass.
+The `id` must be an exact GHSA, so an advisory GitHub only knows by CVE can't be
+excepted — bump or pin the package instead. Reach for an exception only when
+there's no fixed version to move to; prefer bumping or pinning a patched
+transitive version (npm `overrides` / direct NuGet reference) first. The same
+file feeds dependency-review's allowlist, so the gates never disagree.
+
 ## Git / PR workflow
 
 - `origin` = GitHub (`github.com/mforce/cluckwork`); `gitea` = backup mirror. Use `gh` for PRs.
