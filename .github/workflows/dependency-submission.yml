@@ -1,0 +1,68 @@
+name: NuGet dependency submission
+
+# Gives GitHub's dependency graph the TRANSITIVE NuGet closure (#146 follow-up).
+#
+# Why this is needed at all: the graph parses .csproj/.vbproj/.nuspec/.fsproj/
+# packages.config for NuGet — it does NOT read packages.lock.json, and it does
+# not derive transitive dependencies for NuGet statically. So it only ever saw
+# our 20 direct PackageReferences, while the solution resolves ~80. That left
+# the PR-scoped dependency-review gate unable to flag a vulnerable package a PR
+# pulls in TRANSITIVELY. (The tree-scoped `dotnet list package --vulnerable
+# --include-transitive` gate in ci.yml always saw all of them, so nothing was
+# unguarded — this closes the diff-scoped half.)
+#
+# The supported route for that is the Dependency Submission API, which NuGet
+# does support. Microsoft's component-detection reads the restore output
+# (project.assets.json) and submits the resolved graph, transitives included.
+#
+# Runs on push to main so the graph tracks the default branch, which is what
+# dependency-review diffs a PR against.
+
+on:
+  push:
+    branches:
+      - main
+    # Only when the dependency set can actually have changed.
+    paths:
+      - "**/*.csproj"
+      - "**/packages.lock.json"
+      - "Directory.Build.props"
+      - "Cluckwork.sln"
+      - ".github/workflows/dependency-submission.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write # required to submit a dependency snapshot
+
+jobs:
+  submit:
+    name: Submit NuGet dependency graph
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      # component-detection reads the restore output, so the graph must be
+      # resolved first. --locked-mode keeps this honest: the snapshot describes
+      # exactly the versions the committed lock files pin, not a fresh resolve.
+      - name: Restore dependencies
+        run: dotnet restore Cluckwork.sln --locked-mode
+
+      - name: Submit dependency snapshot
+        uses: advanced-security/component-detection-dependency-submission-action@v0.1.4
+        with:
+          # NuGet only. npm is already covered by the graph's own
+          # package-lock.json parsing (292 packages); submitting it again here
+          # would duplicate that with a second, competing source.
+          detectorsCategories: NuGet
+          directoryExclusionList: "**/node_modules/**,**/bin/**,**/obj/**"
+          # Names this snapshot source so it replaces itself on each run instead
+          # of accumulating alongside the manifest-derived entries.
+          correlator: nuget-component-detection
