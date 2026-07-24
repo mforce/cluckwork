@@ -69,6 +69,13 @@ CI fails a PR when a dependency carries a known **high+** advisory:
   dep. Needs the repo's **Dependency graph** (Settings → Advanced Security); while
   it's off the step self-skips with a loud CI warning and activates automatically
   once enabled.
+- **CodeQL** (`.github/workflows/codeql.yml`) — SAST, **advisory** (reports to the
+  Security tab; not a required check). To gate on it, enable code-scanning merge
+  protection in a branch ruleset ("Require code scanning results").
+- **Scheduled audit** (`.github/workflows/security-audit.yml`) — the same two
+  audit gates on a weekly cron against `main`, plus `workflow_dispatch`. The CI
+  gates only fire on a PR or a push, so without this an advisory published
+  against a dependency nobody is touching goes unnoticed until the next PR.
 
 **NuGet lock files.** `Directory.Build.props` sets `RestorePackagesWithLockFile`,
 so every project has a committed `packages.lock.json` and CI restores with
@@ -77,8 +84,13 @@ transitive closure (80 packages, not just the 20 direct `PackageReference`s), an
 restores are deterministic. **When you add or bump a package, run `dotnet restore`
 and commit the changed lock files in the same commit** — otherwise CI fails the
 restore with `NU1004`.
-- **CodeQL** (`.github/workflows/codeql.yml`) — SAST, **advisory** (reports to the
-  Security tab; not a required check). Make it blocking via branch protection.
+
+**Dependabot** (`.github/dependabot.yml`) covers the other half: the gates
+*enforce* (a vulnerable dep fails the build), Dependabot *proposes* (it opens the
+bump PR, and — with Dependabot alerts enabled in repo settings — flags a new
+advisory the day it publishes). Neither replaces the other. Weekly grouped
+version updates for `github-actions`, `npm` (`web/`) and `nuget`; security fixes
+arrive ungrouped so they can be read and merged on their own.
 
 Both audit gates run through `.github/scripts/vuln-gate.mjs` (self-tested with
 `node --test`), which shares one **escape hatch**: `.github/security-exceptions.json`.
