@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "verify:sw": "node scripts/verify-sw.mjs",
     "typecheck": "tsc -b --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",

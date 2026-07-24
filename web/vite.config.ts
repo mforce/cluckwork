@@ -53,10 +53,18 @@ export default defineConfig(({ mode }) => {
         workbox: {
           // The built shell: hashed JS/CSS plus the root entry and icons.
           globPatterns: ["**/*.{js,css,html,svg,png,woff2}"],
-          // An unknown route serves index.html from the cache, EXCEPT under
-          // /api — those must always reach the network.
+          // An unknown route serves index.html from the cache, EXCEPT the
+          // server's own namespaces, which must always reach the network.
+          //
+          // The pattern is deliberately not `/^\/api\//`: that misses a bare
+          // `/api`, a query-only `/api?x=1`, and — since ASP.NET routing is
+          // case-insensitive — `/API/v1/...`, all of which would then be handed
+          // a cached index.html (#142 review). /health is excluded for the same
+          // reason: a probe opened in a browser carrying this worker would
+          // otherwise be answered with the SPA shell instead of the real health
+          // response (verified — it was).
           navigateFallback: "/index.html",
-          navigateFallbackDenylist: [/^\/api\//],
+          navigateFallbackDenylist: [/^\/api(?:[/?]|$)/i, /^\/health(?:[/?]|$)/i],
           // Belt to that braces: never let a runtime handler answer an /api
           // request from cache. Auth state and tenant data are per-request; a
           // stale shared response here would be a correctness bug, not a

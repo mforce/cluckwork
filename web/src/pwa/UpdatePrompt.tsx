@@ -20,21 +20,23 @@ export function UpdatePrompt() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    let cancelled = false;
+    // The controller both suppresses late state updates AND removes the
+    // registration's own listeners on unmount. Without the latter, StrictMode's
+    // dev-mode effect replay would leave a dead `updatefound`/`statechange`
+    // listener behind on every remount (#142 review).
+    const teardown = new AbortController();
     // Never rejects — off a secure context it resolves to null and we simply
     // never hear about an update.
     void registerServiceWorker((activateUpdate) => {
-      if (cancelled) return;
+      if (teardown.signal.aborted) return;
       // Stored via an updater fn: React would otherwise CALL a bare function
       // passed to a setter and store its result.
       setActivate(() => activateUpdate);
       // A newly-arrived update re-earns the user's attention even if an earlier
       // one was dismissed this session.
       setDismissed(false);
-    });
-    return () => {
-      cancelled = true;
-    };
+    }, teardown.signal);
+    return () => teardown.abort();
   }, []);
 
   if (!activate || dismissed) return null;

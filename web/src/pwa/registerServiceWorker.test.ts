@@ -12,15 +12,29 @@ import {
 
 type Listener = (...args: unknown[]) => void;
 
-/** A minimal EventTarget stand-in that lets a test fire a named event. */
+/**
+ * A minimal EventTarget stand-in that lets a test fire a named event.
+ *
+ * It honours `{ signal }` and `removeEventListener` for real — an already-
+ * aborted signal adds nothing, and aborting later detaches. Without that the
+ * listener-cleanup test would be asserting against the fake rather than against
+ * the code under test.
+ */
 function emitter() {
   const listeners = new Map<string, Listener[]>();
+  const remove = (type: string, fn: Listener) =>
+    listeners.set(type, (listeners.get(type) ?? []).filter((l) => l !== fn));
   return {
-    addEventListener: vi.fn((type: string, fn: Listener) => {
-      listeners.set(type, [...(listeners.get(type) ?? []), fn]);
-    }),
+    addEventListener: vi.fn(
+      (type: string, fn: Listener, opts?: { signal?: AbortSignal; once?: boolean }) => {
+        if (opts?.signal?.aborted) return;
+        listeners.set(type, [...(listeners.get(type) ?? []), fn]);
+        opts?.signal?.addEventListener("abort", () => remove(type, fn));
+      },
+    ),
+    removeEventListener: vi.fn(remove),
     fire(type: string) {
-      for (const fn of listeners.get(type) ?? []) fn();
+      for (const fn of [...(listeners.get(type) ?? [])]) fn();
     },
     listenerCount: (type: string) => (listeners.get(type) ?? []).length,
   };
@@ -134,6 +148,70 @@ describe("registerServiceWorker", () => {
     expect(onUpdate).toHaveBeenCalledTimes(1);
   });
 
+  it("reports an update that was ALREADY installing when register() resolved", async () => {
+    // The browser fires `updatefound` during registration, before there is
+    // anywhere to attach a listener. Watching only future events would miss
+    // this, leaving a long-lived tab on a stale build with no prompt.
+    const installing = fakeWorker("installing");
+    const registration = fakeRegistration({ installing });
+    stubEnv({ registration });
+    const onUpdate = vi.fn();
+
+    await registerServiceWorker(onUpdate);
+    expect(onUpdate).not.toHaveBeenCalled(); // still installing
+
+    installing.state = "installed";
+    installing.fire("statechange"); // no `updatefound` is ever fired
+
+    expect(onUpdate).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports an update that finished installing before we could listen", async () => {
+    // Same race, one step later: already `installed` by the time we look.
+    const installing = fakeWorker("installed");
+    stubEnv({ registration: fakeRegistration({ installing }) });
+    const onUpdate = vi.fn();
+
+    await registerServiceWorker(onUpdate);
+
+    expect(onUpdate).toHaveBeenCalledTimes(1);
+  });
+
+  it("removes its listeners when the caller aborts", async () => {
+    const registration = fakeRegistration({ installing: fakeWorker("installing") });
+    stubEnv({ registration });
+    const controller = new AbortController();
+
+    await registerServiceWorker(vi.fn(), controller.signal);
+    expect(registration.listenerCount("updatefound")).toBe(1);
+
+    // Aborting detaches them — otherwise StrictMode's dev-mode effect replay
+    // would leave a dead listener behind on every remount.
+    controller.abort();
+    expect(registration.listenerCount("updatefound")).toBe(0);
+
+    // And a run started with an already-aborted signal attaches nothing.
+    await registerServiceWorker(vi.fn(), controller.signal);
+    expect(registration.listenerCount("updatefound")).toBe(0);
+  });
+
+  it("announces an update ONCE when updatefound repeats the installing worker", async () => {
+    // `updatefound` fires for the very worker that was already in `installing`
+    // when register() resolved, so both entry points see it. Watching it twice
+    // would announce the same update twice.
+    const installing = fakeWorker("installing");
+    const registration = fakeRegistration({ installing });
+    stubEnv({ registration });
+    const onUpdate = vi.fn();
+
+    await registerServiceWorker(onUpdate);
+    registration.fire("updatefound"); // same worker, second path
+    installing.state = "installed";
+    installing.fire("statechange");
+
+    expect(onUpdate).toHaveBeenCalledTimes(1);
+  });
+
   it("stays silent on FIRST install — there is no update to announce", async () => {
     const installing = fakeWorker("installed");
     const registration = fakeRegistration({ installing });
@@ -166,6 +244,44 @@ describe("activateUpdate", () => {
     await pending;
 
     expect(globalThis.location.reload).toHaveBeenCalledTimes(1);
+  });
+
+  it("settles on the worker reaching 'activated' — an UNCONTROLLED page never gets controllerchange", async () => {
+    // The first worker doesn't claim existing clients and clientsClaim is off,
+    // so a page that isn't yet controlled would otherwise wait out the whole
+    // timeout before reloading.
+    const waiting = fakeWorker("installed");
+    stubEnv();
+    const registration = fakeRegistration({ waiting });
+
+    const pending = activateUpdate(registration as unknown as ServiceWorkerRegistration);
+    waiting.state = "activated";
+    waiting.fire("statechange");
+    await pending;
+
+    expect(globalThis.location.reload).toHaveBeenCalledTimes(1);
+  });
+
+  it("reloads anyway if the worker never takes control, instead of hanging forever", async () => {
+    // A promise that never settles is a permanently disabled "Reloading…"
+    // button the user cannot escape. Reloading on the old version is
+    // recoverable — the prompt simply comes back.
+    vi.useFakeTimers();
+    try {
+      const waiting = fakeWorker("installed");
+      stubEnv();
+      const registration = fakeRegistration({ waiting });
+
+      const pending = activateUpdate(registration as unknown as ServiceWorkerRegistration);
+      expect(globalThis.location.reload).not.toHaveBeenCalled();
+
+      await vi.advanceTimersByTimeAsync(5_000); // nothing ever responds
+      await pending;
+
+      expect(globalThis.location.reload).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("still reloads when nothing is waiting (double-tap, or already activated)", async () => {

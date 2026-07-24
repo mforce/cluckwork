@@ -747,6 +747,10 @@ export function HelpPage() {
             <td>Screens live in the left sidebar on a computer; on a phone the four you use most are tabs across the bottom, the rest under More.</td></tr>
           <tr><th scope="row">Operational day</th>
             <td>Dates mean your farm&apos;s calendar day, worked out from the farm&apos;s own timezone rather than a clock somewhere else. It is the same &quot;today&quot; everywhere: what counts as a future date when you record work, when eggs leave a withdrawal period, which eggs a sale can take, the day a flock is depleted or archived on, and the range reports open on. Every field that records WHEN SOMETHING HAPPENED opens on it and will not go past it, whatever day the device in your hand is on. Dates meant to fall in the future are not capped — a feed batch&apos;s expiry, and the History and Water filters.</td></tr>
+          <tr><th scope="row">Install to home screen</th>
+            <td>Adding Cluckwork to a phone or tablet&apos;s home screen from the browser, so it gets its own icon and opens in its own window without the browser bars. It is the same app, not a separate download — nothing to update from an app store. Only offered over a secure (https) address, and it does <strong>not</strong> make the app work offline: it still needs a connection to load and save.</td></tr>
+          <tr><th scope="row">A new version is ready</th>
+            <td>After a release, an installed app notices the new version in the background and asks before switching, rather than reloading while you are typing. Press Reload when convenient, or Later and it asks again next time. Nothing is lost by leaving it — the running app keeps working until you accept.</td></tr>
           <tr><th scope="row">Too many sign-in attempts</th>
             <td>Sign-in is rate limited to slow password guessing: too many attempts from one place in a few minutes are refused with this message until a short cool-off passes. It never affects an already signed-in session.</td></tr>
           <tr><th scope="row">&quot;Something went wrong&quot; screen</th>
