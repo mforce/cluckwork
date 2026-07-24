@@ -333,6 +333,8 @@ builder.Services.AddScoped<IValidator<RecordAdjustmentCommand>, RecordAdjustment
 builder.Services.AddScoped<IValidator<RecordWaterUsageCommand>, RecordWaterUsageValidator>();
 builder.Services.AddScoped<IValidator<UpdateWaterUsageCommand>, UpdateWaterUsageValidator>();
 builder.Services.AddScoped<IValidator<CreateUserCommand>, CreateUserValidator>();
+builder.Services.AddScoped<IValidator<Cluckwork.Application.Features.Users.UpdateUser.UpdateUserCommand>,
+    Cluckwork.Application.Features.Users.UpdateUser.UpdateUserValidator>();
 builder.Services.AddScoped<IValidator<AdjustDailyEntryCommand>, AdjustDailyEntryValidator>();
 builder.Services.AddScoped<IValidator<VoidDailyEntryCommand>, VoidDailyEntryValidator>();
 builder.Services.AddScoped<
@@ -378,6 +380,7 @@ builder.Services.AddScoped<ArchiveFlockHandler>();
 builder.Services.AddScoped<RecordBirdMovementHandler>();
 builder.Services.AddScoped<ReactivateFlockHandler>();
 builder.Services.AddScoped<CreateUserHandler>();
+builder.Services.AddScoped<Cluckwork.Application.Features.Users.UpdateUser.UpdateUserHandler>();
 builder.Services.AddScoped<AdjustDailyEntryHandler>();
 builder.Services.AddScoped<
     Cluckwork.Application.Features.Accounts.UpdateFarmSettings.UpdateFarmSettingsHandler>();

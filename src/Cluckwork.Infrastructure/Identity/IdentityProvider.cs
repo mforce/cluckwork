@@ -155,7 +155,8 @@ public sealed class IdentityProvider(
     }
 
     public async Task<Result<Guid>> CreateUserAsync(
-        Guid accountId, string email, string password, string? role, CancellationToken ct = default)
+        Guid accountId, string email, string password, string? role,
+        string? name = null, CancellationToken ct = default)
     {
         // One transaction around create + role assignment: a failed admin
         // creation must not survive as a usable role-less worker account
@@ -168,7 +169,8 @@ public sealed class IdentityProvider(
             UserName = email,
             Email = email,
             EmailConfirmed = true,
-            AccountId = accountId
+            AccountId = accountId,
+            DisplayName = name // #163 — optional display name at creation
         };
 
         var created = await userManager.CreateAsync(user, password);
@@ -202,6 +204,35 @@ public sealed class IdentityProvider(
 
         await transaction.CommitAsync(ct);
         return Result.Success(user.Id);
+    }
+
+    public async Task<Result> UpdateUserAsync(
+        Guid accountId, Guid userId, string? name, CancellationToken ct = default)
+    {
+        // Scoped to the account: a user id from another tenant simply doesn't
+        // match, so this returns NotFound rather than editing a foreign user.
+        var user = await db.Users.FirstOrDefaultAsync(
+            u => u.Id == userId && u.AccountId == accountId, ct);
+        if (user is null)
+            return Result.Failure(Error.NotFound("Users", userId));
+
+        user.DisplayName = name;
+        // Rotate Identity's concurrency token so two concurrent edits don't
+        // silently last-write-win: EF checks the ORIGINAL stamp in the UPDATE's
+        // WHERE, so the loser matches no row and fails closed to a 409.
+        user.ConcurrencyStamp = Guid.NewGuid().ToString();
+        await audit.WriteAsync("User.Update", "User", user.Id,
+            reason: null, details: new { name }, ct: ct);
+        try
+        {
+            await db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return Result.Failure(Error.Conflict(
+                "Users.Conflict", "The user was modified by another request. Reload and retry."));
+        }
+        return Result.Success();
     }
 
     // Identity's duplicate-email wording is only surfaced when the email

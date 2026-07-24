@@ -1,6 +1,7 @@
 namespace Cluckwork.Application.Features.Users.CreateUser;
 
 using Cluckwork.Application.Common;
+using Cluckwork.Application.Features.Users;
 using Cluckwork.Domain.Common;
 
 // #103 — users are created with any assignable role (spec §5.1), or as a
@@ -11,5 +12,6 @@ public sealed class CreateUserHandler(IIdentityProvider identity)
         CreateUserCommand command, Guid accountId, CancellationToken ct) =>
         identity.CreateUserAsync(
             accountId, command.Email.Trim(), command.Password,
-            role: command.Role == CreateUserValidator.WorkerRole ? null : command.Role, ct);
+            role: command.Role == CreateUserValidator.WorkerRole ? null : command.Role,
+            name: UserName.Normalize(command.Name), ct);
 }

@@ -3,7 +3,7 @@ import { screen, within, fireEvent, act } from "@testing-library/react";
 import { UsersPage } from "./UsersPage";
 import { renderWithProviders } from "../test/renderWithProviders";
 import {
-  assignFlock, createUser, listFlockAssignments, listFlocks, listUsers, unassignFlock,
+  assignFlock, createUser, listFlockAssignments, listFlocks, listUsers, unassignFlock, updateUser,
 } from "../api/cluckwork";
 import type { Flock, FlockAssignment, User } from "../api/cluckwork";
 import { ApiError } from "../api/client";
@@ -12,6 +12,7 @@ import { ApiError } from "../api/client";
 vi.mock("../api/cluckwork", () => ({
   listUsers: vi.fn(),
   createUser: vi.fn(),
+  updateUser: vi.fn(),
   listFlockAssignments: vi.fn(),
   assignFlock: vi.fn(),
   unassignFlock: vi.fn(),
@@ -20,6 +21,7 @@ vi.mock("../api/cluckwork", () => ({
 
 const mockListUsers = vi.mocked(listUsers);
 const mockCreateUser = vi.mocked(createUser);
+const mockUpdateUser = vi.mocked(updateUser);
 const mockListAssignments = vi.mocked(listFlockAssignments);
 const mockAssignFlock = vi.mocked(assignFlock);
 const mockUnassignFlock = vi.mocked(unassignFlock);
@@ -136,6 +138,26 @@ describe("UsersPage create", () => {
     expect(within(dialog()).getByLabelText("Email *")).toHaveValue("");
   });
 
+  it("sends the trimmed Name when one is entered, and omits it when left blank (#163)", async () => {
+    mockCreateUser.mockResolvedValue({ id: "u-new" });
+    await renderReady(ADMIN);
+
+    // With a name.
+    openCreate();
+    fireEvent.change(within(dialog()).getByLabelText("Email *"), { target: { value: "named@farm.test" } });
+    fireEvent.change(within(dialog()).getByLabelText(/Password/), { target: { value: `pw-${crypto.randomUUID()}` } });
+    fireEvent.change(within(dialog()).getByLabelText("Name"), { target: { value: "  Ada Lovelace  " } });
+    await act(async () => { fireEvent.click(within(dialog()).getByRole("button", { name: "Create user" })); });
+    expect(mockCreateUser.mock.calls[0][0]).toMatchObject({ email: "named@farm.test", name: "Ada Lovelace" });
+
+    // Without a name → the field is omitted (undefined), not sent blank.
+    openCreate();
+    fireEvent.change(within(dialog()).getByLabelText("Email *"), { target: { value: "anon@farm.test" } });
+    fireEvent.change(within(dialog()).getByLabelText(/Password/), { target: { value: `pw-${crypto.randomUUID()}` } });
+    await act(async () => { fireEvent.click(within(dialog()).getByRole("button", { name: "Create user" })); });
+    expect(mockCreateUser.mock.calls[1][0].name).toBeUndefined();
+  });
+
   it("replays the SAME create key after a failure, and rotates it after success", async () => {
     mockCreateUser.mockRejectedValueOnce(new ApiError(500, "Server error", "boom"));
     mockCreateUser.mockResolvedValue({ id: "u-new" });
@@ -168,6 +190,77 @@ describe("UsersPage create", () => {
     const k3 = mockCreateUser.mock.calls[2][1];
     expect(k2).toBe(k1); // failure kept the key → exact replay
     expect(k3).not.toBe(k2); // success rotated it → next write is fresh
+  });
+});
+
+describe("UsersPage edit name (#163)", () => {
+  const editRow = (rowName: RegExp) =>
+    fireEvent.click(within(screen.getByRole("row", { name: rowName })).getByRole("button", { name: "edit" }));
+
+  it("edits a user's name via the row 'edit' action, sending id + name + a key, then refreshes", async () => {
+    mockUpdateUser.mockResolvedValue(undefined);
+    await renderReady(ADMIN);
+
+    // The admin row starts nameless (—); open its edit dialog seeded with "".
+    editRow(/boss@farm.test/);
+    const box = within(dialog()).getByLabelText("Name");
+    expect(box).toHaveValue("");
+    fireEvent.change(box, { target: { value: "  Grace Hopper  " } });
+    await act(async () => { fireEvent.click(within(dialog()).getByRole("button", { name: "Save" })); });
+
+    expect(mockUpdateUser).toHaveBeenCalledWith("u-a", { name: "Grace Hopper" }, expect.any(String));
+    expect(mockListUsers).toHaveBeenCalledTimes(2); // initial load + post-update refresh
+    expect(await screen.findByText(/Updated boss@farm\.test/)).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("clears a name by saving the edit dialog blank (sends name: null)", async () => {
+    mockUpdateUser.mockResolvedValue(undefined);
+    await renderReady(ADMIN);
+
+    // The worker row is prefilled with its current name; blank it out.
+    editRow(/worker@farm.test/);
+    expect(within(dialog()).getByLabelText("Name")).toHaveValue("Wendy"); // seeded from displayName
+    fireEvent.change(within(dialog()).getByLabelText("Name"), { target: { value: "   " } });
+    await act(async () => { fireEvent.click(within(dialog()).getByRole("button", { name: "Save" })); });
+
+    expect(mockUpdateUser).toHaveBeenCalledWith("u-w", { name: null }, expect.any(String));
+  });
+
+  it("rotates the update key once the write is confirmed, so a changed retry after a failed refresh isn't replayed (#163)", async () => {
+    mockUpdateUser.mockResolvedValue(undefined);
+    // Mount load ok; the refresh AFTER the first save fails; later loads ok.
+    mockListUsers
+      .mockResolvedValueOnce([WORKER_USER, ADMIN_USER])
+      .mockRejectedValueOnce(new ApiError(500, "Server error", "boom"))
+      .mockResolvedValue([WORKER_USER, ADMIN_USER]);
+    await renderReady(ADMIN);
+
+    editRow(/boss@farm.test/);
+    fireEvent.change(within(dialog()).getByLabelText("Name"), { target: { value: "Alice" } });
+    await act(async () => { fireEvent.click(within(dialog()).getByRole("button", { name: "Save" })); });
+    // The write succeeded but the refresh failed → dialog stays open with the error.
+    expect(within(dialog()).getByText(/Server error|boom/)).toBeInTheDocument();
+
+    // Change the value and save again — a DIFFERENT key (the confirmed write cleared it),
+    // so the server can't replay the cached "Alice" response for the "Bob" edit.
+    fireEvent.change(within(dialog()).getByLabelText("Name"), { target: { value: "Bob" } });
+    await act(async () => { fireEvent.click(within(dialog()).getByRole("button", { name: "Save" })); });
+
+    expect(mockUpdateUser.mock.calls[1][2]).not.toBe(mockUpdateUser.mock.calls[0][2]); // key rotated
+    expect(mockUpdateUser.mock.calls[1][1]).toEqual({ name: "Bob" });
+  });
+
+  it("keeps the edit dialog open and shows the error when the update fails", async () => {
+    mockUpdateUser.mockRejectedValue(new ApiError(500, "Server error", "boom"));
+    await renderReady(ADMIN);
+
+    editRow(/worker@farm.test/);
+    fireEvent.change(within(dialog()).getByLabelText("Name"), { target: { value: "New Name" } });
+    await act(async () => { fireEvent.click(within(dialog()).getByRole("button", { name: "Save" })); });
+
+    expect(within(dialog()).getByText(/Server error|boom/)).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 });
 

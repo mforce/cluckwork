@@ -4,6 +4,7 @@ using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Users;
 using Cluckwork.Application.Features.Users.AssignFlock;
 using Cluckwork.Application.Features.Users.CreateUser;
+using Cluckwork.Application.Features.Users.UpdateUser;
 using Cluckwork.Infrastructure.Persistence;
 using FluentValidation;
 
@@ -20,6 +21,11 @@ public static class UserEndpoints
         group.MapGet("/", ListUsers)
             .WithName("ListUsers")
             .WithSummary("List this account's users and their role.");
+
+        // #163 — edit a user's display name (Owner-only, like the whole group).
+        group.MapPut("/{id:guid}", UpdateUser)
+            .WithName("UpdateUser")
+            .WithSummary("Update a user's display name.");
 
         // #103 — flock scoping for workers (spec §5.3). Owner-only like the
         // rest of the group.
@@ -86,7 +92,7 @@ public static class UserEndpoints
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
 
-        var command = new CreateUserCommand(request.Email, request.Password, request.Role);
+        var command = new CreateUserCommand(request.Email, request.Password, request.Role, request.Name);
         var validation = await validator.ValidateAsync(command, ct);
         if (!validation.IsValid)
             return Results.ValidationProblem(validation.ToDictionary());
@@ -94,6 +100,30 @@ public static class UserEndpoints
         var result = await handler.HandleAsync(command, tenant.AccountId, ct);
         return result.IsSuccess
             ? Results.Created("/api/v1/users", new { Id = result.Value })
+            : Results.Problem(result.Error.Description, statusCode: 422, title: result.Error.Code);
+    }
+
+    private static async Task<IResult> UpdateUser(
+        Guid id,
+        UpdateUserRequest request,
+        UpdateUserHandler handler,
+        IValidator<UpdateUserCommand> validator,
+        TenantContext tenant,
+        CancellationToken ct)
+    {
+        if (!tenant.IsResolved) return Results.Unauthorized();
+
+        var command = new UpdateUserCommand(id, request.Name);
+        var validation = await validator.ValidateAsync(command, ct);
+        if (!validation.IsValid)
+            return Results.ValidationProblem(validation.ToDictionary());
+
+        var result = await handler.HandleAsync(command, tenant.AccountId, ct);
+        if (result.IsSuccess) return Results.NoContent();
+        if (result.Error.Code.EndsWith(".NotFound", StringComparison.Ordinal))
+            return Results.NotFound();
+        return result.Error.Code.EndsWith(".Conflict", StringComparison.Ordinal)
+            ? Results.Problem(result.Error.Description, statusCode: StatusCodes.Status409Conflict, title: result.Error.Code)
             : Results.Problem(result.Error.Description, statusCode: 422, title: result.Error.Code);
     }
 
@@ -106,7 +136,9 @@ public static class UserEndpoints
     }
 }
 
-public sealed record CreateUserRequest(string Email, string Password, string Role);
+public sealed record CreateUserRequest(string Email, string Password, string Role, string? Name = null);
+
+public sealed record UpdateUserRequest(string? Name);
 
 public sealed record UserResponse(Guid Id, string Email, string? DisplayName, string Role);
 

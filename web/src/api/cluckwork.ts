@@ -559,8 +559,12 @@ export const unassignFlock = (userId: string, assignmentId: string, key?: string
   apiDelete<void>(`/users/${userId}/flock-assignments/${assignmentId}`, key);
 
 export const createUser = (body: {
-  email: string; password: string; role: string;
+  email: string; password: string; role: string; name?: string;
 }, key?: string) => apiPost<Created>("/users", body, key);
+
+// #163 — edit a user's display name. `name: null` clears it back to "—".
+export const updateUser = (id: string, body: { name: string | null }, key?: string) =>
+  apiPut<void>(`/users/${id}`, body, key);
 
 // Formats minor units per the order's snapshotted currency (JPY has 0 decimals).
 export function formatMoney(minorUnits: number, currencyCode: string, minorUnit: number): string {

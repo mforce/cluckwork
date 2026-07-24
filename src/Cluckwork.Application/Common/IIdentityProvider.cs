@@ -13,9 +13,16 @@ public interface IIdentityProvider
     Task RevokeRefreshTokenAsync(string refreshToken, CancellationToken ct = default);
 
     // #103 — role is one of Roles.Assignable, or null for a plain worker
-    // (workers deliberately carry no role row).
+    // (workers deliberately carry no role row). #163 — name is the optional
+    // display name (null = none).
     Task<Result<Guid>> CreateUserAsync(
-        Guid accountId, string email, string password, string? role, CancellationToken ct = default);
+        Guid accountId, string email, string password, string? role,
+        string? name = null, CancellationToken ct = default);
+
+    // #163 — edit an existing user's display name, scoped to the account so a
+    // foreign user id resolves to a NotFound failure, never a cross-tenant edit.
+    Task<Result> UpdateUserAsync(
+        Guid accountId, Guid userId, string? name, CancellationToken ct = default);
 
     Task<IReadOnlyList<UserSummary>> ListUsersAsync(Guid accountId, CancellationToken ct = default);
 }

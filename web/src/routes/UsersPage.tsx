@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
-import { Plus } from "lucide-react";
+import { Pencil, Plus } from "lucide-react";
 import {
-  assignFlock, createUser, listFlockAssignments, listFlocks, listUsers, unassignFlock,
+  assignFlock, createUser, listFlockAssignments, listFlocks, listUsers, unassignFlock, updateUser,
 } from "../api/cluckwork";
 import type { Flock, FlockAssignment, User } from "../api/cluckwork";
 import { ApiError } from "../api/client";
@@ -26,6 +26,15 @@ export function UsersPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState("Worker");
+  const [name, setName] = useState(""); // #163 optional display name at creation
+
+  // #163 edit: the user whose name is being edited, and the working value.
+  const [editUser, setEditUser] = useState<User | null>(null);
+  const [editName, setEditName] = useState("");
+  // Synchronous target of the edit dialog — like activeUser for flock scoping,
+  // so a save that resolves after the dialog was closed/reopened for another
+  // user doesn't splice its result into the wrong dialog.
+  const activeEdit = useRef<string | null>(null);
 
   // #103 flock scoping: expand a worker row to manage assignments.
   const [openUser, setOpenUser] = useState<string | null>(null);
@@ -141,16 +150,63 @@ export function UsersPage() {
     setMessage(null);
     try {
       const scope = `create:${email.trim().toLowerCase()}`;
-      await createUser({ email: email.trim(), password, role }, keyFor(scope));
-      setUsers(await listUsers());
+      await createUser(
+        { email: email.trim(), password, role, name: name.trim() || undefined },
+        keyFor(scope));
+      // Clear the key the instant the WRITE is confirmed — before the refresh —
+      // so a later edit of the just-created user (a changed payload) can't replay
+      // this cached response if the refresh below fails (#163 review).
       clearKey(scope);
+      setUsers(await listUsers());
       setMessage(`${role} account created for ${email.trim()}.`);
       setEmail("");
       setPassword("");
       setRole("Worker");
+      setName("");
       setCreating(false);
     } catch (err) {
       setError(errText(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // #163 — open the edit dialog seeded with the user's current name.
+  function openEdit(u: User) {
+    setError(null);
+    setMessage(null);
+    setEditName(u.displayName ?? "");
+    activeEdit.current = u.id;
+    setEditUser(u);
+  }
+
+  function closeEdit() {
+    activeEdit.current = null;
+    setEditUser(null);
+  }
+
+  async function onUpdate(e: FormEvent) {
+    e.preventDefault();
+    const target = editUser;
+    if (!target || busy) return;
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    const scope = `update:${target.id}`;
+    try {
+      // Blank clears the name back to "—" (null); the server normalizes too.
+      await updateUser(target.id, { name: editName.trim() || null }, keyFor(scope));
+      // Clear the key once the WRITE is confirmed (before the refresh), so a
+      // follow-up edit isn't replayed against this cached response (#163 review).
+      clearKey(scope);
+      await listUsers().then(setUsers);
+      // The dialog may have been dismissed/reopened for another user while this
+      // was in flight; only touch the UI if it's still this edit (#163 review).
+      if (activeEdit.current !== target.id) return;
+      setMessage(`Updated ${target.email}.`);
+      closeEdit();
+    } catch (err) {
+      if (activeEdit.current === target.id) setError(errText(err));
     } finally {
       setBusy(false);
     }
@@ -186,6 +242,10 @@ export function UsersPage() {
               required minLength={12} autoComplete="new-password"
               onChange={(e) => setPassword(e.target.value)} />
           </label>
+          <label>Name
+            <input type="text" value={name} maxLength={128} autoComplete="off"
+              onChange={(e) => setName(e.target.value)} />
+          </label>
           <label>Role
             <select value={role} onChange={(e) => setRole(e.target.value)}>
               <option value="Worker">Worker</option>
@@ -204,7 +264,7 @@ export function UsersPage() {
       </Dialog>
 
       {/* Each dialog carries its own error copy while it is up. */}
-      {error && !creating && openUser === null && <p className="error">{error}</p>}
+      {error && !creating && openUser === null && editUser === null && <p className="error">{error}</p>}
       {message && <p className="success">{message}</p>}
 
       <table className="data">
@@ -218,6 +278,9 @@ export function UsersPage() {
               <td>{u.displayName ?? "—"}</td>
               <td>{u.role}</td>
               <td>
+                <button className="link" onClick={() => openEdit(u)}>
+                  <Pencil size={14} aria-hidden /> edit
+                </button>
                 {u.role === "Worker" && (
                   <button className="link" onClick={() => void openAssignments(u.id)}>
                     flocks
@@ -264,6 +327,25 @@ export function UsersPage() {
         <div className="dialog-foot">
           <button type="button" className="link" onClick={closeAssignments}>Done</button>
         </div>
+      </Dialog>
+
+      <Dialog
+        open={editUser !== null}
+        title={`Edit user — ${editUser?.email ?? ""}`}
+        onClose={closeEdit}
+      >
+        <form className="inline-form" onSubmit={onUpdate}>
+          <label>Name
+            <input type="text" value={editName} maxLength={128} autoComplete="off"
+              onChange={(e) => setEditName(e.target.value)} />
+          </label>
+          <p className="muted">Leave blank to clear the name.</p>
+          {error && <p className="error">{error}</p>}
+          <div className="dialog-foot">
+            <button type="button" className="link" onClick={closeEdit}>Cancel</button>
+            <button type="submit" disabled={busy}>Save</button>
+          </div>
+        </form>
       </Dialog>
     </section>
   );

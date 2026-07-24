@@ -77,6 +77,12 @@ describe("AuditPage load + render", () => {
     );
   });
 
+  it("offers User.Update as a filterable action (#163 — the list must be exhaustive)", async () => {
+    render(<AuditPage />);
+    await screen.findByText("No audit events yet.");
+    expect(screen.getByRole("option", { name: "User.Update" })).toBeInTheDocument();
+  });
+
   it("maps each audit event's actor, action, entity and reason into its row", async () => {
     mockListAuditEvents.mockResolvedValue([EVENT_A, EVENT_B]);
     render(<AuditPage />);

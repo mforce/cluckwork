@@ -21,5 +21,9 @@ public sealed class CreateUserValidator : AbstractValidator<CreateUserCommand>
         RuleFor(x => x.Role)
             .Must(r => r == WorkerRole || Cluckwork.Domain.Accounts.Roles.Assignable.Contains(r))
             .WithMessage("Role must be Admin (owner), Manager, Sales, ReadOnly, or Worker.");
+        // #163 — Name is optional; only its length is bounded.
+        RuleFor(x => x.Name)
+            .MaximumLength(Cluckwork.Application.Features.Users.UserName.MaxLength)
+            .When(x => x.Name is not null);
     }
 }

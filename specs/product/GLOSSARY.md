@@ -521,9 +521,11 @@ controls; the API returns 403 with a problem body regardless. The role travels a
 access token and is re-read at every token refresh.
 
 **Users screen** — Owner-only user management (#103): create a user with
-email, password, and one of the five roles, and manage worker flock
-assignments (spec §5.3). Editing an existing user's role or password belongs
-to a later slice.
+email, password, an optional **display name**, and one of the five roles, and
+manage worker flock assignments (spec §5.3). A user's name can be set at
+creation and later changed from the row's **edit** action (#163; blank clears
+it back to "—"). Editing an existing user's role or password still belongs to a
+later slice.
 
 **Export (manual backup) (#95)** — admin-only downloads of the account's
 data as CSV files: one file per dataset, or a **full account export** — a
