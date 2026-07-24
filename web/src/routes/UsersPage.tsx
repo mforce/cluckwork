@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
-import { Plus } from "lucide-react";
+import { Pencil, Plus } from "lucide-react";
 import {
-  assignFlock, createUser, listFlockAssignments, listFlocks, listUsers, unassignFlock,
+  assignFlock, createUser, listFlockAssignments, listFlocks, listUsers, unassignFlock, updateUser,
 } from "../api/cluckwork";
 import type { Flock, FlockAssignment, User } from "../api/cluckwork";
 import { ApiError } from "../api/client";
@@ -26,6 +26,11 @@ export function UsersPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState("Worker");
+  const [name, setName] = useState(""); // #163 optional display name at creation
+
+  // #163 edit: the user whose name is being edited, and the working value.
+  const [editUser, setEditUser] = useState<User | null>(null);
+  const [editName, setEditName] = useState("");
 
   // #103 flock scoping: expand a worker row to manage assignments.
   const [openUser, setOpenUser] = useState<string | null>(null);
@@ -141,14 +146,47 @@ export function UsersPage() {
     setMessage(null);
     try {
       const scope = `create:${email.trim().toLowerCase()}`;
-      await createUser({ email: email.trim(), password, role }, keyFor(scope));
+      await createUser(
+        { email: email.trim(), password, role, name: name.trim() || undefined },
+        keyFor(scope));
       setUsers(await listUsers());
       clearKey(scope);
       setMessage(`${role} account created for ${email.trim()}.`);
       setEmail("");
       setPassword("");
       setRole("Worker");
+      setName("");
       setCreating(false);
+    } catch (err) {
+      setError(errText(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // #163 — open the edit dialog seeded with the user's current name.
+  function openEdit(u: User) {
+    setError(null);
+    setMessage(null);
+    setEditName(u.displayName ?? "");
+    setEditUser(u);
+  }
+
+  async function onUpdate(e: FormEvent) {
+    e.preventDefault();
+    const target = editUser;
+    if (!target || busy) return;
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    const scope = `update:${target.id}`;
+    try {
+      // Blank clears the name back to "—" (null); the server normalizes too.
+      await updateUser(target.id, { name: editName.trim() || null }, keyFor(scope));
+      setUsers(await listUsers());
+      clearKey(scope);
+      setMessage(`Updated ${target.email}.`);
+      setEditUser(null);
     } catch (err) {
       setError(errText(err));
     } finally {
@@ -186,6 +224,10 @@ export function UsersPage() {
               required minLength={12} autoComplete="new-password"
               onChange={(e) => setPassword(e.target.value)} />
           </label>
+          <label>Name
+            <input type="text" value={name} maxLength={128} autoComplete="off"
+              onChange={(e) => setName(e.target.value)} />
+          </label>
           <label>Role
             <select value={role} onChange={(e) => setRole(e.target.value)}>
               <option value="Worker">Worker</option>
@@ -204,7 +246,7 @@ export function UsersPage() {
       </Dialog>
 
       {/* Each dialog carries its own error copy while it is up. */}
-      {error && !creating && openUser === null && <p className="error">{error}</p>}
+      {error && !creating && openUser === null && editUser === null && <p className="error">{error}</p>}
       {message && <p className="success">{message}</p>}
 
       <table className="data">
@@ -218,6 +260,9 @@ export function UsersPage() {
               <td>{u.displayName ?? "—"}</td>
               <td>{u.role}</td>
               <td>
+                <button className="link" onClick={() => openEdit(u)}>
+                  <Pencil size={14} aria-hidden /> edit
+                </button>
                 {u.role === "Worker" && (
                   <button className="link" onClick={() => void openAssignments(u.id)}>
                     flocks
@@ -264,6 +309,25 @@ export function UsersPage() {
         <div className="dialog-foot">
           <button type="button" className="link" onClick={closeAssignments}>Done</button>
         </div>
+      </Dialog>
+
+      <Dialog
+        open={editUser !== null}
+        title={`Edit user — ${editUser?.email ?? ""}`}
+        onClose={() => setEditUser(null)}
+      >
+        <form className="inline-form" onSubmit={onUpdate}>
+          <label>Name
+            <input type="text" value={editName} maxLength={128} autoComplete="off"
+              onChange={(e) => setEditName(e.target.value)} />
+          </label>
+          <p className="muted">Leave blank to clear the name.</p>
+          {error && <p className="error">{error}</p>}
+          <div className="dialog-foot">
+            <button type="button" className="link" onClick={() => setEditUser(null)}>Cancel</button>
+            <button type="submit" disabled={busy}>Save</button>
+          </div>
+        </form>
       </Dialog>
     </section>
   );

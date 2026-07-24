@@ -339,6 +339,17 @@ internal static class TestHarness
             request.Content = JsonContent.Create(body);
         return client.SendAsync(request);
     }
+
+    // PUT with the Idempotency-Key write endpoints require (same as POST).
+    public static Task<HttpResponseMessage> PutWithKeyAsync(
+        this HttpClient client, string url, string idempotencyKey, object? body = null)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Put, url);
+        request.Headers.Add("Idempotency-Key", idempotencyKey);
+        if (body is not null)
+            request.Content = JsonContent.Create(body);
+        return client.SendAsync(request);
+    }
 }
 
 public sealed record TokenPairDto(string AccessToken, string RefreshToken, DateTimeOffset AccessTokenExpiry);

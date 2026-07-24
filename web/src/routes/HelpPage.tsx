@@ -178,10 +178,12 @@ export function HelpPage() {
         <li>
           <strong>Admin (owner)</strong> does everything a manager does and is
           the only role that manages users: creating sign-ins on the{" "}
-          <strong>Users</strong> screen (email, password, role) and assigning
-          workers to flocks. Changing an existing user&apos;s role or password
-          comes with a later release. Controls you can&apos;t use are hidden,
-          and the server refuses them regardless.
+          <strong>Users</strong> screen (email, password, an optional name, and
+          role) and assigning workers to flocks. A user&apos;s name can be
+          changed later from the row&apos;s <strong>edit</strong> action;
+          changing an existing user&apos;s role or password comes with a later
+          release. Controls you can&apos;t use are hidden, and the server
+          refuses them regardless.
         </li>
       </ul>
 
