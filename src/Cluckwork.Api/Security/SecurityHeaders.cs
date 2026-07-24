@@ -22,6 +22,12 @@ public static class SecurityHeaders
     // minted — a blob: URL is same-origin, opaque and unguessable, and cannot
     // be pointed at a remote host — so it does not reopen an exfiltration
     // channel the way adding a scheme like https: would.
+    //
+    // worker-src is 'self' rather than 'none' because the PWA service worker
+    // (#142) is a same-origin script at /sw.js, and 'none' blocks registration
+    // outright — silently, since a blocked register() only rejects a promise.
+    // It stays 'self': a worker may still only be loaded from this origin, so
+    // this permits our own shell-caching worker and nothing remote.
     public const string ContentSecurityPolicy =
         "default-src 'self'; " +
         "script-src 'self'; " +
@@ -30,7 +36,7 @@ public static class SecurityHeaders
         "font-src 'self'; " +
         "connect-src 'self'; " +
         "frame-src 'none'; " +
-        "worker-src 'none'; " +
+        "worker-src 'self'; " +
         "frame-ancestors 'none'; " +
         "base-uri 'self'; " +
         "form-action 'self'; " +

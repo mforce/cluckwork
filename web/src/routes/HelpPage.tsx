@@ -28,6 +28,7 @@ const TOC = [
   ["audit", "Audit log"],
   ["export", "Export & backup"],
   ["farm-settings", "Farm settings"],
+  ["install", "Install on a phone"],
   ["mistakes", "Fixing mistakes"],
   ["glossary", "Glossary"],
 ] as const;
@@ -604,6 +605,43 @@ export function HelpPage() {
           much better there than a wide wordmark or a detailed picture, which
           shrink to something unreadable. Keep a detailed logo for print or a
           website; give the app a clean little mark.
+        </li>
+      </ul>
+
+      <h3 id="install">Install on a phone</h3>
+      <ul>
+        <li>
+          Cluckwork can be added to a phone or tablet&apos;s home screen, where it
+          gets its own icon and opens in its own window without the browser bars
+          — more room for the entry screens and quicker to reach in the shed.
+          It&apos;s the same app, not a separate download, so there is nothing to
+          update from an app store.
+        </li>
+        <li>
+          <strong>Android (Chrome):</strong> open the menu and choose{" "}
+          <strong>Install app</strong> or <strong>Add to Home screen</strong>.{" "}
+          <strong>iPhone/iPad (Safari):</strong> tap <strong>Share</strong>, then{" "}
+          <strong>Add to Home Screen</strong>.
+        </li>
+        <li>
+          Installing is only offered over a secure (<strong>https</strong>)
+          address. If your farm reaches Cluckwork on a plain <strong>http</strong>{" "}
+          one the option simply won&apos;t appear — nothing is broken, and the app
+          works exactly as it does in the browser.
+        </li>
+        <li>
+          Installing does <strong>not</strong> make the app work offline. It still
+          needs a connection to load and save; only the app&apos;s own screens are
+          kept on the device so it starts quickly. Recording while offline is
+          planned work, not something installing turns on.
+        </li>
+        <li>
+          When a new version is released you&apos;ll see{" "}
+          <strong>&quot;A new version of Cluckwork is ready&quot;</strong>. It
+          waits for you rather than reloading while you&apos;re typing — press{" "}
+          <strong>Reload</strong> when you&apos;re at a good moment, or{" "}
+          <strong>Later</strong> and it will ask again next time. Nothing is lost
+          by leaving it.
         </li>
       </ul>
 

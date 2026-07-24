@@ -2,6 +2,7 @@
 import { defineConfig } from "vitest/config";
 import { loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
+import { VitePWA } from "vite-plugin-pwa";
 
 // Dev-only proxy: the SPA calls same-origin "/api/..." and Vite forwards to the
 // backend, so no CORS config is needed on the API for local dev. Override the
@@ -10,7 +11,64 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
   const target = env.VITE_API_TARGET ?? "http://localhost:8080";
   return {
-    plugins: [react()],
+    plugins: [
+      react(),
+      // #142 — installable PWA. Scope is the app SHELL only: the service worker
+      // makes the SPA launchable from a home screen and survivable on a bad
+      // connection. It caches no application data — offline capture is #50.
+      VitePWA({
+        // 'prompt', not 'autoUpdate': this app is used to type daily entries on
+        // barn phones, and skipWaiting can swap the running app out mid-form.
+        // The new shell installs in the background and waits for the user to
+        // accept (see UpdatePrompt), so an update never eats in-progress work.
+        registerType: "prompt",
+        // We register by hand in registerServiceWorker.ts so registration can be
+        // guarded on a secure context; the plugin's auto-injected snippet has no
+        // such guard.
+        injectRegister: null,
+        // No `includeAssets`: the workbox globPatterns below already sweep up
+        // every png/svg in the build, and listing them twice puts duplicate
+        // entries in the precache manifest.
+        manifest: {
+          name: "Cluckwork",
+          short_name: "Cluckwork",
+          description: "Poultry egg-farm management",
+          start_url: "/",
+          scope: "/",
+          display: "standalone",
+          // Matches the light-scheme theme-color already in index.html; the
+          // manifest takes a single value, so the light aubergine is the one
+          // that shows in the task switcher and splash.
+          theme_color: "#4a154b",
+          background_color: "#4a154b",
+          icons: [
+            { src: "/icon-192.png", sizes: "192x192", type: "image/png" },
+            { src: "/icon-512.png", sizes: "512x512", type: "image/png" },
+            // Separate maskable art: Android crops to a circle/squircle, and the
+            // standard mark is full-bleed, so it needs its own padded variant.
+            { src: "/icon-192-maskable.png", sizes: "192x192", type: "image/png", purpose: "maskable" },
+            { src: "/icon-512-maskable.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
+          ],
+        },
+        workbox: {
+          // The built shell: hashed JS/CSS plus the root entry and icons.
+          globPatterns: ["**/*.{js,css,html,svg,png,woff2}"],
+          // An unknown route serves index.html from the cache, EXCEPT under
+          // /api — those must always reach the network.
+          navigateFallback: "/index.html",
+          navigateFallbackDenylist: [/^\/api\//],
+          // Belt to that braces: never let a runtime handler answer an /api
+          // request from cache. Auth state and tenant data are per-request; a
+          // stale shared response here would be a correctness bug, not a
+          // performance win. #50 adds an explicit, deliberate offline path.
+          runtimeCaching: [],
+          navigationPreload: false,
+        },
+        // The SW is a production artifact; leaving it off in dev keeps `npm run
+        // dev` free of stale-cache confusion.
+        devOptions: { enabled: false },
+      }),
+    ],
     server: {
       port: 5173,
       proxy: {
