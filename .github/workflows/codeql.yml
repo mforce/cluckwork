@@ -5,8 +5,10 @@ name: CodeQL
 #
 # Mode: ADVISORY. This workflow does not gate merges on its own — a finding shows
 # as a neutral PR annotation, not a required failure, so a false positive can't
-# wedge an unrelated PR. To make it blocking, add "CodeQL" to the branch
-# protection required checks; nothing in this file has to change.
+# wedge an unrelated PR. To gate on results, enable code-scanning merge
+# protection in a branch ruleset (Settings → Rules → "Require code scanning
+# results", pick the CodeQL tool and a severity threshold); nothing in this file
+# has to change.
 #
 # build-mode: none — CodeQL's buildless analysis, so the scan needs neither the
 # .NET SDK nor npm install. Chosen for speed and to avoid coupling the scan to a

@@ -1,21 +1,27 @@
-// Self-tests for the CI vulnerability gate (#146). Run with `node --test .github/scripts/`.
+// Self-tests for the CI vulnerability gate (#146). Run with
+// `node --test .github/scripts/vuln-gate.test.mjs`.
 //
-// A gate that silently passes is worse than no gate, so the cases that matter
-// most here are the ones where something MUST still block: an expired exception,
-// an exception with no end date, and an exception written for the other
-// ecosystem. Each of those asserts a non-empty `blocking`, not just an absence.
+// The cases that matter most are the ones where something MUST still block or
+// MUST NOT suppress: an unusable report, an unknown severity, and an expired /
+// malformed / newline-poisoned exception. Each of those asserts the fail-closed
+// outcome (non-empty blocking, or an id that does NOT reach the allowlist), not
+// just an absence.
 
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
   advisoryId,
   emitAllowlist,
+  exceptionProblem,
   extractJson,
   gate,
+  isGhsaId,
+  isValidException,
   parseArgs,
   parseNpm,
   parseNuget,
   report,
+  reportProblem,
   severityRank,
 } from "./vuln-gate.mjs";
 
@@ -26,14 +32,25 @@ const GHSA_TWO = "GHSA-dddd-eeee-ffff";
 const finding = (over = {}) => ({
   id: GHSA_ONE, package: "left-pad@1.0.0", severity: "high", title: "", url: "", ...over,
 });
+// A fully-valid exception; tests override one field at a time to isolate a rule.
+const exception = (over = {}) => ({
+  id: GHSA_ONE, ecosystem: "npm", reason: "no upstream fix — tracked in #000", expires: "2026-12-31", ...over,
+});
 
 test("severity ranks follow the shared npm/NuGet ladder", () => {
   assert.ok(severityRank("critical") > severityRank("high"));
   assert.ok(severityRank("high") > severityRank("moderate"));
   assert.ok(severityRank("moderate") > severityRank("low"));
   assert.equal(severityRank("HIGH"), severityRank("high")); // NuGet capitalises
-  assert.equal(severityRank("nonsense"), 0);
-  assert.equal(severityRank(undefined), 0);
+});
+
+test("an unknown or missing severity fails CLOSED — ranks above critical", () => {
+  assert.ok(severityRank("nonsense") > severityRank("critical"));
+  assert.ok(severityRank(undefined) > severityRank("critical"));
+  assert.ok(severityRank("") > severityRank("critical"));
+  // …so a finding with a severity we don't recognise still blocks at high.
+  const result = gate({ findings: [finding({ severity: "sev-five" })], ecosystem: "npm", now: NOW });
+  assert.equal(result.blocking.length, 1);
 });
 
 test("advisory ids come from the GHSA in the URL, with a fallback", () => {
@@ -41,6 +58,16 @@ test("advisory ids come from the GHSA in the URL, with a fallback", () => {
   assert.equal(advisoryId("https://github.com/advisories/GHSA-AAAA-BBBB-CCCC", 1), GHSA_ONE);
   assert.equal(advisoryId("https://example.test/CVE-2026-1", 4242), "4242");
   assert.equal(advisoryId(undefined, undefined), "UNKNOWN");
+});
+
+test("isGhsaId accepts only an exact, whole GHSA id", () => {
+  assert.ok(isGhsaId(GHSA_ONE));
+  assert.ok(isGhsaId("ghsa-aaaa-bbbb-cccc")); // case-insensitive
+  assert.ok(!isGhsaId(`${GHSA_ONE},${GHSA_TWO}`)); // no smuggled second id
+  assert.ok(!isGhsaId(`${GHSA_ONE}\nghsas=${GHSA_TWO}`)); // no embedded newline
+  assert.ok(!isGhsaId("GHSA-aaaa-bbbb-cccc-extra"));
+  assert.ok(!isGhsaId("1099999"));
+  assert.ok(!isGhsaId(undefined));
 });
 
 test("npm: advisory objects become findings, 'via' strings do not", () => {
@@ -98,6 +125,40 @@ test("nuget: both top-level and transitive packages are gated", () => {
   );
 });
 
+test("nuget: two DISTINCT non-GHSA advisories on one package stay distinct", () => {
+  // Fallback identity is the advisory URL, not the coordinate — else dedupe
+  // would collapse two different advisories on the same package into one.
+  const findings = parseNuget({
+    projects: [{
+      frameworks: [{
+        topLevelPackages: [{
+          id: "Pkg", resolvedVersion: "1.0.0",
+          vulnerabilities: [
+            { severity: "High", advisoryurl: "https://example.test/CVE-2026-1" },
+            { severity: "Critical", advisoryurl: "https://example.test/CVE-2026-2" },
+          ],
+        }],
+      }],
+    }],
+  });
+  assert.equal(findings.length, 2);
+});
+
+test("nuget: an advisory with no URL falls back to coordinates — and a GHSA exception can't mute it", () => {
+  const findings = parseNuget({
+    projects: [{ frameworks: [{ topLevelPackages: [{
+      id: "Pkg", resolvedVersion: "1.0.0", vulnerabilities: [{ severity: "High" }],
+    }] }] }],
+  });
+  assert.deepEqual(findings.map((f) => f.id), ["Pkg@1.0.0"]);
+  // A GHSA-keyed exception cannot match a coordinate id, so it still blocks
+  // (safe): non-GHSA advisories are documented as not exceptable.
+  const result = gate({
+    findings, exceptions: [exception({ ecosystem: "nuget" })], ecosystem: "nuget", now: NOW,
+  });
+  assert.equal(result.blocking.length, 1);
+});
+
 test("gate: blocks at or above the level and ignores what is below it", () => {
   const result = gate({
     findings: [finding({ severity: "critical" }), finding({ id: GHSA_TWO, severity: "moderate" })],
@@ -112,9 +173,7 @@ test("gate: blocks at or above the level and ignores what is below it", () => {
 
 test("gate: a live exception suppresses, carrying its reason forward", () => {
   const result = gate({
-    findings: [finding()],
-    exceptions: [{ id: GHSA_ONE, ecosystem: "npm", reason: "no patch upstream", expires: "2026-12-31" }],
-    ecosystem: "npm", now: NOW,
+    findings: [finding()], exceptions: [exception({ reason: "no patch upstream" })], ecosystem: "npm", now: NOW,
   });
   assert.equal(result.blocking.length, 0);
   assert.deepEqual(result.suppressed.map((f) => f.reason), ["no patch upstream"]);
@@ -123,59 +182,101 @@ test("gate: a live exception suppresses, carrying its reason forward", () => {
 
 test("gate: an EXPIRED exception still blocks, and is reported as stale", () => {
   const result = gate({
-    findings: [finding()],
-    exceptions: [{ id: GHSA_ONE, ecosystem: "npm", reason: "was unfixable", expires: "2026-07-23" }],
-    ecosystem: "npm", now: NOW,
+    findings: [finding()], exceptions: [exception({ expires: "2026-07-23" })], ecosystem: "npm", now: NOW,
   });
   assert.equal(result.blocking.length, 1, "a lapsed exception must not keep muting the advisory");
   assert.deepEqual(result.staleExceptions.map((e) => e.id), [GHSA_ONE]);
 });
 
-test("gate: an exception with no expiry never suppresses", () => {
-  for (const expires of [undefined, "", "whenever"]) {
-    const result = gate({
-      findings: [finding()],
-      exceptions: [{ id: GHSA_ONE, ecosystem: "npm", reason: "forever", expires }],
-      ecosystem: "npm", now: NOW,
-    });
-    assert.equal(result.blocking.length, 1, `expires=${String(expires)} must not suppress`);
-  }
+test("gate: expiry is inclusive to the END of the named UTC day", () => {
+  const findings = [finding()];
+  const ex = [exception({ expires: "2026-07-24" })];
+  // Midnight at the start of the 24th → still live.
+  assert.equal(gate({ findings, exceptions: ex, ecosystem: "npm", now: new Date("2026-07-24T00:00:00Z") }).blocking.length, 0);
+  // 23:59:59 on the 24th → still live.
+  assert.equal(gate({ findings, exceptions: ex, ecosystem: "npm", now: new Date("2026-07-24T23:59:59Z") }).blocking.length, 0);
+  // Midnight of the 25th → lapsed, blocks again.
+  assert.equal(gate({ findings, exceptions: ex, ecosystem: "npm", now: new Date("2026-07-25T00:00:00Z") }).blocking.length, 1);
 });
 
 test("gate: an exception scoped to the other ecosystem does not apply", () => {
-  const live = { id: GHSA_ONE, reason: "nuget only", expires: "2026-12-31" };
-  const npmRun = gate({ findings: [finding()], exceptions: [{ ...live, ecosystem: "nuget" }], ecosystem: "npm", now: NOW });
+  const npmRun = gate({ findings: [finding()], exceptions: [exception({ ecosystem: "nuget" })], ecosystem: "npm", now: NOW });
   assert.equal(npmRun.blocking.length, 1, "a NuGet exception must not mute an npm advisory");
   assert.equal(npmRun.staleExceptions.length, 0, "nor should it be reported as stale on the npm run");
 
-  const anyRun = gate({ findings: [finding()], exceptions: [{ ...live, ecosystem: "any" }], ecosystem: "npm", now: NOW });
+  const anyRun = gate({ findings: [finding()], exceptions: [exception({ ecosystem: "any" })], ecosystem: "npm", now: NOW });
   assert.equal(anyRun.blocking.length, 0);
 });
 
 test("gate: matching an id is case-insensitive", () => {
   const result = gate({
-    findings: [finding()],
-    exceptions: [{ id: GHSA_ONE.toLowerCase(), ecosystem: "npm", reason: "r", expires: "2026-12-31" }],
-    ecosystem: "npm", now: NOW,
+    findings: [finding()], exceptions: [exception({ id: GHSA_ONE.toLowerCase() })], ecosystem: "npm", now: NOW,
   });
   assert.equal(result.blocking.length, 0);
 });
 
-test("emitAllowlist: only live GHSA-shaped ids, across ecosystems, as a comma list", () => {
-  const exceptions = [
-    { id: GHSA_ONE, ecosystem: "npm", expires: "2026-12-31" },
-    { id: GHSA_TWO, ecosystem: "nuget", expires: "2026-12-31" }, // both manifests count
-    { id: "GHSA-gggg-hhhh-iiii", ecosystem: "any", expires: "2026-07-23" }, // expired → out
-    { id: "1099999", ecosystem: "npm", expires: "2026-12-31" }, // numeric npm id → not expressible
-    { id: GHSA_ONE, ecosystem: "npm" }, // no expiry → out
-  ];
-  const list = emitAllowlist(exceptions, NOW).split(",").filter(Boolean).sort();
+test("exceptionProblem: names why a malformed entry is rejected", () => {
+  assert.equal(exceptionProblem(exception()), null); // the valid baseline
+  assert.match(exceptionProblem(exception({ id: "1099999" })), /GHSA/);
+  assert.match(exceptionProblem(exception({ id: `${GHSA_ONE},${GHSA_TWO}` })), /GHSA/);
+  assert.match(exceptionProblem(exception({ ecosystem: undefined })), /ecosystem/);
+  assert.match(exceptionProblem(exception({ ecosystem: "pypi" })), /ecosystem/);
+  assert.match(exceptionProblem(exception({ reason: "  " })), /reason/);
+  assert.match(exceptionProblem(exception({ expires: undefined })), /date/);
+  assert.match(exceptionProblem(exception({ expires: "December 31, 2099" })), /YYYY-MM-DD/);
+  assert.match(exceptionProblem(exception({ expires: "2026-02-30" })), /calendar/); // parseable but impossible
+  assert.equal(exceptionProblem(null), "not an object");
+  assert.ok(isValidException(exception()) && !isValidException(exception({ reason: "" })));
+});
+
+test("gate: a MALFORMED exception is ignored (never suppresses) and reported", () => {
+  for (const bad of [
+    exception({ expires: "December 31, 2099" }), // non-ISO but Date.parse-able
+    exception({ expires: "2026-02-30" }),        // normalises to Mar 2 — must not suppress
+    exception({ ecosystem: undefined }),         // no scope
+    exception({ reason: "" }),                   // no justification
+    exception({ id: `${GHSA_ONE},${GHSA_TWO}` }),// smuggled second id
+  ]) {
+    const result = gate({ findings: [finding()], exceptions: [bad], ecosystem: "npm", now: NOW });
+    assert.equal(result.blocking.length, 1, `must still block: ${JSON.stringify(bad)}`);
+    assert.equal(result.invalidExceptions.length, 1);
+    assert.equal(result.suppressed.length, 0);
+  }
+});
+
+test("reportProblem: an npm error payload is NOT clean — fails closed", () => {
+  assert.match(reportProblem({ error: { code: "ENETUNREACH" } }, "npm"), /error/);
+  assert.match(reportProblem({ metadata: {} }, "npm"), /auditReportVersion/); // neither key present
+  assert.equal(reportProblem({ auditReportVersion: 2, vulnerabilities: {} }, "npm"), null);
+  assert.equal(reportProblem({ vulnerabilities: {} }, "npm"), null); // vulnerabilities alone is fine
+});
+
+test("reportProblem: NuGet output without a projects array is unusable", () => {
+  assert.match(reportProblem({ version: 1 }, "nuget"), /projects/);
+  assert.equal(reportProblem({ version: 1, projects: [] }, "nuget"), null);
+  assert.equal(reportProblem(null, "nuget"), "not a JSON object");
+});
+
+test("emitAllowlist: only valid, live GHSA ids, across ecosystems, as a comma list", () => {
+  const list = emitAllowlist([
+    exception({ id: GHSA_ONE, ecosystem: "npm" }),
+    exception({ id: GHSA_TWO, ecosystem: "nuget" }), // both manifests count
+    exception({ id: "GHSA-gggg-hhhh-iiii", ecosystem: "any", expires: "2026-07-23" }), // expired → out
+    exception({ id: "1099999" }),                    // not a GHSA → out
+    exception({ id: GHSA_ONE, expires: undefined }), // invalid (no expiry) → out
+    exception({ id: GHSA_ONE, reason: "" }),         // invalid (no reason) → out
+  ], NOW).split(",").filter(Boolean).sort();
   assert.deepEqual(list, [GHSA_ONE, GHSA_TWO].sort());
 });
 
-test("emitAllowlist: nothing live yields an empty string, not 'undefined'", () => {
+test("emitAllowlist: an adversarial id can never smuggle extra allowlist entries", () => {
+  // Even though these carry a live, otherwise-valid-looking exception, the id
+  // itself is not a bare GHSA, so nothing is emitted — no comma- or newline-
+  // injected second id can reach dependency-review's allow-ghsas / GITHUB_OUTPUT.
+  assert.equal(emitAllowlist([exception({ id: `${GHSA_ONE},${GHSA_TWO}` })], NOW), "");
+  assert.equal(emitAllowlist([exception({ id: `${GHSA_ONE}\nghsas=${GHSA_TWO}` })], NOW), "");
   assert.equal(emitAllowlist([], NOW), "");
-  assert.equal(emitAllowlist([{ id: GHSA_ONE, expires: "2000-01-01" }], NOW), "");
+  assert.equal(emitAllowlist([exception({ expires: "2000-01-01" })], NOW), ""); // expired
 });
 
 test("report: blocking findings are errors, or warnings in advisory mode", () => {

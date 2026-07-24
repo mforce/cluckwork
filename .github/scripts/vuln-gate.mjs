@@ -9,14 +9,19 @@
 // Both sides need parsing, so parsing once buys a single exceptions file, one
 // severity ladder, and one report format across the two ecosystems.
 //
+// Posture: FAIL CLOSED. Unreadable input, an unrecognised report shape, an
+// unknown severity, or a malformed exception all err toward blocking — a gate
+// that passes when it cannot tell is worse than no gate.
+//
 // Usage:
 //   npm audit --json --omit=dev | node .github/scripts/vuln-gate.mjs --ecosystem npm
-//   dotnet list package --vulnerable --include-transitive --format json \
+//   dotnet list package --vulnerable --include-transitive --format json --output-version 1 \
 //     | node .github/scripts/vuln-gate.mjs --ecosystem nuget
 //
 // Flags: --level <low|moderate|high|critical>  (default high — blocks at or above)
 //        --warn-only                           (report, always exit 0)
 //        --exceptions <path>                   (default .github/security-exceptions.json)
+//        --emit-allowlist                      (print live GHSA ids for dependency-review)
 //
 // Exit 0 = clean or fully excepted; exit 1 = blocking advisory; exit 2 = bad input.
 
@@ -24,23 +29,45 @@ import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 const SEVERITIES = ["info", "low", "moderate", "high", "critical"];
+// One rung above `critical`, so anything we don't recognise sorts ABOVE the
+// highest known severity and therefore blocks at any threshold (fail closed).
+const UNKNOWN_RANK = SEVERITIES.length;
+const ECOSYSTEMS = new Set(["npm", "nuget", "any"]);
+const ONE_DAY_MS = 86_400_000;
 
+// A finding's severity comes from a tool we don't control: an unrecognised or
+// missing value must not silently rank below the gate's floor and slip through.
+// (`level`, by contrast, is always one of our own known strings.)
 export function severityRank(severity) {
   const i = SEVERITIES.indexOf(String(severity ?? "").toLowerCase());
-  return i < 0 ? 0 : i;
+  return i < 0 ? UNKNOWN_RANK : i;
 }
 
 // Both ecosystems point their advisory URLs at GitHub Security Advisories, so a
 // GHSA id is the one key that means the same thing on both sides — that is what
 // an exception is written against. Numeric npm ids / package coordinates are
 // only a fallback for an advisory published somewhere else.
-const GHSA = /(GHSA-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4})/i;
+const GHSA_ANYWHERE = /(GHSA-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4})/i;
+// Fully anchored: an exception id / allowlist entry must be EXACTLY a GHSA and
+// nothing else. Without the anchors a value like "GHSA-aaaa-bbbb-cccc,GHSA-…"
+// or one carrying an embedded newline would pass a prefix check and then, once
+// interpolated into dependency-review's comma-separated `allow-ghsas` or into
+// `$GITHUB_OUTPUT`, smuggle in extra ids — forging the allowlist (#146 review).
+const GHSA_EXACT = /^GHSA-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}$/i;
+
+export function isGhsaId(value) {
+  return typeof value === "string" && GHSA_EXACT.test(value);
+}
+
+function canonicalGhsa(value) {
+  return `GHSA-${value.slice(5).toLowerCase()}`;
+}
 
 export function advisoryId(url, fallback) {
-  const match = typeof url === "string" ? url.match(GHSA) : null;
+  const match = typeof url === "string" ? url.match(GHSA_ANYWHERE) : null;
   // Canonical GitHub form: uppercase prefix, lowercase body — so an id pasted
   // straight from a GitHub advisory page is what appears in the log.
-  return match ? `GHSA-${match[1].slice(5).toLowerCase()}` : String(fallback ?? "UNKNOWN");
+  return match ? canonicalGhsa(match[1]) : String(fallback ?? "UNKNOWN");
 }
 
 function dedupe(findings) {
@@ -56,8 +83,11 @@ function dedupe(findings) {
 
 // `npm audit --json` (auditReportVersion 2). Each vulnerabilities[name].via entry
 // is either an advisory object or a bare package name — the latter means "this
-// package is vulnerable *through* that one", and the advisory itself is listed
-// on that other package's own entry, so counting it here would double-report.
+// package is vulnerable *through* that one". The advisory OBJECT is always
+// carried on the entry of the package the advisory is published against (which
+// npm audit always includes in the map), so iterating every entry sees each
+// advisory exactly once; a string via would only double-count. Verified against
+// a real transitive advisory (mkdirp@0.5.1 → minimist), #146 review.
 export function parseNpm(report) {
   const findings = [];
   for (const entry of Object.values(report?.vulnerabilities ?? {})) {
@@ -89,7 +119,10 @@ export function parseNuget(report) {
             const url = vuln.advisoryurl ?? vuln.advisoryUrl ?? "";
             const coordinates = `${pkg.id}@${pkg.resolvedVersion ?? "?"}`;
             findings.push({
-              id: advisoryId(url, coordinates),
+              // Prefer the GHSA; else fall back to the advisory URL so two
+              // distinct non-GHSA advisories on the SAME package stay distinct
+              // through dedupe (coordinates alone would collapse them).
+              id: advisoryId(url, url || coordinates),
               package: coordinates,
               severity: String(vuln.severity ?? "").toLowerCase(),
               title: kind === "transitivePackages" ? "transitive" : "direct",
@@ -103,42 +136,77 @@ export function parseNuget(report) {
   return dedupe(findings);
 }
 
-// An exception without a parseable `expires` never suppresses anything. That is
-// deliberate: an exception with no end date is an indefinite hole, and the whole
-// point of the file is that muting an advisory stays a dated, revisited decision.
+// An exception is a deliberate, dated, single-advisory mute. Every field is
+// validated before it can suppress anything; a malformed entry is IGNORED (it
+// never suppresses) and surfaced as a warning. This is what stops a typo'd or
+// hand-crafted entry — `Date.parse("December 31, 2099")`, an impossible
+// `2026-02-30`, a comma/newline-bearing id, a missing scope — from opening a
+// hole (#146 review).
+export function exceptionProblem(exception) {
+  if (typeof exception !== "object" || exception === null) return "not an object";
+  if (!isGhsaId(exception.id)) return "id is not a canonical GHSA (GHSA-xxxx-xxxx-xxxx)";
+  if (!ECOSYSTEMS.has(String(exception.ecosystem ?? "").toLowerCase()))
+    return "ecosystem must be one of npm, nuget, any";
+  if (typeof exception.reason !== "string" || exception.reason.trim() === "")
+    return "reason must be a non-empty string";
+  // Strict calendar date: the literal must be YYYY-MM-DD *and* round-trip, so a
+  // normalised-away value like 2026-02-30 (→ Mar 2) is rejected, not accepted.
+  const expires = String(exception.expires ?? "");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(expires)) return "expires must be a YYYY-MM-DD date";
+  const parsed = new Date(`${expires}T00:00:00Z`);
+  if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== expires)
+    return `expires is not a real calendar date (${expires})`;
+  return null;
+}
+
+export function isValidException(exception) {
+  return exceptionProblem(exception) === null;
+}
+
+// Live = valid AND within its window. The window runs to the END of the named
+// UTC day (inclusive), so `expires: 2026-07-24` still suppresses throughout the
+// 24th rather than lapsing at that day's first instant (#146 review). Callers
+// pass only already-validated exceptions.
 function isLive(exception, now) {
-  const expires = Date.parse(exception?.expires ?? "");
-  return Number.isFinite(expires) && expires > now.getTime();
+  const dayStart = Date.parse(`${exception.expires}T00:00:00Z`);
+  return Number.isFinite(dayStart) && now.getTime() < dayStart + ONE_DAY_MS;
 }
 
 function matches(exception, finding, ecosystem) {
-  const scope = String(exception?.ecosystem ?? "any").toLowerCase();
+  const scope = String(exception.ecosystem).toLowerCase();
   if (scope !== "any" && scope !== ecosystem) return false;
-  return String(exception?.id ?? "").toUpperCase() === finding.id.toUpperCase();
+  return canonicalGhsa(exception.id) === finding.id;
 }
 
 export function gate({ findings, exceptions = [], ecosystem, level = "high", now = new Date() }) {
   const floor = severityRank(level);
   const atOrAbove = findings.filter((f) => severityRank(f.severity) >= floor);
 
+  const valid = exceptions.filter(isValidException);
+  // A malformed entry is reported (so it gets fixed) but NEVER suppresses.
+  const invalidExceptions = exceptions
+    .filter((e) => !isValidException(e))
+    .map((e) => ({ raw: e, problem: exceptionProblem(e) }));
+
+  const inScope = (e) => e.ecosystem === "any" || e.ecosystem.toLowerCase() === ecosystem;
+
   const suppressed = [];
   const blocking = [];
   for (const finding of atOrAbove) {
-    const excuse = exceptions.find((e) => matches(e, finding, ecosystem) && isLive(e, now));
-    if (excuse) suppressed.push({ ...finding, reason: excuse.reason ?? "", expires: excuse.expires });
+    const excuse = valid.find((e) => matches(e, finding, ecosystem) && isLive(e, now));
+    if (excuse) suppressed.push({ ...finding, reason: excuse.reason, expires: excuse.expires });
     else blocking.push(finding);
   }
 
-  // Surfaced so a lapsed entry gets deleted instead of lingering as dead config.
-  const staleExceptions = exceptions.filter(
-    (e) => (String(e?.ecosystem ?? "any").toLowerCase() === "any"
-      || String(e?.ecosystem).toLowerCase() === ecosystem) && !isLive(e, now),
-  );
+  // Valid, in-scope, but past its window — surfaced so a lapsed entry gets
+  // deleted instead of lingering as dead config.
+  const staleExceptions = valid.filter((e) => inScope(e) && !isLive(e, now));
 
   return {
     blocking,
     suppressed,
     staleExceptions,
+    invalidExceptions,
     belowLevel: findings.length - atOrAbove.length,
   };
 }
@@ -146,13 +214,13 @@ export function gate({ findings, exceptions = [], ecosystem, level = "high", now
 // The live (unexpired) GHSA ids, for actions/dependency-review-action's
 // `allow-ghsas` input — so the diff-scoped PR gate honours the very same
 // exceptions file as the tree-scoped audit gates, from one source of truth.
-// Ids without a GHSA (numeric-only npm ids, bare coordinates) can't be expressed
-// to that action and are dropped here; they still work for the audit gates.
+// Only VALID exceptions qualify, and each id is re-emitted in canonical form, so
+// the output is guaranteed to be a comma-list of bare GHSA ids — no separators
+// or newlines that could forge extra allowlist/`$GITHUB_OUTPUT` entries.
 export function emitAllowlist(exceptions, now = new Date()) {
   return exceptions
-    .filter((e) => isLive(e, now))
-    .map((e) => String(e.id ?? ""))
-    .filter((id) => /^GHSA-/i.test(id))
+    .filter((e) => isValidException(e) && isLive(e, now))
+    .map((e) => canonicalGhsa(e.id))
     .join(",");
 }
 
@@ -168,6 +236,8 @@ export function report({ result, ecosystem, level, warnOnly, log = console.log }
     log(`::notice::[${ecosystem}] excepted until ${finding.expires}: ${describe(finding)} — ${finding.reason}`);
   for (const stale of result.staleExceptions)
     log(`::warning::[${ecosystem}] exception ${stale.id} lapsed (${stale.expires ?? "no expiry"}) — remove it from .github/security-exceptions.json`);
+  for (const { raw, problem } of result.invalidExceptions ?? [])
+    log(`::warning::[${ecosystem}] ignored malformed exception (${problem}): ${JSON.stringify(raw)}`);
 
   if (result.blocking.length === 0)
     log(`[${ecosystem}] no advisories at or above "${level}" (${result.suppressed.length} excepted, ${result.belowLevel} below threshold).`);
@@ -201,6 +271,24 @@ export function extractJson(text) {
   return JSON.parse(text.slice(start));
 }
 
+// Validate the report is the SHAPE we expect before trusting an empty finding
+// list. `npm audit` is network-backed and, on a registry/auth failure, prints an
+// `{ "error": … }` payload with no `vulnerabilities` and a non-zero exit — which
+// the workflow's `|| true` swallows. Without this check that would parse as
+// "clean" and pass the gate (fail OPEN). Likewise a NuGet document with no
+// `projects` array is not a real run (#146 review).
+export function reportProblem(report, ecosystem) {
+  if (typeof report !== "object" || report === null) return "not a JSON object";
+  if (ecosystem === "npm") {
+    if (report.error) return `npm audit reported an error: ${JSON.stringify(report.error)}`;
+    if (report.auditReportVersion === undefined && report.vulnerabilities === undefined)
+      return "npm audit output has neither auditReportVersion nor vulnerabilities";
+  } else if (ecosystem === "nuget") {
+    if (!Array.isArray(report.projects)) return "dotnet output has no projects array";
+  }
+  return null;
+}
+
 async function readStdin() {
   const chunks = [];
   for await (const chunk of process.stdin) chunks.push(chunk);
@@ -231,17 +319,24 @@ async function main() {
     return;
   }
 
-  let report_;
+  let parsed;
   try {
-    report_ = extractJson(await readStdin());
+    parsed = extractJson(await readStdin());
   } catch (err) {
     console.error(`::error::[${options.ecosystem}] could not parse the audit output: ${err.message}`);
     process.exitCode = 2; // a gate that cannot read its input must not pass silently
     return;
   }
 
+  const shapeProblem = reportProblem(parsed, options.ecosystem);
+  if (shapeProblem) {
+    console.error(`::error::[${options.ecosystem}] unusable audit report — ${shapeProblem}`);
+    process.exitCode = 2; // fail closed: an error payload is not "no vulnerabilities"
+    return;
+  }
+
   const exceptions = loadExceptions(options.exceptionsPath);
-  const findings = options.ecosystem === "npm" ? parseNpm(report_) : parseNuget(report_);
+  const findings = options.ecosystem === "npm" ? parseNpm(parsed) : parseNuget(parsed);
   const result = gate({ findings, exceptions, ecosystem: options.ecosystem, level: options.level });
   report({ result, ecosystem: options.ecosystem, level: options.level, warnOnly: options.warnOnly });
 

@@ -75,11 +75,15 @@ CI fails a PR when a dependency carries a known **high+** advisory:
 Both audit gates run through `.github/scripts/vuln-gate.mjs` (self-tested with
 `node --test`), which shares one **escape hatch**: `.github/security-exceptions.json`.
 Add a `{ id: GHSA-…, ecosystem, reason, expires }` entry to mute one advisory
-until a **required** date — past it, the advisory blocks again and CI warns the
-entry is stale. Reach for it only when there's no fixed version to move to; prefer
-bumping the package or pinning a patched transitive version (npm `overrides` /
-direct NuGet reference) first. The same file feeds dependency-review's allowlist,
-so the gates never disagree.
+until a **required** calendar date — past it, the advisory blocks again and CI
+warns the entry is stale. The gate **fails closed**: a malformed report (e.g. an
+`npm audit` registry error), an unknown severity, or a malformed exception
+(missing scope/reason, impossible date, non-GHSA id) all block rather than pass.
+The `id` must be an exact GHSA, so an advisory GitHub only knows by CVE can't be
+excepted — bump or pin the package instead. Reach for an exception only when
+there's no fixed version to move to; prefer bumping or pinning a patched
+transitive version (npm `overrides` / direct NuGet reference) first. The same
+file feeds dependency-review's allowlist, so the gates never disagree.
 
 ## Git / PR workflow
 
