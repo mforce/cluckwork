@@ -82,9 +82,36 @@ path deterministically.
   that closes the #169 residual.
 - `web/README` auth section: the residual note now points here.
 
+## Hardening (post 4-way review)
+
+The 4-way review (codex + pi + 2 agents) + a reproduction test found the naive
+grace above has two HIGH holes; both are now closed (user chose "full hardening"):
+
+1. **Leap-frog / chain extension.** The grace advanced the replacement by minting
+   a new token, which revoked the replacement — and that revoked link was itself
+   grace-eligible, so a stolen token could be stepped down the chain (`T0→grace→T2`,
+   then `T1→grace→T3`, …) to extend a session indefinitely within the window.
+   Fix: `RefreshToken.RevokedByGrace` marks a link revoked BY a grace-advance;
+   `TryGraceReplacementAsync` refuses to grace such a link, bounding the grace to
+   a SINGLE hop off a normal rotation. A second-hop attempt hits the strict
+   theft path → family revoked.
+
+2. **Concurrent fork + backstop suppression.** `RefreshToken` had no concurrency
+   control, so two parallel presentations of the same token both read it active
+   and each minted a live child — a fork that, on the grace path, spawned
+   multiple sessions AND skipped the family-revoke backstop entirely. Fix: a
+   regenerated `ConcurrencyStamp` optimistic-concurrency token makes consuming a
+   token an atomic compare-and-swap; the losing writer's `SaveChanges` throws
+   `DbUpdateConcurrencyException` and `RefreshAsync` fails it closed. The two
+   revoke paths (`RevokeRefreshTokenAsync`, `RevokeAllActiveForUserAsync`) became
+   bulk `ExecuteUpdateAsync` so they don't fight the stamp and are safe to call
+   from the rotation fail path. Invariant: two concurrent presentations of one
+   token never leave more than one live tip.
+
+Also: a clock-skew guard (`elapsed >= 0`) so a future `RevokedAt` from a lagging
+node can't widen the window.
+
 ## Out of scope
 
-- Refresh-token optimistic concurrency (pre-existing; two truly-concurrent
-  rotations of the same active token already race — separate hardening).
 - The client Web Lock (#169) stays as the first line of defence; this grace is
   the server-side safety net for the tab-death residual only.

@@ -96,6 +96,7 @@ public sealed class IdentityProvider(
 
         // Presenting an already-rotated/revoked token normally means it was replayed —
         // treat as a possible theft and revoke every active token for the user.
+        var viaGrace = false;
         if (stored.RevokedAt is not null)
         {
             // #176 — idempotency grace: a token rotated within the last
@@ -114,6 +115,7 @@ public sealed class IdentityProvider(
                 return Result.Failure<TokenPair>(Error.Validation("Identity.InvalidRefreshToken", "Refresh token is invalid."));
             }
             stored = graced;
+            viaGrace = true;
         }
 
         if (stored.ExpiresAt <= now)
@@ -123,12 +125,28 @@ public sealed class IdentityProvider(
         if (user is null)
             return Result.Failure<TokenPair>(Error.Validation("Identity.InvalidRefreshToken", "Refresh token is invalid."));
 
-        // Rotate: revoke the presented token and issue a fresh one.
+        // Rotate: revoke the presented token and issue a fresh one. Marking the
+        // revocation as grace-sourced (#176) bounds the grace to a single hop: the
+        // token minted here can be rotated normally, but this just-revoked link
+        // can never itself be grace-advanced, so a stolen token can't be
+        // leap-frogged down the chain.
         var (rawToken, newHash) = GenerateRefreshToken();
         stored.RevokedAt = now;
         stored.ReplacedByTokenHash = newHash;
+        stored.RevokedByGrace = viaGrace;
+        stored.ConcurrencyStamp = Guid.NewGuid().ToString(); // rotate the CAS token (#176)
         db.RefreshTokens.Add(NewToken(user, newHash));
-        await db.SaveChangesAsync(ct);
+        try
+        {
+            await db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // #176 — another request consumed this exact token first (concurrent
+            // presentation of the same token). The winner already minted the one
+            // live child; fail this one closed rather than fork a second session.
+            return Result.Failure<TokenPair>(Error.Validation("Identity.InvalidRefreshToken", "Refresh token is invalid."));
+        }
 
         // Roles re-read on every refresh so a demotion takes effect within one
         // access-token lifetime, not at next login.
@@ -239,14 +257,14 @@ public sealed class IdentityProvider(
 
     public async Task RevokeRefreshTokenAsync(string refreshToken, CancellationToken ct = default)
     {
+        // Bulk conditional update, not a tracked read-modify-save: the #176 xmin
+        // concurrency token would otherwise make this throw if the token was
+        // rotated concurrently. WHERE RevokedAt == null makes it idempotent.
         var presentedHash = Hash(refreshToken);
-        var stored = await db.RefreshTokens
-            .FirstOrDefaultAsync(t => t.TokenHash == presentedHash && t.RevokedAt == null, ct);
-
-        if (stored is null) return;
-
-        stored.RevokedAt = timeProvider.GetUtcNow();
-        await db.SaveChangesAsync(ct);
+        var now = timeProvider.GetUtcNow();
+        await db.RefreshTokens
+            .Where(t => t.TokenHash == presentedHash && t.RevokedAt == null)
+            .ExecuteUpdateAsync(s => s.SetProperty(t => t.RevokedAt, now), ct);
     }
 
     private RefreshToken NewToken(ApplicationUser user, string tokenHash)
@@ -270,10 +288,13 @@ public sealed class IdentityProvider(
         RefreshToken revoked, DateTimeOffset now, CancellationToken ct)
     {
         var graceSeconds = jwtOptions.Value.RefreshReuseGraceSeconds;
+        var elapsed = now - (revoked.RevokedAt ?? now);
         if (graceSeconds <= 0                       // grace disabled → strict replay
+            || revoked.RevokedByGrace               // already a grace hop → don't chain (one-hop bound)
             || revoked.ReplacedByTokenHash is null
             || revoked.RevokedAt is null
-            || now - revoked.RevokedAt.Value > TimeSpan.FromSeconds(graceSeconds))
+            || elapsed < TimeSpan.Zero               // clock-skew guard: a future RevokedAt must not widen the window
+            || elapsed > TimeSpan.FromSeconds(graceSeconds))
             return null;
 
         var replacement = await db.RefreshTokens
@@ -283,15 +304,12 @@ public sealed class IdentityProvider(
 
     private async Task RevokeAllActiveForUserAsync(Guid userId, DateTimeOffset now, CancellationToken ct)
     {
-        var active = await db.RefreshTokens
+        // Bulk update rather than tracked read-modify-save: it never trips the
+        // #176 xmin concurrency token (so it is safe to call from the rotation
+        // fail path) and revokes the whole family in one statement.
+        await db.RefreshTokens
             .Where(t => t.UserId == userId && t.RevokedAt == null)
-            .ToListAsync(ct);
-
-        foreach (var token in active)
-            token.RevokedAt = now;
-
-        if (active.Count > 0)
-            await db.SaveChangesAsync(ct);
+            .ExecuteUpdateAsync(s => s.SetProperty(t => t.RevokedAt, now), ct);
     }
 
     // 256-bit random token; only the SHA-256 hash is persisted.

@@ -4,6 +4,7 @@ using System.Net;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
 
 // tech spec §7.4: refresh tokens are durable and rotating. Refresh issues a new
 // pair, the old token is single-use, reuse is rejected, and logout revokes.
@@ -41,13 +42,18 @@ public sealed class RefreshTokenFlowTests(CluckworkWebApplicationFactory factory
 
     // #176 — a token rotated moments ago whose replacement is still the live tip
     // is a BENIGN concurrent/dead-tab retry (the #169 residual), not a replay: the
-    // caller is handed a fresh token instead of the session being torn down.
+    // caller is handed a fresh token and NO family revocation happens.
     [Fact]
     public async Task Refresh_ImmediateReplayWithinGrace_Succeeds_WithoutRevokingTheSession()
     {
         var email = $"u-{Guid.NewGuid():N}@test.local";
         await factory.SeedAccountWithUserAsync(email);
         var client = factory.CreateClient(Cookieless);
+
+        // A SECOND, independent session for the same user (another device), logged
+        // in BEFORE the grace retry — so it would die if grace wrongly revoked the
+        // family (a "revoke-all-then-mint" bug that a self-check couldn't catch).
+        var sibling = await factory.LoginAsync(email);
 
         var initial = await factory.LoginAsync(email);
         await RefreshAsync(client, initial.RefreshToken); // initial → live (delivered)
@@ -57,11 +63,75 @@ public sealed class RefreshTokenFlowTests(CluckworkWebApplicationFactory factory
         var replay = await client.PostRefreshAsync(initial.RefreshToken);
         Assert.Equal(HttpStatusCode.OK, replay.StatusCode);
 
-        // The handed-back token is a working member of a live session — nothing
-        // was revoked (a family revocation would make this refresh 401).
+        // The handed-back token works, AND the pre-existing sibling session is
+        // untouched — proving no family revocation occurred.
         var handed = await TestHarness.ReadTokensAsync(replay);
-        var next = await client.PostRefreshAsync(handed.RefreshToken);
-        Assert.Equal(HttpStatusCode.OK, next.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PostRefreshAsync(handed.RefreshToken)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PostRefreshAsync(sibling.RefreshToken)).StatusCode);
+    }
+
+    // #176 — the grace is bounded to ONE hop off a normal rotation: the token
+    // revoked BY a grace-advance is marked and can never itself be graced, so a
+    // stolen token cannot be leap-frogged down the chain to extend a session
+    // (the exact HIGH the 4-way review + a reproduction test caught).
+    [Fact]
+    public async Task Refresh_GraceCannotBeLeapFroggedDownTheChain_RevokesTheFamily()
+    {
+        var email = $"u-{Guid.NewGuid():N}@test.local";
+        await factory.SeedAccountWithUserAsync(email);
+        var client = factory.CreateClient(Cookieless);
+
+        var t0 = await factory.LoginAsync(email);
+        var t1 = await RefreshAsync(client, t0.RefreshToken);       // t0 → t1 (normal)
+
+        // Dead-tab grace retry: replay t0 → t2. This marks t1 as revoked-by-grace.
+        var graceResp = await client.PostRefreshAsync(t0.RefreshToken);
+        Assert.Equal(HttpStatusCode.OK, graceResp.StatusCode);
+        var t2 = await TestHarness.ReadTokensAsync(graceResp);
+
+        // The leap-frog: present t1 (the link revoked by the grace advance). It
+        // must NOT grace a second time — it is theft → the family is revoked.
+        var leap = await client.PostRefreshAsync(t1.RefreshToken);
+        Assert.Equal(HttpStatusCode.Unauthorized, leap.StatusCode);
+
+        // Cascade: the live tip t2 is dead too — the whole session is torn down.
+        var afterCascade = await client.PostRefreshAsync(t2.RefreshToken);
+        Assert.Equal(HttpStatusCode.Unauthorized, afterCascade.StatusCode);
+    }
+
+    // #176 — two concurrent presentations of the SAME token must never fork the
+    // chain into two live sessions. The per-token optimistic-concurrency stamp
+    // makes consumption an atomic compare-and-swap: a true-overlap loser fails
+    // closed (401, never a 500), a read-after-commit loser advances the single
+    // chain via grace — either way exactly ONE live tip remains, never two.
+    // (With 3+ concurrent, a late replay can legitimately find the replacement
+    // already consumed and trip the theft response to 0 live — also non-forking;
+    // two is the deterministic boundary that isolates the anti-fork guarantee.)
+    [Fact]
+    public async Task Refresh_ConcurrentPresentationsOfSameToken_NeverForkIntoTwoSessions()
+    {
+        var email = $"u-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var client = factory.CreateClient(Cookieless);
+
+        var t0 = await factory.LoginAsync(email);
+
+        var responses = await Task.WhenAll(
+            client.PostRefreshAsync(t0.RefreshToken),
+            client.PostRefreshAsync(t0.RefreshToken));
+
+        // A concurrency conflict must fail closed (401), never surface as a 500.
+        Assert.All(responses, r => Assert.True(
+            r.StatusCode is HttpStatusCode.OK or HttpStatusCode.Unauthorized,
+            $"unexpected {(int)r.StatusCode} — a concurrency conflict must fail closed, not 500"));
+        Assert.Contains(responses, r => r.StatusCode == HttpStatusCode.OK);
+
+        // The invariant: exactly one live (non-revoked) token remains — the race
+        // never minted a second, forked session.
+        var active = 0;
+        await factory.WithTenantScopeAsync(accountId, async db =>
+            active = await db.RefreshTokens.CountAsync(t => t.AccountId == accountId && t.RevokedAt == null));
+        Assert.Equal(1, active);
     }
 
     // #176 — theft-detection stays strict once the chain has moved on: replaying a
