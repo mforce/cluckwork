@@ -1,0 +1,82 @@
+name: Scheduled security audit
+
+# #146 follow-up. The audit gates in ci.yml only run when CI runs — on a PR or a
+# push to main. That leaves the exact hole the original issue named: an advisory
+# published against a dependency nobody is touching goes unnoticed until someone
+# happens to open a PR. This runs the SAME gates, over the same script and the
+# same exceptions file, on a schedule against main.
+#
+# Deliberately a separate workflow rather than a `schedule:` trigger on ci.yml:
+# this needs the dependency audits, not the build and the 685 tests, so it stays
+# cheap enough to run often.
+#
+# Mode: BLOCKING (the job fails), so the run goes red and GitHub notifies. It
+# gates nothing by itself — nothing merges on a cron — but a red scheduled run is
+# the signal to open a bump PR. Dependabot alerts cover the same ground with
+# better notification; this is the belt to that braces, and it also catches an
+# advisory that Dependabot's own data hasn't picked up yet.
+
+on:
+  schedule:
+    # Mondays 06:00 UTC — an hour before the CodeQL sweep, so a bad week surfaces
+    # in one sitting.
+    - cron: "0 6 * * 1"
+  workflow_dispatch: # run it by hand when an advisory lands mid-week
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    name: Audit dependencies on main
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Restore dependencies
+        run: dotnet restore Cluckwork.sln --locked-mode
+
+      # Both audits run even if the first one finds something (`if: always()`),
+      # so one ecosystem's advisory doesn't hide the other's.
+      - name: Audit NuGet dependencies (high+)
+        run: |
+          dotnet list package --vulnerable --include-transitive --format json --output-version 1 \
+            | node .github/scripts/vuln-gate.mjs --ecosystem nuget --level high
+
+      - name: Install web dependencies
+        if: always()
+        working-directory: web
+        run: npm ci
+
+      - name: Audit prod npm dependencies (high+)
+        if: always()
+        working-directory: web
+        run: |
+          npm audit --omit=dev --json > npm-audit-prod.json || true
+          node ../.github/scripts/vuln-gate.mjs --ecosystem npm --level high \
+            --exceptions ../.github/security-exceptions.json < npm-audit-prod.json
+
+      # Advisory-only here too: dev tooling doesn't ship to users, so it should
+      # be visible in the log without turning the whole run red.
+      - name: Audit all npm dependencies (moderate+, advisory only)
+        if: always()
+        working-directory: web
+        run: |
+          npm audit --json > npm-audit-all.json || true
+          node ../.github/scripts/vuln-gate.mjs --ecosystem npm --level moderate --warn-only \
+            --exceptions ../.github/security-exceptions.json < npm-audit-all.json

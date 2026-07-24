@@ -1,0 +1,65 @@
+# Dependabot version updates (#146 follow-up).
+#
+# How this relates to the CI gates: they do different halves of the job.
+#   - The gates in ci.yml ENFORCE — a known-vulnerable dependency fails the
+#     build, so it cannot be ignored or merged past.
+#   - Dependabot PROPOSES — it opens the PR that actually fixes the thing the
+#     gate is blocking on, and (with Dependabot alerts enabled in repo settings)
+#     flags a newly published advisory the day it lands rather than whenever
+#     someone next opens a PR.
+# Neither replaces the other: without the gates a vulnerable dep still merges
+# green; without Dependabot someone has to hand-write every bump.
+#
+# Updates are GROUPED so routine version churn arrives as a few reviewable PRs
+# rather than one per package. Security fixes are deliberately left OUT of the
+# groups: an advisory fix should arrive as its own PR that can be read and
+# merged on its own, not buried in a bulk bump.
+
+version: 2
+updates:
+  # The toil that prompted this file: the Node 20 / CodeQL v3 deprecations were
+  # bumped by hand in PR #185. Dependabot opens that PR from now on.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(actions)"
+    groups:
+      github-actions:
+        patterns: ["*"]
+
+  - package-ecosystem: "npm"
+    directory: "/web"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(web)"
+    groups:
+      # Build/test tooling churns fastest and never reaches a user's browser —
+      # keep it out of the way of runtime dependency review.
+      dev-tooling:
+        patterns: ["*"]
+        dependency-type: "development"
+        update-types: ["minor", "patch"]
+      production-minor-patch:
+        patterns: ["*"]
+        dependency-type: "production"
+        update-types: ["minor", "patch"]
+
+  # Finds the projects via Cluckwork.sln. Bumps regenerate packages.lock.json,
+  # which Dependabot includes in the PR — CI restores with --locked-mode, so a
+  # stale lock file fails the run rather than silently drifting.
+  - package-ecosystem: "nuget"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      nuget-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
