@@ -65,7 +65,10 @@ CI fails a PR when a dependency carries a known **high+** advisory:
 - **npm, production deps** — `npm audit --omit=dev`. Dev-only advisories (vite,
   vitest, eslint…) are **advisory only** — logged, never blocking, since they
   don't ship to users. Promote to blocking, or bump the dep, when one appears.
-- **Dependency review** — PR-only; fails when the diff *introduces* a vulnerable dep.
+- **Dependency review** — PR-only; fails when the diff *introduces* a vulnerable
+  dep. Needs the repo's **Dependency graph** (Settings → Advanced Security); while
+  it's off the step self-skips with a loud CI warning and activates automatically
+  once enabled.
 - **CodeQL** (`.github/workflows/codeql.yml`) — SAST, **advisory** (reports to the
   Security tab; not a required check). Make it blocking via branch protection.
 

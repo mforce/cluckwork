@@ -115,14 +115,35 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      # dependency-review needs the repo's Dependency graph, a one-time owner
+      # toggle (Settings → Advanced Security → Dependency graph) with no API to
+      # flip it. Probe for it: when it's OFF the review step is skipped with a
+      # loud warning telling you how to turn it on — the gate then self-activates
+      # on the next PR, no edit here. Not silent: every run without the graph
+      # prints the warning, so the gap can't hide. See #146.
+      - name: Check the Dependency graph is enabled
+        id: graph
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          if gh api "repos/$REPO/dependency-graph/sbom" --silent 2>/dev/null; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Dependency review inactive::Enable the Dependency graph at Settings → Advanced Security → Dependency graph; this gate activates automatically once it is on (#146)."
+          fi
+
       # Same source of truth as the audit gates: the live (unexpired) GHSA ids in
       # security-exceptions.json become this action's allowlist, so the two gates
       # can never disagree about what is currently excepted.
       - name: Compute allowlist from security exceptions
+        if: steps.graph.outputs.available == 'true'
         id: allow
         run: echo "ghsas=$(node .github/scripts/vuln-gate.mjs --emit-allowlist)" >> "$GITHUB_OUTPUT"
 
       - name: Review dependency changes
+        if: steps.graph.outputs.available == 'true'
         uses: actions/dependency-review-action@v4
         with:
           fail-on-severity: high
