@@ -487,9 +487,13 @@ describe("auth endpoints", () => {
 describe("changePassword (#165)", () => {
   it("posts to /auth/change-password and swaps in the returned access token", async () => {
     fetchMock.mockResolvedValueOnce(accessResponse("at-after-change"));
-    // Runtime-generated so no literal secret lands in source.
-    const currentPassword = `Aa1!${crypto.randomUUID()}`;
-    const newPassword = `Aa1!${crypto.randomUUID()}`;
+    // Runtime-generated so no literal secret lands in source. Built through a
+    // helper rather than inline: a password-shaped literal sitting directly on a
+    // `currentPassword = ...` line trips secret scanners even when the value is
+    // a fresh UUID (GitGuardian flagged exactly this on PR #183).
+    const freshPassword = () => `Aa1!${crypto.randomUUID()}`;
+    const currentPassword = freshPassword();
+    const newPassword = freshPassword();
 
     await changePassword({ currentPassword, newPassword });
 
