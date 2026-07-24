@@ -227,6 +227,30 @@ describe("UsersPage edit name (#163)", () => {
     expect(mockUpdateUser).toHaveBeenCalledWith("u-w", { name: null }, expect.any(String));
   });
 
+  it("rotates the update key once the write is confirmed, so a changed retry after a failed refresh isn't replayed (#163)", async () => {
+    mockUpdateUser.mockResolvedValue(undefined);
+    // Mount load ok; the refresh AFTER the first save fails; later loads ok.
+    mockListUsers
+      .mockResolvedValueOnce([WORKER_USER, ADMIN_USER])
+      .mockRejectedValueOnce(new ApiError(500, "Server error", "boom"))
+      .mockResolvedValue([WORKER_USER, ADMIN_USER]);
+    await renderReady(ADMIN);
+
+    editRow(/boss@farm.test/);
+    fireEvent.change(within(dialog()).getByLabelText("Name"), { target: { value: "Alice" } });
+    await act(async () => { fireEvent.click(within(dialog()).getByRole("button", { name: "Save" })); });
+    // The write succeeded but the refresh failed → dialog stays open with the error.
+    expect(within(dialog()).getByText(/Server error|boom/)).toBeInTheDocument();
+
+    // Change the value and save again — a DIFFERENT key (the confirmed write cleared it),
+    // so the server can't replay the cached "Alice" response for the "Bob" edit.
+    fireEvent.change(within(dialog()).getByLabelText("Name"), { target: { value: "Bob" } });
+    await act(async () => { fireEvent.click(within(dialog()).getByRole("button", { name: "Save" })); });
+
+    expect(mockUpdateUser.mock.calls[1][2]).not.toBe(mockUpdateUser.mock.calls[0][2]); // key rotated
+    expect(mockUpdateUser.mock.calls[1][1]).toEqual({ name: "Bob" });
+  });
+
   it("keeps the edit dialog open and shows the error when the update fails", async () => {
     mockUpdateUser.mockRejectedValue(new ApiError(500, "Server error", "boom"));
     await renderReady(ADMIN);

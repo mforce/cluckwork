@@ -217,9 +217,21 @@ public sealed class IdentityProvider(
             return Result.Failure(Error.NotFound("Users", userId));
 
         user.DisplayName = name;
+        // Rotate Identity's concurrency token so two concurrent edits don't
+        // silently last-write-win: EF checks the ORIGINAL stamp in the UPDATE's
+        // WHERE, so the loser matches no row and fails closed to a 409.
+        user.ConcurrencyStamp = Guid.NewGuid().ToString();
         await audit.WriteAsync("User.Update", "User", user.Id,
             reason: null, details: new { name }, ct: ct);
-        await db.SaveChangesAsync(ct);
+        try
+        {
+            await db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return Result.Failure(Error.Conflict(
+                "Users.Conflict", "The user was modified by another request. Reload and retry."));
+        }
         return Result.Success();
     }
 

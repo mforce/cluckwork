@@ -31,6 +31,10 @@ export function UsersPage() {
   // #163 edit: the user whose name is being edited, and the working value.
   const [editUser, setEditUser] = useState<User | null>(null);
   const [editName, setEditName] = useState("");
+  // Synchronous target of the edit dialog — like activeUser for flock scoping,
+  // so a save that resolves after the dialog was closed/reopened for another
+  // user doesn't splice its result into the wrong dialog.
+  const activeEdit = useRef<string | null>(null);
 
   // #103 flock scoping: expand a worker row to manage assignments.
   const [openUser, setOpenUser] = useState<string | null>(null);
@@ -149,8 +153,11 @@ export function UsersPage() {
       await createUser(
         { email: email.trim(), password, role, name: name.trim() || undefined },
         keyFor(scope));
-      setUsers(await listUsers());
+      // Clear the key the instant the WRITE is confirmed — before the refresh —
+      // so a later edit of the just-created user (a changed payload) can't replay
+      // this cached response if the refresh below fails (#163 review).
       clearKey(scope);
+      setUsers(await listUsers());
       setMessage(`${role} account created for ${email.trim()}.`);
       setEmail("");
       setPassword("");
@@ -169,7 +176,13 @@ export function UsersPage() {
     setError(null);
     setMessage(null);
     setEditName(u.displayName ?? "");
+    activeEdit.current = u.id;
     setEditUser(u);
+  }
+
+  function closeEdit() {
+    activeEdit.current = null;
+    setEditUser(null);
   }
 
   async function onUpdate(e: FormEvent) {
@@ -183,12 +196,17 @@ export function UsersPage() {
     try {
       // Blank clears the name back to "—" (null); the server normalizes too.
       await updateUser(target.id, { name: editName.trim() || null }, keyFor(scope));
-      setUsers(await listUsers());
+      // Clear the key once the WRITE is confirmed (before the refresh), so a
+      // follow-up edit isn't replayed against this cached response (#163 review).
       clearKey(scope);
+      await listUsers().then(setUsers);
+      // The dialog may have been dismissed/reopened for another user while this
+      // was in flight; only touch the UI if it's still this edit (#163 review).
+      if (activeEdit.current !== target.id) return;
       setMessage(`Updated ${target.email}.`);
-      setEditUser(null);
+      closeEdit();
     } catch (err) {
-      setError(errText(err));
+      if (activeEdit.current === target.id) setError(errText(err));
     } finally {
       setBusy(false);
     }
@@ -314,7 +332,7 @@ export function UsersPage() {
       <Dialog
         open={editUser !== null}
         title={`Edit user — ${editUser?.email ?? ""}`}
-        onClose={() => setEditUser(null)}
+        onClose={closeEdit}
       >
         <form className="inline-form" onSubmit={onUpdate}>
           <label>Name
@@ -324,7 +342,7 @@ export function UsersPage() {
           <p className="muted">Leave blank to clear the name.</p>
           {error && <p className="error">{error}</p>}
           <div className="dialog-foot">
-            <button type="button" className="link" onClick={() => setEditUser(null)}>Cancel</button>
+            <button type="button" className="link" onClick={closeEdit}>Cancel</button>
             <button type="submit" disabled={busy}>Save</button>
           </div>
         </form>

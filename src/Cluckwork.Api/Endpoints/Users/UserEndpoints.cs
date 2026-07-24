@@ -120,8 +120,10 @@ public static class UserEndpoints
 
         var result = await handler.HandleAsync(command, tenant.AccountId, ct);
         if (result.IsSuccess) return Results.NoContent();
-        return result.Error.Code.EndsWith(".NotFound", StringComparison.Ordinal)
-            ? Results.NotFound()
+        if (result.Error.Code.EndsWith(".NotFound", StringComparison.Ordinal))
+            return Results.NotFound();
+        return result.Error.Code.EndsWith(".Conflict", StringComparison.Ordinal)
+            ? Results.Problem(result.Error.Description, statusCode: StatusCodes.Status409Conflict, title: result.Error.Code)
             : Results.Problem(result.Error.Description, statusCode: 422, title: result.Error.Code);
     }
 
