@@ -350,6 +350,13 @@ internal static class TestHarness
             request.Content = JsonContent.Create(body);
         return client.SendAsync(request);
     }
+
+    // #165 — log in with an EXPLICIT password, returning the raw response so a
+    // test can assert both that a new password works and that the old one 401s.
+    public static Task<HttpResponseMessage> TryLoginAsync(
+        this CluckworkWebApplicationFactory factory, string email, string password) =>
+        factory.CreateClient(Cookieless).PostAsJsonAsync(
+            "/api/v1/auth/login", new { email, password });
 }
 
 public sealed record TokenPairDto(string AccessToken, string RefreshToken, DateTimeOffset AccessTokenExpiry);

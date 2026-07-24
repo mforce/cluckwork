@@ -524,8 +524,23 @@ access token and is re-read at every token refresh.
 email, password, an optional **display name**, and one of the five roles, and
 manage worker flock assignments (spec §5.3). A user's name can be set at
 creation and later changed from the row's **edit** action (#163; blank clears
-it back to "—"). Editing an existing user's role or password still belongs to a
-later slice.
+it back to "—"). The row's **password** action sets a new password without
+knowing the current one (#165) — the forgot-password path, since there is no
+email reset. Editing an existing user's *role* still belongs to a later slice.
+
+**Password change (#165)** — two paths with different rules. An Owner sets any
+*other* user's password from the Users screen without the current one; any
+signed-in user changes their OWN from the **Account** screen by proving the
+current one. The Owner path **refuses self-targeting**: skipping the
+current-password proof for your own account would turn a stolen access token
+into a permanent takeover, so an Owner changes their own password like everyone
+else. One Owner *can* reset a co-Owner's password (all Owners are equivalent);
+it is audited (`User.PasswordSet`) but not otherwise restricted.
+Both revoke every refresh token for that user, so other devices are signed out
+— the self-service path hands the device that made the change a fresh pair so it
+stays signed in. Eviction is bounded by the access-token lifetime: an
+already-issued access token keeps working until it expires (~15 min), because
+tokens are stateless and there is no server-side denylist.
 
 **Export (manual backup) (#95)** — admin-only downloads of the account's
 data as CSV files: one file per dataset, or a **full account export** — a

@@ -1,7 +1,7 @@
 import {
   Bird, Boxes, ChartColumn, CircleHelp, ClipboardList, Download, Egg, History,
   LayoutDashboard, Package, ScrollText, Settings, ShoppingCart, Tags, UserCog,
-  Users, Wallet, Droplets,
+  UserRound, Users, Wallet, Droplets,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { Role } from "../auth/claims";
@@ -83,6 +83,9 @@ export function navGroups(role: Role, isAdmin: boolean): NavGroup[] {
       ],
     });
   }
+
+  // #165 — every role can change their own password, so Account is ungated.
+  groups.push({ label: "You", entries: [{ to: "/account", label: "Account", Icon: UserRound }] });
 
   groups.push({ label: "Help", entries: [{ to: "/help", label: "Help", Icon: CircleHelp }] });
 

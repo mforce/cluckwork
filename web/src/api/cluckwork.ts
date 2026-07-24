@@ -566,6 +566,11 @@ export const createUser = (body: {
 export const updateUser = (id: string, body: { name: string | null }, key?: string) =>
   apiPut<void>(`/users/${id}`, body, key);
 
+// #165 — an Owner sets a user's password without knowing the current one. The
+// server signs that user out of every device.
+export const setUserPassword = (id: string, body: { newPassword: string }, key?: string) =>
+  apiPut<void>(`/users/${id}/password`, body, key);
+
 // Formats minor units per the order's snapshotted currency (JPY has 0 decimals).
 export function formatMoney(minorUnits: number, currencyCode: string, minorUnit: number): string {
   const value = minorUnits / 10 ** minorUnit;

@@ -3,7 +3,8 @@ import { screen, within, fireEvent, act } from "@testing-library/react";
 import { UsersPage } from "./UsersPage";
 import { renderWithProviders } from "../test/renderWithProviders";
 import {
-  assignFlock, createUser, listFlockAssignments, listFlocks, listUsers, unassignFlock, updateUser,
+  assignFlock, createUser, listFlockAssignments, listFlocks, listUsers, setUserPassword,
+  unassignFlock, updateUser,
 } from "../api/cluckwork";
 import type { Flock, FlockAssignment, User } from "../api/cluckwork";
 import { ApiError } from "../api/client";
@@ -13,6 +14,7 @@ vi.mock("../api/cluckwork", () => ({
   listUsers: vi.fn(),
   createUser: vi.fn(),
   updateUser: vi.fn(),
+  setUserPassword: vi.fn(),
   listFlockAssignments: vi.fn(),
   assignFlock: vi.fn(),
   unassignFlock: vi.fn(),
@@ -22,6 +24,7 @@ vi.mock("../api/cluckwork", () => ({
 const mockListUsers = vi.mocked(listUsers);
 const mockCreateUser = vi.mocked(createUser);
 const mockUpdateUser = vi.mocked(updateUser);
+const mockSetUserPassword = vi.mocked(setUserPassword);
 const mockListAssignments = vi.mocked(listFlockAssignments);
 const mockAssignFlock = vi.mocked(assignFlock);
 const mockUnassignFlock = vi.mocked(unassignFlock);
@@ -260,6 +263,57 @@ describe("UsersPage edit name (#163)", () => {
     await act(async () => { fireEvent.click(within(dialog()).getByRole("button", { name: "Save" })); });
 
     expect(within(dialog()).getByText(/Server error|boom/)).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+});
+
+describe("UsersPage set password (#165)", () => {
+  const openPw = (rowName: RegExp) =>
+    fireEvent.click(within(screen.getByRole("row", { name: rowName })).getByRole("button", { name: "password" }));
+
+  // Runtime-generated so no literal secret lands in source (GitGuardian).
+  const freshPassword = () => `Aa1!${crypto.randomUUID()}`;
+
+  it("sets a user's password from the row action, sending id + password + a key", async () => {
+    mockSetUserPassword.mockResolvedValue(undefined);
+    await renderReady(ADMIN);
+    const password = freshPassword();
+
+    openPw(/worker@farm.test/);
+    fireEvent.change(within(dialog()).getByLabelText(/New password/), { target: { value: password } });
+    fireEvent.change(within(dialog()).getByLabelText(/Confirm new password/), { target: { value: password } });
+    await act(async () => { fireEvent.click(within(dialog()).getByRole("button", { name: "Set password" })); });
+
+    expect(mockSetUserPassword).toHaveBeenCalledWith("u-w", { newPassword: password }, expect.any(String));
+    // Success closes the dialog and says the target was signed out.
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(await screen.findByText(/signed out everywhere/i)).toBeInTheDocument();
+  });
+
+  it("refuses a mismatched confirmation without calling the server", async () => {
+    await renderReady(ADMIN);
+
+    openPw(/worker@farm.test/);
+    fireEvent.change(within(dialog()).getByLabelText(/New password/), { target: { value: freshPassword() } });
+    fireEvent.change(within(dialog()).getByLabelText(/Confirm new password/), { target: { value: freshPassword() } });
+    await act(async () => { fireEvent.click(within(dialog()).getByRole("button", { name: "Set password" })); });
+
+    expect(mockSetUserPassword).not.toHaveBeenCalled();
+    expect(within(dialog()).getByText(/don't match/i)).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toBeInTheDocument(); // stays open to fix it
+  });
+
+  it("keeps the dialog open and shows the error when the server rejects it", async () => {
+    mockSetUserPassword.mockRejectedValue(new ApiError(400, "Bad request", "too weak"));
+    await renderReady(ADMIN);
+    const password = freshPassword();
+
+    openPw(/worker@farm.test/);
+    fireEvent.change(within(dialog()).getByLabelText(/New password/), { target: { value: password } });
+    fireEvent.change(within(dialog()).getByLabelText(/Confirm new password/), { target: { value: password } });
+    await act(async () => { fireEvent.click(within(dialog()).getByRole("button", { name: "Set password" })); });
+
+    expect(within(dialog()).getByText(/too weak|Bad request/)).toBeInTheDocument();
     expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 });

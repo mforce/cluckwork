@@ -4,6 +4,7 @@ using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Users;
 using Cluckwork.Application.Features.Users.AssignFlock;
 using Cluckwork.Application.Features.Users.CreateUser;
+using Cluckwork.Application.Features.Users.SetUserPassword;
 using Cluckwork.Application.Features.Users.UpdateUser;
 using Cluckwork.Infrastructure.Persistence;
 using FluentValidation;
@@ -26,6 +27,13 @@ public static class UserEndpoints
         group.MapPut("/{id:guid}", UpdateUser)
             .WithName("UpdateUser")
             .WithSummary("Update a user's display name.");
+
+        // #165 — set a user's password without the current one (the forgot-password
+        // path; there is no email reset). Owner-only, and it signs the target out
+        // of every device.
+        group.MapPut("/{id:guid}/password", SetUserPassword)
+            .WithName("SetUserPassword")
+            .WithSummary("Set a user's password and revoke their sessions.");
 
         // #103 — flock scoping for workers (spec §5.3). Owner-only like the
         // rest of the group.
@@ -127,6 +135,41 @@ public static class UserEndpoints
             : Results.Problem(result.Error.Description, statusCode: 422, title: result.Error.Code);
     }
 
+    private static async Task<IResult> SetUserPassword(
+        Guid id,
+        SetUserPasswordRequest request,
+        SetUserPasswordHandler handler,
+        IValidator<SetUserPasswordCommand> validator,
+        TenantContext tenant,
+        ICurrentUser currentUser,
+        CancellationToken ct)
+    {
+        if (!tenant.IsResolved) return Results.Unauthorized();
+
+        // #165 review — an Owner may not reset their OWN password here. This path
+        // deliberately skips the current-password proof, so allowing self-targeting
+        // would turn a stolen access token (good for ~15 min) into a permanent
+        // credential takeover, bypassing the very check /auth/change-password
+        // exists to enforce. It would also revoke the caller's own sessions with
+        // no re-issue. Self-changes go through the Account screen.
+        if (currentUser.IsResolved && currentUser.UserId == id)
+            return Results.Problem(
+                "Use the Account screen to change your own password.",
+                statusCode: StatusCodes.Status400BadRequest,
+                title: "Users.CannotSetOwnPassword");
+
+        var command = new SetUserPasswordCommand(id, request.NewPassword);
+        var validation = await validator.ValidateAsync(command, ct);
+        if (!validation.IsValid)
+            return Results.ValidationProblem(validation.ToDictionary());
+
+        var result = await handler.HandleAsync(command, tenant.AccountId, ct);
+        if (result.IsSuccess) return Results.NoContent();
+        return result.Error.Code.EndsWith(".NotFound", StringComparison.Ordinal)
+            ? Results.NotFound()
+            : Results.Problem(result.Error.Description, statusCode: 422, title: result.Error.Code);
+    }
+
     private static async Task<IResult> ListUsers(
         IIdentityProvider identity, TenantContext tenant, CancellationToken ct)
     {
@@ -139,6 +182,8 @@ public static class UserEndpoints
 public sealed record CreateUserRequest(string Email, string Password, string Role, string? Name = null);
 
 public sealed record UpdateUserRequest(string? Name);
+
+public sealed record SetUserPasswordRequest(string NewPassword);
 
 public sealed record UserResponse(Guid Id, string Email, string? DisplayName, string Role);
 

@@ -24,6 +24,20 @@ public interface IIdentityProvider
     Task<Result> UpdateUserAsync(
         Guid accountId, Guid userId, string? name, CancellationToken ct = default);
 
+    // #165 — an Owner sets another user's password without knowing the current
+    // one. Account-scoped (foreign id -> NotFound) and it REVOKES every refresh
+    // token for the target, so a reset actually evicts whoever held the old
+    // password. Bounded by the access-token lifetime: an already-issued JWT stays
+    // valid until it expires (~15 min) — there is no server-side denylist.
+    Task<Result> SetUserPasswordAsync(
+        Guid accountId, Guid userId, string newPassword, CancellationToken ct = default);
+
+    // #165 — self-service change, proving the current password. Revokes every
+    // refresh token for the user and returns a FRESH pair, so other devices are
+    // signed out while the caller stays signed in on this one.
+    Task<Result<TokenPair>> ChangeOwnPasswordAsync(
+        Guid userId, string currentPassword, string newPassword, CancellationToken ct = default);
+
     Task<IReadOnlyList<UserSummary>> ListUsersAsync(Guid accountId, CancellationToken ct = default);
 }
 

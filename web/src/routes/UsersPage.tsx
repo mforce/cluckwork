@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
-import { Pencil, Plus } from "lucide-react";
+import { KeyRound, Pencil, Plus } from "lucide-react";
 import {
-  assignFlock, createUser, listFlockAssignments, listFlocks, listUsers, unassignFlock, updateUser,
+  assignFlock, createUser, listFlockAssignments, listFlocks, listUsers, setUserPassword,
+  unassignFlock, updateUser,
 } from "../api/cluckwork";
 import type { Flock, FlockAssignment, User } from "../api/cluckwork";
 import { ApiError } from "../api/client";
@@ -35,6 +36,14 @@ export function UsersPage() {
   // so a save that resolves after the dialog was closed/reopened for another
   // user doesn't splice its result into the wrong dialog.
   const activeEdit = useRef<string | null>(null);
+
+  // #165 password reset: kept in its own dialog rather than folded into the name
+  // edit — setting someone's password is a different, higher-consequence action
+  // and shouldn't be one stray keystroke away from a typo fix.
+  const [pwUser, setPwUser] = useState<User | null>(null);
+  const [pwValue, setPwValue] = useState("");
+  const [pwConfirm, setPwConfirm] = useState("");
+  const activePw = useRef<string | null>(null);
 
   // #103 flock scoping: expand a worker row to manage assignments.
   const [openUser, setOpenUser] = useState<string | null>(null);
@@ -185,6 +194,50 @@ export function UsersPage() {
     setEditUser(null);
   }
 
+  // #165 — open/close the password dialog for a user.
+  function openPassword(u: User) {
+    setError(null);
+    setMessage(null);
+    setPwValue("");
+    setPwConfirm("");
+    activePw.current = u.id;
+    setPwUser(u);
+  }
+
+  function closePassword() {
+    activePw.current = null;
+    // Don't leave the typed plaintext sitting in component state after the
+    // dialog is gone (#165 review).
+    setPwValue("");
+    setPwConfirm("");
+    setPwUser(null);
+  }
+
+  async function onSetPassword(e: FormEvent) {
+    e.preventDefault();
+    const target = pwUser;
+    if (!target || busy) return;
+    setError(null);
+    setMessage(null);
+    if (pwValue !== pwConfirm) {
+      setError("The passwords don't match.");
+      return;
+    }
+    setBusy(true);
+    const scope = `password:${target.id}`;
+    try {
+      await setUserPassword(target.id, { newPassword: pwValue }, keyFor(scope));
+      clearKey(scope); // write confirmed before any refresh (#163 review)
+      if (activePw.current !== target.id) return; // dialog moved on
+      setMessage(`Password set for ${target.email}. They have been signed out everywhere.`);
+      closePassword();
+    } catch (err) {
+      if (activePw.current === target.id) setError(errText(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function onUpdate(e: FormEvent) {
     e.preventDefault();
     const target = editUser;
@@ -264,7 +317,8 @@ export function UsersPage() {
       </Dialog>
 
       {/* Each dialog carries its own error copy while it is up. */}
-      {error && !creating && openUser === null && editUser === null && <p className="error">{error}</p>}
+      {error && !creating && openUser === null && editUser === null && pwUser === null
+        && <p className="error">{error}</p>}
       {message && <p className="success">{message}</p>}
 
       <table className="data">
@@ -280,6 +334,9 @@ export function UsersPage() {
               <td>
                 <button className="link" onClick={() => openEdit(u)}>
                   <Pencil size={14} aria-hidden /> edit
+                </button>
+                <button className="link" onClick={() => openPassword(u)}>
+                  <KeyRound size={14} aria-hidden /> password
                 </button>
                 {u.role === "Worker" && (
                   <button className="link" onClick={() => void openAssignments(u.id)}>
@@ -344,6 +401,34 @@ export function UsersPage() {
           <div className="dialog-foot">
             <button type="button" className="link" onClick={closeEdit}>Cancel</button>
             <button type="submit" disabled={busy}>Save</button>
+          </div>
+        </form>
+      </Dialog>
+
+      <Dialog
+        open={pwUser !== null}
+        title={`Set password — ${pwUser?.email ?? ""}`}
+        onClose={closePassword}
+      >
+        <form className="inline-form" onSubmit={onSetPassword}>
+          <p className="muted">
+            You don&apos;t need their current password. Setting it signs them out
+            of every device — tell them the new password directly.
+          </p>
+          <label>New password (min 12 chars) *
+            <input type="password" value={pwValue} required minLength={12}
+              autoComplete="new-password"
+              onChange={(e) => setPwValue(e.target.value)} />
+          </label>
+          <label>Confirm new password *
+            <input type="password" value={pwConfirm} required
+              autoComplete="new-password"
+              onChange={(e) => setPwConfirm(e.target.value)} />
+          </label>
+          {error && <p className="error">{error}</p>}
+          <div className="dialog-foot">
+            <button type="button" className="link" onClick={closePassword}>Cancel</button>
+            <button type="submit" disabled={busy}>Set password</button>
           </div>
         </form>
       </Dialog>

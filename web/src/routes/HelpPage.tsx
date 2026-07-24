@@ -180,12 +180,23 @@ export function HelpPage() {
           the only role that manages users: creating sign-ins on the{" "}
           <strong>Users</strong> screen (email, password, an optional name, and
           role) and assigning workers to flocks. A user&apos;s name can be
-          changed later from the row&apos;s <strong>edit</strong> action;
-          changing an existing user&apos;s role or password comes with a later
-          release. Controls you can&apos;t use are hidden, and the server
+          changed later from the row&apos;s <strong>edit</strong> action, and
+          the <strong>password</strong> action sets a forgotten password without
+          needing the old one. Changing an existing user&apos;s role comes with a
+          later release. Controls you can&apos;t use are hidden, and the server
           refuses them regardless.
         </li>
       </ul>
+
+      <p>
+        <strong>Your own password.</strong> Anyone, in any role, can change their
+        own password on the <strong>Account</strong> screen by entering the
+        current one and a new one (at least 12 characters). Changing it — or an
+        admin setting it for you — signs that account out on every{" "}
+        <em>other</em> device; the device you changed it on stays signed in. An
+        already-open session elsewhere can linger for a few minutes before it
+        stops working.
+      </p>
 
       <h3 id="dialogs">Adding &amp; correcting</h3>
       <ul>
