@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, within } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter } from "react-router";
 import { renderWithProviders } from "../test/renderWithProviders";
 import { AuthProvider } from "../auth/AuthContext";
 import { FarmContext } from "../farm/FarmContext";
