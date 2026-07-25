@@ -1,27 +1,21 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Moon, Sun } from "lucide-react";
 import { applyTheme, initialTheme, type Theme } from "../lib/theme";
 
 // Light/night switch (#52). Shared by the sidebar and the login screen. Reads
-// the resolved theme for its own label; while the user hasn't made an explicit
-// choice it also tracks live OS changes so the control never goes stale.
+// the resolved theme for its own label.
+//
+// It deliberately does NOT track live OS changes (#149). The pre-paint script
+// always writes a concrete data-theme, so the old `!dataset.theme` guard could
+// never fire again — dead code that would have left the page dark while this
+// button still said "Switch to night mode". An OS flip mid-session now waits
+// for a reload; first-visit and cross-visit OS respect are both unaffected.
 export function ThemeToggle({
   className = "",
   showLabel = true,
   iconSize = 17,
 }: { className?: string; showLabel?: boolean; iconSize?: number }) {
   const [theme, setTheme] = useState<Theme>(initialTheme);
-
-  useEffect(() => {
-    if (typeof window.matchMedia !== "function") return; // jsdom / non-browser
-    const mq = window.matchMedia("(prefers-color-scheme: dark)");
-    const onChange = () => {
-      // only follow the OS while no explicit choice is stored
-      if (!document.documentElement.dataset.theme) setTheme(mq.matches ? "dark" : "light");
-    };
-    mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
-  }, []);
 
   function toggle() {
     const next: Theme = theme === "dark" ? "light" : "dark";

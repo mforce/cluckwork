@@ -91,7 +91,13 @@
   color-scheme: light; /* native controls follow the app's theme, not the OS, once toggled */
 }
 
-/* ---- Night mode: explicit toggle wins; otherwise follow the OS default ---- */
+/* ---- Night mode: the ONE dark construct ----
+   public/theme-init.js always writes a concrete data-theme (saved choice, else
+   the OS preference) before first paint, so this selector alone covers both
+   the explicit toggle and the OS default. It used to be mirrored by a
+   `@media (prefers-color-scheme: dark) :root:not([data-theme])` twin; the pair
+   drifted and shipped washed-out dialogs from #131 until F134 caught it.
+   Palettes (#149) multiply this block, so the twin had to go first. */
 :root[data-theme="dark"] {
   --ink: #f2ecf4;
   --muted: #b3a8b8;
@@ -131,52 +137,6 @@
   --shadow-dialog: 0 24px 64px rgba(0, 0, 0, 0.6);
   --shadow-bar: 0 -8px 24px rgba(0, 0, 0, 0.45);
   color-scheme: dark;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme]) {
-    --ink: #f2ecf4;
-    --muted: #b3a8b8;
-    --link: #7fb4e6;
-    --link-hover: #a9cef0;
-    --canvas: #17121a;
-    --surface: #221a26;
-    --surface-2: #2b2231;
-    --lavender: #241c2a;
-    --hairline: #3a2f40;
-    --row-hover: #2b2231;
-    --scroll-cue: rgba(255, 255, 255, 0.16); /* edge cue for scrolling tables (#150) — light glow; dark shadow vanishes on the dark surface */
-    --error: #ff8666;
-    --success: #4bbf97;
-    --warn: #e0a44a;
-    /* Keep in step with the :root[data-theme="dark"] block above. */
-    --danger: #bc3c14;
-    --danger-press: #d44028;
-    --tint-accent: #33203a;
-    --tint-ok: #14342b;
-    --tint-warn: #3a2e18;
-    --tint-danger: #3a2019;
-    --tint-muted: #2c2333;
-    --stat-accent: #e6c7ec;
-    --auth-brand: #e6c7ec;
-    --auth-card-border: var(--hairline);
-    --auth-card-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-    --auth-bg:
-      radial-gradient(60% 55% at 12% 18%, rgba(122, 47, 132, 0.5) 0%, transparent 60%),
-      radial-gradient(55% 50% at 88% 12%, rgba(74, 21, 75, 0.6) 0%, transparent 60%),
-      radial-gradient(55% 55% at 82% 88%, rgba(45, 90, 70, 0.35) 0%, transparent 62%),
-      var(--canvas);
-    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 10px 30px rgba(0, 0, 0, 0.35);
-    /* These three were missing here while :root[data-theme="dark"] had them,
-       so anyone on an OS-dark machine who had never touched the theme toggle
-       (no data-theme attribute — see lib/theme.ts) got dark surfaces under a
-       LIGHT scrim and a light shadow: every dialog since #131 rendered washed
-       out with no elevation. Found while adding --shadow-bar (F134). */
-    --scrim: rgba(0, 0, 0, 0.62);
-    --shadow-dialog: 0 24px 64px rgba(0, 0, 0, 0.6);
-    --shadow-bar: 0 -8px 24px rgba(0, 0, 0, 0.45);
-    color-scheme: dark;
-  }
 }
 
 * {
@@ -870,9 +830,6 @@ input.cell {
 .badge-accent { background: var(--tint-accent); color: var(--brand); }
 
 :root[data-theme="dark"] .badge-accent { color: var(--stat-accent); }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme]) .badge-accent { color: var(--stat-accent); }
-}
 
 /* Meter — a slim track + fill for availability / percentage cells. */
 .meter {
@@ -1440,11 +1397,6 @@ label.check {
 :root[data-theme="dark"] .help-toc li a:hover,
 :root[data-theme="dark"] .help-toc li a.active { color: var(--stat-accent); }
 :root[data-theme="dark"] .help-toc li a.active { box-shadow: inset 2px 0 0 var(--stat-accent); }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme]) .help-toc li a:hover,
-  :root:not([data-theme]) .help-toc li a.active { color: var(--stat-accent); }
-  :root:not([data-theme]) .help-toc li a.active { box-shadow: inset 2px 0 0 var(--stat-accent); }
-}
 
 .help-body {
   max-width: 48rem;
