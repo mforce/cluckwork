@@ -7,6 +7,7 @@ import {
 import { currentUserIsAdmin, currentUserRole } from "./claims";
 import type { Role } from "./claims";
 import { clearAccessToken, getAccessToken, purgeLegacyTokens } from "./tokenStore";
+import { clearBrand } from "../lib/brand";
 
 interface AuthState {
   isAuthenticated: boolean;
@@ -40,6 +41,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     setOnUnauthenticated(() => {
       clearAccessToken();
+      // This path lands on /login WITHOUT going through logout(), so it needs
+      // its own teardown: farm A's palette must not survive into farm B's
+      // login screen, where a wrong brand misleads more than the default (#149).
+      clearBrand();
       setIsAuthenticated(false);
     });
     setOnTokensChanged(() => {
@@ -69,6 +74,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setIsAuthenticated(true);
           setIsAdmin(currentUserIsAdmin());
           setRole(currentUserRole());
+        } else {
+          // Also lands on /login without logout(). Only on definitive failure —
+          // a successful restore keeps the pre-painted palette, which is correct
+          // and avoids flashing the default on every reload.
+          clearBrand();
         }
       })
       // restoreSession never rejects today, but clearing isLoading here too keeps
@@ -89,6 +99,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
+    // Local teardown FIRST: apiLogout swallows its own failures, and a network
+    // problem must not leave the farm's palette on screen. cluckwork.theme is
+    // deliberately untouched — it is a per-user device preference, not farm data.
+    clearBrand();
     await apiLogout();
     setIsAuthenticated(false);
     setIsAdmin(false);

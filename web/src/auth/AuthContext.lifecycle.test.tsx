@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, act } from "@testing-library/react";
+import { render, screen, fireEvent, act, waitFor } from "@testing-library/react";
 import { AuthProvider } from "./AuthContext";
 import { useAuth } from "./useAuth";
 import { setStoredToken } from "../test/jwt";
@@ -42,6 +42,8 @@ const renderAuth = () => render(<AuthProvider><Probe /></AuthProvider>);
 beforeEach(() => {
   vi.clearAllMocks();
   clearAccessToken();
+  document.documentElement.removeAttribute("data-brand");
+  localStorage.clear();
 });
 
 describe("AuthProvider lifecycle", () => {
@@ -139,6 +141,7 @@ describe("AuthProvider lifecycle", () => {
 
   it("drops authentication when onUnauthenticated fires (refresh exhausted)", async () => {
     setStoredToken({ sub: "u1", role: "Admin" });
+    document.documentElement.dataset.brand = "forest";
     renderAuth();
     expect(screen.getByTestId("auth")).toHaveTextContent("true");
 
@@ -148,6 +151,81 @@ describe("AuthProvider lifecycle", () => {
     await act(async () => onUnauth!());
 
     expect(screen.getByTestId("auth")).toHaveTextContent("false");
+    // This path never calls logout(), so it needs its own teardown — otherwise
+    // farm A's palette stays on screen through farm B's login (#149).
+    expect(document.documentElement.dataset.brand).toBeUndefined();
+    expect(localStorage.getItem("cluckwork.brand")).toBeNull();
+  });
+
+  it("clears the farm palette when a load-time session restore fails", async () => {
+    // Also lands on /login without going through logout().
+    document.documentElement.dataset.brand = "slate";
+    mockRestoreSession.mockResolvedValue(false);
+
+    renderAuth();
+    await waitFor(() => expect(screen.getByTestId("auth")).toHaveTextContent("false"));
+
+    expect(document.documentElement.dataset.brand).toBeUndefined();
+  });
+
+  it("keeps the farm palette when a load-time restore SUCCEEDS", async () => {
+    // The pre-painted palette is correct here; clearing it would flash the
+    // default on every reload.
+    document.documentElement.dataset.brand = "slate";
+    mockRestoreSession.mockResolvedValue(true);
+
+    renderAuth();
+    await waitFor(() => expect(screen.getByTestId("auth")).toHaveTextContent("true"));
+
+    expect(document.documentElement.dataset.brand).toBe("slate");
+  });
+
+  it("clears the farm palette on logout", async () => {
+    setStoredToken({ sub: "u1", role: "Admin" });
+    document.documentElement.dataset.brand = "terracotta";
+    renderAuth();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "logout" }));
+    });
+
+    expect(document.documentElement.dataset.brand).toBeUndefined();
+    expect(localStorage.getItem("cluckwork.brand")).toBeNull();
+  });
+
+  it("clears the farm palette BEFORE awaiting the network call", async () => {
+    // Ordering, not just outcome: clearBrand() must run before `await
+    // apiLogout()`, so a hung or failing request cannot leave farm A's colour
+    // on screen. Asserted with a logout that never settles — if the clear were
+    // after the await, this would still show "terracotta".
+    //
+    // apiLogout swallows its own failures (api/client.ts), and the click
+    // handler discards the returned promise, so mocking a REJECTION here would
+    // surface as an unhandled rejection in Vitest rather than as a clean
+    // assertion. A pending promise tests the same ordering without that.
+    setStoredToken({ sub: "u1", role: "Admin" });
+    document.documentElement.dataset.brand = "terracotta";
+    mockApiLogout.mockReturnValueOnce(new Promise(() => { /* never settles */ }));
+    renderAuth();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "logout" }));
+    });
+
+    expect(document.documentElement.dataset.brand).toBeUndefined();
+  });
+
+  it("leaves the user's light/night choice alone on logout", async () => {
+    // data-theme is a per-user device preference, not farm data.
+    setStoredToken({ sub: "u1", role: "Admin" });
+    localStorage.setItem("cluckwork.theme", "dark");
+    renderAuth();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "logout" }));
+    });
+
+    expect(localStorage.getItem("cluckwork.theme")).toBe("dark");
   });
 
   it("unregisters its client callbacks on unmount", () => {
