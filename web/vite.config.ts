@@ -115,18 +115,26 @@ export default defineConfig(({ mode }) => {
           // screen-test PR raises lines/functions; branches move either way
           // (testing a screen exposes all its conditional branches), so
           // re-baseline branches in BOTH directions with headroom.
-          lines: 91,
-          statements: 91,
-          functions: 71,
-          branches: 85,
-          // high-water locks on the fully-covered foundation
-          "src/auth/**": { statements: 100, lines: 100, functions: 100, branches: 95 },
+          //
+          // Re-baselined for @vitest/coverage-v8 4.x: AST-aware remapping
+          // replaced v8-to-istanbul (no opt-out), which recounts everything —
+          // same tests, different denominators (lines 87.2 / stmts 83.7 /
+          // branch 73.2 / funcs 78.0). Not a coverage regression.
+          lines: 87,
+          statements: 83,
+          functions: 77,
+          branches: 73,
+          // high-water locks on the fully-covered foundation (AST-aware
+          // counting surfaces statements/branches the old remapper credited
+          // for free, so the 100s that survived stay; the rest pin to the
+          // new actuals)
+          "src/auth/**": { statements: 98, lines: 100, functions: 100, branches: 90 },
           "src/lib/**": { statements: 100, lines: 100, functions: 100, branches: 100 },
           // The farm context joins them (#123): every screen with a date field
           // now reads its timezone through it, so a hole here is a hole in all
           // of them at once.
           "src/farm/**": { statements: 100, lines: 100, functions: 100, branches: 100 },
-          "src/api/client.ts": { statements: 95, lines: 95, functions: 100, branches: 85 },
+          "src/api/client.ts": { statements: 94, lines: 95, functions: 100, branches: 85 },
         },
       },
     },
