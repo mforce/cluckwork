@@ -1,5 +1,5 @@
 import { Component, useEffect, useRef, type ErrorInfo, type ReactNode } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 
 // #140: without a boundary, any throw during render unmounts the whole tree and
 // the user is left on a blank page — no message, no way back. On a phone in a
