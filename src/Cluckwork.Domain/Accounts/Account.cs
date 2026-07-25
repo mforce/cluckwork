@@ -32,6 +32,10 @@ public sealed class Account : AggregateRoot<Guid>
     public DayOfWeek? FirstDayOfWeek { get; private set; }
     public string? DateFormatOverride { get; private set; }
     public string? TimeFormatOverride { get; private set; }
+
+    // The farm's accent palette (#149). Farm-wide and admin-chosen, orthogonal
+    // to each user's own light/night preference, which the SPA keeps locally.
+    public string Brand { get; private set; } = FarmBrands.Default;
     public bool IsActive { get; private set; }
     public int Version { get; private set; }
 
@@ -70,10 +74,27 @@ public sealed class Account : AggregateRoot<Guid>
         DayOfWeek? firstDayOfWeek,
         string? dateFormatOverride,
         string? timeFormatOverride,
+        string brand,
         bool financialRowsExist)
     {
         var guard = ValidateRequiredFields(name, timeZoneId, locale, currencyCode);
         if (guard.IsFailure) return guard;
+
+        // Curated set only (#149). Validated HERE rather than in
+        // UpdateFarmSettingsValidator on purpose: a boundary rule would reject
+        // first and return 400, while a domain failure reaches MapFailure's
+        // fallback arm as 422 with title = the error code — the stable
+        // machine-readable code the issue asks for, no new plumbing. Same route
+        // Account.CurrencyLocked already takes.
+        //
+        // Canonicalized like the currency code above: CSS matches
+        // data-brand="forest" exactly, so storing "Forest" would render the
+        // default forever with nothing to show for it.
+        var normalizedBrand = (brand ?? string.Empty).Trim().ToLowerInvariant();
+        if (!FarmBrands.IsCurated(normalizedBrand))
+            return Result.Failure(Error.Validation(
+                "Account.UnknownBrand",
+                $"'{brand}' is not one of the available farm palettes."));
 
         var normalizedCurrency = currencyCode.Trim().ToUpperInvariant();
         var currencyChanged = !string.Equals(
@@ -93,6 +114,7 @@ public sealed class Account : AggregateRoot<Guid>
         FirstDayOfWeek = firstDayOfWeek;
         DateFormatOverride = Normalize(dateFormatOverride);
         TimeFormatOverride = Normalize(timeFormatOverride);
+        Brand = normalizedBrand;
 
         // Only re-derive on an actual change (§4.6). Refreshing the symbol and
         // minor unit on every save would let a catalog update silently

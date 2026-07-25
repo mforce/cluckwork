@@ -117,6 +117,8 @@ public sealed class UpdateFarmSettingsHandler(
                 : Enum.Parse<DayOfWeek>(command.FirstDayOfWeek, ignoreCase: true),
             command.DateFormatOverride,
             command.TimeFormatOverride,
+            // TODO(#149 Task 9): carry the command's Brand through instead.
+            FarmBrands.Default,
             currencyBoundRowsExist);
 
     // Same SaveChanges as the change (#93). Settings decide how every date and
