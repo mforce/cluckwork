@@ -28,6 +28,14 @@ public sealed class AccountConfiguration : IEntityTypeConfiguration<Account>
         builder.Property(e => e.DateFormatOverride).HasMaxLength(Account.MaxFormatOverrideLength);
         builder.Property(e => e.TimeFormatOverride).HasMaxLength(Account.MaxFormatOverrideLength);
 
+        // Stored as the palette id string, not an enum: the same id is written
+        // straight into the DOM as data-brand and matched by exact-match CSS,
+        // and a retired palette must remain readable rather than break
+        // materialisation (#149).
+        builder.Property(e => e.Brand)
+            .HasMaxLength(FarmBrands.MaxLength)
+            .IsRequired();
+
         builder.Property(e => e.Version).IsConcurrencyToken();
 
         // Derived from the stored symbol/code — not a column.
