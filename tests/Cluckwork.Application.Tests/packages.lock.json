@@ -31,8 +31,8 @@
       },
       "FluentValidation": {
         "type": "Transitive",
-        "resolved": "11.12.0",
-        "contentHash": "Wim3rI1nGZKO5S/lgJ0ZpD3W/uu1CECoJ8pETzC8av34ejr+jCDr4paKhSJRG0Ltcv8UjdxtYCynG+RUEfEUDA=="
+        "resolved": "12.1.1",
+        "contentHash": "EPpkIe1yh1a0OXyC100oOA8WMbZvqUu5plwhvYcb7oSELfyUZzfxV48BLhvs3kKo4NwG7MGLNgy1RJiYtT8Dpw=="
       },
       "Microsoft.CodeCoverage": {
         "type": "Transitive",
@@ -107,7 +107,7 @@
         "type": "Project",
         "dependencies": {
           "Cluckwork.Domain": "[1.0.0, )",
-          "FluentValidation": "[11.*, )",
+          "FluentValidation": "[12.*, )",
           "Riok.Mapperly": "[3.*, )"
         }
       },

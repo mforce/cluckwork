@@ -66,8 +66,8 @@
       },
       "FluentValidation": {
         "type": "Transitive",
-        "resolved": "11.12.0",
-        "contentHash": "Wim3rI1nGZKO5S/lgJ0ZpD3W/uu1CECoJ8pETzC8av34ejr+jCDr4paKhSJRG0Ltcv8UjdxtYCynG+RUEfEUDA=="
+        "resolved": "12.1.1",
+        "contentHash": "EPpkIe1yh1a0OXyC100oOA8WMbZvqUu5plwhvYcb7oSELfyUZzfxV48BLhvs3kKo4NwG7MGLNgy1RJiYtT8Dpw=="
       },
       "Microsoft.AspNetCore.Authentication.JwtBearer": {
         "type": "Transitive",
@@ -437,7 +437,7 @@
           "Cluckwork.Application": "[1.0.0, )",
           "Cluckwork.Domain": "[1.0.0, )",
           "Cluckwork.Infrastructure": "[1.0.0, )",
-          "FluentValidation": "[11.*, )",
+          "FluentValidation": "[12.*, )",
           "Microsoft.AspNetCore.Authentication.JwtBearer": "[10.*, )",
           "Microsoft.AspNetCore.OpenApi": "[10.*, )",
           "Microsoft.OpenApi": "[2.10.0, )",
@@ -451,7 +451,7 @@
         "type": "Project",
         "dependencies": {
           "Cluckwork.Domain": "[1.0.0, )",
-          "FluentValidation": "[11.*, )",
+          "FluentValidation": "[12.*, )",
           "Riok.Mapperly": "[3.*, )"
         }
       },
@@ -463,6 +463,7 @@
         "dependencies": {
           "Cluckwork.Application": "[1.0.0, )",
           "Cluckwork.Domain": "[1.0.0, )",
+          "FluentValidation": "[12.1.1, )",
           "Microsoft.AspNetCore.Identity.EntityFrameworkCore": "[10.*, )",
           "Microsoft.EntityFrameworkCore": "[10.*, )",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.*, )",
