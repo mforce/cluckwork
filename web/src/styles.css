@@ -91,6 +91,80 @@
   color-scheme: light; /* native controls follow the app's theme, not the OS, once toggled */
 }
 
+/* ---- Farm accent palettes (#149) ----
+   The farm's accent, independent of the user's light/night choice. The default
+   (aubergine) has NO block: it is the :root values above, which is what makes
+   an unknown or stale data-brand fall back to it with no validation here.
+
+   ORDER IS LOAD-BEARING. :root[data-brand=X] and :root[data-theme="dark"] are
+   both specificity (0,2,0), so source order decides between them, and these
+   light blocks sit BEFORE the dark base deliberately:
+     - the brand fill family is mode-independent and the dark base does not
+       redeclare it, so setting it once here also covers dark; and
+     - a token omitted from a dark palette block falls back to the DARK base
+       (unbranded but mode-correct) instead of leaking a light value.
+   The required-set test in styles.test.ts enforces the rest. */
+
+:root[data-brand="forest"] {
+  --brand: #14432a;
+  --brand-press: #1b5a38;
+  --brand-tint: #1a5133;
+  --on-brand: #ffffff;
+  --on-brand-mute: #bcd9c6;
+  --tint-accent: #e6f2ea;
+  --canvas: #f7fbf8;
+  --surface-2: #eef6f1;
+  --lavender: #eefaf1;
+  --row-hover: #f5faf7;
+  --auth-card-shadow: 0 20px 60px rgba(20, 67, 42, 0.14);
+  --auth-bg:
+    radial-gradient(60% 55% at 12% 18%, #d8f0dd 0%, transparent 60%),
+    radial-gradient(55% 50% at 88% 12%, #dcefe2 0%, transparent 60%),
+    radial-gradient(55% 55% at 82% 88%, #d9f0e2 0%, transparent 62%),
+    radial-gradient(50% 50% at 18% 90%, #e4f7e9 0%, transparent 60%),
+    var(--lavender);
+}
+
+:root[data-brand="slate"] {
+  --brand: #1b3a5c;
+  --brand-press: #254e79;
+  --brand-tint: #22456b;
+  --on-brand: #ffffff;
+  --on-brand-mute: #c0d4e6;
+  --tint-accent: #e7eff7;
+  --canvas: #f7f9fc;
+  --surface-2: #eef3f9;
+  --lavender: #eef4fb;
+  --row-hover: #f5f8fc;
+  --auth-card-shadow: 0 20px 60px rgba(27, 58, 92, 0.14);
+  --auth-bg:
+    radial-gradient(60% 55% at 12% 18%, #d7e6f4 0%, transparent 60%),
+    radial-gradient(55% 50% at 88% 12%, #dce8f5 0%, transparent 60%),
+    radial-gradient(55% 55% at 82% 88%, #d9ecf0 0%, transparent 62%),
+    radial-gradient(50% 50% at 18% 90%, #e4eefb 0%, transparent 60%),
+    var(--lavender);
+}
+
+:root[data-brand="terracotta"] {
+  --brand: #6b2716;
+  --brand-press: #8a3520;
+  --brand-tint: #7d2f1c;
+  --on-brand: #ffffff;
+  --on-brand-mute: #eec3b3;
+  --tint-accent: #f8eae4;
+  --canvas: #fdf8f6;
+  --surface-2: #f9efea;
+  --lavender: #fdf0e9;
+  --row-hover: #fdf6f3;
+  --auth-card-shadow: 0 20px 60px rgba(107, 39, 22, 0.14);
+  --auth-bg:
+    radial-gradient(60% 55% at 12% 18%, #fbe0d0 0%, transparent 60%),
+    radial-gradient(55% 50% at 88% 12%, #f8e3d6 0%, transparent 60%),
+    radial-gradient(55% 55% at 82% 88%, #f7e7dd 0%, transparent 62%),
+    radial-gradient(50% 50% at 18% 90%, #fdeade 0%, transparent 60%),
+    var(--lavender);
+}
+
 /* ---- Night mode: the ONE dark construct ----
    public/theme-init.js always writes a concrete data-theme (saved choice, else
    the OS preference) before first paint, so this selector alone covers both
@@ -137,6 +211,62 @@
   --shadow-dialog: 0 24px 64px rgba(0, 0, 0, 0.6);
   --shadow-bar: 0 -8px 24px rgba(0, 0, 0, 0.45);
   color-scheme: dark;
+}
+
+/* Dark palette blocks (#149). Specificity (0,3,0), so these beat both the dark
+   base and the light palette block above. Each must declare the full set the
+   dark base declares as LITERALS — the dark base hardcodes --stat-accent and
+   --auth-brand rather than aliasing --brand, so omitting one here renders a
+   forest farm with aubergine-pink accents at night. Enforced by
+   styles.test.ts. The --brand family is NOT here: it is mode-independent and
+   comes from the light palette block. */
+
+:root[data-brand="forest"][data-theme="dark"] {
+  --stat-accent: #a8dcbb;
+  --auth-brand: #a8dcbb;
+  --tint-accent: #16301f;
+  --canvas: #111814;
+  --surface-2: #1e2a22;
+  --row-hover: #1e2a22;
+  --lavender: #17241b;
+  --auth-card-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  --auth-bg:
+    radial-gradient(60% 55% at 12% 18%, rgba(31, 105, 63, 0.5) 0%, transparent 60%),
+    radial-gradient(55% 50% at 88% 12%, rgba(20, 67, 42, 0.6) 0%, transparent 60%),
+    radial-gradient(55% 55% at 82% 88%, rgba(45, 90, 70, 0.35) 0%, transparent 62%),
+    var(--canvas);
+}
+
+:root[data-brand="slate"][data-theme="dark"] {
+  --stat-accent: #aecfeb;
+  --auth-brand: #aecfeb;
+  --tint-accent: #182a3b;
+  --canvas: #101519;
+  --surface-2: #1d2731;
+  --row-hover: #1d2731;
+  --lavender: #16202a;
+  --auth-card-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  --auth-bg:
+    radial-gradient(60% 55% at 12% 18%, rgba(37, 78, 121, 0.5) 0%, transparent 60%),
+    radial-gradient(55% 50% at 88% 12%, rgba(27, 58, 92, 0.6) 0%, transparent 60%),
+    radial-gradient(55% 55% at 82% 88%, rgba(45, 70, 90, 0.35) 0%, transparent 62%),
+    var(--canvas);
+}
+
+:root[data-brand="terracotta"][data-theme="dark"] {
+  --stat-accent: #f2b79c;
+  --auth-brand: #f2b79c;
+  --tint-accent: #36211a;
+  --canvas: #1a1210;
+  --surface-2: #2e211c;
+  --row-hover: #2e211c;
+  --lavender: #251a16;
+  --auth-card-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  --auth-bg:
+    radial-gradient(60% 55% at 12% 18%, rgba(138, 53, 32, 0.5) 0%, transparent 60%),
+    radial-gradient(55% 50% at 88% 12%, rgba(107, 39, 22, 0.6) 0%, transparent 60%),
+    radial-gradient(55% 55% at 82% 88%, rgba(90, 60, 45, 0.35) 0%, transparent 62%),
+    var(--canvas);
 }
 
 * {
