@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Cluckwork">
+  <rect width="32" height="32" fill="#4a154b"/>
+  <g transform="translate(16,16) scale(0.62) translate(-16,-16)">
+    <path d="M16 5c-5.2 0-8.6 6.9-8.6 12.4a8.6 8.6 0 0 0 17.2 0C24.6 11.9 21.2 5 16 5Z" fill="#f9f0ff"/>
+    <ellipse cx="12.7" cy="14" rx="2.1" ry="3" fill="#ffffff" opacity="0.55"/>
+  </g>
+</svg>

@@ -1813,3 +1813,50 @@ input.locked {
   line-height: 1.4;
   max-width: 44rem;
 }
+
+/* #142 — the "new version is ready" banner. Fixed to the bottom so it is within
+   thumb reach on a barn phone, at z-index 30: above the tab bar (20) so it is
+   never hidden behind it, below the dialog (50) so a modal still wins. */
+.update-banner {
+  position: fixed;
+  inset: auto 1rem 1rem auto;
+  z-index: 30;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  max-width: min(30rem, calc(100vw - 2rem));
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--hairline);
+  border-radius: 0.6rem;
+  background: var(--surface);
+  box-shadow: var(--shadow-bar);
+  color: var(--ink);
+}
+
+.update-banner-text {
+  flex: 1 1 12rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.update-banner-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* Secondary action: present but not competing with Reload. */
+.update-banner-later {
+  background: none;
+  border: 1px solid var(--hairline);
+  color: var(--muted);
+}
+
+@media (max-width: 900px) {
+  .update-banner {
+    /* Clear the fixed tab bar (min-height 3.4rem) and the home indicator, so
+       the banner never sits on top of the navigation. */
+    inset: auto 1rem calc(3.4rem + env(safe-area-inset-bottom) + 0.75rem) 1rem;
+    max-width: none;
+  }
+}

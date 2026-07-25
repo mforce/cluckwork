@@ -78,6 +78,24 @@ public sealed class SecurityHeadersTests(CluckworkWebApplicationFactory factory)
     }
 
     [Fact]
+    public async Task Csp_admits_a_same_origin_service_worker_and_no_other()
+    {
+        var csp = (await factory.CreateClient().GetAsync("/health/live"))
+            .Headers.GetValues("Content-Security-Policy").Single();
+
+        // #142: the PWA worker is a same-origin /sw.js. worker-src 'none' would
+        // block register() outright — and silently, since a blocked
+        // registration only rejects a promise, so the app would look fine while
+        // never caching or updating. The COMPLETE token set, not a prefix: this
+        // fails if the directive is ever widened to a scheme or a remote origin
+        // rather than staying same-origin-only.
+        var workerSrc = csp
+            .Split(';', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+            .Single(d => d.StartsWith("worker-src ", StringComparison.Ordinal));
+        Assert.Equal(new[] { "worker-src", "'self'" }, workerSrc.Split(' '));
+    }
+
+    [Fact]
     public async Task Hsts_is_absent_on_plain_http()
     {
         // No forwarded proto → the request is http → HSTS must not be emitted.

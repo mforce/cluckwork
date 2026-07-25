@@ -227,8 +227,8 @@
       },
       "Riok.Mapperly": {
         "type": "Transitive",
-        "resolved": "3.6.0",
-        "contentHash": "eQkT3evicd5fdb8HgAJjJ+uvbhfA76ozZZsBtounFrOvk0mj+9tozv1hCYV0f0cTmXIZsxtU93FMWPzd76wSaw=="
+        "resolved": "4.3.1",
+        "contentHash": "oSE+OVLHyiojrws0QVbQaAT2YKsYbyHqJXPdV7EhGseR/dYgeWS2x1T5qY5I4E+RJkJqMSG+FyZOq4SljWgJWQ=="
       },
       "Serilog": {
         "type": "Transitive",
@@ -293,7 +293,7 @@
         "dependencies": {
           "Cluckwork.Domain": "[1.0.0, )",
           "FluentValidation": "[12.*, )",
-          "Riok.Mapperly": "[3.*, )"
+          "Riok.Mapperly": "[4.*, )"
         }
       },
       "cluckwork.domain": {
