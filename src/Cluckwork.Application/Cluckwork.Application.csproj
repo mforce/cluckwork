@@ -8,7 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="FluentValidation" Version="11.*" />
+    <PackageReference Include="FluentValidation" Version="12.*" />
     <PackageReference Include="Riok.Mapperly" Version="4.*" />
   </ItemGroup>
 
