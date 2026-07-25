@@ -117,6 +117,15 @@ jobs:
       - name: Typecheck and build
         run: npm run build
 
+      # #142 — assert the guarantees of the GENERATED service worker, not just
+      # the config meant to produce it. The unit tests mock
+      # navigator.serviceWorker entirely and the .NET tests use a placeholder
+      # sw.js, so without this a narrowed denylist regex or an added
+      # runtimeCaching rule would ship with every other check green, silently
+      # letting the worker answer /api from cache.
+      - name: Verify service-worker guarantees
+        run: npm run verify:sw
+
   # PR-only: fails when a PR ADDS a dependency with a known vulnerability, before
   # it lands on main. Complements the audit gates (which score the whole tree) by
   # scoring the DIFF, so a newly introduced bad dep is named in the PR itself.

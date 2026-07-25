@@ -24,6 +24,10 @@ public sealed class StaticCachingFactory : CluckworkWebApplicationFactory
         File.WriteAllText(Path.Combine(_webRoot, "assets", "app-deadbeef.js"),
             "console.log('hashed bundle');");
         File.WriteAllText(Path.Combine(_webRoot, "favicon.ico"), "icon-bytes");
+        // #142 — the PWA pair, both emitted at the web root by the build.
+        File.WriteAllText(Path.Combine(_webRoot, "sw.js"), "/* service worker */");
+        File.WriteAllText(Path.Combine(_webRoot, "manifest.webmanifest"),
+            """{"name":"Cluckwork","start_url":"/"}""");
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -142,5 +146,31 @@ public sealed class StaticAssetCachingTests(StaticCachingFactory factory)
         Assert.NotEqual("text/html", res.Content.Headers.ContentType?.MediaType);
         Assert.False(res.Headers.Contains("Cache-Control"),
             "an unknown API path must not carry the static cache header");
+    }
+
+    [Fact]
+    public async Task Service_worker_always_revalidates_so_updates_can_ship()
+    {
+        // #142: sw.js is the unhashed script every installed client polls to
+        // discover a new build. If it were ever served as an immutable asset,
+        // clients would keep re-reading the cached worker and a deploy could
+        // never reach them — the update prompt would have nothing to announce.
+        var res = await factory.CreateClient().GetAsync("/sw.js");
+
+        res.EnsureSuccessStatusCode();
+        Assert.Equal(StaticAssetCaching.AlwaysRevalidate, CacheControl(res));
+    }
+
+    [Fact]
+    public async Task Web_manifest_is_served_with_its_real_media_type_and_revalidates()
+    {
+        // A .webmanifest that 404s (unmapped extension) or arrives as
+        // octet-stream is not treated as a manifest, and the app silently stops
+        // being installable — nothing else in CI would notice.
+        var res = await factory.CreateClient().GetAsync("/manifest.webmanifest");
+
+        res.EnsureSuccessStatusCode();
+        Assert.Equal("application/manifest+json", res.Content.Headers.ContentType?.MediaType);
+        Assert.Equal(StaticAssetCaching.AlwaysRevalidate, CacheControl(res));
     }
 }

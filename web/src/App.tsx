@@ -1,6 +1,7 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router";
 import { AuthProvider } from "./auth/AuthContext";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { UpdatePrompt } from "./pwa/UpdatePrompt";
 import { FarmProvider } from "./farm/FarmContext";
 import { ProtectedRoute } from "./routes/ProtectedRoute";
 import { AppLayout } from "./routes/AppLayout";
@@ -68,6 +69,10 @@ export function App() {
           </Routes>
         </BrowserRouter>
       </AuthProvider>
+      {/* Outside the router and the auth gate: an update is worth offering on
+          any screen, including the login page, and it needs no route context.
+          Inside the boundary so a throw here can't blank the app (#142). */}
+      <UpdatePrompt />
     </ErrorBoundary>
   );
 }
