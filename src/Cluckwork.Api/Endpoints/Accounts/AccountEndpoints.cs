@@ -92,6 +92,7 @@ public static class AccountEndpoints
             request.FirstDayOfWeek,
             request.DateFormatOverride,
             request.TimeFormatOverride,
+            request.Brand,
             request.Version);
 
         var validation = await validator.ValidateAsync(command, ct);
@@ -121,7 +122,8 @@ public static class AccountEndpoints
         a.FirstDayOfWeek?.ToString(),
         a.DateFormatOverride, a.TimeFormatOverride,
         a.Version,
-        logoContentHash);
+        logoContentHash,
+        a.Brand);
 }
 
 // CurrencyCode/CurrencyMinorUnit keep their names and positions from the
@@ -142,7 +144,11 @@ public sealed record AccountResponse(
     // Null when the farm has no logo — the chrome falls back to app branding
     // and never calls /logo. Otherwise the stored image's content hash, which
     // both identifies the current logo and changes when it is replaced (#123).
-    string? LogoContentHash);
+    string? LogoContentHash,
+    // The farm's accent palette (#149). On the role-agnostic /account read, not
+    // just the admin-only settings payload: the palette is farm-wide, so every
+    // role's shell needs it to render, and only admins can read /settings.
+    string Brand);
 
 public sealed record FarmSettingsResponse(
     AccountResponse Settings,
@@ -160,4 +166,5 @@ public sealed record UpdateFarmSettingsRequest(
     string? FirstDayOfWeek,
     string? DateFormatOverride,
     string? TimeFormatOverride,
+    string Brand,
     int Version);

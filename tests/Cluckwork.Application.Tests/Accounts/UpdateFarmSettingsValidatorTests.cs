@@ -1,6 +1,7 @@
 namespace Cluckwork.Application.Tests.Accounts;
 
 using Cluckwork.Application.Features.Accounts.UpdateFarmSettings;
+using Cluckwork.Domain.Accounts;
 
 // #123 — the write-side gate on the §4.5 fields. The timezone rule carries the
 // most weight: #35's FarmClock deliberately fails closed on an unusable zone
@@ -19,6 +20,7 @@ public sealed class UpdateFarmSettingsValidatorTests
         FirstDayOfWeek: "Monday",
         DateFormatOverride: null,
         TimeFormatOverride: null,
+        Brand: FarmBrands.Default,
         Version: 0);
 
     private bool Fails(UpdateFarmSettingsCommand command, string property) =>
