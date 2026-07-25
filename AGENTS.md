@@ -79,11 +79,20 @@ CI fails a PR when a dependency carries a known **high+** advisory:
 
 **NuGet lock files.** `Directory.Build.props` sets `RestorePackagesWithLockFile`,
 so every project has a committed `packages.lock.json` and CI restores with
-`--locked-mode`. This does two things: the dependency graph sees the full
-transitive closure (80 packages, not just the 20 direct `PackageReference`s), and
-restores are deterministic. **When you add or bump a package, run `dotnet restore`
-and commit the changed lock files in the same commit** — otherwise CI fails the
-restore with `NU1004`.
+`--locked-mode` — restores are **deterministic**, and a dependency can't float to
+a different resolved version between a green local run and CI. **When you add or
+bump a package, run `dotnet restore` and commit the changed lock files in the
+same commit** — otherwise CI fails the restore with `NU1004`.
+
+**How the graph learns about transitive NuGet.** Not from the lock files. GitHub
+parses `.csproj`/`.vbproj`/`.nuspec`/`.fsproj`/`packages.config` for NuGet, never
+`packages.lock.json`, and doesn't derive NuGet transitives statically — on
+manifests alone it sees 20 direct `PackageReference`s out of ~80 resolved, leaving
+dependency-review blind to a transitively-introduced vulnerable package.
+`.github/workflows/dependency-submission.yml` closes that: on a push to `main`
+touching the dependency set, Microsoft's component-detection reads the restore
+output and submits the resolved graph via the Dependency Submission API. npm needs
+none of this — the graph reads `web/package-lock.json` and already has the full tree.
 
 **Dependabot** (`.github/dependabot.yml`) covers the other half: the gates
 *enforce* (a vulnerable dep fails the build), Dependabot *proposes* (it opens the
