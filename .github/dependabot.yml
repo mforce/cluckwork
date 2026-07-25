@@ -44,6 +44,14 @@ updates:
         patterns: ["*"]
         dependency-type: "development"
         update-types: ["minor", "patch"]
+      # The vite/vitest cluster is peer-locked to itself (@vitest/coverage-v8
+      # pins vitest exactly; @vitejs/plugin-react and vitest pin vite ranges),
+      # so a SOLO major bump of any one of them is unresolvable — ERESOLVE on
+      # npm ci, seen as #187/#189/#190. Majors for the cluster must land as
+      # one PR.
+      vite-vitest-majors:
+        patterns: ["vite", "vitest", "@vitest/*", "@vitejs/*", "vite-plugin-pwa"]
+        update-types: ["major"]
       production-minor-patch:
         patterns: ["*"]
         dependency-type: "production"
