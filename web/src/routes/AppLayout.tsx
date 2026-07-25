@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { LogOut } from "lucide-react";
 import { useAuth } from "../auth/useAuth";
 import { ThemeToggle } from "../components/ThemeToggle";
