@@ -27,5 +27,12 @@
     "    \"reason\": \"no patched release upstream; not reachable from our code path — tracked in #999\",",
     "    \"expires\": \"2026-10-01\" }"
   ],
-  "exceptions": []
+  "exceptions": [
+    {
+      "id": "GHSA-qwww-vcr4-c8h2",
+      "ecosystem": "npm",
+      "reason": "react-router RSC-mode CSRF; only fix is breaking major 8.3.0, no 7.x backport yet. Not reachable: SPA uses classic BrowserRouter, no RSC/server actions. Tracked in #199.",
+      "expires": "2026-08-24"
+    }
+  ]
 }
