@@ -367,6 +367,7 @@ export interface UpdateFarmSettings {
   firstDayOfWeek: string | null;
   dateFormatOverride: string | null;
   timeFormatOverride: string | null;
+  brand: string;
   version: number;
 }
 
