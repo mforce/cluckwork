@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink, useLocation } from "react-router";
 import { LogOut, Menu } from "lucide-react";
 import { Dialog } from "./Dialog";
 import { ThemeToggle } from "./ThemeToggle";
