@@ -25,3 +25,18 @@ if (t !== "light" && t !== "dark") {
     : "light";
 }
 document.documentElement.dataset.theme = t;
+
+// Second axis (#149): the farm's accent palette. Separate try — a failure
+// reading the brand must not cost the theme resolved above.
+//
+// Deliberately NO allowlist here. An unknown or future id matches no CSS rule
+// and renders the default, exactly as no cache would; duplicating the list into
+// this file would instead mean a newly added palette silently loses its
+// pre-paint cache and flashes aubergine. The one literal is the default itself,
+// which carries no attribute — matching what applyBrand() does.
+try {
+  var b = localStorage.getItem("cluckwork.brand");
+  if (b && b !== "aubergine") document.documentElement.dataset.brand = b;
+} catch (e) {
+  // storage unavailable — the API applies the brand after /account loads
+}
