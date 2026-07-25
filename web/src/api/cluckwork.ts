@@ -334,6 +334,10 @@ export interface Account {
   // calls /account/logo. Otherwise it changes whenever the logo is replaced,
   // which is what makes the cached blob URL self-invalidating.
   logoContentHash: string | null;
+  // The farm's accent palette (#149) — farm-wide and admin-chosen, unlike the
+  // light/night toggle, which stays a per-user device preference. The API is
+  // the source of truth; localStorage only caches it for the pre-paint script.
+  brand: string;
 }
 
 // Clients need the account currency to parse money input correctly — a JPY
