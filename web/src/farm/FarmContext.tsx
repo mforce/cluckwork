@@ -54,10 +54,21 @@ export const FarmContext = createContext<FarmState>({
 // screens that needed the currency each fetched it themselves; the farm's
 // timezone is now needed by every screen with a date field, which makes a
 // shared read the only sensible shape.
-export function FarmProvider({ children }: { children: ReactNode }) {
-  const [farm, setFarm] = useState<Account | null>(null);
-  const [loaded, setLoaded] = useState(false);
-  const [loadFailed, setLoadFailed] = useState(false);
+export function FarmProvider({
+  children,
+  initialAccount,
+}: {
+  children: ReactNode;
+  // #182 — when the session bootstrap already read /account, seed from it and
+  // skip the mount fetch (one coordinated read). `null` means that read FAILED:
+  // start in the load-failed state, still no fetch. `undefined` = self-fetch
+  // (the standalone path, used by FarmContext's own tests).
+  initialAccount?: Account | null;
+}) {
+  const seeded = initialAccount !== undefined;
+  const [farm, setFarm] = useState<Account | null>(initialAccount ?? null);
+  const [loaded, setLoaded] = useState(seeded);
+  const [loadFailed, setLoadFailed] = useState(seeded && initialAccount === null);
 
   const refresh = useCallback(async () => {
     try {
@@ -88,8 +99,15 @@ export function FarmProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    if (seeded) {
+      // #182 — already applied once by the bootstrap read that produced this
+      // value; re-applying here on every mount (StrictMode double-invoke,
+      // remount) is a harmless no-op, so no ref/guard is needed.
+      if (initialAccount) applyBrand(initialAccount.brand);
+      return; // seeded: no mount fetch
+    }
     void refresh();
-  }, [refresh]);
+  }, [seeded, initialAccount, refresh]);
 
   const timeZoneId = farm?.timeZoneId;
 
