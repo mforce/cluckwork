@@ -1,5 +1,12 @@
+/// <reference types="node" />
 // Test-only CSS reader for the design tokens (#149). Lives under src/test/ so
 // it is excluded from the coverage gate.
+//
+// The node reference above is explicit on purpose: this file reads the
+// stylesheet from disk (node:fs / node:url), but it sits under the browser
+// tsconfig.app, whose lib is DOM-only. TypeScript 7 no longer auto-resolves the
+// `node:` builtins here without it (TS2591), so name the dependency rather than
+// lean on @types auto-inclusion.
 //
 // Why this exists rather than getComputedStyle: jsdom does not resolve custom
 // property chains, so `--focus: var(--stat-accent)` comes back as the literal

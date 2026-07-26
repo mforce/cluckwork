@@ -1,3 +1,7 @@
+/// <reference types="node" />
+// The node reference is explicit: this test reads the pre-paint script from disk
+// (node:fs / node:url) but sits under the DOM-only tsconfig.app, and TypeScript 7
+// no longer auto-resolves the `node:` builtins here without it (TS2591).
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
