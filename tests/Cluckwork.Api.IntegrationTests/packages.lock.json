@@ -287,6 +287,14 @@
           "OpenTelemetry.Api": "1.17.0"
         }
       },
+      "OpenTelemetry.Exporter.OpenTelemetryProtocol": {
+        "type": "Transitive",
+        "resolved": "1.17.0",
+        "contentHash": "R1omQOrQpGlS0Cp5UIr/TAiuEA48JrPlgr1NPV5gESiTU7HhWU+ILe2EBSYb1fKdsSavZ7nZkHcUxAzofPqr2A==",
+        "dependencies": {
+          "OpenTelemetry": "1.17.0"
+        }
+      },
       "OpenTelemetry.Extensions.Hosting": {
         "type": "Transitive",
         "resolved": "1.17.0",
@@ -476,6 +484,7 @@
           "Microsoft.AspNetCore.Authentication.JwtBearer": "[10.*, )",
           "Microsoft.AspNetCore.OpenApi": "[10.*, )",
           "Microsoft.OpenApi": "[2.11.0, )",
+          "OpenTelemetry.Exporter.OpenTelemetryProtocol": "[1.*, )",
           "OpenTelemetry.Extensions.Hosting": "[1.*, )",
           "OpenTelemetry.Instrumentation.AspNetCore": "[1.*, )",
           "OpenTelemetry.Instrumentation.EntityFrameworkCore": "[1.16.0-beta.1, )",

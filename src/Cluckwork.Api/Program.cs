@@ -94,14 +94,55 @@ using System.Threading.RateLimiting;
 var builder = WebApplication.CreateBuilder(args);
 
 // --- Logging ---
-builder.Host.UseSerilog((ctx, cfg) => cfg.ReadFrom.Configuration(ctx.Configuration));
+// ReadFrom.Services lets DI-registered enrichers/sinks join the pipeline —
+// the integration tests tap the logger this way (#214).
+builder.Services.AddSerilog((services, cfg) => cfg
+    .ReadFrom.Configuration(builder.Configuration)
+    .ReadFrom.Services(services));
+// Bind IDiagnosticContext property creation to THIS host's logger. The default
+// falls back to the process-global static Log.Logger at Set() time — after any
+// co-hosted Serilog app shuts down (Log.CloseAndFlush -> SilentLogger), every
+// Set() becomes a silent no-op and enrichment like AccountId vanishes. Same
+// failure class as the request-logging options.Logger pinning below.
+builder.Services.AddSingleton(sp =>
+    new Serilog.Extensions.Hosting.DiagnosticContext(sp.GetRequiredService<Serilog.ILogger>()));
+builder.Services.AddSingleton<Serilog.IDiagnosticContext>(sp =>
+    sp.GetRequiredService<Serilog.Extensions.Hosting.DiagnosticContext>());
 
 // --- OpenTelemetry ---
+// The exporter is config-gated (#214): traces leave the process only when
+// Otlp:Endpoint is set (compose forwards Otlp__* from deploy/.env via
+// env_file). Unset = spans stay in-process, exactly the pre-#214 behavior.
+// Endpoint and protocol are validated eagerly — even with export disabled a
+// typo'd protocol fails at boot, not silently.
+var otlp = builder.Configuration.GetSection(OtlpOptions.SectionName).Get<OtlpOptions>()
+    ?? new OtlpOptions();
+var otlpProtocol = otlp.ParseProtocol();
+var otlpTraceEndpoint = otlp.Enabled ? otlp.ResolveTraceEndpoint() : null;
+
 builder.Services.AddOpenTelemetry()
-    .WithTracing(trace => trace
-        .SetResourceBuilder(ResourceBuilder.CreateDefault().AddService("Cluckwork.Api"))
-        .AddAspNetCoreInstrumentation()
-        .AddEntityFrameworkCoreInstrumentation());
+    .WithTracing(trace =>
+    {
+        trace
+            .SetResourceBuilder(ResourceBuilder.CreateDefault().AddService("Cluckwork.Api"))
+            // Not ParentBased: an internet client could otherwise suppress
+            // tracing of its own requests via a traceparent sampled=0 flag.
+            .SetSampler(new AlwaysOnSampler())
+            // Probe spans are pure noise (and billable at SaaS vendors):
+            // /health/live+ready poll every few seconds forever.
+            .AddAspNetCoreInstrumentation(o =>
+                o.Filter = ctx => !ctx.Request.Path.StartsWithSegments("/health"))
+            .AddEntityFrameworkCoreInstrumentation();
+        if (otlpTraceEndpoint is not null)
+            trace.AddOtlpExporter(options =>
+            {
+                options.Endpoint = otlpTraceEndpoint;
+                options.Protocol = otlpProtocol;
+                // Vendor auth rides in headers, e.g. "Authorization=Basic …".
+                if (!string.IsNullOrWhiteSpace(otlp.Headers))
+                    options.Headers = otlp.Headers;
+            });
+    });
 
 // --- Multi-tenancy (scoped per request) ---
 builder.Services.AddScoped<TenantContext>();
@@ -429,6 +470,14 @@ builder.Services.AddHostedService<DurableJobWorker>();
 
 // ----------------------------------------------------------------
 var app = builder.Build();
+
+// One boot line makes export misconfiguration observable — a typo'd env var
+// name otherwise silently disables the whole pipeline (#226 review).
+if (otlpTraceEndpoint is not null)
+    app.Logger.LogInformation(
+        "OTLP trace export enabled -> {OtlpEndpoint} ({OtlpProtocol})", otlpTraceEndpoint, otlpProtocol);
+else
+    app.Logger.LogInformation("OTLP trace export disabled (Otlp:Endpoint not set)");
 // ----------------------------------------------------------------
 
 // --- Startup: apply migrations, then seed (both idempotent) ---
@@ -484,6 +533,31 @@ app.UseDefaultFiles();
 app.UseStaticFiles(new StaticFileOptions
 {
     OnPrepareResponse = StaticAssetCaching.ApplyCacheHeaders
+});
+
+// One structured completion line per request (#214): method, path, status,
+// elapsed — the request's TraceId rides on every event via Serilog. Mounted
+// after static files so hashed-asset hits don't flood the log; health probes
+// are demoted below Information for the same reason.
+app.UseSerilogRequestLogging(options =>
+{
+    // Pin the middleware to THIS host's logger. Its default is the process-wide
+    // static Log.Logger, which any co-hosted Serilog app (the integration-test
+    // suite runs many) reassigns and disposes — completions would silently go
+    // to another host's pipeline.
+    options.Logger = app.Services.GetRequiredService<Serilog.ILogger>();
+    options.GetLevel = (httpContext, _, exception) =>
+        // Health first — a FAILING probe (503 during a DB outage) must not
+        // escalate to Error while orchestrators poll every few seconds. The
+        // exception-handler re-execution at /error is demoted too: the
+        // original request already logged its Error completion, a second
+        // line would double-count every failed request.
+        httpContext.Request.Path.StartsWithSegments("/health")
+        || httpContext.Features.Get<IExceptionHandlerFeature>() is not null
+            ? Serilog.Events.LogEventLevel.Verbose
+            : exception is not null || httpContext.Response.StatusCode >= 500
+                ? Serilog.Events.LogEventLevel.Error
+                : Serilog.Events.LogEventLevel.Information;
 });
 
 // Endpoint rate-limit policies (#143) — no global limiter, only routes that
