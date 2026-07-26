@@ -111,11 +111,47 @@ public sealed class OtlpExporterTests(OtlpFactory factory)
             exporting.Dispose();
         }
 
-        var (path, body) = await collector.WaitForRequestAsync(TimeSpan.FromSeconds(15));
-        Assert.Equal("/v1/traces", path);
+        var body = await collector.WaitForPathAsync("/v1/traces", TimeSpan.FromSeconds(15));
         // Protobuf embeds resource strings verbatim — the service name proves
         // this is a real span payload, not an empty keep-alive.
         Assert.Contains("Cluckwork.Api", System.Text.Encoding.ASCII.GetString(body));
+    }
+
+    // #215 — metrics ride the same pipeline: host dispose force-flushes the
+    // periodic reader, so request/runtime/DB meters must land on /v1/metrics.
+    [Fact]
+    public async Task Metrics_are_posted_to_the_configured_otlp_endpoint()
+    {
+        using var collector = new FakeOtlpCollector();
+        var exporting = factory.WithWebHostBuilder(builder =>
+        {
+            builder.UseSetting("Otlp:Endpoint", collector.Endpoint);
+            builder.UseSetting("Otlp:Protocol", "http/protobuf");
+        });
+        try
+        {
+            // Login queries the user store — a real DB round-trip, so the
+            // Npgsql/EF instruments record at least one measurement
+            // (unrecorded histograms are omitted from the export entirely).
+            var response = await exporting.CreateClient().PostAsJsonAsync(
+                "/api/v1/auth/login", new { email = "nobody@test.local", password = "wrong-password-123!" });
+            Assert.Equal(System.Net.HttpStatusCode.Unauthorized, response.StatusCode);
+        }
+        finally
+        {
+            exporting.Dispose();
+        }
+
+        var body = await collector.WaitForPathAsync("/v1/metrics", TimeSpan.FromSeconds(15));
+        var text = System.Text.Encoding.ASCII.GetString(body);
+        // Instrument names ride verbatim in the protobuf — one representative
+        // per required source (#215 AC 1): request histograms, runtime, Npgsql,
+        // EF Core. Names observed from a real export, not guessed.
+        Assert.Contains("Cluckwork.Api", text);
+        Assert.Contains("http.server.request.duration", text);
+        Assert.Contains("dotnet.gc.collections", text);
+        Assert.Contains("db.client.operation.duration", text);
+        Assert.Contains("microsoft.entityframeworkcore", text);
     }
 }
 
@@ -125,26 +161,45 @@ public sealed class OtlpExporterTests(OtlpFactory factory)
 // query strings, vendor base paths).
 public sealed class OtlpEndpointResolutionTests
 {
-    private static Uri Resolve(string endpoint, string? protocol = "http/protobuf") =>
-        new OtlpOptions { Endpoint = endpoint, Protocol = protocol }.ResolveTraceEndpoint();
-
+    // Both signals resolve from ONE base endpoint — asserting them together
+    // keeps coverage symmetric and the append rules in lock-step.
     [Theory]
-    [InlineData("http://collector:4318", "http://collector:4318/v1/traces")]
-    [InlineData("http://collector:4318/", "http://collector:4318/v1/traces")]
-    [InlineData("https://host/otlp", "https://host/otlp/v1/traces")]
-    [InlineData("http://collector:4318/v1/traces", "http://collector:4318/v1/traces")]
-    [InlineData("http://collector:4318/v1/traces/", "http://collector:4318/v1/traces/")]
-    public void Http_protobuf_appends_the_signal_path_exactly_once(string given, string expected) =>
-        Assert.Equal(new Uri(expected), Resolve(given));
+    [InlineData("http://collector:4318", "http://collector:4318/v1/traces", "http://collector:4318/v1/metrics")]
+    [InlineData("http://collector:4318/", "http://collector:4318/v1/traces", "http://collector:4318/v1/metrics")]
+    [InlineData("https://host/otlp", "https://host/otlp/v1/traces", "https://host/otlp/v1/metrics")]
+    [InlineData("http://c:4318/base?tenant=1", "http://c:4318/base/v1/traces?tenant=1", "http://c:4318/base/v1/metrics?tenant=1")]
+    public void Http_protobuf_appends_each_signal_path_to_the_base(
+        string given, string traces, string metrics)
+    {
+        var options = new OtlpOptions { Endpoint = given, Protocol = "http/protobuf" };
+        Assert.Equal(new Uri(traces), options.ResolveTraceEndpoint());
+        Assert.Equal(new Uri(metrics), options.ResolveMetricsEndpoint());
+    }
+
+    // With two signals on one endpoint, a signal-suffixed URL cannot be right:
+    // '.../v1/traces' would send metrics to /v1/traces/v1/metrics — a silent
+    // 404 at the collector. Reject at boot with the base-URL instruction
+    // instead (agent review of #227; repo never-silent convention).
+    [Theory]
+    [InlineData("http://collector:4318/v1/traces")]
+    [InlineData("http://collector:4318/v1/traces/")]
+    [InlineData("http://collector:4318/v1/metrics")]
+    [InlineData("https://host/otlp/v1/metrics/")]
+    public void Signal_suffixed_endpoint_is_rejected_for_http_protobuf(string given)
+    {
+        var options = new OtlpOptions { Endpoint = given, Protocol = "http/protobuf" };
+        var ex = Assert.Throws<InvalidOperationException>(() => options.ResolveTraceEndpoint());
+        Assert.Contains("base", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Throws<InvalidOperationException>(() => options.ResolveMetricsEndpoint());
+    }
 
     [Fact]
-    public void Query_string_survives_the_append() =>
-        Assert.Equal(new Uri("http://collector:4318/base/v1/traces?tenant=1"),
-            Resolve("http://collector:4318/base?tenant=1"));
-
-    [Fact]
-    public void Grpc_endpoint_is_untouched() =>
-        Assert.Equal(new Uri("http://collector:4317"), Resolve("http://collector:4317", "grpc"));
+    public void Grpc_endpoints_are_untouched()
+    {
+        var options = new OtlpOptions { Endpoint = "http://collector:4317", Protocol = "grpc" };
+        Assert.Equal(new Uri("http://collector:4317"), options.ResolveTraceEndpoint());
+        Assert.Equal(new Uri("http://collector:4317"), options.ResolveMetricsEndpoint());
+    }
 
     [Theory]
     [InlineData(" grpc ", OtlpExportProtocol.Grpc)]
@@ -161,15 +216,20 @@ public sealed class OtlpCollection : ICollectionFixture<OtlpFactory>
     public const string Name = "otlp";
 }
 
-// Minimal OTLP "collector": captures the first request's path + body. Listener
-// failures surface through the TaskCompletionSource instead of degrading into
+// Minimal OTLP "collector": captures each signal path's first body — traces
+// and metrics arrive as separate POSTs in nondeterministic order (#215).
+// Listener failures surface through the fault task instead of degrading into
 // a generic timeout (cavecrew review of #226); Start retries a fresh port to
 // close the probe-then-bind race.
 internal sealed class FakeOtlpCollector : IDisposable
 {
     private readonly System.Net.HttpListener _listener = new();
-    private readonly TaskCompletionSource<(string Path, byte[] Body)> _firstRequest =
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, TaskCompletionSource<byte[]>> _byPath = new();
+    private readonly TaskCompletionSource<byte[]> _fault =
         new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    private TaskCompletionSource<byte[]> For(string path) =>
+        _byPath.GetOrAdd(path, _ => new(TaskCreationOptions.RunContinuationsAsynchronously));
 
     public FakeOtlpCollector()
     {
@@ -198,7 +258,7 @@ internal sealed class FakeOtlpCollector : IDisposable
                     var ctx = await _listener.GetContextAsync();
                     using var buffer = new MemoryStream();
                     await ctx.Request.InputStream.CopyToAsync(buffer);
-                    _firstRequest.TrySetResult((ctx.Request.Url!.AbsolutePath, buffer.ToArray()));
+                    For(ctx.Request.Url!.AbsolutePath).TrySetResult(buffer.ToArray());
                     ctx.Response.StatusCode = 200;
                     ctx.Response.Close();
                 }
@@ -210,18 +270,20 @@ internal sealed class FakeOtlpCollector : IDisposable
             }
             catch (Exception ex)
             {
-                _firstRequest.TrySetException(ex);
+                _fault.TrySetException(ex);
             }
         });
     }
 
     public string Endpoint { get; private set; }
 
-    public async Task<(string Path, byte[] Body)> WaitForRequestAsync(TimeSpan timeout)
+    public async Task<byte[]> WaitForPathAsync(string path, TimeSpan timeout)
     {
-        var winner = await Task.WhenAny(_firstRequest.Task, Task.Delay(timeout));
-        Assert.True(winner == _firstRequest.Task, "no OTLP export arrived before the timeout");
-        return await _firstRequest.Task;
+        var request = For(path).Task;
+        var winner = await Task.WhenAny(request, _fault.Task, Task.Delay(timeout));
+        if (winner == _fault.Task) await _fault.Task; // rethrow the listener failure
+        Assert.True(winner == request, $"no OTLP export arrived on {path} before the timeout");
+        return await request;
     }
 
     private static int FreePort()

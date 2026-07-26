@@ -25,21 +25,34 @@ public sealed class OtlpOptions
     };
 
     // The exporter posts to an explicit Endpoint AS-IS — the OTLP spec's
-    // "/v1/traces" append only happens on the OTEL_* env-var route — so for
+    // per-signal append only happens on the OTEL_* env-var route — so for
     // http/protobuf the signal path is appended here unless already present.
-    public Uri ResolveTraceEndpoint()
+    public Uri ResolveTraceEndpoint() => ResolveSignalEndpoint("/v1/traces");
+
+    // #215 — metrics ride the same base endpoint, own signal path.
+    public Uri ResolveMetricsEndpoint() => ResolveSignalEndpoint("/v1/metrics");
+
+    private static readonly string[] SignalPaths = ["/v1/traces", "/v1/metrics"];
+
+    private Uri ResolveSignalEndpoint(string signalPath)
     {
         if (!Uri.TryCreate(Endpoint, UriKind.Absolute, out var uri)
             || uri.Scheme is not ("http" or "https"))
             throw new InvalidOperationException(
                 $"Otlp:Endpoint must be an absolute http(s) URI, got '{Endpoint}'.");
 
-        if (ParseProtocol() is not OtlpExportProtocol.HttpProtobuf
-            || uri.AbsolutePath.TrimEnd('/').EndsWith("/v1/traces", StringComparison.Ordinal))
+        if (ParseProtocol() is not OtlpExportProtocol.HttpProtobuf)
             return uri;
 
+        // Both signals share this one endpoint, so a signal-suffixed URL can't
+        // be right: '.../v1/traces' would send metrics to /v1/traces/v1/metrics
+        // and the collector 404s them silently. Fail at boot instead.
+        if (SignalPaths.Any(p => uri.AbsolutePath.TrimEnd('/').EndsWith(p, StringComparison.Ordinal)))
+            throw new InvalidOperationException(
+                $"Otlp:Endpoint must be the collector's base URL (the app appends per-signal paths itself), got '{Endpoint}'.");
+
         var builder = new UriBuilder(uri);
-        builder.Path = builder.Path.TrimEnd('/') + "/v1/traces";
+        builder.Path = builder.Path.TrimEnd('/') + signalPath;
         return builder.Uri;
     }
 }

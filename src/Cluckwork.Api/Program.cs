@@ -85,6 +85,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Serilog;
@@ -119,12 +120,25 @@ var otlp = builder.Configuration.GetSection(OtlpOptions.SectionName).Get<OtlpOpt
     ?? new OtlpOptions();
 var otlpProtocol = otlp.ParseProtocol();
 var otlpTraceEndpoint = otlp.Enabled ? otlp.ResolveTraceEndpoint() : null;
+var otlpMetricsEndpoint = otlp.Enabled ? otlp.ResolveMetricsEndpoint() : null;
+
+// One exporter recipe for both signals — vendor auth must never drift
+// between traces and metrics (#227 review).
+Action<OpenTelemetry.Exporter.OtlpExporterOptions> ConfigureOtlpExporter(Uri endpoint) => options =>
+{
+    options.Endpoint = endpoint;
+    options.Protocol = otlpProtocol;
+    // Vendor auth rides in headers, e.g. "Authorization=Basic …".
+    if (!string.IsNullOrWhiteSpace(otlp.Headers))
+        options.Headers = otlp.Headers;
+};
 
 builder.Services.AddOpenTelemetry()
+    // One resource for every signal (#227 review — the intended API for this).
+    .ConfigureResource(resource => resource.AddService("Cluckwork.Api"))
     .WithTracing(trace =>
     {
         trace
-            .SetResourceBuilder(ResourceBuilder.CreateDefault().AddService("Cluckwork.Api"))
             // Not ParentBased: an internet client could otherwise suppress
             // tracing of its own requests via a traceparent sampled=0 flag.
             .SetSampler(new AlwaysOnSampler())
@@ -134,14 +148,20 @@ builder.Services.AddOpenTelemetry()
                 o.Filter = ctx => !ctx.Request.Path.StartsWithSegments("/health"))
             .AddEntityFrameworkCoreInstrumentation();
         if (otlpTraceEndpoint is not null)
-            trace.AddOtlpExporter(options =>
-            {
-                options.Endpoint = otlpTraceEndpoint;
-                options.Protocol = otlpProtocol;
-                // Vendor auth rides in headers, e.g. "Authorization=Basic …".
-                if (!string.IsNullOrWhiteSpace(otlp.Headers))
-                    options.Headers = otlp.Headers;
-            });
+            trace.AddOtlpExporter(ConfigureOtlpExporter(otlpTraceEndpoint));
+    })
+    // #215 — metrics beside the traces, same endpoint gate. Meter set: ALL
+    // built-in ASP.NET Core meters (hosting request duration, Kestrel,
+    // routing, rate limiting, auth/Identity, memory pool — this app uses the
+    // lot), .NET runtime (GC/threads/exceptions), Npgsql, EF Core.
+    .WithMetrics(metrics =>
+    {
+        metrics
+            .AddAspNetCoreInstrumentation()
+            .AddRuntimeInstrumentation()
+            .AddMeter("Npgsql", "Microsoft.EntityFrameworkCore");
+        if (otlpMetricsEndpoint is not null)
+            metrics.AddOtlpExporter(ConfigureOtlpExporter(otlpMetricsEndpoint));
     });
 
 // --- Multi-tenancy (scoped per request) ---
@@ -475,9 +495,10 @@ var app = builder.Build();
 // name otherwise silently disables the whole pipeline (#226 review).
 if (otlpTraceEndpoint is not null)
     app.Logger.LogInformation(
-        "OTLP trace export enabled -> {OtlpEndpoint} ({OtlpProtocol})", otlpTraceEndpoint, otlpProtocol);
+        "OTLP export enabled: traces -> {OtlpTraceEndpoint}, metrics -> {OtlpMetricsEndpoint} ({OtlpProtocol})",
+        otlpTraceEndpoint, otlpMetricsEndpoint, otlpProtocol);
 else
-    app.Logger.LogInformation("OTLP trace export disabled (Otlp:Endpoint not set)");
+    app.Logger.LogInformation("OTLP export disabled (Otlp:Endpoint not set)");
 // ----------------------------------------------------------------
 
 // --- Startup: apply migrations, then seed (both idempotent) ---
