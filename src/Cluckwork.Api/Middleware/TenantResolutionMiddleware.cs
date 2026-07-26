@@ -51,8 +51,10 @@ public sealed class TenantResolutionMiddleware(RequestDelegate next)
         // completion event beside TraceId (#214)...
         diagnosticContext.Set("AccountId", accountId);
         // ...and on every event logged INSIDE the request (#216): handler
-        // transition logs inherit it via FromLogContext. Disposed with the
-        // request so the AsyncLocal scope can't bleed past it.
+        // transition logs inherit it through the Serilog provider's MEL
+        // scope handling (not FromLogContext — that serves Serilog's own
+        // LogContext). Disposed with the request so the AsyncLocal scope
+        // can't bleed past it.
         return logger.BeginScope(new Dictionary<string, object> { ["AccountId"] = accountId });
     }
 }

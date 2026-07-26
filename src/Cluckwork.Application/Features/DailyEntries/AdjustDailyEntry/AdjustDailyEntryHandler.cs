@@ -72,7 +72,8 @@ public sealed class AdjustDailyEntryHandler(
             if (command.Grades.Any(g => !allowed.Contains(g.EggGradeId)))
                 return Result.Failure<AdjustDailyEntryResponse>(Error.Validation(
                     "DailyEntry.UnknownGrade",
-                    "One or more egg grades do not exist, are inactive, or are not saleable."));
+                    "One or more egg grades do not exist, are inactive, or are not saleable."))
+                    .LogFailure(logger, "AdjustDailyEntry");
         }
 
         var previousMortality = entry.MortalityCount;

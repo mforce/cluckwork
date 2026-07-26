@@ -84,19 +84,22 @@ public sealed class HandlerLoggingTests(RequestLoggingFactory factory)
     [Fact]
     public async Task Failed_allocation_logs_a_warning_with_the_failure_reason()
     {
-        var (client, accountId, _, _, grades) = await SetupAsync("HL-Short");
-        await factory.SeedEggLotAsync(accountId, grades["HL-Short"], quantity: 50);
-        var orderId = await factory.SeedSalesOrderAsync(accountId, grades["HL-Short"], 300);
+        // GUID-suffixed grade name: the warning is correlated through the
+        // ErrorDescription text, so the marker must be unique per run.
+        var marker = $"HL-Short-{Guid.NewGuid():N}"[..16];
+        var (client, accountId, _, _, grades) = await SetupAsync(marker);
+        await factory.SeedEggLotAsync(accountId, grades[marker], quantity: 50);
+        var orderId = await factory.SeedSalesOrderAsync(accountId, grades[marker], 300);
 
         var confirm = await client.PostWithKeyAsync(
             $"/api/v1/sales/{orderId}/confirm", Guid.NewGuid().ToString());
 
         Assert.False(confirm.IsSuccessStatusCode);
-        // The grade name in the description ties the warning to THIS test's
-        // order — the sink is shared across the class.
+        // The unique grade name in the description ties the warning to THIS
+        // test's order — the sink is shared across the class.
         var logged = Assert.Single(EventsFrom("ConfirmSaleHandler"),
             e => e.Level == LogEventLevel.Warning
-                 && ScalarOf(e, "ErrorDescription")?.Contains("HL-Short") == true);
+                 && ScalarOf(e, "ErrorDescription")?.Contains(marker) == true);
         Assert.Equal("EggLot.InsufficientStock", ScalarOf(logged, "ErrorCode"));
         Assert.Equal(accountId.ToString(), ScalarOf(logged, "AccountId"));
     }
