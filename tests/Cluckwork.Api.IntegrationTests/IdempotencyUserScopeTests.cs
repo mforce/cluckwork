@@ -43,7 +43,10 @@ public sealed class IdempotencyUserScopeTests(CluckworkWebApplicationFactory fac
 
         var key = Guid.NewGuid().ToString();
         var first = await client.PutWithKeyAsync("/api/v1/me/language", key, new { language = "en" });
-        var second = await client.PutWithKeyAsync("/api/v1/me/language", key, new { language = "en" });
+        // Different body, same key: a genuine replay returns the cached 204 without
+        // re-executing the handler, so the language must stay "en" — if replay ever
+        // broke into re-execution this would flip to "fr" and fail.
+        var second = await client.PutWithKeyAsync("/api/v1/me/language", key, new { language = "fr" });
         Assert.Equal(HttpStatusCode.NoContent, first.StatusCode);
         Assert.Equal(HttpStatusCode.NoContent, second.StatusCode);
         Assert.Equal("en", (await client.GetFromJsonAsync<MeRow>("/api/v1/me"))!.Language);

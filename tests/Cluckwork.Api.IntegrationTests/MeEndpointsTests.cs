@@ -71,6 +71,21 @@ public sealed class MeEndpointsTests(CluckworkWebApplicationFactory factory)
         EveryRole.Select(r => new object[] { r });
 
     [Fact]
+    public async Task Language_is_trimmed_and_lowercased_end_to_end()
+    {
+        var email = $"o-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
+
+        var put = await client.PutWithKeyAsync(
+            "/api/v1/me/language", Guid.NewGuid().ToString(), new { language = " EN " });
+        Assert.Equal(HttpStatusCode.NoContent, put.StatusCode);
+
+        var me = await client.GetFromJsonAsync<MeRow>("/api/v1/me");
+        Assert.Equal("en", me!.Language);
+    }
+
+    [Fact]
     public async Task Null_clears_the_language()
     {
         var email = $"o-{Guid.NewGuid():N}@test.local";

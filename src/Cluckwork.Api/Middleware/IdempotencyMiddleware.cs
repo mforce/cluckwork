@@ -63,12 +63,15 @@ public sealed class IdempotencyMiddleware(RequestDelegate next)
         }
 
         var endpointHash = Sha256($"{context.Request.Method}:{context.Request.Path}");
-        // Scope the key to the user, not just the account (#45): two users in one
-        // account presenting the same Idempotency-Key on a per-user write must each
-        // execute, never replay each other's response. Absent user (malformed token
-        // but resolved tenant) degrades to the prior account-only scope.
-        var userScope = user.IsResolved ? user.UserId.ToString() : "";
-        var keyHash = Sha256($"{userScope}:{rawKey}");
+        // User-scope the idempotency key ONLY for the per-user /me endpoints (#45): two
+        // users in one account presenting the same key on their own /me write must each
+        // execute. Every other endpoint operates on shared account data and keeps the
+        // account-only key, so no existing record's hash changes — a same-user retry
+        // spanning a deployment still replays, with no cross-deploy re-execution window
+        // on account-scoped writes (sales, payments, inventory, …).
+        var userScoped = user.IsResolved
+            && context.Request.Path.StartsWithSegments("/api/v1/me", StringComparison.OrdinalIgnoreCase);
+        var keyHash = userScoped ? Sha256($"{user.UserId}:{rawKey}") : Sha256(rawKey.ToString());
         var lockKey = $"{tenant.AccountId}:{endpointHash}:{keyHash}";
         var semaphore = Locks.GetOrAdd(lockKey, _ => new SemaphoreSlim(1, 1));
 
