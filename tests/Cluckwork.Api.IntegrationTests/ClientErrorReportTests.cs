@@ -169,6 +169,116 @@ public sealed class ClientErrorReportTests(ClientErrorReportFactory factory)
     }
 
     [Fact]
+    public async Task Rendered_fields_are_stripped_of_control_characters_against_log_forging()
+    {
+        // The console sink renders {Message}/{Route} into a plain-text line;
+        // CR/LF (or ANSI escapes) from this ANONYMOUS source would let one
+        // report forge additional log lines. Stacks stay verbatim — they live
+        // in structured properties the console template never renders.
+        var client = ClientFrom("203.0.113.110");
+        var marker = $"crash-{Guid.NewGuid():N}";
+
+        var response = await client.PostAsJsonAsync(Path, new
+        {
+            message = $"{marker}\r\n[00:00:00 INF] forged line \x1b[31m",
+            stack = "line one\nline two",
+            scope = "screen",
+            route = "/daily\nentries"
+        });
+
+        Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
+        var logged = Assert.Single(ReportEvents(),
+            e => ScalarOf(e, "Message")?.Contains(marker) == true);
+        Assert.DoesNotContain('\n', ScalarOf(logged, "Message")!);
+        Assert.DoesNotContain('\r', ScalarOf(logged, "Message")!);
+        Assert.DoesNotContain('\x1b', ScalarOf(logged, "Message")!);
+        Assert.DoesNotContain('\n', ScalarOf(logged, "Route")!);
+        Assert.Contains("line one\nline two", ScalarOf(logged, "Stack"));
+    }
+
+    [Fact]
+    public async Task Missing_message_field_is_rejected_with_400()
+    {
+        var client = ClientFrom("203.0.113.111");
+        var response = await client.PostAsJsonAsync(Path, new { scope = "screen" });
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Non_json_body_is_rejected_with_400()
+    {
+        var client = ClientFrom("203.0.113.112");
+        var response = await client.PostAsync(Path,
+            new StringContent("not json at all", System.Text.Encoding.UTF8, "application/json"));
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Body_exactly_at_the_cap_is_accepted_and_one_byte_over_is_rejected()
+    {
+        // Probe both sides of the boundary: a report padded to EXACTLY
+        // MaxReportBytes must pass; one more byte must 413.
+        var client = ClientFrom("203.0.113.113");
+        var marker = $"crash-{Guid.NewGuid():N}";
+
+        static string PaddedTo(string marker, int targetBytes)
+        {
+            var skeleton = $$"""{"message":"{{marker}}","scope":"screen","stack":""}""";
+            return $$"""{"message":"{{marker}}","scope":"screen","stack":"{{new string('s', targetBytes - System.Text.Encoding.UTF8.GetByteCount(skeleton))}}"}""";
+        }
+
+        var atCap = PaddedTo(marker, Cluckwork.Api.Endpoints.ClientErrors.ClientErrorEndpoints.MaxReportBytes);
+        Assert.Equal(Cluckwork.Api.Endpoints.ClientErrors.ClientErrorEndpoints.MaxReportBytes,
+            System.Text.Encoding.UTF8.GetByteCount(atCap));
+        var accepted = await client.PostAsync(Path,
+            new StringContent(atCap, System.Text.Encoding.UTF8, "application/json"));
+        Assert.Equal(HttpStatusCode.Accepted, accepted.StatusCode);
+
+        var overCap = PaddedTo(marker, Cluckwork.Api.Endpoints.ClientErrors.ClientErrorEndpoints.MaxReportBytes + 1);
+        var rejected = await client.PostAsync(Path,
+            new StringContent(overCap, System.Text.Encoding.UTF8, "application/json"));
+        Assert.Equal(HttpStatusCode.RequestEntityTooLarge, rejected.StatusCode);
+    }
+
+    [Fact]
+    public async Task Chunked_body_with_no_declared_length_is_still_capped()
+    {
+        // A hostile client can omit Content-Length entirely (chunked); the
+        // declared-length early exit never fires and the capped read loop is
+        // the only guard. This is the path that test must pin.
+        var client = ClientFrom("203.0.113.114");
+        var marker = $"crash-{Guid.NewGuid():N}";
+
+        var oversized = $$"""{"message":"{{marker}}","scope":"screen","stack":"{{new string('s', 64 * 1024)}}"}""";
+        using var request = new HttpRequestMessage(HttpMethod.Post, Path)
+        {
+            Content = new ChunkedContent(System.Text.Encoding.UTF8.GetBytes(oversized))
+        };
+        request.Headers.TransferEncodingChunked = true;
+
+        var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.RequestEntityTooLarge, response.StatusCode);
+        Assert.DoesNotContain(ReportEvents(),
+            e => ScalarOf(e, "Message")?.Contains(marker) == true);
+    }
+
+    // StringContent always computes a Content-Length; this content refuses to
+    // declare one, forcing the chunked/no-length path through the endpoint.
+    private sealed class ChunkedContent(byte[] payload) : HttpContent
+    {
+        protected override Task SerializeToStreamAsync(
+            Stream stream, System.Net.TransportContext? context) =>
+            stream.WriteAsync(payload, 0, payload.Length);
+
+        protected override bool TryComputeLength(out long length)
+        {
+            length = -1;
+            return false;
+        }
+    }
+
+    [Fact]
     public async Task Overlong_fields_are_truncated_in_the_log_not_rejected()
     {
         // Under the byte cap but over the per-field bound: the report is

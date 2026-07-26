@@ -45,23 +45,70 @@ describe("reportClientError", () => {
     });
   });
 
-  it("truncates oversized fields client-side to stay under the server's byte cap", async () => {
+  it("applies the per-field caps without shrinking when the payload already fits", async () => {
+    // Message over its cap, but the total stays under the byte budget: the
+    // message is cut to its cap and the (already-fitting) stack is untouched.
     await reportClientError({
       message: "m".repeat(5000),
-      stack: "s".repeat(10_000),
-      componentStack: "c".repeat(10_000),
+      stack: "s".repeat(3000),
       scope: "app",
     });
 
     const body = sentBody();
     expect((body.message as string).length).toBe(2000);
-    expect((body.stack as string).length).toBe(8000);
-    expect((body.componentStack as string).length).toBe(8000);
+    expect((body.stack as string).length).toBe(3000);
   });
 
   it("substitutes a placeholder when the error carries no message", async () => {
     await reportClientError({ message: "", scope: "screen" });
     expect(sentBody().message).toBe("(no message)");
+  });
+
+  it("substitutes the placeholder for a whitespace-only message the server would reject", async () => {
+    await reportClientError({ message: "   ", scope: "screen" });
+    expect(sentBody().message).toBe("(no message)");
+  });
+
+  it("keeps the worst-case serialized payload under the server's byte cap", async () => {
+    // Per-field caps alone would sum past 16 KB (message 2000 + two stacks at
+    // 8000 + route 500 + JSON overhead) and the server would silently 413 the
+    // exact deep-component-tree crash this exists for. The budget is the
+    // SERIALIZED body, not the fields.
+    await reportClientError({
+      message: "m".repeat(5000),
+      stack: "s".repeat(10_000),
+      componentStack: "c".repeat(10_000),
+      scope: "screen",
+      route: "/r".repeat(1000),
+    });
+
+    const [, init] = fetchMock.mock.calls.at(-1) as Call;
+    expect(new TextEncoder().encode(init.body as string).length).toBeLessThanOrEqual(15_000);
+    const body = sentBody();
+    expect((body.stack as string).length).toBeGreaterThan(0);
+    expect(body.message as string).toContain("m");
+  });
+
+  it("fits the byte budget even when every field is multi-byte text", async () => {
+    // "💥" is 4 UTF-8 bytes per glyph (2 UTF-16 code units): a char-count cap
+    // that fits ASCII would blow the BYTE cap here.
+    await reportClientError({
+      message: "💥".repeat(2500),
+      stack: "💥".repeat(5000),
+      componentStack: "💥".repeat(5000),
+      scope: "app",
+    });
+
+    const [, init] = fetchMock.mock.calls.at(-1) as Call;
+    expect(new TextEncoder().encode(init.body as string).length).toBeLessThanOrEqual(15_000);
+  });
+
+  it("carries its own traceparent like every other SPA request", async () => {
+    await reportClientError({ message: "kaboom", scope: "screen" });
+    const [, init] = fetchMock.mock.calls[0] as Call;
+    expect(new Headers(init.headers).get("traceparent")).toMatch(
+      /^00-[0-9a-f]{32}-[0-9a-f]{16}-01$/,
+    );
   });
 
   it("includes the trace id of the last API request when one was made", async () => {

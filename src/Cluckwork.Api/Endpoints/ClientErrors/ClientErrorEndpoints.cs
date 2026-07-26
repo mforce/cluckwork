@@ -105,10 +105,17 @@ public static class ClientErrorEndpoints
             ["ClientTraceId"] = Truncate(report.TraceId, MaxShortChars)
         }))
         {
+            // Scope is validated to two literals above; Message and Route are
+            // the only anonymous-caller strings the console template RENDERS,
+            // so they get control characters stripped — CR/LF (or an ANSI
+            // escape) would let one report forge extra plain-text log lines.
+            // The stacks keep theirs: they ride as structured properties the
+            // console line never shows, and a stack without newlines is
+            // useless.
             logger.LogError("Client error ({Scope}) at {Route}: {Message}",
                 scope,
-                Truncate(report.Route, MaxRouteChars) ?? "(unknown)",
-                Truncate(report.Message, MaxMessageChars));
+                Sanitize(Truncate(report.Route, MaxRouteChars)) ?? "(unknown)",
+                Sanitize(Truncate(report.Message, MaxMessageChars)));
         }
 
         return Results.Accepted();
@@ -120,6 +127,15 @@ public static class ClientErrorEndpoints
 
     private static string? Truncate(string? value, int max) =>
         value is null || value.Length <= max ? value : value[..max];
+
+    private static string? Sanitize(string? value) =>
+        value is null || !value.Any(char.IsControl)
+            ? value
+            : string.Create(value.Length, value, static (chars, source) =>
+            {
+                for (var i = 0; i < source.Length; i++)
+                    chars[i] = char.IsControl(source[i]) ? ' ' : source[i];
+            });
 
     private static readonly JsonSerializerOptions JsonOptions =
         new(JsonSerializerDefaults.Web);

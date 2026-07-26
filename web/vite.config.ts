@@ -71,6 +71,11 @@ export default defineConfig(({ mode }) => {
           // performance win. #50 adds an explicit, deliberate offline path.
           runtimeCaching: [],
           navigationPreload: false,
+          // #217 — the app's own maps are emitted hidden (see build below);
+          // workbox would otherwise ship sw.js.map + its own map WITH
+          // sourceMappingURL comments. They only cover generated worker
+          // code, so drop them rather than special-case them.
+          sourcemap: false,
         },
         // The SW is a production artifact; leaving it off in dev keeps `npm run
         // dev` free of stale-cache confusion.
