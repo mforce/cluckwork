@@ -94,14 +94,59 @@ using System.Threading.RateLimiting;
 var builder = WebApplication.CreateBuilder(args);
 
 // --- Logging ---
-builder.Host.UseSerilog((ctx, cfg) => cfg.ReadFrom.Configuration(ctx.Configuration));
+// ReadFrom.Services lets DI-registered enrichers/sinks join the pipeline —
+// the integration tests tap the logger this way (#214).
+builder.Host.UseSerilog((ctx, services, cfg) => cfg
+    .ReadFrom.Configuration(ctx.Configuration)
+    .ReadFrom.Services(services));
 
 // --- OpenTelemetry ---
+// The exporter is config-gated (#214): traces leave the process only when
+// Otlp:Endpoint is set (compose maps OTLP_* env vars onto it). Unset = spans
+// stay in-process, exactly the pre-#214 behavior. Validated eagerly so a bad
+// value fails at boot, not silently or on the first request.
+var otlpEndpoint = builder.Configuration["Otlp:Endpoint"];
+Uri? otlpUri = null;
+OpenTelemetry.Exporter.OtlpExportProtocol? otlpProtocol = null;
+if (!string.IsNullOrWhiteSpace(otlpEndpoint))
+{
+    if (!Uri.TryCreate(otlpEndpoint, UriKind.Absolute, out otlpUri))
+        throw new InvalidOperationException(
+            $"Otlp:Endpoint is not an absolute URI: '{otlpEndpoint}'.");
+    otlpProtocol = builder.Configuration["Otlp:Protocol"] switch
+    {
+        null or "" or "grpc" => OpenTelemetry.Exporter.OtlpExportProtocol.Grpc,
+        "http/protobuf" => OpenTelemetry.Exporter.OtlpExportProtocol.HttpProtobuf,
+        var other => throw new InvalidOperationException(
+            $"Otlp:Protocol must be 'grpc' or 'http/protobuf', got '{other}'.")
+    };
+}
+
 builder.Services.AddOpenTelemetry()
-    .WithTracing(trace => trace
-        .SetResourceBuilder(ResourceBuilder.CreateDefault().AddService("Cluckwork.Api"))
-        .AddAspNetCoreInstrumentation()
-        .AddEntityFrameworkCoreInstrumentation());
+    .WithTracing(trace =>
+    {
+        trace
+            .SetResourceBuilder(ResourceBuilder.CreateDefault().AddService("Cluckwork.Api"))
+            .AddAspNetCoreInstrumentation()
+            .AddEntityFrameworkCoreInstrumentation();
+        if (otlpUri is not null)
+            trace.AddOtlpExporter(options =>
+            {
+                // With an explicit Endpoint the exporter posts to the URI as-is;
+                // the OTLP-spec append of the signal path only happens on the
+                // OTEL_* env-var route. Append it here so config takes the same
+                // base-URL shape vendors document (e.g. https://host:4318).
+                options.Endpoint = otlpProtocol == OpenTelemetry.Exporter.OtlpExportProtocol.HttpProtobuf
+                                   && !otlpUri.AbsolutePath.EndsWith("/v1/traces", StringComparison.Ordinal)
+                    ? new Uri(otlpUri.AbsoluteUri.TrimEnd('/') + "/v1/traces")
+                    : otlpUri;
+                options.Protocol = otlpProtocol!.Value;
+                // Vendor auth rides in headers, e.g. "Authorization=Basic …".
+                var headers = builder.Configuration["Otlp:Headers"];
+                if (!string.IsNullOrWhiteSpace(headers))
+                    options.Headers = headers;
+            });
+    });
 
 // --- Multi-tenancy (scoped per request) ---
 builder.Services.AddScoped<TenantContext>();
@@ -484,6 +529,25 @@ app.UseDefaultFiles();
 app.UseStaticFiles(new StaticFileOptions
 {
     OnPrepareResponse = StaticAssetCaching.ApplyCacheHeaders
+});
+
+// One structured completion line per request (#214): method, path, status,
+// elapsed — the request's TraceId rides on every event via Serilog. Mounted
+// after static files so hashed-asset hits don't flood the log; health probes
+// are demoted below Information for the same reason.
+app.UseSerilogRequestLogging(options =>
+{
+    // Pin the middleware to THIS host's logger. Its default is the process-wide
+    // static Log.Logger, which any co-hosted Serilog app (the integration-test
+    // suite runs many) reassigns and disposes — completions would silently go
+    // to another host's pipeline.
+    options.Logger = app.Services.GetRequiredService<Serilog.ILogger>();
+    options.GetLevel = (httpContext, _, exception) =>
+        exception is not null || httpContext.Response.StatusCode >= 500
+            ? Serilog.Events.LogEventLevel.Error
+            : httpContext.Request.Path.StartsWithSegments("/health")
+                ? Serilog.Events.LogEventLevel.Verbose
+                : Serilog.Events.LogEventLevel.Information;
 });
 
 // Endpoint rate-limit policies (#143) — no global limiter, only routes that
