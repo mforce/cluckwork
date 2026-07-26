@@ -130,7 +130,11 @@ public sealed class OtlpExporterTests(OtlpFactory factory)
         });
         try
         {
-            var response = await exporting.CreateClient().GetAsync("/api/v1/flocks");
+            // Login queries the user store — a real DB round-trip, so the
+            // Npgsql/EF instruments record at least one measurement
+            // (unrecorded histograms are omitted from the export entirely).
+            var response = await exporting.CreateClient().PostAsJsonAsync(
+                "/api/v1/auth/login", new { email = "nobody@test.local", password = "wrong-password-123!" });
             Assert.Equal(System.Net.HttpStatusCode.Unauthorized, response.StatusCode);
         }
         finally
@@ -139,7 +143,15 @@ public sealed class OtlpExporterTests(OtlpFactory factory)
         }
 
         var body = await collector.WaitForPathAsync("/v1/metrics", TimeSpan.FromSeconds(15));
-        Assert.Contains("Cluckwork.Api", System.Text.Encoding.ASCII.GetString(body));
+        var text = System.Text.Encoding.ASCII.GetString(body);
+        // Instrument names ride verbatim in the protobuf — one representative
+        // per required source (#215 AC 1): request histograms, runtime, Npgsql,
+        // EF Core. Names observed from a real export, not guessed.
+        Assert.Contains("Cluckwork.Api", text);
+        Assert.Contains("http.server.request.duration", text);
+        Assert.Contains("dotnet.gc.collections", text);
+        Assert.Contains("db.client.operation.duration", text);
+        Assert.Contains("microsoft.entityframeworkcore", text);
     }
 }
 
@@ -149,39 +161,45 @@ public sealed class OtlpExporterTests(OtlpFactory factory)
 // query strings, vendor base paths).
 public sealed class OtlpEndpointResolutionTests
 {
-    private static Uri Resolve(string endpoint, string? protocol = "http/protobuf") =>
-        new OtlpOptions { Endpoint = endpoint, Protocol = protocol }.ResolveTraceEndpoint();
-
+    // Both signals resolve from ONE base endpoint — asserting them together
+    // keeps coverage symmetric and the append rules in lock-step.
     [Theory]
-    [InlineData("http://collector:4318", "http://collector:4318/v1/traces")]
-    [InlineData("http://collector:4318/", "http://collector:4318/v1/traces")]
-    [InlineData("https://host/otlp", "https://host/otlp/v1/traces")]
-    [InlineData("http://collector:4318/v1/traces", "http://collector:4318/v1/traces")]
-    [InlineData("http://collector:4318/v1/traces/", "http://collector:4318/v1/traces/")]
-    public void Http_protobuf_appends_the_signal_path_exactly_once(string given, string expected) =>
-        Assert.Equal(new Uri(expected), Resolve(given));
+    [InlineData("http://collector:4318", "http://collector:4318/v1/traces", "http://collector:4318/v1/metrics")]
+    [InlineData("http://collector:4318/", "http://collector:4318/v1/traces", "http://collector:4318/v1/metrics")]
+    [InlineData("https://host/otlp", "https://host/otlp/v1/traces", "https://host/otlp/v1/metrics")]
+    [InlineData("http://c:4318/base?tenant=1", "http://c:4318/base/v1/traces?tenant=1", "http://c:4318/base/v1/metrics?tenant=1")]
+    public void Http_protobuf_appends_each_signal_path_to_the_base(
+        string given, string traces, string metrics)
+    {
+        var options = new OtlpOptions { Endpoint = given, Protocol = "http/protobuf" };
+        Assert.Equal(new Uri(traces), options.ResolveTraceEndpoint());
+        Assert.Equal(new Uri(metrics), options.ResolveMetricsEndpoint());
+    }
 
-    [Fact]
-    public void Query_string_survives_the_append() =>
-        Assert.Equal(new Uri("http://collector:4318/base/v1/traces?tenant=1"),
-            Resolve("http://collector:4318/base?tenant=1"));
-
-    [Fact]
-    public void Grpc_endpoint_is_untouched() =>
-        Assert.Equal(new Uri("http://collector:4317"), Resolve("http://collector:4317", "grpc"));
-
+    // With two signals on one endpoint, a signal-suffixed URL cannot be right:
+    // '.../v1/traces' would send metrics to /v1/traces/v1/metrics — a silent
+    // 404 at the collector. Reject at boot with the base-URL instruction
+    // instead (agent review of #227; repo never-silent convention).
     [Theory]
-    [InlineData("http://collector:4318", "http://collector:4318/v1/metrics")]
-    [InlineData("https://host/otlp", "https://host/otlp/v1/metrics")]
-    [InlineData("http://collector:4318/v1/metrics", "http://collector:4318/v1/metrics")]
-    public void Http_protobuf_appends_the_metrics_signal_path_exactly_once(string given, string expected) =>
-        Assert.Equal(new Uri(expected),
-            new OtlpOptions { Endpoint = given, Protocol = "http/protobuf" }.ResolveMetricsEndpoint());
+    [InlineData("http://collector:4318/v1/traces")]
+    [InlineData("http://collector:4318/v1/traces/")]
+    [InlineData("http://collector:4318/v1/metrics")]
+    [InlineData("https://host/otlp/v1/metrics/")]
+    public void Signal_suffixed_endpoint_is_rejected_for_http_protobuf(string given)
+    {
+        var options = new OtlpOptions { Endpoint = given, Protocol = "http/protobuf" };
+        var ex = Assert.Throws<InvalidOperationException>(() => options.ResolveTraceEndpoint());
+        Assert.Contains("base", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Throws<InvalidOperationException>(() => options.ResolveMetricsEndpoint());
+    }
 
     [Fact]
-    public void Grpc_metrics_endpoint_is_untouched() =>
-        Assert.Equal(new Uri("http://collector:4317"),
-            new OtlpOptions { Endpoint = "http://collector:4317", Protocol = "grpc" }.ResolveMetricsEndpoint());
+    public void Grpc_endpoints_are_untouched()
+    {
+        var options = new OtlpOptions { Endpoint = "http://collector:4317", Protocol = "grpc" };
+        Assert.Equal(new Uri("http://collector:4317"), options.ResolveTraceEndpoint());
+        Assert.Equal(new Uri("http://collector:4317"), options.ResolveMetricsEndpoint());
+    }
 
     [Theory]
     [InlineData(" grpc ", OtlpExportProtocol.Grpc)]

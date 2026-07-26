@@ -32,6 +32,8 @@ public sealed class OtlpOptions
     // #215 — metrics ride the same base endpoint, own signal path.
     public Uri ResolveMetricsEndpoint() => ResolveSignalEndpoint("/v1/metrics");
 
+    private static readonly string[] SignalPaths = ["/v1/traces", "/v1/metrics"];
+
     private Uri ResolveSignalEndpoint(string signalPath)
     {
         if (!Uri.TryCreate(Endpoint, UriKind.Absolute, out var uri)
@@ -39,9 +41,15 @@ public sealed class OtlpOptions
             throw new InvalidOperationException(
                 $"Otlp:Endpoint must be an absolute http(s) URI, got '{Endpoint}'.");
 
-        if (ParseProtocol() is not OtlpExportProtocol.HttpProtobuf
-            || uri.AbsolutePath.TrimEnd('/').EndsWith(signalPath, StringComparison.Ordinal))
+        if (ParseProtocol() is not OtlpExportProtocol.HttpProtobuf)
             return uri;
+
+        // Both signals share this one endpoint, so a signal-suffixed URL can't
+        // be right: '.../v1/traces' would send metrics to /v1/traces/v1/metrics
+        // and the collector 404s them silently. Fail at boot instead.
+        if (SignalPaths.Any(p => uri.AbsolutePath.TrimEnd('/').EndsWith(p, StringComparison.Ordinal)))
+            throw new InvalidOperationException(
+                $"Otlp:Endpoint must be the collector's base URL (the app appends per-signal paths itself), got '{Endpoint}'.");
 
         var builder = new UriBuilder(uri);
         builder.Path = builder.Path.TrimEnd('/') + signalPath;
