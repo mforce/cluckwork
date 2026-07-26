@@ -39,8 +39,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       // never wedge the gate — we still reveal the shell on the current language.
       try {
         await i18n.changeLanguage(resolveLanguage(me?.language, account?.locale));
-      } catch {
+      } catch (err) {
         // keep the current (English) language; still reveal the shell below
+        console.warn("Failed to switch UI language during bootstrap", err);
       }
       if (cancelled) return;
       setResult({ me, account });

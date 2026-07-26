@@ -1,5 +1,4 @@
 import { useTranslation } from "react-i18next";
-import { useMe } from "./SessionContext";
 import { putMeLanguage } from "../api/cluckwork";
 import i18n, { SUPPORTED_LANGUAGES } from "../i18n";
 
@@ -11,15 +10,23 @@ const LANGUAGE_NAMES: Record<string, string> = { en: "English" };
 // persists to the server (PUT /me/language) AND switches i18next live.
 export function LanguageSelector() {
   const { t } = useTranslation("account");
-  const me = useMe();
 
   if (SUPPORTED_LANGUAGES.length <= 1) return null;
 
-  const current = me?.language ?? i18n.language;
+  // useTranslation() re-renders this component on i18next's languageChanged
+  // event, so i18n.language is always current — both at bootstrap (seeded from
+  // the resolved user/farm language) and after a switch. Reading me?.language
+  // instead would go stale the moment changeLanguage runs, since MeContext is
+  // never updated to match.
+  const current = i18n.language;
   const onChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const lang = e.target.value;
-    void putMeLanguage(lang);
     void i18n.changeLanguage(lang);
+    void putMeLanguage(lang).catch((err) => {
+      // Optimistic: the UI already switched; the preference reconciles from /me
+      // on next bootstrap. Log rather than revert (reverting mid-session is jarring).
+      console.warn("Failed to persist language preference", err);
+    });
   };
 
   return (

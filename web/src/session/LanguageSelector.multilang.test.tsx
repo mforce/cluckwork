@@ -29,5 +29,8 @@ describe("LanguageSelector with a second language installed", () => {
     fireEvent.change(select, { target: { value: "es" } });
     expect(vi.mocked(api.putMeLanguage)).toHaveBeenCalledWith("es");
     expect(changeSpy).toHaveBeenCalledWith("es");
+    // Regression guard: the select must reflect the live i18n language, not the
+    // stale `me` object (MeContext is never updated on a language switch).
+    expect(select).toHaveValue("es");
   });
 });
