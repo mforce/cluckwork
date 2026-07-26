@@ -11,8 +11,7 @@ using Testcontainers.PostgreSql;
 // SQLite is deliberately NOT used — EF Core SQL semantics differ too much.
 public class CluckworkWebApplicationFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
-    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder()
-        .WithImage("postgres:16-alpine")
+    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:16-alpine")
         .Build();
 
     public string ConnectionString => _postgres.GetConnectionString();
