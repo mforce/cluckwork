@@ -43,18 +43,6 @@ export function applyBrand(brand: string): void {
   }
 }
 
-// Every path that ends a session calls this — see AuthContext. A wrong brand
-// misleads more than the neutral default does, so this runs unconditionally
-// rather than only on a clean logout.
-export function clearBrand(): void {
-  delete document.documentElement.dataset.brand;
-  try {
-    localStorage.removeItem(KEY);
-  } catch {
-    // storage unavailable; the attribute is removed either way
-  }
-}
-
 export function initialBrand(): Brand {
   const set = document.documentElement.dataset.brand;
   return set !== undefined && isBrand(set) ? set : DEFAULT_BRAND;

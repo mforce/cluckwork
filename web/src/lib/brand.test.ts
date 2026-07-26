@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { BRANDS, DEFAULT_BRAND, applyBrand, clearBrand, initialBrand, isBrand } from "./brand";
+import { BRANDS, DEFAULT_BRAND, applyBrand, initialBrand, isBrand } from "./brand";
 
 beforeEach(() => {
   document.documentElement.removeAttribute("data-brand");
@@ -73,24 +73,6 @@ describe("brand", () => {
     expect(() => applyBrand("slate")).not.toThrow();
     set.mockRestore();
     remove.mockRestore();
-  });
-
-  it("clearBrand removes both the attribute and the cache", () => {
-    applyBrand("terracotta");
-    clearBrand();
-    expect(document.documentElement.dataset.brand).toBeUndefined();
-    expect(localStorage.getItem("cluckwork.brand")).toBeNull();
-  });
-
-  it("clearBrand survives an unavailable localStorage", () => {
-    applyBrand("terracotta");
-    const spy = vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => {
-      throw new Error("storage denied");
-    });
-    expect(() => clearBrand()).not.toThrow();
-    // The attribute must still go, or farm A's colour survives farm B's login.
-    expect(document.documentElement.dataset.brand).toBeUndefined();
-    spy.mockRestore();
   });
 
   it("initialBrand reads the attribute, defaulting to aubergine", () => {

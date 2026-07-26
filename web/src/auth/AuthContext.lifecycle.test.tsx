@@ -142,6 +142,7 @@ describe("AuthProvider lifecycle", () => {
   it("drops authentication when onUnauthenticated fires (refresh exhausted)", async () => {
     setStoredToken({ sub: "u1", role: "Admin" });
     document.documentElement.dataset.brand = "forest";
+    localStorage.setItem("cluckwork.brand", "forest");
     renderAuth();
     expect(screen.getByTestId("auth")).toHaveTextContent("true");
 
@@ -151,26 +152,27 @@ describe("AuthProvider lifecycle", () => {
     await act(async () => onUnauth!());
 
     expect(screen.getByTestId("auth")).toHaveTextContent("false");
-    // This path never calls logout(), so it needs its own teardown — otherwise
-    // farm A's palette stays on screen through farm B's login (#149).
-    expect(document.documentElement.dataset.brand).toBeUndefined();
-    expect(localStorage.getItem("cluckwork.brand")).toBeNull();
+    // The farm palette is deliberately KEPT across session teardown (#149,
+    // single-farm): the login screen should go on showing the farm's colour,
+    // not revert to the default. It behaves like cluckwork.theme now.
+    expect(document.documentElement.dataset.brand).toBe("forest");
+    expect(localStorage.getItem("cluckwork.brand")).toBe("forest");
   });
 
-  it("clears the farm palette when a load-time session restore fails", async () => {
-    // Also lands on /login without going through logout().
+  it("keeps the farm palette when a load-time session restore fails", async () => {
+    // Lands on /login, and the palette stays so login keeps the farm's colour.
     document.documentElement.dataset.brand = "slate";
+    localStorage.setItem("cluckwork.brand", "slate");
     mockRestoreSession.mockResolvedValue(false);
 
     renderAuth();
     await waitFor(() => expect(screen.getByTestId("auth")).toHaveTextContent("false"));
 
-    expect(document.documentElement.dataset.brand).toBeUndefined();
+    expect(document.documentElement.dataset.brand).toBe("slate");
+    expect(localStorage.getItem("cluckwork.brand")).toBe("slate");
   });
 
   it("keeps the farm palette when a load-time restore SUCCEEDS", async () => {
-    // The pre-painted palette is correct here; clearing it would flash the
-    // default on every reload.
     document.documentElement.dataset.brand = "slate";
     mockRestoreSession.mockResolvedValue(true);
 
@@ -180,39 +182,20 @@ describe("AuthProvider lifecycle", () => {
     expect(document.documentElement.dataset.brand).toBe("slate");
   });
 
-  it("clears the farm palette on logout", async () => {
+  it("keeps the farm palette on logout", async () => {
     setStoredToken({ sub: "u1", role: "Admin" });
     document.documentElement.dataset.brand = "terracotta";
+    localStorage.setItem("cluckwork.brand", "terracotta");
     renderAuth();
 
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "logout" }));
     });
 
-    expect(document.documentElement.dataset.brand).toBeUndefined();
-    expect(localStorage.getItem("cluckwork.brand")).toBeNull();
-  });
-
-  it("clears the farm palette BEFORE awaiting the network call", async () => {
-    // Ordering, not just outcome: clearBrand() must run before `await
-    // apiLogout()`, so a hung or failing request cannot leave farm A's colour
-    // on screen. Asserted with a logout that never settles — if the clear were
-    // after the await, this would still show "terracotta".
-    //
-    // apiLogout swallows its own failures (api/client.ts), and the click
-    // handler discards the returned promise, so mocking a REJECTION here would
-    // surface as an unhandled rejection in Vitest rather than as a clean
-    // assertion. A pending promise tests the same ordering without that.
-    setStoredToken({ sub: "u1", role: "Admin" });
-    document.documentElement.dataset.brand = "terracotta";
-    mockApiLogout.mockReturnValueOnce(new Promise(() => { /* never settles */ }));
-    renderAuth();
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "logout" }));
-    });
-
-    expect(document.documentElement.dataset.brand).toBeUndefined();
+    // Single-farm: the login screen keeps the farm palette rather than
+    // reverting to the default. The API re-applies it on the next login anyway.
+    expect(document.documentElement.dataset.brand).toBe("terracotta");
+    expect(localStorage.getItem("cluckwork.brand")).toBe("terracotta");
   });
 
   it("leaves the user's light/night choice alone on logout", async () => {
