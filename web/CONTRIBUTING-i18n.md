@@ -49,7 +49,7 @@ Namespaces are by area:
 - `auth` — login & authentication
 - `account` — user preferences
 - `sales` — the sales & orders module
-- `errors` — API validation messages keyed by [stable error codes](../src/i18n/en.ts#L27) (`Me.Language.Format`)
+- `errors` — API validation messages keyed by [stable error codes](./src/i18n/en.ts#L27) (`Me.Language.Format`)
 
 Examples:
 - `auth:signIn` — a button label
@@ -123,7 +123,7 @@ A hardcoded user-facing string is a review defect. Every new screen must:
 3. Use `t()` or `<Trans>` to render each key
 4. Include tests (see [the coverage gate in `web/README.md`](./README.md#tests))
 
-Screens that went through the pilot (Login, SalesPage) are worked examples of the full string sweep. The remaining screens are tracked in [#182](../../issues/182).
+Screens that went through the pilot (Login, SalesPage) are worked examples of the full string sweep. The remaining screens are tracked in #182.
 
 ## Formatting boundary: money, dates, and numbers
 
