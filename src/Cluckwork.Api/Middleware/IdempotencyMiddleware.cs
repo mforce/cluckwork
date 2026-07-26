@@ -3,6 +3,7 @@ namespace Cluckwork.Api.Middleware;
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
+using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -24,7 +25,8 @@ public sealed class IdempotencyMiddleware(RequestDelegate next)
         "/api/v1/auth/change-password",
     ];
 
-    public async Task InvokeAsync(HttpContext context, AppDbContext db, TenantContext tenant)
+    public async Task InvokeAsync(
+        HttpContext context, AppDbContext db, TenantContext tenant, CurrentUserContext user)
     {
         if (!HttpMethods.IsPost(context.Request.Method)
             && !HttpMethods.IsPut(context.Request.Method)
@@ -61,7 +63,15 @@ public sealed class IdempotencyMiddleware(RequestDelegate next)
         }
 
         var endpointHash = Sha256($"{context.Request.Method}:{context.Request.Path}");
-        var keyHash = Sha256(rawKey.ToString());
+        // User-scope the idempotency key ONLY for the per-user /me endpoints (#45): two
+        // users in one account presenting the same key on their own /me write must each
+        // execute. Every other endpoint operates on shared account data and keeps the
+        // account-only key, so no existing record's hash changes — a same-user retry
+        // spanning a deployment still replays, with no cross-deploy re-execution window
+        // on account-scoped writes (sales, payments, inventory, …).
+        var userScoped = user.IsResolved
+            && context.Request.Path.StartsWithSegments("/api/v1/me", StringComparison.OrdinalIgnoreCase);
+        var keyHash = userScoped ? Sha256($"{user.UserId}:{rawKey}") : Sha256(rawKey.ToString());
         var lockKey = $"{tenant.AccountId}:{endpointHash}:{keyHash}";
         var semaphore = Locks.GetOrAdd(lockKey, _ => new SemaphoreSlim(1, 1));
 

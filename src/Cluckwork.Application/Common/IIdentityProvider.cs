@@ -39,6 +39,14 @@ public interface IIdentityProvider
         Guid userId, string currentPassword, string newPassword, CancellationToken ct = default);
 
     Task<IReadOnlyList<UserSummary>> ListUsersAsync(Guid accountId, CancellationToken ct = default);
+
+    // #45 — one user's profile, account-scoped so a foreign id resolves to null,
+    // never a cross-tenant read. Role is highest-wins (matches ListUsersAsync).
+    Task<UserProfile?> GetUserAsync(Guid accountId, Guid userId, CancellationToken ct = default);
+
+    // #45 — set/clear the user's language, account-scoped (foreign id -> NotFound).
+    Task<Result> SetLanguageAsync(
+        Guid accountId, Guid userId, string? language, CancellationToken ct = default);
 }
 
 public sealed record TokenPair(
@@ -47,3 +55,6 @@ public sealed record TokenPair(
     DateTimeOffset AccessTokenExpiry);
 
 public sealed record UserSummary(Guid Id, string Email, string? DisplayName, string Role);
+
+public sealed record UserProfile(
+    Guid Id, string Email, string? DisplayName, string Role, string? Language);

@@ -1,5 +1,6 @@
 namespace Cluckwork.Api.Endpoints.Expenses;
 
+using Cluckwork.Api.Validation;
 using Cluckwork.Application.Features.Accounts;
 using Cluckwork.Application.Features.Expenses;
 using Cluckwork.Application.Features.Expenses.AdjustExpense;
@@ -81,7 +82,7 @@ public static class ExpenseEndpoints
         var command = new CreateExpenseCategoryCommand(request.Name);
         var validation = await validator.ValidateAsync(command, ct);
         if (!validation.IsValid)
-            return Results.ValidationProblem(validation.ToDictionary());
+            return ValidationResponse.Problem(validation);
 
         var result = await handler.HandleAsync(command, tenant.AccountId, ct);
         return result.IsSuccess
@@ -102,7 +103,7 @@ public static class ExpenseEndpoints
         var command = new UpdateExpenseCategoryCommand(id, request.Name, request.Active);
         var validation = await validator.ValidateAsync(command, ct);
         if (!validation.IsValid)
-            return Results.ValidationProblem(validation.ToDictionary());
+            return ValidationResponse.Problem(validation);
 
         var result = await handler.HandleAsync(command, ct);
         return result.IsSuccess ? Results.NoContent() : MapFailure(result.Error);
@@ -162,7 +163,7 @@ public static class ExpenseEndpoints
 
         var validation = await validator.ValidateAsync(command, ct);
         if (!validation.IsValid)
-            return Results.ValidationProblem(validation.ToDictionary());
+            return ValidationResponse.Problem(validation);
 
         var result = await handler.HandleAsync(command, tenant.AccountId, ct);
         return result.IsSuccess
@@ -187,7 +188,7 @@ public static class ExpenseEndpoints
 
         var validation = await validator.ValidateAsync(command, ct);
         if (!validation.IsValid)
-            return Results.ValidationProblem(validation.ToDictionary());
+            return ValidationResponse.Problem(validation);
 
         var result = await handler.HandleAsync(command, ct);
         if (result.IsFailure) return MapFailure(result.Error);

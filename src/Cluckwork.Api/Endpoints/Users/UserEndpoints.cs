@@ -1,5 +1,6 @@
 namespace Cluckwork.Api.Endpoints.Users;
 
+using Cluckwork.Api.Validation;
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Users;
 using Cluckwork.Application.Features.Users.AssignFlock;
@@ -66,7 +67,7 @@ public static class UserEndpoints
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
         if (request.FlockId == Guid.Empty)
-            return Results.ValidationProblem(new Dictionary<string, string[]>
+            return ValidationResponse.Problem(new Dictionary<string, string[]>
             {
                 ["flockId"] = ["A flock id is required."],
             });
@@ -103,7 +104,7 @@ public static class UserEndpoints
         var command = new CreateUserCommand(request.Email, request.Password, request.Role, request.Name);
         var validation = await validator.ValidateAsync(command, ct);
         if (!validation.IsValid)
-            return Results.ValidationProblem(validation.ToDictionary());
+            return ValidationResponse.Problem(validation);
 
         var result = await handler.HandleAsync(command, tenant.AccountId, ct);
         return result.IsSuccess
@@ -124,7 +125,7 @@ public static class UserEndpoints
         var command = new UpdateUserCommand(id, request.Name);
         var validation = await validator.ValidateAsync(command, ct);
         if (!validation.IsValid)
-            return Results.ValidationProblem(validation.ToDictionary());
+            return ValidationResponse.Problem(validation);
 
         var result = await handler.HandleAsync(command, tenant.AccountId, ct);
         if (result.IsSuccess) return Results.NoContent();
@@ -161,7 +162,7 @@ public static class UserEndpoints
         var command = new SetUserPasswordCommand(id, request.NewPassword);
         var validation = await validator.ValidateAsync(command, ct);
         if (!validation.IsValid)
-            return Results.ValidationProblem(validation.ToDictionary());
+            return ValidationResponse.Problem(validation);
 
         var result = await handler.HandleAsync(command, tenant.AccountId, ct);
         if (result.IsSuccess) return Results.NoContent();

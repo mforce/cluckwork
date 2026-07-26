@@ -338,14 +338,6 @@ public sealed class IdentityProvider(
         // Highest role wins, matching AuthPolicies.EffectiveRole — an
         // Owner+ReadOnly user must list as Owner, not by insertion order
         // (codex/conventions review of #104).
-        static int Rank(string? name) => name switch
-        {
-            Cluckwork.Domain.Accounts.Roles.Owner => 4,
-            Cluckwork.Domain.Accounts.Roles.Manager => 3,
-            Cluckwork.Domain.Accounts.Roles.Sales => 2,
-            Cluckwork.Domain.Accounts.Roles.ReadOnly => 1,
-            _ => 0,
-        };
         var lookup = roleByUser
             .GroupBy(x => x.UserId)
             .ToDictionary(g => g.Key, g => g.OrderByDescending(x => Rank(x.Name)).First().Name!);
@@ -359,6 +351,45 @@ public sealed class IdentityProvider(
             .Select(u => new UserSummary(
                 u.Id, u.Email!, u.DisplayName, lookup.GetValueOrDefault(u.Id, "Worker")))
             .ToList();
+    }
+
+    // Highest role wins, matching AuthPolicies.EffectiveRole — an Owner+ReadOnly
+    // user resolves to Owner, not by insertion order.
+    private static int Rank(string? name) => name switch
+    {
+        Cluckwork.Domain.Accounts.Roles.Owner => 4,
+        Cluckwork.Domain.Accounts.Roles.Manager => 3,
+        Cluckwork.Domain.Accounts.Roles.Sales => 2,
+        Cluckwork.Domain.Accounts.Roles.ReadOnly => 1,
+        _ => 0,
+    };
+
+    public async Task<UserProfile?> GetUserAsync(
+        Guid accountId, Guid userId, CancellationToken ct = default)
+    {
+        var user = await db.Users
+            .Where(u => u.Id == userId && u.AccountId == accountId)
+            .Select(u => new { u.Id, u.Email, u.DisplayName, u.Language })
+            .FirstOrDefaultAsync(ct);
+        if (user is null) return null;
+
+        var roleNames = await (
+            from userRole in db.UserRoles
+            join role in db.Roles on userRole.RoleId equals role.Id
+            where userRole.UserId == userId
+            select role.Name).ToListAsync(ct);
+        var effectiveRole = roleNames.OrderByDescending(Rank).FirstOrDefault() ?? "Worker";
+
+        return new UserProfile(user.Id, user.Email!, user.DisplayName, effectiveRole, user.Language);
+    }
+
+    public async Task<Result> SetLanguageAsync(
+        Guid accountId, Guid userId, string? language, CancellationToken ct = default)
+    {
+        var affected = await db.Users
+            .Where(u => u.Id == userId && u.AccountId == accountId)
+            .ExecuteUpdateAsync(s => s.SetProperty(u => u.Language, language), ct);
+        return affected == 0 ? Result.Failure(Error.NotFound("Users", userId)) : Result.Success();
     }
 
     private static string Describe(IdentityResult result) =>

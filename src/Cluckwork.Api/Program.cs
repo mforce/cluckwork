@@ -14,6 +14,7 @@ using Cluckwork.Api.Endpoints.Export;
 using Cluckwork.Api.Endpoints.Flocks;
 using Cluckwork.Api.Endpoints.Reports;
 using Cluckwork.Api.Endpoints.Inventory;
+using Cluckwork.Api.Endpoints.Me;
 using Cluckwork.Api.Endpoints.Sales;
 using Cluckwork.Api.Endpoints.Water;
 using Cluckwork.Api.Endpoints.Stock;
@@ -67,6 +68,7 @@ using Cluckwork.Application.Features.Sales.UpdateOrderItem;
 using Cluckwork.Application.Features.Sales.VoidPayment;
 using Cluckwork.Application.Features.Sales.VoidSale;
 using Cluckwork.Application.Features.Users.CreateUser;
+using Cluckwork.Application.Features.Users.SetLanguage;
 using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Jobs;
 using Cluckwork.Infrastructure.Persistence;
@@ -402,6 +404,7 @@ builder.Services.AddScoped<IValidator<Cluckwork.Application.Features.Users.Chang
     Cluckwork.Application.Features.Users.ChangeOwnPassword.ChangeOwnPasswordValidator>();
 builder.Services.AddScoped<IValidator<AdjustDailyEntryCommand>, AdjustDailyEntryValidator>();
 builder.Services.AddScoped<IValidator<VoidDailyEntryCommand>, VoidDailyEntryValidator>();
+builder.Services.AddScoped<IValidator<SetLanguageCommand>, SetLanguageValidator>();
 builder.Services.AddScoped<
     IValidator<Cluckwork.Application.Features.Accounts.UpdateFarmSettings.UpdateFarmSettingsCommand>,
     Cluckwork.Application.Features.Accounts.UpdateFarmSettings.UpdateFarmSettingsValidator>();
@@ -448,6 +451,7 @@ builder.Services.AddScoped<CreateUserHandler>();
 builder.Services.AddScoped<Cluckwork.Application.Features.Users.UpdateUser.UpdateUserHandler>();
 builder.Services.AddScoped<Cluckwork.Application.Features.Users.SetUserPassword.SetUserPasswordHandler>();
 builder.Services.AddScoped<Cluckwork.Application.Features.Users.ChangeOwnPassword.ChangeOwnPasswordHandler>();
+builder.Services.AddScoped<SetLanguageHandler>();
 builder.Services.AddScoped<AdjustDailyEntryHandler>();
 builder.Services.AddScoped<
     Cluckwork.Application.Features.Accounts.UpdateFarmSettings.UpdateFarmSettingsHandler>();
@@ -637,6 +641,14 @@ app.MapGroup("/api/v1/account")
     .RequireAuthorization()
     .MapAccountEndpoints()
     .MapFarmLogoEndpoints();
+
+// #45 — user-scoped sibling of /account: identity comes from the JWT, not the
+// farm. DEFAULT policy (not a named one) so every role, ReadOnly included, can
+// read their own identity and language preference.
+app.MapGroup("/api/v1/me")
+    .WithTags("Me")
+    .RequireAuthorization()
+    .MapMeEndpoints();
 
 app.MapGroup("/api/v1/inventory")
     .WithTags("Inventory")

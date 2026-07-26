@@ -1,6 +1,7 @@
 namespace Cluckwork.Api.Endpoints.DailyEntries;
 
 using System.Text.Json;
+using Cluckwork.Api.Validation;
 using Cluckwork.Application.Features.DailyEntries.AdjustDailyEntry;
 using Cluckwork.Application.Features.DailyEntries.RecordDailyEntry;
 using Cluckwork.Application.Features.DailyEntries.SubmitDailyEntry;
@@ -99,7 +100,7 @@ public static class DailyEntryEndpoints
         if (!tenant.IsResolved) return Results.Unauthorized();
 
         if (request.Grades is not null && request.Grades.Any(g => g is null))
-            return Results.ValidationProblem(new Dictionary<string, string[]>
+            return ValidationResponse.Problem(new Dictionary<string, string[]>
             {
                 ["Grades"] = ["Grade entries must not be null."]
             });
@@ -111,7 +112,7 @@ public static class DailyEntryEndpoints
 
         var validation = await validator.ValidateAsync(command, ct);
         if (!validation.IsValid)
-            return Results.ValidationProblem(validation.ToDictionary());
+            return ValidationResponse.Problem(validation);
 
         var result = await handler.HandleAsync(command, tenant.AccountId, ct);
         return result.IsSuccess ? Results.Ok(result.Value) : MapAdjustFailure(result.Error);
@@ -130,7 +131,7 @@ public static class DailyEntryEndpoints
         var command = new VoidDailyEntryCommand(id, request.Version, request.Reason);
         var validation = await validator.ValidateAsync(command, ct);
         if (!validation.IsValid)
-            return Results.ValidationProblem(validation.ToDictionary());
+            return ValidationResponse.Problem(validation);
 
         var result = await handler.HandleAsync(command, tenant.AccountId, ct);
         return result.IsSuccess ? Results.Ok(result.Value) : MapAdjustFailure(result.Error);
@@ -174,7 +175,7 @@ public static class DailyEntryEndpoints
         // System.Text.Json can bind "grades": [null] into the list despite the
         // non-nullable element type; reject it here instead of NRE-ing in mapping.
         if (request.Grades is not null && request.Grades.Any(g => g is null))
-            return Results.ValidationProblem(new Dictionary<string, string[]>
+            return ValidationResponse.Problem(new Dictionary<string, string[]>
             {
                 ["Grades"] = ["Grade entries must not be null."]
             });
@@ -187,7 +188,7 @@ public static class DailyEntryEndpoints
 
         var validation = await validator.ValidateAsync(command, ct);
         if (!validation.IsValid)
-            return Results.ValidationProblem(validation.ToDictionary());
+            return ValidationResponse.Problem(validation);
 
         var result = await handler.HandleAsync(command, tenant.AccountId, ct);
 

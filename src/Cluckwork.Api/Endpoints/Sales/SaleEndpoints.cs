@@ -1,5 +1,6 @@
 namespace Cluckwork.Api.Endpoints.Sales;
 
+using Cluckwork.Api.Validation;
 using Cluckwork.Application.Features.Sales;
 using Cluckwork.Application.Features.Sales.AddOrderItem;
 using Cluckwork.Application.Features.Sales.CancelSalesOrder;
@@ -84,7 +85,7 @@ public static class SaleEndpoints
         var command = new CreateSalesOrderCommand(request.CustomerId, request.OrderDate);
         var validation = await validator.ValidateAsync(command, ct);
         if (!validation.IsValid)
-            return Results.ValidationProblem(validation.ToDictionary());
+            return ValidationResponse.Problem(validation);
 
         var result = await handler.HandleAsync(command, tenant.AccountId, ct);
         if (result.IsSuccess)
@@ -108,7 +109,7 @@ public static class SaleEndpoints
             id, request.ProductId, request.Quantity, request.Unit, request.UnitPriceMinorUnits);
         var validation = await validator.ValidateAsync(command, ct);
         if (!validation.IsValid)
-            return Results.ValidationProblem(validation.ToDictionary());
+            return ValidationResponse.Problem(validation);
 
         var result = await handler.HandleAsync(command, tenant.AccountId, ct);
         if (result.IsSuccess)
@@ -144,7 +145,7 @@ public static class SaleEndpoints
         var command = new UpdateOrderItemCommand(id, itemId, request.Quantity, request.UnitPriceMinorUnits);
         var validation = await validator.ValidateAsync(command, ct);
         if (!validation.IsValid)
-            return Results.ValidationProblem(validation.ToDictionary());
+            return ValidationResponse.Problem(validation);
 
         var result = await handler.HandleAsync(command, ct);
         return result.IsSuccess ? Results.NoContent() : MapItemMutationFailure(result.Error);
@@ -201,7 +202,7 @@ public static class SaleEndpoints
             // IsDefined too: TryParse accepts any numeric ("999" parses fine).
             if (!Enum.TryParse<SalesOrderStatus>(status, ignoreCase: true, out var parsed)
                 || !Enum.IsDefined(parsed))
-                return Results.ValidationProblem(new Dictionary<string, string[]>
+                return ValidationResponse.Problem(new Dictionary<string, string[]>
                 {
                     ["status"] = [$"Unknown status '{status}'."]
                 });
@@ -238,7 +239,7 @@ public static class SaleEndpoints
         var command = new VoidSaleCommand(id, request.Reason);
         var validation = await validator.ValidateAsync(command, ct);
         if (!validation.IsValid)
-            return Results.ValidationProblem(validation.ToDictionary());
+            return ValidationResponse.Problem(validation);
 
         var result = await handler.HandleAsync(command, tenant.AccountId, ct);
         if (result.IsSuccess)

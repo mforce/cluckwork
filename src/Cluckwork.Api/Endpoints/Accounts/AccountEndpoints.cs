@@ -4,6 +4,7 @@ using Cluckwork.Application.Features.Accounts;
 using Cluckwork.Application.Features.Accounts.UpdateFarmSettings;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Api.Configuration;
+using Cluckwork.Api.Validation;
 using Cluckwork.Domain.Common;
 using Cluckwork.Infrastructure.Persistence;
 using FluentValidation;
@@ -97,7 +98,7 @@ public static class AccountEndpoints
 
         var validation = await validator.ValidateAsync(command, ct);
         if (!validation.IsValid)
-            return Results.ValidationProblem(validation.ToDictionary());
+            return ValidationResponse.Problem(validation);
 
         var result = await handler.HandleAsync(command, ct);
         return result.IsSuccess ? Results.NoContent() : MapFailure(result.Error);

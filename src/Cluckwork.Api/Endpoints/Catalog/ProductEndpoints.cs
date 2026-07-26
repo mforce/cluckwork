@@ -1,5 +1,6 @@
 namespace Cluckwork.Api.Endpoints.Catalog;
 
+using Cluckwork.Api.Validation;
 using Cluckwork.Application.Features.Catalog;
 using Cluckwork.Application.Features.Catalog.CreateProduct;
 using Cluckwork.Application.Features.Catalog.SetProductActive;
@@ -81,7 +82,7 @@ public static class ProductEndpoints
 
         var validation = await validator.ValidateAsync(command, ct);
         if (!validation.IsValid)
-            return Results.ValidationProblem(validation.ToDictionary());
+            return ValidationResponse.Problem(validation);
 
         var result = await handler.HandleAsync(command, tenant.AccountId, ct);
         return result.IsSuccess
@@ -101,7 +102,7 @@ public static class ProductEndpoints
 
         var validation = await validator.ValidateAsync(command, ct);
         if (!validation.IsValid)
-            return Results.ValidationProblem(validation.ToDictionary());
+            return ValidationResponse.Problem(validation);
 
         var result = await handler.HandleAsync(command, ct);
         return result.IsSuccess ? Results.NoContent() : MapFailure(result.Error);
@@ -135,7 +136,7 @@ public static class ProductEndpoints
         var command = new UpdateEggUnitConversionCommand(id, request.EggsPerUnit, request.Active);
         var validation = await validator.ValidateAsync(command, ct);
         if (!validation.IsValid)
-            return Results.ValidationProblem(validation.ToDictionary());
+            return ValidationResponse.Problem(validation);
 
         var result = await handler.HandleAsync(command, ct);
         return result.IsSuccess ? Results.NoContent() : MapFailure(result.Error);

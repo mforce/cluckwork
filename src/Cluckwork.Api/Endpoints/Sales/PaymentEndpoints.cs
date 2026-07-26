@@ -1,5 +1,6 @@
 namespace Cluckwork.Api.Endpoints.Sales;
 
+using Cluckwork.Api.Validation;
 using Cluckwork.Application.Features.Sales;
 using Cluckwork.Application.Features.Sales.RecordPayment;
 using Cluckwork.Application.Features.Sales.VoidPayment;
@@ -92,7 +93,7 @@ public static class PaymentEndpoints
 
         var validation = await validator.ValidateAsync(command, ct);
         if (!validation.IsValid)
-            return Results.ValidationProblem(validation.ToDictionary());
+            return ValidationResponse.Problem(validation);
 
         var result = await handler.HandleAsync(command, tenant.AccountId, ct);
         return result.IsSuccess
@@ -114,7 +115,7 @@ public static class PaymentEndpoints
         var command = new VoidPaymentCommand(id, request.Version, request.Reason);
         var validation = await validator.ValidateAsync(command, ct);
         if (!validation.IsValid)
-            return Results.ValidationProblem(validation.ToDictionary());
+            return ValidationResponse.Problem(validation);
 
         var result = await handler.HandleAsync(command, ct);
         if (result.IsFailure) return MapFailure(result.Error);
