@@ -8,13 +8,19 @@ using Cluckwork.Infrastructure.Persistence;
 // acting user (sub + email) for the audit trail (#93).
 public sealed class TenantResolutionMiddleware(RequestDelegate next)
 {
-    public async Task InvokeAsync(HttpContext context, TenantContext tenant, CurrentUserContext user)
+    public async Task InvokeAsync(HttpContext context, TenantContext tenant, CurrentUserContext user,
+        Serilog.IDiagnosticContext diagnosticContext)
     {
         if (context.User.Identity?.IsAuthenticated == true)
         {
             var claim = context.User.FindFirst("account_id")?.Value;
             if (Guid.TryParse(claim, out var accountId))
+            {
                 tenant.Resolve(accountId);
+                // Spec §10: account_id on every log scope — rides on the
+                // request completion event beside TraceId (#214).
+                diagnosticContext.Set("AccountId", accountId);
+            }
 
             // MapInboundClaims is off: the raw JWT claim names survive.
             var sub = context.User.FindFirst("sub")?.Value;

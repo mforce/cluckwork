@@ -20,10 +20,16 @@ public sealed class RequestLoggingFactory : CluckworkWebApplicationFactory
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         base.ConfigureWebHost(builder);
-        // Program.cs pulls DI-registered sinks into the logger via
-        // ReadFrom.Services; this hands the test a live tap on every event.
         builder.ConfigureTestServices(services =>
-            services.AddSingleton<ILogEventSink>(Sink));
+        {
+            // Program.cs pulls DI-registered sinks into the logger via
+            // ReadFrom.Services; this hands the test a live tap on every event.
+            services.AddSingleton<ILogEventSink>(Sink);
+            // Outside Development, minimal-API binding failures return 400
+            // without throwing; the exception-path test needs the real throw.
+            services.Configure<Microsoft.AspNetCore.Routing.RouteHandlerOptions>(
+                o => o.ThrowOnBadRequest = true);
+        });
     }
 
     public sealed class CollectingSink : ILogEventSink
@@ -90,6 +96,63 @@ public sealed class RequestLoggingTests(RequestLoggingFactory factory)
         ready.EnsureSuccessStatusCode();
         Assert.Empty(CompletionEventsFor("/health/live"));
         Assert.Empty(CompletionEventsFor("/health/ready"));
+    }
+
+    // A FAILING probe must stay demoted too — during a DB outage orchestrators
+    // poll /health/ready every few seconds; 503s must not flood Error (codex
+    // review of PR #226).
+    [Fact]
+    public async Task Failing_readiness_probe_is_not_logged_at_error()
+    {
+        using var broken = factory.WithWebHostBuilder(builder =>
+        {
+            builder.UseSetting("ConnectionStrings:Default",
+                "Host=127.0.0.1;Port=1;Database=x;Username=x;Password=x;Timeout=1;Command Timeout=1");
+            builder.UseSetting("Database:MigrateOnStartup", "false");
+        });
+
+        var response = await broken.CreateClient().GetAsync("/health/ready");
+
+        Assert.Equal(System.Net.HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        Assert.Empty(CompletionEventsFor("/health/ready"));
+    }
+
+    // An unhandled exception re-executes the pipeline at /error; without
+    // demotion that produced TWO completion lines per failed request (codex +
+    // agent review of PR #226). The malformed-JSON body is the one guaranteed
+    // in-repo trigger: minimal-API binding throws BadHttpRequestException.
+    [Fact]
+    public async Task Unhandled_exception_logs_one_completion_for_the_real_path_only()
+    {
+        var client = factory.CreateClient();
+        var malformed = new StringContent("{not json", System.Text.Encoding.UTF8, "application/json");
+
+        var response = await client.PostAsync("/api/v1/auth/login", malformed);
+
+        Assert.Equal(System.Net.HttpStatusCode.BadRequest, response.StatusCode);
+        // The exception-pass completion (Serilog logs these with StatusCode 500
+        // + the exception attached) — filtered by status so the healthy logins
+        // other tests perform can't interfere.
+        Assert.Single(CompletionEventsFor("/api/v1/auth/login"),
+            e => ScalarOf(e, "StatusCode") == "500");
+        Assert.Empty(CompletionEventsFor("/error"));
+    }
+
+    // Spec §10: account_id on every log scope. The tenant middleware feeds the
+    // resolved account into the request completion via IDiagnosticContext.
+    [Fact]
+    public async Task Authenticated_request_completion_carries_the_account_id()
+    {
+        var email = $"reqlog-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var token = await factory.LoginForAccessTokenAsync(email);
+        var client = factory.CreateAuthedClient(token);
+
+        var response = await client.GetAsync("/api/v1/customers");
+
+        response.EnsureSuccessStatusCode();
+        var completion = Assert.Single(CompletionEventsFor("/api/v1/customers"));
+        Assert.Equal(accountId.ToString(), ScalarOf(completion, "AccountId"));
     }
 }
 
