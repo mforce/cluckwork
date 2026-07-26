@@ -406,6 +406,13 @@ light/night preference. The set is curated rather than free-form because every
 palette ships a contrast-checked light and dark pair; an arbitrary colour
 cannot be held to that bar.
 
+**Farm locale** — the farm-wide setting (part of **farm settings**, spec §4.5)
+controlling how numbers, dates, and currency are formatted and displayed. Must
+name a real region code (e.g. `en-US`, not `en`) because regions carry number
+and date conventions. Independent of **UI language**: a user reading the
+interface in English can still see figures formatted for their farm's chosen
+locale.
+
 **Currency change rule (spec §4.6)** — the farm currency can only be changed
 while the farm has **written down no amount at all** in the current one: no
 sales orders, no payments, no expenses, no priced product, and no feed money
@@ -550,6 +557,12 @@ Both revoke every refresh token for that user, so other devices are signed out
 stays signed in. Eviction is bounded by the access-token lifetime: an
 already-issued access token keeps working until it expires (~15 min), because
 tokens are stateless and there is no server-side denylist.
+
+**UI language** — a per-user preference controlling the language the interface
+renders in. Stored on `ApplicationUser.Language` as a BCP-47 primary language
+subtag (e.g. `en`) in lowercase; `null` means follow the app's default. English-only
+today. Set via `PUT /api/v1/me/language`; read via `GET /api/v1/me`. Independent of
+**farm locale**, which controls number/date/currency formatting.
 
 **Export (manual backup) (#95)** — admin-only downloads of the account's
 data as CSV files: one file per dataset, or a **full account export** — a
