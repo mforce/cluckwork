@@ -3,6 +3,7 @@ namespace Cluckwork.Application.Features.Sales.RecordPayment;
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Sales;
+using Microsoft.Extensions.Logging;
 
 // Records a customer payment against a confirmed order (spec §10.11).
 //
@@ -14,7 +15,8 @@ using Cluckwork.Domain.Sales;
 public sealed class RecordPaymentHandler(
     ISalesOrderRepository salesOrders,
     IPaymentRepository payments,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    ILogger<RecordPaymentHandler> logger)
 {
     public async Task<Result<Guid>> HandleAsync(
         RecordPaymentCommand command, Guid accountId, CancellationToken ct)
@@ -64,6 +66,10 @@ public sealed class RecordPaymentHandler(
             return true;
         }, ct);
 
-        return outcome!;
+        if (outcome!.IsSuccess)
+            logger.LogInformation(
+                "Payment {PaymentId} of {AmountMinorUnits} minor units recorded against order {SalesOrderId}",
+                outcome.Value, command.AmountMinorUnits, command.SalesOrderId);
+        return outcome.LogFailure(logger, "RecordPayment");
     }
 }

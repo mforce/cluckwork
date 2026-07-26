@@ -3,6 +3,7 @@ namespace Cluckwork.Application.Features.Inventory.RecordAdjustment;
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Inventory;
+using Microsoft.Extensions.Logging;
 
 // Stock correction (#66 part 2): fixes a typo'd purchase or writes off
 // spoiled feed via a compensating ledger row — the original movement is never
@@ -15,18 +16,19 @@ public sealed class RecordAdjustmentHandler(
     IUnitOfWork unitOfWork,
     IClock clock,
     IFarmClock farmClock,
-    IAuditWriter audit)
+    IAuditWriter audit,
+    ILogger<RecordAdjustmentHandler> logger)
 {
     public async Task<Result<Guid>> HandleAsync(
         RecordAdjustmentCommand command, Guid accountId, CancellationToken ct)
     {
         var item = await items.GetByIdAsync(command.InventoryItemId, ct);
         if (item is null)
-            return Result.Failure<Guid>(Error.NotFound(nameof(InventoryItem), command.InventoryItemId));
+            return Result.Failure<Guid>(Error.NotFound(nameof(InventoryItem), command.InventoryItemId)).LogFailure(logger, "RecordAdjustment");
 
         if (command.Date > await farmClock.TodayAsync(ct))
             return Result.Failure<Guid>(Error.Validation(
-                "InventoryMovement.FutureDate", "Adjustment date cannot be in the future."));
+                "InventoryMovement.FutureDate", "Adjustment date cannot be in the future.")).LogFailure(logger, "RecordAdjustment");
 
         Result<Guid>? outcome = null;
 
@@ -73,6 +75,10 @@ public sealed class RecordAdjustmentHandler(
             return true;
         }, ct);
 
-        return outcome!;
+        if (outcome!.IsSuccess)
+            logger.LogInformation(
+                "Inventory adjustment {InventoryMovementId} recorded: {QuantityDelta} on item {InventoryItemId} ({AdjustmentType})",
+                outcome.Value, command.QuantityDelta, command.InventoryItemId, command.Type);
+        return outcome.LogFailure(logger, "RecordAdjustment");
     }
 }

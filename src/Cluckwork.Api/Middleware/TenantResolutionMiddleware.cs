@@ -9,19 +9,12 @@ using Cluckwork.Infrastructure.Persistence;
 public sealed class TenantResolutionMiddleware(RequestDelegate next)
 {
     public async Task InvokeAsync(HttpContext context, TenantContext tenant, CurrentUserContext user,
-        Serilog.IDiagnosticContext diagnosticContext)
+        Serilog.IDiagnosticContext diagnosticContext,
+        ILogger<TenantResolutionMiddleware> logger)
     {
+        using var accountScope = ResolveAccountScope(context, tenant, diagnosticContext, logger);
         if (context.User.Identity?.IsAuthenticated == true)
         {
-            var claim = context.User.FindFirst("account_id")?.Value;
-            if (Guid.TryParse(claim, out var accountId))
-            {
-                tenant.Resolve(accountId);
-                // Spec §10: account_id on every log scope — rides on the
-                // request completion event beside TraceId (#214).
-                diagnosticContext.Set("AccountId", accountId);
-            }
-
             // MapInboundClaims is off: the raw JWT claim names survive.
             var sub = context.User.FindFirst("sub")?.Value;
             var email = context.User.FindFirst("email")?.Value;
@@ -42,5 +35,26 @@ public sealed class TenantResolutionMiddleware(RequestDelegate next)
         }
 
         await next(context);
+    }
+
+    private static IDisposable? ResolveAccountScope(HttpContext context, TenantContext tenant,
+        Serilog.IDiagnosticContext diagnosticContext, ILogger<TenantResolutionMiddleware> logger)
+    {
+        if (context.User.Identity?.IsAuthenticated != true)
+            return null;
+        var claim = context.User.FindFirst("account_id")?.Value;
+        if (!Guid.TryParse(claim, out var accountId))
+            return null;
+
+        tenant.Resolve(accountId);
+        // Spec §10: account_id on every log scope — rides on the request
+        // completion event beside TraceId (#214)...
+        diagnosticContext.Set("AccountId", accountId);
+        // ...and on every event logged INSIDE the request (#216): handler
+        // transition logs inherit it through the Serilog provider's MEL
+        // scope handling (not FromLogContext — that serves Serilog's own
+        // LogContext). Disposed with the request so the AsyncLocal scope
+        // can't bleed past it.
+        return logger.BeginScope(new Dictionary<string, object> { ["AccountId"] = accountId });
     }
 }

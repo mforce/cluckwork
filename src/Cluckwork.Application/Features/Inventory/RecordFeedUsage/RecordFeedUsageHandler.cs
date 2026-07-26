@@ -4,6 +4,7 @@ using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Flocks;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Inventory;
+using Microsoft.Extensions.Logging;
 
 // Feeding a flock (spec §12.4): consumes the item's lots FIFO under the
 // canonical (ReceivedDate, Id) FOR UPDATE lock, appends one Usage ledger row
@@ -21,7 +22,8 @@ public sealed class RecordFeedUsageHandler(
     IFlockScopeGuard flockScope,
     IUnitOfWork unitOfWork,
     IClock clock,
-    IFarmClock farmClock)
+    IFarmClock farmClock,
+    ILogger<RecordFeedUsageHandler> logger)
 {
     // Categories a flock can plausibly eat. Recording packaging or equipment
     // parts as feed would poison the §19 feed-cost KPIs.
@@ -33,11 +35,11 @@ public sealed class RecordFeedUsageHandler(
     {
         if (command.Date > await farmClock.TodayAsync(ct))
             return Result.Failure<RecordFeedUsageResponse>(Error.Validation(
-                "FeedUsage.FutureDate", "Usage date cannot be in the future."));
+                "FeedUsage.FutureDate", "Usage date cannot be in the future.")).LogFailure(logger, "RecordFeedUsage");
 
         // Spec §5.3 (#103): scoped workers may only record for assigned flocks.
         var scope = await flockScope.CheckAsync(command.FlockId, ct);
-        if (scope.IsFailure) return Result.Failure<RecordFeedUsageResponse>(scope.Error);
+        if (scope.IsFailure) return Result.Failure<RecordFeedUsageResponse>(scope.Error).LogFailure(logger, "RecordFeedUsage");
 
         Result<RecordFeedUsageResponse>? outcome = null;
 
@@ -151,6 +153,10 @@ public sealed class RecordFeedUsageHandler(
             return true;
         }, ct);
 
-        return outcome!;
+        if (outcome!.IsSuccess)
+            logger.LogInformation(
+                "Feed usage {FeedUsageId} recorded: {Quantity} of item {InventoryItemId} for flock {FlockId} on {UsageDate}",
+                outcome.Value.FeedUsageId, command.Quantity, command.InventoryItemId, command.FlockId, command.Date);
+        return outcome.LogFailure(logger, "RecordFeedUsage");
     }
 }

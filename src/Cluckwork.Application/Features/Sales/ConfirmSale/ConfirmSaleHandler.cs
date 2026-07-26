@@ -7,6 +7,7 @@ using Cluckwork.Application.Features.Eggs;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Eggs;
 using Cluckwork.Domain.Sales;
+using Microsoft.Extensions.Logging;
 
 public sealed class ConfirmSaleHandler(
     ISalesOrderRepository salesOrders,
@@ -16,7 +17,8 @@ public sealed class ConfirmSaleHandler(
     IEggInventoryMovementRepository eggMovements,
     IUnitOfWork unitOfWork,
     IClock clock,
-    IFarmClock farmClock)
+    IFarmClock farmClock,
+    ILogger<ConfirmSaleHandler> logger)
 {
     // Implements functional spec §10.9.1 pessimistic-lock FIFO allocation:
     //   BEGIN
@@ -31,10 +33,10 @@ public sealed class ConfirmSaleHandler(
         var order = await salesOrders.GetByIdAsync(command.SalesOrderId, ct);
         if (order is null)
             return Result.Failure<ConfirmSaleResponse>(
-                Error.NotFound(nameof(SalesOrder), command.SalesOrderId));
+                Error.NotFound(nameof(SalesOrder), command.SalesOrderId)).LogFailure(logger, "ConfirmSale");
 
         if (order.AccountId != accountId)
-            return Result.Failure<ConfirmSaleResponse>(AppError.TenantMismatch());
+            return Result.Failure<ConfirmSaleResponse>(AppError.TenantMismatch()).LogFailure(logger, "ConfirmSale");
 
         // #35: farm-local, matching the stock read's restriction boundary —
         // allocating against a UTC date would let a sale draw from a lot the
@@ -113,8 +115,11 @@ public sealed class ConfirmSaleHandler(
         }, ct);
 
         if (failure is not null)
-            return failure;
+            return failure.LogFailure(logger, "ConfirmSale");
 
+        logger.LogInformation(
+            "Sales order {SalesOrderId} confirmed on {AllocationDate}: {ItemCount} lines allocated FIFO",
+            order.Id, allocationDate, order.Items.Count);
         return Result.Success(new ConfirmSaleResponse(order.Id, order.Status.ToString()));
     }
 }

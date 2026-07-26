@@ -99,9 +99,14 @@ var builder = WebApplication.CreateBuilder(args);
 // --- Logging ---
 // ReadFrom.Services lets DI-registered enrichers/sinks join the pipeline —
 // the integration tests tap the logger this way (#214).
+// preserveStaticLogger: the MEL bridge must bind THIS host's logger, never
+// the process-global Log.Logger — a co-hosted Serilog app's shutdown flips
+// the static to SilentLogger and every logger category created afterwards
+// goes permanently quiet (third bug of this family: options.Logger, then
+// DiagnosticContext, now the bridge itself).
 builder.Services.AddSerilog((services, cfg) => cfg
     .ReadFrom.Configuration(builder.Configuration)
-    .ReadFrom.Services(services));
+    .ReadFrom.Services(services), preserveStaticLogger: true);
 // Bind IDiagnosticContext property creation to THIS host's logger. The default
 // falls back to the process-global static Log.Logger at Set() time — after any
 // co-hosted Serilog app shuts down (Log.CloseAndFlush -> SilentLogger), every

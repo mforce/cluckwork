@@ -80,8 +80,12 @@ public sealed class DailyEntryLockSweep(
         {
             var locked = entry.Lock(clock.UtcNow);
             if (locked.IsFailure)
-                // Unreachable given the Submitted filter; loud if it ever isn't.
-                logger.LogWarning("Could not lock entry {EntryId}: {Error}", entry.Id, locked.Error.Code);
+                // Unreachable given the Submitted filter; loud if it ever
+                // isn't. Property names follow the #216 canonical failure
+                // shape so one query spans handlers and jobs.
+                logger.LogWarning(
+                    "LockDailyEntry failed for entry {DailyEntryId}: {ErrorCode} — {ErrorDescription}",
+                    entry.Id, locked.Error.Code, locked.Error.Description);
             else
                 lockedCount++;
         }
@@ -89,6 +93,13 @@ public sealed class DailyEntryLockSweep(
         // A concurrent adjust on one of these entries wins the Version token
         // race; the whole batch retries on the next poll minus that entry.
         await db.SaveChangesAsync(ct);
+        // Per-entry AFTER the save (#216 AC: lock is a state transition too;
+        // logging before commit would narrate locks that never happened).
+        // Background job — no request scope, so AccountId rides explicitly.
+        foreach (var entry in due.Where(e => e.Status == DailyEntryStatus.Locked))
+            logger.LogInformation(
+                "Daily entry {DailyEntryId} locked for flock {FlockId} on {EntryDate} (account {AccountId})",
+                entry.Id, entry.FlockId, entry.Date, accountId);
         logger.LogInformation(
             "Locked {Count} submitted entries older than {Days} days for account {AccountId}.",
             lockedCount, LockAfterDays, accountId);
