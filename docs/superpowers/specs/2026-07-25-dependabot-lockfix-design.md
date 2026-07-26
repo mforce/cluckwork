@@ -118,10 +118,12 @@ All of these must hold or the job no-ops:
 Deliberately **no** `conclusion == 'success'` gate: CI is *failing* with NU1004 when we need
 to act.
 
-Inside the `commit` job, before pushing, resolve the single open PR for the head branch via
-the API and re-verify author = `dependabot[bot]`, head repo id, and that the branch tip still
-equals `head_sha` (compare-and-swap). The push is **non-force**, so a moved branch is rejected
-rather than clobbered, and the job aborts loudly (the newer CI cycle re-fixes).
+Inside the `commit` job, the checkout itself is the compare-and-swap: it checks out the
+immutable `head_sha`, then pushes **non-force** to the branch. If the branch tip has advanced
+past `head_sha` since the gate passed, the push is a non-fast-forward and is rejected — never
+force-pushed. The job aborts loudly (the newer CI cycle re-fixes). Together with the
+provenance gate on the `compute` job, that is the full control; there is no separate API
+re-verification step.
 
 ### Concurrency
 
@@ -157,9 +159,11 @@ providers.
 
 ### `.github/workflows/dependabot-lockfix.yml` (new)
 
-The two-job workflow above. Third-party actions pinned to full commit SHAs. Must live on the
-default branch to fire at all (`workflow_run` always uses the default-branch copy) — so it is
-inert until merged; note this in a header comment.
+The two-job workflow above. `actions/create-github-app-token` is pinned to a full commit SHA
+because it mints the App token — the highest-value supply-chain target in this workflow. The
+other first-party `actions/*` follow the repo's major-tag convention, which Dependabot keeps
+bumped. Must live on the default branch to fire at all (`workflow_run` always uses the
+default-branch copy) — so it is inert until merged; note this in a header comment.
 
 ### `.github/workflows/ci.yml` (edit)
 

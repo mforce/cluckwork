@@ -65,3 +65,11 @@ test("changedPaths returns both target and source of a rename", () => {
     ["a/packages.lock.json", "b/old.json"],
   );
 });
+
+test("a copy that drags in a non-lock SOURCE is caught", () => {
+  // Copy record: `C  <new>\0<old>\0` — same shape as rename, both paths must
+  // be inspected.
+  const r = classify("C  src/Cluckwork.Api/packages.lock.json\0evil/copied.txt\0");
+  assert.equal(r.action, "abort");
+  assert.ok(r.foreign.includes("evil/copied.txt"));
+});

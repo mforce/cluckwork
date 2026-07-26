@@ -80,6 +80,10 @@ jobs:
           name: lockfiles
           if-no-files-found: error
           retention-days: 1
+          # These 7 paths span both src/ and tests/, so the artifact's
+          # least-common-ancestor is the repo root: each file is preserved with
+          # its full repo-relative path. lockfix-apply.sh relies on this — it
+          # reads each lock back out at $ARTIFACT_DIR/<repo-relative-path>.
           path: |
             src/Cluckwork.Domain/packages.lock.json
             src/Cluckwork.Application/packages.lock.json
@@ -107,7 +111,7 @@ jobs:
 
       - name: Mint a short-lived GitHub App token
         id: app
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2.2.2
         with:
           app-id: ${{ secrets.LOCKFIX_APP_ID }}
           private-key: ${{ secrets.LOCKFIX_APP_PRIVATE_KEY }}
@@ -131,6 +135,5 @@ jobs:
       - name: Apply, classify, and push
         env:
           ARTIFACT_DIR: ${{ runner.temp }}/locks
-          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
           HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
         run: bash trusted/.github/scripts/lockfix-apply.sh
