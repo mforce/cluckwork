@@ -13,9 +13,14 @@ public sealed class RateLimitingOptions
     // behind one NAT IP starve the shared budget with normal refreshes (#143).
     public const string LoginPolicyName = "auth-login";
     public const string RefreshPolicyName = "auth-refresh";
+    // #217: the anonymous browser error-report endpoint. The budget guards the
+    // LOG, not a credential — enough for a genuinely crashing screen to get its
+    // story out, too little to flood the log from one address.
+    public const string ClientErrorsPolicyName = "client-errors";
 
     public FixedWindow Login { get; init; } = new() { PermitLimit = 10, WindowSeconds = 900 };
     public FixedWindow Refresh { get; init; } = new() { PermitLimit = 60, WindowSeconds = 900 };
+    public FixedWindow ClientErrors { get; init; } = new() { PermitLimit = 10, WindowSeconds = 300 };
 
     // Reverse-proxy networks whose X-Forwarded-For is honored (CIDR; /32 for a
     // single address). Fed to the framework ForwardedHeaders middleware, which
@@ -37,6 +42,7 @@ public sealed class RateLimitingOptions
     {
         ValidateWindow(nameof(Login), Login);
         ValidateWindow(nameof(Refresh), Refresh);
+        ValidateWindow(nameof(ClientErrors), ClientErrors);
         ParseTrustedProxies(); // throws FormatException on a bad CIDR
     }
 

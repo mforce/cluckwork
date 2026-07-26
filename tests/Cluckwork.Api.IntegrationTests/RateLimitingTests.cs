@@ -32,23 +32,6 @@ public sealed class RateLimitFactory : CluckworkWebApplicationFactory
         builder.ConfigureTestServices(services =>
             services.AddSingleton<IStartupFilter, FakeRemoteIpStartupFilter>());
     }
-
-    // Sets Connection.RemoteIpAddress from the X-Test-Remote header before the
-    // real pipeline (and thus before UseForwardedHeaders) runs.
-    private sealed class FakeRemoteIpStartupFilter : IStartupFilter
-    {
-        public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next) => app =>
-        {
-            app.Use(async (ctx, nextMw) =>
-            {
-                if (ctx.Request.Headers.TryGetValue("X-Test-Remote", out var remote)
-                    && IPAddress.TryParse(remote.ToString(), out var ip))
-                    ctx.Connection.RemoteIpAddress = ip;
-                await nextMw();
-            });
-            next(app);
-        };
-    }
 }
 
 public sealed class RateLimitingTests : IClassFixture<RateLimitFactory>
