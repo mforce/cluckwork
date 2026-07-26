@@ -27,7 +27,9 @@ export const en = {
   // Keyed by the API's stable validation codes (#45), which contain dots
   // (e.g. "Me.Language.Format"). With keySeparator:false (see init) these are
   // literal flat keys, not nested paths. Filled in Task 4.
-  errors: {},
+  errors: {
+    "Me.Language.Format": "Language must be a 2–8 letter code, for example 'en'.",
+  },
   sales: {
     // Filled in Task 7 (the Sales pilot).
   },

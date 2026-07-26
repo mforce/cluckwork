@@ -145,6 +145,55 @@ describe("apiFetch — error mapping", () => {
     fetchMock.mockResolvedValueOnce(new Response("<html>502</html>", { status: 502, statusText: "Bad Gateway" }));
     await expect(apiGet("/stock")).rejects.toMatchObject({ status: 502, title: "Bad Gateway" });
   });
+
+  it("maps a known errorCode to its catalog message; an uncoded field (omitted from errorCodes, the real API shape) keeps English", async () => {
+    // The real API OMITS a wholly-uncoded field from errorCodes (ValidationResponse.cs),
+    // so `name` has no errorCodes entry at all — it must keep its English message.
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(
+        {
+          title: "Validation",
+          errors: { language: ["Language must be a 2–8 letter code."], name: ["required"] },
+          errorCodes: { language: ["Me.Language.Format"] },
+        },
+        400,
+      ),
+    );
+    const err = await apiGet("/stock").catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    // Exact match (not just toContain): the catalog string adds ", for example
+    // 'en'." — absent from the server's plain English — so this fails pre-fix
+    // (plain flatten yields "Language must be a 2–8 letter code. required").
+    expect((err as ApiError).message).toBe(
+      "Language must be a 2–8 letter code, for example 'en'. required",
+    );
+  });
+
+  it("falls back to the English message for an UNKNOWN code (no catalog key)", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(
+        {
+          errors: { language: ["some english message"] },
+          errorCodes: { language: ["Not.A.Real.Code"] },
+        },
+        400,
+      ),
+    );
+    const err = await apiGet("/stock").catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    // defaultValue is the server English message → unknown code degrades to it.
+    expect((err as ApiError).message).toBe("some english message");
+  });
+
+  it("keeps the plain flattened English message when there are no errorCodes", async () => {
+    // The pre-#182 contract, unchanged.
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ errors: { name: ["required"], qty: ["too big", "nan"] } }, 400),
+    );
+    const err = await apiGet("/stock").catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as ApiError).message).toBe("required too big nan");
+  });
 });
 
 describe("apiFetch — transparent refresh", () => {
