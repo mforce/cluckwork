@@ -80,6 +80,9 @@ jobs:
       - name: Test the vulnerability gate
         run: node --test ../.github/scripts/vuln-gate.test.mjs
 
+      - name: Test the lockfix classifier
+        run: node --test ../.github/scripts/lockfix.test.mjs
+
       - name: Install dependencies
         run: npm ci
 

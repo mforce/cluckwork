@@ -1,0 +1,139 @@
+# Auto-regenerate downstream packages.lock.json on Dependabot NuGet PRs (#203).
+#
+# Dependabot bumps a package in ONE project and regenerates only THAT project's
+# lock file; every downstream project's lock then fails CI's `--locked-mode`
+# restore with NU1004. This heals them automatically.
+#
+# SECURITY MODEL (see docs/superpowers/specs/2026-07-25-dependabot-lockfix-design.md):
+#   - Runs `on: workflow_run`, so the job definition comes from the DEFAULT
+#     branch, never the PR — the PR author cannot change what executes.
+#   - `compute` runs the untrusted restore with NO credentials; `commit` holds
+#     the write token and runs ZERO project code. A restore-time exploit thus
+#     has no token to steal and no push rights.
+#   - The push uses a GitHub App token, not GITHUB_TOKEN: a GITHUB_TOKEN push
+#     would NOT re-trigger CI (recursion prevention), so the PR would never go
+#     green. The App identity != dependabot[bot], so the re-triggered CI is
+#     gated out below (no loop).
+#
+# INERT UNTIL MERGED: workflow_run always runs the default-branch copy, so this
+# does nothing until it lands on main; and it fails closed until the two
+# LOCKFIX_APP_* secrets exist.
+
+name: Dependabot lockfix
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+
+# Least privilege by default; each job widens only what it needs.
+permissions: {}
+
+concurrency:
+  # Serialize per branch; never cancel — a cancel mid-push could leave no fix.
+  group: lockfix-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
+
+jobs:
+  compute:
+    name: Regenerate lock files (no credentials)
+    runs-on: ubuntu-latest
+    # Provenance gate. Requires BOTH actor and triggering_actor to be Dependabot
+    # (a re-run keeps actor but changes triggering_actor), run_attempt == 1, the
+    # nuget branch prefix, and a numeric repo-id match (never a fork).
+    if: >-
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.actor.login == 'dependabot[bot]' &&
+      github.event.workflow_run.triggering_actor.login == 'dependabot[bot]' &&
+      github.event.workflow_run.run_attempt == 1 &&
+      startsWith(github.event.workflow_run.head_branch, 'dependabot/nuget/') &&
+      github.event.workflow_run.head_repository.id == github.event.repository.id
+    permissions: {}
+    steps:
+      - name: Check out the exact commit CI ran on
+        uses: actions/checkout@v7
+        with:
+          # The immutable SHA the gate validated — NOT head_branch (a moving ref
+          # an attacker could advance after the gate passed: TOCTOU).
+          ref: ${{ github.event.workflow_run.head_sha }}
+          persist-credentials: false
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+          # No cache: a privileged workflow_run reading a PR-populated cache is a
+          # documented poisoning surface, and this job restores fresh anyway.
+          cache: false
+
+      - name: Regenerate every lock file
+        env:
+          # Restore into a throwaway dir, not the shared global cache.
+          NUGET_PACKAGES: ${{ runner.temp }}/nuget-packages
+        run: >-
+          dotnet restore Cluckwork.sln --force-evaluate
+          --configfile .github/nuget.lockfix.config
+
+      - name: Upload the regenerated lock files
+        uses: actions/upload-artifact@v4
+        with:
+          name: lockfiles
+          if-no-files-found: error
+          retention-days: 1
+          # These 7 paths span both src/ and tests/, so the artifact's
+          # least-common-ancestor is the repo root: each file is preserved with
+          # its full repo-relative path. lockfix-apply.sh relies on this — it
+          # reads each lock back out at $ARTIFACT_DIR/<repo-relative-path>.
+          path: |
+            src/Cluckwork.Domain/packages.lock.json
+            src/Cluckwork.Application/packages.lock.json
+            src/Cluckwork.Infrastructure/packages.lock.json
+            src/Cluckwork.Api/packages.lock.json
+            tests/Cluckwork.Domain.Tests/packages.lock.json
+            tests/Cluckwork.Application.Tests/packages.lock.json
+            tests/Cluckwork.Api.IntegrationTests/packages.lock.json
+
+  commit:
+    name: Commit and push the refreshed locks
+    needs: compute
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      # The classifier and the path allowlist must come from TRUSTED code, never
+      # the PR checkout (which a PR could have replaced). Default branch only.
+      - name: Check out trusted tooling (default branch)
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+          path: trusted
+
+      - name: Mint a short-lived GitHub App token
+        id: app
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2.2.2
+        with:
+          app-id: ${{ secrets.LOCKFIX_APP_ID }}
+          private-key: ${{ secrets.LOCKFIX_APP_PRIVATE_KEY }}
+
+      - name: Check out the PR head for pushing
+        uses: actions/checkout@v7
+        with:
+          # Same immutable SHA as compute. Pushing a commit built on this SHA is
+          # a fast-forward ONLY if the branch tip still equals it — a built-in
+          # compare-and-swap (see the non-force push below).
+          ref: ${{ github.event.workflow_run.head_sha }}
+          token: ${{ steps.app.outputs.token }}
+          path: pr
+
+      - name: Download the regenerated lock files
+        uses: actions/download-artifact@v4
+        with:
+          name: lockfiles
+          path: ${{ runner.temp }}/locks
+
+      - name: Apply, classify, and push
+        env:
+          ARTIFACT_DIR: ${{ runner.temp }}/locks
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+        run: bash trusted/.github/scripts/lockfix-apply.sh
