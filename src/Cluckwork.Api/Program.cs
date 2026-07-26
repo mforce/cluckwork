@@ -14,6 +14,7 @@ using Cluckwork.Api.Endpoints.Export;
 using Cluckwork.Api.Endpoints.Flocks;
 using Cluckwork.Api.Endpoints.Reports;
 using Cluckwork.Api.Endpoints.Inventory;
+using Cluckwork.Api.Endpoints.Me;
 using Cluckwork.Api.Endpoints.Sales;
 using Cluckwork.Api.Endpoints.Water;
 using Cluckwork.Api.Endpoints.Stock;
@@ -616,6 +617,14 @@ app.MapGroup("/api/v1/account")
     .RequireAuthorization()
     .MapAccountEndpoints()
     .MapFarmLogoEndpoints();
+
+// #45 — user-scoped sibling of /account: identity comes from the JWT, not the
+// farm. DEFAULT policy (not a named one) so every role, ReadOnly included, can
+// read their own identity and language preference.
+app.MapGroup("/api/v1/me")
+    .WithTags("Me")
+    .RequireAuthorization()
+    .MapMeEndpoints();
 
 app.MapGroup("/api/v1/inventory")
     .WithTags("Inventory")
