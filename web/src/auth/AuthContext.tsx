@@ -89,6 +89,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
+    // The farm palette (cluckwork.brand) is deliberately NOT cleared here: this
+    // is a single-farm deployment, so the login screen should keep showing the
+    // farm's palette rather than reverting to the default (user choice, #149).
+    // The palette is now device-persistent, the same way cluckwork.theme is.
     await apiLogout();
     setIsAuthenticated(false);
     setIsAdmin(false);

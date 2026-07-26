@@ -13,4 +13,7 @@ public sealed record UpdateFarmSettingsCommand(
     string? FirstDayOfWeek,
     string? DateFormatOverride,
     string? TimeFormatOverride,
+    // Curated palette id, validated in the aggregate rather than here so the
+    // failure surfaces as 422-with-a-code (#149).
+    string Brand,
     int Version);

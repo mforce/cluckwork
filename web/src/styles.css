@@ -7,12 +7,15 @@
    Design-only: markup semantics are unchanged. */
 
 :root {
-  /* Brand — the one accent, reused everywhere it matters (DESIGN.md monotheism) */
-  --aubergine: #4a154b;
-  --aubergine-press: #611f69;
-  --aubergine-tint: #592466;
-  --on-aubergine: #ffffff;
-  --on-aubergine-mute: #d9bdde;
+  /* Brand — the one accent, reused everywhere it matters (DESIGN.md monotheism).
+     Named --brand, not --aubergine: the values below are the default aubergine
+     palette, but a farm can select another (#149), and a token named after a
+     colour it no longer holds is exactly the drift that misleads later. */
+  --brand: #4a154b;
+  --brand-press: #611f69;
+  --brand-tint: #592466;
+  --on-brand: #ffffff;
+  --on-brand-mute: #d9bdde;
 
   /* Ink & links (blue is the only chromatic departure from aubergine) */
   --ink: #1d1d1d;
@@ -34,10 +37,10 @@
   --success: #007a5a;
   --warn: #8a5a00; /* amber that clears AA on white */
 
-  /* Destructive action fill (F135). Themed, unlike --aubergine: no single red
+  /* Destructive action fill (F135). Themed, unlike --brand: no single red
      clears BOTH 4.5:1 for its white label and 3:1 against the surface behind it
      in light and dark at once. Press is the lighter step, matching
-     --aubergine-press. Light 6.71/6.71 rest, 5.56/5.56 press. */
+     --brand-press. Light 6.71/6.71 rest, 5.56/5.56 press. */
   --danger: #a8320f;
   --danger-press: #bd3a14;
   /* Deliberately NOT re-declared in the dark blocks, unlike its two siblings:
@@ -54,11 +57,11 @@
   --tint-muted: #eeeaf0;
 
   /* Themeable component hooks (overridden wholesale in dark) */
-  --stat-accent: var(--aubergine);
+  --stat-accent: var(--brand);
   /* focus ring / accent-on-surface — theme-aware so it stays visible in dark;
      the sidebar (aubergine) overrides this to a light ring below. */
   --focus: var(--stat-accent);
-  --auth-brand: var(--aubergine);
+  --auth-brand: var(--brand);
   --auth-card-border: rgba(255, 255, 255, 0.7);
   --auth-card-shadow: 0 20px 60px rgba(74, 21, 75, 0.14);
   --auth-bg:
@@ -88,7 +91,87 @@
   color-scheme: light; /* native controls follow the app's theme, not the OS, once toggled */
 }
 
-/* ---- Night mode: explicit toggle wins; otherwise follow the OS default ---- */
+/* ---- Farm accent palettes (#149) ----
+   The farm's accent, independent of the user's light/night choice. The default
+   (aubergine) has NO block: it is the :root values above, which is what makes
+   an unknown or stale data-brand fall back to it with no validation here.
+
+   ORDER IS LOAD-BEARING. :root[data-brand=X] and :root[data-theme="dark"] are
+   both specificity (0,2,0), so source order decides between them, and these
+   light blocks sit BEFORE the dark base deliberately:
+     - the brand fill family is mode-independent and the dark base does not
+       redeclare it, so setting it once here also covers dark; and
+     - a token omitted from a dark palette block falls back to the DARK base
+       (unbranded but mode-correct) instead of leaking a light value.
+   The required-set test in styles.test.ts enforces the rest. */
+
+:root[data-brand="forest"] {
+  --brand: #14432a;
+  --brand-press: #1b5a38;
+  --brand-tint: #1a5133;
+  --on-brand: #ffffff;
+  --on-brand-mute: #bcd9c6;
+  --tint-accent: #e6f2ea;
+  --canvas: #f7fbf8;
+  --surface-2: #eef6f1;
+  --lavender: #eefaf1;
+  --row-hover: #f5faf7;
+  --auth-card-shadow: 0 20px 60px rgba(20, 67, 42, 0.14);
+  --auth-bg:
+    radial-gradient(60% 55% at 12% 18%, #d8f0dd 0%, transparent 60%),
+    radial-gradient(55% 50% at 88% 12%, #dcefe2 0%, transparent 60%),
+    radial-gradient(55% 55% at 82% 88%, #d9f0e2 0%, transparent 62%),
+    radial-gradient(50% 50% at 18% 90%, #e4f7e9 0%, transparent 60%),
+    var(--lavender);
+}
+
+:root[data-brand="slate"] {
+  --brand: #1b3a5c;
+  --brand-press: #254e79;
+  --brand-tint: #22456b;
+  --on-brand: #ffffff;
+  --on-brand-mute: #c0d4e6;
+  --tint-accent: #e7eff7;
+  --canvas: #f7f9fc;
+  --surface-2: #eef3f9;
+  --lavender: #eef4fb;
+  --row-hover: #f5f8fc;
+  --auth-card-shadow: 0 20px 60px rgba(27, 58, 92, 0.14);
+  --auth-bg:
+    radial-gradient(60% 55% at 12% 18%, #d7e6f4 0%, transparent 60%),
+    radial-gradient(55% 50% at 88% 12%, #dce8f5 0%, transparent 60%),
+    radial-gradient(55% 55% at 82% 88%, #d9ecf0 0%, transparent 62%),
+    radial-gradient(50% 50% at 18% 90%, #e4eefb 0%, transparent 60%),
+    var(--lavender);
+}
+
+:root[data-brand="terracotta"] {
+  --brand: #6b2716;
+  --brand-press: #8a3520;
+  --brand-tint: #7d2f1c;
+  --on-brand: #ffffff;
+  --on-brand-mute: #eec3b3;
+  --tint-accent: #f8eae4;
+  --canvas: #fdf8f6;
+  --surface-2: #f9efea;
+  --lavender: #fdf0e9;
+  --row-hover: #fdf6f3;
+  --auth-card-shadow: 0 20px 60px rgba(107, 39, 22, 0.14);
+  --auth-bg:
+    radial-gradient(60% 55% at 12% 18%, #fbe0d0 0%, transparent 60%),
+    radial-gradient(55% 50% at 88% 12%, #f8e3d6 0%, transparent 60%),
+    radial-gradient(55% 55% at 82% 88%, #f7e7dd 0%, transparent 62%),
+    radial-gradient(50% 50% at 18% 90%, #fdeade 0%, transparent 60%),
+    var(--lavender);
+}
+
+/* ---- Night mode: the ONE dark construct ----
+   public/theme-init.js always writes a concrete data-theme (saved choice, else
+   the OS preference) before first paint, so this selector alone covers both
+   the explicit toggle and the OS default. It used to be mirrored by a
+   `@media (prefers-color-scheme: dark) :root:not([data-theme])` twin; the pair
+   drifted and shipped washed-out dialogs from #131 until F134 caught it.
+   Palettes (#149) multiply this block, so the twin had to go first. */
 :root[data-theme="dark"] {
   --ink: #f2ecf4;
   --muted: #b3a8b8;
@@ -130,50 +213,60 @@
   color-scheme: dark;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme]) {
-    --ink: #f2ecf4;
-    --muted: #b3a8b8;
-    --link: #7fb4e6;
-    --link-hover: #a9cef0;
-    --canvas: #17121a;
-    --surface: #221a26;
-    --surface-2: #2b2231;
-    --lavender: #241c2a;
-    --hairline: #3a2f40;
-    --row-hover: #2b2231;
-    --scroll-cue: rgba(255, 255, 255, 0.16); /* edge cue for scrolling tables (#150) — light glow; dark shadow vanishes on the dark surface */
-    --error: #ff8666;
-    --success: #4bbf97;
-    --warn: #e0a44a;
-    /* Keep in step with the :root[data-theme="dark"] block above. */
-    --danger: #bc3c14;
-    --danger-press: #d44028;
-    --tint-accent: #33203a;
-    --tint-ok: #14342b;
-    --tint-warn: #3a2e18;
-    --tint-danger: #3a2019;
-    --tint-muted: #2c2333;
-    --stat-accent: #e6c7ec;
-    --auth-brand: #e6c7ec;
-    --auth-card-border: var(--hairline);
-    --auth-card-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-    --auth-bg:
-      radial-gradient(60% 55% at 12% 18%, rgba(122, 47, 132, 0.5) 0%, transparent 60%),
-      radial-gradient(55% 50% at 88% 12%, rgba(74, 21, 75, 0.6) 0%, transparent 60%),
-      radial-gradient(55% 55% at 82% 88%, rgba(45, 90, 70, 0.35) 0%, transparent 62%),
-      var(--canvas);
-    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 10px 30px rgba(0, 0, 0, 0.35);
-    /* These three were missing here while :root[data-theme="dark"] had them,
-       so anyone on an OS-dark machine who had never touched the theme toggle
-       (no data-theme attribute — see lib/theme.ts) got dark surfaces under a
-       LIGHT scrim and a light shadow: every dialog since #131 rendered washed
-       out with no elevation. Found while adding --shadow-bar (F134). */
-    --scrim: rgba(0, 0, 0, 0.62);
-    --shadow-dialog: 0 24px 64px rgba(0, 0, 0, 0.6);
-    --shadow-bar: 0 -8px 24px rgba(0, 0, 0, 0.45);
-    color-scheme: dark;
-  }
+/* Dark palette blocks (#149). Specificity (0,3,0), so these beat both the dark
+   base and the light palette block above. Each must declare the full set the
+   dark base declares as LITERALS — the dark base hardcodes --stat-accent and
+   --auth-brand rather than aliasing --brand, so omitting one here renders a
+   forest farm with aubergine-pink accents at night. Enforced by
+   styles.test.ts. The --brand family is NOT here: it is mode-independent and
+   comes from the light palette block. */
+
+:root[data-brand="forest"][data-theme="dark"] {
+  --stat-accent: #a8dcbb;
+  --auth-brand: #a8dcbb;
+  --tint-accent: #16301f;
+  --canvas: #111814;
+  --surface-2: #1e2a22;
+  --row-hover: #1e2a22;
+  --lavender: #17241b;
+  --auth-card-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  --auth-bg:
+    radial-gradient(60% 55% at 12% 18%, rgba(31, 105, 63, 0.5) 0%, transparent 60%),
+    radial-gradient(55% 50% at 88% 12%, rgba(20, 67, 42, 0.6) 0%, transparent 60%),
+    radial-gradient(55% 55% at 82% 88%, rgba(45, 90, 70, 0.35) 0%, transparent 62%),
+    var(--canvas);
+}
+
+:root[data-brand="slate"][data-theme="dark"] {
+  --stat-accent: #aecfeb;
+  --auth-brand: #aecfeb;
+  --tint-accent: #182a3b;
+  --canvas: #101519;
+  --surface-2: #1d2731;
+  --row-hover: #1d2731;
+  --lavender: #16202a;
+  --auth-card-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  --auth-bg:
+    radial-gradient(60% 55% at 12% 18%, rgba(37, 78, 121, 0.5) 0%, transparent 60%),
+    radial-gradient(55% 50% at 88% 12%, rgba(27, 58, 92, 0.6) 0%, transparent 60%),
+    radial-gradient(55% 55% at 82% 88%, rgba(45, 70, 90, 0.35) 0%, transparent 62%),
+    var(--canvas);
+}
+
+:root[data-brand="terracotta"][data-theme="dark"] {
+  --stat-accent: #f2b79c;
+  --auth-brand: #f2b79c;
+  --tint-accent: #36211a;
+  --canvas: #1a1210;
+  --surface-2: #2e211c;
+  --row-hover: #2e211c;
+  --lavender: #251a16;
+  --auth-card-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  --auth-bg:
+    radial-gradient(60% 55% at 12% 18%, rgba(138, 53, 32, 0.5) 0%, transparent 60%),
+    radial-gradient(55% 50% at 88% 12%, rgba(107, 39, 22, 0.6) 0%, transparent 60%),
+    radial-gradient(55% 55% at 82% 88%, rgba(90, 60, 45, 0.35) 0%, transparent 62%),
+    var(--canvas);
 }
 
 * {
@@ -198,8 +291,8 @@ button {
   padding: 0.66rem 1.5rem;
   border: none;
   border-radius: var(--r-pill);
-  background: var(--aubergine);
-  color: var(--on-aubergine);
+  background: var(--brand);
+  color: var(--on-brand);
   font: inherit;
   font-size: 0.95rem;
   font-weight: 700;
@@ -209,7 +302,7 @@ button {
 }
 
 button:hover:not(:disabled) {
-  background: var(--aubergine-press);
+  background: var(--brand-press);
 }
 
 button:active:not(:disabled) {
@@ -257,7 +350,7 @@ button.link:hover:not(:disabled) {
 
 /* An aubergine ring is invisible on the aubergine sidebar — use a light one. */
 .sidebar :focus-visible {
-  outline-color: var(--on-aubergine);
+  outline-color: var(--on-brand);
 }
 
 /* Error-boundary fallback (#140). Reads like a page, in both themes: the
@@ -336,7 +429,7 @@ input:focus, select:focus, textarea:focus {
 }
 
 input[type="checkbox"] {
-  accent-color: var(--aubergine);
+  accent-color: var(--brand);
   width: 1rem;
   height: 1rem;
 }
@@ -864,12 +957,9 @@ input.cell {
 .badge-ok { background: var(--tint-ok); color: var(--success); }
 .badge-warn { background: var(--tint-warn); color: var(--warn); }
 .badge-danger { background: var(--tint-danger); color: var(--error); }
-.badge-accent { background: var(--tint-accent); color: var(--aubergine); }
+.badge-accent { background: var(--tint-accent); color: var(--brand); }
 
 :root[data-theme="dark"] .badge-accent { color: var(--stat-accent); }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme]) .badge-accent { color: var(--stat-accent); }
-}
 
 /* Meter — a slim track + fill for availability / percentage cells. */
 .meter {
@@ -907,8 +997,8 @@ input.cell {
 }
 
 .sidebar {
-  background: var(--aubergine);
-  color: var(--on-aubergine);
+  background: var(--brand);
+  color: var(--on-brand);
   display: flex;
   flex-direction: column;
   padding: 1.5rem 0 1rem;
@@ -925,12 +1015,12 @@ input.cell {
   font-size: 1.35rem;
   font-weight: 800;
   letter-spacing: -0.03em;
-  color: var(--on-aubergine);
+  color: var(--on-brand);
   padding: 0 1.5rem 1.25rem;
 }
 
 .brand-mark {
-  color: var(--on-aubergine-mute);
+  color: var(--on-brand-mute);
 }
 
 /* The farm's own logo in the branding slot (#123). On a white plate because
@@ -964,7 +1054,7 @@ input.cell {
   font-weight: 700;
   letter-spacing: 0.11em;
   text-transform: uppercase;
-  color: var(--on-aubergine-mute);
+  color: var(--on-brand-mute);
   padding: 0 1.5rem;
   margin: 0.6rem 0 0.3rem;
 }
@@ -978,7 +1068,7 @@ input.cell {
   display: flex;
   align-items: center;
   gap: 0.65rem;
-  color: var(--on-aubergine-mute);
+  color: var(--on-brand-mute);
   text-decoration: none;
   padding: 0.5rem 1.5rem;
   font-size: 0.94rem;
@@ -993,16 +1083,16 @@ input.cell {
 }
 
 .sidebar nav a:hover {
-  color: var(--on-aubergine);
+  color: var(--on-brand);
   background: rgba(255, 255, 255, 0.07);
 }
 
 .sidebar nav a:hover svg { opacity: 1; }
 
 .sidebar nav a.active {
-  color: var(--on-aubergine);
+  color: var(--on-brand);
   background: rgba(255, 255, 255, 0.11);
-  border-left-color: var(--on-aubergine-mute);
+  border-left-color: var(--on-brand-mute);
   font-weight: 600;
 }
 
@@ -1022,13 +1112,13 @@ input.cell {
   display: flex;
   align-items: center;
   gap: 0.65rem;
-  color: var(--on-aubergine-mute);
+  color: var(--on-brand-mute);
   padding: 0.5rem 0.25rem;
   font-size: 0.9rem;
 }
 
 .sidebar button.link:hover:not(:disabled) {
-  color: var(--on-aubergine);
+  color: var(--on-brand);
   text-decoration: none;
 }
 
@@ -1421,27 +1511,22 @@ label.check {
 }
 
 .help-toc li a:hover {
-  color: var(--aubergine);
+  color: var(--brand);
   background: var(--tint-accent);
   text-decoration: none;
 }
 
 /* current section (scroll-spy) */
 .help-toc li a.active {
-  color: var(--aubergine);
+  color: var(--brand);
   background: var(--tint-accent);
   font-weight: 600;
-  box-shadow: inset 2px 0 0 var(--aubergine);
+  box-shadow: inset 2px 0 0 var(--brand);
 }
 
 :root[data-theme="dark"] .help-toc li a:hover,
 :root[data-theme="dark"] .help-toc li a.active { color: var(--stat-accent); }
 :root[data-theme="dark"] .help-toc li a.active { box-shadow: inset 2px 0 0 var(--stat-accent); }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme]) .help-toc li a:hover,
-  :root:not([data-theme]) .help-toc li a.active { color: var(--stat-accent); }
-  :root:not([data-theme]) .help-toc li a.active { box-shadow: inset 2px 0 0 var(--stat-accent); }
-}
 
 .help-body {
   max-width: 48rem;
@@ -1736,15 +1821,15 @@ label.check {
   cursor: pointer;
   font-weight: 600;
   font-size: 0.92rem;
-  color: var(--on-aubergine);
-  background: var(--aubergine);
+  color: var(--on-brand);
+  background: var(--brand);
   border-radius: 90px;
   padding: 0.6rem 1.15rem;
   margin: 0;
 }
 
 .logo-file:hover {
-  background: var(--aubergine-press);
+  background: var(--brand-press);
 }
 
 .logo-file:has(input:disabled) {
@@ -1762,7 +1847,7 @@ label.check {
 }
 
 .logo-file:focus-within {
-  outline: 2px solid var(--aubergine);
+  outline: 2px solid var(--brand);
   outline-offset: 2px;
 }
 
@@ -1813,6 +1898,56 @@ input.locked {
   line-height: 1.4;
   max-width: 44rem;
 }
+
+/* Farm palette picker (#149). The swatch previews the accent; the name beside
+   it is what actually labels the option, so the choice never depends on seeing
+   colour. Each swatch shows its own palette's fill regardless of the palette
+   currently applied, so the values are literal here by necessity. */
+.palette-picker {
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-card);
+  padding: 1rem;
+  margin: 0;
+}
+
+.palette-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.palette-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-pill);
+  cursor: pointer;
+}
+
+.palette-option:has(input:checked) {
+  border-color: var(--stat-accent);
+  box-shadow: inset 0 0 0 1px var(--stat-accent);
+}
+
+.palette-option:has(input:disabled) {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.palette-swatch {
+  width: 18px;
+  height: 18px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--hairline);
+}
+
+.palette-swatch-aubergine { background: #4a154b; }
+.palette-swatch-forest { background: #14432a; }
+.palette-swatch-slate { background: #1b3a5c; }
+.palette-swatch-terracotta { background: #6b2716; }
 
 /* #142 — the "new version is ready" banner. Fixed to the bottom so it is within
    thumb reach on a barn phone, at z-index 30: above the tab bar (20) so it is

@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { getAccount } from "../api/cluckwork";
 import type { Account } from "../api/cluckwork";
 import { todayIso } from "../lib/dates";
+import { applyBrand } from "../lib/brand";
 
 export interface FarmState {
   // Null until /account answers, and after a read that failed.
@@ -60,7 +61,14 @@ export function FarmProvider({ children }: { children: ReactNode }) {
 
   const refresh = useCallback(async () => {
     try {
-      setFarm(await getAccount());
+      const account = await getAccount();
+      setFarm(account);
+      // The API is the source of truth for the farm's palette (#149); this also
+      // refreshes the localStorage cache the pre-paint script reads next load.
+      // Only on success: a failed read leaves whatever was pre-painted, since
+      // clearing would turn a network blip into a colour change on a farm that
+      // never changed palette.
+      applyBrand(account.brand);
       setLoadFailed(false);
       // Marked settled on BOTH paths rather than in a `finally`: nothing can
       // escape the catch, so the finally's exceptional path was a branch no

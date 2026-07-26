@@ -397,6 +397,15 @@ it. A picture far larger than it looks is refused too: dimensions come from the
 image's own header, so a small file claiming to be 30000 pixels across is turned
 away before it can lock up the browser of everyone who loads the page.
 
+**Farm palette** — The accent colour used across the app for everyone on a
+farm, chosen by an admin in Farm settings from a curated set (Aubergine,
+Forest, Slate, Terracotta). It is farm-wide and applies to every role. Distinct
+from **night mode**, which each person sets for themselves on each device: the
+two are independent, and choosing a farm palette never changes anyone's
+light/night preference. The set is curated rather than free-form because every
+palette ships a contrast-checked light and dark pair; an arbitrary colour
+cannot be held to that bar.
+
 **Currency change rule (spec §4.6)** — the farm currency can only be changed
 while the farm has **written down no amount at all** in the current one: no
 sales orders, no payments, no expenses, no priced product, and no feed money

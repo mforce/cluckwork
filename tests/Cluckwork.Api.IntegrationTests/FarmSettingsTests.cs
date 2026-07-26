@@ -18,7 +18,8 @@ public sealed class FarmSettingsTests(CluckworkWebApplicationFactory factory)
     private sealed record AccountDto(
         Guid Id, string Name, string CurrencyCode, int CurrencyMinorUnit, string CurrencySymbol,
         string TimeZoneId, string Locale, string UnitSystem, string? FirstDayOfWeek,
-        string? DateFormatOverride, string? TimeFormatOverride, int Version);
+        string? DateFormatOverride, string? TimeFormatOverride, int Version,
+        string? LogoContentHash, string Brand);
     private sealed record SettingsDto(AccountDto Settings, bool CanChangeCurrency, int LogoMaxUploadBytes);
     private sealed record ProblemDto(string? Title);
     private sealed record IdDto(Guid Id);
@@ -46,7 +47,8 @@ public sealed class FarmSettingsTests(CluckworkWebApplicationFactory factory)
         AccountDto current,
         string? name = null, string? timeZoneId = null, string? locale = null,
         string? currencyCode = null, string? unitSystem = null, string? firstDayOfWeek = null,
-        string? dateFormatOverride = null, string? timeFormatOverride = null, int? version = null) => new
+        string? dateFormatOverride = null, string? timeFormatOverride = null,
+        string? brand = null, int? version = null) => new
         {
             name = name ?? current.Name,
             timeZoneId = timeZoneId ?? current.TimeZoneId,
@@ -56,6 +58,7 @@ public sealed class FarmSettingsTests(CluckworkWebApplicationFactory factory)
             firstDayOfWeek = firstDayOfWeek ?? current.FirstDayOfWeek,
             dateFormatOverride = dateFormatOverride ?? current.DateFormatOverride,
             timeFormatOverride = timeFormatOverride ?? current.TimeFormatOverride,
+            brand = brand ?? current.Brand,
             version = version ?? current.Version
         };
 
@@ -526,6 +529,122 @@ public sealed class FarmSettingsTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(email, recorded.ActorEmail);
         Assert.Contains("en-US", recorded.DetailsJson);   // before
         Assert.Contains("ja-JP", recorded.DetailsJson);   // after
+    }
+
+    // --- accent palette (#149) ---------------------------------------------
+
+    [Fact]
+    public async Task Brand_DefaultsToAubergine_AndRidesTheRoleAgnosticAccountRead()
+    {
+        var (client, _, _) = await AdminAsync();
+
+        // /account, not /account/settings: the palette is farm-wide, so every
+        // role needs it, and the settings endpoint is admin-only.
+        var account = await client.GetFromJsonAsync<AccountDto>("/api/v1/account");
+
+        Assert.NotNull(account);
+        Assert.Equal("aubergine", account.Brand);
+    }
+
+    [Fact]
+    public async Task Brand_RoundTripsThroughTheSettingsEndpoint()
+    {
+        var (client, _, _) = await AdminAsync();
+        var before = (await client.GetFromJsonAsync<SettingsDto>(SettingsPath))!.Settings;
+
+        var response = await PutSettingsAsync(client, Body(before, brand: "forest"));
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+
+        var after = (await client.GetFromJsonAsync<SettingsDto>(SettingsPath))!.Settings;
+        Assert.Equal("forest", after.Brand);
+        Assert.Equal(before.Version + 1, after.Version);
+
+        // And through the role-agnostic read the SPA shell actually uses.
+        var account = await client.GetFromJsonAsync<AccountDto>("/api/v1/account");
+        Assert.Equal("forest", account!.Brand);
+    }
+
+    [Fact]
+    public async Task UnknownBrand_Is422_WithAStableCode()
+    {
+        // The contract #149 asks for. It works because the aggregate rejects the
+        // brand and MapFailure's fallback arm turns any unrecognised domain code
+        // into a 422 whose title IS the code — no bespoke plumbing.
+        var (client, _, _) = await AdminAsync();
+        var before = (await client.GetFromJsonAsync<SettingsDto>(SettingsPath))!.Settings;
+
+        var response = await PutSettingsAsync(client, Body(before, brand: "chartreuse"));
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+        Assert.Equal("Account.UnknownBrand",
+            (await response.Content.ReadFromJsonAsync<ProblemDto>())!.Title);
+
+        // And nothing was written.
+        var after = (await client.GetFromJsonAsync<SettingsDto>(SettingsPath))!.Settings;
+        Assert.Equal("aubergine", after.Brand);
+        Assert.Equal(before.Version, after.Version);
+    }
+
+    [Fact]
+    public async Task Brand_IsStoredLowercaseWhateverTheCasingSent()
+    {
+        var (client, _, _) = await AdminAsync();
+        var before = (await client.GetFromJsonAsync<SettingsDto>(SettingsPath))!.Settings;
+
+        var response = await PutSettingsAsync(client, Body(before, brand: "  Terracotta  "));
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+
+        // Anything but lowercase would never match the exact-match CSS selector.
+        var after = (await client.GetFromJsonAsync<SettingsDto>(SettingsPath))!.Settings;
+        Assert.Equal("terracotta", after.Brand);
+    }
+
+    [Fact]
+    public async Task BrandChange_IsRecordedInTheAuditTrailOnBothSides()
+    {
+        var (client, accountId, _) = await AdminAsync();
+        var before = (await client.GetFromJsonAsync<SettingsDto>(SettingsPath))!.Settings;
+
+        Assert.Equal(HttpStatusCode.NoContent,
+            (await PutSettingsAsync(client, Body(before, brand: "slate"))).StatusCode);
+
+        // WithTenantScopeAsync, not a bare CreateScope: AuditEvent carries a
+        // tenant query filter, so an unresolved TenantContext makes the row
+        // invisible and FirstAsync throws rather than failing the assertion.
+        var details = await factory.WithTenantScopeAsync(accountId, async db =>
+            await db.AuditEvents
+                .Where(e => e.Action == "Account.UpdateSettings")
+                .OrderByDescending(e => e.OccurredAtUtc)
+                .Select(e => e.DetailsJson)
+                .FirstAsync());
+
+        // The snapshot is an explicit field list, so a new aggregate property is
+        // NOT picked up automatically — assert the values, not just the event.
+        Assert.NotNull(details);
+        Assert.Contains("\"aubergine\"", details);
+        Assert.Contains("\"slate\"", details);
+    }
+
+    [Fact]
+    public async Task ParallelBrandSaves_SameBaseVersion_ExactlyOneWins()
+    {
+        // Races two DIFFERENT brands rather than two arbitrary saves: this only
+        // passes if Brand is inside the atomic whole-settings replacement guarded
+        // by the Version concurrency token, not merely that the token works.
+        var (client, _, _) = await AdminAsync();
+        var before = (await client.GetFromJsonAsync<SettingsDto>(SettingsPath))!.Settings;
+
+        var first = PutSettingsAsync(client, Body(before, brand: "forest"));
+        var second = PutSettingsAsync(client, Body(before, brand: "terracotta"));
+        var results = await Task.WhenAll(first, second);
+
+        Assert.Equal(1, results.Count(r => r.StatusCode == HttpStatusCode.NoContent));
+        Assert.Equal(1, results.Count(r => r.StatusCode == HttpStatusCode.Conflict));
+
+        var after = (await client.GetFromJsonAsync<SettingsDto>(SettingsPath))!.Settings;
+        // Exactly one of the two, never a blend and never the pre-race default.
+        Assert.Contains(after.Brand, new[] { "forest", "terracotta" });
+        Assert.Equal(before.Version + 1, after.Version);
     }
 
     // --- the point of the whole slice -------------------------------------

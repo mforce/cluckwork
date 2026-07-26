@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, act } from "@testing-library/react";
+import { render, screen, fireEvent, act, waitFor } from "@testing-library/react";
 import { AuthProvider } from "./AuthContext";
 import { useAuth } from "./useAuth";
 import { setStoredToken } from "../test/jwt";
@@ -42,6 +42,8 @@ const renderAuth = () => render(<AuthProvider><Probe /></AuthProvider>);
 beforeEach(() => {
   vi.clearAllMocks();
   clearAccessToken();
+  document.documentElement.removeAttribute("data-brand");
+  localStorage.clear();
 });
 
 describe("AuthProvider lifecycle", () => {
@@ -139,6 +141,8 @@ describe("AuthProvider lifecycle", () => {
 
   it("drops authentication when onUnauthenticated fires (refresh exhausted)", async () => {
     setStoredToken({ sub: "u1", role: "Admin" });
+    document.documentElement.dataset.brand = "forest";
+    localStorage.setItem("cluckwork.brand", "forest");
     renderAuth();
     expect(screen.getByTestId("auth")).toHaveTextContent("true");
 
@@ -148,6 +152,63 @@ describe("AuthProvider lifecycle", () => {
     await act(async () => onUnauth!());
 
     expect(screen.getByTestId("auth")).toHaveTextContent("false");
+    // The farm palette is deliberately KEPT across session teardown (#149,
+    // single-farm): the login screen should go on showing the farm's colour,
+    // not revert to the default. It behaves like cluckwork.theme now.
+    expect(document.documentElement.dataset.brand).toBe("forest");
+    expect(localStorage.getItem("cluckwork.brand")).toBe("forest");
+  });
+
+  it("keeps the farm palette when a load-time session restore fails", async () => {
+    // Lands on /login, and the palette stays so login keeps the farm's colour.
+    document.documentElement.dataset.brand = "slate";
+    localStorage.setItem("cluckwork.brand", "slate");
+    mockRestoreSession.mockResolvedValue(false);
+
+    renderAuth();
+    await waitFor(() => expect(screen.getByTestId("auth")).toHaveTextContent("false"));
+
+    expect(document.documentElement.dataset.brand).toBe("slate");
+    expect(localStorage.getItem("cluckwork.brand")).toBe("slate");
+  });
+
+  it("keeps the farm palette when a load-time restore SUCCEEDS", async () => {
+    document.documentElement.dataset.brand = "slate";
+    mockRestoreSession.mockResolvedValue(true);
+
+    renderAuth();
+    await waitFor(() => expect(screen.getByTestId("auth")).toHaveTextContent("true"));
+
+    expect(document.documentElement.dataset.brand).toBe("slate");
+  });
+
+  it("keeps the farm palette on logout", async () => {
+    setStoredToken({ sub: "u1", role: "Admin" });
+    document.documentElement.dataset.brand = "terracotta";
+    localStorage.setItem("cluckwork.brand", "terracotta");
+    renderAuth();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "logout" }));
+    });
+
+    // Single-farm: the login screen keeps the farm palette rather than
+    // reverting to the default. The API re-applies it on the next login anyway.
+    expect(document.documentElement.dataset.brand).toBe("terracotta");
+    expect(localStorage.getItem("cluckwork.brand")).toBe("terracotta");
+  });
+
+  it("leaves the user's light/night choice alone on logout", async () => {
+    // data-theme is a per-user device preference, not farm data.
+    setStoredToken({ sub: "u1", role: "Admin" });
+    localStorage.setItem("cluckwork.theme", "dark");
+    renderAuth();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "logout" }));
+    });
+
+    expect(localStorage.getItem("cluckwork.theme")).toBe("dark");
   });
 
   it("unregisters its client callbacks on unmount", () => {

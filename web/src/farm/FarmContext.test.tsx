@@ -32,6 +32,8 @@ function Probe() {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.useRealTimers();
+  document.documentElement.removeAttribute("data-brand");
+  document.documentElement.removeAttribute("data-theme");
 });
 
 // Restored here as well as in each body: a failing assertion between
@@ -110,6 +112,50 @@ describe("FarmProvider", () => {
     render(<FarmProvider><Probe /><Probe /><Probe /></FarmProvider>);
     await screen.findAllByTestId("name");
     expect(mockGetAccount).toHaveBeenCalledTimes(1);
+  });
+
+  it("applies the farm's palette once /account resolves", async () => {
+    mockGetAccount.mockResolvedValueOnce(account({ brand: "forest" }));
+
+    render(<FarmProvider><Probe /></FarmProvider>);
+    await screen.findByTestId("name");
+
+    expect(document.documentElement.dataset.brand).toBe("forest");
+  });
+
+  it("removes the attribute for the default palette", async () => {
+    // A previous farm may have left data-brand on the element via the pre-paint
+    // cache; landing on an aubergine farm has to take it back off.
+    document.documentElement.dataset.brand = "terracotta";
+    mockGetAccount.mockResolvedValueOnce(account({ brand: "aubergine" }));
+
+    render(<FarmProvider><Probe /></FarmProvider>);
+    await screen.findByTestId("name");
+
+    expect(document.documentElement.dataset.brand).toBeUndefined();
+  });
+
+  it("leaves the pre-painted palette alone when the read fails", async () => {
+    // The cached value is the best guess available; clearing it here would turn
+    // a network blip into a colour change on a farm that never changed palette.
+    document.documentElement.dataset.brand = "slate";
+    mockGetAccount.mockRejectedValueOnce(new Error("offline"));
+
+    render(<FarmProvider><Probe /></FarmProvider>);
+    await screen.findByTestId("failed");
+
+    expect(document.documentElement.dataset.brand).toBe("slate");
+  });
+
+  it("never touches the user's light/night choice", async () => {
+    // The two axes are independent: a farm palette must not move data-theme.
+    document.documentElement.dataset.theme = "dark";
+    mockGetAccount.mockResolvedValueOnce(account({ brand: "forest" }));
+
+    render(<FarmProvider><Probe /></FarmProvider>);
+    await screen.findByTestId("name");
+
+    expect(document.documentElement.dataset.theme).toBe("dark");
   });
 });
 

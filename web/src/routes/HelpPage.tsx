@@ -28,6 +28,7 @@ const TOC = [
   ["audit", "Audit log"],
   ["export", "Export & backup"],
   ["farm-settings", "Farm settings"],
+  ["farm-palette", "Farm palette"],
   ["install", "Install on a phone"],
   ["mistakes", "Fixing mistakes"],
   ["glossary", "Glossary"],
@@ -608,6 +609,19 @@ export function HelpPage() {
         </li>
       </ul>
 
+      <h3 id="farm-palette">Farm palette</h3>
+      <p>
+        Farm settings lets an admin pick the accent colour used across the app
+        for everyone on the farm: Aubergine, Forest, Slate or Terracotta. The
+        choice applies when you save, and everyone sees it the next time their
+        app loads.
+      </p>
+      <p>
+        Light and night mode are separate and personal. Each person picks
+        their own with the toggle in the sidebar, on each device, and the farm
+        palette never overrides it — every palette is designed to work in both.
+      </p>
+
       <h3 id="install">Install on a phone</h3>
       <ul>
         <li>
@@ -813,6 +827,13 @@ export function HelpPage() {
             <td>The farm currency stops being editable once anything has recorded an amount in it — a sale, a payment, an expense, a priced product, money spent on feed. The field shows locked with the reason. Nothing already recorded is ever re-priced, which is the whole point.</td></tr>
           <tr><th scope="row">Farm logo</th>
             <td>Your own image in place of the Cluckwork mark in the sidebar, uploaded from Farm settings. PNG, JPEG or WebP (2 MB by default), still images only; a square, simple mark reads best at the small sidebar size. Stored as a rebuilt copy with camera and location details stripped out.</td></tr>
+          <tr>
+            <th scope="row">Farm palette</th>
+            <td>
+              The farm-wide accent colour, chosen by an admin in Farm settings.
+              Separate from each person's own light/night mode setting.
+            </td>
+          </tr>
         </tbody>
       </table>
 

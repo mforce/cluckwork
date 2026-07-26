@@ -57,7 +57,7 @@ public sealed class CurrencyLockSerializationTests(CluckworkWebApplicationFactor
         account.UpdateSettings(
             account.Name, account.TimeZoneId, account.Locale, "JPY",
             account.UnitSystem, account.FirstDayOfWeek, null, null,
-            financialRowsExist: false);
+            brand: FarmBrands.Default, financialRowsExist: false);
         await db.SaveChangesAsync();
     }
 

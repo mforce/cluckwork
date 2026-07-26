@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within, fireEvent, act, waitFor } from "@testing-library/react";
-import { SettingsPage, formatByteCap } from "./SettingsPage";
+import { SettingsPage, formatByteCap, PALETTE_LABELS } from "./SettingsPage";
 import { FarmContext } from "../farm/FarmContext";
 import {
   getFarmLogo, getFarmSettings, removeFarmLogo, updateFarmSettings,
@@ -9,6 +9,7 @@ import {
 import type { Account, FarmSettings } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { account, farmState } from "../test/fixtures";
+import { BRANDS } from "../lib/brand";
 
 vi.mock("../api/cluckwork", async () => {
   const actual = await vi.importActual<typeof import("../api/cluckwork")>("../api/cluckwork");
@@ -76,6 +77,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   refreshed = 0;
   refreshOk = true;
+  document.documentElement.removeAttribute("data-brand");
   mockGetLogo.mockResolvedValue({ blob: new Blob(["png"]), filename: null });
   vi.stubGlobal("URL", {
     ...URL,
@@ -130,6 +132,7 @@ describe("SettingsPage saving", () => {
       firstDayOfWeek: "Sunday",
       dateFormatOverride: null,
       timeFormatOverride: null,
+      brand: "aubergine",
       version: 7,
     });
     expect(key).toBeTruthy();
@@ -311,6 +314,67 @@ describe("SettingsPage saving", () => {
 
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save settings" })); });
     expect(screen.getByRole("alert")).toHaveTextContent("This farm has already recorded amounts in USD.");
+  });
+});
+
+describe("SettingsPage palette (#149)", () => {
+  it("renders a swatch for every curated palette, with the current one selected", async () => {
+    await renderReady(SETTINGS({ brand: "forest" }));
+
+    for (const id of BRANDS)
+      expect(screen.getByRole("radio", { name: PALETTE_LABELS[id] })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Forest" })).toBeChecked();
+  });
+
+  it("sends the selected palette on save", async () => {
+    await renderReady(SETTINGS({ brand: "aubergine" }));
+    mockUpdate.mockResolvedValue(undefined);
+
+    fireEvent.click(screen.getByRole("radio", { name: "Slate" }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Save settings" }));
+    });
+
+    expect(mockUpdate).toHaveBeenCalledTimes(1);
+    expect(mockUpdate.mock.calls[0][0]).toMatchObject({ brand: "slate" });
+  });
+
+  it("does not change the palette before the save lands", async () => {
+    // The issue asks for apply-on-save, not a live preview.
+    await renderReady(SETTINGS({ brand: "aubergine" }));
+
+    fireEvent.click(screen.getByRole("radio", { name: "Slate" }));
+
+    expect(document.documentElement.dataset.brand).toBeUndefined();
+  });
+
+  it("applies the palette from its own re-read even when the shell refresh fails", async () => {
+    // The save path is PUT -> re-read settings -> refresh(). refresh() cannot
+    // throw, it reports; if only FarmProvider applied the brand, a successful
+    // save with a failed refresh would leave the OLD palette live and cached
+    // while the authoritative new value was already in hand.
+    await renderReady(SETTINGS({ brand: "aubergine" }));
+    mockUpdate.mockResolvedValue(undefined);
+    // renderReady already primed the first GET; the post-save re-read returns
+    // the saved palette.
+    mockGetSettings.mockResolvedValue(SETTINGS({ brand: "slate" }));
+    refreshOk = false; // the shell refresh reports failure
+
+    fireEvent.click(screen.getByRole("radio", { name: "Slate" }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Save settings" }));
+    });
+
+    expect(document.documentElement.dataset.brand).toBe("slate");
+  });
+
+  it("falls back to the default when the farm holds a retired palette", async () => {
+    // A palette can be retired while farms still reference it. Echoing the
+    // stored id back on the next save would 422; the screen shows the default
+    // selected instead, so saving writes a curated value.
+    await renderReady(SETTINGS({ brand: "chartreuse" }));
+
+    expect(screen.getByRole("radio", { name: "Aubergine" })).toBeChecked();
   });
 });
 

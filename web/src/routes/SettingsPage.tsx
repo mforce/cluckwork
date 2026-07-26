@@ -10,8 +10,18 @@ import { ApiError } from "../api/client";
 import { useConfirm } from "../components/useConfirm";
 import { useFarm } from "../farm/useFarm";
 import { useLogoObjectUrl } from "../farm/useLogoObjectUrl";
+import { BRANDS, DEFAULT_BRAND, applyBrand, isBrand } from "../lib/brand";
 import { isKnownTimeZone } from "../lib/dates";
 import { newId } from "../lib/ids";
+
+// Display names for the curated palettes (#149). Ids stay lowercase because
+// they are matched by exact-match CSS selectors and written into data-brand.
+export const PALETTE_LABELS: Record<string, string> = {
+  aubergine: "Aubergine",
+  forest: "Forest",
+  slate: "Slate",
+  terracotta: "Terracotta",
+};
 
 // Mirrors the server's validators (UpdateFarmSettingsValidator + Account) so a
 // too-long value is refused by the field rather than by a 400.
@@ -103,6 +113,7 @@ export function SettingsPage() {
   const [locale, setLocale] = useState("");
   const [currencyCode, setCurrencyCode] = useState("");
   const [unitSystem, setUnitSystem] = useState("Metric");
+  const [brand, setBrand] = useState<string>(DEFAULT_BRAND);
   const [firstDayOfWeek, setFirstDayOfWeek] = useState("");
   const [dateFormat, setDateFormat] = useState("");
   const [timeFormat, setTimeFormat] = useState("");
@@ -155,7 +166,13 @@ export function SettingsPage() {
     setUnitSystem(s.unitSystem);
     setFirstDayOfWeek(s.firstDayOfWeek ?? "");
     setDateFormat(s.dateFormatOverride ?? "");
+    // A palette can be retired while farms still reference it. Echoing the
+    // stored id straight back on the next save would 422; showing the default
+    // selected means the next save writes a curated value, which is the
+    // recovery the design describes.
+    setBrand(isBrand(s.brand) ? s.brand : DEFAULT_BRAND);
     setTimeFormat(s.timeFormatOverride ?? "");
+    return next;
   }
 
   // A logo write changes exactly one thing in this payload — the content hash —
@@ -201,6 +218,7 @@ export function SettingsPage() {
       firstDayOfWeek: orNull(firstDayOfWeek),
       dateFormatOverride: orNull(dateFormat),
       timeFormatOverride: orNull(timeFormat),
+      brand,
       version: loaded.settings.version,
     };
     const attempt = keyFor(saveAttempt.current, JSON.stringify(body));
@@ -230,7 +248,12 @@ export function SettingsPage() {
     saveAttempt.current = null;
     setSaved(true);
     try {
-      await load();
+      const fresh = await load();
+      // Applied from THIS response rather than waiting on refresh() below:
+      // refresh() cannot throw (the provider has to survive a failed read), so
+      // a successful save with a failed refresh would otherwise leave the old
+      // palette live and cached while the authoritative value was in hand (#149).
+      applyBrand(fresh.settings.brand);
     } catch {
       setStale(true);
       setSaveError(
@@ -470,6 +493,32 @@ export function SettingsPage() {
             {WEEKDAYS.map((d) => <option key={d} value={d}>{d}</option>)}
           </select>
         </label>
+
+        <fieldset className="palette-picker">
+          <legend>Farm palette</legend>
+          <p className="hint" id="palette-hint">
+            The accent colour for everyone on this farm. Each person still
+            chooses light or night mode for themselves.
+          </p>
+          <div className="palette-options" aria-describedby="palette-hint">
+            {BRANDS.map((id) => (
+              <label key={id} className="palette-option">
+                <input
+                  type="radio"
+                  name="brand"
+                  value={id}
+                  checked={brand === id}
+                  onChange={() => setBrand(id)}
+                  disabled={saving}
+                />
+                {/* The swatch is decorative: the visible name is what names the
+                    option, so selection never depends on seeing colour. */}
+                <span className={`palette-swatch palette-swatch-${id}`} aria-hidden />
+                <span className="palette-name">{PALETTE_LABELS[id]}</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
 
         <label>Date format
           <input value={dateFormat} maxLength={MAX_FORMAT} placeholder="Follow the locale"

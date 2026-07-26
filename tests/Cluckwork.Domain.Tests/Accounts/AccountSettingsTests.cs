@@ -27,7 +27,7 @@ public sealed class AccountSettingsTests
             locale ?? account.Locale,
             currencyCode ?? account.DefaultCurrencyCode,
             unitSystem, firstDayOfWeek, dateFormatOverride, timeFormatOverride,
-            financialRowsExist);
+            brand: FarmBrands.Default, financialRowsExist);
 
     [Fact]
     public void UpdateSettings_AppliesTheBlock_AndBumpsVersion()
@@ -168,7 +168,8 @@ public sealed class AccountSettingsTests
 
         var result = account.UpdateSettings(
             name, timeZoneId, locale, currencyCode,
-            UnitSystem.Metric, null, null, null, financialRowsExist: false);
+            UnitSystem.Metric, null, null, null,
+            brand: FarmBrands.Default, financialRowsExist: false);
 
         Assert.True(result.IsFailure);
         Assert.Equal(expectedCode, result.Error.Code);
@@ -183,5 +184,94 @@ public sealed class AccountSettingsTests
 
         Assert.True(result.IsFailure);
         Assert.Equal("Account.NameTooLong", result.Error.Code);
+    }
+
+    [Fact]
+    public void NewAccount_StartsOnTheDefaultPalette()
+    {
+        var account = Account.Create(
+            Guid.NewGuid(), "Test Farm", "UTC", "USD");
+
+        Assert.Equal(FarmBrands.Default, account.Brand);
+    }
+
+    [Fact]
+    public void UpdateSettings_WithACuratedBrand_StoresIt()
+    {
+        var account = Account.Create(Guid.NewGuid(), "Test Farm", "UTC", "USD");
+
+        var result = account.UpdateSettings(
+            "Test Farm", "UTC", "en-US", "USD", UnitSystem.Metric,
+            firstDayOfWeek: null, dateFormatOverride: null, timeFormatOverride: null,
+            brand: "forest", financialRowsExist: false);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("forest", account.Brand);
+    }
+
+    [Theory]
+    [InlineData("Forest")]
+    [InlineData("  forest  ")]
+    [InlineData("FOREST")]
+    public void UpdateSettings_CanonicalizesBrandCasingAndWhitespace(string submitted)
+    {
+        // CSS matches data-brand="forest" exactly, so storing "Forest" would
+        // silently render the default forever.
+        var account = Account.Create(Guid.NewGuid(), "Test Farm", "UTC", "USD");
+
+        var result = account.UpdateSettings(
+            "Test Farm", "UTC", "en-US", "USD", UnitSystem.Metric,
+            null, null, null, brand: submitted, financialRowsExist: false);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("forest", account.Brand);
+    }
+
+    [Theory]
+    [InlineData("chartreuse")]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void UpdateSettings_WithAnUncuratedBrand_FailsWithAStableCode(string submitted)
+    {
+        var account = Account.Create(Guid.NewGuid(), "Test Farm", "UTC", "USD");
+
+        var result = account.UpdateSettings(
+            "Test Farm", "UTC", "en-US", "USD", UnitSystem.Metric,
+            null, null, null, brand: submitted, financialRowsExist: false);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal("Account.UnknownBrand", result.Error.Code);
+    }
+
+    [Fact]
+    public void UpdateSettings_WithAnUncuratedBrand_LeavesTheWholeBlockUnchanged()
+    {
+        // The settings block is replaced as a unit under the Version token, so a
+        // rejected brand must not leave a half-applied rename behind.
+        var account = Account.Create(Guid.NewGuid(), "Original", "UTC", "USD");
+        var versionBefore = account.Version;
+
+        var result = account.UpdateSettings(
+            "Renamed", "America/Los_Angeles", "es-MX", "USD", UnitSystem.Imperial,
+            null, null, null, brand: "chartreuse", financialRowsExist: false);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal("Original", account.Name);
+        Assert.Equal("UTC", account.TimeZoneId);
+        Assert.Equal(versionBefore, account.Version);
+    }
+
+    [Fact]
+    public void FarmBrands_ExposesTheCuratedSetWithAubergineDefault()
+    {
+        // Mirrored by web/src/lib/brand.ts BRANDS — the two lists are the same
+        // curated set in two languages and must be changed together.
+        Assert.Equal(
+            new[] { "aubergine", "forest", "slate", "terracotta" }, FarmBrands.All);
+        Assert.Equal("aubergine", FarmBrands.Default);
+        Assert.Contains(FarmBrands.Default, FarmBrands.All);
+        Assert.True(FarmBrands.IsCurated("slate"));
+        Assert.False(FarmBrands.IsCurated("Slate"));
+        Assert.False(FarmBrands.IsCurated("chartreuse"));
     }
 }

@@ -279,6 +279,7 @@ public sealed class SalesProductTests(CluckworkWebApplicationFactory factory)
                 firstDayOfWeek = (string?)null,
                 dateFormatOverride = (string?)null,
                 timeFormatOverride = (string?)null,
+                brand = "aubergine",
                 settings.Settings.Version
             })
         };

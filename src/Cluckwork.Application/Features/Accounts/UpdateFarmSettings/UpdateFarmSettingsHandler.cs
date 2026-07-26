@@ -117,6 +117,7 @@ public sealed class UpdateFarmSettingsHandler(
                 : Enum.Parse<DayOfWeek>(command.FirstDayOfWeek, ignoreCase: true),
             command.DateFormatOverride,
             command.TimeFormatOverride,
+            command.Brand,
             currencyBoundRowsExist);
 
     // Same SaveChanges as the change (#93). Settings decide how every date and
@@ -139,6 +140,7 @@ public sealed class UpdateFarmSettingsHandler(
         UnitSystem = a.UnitSystem.ToString(),
         FirstDayOfWeek = a.FirstDayOfWeek?.ToString(),
         a.DateFormatOverride,
-        a.TimeFormatOverride
+        a.TimeFormatOverride,
+        a.Brand
     };
 }

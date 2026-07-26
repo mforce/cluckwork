@@ -21,6 +21,7 @@ export function account(overrides: Partial<Account> = {}): Account {
     timeFormatOverride: null,
     version: 1,
     logoContentHash: null,
+    brand: "aubergine",
     ...overrides,
   };
 }
