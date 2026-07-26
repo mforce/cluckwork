@@ -6,6 +6,7 @@ using Cluckwork.Application.Features.Eggs;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Eggs;
 using Cluckwork.Domain.Sales;
+using Microsoft.Extensions.Logging;
 
 // Undo of a mistaken confirm (#60): Confirmed → Voided, returning every
 // allocated quantity to the exact lot it was drawn from and marking the
@@ -24,7 +25,8 @@ public sealed class VoidSaleHandler(
     IUnitOfWork unitOfWork,
     IEggInventoryMovementRepository eggMovements,
     IClock clock,
-    IAuditWriter audit)
+    IAuditWriter audit,
+    ILogger<VoidSaleHandler> logger)
 {
     public async Task<Result<VoidSaleResponse>> HandleAsync(
         VoidSaleCommand command, Guid accountId, CancellationToken ct)
@@ -127,6 +129,10 @@ public sealed class VoidSaleHandler(
             return true;
         }, ct);
 
-        return outcome!;
+        if (outcome!.IsSuccess)
+            logger.LogInformation(
+                "Sales order {SalesOrderId} voided: allocations released, stock restored",
+                command.SalesOrderId);
+        return outcome.LogFailure(logger, "VoidSale");
     }
 }

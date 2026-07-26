@@ -7,6 +7,7 @@ using Cluckwork.Application.Features.Flocks;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Eggs;
 using Cluckwork.Domain.Flocks;
+using Microsoft.Extensions.Logging;
 
 // The production -> stock bridge (#8): submitting a daily entry turns its grade
 // lines into egg lots, one lot per grade, dated by the entry, and its mortality
@@ -23,7 +24,8 @@ public sealed class SubmitDailyEntryHandler(
     IFlockRepository flocks,
     IFlockScopeGuard flockScope,
     IClock clock,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    ILogger<SubmitDailyEntryHandler> logger)
 {
     public async Task<Result<SubmitDailyEntryResponse>> HandleAsync(
         Guid dailyEntryId, Guid accountId, CancellationToken ct)
@@ -32,7 +34,7 @@ public sealed class SubmitDailyEntryHandler(
         var entry = await entries.GetByIdAsync(dailyEntryId, ct);
         if (entry is null)
             return Result.Failure<SubmitDailyEntryResponse>(
-                Error.NotFound(nameof(DailyEntry), dailyEntryId));
+                Error.NotFound(nameof(DailyEntry), dailyEntryId)).LogFailure(logger, "SubmitDailyEntry");
 
         // Same lifecycle gate as recording (#47/#54): a draft can still be
         // submitted after depletion when its date is on/before DepletedOn
@@ -41,16 +43,17 @@ public sealed class SubmitDailyEntryHandler(
         if (flock is not null && !flock.CanRecordProductionOn(entry.Date))
             return Result.Failure<SubmitDailyEntryResponse>(Error.Validation(
                 "DailyEntry.FlockNotActive",
-                $"Flock '{flock.Name}' is {flock.Status.ToString().ToLowerInvariant()} — this entry can no longer be submitted."));
+                $"Flock '{flock.Name}' is {flock.Status.ToString().ToLowerInvariant()} — this entry can no longer be submitted."))
+                .LogFailure(logger, "SubmitDailyEntry");
 
         // Spec §5.3 (#103): submitting is recording too — same scope rule.
         var scope = await flockScope.CheckAsync(entry.FlockId, ct);
         if (scope.IsFailure)
-            return Result.Failure<SubmitDailyEntryResponse>(scope.Error);
+            return Result.Failure<SubmitDailyEntryResponse>(scope.Error).LogFailure(logger, "SubmitDailyEntry");
 
         var submit = entry.Submit();
         if (submit.IsFailure)
-            return Result.Failure<SubmitDailyEntryResponse>(submit.Error);
+            return Result.Failure<SubmitDailyEntryResponse>(submit.Error).LogFailure(logger, "SubmitDailyEntry");
 
         var lotIds = new List<Guid>();
         foreach (var line in entry.Grades)
@@ -86,6 +89,9 @@ public sealed class SubmitDailyEntryHandler(
         // to 409 and nothing from the losing request is persisted. A retry then
         // gets the state-machine 422 (NotDraft).
         await unitOfWork.SaveChangesAsync(ct);
+        logger.LogInformation(
+            "Daily entry {DailyEntryId} submitted for flock {FlockId} on {EntryDate}: {LotCount} egg lots, {MortalityCount} mortality",
+            entry.Id, entry.FlockId, entry.Date, lotIds.Count, entry.MortalityCount);
         return Result.Success(new SubmitDailyEntryResponse(entry.Id, entry.Status.ToString(), lotIds));
     }
 }

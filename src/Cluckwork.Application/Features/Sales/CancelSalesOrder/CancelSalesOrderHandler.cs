@@ -4,23 +4,27 @@ using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Sales;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Sales;
+using Microsoft.Extensions.Logging;
 
 public sealed class CancelSalesOrderHandler(
     ISalesOrderRepository orders,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    ILogger<CancelSalesOrderHandler> logger)
 {
     public async Task<Result> HandleAsync(Guid orderId, CancellationToken ct)
     {
         // Tenant query filter scopes the lookup — foreign orders read as null.
         var order = await orders.GetByIdAsync(orderId, ct);
         if (order is null)
-            return Result.Failure(Error.NotFound(nameof(SalesOrder), orderId));
+            return Result.Failure(Error.NotFound(nameof(SalesOrder), orderId))
+                .LogFailure(logger, "CancelSalesOrder");
 
         var result = order.Cancel();
         if (result.IsFailure)
-            return result;
+            return result.LogFailure(logger, "CancelSalesOrder");
 
         await unitOfWork.SaveChangesAsync(ct);
+        logger.LogInformation("Sales order {SalesOrderId} cancelled", orderId);
         return Result.Success();
     }
 }

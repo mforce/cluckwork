@@ -9,6 +9,7 @@ using Cluckwork.Application.Features.Flocks;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Eggs;
 using Cluckwork.Domain.Flocks;
+using Microsoft.Extensions.Logging;
 
 // #69 — the corrective half of the production → stock bridge. Adjusting a
 // submitted/locked entry must keep three things consistent in ONE transaction:
@@ -25,7 +26,8 @@ public sealed class AdjustDailyEntryHandler(
     IEggInventoryMovementRepository eggMovements,
     IClock clock,
     IUnitOfWork unitOfWork,
-    IAuditWriter audit)
+    IAuditWriter audit,
+    ILogger<AdjustDailyEntryHandler> logger)
 {
     public async Task<Result<AdjustDailyEntryResponse>> HandleAsync(
         AdjustDailyEntryCommand command, Guid accountId, CancellationToken ct)
@@ -33,25 +35,27 @@ public sealed class AdjustDailyEntryHandler(
         var entry = await entries.GetByIdAsync(command.DailyEntryId, ct);
         if (entry is null)
             return Result.Failure<AdjustDailyEntryResponse>(
-                Error.NotFound(nameof(DailyEntry), command.DailyEntryId));
+                Error.NotFound(nameof(DailyEntry), command.DailyEntryId)).LogFailure(logger, "AdjustDailyEntry");
 
         // End-to-end optimistic concurrency (PR #77 contract): the client's
         // base version must match; the EF token backstops the save itself.
         if (entry.Version != command.Version)
             return Result.Failure<AdjustDailyEntryResponse>(Error.Conflict(
                 "DailyEntry.VersionMismatch",
-                "The entry was changed by someone else. Reload it and re-apply the adjustment."));
+                "The entry was changed by someone else. Reload it and re-apply the adjustment."))
+                .LogFailure(logger, "AdjustDailyEntry");
 
         // Archived flocks are read-only history — same gate as recording.
         // Depleted flocks accept corrections for dates up to their depletion.
         var flock = await flocks.GetByIdAsync(entry.FlockId, ct);
         if (flock is null)
             return Result.Failure<AdjustDailyEntryResponse>(
-                Error.NotFound(nameof(Flock), entry.FlockId));
+                Error.NotFound(nameof(Flock), entry.FlockId)).LogFailure(logger, "AdjustDailyEntry");
         if (!flock.CanRecordProductionOn(entry.Date))
             return Result.Failure<AdjustDailyEntryResponse>(Error.Validation(
                 "DailyEntry.FlockNotActive",
-                $"Flock '{flock.Name}' is {flock.Status.ToString().ToLowerInvariant()} — this entry can no longer be adjusted."));
+                $"Flock '{flock.Name}' is {flock.Status.ToString().ToLowerInvariant()} — this entry can no longer be adjusted."))
+                .LogFailure(logger, "AdjustDailyEntry");
 
         // Grade ids must be the tenant's own for this farm. Active + saleable
         // for NEW lines; ids already on the entry are grandfathered so a line
@@ -198,8 +202,11 @@ public sealed class AdjustDailyEntryHandler(
         }, ct);
 
         if (failure is not null)
-            return failure;
+            return failure.LogFailure(logger, "AdjustDailyEntry");
 
+        logger.LogInformation(
+            "Daily entry {DailyEntryId} adjusted for flock {FlockId} on {EntryDate}",
+            entry.Id, entry.FlockId, entry.Date);
         return Result.Success(new AdjustDailyEntryResponse(
             entry.Id, entry.Status.ToString(), entry.Version));
     }

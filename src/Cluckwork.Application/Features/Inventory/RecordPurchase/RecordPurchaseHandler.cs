@@ -4,6 +4,7 @@ using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Accounts;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Inventory;
+using Microsoft.Extensions.Logging;
 
 // Receiving stock (spec §12.2): creates the lot AND its Purchase ledger row
 // atomically. Runs under a FOR UPDATE lock on the item row so the unit read
@@ -15,7 +16,8 @@ public sealed class RecordPurchaseHandler(
     IAccountRepository accounts,
     IUnitOfWork unitOfWork,
     IClock clock,
-    IFarmClock farmClock)
+    IFarmClock farmClock,
+    ILogger<RecordPurchaseHandler> logger)
 {
     public async Task<Result<Guid>> HandleAsync(
         RecordPurchaseCommand command, Guid accountId, CancellationToken ct)
@@ -86,6 +88,10 @@ public sealed class RecordPurchaseHandler(
             return true;
         }, ct);
 
-        return outcome!;
+        if (outcome!.IsSuccess)
+            logger.LogInformation(
+                "Purchase recorded: lot {InventoryLotId} of {Quantity} for item {InventoryItemId} on {ReceivedDate}",
+                outcome.Value, command.Quantity, command.InventoryItemId, command.ReceivedDate);
+        return outcome.LogFailure(logger, "RecordPurchase");
     }
 }

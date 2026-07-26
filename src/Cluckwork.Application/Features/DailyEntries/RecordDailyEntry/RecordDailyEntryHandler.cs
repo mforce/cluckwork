@@ -7,13 +7,15 @@ using Cluckwork.Application.Features.Flocks;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Eggs;
 using Cluckwork.Domain.Flocks;
+using Microsoft.Extensions.Logging;
 
 public sealed class RecordDailyEntryHandler(
     IDailyEntryRepository repository,
     IEggGradeRepository eggGrades,
     IFlockRepository flocks,
     IFlockScopeGuard flockScope,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    ILogger<RecordDailyEntryHandler> logger)
 {
     public async Task<Result<Guid>> HandleAsync(
         RecordDailyEntryCommand command,
@@ -22,7 +24,7 @@ public sealed class RecordDailyEntryHandler(
     {
         // Spec §5.3 (#103): scoped workers may only record for assigned flocks.
         var scope = await flockScope.CheckAsync(command.FlockId, ct);
-        if (scope.IsFailure) return Result.Failure<Guid>(scope.Error);
+        if (scope.IsFailure) return Result.Failure<Guid>(scope.Error).LogFailure(logger, "RecordDailyEntry");
 
         // Production needs a live flock for the entry's date (#47): archived
         // flocks never accept entries; depleted flocks still accept backfill
@@ -31,17 +33,19 @@ public sealed class RecordDailyEntryHandler(
         // names — ids are caller-supplied and only tenant-checked otherwise.
         var flock = await flocks.GetByIdAsync(command.FlockId, ct);
         if (flock is null)
-            return Result.Failure<Guid>(Error.NotFound(nameof(Flock), command.FlockId));
+            return Result.Failure<Guid>(Error.NotFound(nameof(Flock), command.FlockId))
+                .LogFailure(logger, "RecordDailyEntry");
         // Farm only: houses aren't aggregates yet (phantom ids until Phase 2's
         // House model) — add the HouseId match when they are.
         if (flock.FarmId != command.FarmId)
             return Result.Failure<Guid>(Error.Validation(
                 "DailyEntry.FlockFarmMismatch",
-                $"Flock '{flock.Name}' does not belong to the given farm."));
+                $"Flock '{flock.Name}' does not belong to the given farm.")).LogFailure(logger, "RecordDailyEntry");
         if (!flock.CanRecordProductionOn(command.Date))
             return Result.Failure<Guid>(Error.Validation(
                 "DailyEntry.FlockNotActive",
-                $"Flock '{flock.Name}' is {flock.Status.ToString().ToLowerInvariant()} — production cannot be recorded for {command.Date:yyyy-MM-dd}."));
+                $"Flock '{flock.Name}' is {flock.Status.ToString().ToLowerInvariant()} — production cannot be recorded for {command.Date:yyyy-MM-dd}."))
+                .LogFailure(logger, "RecordDailyEntry");
 
         // Grade ids must be the tenant's own, belong to the entry's farm, and be
         // active + saleable — grade lines capture sellable production; non-saleable
@@ -58,7 +62,8 @@ public sealed class RecordDailyEntryHandler(
             if (unknown.Count > 0)
                 return Result.Failure<Guid>(Error.Validation(
                     "DailyEntry.UnknownGrade",
-                    "One or more egg grades do not exist, are inactive, or are not saleable."));
+                    "One or more egg grades do not exist, are inactive, or are not saleable."))
+                    .LogFailure(logger, "RecordDailyEntry");
         }
 
         var existing = await repository.FindByNaturalKeyAsync(
@@ -88,9 +93,12 @@ public sealed class RecordDailyEntryHandler(
             command.MortalityCount, grades);
 
         if (result.IsFailure)
-            return Result.Failure<Guid>(result.Error);
+            return Result.Failure<Guid>(result.Error).LogFailure(logger, "RecordDailyEntry");
 
         await unitOfWork.SaveChangesAsync(ct);
+        logger.LogInformation(
+            "Daily entry {DailyEntryId} recorded for flock {FlockId} on {EntryDate}: {TotalEggs} eggs",
+            entry.Id, command.FlockId, command.Date, command.TotalEggs);
         return Result.Success(entry.Id);
     }
 }

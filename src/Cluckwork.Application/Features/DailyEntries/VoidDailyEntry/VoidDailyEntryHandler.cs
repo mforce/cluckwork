@@ -9,6 +9,7 @@ using Cluckwork.Application.Features.Flocks;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Eggs;
 using Cluckwork.Domain.Flocks;
+using Microsoft.Extensions.Logging;
 
 // #69 (spec §8.1/§9.5) — void reverses everything the entry's submit created:
 // each egg lot is emptied (blocked if any of its eggs were already sold), the
@@ -24,7 +25,8 @@ public sealed class VoidDailyEntryHandler(
     IFlockRepository flocks,
     IClock clock,
     IUnitOfWork unitOfWork,
-    IAuditWriter audit)
+    IAuditWriter audit,
+    ILogger<VoidDailyEntryHandler> logger)
 {
     public async Task<Result<VoidDailyEntryResponse>> HandleAsync(
         VoidDailyEntryCommand command, Guid accountId, CancellationToken ct)
@@ -32,21 +34,22 @@ public sealed class VoidDailyEntryHandler(
         var entry = await entries.GetByIdAsync(command.DailyEntryId, ct);
         if (entry is null)
             return Result.Failure<VoidDailyEntryResponse>(
-                Error.NotFound(nameof(DailyEntry), command.DailyEntryId));
+                Error.NotFound(nameof(DailyEntry), command.DailyEntryId)).LogFailure(logger, "VoidDailyEntry");
 
         if (entry.Version != command.Version)
             return Result.Failure<VoidDailyEntryResponse>(Error.Conflict(
                 "DailyEntry.VersionMismatch",
-                "The entry was changed by someone else. Reload it and retry."));
+                "The entry was changed by someone else. Reload it and retry.")).LogFailure(logger, "VoidDailyEntry");
 
         var flock = await flocks.GetByIdAsync(entry.FlockId, ct);
         if (flock is null)
             return Result.Failure<VoidDailyEntryResponse>(
-                Error.NotFound(nameof(Flock), entry.FlockId));
+                Error.NotFound(nameof(Flock), entry.FlockId)).LogFailure(logger, "VoidDailyEntry");
         if (!flock.CanRecordProductionOn(entry.Date))
             return Result.Failure<VoidDailyEntryResponse>(Error.Validation(
                 "DailyEntry.FlockNotActive",
-                $"Flock '{flock.Name}' is {flock.Status.ToString().ToLowerInvariant()} — this entry can no longer be voided."));
+                $"Flock '{flock.Name}' is {flock.Status.ToString().ToLowerInvariant()} — this entry can no longer be voided."))
+                .LogFailure(logger, "VoidDailyEntry");
 
         var mortalityToReverse = entry.MortalityCount;
         var hadGradeLines = entry.Grades.Count > 0;
@@ -117,8 +120,11 @@ public sealed class VoidDailyEntryHandler(
         }, ct);
 
         if (failure is not null)
-            return failure;
+            return failure.LogFailure(logger, "VoidDailyEntry");
 
+        logger.LogInformation(
+            "Daily entry {DailyEntryId} voided for flock {FlockId} on {EntryDate}: {MortalityReversed} mortality reversed",
+            entry.Id, entry.FlockId, entry.Date, mortalityToReverse);
         return Result.Success(new VoidDailyEntryResponse(
             entry.Id, entry.Status.ToString(), entry.Version));
     }
