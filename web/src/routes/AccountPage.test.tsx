@@ -90,4 +90,10 @@ describe("AccountPage (#165 self-service password change)", () => {
     renderWithProviders(<AccountPage />, { token: { sub: "u1", role: "ReadOnly" } });
     expect(screen.getByRole("button", { name: "Change password" })).toBeInTheDocument();
   });
+
+  it("shows the Preferences section with the language selector now that more than one language pack is installed (#182)", async () => {
+    renderWithProviders(<AccountPage />, { token: WORKER });
+    expect(screen.getByRole("heading", { name: "Preferences" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Language")).toBeInTheDocument();
+  });
 });
