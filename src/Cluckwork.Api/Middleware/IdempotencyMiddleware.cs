@@ -3,6 +3,7 @@ namespace Cluckwork.Api.Middleware;
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
+using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -24,7 +25,8 @@ public sealed class IdempotencyMiddleware(RequestDelegate next)
         "/api/v1/auth/change-password",
     ];
 
-    public async Task InvokeAsync(HttpContext context, AppDbContext db, TenantContext tenant)
+    public async Task InvokeAsync(
+        HttpContext context, AppDbContext db, TenantContext tenant, CurrentUserContext user)
     {
         if (!HttpMethods.IsPost(context.Request.Method)
             && !HttpMethods.IsPut(context.Request.Method)
@@ -61,7 +63,12 @@ public sealed class IdempotencyMiddleware(RequestDelegate next)
         }
 
         var endpointHash = Sha256($"{context.Request.Method}:{context.Request.Path}");
-        var keyHash = Sha256(rawKey.ToString());
+        // Scope the key to the user, not just the account (#45): two users in one
+        // account presenting the same Idempotency-Key on a per-user write must each
+        // execute, never replay each other's response. Absent user (malformed token
+        // but resolved tenant) degrades to the prior account-only scope.
+        var userScope = user.IsResolved ? user.UserId.ToString() : "";
+        var keyHash = Sha256($"{userScope}:{rawKey}");
         var lockKey = $"{tenant.AccountId}:{endpointHash}:{keyHash}";
         var semaphore = Locks.GetOrAdd(lockKey, _ => new SemaphoreSlim(1, 1));
 
