@@ -80,18 +80,20 @@ describe("SessionProvider", () => {
     expect(screen.getByTestId("who")).toHaveTextContent("no-me");
   });
 
-  it("does not update state if unmounted before the reads settle (cancellation)", async () => {
+  it("does not switch language or set state when unmounted before the reads settle (cancellation)", async () => {
     let resolveMe!: (m: api.Me) => void;
     mockGetMe.mockReturnValue(new Promise((r) => { resolveMe = r; }));
     mockGetAccount.mockResolvedValue(account());
-    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const changeSpy = vi.spyOn(i18n, "changeLanguage");
     const { unmount } = renderShell();
-    unmount(); // tear down while /me is still in flight
+    unmount(); // tear down while /me is still in flight (allSettled not resolved yet)
+    changeSpy.mockClear(); // ignore anything before unmount
     resolveMe({ id: "u1", email: "a@b.co", name: null, role: "Admin", language: null });
     await Promise.resolve();
-    // No "state update on unmounted component" warning was emitted.
-    expect(spy).not.toHaveBeenCalled();
-    spy.mockRestore();
+    await Promise.resolve();
+    // The cancelled guard fires right after allSettled, BEFORE changeLanguage.
+    expect(changeSpy).not.toHaveBeenCalled();
+    changeSpy.mockRestore();
   });
 
   it("resolves the user's language before revealing the shell", async () => {
