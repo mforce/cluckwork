@@ -1,7 +1,10 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
+import { useTranslation } from "react-i18next";
 import { changePassword, ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
+import { LanguageSelector } from "../session/LanguageSelector";
+import { SUPPORTED_LANGUAGES } from "../i18n";
 
 function errText(err: unknown): string {
   if (err instanceof ApiError) return err.message;
@@ -14,6 +17,7 @@ const MIN_LENGTH = 12;
 // by proving the current one. Changing it signs out this account's OTHER devices
 // (the server revokes every refresh token) while keeping this one signed in.
 export function AccountPage() {
+  const { t } = useTranslation("account");
   const { role } = useAuth();
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
@@ -64,6 +68,14 @@ export function AccountPage() {
       <p className="muted">
         You are signed in with the <strong>{role}</strong> role.
       </p>
+
+      {SUPPORTED_LANGUAGES.length > 1 && (
+        <section>
+          <h3>{t("preferences")}</h3>
+          <p className="hint">{t("languageHint")}</p>
+          <LanguageSelector />
+        </section>
+      )}
 
       <h3>Change password</h3>
       <p className="muted">
