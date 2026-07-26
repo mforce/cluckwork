@@ -383,6 +383,15 @@ public sealed class IdentityProvider(
         return new UserProfile(user.Id, user.Email!, user.DisplayName, effectiveRole, user.Language);
     }
 
+    public async Task<Result> SetLanguageAsync(
+        Guid accountId, Guid userId, string? language, CancellationToken ct = default)
+    {
+        var affected = await db.Users
+            .Where(u => u.Id == userId && u.AccountId == accountId)
+            .ExecuteUpdateAsync(s => s.SetProperty(u => u.Language, language), ct);
+        return affected == 0 ? Result.Failure(Error.NotFound("Users", userId)) : Result.Success();
+    }
+
     private static string Describe(IdentityResult result) =>
         string.Join(" ", result.Errors.Select(e => e.Description));
 

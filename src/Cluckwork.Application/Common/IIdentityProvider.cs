@@ -43,6 +43,10 @@ public interface IIdentityProvider
     // #45 — one user's profile, account-scoped so a foreign id resolves to null,
     // never a cross-tenant read. Role is highest-wins (matches ListUsersAsync).
     Task<UserProfile?> GetUserAsync(Guid accountId, Guid userId, CancellationToken ct = default);
+
+    // #45 — set/clear the user's language, account-scoped (foreign id -> NotFound).
+    Task<Result> SetLanguageAsync(
+        Guid accountId, Guid userId, string? language, CancellationToken ct = default);
 }
 
 public sealed record TokenPair(
