@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Plus } from "lucide-react";
+import { Trans, useTranslation } from "react-i18next";
 import {
   addOrderItem, cancelOrder, confirmOrder, createOrder, formatMoney, getOrder,
   listCustomers, listEggGrades, listOrderPayments, listOrders, listProducts,
@@ -14,6 +15,7 @@ import { useConfirm } from "../components/useConfirm";
 import { StatusBadge } from "../components/StatusBadge";
 import { newId } from "../lib/ids";
 import { useFarm, useFarmToday } from "../farm/useFarm";
+import i18n from "../i18n";
 
 const PAGE = 50;
 
@@ -35,6 +37,7 @@ function priceInput(defaultPriceMinorUnits: number | null, scale: number | null)
 // #23 + #24 (orders half): create a draft order, add/edit/remove graded lines,
 // confirm (FIFO allocation), cancel drafts, browse/filter the order list.
 export function SalesPage() {
+  const { t } = useTranslation("sales");
   // Farm-local, not browser-local: since #35 the API judges "is this date in
   // the future?" against the FARM's day, so the pickers must agree (#123).
   const today = useFarmToday();
@@ -164,11 +167,11 @@ export function SalesPage() {
           setPrice(priceInput(first.defaultPriceMinorUnits, farmScale));
         }
       })
-      .catch(() => setLoadError("Could not load sales data. Is the API up?"));
+      .catch(() => setLoadError(i18n.t("sales:loadSalesDataFailed")));
   }, []);
 
   useEffect(() => {
-    loadOrders().catch(() => setLoadError("Could not load orders."));
+    loadOrders().catch(() => setLoadError(i18n.t("sales:loadOrdersFailed")));
   }, [loadOrders]);
 
   const activeId = active?.id ?? null;
@@ -183,7 +186,7 @@ export function SalesPage() {
     let cancelled = false;
     listOrderPayments(activeId)
       .then((p) => { if (!cancelled) setPayments(p); })
-      .catch(() => { if (!cancelled) setError("Could not load this order's payments."); });
+      .catch(() => { if (!cancelled) setError(i18n.t("sales:loadPaymentsFailed")); });
     return () => { cancelled = true; };
   }, [activeId, activeStatus, canSettle]);
 
@@ -191,14 +194,14 @@ export function SalesPage() {
   // #88 review); excess decimals are rejected, not silently rounded.
   const toMinor = (display: string, minor: number) => {
     const m = display.trim().match(/^(\d+)(?:\.(\d+))?$/);
-    if (!m) throw new Error("Enter a valid amount.");
+    if (!m) throw new Error(i18n.t("sales:enterValidAmount"));
     const frac = m[2] ?? "";
     if (frac.length > minor)
       throw new Error(minor === 0
-        ? "This currency has no decimal places."
-        : `At most ${minor} decimal places for this currency.`);
+        ? i18n.t("sales:noDecimalPlaces")
+        : i18n.t("sales:atMostDecimals", { count: minor }));
     const v = Number(m[1]) * 10 ** minor + Number(frac.padEnd(minor, "0") || "0");
-    if (!Number.isSafeInteger(v) || v <= 0) throw new Error("Enter an amount greater than zero.");
+    if (!Number.isSafeInteger(v) || v <= 0) throw new Error(i18n.t("sales:enterAmountGreaterThanZero"));
     return v;
   };
 
@@ -232,7 +235,7 @@ export function SalesPage() {
     let minorUnits: number | undefined;
     if (price.trim() !== "") {
       minorUnits = parseMoneyToMinorUnits(price, active.currencyMinorUnit);
-      if (!Number.isFinite(minorUnits) || minorUnits < 0) throw new Error("Invalid unit price.");
+      if (!Number.isFinite(minorUnits) || minorUnits < 0) throw new Error(i18n.t("sales:invalidUnitPrice"));
     }
     const scope = `add-item:${active.id}`;
     await addOrderItem(active.id,
@@ -245,7 +248,7 @@ export function SalesPage() {
   const onUpdateItem = (itemId: string) => run(async () => {
     if (!active) return;
     const minorUnits = parseMoneyToMinorUnits(editPrice, active.currencyMinorUnit);
-    if (!Number.isFinite(minorUnits) || minorUnits < 0) throw new Error("Invalid unit price.");
+    if (!Number.isFinite(minorUnits) || minorUnits < 0) throw new Error(i18n.t("sales:invalidUnitPrice"));
     const scope = `update-item:${itemId}`;
     await updateOrderItem(active.id, itemId,
       { quantity: editQty, unitPriceMinorUnits: minorUnits }, keyFor(scope));
@@ -266,10 +269,9 @@ export function SalesPage() {
   // disabled while the user decides.
   const onConfirm = async () => {
     const ok = await confirm({
-      title: "Confirm this order?",
-      body: "Stock is allocated from inventory, oldest lots first (FIFO). "
-        + "A mistaken confirm can be undone with Void, which returns the stock.",
-      confirmLabel: "Confirm order",
+      title: i18n.t("sales:confirmOrderTitle"),
+      body: i18n.t("sales:confirmOrderBody"),
+      confirmLabel: i18n.t("sales:confirmOrderConfirmLabel"),
     });
     if (!ok) return;
     void run(async () => {
@@ -278,7 +280,7 @@ export function SalesPage() {
       await confirmOrder(active.id, keyFor(scope));
       const refreshed = await getOrder(active.id);
       setActive(refreshed);
-      setMessage(`Order ${refreshed.referenceNumber} confirmed — stock allocated (FIFO).`);
+      setMessage(i18n.t("sales:orderConfirmed", { ref: refreshed.referenceNumber }));
       await loadOrders();
       clearKey(scope);
     });
@@ -288,9 +290,9 @@ export function SalesPage() {
     // Cancel is a status change: the order keeps its lines but becomes
     // read-only and can't be confirmed.
     const ok = await confirm({
-      title: "Cancel this draft?",
-      body: "The order becomes cancelled and can no longer be edited or confirmed.",
-      confirmLabel: "Cancel draft",
+      title: i18n.t("sales:cancelDraftTitle"),
+      body: i18n.t("sales:cancelDraftBody"),
+      confirmLabel: i18n.t("sales:cancelDraft"),
       destructive: true,
     });
     if (!ok) return;
@@ -299,7 +301,7 @@ export function SalesPage() {
       const scope = `cancel:${active.id}`;
       await cancelOrder(active.id, keyFor(scope));
       setActive(null);
-      setMessage("Draft order cancelled.");
+      setMessage(i18n.t("sales:draftOrderCancelled"));
       await loadOrders();
       clearKey(scope);
     });
@@ -332,15 +334,15 @@ export function SalesPage() {
     setPayRef("");
     setPayNote("");
     await refreshPayments(active.id);
-    setMessage("Payment recorded.");
+    setMessage(i18n.t("sales:paymentRecorded"));
     setPaying(false); // only on success — a throw keeps the dialog up
   });
 
   const onVoidPayment = async (paymentId: string, version: number) => {
     const reason = await askReason({
-      title: "Void this payment?",
-      body: "The order's outstanding amount grows back by the payment's value.",
-      confirmLabel: "Void payment",
+      title: i18n.t("sales:voidPaymentTitle"),
+      body: i18n.t("sales:voidPaymentBody"),
+      confirmLabel: i18n.t("sales:voidPaymentConfirmLabel"),
       destructive: true,
     });
     if (reason === null) return;
@@ -357,15 +359,15 @@ export function SalesPage() {
         throw err;
       }
       await refreshPayments(active.id);
-      setMessage("Payment voided — the outstanding amount grew back.");
+      setMessage(i18n.t("sales:paymentVoided"));
     });
   };
 
   const onVoid = async () => {
     const reason = await askReason({
-      title: "Void this confirmed order?",
-      body: "The allocated stock returns to the exact egg lots it came from.",
-      confirmLabel: "Void order",
+      title: i18n.t("sales:voidOrderTitle"),
+      body: i18n.t("sales:voidOrderBody"),
+      confirmLabel: i18n.t("sales:voidOrderConfirmLabel"),
       destructive: true,
     });
     if (reason === null) return;
@@ -375,7 +377,7 @@ export function SalesPage() {
       await voidOrder(active.id, reason, keyFor(scope));
       const refreshed = await getOrder(active.id);
       setActive(refreshed);
-      setMessage(`Order ${refreshed.referenceNumber} voided — stock returned to inventory.`);
+      setMessage(i18n.t("sales:orderVoided", { ref: refreshed.referenceNumber }));
       await loadOrders();
       clearKey(scope);
     });
@@ -387,13 +389,13 @@ export function SalesPage() {
     setActive(await getOrder(id));
   });
 
-  if (loadError) return <section><h2>Sales</h2><p className="error">{loadError}</p></section>;
-  if (orders === null) return <section><h2>Sales</h2><p className="muted">Loading…</p></section>;
+  if (loadError) return <section><h2>{t("title")}</h2><p className="error">{loadError}</p></section>;
+  if (orders === null) return <section><h2>{t("title")}</h2><p className="muted">{t("loading")}</p></section>;
 
   return (
     <section>
       <div className="page-head">
-        <h2>Sales</h2>
+        <h2>{t("title")}</h2>
         {customers.length > 0 && (
           // Re-seeded on open, not only at mount: a tab left open across
           // farm-midnight would otherwise offer yesterday as the order date
@@ -402,34 +404,34 @@ export function SalesPage() {
           <button type="button" onClick={() => {
             setError(null); setOrderDate(today); setCreatingOrder(true);
           }}>
-            <Plus size={16} aria-hidden /> New order
+            <Plus size={16} aria-hidden /> {t("newOrder")}
           </button>
         )}
       </div>
 
       {customers.length === 0 && (
-        <p className="muted">Add a customer first (Customers page), then create an order.</p>
+        <p className="muted">{t("addCustomerFirst")}</p>
       )}
 
       {/* Deliberately NOT a <form>: these controls were button-driven, so
           wrapping them in one would newly enforce min/step and swallow the
           screen's own money messages (codex review of #132). */}
-      <Dialog open={creatingOrder} title="New order" onClose={() => setCreatingOrder(false)}>
+      <Dialog open={creatingOrder} title={t("newOrder")} onClose={() => setCreatingOrder(false)}>
         <div className="form-grid">
-          <label>Customer
+          <label>{t("customer")}
             <select value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
               {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </label>
-          <label>Date
+          <label>{t("date")}
             <input type="date" value={orderDate} max={today}
               onChange={(e) => setOrderDate(e.target.value)} />
           </label>
           {/* An open dialog renders its own copy of the error. */}
       {error && !creatingOrder && !paying && <p className="error">{error}</p>}
           <div className="dialog-foot">
-            <button type="button" className="link" onClick={() => setCreatingOrder(false)}>Cancel</button>
-            <button disabled={busy || !customerId} onClick={onCreateOrder}>New draft order</button>
+            <button type="button" className="link" onClick={() => setCreatingOrder(false)}>{t("cancel")}</button>
+            <button disabled={busy || !customerId} onClick={onCreateOrder}>{t("newDraftOrder")}</button>
           </div>
         </div>
       </Dialog>
@@ -443,27 +445,27 @@ export function SalesPage() {
 
           {active.items.length > 0 && (
             <table className="data">
-              <thead><tr><th>Product</th><th>Qty</th><th>Eggs</th><th>Unit price</th><th>Line total</th><th></th></tr></thead>
+              <thead><tr><th>{t("product")}</th><th>{t("qty")}</th><th>{t("eggs")}</th><th>{t("unitPrice")}</th><th>{t("lineTotal")}</th><th></th></tr></thead>
               <tbody>
                 {active.items.map((i) => (
                   <tr key={i.id}>
                     <td>{productName(i.productId)}{" "}
-                      <span className="muted">per {i.unit.toLowerCase()}
-                        {i.baseUnitFactor > 1 ? ` (${i.baseUnitFactor} eggs)` : ""}</span></td>
+                      <span className="muted">{t("perUnit", { unit: i.unit.toLowerCase() })}
+                        {i.baseUnitFactor > 1 ? ` ${t("eggsCount", { count: i.baseUnitFactor })}` : ""}</span></td>
                     {editItemId === i.id ? (
                       <>
                         <td><input className="cell" type="number" min={1} value={editQty}
-                          aria-label="Edit quantity"
+                          aria-label={t("editQuantityAriaLabel")}
                           onChange={(e) => setEditQty(Math.max(1, e.target.valueAsNumber || 1))} /></td>
                         <td>—</td>
                         <td><input className="cell" type="number" min={0}
-                          aria-label="Edit unit price"
+                          aria-label={t("editUnitPriceAriaLabel")}
                           step={10 ** -active.currencyMinorUnit} value={editPrice}
                           onChange={(e) => setEditPrice(e.target.value)} /></td>
                         <td>—</td>
                         <td>
-                          <button className="link" disabled={busy} onClick={() => onUpdateItem(i.id)}>save</button>
-                          <button className="link" onClick={() => setEditItemId(null)}>cancel</button>
+                          <button className="link" disabled={busy} onClick={() => onUpdateItem(i.id)}>{t("save")}</button>
+                          <button className="link" onClick={() => setEditItemId(null)}>{t("cancelEdit")}</button>
                         </td>
                       </>
                     ) : (
@@ -483,9 +485,9 @@ export function SalesPage() {
                                 // order's, and reading the row's would be the
                                 // same two-scales bug one field over.
                                 setEditPrice(priceInput(i.unitPriceMinorUnits, priceScale));
-                              }}>edit</button>
+                              }}>{t("edit")}</button>
                               <button className="link" disabled={busy}
-                                onClick={() => onRemoveItem(i.id)}>remove</button>
+                                onClick={() => onRemoveItem(i.id)}>{t("remove")}</button>
                             </>
                           )}
                         </td>
@@ -496,12 +498,12 @@ export function SalesPage() {
               </tbody>
             </table>
           )}
-          <p><strong>Total: {formatMoney(active.totalMinorUnits, active.currencyCode, active.currencyMinorUnit)}</strong></p>
+          <p><strong>{t("orderTotal", { amount: formatMoney(active.totalMinorUnits, active.currencyCode, active.currencyMinorUnit) })}</strong></p>
 
           {active.status === "Draft" && (
             <>
               <div className="form-grid">
-                <label>Product
+                <label>{t("product")}
                   <select value={productId} onChange={(e) => {
                     setProductId(e.target.value);
                     const p = products.find((x) => x.id === e.target.value);
@@ -513,38 +515,38 @@ export function SalesPage() {
                     {products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
                 </label>
-                <label>Per
+                <label>{t("perLabel")}
                   <select value={unit} onChange={(e) => setUnit(e.target.value)}>
-                    {["Egg", "Dozen", "Flat", "Tray", "Carton", "Case"].map((u) =>
-                      <option key={u} value={u}>{u}</option>)}
+                    {(["Egg", "Dozen", "Flat", "Tray", "Carton", "Case"] as const).map((u) =>
+                      <option key={u} value={u}>{t(`unit${u}`)}</option>)}
                   </select>
                 </label>
-                <label>Quantity
+                <label>{t("quantity")}
                   <input type="number" min={1} value={qty}
                     onChange={(e) => setQty(Math.max(1, e.target.valueAsNumber || 1))} />
                 </label>
-                <label>Unit price ({active.currencyCode})
+                <label>{t("unitPriceWithCurrency", { code: active.currencyCode })}
                   <input type="number" min={0} step={10 ** -active.currencyMinorUnit} value={price}
                     onChange={(e) => setPrice(e.target.value)} />
                 </label>
-                <button disabled={busy || !productId} onClick={onAddItem}>Add line</button>
+                <button disabled={busy || !productId} onClick={onAddItem}>{t("addLine")}</button>
               </div>
               <div className="actions">
                 <button disabled={busy || active.items.length === 0} onClick={() => void onConfirm()}>
-                  Confirm order (allocates stock)
+                  {t("confirmOrderButton")}
                 </button>
-                <button className="link" disabled={busy} onClick={() => void onCancel()}>Cancel draft</button>
-                <button className="link" onClick={() => setActive(null)}>close</button>
+                <button className="link" disabled={busy} onClick={() => void onCancel()}>{t("cancelDraft")}</button>
+                <button className="link" onClick={() => setActive(null)}>{t("close")}</button>
               </div>
             </>
           )}
           {active.status === "Confirmed" && canSettle && payments && (
             <>
-              <h4>Payments</h4>
+              <h4>{t("payments")}</h4>
               {payments.items.length > 0 && (
                 <table className="data">
                   <thead>
-                    <tr><th>Date</th><th>Amount</th><th>Method</th><th>Reference</th><th></th></tr>
+                    <tr><th>{t("date")}</th><th>{t("amount")}</th><th>{t("method")}</th><th>{t("reference")}</th><th></th></tr>
                   </thead>
                   <tbody>
                     {payments.items.map((p) => (
@@ -556,10 +558,10 @@ export function SalesPage() {
                         <td>{p.referenceNumber ?? "—"}</td>
                         <td>
                           {p.voided
-                            ? <span className="badge badge-danger" title={p.voidReason ?? undefined}>Voided</span>
+                            ? <span className="badge badge-danger" title={p.voidReason ?? undefined}>{t("statusVoided")}</span>
                             : isAdmin ? (
                               <button className="link" disabled={busy}
-                                onClick={() => void onVoidPayment(p.id, p.version)}>void</button>
+                                onClick={() => void onVoidPayment(p.id, p.version)}>{t("voidPaymentButton")}</button>
                             ) : null}
                         </td>
                       </tr>
@@ -568,54 +570,59 @@ export function SalesPage() {
                 </table>
               )}
               <p>
-                Paid {formatMoney(payments.paidMinorUnits, payments.currencyCode, payments.currencyMinorUnit)} —{" "}
-                <strong>
-                  outstanding {formatMoney(payments.outstandingMinorUnits, payments.currencyCode, payments.currencyMinorUnit)}
-                </strong>
+                <Trans
+                  ns="sales"
+                  i18nKey="paymentsSummary"
+                  values={{
+                    paid: formatMoney(payments.paidMinorUnits, payments.currencyCode, payments.currencyMinorUnit),
+                    outstanding: formatMoney(payments.outstandingMinorUnits, payments.currencyCode, payments.currencyMinorUnit),
+                  }}
+                  components={{ strong: <strong /> }}
+                />
               </p>
               {payments.outstandingMinorUnits > 0 && (
                 <div className="panel-actions">
                   <button type="button" onClick={() => {
                     setError(null); setPayDate(today); setPaying(true);
                   }}>
-                    Record payment
+                    {t("recordPayment")}
                   </button>
                 </div>
               )}
 
-              <Dialog open={paying} title="Record payment" onClose={() => setPaying(false)}>
+              <Dialog open={paying} title={t("recordPayment")} onClose={() => setPaying(false)}>
                 <div className="form-grid">
-                  <label>Date
+                  <label>{t("date")}
                     <input type="date" value={payDate} max={today}
                       onChange={(e) => setPayDate(e.target.value)} />
                   </label>
-                  <label>Amount ({payments.currencyCode})
+                  <label>{t("amountWithCurrency", { code: payments.currencyCode })}
                     <input type="number"
                       min={(1 / 10 ** payments.currencyMinorUnit).toFixed(payments.currencyMinorUnit)}
                       step="any" value={payAmount}
                       onChange={(e) => setPayAmount(e.target.value)} />
                   </label>
-                  <label>Method
+                  <label>{t("method")}
                     <select value={payMethod} onChange={(e) => setPayMethod(e.target.value)}>
-                      {["Cash", "Check", "Card", "BankTransfer", "MobilePayment", "Other"].map((m) => (
-                        <option key={m} value={m}>{m}</option>
+                      {(["Cash", "Check", "Card", "BankTransfer", "MobilePayment", "Other"] as const).map((m) => (
+                        <option key={m} value={m}>{t(`method${m}`)}</option>
                       ))}
                     </select>
                   </label>
-                  <label>Reference (optional)
+                  <label>{t("referenceOptional")}
                     <input value={payRef} maxLength={50}
                       onChange={(e) => setPayRef(e.target.value)} />
                   </label>
-                  <label>Note (optional)
+                  <label>{t("noteOptional")}
                     <input value={payNote} maxLength={500}
                       onChange={(e) => setPayNote(e.target.value)} />
                   </label>
                   {/* An open dialog renders its own copy of the error. */}
       {error && !creatingOrder && !paying && <p className="error">{error}</p>}
                   <div className="dialog-foot">
-                    <button type="button" className="link" onClick={() => setPaying(false)}>Cancel</button>
+                    <button type="button" className="link" onClick={() => setPaying(false)}>{t("cancel")}</button>
                     <button disabled={busy || !payAmount} onClick={onRecordPayment}>
-                      Record payment
+                      {t("recordPayment")}
                     </button>
                   </div>
                 </div>
@@ -623,19 +630,19 @@ export function SalesPage() {
             </>
           )}
           {active.status === "Voided" && active.voidReason && (
-            <p className="muted">Void reason: {active.voidReason}</p>
+            <p className="muted">{t("voidReasonLabel", { reason: active.voidReason })}</p>
           )}
           {active.status !== "Draft" && (
             <div className="actions">
               {active.status === "Confirmed" && isAdmin && (
                 <button className="link" disabled={busy} onClick={() => void onVoid()}>
-                  Void order (returns stock)
+                  {t("voidOrderButton")}
                 </button>
               )}
               {active.status === "Confirmed" && !isAdmin && (
-                <span className="muted">Voiding needs an admin.</span>
+                <span className="muted">{t("voidingNeedsAdmin")}</span>
               )}
-              <button className="link" onClick={() => setActive(null)}>close</button>
+              <button className="link" onClick={() => setActive(null)}>{t("close")}</button>
             </div>
           )}
         </div>
@@ -645,31 +652,31 @@ export function SalesPage() {
       {error && !creatingOrder && !paying && <p className="error">{error}</p>}
       {message && <p className="success">{message}</p>}
 
-      <h3>Orders</h3>
+      <h3>{t("ordersHeading")}</h3>
       <div className="form-grid">
-        <label>Status
+        <label>{t("status")}
           <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-            <option value="">All</option>
-            <option value="Draft">Draft</option>
-            <option value="Confirmed">Confirmed</option>
-            <option value="Cancelled">Cancelled</option>
-            <option value="Voided">Voided</option>
+            <option value="">{t("allOption")}</option>
+            <option value="Draft">{t("statusDraft")}</option>
+            <option value="Confirmed">{t("statusConfirmed")}</option>
+            <option value="Cancelled">{t("statusCancelled")}</option>
+            <option value="Voided">{t("statusVoided")}</option>
           </select>
         </label>
-        <label>Customer
+        <label>{t("customer")}
           <select value={customerFilter} onChange={(e) => setCustomerFilter(e.target.value)}>
-            <option value="">All</option>
+            <option value="">{t("allOption")}</option>
             {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         </label>
       </div>
       {orders.length === 0 ? (
-        <p className="muted">No orders match.</p>
+        <p className="muted">{t("noOrdersMatch")}</p>
       ) : (
         <>
           <table className="data">
             <thead>
-              <tr><th>Reference</th><th>Date</th><th>Customer</th><th>Status</th><th>Total</th><th></th></tr>
+              <tr><th>{t("reference")}</th><th>{t("date")}</th><th>{t("customer")}</th><th>{t("status")}</th><th>{t("total")}</th><th></th></tr>
             </thead>
             <tbody>
               {orders.map((o) => (
@@ -679,14 +686,14 @@ export function SalesPage() {
                   <td>{customerName(o.customerId)}</td>
                   <td><StatusBadge status={o.status} /></td>
                   <td>{formatMoney(o.totalMinorUnits, o.currencyCode, o.currencyMinorUnit)}</td>
-                  <td><button className="link" onClick={() => onOpen(o.id)}>open</button></td>
+                  <td><button className="link" onClick={() => onOpen(o.id)}>{t("open")}</button></td>
                 </tr>
               ))}
             </tbody>
           </table>
           {hasMore && (
             <button className="link" disabled={busy}
-              onClick={() => run(() => loadOrders(orders.length))}>load more</button>
+              onClick={() => run(() => loadOrders(orders.length))}>{t("loadMore")}</button>
           )}
         </>
       )}
