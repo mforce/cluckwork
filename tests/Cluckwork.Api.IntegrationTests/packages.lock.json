@@ -462,7 +462,7 @@
         "dependencies": {
           "Cluckwork.Application": "[1.0.0, )",
           "Cluckwork.Domain": "[1.0.0, )",
-          "FluentValidation": "[12.1.1, )",
+          "FluentValidation": "[12.*, )",
           "Microsoft.AspNetCore.Identity.EntityFrameworkCore": "[10.*, )",
           "Microsoft.EntityFrameworkCore": "[10.*, )",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.*, )",
