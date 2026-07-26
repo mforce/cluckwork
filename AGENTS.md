@@ -94,6 +94,24 @@ touching the dependency set, Microsoft's component-detection reads the restore
 output and submits the resolved graph via the Dependency Submission API. npm needs
 none of this — the graph reads `web/package-lock.json` and already has the full tree.
 
+### Dependabot NuGet PRs: automatic lock-file healing
+
+Dependabot bumps a package in one project and regenerates only that project's
+`packages.lock.json`; every downstream project in the reference chain then fails
+CI's `--locked-mode` restore with NU1004. The `.github/workflows/dependabot-lockfix.yml`
+workflow heals this automatically: after CI completes on a `dependabot/nuget/**`
+PR, it re-runs `dotnet restore Cluckwork.sln --force-evaluate` (in a no-credential
+job), then commits and pushes the refreshed lock files (in a separate job that
+runs no project code and holds a short-lived GitHub App token). The App-token push
+re-triggers CI, which then goes green. See
+`docs/superpowers/specs/2026-07-25-dependabot-lockfix-design.md` for the security
+model.
+
+**One-time setup (required for the push to work):** create a GitHub App with
+Repository → Contents: Read and write, install it on this repo, and add the repo
+Actions secrets `LOCKFIX_APP_ID` and `LOCKFIX_APP_PRIVATE_KEY`. Until both exist
+the workflow fails closed (no push); nothing else breaks.
+
 **Dependabot** (`.github/dependabot.yml`) covers the other half: the gates
 *enforce* (a vulnerable dep fails the build), Dependabot *proposes* (it opens the
 bump PR, and — with Dependabot alerts enabled in repo settings — flags a new
