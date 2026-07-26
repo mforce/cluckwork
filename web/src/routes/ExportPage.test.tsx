@@ -36,8 +36,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   localStorage.clear();
   anchorClicks = [];
-  global.URL.createObjectURL = vi.fn(() => "blob:mock");
-  global.URL.revokeObjectURL = vi.fn();
+  globalThis.URL.createObjectURL = vi.fn(() => "blob:mock");
+  globalThis.URL.revokeObjectURL = vi.fn();
   // Default: both downloads succeed with no server-provided filename.
   mockCsv.mockResolvedValue({ blob: blob(), filename: null });
   mockBackup.mockResolvedValue({ blob: blob(), filename: null });
@@ -73,7 +73,7 @@ describe("ExportPage single-dataset download", () => {
     expect(mockCsv).toHaveBeenCalledWith("customers");
     expect(mockBackup).not.toHaveBeenCalled();
     // The blob was handed to saveBlob and the server filename was honoured.
-    expect(global.URL.createObjectURL).toHaveBeenCalledTimes(1);
+    expect(globalThis.URL.createObjectURL).toHaveBeenCalledTimes(1);
     expect(anchorClicks).toHaveLength(1);
     expect(anchorClicks[0].download).toBe("customers.csv");
   });
@@ -104,7 +104,7 @@ describe("ExportPage full backup", () => {
     expect(mockBackup).toHaveBeenCalledWith();
     // The per-dataset export path is never touched for a full backup.
     expect(mockCsv).not.toHaveBeenCalled();
-    expect(global.URL.createObjectURL).toHaveBeenCalledTimes(1);
+    expect(globalThis.URL.createObjectURL).toHaveBeenCalledTimes(1);
   });
 
   it("names the backup file cluckwork-backup.zip when the response has no filename", async () => {
@@ -133,7 +133,7 @@ describe("ExportPage errors", () => {
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("the export ran out of eggs");
     // A failed fetch never reaches saveBlob.
-    expect(global.URL.createObjectURL).not.toHaveBeenCalled();
+    expect(globalThis.URL.createObjectURL).not.toHaveBeenCalled();
     expect(anchorClicks).toHaveLength(0);
   });
 });

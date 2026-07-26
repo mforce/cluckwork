@@ -439,7 +439,11 @@ export function DailyEntryPage() {
           while the other was a screen away was the whole problem. */}
       <div className="entry-cols">
         <section className="entry-step">
-          <h3><span className="step-n">Step 1<span className="sr-only"> of 2: </span></span>Egg counts</h3>
+          {/* The word boundaries live in the h3's own text nodes (ignored by the
+              flex layout), not at the edges of the sr-only span: accessible-name
+              computation trims each nested element's contribution, so edge
+              whitespace inside the span is silently dropped. */}
+          <h3><span className="step-n">Step 1</span> <span className="sr-only">of 2:</span> Egg counts</h3>
           <div className="entry-pane">
             <div className="entry-rows">
               <div className="entry-row">
@@ -485,7 +489,7 @@ export function DailyEntryPage() {
         </section>
 
         <section className="entry-step">
-          <h3><span className="step-n">Step 2<span className="sr-only"> of 2: </span></span>Grading</h3>
+          <h3><span className="step-n">Step 2</span> <span className="sr-only">of 2:</span> Grading</h3>
           <div className="entry-pane">
             <div className="entry-rows">
               {visibleGrades.map((g) => (
