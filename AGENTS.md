@@ -24,7 +24,7 @@ Dependencies point inward: Api → Application/Infrastructure → Domain. Domain
 
 ```bash
 dotnet build Cluckwork.sln                 # warnings are errors — keep it clean
-dotnet test  Cluckwork.sln                 # 42 tests; integration needs Docker
+dotnet test  Cluckwork.sln                 # 688 tests as of 2026-07; integration needs Docker
 ```
 
 - **Integration tests** spin up a real Postgres via Testcontainers (`docker` required). No SQLite — EF SQL semantics differ.
