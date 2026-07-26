@@ -457,7 +457,7 @@
           "Microsoft.AspNetCore.Identity.EntityFrameworkCore": "[10.*, )",
           "Microsoft.EntityFrameworkCore": "[10.*, )",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.*, )",
-          "Serilog.Extensions.Logging": "[8.*, )",
+          "Serilog.Extensions.Logging": "[10.*, )",
           "System.IdentityModel.Tokens.Jwt": "[8.*, )"
         }
       }
