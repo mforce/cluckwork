@@ -1,5 +1,6 @@
 namespace Cluckwork.Api.Endpoints.Customers;
 
+using Cluckwork.Api.Validation;
 using Cluckwork.Application.Features.Customers;
 using Cluckwork.Application.Features.Customers.CreateCustomer;
 using Cluckwork.Domain.Sales;
@@ -48,7 +49,7 @@ public static class CustomerEndpoints
 
         var validation = await validator.ValidateAsync(command, ct);
         if (!validation.IsValid)
-            return Results.ValidationProblem(validation.ToDictionary());
+            return ValidationResponse.Problem(validation);
 
         var result = await handler.HandleAsync(command, tenant.AccountId, ct);
         return result.IsSuccess

@@ -1,5 +1,6 @@
 namespace Cluckwork.Api.Endpoints.Flocks;
 
+using Cluckwork.Api.Validation;
 using Cluckwork.Application.Features.Flocks;
 using Cluckwork.Application.Features.Flocks.ArchiveFlock;
 using Cluckwork.Application.Features.Flocks.CreateFlock;
@@ -82,7 +83,7 @@ public static class FlockEndpoints
 
         var validation = await validator.ValidateAsync(command, ct);
         if (!validation.IsValid)
-            return Results.ValidationProblem(validation.ToDictionary());
+            return ValidationResponse.Problem(validation);
 
         var result = await handler.HandleAsync(command, tenant.AccountId, ct);
         return result.IsSuccess
@@ -139,7 +140,7 @@ public static class FlockEndpoints
 
         var validation = await validator.ValidateAsync(command, ct);
         if (!validation.IsValid)
-            return Results.ValidationProblem(validation.ToDictionary());
+            return ValidationResponse.Problem(validation);
 
         var result = await handler.HandleAsync(command, tenant.AccountId, ct);
         return result.IsSuccess
@@ -178,7 +179,7 @@ public static class FlockEndpoints
 
         var validation = await validator.ValidateAsync(command, ct);
         if (!validation.IsValid)
-            return Results.ValidationProblem(validation.ToDictionary());
+            return ValidationResponse.Problem(validation);
 
         var result = await handler.HandleAsync(command, ct);
         return result.IsSuccess ? Results.NoContent() : MapFailure(result.Error);

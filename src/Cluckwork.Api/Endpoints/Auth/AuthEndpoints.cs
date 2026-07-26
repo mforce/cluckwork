@@ -1,6 +1,7 @@
 namespace Cluckwork.Api.Endpoints.Auth;
 
 using Cluckwork.Api.RateLimiting;
+using Cluckwork.Api.Validation;
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Users.ChangeOwnPassword;
 using Cluckwork.Infrastructure.Identity;
@@ -110,7 +111,7 @@ public static class AuthEndpoints
         var command = new ChangeOwnPasswordCommand(request.CurrentPassword, request.NewPassword);
         var validation = await validator.ValidateAsync(command, ct);
         if (!validation.IsValid)
-            return Results.ValidationProblem(validation.ToDictionary());
+            return ValidationResponse.Problem(validation);
 
         // The user id comes from the token, never the request: a caller can only
         // ever change their OWN password here.

@@ -1,5 +1,6 @@
 namespace Cluckwork.Api.Endpoints.EggGrades;
 
+using Cluckwork.Api.Validation;
 using Cluckwork.Application.Features.EggGrades;
 using Cluckwork.Application.Features.EggGrades.CreateEggGrade;
 using Cluckwork.Application.Features.EggGrades.SetEggGradeActive;
@@ -78,7 +79,7 @@ public static class EggGradeEndpoints
 
         var validation = await validator.ValidateAsync(command, ct);
         if (!validation.IsValid)
-            return Results.ValidationProblem(validation.ToDictionary());
+            return ValidationResponse.Problem(validation);
 
         var result = await handler.HandleAsync(command, tenant.AccountId, ct);
         return result.IsSuccess
@@ -100,7 +101,7 @@ public static class EggGradeEndpoints
 
         var validation = await validator.ValidateAsync(command, ct);
         if (!validation.IsValid)
-            return Results.ValidationProblem(validation.ToDictionary());
+            return ValidationResponse.Problem(validation);
 
         var result = await handler.HandleAsync(command, ct);
         return result.IsSuccess ? Results.NoContent() : MapFailure(result.Error);

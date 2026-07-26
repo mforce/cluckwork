@@ -1,5 +1,6 @@
 namespace Cluckwork.Api.Endpoints.Water;
 
+using Cluckwork.Api.Validation;
 using Cluckwork.Application.Features.Inventory;
 using Cluckwork.Application.Features.Inventory.RecordWaterUsage;
 using Cluckwork.Application.Features.Inventory.UpdateWaterUsage;
@@ -47,7 +48,7 @@ public static class WaterUsageEndpoints
             request.Source, request.MeterStart, request.MeterEnd, request.Note);
         var validation = await validator.ValidateAsync(command, ct);
         if (!validation.IsValid)
-            return Results.ValidationProblem(validation.ToDictionary());
+            return ValidationResponse.Problem(validation);
 
         var result = await handler.HandleAsync(command, tenant.AccountId, ct);
         return result.IsSuccess
@@ -70,7 +71,7 @@ public static class WaterUsageEndpoints
             request.MeterStart, request.MeterEnd, request.Note);
         var validation = await validator.ValidateAsync(command, ct);
         if (!validation.IsValid)
-            return Results.ValidationProblem(validation.ToDictionary());
+            return ValidationResponse.Problem(validation);
 
         var result = await handler.HandleAsync(command, ct);
         return result.IsSuccess ? Results.NoContent() : MapFailure(result.Error);

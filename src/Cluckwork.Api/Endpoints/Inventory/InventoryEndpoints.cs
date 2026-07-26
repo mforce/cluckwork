@@ -1,5 +1,6 @@
 namespace Cluckwork.Api.Endpoints.Inventory;
 
+using Cluckwork.Api.Validation;
 using Cluckwork.Application.Features.Inventory;
 using Cluckwork.Application.Features.Inventory.CreateInventoryItem;
 using Cluckwork.Application.Features.Inventory.RecordAdjustment;
@@ -114,7 +115,7 @@ public static class InventoryEndpoints
             request.Name, request.Category, request.Unit, request.DefaultUnitCostMinorUnits);
         var validation = await validator.ValidateAsync(command, ct);
         if (!validation.IsValid)
-            return Results.ValidationProblem(validation.ToDictionary());
+            return ValidationResponse.Problem(validation);
 
         var result = await handler.HandleAsync(command, tenant.AccountId, ct);
         return result.IsSuccess
@@ -136,7 +137,7 @@ public static class InventoryEndpoints
             id, request.Name, request.Unit, request.DefaultUnitCostMinorUnits);
         var validation = await validator.ValidateAsync(command, ct);
         if (!validation.IsValid)
-            return Results.ValidationProblem(validation.ToDictionary());
+            return ValidationResponse.Problem(validation);
 
         var result = await handler.HandleAsync(command, tenant.AccountId, ct);
         return result.IsSuccess ? Results.NoContent() : MapFailure(result.Error);
@@ -165,7 +166,7 @@ public static class InventoryEndpoints
             request.LotNumber, request.ExpiryDate, request.Note);
         var validation = await validator.ValidateAsync(command, ct);
         if (!validation.IsValid)
-            return Results.ValidationProblem(validation.ToDictionary());
+            return ValidationResponse.Problem(validation);
 
         var result = await handler.HandleAsync(command, tenant.AccountId, ct);
         return result.IsSuccess
@@ -211,7 +212,7 @@ public static class InventoryEndpoints
             request.FlockId, id, request.Date, request.Quantity, request.Note);
         var validation = await validator.ValidateAsync(command, ct);
         if (!validation.IsValid)
-            return Results.ValidationProblem(validation.ToDictionary());
+            return ValidationResponse.Problem(validation);
 
         var result = await handler.HandleAsync(command, tenant.AccountId, ct);
         return result.IsSuccess ? Results.Ok(result.Value) : MapFailure(result.Error);
@@ -232,7 +233,7 @@ public static class InventoryEndpoints
             request.QuantityDelta, request.Reason);
         var validation = await validator.ValidateAsync(command, ct);
         if (!validation.IsValid)
-            return Results.ValidationProblem(validation.ToDictionary());
+            return ValidationResponse.Problem(validation);
 
         var result = await handler.HandleAsync(command, tenant.AccountId, ct);
         return result.IsSuccess
