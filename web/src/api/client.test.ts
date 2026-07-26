@@ -138,7 +138,10 @@ describe("traceparent correlation", () => {
   });
 
   it("attaches a traceparent to blob downloads too", async () => {
-    fetchMock.mockResolvedValueOnce(new Response(new Blob(["x"]), { status: 200 }));
+    // String body, not `new Blob(...)`: under vitest's jsdom env `Blob` is
+    // jsdom's (no .stream()) while `Response` is undici's, and whether that
+    // mix works depends on the Node version — it broke on CI's Node.
+    fetchMock.mockResolvedValueOnce(new Response("x", { status: 200 }));
     await apiGetBlob("/export/eggs.csv");
     expect(headerOf(fetchMock.mock.calls[0] as Call, "traceparent")).toMatch(TRACEPARENT);
   });
