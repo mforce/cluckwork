@@ -2,6 +2,7 @@ import type { AccessTokenResponse, LoginRequest, ProblemDetails } from "./types"
 import { clearAccessToken, getAccessToken, setAccessToken } from "../auth/tokenStore";
 import { newId } from "../lib/ids";
 import i18n from "../i18n";
+import { newTraceparent } from "../lib/traceparent";
 
 const BASE = "/api/v1";
 
@@ -76,6 +77,23 @@ async function parseError(res: Response): Promise<ApiError> {
   return new ApiError(res.status, title, detail);
 }
 
+// #217 — the trace id of the most recent API request, success or failure (a
+// FAILED request's id is exactly the one worth having: the crash report
+// attaches it, joining a browser crash to that request's server-side story).
+let lastTraceId: string | null = null;
+export function getLastTraceId(): string | null {
+  return lastTraceId;
+}
+
+// Mint per request, never reused: the server treats the incoming id as the
+// request's TraceId (#214), so sharing one across requests would fuse
+// unrelated request logs into one trace.
+function attachTraceparent(headers: Headers): void {
+  const tp = newTraceparent();
+  headers.set("traceparent", tp.header);
+  lastTraceId = tp.traceId;
+}
+
 async function raw<T>(
   path: string,
   init: RequestInit,
@@ -86,6 +104,7 @@ async function raw<T>(
   // PUTs raw image bytes, not JSON.
   if (!headers.has("Content-Type")) headers.set("Content-Type", "application/json");
   if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
+  attachTraceparent(headers);
 
   const res = await fetch(`${BASE}${path}`, { ...init, headers });
   if (!res.ok) throw await parseError(res);
@@ -292,9 +311,9 @@ async function rawBlob(
   path: string,
   accessToken: string,
 ): Promise<{ blob: Blob; filename: string | null }> {
-  const res = await fetch(`${BASE}${path}`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
+  const headers = new Headers({ Authorization: `Bearer ${accessToken}` });
+  attachTraceparent(headers);
+  const res = await fetch(`${BASE}${path}`, { headers });
   if (!res.ok) throw await parseError(res);
   const disposition = res.headers.get("Content-Disposition");
   const match = disposition?.match(/filename\*?=(?:UTF-8''|")?([^";]+)/i);

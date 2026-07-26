@@ -83,6 +83,14 @@ export default defineConfig(({ mode }) => {
         "/api": { target, changeOrigin: true },
       },
     },
+    // #217 — "hidden": emit .map files so a reported minified stack resolves
+    // to source lines, but without the sourceMappingURL comment, so browsers
+    // never fetch them uninvited. They ship next to the bundles; resolving a
+    // stack is an operator action (source-map CLI or a browser devtools "add
+    // source map"), not something the public page advertises.
+    build: {
+      sourcemap: "hidden",
+    },
     // Unit tests only (Vitest). E2E stays the manual Playwright drill (#105).
     // Explicit vitest imports in each test — no globals — so the app's strict
     // tsconfig stays clean of test-runner ambient types.

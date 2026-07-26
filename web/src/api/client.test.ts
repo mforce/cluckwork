@@ -14,6 +14,7 @@ import {
   ApiError,
   setOnUnauthenticated,
   setOnTokensChanged,
+  getLastTraceId,
 } from "./client";
 import { getAccessToken, setAccessToken, clearAccessToken } from "../auth/tokenStore";
 
@@ -121,6 +122,45 @@ describe("apiFetch — no in-memory token", () => {
     const body = await apiGet<{ ok: boolean }>("/stock");
     expect(body).toEqual({ ok: true });
     expect(authOf(callsTo(fetchMock, "/stock")[0])).toBe("Bearer at2");
+  });
+});
+
+// #217 — every request mints a W3C traceparent so a browser action correlates
+// with the API's request log and spans (#214). The client remembers the last
+// trace id so a crash report can join the failed screen's server-side story.
+describe("traceparent correlation", () => {
+  const TRACEPARENT = /^00-[0-9a-f]{32}-[0-9a-f]{16}-01$/;
+
+  it("attaches a spec-shaped traceparent header to every JSON request", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ ok: true }));
+    await apiGet("/stock");
+    expect(headerOf(fetchMock.mock.calls[0] as Call, "traceparent")).toMatch(TRACEPARENT);
+  });
+
+  it("attaches a traceparent to blob downloads too", async () => {
+    fetchMock.mockResolvedValueOnce(new Response(new Blob(["x"]), { status: 200 }));
+    await apiGetBlob("/export/eggs.csv");
+    expect(headerOf(fetchMock.mock.calls[0] as Call, "traceparent")).toMatch(TRACEPARENT);
+  });
+
+  it("mints a fresh trace id per request and exposes the last one", async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ ok: true }))
+      .mockResolvedValueOnce(jsonResponse({ ok: true }));
+    await apiGet("/stock");
+    const first = headerOf(fetchMock.mock.calls[0] as Call, "traceparent")!;
+    await apiGet("/flocks");
+    const second = headerOf(fetchMock.mock.calls[1] as Call, "traceparent")!;
+
+    expect(second).not.toBe(first);
+    expect(getLastTraceId()).toBe(second.split("-")[1]);
+  });
+
+  it("remembers the trace id even when the request fails — that is the one worth reporting", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ title: "boom" }, 500));
+    await expect(apiGet("/stock")).rejects.toBeInstanceOf(ApiError);
+    const sent = headerOf(fetchMock.mock.calls[0] as Call, "traceparent")!;
+    expect(getLastTraceId()).toBe(sent.split("-")[1]);
   });
 });
 

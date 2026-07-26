@@ -163,4 +163,56 @@ describe("ErrorBoundary", () => {
       expect.anything(),
     );
   });
+
+  // #217 — a caught crash is reported to the API so the operator learns a
+  // screen is crashing without a support screenshot.
+  describe("crash reporting", () => {
+    let reportMock: ReturnType<typeof vi.fn>;
+    beforeEach(() => {
+      reportMock = vi.fn().mockResolvedValue(new Response(null, { status: 202 }));
+      vi.stubGlobal("fetch", reportMock);
+    });
+
+    const reportCalls = () =>
+      reportMock.mock.calls.filter(([url]) => (url as string).endsWith("/client-errors"));
+
+    it("POSTs one report with the message, stacks, scope and route", () => {
+      inRouter(
+        <ErrorBoundary scope="screen">
+          <Boom message="report me" />
+        </ErrorBoundary>,
+      );
+      const calls = reportCalls();
+      expect(calls).toHaveLength(1);
+      const body = JSON.parse((calls[0][1] as RequestInit).body as string) as Record<string, unknown>;
+      expect(body.message).toBe("report me");
+      expect(body.scope).toBe("screen");
+      expect(body.route).toBe(window.location.pathname);
+      expect(body.stack).toEqual(expect.stringContaining("report me"));
+      expect(body.componentStack).toEqual(expect.any(String));
+    });
+
+    it("reports the app scope from the app boundary", () => {
+      render(
+        <ErrorBoundary scope="app">
+          <Boom />
+        </ErrorBoundary>,
+      );
+      const body = JSON.parse((reportCalls()[0][1] as RequestInit).body as string) as Record<string, unknown>;
+      expect(body.scope).toBe("app");
+    });
+
+    it("still renders the fallback when the report itself fails", async () => {
+      reportMock.mockRejectedValue(new TypeError("network down"));
+      inRouter(
+        <ErrorBoundary scope="screen">
+          <Boom />
+        </ErrorBoundary>,
+      );
+      expect(screen.getByText("Something went wrong")).toBeInTheDocument();
+      // Let the rejected report settle — it must be swallowed, not unhandled.
+      await new Promise((r) => setTimeout(r, 0));
+      expect(screen.getByText("Something went wrong")).toBeInTheDocument();
+    });
+  });
 });
