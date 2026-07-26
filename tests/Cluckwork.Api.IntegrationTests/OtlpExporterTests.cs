@@ -111,10 +111,34 @@ public sealed class OtlpExporterTests(OtlpFactory factory)
             exporting.Dispose();
         }
 
-        var (path, body) = await collector.WaitForRequestAsync(TimeSpan.FromSeconds(15));
-        Assert.Equal("/v1/traces", path);
+        var body = await collector.WaitForPathAsync("/v1/traces", TimeSpan.FromSeconds(15));
         // Protobuf embeds resource strings verbatim — the service name proves
         // this is a real span payload, not an empty keep-alive.
+        Assert.Contains("Cluckwork.Api", System.Text.Encoding.ASCII.GetString(body));
+    }
+
+    // #215 — metrics ride the same pipeline: host dispose force-flushes the
+    // periodic reader, so request/runtime/DB meters must land on /v1/metrics.
+    [Fact]
+    public async Task Metrics_are_posted_to_the_configured_otlp_endpoint()
+    {
+        using var collector = new FakeOtlpCollector();
+        var exporting = factory.WithWebHostBuilder(builder =>
+        {
+            builder.UseSetting("Otlp:Endpoint", collector.Endpoint);
+            builder.UseSetting("Otlp:Protocol", "http/protobuf");
+        });
+        try
+        {
+            var response = await exporting.CreateClient().GetAsync("/api/v1/flocks");
+            Assert.Equal(System.Net.HttpStatusCode.Unauthorized, response.StatusCode);
+        }
+        finally
+        {
+            exporting.Dispose();
+        }
+
+        var body = await collector.WaitForPathAsync("/v1/metrics", TimeSpan.FromSeconds(15));
         Assert.Contains("Cluckwork.Api", System.Text.Encoding.ASCII.GetString(body));
     }
 }
@@ -147,6 +171,19 @@ public sealed class OtlpEndpointResolutionTests
         Assert.Equal(new Uri("http://collector:4317"), Resolve("http://collector:4317", "grpc"));
 
     [Theory]
+    [InlineData("http://collector:4318", "http://collector:4318/v1/metrics")]
+    [InlineData("https://host/otlp", "https://host/otlp/v1/metrics")]
+    [InlineData("http://collector:4318/v1/metrics", "http://collector:4318/v1/metrics")]
+    public void Http_protobuf_appends_the_metrics_signal_path_exactly_once(string given, string expected) =>
+        Assert.Equal(new Uri(expected),
+            new OtlpOptions { Endpoint = given, Protocol = "http/protobuf" }.ResolveMetricsEndpoint());
+
+    [Fact]
+    public void Grpc_metrics_endpoint_is_untouched() =>
+        Assert.Equal(new Uri("http://collector:4317"),
+            new OtlpOptions { Endpoint = "http://collector:4317", Protocol = "grpc" }.ResolveMetricsEndpoint());
+
+    [Theory]
     [InlineData(" grpc ", OtlpExportProtocol.Grpc)]
     [InlineData("GRPC", OtlpExportProtocol.Grpc)]
     [InlineData("HTTP/Protobuf", OtlpExportProtocol.HttpProtobuf)]
@@ -161,15 +198,20 @@ public sealed class OtlpCollection : ICollectionFixture<OtlpFactory>
     public const string Name = "otlp";
 }
 
-// Minimal OTLP "collector": captures the first request's path + body. Listener
-// failures surface through the TaskCompletionSource instead of degrading into
+// Minimal OTLP "collector": captures each signal path's first body — traces
+// and metrics arrive as separate POSTs in nondeterministic order (#215).
+// Listener failures surface through the fault task instead of degrading into
 // a generic timeout (cavecrew review of #226); Start retries a fresh port to
 // close the probe-then-bind race.
 internal sealed class FakeOtlpCollector : IDisposable
 {
     private readonly System.Net.HttpListener _listener = new();
-    private readonly TaskCompletionSource<(string Path, byte[] Body)> _firstRequest =
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, TaskCompletionSource<byte[]>> _byPath = new();
+    private readonly TaskCompletionSource<byte[]> _fault =
         new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    private TaskCompletionSource<byte[]> For(string path) =>
+        _byPath.GetOrAdd(path, _ => new(TaskCreationOptions.RunContinuationsAsynchronously));
 
     public FakeOtlpCollector()
     {
@@ -198,7 +240,7 @@ internal sealed class FakeOtlpCollector : IDisposable
                     var ctx = await _listener.GetContextAsync();
                     using var buffer = new MemoryStream();
                     await ctx.Request.InputStream.CopyToAsync(buffer);
-                    _firstRequest.TrySetResult((ctx.Request.Url!.AbsolutePath, buffer.ToArray()));
+                    For(ctx.Request.Url!.AbsolutePath).TrySetResult(buffer.ToArray());
                     ctx.Response.StatusCode = 200;
                     ctx.Response.Close();
                 }
@@ -210,18 +252,20 @@ internal sealed class FakeOtlpCollector : IDisposable
             }
             catch (Exception ex)
             {
-                _firstRequest.TrySetException(ex);
+                _fault.TrySetException(ex);
             }
         });
     }
 
     public string Endpoint { get; private set; }
 
-    public async Task<(string Path, byte[] Body)> WaitForRequestAsync(TimeSpan timeout)
+    public async Task<byte[]> WaitForPathAsync(string path, TimeSpan timeout)
     {
-        var winner = await Task.WhenAny(_firstRequest.Task, Task.Delay(timeout));
-        Assert.True(winner == _firstRequest.Task, "no OTLP export arrived before the timeout");
-        return await _firstRequest.Task;
+        var request = For(path).Task;
+        var winner = await Task.WhenAny(request, _fault.Task, Task.Delay(timeout));
+        if (winner == _fault.Task) await _fault.Task; // rethrow the listener failure
+        Assert.True(winner == request, $"no OTLP export arrived on {path} before the timeout");
+        return await request;
     }
 
     private static int FreePort()

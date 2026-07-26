@@ -25,9 +25,14 @@ public sealed class OtlpOptions
     };
 
     // The exporter posts to an explicit Endpoint AS-IS — the OTLP spec's
-    // "/v1/traces" append only happens on the OTEL_* env-var route — so for
+    // per-signal append only happens on the OTEL_* env-var route — so for
     // http/protobuf the signal path is appended here unless already present.
-    public Uri ResolveTraceEndpoint()
+    public Uri ResolveTraceEndpoint() => ResolveSignalEndpoint("/v1/traces");
+
+    // #215 — metrics ride the same base endpoint, own signal path.
+    public Uri ResolveMetricsEndpoint() => ResolveSignalEndpoint("/v1/metrics");
+
+    private Uri ResolveSignalEndpoint(string signalPath)
     {
         if (!Uri.TryCreate(Endpoint, UriKind.Absolute, out var uri)
             || uri.Scheme is not ("http" or "https"))
@@ -35,11 +40,11 @@ public sealed class OtlpOptions
                 $"Otlp:Endpoint must be an absolute http(s) URI, got '{Endpoint}'.");
 
         if (ParseProtocol() is not OtlpExportProtocol.HttpProtobuf
-            || uri.AbsolutePath.TrimEnd('/').EndsWith("/v1/traces", StringComparison.Ordinal))
+            || uri.AbsolutePath.TrimEnd('/').EndsWith(signalPath, StringComparison.Ordinal))
             return uri;
 
         var builder = new UriBuilder(uri);
-        builder.Path = builder.Path.TrimEnd('/') + "/v1/traces";
+        builder.Path = builder.Path.TrimEnd('/') + signalPath;
         return builder.Uri;
     }
 }

@@ -319,6 +319,14 @@
           "OpenTelemetry.Api.ProviderBuilderExtensions": "[1.16.0, 2.0.0)"
         }
       },
+      "OpenTelemetry.Instrumentation.Runtime": {
+        "type": "Transitive",
+        "resolved": "1.17.0",
+        "contentHash": "HyYenisDn/xdtyVXdjImsCl+RNC2gq01N0rvSR7tsYAylXR2sxX/YgMsyTajMXA27+r1vB7lNU8cWRhV0fwL+Q==",
+        "dependencies": {
+          "OpenTelemetry.Api": "[1.17.0, 2.0.0)"
+        }
+      },
       "Riok.Mapperly": {
         "type": "Transitive",
         "resolved": "4.3.1",
@@ -488,6 +496,7 @@
           "OpenTelemetry.Extensions.Hosting": "[1.*, )",
           "OpenTelemetry.Instrumentation.AspNetCore": "[1.*, )",
           "OpenTelemetry.Instrumentation.EntityFrameworkCore": "[1.16.0-beta.1, )",
+          "OpenTelemetry.Instrumentation.Runtime": "[1.*, )",
           "Serilog.AspNetCore": "[10.*, )"
         }
       },

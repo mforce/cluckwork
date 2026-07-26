@@ -85,6 +85,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Serilog;
@@ -139,6 +140,25 @@ builder.Services.AddOpenTelemetry()
                 options.Endpoint = otlpTraceEndpoint;
                 options.Protocol = otlpProtocol;
                 // Vendor auth rides in headers, e.g. "Authorization=Basic …".
+                if (!string.IsNullOrWhiteSpace(otlp.Headers))
+                    options.Headers = otlp.Headers;
+            });
+    })
+    // #215 — metrics beside the traces, same endpoint gate. Meter set:
+    // ASP.NET Core (http.server.request.duration + Kestrel), .NET runtime
+    // (GC/threads/exceptions), Npgsql (connections/commands), EF Core.
+    .WithMetrics(metrics =>
+    {
+        metrics
+            .SetResourceBuilder(ResourceBuilder.CreateDefault().AddService("Cluckwork.Api"))
+            .AddAspNetCoreInstrumentation()
+            .AddRuntimeInstrumentation()
+            .AddMeter("Npgsql", "Microsoft.EntityFrameworkCore");
+        if (otlp.Enabled)
+            metrics.AddOtlpExporter(options =>
+            {
+                options.Endpoint = otlp.ResolveMetricsEndpoint();
+                options.Protocol = otlpProtocol;
                 if (!string.IsNullOrWhiteSpace(otlp.Headers))
                     options.Headers = otlp.Headers;
             });
@@ -475,9 +495,10 @@ var app = builder.Build();
 // name otherwise silently disables the whole pipeline (#226 review).
 if (otlpTraceEndpoint is not null)
     app.Logger.LogInformation(
-        "OTLP trace export enabled -> {OtlpEndpoint} ({OtlpProtocol})", otlpTraceEndpoint, otlpProtocol);
+        "OTLP export enabled: traces -> {OtlpTraceEndpoint}, metrics -> {OtlpMetricsEndpoint} ({OtlpProtocol})",
+        otlpTraceEndpoint, otlp.ResolveMetricsEndpoint(), otlpProtocol);
 else
-    app.Logger.LogInformation("OTLP trace export disabled (Otlp:Endpoint not set)");
+    app.Logger.LogInformation("OTLP export disabled (Otlp:Endpoint not set)");
 // ----------------------------------------------------------------
 
 // --- Startup: apply migrations, then seed (both idempotent) ---
