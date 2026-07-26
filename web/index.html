@@ -3,7 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="apple-touch-icon" href="/favicon.svg" />
+    <!-- iOS ignores the web manifest when picking the home-screen icon, and it
+         does not accept SVG here — so this must be a real PNG, and an opaque one
+         (iOS composites transparency onto black). #142 -->
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" media="(prefers-color-scheme: light)" content="#4a154b" />
     <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#17121a" />

@@ -65,8 +65,8 @@ function deferred<T>() {
 const drain = () => new Promise((r) => setTimeout(r, 0));
 
 let fetchMock: ReturnType<typeof vi.fn>;
-let onUnauth: ReturnType<typeof vi.fn>;
-let onTokens: ReturnType<typeof vi.fn>;
+let onUnauth: ReturnType<typeof vi.fn<() => void>>;
+let onTokens: ReturnType<typeof vi.fn<() => void>>;
 
 beforeEach(() => {
   fetchMock = vi.fn();

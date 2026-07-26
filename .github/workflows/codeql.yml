@@ -48,18 +48,23 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@v4
         with:
           languages: ${{ matrix.language }}
           build-mode: none
-          # security-and-quality adds maintainability queries on top of the
-          # default security set; keep it since this is advisory, not gating.
-          queries: security-and-quality
+          # security-extended = the default security set plus lower-severity
+          # security queries, but WITHOUT the maintainability/quality queries
+          # that security-and-quality layers on. Those quality heuristics
+          # (e.g. cs/path-combine flagging Path.Combine(dir, "literal.js") in a
+          # test, where nothing is actually dropped) are false-positive noise on
+          # a gate whose job is finding vulnerabilities. Keep the wider security
+          # coverage; drop the quality bucket.
+          queries: security-extended
 
       - name: Perform CodeQL analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@v4
         with:
           category: "/language:${{ matrix.language }}"

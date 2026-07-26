@@ -2,6 +2,7 @@
 import { defineConfig } from "vitest/config";
 import { loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
+import { VitePWA } from "vite-plugin-pwa";
 
 // Dev-only proxy: the SPA calls same-origin "/api/..." and Vite forwards to the
 // backend, so no CORS config is needed on the API for local dev. Override the
@@ -10,7 +11,72 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
   const target = env.VITE_API_TARGET ?? "http://localhost:8080";
   return {
-    plugins: [react()],
+    plugins: [
+      react(),
+      // #142 — installable PWA. Scope is the app SHELL only: the service worker
+      // makes the SPA launchable from a home screen and survivable on a bad
+      // connection. It caches no application data — offline capture is #50.
+      VitePWA({
+        // 'prompt', not 'autoUpdate': this app is used to type daily entries on
+        // barn phones, and skipWaiting can swap the running app out mid-form.
+        // The new shell installs in the background and waits for the user to
+        // accept (see UpdatePrompt), so an update never eats in-progress work.
+        registerType: "prompt",
+        // We register by hand in registerServiceWorker.ts so registration can be
+        // guarded on a secure context; the plugin's auto-injected snippet has no
+        // such guard.
+        injectRegister: null,
+        // No `includeAssets`: the workbox globPatterns below already sweep up
+        // every png/svg in the build, and listing them twice puts duplicate
+        // entries in the precache manifest.
+        manifest: {
+          name: "Cluckwork",
+          short_name: "Cluckwork",
+          description: "Poultry egg-farm management",
+          start_url: "/",
+          scope: "/",
+          display: "standalone",
+          // Matches the light-scheme theme-color already in index.html; the
+          // manifest takes a single value, so the light aubergine is the one
+          // that shows in the task switcher and splash.
+          theme_color: "#4a154b",
+          background_color: "#4a154b",
+          icons: [
+            { src: "/icon-192.png", sizes: "192x192", type: "image/png" },
+            { src: "/icon-512.png", sizes: "512x512", type: "image/png" },
+            // Separate maskable art: Android crops to a circle/squircle, and the
+            // standard mark is full-bleed, so it needs its own padded variant.
+            { src: "/icon-192-maskable.png", sizes: "192x192", type: "image/png", purpose: "maskable" },
+            { src: "/icon-512-maskable.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
+          ],
+        },
+        workbox: {
+          // The built shell: hashed JS/CSS plus the root entry and icons.
+          globPatterns: ["**/*.{js,css,html,svg,png,woff2}"],
+          // An unknown route serves index.html from the cache, EXCEPT the
+          // server's own namespaces, which must always reach the network.
+          //
+          // The pattern is deliberately not `/^\/api\//`: that misses a bare
+          // `/api`, a query-only `/api?x=1`, and — since ASP.NET routing is
+          // case-insensitive — `/API/v1/...`, all of which would then be handed
+          // a cached index.html (#142 review). /health is excluded for the same
+          // reason: a probe opened in a browser carrying this worker would
+          // otherwise be answered with the SPA shell instead of the real health
+          // response (verified — it was).
+          navigateFallback: "/index.html",
+          navigateFallbackDenylist: [/^\/api(?:[/?]|$)/i, /^\/health(?:[/?]|$)/i],
+          // Belt to that braces: never let a runtime handler answer an /api
+          // request from cache. Auth state and tenant data are per-request; a
+          // stale shared response here would be a correctness bug, not a
+          // performance win. #50 adds an explicit, deliberate offline path.
+          runtimeCaching: [],
+          navigationPreload: false,
+        },
+        // The SW is a production artifact; leaving it off in dev keeps `npm run
+        // dev` free of stale-cache confusion.
+        devOptions: { enabled: false },
+      }),
+    ],
     server: {
       port: 5173,
       proxy: {
@@ -49,18 +115,26 @@ export default defineConfig(({ mode }) => {
           // screen-test PR raises lines/functions; branches move either way
           // (testing a screen exposes all its conditional branches), so
           // re-baseline branches in BOTH directions with headroom.
-          lines: 91,
-          statements: 91,
-          functions: 71,
-          branches: 85,
-          // high-water locks on the fully-covered foundation
-          "src/auth/**": { statements: 100, lines: 100, functions: 100, branches: 95 },
+          //
+          // Re-baselined for @vitest/coverage-v8 4.x: AST-aware remapping
+          // replaced v8-to-istanbul (no opt-out), which recounts everything —
+          // same tests, different denominators (lines 87.2 / stmts 83.7 /
+          // branch 73.2 / funcs 78.0). Not a coverage regression.
+          lines: 87,
+          statements: 83,
+          functions: 77,
+          branches: 73,
+          // high-water locks on the fully-covered foundation (AST-aware
+          // counting surfaces statements/branches the old remapper credited
+          // for free, so the 100s that survived stay; the rest pin to the
+          // new actuals)
+          "src/auth/**": { statements: 98, lines: 100, functions: 100, branches: 90 },
           "src/lib/**": { statements: 100, lines: 100, functions: 100, branches: 100 },
           // The farm context joins them (#123): every screen with a date field
           // now reads its timezone through it, so a hole here is a hole in all
           // of them at once.
           "src/farm/**": { statements: 100, lines: 100, functions: 100, branches: 100 },
-          "src/api/client.ts": { statements: 95, lines: 95, functions: 100, branches: 85 },
+          "src/api/client.ts": { statements: 94, lines: 95, functions: 100, branches: 85 },
         },
       },
     },

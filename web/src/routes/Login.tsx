@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router";
 import { useAuth } from "../auth/useAuth";
 import { ApiError } from "../api/client";
 import { ThemeToggle } from "../components/ThemeToggle";

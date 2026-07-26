@@ -4,15 +4,15 @@
     "net10.0": {
       "FluentValidation": {
         "type": "Direct",
-        "requested": "[11.*, )",
-        "resolved": "11.12.0",
-        "contentHash": "Wim3rI1nGZKO5S/lgJ0ZpD3W/uu1CECoJ8pETzC8av34ejr+jCDr4paKhSJRG0Ltcv8UjdxtYCynG+RUEfEUDA=="
+        "requested": "[12.*, )",
+        "resolved": "12.1.1",
+        "contentHash": "EPpkIe1yh1a0OXyC100oOA8WMbZvqUu5plwhvYcb7oSELfyUZzfxV48BLhvs3kKo4NwG7MGLNgy1RJiYtT8Dpw=="
       },
       "Riok.Mapperly": {
         "type": "Direct",
-        "requested": "[3.*, )",
-        "resolved": "3.6.0",
-        "contentHash": "eQkT3evicd5fdb8HgAJjJ+uvbhfA76ozZZsBtounFrOvk0mj+9tozv1hCYV0f0cTmXIZsxtU93FMWPzd76wSaw=="
+        "requested": "[4.*, )",
+        "resolved": "4.3.1",
+        "contentHash": "oSE+OVLHyiojrws0QVbQaAT2YKsYbyHqJXPdV7EhGseR/dYgeWS2x1T5qY5I4E+RJkJqMSG+FyZOq4SljWgJWQ=="
       },
       "cluckwork.domain": {
         "type": "Project"

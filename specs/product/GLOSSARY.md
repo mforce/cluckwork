@@ -586,3 +586,20 @@ order asks in the same dialog, plus a required **Reason**. The reason is
 stored with the void and shown wherever the voided record appears, so it is
 the record of why. An empty reason is refused in place and what has been
 typed stays put.
+
+**Install to home screen (#142)** — Cluckwork can be installed from the browser
+onto a phone or tablet, where it gets its own icon and opens in its own window
+with no browser chrome. It is the same app either way, not a separate download:
+there is nothing to update from a store, and it still needs a connection to do
+anything — installing does **not** make the app work offline. Offline capture is
+a later, deliberate piece of work.
+
+Installing is only offered on a **secure (https) connection**. On a plain-http
+address the browser simply won't show the option; the app itself works exactly
+as before.
+
+**New version is ready (#142)** — after a deploy, an installed app notices the
+new version in the background and asks before switching, rather than reloading
+underneath whatever is being typed. Accepting reloads onto the new version; the
+prompt reappears next time if it is dismissed. Nothing is lost by leaving it —
+the running app keeps working until the switch is accepted.

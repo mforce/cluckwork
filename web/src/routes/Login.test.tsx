@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, fireEvent, act } from "@testing-library/react";
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route } from "react-router";
 import { Login } from "./Login";
 import { ProtectedRoute } from "./ProtectedRoute";
 import { renderWithProviders } from "../test/renderWithProviders";

@@ -1,7 +1,7 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach, type MockInstance } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { Link, MemoryRouter, useLocation } from "react-router-dom";
+import { Link, MemoryRouter, useLocation } from "react-router";
 import { ErrorBoundary } from "./ErrorBoundary";
 
 // A child that throws during render — the exact case a boundary exists for.
@@ -12,7 +12,7 @@ function Boom({ message = "kaboom" }: { message?: string }): never {
 // React logs every error a boundary catches to console.error (on top of our own
 // log). Silence it so the suite output stays readable; the log-specific test
 // re-reads the spy.
-let errorSpy: ReturnType<typeof vi.spyOn>;
+let errorSpy: MockInstance<typeof console.error>;
 beforeEach(() => {
   errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 });
