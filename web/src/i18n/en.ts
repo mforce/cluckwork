@@ -183,8 +183,10 @@ export const en = {
   // wired to a helper keeps its current text — EXCEPT at two sites the retrofit
   // changes DELIBERATELY (its reviewer must eyeball them):
   //   1. Dashboard.tsx (`<StatusBadge status={e.status} />`, no label) shows a
-  //      ManagerAdjusted entry RAW today; statusLabel makes it read "Adjusted"
-  //      (matching HistoryPage, which already passes label="Adjusted").
+  //      ManagerAdjusted entry RAW today; statusLabel makes it read "Adjusted" —
+  //      the text HistoryPage already shows for that state via its own bespoke
+  //      `<span className="badge badge-warn">Adjusted</span>` (HistoryPage.tsx
+  //      249-250), NOT a StatusBadge label.
   //   2. UsersPage.tsx role table cell renders raw `{u.role}` = "ReadOnly";
   //      roleLabel makes it read "Read-only" (matching the picker option).
   // Payment method and sale unit are intentionally absent — they belong to the

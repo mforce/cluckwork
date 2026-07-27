@@ -17,6 +17,20 @@
 //      values keep their literal types (`as const`), the argument is a union of
 //      real i18next keys, type-checked like any other `t(...)` call.
 //
+// Each helper accepts `<Union> | (string & {})`: the union drives autocomplete
+// and lets callers pass an API `string` field WITHOUT an `as` cast, while a
+// RUNTIME value outside the union (a server enum member the SPA hasn't caught up
+// to) degrades to the raw string — the same passthrough the old raw-text render
+// gave — instead of `i18n.t(undefined)` rendering BLANK. This is a runtime
+// safety net ONLY; it does not weaken the compile-time coupling above (the
+// `*_KEYS` maps stay `as const satisfies Record<Union, EnumsKey>`, so a static
+// value outside the union is still a type error, and catalog↔union drift still
+// fails typecheck both directions).
+//
+// Maintenance note: the compile-time guard is 1:1 between each union and its
+// KEYS map, NOT against en.enums directly — a catalog-ONLY `enums` key with no
+// union member (e.g. a stray key nothing maps to) would go uncaught here.
+//
 // `enums` is intentionally NOT in TRANSLATED_NAMESPACES: it is English-only for
 // now and es/tl fall back to en for it until a native enum-translation pass.
 import { en } from "./en";
@@ -48,8 +62,9 @@ const STATUS_KEYS = {
   Depleted: "enums:status.Depleted",
   Archived: "enums:status.Archived",
 } as const satisfies Record<StatusValue, EnumsKey>;
-export function statusLabel(value: StatusValue): string {
-  return i18n.t(STATUS_KEYS[value]);
+export function statusLabel(value: StatusValue | (string & {})): string {
+  const key = STATUS_KEYS[value as StatusValue];
+  return key ? i18n.t(key) : String(value);
 }
 
 // NOTE: payment method and sale unit are deliberately NOT here. They already
@@ -72,8 +87,9 @@ const ROLE_KEYS = {
   Sales: "enums:role.Sales",
   ReadOnly: "enums:role.ReadOnly",
 } as const satisfies Record<RoleValue, EnumsKey>;
-export function roleLabel(value: RoleValue): string {
-  return i18n.t(ROLE_KEYS[value]);
+export function roleLabel(value: RoleValue | (string & {})): string {
+  const key = ROLE_KEYS[value as RoleValue];
+  return key ? i18n.t(key) : String(value);
 }
 
 // ---------------------------------------------------------------------------
@@ -87,8 +103,9 @@ const WATER_SOURCE_KEYS = {
   Tank: "enums:waterSource.Tank",
   Other: "enums:waterSource.Other",
 } as const satisfies Record<WaterSourceValue, EnumsKey>;
-export function waterSourceLabel(value: WaterSourceValue): string {
-  return i18n.t(WATER_SOURCE_KEYS[value]);
+export function waterSourceLabel(value: WaterSourceValue | (string & {})): string {
+  const key = WATER_SOURCE_KEYS[value as WaterSourceValue];
+  return key ? i18n.t(key) : String(value);
 }
 
 // ---------------------------------------------------------------------------
@@ -100,8 +117,9 @@ const WATER_UNIT_KEYS = {
   L: "enums:waterUnit.L",
   gal: "enums:waterUnit.gal",
 } as const satisfies Record<WaterUnitValue, EnumsKey>;
-export function waterUnitLabel(value: WaterUnitValue): string {
-  return i18n.t(WATER_UNIT_KEYS[value]);
+export function waterUnitLabel(value: WaterUnitValue | (string & {})): string {
+  const key = WATER_UNIT_KEYS[value as WaterUnitValue];
+  return key ? i18n.t(key) : String(value);
 }
 
 // ---------------------------------------------------------------------------
@@ -114,8 +132,9 @@ const GRADE_TYPE_KEYS = {
   Quality: "enums:gradeType.Quality",
   Custom: "enums:gradeType.Custom",
 } as const satisfies Record<GradeTypeValue, EnumsKey>;
-export function gradeTypeLabel(value: GradeTypeValue): string {
-  return i18n.t(GRADE_TYPE_KEYS[value]);
+export function gradeTypeLabel(value: GradeTypeValue | (string & {})): string {
+  const key = GRADE_TYPE_KEYS[value as GradeTypeValue];
+  return key ? i18n.t(key) : String(value);
 }
 
 // ---------------------------------------------------------------------------
@@ -146,8 +165,9 @@ const INVENTORY_CATEGORY_KEYS = {
   EquipmentPart: "enums:inventoryCategory.EquipmentPart",
   Other: "enums:inventoryCategory.Other",
 } as const satisfies Record<InventoryCategoryValue, EnumsKey>;
-export function inventoryCategoryLabel(value: InventoryCategoryValue): string {
-  return i18n.t(INVENTORY_CATEGORY_KEYS[value]);
+export function inventoryCategoryLabel(value: InventoryCategoryValue | (string & {})): string {
+  const key = INVENTORY_CATEGORY_KEYS[value as InventoryCategoryValue];
+  return key ? i18n.t(key) : String(value);
 }
 
 // ---------------------------------------------------------------------------
@@ -161,8 +181,9 @@ const INVENTORY_MOVEMENT_KEYS = {
   Adjustment: "enums:inventoryMovement.Adjustment",
   Discard: "enums:inventoryMovement.Discard",
 } as const satisfies Record<InventoryMovementValue, EnumsKey>;
-export function inventoryMovementLabel(value: InventoryMovementValue): string {
-  return i18n.t(INVENTORY_MOVEMENT_KEYS[value]);
+export function inventoryMovementLabel(value: InventoryMovementValue | (string & {})): string {
+  const key = INVENTORY_MOVEMENT_KEYS[value as InventoryMovementValue];
+  return key ? i18n.t(key) : String(value);
 }
 
 // ---------------------------------------------------------------------------
@@ -175,8 +196,9 @@ const FLOCK_MOVEMENT_KEYS = {
   Cull: "enums:flockMovement.Cull",
   Adjustment: "enums:flockMovement.Adjustment",
 } as const satisfies Record<FlockMovementValue, EnumsKey>;
-export function flockMovementLabel(value: FlockMovementValue): string {
-  return i18n.t(FLOCK_MOVEMENT_KEYS[value]);
+export function flockMovementLabel(value: FlockMovementValue | (string & {})): string {
+  const key = FLOCK_MOVEMENT_KEYS[value as FlockMovementValue];
+  return key ? i18n.t(key) : String(value);
 }
 
 // ---------------------------------------------------------------------------
@@ -203,8 +225,9 @@ const STOCK_MOVEMENT_KEYS = {
   Reconciliation: "enums:stockMovement.Reconciliation",
   Void: "enums:stockMovement.Void",
 } as const satisfies Record<StockMovementValue, EnumsKey>;
-export function stockMovementLabel(value: StockMovementValue): string {
-  return i18n.t(STOCK_MOVEMENT_KEYS[value]);
+export function stockMovementLabel(value: StockMovementValue | (string & {})): string {
+  const key = STOCK_MOVEMENT_KEYS[value as StockMovementValue];
+  return key ? i18n.t(key) : String(value);
 }
 
 // ---------------------------------------------------------------------------
@@ -216,8 +239,9 @@ const UNIT_SYSTEM_KEYS = {
   Metric: "enums:unitSystem.Metric",
   Imperial: "enums:unitSystem.Imperial",
 } as const satisfies Record<UnitSystemValue, EnumsKey>;
-export function unitSystemLabel(value: UnitSystemValue): string {
-  return i18n.t(UNIT_SYSTEM_KEYS[value]);
+export function unitSystemLabel(value: UnitSystemValue | (string & {})): string {
+  const key = UNIT_SYSTEM_KEYS[value as UnitSystemValue];
+  return key ? i18n.t(key) : String(value);
 }
 
 // ---------------------------------------------------------------------------
@@ -242,8 +266,9 @@ const WEEKDAY_KEYS = {
   Friday: "enums:weekday.Friday",
   Saturday: "enums:weekday.Saturday",
 } as const satisfies Record<WeekdayValue, EnumsKey>;
-export function weekdayLabel(value: WeekdayValue): string {
-  return i18n.t(WEEKDAY_KEYS[value]);
+export function weekdayLabel(value: WeekdayValue | (string & {})): string {
+  const key = WEEKDAY_KEYS[value as WeekdayValue];
+  return key ? i18n.t(key) : String(value);
 }
 
 // Machine-iterable registry of every family: its raw-value tuple, its key map,

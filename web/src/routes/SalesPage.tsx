@@ -16,7 +16,7 @@ import { StatusBadge } from "../components/StatusBadge";
 import { newId } from "../lib/ids";
 import { useFarm, useFarmToday } from "../farm/useFarm";
 import i18n from "../i18n";
-import { statusLabel, type StatusValue } from "../i18n/enums";
+import { statusLabel } from "../i18n/enums";
 
 const PAGE = 50;
 
@@ -450,7 +450,7 @@ export function SalesPage() {
           <h3>
             {active.referenceNumber} — {customerName(active.customerId)}{" "}
             <span className={active.status === "Draft" ? "muted" : "warn"}>
-              [{statusLabel(active.status as StatusValue)}]
+              [{statusLabel(active.status)}]
             </span>
           </h3>
 
@@ -695,7 +695,7 @@ export function SalesPage() {
                   <td>{o.referenceNumber}</td>
                   <td>{o.orderDate}</td>
                   <td>{customerName(o.customerId)}</td>
-                  <td><StatusBadge status={o.status} label={statusLabel(o.status as StatusValue)} /></td>
+                  <td><StatusBadge status={o.status} label={statusLabel(o.status)} /></td>
                   <td>{formatMoney(o.totalMinorUnits, o.currencyCode, o.currencyMinorUnit)}</td>
                   <td><button className="link" onClick={() => onOpen(o.id)}>{t("open")}</button></td>
                 </tr>

@@ -73,4 +73,17 @@ describe("enums module (#182)", () => {
       expect(statusLabel("ManagerAdjusted")).toBe("Adjusted");
     });
   });
+
+  // Runtime safety net: the API types these fields as plain `string`, so a
+  // backend value outside the SPA's union must degrade to the raw text (the old
+  // passthrough), NEVER render blank via i18n.t(undefined). Checked across every
+  // family via its label fn.
+  describe("out-of-union values degrade to raw text (never blank)", () => {
+    const unknown = "SomeUnmappedServerValue";
+    for (const [family, def] of Object.entries(ENUMS)) {
+      it(`${family} label returns the raw value unchanged`, () => {
+        expect((def.label as (v: string) => string)(unknown)).toBe(unknown);
+      });
+    }
+  });
 });
