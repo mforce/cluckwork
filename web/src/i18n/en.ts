@@ -1266,6 +1266,48 @@ export const en = {
     correctButton: "correct",
     loadMoreButton: "load more",
   },
+  // Customers screen — the customer book: list + create dialog, with an
+  // admin-only outstanding-balance column (Task 24, #182, batch B4).
+  // English-only for now, same treatment as nav/numberField/errorBoundary/
+  // themeToggle/useConfirm/pwa/dailyEntry/dashboard/water/grades/inventory/
+  // products/stock/flocks/settings/users/expenses above: `customers` is
+  // deliberately NOT in TRANSLATED_NAMESPACES, so es/tl fall back to these
+  // strings until a native-speaker pass adds the namespace.
+  //
+  // No status/enum on this screen — Customer has no closed-vocabulary field,
+  // so nothing here routes through enums.ts. Customer name/phone/email/
+  // address/note are free-form farm DATA (createCustomer's own fields) and
+  // stay raw everywhere they render, including the "—" placeholder for a
+  // blank optional field (shared convention across the sweep — see
+  // ExpensesPage/UsersPage/FlocksPage, which leave the em dash un-keyed too).
+  // Outstanding balances stay on the existing farm-locale `formatMoney` —
+  // never `i18n.language` (formattingIndependence guard).
+  customers: {
+    title: "Customers",
+    newCustomerButton: "New customer", // reused verbatim as the create-dialog title
+
+    // Create-customer dialog
+    nameFieldLabel: "Name *",
+    phoneFieldLabel: "Phone *",
+    emailFieldLabel: "Email",
+    addressFieldLabel: "Address",
+    noteFieldLabel: "Note",
+    addCustomerButton: "Add customer",
+
+    // Imperative messages (mount-effect .catch callbacks — see
+    // CONTRIBUTING-i18n.md's imperative i18n.t() pattern).
+    loadCustomersErrorMessage: "Could not load customers.",
+    loadBalancesErrorMessage: "Could not load customer balances.",
+
+    // Customers table
+    noCustomersMessage: "No customers yet.",
+    nameHeader: "Name",
+    phoneHeader: "Phone",
+    emailHeader: "Email",
+    addressHeader: "Address",
+    noteHeader: "Note",
+    outstandingHeader: "Outstanding",
+  },
   // Closed-vocabulary labels (#182, Task 4). Consumed ONLY through the typed
   // helpers in enums.ts — never a raw t("enums:status." + value). Keys are FLAT
   // "family.RawValue" strings (keySeparator:false, see index.ts): the suffix is
