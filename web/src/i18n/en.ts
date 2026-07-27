@@ -165,6 +165,129 @@ export const en = {
     paymentVoided: "Payment voided — the outstanding amount grew back.",
     orderVoided: "Order {{ref}} voided — stock returned to inventory.",
   },
+  // Closed-vocabulary labels (#182, Task 4). Consumed ONLY through the typed
+  // helpers in enums.ts — never a raw t("enums:status." + value). Keys are FLAT
+  // "family.RawValue" strings (keySeparator:false, see index.ts): the suffix is
+  // the EXACT wire value the API sends, so the helper's Record can map value →
+  // key mechanically and the key is self-documenting. English-only for now —
+  // `enums` is deliberately NOT in TRANSLATED_NAMESPACES, so es/tl fall back to
+  // these strings until a native enum-translation pass lands. Every label equals
+  // today's on-screen text so wiring a screen up (Task 5+) changes nothing —
+  // the ONE raw≠display case is ManagerAdjusted → "Adjusted" (HistoryPage).
+  enums: {
+    // status — StatusBadge's STATUS_VALUES vocabulary. Identity except
+    // ManagerAdjusted, whose pill reads "Adjusted".
+    "status.Active": "Active",
+    "status.Inactive": "Inactive",
+    "status.Draft": "Draft",
+    "status.Submitted": "Submitted",
+    "status.Locked": "Locked",
+    "status.ManagerAdjusted": "Adjusted",
+    "status.Voided": "Voided",
+    "status.Confirmed": "Confirmed",
+    "status.Shipped": "Shipped",
+    "status.Invoiced": "Invoiced",
+    "status.Cancelled": "Cancelled",
+    "status.Depleted": "Depleted",
+    "status.Archived": "Archived",
+
+    // payment method (SalesPage picker) — PaymentMethod enum. "BankTransfer" /
+    // "MobilePayment" kept unspaced to match current display; a copy-polish pass
+    // is out of scope.
+    "method.Cash": "Cash",
+    "method.Check": "Check",
+    "method.Card": "Card",
+    "method.BankTransfer": "BankTransfer",
+    "method.MobilePayment": "MobilePayment",
+    "method.Other": "Other",
+
+    // sale unit (SalesPage line/unit picker) — the 6-value ProductUnit subset
+    // the sale UI offers, NOT product unitCode (that is free-form data).
+    "saleUnit.Egg": "Egg",
+    "saleUnit.Dozen": "Dozen",
+    "saleUnit.Flat": "Flat",
+    "saleUnit.Tray": "Tray",
+    "saleUnit.Carton": "Carton",
+    "saleUnit.Case": "Case",
+
+    // role (UsersPage) — Roles.Assignable + Worker. "ReadOnly" labelled
+    // "Read-only" (matches the picker option); the raw u.role table column and
+    // the picker's "Admin (owner)" hint are noted in the report as retrofit
+    // discrepancies.
+    "role.Worker": "Worker",
+    "role.Admin": "Admin",
+    "role.Manager": "Manager",
+    "role.Sales": "Sales",
+    "role.ReadOnly": "Read-only",
+
+    // water source (WaterPage picker) — WaterSource enum.
+    "waterSource.Well": "Well",
+    "waterSource.Municipal": "Municipal",
+    "waterSource.Tank": "Tank",
+    "waterSource.Other": "Other",
+
+    // water unit (WaterPage picker) — WaterUsage.AllowedUnits, a fixed 2-value
+    // set. Labels are the unit symbols, unchanged.
+    "waterUnit.L": "L",
+    "waterUnit.gal": "gal",
+
+    // grade type (GradesPage picker) — EggGradeType enum.
+    "gradeType.Size": "Size",
+    "gradeType.Quality": "Quality",
+    "gradeType.Custom": "Custom",
+
+    // inventory category (InventoryPage picker) — InventoryCategory enum.
+    // "EquipmentPart" kept as one word to match current display.
+    "inventoryCategory.Feed": "Feed",
+    "inventoryCategory.Supplement": "Supplement",
+    "inventoryCategory.Additive": "Additive",
+    "inventoryCategory.Medication": "Medication",
+    "inventoryCategory.Vaccine": "Vaccine",
+    "inventoryCategory.Packaging": "Packaging",
+    "inventoryCategory.Bedding": "Bedding",
+    "inventoryCategory.Sanitation": "Sanitation",
+    "inventoryCategory.EquipmentPart": "EquipmentPart",
+    "inventoryCategory.Other": "Other",
+
+    // inventory movement type (InventoryPage ledger) — InventoryMovementType
+    // enum. The ledger shows the raw server value, so the full enum is covered
+    // (the adjust picker only offers Adjustment/Discard).
+    "inventoryMovement.Purchase": "Purchase",
+    "inventoryMovement.Usage": "Usage",
+    "inventoryMovement.Adjustment": "Adjustment",
+    "inventoryMovement.Discard": "Discard",
+
+    // flock (bird) movement type (FlocksPage ledger) — BirdMovementType enum.
+    // Mortality is system-generated (from daily-entry deaths); the record picker
+    // only offers Cull/Adjustment.
+    "flockMovement.Mortality": "Mortality",
+    "flockMovement.Cull": "Cull",
+    "flockMovement.Adjustment": "Adjustment",
+
+    // egg stock movement type (StockPage lot ledger) — EggMovementType enum.
+    // "InternalUse" kept as one word to match current display.
+    "stockMovement.Production": "Production",
+    "stockMovement.Sale": "Sale",
+    "stockMovement.Adjustment": "Adjustment",
+    "stockMovement.Discard": "Discard",
+    "stockMovement.InternalUse": "InternalUse",
+    "stockMovement.Transfer": "Transfer",
+    "stockMovement.Reconciliation": "Reconciliation",
+    "stockMovement.Void": "Void",
+
+    // unit system (SettingsPage picker) — UnitSystem enum.
+    "unitSystem.Metric": "Metric",
+    "unitSystem.Imperial": "Imperial",
+
+    // weekday (SettingsPage week-start picker) — standalone day-name labels.
+    "weekday.Sunday": "Sunday",
+    "weekday.Monday": "Monday",
+    "weekday.Tuesday": "Tuesday",
+    "weekday.Wednesday": "Wednesday",
+    "weekday.Thursday": "Thursday",
+    "weekday.Friday": "Friday",
+    "weekday.Saturday": "Saturday",
+  },
 } as const;
 
 export type Resources = typeof en;
