@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Moon, Sun } from "lucide-react";
 import { applyTheme, initialTheme, type Theme } from "../lib/theme";
 
@@ -15,6 +16,7 @@ export function ThemeToggle({
   showLabel = true,
   iconSize = 17,
 }: { className?: string; showLabel?: boolean; iconSize?: number }) {
+  const { t } = useTranslation("themeToggle");
   const [theme, setTheme] = useState<Theme>(initialTheme);
 
   function toggle() {
@@ -28,10 +30,10 @@ export function ThemeToggle({
       type="button"
       className={`link theme-toggle ${className}`.trim()}
       onClick={toggle}
-      aria-label={theme === "dark" ? "Switch to light mode" : "Switch to night mode"}
+      aria-label={theme === "dark" ? t("switchToLightMode") : t("switchToNightMode")}
     >
       {theme === "dark" ? <Sun size={iconSize} aria-hidden /> : <Moon size={iconSize} aria-hidden />}
-      {showLabel && <span>{theme === "dark" ? "Light" : "Night"}</span>}
+      {showLabel && <span>{theme === "dark" ? t("light") : t("night")}</span>}
     </button>
   );
 }

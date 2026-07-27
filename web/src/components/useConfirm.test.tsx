@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useConfirm } from "./useConfirm";
+import i18n from "../i18n";
 
 // A realistic host: real triggers, so focus has somewhere to return to, and the
 // settled value is reported out rather than scraped from the DOM — that is what
@@ -212,5 +213,57 @@ describe("useConfirm", () => {
 
     // null, not false: askReason's caller reads null as "they backed out".
     await waitFor(() => expect(onSettle).toHaveBeenCalledWith(null));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// i18n wiring (#182, Task 9, batch B1)
+// ---------------------------------------------------------------------------
+
+// `useConfirm` is English-only (not in TRANSLATED_NAMESPACES — see
+// translations-status.ts), so under ANY UI language its rendered text falls
+// back to this exact English string, same as a still-hardcoded literal would
+// render — asserting it, even under a non-English locale, would prove nothing
+// (CONTRIBUTING-i18n.md's fallback trap). `common` IS translated, but asserting
+// "Cancel" under the default lng:"en" has the identical problem. Swap the
+// catalog value at runtime instead, the same i18n.addResource technique the
+// other Task 8/9 wiring tests use, so each marker only renders if useConfirm
+// actually reads the catalog.
+describe("useConfirm i18n wiring (#182, Task 9)", () => {
+  function withOverride(ns: string, key: string, value: string, run: () => Promise<void> | void) {
+    const original = i18n.getResource("en", ns, key) as string;
+    i18n.addResource("en", ns, key, value);
+    return Promise.resolve(run()).finally(() => {
+      i18n.addResource("en", ns, key, original);
+    });
+  }
+
+  it("reads the reason field's label from the catalog, not a hardcoded literal", async () => {
+    const user = userEvent.setup();
+    await withOverride("useConfirm", "reasonLabel", "REASON-LABEL-MARKER", async () => {
+      render(<Host />);
+      await openReason(user);
+      expect(screen.getByLabelText("REASON-LABEL-MARKER")).toBeInTheDocument();
+    });
+  });
+
+  it("reads the blank-reason error from the catalog", async () => {
+    const user = userEvent.setup();
+    await withOverride("useConfirm", "reasonRequired", "REASON-REQUIRED-MARKER", async () => {
+      render(<Host />);
+      await openReason(user);
+      await user.click(screen.getByRole("button", { name: "Void order" }));
+      expect(await screen.findByText("REASON-REQUIRED-MARKER")).toBeInTheDocument();
+    });
+  });
+
+  it("reads the Cancel button's label from the shared common.cancel atom", async () => {
+    const user = userEvent.setup();
+    await withOverride("common", "cancel", "CANCEL-MARKER", async () => {
+      render(<Host />);
+      await openConfirm(user);
+      expect(screen.getByRole("button", { name: "CANCEL-MARKER" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument();
+    });
   });
 });

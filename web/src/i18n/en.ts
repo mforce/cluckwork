@@ -129,6 +129,30 @@ export const en = {
     backToDashboard: "Back to the dashboard",
     detailsSummary: "Error details",
   },
+  // The last three shared components (Task 9, #182, batch B1). Cancel reuses
+  // common.cancel (see useConfirm below) rather than duplicating it here.
+  // English-only for now, same treatment as `nav`/`numberField`/`errorBoundary`
+  // above: neither namespace is in TRANSLATED_NAMESPACES, so es/tl fall back to
+  // these strings until a native-speaker pass adds them.
+  themeToggle: {
+    switchToLightMode: "Switch to light mode",
+    switchToNightMode: "Switch to night mode",
+    light: "Light",
+    night: "Night",
+  },
+  useConfirm: {
+    reasonLabel: "Reason *",
+    reasonRequired: "A reason is required.",
+  },
+  // The service-worker "update ready" banner (UpdatePrompt.tsx, src/pwa) — named
+  // for the directory rather than the component, since it's the one place PWA
+  // chrome lives today.
+  pwa: {
+    updateAvailable: "A new version of Cluckwork is ready.",
+    reload: "Reload",
+    reloading: "Reloading…",
+    later: "Later",
+  },
   // Sales pilot (Task 7, #182) — the worked pattern for the full sweep.
   sales: {
     // Headings
