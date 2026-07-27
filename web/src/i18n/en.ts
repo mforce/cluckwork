@@ -966,6 +966,122 @@ export const en = {
     ledgerBirdsHeader: "Birds",
     ledgerNoteHeader: "Note",
   },
+  // Farm settings — admin localization + logo (#123, #149) + the currency
+  // lock (§4.6) (Task 21, #182, batch B4). English-only for now, same
+  // treatment as nav/numberField/errorBoundary/themeToggle/useConfirm/pwa/
+  // dailyEntry/dashboard/water/grades/inventory/products/stock/flocks above:
+  // `settings` is deliberately NOT in TRANSLATED_NAMESPACES, so es/tl fall
+  // back to these strings until a native-speaker pass adds the namespace.
+  //
+  // DATA left raw, never routed through this catalog: the timezone list
+  // (Intl.supportedValuesOf), the locale/currency VALUES the admin types, the
+  // "en-US" locale-format example (allowlisted in i18n-scan-allowlist.txt),
+  // and the curated palettes' lowercase ids (aubergine/forest/slate/
+  // terracotta — matched by exact-match CSS selectors and written into
+  // data-brand). Their DISPLAY names (paletteAubergine etc. below) ARE copy.
+  //
+  // Enum wiring: the Unit system and First day of week SELECTs are closed
+  // vocabularies, so their OPTION text is rendered through the shared
+  // `enums.ts` helpers (unitSystemLabel/weekdayLabel — both pre-built for
+  // this screen, identity labels, no visible change) rather than a key here;
+  // unitSystemLabel/firstDayOfWeekLabel below are the FIELD labels, not the
+  // option text. The four palette ids have no cross-screen enum family (this
+  // is their only render site), so their display names are flat keys here
+  // instead — see the PALETTE_LABEL_KEYS map in SettingsPage.tsx.
+  settings: {
+    heading: "Farm settings",
+    intro:
+      "How this farm names itself, and the locale, timezone and currency it "
+      + "records and reads its work in.",
+    loadFailedMessage: "Could not load farm settings.",
+
+    // Logo panel
+    logoSectionHeading: "Logo",
+    logoAlt: "Current farm logo",
+    logoLoadingMessage: "Loading the logo…",
+    logoLoadFailedMessage: "The logo could not be loaded.",
+    logoNoneMessage: "No logo set — the sidebar shows the Cluckwork mark.",
+    uploadLogoButton: "Upload a logo",
+    replaceLogoButton: "Replace the logo",
+    removeLogoButton: "Remove",
+    // {{cap}} is formatByteCap()'s already-formatted string (e.g. "2 MB") —
+    // client-side arithmetic, never routed through i18n.language.
+    logoRulesHint:
+      "PNG, JPEG or WebP, up to {{cap}} and 4096 px a side. Animated "
+      + "images are not accepted. The image is stored re-written, with "
+      + "camera and location metadata removed.",
+    // <Trans> key — the only string on this screen interleaving JSX
+    // (<strong>square</strong>), see CONTRIBUTING-i18n.md.
+    logoSquareHint:
+      "Use a <strong>square</strong> image — the logo shows small in the "
+      + "sidebar, so a simple, tightly-cropped mark (a symbol or a single "
+      + "letter) reads far better there than a wide or detailed picture. A "
+      + "transparent background on a light design works best.",
+    logoWorkingMessage: "Working…",
+    logoUpdatedMessage: "Logo updated.",
+    logoRemovedMessage: "Logo removed.",
+    // {{actualKb}}/{{limitKb}} are plain numeric DATA (the picked file's size
+    // and the server's own configured cap), not enum-labelled.
+    logoOversizeMessage: "That image is {{actualKb}} KB. The limit is {{limitKb}} KB.",
+    removeLogoConfirmTitle: "Remove the farm logo?",
+    removeLogoConfirmBody:
+      "The sidebar goes back to the Cluckwork mark. You can upload another "
+      + "at any time.",
+    removeLogoConfirmLabel: "Remove logo",
+
+    // Localization form
+    localizationSectionHeading: "Localization",
+    farmNameLabel: "Farm name",
+    timezoneLabel: "Timezone",
+    timezoneUnknownWarning:
+      "This browser does not know that timezone, so dates here would follow "
+      + "the device instead of the farm. Pick one from the list.",
+    localeLabel: "Locale",
+    currencyLabel: "Currency",
+    // {{code}} is the farm's currency CODE (DATA, e.g. "USD"), not enum-labelled.
+    currencyLockedNote:
+      "The currency is fixed at {{code}}: this farm has already recorded "
+      + "amounts in it. Recorded money is never re-priced, so changing this "
+      + "would leave every stored total meaning something else.",
+    unitSystemLabel: "Unit system",
+    firstDayOfWeekLabel: "First day of week",
+    // Reused for the First-day-of-week "no override" option AND both the
+    // date/time format placeholders — same English text, same meaning, in
+    // all three spots.
+    followLocaleOption: "Follow the locale",
+    paletteLegend: "Farm palette",
+    paletteHint:
+      "The accent colour for everyone on this farm. Each person still "
+      + "chooses light or night mode for themselves.",
+    // Curated palette DISPLAY names (#149) — the ids themselves stay raw DATA
+    // (see the namespace header comment above).
+    paletteAubergine: "Aubergine",
+    paletteForest: "Forest",
+    paletteSlate: "Slate",
+    paletteTerracotta: "Terracotta",
+    dateFormatLabel: "Date format",
+    timeFormatLabel: "Time format",
+    savingButton: "Saving…",
+    saveButton: "Save settings",
+    effectNote:
+      "The timezone applies everywhere as soon as it is saved. Locale, unit "
+      + "system and the format overrides are recorded against the farm and "
+      + "will drive how amounts, dates and measurements are displayed once "
+      + "that formatting lands.",
+    savedMessage: "Settings saved.",
+
+    // Imperative messages (event handlers — see CONTRIBUTING-i18n.md's
+    // imperative i18n.t() pattern).
+    versionConflictMessage:
+      "Someone else changed these settings while this screen was open. "
+      + "Reload and try again.",
+    saveReadBackFailedMessage:
+      "Saved. This screen could not read the settings back — reload the "
+      + "page before saving again.",
+    refreshFailedMessage:
+      "Saved. The rest of the app could not pick the change up — reload the "
+      + "page to be sure it is applied everywhere.",
+  },
   // Closed-vocabulary labels (#182, Task 4). Consumed ONLY through the typed
   // helpers in enums.ts — never a raw t("enums:status." + value). Keys are FLAT
   // "family.RawValue" strings (keySeparator:false, see index.ts): the suffix is

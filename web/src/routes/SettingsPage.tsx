@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
+import { Trans, useTranslation } from "react-i18next";
 import { Trash2, Upload } from "lucide-react";
 import {
   LOGO_ACCEPT, getFarmSettings, removeFarmLogo, updateFarmSettings,
@@ -11,17 +12,30 @@ import { useConfirm } from "../components/useConfirm";
 import { useFarm } from "../farm/useFarm";
 import { useLogoObjectUrl } from "../farm/useLogoObjectUrl";
 import { BRANDS, DEFAULT_BRAND, applyBrand, isBrand } from "../lib/brand";
+import type { Brand } from "../lib/brand";
 import { isKnownTimeZone } from "../lib/dates";
 import { newId } from "../lib/ids";
+import i18n from "../i18n";
+import { unitSystemLabel, weekdayLabel } from "../i18n/enums";
+import type { en } from "../i18n/en";
 
-// Display names for the curated palettes (#149). Ids stay lowercase because
-// they are matched by exact-match CSS selectors and written into data-brand.
-export const PALETTE_LABELS: Record<string, string> = {
-  aubergine: "Aubergine",
-  forest: "Forest",
-  slate: "Slate",
-  terracotta: "Terracotta",
-};
+// The curated palettes' raw ids stay lowercase (#149) — they are matched by
+// exact-match CSS selectors and written into data-brand, so they are DATA, not
+// copy. Only the DISPLAY name is translatable, so it lives in the `settings`
+// catalog (paletteAubergine/paletteForest/…) rather than a hardcoded Record
+// here (#182, Task 21). This map is SettingsPage-only — there is no other
+// screen that renders a palette name — so it stays local instead of growing
+// enums.ts into a family with a single consumer. `satisfies Record<Brand,
+// SettingsKey>` still gives the same exhaustiveness guarantee enums.ts's
+// families use: a BRANDS id with no entry, or an entry pointing at a typo'd
+// catalog key, is a compile error.
+type SettingsKey = Extract<keyof typeof en.settings, string>;
+const PALETTE_LABEL_KEYS = {
+  aubergine: "paletteAubergine",
+  forest: "paletteForest",
+  slate: "paletteSlate",
+  terracotta: "paletteTerracotta",
+} as const satisfies Record<Brand, SettingsKey>;
 
 // Mirrors the server's validators (UpdateFarmSettingsValidator + Account) so a
 // too-long value is refused by the field rather than by a 400.
@@ -104,6 +118,8 @@ function keyFor(attempt: Attempt | null, payload: string): Attempt {
 export function SettingsPage() {
   const { refresh } = useFarm();
   const { confirm, confirmDialog } = useConfirm();
+  const { t } = useTranslation("settings");
+  const { t: tc } = useTranslation("common");
 
   const [loaded, setLoaded] = useState<FarmSettings | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -190,7 +206,7 @@ export function SettingsPage() {
   // one: it overwrites the fields, so a reload mid-edit would discard whatever
   // the user had typed.
   useEffect(() => {
-    load().catch(() => setLoadError("Could not load farm settings."));
+    load().catch(() => setLoadError(i18n.t("settings:loadFailedMessage")));
   }, []);
 
   // Focus lands here only once the upload input is enabled again — a disabled
@@ -233,8 +249,7 @@ export function SettingsPage() {
         // and 409s again, forever. Disable the button so it agrees with the
         // message rather than inviting the loop (pi round 2).
         setStale(true);
-        setSaveError(
-          "Someone else changed these settings while this screen was open. Reload and try again.");
+        setSaveError(i18n.t("settings:versionConflictMessage"));
       } else {
         setSaveError(errText(err));
       }
@@ -256,8 +271,7 @@ export function SettingsPage() {
       applyBrand(fresh.settings.brand);
     } catch {
       setStale(true);
-      setSaveError(
-        "Saved. This screen could not read the settings back — reload the page before saving again.");
+      setSaveError(i18n.t("settings:saveReadBackFailedMessage"));
       setSaving(false);
       return;
     }
@@ -269,8 +283,7 @@ export function SettingsPage() {
     // shell still held the old timezone (codex round 2).
     const refreshed = await refresh();
     if (!refreshed)
-      setSaveError(
-        "Saved. The rest of the app could not pick the change up — reload the page to be sure it is applied everywhere.");
+      setSaveError(i18n.t("settings:refreshFailedMessage"));
     setSaving(false);
   }
 
@@ -288,7 +301,10 @@ export function SettingsPage() {
     // the wire and gives the size back in the message. The limit is the server's
     // own, fetched with the settings.
     if (file.size > maxUploadBytes) {
-      setLogoError(`That image is ${Math.ceil(file.size / 1024)} KB. The limit is ${maxUploadKb} KB.`);
+      setLogoError(i18n.t("settings:logoOversizeMessage", {
+        actualKb: Math.ceil(file.size / 1024),
+        limitKb: maxUploadKb,
+      }));
       return;
     }
 
@@ -302,7 +318,7 @@ export function SettingsPage() {
       const stored = await uploadFarmLogo(file, attempt.key);
       uploadAttempt.current = null;
       applyLogoHash(stored.contentHash);
-      setLogoMessage("Logo updated.");
+      setLogoMessage(i18n.t("settings:logoUpdatedMessage"));
       await refresh();
     } catch (err) {
       setLogoError(errText(err));
@@ -313,9 +329,9 @@ export function SettingsPage() {
 
   async function onRemoveLogo() {
     const ok = await confirm({
-      title: "Remove the farm logo?",
-      body: "The sidebar goes back to the Cluckwork mark. You can upload another at any time.",
-      confirmLabel: "Remove logo",
+      title: i18n.t("settings:removeLogoConfirmTitle"),
+      body: i18n.t("settings:removeLogoConfirmBody"),
+      confirmLabel: i18n.t("settings:removeLogoConfirmLabel"),
       destructive: true,
     });
     if (!ok) return;
@@ -335,7 +351,7 @@ export function SettingsPage() {
       await removeFarmLogo(attempt.key);
       removeAttempt.current = null;
       applyLogoHash(null);
-      setLogoMessage("Logo removed.");
+      setLogoMessage(i18n.t("settings:logoRemovedMessage"));
       // Deferred to an effect rather than called here. The Remove button that
       // was just clicked unmounts with the logo and Dialog only restores focus
       // to a trigger still in the document, so focus would land on <body> — but
@@ -354,38 +370,37 @@ export function SettingsPage() {
 
   if (loadError !== null) return (
     <section>
-      <h2>Farm settings</h2>
+      <h2>{t("heading")}</h2>
       <p className="error" role="alert">{loadError}</p>
     </section>
   );
 
   if (loaded === null) return (
     <section>
-      <h2>Farm settings</h2>
-      <p className="muted">Loading…</p>
+      <h2>{t("heading")}</h2>
+      <p className="muted">{tc("loading")}</p>
     </section>
   );
 
   return (
     <section>
-      <h2>Farm settings</h2>
+      <h2>{t("heading")}</h2>
       <p className="muted">
-        How this farm names itself, and the locale, timezone and currency it
-        records and reads its work in.
+        {t("intro")}
       </p>
 
-      <h3>Logo</h3>
+      <h3>{t("logoSectionHeading")}</h3>
       <div className="logo-panel">
         {logo.url !== null ? (
-          <img className="logo-preview" src={logo.url} alt="Current farm logo" />
+          <img className="logo-preview" src={logo.url} alt={t("logoAlt")} />
         ) : (
           // Three different reasons there is no image on screen, and only one
           // of them is "no logo set" — saying that while a Remove button sits
           // beside it is a contradiction the reader cannot resolve.
           <p className="muted logo-empty">
-            {logo.loading ? "Loading the logo…"
-              : logo.failed ? "The logo could not be loaded."
-                : "No logo set — the sidebar shows the Cluckwork mark."}
+            {logo.loading ? t("logoLoadingMessage")
+              : logo.failed ? t("logoLoadFailedMessage")
+                : t("logoNoneMessage")}
           </p>
         )}
         <div className="logo-actions">
@@ -393,7 +408,7 @@ export function SettingsPage() {
               one: the picker is the control, and wrapping it in its own label
               keeps it reachable by keyboard and by name. */}
           <label className="logo-file">
-            <Upload size={16} aria-hidden /> {hasLogo ? "Replace the logo" : "Upload a logo"}
+            <Upload size={16} aria-hidden /> {hasLogo ? t("replaceLogoButton") : t("uploadLogoButton")}
             <input ref={uploadInput} type="file" accept={LOGO_ACCEPT} disabled={logoBusy || saving}
               aria-describedby={logoRulesId}
               onChange={(e) => void onPickLogo(e)} />
@@ -401,37 +416,32 @@ export function SettingsPage() {
           {hasLogo && (
             <button type="button" className="btn-danger" disabled={logoBusy || saving}
               onClick={() => void onRemoveLogo()}>
-              <Trash2 size={16} aria-hidden /> Remove
+              <Trash2 size={16} aria-hidden /> {t("removeLogoButton")}
             </button>
           )}
         </div>
       </div>
       <p className="muted" id={logoRulesId}>
-        PNG, JPEG or WebP, up to {formatByteCap(maxUploadBytes)} and 4096&nbsp;px a side. Animated images
-        are not accepted. The image is stored re-written, with camera and
-        location metadata removed.
+        {t("logoRulesHint", { cap: formatByteCap(maxUploadBytes) })}
       </p>
       <p className="muted">
-        Use a <strong>square</strong> image — the logo shows small in the
-        sidebar, so a simple, tightly-cropped mark (a symbol or a single letter)
-        reads far better there than a wide or detailed picture. A transparent
-        background on a light design works best.
+        <Trans ns="settings" i18nKey="logoSquareHint" components={{ strong: <strong /> }} />
       </p>
       {/* Both the upload and the removal are silent otherwise — the only signal
           is an image appearing, which a screen reader does not see. */}
       <p className="success" role="status">
-        {logoBusy ? "Working…" : logoMessage ?? ""}
+        {logoBusy ? t("logoWorkingMessage") : logoMessage ?? ""}
       </p>
       {logoError !== null && <p className="error" role="alert">{logoError}</p>}
 
-      <h3>Localization</h3>
+      <h3>{t("localizationSectionHeading")}</h3>
       <form className="form-grid" onSubmit={(e) => void onSave(e)}>
-        <label>Farm name
+        <label>{t("farmNameLabel")}
           <input value={name} required maxLength={MAX_NAME}
             onChange={(e) => setName(e.target.value)} />
         </label>
 
-        <label>Timezone
+        <label>{t("timezoneLabel")}
           <input list="tz-options" value={timeZoneId} required maxLength={MAX_TIMEZONE}
             aria-describedby={timeZoneUnknown ? timeZoneNoteId : undefined}
             onChange={(e) => setTimeZoneId(e.target.value)} />
@@ -449,17 +459,16 @@ export function SettingsPage() {
                 this browser's. A zone it accepts but the browser cannot format
                 saves fine and then quietly sends every date field back to the
                 device's day — the one thing this whole slice removes. */}
-            This browser does not know that timezone, so dates here would follow
-            the device instead of the farm. Pick one from the list.
+            {t("timezoneUnknownWarning")}
           </p>
         )}
 
-        <label>Locale
+        <label>{t("localeLabel")}
           <input value={locale} required maxLength={MAX_LOCALE} placeholder="en-US"
             onChange={(e) => setLocale(e.target.value)} />
         </label>
 
-        <label>Currency
+        <label>{t("currencyLabel")}
           {/* readOnly, not disabled: a disabled input leaves the tab order, so
               a keyboard user never reaches the field OR the reason it is
               locked. Read-only keeps both, and aria-describedby carries the
@@ -474,31 +483,27 @@ export function SettingsPage() {
             the user has typed a new code. */}
         {!loaded.canChangeCurrency && (
           <p className="warn field-note" id={currencyNoteId}>
-            The currency is fixed at {loaded.settings.currencyCode}: this farm
-            has already recorded amounts in it. Recorded money is never
-            re-priced, so changing this would leave every stored total meaning
-            something else.
+            {t("currencyLockedNote", { code: loaded.settings.currencyCode })}
           </p>
         )}
 
-        <label>Unit system
+        <label>{t("unitSystemLabel")}
           <select value={unitSystem} onChange={(e) => setUnitSystem(e.target.value)}>
-            {UNIT_SYSTEMS.map((u) => <option key={u} value={u}>{u}</option>)}
+            {UNIT_SYSTEMS.map((u) => <option key={u} value={u}>{unitSystemLabel(u)}</option>)}
           </select>
         </label>
 
-        <label>First day of week
+        <label>{t("firstDayOfWeekLabel")}
           <select value={firstDayOfWeek} onChange={(e) => setFirstDayOfWeek(e.target.value)}>
-            <option value="">Follow the locale</option>
-            {WEEKDAYS.map((d) => <option key={d} value={d}>{d}</option>)}
+            <option value="">{t("followLocaleOption")}</option>
+            {WEEKDAYS.map((d) => <option key={d} value={d}>{weekdayLabel(d)}</option>)}
           </select>
         </label>
 
         <fieldset className="palette-picker">
-          <legend>Farm palette</legend>
+          <legend>{t("paletteLegend")}</legend>
           <p className="hint" id="palette-hint">
-            The accent colour for everyone on this farm. Each person still
-            chooses light or night mode for themselves.
+            {t("paletteHint")}
           </p>
           <div className="palette-options" aria-describedby="palette-hint">
             {BRANDS.map((id) => (
@@ -514,19 +519,19 @@ export function SettingsPage() {
                 {/* The swatch is decorative: the visible name is what names the
                     option, so selection never depends on seeing colour. */}
                 <span className={`palette-swatch palette-swatch-${id}`} aria-hidden />
-                <span className="palette-name">{PALETTE_LABELS[id]}</span>
+                <span className="palette-name">{t(PALETTE_LABEL_KEYS[id])}</span>
               </label>
             ))}
           </div>
         </fieldset>
 
-        <label>Date format
-          <input value={dateFormat} maxLength={MAX_FORMAT} placeholder="Follow the locale"
+        <label>{t("dateFormatLabel")}
+          <input value={dateFormat} maxLength={MAX_FORMAT} placeholder={t("followLocaleOption")}
             onChange={(e) => setDateFormat(e.target.value)} />
         </label>
 
-        <label>Time format
-          <input value={timeFormat} maxLength={MAX_FORMAT} placeholder="Follow the locale"
+        <label>{t("timeFormatLabel")}
+          <input value={timeFormat} maxLength={MAX_FORMAT} placeholder={t("followLocaleOption")}
             onChange={(e) => setTimeFormat(e.target.value)} />
         </label>
 
@@ -537,7 +542,7 @@ export function SettingsPage() {
               stale-response class removing load() from the logo path was meant
               to close (codex round 2). */}
           <button type="submit" disabled={saving || logoBusy || stale}>
-            {saving ? "Saving…" : "Save settings"}
+            {saving ? t("savingButton") : t("saveButton")}
           </button>
         </div>
       </form>
@@ -548,10 +553,7 @@ export function SettingsPage() {
           carries the display formatting). Saying "everywhere, straight away"
           would be a promise the app does not keep. */}
       <p className="muted">
-        The timezone applies everywhere as soon as it is saved. Locale, unit
-        system and the format overrides are recorded against the farm and will
-        drive how amounts, dates and measurements are displayed once that
-        formatting lands.
+        {t("effectNote")}
       </p>
 
       {saveError !== null && <p className="error" role="alert">{saveError}</p>}
@@ -559,7 +561,7 @@ export function SettingsPage() {
           moment as its text is not reliably announced, and the logo panel two
           sections up already says so. */}
       <p className="success" role="status">
-        {saved && saveError === null ? "Settings saved." : ""}
+        {saved && saveError === null ? t("savedMessage") : ""}
       </p>
 
       {confirmDialog}
