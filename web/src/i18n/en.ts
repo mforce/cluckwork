@@ -100,6 +100,12 @@ export const en = {
     editUnitPriceAriaLabel: "Edit unit price",
 
     // Status-filter options
+    // NOTE (#182, Task 5): these four are a TEMPORARY translated duplicate of
+    // enums:status.{Draft,Confirmed,Cancelled,Voided} — es/tl carry real
+    // translations here, while `enums` is English-only, so the filter dropdown
+    // stays on this namespace rather than regressing to English-only labels.
+    // Reconcile when status gets its native-translation pass: migrate this
+    // dropdown to a then-translated enums:status and delete these four keys.
     allOption: "All",
     statusDraft: "Draft",
     statusConfirmed: "Confirmed",
