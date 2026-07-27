@@ -24,28 +24,42 @@ public sealed class CreateInventoryItemHandler(
             return Result.Failure<Guid>(Error.Conflict(
                 "InventoryItem.DuplicateName", $"An item named '{command.Name.Trim()}' already exists."));
 
-        var defaultCost = await ToMoneyAsync(command.DefaultUnitCostMinorUnits, accountId, ct);
-        if (defaultCost.IsFailure)
-            return Result.Failure<Guid>(defaultCost.Error);
+        // The cost snapshot and the insert share a transaction (#162): a
+        // priced item binds the farm currency, so the read below takes the
+        // shared lock. An unpriced item reads no currency and takes no lock.
+        Result<Guid>? outcome = null;
+        await unitOfWork.ExecuteInTransactionAsync(async transactionCt =>
+        {
+            var defaultCost = await ToMoneyAsync(command.DefaultUnitCostMinorUnits, accountId, transactionCt);
+            if (defaultCost.IsFailure)
+            {
+                outcome = Result.Failure<Guid>(defaultCost.Error);
+                return false;
+            }
 
-        var category = Enum.Parse<InventoryCategory>(command.Category, ignoreCase: true);
-        var item = InventoryItem.Create(
-            Guid.NewGuid(), accountId, farmId,
-            command.Name, category, command.Unit, defaultCost.Value);
+            var category = Enum.Parse<InventoryCategory>(command.Category, ignoreCase: true);
+            var item = InventoryItem.Create(
+                Guid.NewGuid(), accountId, farmId,
+                command.Name, category, command.Unit, defaultCost.Value);
 
-        await items.AddAsync(item, ct);
-        await unitOfWork.SaveChangesAsync(ct);
-        return Result.Success(item.Id);
+            await items.AddAsync(item, transactionCt);
+            outcome = Result.Success(item.Id);
+            return true;
+        }, ct);
+
+        return outcome!;
     }
 
     // Costs snapshot the account currency like sales orders do — the account's
-    // default currency is the single-farm MVP stand-in for the farm's.
+    // default currency is the single-farm MVP stand-in for the farm's. FOR
+    // SHARE on the account row (#162); only ever called inside the
+    // transaction above.
     private async Task<Result<Money?>> ToMoneyAsync(
         long? minorUnits, Guid accountId, CancellationToken ct)
     {
         if (minorUnits is null) return Result.Success<Money?>(null);
 
-        var account = await accounts.GetCurrentAsync(ct);
+        var account = await accounts.GetCurrentSharedLockedAsync(ct);
         if (account is null)
             return Result.Failure<Money?>(Error.NotFound("Account", accountId));
 

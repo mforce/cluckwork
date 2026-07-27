@@ -33,28 +33,41 @@ public sealed class CreateProductHandler(
             return Result.Failure<Guid>(Error.Validation(
                 "Product.InactiveGrade", "The egg grade is inactive."));
 
-        // Currency snapshots from the account at creation (spec §16).
-        var account = await accounts.GetCurrentAsync(ct);
-        if (account is null)
-            return Result.Failure<Guid>(Error.NotFound("Account", accountId));
+        // Currency snapshots from the account at creation (spec §16). The
+        // snapshot and the insert share a transaction with FOR SHARE on the
+        // account row (#162) — a product's first price binds the currency, so
+        // it participates in the same lock protocol as the money rows.
+        Result<Guid>? outcome = null;
+        await unitOfWork.ExecuteInTransactionAsync(async transactionCt =>
+        {
+            var account = await accounts.GetCurrentSharedLockedAsync(transactionCt);
+            if (account is null)
+            {
+                outcome = Result.Failure<Guid>(Error.NotFound("Account", accountId));
+                return false;
+            }
 
-        var product = Product.Create(
-            Guid.NewGuid(), accountId, SeedDefaults.FarmId,
-            command.Name,
-            Enum.Parse<ProductType>(command.ProductType, ignoreCase: true),
-            Enum.Parse<ProductUnit>(command.DefaultUnit, ignoreCase: true),
-            command.DefaultPriceMinorUnits,
-            account.DefaultCurrencyCode, account.DefaultCurrencyMinorUnit,
-            command.Notes);
+            var product = Product.Create(
+                Guid.NewGuid(), accountId, SeedDefaults.FarmId,
+                command.Name,
+                Enum.Parse<ProductType>(command.ProductType, ignoreCase: true),
+                Enum.Parse<ProductUnit>(command.DefaultUnit, ignoreCase: true),
+                command.DefaultPriceMinorUnits,
+                account.DefaultCurrencyCode, account.DefaultCurrencyMinorUnit,
+                command.Notes);
 
-        await products.AddAsync(product, ct);
-        await products.AddMappingAsync(
-            ProductEggGradeMapping.Create(Guid.NewGuid(), accountId, product.Id, grade.Id), ct);
+            await products.AddAsync(product, transactionCt);
+            await products.AddMappingAsync(
+                ProductEggGradeMapping.Create(Guid.NewGuid(), accountId, product.Id, grade.Id),
+                transactionCt);
 
-        await audit.WriteAsync("Product.Create", nameof(Product), product.Id,
-            details: new { product.Name, product.ProductType, EggGrade = grade.Name }, ct: ct);
+            await audit.WriteAsync("Product.Create", nameof(Product), product.Id,
+                details: new { product.Name, product.ProductType, EggGrade = grade.Name }, ct: transactionCt);
 
-        await unitOfWork.SaveChangesAsync(ct);
-        return Result.Success(product.Id);
+            outcome = Result.Success(product.Id);
+            return true;
+        }, ct);
+
+        return outcome!;
     }
 }
