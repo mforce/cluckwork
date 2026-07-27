@@ -693,7 +693,7 @@ export const en = {
     activateButton: "activate",
   },
   // Product catalog — what the farm sells — + packed-unit (egg-unit)
-  // conversions admin screen (Task 17, #182, batch B3 — the last B3 screen).
+  // conversions admin screen (Task 17, #182, batch B3 — second B3 screen).
   // English-only for now, same treatment as nav/numberField/errorBoundary/
   // themeToggle/useConfirm/pwa/dailyEntry/dashboard/water/grades/inventory
   // above: `products` is deliberately NOT in TRANSLATED_NAMESPACES, so es/tl
@@ -789,7 +789,7 @@ export const en = {
   },
   // Egg stock summary + drill-down screen — by-grade balances expand into
   // lots, and each lot expands into its movement ledger (Task 18, #182, batch
-  // B3 — the last B3 screen). English-only for now, same treatment as
+  // B3 — third B3 screen). English-only for now, same treatment as
   // nav/numberField/errorBoundary/themeToggle/useConfirm/pwa/dailyEntry/
   // dashboard/water/grades/inventory/products above: `stock` is deliberately
   // NOT in TRANSLATED_NAMESPACES, so es/tl fall back to these strings until a
@@ -849,8 +849,8 @@ export const en = {
   },
   // Flock roster + bird ledger — create/edit identity fields, deplete/archive/
   // reactivate lifecycle, and mortality/cull/adjustment movements (Task 19,
-  // #182, batch B3 — the LAST B3 screen, closing out #182's
-  // screen-externalization sweep). English-only for now, same treatment as
+  // #182, batch B3 — the last B3 screen (B4–B6 still remain in the sweep).
+  // English-only for now, same treatment as
   // nav/numberField/errorBoundary/themeToggle/useConfirm/pwa/dailyEntry/
   // dashboard/water/grades/inventory/products/stock above: `flocks` is
   // deliberately NOT in TRANSLATED_NAMESPACES, so es/tl fall back to these
