@@ -5,6 +5,7 @@ import { changePassword, ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 import { LanguageSelector } from "../session/LanguageSelector";
 import { SUPPORTED_LANGUAGES } from "../i18n";
+import { roleLabel } from "../i18n/enums";
 
 function errText(err: unknown): string {
   if (err instanceof ApiError) return err.message;
@@ -66,7 +67,7 @@ export function AccountPage() {
         <h2>{t("heading")}</h2>
       </div>
       <p className="muted">
-        <Trans ns="account" i18nKey="roleLine" values={{ role }} components={{ strong: <strong /> }} />
+        <Trans ns="account" i18nKey="roleLine" values={{ role: roleLabel(role) }} components={{ strong: <strong /> }} />
       </p>
 
       {SUPPORTED_LANGUAGES.length > 1 && (

@@ -41,10 +41,12 @@ export const en = {
     // Task 25 (#182, B4) — the rest of AccountPage: the page heading, the
     // role line, and the self-service change-password surface (#165).
     heading: "Account",
-    // {{role}} is the signed-in account's own role value (DATA, e.g.
-    // "Worker") — not run through enums.ts's roleLabel() here, matching the
-    // component's prior behavior of rendering it verbatim. <strong> is the
-    // only JSX interleaved in this screen's prose, hence the one <Trans> use.
+    // {{role}} is the signed-in account's own role, passed through
+    // enums.ts's roleLabel() by the component (Task 22 convention: role
+    // display always goes through roleLabel(), e.g. "ReadOnly" ->
+    // "Read-only") — so this stays a plain string placeholder here, not raw
+    // union data. <strong> is the only JSX interleaved in this screen's
+    // prose, hence the one <Trans> use.
     roleLine: "You are signed in with the <strong>{{role}}</strong> role.",
     changePasswordHeading: "Change password",
     changePasswordHint:

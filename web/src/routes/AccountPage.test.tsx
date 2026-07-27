@@ -136,17 +136,20 @@ describe("AccountPage i18n wiring (#182, Task 25)", () => {
     });
   });
 
-  it("reads the JSX-interleaved role line from the catalog via <Trans>, interpolating {{role}}", async () => {
+  it("reads the JSX-interleaved role line from the catalog via <Trans>, interpolating {{role}} through roleLabel()", async () => {
     await withOverride("roleLine", "ROLE-MARKER {{role}} MARKER-END", async () => {
       renderWithProviders(<AccountPage />, { token: READ_ONLY });
-      expect(screen.getByText("ROLE-MARKER ReadOnly MARKER-END")).toBeInTheDocument();
+      // roleLabel("ReadOnly") -> "Read-only" (Task 22 convention) — asserting
+      // the mapped label, not the raw "ReadOnly" claim value, is what would
+      // catch a regression back to passing the raw role through.
+      expect(screen.getByText("ROLE-MARKER Read-only MARKER-END")).toBeInTheDocument();
       expect(screen.queryByText(/signed in with the/)).not.toBeInTheDocument();
     });
   });
 
   it("wraps the role in a real <strong> element via the <Trans> components mapping", async () => {
     renderWithProviders(<AccountPage />, { token: READ_ONLY });
-    expect(screen.getByText("ReadOnly").tagName).toBe("STRONG");
+    expect(screen.getByText("Read-only").tagName).toBe("STRONG");
   });
 
   it("reads the change-password heading from the catalog, not a hardcoded literal", async () => {
