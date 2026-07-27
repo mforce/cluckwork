@@ -1082,6 +1082,84 @@ export const en = {
       "Saved. The rest of the app could not pick the change up — reload the "
       + "page to be sure it is applied everywhere.",
   },
+  // Users admin screen — the user list plus create/edit/password/flock-
+  // scoping dialogs (Task 22, #182, batch B4). English-only for now, same
+  // treatment as nav/numberField/errorBoundary/themeToggle/useConfirm/pwa/
+  // dailyEntry/dashboard/water/grades/inventory/products/stock/flocks/
+  // settings above: `users` is deliberately NOT in TRANSLATED_NAMESPACES, so
+  // es/tl fall back to these strings until a native-speaker pass adds the
+  // namespace.
+  //
+  // Role enum wiring: the table's Role cell, the create-form Role picker's
+  // option text, and the create-success message all render the closed
+  // `role` vocabulary through roleLabel() (enums.ts) rather than a key here
+  // — see the `enums` namespace header comment below for the one
+  // intentional visible change that wiring makes (ReadOnly -> "Read-only").
+  // adminRoleOption below is the one exception: the picker's Admin option
+  // carries an extra "(owner)" qualifier that isn't part of the role's
+  // identity label, so it wraps roleLabel("Admin") rather than being used
+  // as the option text on its own.
+  users: {
+    heading: "Users",
+    newUserButton: "New user", // reused verbatim as the create-dialog title
+    roleDescription:
+      "Workers record the day's work (optionally narrowed to assigned "
+      + "flocks). Managers additionally correct, void, and configure. Sales "
+      + "handles customers, orders, and payments. Read-only sees stock, "
+      + "history, and reports. Admin (owner) does everything, including "
+      + "managing users.",
+
+    // Create-user dialog
+    emailFieldLabel: "Email *",
+    passwordFieldLabel: "Password (min 12 chars) *",
+    nameFieldLabel: "Name", // reused verbatim by the edit-user dialog below
+    roleFieldLabel: "Role",
+    // {{label}} is roleLabel("Admin") ("Admin", identity) — see the
+    // namespace header comment above.
+    adminRoleOption: "{{label}} (owner)",
+    createUserButton: "Create user",
+
+    // Users table
+    emailColumnHeader: "Email",
+    nameColumnHeader: "Name",
+    roleColumnHeader: "Role",
+    editButton: "edit",
+    resetPasswordButton: "password",
+    flocksButton: "flocks",
+
+    // Flock-access dialog (per-worker scoping). {{email}} is the user's
+    // email — DATA, not client copy.
+    flockAccessTitle: "Flock access — {{email}}",
+    flockAccessHint:
+      "No assignments = the worker can record for any flock. The first "
+      + "assignment narrows them to the listed flocks only.",
+    noAssignmentsMessage: "No assignments — account-wide access.",
+    removeAssignmentButton: "remove",
+    assignFlockButton: "Assign flock",
+    doneButton: "Done",
+
+    // Edit-user dialog. {{email}} is DATA.
+    editUserTitle: "Edit user — {{email}}",
+    clearNameHint: "Leave blank to clear the name.",
+
+    // Set-password dialog. {{email}} is DATA.
+    setPasswordTitle: "Set password — {{email}}",
+    passwordDialogHint:
+      "You don't need their current password. Setting it signs them out "
+      + "of every device — tell them the new password directly.",
+    newPasswordFieldLabel: "New password (min 12 chars) *",
+    confirmPasswordFieldLabel: "Confirm new password *",
+    setPasswordButton: "Set password",
+
+    // Imperative messages (event handlers — see CONTRIBUTING-i18n.md's
+    // imperative i18n.t() pattern). {{email}} is DATA; {{role}} is
+    // roleLabel(role) — see the namespace header comment above.
+    createSuccessMessage: "{{role}} account created for {{email}}.",
+    passwordMismatchMessage: "The passwords don't match.",
+    passwordSetMessage:
+      "Password set for {{email}}. They have been signed out everywhere.",
+    updatedMessage: "Updated {{email}}.",
+  },
   // Closed-vocabulary labels (#182, Task 4). Consumed ONLY through the typed
   // helpers in enums.ts — never a raw t("enums:status." + value). Keys are FLAT
   // "family.RawValue" strings (keySeparator:false, see index.ts): the suffix is
