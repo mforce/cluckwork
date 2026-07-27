@@ -12,7 +12,21 @@ export const tl = {
   common: {
     cancel: "Kanselahin",
     save: "I-save",
+    close: "Isara",
+    delete: "Burahin",
+    edit: "I-edit",
+    add: "Idagdag",
+    confirm: "Kumpirmahin",
+    loading: "Naglo-load…",
     retry: "subukan ulit",
+    required: "Kailangan",
+    optional: "Opsyonal",
+    actions: "Mga Aksyon",
+    search: "Maghanap",
+    all: "Lahat",
+    none: "Wala",
+    yes: "Oo",
+    no: "Hindi",
   },
   auth: {
     title: "Cluckwork",
@@ -43,7 +57,6 @@ export const tl = {
     // Buttons
     newOrder: "Bagong order",
     newDraftOrder: "Bagong draft na order",
-    cancel: "Kanselahin",
     save: "i-save",
     cancelEdit: "kanselahin",
     edit: "i-edit",
@@ -51,6 +64,8 @@ export const tl = {
     addLine: "Magdagdag ng linya",
     confirmOrderButton: "Kumpirmahin ang order (maglalaan ng stock)",
     cancelDraft: "Kanselahin ang draft",
+    // Intentional screen-specific lowercase variant, distinct from
+    // common.close ("Isara") — mirrors en.sales.close (#182).
     close: "isara",
     voidPaymentButton: "i-void",
     recordPayment: "Itala ang bayad",

@@ -7,7 +7,21 @@ export const es = {
   common: {
     cancel: "Cancelar",
     save: "Guardar",
+    close: "Cerrar",
+    delete: "Eliminar",
+    edit: "Editar",
+    add: "Agregar",
+    confirm: "Confirmar",
+    loading: "Cargando…",
     retry: "reintentar",
+    required: "Requerido",
+    optional: "Opcional",
+    actions: "Acciones",
+    search: "Buscar",
+    all: "Todos",
+    none: "Ninguno",
+    yes: "Sí",
+    no: "No",
   },
   auth: {
     title: "Cluckwork",
@@ -38,7 +52,6 @@ export const es = {
     // Buttons
     newOrder: "Nuevo pedido",
     newDraftOrder: "Nuevo pedido borrador",
-    cancel: "Cancelar",
     save: "guardar",
     cancelEdit: "cancelar",
     edit: "editar",
@@ -46,6 +59,8 @@ export const es = {
     addLine: "Agregar línea",
     confirmOrderButton: "Confirmar pedido (asigna existencias)",
     cancelDraft: "Cancelar borrador",
+    // Intentional screen-specific lowercase variant, distinct from
+    // common.close ("Cerrar") — mirrors en.sales.close (#182).
     close: "cerrar",
     voidPaymentButton: "anular",
     recordPayment: "Registrar pago",

@@ -6,7 +6,21 @@ export const en = {
   common: {
     cancel: "Cancel",
     save: "Save",
+    close: "Close",
+    delete: "Delete",
+    edit: "Edit",
+    add: "Add",
+    confirm: "Confirm",
+    loading: "Loading…",
     retry: "retry",
+    required: "Required",
+    optional: "Optional",
+    actions: "Actions",
+    search: "Search",
+    all: "All",
+    none: "None",
+    yes: "Yes",
+    no: "No",
   },
   auth: {
     title: "Cluckwork",
@@ -41,7 +55,6 @@ export const en = {
     // Buttons
     newOrder: "New order",
     newDraftOrder: "New draft order",
-    cancel: "Cancel",
     save: "save",
     cancelEdit: "cancel",
     edit: "edit",
@@ -49,6 +62,10 @@ export const en = {
     addLine: "Add line",
     confirmOrderButton: "Confirm order (allocates stock)",
     cancelDraft: "Cancel draft",
+    // Intentional screen-specific lowercase variant, distinct from
+    // common.close ("Close") — matches this page's lowercase link-styled
+    // buttons (edit/remove/open/load more, above/below). Not a dup: same
+    // meaning, different case, so it stays here rather than merging (#182).
     close: "close",
     voidPaymentButton: "void",
     recordPayment: "Record payment",

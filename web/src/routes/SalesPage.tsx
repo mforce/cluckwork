@@ -38,6 +38,7 @@ function priceInput(defaultPriceMinorUnits: number | null, scale: number | null)
 // confirm (FIFO allocation), cancel drafts, browse/filter the order list.
 export function SalesPage() {
   const { t } = useTranslation("sales");
+  const { t: tc } = useTranslation("common");
   // Farm-local, not browser-local: since #35 the API judges "is this date in
   // the future?" against the FARM's day, so the pickers must agree (#123).
   const today = useFarmToday();
@@ -430,7 +431,7 @@ export function SalesPage() {
           {/* An open dialog renders its own copy of the error. */}
       {error && !creatingOrder && !paying && <p className="error">{error}</p>}
           <div className="dialog-foot">
-            <button type="button" className="link" onClick={() => setCreatingOrder(false)}>{t("cancel")}</button>
+            <button type="button" className="link" onClick={() => setCreatingOrder(false)}>{tc("cancel")}</button>
             <button disabled={busy || !customerId} onClick={onCreateOrder}>{t("newDraftOrder")}</button>
           </div>
         </div>
@@ -620,7 +621,7 @@ export function SalesPage() {
                   {/* An open dialog renders its own copy of the error. */}
       {error && !creatingOrder && !paying && <p className="error">{error}</p>}
                   <div className="dialog-foot">
-                    <button type="button" className="link" onClick={() => setPaying(false)}>{t("cancel")}</button>
+                    <button type="button" className="link" onClick={() => setPaying(false)}>{tc("cancel")}</button>
                     <button disabled={busy || !payAmount} onClick={onRecordPayment}>
                       {t("recordPayment")}
                     </button>
