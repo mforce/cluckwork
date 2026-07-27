@@ -692,6 +692,101 @@ export const en = {
     deactivateButton: "deactivate",
     activateButton: "activate",
   },
+  // Product catalog — what the farm sells — + packed-unit (egg-unit)
+  // conversions admin screen (Task 17, #182, batch B3 — the last B3 screen).
+  // English-only for now, same treatment as nav/numberField/errorBoundary/
+  // themeToggle/useConfirm/pwa/dailyEntry/dashboard/water/grades/inventory
+  // above: `products` is deliberately NOT in TRANSLATED_NAMESPACES, so es/tl
+  // fall back to these strings until a native-speaker pass adds the
+  // namespace. The Active/Inactive status display on BOTH tables (the
+  // products table's StatusBadge and the packed-unit table's plain-text
+  // cell) goes through the `enums` `statusLabel` helper, not a key here —
+  // see ProductsPage.tsx. `unitCode`/`defaultUnit`, product names, and grade
+  // names are free-form farm/API DATA, not client copy, and stay raw — never
+  // routed through the catalog or an enum helper. `eggsPerUnit` below is the
+  // one COPY string that interpolates a raw DATA value (the packed-unit
+  // dialog's title).
+  products: {
+    title: "Products",
+
+    // Imperative messages (the mount-effect catch, and the price parser's
+    // thrown errors — caught inside the create/edit submit handlers — see
+    // CONTRIBUTING-i18n.md's imperative i18n.t() pattern).
+    loadCatalogFailed: "Could not load the catalog. Is the API up?",
+    enterPriceAsNumber: "Enter the price as a plain number.",
+    noDecimalPlaces: "This currency has no decimal places.",
+    atMostDecimals: "At most {{count}} decimal places for this currency.",
+
+    intro:
+      "What the farm sells. Each egg product maps to an egg grade — sales "
+      + "draw stock from that grade's lots. Deactivating removes a product "
+      + "from pickers; history keeps its name.",
+
+    // Page-head button + New/edit product dialogs. `newProductButton` (the
+    // page's action button) and `newProductDialogTitle` share English text
+    // today but are separate keys, one per UI role — same treatment as
+    // dailyEntry:newFlockButton/newFlockDialogTitle.
+    newProductButton: "New product",
+    newProductDialogTitle: "New product",
+    editProductDialogTitle: "Edit product",
+
+    // Product form labels — identical text in both the create and edit
+    // dialogs, so one key each covers both (like inventory:defaultCostLabel).
+    nameLabel: "Name",
+    gradeLabel: "Grade",
+    pickGradeOption: "Pick a grade…",
+    soldPerLabel: "Sold per",
+    // {{code}} is the account's (create dialog) or the row's own snapshot
+    // (edit dialog) currency code — free-form DATA, shared verbatim by both.
+    defaultPriceLabel: "Default price",
+    defaultPriceWithCurrencyLabel: "Default price ({{code}})",
+    // Lowercase placeholder text, distinct from common.optional ("Optional")
+    // — same case-sensitive-variant treatment as grades:saleableYesBadge.
+    priceOptionalPlaceholder: "optional",
+    notesLabel: "Notes",
+    addProductButton: "Add product",
+
+    // Packed-unit (egg-unit-conversion) dialog. {{unitCode}} is the
+    // conversion's free-form unit code (DATA) — this is COPY with a data
+    // interpolation, not an enum render.
+    eggsPerUnit: "Eggs per {{unitCode}}",
+    // Fallback dialog title before a conversion is selected — in practice
+    // never visible (the dialog only opens once editingConv is set), kept
+    // for source fidelity with the pre-sweep ternary.
+    packedUnitDialogTitle: "Packed unit",
+    eggsPerUnitFieldLabel: "Eggs per unit",
+    // Lowercase checkbox label, distinct from enums:status.Active ("Active")
+    // — this is the form field, not a status display.
+    activeCheckboxLabel: "active",
+
+    // Products table — separate keys from the form labels above even where
+    // the English text coincides (same treatment as water:flockLabel/
+    // flockHeader).
+    noProductsMessage: "No products yet.",
+    nameHeader: "Name",
+    gradeHeader: "Grade",
+    soldPerHeader: "Sold per",
+    defaultPriceHeader: "Default price",
+    // Shared by BOTH tables on this screen (products + packed units) — same
+    // word, same status-column meaning, on the same page.
+    statusHeader: "Status",
+    // Row-action links, shared by BOTH tables' edit buttons (same meaning:
+    // open that row's edit dialog).
+    editButton: "edit",
+    deactivateButton: "deactivate",
+    activateButton: "activate",
+
+    // Packed units table
+    packedUnitsHeading: "Packed units",
+    packedUnitsIntro:
+      "How many eggs each unit holds when selling (a carton is 12, 18, or "
+      + "30 depending on your market — set yours). Changing a unit only "
+      + "affects future sales; recorded orders keep the count they were "
+      + "sold with.",
+    unitHeader: "Unit",
+    eggsPerUnitHeader: "Eggs per unit",
+    alwaysOneMessage: "always 1",
+  },
   // Closed-vocabulary labels (#182, Task 4). Consumed ONLY through the typed
   // helpers in enums.ts — never a raw t("enums:status." + value). Keys are FLAT
   // "family.RawValue" strings (keySeparator:false, see index.ts): the suffix is
