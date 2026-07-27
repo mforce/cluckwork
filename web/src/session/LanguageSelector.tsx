@@ -7,7 +7,8 @@ import i18n, { SUPPORTED_LANGUAGES } from "../i18n";
 const LANGUAGE_NAMES: Record<string, string> = { en: "English", es: "Español", tl: "Tagalog" };
 
 // Per-user UI language (#182). Hidden while only one language is installed — a
-// single-option picker is noise — so today it renders nothing. The change path
+// single-option picker is noise — so it renders only once more than one
+// language is installed, which is the case today (en/es/tl). The change path
 // persists to the server (PUT /me/language) AND switches i18next live.
 export function LanguageSelector() {
   const { t } = useTranslation("account");

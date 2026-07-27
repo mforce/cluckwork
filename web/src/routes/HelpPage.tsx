@@ -145,8 +145,10 @@ export function HelpPage() {
         <strong>Interface language.</strong> Everyone can choose the language
         the interface is shown in from <strong>Account → Preferences</strong>{" "}
         — English, Español, or Tagalog. Translation is a work in progress:
-        the login, sales, account, and error screens are translated today,
-        and the rest of the app is being translated screen by screen. Until a
+        the login and sales screens, error messages, and{" "}
+        <strong>Account → Preferences</strong> itself are translated today;
+        the rest of the Account screen (including the password section) and
+        the rest of the app are being translated screen by screen. Until a
         screen is translated it simply shows in English, whatever language
         you picked.
       </p>
@@ -844,6 +846,8 @@ export function HelpPage() {
               Separate from each person's own light/night mode setting.
             </td>
           </tr>
+          <tr><th scope="row">UI language</th>
+            <td>The per-user language the interface is shown in — English, Español, or Tagalog — chosen from Account → Preferences. English is the fallback for any screen not yet translated, whatever language you picked.</td></tr>
         </tbody>
       </table>
 

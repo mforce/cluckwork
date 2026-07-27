@@ -1,4 +1,13 @@
 // MACHINE-DRAFTED translation, PENDING NATIVE-SPEAKER REVIEW (#182 / epic #15). Keys mirror en.ts exactly.
+//
+// Translator notes:
+// - sales.reference / sales.referenceOptional ("Reference" / "Reference
+//   (opsyonal)") intentionally KEEP "Reference" as an English loanword — it is
+//   the common term for a payment/transaction reference number in PH sales UIs,
+//   not an untranslated oversight.
+// - UI screen/label names referenced in prose (e.g. "(Customers page)" in
+//   sales.addCustomerFirst) are kept in English, matching the actual on-screen
+//   label, until that screen itself is externalized to the catalog (#182).
 export const tl = {
   common: {
     cancel: "Kanselahin",
@@ -50,7 +59,7 @@ export const tl = {
     loadMore: "mag-load pa",
 
     // Form labels
-    customer: "Customer",
+    customer: "Kustomer",
     date: "Petsa",
     product: "Produkto",
     perLabel: "Bawat",
@@ -145,4 +154,4 @@ export const tl = {
     paymentVoided: "Na-void ang bayad — tumaas muli ang nakabinbin na halaga.",
     orderVoided: "Na-void ang order {{ref}} — naibalik ang stock sa imbentaryo.",
   },
-};
+} as const;

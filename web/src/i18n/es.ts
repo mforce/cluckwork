@@ -1,4 +1,8 @@
 // MACHINE-DRAFTED translation, PENDING NATIVE-SPEAKER REVIEW (#182 / epic #15). Keys mirror en.ts exactly.
+//
+// Translator note: UI screen/label names referenced in prose (e.g. "(Customers
+// page)" in sales.addCustomerFirst) are kept in English, matching the actual
+// on-screen label, until that screen itself is externalized to the catalog (#182).
 export const es = {
   common: {
     cancel: "Cancelar",
@@ -102,7 +106,7 @@ export const es = {
     methodOther: "Otro",
 
     // Misc UI text
-    addCustomerFirst: "Agregue un cliente primero (página Clientes) y luego cree un pedido.",
+    addCustomerFirst: "Agregue un cliente primero (Customers page) y luego cree un pedido.",
     noOrdersMatch: "Ningún pedido coincide.",
     voidingNeedsAdmin: "Anular requiere un administrador.",
     voidReasonLabel: "Motivo de anulación: {{reason}}",
@@ -144,4 +148,4 @@ export const es = {
     paymentVoided: "Pago anulado — el monto pendiente aumentó de nuevo.",
     orderVoided: "Pedido {{ref}} anulado — existencias devueltas al inventario.",
   },
-};
+} as const;
