@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Link, MemoryRouter, useLocation } from "react-router";
 import { ErrorBoundary } from "./ErrorBoundary";
+import i18n from "../i18n";
 
 // A child that throws during render — the exact case a boundary exists for.
 function Boom({ message = "kaboom" }: { message?: string }): never {
@@ -213,6 +214,96 @@ describe("ErrorBoundary", () => {
       // Let the rejected report settle — it must be swallowed, not unhandled.
       await new Promise((r) => setTimeout(r, 0));
       expect(screen.getByText("Something went wrong")).toBeInTheDocument();
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// i18n wiring (#182, Task 8, batch B1)
+// ---------------------------------------------------------------------------
+
+// `errorBoundary` is English-only (not in TRANSLATED_NAMESPACES — see
+// translations-status.ts), so under ANY UI language the fallback text is
+// identical to what a still-hardcoded literal would render — asserting it,
+// even under a non-English locale, would prove nothing (CONTRIBUTING-i18n.md's
+// fallback trap). Swap the catalog value at runtime instead, the same
+// i18n.addResource technique AppLayout's Task 7 nav wiring tests use, so each
+// marker only renders if ErrorFallback actually reads the catalog.
+describe("ErrorBoundary i18n wiring (#182, Task 8)", () => {
+  function withOverride(key: string, value: string, run: () => void) {
+    const original = i18n.getResource("en", "errorBoundary", key) as string;
+    i18n.addResource("en", "errorBoundary", key, value);
+    try {
+      run();
+    } finally {
+      i18n.addResource("en", "errorBoundary", key, original);
+    }
+  }
+
+  it("reads the fallback heading from the catalog, not a hardcoded literal", () => {
+    withOverride("title", "TITLE-MARKER", () => {
+      inRouter(
+        <ErrorBoundary scope="screen">
+          <Boom />
+        </ErrorBoundary>,
+      );
+      expect(screen.getByText("TITLE-MARKER")).toBeInTheDocument();
+      expect(screen.queryByText("Something went wrong")).not.toBeInTheDocument();
+    });
+  });
+
+  it("reads the screen-scope body text from the catalog", () => {
+    withOverride("screenBody", "SCREEN-BODY-MARKER", () => {
+      inRouter(
+        <ErrorBoundary scope="screen">
+          <Boom />
+        </ErrorBoundary>,
+      );
+      expect(screen.getByText("SCREEN-BODY-MARKER")).toBeInTheDocument();
+    });
+  });
+
+  it("reads the app-scope body text from the catalog", () => {
+    withOverride("appBody", "APP-BODY-MARKER", () => {
+      render(
+        <ErrorBoundary scope="app">
+          <Boom />
+        </ErrorBoundary>,
+      );
+      expect(screen.getByText("APP-BODY-MARKER")).toBeInTheDocument();
+    });
+  });
+
+  it("reads the reload button's label from the catalog", () => {
+    withOverride("reload", "RELOAD-MARKER", () => {
+      inRouter(
+        <ErrorBoundary scope="screen">
+          <Boom />
+        </ErrorBoundary>,
+      );
+      expect(screen.getByRole("button", { name: "RELOAD-MARKER" })).toBeInTheDocument();
+    });
+  });
+
+  it("reads the back-to-dashboard link text from the catalog", () => {
+    withOverride("backToDashboard", "BACK-MARKER", () => {
+      inRouter(
+        <ErrorBoundary scope="screen">
+          <Boom />
+        </ErrorBoundary>,
+      );
+      expect(screen.getByRole("link", { name: "BACK-MARKER" })).toBeInTheDocument();
+    });
+  });
+
+  it("reads the error-details summary from the catalog", () => {
+    withOverride("detailsSummary", "DETAILS-MARKER", () => {
+      inRouter(
+        <ErrorBoundary scope="screen">
+          <Boom />
+        </ErrorBoundary>,
+      );
+      expect(screen.getByText("DETAILS-MARKER")).toBeInTheDocument();
     });
   });
 });

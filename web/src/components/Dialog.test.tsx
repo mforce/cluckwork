@@ -3,6 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { Dialog } from "./Dialog";
+import i18n from "../i18n";
 
 function Body() {
   return (
@@ -252,5 +253,37 @@ describe("Dialog focus trap skips controls the browser would not tab to", () => 
     // boundary, so Tab must wrap inside rather than escape to the page.
     await user.tab();
     expect(screen.getByRole("button", { name: "Close" })).toHaveFocus();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// i18n wiring (#182, Task 8, batch B1)
+// ---------------------------------------------------------------------------
+
+// `common` is a TRANSLATED namespace (see translations-status.ts), so asserting
+// "Close" under the default lng:"en" would pass even if the label were still a
+// hardcoded literal (CONTRIBUTING-i18n.md's fallback trap). Swapping the
+// catalog value at runtime — the same i18n.addResource technique AppLayout's
+// Task 7 wiring tests use — only renders the marker if Dialog actually reads
+// the catalog.
+describe("Dialog i18n wiring (#182, Task 8)", () => {
+  async function withCommonOverride(key: string, value: string, run: () => Promise<void>) {
+    const original = i18n.getResource("en", "common", key) as string;
+    i18n.addResource("en", "common", key, value);
+    try {
+      await run();
+    } finally {
+      i18n.addResource("en", "common", key, original);
+    }
+  }
+
+  it("reads the close button's accessible name from the catalog, not a hardcoded literal", async () => {
+    const user = userEvent.setup();
+    await withCommonOverride("close", "CLOSE-MARKER", async () => {
+      render(<Host />);
+      await user.click(screen.getByRole("button", { name: "New grade" }));
+      expect(screen.getByRole("button", { name: "CLOSE-MARKER" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Close" })).not.toBeInTheDocument();
+    });
   });
 });

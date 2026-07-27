@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, act } from "@testing-library/react";
 import { useState } from "react";
 import { NumberField } from "./NumberField";
+import i18n from "../i18n";
 
 // Just under the 400ms first-repeat delay.
 const FIRST_REPEAT_UNDER = 350;
@@ -275,5 +276,41 @@ describe("NumberField live limits", () => {
     expect(onChange).toHaveBeenCalledTimes(settled);
 
     await act(async () => { fireEvent.pointerUp(minus()); });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// i18n wiring (#182, Task 8, batch B1)
+// ---------------------------------------------------------------------------
+
+// `numberField` is English-only (not in TRANSLATED_NAMESPACES — see
+// translations-status.ts), so under ANY UI language the rendered text falls
+// back to this exact English string, same as a still-hardcoded literal would
+// render. Asserting that text — even under a non-English locale — would prove
+// nothing (CONTRIBUTING-i18n.md's fallback trap). Swap the catalog value at
+// runtime instead — the same i18n.addResource technique the nav wiring tests
+// use (AppLayout.test.tsx, Task 7) — so the marker only renders if NumberField
+// actually reads the catalog.
+describe("NumberField i18n wiring (#182, Task 8)", () => {
+  function withOverride(key: string, value: string, run: () => void) {
+    const original = i18n.getResource("en", "numberField", key) as string;
+    i18n.addResource("en", "numberField", key, value);
+    try {
+      run();
+    } finally {
+      i18n.addResource("en", "numberField", key, original);
+    }
+  }
+
+  it("reads the increase/decrease aria-labels from the catalog, not hardcoded literals", () => {
+    withOverride("increaseLabel", "INCREASE-MARKER {{label}}", () => {
+      withOverride("decreaseLabel", "DECREASE-MARKER {{label}}", () => {
+        render(<Host />);
+        expect(screen.getByRole("button", { name: "INCREASE-MARKER total eggs" })).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "DECREASE-MARKER total eggs" })).toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "Increase total eggs" })).not.toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "Decrease total eggs" })).not.toBeInTheDocument();
+      });
+    });
   });
 });

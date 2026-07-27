@@ -106,6 +106,29 @@ export const en = {
     menuTitle: "Menu",
     allSectionsAriaLabel: "All sections",
   },
+  // Shared primitives (Task 8, #182, batch B1) — Dialog's close button reuses
+  // `common.close` (no new key needed); these two components have genuinely
+  // new copy of their own. English-only for now: neither namespace is in
+  // TRANSLATED_NAMESPACES (see translations-status.ts), so es/tl fall back to
+  // these exact strings until a native-speaker pass adds them — same
+  // treatment as `nav` above.
+  numberField: {
+    // Interpolated with the caller-supplied field name (e.g. "total eggs"),
+    // which is domain text passed in via NumberField's `label` prop, not
+    // translated here.
+    increaseLabel: "Increase {{label}}",
+    decreaseLabel: "Decrease {{label}}",
+  },
+  errorBoundary: {
+    title: "Something went wrong",
+    screenBody:
+      "This screen ran into a problem and couldn’t finish loading. Anything you’d already saved is safe, but anything you were still typing here may need to be entered again. The rest of the app still works.",
+    appBody:
+      "The app ran into a problem and couldn’t finish loading. Reloading usually clears it.",
+    reload: "Reload",
+    backToDashboard: "Back to the dashboard",
+    detailsSummary: "Error details",
+  },
   // Sales pilot (Task 7, #182) — the worked pattern for the full sweep.
   sales: {
     // Headings

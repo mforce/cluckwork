@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from "react";
 import type { Dispatch, SetStateAction } from "react";
+import { useTranslation } from "react-i18next";
 import { Minus, Plus } from "lucide-react";
 
 // Hold-to-repeat: one press, then a pause so a tap stays a tap, then ticks.
@@ -35,6 +36,7 @@ interface NumberFieldProps {
 export function NumberField({
   id, label, value, onChange, max = Number.POSITIVE_INFINITY, disabled = false,
 }: NumberFieldProps) {
+  const { t } = useTranslation("numberField");
   const timer = useRef<number | null>(null);
   const tick = useRef(0);
   // A press fires once but its repeat outlives the render that started it. Both
@@ -114,7 +116,7 @@ export function NumberField({
   return (
     <span className="numfield">
       <button type="button" className="numfield-step" disabled={disabled || value <= 0}
-        aria-label={`Decrease ${label}`} {...held(-1)}>
+        aria-label={t("decreaseLabel", { label })} {...held(-1)}>
         <Minus size={16} aria-hidden />
       </button>
       <input
@@ -126,7 +128,7 @@ export function NumberField({
         onChange={(e) => onChange(Math.max(0, e.target.valueAsNumber || 0))}
       />
       <button type="button" className="numfield-step"
-        aria-label={`Increase ${label}`} disabled={disabled || value >= max} {...held(1)}>
+        aria-label={t("increaseLabel", { label })} disabled={disabled || value >= max} {...held(1)}>
         <Plus size={16} aria-hidden />
       </button>
     </span>
