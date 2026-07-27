@@ -2,6 +2,15 @@
 
 The Cluckwork SPA is built for internationalization from the start. This guide documents the patterns used for translatable strings, keying, and formatting boundaries.
 
+## Scope: client-authored copy
+
+The sweep's goal is full coverage of all **client-authored** SPA copy — text written into this codebase's own components and screens (labels, buttons, headings, prose, placeholders). It does **not** chase text that originates on the server:
+
+- **Uncoded validation messages and problem-details fall back to `ApiError.message`, which is server English by design.** [`src/api/client.ts`](./src/api/client.ts)'s `parseError` renders the server's own message whenever a validation error has no explicit error code, or a code with no matching `errors:*` catalog key — see the `defaultValue: msg` fallback there. That English text is not a client string literal, so there is nothing here to externalize for it.
+- **Coded errors already translate.** A field error that DOES carry a known code (e.g. `Me.Language.Format`) is looked up in the `errors` namespace and rendered in the UI language; only the fallback path renders server English. See [Key naming](#key-naming) below.
+
+The hardcoded-string scan (below) reflects this boundary: it only flags JSX text and literal attribute values in `.tsx` files, never a string riding in on an API response.
+
 ## Choosing the right API: `t()` vs. `<Trans>`
 
 **Use `t()` for plain strings** — the most common case:
@@ -50,6 +59,7 @@ Namespaces are by area:
 - `account` — user preferences
 - `sales` — the sales & orders module
 - `errors` — API validation messages keyed by [stable error codes](./src/i18n/en.ts#L27) (`Me.Language.Format`)
+- `enums` — display labels for the app's closed vocabularies (status, etc.), rendered only through the typed helpers in [`src/i18n/enums.ts`](./src/i18n/enums.ts). **English-only for now**: `enums` is deliberately not in `TRANSLATED_NAMESPACES`, so es/tl fall back to the English label until a dedicated native-speaker enum-translation pass.
 
 Examples:
 - `auth:signIn` — a button label
@@ -124,6 +134,19 @@ A hardcoded user-facing string is a review defect. Every new screen must:
 4. Include tests (see [the coverage gate in `web/README.md`](./README.md#tests))
 
 Screens that went through the pilot (Login, SalesPage) are worked examples of the full string sweep. The remaining screens are tracked in #182.
+
+## Hardcoded-string scan
+
+`npm run i18n:scan` ([`scripts/i18n-scan.mjs`](./scripts/i18n-scan.mjs)) is a pragmatic, grep-level scanner — not an AST-perfect one — that flags likely un-externalized user-facing string literals: JSX text nodes, and literal `placeholder=`/`aria-label=`/`title=`/`alt=`/`label=` attribute values, that aren't already wrapped in `t(...)`, `i18n.t(...)`, or `<Trans>`. It defaults to `src/routes src/components` and takes an optional path list:
+
+```sh
+npm run i18n:scan                    # default paths
+npm run i18n:scan -- src/components  # a narrower pass
+```
+
+It prints one `file:line: <snippet>` per hit and a final `COUNT: N`, then always exits 0 — it's a reporting aid for tracking progress batch-over-batch, not a CI gate. **The convention: each sweep batch's PR reports the count for its scope and the count must not increase** (batches compare against the prior batch's number, the same way the coverage floors in `vite.config.ts` ratchet). Intentional survivors — data/format examples, the brand name, anything a screen-by-screen review confirms isn't translatable copy — go in [`scripts/i18n-scan-allowlist.txt`](./scripts/i18n-scan-allowlist.txt), whose header documents the entry format. Don't allowlist a string just because its screen hasn't been swept yet — that would hide the exact regression this tool exists to catch.
+
+The scan's own header comment documents its known false-positive/false-negative shapes (rare operator edge cases, comments, text trailing a closing sibling tag) — read it before trusting a surprising delta.
 
 ## Formatting boundary: money, dates, and numbers
 
