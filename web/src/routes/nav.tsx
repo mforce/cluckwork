@@ -5,19 +5,26 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { Role } from "../auth/claims";
+import type { Resources } from "../i18n/en";
+
+// A key into the `nav` i18next namespace (#182, Task 7). This file is a PURE
+// FUNCTION module — it cannot call useTranslation — so nav items carry a
+// labelKey instead of English text; AppLayout and BottomNav translate it at
+// their render sites via `t(item.labelKey)`.
+export type NavLabelKey = keyof Resources["nav"];
 
 // One nav model, three renderers (sidebar, bottom tabs, the More sheet). The
 // role gates live HERE only — a second copy in the mobile nav would be the
 // exact drift that lets a ReadOnly user see a Sales tab the API then rejects.
 export interface NavEntry {
   to: string;
-  label: string;
+  labelKey: NavLabelKey;
   Icon: LucideIcon;
   end?: boolean;
 }
 
 export interface NavGroup {
-  label: string;
+  labelKey: NavLabelKey;
   entries: NavEntry[];
 }
 
@@ -33,61 +40,61 @@ export function navGroups(role: Role, isAdmin: boolean): NavGroup[] {
   const notReadOnly = role !== "ReadOnly" && role !== "Denied";
 
   const groups: NavGroup[] = [
-    { label: "Overview", entries: [{ to: "/", label: "Dashboard", Icon: LayoutDashboard, end: true }] },
+    { labelKey: "groupOverview", entries: [{ to: "/", labelKey: "dashboard", Icon: LayoutDashboard, end: true }] },
   ];
 
   if (canProduce) {
     groups.push({
-      label: "Production",
+      labelKey: "groupProduction",
       entries: [
-        { to: "/daily-entry", label: "Daily entry", Icon: ClipboardList },
-        { to: "/flocks", label: "Flocks", Icon: Bird },
-        { to: "/water", label: "Water", Icon: Droplets },
-        { to: "/inventory", label: "Inventory", Icon: Boxes },
+        { to: "/daily-entry", labelKey: "dailyEntry", Icon: ClipboardList },
+        { to: "/flocks", labelKey: "flocks", Icon: Bird },
+        { to: "/water", labelKey: "water", Icon: Droplets },
+        { to: "/inventory", labelKey: "inventory", Icon: Boxes },
       ],
     });
   }
 
   groups.push({
-    label: "Sales & stock",
+    labelKey: "groupSalesStock",
     entries: [
-      { to: "/stock", label: "Stock", Icon: Egg },
+      { to: "/stock", labelKey: "stock", Icon: Egg },
       ...(notReadOnly ? [
-        { to: "/customers", label: "Customers", Icon: Users },
-        { to: "/sales", label: "Sales", Icon: ShoppingCart },
+        { to: "/customers", labelKey: "customers" as const, Icon: Users },
+        { to: "/sales", labelKey: "sales" as const, Icon: ShoppingCart },
       ] : []),
-      { to: "/history", label: "History", Icon: History },
+      { to: "/history", labelKey: "history", Icon: History },
     ],
   });
 
   groups.push({
-    label: "Insights",
+    labelKey: "groupInsights",
     entries: [
-      { to: "/reports", label: "Reports", Icon: ChartColumn },
-      ...(isAdmin ? [{ to: "/expenses", label: "Expenses", Icon: Wallet }] : []),
+      { to: "/reports", labelKey: "reports", Icon: ChartColumn },
+      ...(isAdmin ? [{ to: "/expenses", labelKey: "expenses" as const, Icon: Wallet }] : []),
     ],
   });
 
   if (isAdmin) {
     groups.push({
-      label: "Setup",
+      labelKey: "groupSetup",
       entries: [
         // Same gate as the API's /account/settings (AdminOnly = Owner or
         // Manager), not the narrower Users one.
-        { to: "/settings", label: "Farm settings", Icon: Settings },
-        { to: "/grades", label: "Grades", Icon: Tags },
-        { to: "/products", label: "Products", Icon: Package },
-        ...(role === "Admin" ? [{ to: "/users", label: "Users", Icon: UserCog }] : []),
-        { to: "/audit", label: "Audit", Icon: ScrollText },
-        { to: "/export", label: "Export", Icon: Download },
+        { to: "/settings", labelKey: "farmSettings", Icon: Settings },
+        { to: "/grades", labelKey: "grades", Icon: Tags },
+        { to: "/products", labelKey: "products", Icon: Package },
+        ...(role === "Admin" ? [{ to: "/users", labelKey: "users" as const, Icon: UserCog }] : []),
+        { to: "/audit", labelKey: "audit", Icon: ScrollText },
+        { to: "/export", labelKey: "export", Icon: Download },
       ],
     });
   }
 
   // #165 — every role can change their own password, so Account is ungated.
-  groups.push({ label: "You", entries: [{ to: "/account", label: "Account", Icon: UserRound }] });
+  groups.push({ labelKey: "groupYou", entries: [{ to: "/account", labelKey: "account", Icon: UserRound }] });
 
-  groups.push({ label: "Help", entries: [{ to: "/help", label: "Help", Icon: CircleHelp }] });
+  groups.push({ labelKey: "groupHelp", entries: [{ to: "/help", labelKey: "help", Icon: CircleHelp }] });
 
   return groups;
 }

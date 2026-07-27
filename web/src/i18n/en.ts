@@ -44,6 +44,68 @@ export const en = {
   errors: {
     "Me.Language.Format": "Language must be a 2–8 letter code, for example 'en'.",
   },
+  // Shared navigation chrome (Task 7, #182) — the FIRST screen-externalization
+  // batch (B1). English-only: `nav` is deliberately NOT in TRANSLATED_NAMESPACES
+  // (see translations-status.ts), so es/tl fall back to these strings until a
+  // native-speaker pass adds the namespace. `navGroups()`/`tabEntries()`
+  // (routes/nav.tsx) are PURE FUNCTIONS and cannot call useTranslation, so they
+  // carry a typed `labelKey` into this namespace instead of English text; the
+  // render sites (AppLayout, BottomNav) translate it. The same labelKeys feed
+  // the sidebar, the bottom tab bar, and the More sheet — one source.
+  nav: {
+    // Section headings (NavGroup.labelKey).
+    groupOverview: "Overview",
+    groupProduction: "Production",
+    groupSalesStock: "Sales & stock",
+    groupInsights: "Insights",
+    groupSetup: "Setup",
+    groupYou: "You",
+    groupHelp: "Help",
+
+    // Destination labels (NavEntry.labelKey).
+    dashboard: "Dashboard",
+    dailyEntry: "Daily entry",
+    flocks: "Flocks",
+    water: "Water",
+    inventory: "Inventory",
+    stock: "Stock",
+    customers: "Customers",
+    sales: "Sales",
+    history: "History",
+    reports: "Reports",
+    expenses: "Expenses",
+    farmSettings: "Farm settings",
+    grades: "Grades",
+    products: "Products",
+    users: "Users",
+    audit: "Audit",
+    export: "Export",
+    account: "Account",
+    // Reused for BOTH the "Help" destination and the "Help" group heading —
+    // identical text, identical meaning, so it stays one key within this
+    // namespace (not a `common` atom: nav-local reuse, not cross-screen).
+    help: "Help",
+
+    // AppLayout chrome.
+    skipToContent: "Skip to main content",
+    primaryNavAriaLabel: "Primary",
+    signOut: "Sign out",
+    farmLoadFailedNeverLoaded:
+      "Could not load this farm's settings, so dates follow this device rather than the farm.",
+    farmLoadFailedStale:
+      "Could not re-read this farm's settings, so what you see here may be out of date.",
+    tryAgain: "Try again",
+    // Composed with the per-page title (the active nav entry's translated
+    // label) to build document.title, e.g. "Dashboard — Cluckwork". The brand
+    // word stays as-is, matching FarmBrand's own hardcoded "Cluckwork" fallback.
+    titleSuffix: " — Cluckwork",
+
+    // BottomNav chrome.
+    tabBarAriaLabel: "Sections",
+    moreButton: "More",
+    menuTitle: "Menu",
+    allSectionsAriaLabel: "All sections",
+  },
   // Sales pilot (Task 7, #182) — the worked pattern for the full sweep.
   sales: {
     // Headings

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { NavLink, useLocation } from "react-router";
 import { LogOut, Menu } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Dialog } from "./Dialog";
 import { ThemeToggle } from "./ThemeToggle";
 import type { NavEntry, NavGroup } from "../routes/nav";
@@ -20,6 +21,7 @@ export function BottomNav({
   tabs: NavEntry[];
   onLogout: () => void;
 }) {
+  const { t } = useTranslation("nav");
   const [moreOpen, setMoreOpen] = useState(false);
   const { pathname } = useLocation();
 
@@ -43,11 +45,11 @@ export function BottomNav({
 
   return (
     <>
-      <nav className="tabbar" aria-label="Sections">
+      <nav className="tabbar" aria-label={t("tabBarAriaLabel")}>
         {tabs.map((e) => (
           <NavLink key={e.to} to={e.to} end={e.end} className="tab">
             <e.Icon size={ICON} aria-hidden />
-            <span>{e.label}</span>
+            <span>{t(e.labelKey)}</span>
           </NavLink>
         ))}
         <button
@@ -59,23 +61,23 @@ export function BottomNav({
           onClick={() => setMoreOpen(true)}
         >
           <Menu size={ICON} aria-hidden />
-          <span>More</span>
+          <span>{t("moreButton")}</span>
         </button>
       </nav>
 
       {/* The full map, so nothing is unreachable — the tabs are shortcuts into
           it, not a smaller menu. Dialog gives the focus trap, scroll lock and
           bottom-sheet styling for free (#131). */}
-      <Dialog open={moreOpen} title="Menu" onClose={() => setMoreOpen(false)}>
-        <nav className="more-nav" aria-label="All sections">
+      <Dialog open={moreOpen} title={t("menuTitle")} onClose={() => setMoreOpen(false)}>
+        <nav className="more-nav" aria-label={t("allSectionsAriaLabel")}>
           {groups.map((g) => (
-            <div className="more-group" key={g.label}>
-              <p className="more-group-label">{g.label}</p>
+            <div className="more-group" key={g.labelKey}>
+              <p className="more-group-label">{t(g.labelKey)}</p>
               {g.entries.map((e) => (
                 <NavLink key={e.to} to={e.to} end={e.end}
                   onClick={() => setMoreOpen(false)}>
                   <e.Icon size={ICON} aria-hidden />
-                  <span>{e.label}</span>
+                  <span>{t(e.labelKey)}</span>
                 </NavLink>
               ))}
             </div>
@@ -84,7 +86,7 @@ export function BottomNav({
         <div className="more-foot">
           <ThemeToggle iconSize={ICON} />
           <button className="link" onClick={() => { setMoreOpen(false); onLogout(); }}>
-            <LogOut size={ICON} aria-hidden /><span>Sign out</span>
+            <LogOut size={ICON} aria-hidden /><span>{t("signOut")}</span>
           </button>
         </div>
       </Dialog>

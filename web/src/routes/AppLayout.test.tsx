@@ -5,6 +5,7 @@ import { renderWithProviders } from "../test/renderWithProviders";
 import { AuthProvider } from "../auth/AuthContext";
 import { FarmContext } from "../farm/FarmContext";
 import { account, farmState } from "../test/fixtures";
+import i18n from "../i18n";
 import { AppLayout } from "./AppLayout";
 
 // The theme toggle writes data-theme on the document root — reset it between
@@ -165,5 +166,114 @@ describe("AppLayout bottom tabs", () => {
   it("does not mark More current when a tab owns the screen", () => {
     renderWithProviders(<AppLayout />, { token: { sub: "u1", role: "Admin" }, route: "/stock" });
     expect(tabbar().getByRole("button", { name: "More" })).not.toHaveAttribute("aria-current");
+  });
+});
+
+describe("AppLayout i18n wiring (#182, Task 7)", () => {
+  // `nav` is English-only (not in TRANSLATED_NAMESPACES — see
+  // translations-status.ts), so under ANY UI language the rendered text falls
+  // back to the exact same English string a still-hardcoded control would
+  // also render. Asserting that English text — even under a non-English
+  // locale — would prove nothing (CONTRIBUTING-i18n.md's fallback trap). So
+  // each test below swaps ONE catalog value at runtime — the same
+  // i18n.addResource mechanism i18n.test.ts uses for its own fallback test —
+  // and asserts the swapped MARKER renders. That only happens if the render
+  // path actually reads the catalog; a hardcoded literal would keep showing
+  // the original English no matter what the catalog holds.
+  function withNavOverride(key: string, value: string, run: () => void) {
+    const original = i18n.getResource("en", "nav", key) as string;
+    i18n.addResource("en", "nav", key, value);
+    try {
+      run();
+    } finally {
+      i18n.addResource("en", "nav", key, original);
+    }
+  }
+
+  it("reads a sidebar destination label from the catalog, not a hardcoded literal", () => {
+    withNavOverride("dashboard", "NAV-DASHBOARD-MARKER", () => {
+      renderWithProviders(<AppLayout />, { token: { sub: "u1", role: "Admin" } });
+      expect(sidebar().getByRole("link", { name: "NAV-DASHBOARD-MARKER" })).toBeInTheDocument();
+      expect(sidebar().queryByRole("link", { name: "Dashboard" })).not.toBeInTheDocument();
+    });
+  });
+
+  it("reads a section heading from the catalog", () => {
+    withNavOverride("groupOverview", "NAV-GROUP-MARKER", () => {
+      renderWithProviders(<AppLayout />, { token: { sub: "u1", role: "Admin" } });
+      expect(sidebar().getByText("NAV-GROUP-MARKER")).toBeInTheDocument();
+      expect(sidebar().queryByText("Overview")).not.toBeInTheDocument();
+    });
+  });
+
+  it("reads the sidebar's landmark aria-label from the catalog", () => {
+    withNavOverride("primaryNavAriaLabel", "NAV-PRIMARY-MARKER", () => {
+      renderWithProviders(<AppLayout />, { token: { sub: "u1", role: "Admin" } });
+      expect(screen.getByRole("navigation", { name: "NAV-PRIMARY-MARKER" })).toBeInTheDocument();
+    });
+  });
+
+  it("reads Sign out from the catalog", () => {
+    withNavOverride("signOut", "NAV-SIGNOUT-MARKER", () => {
+      renderWithProviders(<AppLayout />, { token: { sub: "u1", role: "Admin" } });
+      expect(screen.getByRole("button", { name: "NAV-SIGNOUT-MARKER" })).toBeInTheDocument();
+    });
+  });
+
+  it("reads the skip-to-content link's text from the catalog", () => {
+    withNavOverride("skipToContent", "NAV-SKIP-MARKER", () => {
+      renderWithProviders(<AppLayout />, { token: { sub: "u1", role: "Admin" } });
+      expect(screen.getByRole("link", { name: "NAV-SKIP-MARKER" })).toHaveAttribute(
+        "href",
+        "#main-content",
+      );
+    });
+  });
+
+  it("reads the never-loaded farm banner and its retry button from the catalog", () => {
+    withNavOverride("farmLoadFailedNeverLoaded", "NAV-NEVERLOADED-MARKER", () => {
+      withNavOverride("tryAgain", "NAV-TRYAGAIN-MARKER", () => {
+        render(
+          <MemoryRouter>
+            <AuthProvider>
+              <FarmContext.Provider value={farmState({
+                farm: null, loadFailed: true, refresh: async () => true,
+              })}>
+                <AppLayout />
+              </FarmContext.Provider>
+            </AuthProvider>
+          </MemoryRouter>);
+        expect(screen.getByRole("alert")).toHaveTextContent("NAV-NEVERLOADED-MARKER");
+        expect(screen.getByRole("button", { name: "NAV-TRYAGAIN-MARKER" })).toBeInTheDocument();
+      });
+    });
+  });
+
+  it("reads the stale-farm banner variant from the catalog", () => {
+    withNavOverride("farmLoadFailedStale", "NAV-STALE-MARKER", () => {
+      render(
+        <MemoryRouter>
+          <AuthProvider>
+            <FarmContext.Provider value={farmState({
+              farm: account({ name: "Hen House" }), loadFailed: true,
+            })}>
+              <AppLayout />
+            </FarmContext.Provider>
+          </AuthProvider>
+        </MemoryRouter>);
+      expect(screen.getByRole("alert")).toHaveTextContent("NAV-STALE-MARKER");
+    });
+  });
+
+  it("composes document.title from the active nav entry's catalog label and the shared suffix", () => {
+    renderWithProviders(<AppLayout />, { token: { sub: "u1", role: "Admin" }, route: "/stock" });
+    expect(document.title).toBe(`${i18n.t("nav:stock")}${i18n.t("nav:titleSuffix")}`);
+  });
+
+  it("reads the title suffix from the catalog, not a hardcoded ' — Cluckwork'", () => {
+    withNavOverride("titleSuffix", " :: NAV-SUFFIX-MARKER", () => {
+      renderWithProviders(<AppLayout />, { token: { sub: "u1", role: "Admin" } });
+      expect(document.title.endsWith(" :: NAV-SUFFIX-MARKER")).toBe(true);
+    });
   });
 });

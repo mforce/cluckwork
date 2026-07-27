@@ -600,6 +600,26 @@ input.cell {
   border: 0;
 }
 
+/* Skip-to-content link (#182, Task 7): off-screen like .sr-only until it takes
+   keyboard focus, then it needs to actually be seen — so it is its own class
+   rather than a reuse of .sr-only, which never reveals itself. */
+.skip-link {
+  position: absolute;
+  top: -3rem;
+  left: 0.75rem;
+  z-index: 1000;
+  background: var(--brand);
+  color: var(--on-brand);
+  padding: 0.6rem 1rem;
+  border-radius: 0.4rem;
+  font-weight: 700;
+  transition: top 0.15s ease-in-out;
+}
+
+.skip-link:focus {
+  top: 0.75rem;
+}
+
 /* -------------------------------------------- Daily entry (F134) */
 
 /* The three steps are a real sequence, not decoration: grading is capped by the
