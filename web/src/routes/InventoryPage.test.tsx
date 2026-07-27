@@ -10,6 +10,7 @@ import {
 } from "../api/cluckwork";
 import type { Account, Flock, InventoryItem, InventoryLot, InventoryMovement } from "../api/cluckwork";
 import { ApiError } from "../api/client";
+import i18n from "../i18n";
 
 // Keep the REAL formatMoney + parseMoneyToMinorUnits (the money math under test)
 // via importOriginal; stub only the network seam. EVERY network fn the screen can
@@ -548,5 +549,173 @@ describe("InventoryPage role gating", () => {
     expect(screen.getByText(/Stock corrections need an admin/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Correct stock" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Record purchase" })).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// i18n wiring (#182, Task 16, batch B3 — the biggest B3 screen)
+// ---------------------------------------------------------------------------
+
+// `inventory` is English-only (not in TRANSLATED_NAMESPACES — see
+// translations-status.ts), so under ANY UI language the rendered text falls
+// back to this exact English string, same as a still-hardcoded literal would
+// render — asserting it, even under a non-English locale, would prove nothing
+// (CONTRIBUTING-i18n.md's fallback trap). Swap the catalog value at runtime
+// instead, the same i18n.addResource technique the other batches use, so each
+// marker only renders if the screen actually reads the catalog rather than a
+// literal that happens to still match it.
+describe("InventoryPage i18n wiring (#182, Task 16)", () => {
+  function withOverride(ns: string, key: string, value: string, run: () => Promise<void> | void) {
+    const original = i18n.getResource("en", ns, key) as string;
+    i18n.addResource("en", ns, key, value);
+    return Promise.resolve(run()).finally(() => {
+      i18n.addResource("en", ns, key, original);
+    });
+  }
+
+  it("reads the heading from the catalog, not a hardcoded literal", async () => {
+    await withOverride("inventory", "title", "TITLE-MARKER", async () => {
+      await renderReady(ADMIN);
+      expect(screen.getByRole("heading", { name: "TITLE-MARKER" })).toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "Feed & inventory" })).not.toBeInTheDocument();
+    });
+  });
+
+  it("reads the new-item button label from the catalog, not a hardcoded literal", async () => {
+    await withOverride("inventory", "newItemButton", "NEW-ITEM-MARKER", async () => {
+      await renderReady(ADMIN);
+      expect(screen.getByRole("button", { name: "NEW-ITEM-MARKER" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "New item" })).not.toBeInTheDocument();
+    });
+  });
+
+  // Proves the items-table Category cell AND the create-dialog Category
+  // picker both read the inventory-category ENUM label from the catalog (via
+  // inventoryCategoryLabel), not the raw wire value "Feed" or a hardcoded
+  // literal — FEED's category is "Feed".
+  it("reads the inventory-category enum label from the catalog for both the table cell and the picker", async () => {
+    await withOverride("enums", "inventoryCategory.Feed", "FEED-MARKER", async () => {
+      await renderReady(ADMIN);
+      const feedRow = screen.getByRole("row", { name: /Layer Feed/ });
+      expect(within(feedRow).getByText("FEED-MARKER")).toBeInTheDocument();
+
+      const form = openDialog("New item");
+      expect(within(form).getByRole("option", { name: "FEED-MARKER" })).toBeInTheDocument();
+      expect(within(form).queryByRole("option", { name: "Feed" })).not.toBeInTheDocument();
+    });
+  });
+
+  // Proves the "not feedable" message reads BOTH the catalog template AND the
+  // enum-labelled (inventoryCategoryLabel) category — a hardcoded literal, or
+  // one that interpolated the raw wire value instead of the label, would
+  // still pass a naive check since "Packaging" is its own identity label, but
+  // would fail to pick up the catalog marker text at all.
+  it("interpolates the enum-labelled category into the not-feedable message from the catalog", async () => {
+    await withOverride(
+      "inventory", "notFeedableMessage", "NOT-FEEDABLE-MARKER {{category}} MARKER-END",
+      async () => {
+        await renderReady(ADMIN);
+        await openItem(PACKAGING);
+        expect(screen.getByText("NOT-FEEDABLE-MARKER Packaging MARKER-END")).toBeInTheDocument();
+        expect(screen.queryByText(/aren't fed to flocks/)).not.toBeInTheDocument();
+      },
+    );
+  });
+
+  // Proves the movement LEDGER's Type cell reads the inventory-movement ENUM
+  // label from the catalog (via inventoryMovementLabel) — MOVEMENT's type is
+  // "Purchase".
+  it("reads the ledger movement-type enum label from the catalog", async () => {
+    mockListMovements.mockResolvedValue([MOVEMENT]);
+    await withOverride("enums", "inventoryMovement.Purchase", "PURCHASE-MARKER", async () => {
+      await renderReady(ADMIN);
+      await openItem(FEED);
+      const mvRow = screen.getByRole("row", { name: /PURCHASE-MARKER/ });
+      expect(within(mvRow).getByText("PURCHASE-MARKER")).toBeInTheDocument();
+    });
+  });
+
+  // The Correct-stock Type PICKER shows DECORATED screen copy ("Adjustment
+  // (±)"/"Discard (write-off)"), not the ledger's inventoryMovementLabel
+  // identity text — this is the deliberate split called out in en.ts's
+  // `inventory` namespace header comment. This test proves the picker DOES
+  // read the screen-copy catalog key.
+  it("wires the adjust-type picker's decorated option to inventory screen copy", async () => {
+    mockListLots.mockResolvedValue([LOT]);
+    await withOverride("inventory", "adjustTypeAdjustmentOption", "ADJ-SCREEN-MARKER", async () => {
+      await renderReady(ADMIN);
+      await openItem(FEED);
+      const form = openDialog("Correct stock");
+      expect(within(form).getByRole("option", { name: "ADJ-SCREEN-MARKER" })).toBeInTheDocument();
+    });
+  });
+
+  // ...and this test proves the picker's option is UNAFFECTED by the ledger's
+  // enum helper — overriding enums:inventoryMovement.Adjustment must NOT
+  // change the picker text, confirming the two displays are wired to
+  // genuinely different sources, not just coincidentally identical English.
+  it("does not route the adjust-type picker option through the ledger's movement-type enum label", async () => {
+    mockListLots.mockResolvedValue([LOT]);
+    await withOverride("enums", "inventoryMovement.Adjustment", "ENUM-MARKER", async () => {
+      await renderReady(ADMIN);
+      await openItem(FEED);
+      const form = openDialog("Correct stock");
+      expect(within(form).queryByRole("option", { name: "ENUM-MARKER" })).not.toBeInTheDocument();
+      expect(within(form).getByRole("option", { name: "Adjustment (±)" })).toBeInTheDocument();
+    });
+  });
+
+  // Proves the items-table Status badge reads the `status` ENUM label from
+  // the catalog (via statusLabel) — FEED is active.
+  it("reads the status badge enum label from the catalog, not a hardcoded literal", async () => {
+    await withOverride("enums", "status.Active", "ACTIVE-MARKER", async () => {
+      await renderReady(ADMIN);
+      const feedRow = screen.getByRole("row", { name: /Layer Feed/ });
+      expect(within(feedRow).getByText("ACTIVE-MARKER")).toBeInTheDocument();
+      expect(within(feedRow).queryByText("Active")).not.toBeInTheDocument();
+    });
+  });
+
+  // Proves the opened item's heading interpolates name/quantity/unit (all
+  // free-form DATA, left raw) into the catalog template — not a hardcoded
+  // literal.
+  it("interpolates item data into the item-panel heading from the catalog", async () => {
+    await withOverride("inventory", "itemPanelHeading", "PANEL-MARKER {{name}} / {{quantity}} / {{unit}}", async () => {
+      await renderReady(ADMIN);
+      await openItem(FEED);
+      expect(screen.getByRole("heading", { name: "PANEL-MARKER Layer Feed / 200 / kg" })).toBeInTheDocument();
+    });
+  });
+
+  // The success message is built with the imperative i18n.t() (onCreate is an
+  // event handler, not render — see CONTRIBUTING-i18n.md).
+  it("reads the item-created success message from the catalog, not a hardcoded literal", async () => {
+    mockCreate.mockResolvedValue({ id: "new1" });
+    await withOverride("inventory", "itemCreatedMessage", "CREATED-MARKER", async () => {
+      await renderReady(ADMIN);
+      const form = openDialog("New item");
+      fireEvent.change(within(form).getByLabelText("Item name *"), { target: { value: "Bulk Grain" } });
+      await act(async () => {
+        fireEvent.click(within(dialog()).getByRole("button", { name: "Add item" }));
+      });
+      expect(screen.getByText("CREATED-MARKER")).toBeInTheDocument();
+      expect(screen.queryByText("Item created.")).not.toBeInTheDocument();
+    });
+  });
+
+  // The ledger-load-failure message is built with the imperative i18n.t()
+  // (onOpen catches the rejection in its own handled try/catch — see the
+  // functional test above for why this rejection path is safe to test).
+  it("reads the ledger-load-failure message from the catalog, not a hardcoded literal", async () => {
+    mockListMovements.mockRejectedValueOnce(new ApiError(500, "Server error", "ledger down"));
+    await withOverride("inventory", "loadLedgerFailed", "LEDGER-FAILED-MARKER", async () => {
+      await renderReady(ADMIN);
+      const row = screen.getByRole("row", { name: /Layer Feed/ });
+      await act(async () => {
+        fireEvent.click(within(row).getByRole("button", { name: "open" }));
+      });
+      expect(await screen.findByText("LEDGER-FAILED-MARKER")).toBeInTheDocument();
+      expect(screen.queryByText("Could not load the movement ledger.")).not.toBeInTheDocument();
+    });
   });
 });

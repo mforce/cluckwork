@@ -1,12 +1,17 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { getStock, listEggLotMovements, listEggLots } from "../api/cluckwork";
 import type { EggLotRow, EggMovementRow, StockRow } from "../api/cluckwork";
+import i18n from "../i18n";
+import { stockMovementLabel } from "../i18n/enums";
 
 // F2 (#22): current sellable stock by grade; withdrawal-restricted quantities
 // are shown separately — they exist but cannot be sold yet.
 // #101: each grade expands into its lots, each lot into its movement ledger —
 // the explicit rows behind every cached balance.
 export function StockPage() {
+  const { t } = useTranslation("stock");
+  const { t: tc } = useTranslation("common");
   const [rows, setRows] = useState<StockRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [openGrade, setOpenGrade] = useState<string | null>(null);
@@ -17,7 +22,7 @@ export function StockPage() {
   useEffect(() => {
     getStock()
       .then(setRows)
-      .catch(() => setError("Could not load stock. Is the API up?"));
+      .catch(() => setError(i18n.t("stock:loadStockFailed")));
   }, []);
 
   async function toggleGrade(gradeId: string) {
@@ -32,7 +37,7 @@ export function StockPage() {
       setOpenGrade(gradeId);
       setError(null);
     } catch {
-      setError("Could not load the grade's lots.");
+      setError(i18n.t("stock:loadLotsFailed"));
     }
   }
 
@@ -47,14 +52,14 @@ export function StockPage() {
       setOpenLot(lotId);
       setError(null);
     } catch {
-      setError("Could not load the lot's movements.");
+      setError(i18n.t("stock:loadMovementsFailed"));
     }
   }
 
   if (error && rows === null) {
-    return <section><h2>Stock</h2><p className="error">{error}</p></section>;
+    return <section><h2>{t("title")}</h2><p className="error">{error}</p></section>;
   }
-  if (rows === null) return <section><h2>Stock</h2><p className="muted">Loading…</p></section>;
+  if (rows === null) return <section><h2>{t("title")}</h2><p className="muted">{tc("loading")}</p></section>;
 
   const totalAvailable = rows.reduce((a, r) => a + r.available, 0);
   // Largest available across the loaded rows scales every meter fill so the bars
@@ -63,15 +68,15 @@ export function StockPage() {
 
   return (
     <section>
-      <h2>Stock</h2>
+      <h2>{t("title")}</h2>
       {error && <p className="error" role="alert">{error}</p>}
       {rows.length === 0 ? (
-        <p className="muted">No stock yet — record and submit a daily entry.</p>
+        <p className="muted">{t("noStockMessage")}</p>
       ) : (
         <>
           <table className="data">
             <thead>
-              <tr><th>Grade</th><th>Available</th><th>Restricted</th><th></th></tr>
+              <tr><th>{t("gradeHeader")}</th><th>{t("availableHeader")}</th><th>{t("restrictedHeader")}</th><th></th></tr>
             </thead>
             <tbody>
               {rows.map((r) => (
@@ -86,25 +91,24 @@ export function StockPage() {
                   <td>{r.restricted > 0 ? <span className="badge badge-warn">{r.restricted}</span> : "—"}</td>
                   <td>
                     <button className="link" onClick={() => void toggleGrade(r.eggGradeId)}>
-                      {openGrade === r.eggGradeId ? "hide lots" : "lots"}
+                      {openGrade === r.eggGradeId ? t("hideLotsButton") : t("lotsButton")}
                     </button>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-          <p className="muted">{totalAvailable} eggs available across {rows.length} grade(s).
-            Restricted = under medication withdrawal, blocked from sale.</p>
+          <p className="muted">{t("totalAvailableMessage", { available: totalAvailable, grades: rows.length })}</p>
 
           {openGrade !== null && (
             <>
-              <h3>Lots</h3>
+              <h3>{t("lotsHeading")}</h3>
               {lots.length === 0 ? (
-                <p className="muted">No lots for this grade yet.</p>
+                <p className="muted">{t("noLotsMessage")}</p>
               ) : (
                 <table className="data">
                   <thead>
-                    <tr><th>Produced on</th><th>Produced</th><th>Available</th><th></th></tr>
+                    <tr><th>{t("producedOnHeader")}</th><th>{t("producedHeader")}</th><th>{t("availableHeader")}</th><th></th></tr>
                   </thead>
                   <tbody>
                     {lots.map((l) => (
@@ -114,7 +118,7 @@ export function StockPage() {
                         <td>{l.quantityAvailable}</td>
                         <td>
                           <button className="link" onClick={() => void toggleLot(l.id)}>
-                            {openLot === l.id ? "hide history" : "history"}
+                            {openLot === l.id ? t("hideHistoryButton") : t("historyButton")}
                           </button>
                         </td>
                       </tr>
@@ -125,20 +129,19 @@ export function StockPage() {
 
               {openLot !== null && movements !== null && (
                 <>
-                  <h4>Movement ledger</h4>
+                  <h4>{t("movementLedgerHeading")}</h4>
                   <p className="muted">
-                    Every change to this lot&apos;s available eggs — the running
-                    sum always equals the balance above.
+                    {t("movementLedgerIntro")}
                   </p>
                   <table className="data">
                     <thead>
-                      <tr><th>When (UTC)</th><th>Type</th><th>Change</th><th>Reason</th></tr>
+                      <tr><th>{t("ledgerWhenHeader")}</th><th>{t("ledgerTypeHeader")}</th><th>{t("ledgerChangeHeader")}</th><th>{t("ledgerReasonHeader")}</th></tr>
                     </thead>
                     <tbody>
                       {movements.map((m) => (
                         <tr key={m.id}>
                           <td>{m.createdAtUtc.replace("T", " ").slice(0, 19)}</td>
-                          <td>{m.movementType}</td>
+                          <td>{stockMovementLabel(m.movementType)}</td>
                           <td>{m.quantityDelta > 0 ? `+${m.quantityDelta}` : m.quantityDelta}</td>
                           <td>{m.reason ?? "—"}</td>
                         </tr>

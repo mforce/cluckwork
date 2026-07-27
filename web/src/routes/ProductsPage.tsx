@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
+import { useTranslation } from "react-i18next";
 import { Plus } from "lucide-react";
 import {
   activateProduct, createProduct, deactivateProduct, formatMoney,
@@ -12,6 +13,8 @@ import { useAuth } from "../auth/useAuth";
 import { Dialog } from "../components/Dialog";
 import { StatusBadge } from "../components/StatusBadge";
 import { newId } from "../lib/ids";
+import i18n from "../i18n";
+import { statusLabel } from "../i18n/enums";
 
 // Spec §10.1 default_unit values usable for egg products; packed units resolve
 // through the conversions below at sale time (part 2 of #97).
@@ -28,6 +31,8 @@ function errorMessage(err: unknown): string {
 // an egg grade; sales screens switch from raw grades to products in part 2.
 // No hard delete — future sold lines reference products forever.
 export function ProductsPage() {
+  const { t } = useTranslation("products");
+  const { t: tc } = useTranslation("common");
   const { isAdmin } = useAuth();
   const [products, setProducts] = useState<Product[] | null>(null);
   const [grades, setGrades] = useState<EggGrade[]>([]);
@@ -93,7 +98,7 @@ export function ProductsPage() {
         setGrades(g.filter((x) => x.isSaleable));
         setCurrency({ code: a.currencyCode, minor: a.currencyMinorUnit });
       })
-      .catch(() => setError("Could not load the catalog. Is the API up?"));
+      .catch(() => setError(i18n.t("products:loadCatalogFailed")));
   }, []);
 
   // Exact string parsing — never float × 10^n (money rule).
@@ -101,12 +106,12 @@ export function ProductsPage() {
     const trimmed = display.trim();
     if (!trimmed) return null;
     const match = /^(\d+)(?:\.(\d+))?$/.exec(trimmed);
-    if (!match) throw new Error("Enter the price as a plain number.");
+    if (!match) throw new Error(i18n.t("products:enterPriceAsNumber"));
     const frac = match[2] ?? "";
     if (frac.length > minor)
       throw new Error(minor === 0
-        ? "This currency has no decimal places."
-        : `At most ${minor} decimal places for this currency.`);
+        ? i18n.t("products:noDecimalPlaces")
+        : i18n.t("products:atMostDecimals", { count: minor }));
     return Number(match[1]) * 10 ** minor + Number(frac.padEnd(minor, "0") || 0);
   };
 
@@ -204,10 +209,10 @@ export function ProductsPage() {
     grades.find((g) => g.id === id)?.name ?? (id ? id.slice(0, 8) : "—");
 
   if (error && products === null) {
-    return <section><h2>Products</h2><p className="error">{error}</p></section>;
+    return <section><h2>{t("title")}</h2><p className="error">{error}</p></section>;
   }
   if (products === null) {
-    return <section><h2>Products</h2><p className="muted">Loading…</p></section>;
+    return <section><h2>{t("title")}</h2><p className="muted">{tc("loading")}</p></section>;
   }
 
   const editingProduct = products.find((p) => p.id === editingId) ?? null;
@@ -217,74 +222,72 @@ export function ProductsPage() {
   return (
     <section>
       <div className="page-head">
-        <h2>Products</h2>
+        <h2>{t("title")}</h2>
         {isAdmin && (
           <button type="button" onClick={() => { setError(null); setEditingId(null); setEditingConvId(null); setCreating(true); }}>
-            <Plus size={16} aria-hidden /> New product
+            <Plus size={16} aria-hidden /> {t("newProductButton")}
           </button>
         )}
       </div>
       <p className="muted">
-        What the farm sells. Each egg product maps to an egg grade — sales draw
-        stock from that grade&apos;s lots. Deactivating removes a product from
-        pickers; history keeps its name.
+        {t("intro")}
       </p>
 
       {/* A dialog renders its own copy of the error; don't double it. */}
       {error && !dialogOpen && <p className="error" role="alert">{error}</p>}
 
       {/* Gated like the inline form was: a role change mid-edit closes it. */}
-      <Dialog open={creating && isAdmin} title="New product" onClose={() => setCreating(false)}>
+      <Dialog open={creating && isAdmin} title={t("newProductDialogTitle")} onClose={() => setCreating(false)}>
         <form onSubmit={(e) => void onCreate(e)} className="inline-form">
-          <label>Name
+          <label>{t("nameLabel")}
             <input value={name} onChange={(e) => setName(e.target.value)} required maxLength={100} />
           </label>
-          <label>Grade
+          <label>{t("gradeLabel")}
             <select value={gradeId} onChange={(e) => setGradeId(e.target.value)} required>
-              <option value="">Pick a grade…</option>
+              <option value="">{t("pickGradeOption")}</option>
               {grades.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
             </select>
           </label>
-          <label>Sold per
+          <label>{t("soldPerLabel")}
             <select value={unit} onChange={(e) => setUnit(e.target.value)}>
               {EGG_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
             </select>
           </label>
-          <label>Default price{currency.code ? ` (${currency.code})` : ""}
+          <label>{currency.code ? t("defaultPriceWithCurrencyLabel", { code: currency.code }) : t("defaultPriceLabel")}
             <input type="number" min="0" step={(1 / 10 ** currency.minor).toFixed(currency.minor)}
-              value={price} onChange={(e) => setPrice(e.target.value)} placeholder="optional" />
+              value={price} onChange={(e) => setPrice(e.target.value)} placeholder={t("priceOptionalPlaceholder")} />
           </label>
-          <label>Notes
+          <label>{t("notesLabel")}
             <input value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={500} />
           </label>
           {error && <p className="error" role="alert">{error}</p>}
           <div className="dialog-foot">
-            <button type="button" className="link" onClick={() => setCreating(false)}>Cancel</button>
-            <button disabled={busy}>Add product</button>
+            <button type="button" className="link" onClick={() => setCreating(false)}>{tc("cancel")}</button>
+            <button disabled={busy}>{t("addProductButton")}</button>
           </div>
         </form>
       </Dialog>
 
-      <Dialog open={editingProduct !== null && isAdmin} title="Edit product" onClose={() => setEditingId(null)}>
+      <Dialog open={editingProduct !== null && isAdmin} title={t("editProductDialogTitle")} onClose={() => setEditingId(null)}>
         {/* noValidate: the row's save used to be a plain button, so the browser
             never enforced min/step — the price parser's own message
             ("At most N decimal places for this currency") did. */}
         <form onSubmit={(e) => void onSaveEdit(e)} className="inline-form" noValidate>
-          <label>Name
+          <label>{t("nameLabel")}
             <input value={editName} onChange={(e) => setEditName(e.target.value)} maxLength={100} />
           </label>
-          <label>Grade
+          <label>{t("gradeLabel")}
             <select value={editGradeId} onChange={(e) => setEditGradeId(e.target.value)}>
               {grades.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
             </select>
           </label>
-          <label>Sold per
+          <label>{t("soldPerLabel")}
             <select value={editUnit} onChange={(e) => setEditUnit(e.target.value)}>
               {EGG_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
             </select>
           </label>
           {/* Stepped by THIS product's snapshot precision, not the account's. */}
-          <label>Default price{editingProduct ? ` (${editingProduct.currencyCode})` : ""}
+          <label>{editingProduct ? t("defaultPriceWithCurrencyLabel", { code: editingProduct.currencyCode }) : t("defaultPriceLabel")}
             <input type="number" min="0"
               step={editingProduct ? (1 / 10 ** editingProduct.currencyMinorUnit).toFixed(editingProduct.currencyMinorUnit) : "0.01"}
               value={editPrice} onChange={(e) => setEditPrice(e.target.value)} />
@@ -293,40 +296,40 @@ export function ProductsPage() {
               not capability. editNotes stays seeded so the body round-trips. */}
           {error && <p className="error" role="alert">{error}</p>}
           <div className="dialog-foot">
-            <button type="button" className="link" onClick={() => setEditingId(null)}>Cancel</button>
-            <button type="submit" disabled={busy}>Save</button>
+            <button type="button" className="link" onClick={() => setEditingId(null)}>{tc("cancel")}</button>
+            <button type="submit" disabled={busy}>{tc("save")}</button>
           </div>
         </form>
       </Dialog>
 
       <Dialog
         open={editingConv !== null && isAdmin}
-        title={editingConv ? `Eggs per ${editingConv.unitCode}` : "Packed unit"}
+        title={editingConv ? t("eggsPerUnit", { unitCode: editingConv.unitCode }) : t("packedUnitDialogTitle")}
         onClose={() => setEditingConvId(null)}
       >
         <form onSubmit={(e) => void onSaveConversion(e)} className="inline-form" noValidate>
-          <label>Eggs per unit
+          <label>{t("eggsPerUnitFieldLabel")}
             <input type="number" min={1} value={editEggs}
               onChange={(e) => setEditEggs(Number(e.target.value))} />
           </label>
           <label className="check">
             <input type="checkbox" checked={editConvActive}
-              onChange={(e) => setEditConvActive(e.target.checked)} /> active
+              onChange={(e) => setEditConvActive(e.target.checked)} /> {t("activeCheckboxLabel")}
           </label>
           {error && <p className="error" role="alert">{error}</p>}
           <div className="dialog-foot">
-            <button type="button" className="link" onClick={() => setEditingConvId(null)}>Cancel</button>
-            <button type="submit" disabled={busy}>Save</button>
+            <button type="button" className="link" onClick={() => setEditingConvId(null)}>{tc("cancel")}</button>
+            <button type="submit" disabled={busy}>{tc("save")}</button>
           </div>
         </form>
       </Dialog>
 
       {products.length === 0 ? (
-        <p className="muted">No products yet.</p>
+        <p className="muted">{t("noProductsMessage")}</p>
       ) : (
         <table className="data">
           <thead>
-            <tr><th>Name</th><th>Grade</th><th>Sold per</th><th>Default price</th><th>Status</th>{isAdmin && <th>Actions</th>}</tr>
+            <tr><th>{t("nameHeader")}</th><th>{t("gradeHeader")}</th><th>{t("soldPerHeader")}</th><th>{t("defaultPriceHeader")}</th><th>{t("statusHeader")}</th>{isAdmin && <th>{tc("actions")}</th>}</tr>
           </thead>
           <tbody>
             {products.map((p) => (
@@ -337,19 +340,19 @@ export function ProductsPage() {
                 <td>{p.defaultPriceMinorUnits === null
                   ? "—"
                   : formatMoney(p.defaultPriceMinorUnits, p.currencyCode, p.currencyMinorUnit)}</td>
-                <td><StatusBadge status={p.active ? "Active" : "Inactive"} /></td>
+                <td><StatusBadge status={p.active ? "Active" : "Inactive"} label={statusLabel(p.active ? "Active" : "Inactive")} /></td>
                 {isAdmin && (
                   <td>
-                    <button className="link" disabled={busy} onClick={() => startEdit(p)}>edit</button>{" "}
+                    <button className="link" disabled={busy} onClick={() => startEdit(p)}>{t("editButton")}</button>{" "}
                     {p.active ? (
                       <button className="link" disabled={busy}
                         onClick={() => void run(`deact:${p.id}`, (key) => deactivateProduct(p.id, key))}>
-                        deactivate
+                        {t("deactivateButton")}
                       </button>
                     ) : (
                       <button className="link" disabled={busy}
                         onClick={() => void run(`act:${p.id}`, (key) => activateProduct(p.id, key))}>
-                        activate
+                        {t("activateButton")}
                       </button>
                     )}
                   </td>
@@ -360,26 +363,24 @@ export function ProductsPage() {
         </table>
       )}
 
-      <h3>Packed units</h3>
+      <h3>{t("packedUnitsHeading")}</h3>
       <p className="muted">
-        How many eggs each unit holds when selling (a carton is 12, 18, or 30
-        depending on your market — set yours). Changing a unit only affects
-        future sales; recorded orders keep the count they were sold with.
+        {t("packedUnitsIntro")}
       </p>
       <table className="data">
         <thead>
-          <tr><th>Unit</th><th>Eggs per unit</th><th>Status</th>{isAdmin && <th>Actions</th>}</tr>
+          <tr><th>{t("unitHeader")}</th><th>{t("eggsPerUnitHeader")}</th><th>{t("statusHeader")}</th>{isAdmin && <th>{tc("actions")}</th>}</tr>
         </thead>
         <tbody>
           {conversions.map((c) => (
             <tr key={c.id} className={c.active ? undefined : "muted"}>
               <td>{c.unitCode}</td>
               <td>{c.eggsPerUnit}</td>
-              <td>{c.active ? "Active" : "Inactive"}</td>
+              <td>{statusLabel(c.active ? "Active" : "Inactive")}</td>
               {isAdmin && (
                 <td>
                   {c.unitCode === "Individual" ? (
-                    <span className="muted">always 1</span>
+                    <span className="muted">{t("alwaysOneMessage")}</span>
                   ) : (
                     <button className="link" disabled={busy}
                       onClick={() => {
@@ -390,7 +391,7 @@ export function ProductsPage() {
                         setEditEggs(c.eggsPerUnit);
                         setEditConvActive(c.active);
                       }}>
-                      edit
+                      {t("editButton")}
                     </button>
                   )}
                 </td>

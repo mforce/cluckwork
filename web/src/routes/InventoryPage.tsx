@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
+import { useTranslation } from "react-i18next";
 import { Plus } from "lucide-react";
 import {
   createInventoryItem, activateInventoryItem, deactivateInventoryItem, formatMoney, getAccount,
@@ -13,6 +14,8 @@ import { Dialog } from "../components/Dialog";
 import { StatusBadge } from "../components/StatusBadge";
 import { newId } from "../lib/ids";
 import { useFarmToday } from "../farm/useFarm";
+import i18n from "../i18n";
+import { inventoryCategoryLabel, inventoryMovementLabel, statusLabel } from "../i18n/enums";
 
 // Feed first (spec §12); the rest of the categories get their features later.
 const CATEGORIES = [
@@ -32,6 +35,8 @@ function errText(err: unknown): string {
 // how it's measured; lots carry quantities/cost; the movement ledger explains
 // every change. Feed usage (consumption) is the follow-up PR.
 export function InventoryPage() {
+  const { t } = useTranslation("inventory");
+  const { t: tc } = useTranslation("common");
   // Farm-local, not browser-local: since #35 the API judges "is this date in
   // the future?" against the FARM's day, so the pickers must agree (#123).
   const today = useFarmToday();
@@ -113,7 +118,7 @@ export function InventoryPage() {
         const firstActive = feedable.find((f) => f.status === "Active") ?? feedable[0];
         if (firstActive) setUsageFlockId(firstActive.id);
       })
-      .catch(() => setError("Could not load inventory. Is the API up?"));
+      .catch(() => setError(i18n.t("inventory:loadInventoryFailed")));
   }, []);
 
   async function refreshAll(openItemId?: string) {
@@ -165,7 +170,7 @@ export function InventoryPage() {
   function toMinorUnits(text: string): number | null {
     if (!text.trim()) return null;
     const parsed = parseMoneyToMinorUnits(text, minorUnit);
-    if (!Number.isFinite(parsed) || parsed < 0) throw new Error("Invalid cost.");
+    if (!Number.isFinite(parsed) || parsed < 0) throw new Error(i18n.t("inventory:invalidCostError"));
     return parsed;
   }
 
@@ -179,7 +184,7 @@ export function InventoryPage() {
     if (ok) {
       setName("");
       setDefaultCost("");
-      setMessage("Item created.");
+      setMessage(i18n.t("inventory:itemCreatedMessage"));
       setCreating(false);
     }
   }
@@ -213,7 +218,7 @@ export function InventoryPage() {
     try {
       await loadLedger(i.id);
     } catch {
-      setError("Could not load the movement ledger.");
+      setError(i18n.t("inventory:loadLedgerFailed"));
     }
   }
 
@@ -222,7 +227,7 @@ export function InventoryPage() {
     if (!active) return;
     const qty = parseFloat(purchaseQty);
     if (!Number.isFinite(qty) || qty <= 0) {
-      setError("Quantity must be a positive number.");
+      setError(i18n.t("inventory:quantityMustBePositive"));
       return;
     }
     const ok = await run(`purchase:${active.id}`, (key) =>
@@ -240,7 +245,7 @@ export function InventoryPage() {
       setLotNumber("");
       setExpiryDate("");
       setPurchaseNote("");
-      setMessage("Purchase recorded — stock received.");
+      setMessage(i18n.t("inventory:purchaseRecordedMessage"));
       setPurchasing(false);
     }
   }
@@ -250,7 +255,7 @@ export function InventoryPage() {
     if (!active) return;
     const qty = parseFloat(usageQty);
     if (!Number.isFinite(qty) || qty <= 0) {
-      setError("Quantity must be a positive number.");
+      setError(i18n.t("inventory:quantityMustBePositive"));
       return;
     }
     const ok = await run(`usage:${active.id}`, (key) =>
@@ -263,7 +268,7 @@ export function InventoryPage() {
     if (ok) {
       setUsageQty("");
       setUsageNote("");
-      setMessage("Feed usage recorded — stock drained oldest lots first.");
+      setMessage(i18n.t("inventory:usageRecordedMessage"));
       setUsingStock(false);
     }
   }
@@ -273,11 +278,11 @@ export function InventoryPage() {
     if (!active) return;
     const delta = parseFloat(adjustQty);
     if (!Number.isFinite(delta) || delta === 0) {
-      setError("Adjustment quantity must be a non-zero number (negative removes stock).");
+      setError(i18n.t("inventory:adjustQuantityRequired"));
       return;
     }
     if (!adjustReason.trim()) {
-      setError("A reason is required for corrections.");
+      setError(i18n.t("inventory:adjustReasonRequired"));
       return;
     }
     const ok = await run(`adjust:${active.id}:${adjustLotId}`, (key) =>
@@ -291,7 +296,7 @@ export function InventoryPage() {
     if (ok) {
       setAdjustQty("");
       setAdjustReason("");
-      setMessage("Correction recorded in the ledger.");
+      setMessage(i18n.t("inventory:correctionRecordedMessage"));
       setAdjusting(false);
     }
   }
@@ -306,10 +311,10 @@ export function InventoryPage() {
       : "—";
 
   if (error && items === null) {
-    return <section><h2>Feed &amp; inventory</h2><p className="error">{error}</p></section>;
+    return <section><h2>{t("title")}</h2><p className="error">{error}</p></section>;
   }
   if (items === null) {
-    return <section><h2>Feed &amp; inventory</h2><p className="muted">Loading…</p></section>;
+    return <section><h2>{t("title")}</h2><p className="muted">{tc("loading")}</p></section>;
   }
 
   const dialogOpen = creating || editingId !== null || purchasing || usingStock || adjusting;
@@ -318,66 +323,65 @@ export function InventoryPage() {
   return (
     <section>
       <div className="page-head">
-        <h2>Feed &amp; inventory</h2>
+        <h2>{t("title")}</h2>
         {isAdmin && (
           <button type="button" onClick={() => { setError(null); setEditingId(null); setCreating(true); }}>
-            <Plus size={16} aria-hidden /> New item
+            <Plus size={16} aria-hidden /> {t("newItemButton")}
           </button>
         )}
       </div>
       <p className="muted">
-        Receive stock as purchases; every change lands in the item's movement
-        ledger. Recording feed usage against flocks arrives next.
+        {t("intro")}
       </p>
 
       {/* Gated like the inline form was: a role change mid-edit closes it. */}
-      <Dialog open={creating && isAdmin} title="New inventory item" onClose={() => setCreating(false)}>
+      <Dialog open={creating && isAdmin} title={t("newItemDialogTitle")} onClose={() => setCreating(false)}>
         <form className="inline-form" onSubmit={onCreate}>
-          <label>Item name *
+          <label>{t("itemNameLabel")}
             <input value={name} required maxLength={200}
               onChange={(e) => setName(e.target.value)} />
           </label>
-          <label>Category
+          <label>{t("categoryLabel")}
             <select value={category} onChange={(e) => setCategory(e.target.value)}>
-              {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              {CATEGORIES.map((c) => <option key={c} value={c}>{inventoryCategoryLabel(c)}</option>)}
             </select>
           </label>
-          <label>Unit *
+          <label>{t("unitLabel")}
             <input value={unit} required maxLength={20}
               onChange={(e) => setUnit(e.target.value)} />
           </label>
-          <label>Default cost/unit
+          <label>{t("defaultCostLabel")}
             <input className="cell" type="number" min={0} step={costStep} value={defaultCost}
               onChange={(e) => setDefaultCost(e.target.value)} />
           </label>
           {error && <p className="error">{error}</p>}
           <div className="dialog-foot">
-            <button type="button" className="link" onClick={() => setCreating(false)}>Cancel</button>
-            <button type="submit" disabled={busy}>Add item</button>
+            <button type="button" className="link" onClick={() => setCreating(false)}>{tc("cancel")}</button>
+            <button type="submit" disabled={busy}>{t("addItemButton")}</button>
           </div>
         </form>
       </Dialog>
 
-      <Dialog open={editingId !== null && isAdmin} title="Edit item" onClose={() => setEditingId(null)}>
+      <Dialog open={editingId !== null && isAdmin} title={t("editItemDialogTitle")} onClose={() => setEditingId(null)}>
         {/* noValidate: the row's save used to be a plain button, so the browser
             never enforced min/step — toMinorUnits' own message did. */}
         <form className="inline-form" noValidate onSubmit={onSaveEdit}>
-          <label>Item name
+          <label>{t("editItemNameLabel")}
             <input value={editName} maxLength={200}
               onChange={(e) => setEditName(e.target.value)} />
           </label>
-          <label>Unit
+          <label>{t("editUnitLabel")}
             <input value={editUnit} maxLength={20}
               onChange={(e) => setEditUnit(e.target.value)} />
           </label>
-          <label>Default cost/unit
+          <label>{t("defaultCostLabel")}
             <input className="cell" type="number" min={0} step={costStep} value={editCost}
               onChange={(e) => setEditCost(e.target.value)} />
           </label>
           {error && <p className="error">{error}</p>}
           <div className="dialog-foot">
-            <button type="button" className="link" onClick={() => setEditingId(null)}>Cancel</button>
-            <button type="submit" disabled={busy}>Save</button>
+            <button type="button" className="link" onClick={() => setEditingId(null)}>{tc("cancel")}</button>
+            <button type="submit" disabled={busy}>{tc("save")}</button>
           </div>
         </form>
       </Dialog>
@@ -388,22 +392,22 @@ export function InventoryPage() {
 
       {active && (
         <div className="order-panel">
-          <h3>{active.name} — {active.quantityOnHand} {active.unit} on hand</h3>
+          <h3>{t("itemPanelHeading", { name: active.name, quantity: active.quantityOnHand, unit: active.unit })}</h3>
 
           {/* One row of actions; each opens its own dialog so the ledger below
               stays put instead of being pushed down by three stacked forms. */}
           <div className="panel-actions">
             <button type="button" onClick={() => { setError(null); setPurchasing(true); }}>
-              <Plus size={16} aria-hidden /> Record purchase
+              <Plus size={16} aria-hidden /> {t("recordPurchaseButton")}
             </button>
             {canFeed && flocks.length > 0 && (
               <button type="button" onClick={() => { setError(null); setUsingStock(true); }}>
-                Record usage
+                {t("recordUsageButton")}
               </button>
             )}
             {isAdmin && lots.length > 0 && (
               <button type="button" className="link" onClick={() => { setError(null); setAdjusting(true); }}>
-                Correct stock
+                {t("correctStockButton")}
               </button>
             )}
           </div>
@@ -411,111 +415,112 @@ export function InventoryPage() {
           {/* Why an action is unavailable, in the place the button would be. */}
           {!canFeed && (
             <p className="muted">
-              {active.category} items aren&apos;t fed to flocks — usage applies to
-              Feed, Supplement, and Additive items only.
+              {t("notFeedableMessage", { category: inventoryCategoryLabel(active.category) })}
             </p>
           )}
           {canFeed && flocks.length === 0 && (
-            <p className="muted">No flocks — usage needs a flock to feed.</p>
+            <p className="muted">{t("noFlocksForUsageMessage")}</p>
           )}
           {!isAdmin ? (
-            <p className="muted">Stock corrections need an admin.</p>
+            <p className="muted">{t("correctionsNeedAdminMessage")}</p>
           ) : lots.length === 0 ? (
-            <p className="muted">No lots yet — corrections target a received lot.</p>
+            <p className="muted">{t("noLotsMessage")}</p>
           ) : null}
 
-          <Dialog open={purchasing} title={`Record purchase — ${active.name}`} onClose={() => setPurchasing(false)}>
+          <Dialog open={purchasing} title={t("recordPurchaseDialogTitle", { name: active.name })} onClose={() => setPurchasing(false)}>
             <form className="form-grid" onSubmit={onPurchase}>
-              <label>Received
+              <label>{t("receivedLabel")}
                 <input type="date" value={purchaseDate} max={today} required
                   onChange={(e) => setPurchaseDate(e.target.value)} />
               </label>
-              <label>Quantity ({active.unit})
+              <label>{t("quantityLabelWithUnit", { unit: active.unit })}
                 <input type="number" min={0.001} step={0.001} value={purchaseQty} required
                   onChange={(e) => setPurchaseQty(e.target.value)} />
               </label>
-              <label>Unit cost {active.defaultCostCurrencyCode ? `(${active.defaultCostCurrencyCode})` : ""}
+              <label>{active.defaultCostCurrencyCode
+                ? t("unitCostWithCurrencyLabel", { code: active.defaultCostCurrencyCode })
+                : t("unitCostLabel")}
                 <input type="number" min={0} step={costStep} value={purchaseCost}
-                  placeholder={active.defaultCostMinorUnits !== null ? "item default" : "required"}
+                  placeholder={active.defaultCostMinorUnits !== null ? t("costPlaceholderItemDefault") : t("costPlaceholderRequired")}
                   onChange={(e) => setPurchaseCost(e.target.value)} />
               </label>
-              <label>Lot #
+              <label>{t("lotNumberLabel")}
                 <input value={lotNumber} maxLength={100}
                   onChange={(e) => setLotNumber(e.target.value)} />
               </label>
-              <label>Expiry
+              <label>{t("expiryLabel")}
                 <input type="date" value={expiryDate} min={purchaseDate}
                   onChange={(e) => setExpiryDate(e.target.value)} />
               </label>
-              <label>Note
+              <label>{t("noteLabel")}
                 <input value={purchaseNote} maxLength={500}
                   onChange={(e) => setPurchaseNote(e.target.value)} />
               </label>
               {error && <p className="error">{error}</p>}
               <div className="dialog-foot">
-                <button type="button" className="link" onClick={() => setPurchasing(false)}>Cancel</button>
-                <button type="submit" disabled={busy}>Record purchase</button>
+                <button type="button" className="link" onClick={() => setPurchasing(false)}>{tc("cancel")}</button>
+                <button type="submit" disabled={busy}>{t("recordPurchaseSubmitButton")}</button>
               </div>
             </form>
           </Dialog>
 
-          <Dialog open={usingStock} title={`Record usage — ${active.name}`} onClose={() => setUsingStock(false)}>
+          <Dialog open={usingStock} title={t("recordUsageDialogTitle", { name: active.name })} onClose={() => setUsingStock(false)}>
             <form className="form-grid" onSubmit={onRecordUsage}>
-              <label>Flock
+              <label>{t("flockLabel")}
                 <select value={usageFlockId} onChange={(e) => setUsageFlockId(e.target.value)}>
                   {flocks.map((f) => (
                     <option key={f.id} value={f.id}>
-                      {f.name}{f.status === "Depleted" ? " (depleted — backfill only)" : ""}
+                      {f.name}{f.status === "Depleted" ? t("depletedFlockSuffix") : ""}
                     </option>
                   ))}
                 </select>
               </label>
-              <label>Date
+              <label>{t("dateLabel")}
                 <input type="date" value={usageDate} max={today} required
                   onChange={(e) => setUsageDate(e.target.value)} />
               </label>
-              <label>Quantity ({active.unit})
+              <label>{t("quantityLabelWithUnit", { unit: active.unit })}
                 <input type="number" min={0.001} step={0.001} value={usageQty} required
                   onChange={(e) => setUsageQty(e.target.value)} />
               </label>
-              <label>Note
+              <label>{t("noteLabel")}
                 <input value={usageNote} maxLength={500}
                   onChange={(e) => setUsageNote(e.target.value)} />
               </label>
               {error && <p className="error">{error}</p>}
               <div className="dialog-foot">
-                <button type="button" className="link" onClick={() => setUsingStock(false)}>Cancel</button>
-                <button type="submit" disabled={busy || !usageFlockId}>Record usage</button>
+                <button type="button" className="link" onClick={() => setUsingStock(false)}>{tc("cancel")}</button>
+                <button type="submit" disabled={busy || !usageFlockId}>{t("recordUsageSubmitButton")}</button>
               </div>
             </form>
           </Dialog>
 
-          <Dialog open={adjusting && isAdmin} title={`Correct stock — ${active.name}`} onClose={() => setAdjusting(false)}>
+          <Dialog open={adjusting && isAdmin} title={t("correctStockDialogTitle", { name: active.name })} onClose={() => setAdjusting(false)}>
             <form className="form-grid" onSubmit={onAdjust}>
-              <label>Lot
+              <label>{t("lotFieldLabel")}
                 <select value={adjustLotId} onChange={(e) => setAdjustLotId(e.target.value)}>
                   {lots.map((l) => <option key={l.id} value={l.id}>{lotLabel(l)}</option>)}
                 </select>
               </label>
-              <label>Type
+              <label>{t("typeLabel")}
                 <select value={adjustType} onChange={(e) => setAdjustType(e.target.value)}>
-                  <option value="Adjustment">Adjustment (±)</option>
-                  <option value="Discard">Discard (write-off)</option>
+                  <option value="Adjustment">{t("adjustTypeAdjustmentOption")}</option>
+                  <option value="Discard">{t("adjustTypeDiscardOption")}</option>
                 </select>
               </label>
-              <label>Quantity ({active.unit})
+              <label>{t("quantityLabelWithUnit", { unit: active.unit })}
                 <input type="number" step={0.001} value={adjustQty} required
-                  placeholder={adjustType === "Discard" ? "amount discarded" : "± correction"}
+                  placeholder={adjustType === "Discard" ? t("adjustQuantityPlaceholderDiscard") : t("adjustQuantityPlaceholderCorrection")}
                   onChange={(e) => setAdjustQty(e.target.value)} />
               </label>
-              <label>Reason *
+              <label>{t("reasonLabel")}
                 <input value={adjustReason} maxLength={500} required
                   onChange={(e) => setAdjustReason(e.target.value)} />
               </label>
               {error && <p className="error">{error}</p>}
               <div className="dialog-foot">
-                <button type="button" className="link" onClick={() => setAdjusting(false)}>Cancel</button>
-                <button type="submit" disabled={busy || !adjustLotId}>Record correction</button>
+                <button type="button" className="link" onClick={() => setAdjusting(false)}>{tc("cancel")}</button>
+                <button type="submit" disabled={busy || !adjustLotId}>{t("recordCorrectionButton")}</button>
               </div>
             </form>
           </Dialog>
@@ -523,13 +528,13 @@ export function InventoryPage() {
           {movements.length > 0 ? (
             <table className="data">
               <thead>
-                <tr><th>Date</th><th>Type</th><th>Quantity</th><th>Note</th></tr>
+                <tr><th>{t("ledgerDateHeader")}</th><th>{t("ledgerTypeHeader")}</th><th>{t("ledgerQuantityHeader")}</th><th>{t("ledgerNoteHeader")}</th></tr>
               </thead>
               <tbody>
                 {movements.map((m) => (
                   <tr key={m.id}>
                     <td>{m.date}</td>
-                    <td>{m.type}</td>
+                    <td>{inventoryMovementLabel(m.type)}</td>
                     <td>{m.quantityDelta > 0 ? `+${m.quantityDelta}` : m.quantityDelta} {m.unit}</td>
                     <td>{m.note ?? ""}</td>
                   </tr>
@@ -537,40 +542,40 @@ export function InventoryPage() {
               </tbody>
             </table>
           ) : (
-            <p className="muted">No movements yet — record a purchase above.</p>
+            <p className="muted">{t("noMovementsMessage")}</p>
           )}
           <div className="actions">
-            <button className="link" onClick={() => setActive(null)}>close</button>
+            <button className="link" onClick={() => setActive(null)}>{t("closeButton")}</button>
           </div>
         </div>
       )}
 
       <table className="data">
         <thead>
-          <tr><th>Name</th><th>Category</th><th>On hand</th><th>Default cost</th><th>Status</th><th></th></tr>
+          <tr><th>{t("nameHeader")}</th><th>{t("categoryHeader")}</th><th>{t("onHandHeader")}</th><th>{t("defaultCostHeader")}</th><th>{t("statusHeader")}</th><th></th></tr>
         </thead>
         <tbody>
           {items.map((i) => (
             <tr key={i.id} className={i.active ? undefined : "inactive"}>
               <td>{i.name}</td>
-              <td>{i.category}</td>
+              <td>{inventoryCategoryLabel(i.category)}</td>
               <td>{i.quantityOnHand} {i.unit}</td>
               <td>{costText(i)}</td>
-              <td><StatusBadge status={i.active ? "Active" : "Inactive"} /></td>
+              <td><StatusBadge status={i.active ? "Active" : "Inactive"} label={statusLabel(i.active ? "Active" : "Inactive")} /></td>
               <td>
-                <button className="link" disabled={busy} onClick={() => void onOpen(i)}>open</button>
+                <button className="link" disabled={busy} onClick={() => void onOpen(i)}>{t("openButton")}</button>
                 {isAdmin && (
                   <>
-                    <button className="link" disabled={busy} onClick={() => startEdit(i)}>edit</button>
+                    <button className="link" disabled={busy} onClick={() => startEdit(i)}>{t("editButton")}</button>
                     {i.active ? (
                       <button className="link" disabled={busy}
                         onClick={() => void run(`deactivate:${i.id}`, (key) => deactivateInventoryItem(i.id, key))}>
-                        deactivate
+                        {t("deactivateButton")}
                       </button>
                     ) : (
                       <button className="link" disabled={busy}
                         onClick={() => void run(`activate:${i.id}`, (key) => activateInventoryItem(i.id, key))}>
-                        activate
+                        {t("activateButton")}
                       </button>
                     )}
                   </>

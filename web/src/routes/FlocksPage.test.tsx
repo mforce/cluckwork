@@ -8,6 +8,7 @@ import {
 } from "../api/cluckwork";
 import type { BirdMovement, Flock } from "../api/cluckwork";
 import { ApiError } from "../api/client";
+import i18n from "../i18n";
 
 // Network seam only; ApiError stays real (errorMessage branches on it), and the
 // date helpers (todayIso/ageWeeks) stay real too — they are pure and not mocked.
@@ -383,5 +384,101 @@ describe("FlocksPage role gating", () => {
     // No way in: the action that opens the movement dialog is admin-only.
     expect(screen.queryByRole("button", { name: "Record movement" })).not.toBeInTheDocument();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// i18n wiring (#182, Task 19, batch B3 — the last B3 screen)
+// ---------------------------------------------------------------------------
+
+// `flocks` is English-only (not in TRANSLATED_NAMESPACES — see
+// translations-status.ts), so under ANY UI language the rendered text falls
+// back to this exact English string, same as a still-hardcoded literal would
+// render — asserting it, even under a non-English locale, would prove nothing
+// (CONTRIBUTING-i18n.md's fallback trap). Swap the catalog value at runtime
+// instead, the same i18n.addResource technique the other batches use, so each
+// marker only renders if the screen actually reads the catalog rather than a
+// literal that happens to still match it.
+describe("FlocksPage i18n wiring (#182, Task 19)", () => {
+  function withOverride(ns: string, key: string, value: string, run: () => Promise<void> | void) {
+    const original = i18n.getResource("en", ns, key) as string;
+    i18n.addResource("en", ns, key, value);
+    return Promise.resolve(run()).finally(() => {
+      i18n.addResource("en", ns, key, original);
+    });
+  }
+
+  it("reads the heading from the catalog, not a hardcoded literal", async () => {
+    await withOverride("flocks", "title", "TITLE-MARKER", async () => {
+      await renderReady(ADMIN, [ACTIVE]);
+      expect(screen.getByRole("heading", { name: "TITLE-MARKER" })).toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "Flocks" })).not.toBeInTheDocument();
+    });
+  });
+
+  it("reads the new-flock button label from the catalog, not a hardcoded literal", async () => {
+    // Not renderReady(): its own readiness probe waits on this exact button
+    // text, which the override below replaces — wait on flock data instead.
+    await withOverride("flocks", "newFlockButton", "NEW-FLOCK-MARKER", async () => {
+      mockListFlocks.mockResolvedValue([ACTIVE]);
+      renderWithProviders(<FlocksPage />, { token: ADMIN });
+      expect(await screen.findByRole("button", { name: "NEW-FLOCK-MARKER" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "New flock" })).not.toBeInTheDocument();
+    });
+  });
+
+  // Proves the deplete-confirm dialog's title reads the catalog template AND
+  // interpolates the flock's free-form NAME (DATA) — a hardcoded literal
+  // would fail to pick up the marker text even though the name would still
+  // look right.
+  it("interpolates the flock name into the deplete-confirm title from the catalog", async () => {
+    await withOverride("flocks", "depleteConfirmTitle", "DEPLETE-MARKER {{name}} MARKER-END", async () => {
+      await renderReady(ADMIN, [ACTIVE]);
+      await act(async () => {
+        fireEvent.click(within(screen.getByRole("row", { name: /Hen House 1/ })).getByRole("button", { name: "deplete" }));
+      });
+      expect(screen.getByRole("dialog")).toHaveAccessibleName("DEPLETE-MARKER Hen House 1 MARKER-END");
+    });
+  });
+
+  // Proves the ledger's Type picker AND the ledger's Type cell both read the
+  // flock-movement ENUM label from the catalog (via flockMovementLabel), not
+  // the raw wire value or a hardcoded literal — MOVEMENTS' first row's type
+  // is "Cull".
+  it("reads the flock-movement enum label from the catalog for the picker and the ledger cell", async () => {
+    await withOverride("enums", "flockMovement.Cull", "CULL-MARKER", async () => {
+      mockListMovements.mockResolvedValue(MOVEMENTS);
+      await renderReady(ADMIN, [ACTIVE]);
+      fireEvent.click(within(screen.getByRole("row", { name: /Hen House 1/ })).getByRole("button", { name: "birds" }));
+      const cullRow = await screen.findByRole("row", { name: /CULL-MARKER/ });
+      expect(within(cullRow).getByText("CULL-MARKER")).toBeInTheDocument();
+      expect(screen.queryByRole("row", { name: /^Cull\b/ })).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "Record movement" }));
+      expect(within(screen.getByRole("dialog")).getByRole("option", { name: "CULL-MARKER" })).toBeInTheDocument();
+      expect(within(screen.getByRole("dialog")).queryByRole("option", { name: "Cull" })).not.toBeInTheDocument();
+    });
+  });
+
+  // Proves the flocks table's Status badge reads the status ENUM label from
+  // the catalog (via statusLabel), not a hardcoded literal — ACTIVE's status
+  // is "Active".
+  it("reads the status enum label from the catalog for the flocks-table badge", async () => {
+    await withOverride("enums", "status.Active", "ACTIVE-MARKER", async () => {
+      await renderReady(ADMIN, [ACTIVE]);
+      const row = screen.getByRole("row", { name: /Hen House 1/ });
+      expect(within(row).getByText("ACTIVE-MARKER")).toBeInTheDocument();
+      expect(within(row).queryByText("Active")).not.toBeInTheDocument();
+    });
+  });
+
+  // Proves the show-archived toggle's label reads the catalog template AND
+  // interpolates the client-side archived-flock count — plain numeric DATA.
+  it("interpolates the archived count into the show-archived label from the catalog", async () => {
+    await withOverride("flocks", "showArchivedLabel", "SHOW-MARKER {{count}} MARKER-END", async () => {
+      await renderReady(ADMIN, [ACTIVE, ARCHIVED]);
+      expect(screen.getByText("SHOW-MARKER 1 MARKER-END")).toBeInTheDocument();
+      expect(screen.queryByText(/show 1 archived/)).not.toBeInTheDocument();
+    });
   });
 });

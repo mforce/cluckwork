@@ -10,6 +10,7 @@ import {
 } from "../api/cluckwork";
 import type { Account, EggGrade, EggUnitConversion, Product } from "../api/cluckwork";
 import { ApiError } from "../api/client";
+import i18n from "../i18n";
 
 // Keep the REAL formatMoney (renders the price column at the product's own
 // currency scale); stub only the network seam. Every network call the screen
@@ -359,5 +360,116 @@ describe("ProductsPage role gating", () => {
     await renderReady(WORKER);
     const rowP1 = screen.getByRole("row", { name: /Grade A Dozen/ });
     expect(within(rowP1).getByText("0.500 KWD")).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// i18n wiring (#182, Task 17, batch B3 — the last B3 screen)
+// ---------------------------------------------------------------------------
+
+// `products` is English-only (not in TRANSLATED_NAMESPACES — see
+// translations-status.ts), so under ANY UI language the rendered text falls
+// back to this exact English string, same as a still-hardcoded literal would
+// render — asserting it, even under a non-English locale, would prove nothing
+// (CONTRIBUTING-i18n.md's fallback trap). Swap the catalog value at runtime
+// instead, the same i18n.addResource technique the other batches use, so each
+// marker only renders if the screen actually reads the catalog rather than a
+// literal that happens to still match it.
+describe("ProductsPage i18n wiring (#182, Task 17)", () => {
+  function withOverride(ns: string, key: string, value: string, run: () => Promise<void> | void) {
+    const original = i18n.getResource("en", ns, key) as string;
+    i18n.addResource("en", ns, key, value);
+    return Promise.resolve(run()).finally(() => {
+      i18n.addResource("en", ns, key, original);
+    });
+  }
+
+  it("reads the heading from the catalog, not a hardcoded literal", async () => {
+    await withOverride("products", "title", "TITLE-MARKER", async () => {
+      await renderReady(ADMIN);
+      expect(screen.getByRole("heading", { name: "TITLE-MARKER" })).toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "Products" })).not.toBeInTheDocument();
+    });
+  });
+
+  it("reads the new-product button label from the catalog, not a hardcoded literal", async () => {
+    await withOverride("products", "newProductButton", "NEW-PRODUCT-MARKER", async () => {
+      await renderReady(ADMIN);
+      expect(screen.getByRole("button", { name: "NEW-PRODUCT-MARKER" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "New product" })).not.toBeInTheDocument();
+    });
+  });
+
+  // Proves the create dialog's price label template reads from the catalog
+  // AND still interpolates the account's currency code (free-form DATA).
+  it("interpolates the account currency code into the price label from the catalog", async () => {
+    await withOverride("products", "defaultPriceWithCurrencyLabel", "PRICE-MARKER ({{code}})", async () => {
+      await renderReady(ADMIN);
+      openCreate();
+      expect(within(dialog()).getByLabelText("PRICE-MARKER (KWD)")).toBeInTheDocument();
+      expect(within(dialog()).queryByLabelText(/Default price \(KWD\)/)).not.toBeInTheDocument();
+    });
+  });
+
+  // Proves the packed-unit dialog's title reads the COPY template from the
+  // catalog while still interpolating the conversion's free-form unitCode
+  // (DATA) — a hardcoded literal, or one that dropped the interpolation,
+  // would fail this even though "Carton" itself is unaffected by the marker.
+  it("interpolates the conversion's unitCode into the packed-unit dialog title from the catalog", async () => {
+    await withOverride("products", "eggsPerUnit", "EGGS-MARKER {{unitCode}} END", async () => {
+      await renderReady(ADMIN);
+      fireEvent.click(within(screen.getByRole("row", { name: /Carton/ })).getByRole("button", { name: "edit" }));
+      expect(dialog()).toHaveAccessibleName("EGGS-MARKER Carton END");
+    });
+  });
+
+  // Proves BOTH the products table's StatusBadge and the packed-units
+  // table's plain-text cell read the `status` ENUM label from the catalog
+  // (via statusLabel) — not two coincidentally-matching hardcoded literals.
+  it("reads the active-status enum label from the catalog on both tables", async () => {
+    await withOverride("enums", "status.Active", "ACTIVE-MARKER", async () => {
+      await renderReady(ADMIN);
+      const productRow = screen.getByRole("row", { name: /Grade A Dozen/ });
+      expect(within(productRow).getByText("ACTIVE-MARKER")).toBeInTheDocument();
+      expect(within(productRow).queryByText("Active")).not.toBeInTheDocument();
+
+      const convRow = screen.getByRole("row", { name: /Carton/ });
+      expect(within(convRow).getByText("ACTIVE-MARKER")).toBeInTheDocument();
+      expect(within(convRow).queryByText("Active")).not.toBeInTheDocument();
+    });
+  });
+
+  it("reads the inactive-status enum label from the catalog on the products table", async () => {
+    await withOverride("enums", "status.Inactive", "INACTIVE-MARKER", async () => {
+      await renderReady(ADMIN);
+      const rowP2 = screen.getByRole("row", { name: /Legacy Tray/ });
+      expect(within(rowP2).getByText("INACTIVE-MARKER")).toBeInTheDocument();
+      expect(within(rowP2).queryByText("Inactive")).not.toBeInTheDocument();
+    });
+  });
+
+  // The price parser's decimal-precision message is thrown synchronously
+  // inside the submit handler (never a rejected mount promise), so it's safe
+  // to exercise directly — see the imperative i18n.t() pattern.
+  it("reads the price-precision validation message from the catalog, not a hardcoded literal", async () => {
+    await withOverride("products", "atMostDecimals", "AT-MOST-MARKER {{count}} END", async () => {
+      await renderReady(ADMIN);
+      fireEvent.click(within(screen.getByRole("row", { name: /Grade A Dozen/ })).getByRole("button", { name: "edit" }));
+      fireEvent.change(within(dialog()).getByLabelText(/Default price/), { target: { value: "1.2345" } });
+      await act(async () => {
+        fireEvent.click(within(dialog()).getByRole("button", { name: "Save" }));
+      });
+      expect(within(dialog()).getByText("AT-MOST-MARKER 3 END")).toBeInTheDocument();
+      expect(within(dialog()).queryByText("At most 3 decimal places for this currency.")).not.toBeInTheDocument();
+    });
+  });
+
+  it("reads the fixed-Individual-unit message from the catalog, not a hardcoded literal", async () => {
+    await withOverride("products", "alwaysOneMessage", "ALWAYS-ONE-MARKER", async () => {
+      await renderReady(ADMIN);
+      const rowInd = screen.getByRole("row", { name: /Individual/ });
+      expect(within(rowInd).getByText("ALWAYS-ONE-MARKER")).toBeInTheDocument();
+      expect(within(rowInd).queryByText("always 1")).not.toBeInTheDocument();
+    });
   });
 });
