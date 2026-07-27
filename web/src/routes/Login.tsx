@@ -1,25 +1,31 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { useLocation, useNavigate } from "react-router";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "../auth/useAuth";
 import { ApiError } from "../api/client";
 import { ThemeToggle } from "../components/ThemeToggle";
+import i18n from "../i18n";
 
 interface LocationState {
   from?: { pathname: string };
 }
 
+// MODULE-LEVEL — called from onSubmit's catch handler, not from render, so the
+// useTranslation hook is not in scope here. The imperative i18n singleton
+// (already initialised, already holding the resolved language) is the correct
+// tool outside render (#182).
 function messageFor(err: unknown): string {
   if (err instanceof ApiError) {
-    if (err.status === 401) return "Invalid email or password.";
+    if (err.status === 401) return i18n.t("auth:invalidCredentials");
     // Rate limited (#143) — too many attempts from this address.
-    if (err.status === 429)
-      return "Too many sign-in attempts. Please wait a few minutes and try again.";
+    if (err.status === 429) return i18n.t("auth:tooManyAttempts");
   }
-  return "Could not sign in. Is the API running?";
+  return i18n.t("auth:apiDown");
 }
 
 export function Login() {
+  const { t } = useTranslation("auth");
   const { login, isAuthenticated, isLoading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -54,9 +60,9 @@ export function Login() {
     <main className="auth">
       <ThemeToggle className="auth-theme" showLabel={false} iconSize={18} />
       <form className="card" onSubmit={onSubmit}>
-        <h1>Cluckwork</h1>
+        <h1>{t("title")}</h1>
         <label>
-          Email
+          {t("email")}
           <input
             type="email"
             value={email}
@@ -66,7 +72,7 @@ export function Login() {
           />
         </label>
         <label>
-          Password
+          {t("password")}
           <input
             type="password"
             value={password}
@@ -77,7 +83,7 @@ export function Login() {
         </label>
         {error && <p className="error">{error}</p>}
         <button type="submit" disabled={busy}>
-          {busy ? "Signing in…" : "Sign in"}
+          {busy ? t("signingIn") : t("signIn")}
         </button>
       </form>
     </main>

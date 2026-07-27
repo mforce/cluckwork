@@ -3,6 +3,7 @@ import { screen, within, fireEvent, act } from "@testing-library/react";
 import { SalesPage } from "./SalesPage";
 import { renderWithProviders } from "../test/renderWithProviders";
 import { account } from "../test/fixtures";
+import i18n from "../i18n";
 import {
   addOrderItem, cancelOrder, confirmOrder, createOrder, getOrder, listCustomers, listEggGrades,
   listOrderPayments, listOrders, listProducts, recordPayment, updateOrderItem, voidOrder, voidPayment,
@@ -140,6 +141,17 @@ async function openOrder(order: SalesOrder, rowName: RegExp) {
   });
   return screen.findByRole("row", { name: rowName });
 }
+
+describe("SalesPage i18n", () => {
+  it("renders its heading and primary action from the sales i18n catalog (#182)", async () => {
+    await renderReady();
+
+    // Pinned to i18n.t, not the literal — proves the screen is reading the
+    // catalog rather than a string that happens to still match it.
+    expect(screen.getByRole("heading", { name: i18n.t("sales:title") })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: i18n.t("sales:newOrder") })).toBeInTheDocument();
+  });
+});
 
 describe("SalesPage line display", () => {
   it("shows per-line base eggs and money, with the order total distinct from any single line", async () => {

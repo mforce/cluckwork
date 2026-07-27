@@ -157,6 +157,23 @@ describe("FarmProvider", () => {
 
     expect(document.documentElement.dataset.theme).toBe("dark");
   });
+
+  it("seeds from initialAccount without fetching /account", async () => {
+    render(
+      <FarmProvider initialAccount={account({ brand: "forest" })}>
+        <Probe />
+      </FarmProvider>,
+    );
+    // Shell is ready immediately (no gate) and no fetch happened.
+    expect(screen.getByTestId("name")).toBeInTheDocument();
+    expect(mockGetAccount).not.toHaveBeenCalled();
+  });
+
+  it("starts in the load-failed state when initialAccount is null (bootstrap read failed)", () => {
+    render(<FarmProvider initialAccount={null}><Probe /></FarmProvider>);
+    expect(screen.getByTestId("failed")).toHaveTextContent("true");
+    expect(mockGetAccount).not.toHaveBeenCalled();
+  });
 });
 
 describe("useFarmToday", () => {

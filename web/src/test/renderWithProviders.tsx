@@ -3,10 +3,17 @@ import { MemoryRouter } from "react-router";
 import { render } from "@testing-library/react";
 import { AuthProvider } from "../auth/AuthContext";
 import { FarmContext } from "../farm/FarmContext";
-import type { Account } from "../api/cluckwork";
+import { MeContext } from "../session/SessionContext";
+import type { Account, Me } from "../api/cluckwork";
 import { farmState } from "./fixtures";
 import { setStoredToken } from "./jwt";
 import { clearAccessToken } from "../auth/tokenStore";
+
+// The default signed-in user for screen tests that don't care who is logged
+// in. A test that DOES care passes `me: <fixture>`; one that cares the identity
+// is unknown (signed-in-but-/me-failed) passes `me: null` explicitly — see the
+// `=== undefined` check below, not `??`, so that null is honoured.
+const DEFAULT_ME: Me = { id: "u1", email: "test@farm.local", name: null, role: "Admin", language: null };
 
 // Shared render harness for screen tests: wraps the UI in a MemoryRouter (so
 // components using router hooks / navigation work) and the real AuthProvider (so
@@ -21,7 +28,7 @@ import { clearAccessToken } from "../auth/tokenStore";
 // /account answers.
 export function renderWithProviders(
   ui: ReactNode,
-  opts: { route?: string; token?: Record<string, unknown> | null; farm?: Account } = {},
+  opts: { route?: string; token?: Record<string, unknown> | null; farm?: Account; me?: Me | null } = {},
 ) {
   // A seeded token goes straight into memory, so AuthProvider is authenticated
   // synchronously (no load-time refresh); otherwise the session starts empty.
@@ -33,7 +40,9 @@ export function renderWithProviders(
   return render(
     <MemoryRouter initialEntries={[opts.route ?? "/"]}>
       <AuthProvider>
-        <FarmContext.Provider value={farmValue}>{ui}</FarmContext.Provider>
+        <MeContext.Provider value={opts.me === undefined ? DEFAULT_ME : opts.me}>
+          <FarmContext.Provider value={farmValue}>{ui}</FarmContext.Provider>
+        </MeContext.Provider>
       </AuthProvider>
     </MemoryRouter>,
   );

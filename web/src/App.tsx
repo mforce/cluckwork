@@ -2,7 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router";
 import { AuthProvider } from "./auth/AuthContext";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { UpdatePrompt } from "./pwa/UpdatePrompt";
-import { FarmProvider } from "./farm/FarmContext";
+import { SessionProvider } from "./session/SessionContext";
 import { ProtectedRoute } from "./routes/ProtectedRoute";
 import { AppLayout } from "./routes/AppLayout";
 import { Login } from "./routes/Login";
@@ -42,8 +42,11 @@ export function App() {
             <Route element={<ProtectedRoute />}>
               {/* Inside the auth gate (it needs a token to read /account) and
                   outside the shell, so the sidebar's branding slot and every
-                  screen's date fields read the same farm (#123). */}
-              <Route element={<FarmProvider><AppLayout /></FarmProvider>}>
+                  screen's date fields read the same farm (#123). SessionProvider
+                  is the coordinated authenticated bootstrap (#182): it reads
+                  /me + /account together, resolves + switches the UI language,
+                  and renders FarmProvider internally so /account is read once. */}
+              <Route element={<SessionProvider><AppLayout /></SessionProvider>}>
                 <Route index element={<Dashboard />} />
                 <Route path="daily-entry" element={<DailyEntryPage />} />
                 <Route path="stock" element={<StockPage />} />

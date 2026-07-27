@@ -346,6 +346,24 @@ export interface Account {
 // browser's (#123). Readable by every authenticated role.
 export const getAccount = () => apiGet<Account>("/account");
 
+// The signed-in user's own profile (#45 GET /me). Distinct from the admin `User`
+// list DTO: this carries the user's UI-language preference. Role is echoed for
+// convenience; the JWT stays authoritative for gating.
+export interface Me {
+  id: string;
+  email: string;
+  name: string | null;
+  role: string;
+  language: string | null;
+}
+
+export const getMe = () => apiGet<Me>("/me");
+
+// PUT one absolute preference (#45). null clears it. apiPut mints a fresh
+// Idempotency-Key per call. Returns void (204).
+export const putMeLanguage = (language: string | null): Promise<void> =>
+  apiPut<void>("/me/language", { language });
+
 export interface FarmSettings {
   settings: Account;
   // False once any sales order, payment or expense has recorded an amount:

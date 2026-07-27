@@ -6,6 +6,7 @@ import { ProtectedRoute } from "./ProtectedRoute";
 import { renderWithProviders } from "../test/renderWithProviders";
 import { login as apiLogin, ApiError } from "../api/client";
 import { setStoredToken } from "../test/jwt";
+import i18n from "../i18n";
 
 // Keep the real ApiError (Login branches on `instanceof ApiError`) but stub the
 // network + AuthProvider's registration hooks.
@@ -46,6 +47,17 @@ function fillCredentials(email: string, password: string) {
 beforeEach(() => vi.resetAllMocks());
 
 describe("Login", () => {
+  it("renders its labels from the auth i18n catalog (#182)", async () => {
+    renderWithProviders(tree(), { route: "/login", token: null });
+
+    // Pinned to i18n.t, not the literal — proves the screen is reading the
+    // catalog rather than a string that happens to still match it.
+    expect(await screen.findByText(i18n.t("auth:title"))).toBeInTheDocument();
+    expect(screen.getByLabelText(i18n.t("auth:email"))).toBeInTheDocument();
+    expect(screen.getByLabelText(i18n.t("auth:password"))).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: i18n.t("auth:signIn") })).toBeInTheDocument();
+  });
+
   it("bounces an unauthenticated visit to /login, then returns to the original route after sign-in", async () => {
     mockApiLogin.mockImplementation(async () => {
       setStoredToken({ sub: "u1", role: "Sales" }); // server issued a session (token in memory)

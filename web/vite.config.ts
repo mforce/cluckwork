@@ -120,9 +120,16 @@ export default defineConfig(({ mode }) => {
           // replaced v8-to-istanbul (no opt-out), which recounts everything —
           // same tests, different denominators (lines 87.2 / stmts 83.7 /
           // branch 73.2 / funcs 78.0). Not a coverage regression.
+          //
+          // Re-baselined for #182 (i18n foundation + Sales externalization):
+          // measured lines 87.66 / stmts 84.24 / funcs 78.27 / branches 73.91.
+          // lines/branches hold their prior floor (the new code landed inside
+          // the existing margin); statements/functions rose with the new,
+          // fully-tested src/i18n + src/session code, so those two floors move
+          // up to match.
           lines: 87,
-          statements: 83,
-          functions: 77,
+          statements: 84,
+          functions: 78,
           branches: 73,
           // high-water locks on the fully-covered foundation (AST-aware
           // counting surfaces statements/branches the old remapper credited
