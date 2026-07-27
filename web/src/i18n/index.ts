@@ -44,4 +44,15 @@ void i18n.use(initReactI18next).init({
   returnNull: false,
 });
 
+// Keep <html lang> in sync with the UI language for a11y/SEO correctness.
+// "languageChanged" fires synchronously from changeLanguage (i18next-http/react
+// wrapper aside), and the no-flash bootstrap in SessionProvider awaits
+// changeLanguage BEFORE revealing the gated shell — so registering the
+// listener once here (rather than at each changeLanguage call site) covers
+// both the initial resolved-language switch and every later switch from
+// LanguageSelector, with no risk of a call site forgetting to set it.
+i18n.on("languageChanged", (lng) => {
+  document.documentElement.lang = lng;
+});
+
 export default i18n;
