@@ -52,47 +52,13 @@ export function statusLabel(value: StatusValue): string {
   return i18n.t(STATUS_KEYS[value]);
 }
 
-// ---------------------------------------------------------------------------
-// payment method (SalesPage) — PaymentMethod enum.
-// ---------------------------------------------------------------------------
-export const PAYMENT_METHOD_VALUES = [
-  "Cash",
-  "Check",
-  "Card",
-  "BankTransfer",
-  "MobilePayment",
-  "Other",
-] as const;
-export type PaymentMethodValue = (typeof PAYMENT_METHOD_VALUES)[number];
-const PAYMENT_METHOD_KEYS = {
-  Cash: "enums:method.Cash",
-  Check: "enums:method.Check",
-  Card: "enums:method.Card",
-  BankTransfer: "enums:method.BankTransfer",
-  MobilePayment: "enums:method.MobilePayment",
-  Other: "enums:method.Other",
-} as const satisfies Record<PaymentMethodValue, EnumsKey>;
-export function paymentMethodLabel(value: PaymentMethodValue): string {
-  return i18n.t(PAYMENT_METHOD_KEYS[value]);
-}
-
-// ---------------------------------------------------------------------------
-// sale unit (SalesPage line/unit picker) — the ProductUnit subset the sale UI
-// offers. NOT product unitCode, which is free-form data.
-// ---------------------------------------------------------------------------
-export const SALE_UNIT_VALUES = ["Egg", "Dozen", "Flat", "Tray", "Carton", "Case"] as const;
-export type SaleUnitValue = (typeof SALE_UNIT_VALUES)[number];
-const SALE_UNIT_KEYS = {
-  Egg: "enums:saleUnit.Egg",
-  Dozen: "enums:saleUnit.Dozen",
-  Flat: "enums:saleUnit.Flat",
-  Tray: "enums:saleUnit.Tray",
-  Carton: "enums:saleUnit.Carton",
-  Case: "enums:saleUnit.Case",
-} as const satisfies Record<SaleUnitValue, EnumsKey>;
-export function saleUnitLabel(value: SaleUnitValue): string {
-  return i18n.t(SALE_UNIT_KEYS[value]);
-}
+// NOTE: payment method and sale unit are deliberately NOT here. They already
+// live in the TRANSLATED `sales` namespace (sales:method*, sales:unit*), which
+// carries es/tl. `enums` is English-only, so labelling them here would REGRESS
+// Spanish/Tagalog coverage. Sale unit's only other render site (ProductsPage
+// `{p.defaultUnit}`) shows raw English today, which equals an English-only enum
+// label anyway — nothing is lost by leaving it until a real translation pass
+// decides on a shared source.
 
 // ---------------------------------------------------------------------------
 // role (UsersPage) — Roles.Assignable plus Worker (a user with no role row).
@@ -286,8 +252,6 @@ export function weekdayLabel(value: WeekdayValue): string {
 // by the test the moment it is registered here, with nothing else to edit.
 export const ENUMS = {
   status: { values: STATUS_VALUES, keys: STATUS_KEYS, label: statusLabel },
-  method: { values: PAYMENT_METHOD_VALUES, keys: PAYMENT_METHOD_KEYS, label: paymentMethodLabel },
-  saleUnit: { values: SALE_UNIT_VALUES, keys: SALE_UNIT_KEYS, label: saleUnitLabel },
   role: { values: ROLE_VALUES, keys: ROLE_KEYS, label: roleLabel },
   waterSource: { values: WATER_SOURCE_VALUES, keys: WATER_SOURCE_KEYS, label: waterSourceLabel },
   waterUnit: { values: WATER_UNIT_VALUES, keys: WATER_UNIT_KEYS, label: waterUnitLabel },

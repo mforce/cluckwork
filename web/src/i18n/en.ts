@@ -171,9 +171,19 @@ export const en = {
   // the EXACT wire value the API sends, so the helper's Record can map value →
   // key mechanically and the key is self-documenting. English-only for now —
   // `enums` is deliberately NOT in TRANSLATED_NAMESPACES, so es/tl fall back to
-  // these strings until a native enum-translation pass lands. Every label equals
-  // today's on-screen text so wiring a screen up (Task 5+) changes nothing —
-  // the ONE raw≠display case is ManagerAdjusted → "Adjusted" (HistoryPage).
+  // these strings until a native enum-translation pass lands.
+  //
+  // Labels are chosen to be TEXT-PRESERVING on retrofit (Task 5+) — a screen
+  // wired to a helper keeps its current text — EXCEPT at two sites the retrofit
+  // changes DELIBERATELY (its reviewer must eyeball them):
+  //   1. Dashboard.tsx (`<StatusBadge status={e.status} />`, no label) shows a
+  //      ManagerAdjusted entry RAW today; statusLabel makes it read "Adjusted"
+  //      (matching HistoryPage, which already passes label="Adjusted").
+  //   2. UsersPage.tsx role table cell renders raw `{u.role}` = "ReadOnly";
+  //      roleLabel makes it read "Read-only" (matching the picker option).
+  // Payment method and sale unit are intentionally absent — they belong to the
+  // TRANSLATED `sales` namespace (sales:method*/unit*, which carry es/tl), and
+  // duplicating them here (English-only) would regress that coverage.
   enums: {
     // status — StatusBadge's STATUS_VALUES vocabulary. Identity except
     // ManagerAdjusted, whose pill reads "Adjusted".
@@ -190,25 +200,6 @@ export const en = {
     "status.Cancelled": "Cancelled",
     "status.Depleted": "Depleted",
     "status.Archived": "Archived",
-
-    // payment method (SalesPage picker) — PaymentMethod enum. "BankTransfer" /
-    // "MobilePayment" kept unspaced to match current display; a copy-polish pass
-    // is out of scope.
-    "method.Cash": "Cash",
-    "method.Check": "Check",
-    "method.Card": "Card",
-    "method.BankTransfer": "BankTransfer",
-    "method.MobilePayment": "MobilePayment",
-    "method.Other": "Other",
-
-    // sale unit (SalesPage line/unit picker) — the 6-value ProductUnit subset
-    // the sale UI offers, NOT product unitCode (that is free-form data).
-    "saleUnit.Egg": "Egg",
-    "saleUnit.Dozen": "Dozen",
-    "saleUnit.Flat": "Flat",
-    "saleUnit.Tray": "Tray",
-    "saleUnit.Carton": "Carton",
-    "saleUnit.Case": "Case",
 
     // role (UsersPage) — Roles.Assignable + Worker. "ReadOnly" labelled
     // "Read-only" (matches the picker option); the raw u.role table column and
