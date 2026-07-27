@@ -509,8 +509,13 @@ export function InventoryPage() {
 
           <Dialog open={adjusting && isAdmin} title={t("correctStockDialogTitle", { name: active.name })} onClose={() => setAdjusting(false)}>
             <form className="form-grid" onSubmit={onAdjust}>
+              {/* Disabled during any flight: the composite adjust scope embeds
+                  the selected lot id, so changing the selection mid-flight
+                  would re-point isPending at a scope nobody is running and
+                  drop the spinner while the request is still open (#242). */}
               <label>{t("lotFieldLabel")}
-                <select value={adjustLotId} onChange={(e) => setAdjustLotId(e.target.value)}>
+                <select value={adjustLotId} disabled={busy}
+                  onChange={(e) => setAdjustLotId(e.target.value)}>
                   {lots.map((l) => <option key={l.id} value={l.id}>{lotLabel(l)}</option>)}
                 </select>
               </label>
@@ -582,8 +587,10 @@ export function InventoryPage() {
                 <button className="link" disabled={busy} onClick={() => void onOpen(i)}>{t("openButton")}</button>
                 {isAdmin && (
                   <>
-                    <BusyButton className="link" busy={isPending(`update:${i.id}`)} disabled={busy}
-                      onClick={() => startEdit(i)}>{t("editButton")}</BusyButton>
+                    {/* Opens the edit dialog — non-mutating, so the spinner
+                        belongs to the dialog's Save, not here (#242). */}
+                    <button className="link" disabled={busy}
+                      onClick={() => startEdit(i)}>{t("editButton")}</button>
                     {i.active ? (
                       <BusyButton className="link" busy={isPending(`deactivate:${i.id}`)} disabled={busy}
                         onClick={() => void run(`deactivate:${i.id}`, (key) => deactivateInventoryItem(i.id, key))}>

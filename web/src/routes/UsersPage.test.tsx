@@ -598,10 +598,15 @@ describe("UsersPage pending states (#236)", () => {
     const assignButton = screen.getByRole("button", { name: "Assign flock" });
     expect(assignButton).toBeDisabled();
     expect(assignButton).not.toHaveAttribute("aria-busy");
+    // The flock select embeds the selection in the assign scope: changing it
+    // mid-flight would re-point isPending at a scope nobody runs and drop
+    // the spinner while the request is open — so it locks with the flight.
+    expect(screen.getByRole("combobox")).toBeDisabled();
 
     await act(async () => { gate.resolve(); });
     expect(document.querySelector('[aria-busy="true"]')).toBeNull();
     expect(screen.getByRole("button", { name: "Assign flock" })).toBeEnabled();
+    expect(screen.getByRole("combobox")).toBeEnabled();
   });
 });
 

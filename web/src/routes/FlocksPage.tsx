@@ -330,8 +330,10 @@ export function FlocksPage() {
                     {ledgerFlockId === f.id ? t("closeLedgerButton") : t("openLedgerButton")}
                   </button>
                   {isAdmin && (
-                    <BusyButton className="link" busy={isPending(`update:${f.id}`)} disabled={busy}
-                      onClick={() => startEdit(f)}>{t("editButton")}</BusyButton>
+                    // Opens the edit dialog — non-mutating, so the spinner
+                    // belongs to the dialog's Save, not here (#242).
+                    <button className="link" disabled={busy}
+                      onClick={() => startEdit(f)}>{t("editButton")}</button>
                   )}
                   {isAdmin && f.status === "Active" && (
                     <BusyButton className="link" busy={isPending(`deplete:${f.id}`)} disabled={busy}

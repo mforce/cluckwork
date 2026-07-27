@@ -360,6 +360,35 @@ describe("ExpensesPage pending states (#236)", () => {
     expect(document.querySelector('[aria-busy="true"]')).toBeNull();
     expect(screen.getAllByRole("button", { name: "deactivate" })[0]).toBeEnabled();
   });
+
+  it("locks the category-name input while its create is held — the pending scope is derived from it", async () => {
+    const gate = deferred<{ id: string }>();
+    mockCreateCategory.mockReturnValue(gate.promise);
+    await renderReady();
+
+    fireEvent.click(screen.getByRole("button", { name: "manage categories" }));
+    fireEvent.click(screen.getByRole("button", { name: "New category" }));
+    const dialog = () => screen.getByRole("dialog");
+    fireEvent.change(within(dialog()).getByLabelText("Category name"), { target: { value: "Fuel" } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Add category" }));
+    });
+
+    // The submit spins on the name-derived scope (addCategoryScope)…
+    expect(within(dialog()).getByRole("button", { name: "Add category" }))
+      .toHaveAttribute("aria-busy", "true");
+    // …so the name input locks with the flight: editing it mid-flight would
+    // re-point isPending at a scope nobody is running and drop the spinner
+    // while the request is still open (#242 review).
+    expect(within(dialog()).getByLabelText("Category name")).toBeDisabled();
+
+    await act(async () => {
+      gate.resolve({ id: "cat-new" });
+    });
+    // Success dismisses the dialog; nothing is left spinning.
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(document.querySelector('[aria-busy="true"]')).toBeNull();
+  });
 });
 
 describe("ExpensesPage dialog dismissal", () => {

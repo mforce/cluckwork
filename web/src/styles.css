@@ -2020,7 +2020,10 @@ input.locked {
 
 /* Without this, the global button:disabled { opacity: .5 } halves the whole
    busy subtree — spinner included — reproducing the exact dead-button look the
-   busy state exists to replace. Busy dims the LABEL alone, one layer, below. */
+   busy state exists to replace. Busy dims the LABEL alone, one layer, below.
+   The rule being overridden is the base `button:disabled` in the button styles
+   near the top of this file; this compound selector out-specifies it only
+   while aria-busy is set. */
 button:disabled[aria-busy="true"] {
   opacity: 1;
 }

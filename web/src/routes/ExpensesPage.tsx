@@ -294,8 +294,12 @@ export function ExpensesPage() {
 
           <Dialog open={addingCategory} title="New expense category" onClose={() => setAddingCategory(false)}>
             <form className="inline-form" onSubmit={onAddCategory}>
+              {/* Disabled during any flight: the create scope is derived from
+                  this name (addCategoryScope), so editing it mid-flight would
+                  re-point isPending at a scope nobody is running and drop the
+                  spinner while the request is still open (#242 review). */}
               <label>Category name
-                <input value={newCategoryName} required
+                <input value={newCategoryName} required disabled={busy}
                   onChange={(e) => setNewCategoryName(e.target.value)} />
               </label>
               {error && <p className="error">{error}</p>}
@@ -442,10 +446,12 @@ export function ExpensesPage() {
                 <td>{flockName(x.flockId)}</td>
                 <td>{x.note ?? "—"}</td>
                 <td>
-                  <BusyButton className="link" busy={isPending(`edit:${x.id}`)} disabled={busy}
+                  {/* Opens the correction dialog — non-mutating, so the
+                      spinner belongs to the dialog's Save, not here (#242). */}
+                  <button className="link" disabled={busy}
                     onClick={() => startEdit(x)}>
                     correct
-                  </BusyButton>
+                  </button>
                 </td>
               </tr>
             ))}

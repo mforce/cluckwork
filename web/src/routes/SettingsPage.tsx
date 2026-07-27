@@ -430,10 +430,13 @@ export function SettingsPage() {
         reads far better there than a wide or detailed picture. A transparent
         background on a light design works best.
       </p>
-      {/* Both the upload and the removal are silent otherwise — the only signal
-          is an image appearing, which a screen reader does not see. */}
+      {/* The upload is silent otherwise — a file input cannot be a BusyButton,
+          so this region carries its "Working…". The removal is deliberately
+          NOT announced here: the Remove BusyButton's own live region already
+          says it, and both speaking would double the announcement (#242).
+          Results (logoMessage) still land here for both writes. */}
       <p className="success" role="status">
-        {logoBusy ? "Working…" : logoMessage ?? ""}
+        {isPending("logo:upload") ? "Working…" : logoMessage ?? ""}
       </p>
       {logoError !== null && <p className="error" role="alert">{logoError}</p>}
 

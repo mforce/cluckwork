@@ -458,6 +458,10 @@ describe("InventoryPage pending states (#236)", () => {
     const submit = within(dialog()).getByRole("button", { name: "Record correction" });
     expect(submit).toBeDisabled();
     expect(submit).toHaveAttribute("aria-busy", "true");
+    // The lot select feeds that composite scope: changing the selection
+    // mid-flight would re-point isPending at a scope nobody is running and
+    // drop the spinner — so it locks with the flight (#242 review).
+    expect(within(dialog()).getByLabelText(/Lot/)).toBeDisabled();
     // Behind the dialog, the row verbs are inert but not spinning.
     const row = screen.getByRole("row", { name: /Egg Cartons/ });
     const deactivate = within(row).getByRole("button", { name: "deactivate" });

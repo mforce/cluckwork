@@ -382,7 +382,12 @@ export function UsersPage() {
           </ul>
         )}
         <div className="inline-form">
-          <select value={assignFlockId} onChange={(e) => setAssignFlockId(e.target.value)}>
+          {/* Disabled during any flight: the assign scope embeds the selected
+              flock id, so changing the selection mid-flight would re-point
+              isPending at a scope nobody is running and drop the spinner
+              while the request is still open (#242 review). */}
+          <select value={assignFlockId} disabled={busy}
+            onChange={(e) => setAssignFlockId(e.target.value)}>
             {flocks.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
           </select>
           <BusyButton disabled={busy || !assignFlockId}

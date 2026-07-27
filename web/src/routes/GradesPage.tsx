@@ -234,8 +234,10 @@ export function GradesPage() {
               <td>
                 {isAdmin && (
                   <>
-                    <BusyButton className="link" busy={isPending(`update:${g.id}`)} disabled={busy}
-                      onClick={() => startEdit(g)}>{t("editButton")}</BusyButton>
+                    {/* Opens the edit dialog — non-mutating, so the spinner
+                        belongs to the dialog's Save, not here (#242). */}
+                    <button className="link" disabled={busy}
+                      onClick={() => startEdit(g)}>{t("editButton")}</button>
                     {g.active ? (
                       <BusyButton className="link" busy={isPending(`deactivate:${g.id}`)} disabled={busy}
                         onClick={() => void run(`deactivate:${g.id}`, (key) => deactivateEggGrade(g.id, key))}>

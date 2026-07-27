@@ -706,7 +706,7 @@ export function SalesPage() {
                   <td>{customerName(o.customerId)}</td>
                   <td><StatusBadge status={o.status} label={statusLabel(o.status)} /></td>
                   <td>{formatMoney(o.totalMinorUnits, o.currencyCode, o.currencyMinorUnit)}</td>
-                  <td><button className="link" onClick={() => onOpen(o.id)}>{t("open")}</button></td>
+                  <td><button className="link" disabled={busy} onClick={() => onOpen(o.id)}>{t("open")}</button></td>
                 </tr>
               ))}
             </tbody>
