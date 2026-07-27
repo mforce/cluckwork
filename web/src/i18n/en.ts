@@ -435,6 +435,76 @@ export const en = {
     customerHeader: "Customer",
     totalHeader: "Total",
   },
+  // Water usage capture + correction screen (Task 13, #182, batch B2).
+  // English-only for now, same treatment as nav/numberField/errorBoundary/
+  // themeToggle/useConfirm/pwa/dailyEntry/dashboard above: `water` is
+  // deliberately NOT in TRANSLATED_NAMESPACES, so es/tl fall back to these
+  // strings until a native-speaker pass adds the namespace. The two
+  // closed-vocabulary displays on this screen — the Source picker + table
+  // cell, and the Unit picker + table cell + the quantity label's unit
+  // suffix — go through the `enums` `waterSourceLabel`/`waterUnitLabel`
+  // helpers, not a key here — see WaterPage.tsx. Both families are
+  // identity-labelled in English today, so wiring them changes nothing
+  // visible (confirmed in the report).
+  water: {
+    title: "Water",
+
+    // Imperative messages (event handlers / promise callbacks — see
+    // CONTRIBUTING-i18n.md's imperative i18n.t() pattern).
+    loadFlocksFailed: "Could not load flocks. Is the API up?",
+    loadRecordsFailed: "Could not load water records.",
+    loadMoreFailed: "Could not load more.",
+    concurrentEditError:
+      "This record was just changed elsewhere — reload the list and retry.",
+
+    intro:
+      "Record what each flock drank — a direct amount, or meter readings (the "
+      + "amount is the meter delta). Records can be corrected later; flock and "
+      + "date are fixed.",
+
+    // Capture form labels
+    flockLabel: "Flock",
+    depletedFlockSuffix: " — depleted, backfill only",
+    dateLabel: "Date",
+    sourceLabel: "Source",
+    unitLabel: "Unit",
+    fromMeterReadingsLabel: "from meter readings",
+    meterStartLabel: "Meter start",
+    meterEndLabel: "Meter end",
+    // {{unit}} is the ALREADY-LABELLED (waterUnitLabel) current unit — never
+    // the raw wire value.
+    quantityLabelWithUnit: "Quantity ({{unit}})",
+    noteLabel: "Note",
+
+    // Capture form buttons
+    recordWaterButton: "Record water",
+    saveCorrectionButton: "Save correction",
+    cancelEditButton: "cancel edit",
+
+    // Inline validation messages
+    quantityMustBePositive: "Quantity must be a positive number.",
+    bothMeterReadingsRequired: "Both meter readings are required.",
+
+    // Save-result messages
+    recordedMessage: "Water recorded.",
+    recordCorrectedMessage: "Water record corrected.",
+
+    // Records list — filters
+    recordsHeading: "Records",
+    fromLabel: "From",
+    toLabel: "To",
+    noRecordsMatch: "No water records match.",
+
+    // Records table
+    dateHeader: "Date",
+    flockHeader: "Flock",
+    amountHeader: "Amount",
+    sourceHeader: "Source",
+    metersHeader: "Meters",
+    noteHeader: "Note",
+    correctButton: "correct",
+    loadMoreButton: "load more",
+  },
   // Closed-vocabulary labels (#182, Task 4). Consumed ONLY through the typed
   // helpers in enums.ts — never a raw t("enums:status." + value). Keys are FLAT
   // "family.RawValue" strings (keySeparator:false, see index.ts): the suffix is
