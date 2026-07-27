@@ -81,9 +81,10 @@ export const en = {
     audit: "Audit",
     export: "Export",
     account: "Account",
-    // Reused for BOTH the "Help" destination and the "Help" group heading —
-    // identical text, identical meaning, so it stays one key within this
-    // namespace (not a `common` atom: nav-local reuse, not cross-screen).
+    // Distinct from `groupHelp` above: this is the "Help" DESTINATION's own
+    // labelKey, just like every other entry pairs with its group's `group*`
+    // heading key (e.g. `groupSetup`/farmSettings). The rendered text happens
+    // to coincide with the group heading, but the two keys are independent.
     help: "Help",
 
     // AppLayout chrome.

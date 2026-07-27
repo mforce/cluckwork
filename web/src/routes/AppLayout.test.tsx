@@ -270,6 +270,14 @@ describe("AppLayout i18n wiring (#182, Task 7)", () => {
     expect(document.title).toBe(`${i18n.t("nav:stock")}${i18n.t("nav:titleSuffix")}`);
   });
 
+  it("reads the per-page title label from the catalog, not a hardcoded literal", () => {
+    withNavOverride("stock", "NAV-STOCK-TITLE-MARKER", () => {
+      renderWithProviders(<AppLayout />, { token: { sub: "u1", role: "Admin" }, route: "/stock" });
+      expect(document.title.startsWith("NAV-STOCK-TITLE-MARKER")).toBe(true);
+      expect(document.title.startsWith("Stock")).toBe(false);
+    });
+  });
+
   it("reads the title suffix from the catalog, not a hardcoded ' — Cluckwork'", () => {
     withNavOverride("titleSuffix", " :: NAV-SUFFIX-MARKER", () => {
       renderWithProviders(<AppLayout />, { token: { sub: "u1", role: "Admin" } });
