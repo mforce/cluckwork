@@ -141,6 +141,16 @@ export function HelpPage() {
         </li>
       </ul>
 
+      <p>
+        <strong>Interface language.</strong> Everyone can choose the language
+        the interface is shown in from <strong>Account → Preferences</strong>{" "}
+        — English, Español, or Tagalog. Translation is a work in progress:
+        the login, sales, account, and error screens are translated today,
+        and the rest of the app is being translated screen by screen. Until a
+        screen is translated it simply shows in English, whatever language
+        you picked.
+      </p>
+
       <h3 id="daily-loop">The daily loop</h3>
       <p>
         Everything in Cluckwork hangs off one chain: you record a <strong>daily

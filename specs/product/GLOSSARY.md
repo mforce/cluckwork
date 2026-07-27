@@ -560,9 +560,15 @@ tokens are stateless and there is no server-side denylist.
 
 **UI language** — a per-user preference controlling the language the interface
 renders in. Stored on `ApplicationUser.Language` as a BCP-47 primary language
-subtag (e.g. `en`) in lowercase; `null` means follow the app's default. English-only
-today. Set via `PUT /api/v1/me/language`; read via `GET /api/v1/me`. Independent of
-**farm locale**, which controls number/date/currency formatting.
+subtag (e.g. `en`) in lowercase; `null` means follow the app's default. Three
+packs ship today — English (`en`), Spanish/Español (`es`), and Tagalog (`tl`,
+both machine-drafted, pending native-speaker review) — selectable per-user
+from Account → Preferences. English is the fallback for any string a pack
+hasn't translated yet: the string sweep (#182) is ongoing, so screens not yet
+externalized to the catalog still render in English regardless of the chosen
+language. Set via `PUT /api/v1/me/language`; read via `GET /api/v1/me`.
+Independent of **farm locale**, which controls number/date/currency
+formatting.
 
 **Export (manual backup) (#95)** — admin-only downloads of the account's
 data as CSV files: one file per dataset, or a **full account export** — a
