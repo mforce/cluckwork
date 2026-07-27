@@ -281,6 +281,107 @@ export const en = {
     paymentVoided: "Payment voided — the outstanding amount grew back.",
     orderVoided: "Order {{ref}} voided — stock returned to inventory.",
   },
+  // Daily entry capture screen (Task 11, #182, batch B2). English-only for
+  // now, same treatment as nav/numberField/errorBoundary/themeToggle/
+  // useConfirm/pwa above: `dailyEntry` is deliberately NOT in
+  // TRANSLATED_NAMESPACES, so es/tl fall back to these strings until a
+  // native-speaker pass adds the namespace. The one closed-vocabulary display
+  // on this screen (the entry-locked banner's status word) goes through the
+  // `enums` `statusLabel` helper, not a key here — see DailyEntryPage.tsx.
+  dailyEntry: {
+    title: "Daily entry",
+
+    // Imperative messages (event handlers / promise callbacks — see
+    // CONTRIBUTING-i18n.md's imperative i18n.t() pattern).
+    loadFlocksGradesFailed: "Could not load flocks/grades. Is the API up?",
+    deepLinkUnavailable:
+      "This edit link points at a flock or date that is no longer available — using the usual defaults instead.",
+
+    // "Editing draft" badge — a bespoke StatusBadge label, not an enum display.
+    editingDraftBadge: "Editing draft",
+
+    // Flock + date context row
+    flockLabel: "Flock",
+    noFlocksYetOption: "— no flocks yet —",
+    depletedFlockSuffix: " — depleted, backfill only",
+    dateLabel: "Date",
+    newFlockButton: "+ new flock",
+
+    // New-flock dialog (F131)
+    newFlockDialogTitle: "New flock",
+    nameLabel: "Name",
+    breedLabel: "Breed",
+    placedLabel: "Placed",
+    birdsLabel: "Birds",
+    createFlockButton: "Create flock",
+
+    // Locked-day / prefill-failure banners. `status` is interpolated with the
+    // ALREADY-LABELLED (statusLabel), lowercased value — never the raw wire
+    // status.
+    entryLockedBanner:
+      "This day is already {{status}} — its egg lots exist. "
+      + "Corrections are made from History (admins: adjust or void).",
+    prefillFailedBanner:
+      "Could not check whether this day already has an entry — saving is "
+      + "blocked so existing data isn't overwritten.",
+
+    // Step headings (F134's two-step layout)
+    stepLabel: "Step {{n}}",
+    stepOfTotal: "of 2:",
+    eggCountsHeading: "Egg counts",
+    gradingHeading: "Grading",
+
+    // Count field labels — reused lowercased (see g.name.toLowerCase() for
+    // grades, same pattern) as NumberField's aria-label `label` prop, so there
+    // is no separate lowercase key to keep in sync.
+    totalEggsLabel: "Total eggs",
+    crackedLabel: "Cracked",
+    dirtyLabel: "Dirty",
+    discardedLabel: "Discarded",
+    mortalityLabel: "Mortality",
+
+    // Reconciliation readouts (counts pane)
+    countsExceedTotalMessage:
+      "Cracked + dirty + discarded ({{losses}}) exceed total eggs ({{total}}).",
+    sellableLabel: "Sellable",
+    sellableFormula: "{{total}} − {{cracked}} − {{dirty}} − {{discarded}}",
+    deactivatedGradeSuffix: " (deactivated)",
+
+    // F134 remainder-assignment gesture (grading pane)
+    takeRemainderAriaLabel: "Put all {{count}} remaining in {{grade}}",
+    takeRemainderButton: "+{{count}}",
+    armAriaLabel: "Choose a grade for the remaining {{count}}",
+    disarmAriaLabel: "Cancel choosing a grade",
+    armButton: "put all in…",
+    disarmButton: "pick a grade…",
+
+    // The `grading` derived object's copy (chip + pinned footer)
+    fixCountsFirst: "Fix the counts first",
+    fixCountsShort: "fix the counts",
+    overSellableCount: "over the sellable count",
+    overShort: "over",
+    gradedDayAddsUp: "graded — the day adds up",
+    allGradedShort: "all graded",
+    leftToGrade: "left to grade",
+    leftShort: "left",
+
+    // Pinned footer (phone-only summary + saves)
+    countsExceedFooterMessage: "Losses exceed the total — fix the counts",
+    sellableWord: "sellable",
+    saveDraftButton: "Save draft",
+    submitButton: "Save & submit (creates egg lots)",
+
+    // Submit confirmation dialog (one-way action, #59)
+    confirmSubmitTitle: "Submit this day?",
+    confirmSubmitBody:
+      "Egg lots are created and the entry can no longer be edited. "
+      + "Corrections after this need a manager adjustment.",
+    confirmSubmitLabel: "Submit day",
+
+    // Save-result messages
+    submittedMessage: "Submitted — {{count}} egg lot(s) created.",
+    draftSavedMessage: "Draft saved.",
+  },
   // Closed-vocabulary labels (#182, Task 4). Consumed ONLY through the typed
   // helpers in enums.ts — never a raw t("enums:status." + value). Keys are FLAT
   // "family.RawValue" strings (keySeparator:false, see index.ts): the suffix is

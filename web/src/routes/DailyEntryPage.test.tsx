@@ -8,6 +8,7 @@ import type { Flock, EggGrade, DailyEntry } from "../api/cluckwork";
 import { todayIso } from "../lib/dates";
 import { FarmContext } from "../farm/FarmContext";
 import { account, farmState } from "../test/fixtures";
+import i18n from "../i18n";
 
 // DailyEntry has no auth/router deps — mock only the API seam it loads from.
 vi.mock("../api/cluckwork", () => ({
@@ -186,6 +187,27 @@ describe("DailyEntryPage prefill gating", () => {
     expect(screen.getByLabelText("Total eggs")).toBeDisabled();
     expect(submitBtn()).toBeDisabled();
     expect(saveDraftBtn()).toBeDisabled();
+  });
+
+  // Task 11 (#182): wiring the lock banner's status word through the `enums`
+  // statusLabel helper is an INTENTIONAL harmonization, not text-preserving —
+  // ManagerAdjusted used to render raw (lowercased to "manageradjusted", one
+  // word, no visible boundary) and now reads "adjusted", matching the label
+  // HistoryPage already shows for the same state (its own bespoke badge, see
+  // en.ts's `enums` header comment).
+  it("shows the harmonized 'adjusted' label, not the raw status, for a manager-adjusted day", async () => {
+    const existing: DailyEntry = {
+      id: "de1", farmId: "farm1", houseId: "h1", flockId: "f1", date: todayIso(), status: "ManagerAdjusted",
+      totalEggs: 100, crackedEggs: 2, dirtyEggs: 3, discardedEggs: 5, mortalityCount: 1,
+      grades: [{ eggGradeId: "gr1", quantity: 60 }, { eggGradeId: "gr2", quantity: 25 }],
+      version: 1, adjustReason: null, voidReason: null, lockedAtUtc: "2026-07-20T10:00:00Z", adjustedFrom: null,
+    };
+    mockListDailyEntries.mockResolvedValue([existing]);
+    render(<DailyEntryPage />);
+
+    expect(await screen.findByText(/already adjusted/)).toBeInTheDocument();
+    expect(screen.queryByText(/manageradjusted/i)).not.toBeInTheDocument();
+    expect(submitBtn()).toBeDisabled();
   });
 });
 
@@ -592,5 +614,91 @@ describe("DailyEntryPage farm-local date", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// i18n wiring (#182, Task 11, batch B2)
+// ---------------------------------------------------------------------------
+
+// `dailyEntry` is English-only (not in TRANSLATED_NAMESPACES — see
+// translations-status.ts), so under ANY UI language the rendered text falls
+// back to this exact English string, same as a still-hardcoded literal would
+// render — asserting it, even under a non-English locale, would prove nothing
+// (CONTRIBUTING-i18n.md's fallback trap). Swap the catalog value at runtime
+// instead, the same i18n.addResource technique the other batches use, so each
+// marker only renders if the screen actually reads the catalog rather than a
+// literal that happens to still match it.
+describe("DailyEntryPage i18n wiring (#182, Task 11)", () => {
+  function withOverride(ns: string, key: string, value: string, run: () => Promise<void> | void) {
+    const original = i18n.getResource("en", ns, key) as string;
+    i18n.addResource("en", ns, key, value);
+    return Promise.resolve(run()).finally(() => {
+      i18n.addResource("en", ns, key, original);
+    });
+  }
+
+  it("reads the heading from the catalog, not a hardcoded literal", async () => {
+    await withOverride("dailyEntry", "title", "TITLE-MARKER", async () => {
+      await renderReady();
+      expect(screen.getByRole("heading", { name: "TITLE-MARKER" })).toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "Daily entry" })).not.toBeInTheDocument();
+    });
+  });
+
+  it("reads the save-draft button's label from the catalog, not a hardcoded literal", async () => {
+    // Not renderReady(): it waits on the ORIGINAL "Save draft" name to confirm
+    // the prefill settled, which the override below replaces.
+    await withOverride("dailyEntry", "saveDraftButton", "SAVE-DRAFT-MARKER", async () => {
+      render(<DailyEntryPage />);
+      await screen.findByLabelText("Grade A");
+      await waitFor(() =>
+        expect(screen.getByRole("button", { name: "SAVE-DRAFT-MARKER" })).toBeEnabled());
+      expect(screen.queryByRole("button", { name: /Save draft/ })).not.toBeInTheDocument();
+    });
+  });
+
+  // Proves the banner reads BOTH the catalog template AND the enum-labelled
+  // (statusLabel), lowercased status — a hardcoded literal, or one that
+  // interpolated the raw wire value, would show neither "LOCKED-MARKER" nor
+  // "submitted" here.
+  it("interpolates the enum-labelled status into the entry-locked banner from the catalog", async () => {
+    const existing: DailyEntry = {
+      id: "de1", farmId: "farm1", houseId: "h1", flockId: "f1", date: todayIso(), status: "Submitted",
+      totalEggs: 100, crackedEggs: 2, dirtyEggs: 3, discardedEggs: 5, mortalityCount: 1,
+      grades: [], version: 1, adjustReason: null, voidReason: null, lockedAtUtc: "2026-07-20T10:00:00Z", adjustedFrom: null,
+    };
+    mockListDailyEntries.mockResolvedValue([existing]);
+    await withOverride("dailyEntry", "entryLockedBanner", "LOCKED-MARKER {{status}} MARKER-END", async () => {
+      render(<DailyEntryPage />);
+      expect(await screen.findByText("LOCKED-MARKER submitted MARKER-END")).toBeInTheDocument();
+    });
+  });
+
+  it("reads the choose-a-grade aria-label from the catalog, interpolating the remaining count", async () => {
+    await withOverride("dailyEntry", "armAriaLabel", "ARM-MARKER {{count}}", async () => {
+      await renderReady();
+      setNum("Total eggs", 100);
+      setNum("Cracked", 10); // sellable 90, nothing graded yet → remaining 90
+      expect(screen.getByRole("button", { name: "ARM-MARKER 90" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Choose a grade for the remaining/ })).not.toBeInTheDocument();
+    });
+  });
+
+  // The confirm dialog's copy is built with the imperative i18n.t() (onSave is
+  // an event handler, not render — see CONTRIBUTING-i18n.md).
+  it("reads the submit-confirmation dialog copy from the catalog", async () => {
+    await withOverride("dailyEntry", "confirmSubmitTitle", "SUBMIT-TITLE-MARKER", () =>
+      withOverride("dailyEntry", "confirmSubmitLabel", "SUBMIT-CONFIRM-MARKER", async () => {
+        await renderReady();
+        fireEvent.change(screen.getByLabelText("Flock"), { target: { value: "f1" } });
+        setNum("Total eggs", 10);
+        await waitFor(() => expect(submitBtn()).toBeEnabled());
+
+        await act(async () => { fireEvent.click(submitBtn()); });
+
+        expect(screen.getByRole("dialog")).toHaveAccessibleName("SUBMIT-TITLE-MARKER");
+        expect(screen.getByRole("button", { name: "SUBMIT-CONFIRM-MARKER" })).toBeInTheDocument();
+      }));
   });
 });
