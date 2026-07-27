@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
+import { useTranslation } from "react-i18next";
 import { Plus } from "lucide-react";
 import {
   activateEggGrade, createEggGrade, deactivateEggGrade, listEggGrades, updateEggGrade,
@@ -10,6 +11,8 @@ import { useAuth } from "../auth/useAuth";
 import { Dialog } from "../components/Dialog";
 import { StatusBadge } from "../components/StatusBadge";
 import { newId } from "../lib/ids";
+import i18n from "../i18n";
+import { gradeTypeLabel } from "../i18n/enums";
 
 const GRADE_TYPES = ["Size", "Quality", "Custom"];
 
@@ -22,6 +25,8 @@ function errorMessage(err: unknown): string {
 // and order items reference grades forever; deactivation only removes a grade
 // from capture/order pickers while history keeps rendering its name.
 export function GradesPage() {
+  const { t } = useTranslation("grades");
+  const { t: tc } = useTranslation("common");
   // The grade catalog is configuration — management is admin-only (#73). The
   // nav link hides for workers; a direct URL just renders the list read-only.
   const { isAdmin } = useAuth();
@@ -59,7 +64,7 @@ export function GradesPage() {
   useEffect(() => {
     fetchGrades()
       .then(setGrades)
-      .catch(() => setError("Could not load grades. Is the API up?"));
+      .catch(() => setError(i18n.t("grades:loadGradesFailed")));
   }, []);
 
   async function run(scope: string, action: (key: string) => Promise<unknown>) {
@@ -120,10 +125,10 @@ export function GradesPage() {
   }
 
   if (error && grades === null) {
-    return <section><h2>Grades</h2><p className="error">{error}</p></section>;
+    return <section><h2>{t("loadingTitle")}</h2><p className="error">{error}</p></section>;
   }
   if (grades === null) {
-    return <section><h2>Grades</h2><p className="muted">Loading…</p></section>;
+    return <section><h2>{t("loadingTitle")}</h2><p className="muted">{tc("loading")}</p></section>;
   }
 
   const dialogOpen = creating || editingId !== null;
@@ -131,68 +136,67 @@ export function GradesPage() {
   return (
     <section>
       <div className="page-head">
-        <h2>Egg grades</h2>
+        <h2>{t("title")}</h2>
         {isAdmin && (
           <button type="button" onClick={openCreate}>
-            <Plus size={16} aria-hidden /> New grade
+            <Plus size={16} aria-hidden /> {t("newGradeButton")}
           </button>
         )}
       </div>
       <p className="muted">
-        Saleable grades appear in daily-entry and order pickers. Deactivating a grade
-        removes it from pickers; existing stock and history are unaffected.
+        {t("intro")}
       </p>
 
       {/* Gated like the inline form was: a role change mid-edit closes it. */}
-      <Dialog open={creating && isAdmin} title="New grade" onClose={() => setCreating(false)}>
+      <Dialog open={creating && isAdmin} title={t("newGradeDialogTitle")} onClose={() => setCreating(false)}>
         <form className="inline-form" onSubmit={onCreate}>
-          <label>Name *
+          <label>{t("nameLabel")}
             <input value={name} required maxLength={50}
               onChange={(e) => setName(e.target.value)} />
           </label>
-          <label>Type
+          <label>{t("typeLabel")}
             <select value={gradeType} onChange={(e) => setGradeType(e.target.value)}>
-              {GRADE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+              {GRADE_TYPES.map((gt) => <option key={gt} value={gt}>{gradeTypeLabel(gt)}</option>)}
             </select>
           </label>
-          <label>Sort
+          <label>{t("sortLabel")}
             <input className="cell" type="number" value={sortOrder}
               onChange={(e) => setSortOrder(e.target.valueAsNumber || 0)} />
           </label>
           <label className="muted check">
             <input type="checkbox" checked={isSaleable}
               onChange={(e) => setIsSaleable(e.target.checked)} />
-            saleable
+            {t("saleableLabel")}
           </label>
           {error && <p className="error">{error}</p>}
           <div className="dialog-foot">
-            <button type="button" className="link" onClick={() => setCreating(false)}>Cancel</button>
-            <button type="submit" disabled={busy}>Add grade</button>
+            <button type="button" className="link" onClick={() => setCreating(false)}>{tc("cancel")}</button>
+            <button type="submit" disabled={busy}>{t("addGradeButton")}</button>
           </div>
         </form>
       </Dialog>
 
-      <Dialog open={editingId !== null && isAdmin} title="Edit grade" onClose={() => setEditingId(null)}>
+      <Dialog open={editingId !== null && isAdmin} title={t("editGradeDialogTitle")} onClose={() => setEditingId(null)}>
         {/* noValidate: the row's save used to be a plain button, so native
             constraint validation never ran on these fields. */}
         <form className="inline-form" noValidate onSubmit={onSaveEdit}>
-          <label>Name
+          <label>{t("editNameLabel")}
             <input value={editName} maxLength={50}
               onChange={(e) => setEditName(e.target.value)} />
           </label>
-          <label>Sort
+          <label>{t("sortLabel")}
             <input className="cell" type="number" value={editSort}
               onChange={(e) => setEditSort(e.target.valueAsNumber || 0)} />
           </label>
           <label className="muted check">
             <input type="checkbox" checked={editSaleable}
               onChange={(e) => setEditSaleable(e.target.checked)} />
-            saleable
+            {t("saleableLabel")}
           </label>
           {error && <p className="error">{error}</p>}
           <div className="dialog-foot">
-            <button type="button" className="link" onClick={() => setEditingId(null)}>Cancel</button>
-            <button type="submit" disabled={busy}>Save</button>
+            <button type="button" className="link" onClick={() => setEditingId(null)}>{tc("cancel")}</button>
+            <button type="submit" disabled={busy}>{tc("save")}</button>
           </div>
         </form>
       </Dialog>
@@ -202,30 +206,37 @@ export function GradesPage() {
 
       <table className="data">
         <thead>
-          <tr><th>Name</th><th>Type</th><th>Sort</th><th>Saleable</th><th>Status</th><th></th></tr>
+          <tr>
+            <th>{t("nameHeader")}</th>
+            <th>{t("typeHeader")}</th>
+            <th>{t("sortHeader")}</th>
+            <th>{t("saleableHeader")}</th>
+            <th>{t("statusHeader")}</th>
+            <th></th>
+          </tr>
         </thead>
         <tbody>
           {grades.map((g) => (
             <tr key={g.id} className={g.active ? undefined : "inactive"}>
               <td>{g.name}</td>
-              <td>{g.gradeType}</td>
+              <td>{gradeTypeLabel(g.gradeType)}</td>
               <td>{g.sortOrder}</td>
-              <td>{g.isSaleable ? <span className="badge badge-ok">yes</span> : "—"}</td>
+              <td>{g.isSaleable ? <span className="badge badge-ok">{t("saleableYesBadge")}</span> : "—"}</td>
               <td><StatusBadge status={g.active ? "Active" : "Inactive"} /></td>
               <td>
                 {isAdmin && (
                   <>
                     <button className="link" disabled={busy}
-                      onClick={() => startEdit(g)}>edit</button>
+                      onClick={() => startEdit(g)}>{t("editButton")}</button>
                     {g.active ? (
                       <button className="link" disabled={busy}
                         onClick={() => void run(`deactivate:${g.id}`, (key) => deactivateEggGrade(g.id, key))}>
-                        deactivate
+                        {t("deactivateButton")}
                       </button>
                     ) : (
                       <button className="link" disabled={busy}
                         onClick={() => void run(`activate:${g.id}`, (key) => activateEggGrade(g.id, key))}>
-                        activate
+                        {t("activateButton")}
                       </button>
                     )}
                   </>

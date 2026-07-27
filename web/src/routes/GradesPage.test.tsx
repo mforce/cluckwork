@@ -7,6 +7,7 @@ import {
 } from "../api/cluckwork";
 import type { EggGrade } from "../api/cluckwork";
 import { ApiError } from "../api/client";
+import i18n from "../i18n";
 
 // Network seam only; ApiError stays real (errorMessage branches on it).
 vi.mock("../api/cluckwork", () => ({
@@ -182,5 +183,83 @@ describe("GradesPage role gating", () => {
     expect(screen.queryByRole("button", { name: "edit" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "deactivate" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "activate" })).not.toBeInTheDocument(); // inactive Legacy row too
+  });
+});
+
+// ---------------------------------------------------------------------------
+// i18n wiring (#182, Task 14, batch B2 — the last B2 screen)
+// ---------------------------------------------------------------------------
+
+// `grades` is English-only (not in TRANSLATED_NAMESPACES — see
+// translations-status.ts), so under ANY UI language the rendered text falls
+// back to this exact English string, same as a still-hardcoded literal would
+// render — asserting it, even under a non-English locale, would prove nothing
+// (CONTRIBUTING-i18n.md's fallback trap). Swap the catalog value at runtime
+// instead, the same i18n.addResource technique the other batches use, so each
+// marker only renders if the screen actually reads the catalog rather than a
+// literal that happens to still match it.
+describe("GradesPage i18n wiring (#182, Task 14)", () => {
+  function withOverride(ns: string, key: string, value: string, run: () => Promise<void> | void) {
+    const original = i18n.getResource("en", ns, key) as string;
+    i18n.addResource("en", ns, key, value);
+    return Promise.resolve(run()).finally(() => {
+      i18n.addResource("en", ns, key, original);
+    });
+  }
+
+  it("reads the heading from the catalog, not a hardcoded literal", async () => {
+    await withOverride("grades", "title", "TITLE-MARKER", async () => {
+      await renderReady(ADMIN);
+      expect(screen.getByRole("heading", { name: "TITLE-MARKER" })).toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "Egg grades" })).not.toBeInTheDocument();
+    });
+  });
+
+  it("reads the new-grade button label from the catalog, not a hardcoded literal", async () => {
+    await withOverride("grades", "newGradeButton", "NEW-GRADE-MARKER", async () => {
+      await renderReady(ADMIN);
+      expect(screen.getByRole("button", { name: "NEW-GRADE-MARKER" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "New grade" })).not.toBeInTheDocument();
+    });
+  });
+
+  it("reads the failed-load message from the catalog, not a hardcoded literal", async () => {
+    mockList.mockRejectedValue(new Error("boom"));
+    await withOverride("grades", "loadGradesFailed", "LOAD-FAILED-MARKER", async () => {
+      renderWithProviders(<GradesPage />, { token: ADMIN });
+      expect(await screen.findByText("LOAD-FAILED-MARKER")).toBeInTheDocument();
+      expect(screen.queryByText("Could not load grades. Is the API up?")).not.toBeInTheDocument();
+    });
+  });
+
+  // Proves the Type picker and the table's Type cell both read the grade-type
+  // ENUM label from the catalog (via gradeTypeLabel), not the raw wire value
+  // "Size" or a hardcoded literal — GRADE_A's gradeType is "Size".
+  it("reads the grade-type enum label from the catalog for both the picker and the table cell", async () => {
+    await withOverride("enums", "gradeType.Size", "SIZE-MARKER", async () => {
+      await renderReady(ADMIN);
+      const rowA = screen.getByRole("row", { name: /Grade A/ });
+      expect(within(rowA).getByText("SIZE-MARKER")).toBeInTheDocument();
+
+      openCreate();
+      expect(within(dialog()).getByRole("option", { name: "SIZE-MARKER" })).toBeInTheDocument();
+      expect(within(dialog()).queryByRole("option", { name: "Size" })).not.toBeInTheDocument();
+    });
+  });
+
+  it("reads a table header from the catalog, not a hardcoded literal", async () => {
+    await withOverride("grades", "nameHeader", "NAME-HEADER-MARKER", async () => {
+      await renderReady(ADMIN);
+      expect(screen.getByRole("columnheader", { name: "NAME-HEADER-MARKER" })).toBeInTheDocument();
+    });
+  });
+
+  it("reads the saleable 'yes' badge from the catalog, not a hardcoded literal", async () => {
+    await withOverride("grades", "saleableYesBadge", "YES-MARKER", async () => {
+      await renderReady(ADMIN);
+      const rowA = screen.getByRole("row", { name: /Grade A/ });
+      expect(within(rowA).getByText("YES-MARKER")).toBeInTheDocument();
+      expect(within(rowA).queryByText("yes")).not.toBeInTheDocument();
+    });
   });
 });

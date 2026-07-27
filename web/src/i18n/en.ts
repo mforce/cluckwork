@@ -505,6 +505,70 @@ export const en = {
     correctButton: "correct",
     loadMoreButton: "load more",
   },
+  // Egg grade catalog admin screen (Task 14, #182, batch B2 — the last B2
+  // screen). English-only for now, same treatment as nav/numberField/
+  // errorBoundary/themeToggle/useConfirm/pwa/dailyEntry/dashboard/water above:
+  // `grades` is deliberately NOT in TRANSLATED_NAMESPACES, so es/tl fall back
+  // to these strings until a native-speaker pass adds the namespace. The one
+  // closed-vocabulary display on this screen — the Type picker + table cell —
+  // goes through the `enums` `gradeTypeLabel` helper, not a key here — see
+  // GradesPage.tsx. Size/Quality/Custom are identity-labelled in English
+  // today, so wiring it changes nothing visible (confirmed in the report).
+  // Grade NAMES (`g.name`) are free-form farm data, not client copy, and stay
+  // raw — never routed through the catalog.
+  grades: {
+    // Titles. `title` is the loaded heading ("Egg grades"); `loadingTitle` is
+    // the shorter pre-existing heading the two early-return states (load
+    // error / still loading) used before this sweep — a pre-existing
+    // inconsistency with the loaded heading, preserved verbatim rather than
+    // "fixed" as a drive-by (not this task's job).
+    title: "Egg grades",
+    loadingTitle: "Grades",
+
+    // Imperative message (promise callback — see CONTRIBUTING-i18n.md's
+    // imperative i18n.t() pattern).
+    loadGradesFailed: "Could not load grades. Is the API up?",
+
+    intro:
+      "Saleable grades appear in daily-entry and order pickers. Deactivating "
+      + "a grade removes it from pickers; existing stock and history are "
+      + "unaffected.",
+
+    // Buttons. `newGradeButton` (the page's action button) and
+    // `newGradeDialogTitle` happen to share English text today but are
+    // separate keys, one per UI role — same treatment as
+    // dailyEntry:newFlockButton/newFlockDialogTitle.
+    newGradeButton: "New grade",
+    newGradeDialogTitle: "New grade",
+    editGradeDialogTitle: "Edit grade",
+    addGradeButton: "Add grade",
+    // Lowercase link-styled row actions, matching sales:edit/water:correctButton.
+    editButton: "edit",
+    deactivateButton: "deactivate",
+    activateButton: "activate",
+
+    // Create-dialog form labels.
+    nameLabel: "Name *",
+    typeLabel: "Type",
+    sortLabel: "Sort",
+    saleableLabel: "saleable",
+    // Edit-dialog's Name label carries no required marker: the row's save
+    // used to be a plain button, so native constraint validation never ran on
+    // this field, and the dialog keeps that parity (see GradesPage.test.tsx).
+    editNameLabel: "Name",
+
+    // Table headers — separate keys from the form labels above even where the
+    // English text coincides (same treatment as water:flockLabel/flockHeader).
+    nameHeader: "Name",
+    typeHeader: "Type",
+    sortHeader: "Sort",
+    saleableHeader: "Saleable",
+    statusHeader: "Status",
+
+    // Saleable column's "yes" badge — lowercase, distinct from common.yes
+    // ("Yes"); same case-sensitive-variant treatment as sales:close.
+    saleableYesBadge: "yes",
+  },
   // Closed-vocabulary labels (#182, Task 4). Consumed ONLY through the typed
   // helpers in enums.ts — never a raw t("enums:status." + value). Keys are FLAT
   // "family.RawValue" strings (keySeparator:false, see index.ts): the suffix is
