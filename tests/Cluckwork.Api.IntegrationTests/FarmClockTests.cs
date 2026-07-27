@@ -34,8 +34,14 @@ public sealed class FarmClockTests
             return Task.FromResult(account);
         }
 
-        // The clock never writes; only the settings handler uses these.
+        // The clock never writes; only the settings and money handlers use these.
         public Task<Account?> GetCurrentTrackedAsync(CancellationToken ct = default) =>
+            throw new NotSupportedException();
+
+        public Task<Account?> GetCurrentSharedLockedAsync(CancellationToken ct = default) =>
+            throw new NotSupportedException();
+
+        public Task<Account?> GetCurrentLockedAsync(CancellationToken ct = default) =>
             throw new NotSupportedException();
 
         public void DiscardChanges(Account account) => throw new NotSupportedException();

@@ -14,6 +14,28 @@ public interface IAccountRepository
     // lock belongs, and naming this "ForUpdate" implied one it never took.
     Task<Account?> GetCurrentTrackedAsync(CancellationToken ct = default);
 
+    // #162 §4.6 — the money-writer's half of the currency-lock protocol: FOR
+    // SHARE on the account row, taken by EVERY handler that stamps
+    // DefaultCurrencyCode onto a new row, inside the same transaction as its
+    // insert. Shared locks never block each other, so money writes stay
+    // concurrent. What does conflict: the currency change's FOR UPDATE (the
+    // point), and any plain UPDATE of the account row (FOR NO KEY UPDATE) —
+    // so a non-currency settings save can briefly wait behind in-flight
+    // money writes. Accepted: that path is rare, admin-only, and the waits
+    // are transaction-length. MUST be called inside an open transaction — on
+    // autocommit the lock evaporates with the statement and guards nothing.
+    Task<Account?> GetCurrentSharedLockedAsync(CancellationToken ct = default);
+
+    // The currency change's half: FOR UPDATE, tracked. Holding it means no
+    // money writer is mid-flight (their FOR SHARE would have blocked us) and
+    // none can start until we commit — so one probe after this read is
+    // authoritative. Same transaction requirement as the shared variant.
+    // NOTE: when the account is already tracked, identity resolution returns
+    // the EXISTING instance without refreshing its values — this call takes
+    // the lock, it does not give you fresh data. Version's concurrency token
+    // is what guards stale writes.
+    Task<Account?> GetCurrentLockedAsync(CancellationToken ct = default);
+
     // Put a tracked account back the way the database has it. A rolled-back
     // transaction undoes the row but not the in-memory entity, and something
     // else saves through this context later in the same request (the

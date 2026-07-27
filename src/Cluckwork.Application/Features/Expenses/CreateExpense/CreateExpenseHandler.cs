@@ -36,19 +36,33 @@ public sealed class CreateExpenseHandler(
         }
 
         // Currency snapshots from the account at creation (spec §16) — a later
-        // currency change never re-denominates recorded expenses.
-        var account = await accounts.GetCurrentAsync(ct);
-        if (account is null)
-            return Result.Failure<Guid>(Error.NotFound("Account", accountId));
+        // currency change never re-denominates recorded expenses. The snapshot
+        // and the insert share a transaction, with FOR SHARE on the account
+        // row (#162): a concurrent currency change either waits for this
+        // commit (and then refuses — the probe sees this row) or holds its
+        // FOR UPDATE first, in which case this read waits and stamps the NEW
+        // currency. Never a row in one denomination on a farm in another.
+        Result<Guid>? outcome = null;
+        await unitOfWork.ExecuteInTransactionAsync(async transactionCt =>
+        {
+            var account = await accounts.GetCurrentSharedLockedAsync(transactionCt);
+            if (account is null)
+            {
+                outcome = Result.Failure<Guid>(Error.NotFound("Account", accountId));
+                return false;
+            }
 
-        var expense = Expense.Create(
-            Guid.NewGuid(), accountId, farmId, command.ExpenseCategoryId,
-            command.Date, command.Description, command.AmountMinorUnits,
-            account.DefaultCurrencyCode, account.DefaultCurrencyMinorUnit,
-            command.FlockId, command.Note);
+            var expense = Expense.Create(
+                Guid.NewGuid(), accountId, farmId, command.ExpenseCategoryId,
+                command.Date, command.Description, command.AmountMinorUnits,
+                account.DefaultCurrencyCode, account.DefaultCurrencyMinorUnit,
+                command.FlockId, command.Note);
 
-        await expenses.AddAsync(expense, ct);
-        await unitOfWork.SaveChangesAsync(ct);
-        return Result.Success(expense.Id);
+            await expenses.AddAsync(expense, transactionCt);
+            outcome = Result.Success(expense.Id);
+            return true;
+        }, ct);
+
+        return outcome!;
     }
 }

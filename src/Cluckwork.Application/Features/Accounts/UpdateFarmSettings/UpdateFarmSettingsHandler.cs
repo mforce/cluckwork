@@ -39,42 +39,41 @@ public sealed class UpdateFarmSettingsHandler(
 
         // A currency change decides on the strength of "this farm has recorded
         // no amount at all" and then writes the new currency. Those are two
-        // moments, and another request can book the farm's first sale or
-        // expense in between.
+        // moments, and another request could once book the farm's first sale
+        // or expense in between.
         //
         // What does NOT fix this, tested rather than assumed
         // (CurrencyLockSerializationTests): running THIS transaction at
         // SERIALIZABLE. Postgres only tracks read-write conflicts among
         // transactions that are all serializable, and every money-writing
-        // handler runs at the default isolation — several do their currency
-        // read and their insert as separate autocommit statements. The
-        // interleaving is therefore invisible to SSI and commits happily. A
-        // real close needs every money-writing path to take a shared lock on
-        // the account row it reads the currency from; that is a change across
-        // half a dozen handlers on a hot row, and it belongs in its own slice.
+        // handler runs at the default isolation. The interleaving is invisible
+        // to SSI and commits happily.
         //
-        // What this does instead is bound the window. Both probes run inside
-        // the transaction, one before the decision and one immediately before
-        // the commit; under READ COMMITTED each statement takes a fresh
-        // snapshot, so the second sees anything committed since the first. What
-        // is left is the gap between that last probe and the commit — sub-
-        // millisecond, against a window that was previously the whole handler.
+        // #162 closes it with row locks instead. FOR UPDATE here; FOR SHARE in
+        // every handler that stamps the currency onto a new row, inside its
+        // insert's transaction. Holding the exclusive lock means no money
+        // writer is mid-flight (its FOR SHARE would have blocked us) and none
+        // can start until we commit (our lock blocks its FOR SHARE — it then
+        // reads the NEW currency). So the single probe below, taken after the
+        // lock, is authoritative: what it sees is all there is.
+        // CurrencyLockRaceTests drives both interleavings against the real
+        // handlers. A lock-level failure (deadlock, 40P01) surfaces through
+        // the global PostgresException→409 mapping.
         Result result = Result.Success();
         var committed = await unitOfWork.ExecuteInTransactionAsync(async token =>
         {
-            var before = Snapshot(account);
+            // Result discarded on purpose. The call exists for the lock; the
+            // identity map hands back the SAME instance as `account` above
+            // and deliberately does not refresh its values, so capturing it
+            // would change nothing. Staleness is guarded elsewhere: Version
+            // is an EF concurrency token, so an interleaved settings save
+            // makes THIS save throw DbUpdateConcurrencyException (→ the
+            // global 409) instead of silently losing the other's write.
+            await accounts.GetCurrentLockedAsync(token);
 
+            var before = Snapshot(account);
             result = Apply(account, command, await currencyBoundRows.AnyAsync(token));
             if (result.IsFailure) return false;
-
-            // Last look before committing. A row that landed while we were
-            // deciding still refuses the change rather than stranding itself in
-            // the old denomination.
-            if (await currencyBoundRows.AnyAsync(token))
-            {
-                result = Result.Failure(CurrencyLandedMidFlight);
-                return false;
-            }
 
             await WriteAuditAsync(account, before, token);
             return true;
@@ -98,11 +97,6 @@ public sealed class UpdateFarmSettingsHandler(
 
         return result;
     }
-
-    private static readonly Error CurrencyLandedMidFlight = Error.Conflict(
-        "Account.CurrencyLocked",
-        "The farm currency cannot be changed once sales orders, payments, expenses, priced " +
-        "products or feed costs exist. One was recorded while these settings were being saved.");
 
     private static Result Apply(
         Account account, UpdateFarmSettingsCommand command, bool currencyBoundRowsExist) =>

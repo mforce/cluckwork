@@ -51,7 +51,11 @@ public sealed class RecordPurchaseHandler(
             Money unitCost;
             if (command.UnitCostMinorUnits is not null)
             {
-                var account = await accounts.GetCurrentAsync(transactionCt);
+                // #162 — FOR SHARE: the cost stamped below participates in the
+                // currency-lock protocol. Taken AFTER the item row lock; no
+                // deadlock cycle exists because the only exclusive taker of the
+                // account lock (the settings handler) locks nothing else.
+                var account = await accounts.GetCurrentSharedLockedAsync(transactionCt);
                 if (account is null)
                 {
                     outcome = Result.Failure<Guid>(Error.NotFound("Account", accountId));
