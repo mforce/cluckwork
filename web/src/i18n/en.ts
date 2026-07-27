@@ -1160,6 +1160,112 @@ export const en = {
       "Password set for {{email}}. They have been signed out everywhere.",
     updatedMessage: "Updated {{email}}.",
   },
+  // Expenses screen — category management (a dialog panel: create/deactivate/
+  // reactivate) + record/correct expenses, filtered by month and category
+  // (Task 23, #182, batch B4 — the last B4 screen). English-only for now, same
+  // treatment as nav/numberField/errorBoundary/themeToggle/useConfirm/pwa/
+  // dailyEntry/dashboard/water/grades/inventory/products/stock/flocks/
+  // settings/users above: `expenses` is deliberately NOT in
+  // TRANSLATED_NAMESPACES, so es/tl fall back to these strings until a
+  // native-speaker pass adds the namespace.
+  //
+  // PLAN CORRECTION (verified by controller): this screen has NO
+  // payment-method/category enum. `ExpenseCategory` rows are free-form,
+  // admin-created records (createExpenseCategory), not a closed API
+  // vocabulary — so category NAMES stay raw DATA everywhere they render (the
+  // filter option, the add/edit pickers, the category-list rows, the
+  // deactivated-suffix rows) and are never routed through an enums.ts helper.
+  // Expense descriptions, notes, dates, amounts, and flock names are the same
+  // kind of free-form farm DATA and stay raw too. Money stays on the existing
+  // farm-locale `formatMoney` — never `i18n.language` (formattingIndependence
+  // guard).
+  //
+  // Money-decimal validation copy (enterValidAmount/noDecimalPlaces/
+  // atMostDecimals/enterAmountGreaterThanZero) duplicates sales/products'
+  // near-identical strings but is kept as its OWN local key set here per the
+  // task brief — a cross-screen consolidation is a tracked native-pass
+  // deferral, not this task's job.
+  expenses: {
+    title: "Expenses",
+
+    // Imperative messages (event handlers — see CONTRIBUTING-i18n.md's
+    // imperative i18n.t() pattern).
+    expenseRecordedMessage: "Expense recorded.",
+    expenseCorrectedMessage: "Expense corrected.",
+    // 409 rebind (onSaveEdit): someone else corrected this expense while the
+    // dialog was open — the panel is rebound to the server's latest values.
+    conflictRebindMessage:
+      "This expense was changed by someone else — the form now shows the "
+      + "latest values; re-apply your correction.",
+    categoryCreatedMessage: "Category created.",
+    // {{name}} is the category's free-form NAME (DATA), not client copy.
+    categoryDeactivatedMessage: "Category \"{{name}}\" deactivated.",
+    categoryReactivatedMessage: "Category \"{{name}}\" reactivated.",
+
+    // Amount-parsing validation (toMinorUnits, thrown from the add/edit
+    // submit handlers — imperative i18n.t() pattern, same shape as
+    // products:enterPriceAsNumber/noDecimalPlaces/atMostDecimals).
+    enterValidAmount: "Enter a valid amount.",
+    noDecimalPlaces: "This currency has no decimal places.",
+    atMostDecimals: "At most {{count}} decimal places for this currency.",
+    enterAmountGreaterThanZero: "Enter an amount greater than zero.",
+
+    // Filters
+    monthLabel: "Month",
+    // Shared by the filter select, the add-form select, and the edit-form
+    // select — all three already carry this identical label in source.
+    categoryLabel: "Category",
+    allCategoriesOption: "All categories",
+    hideCategoriesButton: "hide categories",
+    manageCategoriesButton: "manage categories",
+    // {{amount}} is formatMoney's already-formatted total — farm-locale DATA,
+    // never routed through i18n.language.
+    monthTotalLabel: "Month total: {{amount}}",
+
+    // Category-management panel
+    categoriesHeading: "Expense categories",
+    newCategoryButton: "New category",
+    newCategoryDialogTitle: "New expense category",
+    categoryNameLabel: "Category name",
+    addCategoryButton: "Add category",
+    // Appended to a deactivated category's free-form NAME (DATA) — shared by
+    // the filter option, the category-list row, and the edit-form select.
+    deactivatedSuffix: " (deactivated)",
+    deactivateButton: "deactivate",
+    reactivateButton: "reactivate",
+    noCategoriesMessage: "No categories yet — add one above.",
+
+    // Record-expense form
+    recordExpenseHeading: "Record an expense",
+    dateLabel: "Date", // shared by the add and edit forms
+    pickOption: "— pick —",
+    descriptionLabel: "Description", // shared by the add and edit forms
+    // {{code}} is the loaded/snapshot currency CODE (DATA) — shared by the
+    // add form (currency.code) and the edit form (editing.currencyCode).
+    amountLabel: "Amount ({{code}})",
+    flockOptionalLabel: "Flock (optional)", // shared by the add and edit forms
+    noneOption: "— none —",
+    noteOptionalLabel: "Note (optional)", // shared by the add and edit forms
+    recordExpenseButton: "Record expense",
+    addCategoryFirstMessage: "Add a category first — every expense needs one.",
+
+    // Correct-expense dialog. {{date}}/{{description}} are the expense's own
+    // free-form DATA, not client copy.
+    correctExpenseDialogTitle: "Correct expense",
+    correctExpenseDialogTitleWithExpense: "Correct — {{date}}, {{description}}",
+    saveCorrectionButton: "Save correction",
+
+    // Expenses table
+    noExpensesMessage: "No expenses for this month.",
+    dateHeader: "Date",
+    categoryHeader: "Category",
+    descriptionHeader: "Description",
+    amountHeader: "Amount",
+    flockHeader: "Flock",
+    noteHeader: "Note",
+    correctButton: "correct",
+    loadMoreButton: "load more",
+  },
   // Closed-vocabulary labels (#182, Task 4). Consumed ONLY through the typed
   // helpers in enums.ts — never a raw t("enums:status." + value). Keys are FLAT
   // "family.RawValue" strings (keySeparator:false, see index.ts): the suffix is
