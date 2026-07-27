@@ -12,7 +12,7 @@ import { Dialog } from "../components/Dialog";
 import { StatusBadge } from "../components/StatusBadge";
 import { newId } from "../lib/ids";
 import i18n from "../i18n";
-import { gradeTypeLabel } from "../i18n/enums";
+import { gradeTypeLabel, statusLabel } from "../i18n/enums";
 
 const GRADE_TYPES = ["Size", "Quality", "Custom"];
 
@@ -222,7 +222,7 @@ export function GradesPage() {
               <td>{gradeTypeLabel(g.gradeType)}</td>
               <td>{g.sortOrder}</td>
               <td>{g.isSaleable ? <span className="badge badge-ok">{t("saleableYesBadge")}</span> : "—"}</td>
-              <td><StatusBadge status={g.active ? "Active" : "Inactive"} /></td>
+              <td><StatusBadge status={g.active ? "Active" : "Inactive"} label={statusLabel(g.active ? "Active" : "Inactive")} /></td>
               <td>
                 {isAdmin && (
                   <>
