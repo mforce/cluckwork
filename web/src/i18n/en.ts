@@ -569,6 +569,129 @@ export const en = {
     // ("Yes"); same case-sensitive-variant treatment as sales:close.
     saleableYesBadge: "yes",
   },
+  // Feed & inventory catalog + receiving/usage/correction screen (Task 16,
+  // #182, batch B3 — the biggest B3 screen). English-only for now, same
+  // treatment as nav/numberField/errorBoundary/themeToggle/useConfirm/pwa/
+  // dailyEntry/dashboard/water/grades above: `inventory` is deliberately NOT
+  // in TRANSLATED_NAMESPACES, so es/tl fall back to these strings until a
+  // native-speaker pass adds the namespace. Two closed-vocabulary displays go
+  // through `enums` helpers rather than a key here — see InventoryPage.tsx:
+  //   1. Category — the New/edit item picker option AND the items-table
+  //      Category cell both use `inventoryCategoryLabel`; the "not feedable"
+  //      message also interpolates the labelled category, never the raw
+  //      wire value.
+  //   2. The movement LEDGER's Type cell uses `inventoryMovementLabel` (the
+  //      raw wire value, identity-labelled in English). The Correct-stock
+  //      dialog's Type PICKER is deliberately NOT wired to that helper: its
+  //      two options show decorated screen copy ("Adjustment (±)", "Discard
+  //      (write-off)") that isn't the ledger's identity label, so it stays a
+  //      plain `inventory` key (adjustTypeAdjustmentOption/
+  //      adjustTypeDiscardOption).
+  // The Active/Inactive status badge uses `statusLabel` (identity in English);
+  // `status=` itself stays the raw wire value. `unitCode`/`unit` and item/lot
+  // names are free-form farm DATA, not client copy, and stay raw — never
+  // routed through a catalog or enum helper.
+  inventory: {
+    title: "Feed & inventory",
+    intro:
+      "Receive stock as purchases; every change lands in the item's movement "
+      + "ledger. Recording feed usage against flocks arrives next.",
+
+    // Imperative messages (event handlers / promise callbacks — see
+    // CONTRIBUTING-i18n.md's imperative i18n.t() pattern).
+    loadInventoryFailed: "Could not load inventory. Is the API up?",
+    invalidCostError: "Invalid cost.",
+    itemCreatedMessage: "Item created.",
+    loadLedgerFailed: "Could not load the movement ledger.",
+    quantityMustBePositive: "Quantity must be a positive number.",
+    purchaseRecordedMessage: "Purchase recorded — stock received.",
+    usageRecordedMessage: "Feed usage recorded — stock drained oldest lots first.",
+    adjustQuantityRequired: "Adjustment quantity must be a non-zero number (negative removes stock).",
+    adjustReasonRequired: "A reason is required for corrections.",
+    correctionRecordedMessage: "Correction recorded in the ledger.",
+
+    // Page-head button + New/edit item dialogs
+    newItemButton: "New item",
+    newItemDialogTitle: "New inventory item",
+    editItemDialogTitle: "Edit item",
+    itemNameLabel: "Item name *",
+    editItemNameLabel: "Item name",
+    categoryLabel: "Category",
+    unitLabel: "Unit *",
+    editUnitLabel: "Unit",
+    defaultCostLabel: "Default cost/unit",
+    addItemButton: "Add item",
+
+    // Item panel (opened item)
+    itemPanelHeading: "{{name}} — {{quantity}} {{unit}} on hand",
+    recordPurchaseButton: "Record purchase",
+    recordUsageButton: "Record usage",
+    correctStockButton: "Correct stock",
+    // {{category}} is the ALREADY-LABELLED (inventoryCategoryLabel) category —
+    // never the raw wire value. "Feed, Supplement, and Additive" names the
+    // fixed feedable set (mirrors FEEDABLE_CATEGORIES) as screen prose, not a
+    // dynamic enum render.
+    notFeedableMessage:
+      "{{category}} items aren't fed to flocks — usage applies to Feed, "
+      + "Supplement, and Additive items only.",
+    noFlocksForUsageMessage: "No flocks — usage needs a flock to feed.",
+    correctionsNeedAdminMessage: "Stock corrections need an admin.",
+    noLotsMessage: "No lots yet — corrections target a received lot.",
+
+    // Record-purchase dialog
+    recordPurchaseDialogTitle: "Record purchase — {{name}}",
+    receivedLabel: "Received",
+    // {{unit}} is the item's free-form unit code (DATA), not an enum label —
+    // shared verbatim across the purchase/usage/adjust dialogs.
+    quantityLabelWithUnit: "Quantity ({{unit}})",
+    unitCostLabel: "Unit cost",
+    unitCostWithCurrencyLabel: "Unit cost ({{code}})",
+    costPlaceholderItemDefault: "item default",
+    costPlaceholderRequired: "required",
+    lotNumberLabel: "Lot #",
+    expiryLabel: "Expiry",
+    noteLabel: "Note",
+    recordPurchaseSubmitButton: "Record purchase",
+
+    // Record-usage dialog
+    recordUsageDialogTitle: "Record usage — {{name}}",
+    flockLabel: "Flock",
+    depletedFlockSuffix: " (depleted — backfill only)",
+    dateLabel: "Date",
+    recordUsageSubmitButton: "Record usage",
+
+    // Correct-stock dialog. The Type picker's two options are DECORATED
+    // screen copy, not the ledger's inventoryMovementLabel identity text —
+    // see the namespace header comment above.
+    correctStockDialogTitle: "Correct stock — {{name}}",
+    lotFieldLabel: "Lot",
+    typeLabel: "Type",
+    adjustTypeAdjustmentOption: "Adjustment (±)",
+    adjustTypeDiscardOption: "Discard (write-off)",
+    adjustQuantityPlaceholderDiscard: "amount discarded",
+    adjustQuantityPlaceholderCorrection: "± correction",
+    reasonLabel: "Reason *",
+    recordCorrectionButton: "Record correction",
+
+    // Movement ledger table
+    ledgerDateHeader: "Date",
+    ledgerTypeHeader: "Type",
+    ledgerQuantityHeader: "Quantity",
+    ledgerNoteHeader: "Note",
+    noMovementsMessage: "No movements yet — record a purchase above.",
+    closeButton: "close",
+
+    // Items table
+    nameHeader: "Name",
+    categoryHeader: "Category",
+    onHandHeader: "On hand",
+    defaultCostHeader: "Default cost",
+    statusHeader: "Status",
+    openButton: "open",
+    editButton: "edit",
+    deactivateButton: "deactivate",
+    activateButton: "activate",
+  },
   // Closed-vocabulary labels (#182, Task 4). Consumed ONLY through the typed
   // helpers in enums.ts — never a raw t("enums:status." + value). Keys are FLAT
   // "family.RawValue" strings (keySeparator:false, see index.ts): the suffix is
