@@ -4,7 +4,7 @@ import { ExpensesPage } from "./ExpensesPage";
 import { renderWithProviders } from "../test/renderWithProviders";
 import {
   adjustExpense, createExpense, createExpenseCategory, getExpense,
-  listExpenseCategories, listExpenses, listFlocks,
+  listExpenseCategories, listExpenses, listFlocks, updateExpenseCategory,
 } from "../api/cluckwork";
 import type { Expense, ExpenseCategory, ExpenseList, Flock } from "../api/cluckwork";
 import { ApiError } from "../api/client";
@@ -40,6 +40,15 @@ const mockGetExpense = vi.mocked(getExpense);
 const mockCreateExpense = vi.mocked(createExpense);
 const mockAdjustExpense = vi.mocked(adjustExpense);
 const mockCreateCategory = vi.mocked(createExpenseCategory);
+const mockUpdateCategory = vi.mocked(updateExpenseCategory);
+
+// A promise the test resolves by hand — holds a request open so the busy
+// window is asserted deterministically, no timing guesses (client.test.ts idiom).
+function deferred<T>() {
+  let resolve!: (v: T) => void;
+  const promise = new Promise<T>((r) => (resolve = r));
+  return { promise, resolve };
+}
 
 const CAT_FEED: ExpenseCategory = { id: "cat-feed", farmId: "farm1", name: "Feed", active: true };
 const CAT_UTIL: ExpenseCategory = { id: "cat-util", farmId: "farm1", name: "Utilities", active: true };
@@ -318,6 +327,38 @@ describe("ExpensesPage categories", () => {
     openNewCategory();
     expect(within(dialog()).getByLabelText("Category name")).toHaveValue(""); // reset on success
     expect(mockListCategories).toHaveBeenCalledTimes(2); // mount load + post-create refresh
+  });
+});
+
+describe("ExpensesPage pending states (#236)", () => {
+  it("category toggle: the toggled row spins while held, everything else disables without spinning", async () => {
+    const gate = deferred<void>();
+    mockUpdateCategory.mockReturnValue(gate.promise);
+    await renderReady();
+
+    fireEvent.click(screen.getByRole("button", { name: "manage categories" }));
+    // Feed first, Utilities second — the categories render in fixture order.
+    const [feedToggle, utilToggle] = screen.getAllByRole("button", { name: "deactivate" });
+    await act(async () => {
+      fireEvent.click(feedToggle);
+    });
+
+    // Exactly one control spins — the toggled row's own scope…
+    expect(feedToggle).toBeDisabled();
+    expect(feedToggle).toHaveAttribute("aria-busy", "true");
+    // …while the sibling category and the main submit merely disable.
+    expect(utilToggle).toBeDisabled();
+    expect(utilToggle).not.toHaveAttribute("aria-busy");
+    const record = screen.getByRole("button", { name: "Record expense" });
+    expect(record).toBeDisabled();
+    expect(record).not.toHaveAttribute("aria-busy");
+
+    await act(async () => {
+      gate.resolve();
+    });
+    await waitFor(() => expect(screen.getByText('Category "Feed" deactivated.')).toBeInTheDocument());
+    expect(document.querySelector('[aria-busy="true"]')).toBeNull();
+    expect(screen.getAllByRole("button", { name: "deactivate" })[0]).toBeEnabled();
   });
 });
 

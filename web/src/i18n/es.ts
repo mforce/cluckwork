@@ -13,6 +13,9 @@ export const es = {
     add: "Agregar",
     confirm: "Confirmar",
     loading: "Cargando…",
+    working: "Procesando…",
+    workingHint:
+      "Un botón con un indicador giratorio significa que el guardado sigue en curso — volver a pulsarlo no registrará lo mismo dos veces.",
     retry: "reintentar",
     required: "Requerido",
     optional: "Opcional",

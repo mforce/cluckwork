@@ -7,8 +7,10 @@ import {
 import type { DailyEntry, EggGrade, Flock } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
+import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
 import { useConfirm } from "../components/useConfirm";
+import { usePendingAction } from "../components/usePendingAction";
 import { StatusBadge } from "../components/StatusBadge";
 import { newId } from "../lib/ids";
 
@@ -38,7 +40,9 @@ export function HistoryPage() {
   const [to, setTo] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  // Per-row scopes (adjust:<id> / void:<id>): exactly one control spins while
+  // `busy` keeps every other mutating control on the screen inert.
+  const { busy, isPending, run } = usePendingAction();
 
   // adjust panel: one entry at a time; the version it was loaded with rides
   // along so a concurrent correction surfaces as a 409, not an overwrite.
@@ -156,47 +160,46 @@ export function HistoryPage() {
   async function onAdjustSubmit(ev: FormEvent) {
     ev.preventDefault();
     if (!adjusting || busy) return;
-    setBusy(true);
     setError(null);
     setMessage(null);
     const scope = `adjust:${adjusting.id}`;
-    try {
-      const lines = Object.entries(lineQty)
-        .filter(([, q]) => q > 0)
-        .map(([eggGradeId, quantity]) => ({ eggGradeId, quantity }));
-      // Mirror the server's sellable-cap rule for an instant message; the
-      // API remains the authority.
-      const sellable = total - cracked - dirty - discarded;
-      if (lines.reduce((sum, l) => sum + l.quantity, 0) > sellable) {
-        setError("Graded quantities cannot exceed total eggs minus cracked/dirty/discarded.");
-        setBusy(false);
-        return;
-      }
-      await adjustDailyEntry(adjusting.id, {
-        version: adjusting.version,
-        totalEggs: total,
-        crackedEggs: cracked,
-        dirtyEggs: dirty,
-        discardedEggs: discarded,
-        mortalityCount: mortality,
-        reason: reason.trim(),
-        grades: lines, // [] explicitly clears all lines
-      }, keyFor(scope));
-      settleKey(scope);
-      setAdjusting(null);
-      setMessage("Entry adjusted — stock and bird ledger updated to match.");
-      await load().catch(() =>
-        setError("The adjustment saved, but the list failed to reload — refresh the page."));
-    } catch (err) {
-      settleKey(scope, err);
-      if (err instanceof ApiError && err.status === 409) {
-        await rebindAfterConflict(adjusting.id);
-      } else {
-        setError(errText(err));
-      }
-    } finally {
-      setBusy(false);
+    const lines = Object.entries(lineQty)
+      .filter(([, q]) => q > 0)
+      .map(([eggGradeId, quantity]) => ({ eggGradeId, quantity }));
+    // Mirror the server's sellable-cap rule for an instant message; the
+    // API remains the authority. Validated before the flight opens: a
+    // rejected form never reads as busy.
+    const sellable = total - cracked - dirty - discarded;
+    if (lines.reduce((sum, l) => sum + l.quantity, 0) > sellable) {
+      setError("Graded quantities cannot exceed total eggs minus cracked/dirty/discarded.");
+      return;
     }
+    await run(scope, async () => {
+      try {
+        await adjustDailyEntry(adjusting.id, {
+          version: adjusting.version,
+          totalEggs: total,
+          crackedEggs: cracked,
+          dirtyEggs: dirty,
+          discardedEggs: discarded,
+          mortalityCount: mortality,
+          reason: reason.trim(),
+          grades: lines, // [] explicitly clears all lines
+        }, keyFor(scope));
+        settleKey(scope);
+        setAdjusting(null);
+        setMessage("Entry adjusted — stock and bird ledger updated to match.");
+        await load().catch(() =>
+          setError("The adjustment saved, but the list failed to reload — refresh the page."));
+      } catch (err) {
+        settleKey(scope, err);
+        if (err instanceof ApiError && err.status === 409) {
+          await rebindAfterConflict(adjusting.id);
+        } else {
+          setError(errText(err));
+        }
+      }
+    });
   }
 
   async function onVoid(e: DailyEntry) {
@@ -211,12 +214,13 @@ export function HistoryPage() {
       destructive: true,
     });
     if (voidReason === null) return;
-    void (async () => {
-      if (busy) return;
-      setBusy(true);
+    // The reason dialog settled BEFORE this flight opens (useConfirm
+    // contract), so the originating row's void button is the pending
+    // indicator from here to settle.
+    const scope = `void:${e.id}`;
+    await run(scope, async () => {
       setError(null);
       setMessage(null);
-      const scope = `void:${e.id}`;
       try {
         await voidDailyEntry(e.id, { version: e.version, reason: voidReason }, keyFor(scope));
         settleKey(scope);
@@ -234,10 +238,8 @@ export function HistoryPage() {
         } else {
           setError(errText(err));
         }
-      } finally {
-        setBusy(false);
       }
-    })();
+    });
   }
 
   function statusCell(e: DailyEntry) {
@@ -335,7 +337,8 @@ export function HistoryPage() {
             {error && <p className="error" role="alert">{error}</p>}
             <div className="dialog-foot">
               <button type="button" className="link" onClick={() => setAdjusting(null)}>Cancel</button>
-              <button type="submit" disabled={busy || !reason.trim()}>Save adjustment</button>
+              <BusyButton type="submit" busy={isPending(`adjust:${adjusting.id}`)}
+                disabled={busy || !reason.trim()}>Save adjustment</BusyButton>
             </div>
             </form>
           </>
@@ -385,10 +388,13 @@ export function HistoryPage() {
                     )}
                     {isAdmin && correctable(e) && (
                       <>
+                        {/* Opens the dialog — the mutation's own trigger (and
+                            its spinner) is the dialog's Save adjustment. */}
                         <button className="link" disabled={busy}
                           onClick={() => startAdjust(e)}>adjust</button>
-                        <button className="link" disabled={busy}
-                          onClick={() => void onVoid(e)}>void</button>
+                        <BusyButton className="link" busy={isPending(`void:${e.id}`)}
+                          disabled={busy}
+                          onClick={() => void onVoid(e)}>void</BusyButton>
                       </>
                     )}
                   </td>

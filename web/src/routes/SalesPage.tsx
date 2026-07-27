@@ -10,8 +10,10 @@ import {
 import type { Customer, OrderPayments, Product, SalesOrder } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
+import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
 import { useConfirm } from "../components/useConfirm";
+import { usePendingAction } from "../components/usePendingAction";
 import { StatusBadge } from "../components/StatusBadge";
 import { newId } from "../lib/ids";
 import { useFarm, useFarmToday } from "../farm/useFarm";
@@ -103,8 +105,11 @@ export function SalesPage() {
   const [editQty, setEditQty] = useState(1);
   const [editPrice, setEditPrice] = useState("0");
 
-  const [busy, setBusy] = useState(false);
-  const inFlight = useRef(false);
+  // #236 — the shared flight guard (the hook's internal ref replaced the old
+  // inFlight ref here). `busy` inerts every trigger; isPending(scope) spins
+  // exactly the clicked one, so a row with two verbs never lies about which
+  // is working.
+  const { busy, isPending, run: runPending } = usePendingAction();
   // Idempotency keys bound to (action, target) and rotated ONLY after the whole
   // action (write + refresh) succeeds: a retry after any failure — including a
   // lost response or a failed follow-up read — replays the same key, so the
@@ -214,23 +219,23 @@ export function SalesPage() {
     return v;
   };
 
-  async function run(fn: () => Promise<void>) {
-    if (inFlight.current) return;
-    inFlight.current = true;
-    setBusy(true);
-    setError(null);
-    setMessage(null);
-    try {
-      await fn();
-    } catch (err) {
-      setError(errText(err));
-    } finally {
-      inFlight.current = false;
-      setBusy(false);
-    }
-  }
+  // Rebased on usePendingAction (#236), gaining the scope parameter the old
+  // scopeless helper lacked. Pending scopes are independent of the idempotency
+  // key scopes built inside each action (nothing couples the two). The helper
+  // also wraps two READS — "open:<id>" and "more" — which keep the flight
+  // guard but deliberately get no BusyButton treatment (#236 is writes).
+  const run = (scope: string, fn: () => Promise<void>) =>
+    runPending(scope, async () => {
+      setError(null);
+      setMessage(null);
+      try {
+        await fn();
+      } catch (err) {
+        setError(errText(err));
+      }
+    });
 
-  const onCreateOrder = () => run(async () => {
+  const onCreateOrder = () => run("create-order", async () => {
     const created = await createOrder({ customerId, orderDate }, keyFor("create-order"));
     setActive(await getOrder(created.id));
     await loadOrders();
@@ -238,7 +243,7 @@ export function SalesPage() {
     setCreatingOrder(false); // only on success — a throw keeps the dialog up
   });
 
-  const onAddItem = () => run(async () => {
+  const onAddItem = () => run("add-item", async () => {
     if (!active) return;
     // Empty price → omit it: the server falls back to the product's default.
     let minorUnits: number | undefined;
@@ -254,7 +259,7 @@ export function SalesPage() {
     clearKey(scope);
   });
 
-  const onUpdateItem = (itemId: string) => run(async () => {
+  const onUpdateItem = (itemId: string) => run(`update-item:${itemId}`, async () => {
     if (!active) return;
     const minorUnits = parseMoneyToMinorUnits(editPrice, active.currencyMinorUnit);
     if (!Number.isFinite(minorUnits) || minorUnits < 0) throw new Error(i18n.t("sales:invalidUnitPrice"));
@@ -266,7 +271,7 @@ export function SalesPage() {
     clearKey(scope);
   });
 
-  const onRemoveItem = (itemId: string) => run(async () => {
+  const onRemoveItem = (itemId: string) => run(`remove-item:${itemId}`, async () => {
     if (!active) return;
     const scope = `remove-item:${itemId}`;
     await removeOrderItem(active.id, itemId, keyFor(scope));
@@ -282,9 +287,8 @@ export function SalesPage() {
       body: i18n.t("sales:confirmOrderBody"),
       confirmLabel: i18n.t("sales:confirmOrderConfirmLabel"),
     });
-    if (!ok) return;
-    void run(async () => {
-      if (!active) return;
+    if (!ok || !active) return;
+    void run(`confirm:${active.id}`, async () => {
       const scope = `confirm:${active.id}`;
       await confirmOrder(active.id, keyFor(scope));
       const refreshed = await getOrder(active.id);
@@ -304,9 +308,8 @@ export function SalesPage() {
       confirmLabel: i18n.t("sales:cancelDraft"),
       destructive: true,
     });
-    if (!ok) return;
-    void run(async () => {
-      if (!active) return;
+    if (!ok || !active) return;
+    void run(`cancel:${active.id}`, async () => {
       const scope = `cancel:${active.id}`;
       await cancelOrder(active.id, keyFor(scope));
       setActive(null);
@@ -322,7 +325,7 @@ export function SalesPage() {
   const refreshPayments = async (orderId: string) =>
     setPayments(await listOrderPayments(orderId));
 
-  const onRecordPayment = () => void run(async () => {
+  const onRecordPayment = () => void run("record-payment", async () => {
     if (!active || !payments) return;
     const minorUnits = toMinor(payAmount, payments.currencyMinorUnit);
     const scope = `pay:${active.id}`;
@@ -355,7 +358,7 @@ export function SalesPage() {
       destructive: true,
     });
     if (reason === null) return;
-    void run(async () => {
+    void run(`void-payment:${paymentId}`, async () => {
       if (!active) return;
       const scope = `void-payment:${paymentId}`;
       try {
@@ -379,9 +382,8 @@ export function SalesPage() {
       confirmLabel: i18n.t("sales:voidOrderConfirmLabel"),
       destructive: true,
     });
-    if (reason === null) return;
-    void run(async () => {
-      if (!active) return;
+    if (reason === null || !active) return;
+    void run(`void:${active.id}`, async () => {
       const scope = `void:${active.id}`;
       await voidOrder(active.id, reason, keyFor(scope));
       const refreshed = await getOrder(active.id);
@@ -394,7 +396,7 @@ export function SalesPage() {
 
   // Always fetch fresh on open — the list row may be stale relative to
   // mutations made through the panel since the list was loaded.
-  const onOpen = (id: string) => run(async () => {
+  const onOpen = (id: string) => run(`open:${id}`, async () => {
     setActive(await getOrder(id));
   });
 
@@ -440,7 +442,8 @@ export function SalesPage() {
       {error && !creatingOrder && !paying && <p className="error">{error}</p>}
           <div className="dialog-foot">
             <button type="button" className="link" onClick={() => setCreatingOrder(false)}>{tc("cancel")}</button>
-            <button disabled={busy || !customerId} onClick={onCreateOrder}>{t("newDraftOrder")}</button>
+            <BusyButton disabled={busy || !customerId} busy={isPending("create-order")}
+              onClick={onCreateOrder}>{t("newDraftOrder")}</BusyButton>
           </div>
         </div>
       </Dialog>
@@ -475,7 +478,8 @@ export function SalesPage() {
                           onChange={(e) => setEditPrice(e.target.value)} /></td>
                         <td>—</td>
                         <td>
-                          <button className="link" disabled={busy} onClick={() => onUpdateItem(i.id)}>{t("save")}</button>
+                          <BusyButton className="link" disabled={busy} busy={isPending(`update-item:${i.id}`)}
+                            onClick={() => onUpdateItem(i.id)}>{t("save")}</BusyButton>
                           <button className="link" onClick={() => setEditItemId(null)}>{t("cancelEdit")}</button>
                         </td>
                       </>
@@ -497,8 +501,8 @@ export function SalesPage() {
                                 // same two-scales bug one field over.
                                 setEditPrice(priceInput(i.unitPriceMinorUnits, priceScale));
                               }}>{t("edit")}</button>
-                              <button className="link" disabled={busy}
-                                onClick={() => onRemoveItem(i.id)}>{t("remove")}</button>
+                              <BusyButton className="link" disabled={busy} busy={isPending(`remove-item:${i.id}`)}
+                                onClick={() => onRemoveItem(i.id)}>{t("remove")}</BusyButton>
                             </>
                           )}
                         </td>
@@ -540,13 +544,16 @@ export function SalesPage() {
                   <input type="number" min={0} step={10 ** -active.currencyMinorUnit} value={price}
                     onChange={(e) => setPrice(e.target.value)} />
                 </label>
-                <button disabled={busy || !productId} onClick={onAddItem}>{t("addLine")}</button>
+                <BusyButton disabled={busy || !productId} busy={isPending("add-item")}
+                  onClick={onAddItem}>{t("addLine")}</BusyButton>
               </div>
               <div className="actions">
-                <button disabled={busy || active.items.length === 0} onClick={() => void onConfirm()}>
+                <BusyButton disabled={busy || active.items.length === 0}
+                  busy={isPending(`confirm:${active.id}`)} onClick={() => void onConfirm()}>
                   {t("confirmOrderButton")}
-                </button>
-                <button className="link" disabled={busy} onClick={() => void onCancel()}>{t("cancelDraft")}</button>
+                </BusyButton>
+                <BusyButton className="link" disabled={busy} busy={isPending(`cancel:${active.id}`)}
+                  onClick={() => void onCancel()}>{t("cancelDraft")}</BusyButton>
                 <button className="link" onClick={() => setActive(null)}>{t("close")}</button>
               </div>
             </>
@@ -571,8 +578,8 @@ export function SalesPage() {
                           {p.voided
                             ? <span className="badge badge-danger" title={p.voidReason ?? undefined}>{t("statusVoided")}</span>
                             : isAdmin ? (
-                              <button className="link" disabled={busy}
-                                onClick={() => void onVoidPayment(p.id, p.version)}>{t("voidPaymentButton")}</button>
+                              <BusyButton className="link" disabled={busy} busy={isPending(`void-payment:${p.id}`)}
+                                onClick={() => void onVoidPayment(p.id, p.version)}>{t("voidPaymentButton")}</BusyButton>
                             ) : null}
                         </td>
                       </tr>
@@ -632,9 +639,10 @@ export function SalesPage() {
       {error && !creatingOrder && !paying && <p className="error">{error}</p>}
                   <div className="dialog-foot">
                     <button type="button" className="link" onClick={() => setPaying(false)}>{tc("cancel")}</button>
-                    <button disabled={busy || !payAmount} onClick={onRecordPayment}>
+                    <BusyButton disabled={busy || !payAmount} busy={isPending("record-payment")}
+                      onClick={onRecordPayment}>
                       {t("recordPayment")}
-                    </button>
+                    </BusyButton>
                   </div>
                 </div>
               </Dialog>
@@ -646,9 +654,10 @@ export function SalesPage() {
           {active.status !== "Draft" && (
             <div className="actions">
               {active.status === "Confirmed" && isAdmin && (
-                <button className="link" disabled={busy} onClick={() => void onVoid()}>
+                <BusyButton className="link" disabled={busy} busy={isPending(`void:${active.id}`)}
+                  onClick={() => void onVoid()}>
                   {t("voidOrderButton")}
-                </button>
+                </BusyButton>
               )}
               {active.status === "Confirmed" && !isAdmin && (
                 <span className="muted">{t("voidingNeedsAdmin")}</span>
@@ -703,8 +712,9 @@ export function SalesPage() {
             </tbody>
           </table>
           {hasMore && (
+            // A guarded READ ("more") — flight-scoped but no BusyButton (#236).
             <button className="link" disabled={busy}
-              onClick={() => run(() => loadOrders(orders.length))}>{t("loadMore")}</button>
+              onClick={() => run("more", () => loadOrders(orders.length))}>{t("loadMore")}</button>
           )}
         </>
       )}

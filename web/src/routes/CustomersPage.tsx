@@ -5,7 +5,9 @@ import { createCustomer, formatMoney, listCustomerBalances, listCustomers } from
 import type { Customer, CustomerBalances } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
+import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
+import { usePendingAction } from "../components/usePendingAction";
 import { newId } from "../lib/ids";
 
 // #23: customer book — name + phone required, the rest optional.
@@ -23,7 +25,7 @@ export function CustomersPage() {
   const [email, setEmail] = useState("");
   const [address, setAddress] = useState("");
   const [note, setNote] = useState("");
-  const [busy, setBusy] = useState(false);
+  const { busy, run } = usePendingAction();
   const createKey = useRef<string>(newId());
 
   const load = () =>
@@ -47,25 +49,25 @@ export function CustomersPage() {
 
   async function onCreate(e: FormEvent) {
     e.preventDefault();
-    if (busy) return;
-    setBusy(true);
-    setError(null);
-    try {
-      await createCustomer({
-        name, phone,
-        email: email || undefined,
-        address: address || undefined,
-        note: note || undefined,
-      }, createKey.current);
-      createKey.current = newId();
-      setName(""); setPhone(""); setEmail(""); setAddress(""); setNote("");
-      setCreating(false);
-      await load();
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : String(err));
-    } finally {
-      setBusy(false);
-    }
+    // The hook's ref skips a same-tick re-submit (state alone waved both
+    // through); setError stays inside so a skipped run keeps the message.
+    await run("create", async () => {
+      setError(null);
+      try {
+        await createCustomer({
+          name, phone,
+          email: email || undefined,
+          address: address || undefined,
+          note: note || undefined,
+        }, createKey.current);
+        createKey.current = newId();
+        setName(""); setPhone(""); setEmail(""); setAddress(""); setNote("");
+        setCreating(false);
+        await load();
+      } catch (err) {
+        setError(err instanceof ApiError ? err.message : String(err));
+      }
+    });
   }
 
   return (
@@ -97,7 +99,7 @@ export function CustomersPage() {
           {error && <p className="error">{error}</p>}
           <div className="dialog-foot">
             <button type="button" className="link" onClick={() => setCreating(false)}>Cancel</button>
-            <button type="submit" disabled={busy}>Add customer</button>
+            <BusyButton type="submit" busy={busy}>Add customer</BusyButton>
           </div>
         </form>
       </Dialog>

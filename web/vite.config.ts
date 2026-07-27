@@ -140,10 +140,13 @@ export default defineConfig(({ mode }) => {
           // the existing margin); statements/functions rose with the new,
           // fully-tested src/i18n + src/session code, so those two floors move
           // up to match.
-          lines: 87,
-          statements: 84,
-          functions: 78,
-          branches: 73,
+          // Ratcheted after #236 (pending-state migration touched every
+          // screen and shipped tests with it): actuals 88.5/85.5/80.1/75.0,
+          // floors keep ~1pt headroom.
+          lines: 88,
+          statements: 85,
+          functions: 79,
+          branches: 74,
           // high-water locks on the fully-covered foundation (AST-aware
           // counting surfaces statements/branches the old remapper credited
           // for free, so the 100s that survived stay; the rest pin to the

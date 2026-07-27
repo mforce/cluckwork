@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, within, fireEvent, act } from "@testing-library/react";
+import { screen, within, fireEvent, act, waitFor } from "@testing-library/react";
 import { InventoryPage } from "./InventoryPage";
 import { renderWithProviders } from "../test/renderWithProviders";
 import { account } from "../test/fixtures";
@@ -129,6 +129,14 @@ const dialog = () => screen.getByRole("dialog");
 function openDialog(opener: string): HTMLElement {
   fireEvent.click(screen.getByRole("button", { name: opener }));
   return dialog();
+}
+
+// A promise the test resolves by hand — holds a request open so the busy
+// window is asserted deterministically, no timing guesses (client.test.ts idiom).
+function deferred<T>() {
+  let resolve!: (v: T) => void;
+  const promise = new Promise<T>((r) => (resolve = r));
+  return { promise, resolve };
 }
 
 describe("InventoryPage loading & display", () => {
@@ -427,6 +435,41 @@ describe("InventoryPage adjustments", () => {
     expect(mockAdjust.mock.calls[0][1]).toMatchObject({
       type: "Discard", quantityDelta: -5, reason: "expired", // -Math.abs(5)
     });
+  });
+});
+
+describe("InventoryPage pending states (#236)", () => {
+  it("stock correction: the submit spins on its composite adjust scope while held; row verbs disable without spinning", async () => {
+    const gate = deferred<{ movementId: string }>();
+    mockListLots.mockResolvedValue([LOT]);
+    mockAdjust.mockReturnValue(gate.promise);
+    await renderReady(ADMIN);
+    await openItem(FEED);
+
+    const form = openDialog("Correct stock");
+    fireEvent.change(within(form).getByLabelText(/Quantity/), { target: { value: "-5" } });
+    fireEvent.change(within(form).getByLabelText(/Reason/), { target: { value: "spillage" } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Record correction" }));
+    });
+
+    // The composite key scope (adjust:<item>:<lot>) doubles as the pending
+    // scope — exactly this one submit spins.
+    const submit = within(dialog()).getByRole("button", { name: "Record correction" });
+    expect(submit).toBeDisabled();
+    expect(submit).toHaveAttribute("aria-busy", "true");
+    // Behind the dialog, the row verbs are inert but not spinning.
+    const row = screen.getByRole("row", { name: /Egg Cartons/ });
+    const deactivate = within(row).getByRole("button", { name: "deactivate" });
+    expect(deactivate).toBeDisabled();
+    expect(deactivate).not.toHaveAttribute("aria-busy");
+
+    await act(async () => {
+      gate.resolve({ movementId: "adj1" });
+    });
+    // Success closes the dialog; nothing is left spinning.
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(document.querySelector('[aria-busy="true"]')).toBeNull();
   });
 });
 

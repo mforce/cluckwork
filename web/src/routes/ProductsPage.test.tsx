@@ -473,3 +473,63 @@ describe("ProductsPage i18n wiring (#182, Task 17)", () => {
     });
   });
 });
+
+// #236 — the run() helper now rides usePendingAction: while one flight is
+// held open (deferred promise, client.test.ts idiom) exactly the clicked
+// trigger spins and every other verb merely disables.
+describe("ProductsPage pending states (#236)", () => {
+  function deferred<T>() {
+    let resolve!: (v: T) => void;
+    let reject!: (e: unknown) => void;
+    const promise = new Promise<T>((res, rej) => {
+      resolve = res;
+      reject = rej;
+    });
+    return { promise, resolve, reject };
+  }
+
+  it("spins only the clicked row verb while its flight is open, and clears on settle", async () => {
+    const gate = deferred<void>();
+    mockDeactivate.mockReturnValue(gate.promise);
+    await renderReady(ADMIN);
+
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole("row", { name: /Grade A Dozen/ }))
+        .getByRole("button", { name: "deactivate" }));
+    });
+
+    const spinning = within(screen.getByRole("row", { name: /Grade A Dozen/ }))
+      .getByRole("button", { name: "deactivate" });
+    expect(spinning).toHaveAttribute("aria-busy", "true");
+    expect(spinning).toBeDisabled();
+    // The other row's verb, and the same row's edit, disable WITHOUT spinning.
+    const sibling = within(screen.getByRole("row", { name: /Legacy Tray/ }))
+      .getByRole("button", { name: "activate" });
+    expect(sibling).toBeDisabled();
+    expect(sibling).not.toHaveAttribute("aria-busy");
+
+    await act(async () => { gate.resolve(); });
+    expect(document.querySelector('[aria-busy="true"]')).toBeNull();
+    expect(within(screen.getByRole("row", { name: /Legacy Tray/ }))
+      .getByRole("button", { name: "activate" })).toBeEnabled();
+  });
+
+  it("closes the create dialog only after the held create settles, leaving nothing busy", async () => {
+    const gate = deferred<{ id: string }>();
+    mockCreate.mockReturnValue(gate.promise);
+    await renderReady(ADMIN);
+    openCreate();
+    fireEvent.change(within(dialog()).getByLabelText("Name"), { target: { value: "Held" } });
+    fireEvent.change(within(dialog()).getByLabelText("Grade"), { target: { value: "g1" } });
+    await submitCreate();
+
+    // Held: the dialog stays up with its submit as the pending indicator.
+    const submit = within(dialog()).getByRole("button", { name: "Add product" });
+    expect(submit).toHaveAttribute("aria-busy", "true");
+    expect(submit).toBeDisabled();
+
+    await act(async () => { gate.resolve({ id: "p9" }); });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(document.querySelector('[aria-busy="true"]')).toBeNull();
+  });
+});

@@ -773,6 +773,74 @@ describe("SettingsPage logo", () => {
   });
 });
 
+// #236 — one usePendingAction now carries what `saving` + `logoBusy` used to,
+// under the scopes "settings", "logo:upload" and "logo:remove". Mutual
+// exclusion (everything disables) is unchanged; what these pin is that each
+// surface reflects only ITS OWN scope: a logo flight must not make the Save
+// button claim to be working, and a settings save must not make the logo
+// region say so.
+describe("SettingsPage pending scopes (#236)", () => {
+  it("keeps the settings Save merely disabled — not spinning — while a logo upload is in flight", async () => {
+    let finishUpload!: () => void;
+    mockUpload.mockReturnValue(new Promise((resolve) => {
+      finishUpload = () => resolve({
+        contentType: "image/png", contentHash: "h", width: 1, height: 1,
+        byteLength: 10, updatedAt: "2026-07-27T00:00:00Z",
+      });
+    }));
+    await renderReady(SETTINGS({ logoContentHash: null }));
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Upload a logo"),
+        { target: { files: [imageOfSize(10)] } });
+    });
+
+    // Disabled by the shared flight, but NOT aria-busy: the save is not the
+    // thing that is working.
+    const save = screen.getByRole("button", { name: "Save settings" });
+    expect(save).toBeDisabled();
+    expect(save).not.toHaveAttribute("aria-busy");
+    // The palette radios bind to the settings scope only — a logo flight
+    // leaves them alone.
+    expect(screen.getByRole("radio", { name: "Aubergine" })).toBeEnabled();
+    // The logo's own status region (first p.success in the document) carries
+    // the announcement, exactly as before the consolidation.
+    expect(document.querySelector("p.success")).toHaveTextContent("Working…");
+    expect(screen.getByLabelText("Upload a logo")).toBeDisabled();
+
+    await act(async () => { finishUpload(); });
+    expect(screen.getByRole("button", { name: "Save settings" })).toBeEnabled();
+    expect(document.querySelector("p.success")).toHaveTextContent("Logo updated.");
+    expect(document.querySelector('[aria-busy="true"]')).toBeNull();
+  });
+
+  it("spins the Save for a settings flight while the logo surfaces stay silent and the radios lock", async () => {
+    let finishSave!: () => void;
+    mockUpdate.mockReturnValue(new Promise<void>((resolve) => { finishSave = resolve; }));
+    await renderReady(SETTINGS({ logoContentHash: "deadbeef" }));
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Save settings" }));
+    });
+
+    // The label swap stays the caller's (BusyButton passes children through).
+    const save = screen.getByRole("button", { name: "Saving…" });
+    expect(save).toHaveAttribute("aria-busy", "true");
+    expect(save).toBeDisabled();
+    expect(screen.getByRole("radio", { name: "Aubergine" })).toBeDisabled();
+    // Logo controls disable through the shared flight but never claim to work.
+    const remove = screen.getByRole("button", { name: /Remove/ });
+    expect(remove).toBeDisabled();
+    expect(remove).not.toHaveAttribute("aria-busy");
+    expect(screen.getByLabelText("Replace the logo")).toBeDisabled();
+    expect(document.querySelector("p.success")?.textContent).toBe("");
+
+    await act(async () => { finishSave(); });
+    expect(screen.getByRole("button", { name: "Save settings" })).toBeEnabled();
+    expect(document.querySelector('[aria-busy="true"]')).toBeNull();
+  });
+});
+
 
 describe("formatByteCap", () => {
   it("shows a whole number of MB without a decimal", () => {

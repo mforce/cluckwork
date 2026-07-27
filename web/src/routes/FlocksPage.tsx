@@ -8,9 +8,11 @@ import {
 } from "../api/cluckwork";
 import type { BirdMovement, Flock } from "../api/cluckwork";
 import { ApiError } from "../api/client";
+import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
 import { StatusBadge } from "../components/StatusBadge";
 import { useConfirm } from "../components/useConfirm";
+import { usePendingAction } from "../components/usePendingAction";
 import { useAuth } from "../auth/useAuth";
 import { ageWeeks } from "../lib/dates";
 import { useFarmToday } from "../farm/useFarm";
@@ -39,7 +41,9 @@ export function FlocksPage() {
   const [flocks, setFlocks] = useState<Flock[] | null>(null);
   const [showArchived, setShowArchived] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  // #236: the flight guard + per-scope spinner state live in the shared hook;
+  // this screen keeps only its idempotency-key and refresh discipline below.
+  const { busy, isPending, run: runPending } = usePendingAction();
 
   // create form (F131: in a dialog)
   const [creating, setCreating] = useState(false);
@@ -87,23 +91,25 @@ export function FlocksPage() {
       .catch(() => setError(i18n.t("flocks:loadFlocksFailed")));
   }, [fetchFlocks]);
 
-  async function run(scope: string, action: (key: string) => Promise<unknown>) {
-    if (busy) return false;
-    setBusy(true);
-    setError(null);
-    try {
-      await action(keyFor(scope));
-      // Refresh must succeed before the key rotates (grade-management review
-      // lesson): if it throws, a retry replays the idempotent write.
-      setFlocks(await fetchFlocks());
-      clearKey(scope);
-      return true;
-    } catch (err) {
-      setError(errorMessage(err));
-      return false;
-    } finally {
-      setBusy(false);
-    }
+  async function run(scope: string, action: (key: string) => Promise<unknown>): Promise<boolean> {
+    const outcome = await runPending(scope, async () => {
+      setError(null);
+      try {
+        await action(keyFor(scope));
+        // Refresh must succeed before the key rotates (grade-management review
+        // lesson): if it throws, a retry replays the idempotent write.
+        setFlocks(await fetchFlocks());
+        clearKey(scope);
+        return true;
+      } catch (err) {
+        setError(errorMessage(err));
+        return false;
+      }
+    });
+    // A skipped run (another flight already open) reports `undefined` — never
+    // success: mapping it to false keeps a blocked submit from closing its
+    // dialog or resetting its form as if it had saved.
+    return outcome ?? false;
   }
 
   // F135: the two lifecycle changes ask first. Named handlers rather than the
@@ -248,7 +254,7 @@ export function FlocksPage() {
           {error && <p className="error">{error}</p>}
           <div className="dialog-foot">
             <button type="button" className="link" onClick={() => setCreating(false)}>{tc("cancel")}</button>
-            <button type="submit" disabled={busy}>{t("addFlockButton")}</button>
+            <BusyButton type="submit" busy={isPending("create-flock")} disabled={busy}>{t("addFlockButton")}</BusyButton>
           </div>
         </form>
       </Dialog>
@@ -277,7 +283,9 @@ export function FlocksPage() {
           {error && <p className="error">{error}</p>}
           <div className="dialog-foot">
             <button type="button" className="link" onClick={() => setEditingId(null)}>{tc("cancel")}</button>
-            <button type="submit" disabled={busy}>{tc("save")}</button>
+            <BusyButton type="submit" busy={editingId !== null && isPending(`update:${editingId}`)} disabled={busy}>
+              {tc("save")}
+            </BusyButton>
           </div>
         </form>
       </Dialog>
@@ -322,27 +330,29 @@ export function FlocksPage() {
                     {ledgerFlockId === f.id ? t("closeLedgerButton") : t("openLedgerButton")}
                   </button>
                   {isAdmin && (
-                    <button className="link" disabled={busy}
-                      onClick={() => startEdit(f)}>{t("editButton")}</button>
+                    <BusyButton className="link" busy={isPending(`update:${f.id}`)} disabled={busy}
+                      onClick={() => startEdit(f)}>{t("editButton")}</BusyButton>
                   )}
                   {isAdmin && f.status === "Active" && (
-                    <button className="link" disabled={busy}
+                    <BusyButton className="link" busy={isPending(`deplete:${f.id}`)} disabled={busy}
                       onClick={() => void onDeplete(f)}>
                       {t("depleteButton")}
-                    </button>
+                    </BusyButton>
                   )}
                   {isAdmin && f.status !== "Archived" && (
-                    <button className="link" disabled={busy}
+                    // After the confirm dialog settles, THIS button is the
+                    // pending indicator for the in-flight archive (#236).
+                    <BusyButton className="link" busy={isPending(`archive:${f.id}`)} disabled={busy}
                       onClick={() => void onArchive(f)}>
                       {t("archiveButton")}
-                    </button>
+                    </BusyButton>
                   )}
                   {isAdmin && f.status !== "Active" && (
                     // The undo (#57): back to Active, full capture restored.
-                    <button className="link" disabled={busy}
+                    <BusyButton className="link" busy={isPending(`reactivate:${f.id}`)} disabled={busy}
                       onClick={() => void run(`reactivate:${f.id}`, (key) => reactivateFlock(f.id, key))}>
                       {t("reactivateButton")}
-                    </button>
+                    </BusyButton>
                   )}
                 </td>
               </tr>
@@ -391,7 +401,11 @@ export function FlocksPage() {
               {error && <p className="error">{error}</p>}
               <div className="dialog-foot">
                 <button type="button" className="link" onClick={() => setRecording(false)}>{tc("cancel")}</button>
-                <button type="submit" disabled={busy || mvQty === 0}>{t("recordButton")}</button>
+                <BusyButton type="submit"
+                  busy={ledgerFlockId !== null && isPending(`movement:${ledgerFlockId}`)}
+                  disabled={busy || mvQty === 0}>
+                  {t("recordButton")}
+                </BusyButton>
               </div>
             </form>
           </Dialog>

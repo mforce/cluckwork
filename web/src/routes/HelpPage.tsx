@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 // F18 (#71): in-app user guide + glossary. #52 restyled it into a docs layout
 // with a sticky contents rail that scroll-spies the section in view. KEEP THIS
@@ -35,6 +36,10 @@ const TOC = [
 ] as const;
 
 export function HelpPage() {
+  // The busy-button line (#236) reads the catalog so it can never drift from
+  // the "Working…" announcement it explains; the rest of this page stays
+  // hardcoded English until its own externalization batch (#182).
+  const { t: tc } = useTranslation("common");
   // Scroll-spy the contents rail: highlight the section currently in view.
   const [activeId, setActiveId] = useState<string>(TOC[0][0]);
 
@@ -234,6 +239,11 @@ export function HelpPage() {
           and changes nothing. If a save fails, the popup stays open with your
           values and the reason, so you can fix it and try again — retrying is
           safe, it never records the same thing twice.
+        </li>
+        <li>
+          {/* #236 — the pending-save indicator, in the section that already
+              explains save/retry behaviour. */}
+          {tc("workingHint")}
         </li>
         <li>
           The screens whose whole job is capture keep their form on the page:{" "}

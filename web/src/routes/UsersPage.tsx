@@ -7,7 +7,9 @@ import {
 } from "../api/cluckwork";
 import type { Flock, FlockAssignment, User } from "../api/cluckwork";
 import { ApiError } from "../api/client";
+import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
+import { usePendingAction } from "../components/usePendingAction";
 import { newId } from "../lib/ids";
 
 function errText(err: unknown): string {
@@ -21,7 +23,11 @@ export function UsersPage() {
   const [users, setUsers] = useState<User[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  // #236 — the shared flight guard replaces the old `busy` state. `busy`
+  // still inerts every trigger; isPending(scope) spins only the clicked one.
+  // Pending scopes are composite where the action is payload-bound
+  // (assign/unassign), and independent of the idempotency-key scopes.
+  const { busy, isPending, run } = usePendingAction();
 
   const [creating, setCreating] = useState(false); // F131: create moved into a dialog
   const [email, setEmail] = useState("");
@@ -114,38 +120,41 @@ export function UsersPage() {
 
   async function onAssign() {
     const target = openUser;
-    if (!target || !assignFlockId || busy) return;
-    setBusy(true);
-    setError(null);
+    if (!target || !assignFlockId) return;
+    // One string serves as both the pending scope and the idempotency-key
+    // scope here — payload-bound either way.
     const scope = `assign:${target}:${assignFlockId}`;
-    try {
-      await assignFlock(target, assignFlockId, keyFor(scope));
-      const fresh = await listFlockAssignments(target);
-      clearKey(scope);
-      if (activeUser.current === target) setAssignments(fresh);
-    } catch (err) {
-      if (activeUser.current === target) setError(errText(err));
-    } finally {
-      setBusy(false);
-    }
+    await run(scope, async () => {
+      setError(null);
+      try {
+        await assignFlock(target, assignFlockId, keyFor(scope));
+        const fresh = await listFlockAssignments(target);
+        clearKey(scope);
+        if (activeUser.current === target) setAssignments(fresh);
+      } catch (err) {
+        if (activeUser.current === target) setError(errText(err));
+      }
+    });
   }
 
-  async function onUnassign(assignmentId: string) {
+  async function onUnassign(a: FlockAssignment) {
     const target = openUser;
-    if (!target || busy) return;
-    setBusy(true);
-    setError(null);
-    const scope = `unassign:${assignmentId}`;
-    try {
-      await unassignFlock(target, assignmentId, keyFor(scope));
-      const fresh = await listFlockAssignments(target);
-      clearKey(scope);
-      if (activeUser.current === target) setAssignments(fresh);
-    } catch (err) {
-      if (activeUser.current === target) setError(errText(err));
-    } finally {
-      setBusy(false);
-    }
+    if (!target) return;
+    // The KEY scope stays bound to the assignment id (the exact write being
+    // retried); the PENDING scope is user:flock so the row's spinner matches
+    // what the admin sees themselves removing.
+    const keyScope = `unassign:${a.id}`;
+    await run(`unassign:${target}:${a.flockId}`, async () => {
+      setError(null);
+      try {
+        await unassignFlock(target, a.id, keyFor(keyScope));
+        const fresh = await listFlockAssignments(target);
+        clearKey(keyScope);
+        if (activeUser.current === target) setAssignments(fresh);
+      } catch (err) {
+        if (activeUser.current === target) setError(errText(err));
+      }
+    });
   }
 
   const flockName = (id: string | null) =>
@@ -153,31 +162,29 @@ export function UsersPage() {
 
   async function onCreate(e: FormEvent) {
     e.preventDefault();
-    if (busy) return;
-    setBusy(true);
-    setError(null);
-    setMessage(null);
-    try {
-      const scope = `create:${email.trim().toLowerCase()}`;
-      await createUser(
-        { email: email.trim(), password, role, name: name.trim() || undefined },
-        keyFor(scope));
-      // Clear the key the instant the WRITE is confirmed — before the refresh —
-      // so a later edit of the just-created user (a changed payload) can't replay
-      // this cached response if the refresh below fails (#163 review).
-      clearKey(scope);
-      setUsers(await listUsers());
-      setMessage(`${role} account created for ${email.trim()}.`);
-      setEmail("");
-      setPassword("");
-      setRole("Worker");
-      setName("");
-      setCreating(false);
-    } catch (err) {
-      setError(errText(err));
-    } finally {
-      setBusy(false);
-    }
+    await run("create", async () => {
+      setError(null);
+      setMessage(null);
+      try {
+        const scope = `create:${email.trim().toLowerCase()}`;
+        await createUser(
+          { email: email.trim(), password, role, name: name.trim() || undefined },
+          keyFor(scope));
+        // Clear the key the instant the WRITE is confirmed — before the refresh —
+        // so a later edit of the just-created user (a changed payload) can't replay
+        // this cached response if the refresh below fails (#163 review).
+        clearKey(scope);
+        setUsers(await listUsers());
+        setMessage(`${role} account created for ${email.trim()}.`);
+        setEmail("");
+        setPassword("");
+        setRole("Worker");
+        setName("");
+        setCreating(false);
+      } catch (err) {
+        setError(errText(err));
+      }
+    });
   }
 
   // #163 — open the edit dialog seeded with the user's current name.
@@ -216,6 +223,8 @@ export function UsersPage() {
   async function onSetPassword(e: FormEvent) {
     e.preventDefault();
     const target = pwUser;
+    // The mismatch check stays OUTSIDE the flight (it is validation, not
+    // work), so it keeps the old busy guard alongside the hook's.
     if (!target || busy) return;
     setError(null);
     setMessage(null);
@@ -223,46 +232,44 @@ export function UsersPage() {
       setError("The passwords don't match.");
       return;
     }
-    setBusy(true);
-    const scope = `password:${target.id}`;
-    try {
-      await setUserPassword(target.id, { newPassword: pwValue }, keyFor(scope));
-      clearKey(scope); // write confirmed before any refresh (#163 review)
-      if (activePw.current !== target.id) return; // dialog moved on
-      setMessage(`Password set for ${target.email}. They have been signed out everywhere.`);
-      closePassword();
-    } catch (err) {
-      if (activePw.current === target.id) setError(errText(err));
-    } finally {
-      setBusy(false);
-    }
+    const keyScope = `password:${target.id}`;
+    await run(`set-password:${target.id}`, async () => {
+      try {
+        await setUserPassword(target.id, { newPassword: pwValue }, keyFor(keyScope));
+        clearKey(keyScope); // write confirmed before any refresh (#163 review)
+        if (activePw.current !== target.id) return; // dialog moved on
+        setMessage(`Password set for ${target.email}. They have been signed out everywhere.`);
+        closePassword();
+      } catch (err) {
+        if (activePw.current === target.id) setError(errText(err));
+      }
+    });
   }
 
   async function onUpdate(e: FormEvent) {
     e.preventDefault();
     const target = editUser;
-    if (!target || busy) return;
-    setBusy(true);
-    setError(null);
-    setMessage(null);
+    if (!target) return;
     const scope = `update:${target.id}`;
-    try {
-      // Blank clears the name back to "—" (null); the server normalizes too.
-      await updateUser(target.id, { name: editName.trim() || null }, keyFor(scope));
-      // Clear the key once the WRITE is confirmed (before the refresh), so a
-      // follow-up edit isn't replayed against this cached response (#163 review).
-      clearKey(scope);
-      await listUsers().then(setUsers);
-      // The dialog may have been dismissed/reopened for another user while this
-      // was in flight; only touch the UI if it's still this edit (#163 review).
-      if (activeEdit.current !== target.id) return;
-      setMessage(`Updated ${target.email}.`);
-      closeEdit();
-    } catch (err) {
-      if (activeEdit.current === target.id) setError(errText(err));
-    } finally {
-      setBusy(false);
-    }
+    await run(scope, async () => {
+      setError(null);
+      setMessage(null);
+      try {
+        // Blank clears the name back to "—" (null); the server normalizes too.
+        await updateUser(target.id, { name: editName.trim() || null }, keyFor(scope));
+        // Clear the key once the WRITE is confirmed (before the refresh), so a
+        // follow-up edit isn't replayed against this cached response (#163 review).
+        clearKey(scope);
+        await listUsers().then(setUsers);
+        // The dialog may have been dismissed/reopened for another user while this
+        // was in flight; only touch the UI if it's still this edit (#163 review).
+        if (activeEdit.current !== target.id) return;
+        setMessage(`Updated ${target.email}.`);
+        closeEdit();
+      } catch (err) {
+        if (activeEdit.current === target.id) setError(errText(err));
+      }
+    });
   }
 
   if (error && users === null) return <section><h2>Users</h2><p className="error">{error}</p></section>;
@@ -311,7 +318,7 @@ export function UsersPage() {
           {error && <p className="error">{error}</p>}
           <div className="dialog-foot">
             <button type="button" className="link" onClick={() => setCreating(false)}>Cancel</button>
-            <button type="submit" disabled={busy}>Create user</button>
+            <BusyButton type="submit" disabled={busy} busy={isPending("create")}>Create user</BusyButton>
           </div>
         </form>
       </Dialog>
@@ -365,9 +372,11 @@ export function UsersPage() {
             {assignments.map((a) => (
               <li key={a.id}>
                 {flockName(a.flockId)}{" "}
-                <button className="link" disabled={busy} onClick={() => void onUnassign(a.id)}>
+                <BusyButton className="link" disabled={busy}
+                  busy={openUser !== null && isPending(`unassign:${openUser}:${a.flockId}`)}
+                  onClick={() => void onUnassign(a)}>
                   remove
-                </button>
+                </BusyButton>
               </li>
             ))}
           </ul>
@@ -376,9 +385,11 @@ export function UsersPage() {
           <select value={assignFlockId} onChange={(e) => setAssignFlockId(e.target.value)}>
             {flocks.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
           </select>
-          <button disabled={busy || !assignFlockId} onClick={() => void onAssign()}>
+          <BusyButton disabled={busy || !assignFlockId}
+            busy={openUser !== null && isPending(`assign:${openUser}:${assignFlockId}`)}
+            onClick={() => void onAssign()}>
             Assign flock
-          </button>
+          </BusyButton>
         </div>
         {error && <p className="error">{error}</p>}
         <div className="dialog-foot">
@@ -400,7 +411,8 @@ export function UsersPage() {
           {error && <p className="error">{error}</p>}
           <div className="dialog-foot">
             <button type="button" className="link" onClick={closeEdit}>Cancel</button>
-            <button type="submit" disabled={busy}>Save</button>
+            <BusyButton type="submit" disabled={busy}
+              busy={editUser !== null && isPending(`update:${editUser.id}`)}>Save</BusyButton>
           </div>
         </form>
       </Dialog>
@@ -428,7 +440,8 @@ export function UsersPage() {
           {error && <p className="error">{error}</p>}
           <div className="dialog-foot">
             <button type="button" className="link" onClick={closePassword}>Cancel</button>
-            <button type="submit" disabled={busy}>Set password</button>
+            <BusyButton type="submit" disabled={busy}
+              busy={pwUser !== null && isPending(`set-password:${pwUser.id}`)}>Set password</BusyButton>
           </div>
         </form>
       </Dialog>

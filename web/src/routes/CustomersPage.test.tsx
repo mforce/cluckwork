@@ -119,6 +119,36 @@ describe("CustomersPage create", () => {
   });
 });
 
+describe("CustomersPage double-submit guard (#236)", () => {
+  it("sends exactly one create when the form is submitted twice while the first is still in flight", async () => {
+    // Held promise: the guard under test is DURING the flight, not after settle.
+    let resolveCreate!: (v: { id: string }) => void;
+    mockCreate.mockReturnValue(new Promise((r) => (resolveCreate = r)));
+    renderWithProviders(<CustomersPage />, { token: WORKER });
+    await screen.findByRole("row", { name: /Acme Eggs/ });
+    openCreate();
+    fireEvent.change(within(dialog()).getByLabelText("Name *"), { target: { value: "Zeta" } });
+    fireEvent.change(within(dialog()).getByLabelText("Phone *"), { target: { value: "999" } });
+
+    // Submit the FORM twice in the same tick: the disabled button already
+    // swallows clicks after a re-render, so only driving the handler directly
+    // proves the handler's own re-entry guard (state cannot, a ref can).
+    const form = within(dialog()).getByRole("button", { name: "Add customer" }).closest("form")!;
+    await act(async () => {
+      fireEvent.submit(form);
+      fireEvent.submit(form);
+    });
+    expect(mockCreate).toHaveBeenCalledTimes(1);
+
+    // The trigger is the visible pending state while the flight is open.
+    expect(within(dialog()).getByRole("button", { name: "Add customer" })).toBeDisabled();
+
+    await act(async () => resolveCreate({ id: "c9" }));
+    expect(mockCreate).toHaveBeenCalledTimes(1); // still exactly one after settle
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument(); // the one create succeeded
+  });
+});
+
 describe("CustomersPage dialog dismissal", () => {
   it("closes the create dialog on Cancel without writing", async () => {
     renderWithProviders(<CustomersPage />, { token: WORKER });

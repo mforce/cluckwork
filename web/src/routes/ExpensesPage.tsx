@@ -6,7 +6,9 @@ import {
 } from "../api/cluckwork";
 import type { Expense, ExpenseCategory, Flock } from "../api/cluckwork";
 import { ApiError } from "../api/client";
+import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
+import { usePendingAction } from "../components/usePendingAction";
 import { useFarmToday } from "../farm/useFarm";
 import { newId } from "../lib/ids";
 
@@ -32,7 +34,9 @@ export function ExpensesPage() {
   const [currency, setCurrency] = useState<{ code: string; minor: number }>({ code: "", minor: 2 });
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  // #236: the flight guard + per-scope spinner state live in the shared hook;
+  // this screen keeps only its idempotency-key discipline below.
+  const { busy, isPending, run: runPending } = usePendingAction();
 
   // filters
   const [month, setMonth] = useState(today.slice(0, 7)); // YYYY-MM
@@ -142,19 +146,19 @@ export function ExpensesPage() {
   };
 
   async function run(scope: string, fn: () => Promise<void>) {
-    if (busy) return;
-    setBusy(true);
-    setError(null);
-    setMessage(null);
-    try {
-      await fn();
-      settleKey(scope);
-    } catch (err) {
-      settleKey(scope, err);
-      setError(errText(err));
-    } finally {
-      setBusy(false);
-    }
+    // A skipped run (another flight already open) simply does nothing — no
+    // caller here branches on the outcome, so there is no boolean to map.
+    await runPending(scope, async () => {
+      setError(null);
+      setMessage(null);
+      try {
+        await fn();
+        settleKey(scope);
+      } catch (err) {
+        settleKey(scope, err);
+        setError(errText(err));
+      }
+    });
   }
 
   function onAdd(e: FormEvent) {
@@ -229,9 +233,14 @@ export function ExpensesPage() {
     });
   }
 
+  // The category-create scope is derived from the typed name (it keys the
+  // idempotent write); computed once per render so the handler and the submit
+  // button's isPending() can never disagree on the string.
+  const addCategoryScope = `add-category:${newCategoryName.trim().toLowerCase()}`;
+
   function onAddCategory(e: FormEvent) {
     e.preventDefault();
-    const scope = `add-category:${newCategoryName.trim().toLowerCase()}`;
+    const scope = addCategoryScope;
     void run(scope, async () => {
       await createExpenseCategory({ name: newCategoryName.trim() }, keyFor(scope));
       setNewCategoryName("");
@@ -292,7 +301,7 @@ export function ExpensesPage() {
               {error && <p className="error">{error}</p>}
               <div className="dialog-foot">
                 <button type="button" className="link" onClick={() => setAddingCategory(false)}>Cancel</button>
-                <button type="submit" disabled={busy}>Add category</button>
+                <BusyButton type="submit" busy={isPending(addCategoryScope)} disabled={busy}>Add category</BusyButton>
               </div>
             </form>
           </Dialog>
@@ -301,10 +310,10 @@ export function ExpensesPage() {
             {categories.map((c) => (
               <li key={c.id}>
                 {c.name}{c.active ? "" : " (deactivated)"}{" "}
-                <button className="link" type="button" disabled={busy}
-                  onClick={() => onToggleCategory(c)}>
+                <BusyButton className="link" type="button" busy={isPending(`toggle-category:${c.id}`)}
+                  disabled={busy} onClick={() => onToggleCategory(c)}>
                   {c.active ? "deactivate" : "reactivate"}
-                </button>
+                </BusyButton>
               </li>
             ))}
             {categories.length === 0 && <li className="muted">No categories yet — add one above.</li>}
@@ -343,7 +352,9 @@ export function ExpensesPage() {
           <input value={note} maxLength={500} onChange={(e) => setNote(e.target.value)} />
         </label>
         <div className="actions">
-          <button type="submit" disabled={busy || activeCategories.length === 0}>Record expense</button>
+          <BusyButton type="submit" busy={isPending("add")} disabled={busy || activeCategories.length === 0}>
+            Record expense
+          </BusyButton>
         </div>
       </form>
       {activeCategories.length === 0 && (
@@ -401,7 +412,9 @@ export function ExpensesPage() {
             <div className="dialog-foot">
               <button type="button" className="link" disabled={busy}
                 onClick={() => setEditing(null)}>Cancel</button>
-              <button type="submit" disabled={busy}>Save correction</button>
+              <BusyButton type="submit" busy={isPending(`edit:${editing.id}`)} disabled={busy}>
+                Save correction
+              </BusyButton>
             </div>
           </form>
         )}
@@ -429,9 +442,10 @@ export function ExpensesPage() {
                 <td>{flockName(x.flockId)}</td>
                 <td>{x.note ?? "—"}</td>
                 <td>
-                  <button className="link" disabled={busy} onClick={() => startEdit(x)}>
+                  <BusyButton className="link" busy={isPending(`edit:${x.id}`)} disabled={busy}
+                    onClick={() => startEdit(x)}>
                     correct
-                  </button>
+                  </BusyButton>
                 </td>
               </tr>
             ))}

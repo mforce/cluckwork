@@ -6,7 +6,8 @@ import { account } from "../test/fixtures";
 import i18n from "../i18n";
 import {
   addOrderItem, cancelOrder, confirmOrder, createOrder, getOrder, listCustomers, listEggGrades,
-  listOrderPayments, listOrders, listProducts, recordPayment, updateOrderItem, voidOrder, voidPayment,
+  listOrderPayments, listOrders, listProducts, recordPayment, removeOrderItem, updateOrderItem,
+  voidOrder, voidPayment,
 } from "../api/cluckwork";
 import type { Customer, EggGrade, OrderItem, Product, SalesOrder } from "../api/cluckwork";
 
@@ -498,5 +499,121 @@ describe("SalesPage one-way actions", () => {
 
     expect(vi.mocked(voidPayment)).toHaveBeenCalledWith(
       "pay1", { version: 3, reason: "posted to the wrong order" }, expect.any(String));
+  });
+});
+
+// #236 — the pending-state migration. Every held flight uses a deferred
+// promise (same idiom as client.test.ts): assert what the screen shows BEFORE
+// the request settles, no timing guesses.
+describe("SalesPage pending states (#236)", () => {
+  function deferred<T>() {
+    let resolve!: (v: T) => void;
+    let reject!: (e: unknown) => void;
+    const promise = new Promise<T>((res, rej) => {
+      resolve = res;
+      reject = rej;
+    });
+    return { promise, resolve, reject };
+  }
+
+  const CONFIRMED_PAID: SalesOrder = {
+    ...draftEmpty(2, "USD", "o9"), referenceNumber: "SO-9", status: "Confirmed",
+    totalMinorUnits: 2900, items: [ITEM_A],
+  };
+  const payment = (id: string, ref: string) => ({
+    id, salesOrderId: "o9", customerId: "c1", amountMinorUnits: 500, currencyCode: "USD",
+    currencyMinorUnit: 2, method: "Cash", paymentDate: "2026-07-20",
+    referenceNumber: ref, note: null, voided: false, voidReason: null, version: 1,
+  });
+
+  it("spins only the voided payment's own button; every other verb disables without aria-busy", async () => {
+    mockListOrderPayments.mockResolvedValue({
+      items: [payment("pay1", "R1"), payment("pay2", "R2")],
+      paidMinorUnits: 1000, outstandingMinorUnits: 1900, totalMinorUnits: 2900,
+      currencyCode: "USD", currencyMinorUnit: 2,
+    });
+    const gate = deferred<void>();
+    vi.mocked(voidPayment).mockReturnValue(gate.promise as never);
+    await openOrder(CONFIRMED_PAID, /Grade A Dozen/);
+
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole("row", { name: /R1/ })).getByRole("button", { name: "void" }));
+    });
+    fireEvent.change(within(dialog()).getByLabelText("Reason *"), { target: { value: "wrong order" } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Void payment" }));
+    });
+
+    // The clicked verb is the ONE pending indicator…
+    const voidR1 = within(screen.getByRole("row", { name: /R1/ })).getByRole("button", { name: "void" });
+    expect(voidR1).toHaveAttribute("aria-busy", "true");
+    expect(voidR1).toBeDisabled();
+    // …while the sibling row's same verb, and the order's own void, merely
+    // disable — a second spinner would lie about what is being worked on.
+    const voidR2 = within(screen.getByRole("row", { name: /R2/ })).getByRole("button", { name: "void" });
+    expect(voidR2).toBeDisabled();
+    expect(voidR2).not.toHaveAttribute("aria-busy");
+    const voidOrderButton = screen.getByRole("button", { name: /Void order/ });
+    expect(voidOrderButton).toBeDisabled();
+    expect(voidOrderButton).not.toHaveAttribute("aria-busy");
+
+    await act(async () => { gate.resolve(); });
+    expect(document.querySelector('[aria-busy="true"]')).toBeNull();
+    expect(screen.getByRole("button", { name: /Void order/ })).toBeEnabled();
+  });
+
+  it("spins only the removed line's own verb on a row that carries two", async () => {
+    const gate = deferred<void>();
+    vi.mocked(removeOrderItem).mockReturnValue(gate.promise as never);
+    const rowA = await openOrder(DRAFT_TWO, /Grade A Dozen/);
+
+    await act(async () => {
+      fireEvent.click(within(rowA).getByRole("button", { name: "remove" }));
+    });
+
+    const rowANow = screen.getByRole("row", { name: /Grade A Dozen/ });
+    const removeA = within(rowANow).getByRole("button", { name: "remove" });
+    expect(removeA).toHaveAttribute("aria-busy", "true");
+    expect(removeA).toBeDisabled();
+    // The SAME row's other verb disables without spinning…
+    const editA = within(rowANow).getByRole("button", { name: "edit" });
+    expect(editA).toBeDisabled();
+    expect(editA).not.toHaveAttribute("aria-busy");
+    // …as does the sibling row's copy of the clicked verb.
+    const removeB = within(screen.getByRole("row", { name: /Grade B Tray/ })).getByRole("button", { name: "remove" });
+    expect(removeB).toBeDisabled();
+    expect(removeB).not.toHaveAttribute("aria-busy");
+
+    await act(async () => { gate.resolve(); });
+    expect(document.querySelector('[aria-busy="true"]')).toBeNull();
+  });
+
+  it("closes the New order dialog only after the held create settles — nothing left busy, no act warning", async () => {
+    const errorSpy = vi.spyOn(console, "error");
+    const order = draftEmpty(2, "USD");
+    const gate = deferred<{ id: string }>();
+    mockCreateOrder.mockReturnValue(gate.promise as never);
+    mockGetOrder.mockResolvedValue(order);
+    await renderReady();
+
+    fireEvent.click(screen.getByRole("button", { name: "New order" }));
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "New draft order" }));
+    });
+
+    // Held: the dialog stays up and its submit is the pending indicator.
+    const submit = within(dialog()).getByRole("button", { name: "New draft order" });
+    expect(submit).toHaveAttribute("aria-busy", "true");
+    expect(submit).toBeDisabled();
+
+    await act(async () => { gate.resolve({ id: order.id }); });
+
+    // Close + busy-clear land together (React batching, pinned here): no
+    // dialog, no stale pending scope anywhere on the screen.
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(document.querySelector('[aria-busy="true"]')).toBeNull();
+    await screen.findByText(new RegExp(order.referenceNumber));
+    expect(errorSpy.mock.calls.filter(([first]) => String(first).includes("act("))).toEqual([]);
+    errorSpy.mockRestore();
   });
 });

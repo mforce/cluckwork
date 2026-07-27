@@ -2015,3 +2015,50 @@ input.locked {
     max-width: none;
   }
 }
+
+/* ------------------------------------------------- Busy buttons (#236) */
+
+/* Without this, the global button:disabled { opacity: .5 } halves the whole
+   busy subtree — spinner included — reproducing the exact dead-button look the
+   busy state exists to replace. Busy dims the LABEL alone, one layer, below. */
+button:disabled[aria-busy="true"] {
+  opacity: 1;
+}
+
+/* Anchors the overlaid spinner; scoped to busy so idle buttons keep whatever
+   positioning context they had. */
+button[aria-busy="true"] {
+  position: relative;
+}
+
+button[aria-busy="true"] .busy-label {
+  opacity: 0.45;
+}
+
+/* inline-flex so callers' icon/text pairs keep their gap inside the wrapper. */
+.busy-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+/* Overlaid centered over the dimmed label, so the button never changes size
+   when it appears. currentColor keeps it legible on every button variant
+   (brand pill, danger, link). No reduced-motion query here: the global rule
+   above already kills the animation, and a static ring over a dimmed label
+   still reads as busy. */
+.spinner {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 1em;
+  height: 1em;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
