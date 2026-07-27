@@ -71,7 +71,7 @@
 //     ever changes, that literal's tail could be masked away too.
 
 import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
-import { join, relative } from "node:path";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const SCRIPT_DIR = fileURLToPath(new URL(".", import.meta.url));
@@ -179,10 +179,6 @@ function maskAll(content) {
 // keeps a bare comparison like `a < b` (space before the operand) from ever
 // looking like a tag start.
 const TAG_RE = /<(\/)?([A-Za-z][^<>]*)?>/g;
-
-function isSelfClosing(fullMatch, isClosing) {
-  return !isClosing && fullMatch.trimEnd().endsWith("/>");
-}
 
 function lineIndex(content) {
   const starts = [0];
