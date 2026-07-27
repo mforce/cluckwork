@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
+import { useTranslation } from "react-i18next";
 import { Plus } from "lucide-react";
 import {
   archiveFlock, createFlock, depleteFlock, listBirdMovements, listFlocks, reactivateFlock,
@@ -14,6 +15,8 @@ import { useAuth } from "../auth/useAuth";
 import { ageWeeks } from "../lib/dates";
 import { useFarmToday } from "../farm/useFarm";
 import { newId } from "../lib/ids";
+import i18n from "../i18n";
+import { flockMovementLabel, statusLabel } from "../i18n/enums";
 
 function errorMessage(err: unknown): string {
   if (err instanceof ApiError) return err.message;
@@ -24,6 +27,8 @@ function errorMessage(err: unknown): string {
 // Archived flocks leave pickers and the dashboard; this screen still shows them
 // behind a toggle. Current bird count math is the mortality slice, not this one.
 export function FlocksPage() {
+  const { t } = useTranslation("flocks");
+  const { t: tc } = useTranslation("common");
   // Farm-local, not browser-local: since #35 the API judges "is this date in
   // the future?" against the FARM's day, so the pickers must agree (#123).
   const today = useFarmToday();
@@ -79,7 +84,7 @@ export function FlocksPage() {
   useEffect(() => {
     fetchFlocks()
       .then(setFlocks)
-      .catch(() => setError("Could not load flocks. Is the API up?"));
+      .catch(() => setError(i18n.t("flocks:loadFlocksFailed")));
   }, [fetchFlocks]);
 
   async function run(scope: string, action: (key: string) => Promise<unknown>) {
@@ -105,9 +110,9 @@ export function FlocksPage() {
   // inline row lambdas they replace, because the ask is now awaited.
   async function onDeplete(f: Flock) {
     const ok = await confirm({
-      title: `Deplete "${f.name}"?`,
-      body: "The flock stops accepting new entries. Backfilling past dates still works.",
-      confirmLabel: "Deplete flock",
+      title: i18n.t("flocks:depleteConfirmTitle", { name: f.name }),
+      body: i18n.t("flocks:depleteConfirmBody"),
+      confirmLabel: i18n.t("flocks:depleteConfirmLabel"),
       destructive: true,
     });
     if (ok) await run(`deplete:${f.id}`, (key) => depleteFlock(f.id, key));
@@ -115,9 +120,9 @@ export function FlocksPage() {
 
   async function onArchive(f: Flock) {
     const ok = await confirm({
-      title: `Archive "${f.name}"?`,
-      body: "It disappears from pickers and the dashboard, and accepts nothing new.",
-      confirmLabel: "Archive flock",
+      title: i18n.t("flocks:archiveConfirmTitle", { name: f.name }),
+      body: i18n.t("flocks:archiveConfirmBody"),
+      confirmLabel: i18n.t("flocks:archiveConfirmLabel"),
       destructive: true,
     });
     if (ok) await run(`archive:${f.id}`, (key) => archiveFlock(f.id, key));
@@ -177,7 +182,7 @@ export function FlocksPage() {
       const rows = await listBirdMovements(id, { limit: 50 });
       if (ledgerRequest.current === id) setMovements(rows);
     } catch {
-      if (ledgerRequest.current === id) setError("Could not load movements.");
+      if (ledgerRequest.current === id) setError(i18n.t("flocks:loadMovementsFailed"));
     }
   }
 
@@ -201,10 +206,10 @@ export function FlocksPage() {
   }
 
   if (error && flocks === null) {
-    return <section><h2>Flocks</h2><p className="error">{error}</p></section>;
+    return <section><h2>{t("title")}</h2><p className="error">{error}</p></section>;
   }
   if (flocks === null) {
-    return <section><h2>Flocks</h2><p className="muted">Loading…</p></section>;
+    return <section><h2>{t("title")}</h2><p className="muted">{tc("loading")}</p></section>;
   }
 
   const visible = flocks.filter((f) => showArchived || f.status !== "Archived");
@@ -213,67 +218,66 @@ export function FlocksPage() {
   return (
     <section>
       <div className="page-head">
-        <h2>Flocks</h2>
+        <h2>{t("title")}</h2>
         <button type="button" onClick={() => { setError(null); setEditingId(null); setCreating(true); }}>
-          <Plus size={16} aria-hidden /> New flock
+          <Plus size={16} aria-hidden /> {t("newFlockButton")}
         </button>
       </div>
       <p className="muted">
-        Deplete when the birds are gone; archive to hide a flock from pickers and
-        the dashboard. History keeps resolving archived flocks' names.
+        {t("intro")}
       </p>
 
-      <Dialog open={creating} title="New flock" onClose={() => setCreating(false)}>
+      <Dialog open={creating} title={t("newFlockDialogTitle")} onClose={() => setCreating(false)}>
         <form className="inline-form" onSubmit={onCreate}>
-          <label>Name *
+          <label>{t("nameLabel")}
             <input value={name} required maxLength={100}
               onChange={(e) => setName(e.target.value)} />
           </label>
-          <label>Breed *
+          <label>{t("breedLabel")}
             <input value={breed} required maxLength={100}
               onChange={(e) => setBreed(e.target.value)} />
           </label>
-          <label>Placed
+          <label>{t("placedLabel")}
             <input type="date" value={placed} max={today} required
               onChange={(e) => setPlaced(e.target.value)} />
           </label>
-          <label>Birds
+          <label>{t("birdsLabel")}
             <input className="cell" type="number" min={1} value={count} required
               onChange={(e) => setCount(Math.max(1, e.target.valueAsNumber || 1))} />
           </label>
           {error && <p className="error">{error}</p>}
           <div className="dialog-foot">
-            <button type="button" className="link" onClick={() => setCreating(false)}>Cancel</button>
-            <button type="submit" disabled={busy}>Add flock</button>
+            <button type="button" className="link" onClick={() => setCreating(false)}>{tc("cancel")}</button>
+            <button type="submit" disabled={busy}>{t("addFlockButton")}</button>
           </div>
         </form>
       </Dialog>
 
       {/* Editing is admin-only, so a role change mid-edit closes it. */}
-      <Dialog open={editingId !== null && isAdmin} title="Edit flock" onClose={() => setEditingId(null)}>
+      <Dialog open={editingId !== null && isAdmin} title={t("editFlockDialogTitle")} onClose={() => setEditingId(null)}>
         {/* noValidate: the row's save used to be a plain button — native
             constraint validation never ran on these fields. */}
         <form className="inline-form" noValidate onSubmit={onSaveEdit}>
-          <label>Edit name
+          <label>{t("editNameLabel")}
             <input value={editName} maxLength={100}
               onChange={(e) => setEditName(e.target.value)} />
           </label>
-          <label>Edit breed
+          <label>{t("editBreedLabel")}
             <input value={editBreed} maxLength={100}
               onChange={(e) => setEditBreed(e.target.value)} />
           </label>
-          <label>Edit placement date
+          <label>{t("editPlacedLabel")}
             <input type="date" value={editPlaced} max={today}
               onChange={(e) => setEditPlaced(e.target.value)} />
           </label>
-          <label>Edit bird count
+          <label>{t("editCountLabel")}
             <input className="cell" type="number" min={1} value={editCount}
               onChange={(e) => setEditCount(Math.max(1, e.target.valueAsNumber || 1))} />
           </label>
           {error && <p className="error">{error}</p>}
           <div className="dialog-foot">
-            <button type="button" className="link" onClick={() => setEditingId(null)}>Cancel</button>
-            <button type="submit" disabled={busy}>Save</button>
+            <button type="button" className="link" onClick={() => setEditingId(null)}>{tc("cancel")}</button>
+            <button type="submit" disabled={busy}>{tc("save")}</button>
           </div>
         </form>
       </Dialog>
@@ -285,18 +289,18 @@ export function FlocksPage() {
         <label className="muted check">
           <input type="checkbox" checked={showArchived}
             onChange={(e) => setShowArchived(e.target.checked)} />
-          show {archivedCount} archived
+          {t("showArchivedLabel", { count: archivedCount })}
         </label>
       )}
 
       {visible.length === 0 ? (
-        <p className="muted">No flocks yet.</p>
+        <p className="muted">{t("noFlocksMessage")}</p>
       ) : (
         <table className="data">
           <thead>
             <tr>
-              <th>Name</th><th>Breed</th><th>Placed</th><th>Age</th>
-              <th>Birds</th><th>Status</th><th></th>
+              <th>{t("nameHeader")}</th><th>{t("breedHeader")}</th><th>{t("placedHeader")}</th><th>{t("ageHeader")}</th>
+              <th>{t("birdsHeader")}</th><th>{t("statusHeader")}</th><th></th>
             </tr>
           </thead>
           <tbody>
@@ -305,39 +309,39 @@ export function FlocksPage() {
                 <td>{f.name}</td>
                 <td>{f.breed}</td>
                 <td>{f.placementDate}</td>
-                <td>{ageWeeks(f.placementDate)} wk</td>
+                <td>{t("ageWeeksSuffix", { weeks: ageWeeks(f.placementDate) })}</td>
                 <td>
                   {f.currentBirds}
                   {f.currentBirds !== f.initialCount &&
                     <span className="muted"> / {f.initialCount}</span>}
                 </td>
-                <td><StatusBadge status={f.status} /></td>
+                <td><StatusBadge status={f.status} label={statusLabel(f.status)} /></td>
                 <td>
                   <button className="link" disabled={busy}
                     onClick={() => void openLedger(f.id)}>
-                    {ledgerFlockId === f.id ? "close" : "birds"}
+                    {ledgerFlockId === f.id ? t("closeLedgerButton") : t("openLedgerButton")}
                   </button>
                   {isAdmin && (
                     <button className="link" disabled={busy}
-                      onClick={() => startEdit(f)}>edit</button>
+                      onClick={() => startEdit(f)}>{t("editButton")}</button>
                   )}
                   {isAdmin && f.status === "Active" && (
                     <button className="link" disabled={busy}
                       onClick={() => void onDeplete(f)}>
-                      deplete
+                      {t("depleteButton")}
                     </button>
                   )}
                   {isAdmin && f.status !== "Archived" && (
                     <button className="link" disabled={busy}
                       onClick={() => void onArchive(f)}>
-                      archive
+                      {t("archiveButton")}
                     </button>
                   )}
                   {isAdmin && f.status !== "Active" && (
                     // The undo (#57): back to Active, full capture restored.
                     <button className="link" disabled={busy}
                       onClick={() => void run(`reactivate:${f.id}`, (key) => reactivateFlock(f.id, key))}>
-                      reactivate
+                      {t("reactivateButton")}
                     </button>
                   )}
                 </td>
@@ -350,64 +354,62 @@ export function FlocksPage() {
       {ledgerFlockId && (
         <div className="order-panel">
           <h3>
-            Bird ledger — {flocks.find((f) => f.id === ledgerFlockId)?.name ?? ""}
+            {t("ledgerHeading", { name: flocks.find((f) => f.id === ledgerFlockId)?.name ?? "" })}
           </h3>
           <p className="muted">
-            Mortality rows come from submitted daily entries.
-            {isAdmin
-              ? " Record culls here; use a negative adjustment to correct a miscount."
-              : " Recording culls and adjustments needs an admin."}
+            {t("ledgerIntro")}
+            {isAdmin ? t("ledgerIntroAdminNote") : t("ledgerIntroWorkerNote")}
           </p>
 
           {isAdmin && (
             <button type="button" onClick={() => { setError(null); setRecording(true); }}>
-              <Plus size={16} aria-hidden /> Record movement
+              <Plus size={16} aria-hidden /> {t("recordMovementButton")}
             </button>
           )}
 
-          <Dialog open={recording && isAdmin} title="Record bird movement" onClose={() => setRecording(false)}>
+          <Dialog open={recording && isAdmin} title={t("recordMovementDialogTitle")} onClose={() => setRecording(false)}>
             <form className="inline-form" onSubmit={onRecordMovement}>
-              <label>Date
+              <label>{t("dateLabel")}
                 <input type="date" value={mvDate} max={today}
                   onChange={(e) => setMvDate(e.target.value)} />
               </label>
-              <label>Type
+              <label>{t("typeLabel")}
                 <select value={mvType} onChange={(e) => setMvType(e.target.value)}>
-                  <option value="Cull">Cull</option>
-                  <option value="Adjustment">Adjustment</option>
+                  <option value="Cull">{flockMovementLabel("Cull")}</option>
+                  <option value="Adjustment">{flockMovementLabel("Adjustment")}</option>
                 </select>
               </label>
-              <label>Birds
+              <label>{t("birdsLabel")}
                 <input className="cell" type="number" value={mvQty}
                   min={mvType === "Cull" ? 1 : undefined}
                   onChange={(e) => setMvQty(e.target.valueAsNumber || 0)} />
               </label>
-              <label>Note
+              <label>{t("noteLabel")}
                 <input value={mvNote} maxLength={500}
                   onChange={(e) => setMvNote(e.target.value)} />
               </label>
               {error && <p className="error">{error}</p>}
               <div className="dialog-foot">
-                <button type="button" className="link" onClick={() => setRecording(false)}>Cancel</button>
-                <button type="submit" disabled={busy || mvQty === 0}>Record</button>
+                <button type="button" className="link" onClick={() => setRecording(false)}>{tc("cancel")}</button>
+                <button type="submit" disabled={busy || mvQty === 0}>{t("recordButton")}</button>
               </div>
             </form>
           </Dialog>
 
           {movements === null ? (
-            <p className="muted">Loading…</p>
+            <p className="muted">{tc("loading")}</p>
           ) : movements.length === 0 ? (
-            <p className="muted">No movements yet — the flock is at its initial count.</p>
+            <p className="muted">{t("noMovementsMessage")}</p>
           ) : (
             <table className="data">
               <thead>
-                <tr><th>Date</th><th>Type</th><th>Birds</th><th>Note</th></tr>
+                <tr><th>{t("ledgerDateHeader")}</th><th>{t("ledgerTypeHeader")}</th><th>{t("ledgerBirdsHeader")}</th><th>{t("ledgerNoteHeader")}</th></tr>
               </thead>
               <tbody>
                 {movements.map((m) => (
                   <tr key={m.id}>
                     <td>{m.date}</td>
-                    <td>{m.type}</td>
+                    <td>{flockMovementLabel(m.type)}</td>
                     <td>{m.quantity > 0 ? `−${m.quantity}` : `+${-m.quantity}`}</td>
                     <td>{m.note ?? "—"}</td>
                   </tr>

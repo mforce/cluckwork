@@ -847,6 +847,125 @@ export const en = {
     ledgerChangeHeader: "Change",
     ledgerReasonHeader: "Reason",
   },
+  // Flock roster + bird ledger — create/edit identity fields, deplete/archive/
+  // reactivate lifecycle, and mortality/cull/adjustment movements (Task 19,
+  // #182, batch B3 — the LAST B3 screen, closing out #182's
+  // screen-externalization sweep). English-only for now, same treatment as
+  // nav/numberField/errorBoundary/themeToggle/useConfirm/pwa/dailyEntry/
+  // dashboard/water/grades/inventory/products/stock above: `flocks` is
+  // deliberately NOT in TRANSLATED_NAMESPACES, so es/tl fall back to these
+  // strings until a native-speaker pass adds the namespace. Two
+  // closed-vocabulary displays go through `enums` helpers rather than a key
+  // here — see FlocksPage.tsx:
+  //   1. The bird ledger's Type PICKER (Cull/Adjustment — Mortality is
+  //      system-generated from daily-entry deaths, so it never appears there)
+  //      AND the ledger's Type CELL (the full Mortality/Cull/Adjustment
+  //      vocabulary) both use `flockMovementLabel`.
+  //   2. The flocks table's Status badge uses `statusLabel` (identity in
+  //      English); `status=` itself stays the raw wire value.
+  // Both are identity-labelled in English today, so wiring them changes
+  // nothing visible (confirmed in the report). Flock `name`/`breed` are
+  // free-form farm DATA, not client copy, and stay raw — never routed through
+  // the catalog or an enum helper.
+  flocks: {
+    title: "Flocks",
+
+    // Imperative messages (mount-effect / ledger-load catch handlers — see
+    // CONTRIBUTING-i18n.md's imperative i18n.t() pattern).
+    loadFlocksFailed: "Could not load flocks. Is the API up?",
+    loadMovementsFailed: "Could not load movements.",
+
+    newFlockButton: "New flock",
+    intro:
+      "Deplete when the birds are gone; archive to hide a flock from pickers and "
+      + "the dashboard. History keeps resolving archived flocks' names.",
+
+    // New-flock dialog (F131)
+    newFlockDialogTitle: "New flock",
+    nameLabel: "Name *",
+    breedLabel: "Breed *",
+    placedLabel: "Placed",
+    // Reused verbatim by the record-movement dialog below (same text, no
+    // asterisk in either) — same treatment as inventory:defaultCostLabel/
+    // quantityLabelWithUnit reused across that screen's dialogs.
+    birdsLabel: "Birds",
+    addFlockButton: "Add flock",
+
+    // Edit-flock dialog — seeded from the row.
+    editFlockDialogTitle: "Edit flock",
+    editNameLabel: "Edit name",
+    editBreedLabel: "Edit breed",
+    editPlacedLabel: "Edit placement date",
+    editCountLabel: "Edit bird count",
+
+    // Show-archived toggle. {{count}} is the client-side archived-flock
+    // count — plain numeric DATA, not enum-labelled.
+    showArchivedLabel: "show {{count}} archived",
+
+    noFlocksMessage: "No flocks yet.",
+
+    // Flocks table — separate keys from the form labels above even where the
+    // English text coincides (same treatment as water:flockLabel/
+    // flockHeader).
+    nameHeader: "Name",
+    breedHeader: "Breed",
+    placedHeader: "Placed",
+    ageHeader: "Age",
+    birdsHeader: "Birds",
+    statusHeader: "Status",
+    // {{weeks}} is the client-side ageWeeks() computation — plain numeric
+    // DATA, not enum-labelled.
+    ageWeeksSuffix: "{{weeks}} wk",
+
+    // Row actions — lowercase link-styled buttons, same treatment as
+    // sales:edit/grades:editButton. openLedgerButton/closeLedgerButton toggle
+    // the bird-ledger panel below, same treatment as stock:lotsButton/
+    // hideLotsButton.
+    editButton: "edit",
+    depleteButton: "deplete",
+    archiveButton: "archive",
+    reactivateButton: "reactivate",
+    openLedgerButton: "birds",
+    closeLedgerButton: "close",
+
+    // Deplete/archive confirm dialogs (title / body / confirmLabel). {{name}}
+    // is the flock's free-form NAME (DATA), not client copy.
+    depleteConfirmTitle: "Deplete \"{{name}}\"?",
+    depleteConfirmBody:
+      "The flock stops accepting new entries. Backfilling past dates still works.",
+    depleteConfirmLabel: "Deplete flock",
+    archiveConfirmTitle: "Archive \"{{name}}\"?",
+    archiveConfirmBody:
+      "It disappears from pickers and the dashboard, and accepts nothing new.",
+    archiveConfirmLabel: "Archive flock",
+
+    // Bird ledger panel. {{name}} is the flock's free-form NAME (DATA).
+    ledgerHeading: "Bird ledger — {{name}}",
+    ledgerIntro: "Mortality rows come from submitted daily entries.",
+    ledgerIntroAdminNote:
+      " Record culls here; use a negative adjustment to correct a miscount.",
+    ledgerIntroWorkerNote: " Recording culls and adjustments needs an admin.",
+    recordMovementButton: "Record movement",
+
+    // Record-movement dialog. The Type picker's two options read the
+    // ledger's OWN identity label (flockMovementLabel) — see the namespace
+    // header comment above.
+    recordMovementDialogTitle: "Record bird movement",
+    dateLabel: "Date",
+    typeLabel: "Type",
+    noteLabel: "Note",
+    recordButton: "Record",
+
+    noMovementsMessage: "No movements yet — the flock is at its initial count.",
+
+    // Movement ledger table — separate keys from the form labels above even
+    // where the English text coincides (same treatment as the flocks table
+    // above).
+    ledgerDateHeader: "Date",
+    ledgerTypeHeader: "Type",
+    ledgerBirdsHeader: "Birds",
+    ledgerNoteHeader: "Note",
+  },
   // Closed-vocabulary labels (#182, Task 4). Consumed ONLY through the typed
   // helpers in enums.ts — never a raw t("enums:status." + value). Keys are FLAT
   // "family.RawValue" strings (keySeparator:false, see index.ts): the suffix is
