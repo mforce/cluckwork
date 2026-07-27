@@ -1,5 +1,6 @@
 import { Component, useEffect, useRef, type ErrorInfo, type ReactNode } from "react";
 import { Link } from "react-router";
+import { useTranslation } from "react-i18next";
 import { reportClientError } from "../api/errorReport";
 
 // #140: without a boundary, any throw during render unmounts the whole tree and
@@ -64,6 +65,7 @@ export class ErrorBoundary extends Component<Props, State> {
 }
 
 function ErrorFallback({ error, scope }: { error: Error; scope: Scope }) {
+  const { t } = useTranslation("errorBoundary");
   // Move focus to the fallback when it appears. React unmounts the crashed
   // subtree, so a keyboard user's focus would otherwise be stranded on a
   // now-gone element; role="alert" announces it, and this lands focus on it too.
@@ -74,26 +76,24 @@ function ErrorFallback({ error, scope }: { error: Error; scope: Scope }) {
 
   return (
     <section className="crash" role="alert" tabIndex={-1} ref={ref}>
-      <h2>Something went wrong</h2>
+      <h2>{t("title")}</h2>
       <p className="muted">
-        {scope === "screen"
-          ? "This screen ran into a problem and couldn’t finish loading. Anything you’d already saved is safe, but anything you were still typing here may need to be entered again. The rest of the app still works."
-          : "The app ran into a problem and couldn’t finish loading. Reloading usually clears it."}
+        {scope === "screen" ? t("screenBody") : t("appBody")}
       </p>
       <div className="crash-actions">
-        <button onClick={() => window.location.reload()}>Reload</button>
+        <button onClick={() => window.location.reload()}>{t("reload")}</button>
         {/* The screen boundary lives inside the router, so a client-side Link
             recovers it (the pathname change resets the boundary). The app
             boundary may be sitting over a broken shell, so it takes a full
             document load back to a clean slate. */}
         {scope === "screen" ? (
-          <Link className="crash-home" to="/">Back to the dashboard</Link>
+          <Link className="crash-home" to="/">{t("backToDashboard")}</Link>
         ) : (
-          <a className="crash-home" href="/">Back to the dashboard</a>
+          <a className="crash-home" href="/">{t("backToDashboard")}</a>
         )}
       </div>
       <details className="crash-detail">
-        <summary>Error details</summary>
+        <summary>{t("detailsSummary")}</summary>
         <pre>{error.message}</pre>
       </details>
     </section>

@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef } from "react";
 import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { useTranslation } from "react-i18next";
 import { X } from "lucide-react";
 
 // Everything the browser lets you tab to, minus the things that only LOOK
@@ -63,6 +64,7 @@ interface DialogProps {
 // Portalled to <body> so the backdrop covers the whole viewport regardless of
 // where it is mounted in the shell grid.
 export function Dialog({ open, title, onClose, focusKey, describedBy, children }: DialogProps) {
+  const { t } = useTranslation("common");
   const panelRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   const returnFocusTo = useRef<Element | null>(null);
@@ -172,7 +174,7 @@ export function Dialog({ open, title, onClose, focusKey, describedBy, children }
       >
         <div className="dialog-head">
           <h3 id={titleId}>{title}</h3>
-          <button type="button" className="link dialog-close" aria-label="Close" onClick={onClose}>
+          <button type="button" className="link dialog-close" aria-label={t("close")} onClick={onClose}>
             <X size={18} aria-hidden />
           </button>
         </div>

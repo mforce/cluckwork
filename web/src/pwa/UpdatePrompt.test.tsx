@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, act, fireEvent } from "@testing-library/react";
 import { UpdatePrompt } from "./UpdatePrompt";
 import { registerServiceWorker } from "./registerServiceWorker";
+import i18n from "../i18n";
 
 vi.mock("./registerServiceWorker", () => ({ registerServiceWorker: vi.fn() }));
 const mockRegister = vi.mocked(registerServiceWorker);
@@ -113,5 +114,69 @@ describe("UpdatePrompt (#142)", () => {
 
     announce(vi.fn()); // a second deploy lands
     expect(banner()).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// i18n wiring (#182, Task 9, batch B1)
+// ---------------------------------------------------------------------------
+
+// `pwa` is English-only (not in TRANSLATED_NAMESPACES — see
+// translations-status.ts) — src/pwa is also outside the i18n:scan default
+// path, so this externalization won't move the scan count either. Under ANY
+// UI language the rendered text falls back to this exact English string, same
+// as a still-hardcoded literal would render — asserting it, even under a
+// non-English locale, would prove nothing (CONTRIBUTING-i18n.md's fallback
+// trap). Swap the catalog value at runtime instead, the same i18n.addResource
+// technique the other Task 8/9 wiring tests use, so each marker only renders
+// if UpdatePrompt actually reads the catalog.
+describe("UpdatePrompt i18n wiring (#182, Task 9)", () => {
+  async function withOverride(key: string, value: string, run: () => Promise<void>) {
+    const original = i18n.getResource("en", "pwa", key) as string;
+    i18n.addResource("en", "pwa", key, value);
+    try {
+      await run();
+    } finally {
+      i18n.addResource("en", "pwa", key, original);
+    }
+  }
+
+  it("reads the update-available banner text from the catalog, not a hardcoded literal", async () => {
+    await withOverride("updateAvailable", "UPDATE-AVAILABLE-MARKER", async () => {
+      const { announce } = await renderAndCapture();
+      announce(vi.fn().mockResolvedValue(undefined));
+      expect(screen.getByText("UPDATE-AVAILABLE-MARKER")).toBeInTheDocument();
+      expect(banner()).not.toBeInTheDocument();
+    });
+  });
+
+  it("reads the Reload button's label from the catalog", async () => {
+    await withOverride("reload", "RELOAD-MARKER", async () => {
+      const { announce } = await renderAndCapture();
+      announce(vi.fn().mockResolvedValue(undefined));
+      expect(screen.getByRole("button", { name: "RELOAD-MARKER" })).toBeInTheDocument();
+    });
+  });
+
+  it("reads the busy Reloading label from the catalog", async () => {
+    await withOverride("reloading", "RELOADING-MARKER", async () => {
+      let release: () => void = () => {};
+      const activate = vi.fn(() => new Promise<void>((r) => { release = r; }));
+      const { announce } = await renderAndCapture();
+      announce(activate);
+
+      const button = screen.getByRole("button", { name: "Reload" });
+      await act(async () => { fireEvent.click(button); });
+      expect(screen.getByRole("button", { name: "RELOADING-MARKER" })).toBeInTheDocument();
+      await act(async () => { release(); });
+    });
+  });
+
+  it("reads the Later button's label from the catalog", async () => {
+    await withOverride("later", "LATER-MARKER", async () => {
+      const { announce } = await renderAndCapture();
+      announce(vi.fn());
+      expect(screen.getByRole("button", { name: "LATER-MARKER" })).toBeInTheDocument();
+    });
   });
 });

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { registerServiceWorker } from "./registerServiceWorker";
 
 // #142 — "a new version is ready" affordance.
@@ -13,6 +14,7 @@ import { registerServiceWorker } from "./registerServiceWorker";
 // Renders nothing at all until an update is genuinely waiting, so it costs a
 // hook and no layout in the normal case.
 export function UpdatePrompt() {
+  const { t } = useTranslation("pwa");
   // Holds the activator handed over by the registration; its presence IS the
   // "update ready" state.
   const [activate, setActivate] = useState<(() => Promise<void>) | null>(null);
@@ -57,10 +59,10 @@ export function UpdatePrompt() {
     // polite + status: announced by a screen reader without stealing focus from
     // whatever is being typed.
     <div className="update-banner" role="status" aria-live="polite">
-      <span className="update-banner-text">A new version of Cluckwork is ready.</span>
+      <span className="update-banner-text">{t("updateAvailable")}</span>
       <div className="update-banner-actions">
         <button type="button" onClick={onReload} disabled={busy}>
-          {busy ? "Reloading…" : "Reload"}
+          {busy ? t("reloading") : t("reload")}
         </button>
         <button
           type="button"
@@ -68,7 +70,7 @@ export function UpdatePrompt() {
           onClick={() => setDismissed(true)}
           disabled={busy}
         >
-          Later
+          {t("later")}
         </button>
       </div>
     </div>

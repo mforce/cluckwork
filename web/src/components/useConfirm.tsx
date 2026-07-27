@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type { ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import { Dialog } from "./Dialog";
 
 interface AskBase {
@@ -34,6 +35,8 @@ type Pending = AskBase & { kind: "confirm" | "reason" };
 // One hook rather than two components, so a screen that needs both shapes
 // (Sales needs all four) still renders a single element.
 export function useConfirm() {
+  const { t } = useTranslation("useConfirm");
+  const { t: tc } = useTranslation("common");
   const [pending, setPending] = useState<Pending | null>(null);
   const [reason, setReason] = useState("");
   const [reasonError, setReasonError] = useState<string | null>(null);
@@ -109,7 +112,7 @@ export function useConfirm() {
     if (!text) {
       // Inline, and the dialog stays open: window.prompt validated only after
       // it had closed, so a blank reason cost the user everything they typed.
-      setReasonError("A reason is required.");
+      setReasonError(t("reasonRequired"));
       // Back to the field, not left on the button that just refused. Sighted
       // users get the cursor where the work is; a screen reader announces the
       // error, which it reaches through aria-describedby on focus.
@@ -139,7 +142,7 @@ export function useConfirm() {
           <div className="confirm-body" id={bodyId}>{pending.body}</div>
           {pending.kind === "reason" && (
             <label htmlFor={reasonId}>
-              Reason *
+              {t("reasonLabel")}
               <textarea
                 id={reasonId}
                 ref={reasonRef}
@@ -157,7 +160,7 @@ export function useConfirm() {
           )}
           {reasonError && <p className="error" id={errorId}>{reasonError}</p>}
           <div className="dialog-foot">
-            <button type="button" className="link" onClick={dismiss}>Cancel</button>
+            <button type="button" className="link" onClick={dismiss}>{tc("cancel")}</button>
             <button
               type="button"
               className={pending.destructive ? "btn-danger" : undefined}
