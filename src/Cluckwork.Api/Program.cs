@@ -6,6 +6,7 @@ using Cluckwork.Api.Endpoints.Accounts;
 using Cluckwork.Api.Endpoints.Audit;
 using Cluckwork.Api.Endpoints.Auth;
 using Cluckwork.Api.Endpoints.Catalog;
+using Cluckwork.Api.Endpoints.ClientErrors;
 using Cluckwork.Api.Endpoints.Customers;
 using Cluckwork.Api.Endpoints.DailyEntries;
 using Cluckwork.Api.Endpoints.EggGrades;
@@ -280,12 +281,13 @@ builder.Services.AddRateLimiter(limiter =>
                 ((int)Math.Ceiling(retryAfter.TotalSeconds)).ToString(CultureInfo.InvariantCulture);
         await Results.Problem(
                 title: "Too many requests",
-                detail: "Too many authentication attempts from this address. Try again later.",
+                detail: "Too many requests from this address. Try again later.",
                 statusCode: StatusCodes.Status429TooManyRequests)
             .ExecuteAsync(context.HttpContext);
     };
     AddFixedWindowByClientIp(limiter, RateLimitingOptions.LoginPolicyName, rateLimiting.Login);
     AddFixedWindowByClientIp(limiter, RateLimitingOptions.RefreshPolicyName, rateLimiting.Refresh);
+    AddFixedWindowByClientIp(limiter, RateLimitingOptions.ClientErrorsPolicyName, rateLimiting.ClientErrors);
 
     static void AddFixedWindowByClientIp(
         Microsoft.AspNetCore.RateLimiting.RateLimiterOptions limiter,
@@ -720,6 +722,12 @@ app.MapGroup("/api/v1/export")
     .WithTags("Export")
     .RequireAuthorization(AuthPolicies.AdminOnly)
     .MapExportEndpoints();
+
+// #217 — browser error reports. Anonymous (the login screen can crash too);
+// the endpoint carries its own per-IP rate limit and size cap inside.
+app.MapGroup("/api/v1/client-errors")
+    .WithTags("ClientErrors")
+    .MapClientErrorEndpoints();
 
 // Health: live = the process runs (no checks); ready = dependencies too.
 app.MapHealthChecks("/health/live", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions

@@ -71,6 +71,11 @@ export default defineConfig(({ mode }) => {
           // performance win. #50 adds an explicit, deliberate offline path.
           runtimeCaching: [],
           navigationPreload: false,
+          // #217 — the app's own maps are emitted hidden (see build below);
+          // workbox would otherwise ship sw.js.map + its own map WITH
+          // sourceMappingURL comments. They only cover generated worker
+          // code, so drop them rather than special-case them.
+          sourcemap: false,
         },
         // The SW is a production artifact; leaving it off in dev keeps `npm run
         // dev` free of stale-cache confusion.
@@ -82,6 +87,14 @@ export default defineConfig(({ mode }) => {
       proxy: {
         "/api": { target, changeOrigin: true },
       },
+    },
+    // #217 — "hidden": emit .map files so a reported minified stack resolves
+    // to source lines, but without the sourceMappingURL comment, so browsers
+    // never fetch them uninvited. They ship next to the bundles; resolving a
+    // stack is an operator action (source-map CLI or a browser devtools "add
+    // source map"), not something the public page advertises.
+    build: {
+      sourcemap: "hidden",
     },
     // Unit tests only (Vitest). E2E stays the manual Playwright drill (#105).
     // Explicit vitest imports in each test — no globals — so the app's strict

@@ -1,5 +1,6 @@
 import { Component, useEffect, useRef, type ErrorInfo, type ReactNode } from "react";
 import { Link } from "react-router";
+import { reportClientError } from "../api/errorReport";
 
 // #140: without a boundary, any throw during render unmounts the whole tree and
 // the user is left on a blank page — no message, no way back. On a phone in a
@@ -42,6 +43,18 @@ export class ErrorBoundary extends Component<Props, State> {
     // Reachable in the console and logs for a support screenshot, without
     // shouting the stack at the user on the page.
     console.error("Render error caught by boundary:", error, info.componentStack);
+    // #217 — best-effort report to the operator's log. Fire-and-forget: the
+    // promise always resolves (errorReport swallows every failure), so nothing
+    // here can break or delay the fallback UI already rendering.
+    void reportClientError({
+      message: error.message,
+      stack: error.stack,
+      componentStack: info.componentStack ?? undefined,
+      scope: this.props.scope,
+      // pathname only: the query string can carry user-typed values, and the
+      // route's job in the log is "which screen", not "which filters".
+      route: window.location.pathname,
+    });
   }
 
   render() {
