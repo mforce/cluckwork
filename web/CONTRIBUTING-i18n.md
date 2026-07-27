@@ -140,6 +140,19 @@ todayIso(farm.timezone)  // → "2026-07-26"
 
 This is enforced by a [guard test](./src/i18n/formattingIndependence.test.ts) — changing the UI language does not change money or date output. If you're tempted to key a price or date off `i18n.language`, you've found the formatting boundary.
 
+## Adding a language pack
+
+To ship a new UI language:
+
+1. **Create the pack** — `src/i18n/<code>.ts`, mirroring [`en.ts`](./src/i18n/en.ts)'s structure and keys **exactly**: same namespaces, same keys, in the same order is nice-to-have but not required. Keep every `{{placeholder}}` and every `<Trans>` tag structure (e.g. `<strong>`) **verbatim** — only the translated text changes. Export the catalog under the language code (e.g. `export const fr = { … } as const;`).
+2. **Register it** in [`src/i18n/index.ts`](./src/i18n/index.ts): import the pack, add it to the exported `RESOURCES` object (`export const RESOURCES = { en, es, tl, <code> };`), and add its code to `SUPPORTED_LANGUAGES`. `RESOURCES` is the single source both `i18n.init` and `catalogParity.test.ts` read from, so this one edit wires up and parity-checks the new pack.
+3. **Name it** — add its display name, written in its own script (not translated), to `LANGUAGE_NAMES` in [`src/session/LanguageSelector.tsx`](./src/session/LanguageSelector.tsx).
+4. **Mark provenance** — if the pack wasn't reviewed by a native speaker, say so in a header comment, following the convention at the top of [`es.ts`](./src/i18n/es.ts) / [`tl.ts`](./src/i18n/tl.ts) (`MACHINE-DRAFTED translation, PENDING NATIVE-SPEAKER REVIEW`).
+
+**Parity is enforced, not just conventional.** [`src/i18n/catalogParity.test.ts`](./src/i18n/catalogParity.test.ts) fails the build if a pack is missing any of `en`'s keys, carries extra ones, or has an empty value anywhere. This matters because a missing key doesn't error at runtime — with `fallbackLng: "en"` it silently renders the English string instead, which is easy to miss in review without the test catching it.
+
+The current `es` and `tl` packs are **machine-drafted, pending native-speaker review**, and only cover the screens already externalized to the catalog (login, sales, Account → Preferences, errors) — the rest of the app, including the rest of the Account screen, still renders in English until the full string sweep (#182) completes. A newly added pack inherits the same limitation until its screens are externalized too: the parity test only checks the packs against each other, not the app against a hardcoded-string scan, so shipping a pack does not by itself translate a screen that still has hardcoded English strings.
+
 ## Worked examples
 
 - **Login screen** ([`src/routes/Login.tsx`](./src/routes/Login.tsx)): simple keys, module-level helper with imperative `i18n.t()`, no interpolation

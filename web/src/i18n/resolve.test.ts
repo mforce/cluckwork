@@ -26,8 +26,14 @@ describe("resolveLanguage", () => {
     expect(resolveLanguage(null, "ES-MX", ["en", "es"])).toBe("es");
   });
 
-  it("is English-only by default (only 'en' installed)", () => {
-    // The real SUPPORTED_LANGUAGES today: everything resolves to en.
-    expect(resolveLanguage("es", "es-MX")).toBe("en");
+  it("resolves against the real installed packs by default (en, es, tl — #182)", () => {
+    expect(resolveLanguage("es", "es-MX")).toBe("es");
+    expect(resolveLanguage(null, "tl-PH")).toBe("tl");
+  });
+
+  it("falls back to English when a language has no pack, even by default", () => {
+    // "de" has no pack today; neither the user's language nor the farm
+    // locale's subtag can resolve to it.
+    expect(resolveLanguage("de", "de-DE")).toBe("en");
   });
 });

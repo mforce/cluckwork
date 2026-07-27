@@ -141,6 +141,18 @@ export function HelpPage() {
         </li>
       </ul>
 
+      <p>
+        <strong>Interface language.</strong> Everyone can choose the language
+        the interface is shown in from <strong>Account → Preferences</strong>{" "}
+        — English, Español, or Tagalog. Translation is a work in progress:
+        the login and sales screens, error messages, and{" "}
+        <strong>Account → Preferences</strong> itself are translated today;
+        the rest of the Account screen (including the password section) and
+        the rest of the app are being translated screen by screen. Until a
+        screen is translated it simply shows in English, whatever language
+        you picked.
+      </p>
+
       <h3 id="daily-loop">The daily loop</h3>
       <p>
         Everything in Cluckwork hangs off one chain: you record a <strong>daily
@@ -834,6 +846,8 @@ export function HelpPage() {
               Separate from each person's own light/night mode setting.
             </td>
           </tr>
+          <tr><th scope="row">UI language</th>
+            <td>The per-user language the interface is shown in — English, Español, or Tagalog — chosen from Account → Preferences. English is the fallback for any screen not yet translated, whatever language you picked.</td></tr>
         </tbody>
       </table>
 
