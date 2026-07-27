@@ -38,6 +38,23 @@ export const es = {
     preferences: "Preferencias",
     language: "Idioma",
     languageHint: "El idioma en que se muestra la interfaz, solo para usted.",
+
+    // machine-drafted (#182) — pending native review. Task 25 (B4): the rest
+    // of AccountPage. Keys mirror en.ts exactly, including {{role}}/{{min}}
+    // placeholders and the <strong> tag in roleLine.
+    heading: "Cuenta",
+    roleLine: "Ha iniciado sesión con el rol de <strong>{{role}}</strong>.",
+    changePasswordHeading: "Cambiar contraseña",
+    changePasswordHint:
+      "Al cambiar su contraseña se cerrará la sesión en todos los demás "
+      + "dispositivos — este dispositivo seguirá con la sesión iniciada.",
+    currentPasswordLabel: "Contraseña actual *",
+    newPasswordLabel: "Nueva contraseña (mín. {{min}} caracteres) *",
+    confirmPasswordLabel: "Confirmar nueva contraseña *",
+    changePasswordButton: "Cambiar contraseña",
+    passwordMismatchError: "Las nuevas contraseñas no coinciden.",
+    passwordTooShortError: "La nueva contraseña debe tener al menos {{min}} caracteres.",
+    passwordChangedMessage: "Contraseña cambiada. Se cerró la sesión en los demás dispositivos.",
   },
   errors: {
     "Me.Language.Format": "El idioma debe ser un código de 2 a 8 letras, por ejemplo 'en'.",

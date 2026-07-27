@@ -43,6 +43,26 @@ export const tl = {
     preferences: "Mga Kagustuhan",
     language: "Wika",
     languageHint: "Ang wikang gagamitin sa interface, para lang sa iyo.",
+
+    // machine-drafted (#182) — pending native review. Task 25 (B4): the rest
+    // of AccountPage. Keys mirror en.ts exactly, including {{role}}/{{min}}
+    // placeholders and the <strong> tag in roleLine.
+    // "Account" kept as an English loanword (same treatment as
+    // sales.reference above) — the common term in PH tech UIs; flag for
+    // native review to confirm rather than assume.
+    heading: "Account",
+    roleLine: "Naka-sign in ka gamit ang tungkuling <strong>{{role}}</strong>.",
+    changePasswordHeading: "Palitan ang password",
+    changePasswordHint:
+      "Kapag pinalitan mo ang iyong password, ma-si-sign out ka sa lahat "
+      + "ng ibang device — mananatiling naka-sign in ang device na ito.",
+    currentPasswordLabel: "Kasalukuyang password *",
+    newPasswordLabel: "Bagong password (min {{min}} na karakter) *",
+    confirmPasswordLabel: "Kumpirmahin ang bagong password *",
+    changePasswordButton: "Palitan ang password",
+    passwordMismatchError: "Hindi magkatugma ang mga bagong password.",
+    passwordTooShortError: "Dapat hindi bababa sa {{min}} na karakter ang bagong password.",
+    passwordChangedMessage: "Napalitan ang password. Na-sign out na ang ibang mga device.",
   },
   errors: {
     "Me.Language.Format": "Dapat 2–8 letrang code ang wika, halimbawa 'en'.",

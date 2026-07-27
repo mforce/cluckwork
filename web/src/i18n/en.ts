@@ -37,6 +37,31 @@ export const en = {
     preferences: "Preferences",
     language: "Language",
     languageHint: "The language the interface is shown in, just for you.",
+
+    // Task 25 (#182, B4) — the rest of AccountPage: the page heading, the
+    // role line, and the self-service change-password surface (#165).
+    heading: "Account",
+    // {{role}} is the signed-in account's own role value (DATA, e.g.
+    // "Worker") — not run through enums.ts's roleLabel() here, matching the
+    // component's prior behavior of rendering it verbatim. <strong> is the
+    // only JSX interleaved in this screen's prose, hence the one <Trans> use.
+    roleLine: "You are signed in with the <strong>{{role}}</strong> role.",
+    changePasswordHeading: "Change password",
+    changePasswordHint:
+      "Changing your password signs you out everywhere else — this device "
+      + "stays signed in.",
+    // The trailing " *" is folded into the label text itself, matching how
+    // UsersPage's emailFieldLabel/newPasswordFieldLabel already handle a
+    // required-field marker — never a standalone "*" key.
+    currentPasswordLabel: "Current password *",
+    // {{min}} is MIN_LENGTH (AccountPage.tsx) — interpolated, not baked in,
+    // so the label and the validation message below can never drift apart.
+    newPasswordLabel: "New password (min {{min}} chars) *",
+    confirmPasswordLabel: "Confirm new password *",
+    changePasswordButton: "Change password",
+    passwordMismatchError: "The new passwords don't match.",
+    passwordTooShortError: "The new password must be at least {{min}} characters.",
+    passwordChangedMessage: "Password changed. Any other devices have been signed out.",
   },
   // Keyed by the API's stable validation codes (#45), which contain dots
   // (e.g. "Me.Language.Format"). With keySeparator:false (see init) these are
