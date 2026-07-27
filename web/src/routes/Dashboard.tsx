@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
+import { useTranslation } from "react-i18next";
 import {
   formatMoney, getStock, listCustomers, listDailyEntries, listFlocks, listOrders,
 } from "../api/cluckwork";
@@ -8,6 +9,8 @@ import { ApiError } from "../api/client";
 import { StatusBadge } from "../components/StatusBadge";
 import { useAuth } from "../auth/useAuth";
 import { useFarmToday } from "../farm/useFarm";
+import i18n from "../i18n";
+import { statusLabel } from "../i18n/enums";
 
 const RECENT_ORDERS = 5;
 // Server clamps list limits at 500. One farm won't exceed that in Phase 1.x;
@@ -20,6 +23,8 @@ const MAX_PAGE = 500;
 // existing read endpoints (5 parallel GETs; aggregate endpoint not warranted).
 // Panels degrade independently: one failed fetch blanks its panel, not the page.
 export function Dashboard() {
+  const { t } = useTranslation("dashboard");
+  const { t: tc } = useTranslation("common");
   // Captured once at mount so the header date always matches the queried day
   // even if the tab stays open across midnight. Farm-local, not browser-local
   // (#123): the entries it queries are stamped in the farm's day.
@@ -56,7 +61,7 @@ export function Dashboard() {
       const issued = canSeeSales ? [f, e, s, o, c] : [f, e, s];
       if (issued.every((r) => r.status === "rejected")) {
         const reason = (issued[0] as PromiseRejectedResult).reason;
-        setError(reason instanceof ApiError ? reason.message : "Could not load dashboard. Is the API up?");
+        setError(reason instanceof ApiError ? reason.message : i18n.t("dashboard:loadFailed"));
       }
       setLoading(false);
     });
@@ -81,40 +86,40 @@ export function Dashboard() {
   const eggsAvailable = stock === null ? null : totalAvailable;
   const activeFlocks = flocks === null ? null : flocks.filter((f) => f.status === "Active").length;
 
-  if (loading) return <section><h2>Dashboard</h2><p className="muted">Loading…</p></section>;
-  if (error) return <section><h2>Dashboard</h2><p className="error">{error}</p></section>;
+  if (loading) return <section><h2>{t("title")}</h2><p className="muted">{tc("loading")}</p></section>;
+  if (error) return <section><h2>{t("title")}</h2><p className="error">{error}</p></section>;
 
-  const panelError = <p className="error">Could not load.</p>;
+  const panelError = <p className="error">{t("panelLoadError")}</p>;
 
   return (
     <section>
-      <h2>Dashboard</h2>
+      <h2>{t("title")}</h2>
       <p className="muted">{today}</p>
 
       <div className="stat-grid">
         <div className="stat">
           <div className="stat-value">{todaysEggs ?? "—"}</div>
-          <div className="stat-label">Eggs collected today</div>
+          <div className="stat-label">{t("statEggsCollectedToday")}</div>
         </div>
         <div className="stat">
           <div className="stat-value">{eggsAvailable ?? "—"}</div>
-          <div className="stat-label">Eggs available</div>
+          <div className="stat-label">{t("statEggsAvailable")}</div>
         </div>
         <div className="stat">
           <div className="stat-value">{activeFlocks ?? "—"}</div>
-          <div className="stat-label">Active flocks</div>
+          <div className="stat-label">{t("statActiveFlocks")}</div>
         </div>
       </div>
 
       <div className="dash-grid">
         <div className="panel">
-          <h3><Link to="/daily-entry">Today</Link></h3>
+          <h3><Link to="/daily-entry">{t("todayPanelTitle")}</Link></h3>
           {flocks === null || entries === null ? panelError : visibleFlocks.length === 0 ? (
-            <p className="muted">No flocks yet — create one on the Daily entry page.</p>
+            <p className="muted">{t("noFlocksMessage")}</p>
           ) : (
             <table className="data">
               <thead>
-                <tr><th>Flock</th><th>Status</th><th>Eggs</th><th>Losses</th><th>Mortality</th></tr>
+                <tr><th>{t("flockHeader")}</th><th>{t("statusHeader")}</th><th>{t("eggsHeader")}</th><th>{t("lossesHeader")}</th><th>{t("mortalityHeader")}</th></tr>
               </thead>
               <tbody>
                 {visibleFlocks.map((f) => {
@@ -122,7 +127,7 @@ export function Dashboard() {
                   return (
                     <tr key={f.id}>
                       <td>{f.name}</td>
-                      <td>{e ? <StatusBadge status={e.status} /> : <span className="badge badge-warn">no entry</span>}</td>
+                      <td>{e ? <StatusBadge status={e.status} label={statusLabel(e.status)} /> : <span className="badge badge-warn">{t("noEntryBadge")}</span>}</td>
                       <td>{e ? e.totalEggs : "—"}</td>
                       <td>{e ? e.crackedEggs + e.dirtyEggs + e.discardedEggs : "—"}</td>
                       <td>{e ? e.mortalityCount : "—"}</td>
@@ -135,14 +140,14 @@ export function Dashboard() {
         </div>
 
         <div className="panel">
-          <h3><Link to="/stock">Stock</Link></h3>
+          <h3><Link to="/stock">{t("stockPanelTitle")}</Link></h3>
           {stock === null ? panelError : stock.length === 0 ? (
-            <p className="muted">No stock yet — record and submit a daily entry.</p>
+            <p className="muted">{t("noStockMessage")}</p>
           ) : (
             <>
               <table className="data">
                 <thead>
-                  <tr><th>Grade</th><th>Available</th><th>Restricted</th></tr>
+                  <tr><th>{t("gradeHeader")}</th><th>{t("availableHeader")}</th><th>{t("restrictedHeader")}</th></tr>
                 </thead>
                 <tbody>
                   {stock.map((r) => (
@@ -154,27 +159,27 @@ export function Dashboard() {
                   ))}
                 </tbody>
               </table>
-              <p className="muted">{totalAvailable} eggs available.</p>
+              <p className="muted">{t("eggsAvailableMessage", { count: totalAvailable })}</p>
             </>
           )}
         </div>
 
         {canSeeSales && (
         <div className="panel">
-          <h3><Link to="/sales">Recent sales</Link></h3>
+          <h3><Link to="/sales">{t("salesPanelTitle")}</Link></h3>
           {orders === null ? panelError : orders.length === 0 ? (
-            <p className="muted">No orders yet.</p>
+            <p className="muted">{t("noOrdersMessage")}</p>
           ) : (
             <table className="data">
               <thead>
-                <tr><th>Ref</th><th>Customer</th><th>Status</th><th>Total</th></tr>
+                <tr><th>{t("refHeader")}</th><th>{t("customerHeader")}</th><th>{t("statusHeader")}</th><th>{t("totalHeader")}</th></tr>
               </thead>
               <tbody>
                 {orders.map((o) => (
                   <tr key={o.id}>
                     <td>{o.referenceNumber}</td>
                     <td>{customerName(o.customerId)}</td>
-                    <td><StatusBadge status={o.status} /></td>
+                    <td><StatusBadge status={o.status} label={statusLabel(o.status)} /></td>
                     <td>{formatMoney(o.totalMinorUnits, o.currencyCode, o.currencyMinorUnit)}</td>
                   </tr>
                 ))}

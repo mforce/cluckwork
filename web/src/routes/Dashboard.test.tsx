@@ -6,6 +6,7 @@ import {
   getStock, listCustomers, listDailyEntries, listFlocks, listOrders,
 } from "../api/cluckwork";
 import type { DailyEntry, Flock, SalesOrder, StockRow } from "../api/cluckwork";
+import i18n from "../i18n";
 
 // Keep the real formatMoney; stub the five read endpoints the dashboard fans out.
 vi.mock("../api/cluckwork", async (importOriginal) => {
@@ -91,5 +92,70 @@ describe("Dashboard sales panel role gate (#127)", () => {
     expect(await screen.findByText("Recent sales")).toBeInTheDocument();
     expect(mockOrders).toHaveBeenCalled();
     expect(mockCustomers).toHaveBeenCalled();
+  });
+});
+
+// #182, Task 12: the "Today" panel's per-flock entry status now goes through
+// the `enums` statusLabel helper instead of rendering StatusBadge's raw text.
+// This is an INTENTIONAL harmonization, not text-preserving, for exactly one
+// value — a ManagerAdjusted entry used to render raw ("ManagerAdjusted", no
+// visible word boundary) and now reads "Adjusted", matching the label
+// HistoryPage already shows for the same state via its own bespoke badge (see
+// en.ts's `enums` header comment).
+describe("Dashboard status pills (#182, Task 12)", () => {
+  it("shows the harmonized 'Adjusted' label, not the raw status, for a manager-adjusted entry", async () => {
+    mockEntries.mockResolvedValue([entry("f1", "ManagerAdjusted", 150)]);
+    renderWithProviders(<Dashboard />);
+
+    expect(await screen.findByText("Adjusted")).toBeInTheDocument();
+    expect(screen.queryByText("ManagerAdjusted")).not.toBeInTheDocument();
+    expect(screen.queryByText(/manageradjusted/i)).not.toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// i18n wiring (#182, Task 12, batch B2)
+// ---------------------------------------------------------------------------
+
+// `dashboard` is English-only (not in TRANSLATED_NAMESPACES — see
+// translations-status.ts), so under ANY UI language the rendered text falls
+// back to this exact English string, same as a still-hardcoded literal would
+// render — asserting it, even under a non-English locale, would prove nothing
+// (CONTRIBUTING-i18n.md's fallback trap). Swap the catalog value at runtime
+// instead, the same i18n.addResource technique the other batches use, so each
+// marker only renders if the screen actually reads the catalog rather than a
+// literal that happens to still match it.
+describe("Dashboard i18n wiring (#182, Task 12)", () => {
+  function withOverride(ns: string, key: string, value: string, run: () => Promise<void> | void) {
+    const original = i18n.getResource("en", ns, key) as string;
+    i18n.addResource("en", ns, key, value);
+    return Promise.resolve(run()).finally(() => {
+      i18n.addResource("en", ns, key, original);
+    });
+  }
+
+  it("reads the heading from the catalog, not a hardcoded literal", async () => {
+    await withOverride("dashboard", "title", "TITLE-MARKER", async () => {
+      renderWithProviders(<Dashboard />);
+      expect(await screen.findByRole("heading", { name: "TITLE-MARKER" })).toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "Dashboard" })).not.toBeInTheDocument();
+    });
+  });
+
+  it("reads a stat label from the catalog, not a hardcoded literal", async () => {
+    await withOverride("dashboard", "statEggsCollectedToday", "STAT-MARKER", async () => {
+      renderWithProviders(<Dashboard />);
+      expect(await screen.findByText("STAT-MARKER")).toBeInTheDocument();
+      expect(screen.queryByText("Eggs collected today")).not.toBeInTheDocument();
+    });
+  });
+
+  it("interpolates the stock total into the catalog template, not a hardcoded literal", async () => {
+    await withOverride("dashboard", "eggsAvailableMessage", "COUNT-MARKER {{count}} MARKER-END", async () => {
+      renderWithProviders(<Dashboard />);
+      // 1240 + 320 from the default STOCK fixture (see the stat-card test above).
+      expect(await screen.findByText("COUNT-MARKER 1560 MARKER-END")).toBeInTheDocument();
+      expect(screen.queryByText(/eggs available\./)).not.toBeInTheDocument();
+    });
   });
 });

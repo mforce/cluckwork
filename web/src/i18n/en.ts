@@ -382,6 +382,59 @@ export const en = {
     submittedMessage: "Submitted — {{count}} egg lot(s) created.",
     draftSavedMessage: "Draft saved.",
   },
+  // Landing page — today's per-flock production, stock by grade, and recent
+  // sales (Task 12, #182, batch B2). English-only for now, same treatment as
+  // nav/numberField/errorBoundary/themeToggle/useConfirm/pwa/dailyEntry above:
+  // `dashboard` is deliberately NOT in TRANSLATED_NAMESPACES, so es/tl fall
+  // back to these strings until a native-speaker pass adds the namespace. The
+  // two status pills on this screen (today's per-flock entry status, and each
+  // recent order's status) go through the `enums` `statusLabel` helper, not a
+  // key here — see Dashboard.tsx. Wiring the per-flock entry pill is an
+  // INTENTIONAL harmonization, not text-preserving: a ManagerAdjusted entry
+  // used to render raw ("ManagerAdjusted") and now reads "Adjusted", matching
+  // HistoryPage's own bespoke badge for the same state (see the `enums`
+  // header comment below).
+  dashboard: {
+    title: "Dashboard",
+
+    // Imperative message (promise callback — see CONTRIBUTING-i18n.md's
+    // imperative i18n.t() pattern): every parallel fetch failed.
+    loadFailed: "Could not load dashboard. Is the API up?",
+    // Shared across all three panels — each degrades independently on its own
+    // failed fetch.
+    panelLoadError: "Could not load.",
+
+    // Stat row
+    statEggsCollectedToday: "Eggs collected today",
+    statEggsAvailable: "Eggs available",
+    statActiveFlocks: "Active flocks",
+
+    // "Today" panel (per-flock production)
+    todayPanelTitle: "Today",
+    noFlocksMessage: "No flocks yet — create one on the Daily entry page.",
+    flockHeader: "Flock",
+    statusHeader: "Status",
+    eggsHeader: "Eggs",
+    lossesHeader: "Losses",
+    mortalityHeader: "Mortality",
+    // A flock with no entry yet — a bespoke warn badge, not a StatusBadge.
+    noEntryBadge: "no entry",
+
+    // "Stock" panel (by grade)
+    stockPanelTitle: "Stock",
+    noStockMessage: "No stock yet — record and submit a daily entry.",
+    gradeHeader: "Grade",
+    availableHeader: "Available",
+    restrictedHeader: "Restricted",
+    eggsAvailableMessage: "{{count}} eggs available.",
+
+    // "Recent sales" panel (hidden for ReadOnly/Denied, #127)
+    salesPanelTitle: "Recent sales",
+    noOrdersMessage: "No orders yet.",
+    refHeader: "Ref",
+    customerHeader: "Customer",
+    totalHeader: "Total",
+  },
   // Closed-vocabulary labels (#182, Task 4). Consumed ONLY through the typed
   // helpers in enums.ts — never a raw t("enums:status." + value). Keys are FLAT
   // "family.RawValue" strings (keySeparator:false, see index.ts): the suffix is
@@ -393,11 +446,12 @@ export const en = {
   // Labels are chosen to be TEXT-PRESERVING on retrofit (Task 5+) — a screen
   // wired to a helper keeps its current text — EXCEPT at two sites the retrofit
   // changes DELIBERATELY (its reviewer must eyeball them):
-  //   1. Dashboard.tsx (`<StatusBadge status={e.status} />`, no label) shows a
-  //      ManagerAdjusted entry RAW today; statusLabel makes it read "Adjusted" —
-  //      the text HistoryPage already shows for that state via its own bespoke
-  //      `<span className="badge badge-warn">Adjusted</span>` (HistoryPage.tsx
-  //      249-250), NOT a StatusBadge label.
+  //   1. Dashboard.tsx (`<StatusBadge status={e.status} />`, no label) used to
+  //      show a ManagerAdjusted entry RAW; statusLabel (wired in Task 12) now
+  //      makes it read "Adjusted" — the text HistoryPage already shows for
+  //      that state via its own bespoke `<span className="badge
+  //      badge-warn">Adjusted</span>` (HistoryPage.tsx 249-250), NOT a
+  //      StatusBadge label.
   //   2. UsersPage.tsx role table cell renders raw `{u.role}` = "ReadOnly";
   //      roleLabel makes it read "Read-only" (matching the picker option).
   // Payment method and sale unit are intentionally absent — they belong to the
