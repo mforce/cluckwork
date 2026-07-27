@@ -281,6 +281,294 @@ export const en = {
     paymentVoided: "Payment voided — the outstanding amount grew back.",
     orderVoided: "Order {{ref}} voided — stock returned to inventory.",
   },
+  // Daily entry capture screen (Task 11, #182, batch B2). English-only for
+  // now, same treatment as nav/numberField/errorBoundary/themeToggle/
+  // useConfirm/pwa above: `dailyEntry` is deliberately NOT in
+  // TRANSLATED_NAMESPACES, so es/tl fall back to these strings until a
+  // native-speaker pass adds the namespace. The one closed-vocabulary display
+  // on this screen (the entry-locked banner's status word) goes through the
+  // `enums` `statusLabel` helper, not a key here — see DailyEntryPage.tsx.
+  dailyEntry: {
+    title: "Daily entry",
+
+    // Imperative messages (event handlers / promise callbacks — see
+    // CONTRIBUTING-i18n.md's imperative i18n.t() pattern).
+    loadFlocksGradesFailed: "Could not load flocks/grades. Is the API up?",
+    deepLinkUnavailable:
+      "This edit link points at a flock or date that is no longer available — using the usual defaults instead.",
+
+    // "Editing draft" badge — a bespoke StatusBadge label, not an enum display.
+    editingDraftBadge: "Editing draft",
+
+    // Flock + date context row
+    flockLabel: "Flock",
+    noFlocksYetOption: "— no flocks yet —",
+    depletedFlockSuffix: " — depleted, backfill only",
+    dateLabel: "Date",
+    newFlockButton: "+ new flock",
+
+    // New-flock dialog (F131)
+    newFlockDialogTitle: "New flock",
+    nameLabel: "Name",
+    breedLabel: "Breed",
+    placedLabel: "Placed",
+    birdsLabel: "Birds",
+    createFlockButton: "Create flock",
+
+    // Locked-day / prefill-failure banners. `status` is interpolated with the
+    // ALREADY-LABELLED (statusLabel), lowercased value — never the raw wire
+    // status.
+    entryLockedBanner:
+      "This day is already {{status}} — its egg lots exist. "
+      + "Corrections are made from History (admins: adjust or void).",
+    prefillFailedBanner:
+      "Could not check whether this day already has an entry — saving is "
+      + "blocked so existing data isn't overwritten.",
+
+    // Step headings (F134's two-step layout)
+    stepLabel: "Step {{n}}",
+    stepOfTotal: "of 2:",
+    eggCountsHeading: "Egg counts",
+    gradingHeading: "Grading",
+
+    // Count field labels — reused lowercased (see g.name.toLowerCase() for
+    // grades, same pattern) as NumberField's aria-label `label` prop, so there
+    // is no separate lowercase key to keep in sync.
+    totalEggsLabel: "Total eggs",
+    crackedLabel: "Cracked",
+    dirtyLabel: "Dirty",
+    discardedLabel: "Discarded",
+    mortalityLabel: "Mortality",
+
+    // Reconciliation readouts (counts pane)
+    countsExceedTotalMessage:
+      "Cracked + dirty + discarded ({{losses}}) exceed total eggs ({{total}}).",
+    sellableLabel: "Sellable",
+    sellableFormula: "{{total}} − {{cracked}} − {{dirty}} − {{discarded}}",
+    deactivatedGradeSuffix: " (deactivated)",
+
+    // F134 remainder-assignment gesture (grading pane)
+    takeRemainderAriaLabel: "Put all {{count}} remaining in {{grade}}",
+    takeRemainderButton: "+{{count}}",
+    armAriaLabel: "Choose a grade for the remaining {{count}}",
+    disarmAriaLabel: "Cancel choosing a grade",
+    armButton: "put all in…",
+    disarmButton: "pick a grade…",
+
+    // The `grading` derived object's copy (chip + pinned footer)
+    fixCountsFirst: "Fix the counts first",
+    fixCountsShort: "fix the counts",
+    overSellableCount: "over the sellable count",
+    overShort: "over",
+    gradedDayAddsUp: "graded — the day adds up",
+    allGradedShort: "all graded",
+    leftToGrade: "left to grade",
+    leftShort: "left",
+
+    // Pinned footer (phone-only summary + saves)
+    countsExceedFooterMessage: "Losses exceed the total — fix the counts",
+    sellableWord: "sellable",
+    saveDraftButton: "Save draft",
+    submitButton: "Save & submit (creates egg lots)",
+
+    // Submit confirmation dialog (one-way action, #59)
+    confirmSubmitTitle: "Submit this day?",
+    confirmSubmitBody:
+      "Egg lots are created and the entry can no longer be edited. "
+      + "Corrections after this need a manager adjustment.",
+    confirmSubmitLabel: "Submit day",
+
+    // Save-result messages
+    submittedMessage: "Submitted — {{count}} egg lot(s) created.",
+    draftSavedMessage: "Draft saved.",
+  },
+  // Landing page — today's per-flock production, stock by grade, and recent
+  // sales (Task 12, #182, batch B2). English-only for now, same treatment as
+  // nav/numberField/errorBoundary/themeToggle/useConfirm/pwa/dailyEntry above:
+  // `dashboard` is deliberately NOT in TRANSLATED_NAMESPACES, so es/tl fall
+  // back to these strings until a native-speaker pass adds the namespace. The
+  // two status pills on this screen (today's per-flock entry status, and each
+  // recent order's status) go through the `enums` `statusLabel` helper, not a
+  // key here — see Dashboard.tsx. Wiring the per-flock entry pill is an
+  // INTENTIONAL harmonization, not text-preserving: a ManagerAdjusted entry
+  // used to render raw ("ManagerAdjusted") and now reads "Adjusted", matching
+  // HistoryPage's own bespoke badge for the same state (see the `enums`
+  // header comment below).
+  dashboard: {
+    title: "Dashboard",
+
+    // Imperative message (promise callback — see CONTRIBUTING-i18n.md's
+    // imperative i18n.t() pattern): every parallel fetch failed.
+    loadFailed: "Could not load dashboard. Is the API up?",
+    // Shared across all three panels — each degrades independently on its own
+    // failed fetch.
+    panelLoadError: "Could not load.",
+
+    // Stat row
+    statEggsCollectedToday: "Eggs collected today",
+    statEggsAvailable: "Eggs available",
+    statActiveFlocks: "Active flocks",
+
+    // "Today" panel (per-flock production)
+    todayPanelTitle: "Today",
+    noFlocksMessage: "No flocks yet — create one on the Daily entry page.",
+    flockHeader: "Flock",
+    statusHeader: "Status",
+    eggsHeader: "Eggs",
+    lossesHeader: "Losses",
+    mortalityHeader: "Mortality",
+    // A flock with no entry yet — a bespoke warn badge, not a StatusBadge.
+    noEntryBadge: "no entry",
+
+    // "Stock" panel (by grade)
+    stockPanelTitle: "Stock",
+    noStockMessage: "No stock yet — record and submit a daily entry.",
+    gradeHeader: "Grade",
+    availableHeader: "Available",
+    restrictedHeader: "Restricted",
+    eggsAvailableMessage: "{{count}} eggs available.",
+
+    // "Recent sales" panel (hidden for ReadOnly/Denied, #127)
+    salesPanelTitle: "Recent sales",
+    noOrdersMessage: "No orders yet.",
+    refHeader: "Ref",
+    customerHeader: "Customer",
+    totalHeader: "Total",
+  },
+  // Water usage capture + correction screen (Task 13, #182, batch B2).
+  // English-only for now, same treatment as nav/numberField/errorBoundary/
+  // themeToggle/useConfirm/pwa/dailyEntry/dashboard above: `water` is
+  // deliberately NOT in TRANSLATED_NAMESPACES, so es/tl fall back to these
+  // strings until a native-speaker pass adds the namespace. The two
+  // closed-vocabulary displays on this screen — the Source picker + table
+  // cell, and the Unit picker + table cell + the quantity label's unit
+  // suffix — go through the `enums` `waterSourceLabel`/`waterUnitLabel`
+  // helpers, not a key here — see WaterPage.tsx. Both families are
+  // identity-labelled in English today, so wiring them changes nothing
+  // visible (confirmed in the report).
+  water: {
+    title: "Water",
+
+    // Imperative messages (event handlers / promise callbacks — see
+    // CONTRIBUTING-i18n.md's imperative i18n.t() pattern).
+    loadFlocksFailed: "Could not load flocks. Is the API up?",
+    loadRecordsFailed: "Could not load water records.",
+    loadMoreFailed: "Could not load more.",
+    concurrentEditError:
+      "This record was just changed elsewhere — reload the list and retry.",
+
+    intro:
+      "Record what each flock drank — a direct amount, or meter readings (the "
+      + "amount is the meter delta). Records can be corrected later; flock and "
+      + "date are fixed.",
+
+    // Capture form labels
+    flockLabel: "Flock",
+    depletedFlockSuffix: " — depleted, backfill only",
+    dateLabel: "Date",
+    sourceLabel: "Source",
+    unitLabel: "Unit",
+    fromMeterReadingsLabel: "from meter readings",
+    meterStartLabel: "Meter start",
+    meterEndLabel: "Meter end",
+    // {{unit}} is the ALREADY-LABELLED (waterUnitLabel) current unit — never
+    // the raw wire value.
+    quantityLabelWithUnit: "Quantity ({{unit}})",
+    noteLabel: "Note",
+
+    // Capture form buttons
+    recordWaterButton: "Record water",
+    saveCorrectionButton: "Save correction",
+    cancelEditButton: "cancel edit",
+
+    // Inline validation messages
+    quantityMustBePositive: "Quantity must be a positive number.",
+    bothMeterReadingsRequired: "Both meter readings are required.",
+
+    // Save-result messages
+    recordedMessage: "Water recorded.",
+    recordCorrectedMessage: "Water record corrected.",
+
+    // Records list — filters
+    recordsHeading: "Records",
+    fromLabel: "From",
+    toLabel: "To",
+    noRecordsMatch: "No water records match.",
+
+    // Records table
+    dateHeader: "Date",
+    flockHeader: "Flock",
+    amountHeader: "Amount",
+    sourceHeader: "Source",
+    metersHeader: "Meters",
+    noteHeader: "Note",
+    correctButton: "correct",
+    loadMoreButton: "load more",
+  },
+  // Egg grade catalog admin screen (Task 14, #182, batch B2 — the last B2
+  // screen). English-only for now, same treatment as nav/numberField/
+  // errorBoundary/themeToggle/useConfirm/pwa/dailyEntry/dashboard/water above:
+  // `grades` is deliberately NOT in TRANSLATED_NAMESPACES, so es/tl fall back
+  // to these strings until a native-speaker pass adds the namespace. The one
+  // closed-vocabulary display on this screen — the Type picker + table cell —
+  // goes through the `enums` `gradeTypeLabel` helper, not a key here — see
+  // GradesPage.tsx. Size/Quality/Custom are identity-labelled in English
+  // today, so wiring it changes nothing visible (confirmed in the report).
+  // Grade NAMES (`g.name`) are free-form farm data, not client copy, and stay
+  // raw — never routed through the catalog.
+  grades: {
+    // Titles. `title` is the loaded heading ("Egg grades"); `loadingTitle` is
+    // the shorter pre-existing heading the two early-return states (load
+    // error / still loading) used before this sweep — a pre-existing
+    // inconsistency with the loaded heading, preserved verbatim rather than
+    // "fixed" as a drive-by (not this task's job).
+    title: "Egg grades",
+    loadingTitle: "Grades",
+
+    // Imperative message (promise callback — see CONTRIBUTING-i18n.md's
+    // imperative i18n.t() pattern).
+    loadGradesFailed: "Could not load grades. Is the API up?",
+
+    intro:
+      "Saleable grades appear in daily-entry and order pickers. Deactivating "
+      + "a grade removes it from pickers; existing stock and history are "
+      + "unaffected.",
+
+    // Buttons. `newGradeButton` (the page's action button) and
+    // `newGradeDialogTitle` happen to share English text today but are
+    // separate keys, one per UI role — same treatment as
+    // dailyEntry:newFlockButton/newFlockDialogTitle.
+    newGradeButton: "New grade",
+    newGradeDialogTitle: "New grade",
+    editGradeDialogTitle: "Edit grade",
+    addGradeButton: "Add grade",
+    // Lowercase link-styled row actions, matching sales:edit/water:correctButton.
+    editButton: "edit",
+    deactivateButton: "deactivate",
+    activateButton: "activate",
+
+    // Create-dialog form labels.
+    nameLabel: "Name *",
+    typeLabel: "Type",
+    sortLabel: "Sort",
+    saleableLabel: "saleable",
+    // Edit-dialog's Name label carries no required marker: the row's save
+    // used to be a plain button, so native constraint validation never ran on
+    // this field, and the dialog keeps that parity (see GradesPage.test.tsx).
+    editNameLabel: "Name",
+
+    // Table headers — separate keys from the form labels above even where the
+    // English text coincides (same treatment as water:flockLabel/flockHeader).
+    nameHeader: "Name",
+    typeHeader: "Type",
+    sortHeader: "Sort",
+    saleableHeader: "Saleable",
+    statusHeader: "Status",
+
+    // Saleable column's "yes" badge — lowercase, distinct from common.yes
+    // ("Yes"); same case-sensitive-variant treatment as sales:close.
+    saleableYesBadge: "yes",
+  },
   // Closed-vocabulary labels (#182, Task 4). Consumed ONLY through the typed
   // helpers in enums.ts — never a raw t("enums:status." + value). Keys are FLAT
   // "family.RawValue" strings (keySeparator:false, see index.ts): the suffix is
@@ -292,11 +580,12 @@ export const en = {
   // Labels are chosen to be TEXT-PRESERVING on retrofit (Task 5+) — a screen
   // wired to a helper keeps its current text — EXCEPT at two sites the retrofit
   // changes DELIBERATELY (its reviewer must eyeball them):
-  //   1. Dashboard.tsx (`<StatusBadge status={e.status} />`, no label) shows a
-  //      ManagerAdjusted entry RAW today; statusLabel makes it read "Adjusted" —
-  //      the text HistoryPage already shows for that state via its own bespoke
-  //      `<span className="badge badge-warn">Adjusted</span>` (HistoryPage.tsx
-  //      249-250), NOT a StatusBadge label.
+  //   1. Dashboard.tsx (`<StatusBadge status={e.status} />`, no label) used to
+  //      show a ManagerAdjusted entry RAW; statusLabel (wired in Task 12) now
+  //      makes it read "Adjusted" — the text HistoryPage already shows for
+  //      that state via its own bespoke `<span className="badge
+  //      badge-warn">Adjusted</span>` (HistoryPage.tsx 249-250), NOT a
+  //      StatusBadge label.
   //   2. UsersPage.tsx role table cell renders raw `{u.role}` = "ReadOnly";
   //      roleLabel makes it read "Read-only" (matching the picker option).
   // Payment method and sale unit are intentionally absent — they belong to the

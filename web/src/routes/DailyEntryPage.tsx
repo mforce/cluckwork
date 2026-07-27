@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
+import { useTranslation } from "react-i18next";
 import {
   createFlock, listDailyEntries, listEggGrades, listFlocks,
   recordDailyEntry, submitDailyEntry,
@@ -12,6 +13,8 @@ import { NumberField } from "../components/NumberField";
 import { useConfirm } from "../components/useConfirm";
 import { useFarmToday } from "../farm/useFarm";
 import { newId } from "../lib/ids";
+import i18n from "../i18n";
+import { statusLabel } from "../i18n/enums";
 
 const LAST_FLOCK_KEY = "cluckwork.lastFlockId";
 
@@ -34,6 +37,8 @@ function errorMessage(err: unknown): string {
 // F1 (#21): record the day's production by grade, then submit — submitting
 // turns grade lines into egg lots (stock).
 export function DailyEntryPage() {
+  const { t } = useTranslation("dailyEntry");
+  const { t: tc } = useTranslation("common");
   // Farm-local, not browser-local: since #35 the API judges "is this date in
   // the future?" against the FARM's day, so the pickers must agree (#123).
   const today = useFarmToday();
@@ -109,7 +114,7 @@ export function DailyEntryPage() {
         const deepLinked = flockOk && dateOk;
         if (deepLinked) setDate(wantedDate!);
         else if (wantedFlock || wantedDate)
-          setError("This edit link points at a flock or date that is no longer available — using the usual defaults instead.");
+          setError(i18n.t("dailyEntry:deepLinkUnavailable"));
         const remembered = localStorage.getItem(LAST_FLOCK_KEY);
         // Default prefers an ACTIVE flock — depleted ones are backfill targets
         // you pick deliberately, not a default.
@@ -118,7 +123,7 @@ export function DailyEntryPage() {
         else if (remembered && f.some((x) => x.id === remembered)) setFlockId(remembered);
         else if (firstActive) setFlockId(firstActive.id);
       })
-      .catch(() => setLoadError("Could not load flocks/grades. Is the API up?"))
+      .catch(() => setLoadError(i18n.t("dailyEntry:loadFlocksGradesFailed")))
       .finally(() => setLoading(false));
   }, []);
 
@@ -215,12 +220,12 @@ export function DailyEntryPage() {
   const [assigning, setAssigning] = useState(false);
 
   const grading = lossesExceedTotal
-    ? { tone: "over", count: null, says: "Fix the counts first", short: "fix the counts" }
+    ? { tone: "over", count: null, says: t("fixCountsFirst"), short: t("fixCountsShort") }
     : remaining < 0
-      ? { tone: "over", count: -remaining, says: "over the sellable count", short: "over" }
+      ? { tone: "over", count: -remaining, says: t("overSellableCount"), short: t("overShort") }
       : remaining === 0
-        ? { tone: "done", count: sellable, says: "graded — the day adds up", short: "all graded" }
-        : { tone: "", count: remaining, says: "left to grade", short: "left" };
+        ? { tone: "done", count: sellable, says: t("gradedDayAddsUp"), short: t("allGradedShort") }
+        : { tone: "", count: remaining, says: t("leftToGrade"), short: t("leftShort") };
 
   // Not while the prefill is unsettled: the remainder is computed from counts
   // that are about to be replaced, and handing those to a grade would assign
@@ -287,10 +292,9 @@ export function DailyEntryPage() {
     // One-way action (#59): submit freezes the day and creates egg lots.
     if (submit) {
       const ok = await confirm({
-        title: "Submit this day?",
-        body: "Egg lots are created and the entry can no longer be edited. "
-          + "Corrections after this need a manager adjustment.",
-        confirmLabel: "Submit day",
+        title: i18n.t("dailyEntry:confirmSubmitTitle"),
+        body: i18n.t("dailyEntry:confirmSubmitBody"),
+        confirmLabel: i18n.t("dailyEntry:confirmSubmitLabel"),
       });
       if (!ok) return;
       // Only the ref is worth re-reading. window.confirm blocked the thread, so
@@ -329,13 +333,13 @@ export function DailyEntryPage() {
       if (submit) {
         const result = await submitDailyEntry(created.id, saveKey.current);
         setExistingStatus(result.status);
-        setMessage(`Submitted — ${result.eggLotIds.length} egg lot(s) created.`);
+        setMessage(i18n.t("dailyEntry:submittedMessage", { count: result.eggLotIds.length }));
       } else {
         // The day now has saved work, so the badge should say so immediately.
         // Only the submit branch tracked status before, which left a first
         // draft save unbadged until a reload re-prefilled the same day.
         setExistingStatus("Draft");
-        setMessage("Draft saved.");
+        setMessage(i18n.t("dailyEntry:draftSavedMessage"));
       }
       saveKey.current = newId();
     } catch (err) {
@@ -346,18 +350,18 @@ export function DailyEntryPage() {
     }
   }
 
-  if (loading) return <section><h2>Daily entry</h2><p className="muted">Loading…</p></section>;
-  if (loadError) return <section><h2>Daily entry</h2><p className="error">{loadError}</p></section>;
+  if (loading) return <section><h2>{t("title")}</h2><p className="muted">{tc("loading")}</p></section>;
+  if (loadError) return <section><h2>{t("title")}</h2><p className="error">{loadError}</p></section>;
 
   return (
     <section>
       <div className="page-head">
-        <h2>Daily entry</h2>
+        <h2>{t("title")}</h2>
         {/* Always rendered so it is a live region BEFORE the prefill fills it;
             a status container that appears at the same moment as its content is
             unreliably announced. */}
         <span role="status">
-          {editingDraft && <StatusBadge status="Draft" label="Editing draft" />}
+          {editingDraft && <StatusBadge status="Draft" label={t("editingDraftBadge")} />}
         </span>
       </div>
 
@@ -366,43 +370,43 @@ export function DailyEntryPage() {
           are the work, and they reconcile against each other. */}
       <div className="form-grid entry-context">
         <label>
-          Flock
+          {t("flockLabel")}
           <select value={flockId} onChange={(e) => setFlockId(e.target.value)}>
-            {flocks.length === 0 && <option value="">— no flocks yet —</option>}
+            {flocks.length === 0 && <option value="">{t("noFlocksYetOption")}</option>}
             {flocks.map((f) => (
               <option key={f.id} value={f.id}>
-                {f.name} ({f.breed}){f.status === "Depleted" ? " — depleted, backfill only" : ""}
+                {f.name} ({f.breed}){f.status === "Depleted" ? t("depletedFlockSuffix") : ""}
               </option>
             ))}
           </select>
         </label>
-        <label>Date
+        <label>{t("dateLabel")}
           <input type="date" value={date} max={today}
             onChange={(e) => setDate(e.target.value)} />
         </label>
         <button className="link" type="button" onClick={() => { setError(null); setShowNewFlock(true); }}>
-          + new flock
+          {t("newFlockButton")}
         </button>
       </div>
 
       {/* F131: creating a flock is catalog work, not capture — it belongs in a
           dialog like every other create, instead of shoving the entry grid
           down the page the moment the picker has nothing to offer yet. */}
-      <Dialog open={showNewFlock} title="New flock" onClose={() => setShowNewFlock(false)}>
+      <Dialog open={showNewFlock} title={t("newFlockDialogTitle")} onClose={() => setShowNewFlock(false)}>
         <form className="inline-form" onSubmit={onCreateFlock}>
-          <label>Name
+          <label>{t("nameLabel")}
             <input value={newFlockName} required
               onChange={(e) => setNewFlockName(e.target.value)} />
           </label>
-          <label>Breed
+          <label>{t("breedLabel")}
             <input value={newFlockBreed} required
               onChange={(e) => setNewFlockBreed(e.target.value)} />
           </label>
-          <label>Placed
+          <label>{t("placedLabel")}
             <input type="date" value={newFlockPlaced} max={today} required
               onChange={(e) => setNewFlockPlaced(e.target.value)} />
           </label>
-          <label>Birds
+          <label>{t("birdsLabel")}
             <input type="number" min={1} value={newFlockCount} required
               onChange={(e) => setNewFlockCount(Math.max(1, e.target.valueAsNumber || 1))} />
           </label>
@@ -412,25 +416,23 @@ export function DailyEntryPage() {
               the button just appeared to do nothing (F134 review of #131). */}
           {error && <p className="error">{error}</p>}
           <div className="dialog-foot">
-            <button type="button" className="link" onClick={() => setShowNewFlock(false)}>Cancel</button>
-            <button type="submit">Create flock</button>
+            <button type="button" className="link" onClick={() => setShowNewFlock(false)}>{tc("cancel")}</button>
+            <button type="submit">{t("createFlockButton")}</button>
           </div>
         </form>
       </Dialog>
 
       {entryLocked && (
         <p className="warn">
-          This day is already {existingStatus?.toLowerCase()} — its egg lots exist.
-          Corrections are made from History (admins: adjust or void).
+          {t("entryLockedBanner", { status: statusLabel(existingStatus ?? "").toLowerCase() })}
         </p>
       )}
 
       {prefillFailed && (
         <p className="error">
-          Could not check whether this day already has an entry — saving is blocked
-          so existing data isn't overwritten.{" "}
+          {t("prefillFailedBanner")}{" "}
           <button className="link" type="button"
-            onClick={() => setPrefillRetry((n) => n + 1)}>retry</button>
+            onClick={() => setPrefillRetry((n) => n + 1)}>{tc("retry")}</button>
         </p>
       )}
 
@@ -443,45 +445,45 @@ export function DailyEntryPage() {
               flex layout), not at the edges of the sr-only span: accessible-name
               computation trims each nested element's contribution, so edge
               whitespace inside the span is silently dropped. */}
-          <h3><span className="step-n">Step 1</span> <span className="sr-only">of 2:</span> Egg counts</h3>
+          <h3><span className="step-n">{t("stepLabel", { n: 1 })}</span> <span className="sr-only">{t("stepOfTotal")}</span> {t("eggCountsHeading")}</h3>
           <div className="entry-pane">
             <div className="entry-rows">
               <div className="entry-row">
-                <label htmlFor={idFor("total")}>Total eggs</label>
-                <NumberField id={idFor("total")} label="total eggs"
+                <label htmlFor={idFor("total")}>{t("totalEggsLabel")}</label>
+                <NumberField id={idFor("total")} label={t("totalEggsLabel").toLowerCase()}
                   value={totalEggs} onChange={setTotalEggs} disabled={entryLocked} />
               </div>
               <div className="entry-row">
-                <label htmlFor={idFor("cracked")}>Cracked</label>
-                <NumberField id={idFor("cracked")} label="cracked"
+                <label htmlFor={idFor("cracked")}>{t("crackedLabel")}</label>
+                <NumberField id={idFor("cracked")} label={t("crackedLabel").toLowerCase()}
                   value={cracked} onChange={setCracked} disabled={entryLocked} />
               </div>
               <div className="entry-row">
-                <label htmlFor={idFor("dirty")}>Dirty</label>
-                <NumberField id={idFor("dirty")} label="dirty"
+                <label htmlFor={idFor("dirty")}>{t("dirtyLabel")}</label>
+                <NumberField id={idFor("dirty")} label={t("dirtyLabel").toLowerCase()}
                   value={dirty} onChange={setDirty} disabled={entryLocked} />
               </div>
               <div className="entry-row">
-                <label htmlFor={idFor("discarded")}>Discarded</label>
-                <NumberField id={idFor("discarded")} label="discarded"
+                <label htmlFor={idFor("discarded")}>{t("discardedLabel")}</label>
+                <NumberField id={idFor("discarded")} label={t("discardedLabel").toLowerCase()}
                   value={discarded} onChange={setDiscarded} disabled={entryLocked} />
               </div>
               <div className="entry-row">
-                <label htmlFor={idFor("mortality")}>Mortality</label>
-                <NumberField id={idFor("mortality")} label="mortality"
+                <label htmlFor={idFor("mortality")}>{t("mortalityLabel")}</label>
+                <NumberField id={idFor("mortality")} label={t("mortalityLabel").toLowerCase()}
                   value={mortality} onChange={setMortality} disabled={entryLocked} />
               </div>
             </div>
 
             {lossesExceedTotal ? (
               <p className="entry-readout error">
-                Cracked + dirty + discarded ({losses}) exceed total eggs ({totalEggs}).
+                {t("countsExceedTotalMessage", { losses, total: totalEggs })}
               </p>
             ) : (
               /* Shown as a value, not buried in a sentence — it is the target
                  the grading pane has to hit. */
               <p className="entry-readout">
-                <span className="k">Sellable<br />{totalEggs} − {cracked} − {dirty} − {discarded}</span>
+                <span className="k">{t("sellableLabel")}<br />{t("sellableFormula", { total: totalEggs, cracked, dirty, discarded })}</span>
                 <span className="v">{sellable}</span>
               </p>
             )}
@@ -489,7 +491,7 @@ export function DailyEntryPage() {
         </section>
 
         <section className="entry-step">
-          <h3><span className="step-n">Step 2</span> <span className="sr-only">of 2:</span> Grading</h3>
+          <h3><span className="step-n">{t("stepLabel", { n: 2 })}</span> <span className="sr-only">{t("stepOfTotal")}</span> {t("gradingHeading")}</h3>
           <div className="entry-pane">
             <div className="entry-rows">
               {visibleGrades.map((g) => (
@@ -505,7 +507,7 @@ export function DailyEntryPage() {
                     assignRest(g.id);
                   } : undefined}
                 >
-                  <label htmlFor={idFor(g.id)}>{g.name}{g.active ? "" : " (deactivated)"}</label>
+                  <label htmlFor={idFor(g.id)}>{g.name}{g.active ? "" : t("deactivatedGradeSuffix")}</label>
                   <NumberField id={idFor(g.id)} label={g.name.toLowerCase()}
                     value={gradeQty[g.id] ?? 0} onChange={setGrade(g.id)}
                     max={(gradeQty[g.id] ?? 0) + Math.max(0, remaining)}
@@ -518,9 +520,9 @@ export function DailyEntryPage() {
                       each one already holds. */}
                   {assigning && (
                     <button type="button" className="entry-take"
-                      aria-label={`Put all ${remaining} remaining in ${g.name}`}
+                      aria-label={t("takeRemainderAriaLabel", { count: remaining, grade: g.name })}
                       onClick={() => assignRest(g.id)}>
-                      +{remaining}
+                      {t("takeRemainderButton", { count: remaining })}
                     </button>
                   )}
                 </div>
@@ -549,8 +551,8 @@ export function DailyEntryPage() {
                   draggable
                   aria-pressed={assigning}
                   aria-label={assigning
-                    ? "Cancel choosing a grade"
-                    : `Choose a grade for the remaining ${remaining}`}
+                    ? t("disarmAriaLabel")
+                    : t("armAriaLabel", { count: remaining })}
                   onDragStart={(e) => {
                     e.dataTransfer.effectAllowed = "move";
                     // A private type, checked on drop: without it any dragged
@@ -564,7 +566,7 @@ export function DailyEntryPage() {
                   onDragEnd={() => setAssigning(false)}
                   onClick={() => setAssigning((on) => !on)}
                 >
-                  {assigning ? "pick a grade…" : "put all in…"}
+                  {assigning ? t("disarmButton") : t("armButton")}
                 </button>
               )}
             </div>
@@ -588,20 +590,20 @@ export function DailyEntryPage() {
                 copy is phone-only — so the barn was the one place that got
                 "-1 sellable" (review of PR #137). Pane 1 already branches to the
                 explanation; say the same thing here rather than a broken sum. */}
-            {lossesExceedTotal ? "Losses exceed the total — fix the counts" : (
+            {lossesExceedTotal ? t("countsExceedFooterMessage") : (
               <>
-                <b>{sellable}</b> sellable
+                <b>{sellable}</b> {t("sellableWord")}
                 {grading.count !== null && <> · <b>{grading.count}</b> {grading.short}</>}
               </>
             )}
           </p>
           <div className="actions">
             <button disabled={busy || !flockId || lossesExceedTotal || entryLocked || prefillFailed || prefillPending}
-              onClick={() => onSave(false)}>Save draft</button>
+              onClick={() => onSave(false)}>{t("saveDraftButton")}</button>
             <button
               disabled={busy || !flockId || lossesExceedTotal || gradesSum > sellable || entryLocked || prefillFailed || prefillPending}
               onClick={() => onSave(true)}>
-              Save &amp; submit (creates egg lots)
+              {t("submitButton")}
             </button>
           </div>
         </div>

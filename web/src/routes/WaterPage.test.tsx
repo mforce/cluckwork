@@ -8,6 +8,7 @@ import {
 import type { Flock, WaterUsage } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { todayIso } from "../lib/dates";
+import i18n from "../i18n";
 
 // WaterPage's only runtime deps on the API module are the four network fns it
 // imports; mock exactly those. ApiError stays real (../api/client, unmocked) so
@@ -304,5 +305,86 @@ describe("WaterPage pagination", () => {
     // both pages' rows are on screen → page two was appended, not substituted
     expect(screen.getByText("second-page-row")).toBeInTheDocument();
     expect(screen.getByText("first-page-row")).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// i18n wiring (#182, Task 13, batch B2)
+// ---------------------------------------------------------------------------
+
+// `water` is English-only (not in TRANSLATED_NAMESPACES — see
+// translations-status.ts), so under ANY UI language the rendered text falls
+// back to this exact English string, same as a still-hardcoded literal would
+// render — asserting it, even under a non-English locale, would prove nothing
+// (CONTRIBUTING-i18n.md's fallback trap). Swap the catalog value at runtime
+// instead, the same i18n.addResource technique the other batches use, so each
+// marker only renders if the screen actually reads the catalog rather than a
+// literal that happens to still match it.
+describe("WaterPage i18n wiring (#182, Task 13)", () => {
+  function withOverride(ns: string, key: string, value: string, run: () => Promise<void> | void) {
+    const original = i18n.getResource("en", ns, key) as string;
+    i18n.addResource("en", ns, key, value);
+    return Promise.resolve(run()).finally(() => {
+      i18n.addResource("en", ns, key, original);
+    });
+  }
+
+  it("reads the heading from the catalog, not a hardcoded literal", async () => {
+    await withOverride("water", "title", "TITLE-MARKER", async () => {
+      renderWithProviders(<WaterPage />, { token: WORKER });
+      expect(await screen.findByRole("heading", { name: "TITLE-MARKER" })).toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "Water" })).not.toBeInTheDocument();
+    });
+  });
+
+  it("reads the record-water button label from the catalog, not a hardcoded literal", async () => {
+    await withOverride("water", "recordWaterButton", "RECORD-MARKER", async () => {
+      renderWithProviders(<WaterPage />, { token: WORKER });
+      await waitFor(() =>
+        expect(screen.getByRole("button", { name: "RECORD-MARKER" })).toBeEnabled());
+      expect(screen.queryByRole("button", { name: "Record water" })).not.toBeInTheDocument();
+    });
+  });
+
+  // Proves the quantity label reads BOTH the catalog template AND the
+  // enum-labelled (waterUnitLabel) current unit — a hardcoded literal, or one
+  // that interpolated the raw wire value instead of the label, would still
+  // pass a naive check since "L" is its own identity label, but would fail to
+  // pick up the catalog marker text at all.
+  it("interpolates the enum-labelled unit into the quantity label from the catalog", async () => {
+    await withOverride(
+      "water", "quantityLabelWithUnit", "QTY-MARKER {{unit}} MARKER-END",
+      async () => {
+        renderWithProviders(<WaterPage />, { token: WORKER });
+        expect(await screen.findByLabelText("QTY-MARKER L MARKER-END")).toBeInTheDocument();
+        expect(screen.queryByLabelText(/^Quantity/)).not.toBeInTheDocument();
+      },
+    );
+  });
+
+  it("reads the positive-quantity validation message from the catalog, not a hardcoded literal", async () => {
+    await withOverride("water", "quantityMustBePositive", "QTY-ERROR-MARKER", async () => {
+      await renderReadyForm(WORKER);
+      fireEvent.change(screen.getByLabelText(/Quantity/), { target: { value: "0" } });
+      const form = screen.getByRole("button", { name: "Record water" }).closest("form")!;
+      await act(async () => { fireEvent.submit(form); });
+      expect(screen.getByText("QTY-ERROR-MARKER")).toBeInTheDocument();
+      expect(screen.queryByText("Quantity must be a positive number.")).not.toBeInTheDocument();
+    });
+  });
+
+  // The success message is built with the imperative i18n.t() (onSubmit is an
+  // event handler, not render — see CONTRIBUTING-i18n.md).
+  it("reads the recorded success message from the catalog, not a hardcoded literal", async () => {
+    mockRecordWaterUsage.mockResolvedValue({ id: "w9" });
+    await withOverride("water", "recordedMessage", "RECORDED-MARKER", async () => {
+      await renderReadyForm(WORKER);
+      fireEvent.change(screen.getByLabelText(/Quantity/), { target: { value: "5" } });
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "Record water" }));
+      });
+      expect(await screen.findByText("RECORDED-MARKER")).toBeInTheDocument();
+      expect(screen.queryByText("Water recorded.")).not.toBeInTheDocument();
+    });
   });
 });
