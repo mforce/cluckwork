@@ -4,6 +4,12 @@ import { en } from "./en";
 import { es } from "./es";
 import { tl } from "./tl";
 
+// English-first parity allowlist (#182) — see translations-status.ts for the
+// full rationale. Re-exported here so both the parity test and future code can
+// import it from the same place as SUPPORTED_LANGUAGES/RESOURCES.
+export { TRANSLATED_NAMESPACES } from "./translations-status";
+export type { TranslatedNamespace } from "./translations-status";
+
 // Add codes here as packs ship; resolveLanguage + the language selector both
 // key off this list, so a pack becomes selectable and resolvable the moment
 // it is added. es/tl (#182) are machine-drafted — see the header comment in
@@ -36,6 +42,17 @@ void i18n.use(initReactI18next).init({
   // literal key, never a nested lookup.
   keySeparator: false,
   returnNull: false,
+});
+
+// Keep <html lang> in sync with the UI language for a11y/SEO correctness.
+// "languageChanged" fires synchronously from changeLanguage (i18next-http/react
+// wrapper aside), and the no-flash bootstrap in SessionProvider awaits
+// changeLanguage BEFORE revealing the gated shell — so registering the
+// listener once here (rather than at each changeLanguage call site) covers
+// both the initial resolved-language switch and every later switch from
+// LanguageSelector, with no risk of a call site forgetting to set it.
+i18n.on("languageChanged", (lng) => {
+  document.documentElement.lang = lng;
 });
 
 export default i18n;

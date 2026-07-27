@@ -6,7 +6,21 @@ export const en = {
   common: {
     cancel: "Cancel",
     save: "Save",
+    close: "Close",
+    delete: "Delete",
+    edit: "Edit",
+    add: "Add",
+    confirm: "Confirm",
+    loading: "Loading…",
     retry: "retry",
+    required: "Required",
+    optional: "Optional",
+    actions: "Actions",
+    search: "Search",
+    all: "All",
+    none: "None",
+    yes: "Yes",
+    no: "No",
   },
   auth: {
     title: "Cluckwork",
@@ -41,7 +55,6 @@ export const en = {
     // Buttons
     newOrder: "New order",
     newDraftOrder: "New draft order",
-    cancel: "Cancel",
     save: "save",
     cancelEdit: "cancel",
     edit: "edit",
@@ -49,6 +62,10 @@ export const en = {
     addLine: "Add line",
     confirmOrderButton: "Confirm order (allocates stock)",
     cancelDraft: "Cancel draft",
+    // Intentional screen-specific lowercase variant, distinct from
+    // common.close ("Close") — matches this page's lowercase link-styled
+    // buttons (edit/remove/open/load more, above/below). Not a dup: same
+    // meaning, different case, so it stays here rather than merging (#182).
     close: "close",
     voidPaymentButton: "void",
     recordPayment: "Record payment",
@@ -83,6 +100,12 @@ export const en = {
     editUnitPriceAriaLabel: "Edit unit price",
 
     // Status-filter options
+    // NOTE (#182, Task 5): these four are a TEMPORARY translated duplicate of
+    // enums:status.{Draft,Confirmed,Cancelled,Voided} — es/tl carry real
+    // translations here, while `enums` is English-only, so the filter dropdown
+    // stays on this namespace rather than regressing to English-only labels.
+    // Reconcile when status gets its native-translation pass: migrate this
+    // dropdown to a then-translated enums:status and delete these four keys.
     allOption: "All",
     statusDraft: "Draft",
     statusConfirmed: "Confirmed",
@@ -147,6 +170,122 @@ export const en = {
     paymentRecorded: "Payment recorded.",
     paymentVoided: "Payment voided — the outstanding amount grew back.",
     orderVoided: "Order {{ref}} voided — stock returned to inventory.",
+  },
+  // Closed-vocabulary labels (#182, Task 4). Consumed ONLY through the typed
+  // helpers in enums.ts — never a raw t("enums:status." + value). Keys are FLAT
+  // "family.RawValue" strings (keySeparator:false, see index.ts): the suffix is
+  // the EXACT wire value the API sends, so the helper's Record can map value →
+  // key mechanically and the key is self-documenting. English-only for now —
+  // `enums` is deliberately NOT in TRANSLATED_NAMESPACES, so es/tl fall back to
+  // these strings until a native enum-translation pass lands.
+  //
+  // Labels are chosen to be TEXT-PRESERVING on retrofit (Task 5+) — a screen
+  // wired to a helper keeps its current text — EXCEPT at two sites the retrofit
+  // changes DELIBERATELY (its reviewer must eyeball them):
+  //   1. Dashboard.tsx (`<StatusBadge status={e.status} />`, no label) shows a
+  //      ManagerAdjusted entry RAW today; statusLabel makes it read "Adjusted" —
+  //      the text HistoryPage already shows for that state via its own bespoke
+  //      `<span className="badge badge-warn">Adjusted</span>` (HistoryPage.tsx
+  //      249-250), NOT a StatusBadge label.
+  //   2. UsersPage.tsx role table cell renders raw `{u.role}` = "ReadOnly";
+  //      roleLabel makes it read "Read-only" (matching the picker option).
+  // Payment method and sale unit are intentionally absent — they belong to the
+  // TRANSLATED `sales` namespace (sales:method*/unit*, which carry es/tl), and
+  // duplicating them here (English-only) would regress that coverage.
+  enums: {
+    // status — StatusBadge's STATUS_VALUES vocabulary. Identity except
+    // ManagerAdjusted, whose pill reads "Adjusted".
+    "status.Active": "Active",
+    "status.Inactive": "Inactive",
+    "status.Draft": "Draft",
+    "status.Submitted": "Submitted",
+    "status.Locked": "Locked",
+    "status.ManagerAdjusted": "Adjusted",
+    "status.Voided": "Voided",
+    "status.Confirmed": "Confirmed",
+    "status.Shipped": "Shipped",
+    "status.Invoiced": "Invoiced",
+    "status.Cancelled": "Cancelled",
+    "status.Depleted": "Depleted",
+    "status.Archived": "Archived",
+
+    // role (UsersPage) — Roles.Assignable + Worker. "ReadOnly" labelled
+    // "Read-only" (matches the picker option); the raw u.role table column and
+    // the picker's "Admin (owner)" hint are noted in the report as retrofit
+    // discrepancies.
+    "role.Worker": "Worker",
+    "role.Admin": "Admin",
+    "role.Manager": "Manager",
+    "role.Sales": "Sales",
+    "role.ReadOnly": "Read-only",
+
+    // water source (WaterPage picker) — WaterSource enum.
+    "waterSource.Well": "Well",
+    "waterSource.Municipal": "Municipal",
+    "waterSource.Tank": "Tank",
+    "waterSource.Other": "Other",
+
+    // water unit (WaterPage picker) — WaterUsage.AllowedUnits, a fixed 2-value
+    // set. Labels are the unit symbols, unchanged.
+    "waterUnit.L": "L",
+    "waterUnit.gal": "gal",
+
+    // grade type (GradesPage picker) — EggGradeType enum.
+    "gradeType.Size": "Size",
+    "gradeType.Quality": "Quality",
+    "gradeType.Custom": "Custom",
+
+    // inventory category (InventoryPage picker) — InventoryCategory enum.
+    // "EquipmentPart" kept as one word to match current display.
+    "inventoryCategory.Feed": "Feed",
+    "inventoryCategory.Supplement": "Supplement",
+    "inventoryCategory.Additive": "Additive",
+    "inventoryCategory.Medication": "Medication",
+    "inventoryCategory.Vaccine": "Vaccine",
+    "inventoryCategory.Packaging": "Packaging",
+    "inventoryCategory.Bedding": "Bedding",
+    "inventoryCategory.Sanitation": "Sanitation",
+    "inventoryCategory.EquipmentPart": "EquipmentPart",
+    "inventoryCategory.Other": "Other",
+
+    // inventory movement type (InventoryPage ledger) — InventoryMovementType
+    // enum. The ledger shows the raw server value, so the full enum is covered
+    // (the adjust picker only offers Adjustment/Discard).
+    "inventoryMovement.Purchase": "Purchase",
+    "inventoryMovement.Usage": "Usage",
+    "inventoryMovement.Adjustment": "Adjustment",
+    "inventoryMovement.Discard": "Discard",
+
+    // flock (bird) movement type (FlocksPage ledger) — BirdMovementType enum.
+    // Mortality is system-generated (from daily-entry deaths); the record picker
+    // only offers Cull/Adjustment.
+    "flockMovement.Mortality": "Mortality",
+    "flockMovement.Cull": "Cull",
+    "flockMovement.Adjustment": "Adjustment",
+
+    // egg stock movement type (StockPage lot ledger) — EggMovementType enum.
+    // "InternalUse" kept as one word to match current display.
+    "stockMovement.Production": "Production",
+    "stockMovement.Sale": "Sale",
+    "stockMovement.Adjustment": "Adjustment",
+    "stockMovement.Discard": "Discard",
+    "stockMovement.InternalUse": "InternalUse",
+    "stockMovement.Transfer": "Transfer",
+    "stockMovement.Reconciliation": "Reconciliation",
+    "stockMovement.Void": "Void",
+
+    // unit system (SettingsPage picker) — UnitSystem enum.
+    "unitSystem.Metric": "Metric",
+    "unitSystem.Imperial": "Imperial",
+
+    // weekday (SettingsPage week-start picker) — standalone day-name labels.
+    "weekday.Sunday": "Sunday",
+    "weekday.Monday": "Monday",
+    "weekday.Tuesday": "Tuesday",
+    "weekday.Wednesday": "Wednesday",
+    "weekday.Thursday": "Thursday",
+    "weekday.Friday": "Friday",
+    "weekday.Saturday": "Saturday",
   },
 } as const;
 

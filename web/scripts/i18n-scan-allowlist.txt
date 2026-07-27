@@ -1,0 +1,37 @@
+# i18n-scan allowlist — intentional survivors of scripts/i18n-scan.mjs.
+#
+# Format: one entry per line, `<path>:<substring>`.
+#   <path>      the file path AS PRINTED by the scan (relative to wherever it
+#               was invoked from — i.e. relative to `web/` for the default
+#               `npm run i18n:scan`).
+#   <substring> plain text matched against the hit's value with `.includes()`
+#               (NOT a regex) — enough of the literal to be unambiguous for
+#               that file, not necessarily the whole string.
+#
+# Blank lines and lines starting with `#` are ignored. A line that doesn't
+# match any current hit is inert (harmless) rather than an error — e.g. the
+# index.html entry below only matters once a future full-tree pass (#182,
+# Task 34: "run the hardcoded-string scan across ALL web/src + index.html")
+# includes that file; the default `src/routes src/components` scan never
+# reaches it.
+#
+# What belongs here: DATA (format examples, codes), test-only scaffolding,
+# the app's own BRAND name where it isn't prose, and anything the scan
+# flags that a real screen-by-screen review confirms is not translatable UI
+# copy. What does NOT belong here: a real hardcoded string just because its
+# screen hasn't been swept yet — that's exactly what the COUNT is supposed
+# to track batch-over-batch; allowlisting it would hide the regression this
+# tool exists to catch.
+#
+# `alt=""` and a plain `ApiError.message` render are already excluded by the
+# scan's own design (no letters / not a string literal, respectively) — see
+# the CONTRIBUTING-i18n.md "Hardcoded-string scan" section — so neither needs
+# an entry here.
+
+# Locale-code FORMAT EXAMPLE in the timezone/locale override hint, not prose
+# ("en-US" is data — a BCP-47 example — not a sentence to translate).
+src/routes/SettingsPage.tsx:en-US
+
+# Brand name, not prose. Only reachable when a future pass adds index.html to
+# the scanned paths (see the header comment above).
+index.html:Cluckwork

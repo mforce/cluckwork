@@ -16,8 +16,16 @@ import { StatusBadge } from "../components/StatusBadge";
 import { newId } from "../lib/ids";
 import { useFarm, useFarmToday } from "../farm/useFarm";
 import i18n from "../i18n";
+import { statusLabel } from "../i18n/enums";
 
 const PAGE = 50;
+
+// The sole RAW payment-method render site (below) mirrors the SAME six-value
+// vocabulary as the payment-method picker in this file (which already renders
+// via the translated sales:method* keys) rather than the English-only `enums`
+// module — method was deliberately left out of enums in Task 4 because it
+// already carries es/tl translations in the `sales` namespace (#182).
+type PaymentMethod = "Cash" | "Check" | "Card" | "BankTransfer" | "MobilePayment" | "Other";
 
 function errText(err: unknown): string {
   if (err instanceof ApiError) return err.message;
@@ -38,6 +46,7 @@ function priceInput(defaultPriceMinorUnits: number | null, scale: number | null)
 // confirm (FIFO allocation), cancel drafts, browse/filter the order list.
 export function SalesPage() {
   const { t } = useTranslation("sales");
+  const { t: tc } = useTranslation("common");
   // Farm-local, not browser-local: since #35 the API judges "is this date in
   // the future?" against the FARM's day, so the pickers must agree (#123).
   const today = useFarmToday();
@@ -430,7 +439,7 @@ export function SalesPage() {
           {/* An open dialog renders its own copy of the error. */}
       {error && !creatingOrder && !paying && <p className="error">{error}</p>}
           <div className="dialog-foot">
-            <button type="button" className="link" onClick={() => setCreatingOrder(false)}>{t("cancel")}</button>
+            <button type="button" className="link" onClick={() => setCreatingOrder(false)}>{tc("cancel")}</button>
             <button disabled={busy || !customerId} onClick={onCreateOrder}>{t("newDraftOrder")}</button>
           </div>
         </div>
@@ -440,7 +449,9 @@ export function SalesPage() {
         <div className="order-panel">
           <h3>
             {active.referenceNumber} — {customerName(active.customerId)}{" "}
-            <span className={active.status === "Draft" ? "muted" : "warn"}>[{active.status}]</span>
+            <span className={active.status === "Draft" ? "muted" : "warn"}>
+              [{statusLabel(active.status)}]
+            </span>
           </h3>
 
           {active.items.length > 0 && (
@@ -554,7 +565,7 @@ export function SalesPage() {
                         title={p.note ?? undefined}>
                         <td>{p.paymentDate}</td>
                         <td>{formatMoney(p.amountMinorUnits, p.currencyCode, p.currencyMinorUnit)}</td>
-                        <td>{p.method}</td>
+                        <td>{t(`method${p.method as PaymentMethod}`)}</td>
                         <td>{p.referenceNumber ?? "—"}</td>
                         <td>
                           {p.voided
@@ -620,7 +631,7 @@ export function SalesPage() {
                   {/* An open dialog renders its own copy of the error. */}
       {error && !creatingOrder && !paying && <p className="error">{error}</p>}
                   <div className="dialog-foot">
-                    <button type="button" className="link" onClick={() => setPaying(false)}>{t("cancel")}</button>
+                    <button type="button" className="link" onClick={() => setPaying(false)}>{tc("cancel")}</button>
                     <button disabled={busy || !payAmount} onClick={onRecordPayment}>
                       {t("recordPayment")}
                     </button>
@@ -684,7 +695,7 @@ export function SalesPage() {
                   <td>{o.referenceNumber}</td>
                   <td>{o.orderDate}</td>
                   <td>{customerName(o.customerId)}</td>
-                  <td><StatusBadge status={o.status} /></td>
+                  <td><StatusBadge status={o.status} label={statusLabel(o.status)} /></td>
                   <td>{formatMoney(o.totalMinorUnits, o.currencyCode, o.currencyMinorUnit)}</td>
                   <td><button className="link" onClick={() => onOpen(o.id)}>{t("open")}</button></td>
                 </tr>
