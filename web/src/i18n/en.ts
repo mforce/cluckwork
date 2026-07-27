@@ -787,6 +787,66 @@ export const en = {
     eggsPerUnitHeader: "Eggs per unit",
     alwaysOneMessage: "always 1",
   },
+  // Egg stock summary + drill-down screen — by-grade balances expand into
+  // lots, and each lot expands into its movement ledger (Task 18, #182, batch
+  // B3 — the last B3 screen). English-only for now, same treatment as
+  // nav/numberField/errorBoundary/themeToggle/useConfirm/pwa/dailyEntry/
+  // dashboard/water/grades/inventory/products above: `stock` is deliberately
+  // NOT in TRANSLATED_NAMESPACES, so es/tl fall back to these strings until a
+  // native-speaker pass adds the namespace. The one closed-vocabulary display
+  // on this screen — the movement ledger's Type cell — goes through the
+  // `enums` `stockMovementLabel` helper, not a key here — see StockPage.tsx.
+  // All eight EggMovementType values are identity-labelled in English today,
+  // so wiring it changes nothing visible (confirmed in the report). There is
+  // no Active/Inactive status display on this screen. Grade/lot names, dates,
+  // and quantity/delta values are free-form farm DATA, not client copy, and
+  // stay raw — never routed through the catalog or an enum helper.
+  stock: {
+    title: "Stock",
+
+    // Imperative messages (mount-effect / drill-down catch handlers — see
+    // CONTRIBUTING-i18n.md's imperative i18n.t() pattern).
+    loadStockFailed: "Could not load stock. Is the API up?",
+    loadLotsFailed: "Could not load the grade's lots.",
+    loadMovementsFailed: "Could not load the lot's movements.",
+
+    noStockMessage: "No stock yet — record and submit a daily entry.",
+
+    // By-grade stock table
+    gradeHeader: "Grade",
+    // Shared by BOTH tables on this screen (by-grade balances + the lots
+    // drill-down) — same word, same "quantity available" meaning, on the
+    // same page, same treatment as products:statusHeader.
+    availableHeader: "Available",
+    restrictedHeader: "Restricted",
+    lotsButton: "lots",
+    hideLotsButton: "hide lots",
+    // {{available}}/{{grades}} are the client-side reduce totals — plain
+    // numeric DATA, not enum-labelled.
+    totalAvailableMessage:
+      "{{available}} eggs available across {{grades}} grade(s). "
+      + "Restricted = under medication withdrawal, blocked from sale.",
+
+    // Lots drill-down (per grade)
+    lotsHeading: "Lots",
+    noLotsMessage: "No lots for this grade yet.",
+    producedOnHeader: "Produced on",
+    producedHeader: "Produced",
+    historyButton: "history",
+    hideHistoryButton: "hide history",
+
+    // Movement ledger drill-down (per lot). Type reads the RAW server value
+    // through stockMovementLabel — the full EggMovementType enum is covered
+    // (there is no picker on this read-only screen).
+    movementLedgerHeading: "Movement ledger",
+    movementLedgerIntro:
+      "Every change to this lot's available eggs — the running sum always "
+      + "equals the balance above.",
+    ledgerWhenHeader: "When (UTC)",
+    ledgerTypeHeader: "Type",
+    ledgerChangeHeader: "Change",
+    ledgerReasonHeader: "Reason",
+  },
   // Closed-vocabulary labels (#182, Task 4). Consumed ONLY through the typed
   // helpers in enums.ts — never a raw t("enums:status." + value). Keys are FLAT
   // "family.RawValue" strings (keySeparator:false, see index.ts): the suffix is

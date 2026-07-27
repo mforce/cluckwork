@@ -3,6 +3,7 @@ import { render, screen, within, fireEvent } from "@testing-library/react";
 import { StockPage } from "./StockPage";
 import { getStock, listEggLots, listEggLotMovements } from "../api/cluckwork";
 import type { StockRow, EggLotRow, EggMovementRow } from "../api/cluckwork";
+import i18n from "../i18n";
 
 // Mock the API seam so the screen renders against controlled data — no network,
 // no backend. This proves the component test harness handles an async data load,
@@ -175,5 +176,100 @@ describe("StockPage drill-down", () => {
     fireEvent.click(within(screen.getByRole("row", { name: /Grade A\b/ })).getByRole("button", { name: "lots" }));
     expect(await screen.findByText(/Could not load the grade's lots/)).toBeInTheDocument();
     expect(screen.getByText("Grade A")).toBeInTheDocument(); // table still there
+  });
+});
+
+// ---------------------------------------------------------------------------
+// i18n wiring (#182, Task 18, batch B3 — the last B3 screen)
+// ---------------------------------------------------------------------------
+
+// `stock` is English-only (not in TRANSLATED_NAMESPACES — see
+// translations-status.ts), so under ANY UI language the rendered text falls
+// back to this exact English string, same as a still-hardcoded literal would
+// render — asserting it, even under a non-English locale, would prove nothing
+// (CONTRIBUTING-i18n.md's fallback trap). Swap the catalog value at runtime
+// instead, the same i18n.addResource technique the other batches use, so each
+// marker only renders if the screen actually reads the catalog rather than a
+// literal that happens to still match it.
+describe("StockPage i18n wiring (#182, Task 18)", () => {
+  function withOverride(ns: string, key: string, value: string, run: () => Promise<void> | void) {
+    const original = i18n.getResource("en", ns, key) as string;
+    i18n.addResource("en", ns, key, value);
+    return Promise.resolve(run()).finally(() => {
+      i18n.addResource("en", ns, key, original);
+    });
+  }
+
+  it("reads the heading from the catalog, not a hardcoded literal", async () => {
+    await withOverride("stock", "title", "TITLE-MARKER", async () => {
+      mockGetStock.mockResolvedValue(ROWS);
+      render(<StockPage />);
+      expect(await screen.findByRole("heading", { name: "TITLE-MARKER" })).toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "Stock" })).not.toBeInTheDocument();
+    });
+  });
+
+  it("reads the empty-state message from the catalog, not a hardcoded literal", async () => {
+    await withOverride("stock", "noStockMessage", "NO-STOCK-MARKER", async () => {
+      mockGetStock.mockResolvedValue([]);
+      render(<StockPage />);
+      expect(await screen.findByText("NO-STOCK-MARKER")).toBeInTheDocument();
+      expect(screen.queryByText(/No stock yet/)).not.toBeInTheDocument();
+    });
+  });
+
+  it("reads the lots-toggle button label from the catalog, not a hardcoded literal", async () => {
+    await withOverride("stock", "lotsButton", "LOTS-MARKER", async () => {
+      mockGetStock.mockResolvedValue(ROWS);
+      render(<StockPage />);
+      const gradeA = await screen.findByRole("row", { name: /Grade A\b/ });
+      expect(within(gradeA).getByRole("button", { name: "LOTS-MARKER" })).toBeInTheDocument();
+      expect(within(gradeA).queryByRole("button", { name: "lots" })).not.toBeInTheDocument();
+    });
+  });
+
+  // Proves the muted summary reads BOTH totals (the client-side reduce over
+  // `rows`) from the catalog template — a hardcoded literal would fail to pick
+  // up the marker text even though the numbers would still look right.
+  it("interpolates the stock totals into the summary message from the catalog", async () => {
+    await withOverride(
+      "stock", "totalAvailableMessage", "TOTAL-MARKER {{available}} of {{grades}} MARKER-END",
+      async () => {
+        mockGetStock.mockResolvedValue(ROWS);
+        render(<StockPage />);
+        expect(await screen.findByText("TOTAL-MARKER 150 of 2 MARKER-END")).toBeInTheDocument();
+        expect(screen.queryByText(/eggs available across/)).not.toBeInTheDocument();
+      },
+    );
+  });
+
+  // Proves the ledger's Type cell reads the enum label from the catalog (via
+  // stockMovementLabel), not a hardcoded literal or the raw wire value —
+  // MOVEMENTS' movementType is "Production".
+  it("reads the movement-type enum label from the catalog for the ledger cell", async () => {
+    await withOverride("enums", "stockMovement.Production", "PRODUCTION-MARKER", async () => {
+      mockGetStock.mockResolvedValue(ROWS);
+      mockListEggLots.mockResolvedValue(LOTS);
+      mockListEggLotMovements.mockResolvedValue(MOVEMENTS);
+      render(<StockPage />);
+      await screen.findByText("Grade A");
+      fireEvent.click(within(screen.getByRole("row", { name: /Grade A\b/ })).getByRole("button", { name: "lots" }));
+      const lotRow = await screen.findByRole("row", { name: /2026-07-01/ });
+      fireEvent.click(within(lotRow).getByRole("button", { name: "history" }));
+      expect(await screen.findByText("PRODUCTION-MARKER")).toBeInTheDocument();
+      expect(screen.queryByText("Production")).not.toBeInTheDocument();
+    });
+  });
+
+  it("reads the load-lots-failed message from the catalog, not a hardcoded literal", async () => {
+    await withOverride("stock", "loadLotsFailed", "LOAD-LOTS-MARKER", async () => {
+      mockGetStock.mockResolvedValue(ROWS);
+      mockListEggLots.mockRejectedValue(new Error("lots down"));
+      render(<StockPage />);
+      await screen.findByText("Grade A");
+      fireEvent.click(within(screen.getByRole("row", { name: /Grade A\b/ })).getByRole("button", { name: "lots" }));
+      expect(await screen.findByText("LOAD-LOTS-MARKER")).toBeInTheDocument();
+      expect(screen.queryByText(/Could not load the grade's lots/)).not.toBeInTheDocument();
+    });
   });
 });
