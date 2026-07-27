@@ -23,8 +23,8 @@ using Microsoft.Extensions.DependencyInjection;
 //
 // These tests hold one side's lock on a raw transaction and drive the REAL
 // handler on the other side, so they pin the handlers' participation in the
-// protocol — not a re-simulation of it. Blocking is detected via pg_locks
-// (an ungranted lock on "Accounts"), never a timing guess.
+// protocol — not a re-simulation of it. Blocking is detected via
+// pg_blocking_pids against the holder's backend pid, never a timing guess.
 [Collection(IntegrationCollection.Name)]
 public sealed class CurrencyLockRaceTests(CluckworkWebApplicationFactory factory)
 {
@@ -53,34 +53,38 @@ public sealed class CurrencyLockRaceTests(CluckworkWebApplicationFactory factory
         return categoryId;
     }
 
-    // True while some backend sits blocked, mid-statement, on a query that
-    // touches "Accounts" — the observable fact that the protocol serialized
-    // the two sides. Row-lock waits park on the HOLDER's transactionid (not
-    // an ungranted relation lock), so pg_blocking_pids is the reliable probe;
-    // the query filter keeps parallel test classes from tripping this one.
-    private async Task<bool> AnyoneBlockedOnAccountsAsync()
+    // True while some backend sits blocked on a lock HELD BY the given
+    // backend — the observable fact that the protocol serialized the two
+    // sides. Row-lock waits park on the holder's transactionid (not an
+    // ungranted relation lock), so pg_blocking_pids is the reliable probe;
+    // keying on the holder's pid (instead of grepping query text, where a
+    // parameterized account id never appears) makes this immune to parallel
+    // test classes touching "Accounts" on their own rows.
+    private async Task<bool> AnyoneBlockedBehindAsync(int holderPid)
     {
         var blocked = false;
         await factory.WithTenantScopeAsync(Guid.NewGuid(), async db =>
         {
             blocked = (await db.Database.SqlQuery<long>($"""
                 SELECT count(*) AS "Value" FROM pg_stat_activity
-                WHERE cardinality(pg_blocking_pids(pid)) > 0
-                  AND query ILIKE '%Accounts%'
+                WHERE pg_blocking_pids(pid) @> ARRAY[{holderPid}]
                 """).SingleAsync()) > 0;
         });
         return blocked;
     }
 
+    private static Task<int> BackendPidAsync(AppDbContext db) =>
+        db.Database.SqlQuery<int>($"""SELECT pg_backend_pid() AS "Value" """).SingleAsync();
+
     // Polls until the competing task either finishes (no lock protocol — the
-    // pre-#162 behavior) or provably parks on the account row's lock.
-    private async Task<bool> WaitUntilDoneOrBlockedAsync(Task competing)
+    // pre-#162 behavior) or provably parks behind the holder's lock.
+    private async Task<bool> WaitUntilDoneOrBlockedAsync(Task competing, int holderPid)
     {
         var stopAt = DateTime.UtcNow + Deadline;
         while (DateTime.UtcNow < stopAt)
         {
             if (competing.IsCompleted) return false;
-            if (await AnyoneBlockedOnAccountsAsync()) return true;
+            if (await AnyoneBlockedBehindAsync(holderPid)) return true;
             await Task.Delay(50);
         }
         throw new TimeoutException("Neither completion nor a lock wait was observed.");
@@ -114,6 +118,7 @@ public sealed class CurrencyLockRaceTests(CluckworkWebApplicationFactory factory
             Guid.NewGuid(), accountId, SeedDefaults.FarmId, categoryId,
             DateOnly.FromDateTime(DateTime.UtcNow.Date), "First ever expense", 12_00, "USD", 2));
         await dbA.SaveChangesAsync();
+        var holderPid = await BackendPidAsync(dbA);
 
         // B = the real settings handler changing the currency.
         var change = Task.Run(async () =>
@@ -124,7 +129,7 @@ public sealed class CurrencyLockRaceTests(CluckworkWebApplicationFactory factory
             return await handler.HandleAsync(ChangeCurrencyCommand(snapshot), CancellationToken.None);
         });
 
-        var blocked = await WaitUntilDoneOrBlockedAsync(change);
+        var blocked = await WaitUntilDoneOrBlockedAsync(change, holderPid);
 
         // Pre-#162 behavior: the change completed (successfully!) while the
         // writer was still uncommitted — the corruption this slice closes.
@@ -141,6 +146,76 @@ public sealed class CurrencyLockRaceTests(CluckworkWebApplicationFactory factory
             Assert.Equal("USD", account.DefaultCurrencyCode);
             var expense = await db.Expenses.AsNoTracking().SingleAsync();
             Assert.Equal("USD", expense.CurrencyCode);
+        });
+    }
+
+    // The theory below proves each handler's locked READ blocks — but a
+    // handler whose FOR SHARE evaporates on autocommit (read locked, insert
+    // in a separate statement) would pass it too. This pins the transaction
+    // boundary itself, writer-first, with REAL handlers on BOTH sides:
+    //
+    //   fence (raw FOR UPDATE) parks the writer at its read AND the settings
+    //   change behind the same row; on release, Postgres wakes the queue in
+    //   order — the writer's shared lock is granted first and the change's
+    //   FOR UPDATE stays parked until the writer COMMITS. The change must
+    //   then see the committed expense and refuse.
+    //
+    // Under the evaporating-lock mutant the change is no longer fenced by
+    // the writer's transaction and (usually) slips between its read and its
+    // insert — succeeding where this test demands refusal. That detection is
+    // probabilistic (the writer can still win the sprint), but the protocol
+    // assertion under CORRECT code is deterministic: queue order is FIFO.
+    [Fact]
+    public async Task WriterFirst_TheChangeWaitsOutTheWriterTransaction_NotJustItsRead()
+    {
+        var accountId = await SeedFarmAsync();
+        var categoryId = await SeedCategoryAsync(accountId);
+        Account snapshot = null!;
+        await factory.WithTenantScopeAsync(accountId,
+            async db => snapshot = await db.Accounts.AsNoTracking().SingleAsync());
+
+        // The fence: parks both parties without changing anything.
+        using var scopeA = factory.Services.CreateScope();
+        scopeA.ServiceProvider.GetRequiredService<TenantContext>().Resolve(accountId);
+        var dbA = scopeA.ServiceProvider.GetRequiredService<AppDbContext>();
+        await using var transactionA = await dbA.Database.BeginTransactionAsync();
+        await dbA.Database.ExecuteSqlInterpolatedAsync(
+            $"""SELECT 1 FROM "Accounts" WHERE "Id" = {accountId} FOR UPDATE""");
+        var holderPid = await BackendPidAsync(dbA);
+
+        var write = Task.Run(async () =>
+        {
+            using var scope = factory.Services.CreateScope();
+            scope.ServiceProvider.GetRequiredService<TenantContext>().Resolve(accountId);
+            return await RunHandlerAsync("expense", scope.ServiceProvider,
+                accountId, new Seeded(CategoryId: categoryId));
+        });
+        Assert.True(await WaitUntilDoneOrBlockedAsync(write, holderPid),
+            "the writer must park on the fence first, so it heads the lock queue");
+
+        var change = Task.Run(async () =>
+        {
+            using var scope = factory.Services.CreateScope();
+            scope.ServiceProvider.GetRequiredService<TenantContext>().Resolve(accountId);
+            var handler = scope.ServiceProvider.GetRequiredService<UpdateFarmSettingsHandler>();
+            return await handler.HandleAsync(ChangeCurrencyCommand(snapshot), CancellationToken.None);
+        });
+        Assert.True(await WaitUntilDoneOrBlockedAsync(change, holderPid),
+            "the change must queue up behind the same fence");
+
+        // Release the fence without having changed anything. Writer commits
+        // first (queue head); the change then sees its row and refuses.
+        await transactionA.RollbackAsync();
+        var writeError = await write;
+        var result = await change;
+
+        Assert.True(writeError is null, $"the writer must commit: {writeError}");
+        Assert.True(result.IsFailure, "the change must wait out the writer's WHOLE transaction and refuse");
+        Assert.Equal("Account.CurrencyLocked", result.Error.Code);
+        await factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            Assert.Equal("USD", (await db.Accounts.AsNoTracking().SingleAsync()).DefaultCurrencyCode);
+            Assert.Equal("USD", (await db.Expenses.AsNoTracking().SingleAsync()).CurrencyCode);
         });
     }
 
@@ -173,7 +248,8 @@ public sealed class CurrencyLockRaceTests(CluckworkWebApplicationFactory factory
         await dbA.Database.ExecuteSqlInterpolatedAsync(
             $"""SELECT 1 FROM "Accounts" WHERE "Id" = {accountId} FOR UPDATE""");
         await dbA.Database.ExecuteSqlInterpolatedAsync(
-            $"""UPDATE "Accounts" SET "DefaultCurrencyCode" = 'JPY', "DefaultCurrencyMinorUnit" = 0 WHERE "Id" = {accountId}""");
+            $"""UPDATE "Accounts" SET "DefaultCurrencyCode" = 'JPY', "DefaultCurrencyMinorUnit" = 0, "Version" = "Version" + 1 WHERE "Id" = {accountId}""");
+        var holderPid = await BackendPidAsync(dbA);
 
         // B = the real handler. It must park on the shared lock and, once the
         // change commits, stamp the NEW currency — not the stale one it would
@@ -185,7 +261,7 @@ public sealed class CurrencyLockRaceTests(CluckworkWebApplicationFactory factory
             return await RunHandlerAsync(handlerKey, scopeB.ServiceProvider, accountId, seeded);
         });
 
-        var blocked = await WaitUntilDoneOrBlockedAsync(write);
+        var blocked = await WaitUntilDoneOrBlockedAsync(write, holderPid);
         Assert.True(blocked, $"{handlerKey} must park on the account row's lock, not stamp the stale currency");
 
         await transactionA.CommitAsync();

@@ -62,6 +62,13 @@ public sealed class UpdateFarmSettingsHandler(
         Result result = Result.Success();
         var committed = await unitOfWork.ExecuteInTransactionAsync(async token =>
         {
+            // Result discarded on purpose. The call exists for the lock; the
+            // identity map hands back the SAME instance as `account` above
+            // and deliberately does not refresh its values, so capturing it
+            // would change nothing. Staleness is guarded elsewhere: Version
+            // is an EF concurrency token, so an interleaved settings save
+            // makes THIS save throw DbUpdateConcurrencyException (→ the
+            // global 409) instead of silently losing the other's write.
             await accounts.GetCurrentLockedAsync(token);
 
             var before = Snapshot(account);
