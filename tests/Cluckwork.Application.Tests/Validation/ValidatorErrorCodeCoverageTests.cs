@@ -2,6 +2,7 @@ namespace Cluckwork.Application.Tests.Validation;
 
 using System.Reflection;
 using Cluckwork.Application.Common;
+using Cluckwork.Application.Features.DailyEntries.RecordDailyEntry;
 using Cluckwork.Application.Tests.Common;
 using FluentValidation;
 using FluentValidation.Validators;
@@ -47,6 +48,23 @@ public sealed class ValidatorErrorCodeCoverageTests
                 + $"(add .WithErrorCode(\"Feature.Field.Rule\")):\n{string.Join("\n", offenders)}");
     }
 
+    // Guards the guard: the recursion into inline RuleForEach(...).ChildRules relies
+    // on reflecting a private ChildValidatorAdaptor field (no public accessor exists).
+    // A FluentValidation upgrade could rename/remove it, which would make
+    // GetChildValidator return null — reopening the #231 blind spot. This asserts a
+    // known ChildRules LEAF code is actually reached, so such a regression fails here
+    // loudly (and, via fail-closed, in the DailyEntry theory cases too) instead of
+    // silently passing.
+    [Fact]
+    public void RecursesIntoInlineChildRulesLeafCodes()
+    {
+        var codes = CollectLeafComponents(new RecordDailyEntryValidator(FixedFarmClock.AtDefault()), [])
+            .Select(x => x.ErrorCode)
+            .ToList();
+        Assert.Contains("DailyEntry.GradeQuantity.Positive", codes); // an inline ChildRules leaf
+        Assert.Contains("DailyEntry.GradeEggGradeId.Required", codes);
+    }
+
     // Every LEAF rule component reachable from `validator`, recursing THROUGH
     // child-validator adaptors (RuleForEach(...).ChildRules and .SetValidator)
     // rather than stopping at them: the wrapper emits no failure of its own, but
@@ -62,13 +80,16 @@ public sealed class ValidatorErrorCodeCoverageTests
             {
                 if (component.Validator is IChildValidatorAdaptor)
                 {
-                    // Recurse into the fixed child validator if we can reach it. A
-                    // provider-based SetValidator(ctx => …) exposes no static instance,
-                    // but those are named AbstractValidator<> TYPES already covered by
-                    // Validators() — so there is nothing to check on the wrapper itself.
+                    // Recurse into the child validator so its leaf rules are coded too.
+                    // If we CANNOT reach it — a provider-based SetValidator(ctx => …), or
+                    // a future FluentValidation change that breaks GetChildValidator's
+                    // reflection — fail CLOSED: emit an uncoded sentinel rather than
+                    // silently pass, so the #231 coverage hole can never quietly reopen.
                     if (GetChildValidator(component.Validator) is { } child)
                         foreach (var leaf in CollectLeafComponents(child, visited))
                             yield return leaf;
+                    else
+                        yield return (rule.PropertyName, null);
                     continue;
                 }
                 yield return (rule.PropertyName, component.ErrorCode);
