@@ -1,5 +1,6 @@
 namespace Cluckwork.Application.Tests.Validation;
 
+using System.Reflection;
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Tests.Common;
 using FluentValidation;
@@ -35,22 +36,54 @@ public sealed class ValidatorErrorCodeCoverageTests
     {
         var validator = (IValidator)Instantiate(validatorType);
 
-        var offenders = validator.CreateDescriptor().Rules
-            .SelectMany(rule => rule.Components.Select(component => (rule.PropertyName, component)))
-            // A RuleForEach(...).ChildRules / .SetValidator wrapper is a child-validator
-            // adaptor: it emits no failure of its own (its LEAF rules do, each with its
-            // own explicit code), so its empty wrapper code is not a coverage gap. A
-            // child validator declared as its own AbstractValidator<> type is still
-            // discovered and checked independently by Validators() above.
-            .Where(x => x.component.Validator is not IChildValidatorAdaptor)
-            .Where(x => x.component.ErrorCode is null || !x.component.ErrorCode.Contains('.'))
-            .Select(x => $"  {x.PropertyName} -> '{x.component.ErrorCode}'")
+        var offenders = CollectLeafComponents(validator, [])
+            .Where(x => x.ErrorCode is null || !x.ErrorCode.Contains('.'))
+            .Select(x => $"  {x.PropertyName} -> '{x.ErrorCode}'")
             .ToList();
 
         Assert.True(
             offenders.Count == 0,
             $"{validatorType.Name} has rule(s) without an explicit dotted error code "
                 + $"(add .WithErrorCode(\"Feature.Field.Rule\")):\n{string.Join("\n", offenders)}");
+    }
+
+    // Every LEAF rule component reachable from `validator`, recursing THROUGH
+    // child-validator adaptors (RuleForEach(...).ChildRules and .SetValidator)
+    // rather than stopping at them: the wrapper emits no failure of its own, but
+    // the rules INSIDE it do and must be coded too. An inline ChildRules validator
+    // isn't a discoverable type, so recursion is the only way to guard its rules
+    // (skipping the adaptor instead would leave them unchecked — the #231 hole).
+    private static IEnumerable<(string PropertyName, string? ErrorCode)> CollectLeafComponents(
+        IValidator validator, HashSet<IValidator> visited)
+    {
+        if (!visited.Add(validator)) yield break; // guard against a self-referential graph
+        foreach (var rule in validator.CreateDescriptor().Rules)
+            foreach (var component in rule.Components)
+            {
+                if (component.Validator is IChildValidatorAdaptor)
+                {
+                    // Recurse into the fixed child validator if we can reach it. A
+                    // provider-based SetValidator(ctx => …) exposes no static instance,
+                    // but those are named AbstractValidator<> TYPES already covered by
+                    // Validators() — so there is nothing to check on the wrapper itself.
+                    if (GetChildValidator(component.Validator) is { } child)
+                        foreach (var leaf in CollectLeafComponents(child, visited))
+                            yield return leaf;
+                    continue;
+                }
+                yield return (rule.PropertyName, component.ErrorCode);
+            }
+    }
+
+    // ChildRules / SetValidator(instance) stash the fixed child validator in a
+    // private field on the adaptor; reflect it so the inline rules are reachable.
+    private static IValidator? GetChildValidator(IPropertyValidator adaptor)
+    {
+        for (var t = adaptor.GetType(); t is not null; t = t.BaseType)
+            foreach (var field in t.GetFields(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public))
+                if (typeof(IValidator).IsAssignableFrom(field.FieldType) && field.GetValue(adaptor) is IValidator v)
+                    return v;
+        return null;
     }
 
     private static bool DerivesFromAbstractValidator(Type type)
