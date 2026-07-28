@@ -21,9 +21,12 @@ afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
   clearAccessToken();
-  localStorage.clear();
   // A test that switches the UI language (e.g. via changeLanguage or the
   // LanguageSelector) must not leak that language into the next test file's
   // shared i18next singleton — reset to the default so every test starts en.
+  // Reset BEFORE clearing storage: the languageChanged handler writes the
+  // "cluckwork.lang" device hint (see i18n/index.ts), so the reset must run
+  // first and the clear then wipes that hint too → every test starts hint-free.
   void i18n.changeLanguage("en");
+  localStorage.clear();
 });
