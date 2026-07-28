@@ -305,6 +305,263 @@ export const tl = {
     orderVoided: "Na-void ang order {{ref}} — naibalik ang stock sa imbentaryo.",
   },
 
+  // machine-drafted (#182) — pending native review. Task CT2 (B2 catch-up):
+  // backfilling tl for the Daily entry capture screen (Task 11, en.ts, batch
+  // B2). Keys mirror en.ts dailyEntry exactly, including the
+  // {{status}}/{{n}}/{{count}}/{{grade}}/{{losses}}/{{total}}/{{cracked}}/
+  // {{dirty}}/{{discarded}} placeholders (no <Trans> tags in this namespace).
+  // The entry-locked banner's status word goes through the `enums`
+  // statusLabel helper, not a key here.
+  dailyEntry: {
+    title: "Araw-araw na Tala",
+
+    // Imperative messages
+    loadFlocksGradesFailed: "Hindi na-load ang mga kawan/grado. Gumagana ba ang API?",
+    deepLinkUnavailable:
+      "Ang link na ito para sa pag-edit ay tumuturo sa isang kawan o petsa "
+      + "na hindi na available — ginagamit na lang ang mga karaniwang default.",
+
+    // "Editing draft" badge
+    editingDraftBadge: "Ina-edit ang draft",
+
+    // Flock + date context row
+    flockLabel: "Kawan",
+    noFlocksYetOption: "— wala pang kawan —",
+    depletedFlockSuffix: " — naubos, para sa pagtatala ng lumang petsa lang",
+    dateLabel: "Petsa",
+    newFlockButton: "+ bagong kawan",
+
+    // New-flock dialog
+    newFlockDialogTitle: "Bagong kawan",
+    nameLabel: "Pangalan",
+    breedLabel: "Lahi",
+    placedLabel: "Paglagay",
+    birdsLabel: "Mga Ibon",
+    createFlockButton: "Gumawa ng kawan",
+
+    // Locked-day / prefill-failure banners
+    entryLockedBanner:
+      "Ang araw na ito ay {{status}} na — umiiral na ang mga lote ng itlog "
+      + "nito. Ginagawa ang mga pagtatama mula sa History (mga admin: "
+      + "i-adjust o i-void).",
+    prefillFailedBanner:
+      "Hindi na-check kung may tala na ang araw na ito — naka-block ang "
+      + "pag-save para hindi ma-overwrite ang umiiral nang datos.",
+
+    // Step headings
+    stepLabel: "Hakbang {{n}}",
+    stepOfTotal: "ng 2:",
+    eggCountsHeading: "Bilang ng Itlog",
+    gradingHeading: "Pag-grade",
+
+    // Count field labels
+    totalEggsLabel: "Kabuuang Itlog",
+    crackedLabel: "Basag",
+    dirtyLabel: "Madumi",
+    discardedLabel: "Itinapon",
+    mortalityLabel: "Pagkamatay",
+
+    // Reconciliation readouts (counts pane)
+    countsExceedTotalMessage:
+      "Ang basag + madumi + itinapon ({{losses}}) ay lumagpas sa kabuuang "
+      + "itlog ({{total}}).",
+    sellableLabel: "Nabebenta",
+    sellableFormula: "{{total}} − {{cracked}} − {{dirty}} − {{discarded}}",
+    deactivatedGradeSuffix: " (naka-deactivate)",
+
+    // Remainder-assignment gesture (grading pane)
+    takeRemainderAriaLabel: "Ilagay lahat ng {{count}} na natitira sa {{grade}}",
+    takeRemainderButton: "+{{count}}",
+    armAriaLabel: "Pumili ng grado para sa {{count}} na natitira",
+    disarmAriaLabel: "Kanselahin ang pagpili ng grado",
+    armButton: "ilagay lahat sa…",
+    disarmButton: "pumili ng grado…",
+
+    // The `grading` derived object's copy (chip + pinned footer)
+    fixCountsFirst: "Ayusin muna ang mga bilang",
+    fixCountsShort: "ayusin ang mga bilang",
+    overSellableCount: "higit sa bilang na nabebenta",
+    overShort: "sobra",
+    gradedDayAddsUp: "na-grade — tumutugma ang araw",
+    allGradedShort: "lahat na-grade",
+    leftToGrade: "natitirang i-grade",
+    leftShort: "natitira",
+
+    // Pinned footer (phone-only summary + saves)
+    countsExceedFooterMessage: "Lumagpas sa kabuuan ang mga nawala — ayusin ang mga bilang",
+    sellableWord: "nabebenta",
+    saveDraftButton: "I-save ang draft",
+    submitButton: "I-save at isumite (gagawa ng lote ng itlog)",
+
+    // Submit confirmation dialog (one-way action, #59)
+    confirmSubmitTitle: "Isumite ang araw na ito?",
+    confirmSubmitBody:
+      "Gagawa ng mga lote ng itlog at hindi na maiedit ang tala. Ang mga "
+      + "pagtatama pagkatapos nito ay kailangan ng adjustment ng manager.",
+    confirmSubmitLabel: "Isumite ang araw",
+
+    // Save-result messages
+    submittedMessage: "Naisumite — {{count}} lote ng itlog ang nagawa.",
+    draftSavedMessage: "Na-save ang draft.",
+  },
+
+  // machine-drafted (#182) — pending native review. Task CT2 (B2 catch-up):
+  // backfilling tl for the Dashboard landing screen (Task 12, en.ts, batch
+  // B2). Keys mirror en.ts dashboard exactly, including the {{count}}
+  // placeholder (no <Trans> tags in this namespace). "Dashboard"/"Stock"/
+  // "Available"/"Restricted"/"Customer" kept as English loanwords — same
+  // treatment as nav.dashboard/nav.stock and sales.reference above; flag for
+  // native review.
+  dashboard: {
+    title: "Dashboard",
+
+    // Imperative messages
+    loadFailed: "Hindi na-load ang dashboard. Gumagana ba ang API?",
+    panelLoadError: "Hindi na-load.",
+
+    // Stat row
+    statEggsCollectedToday: "Itlog na Nakolekta Ngayon",
+    statEggsAvailable: "Available na Itlog",
+    statActiveFlocks: "Aktibong Kawan",
+
+    // "Today" panel (per-flock production)
+    todayPanelTitle: "Ngayon",
+    noFlocksMessage: "Wala pang kawan — gumawa ng isa sa page na Araw-araw na Tala.",
+    flockHeader: "Kawan",
+    statusHeader: "Katayuan",
+    eggsHeader: "Itlog",
+    lossesHeader: "Nawala",
+    mortalityHeader: "Pagkamatay",
+    noEntryBadge: "walang tala",
+
+    // "Stock" panel (by grade)
+    stockPanelTitle: "Stock",
+    noStockMessage: "Wala pang stock — magtala at magsumite ng araw-araw na tala.",
+    gradeHeader: "Grado",
+    availableHeader: "Available",
+    restrictedHeader: "Restricted",
+    eggsAvailableMessage: "{{count}} itlog ang available.",
+
+    // "Recent sales" panel (hidden for ReadOnly/Denied, #127)
+    salesPanelTitle: "Mga Kamakailang Benta",
+    noOrdersMessage: "Wala pang order.",
+    refHeader: "Ref.",
+    customerHeader: "Customer",
+    totalHeader: "Kabuuan",
+  },
+
+  // machine-drafted (#182) — pending native review. Task CT2 (B2 catch-up):
+  // backfilling tl for the Water capture + correction screen (Task 13, en.ts,
+  // batch B2). Keys mirror en.ts water exactly, including the {{unit}}
+  // placeholder (no <Trans> tags in this namespace). Source/Unit picker
+  // values go through the `enums` waterSourceLabel/waterUnitLabel helpers,
+  // not a key here.
+  water: {
+    title: "Tubig",
+
+    // Imperative messages
+    loadFlocksFailed: "Hindi na-load ang mga kawan. Gumagana ba ang API?",
+    loadRecordsFailed: "Hindi na-load ang mga tala ng tubig.",
+    loadMoreFailed: "Hindi na-load ang iba pa.",
+    concurrentEditError:
+      "Kababago lang ng record na ito sa ibang lugar — i-reload ang "
+      + "listahan at subukan ulit.",
+
+    intro:
+      "Itala kung ano ang ininom ng bawat kawan — direktang dami, o mga "
+      + "reading ng meter (ang dami ay ang delta ng meter). Puwedeng itama "
+      + "ang mga tala pagkatapos; naka-fix ang kawan at petsa.",
+
+    // Capture form labels
+    flockLabel: "Kawan",
+    depletedFlockSuffix: " — naubos, para sa pagtatala ng lumang petsa lang",
+    dateLabel: "Petsa",
+    sourceLabel: "Pinagmulan",
+    unitLabel: "Yunit",
+    fromMeterReadingsLabel: "mula sa mga reading ng meter",
+    meterStartLabel: "Simula ng Meter",
+    meterEndLabel: "Dulo ng Meter",
+    quantityLabelWithUnit: "Dami ({{unit}})",
+    noteLabel: "Tala",
+
+    // Capture form buttons
+    recordWaterButton: "Itala ang tubig",
+    saveCorrectionButton: "I-save ang pagtatama",
+    cancelEditButton: "kanselahin ang pag-edit",
+
+    // Inline validation messages
+    quantityMustBePositive: "Dapat positibong numero ang dami.",
+    bothMeterReadingsRequired: "Kailangan ang parehong reading ng meter.",
+
+    // Save-result messages
+    recordedMessage: "Naitala ang tubig.",
+    recordCorrectedMessage: "Naitama ang tala ng tubig.",
+
+    // Records list — filters
+    recordsHeading: "Mga Tala",
+    fromLabel: "Mula",
+    toLabel: "Hanggang",
+    noRecordsMatch: "Walang tumugmang tala ng tubig.",
+
+    // Records table
+    dateHeader: "Petsa",
+    flockHeader: "Kawan",
+    amountHeader: "Dami",
+    sourceHeader: "Pinagmulan",
+    metersHeader: "Meter",
+    noteHeader: "Tala",
+    correctButton: "itama",
+    loadMoreButton: "mag-load pa",
+  },
+
+  // machine-drafted (#182) — pending native review. Task CT2 (B2 catch-up):
+  // backfilling tl for the Egg grade catalog admin screen (Task 14, en.ts,
+  // batch B2 — the last B2 screen). Keys mirror en.ts grades exactly (no
+  // placeholders in this namespace). The Type picker/cell goes through the
+  // `enums` gradeTypeLabel helper, and the Active/Inactive status pill
+  // through `enums` statusLabel — neither is a key here. Grade NAMES (g.name)
+  // are free-form farm data and stay raw, never routed through the catalog.
+  // "Sort" kept as an English loanword (same treatment as sales.reference
+  // above) — flag for native review.
+  grades: {
+    title: "Mga Grado ng Itlog",
+    loadingTitle: "Mga Grado",
+
+    // Imperative message
+    loadGradesFailed: "Hindi na-load ang mga grado. Gumagana ba ang API?",
+
+    intro:
+      "Lumalabas ang mga nabebentang grado sa mga picker ng daily entry at "
+      + "order. Kapag na-deactivate ang isang grado, aalisin ito sa mga "
+      + "picker; hindi maaapektuhan ang umiiral na stock at history.",
+
+    // Buttons
+    newGradeButton: "Bagong grado",
+    newGradeDialogTitle: "Bagong grado",
+    editGradeDialogTitle: "I-edit ang grado",
+    addGradeButton: "Magdagdag ng grado",
+    editButton: "i-edit",
+    deactivateButton: "i-deactivate",
+    activateButton: "i-activate",
+
+    // Create-dialog form labels
+    nameLabel: "Pangalan *",
+    typeLabel: "Uri",
+    sortLabel: "Sort",
+    saleableLabel: "nabebenta",
+    editNameLabel: "Pangalan",
+
+    // Table headers
+    nameHeader: "Pangalan",
+    typeHeader: "Uri",
+    sortHeader: "Sort",
+    saleableHeader: "Nabebenta",
+    statusHeader: "Katayuan",
+
+    // Saleable column's "yes" badge
+    saleableYesBadge: "oo",
+  },
+
   // machine-drafted (#182) — pending native review. Task 25c (B4): new
   // namespace, backfilling tl so Tagalog mode renders translated text on the
   // Settings screen. Keys mirror en.ts settings exactly, including the

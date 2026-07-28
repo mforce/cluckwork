@@ -293,6 +293,257 @@ export const es = {
     orderVoided: "Pedido {{ref}} anulado — existencias devueltas al inventario.",
   },
 
+  // machine-drafted (#182) — pending native review. Task CT2 (B2 catch-up):
+  // backfilling es for the Daily entry capture screen (Task 11, en.ts, batch
+  // B2). Keys mirror en.ts dailyEntry exactly, including the
+  // {{status}}/{{n}}/{{count}}/{{grade}}/{{losses}}/{{total}}/{{cracked}}/
+  // {{dirty}}/{{discarded}} placeholders (no <Trans> tags in this namespace).
+  // The entry-locked banner's status word goes through the `enums`
+  // statusLabel helper, not a key here.
+  dailyEntry: {
+    title: "Registro diario",
+
+    // Imperative messages
+    loadFlocksGradesFailed: "No se pudieron cargar los lotes/grados. ¿Está la API activa?",
+    deepLinkUnavailable:
+      "Este enlace de edición apunta a un lote o fecha que ya no está "
+      + "disponible — se usan los valores predeterminados habituales en su lugar.",
+
+    // "Editing draft" badge
+    editingDraftBadge: "Editando borrador",
+
+    // Flock + date context row
+    flockLabel: "Lote",
+    noFlocksYetOption: "— aún no hay lotes —",
+    depletedFlockSuffix: " — agotado, solo para registrar fechas pasadas",
+    dateLabel: "Fecha",
+    newFlockButton: "+ nuevo lote",
+
+    // New-flock dialog
+    newFlockDialogTitle: "Nuevo lote",
+    nameLabel: "Nombre",
+    breedLabel: "Raza",
+    placedLabel: "Colocación",
+    birdsLabel: "Aves",
+    createFlockButton: "Crear lote",
+
+    // Locked-day / prefill-failure banners
+    entryLockedBanner:
+      "Este día ya está {{status}} — sus lotes de huevos existen. "
+      + "Las correcciones se hacen desde Historial (administradores: ajustar o anular).",
+    prefillFailedBanner:
+      "No se pudo comprobar si este día ya tiene un registro — el guardado "
+      + "está bloqueado para no sobrescribir datos existentes.",
+
+    // Step headings
+    stepLabel: "Paso {{n}}",
+    stepOfTotal: "de 2:",
+    eggCountsHeading: "Conteo de huevos",
+    gradingHeading: "Clasificación",
+
+    // Count field labels
+    totalEggsLabel: "Total de huevos",
+    crackedLabel: "Rotos",
+    dirtyLabel: "Sucios",
+    discardedLabel: "Descartados",
+    mortalityLabel: "Mortalidad",
+
+    // Reconciliation readouts (counts pane)
+    countsExceedTotalMessage:
+      "Rotos + sucios + descartados ({{losses}}) superan el total de huevos ({{total}}).",
+    sellableLabel: "Vendibles",
+    sellableFormula: "{{total}} − {{cracked}} − {{dirty}} − {{discarded}}",
+    deactivatedGradeSuffix: " (desactivado)",
+
+    // Remainder-assignment gesture (grading pane)
+    takeRemainderAriaLabel: "Poner los {{count}} restantes en {{grade}}",
+    takeRemainderButton: "+{{count}}",
+    armAriaLabel: "Elegir un grado para los {{count}} restantes",
+    disarmAriaLabel: "Cancelar la elección de grado",
+    armButton: "poner todo en…",
+    disarmButton: "elegir un grado…",
+
+    // The `grading` derived object's copy (chip + pinned footer)
+    fixCountsFirst: "Corrija los conteos primero",
+    fixCountsShort: "corrija los conteos",
+    overSellableCount: "por encima del conteo vendible",
+    overShort: "de sobra",
+    gradedDayAddsUp: "clasificados — el día cuadra",
+    allGradedShort: "todo clasificado",
+    leftToGrade: "por clasificar",
+    leftShort: "restantes",
+
+    // Pinned footer (phone-only summary + saves)
+    countsExceedFooterMessage: "Las pérdidas superan el total — corrija los conteos",
+    sellableWord: "vendible",
+    saveDraftButton: "Guardar borrador",
+    submitButton: "Guardar y enviar (crea lotes de huevos)",
+
+    // Submit confirmation dialog (one-way action, #59)
+    confirmSubmitTitle: "¿Enviar este día?",
+    confirmSubmitBody:
+      "Se crean los lotes de huevos y el registro ya no se puede editar. "
+      + "Las correcciones después de esto necesitan un ajuste de un gerente.",
+    confirmSubmitLabel: "Enviar día",
+
+    // Save-result messages
+    submittedMessage: "Enviado — se crearon {{count}} lote(s) de huevos.",
+    draftSavedMessage: "Borrador guardado.",
+  },
+
+  // machine-drafted (#182) — pending native review. Task CT2 (B2 catch-up):
+  // backfilling es for the Dashboard landing screen (Task 12, en.ts, batch
+  // B2). Keys mirror en.ts dashboard exactly, including the {{count}}
+  // placeholder (no <Trans> tags in this namespace). The two status pills on
+  // this screen go through the `enums` statusLabel helper, not a key here.
+  dashboard: {
+    title: "Panel",
+
+    // Imperative messages
+    loadFailed: "No se pudo cargar el panel. ¿Está la API activa?",
+    panelLoadError: "No se pudo cargar.",
+
+    // Stat row
+    statEggsCollectedToday: "Huevos recolectados hoy",
+    statEggsAvailable: "Huevos disponibles",
+    statActiveFlocks: "Lotes activos",
+
+    // "Today" panel (per-flock production)
+    todayPanelTitle: "Hoy",
+    noFlocksMessage: "Aún no hay lotes — cree uno en la página de Registro diario.",
+    flockHeader: "Lote",
+    statusHeader: "Estado",
+    eggsHeader: "Huevos",
+    lossesHeader: "Pérdidas",
+    mortalityHeader: "Mortalidad",
+    noEntryBadge: "sin registro",
+
+    // "Stock" panel (by grade)
+    stockPanelTitle: "Existencias",
+    noStockMessage: "Aún no hay existencias — registre y envíe un registro diario.",
+    gradeHeader: "Grado",
+    availableHeader: "Disponible",
+    restrictedHeader: "Restringido",
+    eggsAvailableMessage: "{{count}} huevos disponibles.",
+
+    // "Recent sales" panel (hidden for ReadOnly/Denied, #127)
+    salesPanelTitle: "Ventas recientes",
+    noOrdersMessage: "Aún no hay pedidos.",
+    refHeader: "Ref.",
+    customerHeader: "Cliente",
+    totalHeader: "Total",
+  },
+
+  // machine-drafted (#182) — pending native review. Task CT2 (B2 catch-up):
+  // backfilling es for the Water capture + correction screen (Task 13, en.ts,
+  // batch B2). Keys mirror en.ts water exactly, including the {{unit}}
+  // placeholder (no <Trans> tags in this namespace). Source/Unit picker
+  // values go through the `enums` waterSourceLabel/waterUnitLabel helpers,
+  // not a key here.
+  water: {
+    title: "Agua",
+
+    // Imperative messages
+    loadFlocksFailed: "No se pudieron cargar los lotes. ¿Está la API activa?",
+    loadRecordsFailed: "No se pudieron cargar los registros de agua.",
+    loadMoreFailed: "No se pudo cargar más.",
+    concurrentEditError:
+      "Este registro se acaba de cambiar en otro lugar — recargue la lista "
+      + "e inténtelo de nuevo.",
+
+    intro:
+      "Registre lo que bebió cada lote — una cantidad directa, o lecturas de "
+      + "medidor (la cantidad es la diferencia del medidor). Los registros se "
+      + "pueden corregir después; el lote y la fecha son fijos.",
+
+    // Capture form labels
+    flockLabel: "Lote",
+    depletedFlockSuffix: " — agotado, solo para registrar fechas pasadas",
+    dateLabel: "Fecha",
+    sourceLabel: "Fuente",
+    unitLabel: "Unidad",
+    fromMeterReadingsLabel: "a partir de lecturas de medidor",
+    meterStartLabel: "Medidor inicial",
+    meterEndLabel: "Medidor final",
+    quantityLabelWithUnit: "Cantidad ({{unit}})",
+    noteLabel: "Nota",
+
+    // Capture form buttons
+    recordWaterButton: "Registrar agua",
+    saveCorrectionButton: "Guardar corrección",
+    cancelEditButton: "cancelar edición",
+
+    // Inline validation messages
+    quantityMustBePositive: "La cantidad debe ser un número positivo.",
+    bothMeterReadingsRequired: "Se requieren ambas lecturas del medidor.",
+
+    // Save-result messages
+    recordedMessage: "Agua registrada.",
+    recordCorrectedMessage: "Registro de agua corregido.",
+
+    // Records list — filters
+    recordsHeading: "Registros",
+    fromLabel: "Desde",
+    toLabel: "Hasta",
+    noRecordsMatch: "Ningún registro de agua coincide.",
+
+    // Records table
+    dateHeader: "Fecha",
+    flockHeader: "Lote",
+    amountHeader: "Cantidad",
+    sourceHeader: "Fuente",
+    metersHeader: "Medidores",
+    noteHeader: "Nota",
+    correctButton: "corregir",
+    loadMoreButton: "cargar más",
+  },
+
+  // machine-drafted (#182) — pending native review. Task CT2 (B2 catch-up):
+  // backfilling es for the Egg grade catalog admin screen (Task 14, en.ts,
+  // batch B2 — the last B2 screen). Keys mirror en.ts grades exactly (no
+  // placeholders in this namespace). The Type picker/cell goes through the
+  // `enums` gradeTypeLabel helper, and the Active/Inactive status pill
+  // through `enums` statusLabel — neither is a key here. Grade NAMES (g.name)
+  // are free-form farm data and stay raw, never routed through the catalog.
+  grades: {
+    title: "Grados de huevo",
+    loadingTitle: "Grados",
+
+    // Imperative message
+    loadGradesFailed: "No se pudieron cargar los grados. ¿Está la API activa?",
+
+    intro:
+      "Los grados vendibles aparecen en los selectores de registro diario y "
+      + "de pedidos. Desactivar un grado lo elimina de los selectores; las "
+      + "existencias y el historial existentes no se ven afectados.",
+
+    // Buttons
+    newGradeButton: "Nuevo grado",
+    newGradeDialogTitle: "Nuevo grado",
+    editGradeDialogTitle: "Editar grado",
+    addGradeButton: "Agregar grado",
+    editButton: "editar",
+    deactivateButton: "desactivar",
+    activateButton: "activar",
+
+    // Create-dialog form labels
+    nameLabel: "Nombre *",
+    typeLabel: "Tipo",
+    sortLabel: "Orden",
+    saleableLabel: "vendible",
+    editNameLabel: "Nombre",
+
+    // Table headers
+    nameHeader: "Nombre",
+    typeHeader: "Tipo",
+    sortHeader: "Orden",
+    saleableHeader: "Vendible",
+    statusHeader: "Estado",
+
+    // Saleable column's "yes" badge
+    saleableYesBadge: "sí",
+  },
+
   // machine-drafted (#182) — pending native review. Task 25c (B4): new
   // namespace, backfilling es so Spanish mode renders translated text on the
   // Settings screen. Keys mirror en.ts settings exactly, including the

@@ -37,6 +37,10 @@ export const TRANSLATED_NAMESPACES = [
   "themeToggle",
   "useConfirm",
   "pwa",
+  "dailyEntry",
+  "dashboard",
+  "water",
+  "grades",
 ] as const satisfies readonly (keyof typeof en)[];
 
 export type TranslatedNamespace = (typeof TRANSLATED_NAMESPACES)[number];
