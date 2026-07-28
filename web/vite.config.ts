@@ -143,10 +143,14 @@ export default defineConfig(({ mode }) => {
           // Ratcheted after #236 (pending-state migration touched every
           // screen and shipped tests with it): actuals 88.5/85.5/80.1/75.0,
           // floors keep ~1pt headroom.
-          lines: 88,
-          statements: 85,
-          functions: 79,
-          branches: 74,
+          //
+          // Ratcheted after #250 (NumberField floor + stepper rollout with
+          // component + screen tests): actuals 90.7/87.7/82.0/78.1, floors
+          // keep ~1pt headroom.
+          lines: 90,
+          statements: 87,
+          functions: 81,
+          branches: 77,
           // high-water locks on the fully-covered foundation (AST-aware
           // counting surfaces statements/branches the old remapper credited
           // for free, so the 100s that survived stay; the rest pin to the

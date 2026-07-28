@@ -277,7 +277,7 @@ describe("ProductsPage packed-unit conversions", () => {
     fireEvent.click(within(rowCarton).getByRole("button", { name: "edit" }));
     // The dialog is titled for the unit it edits, so two packed units can't be confused.
     expect(dialog()).toHaveAccessibleName("Eggs per Carton");
-    fireEvent.change(within(dialog()).getByLabelText("Eggs per unit"), { target: { value: "18" } }); // 30 → 18
+    fireEvent.change(within(dialog()).getByRole("spinbutton", { name: "Eggs per unit" }), { target: { value: "18" } }); // 30 → 18
     fireEvent.click(within(dialog()).getByLabelText("active")); // active true → false
     await act(async () => {
       fireEvent.click(within(dialog()).getByRole("button", { name: "Save" }));

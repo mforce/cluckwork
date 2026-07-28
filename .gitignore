@@ -16,3 +16,4 @@ appsettings.Development.local.json
 .DS_Store
 Thumbs.db
 .claude/worktrees/
+node_modules/

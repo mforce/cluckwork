@@ -27,6 +27,13 @@ interface NumberFieldProps {
    * only the guided control refuses to create that state in the first place.
    */
   max?: number;
+  /**
+   * Floor for the − button, its repeat, AND typing (#250). Unlike the ceiling,
+   * typing IS clamped: there is no rearranging-a-draft case below the floor —
+   * a sale line of zero is not a lesser value being reshuffled, it is a
+   * meaningless row. Defaults to 0, the counts' natural floor.
+   */
+  min?: number;
   disabled?: boolean;
 }
 
@@ -34,7 +41,7 @@ interface NumberFieldProps {
 // vanishes entirely on touch, so counts get typed on a phone keypad one digit
 // at a time. These are thumb-sized, and holding one accelerates.
 export function NumberField({
-  id, label, value, onChange, max = Number.POSITIVE_INFINITY, disabled = false,
+  id, label, value, onChange, max = Number.POSITIVE_INFINITY, min = 0, disabled = false,
 }: NumberFieldProps) {
   const { t } = useTranslation("numberField");
   const timer = useRef<number | null>(null);
@@ -44,8 +51,8 @@ export function NumberField({
   // can also discover a submitted entry and lock the form — so the repeat reads
   // them live instead of from the closure it was created in. An earlier version
   // captured them and argued `max` was invariant during a hold; it is not.
-  const live = useRef({ value, max, disabled });
-  live.current = { value, max, disabled };
+  const live = useRef({ value, max, min, disabled });
+  live.current = { value, max, min, disabled };
 
   // Enter and Space on a focused button dispatch `click`, never `pointerdown`,
   // so pointer-only handlers leave these buttons completely dead to the
@@ -77,7 +84,7 @@ export function NumberField({
     // (this field + what is unallocated), and that sum does not move while this
     // field is the one being incremented.
     const bump = (by: number) =>
-      onChange((prev) => Math.min(live.current.max, Math.max(0, prev + direction * by)));
+      onChange((prev) => Math.min(live.current.max, Math.max(live.current.min, prev + direction * by)));
 
     bump(1); // the press itself lands immediately
     const repeat = () => {
@@ -85,8 +92,8 @@ export function NumberField({
       // ceiling should terminate rather than reschedule for ever. The updater
       // cannot report this — React defers it, so anything it sets is still
       // unset when the call returns.
-      const { value: now, max: ceiling, disabled: locked } = live.current;
-      if (locked || (direction > 0 ? now >= ceiling : now <= 0)) {
+      const { value: now, max: ceiling, min: floor, disabled: locked } = live.current;
+      if (locked || (direction > 0 ? now >= ceiling : now <= floor)) {
         stop();
         return;
       }
@@ -109,23 +116,25 @@ export function NumberField({
     onClick: () => {
       if (pointerDrove.current) { pointerDrove.current = false; return; }
       if (disabled) return;
-      onChange((prev) => Math.min(live.current.max, Math.max(0, prev + direction)));
+      onChange((prev) => Math.min(live.current.max, Math.max(live.current.min, prev + direction)));
     },
   });
 
   return (
     <span className="numfield">
-      <button type="button" className="numfield-step" disabled={disabled || value <= 0}
+      <button type="button" className="numfield-step" disabled={disabled || value <= min}
         aria-label={t("decreaseLabel", { label })} {...held(-1)}>
         <Minus size={16} aria-hidden />
       </button>
       <input
         id={id}
         type="number"
-        min={0}
+        // -Infinity means "no floor" (signed adjustments); min="-Infinity" is
+        // not a valid HTML constraint, so the attribute is omitted entirely.
+        min={Number.isFinite(min) ? min : undefined}
         value={value}
         disabled={disabled}
-        onChange={(e) => onChange(Math.max(0, e.target.valueAsNumber || 0))}
+        onChange={(e) => onChange(Math.max(min, e.target.valueAsNumber || 0))}
       />
       <button type="button" className="numfield-step"
         aria-label={t("increaseLabel", { label })} disabled={disabled || value >= max} {...held(1)}>

@@ -1671,6 +1671,11 @@ export const tl = {
       "Ang mga screen na ang buong trabaho ay pagtatala ay pinapanatili ang form sa page mismo: "
       + "<strong>Araw-araw na Tala</strong>, <strong>Tubig</strong>, pagtatala ng gastos, at pagdagdag ng "
       + "linya sa isang draft na order. Ang mga ito ang ginagamit mo araw-araw — walang dagdag na click.",
+    dialogsSteppers:
+      "Ang mga bilang na buong numero — bilang ng itlog, bilang ng ibon, dami ng benta, itlog bawat unit — "
+      + "ay may <strong>−</strong> at <strong>+</strong> na button na kasya sa hinlalaki: i-tap para sa isa, "
+      + "<strong>pindutin nang matagal</strong> para bumilis. Ang dami ng isang linya ng benta ay hindi "
+      + "bababa sa 1. Ang mga presyo at fractional na halaga ay tina-type pa rin.",
     dialogsConfirm:
       "<strong>Nagtatanong muna ang mga aksyong hindi na maaaring i-undo.</strong> Ang pagsumite ng isang "
       + "araw, pagkumpirma o pagkansela ng order, pag-ubos o pag-archive ng kawan — sinasabi ng bawat isa "

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Plus } from "lucide-react";
@@ -10,6 +10,7 @@ import type { BirdMovement, Flock } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
+import { NumberField } from "../components/NumberField";
 import { StatusBadge } from "../components/StatusBadge";
 import { useConfirm } from "../components/useConfirm";
 import { usePendingAction } from "../components/usePendingAction";
@@ -51,6 +52,9 @@ export function FlocksPage() {
   const [breed, setBreed] = useState("");
   const [placed, setPlaced] = useState(today);
   const [count, setCount] = useState(100);
+  // NumberField owns its own input, so labels point at it by id (#250).
+  const fieldId = useId();
+  const idFor = (name: string) => `${fieldId}-${name}`;
 
   // edit — dialog seeded from the row
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -247,10 +251,14 @@ export function FlocksPage() {
             <input type="date" value={placed} max={today} required
               onChange={(e) => setPlaced(e.target.value)} />
           </label>
-          <label>{t("birdsLabel")}
-            <input className="cell" type="number" min={1} value={count} required
-              onChange={(e) => setCount(Math.max(1, e.target.valueAsNumber || 1))} />
-          </label>
+          {/* #250: sibling label, not wrapping — a <label> may not contain
+              interactive content other than its own control, and the stepper
+              carries two buttons. */}
+          <div className="numfield-field">
+            <label htmlFor={idFor("birds")}>{t("birdsLabel")}</label>
+            <NumberField id={idFor("birds")} label={t("birdsLabel").toLowerCase()}
+              value={count} onChange={setCount} min={1} />
+          </div>
           {error && <p className="error">{error}</p>}
           <div className="dialog-foot">
             <button type="button" className="link" onClick={() => setCreating(false)}>{tc("cancel")}</button>
@@ -276,10 +284,11 @@ export function FlocksPage() {
             <input type="date" value={editPlaced} max={today}
               onChange={(e) => setEditPlaced(e.target.value)} />
           </label>
-          <label>{t("editCountLabel")}
-            <input className="cell" type="number" min={1} value={editCount}
-              onChange={(e) => setEditCount(Math.max(1, e.target.valueAsNumber || 1))} />
-          </label>
+          <div className="numfield-field">
+            <label htmlFor={idFor("edit-count")}>{t("editCountLabel")}</label>
+            <NumberField id={idFor("edit-count")} label={t("editCountLabel").toLowerCase()}
+              value={editCount} onChange={setEditCount} min={1} />
+          </div>
           {error && <p className="error">{error}</p>}
           <div className="dialog-foot">
             <button type="button" className="link" onClick={() => setEditingId(null)}>{tc("cancel")}</button>
@@ -391,11 +400,14 @@ export function FlocksPage() {
                   <option value="Adjustment">{flockMovementLabel("Adjustment")}</option>
                 </select>
               </label>
-              <label>{t("birdsLabel")}
-                <input className="cell" type="number" value={mvQty}
-                  min={mvType === "Cull" ? 1 : undefined}
-                  onChange={(e) => setMvQty(e.target.valueAsNumber || 0)} />
-              </label>
+              {/* A cull removes at least one bird; an Adjustment counts both
+                  ways (added or lost), so its floor is unbounded (#250). */}
+              <div className="numfield-field">
+                <label htmlFor={idFor("mv-birds")}>{t("birdsLabel")}</label>
+                <NumberField id={idFor("mv-birds")} label={t("birdsLabel").toLowerCase()}
+                  value={mvQty} onChange={setMvQty}
+                  min={mvType === "Cull" ? 1 : Number.NEGATIVE_INFINITY} />
+              </div>
               <label>{t("noteLabel")}
                 <input value={mvNote} maxLength={500}
                   onChange={(e) => setMvNote(e.target.value)} />

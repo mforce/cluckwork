@@ -148,7 +148,7 @@ describe("FlocksPage create", () => {
     fireEvent.change(within(dialog()).getByLabelText("Name *"), { target: { value: "Rhode Reds" } });
     fireEvent.change(within(dialog()).getByLabelText("Breed *"), { target: { value: "Rhode Island Red" } });
     fireEvent.change(within(dialog()).getByLabelText("Placed"), { target: { value: "2026-05-10" } });
-    fireEvent.change(within(dialog()).getByLabelText("Birds"), { target: { value: "250" } });
+    fireEvent.change(within(dialog()).getByRole("spinbutton", { name: "Birds" }), { target: { value: "250" } });
     await act(async () => {
       fireEvent.click(within(dialog()).getByRole("button", { name: "Add flock" }));
     });
@@ -222,7 +222,7 @@ describe("FlocksPage bird ledger", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Record movement" }));
     fireEvent.change(within(dialog()).getByLabelText("Date"), { target: { value: "2026-05-01" } });
     fireEvent.change(within(dialog()).getByLabelText("Type"), { target: { value: "Adjustment" } }); // off "Cull" default
-    fireEvent.change(within(dialog()).getByLabelText("Birds"), { target: { value: "-5" } });
+    fireEvent.change(within(dialog()).getByRole("spinbutton", { name: "Birds" }), { target: { value: "-5" } });
     fireEvent.change(within(dialog()).getByLabelText("Note"), { target: { value: "miscount" } });
     await act(async () => {
       fireEvent.click(within(dialog()).getByRole("button", { name: "Record" }));

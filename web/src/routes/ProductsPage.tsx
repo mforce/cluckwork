@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Plus } from "lucide-react";
@@ -12,6 +12,7 @@ import { ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
+import { NumberField } from "../components/NumberField";
 import { StatusBadge } from "../components/StatusBadge";
 import { usePendingAction } from "../components/usePendingAction";
 import { newId } from "../lib/ids";
@@ -63,6 +64,8 @@ export function ProductsPage() {
   // edit (conversions) — dialog seeded from the row
   const [editingConvId, setEditingConvId] = useState<string | null>(null);
   const [editEggs, setEditEggs] = useState(1);
+  // NumberField owns its own input, so the label points at it by id (#250).
+  const eggsFieldId = useId();
   const [editConvActive, setEditConvActive] = useState(true);
 
   // CREATE prices parse with the ACCOUNT currency (what the new product will
@@ -317,10 +320,14 @@ export function ProductsPage() {
         onClose={() => setEditingConvId(null)}
       >
         <form onSubmit={(e) => void onSaveConversion(e)} className="inline-form" noValidate>
-          <label>{t("eggsPerUnitFieldLabel")}
-            <input type="number" min={1} value={editEggs}
-              onChange={(e) => setEditEggs(Number(e.target.value))} />
-          </label>
+          {/* #250: sibling label, not wrapping — a <label> may not contain
+              interactive content other than its own control, and the stepper
+              carries two buttons. */}
+          <div className="numfield-field">
+            <label htmlFor={eggsFieldId}>{t("eggsPerUnitFieldLabel")}</label>
+            <NumberField id={eggsFieldId} label={t("eggsPerUnitFieldLabel").toLowerCase()}
+              value={editEggs} onChange={setEditEggs} min={1} />
+          </div>
           <label className="check">
             <input type="checkbox" checked={editConvActive}
               onChange={(e) => setEditConvActive(e.target.checked)} /> {t("activeCheckboxLabel")}

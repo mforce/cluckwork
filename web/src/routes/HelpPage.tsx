@@ -178,6 +178,10 @@ export function HelpPage() {
           <Trans ns="help" i18nKey="dialogsInlineForms" components={{ strong: <strong /> }} />
         </li>
         <li>
+          {/* #250 — the −/+ steppers rolled out beyond daily entry. */}
+          <Trans ns="help" i18nKey="dialogsSteppers" components={{ strong: <strong /> }} />
+        </li>
+        <li>
           <Trans ns="help" i18nKey="dialogsConfirm" components={{ strong: <strong /> }} />
         </li>
         <li>

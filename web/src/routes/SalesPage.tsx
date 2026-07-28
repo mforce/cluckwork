@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Plus } from "lucide-react";
 import { Trans, useTranslation } from "react-i18next";
 import {
@@ -11,6 +11,7 @@ import type { Customer, OrderPayments, Product, SalesOrder } from "../api/cluckw
 import { ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
+import { NumberField } from "../components/NumberField";
 import { Dialog } from "../components/Dialog";
 import { useConfirm } from "../components/useConfirm";
 import { usePendingAction } from "../components/usePendingAction";
@@ -85,6 +86,10 @@ export function SalesPage() {
   const [productId, setProductId] = useState("");
   const [unit, setUnit] = useState("Egg");
   const [qty, setQty] = useState(30);
+  // NumberField owns its own input, so labels point at it by id (F134 idiom).
+  const fieldId = useId();
+  const addQtyId = `${fieldId}-qty`;
+  const editQtyId = `${fieldId}-edit-qty`;
   const [price, setPrice] = useState("");
 
   // ONE scale for every price this screen reads or writes (#123). The two
@@ -468,9 +473,13 @@ export function SalesPage() {
                         {i.baseUnitFactor > 1 ? ` ${t("eggsCount", { count: i.baseUnitFactor })}` : ""}</span></td>
                     {editItemId === i.id ? (
                       <>
-                        <td><input className="cell" type="number" min={1} value={editQty}
-                          aria-label={t("editQuantityAriaLabel")}
-                          onChange={(e) => setEditQty(Math.max(1, e.target.valueAsNumber || 1))} /></td>
+                        <td>
+                          {/* No visible label in the cell — the sr-only one names
+                              the input; the buttons carry their own names. */}
+                          <label className="sr-only" htmlFor={editQtyId}>{t("editQuantityAriaLabel")}</label>
+                          <NumberField id={editQtyId} label={t("editQuantityAriaLabel").toLowerCase()}
+                            value={editQty} onChange={setEditQty} min={1} />
+                        </td>
                         <td>—</td>
                         <td><input className="cell" type="number" min={0}
                           aria-label={t("editUnitPriceAriaLabel")}
@@ -536,10 +545,14 @@ export function SalesPage() {
                       <option key={u} value={u}>{t(`unit${u}`)}</option>)}
                   </select>
                 </label>
-                <label>{t("quantity")}
-                  <input type="number" min={1} value={qty}
-                    onChange={(e) => setQty(Math.max(1, e.target.valueAsNumber || 1))} />
-                </label>
+                {/* Sibling label, not wrapping: a <label> may not contain
+                    interactive content other than its own control, and the
+                    stepper carries two buttons. */}
+                <div className="numfield-field">
+                  <label htmlFor={addQtyId}>{t("quantity")}</label>
+                  <NumberField id={addQtyId} label={t("quantity").toLowerCase()}
+                    value={qty} onChange={setQty} min={1} />
+                </div>
                 <label>{t("unitPriceWithCurrency", { code: active.currencyCode })}
                   <input type="number" min={0} step={10 ** -active.currencyMinorUnit} value={price}
                     onChange={(e) => setPrice(e.target.value)} />
