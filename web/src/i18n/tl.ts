@@ -562,6 +562,333 @@ export const tl = {
     saleableYesBadge: "oo",
   },
 
+  // machine-drafted (#182) — pending native review. Task CT3 (B3 catch-up):
+  // backfilling tl for the Feed & inventory screen (Task 16, en.ts, batch
+  // B3 — first of four B3 screens). Keys mirror en.ts inventory exactly,
+  // including the {{name}}/{{quantity}}/{{unit}}/{{category}}/{{code}}
+  // placeholders (no <Trans> tags in this namespace). Category and
+  // movement-type displays go through the `enums`
+  // inventoryCategoryLabel/inventoryMovementLabel helpers, not a key here —
+  // the {{category}} placeholder in notFeedableMessage IS that
+  // already-labelled value, per en.ts's own comment. "Lote" used throughout
+  // for "lot" (a received inventory batch) — an established loanword
+  // already used in dailyEntry's "lote ng itlog", distinct from "kawan"
+  // (the word used for bird flocks).
+  inventory: {
+    title: "Feed at Imbentaryo",
+    intro:
+      "Tumanggap ng stock bilang pagbili; bawat pagbabago ay napupunta sa "
+      + "talaan ng galaw ng item. Susunod ang pagtatala ng paggamit ng feed "
+      + "laban sa mga kawan.",
+
+    // Imperative messages
+    loadInventoryFailed: "Hindi na-load ang imbentaryo. Gumagana ba ang API?",
+    invalidCostError: "Di-wastong halaga.",
+    itemCreatedMessage: "Nagawa ang item.",
+    loadLedgerFailed: "Hindi na-load ang talaan ng galaw.",
+    quantityMustBePositive: "Dapat positibong numero ang dami.",
+    purchaseRecordedMessage: "Naitala ang pagbili — natanggap ang stock.",
+    usageRecordedMessage:
+      "Naitala ang paggamit ng feed — inubos muna ang stock mula sa "
+      + "pinakamatandang lote.",
+    adjustQuantityRequired:
+      "Dapat hindi zero ang dami ng pagsasaayos (negatibo ang nag-aalis ng "
+      + "stock).",
+    adjustReasonRequired: "Kailangan ng dahilan para sa mga pagtatama.",
+    correctionRecordedMessage: "Naitala ang pagtatama sa talaan ng galaw.",
+
+    // Page-head button + New/edit item dialogs
+    newItemButton: "Bagong item",
+    newItemDialogTitle: "Bagong item ng imbentaryo",
+    editItemDialogTitle: "I-edit ang item",
+    itemNameLabel: "Pangalan ng item *",
+    editItemNameLabel: "Pangalan ng item",
+    categoryLabel: "Kategorya",
+    unitLabel: "Yunit *",
+    editUnitLabel: "Yunit",
+    defaultCostLabel: "Default na halaga/yunit",
+    addItemButton: "Magdagdag ng item",
+
+    // Item panel (opened item)
+    itemPanelHeading: "{{name}} — {{quantity}} {{unit}} available",
+    recordPurchaseButton: "Itala ang pagbili",
+    recordUsageButton: "Itala ang paggamit",
+    correctStockButton: "Itama ang stock",
+    notFeedableMessage:
+      "Hindi ipinapakain sa mga kawan ang mga item na {{category}} — ang "
+      + "paggamit ay para lang sa mga item na Feed, Suplemento, at Aditibo.",
+    noFlocksForUsageMessage: "Walang kawan — kailangan ng kawan ang paggamit para pakainin.",
+    correctionsNeedAdminMessage: "Kailangan ng admin para sa mga pagtatama ng stock.",
+    noLotsMessage: "Wala pang lote — ang mga pagtatama ay para sa isang natanggap na lote.",
+
+    // Record-purchase dialog
+    recordPurchaseDialogTitle: "Itala ang pagbili — {{name}}",
+    receivedLabel: "Natanggap",
+    quantityLabelWithUnit: "Dami ({{unit}})",
+    unitCostLabel: "Halaga bawat yunit",
+    unitCostWithCurrencyLabel: "Halaga bawat yunit ({{code}})",
+    costPlaceholderItemDefault: "default ng item",
+    costPlaceholderRequired: "kailangan",
+    lotNumberLabel: "Numero ng Lote",
+    expiryLabel: "Expiry",
+    noteLabel: "Tala",
+    recordPurchaseSubmitButton: "Itala ang pagbili",
+
+    // Record-usage dialog
+    recordUsageDialogTitle: "Itala ang paggamit — {{name}}",
+    flockLabel: "Kawan",
+    depletedFlockSuffix: " (naubos — para sa pagtatala ng lumang petsa lang)",
+    dateLabel: "Petsa",
+    recordUsageSubmitButton: "Itala ang paggamit",
+
+    // Correct-stock dialog
+    correctStockDialogTitle: "Itama ang stock — {{name}}",
+    lotFieldLabel: "Lote",
+    typeLabel: "Uri",
+    adjustTypeAdjustmentOption: "Pagsasaayos (±)",
+    adjustTypeDiscardOption: "Pagtapon (write-off)",
+    adjustQuantityPlaceholderDiscard: "dami na itinapon",
+    adjustQuantityPlaceholderCorrection: "± pagtatama",
+    reasonLabel: "Dahilan *",
+    recordCorrectionButton: "Itala ang pagtatama",
+
+    // Movement ledger table
+    ledgerDateHeader: "Petsa",
+    ledgerTypeHeader: "Uri",
+    ledgerQuantityHeader: "Dami",
+    ledgerNoteHeader: "Tala",
+    noMovementsMessage: "Wala pang galaw — magtala ng pagbili sa itaas.",
+    closeButton: "isara",
+
+    // Items table
+    nameHeader: "Pangalan",
+    categoryHeader: "Kategorya",
+    onHandHeader: "Available",
+    defaultCostHeader: "Default na halaga",
+    statusHeader: "Katayuan",
+    openButton: "buksan",
+    editButton: "i-edit",
+    deactivateButton: "i-deactivate",
+    activateButton: "i-activate",
+  },
+
+  // machine-drafted (#182) — pending native review. Task CT3 (B3 catch-up):
+  // backfilling tl for the Product catalog + packed-unit conversions screen
+  // (Task 17, en.ts, batch B3 — second B3 screen). Keys mirror en.ts
+  // products exactly, including the {{count}}/{{code}}/{{unitCode}}
+  // placeholders (no <Trans> tags in this namespace). Active/Inactive
+  // status on both tables goes through the `enums` statusLabel helper, not
+  // a key here. Product/grade names and unitCode are free-form farm data
+  // and stay raw. "Catalog" kept as an English loanword (same treatment as
+  // sales.reference above) — flag for native review.
+  products: {
+    title: "Mga Produkto",
+
+    // Imperative messages
+    loadCatalogFailed: "Hindi na-load ang catalog. Gumagana ba ang API?",
+    enterPriceAsNumber: "Maglagay ng presyo bilang simpleng numero.",
+    noDecimalPlaces: "Walang decimal ang currency na ito.",
+    atMostDecimals: "Pinakamarami {{count}} decimal para sa currency na ito.",
+
+    intro:
+      "Ang ibinebenta ng bukid. Bawat produktong itlog ay naka-map sa isang "
+      + "grado ng itlog — kumukuha ang benta ng stock mula sa mga lote ng "
+      + "grado na iyon. Kapag na-deactivate, aalisin ang produkto sa mga "
+      + "picker; pinapanatili ng history ang pangalan nito.",
+
+    // Page-head button + New/edit product dialogs
+    newProductButton: "Bagong produkto",
+    newProductDialogTitle: "Bagong produkto",
+    editProductDialogTitle: "I-edit ang produkto",
+
+    // Product form labels
+    nameLabel: "Pangalan",
+    gradeLabel: "Grado",
+    pickGradeOption: "Pumili ng grado…",
+    soldPerLabel: "Ibinebenta bawat",
+    defaultPriceLabel: "Default na presyo",
+    defaultPriceWithCurrencyLabel: "Default na presyo ({{code}})",
+    priceOptionalPlaceholder: "opsyonal",
+    notesLabel: "Mga Tala",
+    addProductButton: "Magdagdag ng produkto",
+
+    // Packed-unit (egg-unit-conversion) dialog
+    eggsPerUnit: "Itlog kada {{unitCode}}",
+    packedUnitDialogTitle: "Yunit ng pakete",
+    eggsPerUnitFieldLabel: "Itlog kada yunit",
+    activeCheckboxLabel: "aktibo",
+
+    // Products table
+    noProductsMessage: "Wala pang produkto.",
+    nameHeader: "Pangalan",
+    gradeHeader: "Grado",
+    soldPerHeader: "Ibinebenta bawat",
+    defaultPriceHeader: "Default na presyo",
+    statusHeader: "Katayuan",
+    editButton: "i-edit",
+    deactivateButton: "i-deactivate",
+    activateButton: "i-activate",
+
+    // Packed units table
+    packedUnitsHeading: "Mga Yunit ng Pakete",
+    packedUnitsIntro:
+      "Ilang itlog ang laman ng bawat yunit kapag nagbebenta (12, 18, o 30 "
+      + "ang isang carton depende sa iyong market — i-set ang sa iyo). Ang "
+      + "pagbabago ng yunit ay nakakaapekto lang sa mga susunod na benta; "
+      + "pinapanatili ng mga naitalang order ang bilang na ipinagbili sa "
+      + "kanila.",
+    unitHeader: "Yunit",
+    eggsPerUnitHeader: "Itlog kada yunit",
+    alwaysOneMessage: "laging 1",
+  },
+
+  // machine-drafted (#182) — pending native review. Task CT3 (B3 catch-up):
+  // backfilling tl for the Egg stock summary + drill-down screen (Task 18,
+  // en.ts, batch B3 — third B3 screen). Keys mirror en.ts stock exactly,
+  // including the {{available}}/{{grades}} placeholders (no <Trans> tags in
+  // this namespace). The movement ledger's Type cell goes through the
+  // `enums` stockMovementLabel helper, not a key here. Grade/lot names and
+  // quantity values are free-form farm data and stay raw. "Restricted" and
+  // "medication withdrawal" kept as English/Taglish loanwords — no settled
+  // short Filipino equivalent in common PH farm-software use; flag for
+  // native review.
+  stock: {
+    title: "Stock",
+
+    // Imperative messages
+    loadStockFailed: "Hindi na-load ang stock. Gumagana ba ang API?",
+    loadLotsFailed: "Hindi na-load ang mga lote ng grado.",
+    loadMovementsFailed: "Hindi na-load ang mga galaw ng lote.",
+
+    noStockMessage: "Wala pang stock — magtala at magsumite ng araw-araw na tala.",
+
+    // By-grade stock table
+    gradeHeader: "Grado",
+    availableHeader: "Available",
+    restrictedHeader: "Restricted",
+    lotsButton: "mga lote",
+    hideLotsButton: "itago ang mga lote",
+    totalAvailableMessage:
+      "{{available}} itlog ang available sa {{grades}} grado. Restricted = "
+      + "nasa ilalim ng medication withdrawal, hindi puwedeng ibenta.",
+
+    // Lots drill-down (per grade)
+    lotsHeading: "Mga Lote",
+    noLotsMessage: "Wala pang lote para sa grado na ito.",
+    producedOnHeader: "Petsa ng Produksyon",
+    producedHeader: "Produksyon",
+    historyButton: "history",
+    hideHistoryButton: "itago ang history",
+
+    // Movement ledger drill-down (per lot)
+    movementLedgerHeading: "Talaan ng Galaw",
+    movementLedgerIntro:
+      "Bawat pagbabago sa available na itlog ng lote na ito — ang running "
+      + "total ay palaging katumbas ng balanse sa itaas.",
+    ledgerWhenHeader: "Kailan (UTC)",
+    ledgerTypeHeader: "Uri",
+    ledgerChangeHeader: "Pagbabago",
+    ledgerReasonHeader: "Dahilan",
+  },
+
+  // machine-drafted (#182) — pending native review. Task CT3 (B3 catch-up):
+  // backfilling tl for the Flock roster + bird ledger screen (Task 19,
+  // en.ts, batch B3 — last B3 screen). Keys mirror en.ts flocks exactly,
+  // including the {{name}}/{{count}}/{{weeks}} placeholders (no <Trans>
+  // tags in this namespace). The bird-ledger Type picker/cell and the
+  // flocks table's Status badge go through the `enums`
+  // flockMovementLabel/statusLabel helpers, not a key here. Flock
+  // name/breed are free-form farm data and stay raw. "deplete"/"archive"
+  // translated as "ubusin"/"i-archive" — "ubusin" ties to the already-used
+  // "naubos" (depleted) adjective elsewhere in the catalog; "i-archive"
+  // matches the i-edit/i-deactivate loanword-verb pattern. Both flagged for
+  // native review.
+  flocks: {
+    title: "Mga Kawan",
+
+    // Imperative messages
+    loadFlocksFailed: "Hindi na-load ang mga kawan. Gumagana ba ang API?",
+    loadMovementsFailed: "Hindi na-load ang mga galaw.",
+
+    newFlockButton: "Bagong kawan",
+    intro:
+      "I-deplete kapag wala nang ibon; i-archive para itago ang kawan sa "
+      + "mga picker at sa dashboard. Patuloy na nire-resolve ng history ang "
+      + "mga pangalan ng mga naka-archive na kawan.",
+
+    // New-flock dialog
+    newFlockDialogTitle: "Bagong kawan",
+    nameLabel: "Pangalan *",
+    breedLabel: "Lahi *",
+    placedLabel: "Paglagay",
+    birdsLabel: "Mga Ibon",
+    addFlockButton: "Magdagdag ng kawan",
+
+    // Edit-flock dialog
+    editFlockDialogTitle: "I-edit ang kawan",
+    editNameLabel: "I-edit ang pangalan",
+    editBreedLabel: "I-edit ang lahi",
+    editPlacedLabel: "I-edit ang petsa ng paglagay",
+    editCountLabel: "I-edit ang bilang ng ibon",
+
+    // Show-archived toggle
+    showArchivedLabel: "ipakita ang {{count}} naka-archive",
+
+    noFlocksMessage: "Wala pang kawan.",
+
+    // Flocks table
+    nameHeader: "Pangalan",
+    breedHeader: "Lahi",
+    placedHeader: "Paglagay",
+    ageHeader: "Edad",
+    birdsHeader: "Mga Ibon",
+    statusHeader: "Katayuan",
+    ageWeeksSuffix: "{{weeks}} ling",
+
+    // Row actions
+    editButton: "i-edit",
+    depleteButton: "ubusin",
+    archiveButton: "i-archive",
+    reactivateButton: "i-reactivate",
+    openLedgerButton: "mga ibon",
+    closeLedgerButton: "isara",
+
+    // Deplete/archive confirm dialogs
+    depleteConfirmTitle: "Ubusin ang \"{{name}}\"?",
+    depleteConfirmBody:
+      "Hihinto ang kawan sa pagtanggap ng bagong entry. Gumagana pa rin ang "
+      + "pagtatala ng lumang petsa (backfill).",
+    depleteConfirmLabel: "Ubusin ang kawan",
+    archiveConfirmTitle: "I-archive ang \"{{name}}\"?",
+    archiveConfirmBody:
+      "Mawawala ito sa mga picker at sa dashboard, at hindi na tatanggap ng bago.",
+    archiveConfirmLabel: "I-archive ang kawan",
+
+    // Bird ledger panel
+    ledgerHeading: "Talaan ng ibon — {{name}}",
+    ledgerIntro: "Ang mga row ng pagkamatay ay galing sa mga naisumiteng daily entry.",
+    ledgerIntroAdminNote:
+      " Itala ang pagtanggal dito; gumamit ng negatibong pagsasaayos para "
+      + "itama ang maling bilang.",
+    ledgerIntroWorkerNote: " Kailangan ng admin para magtala ng pagtanggal at pagsasaayos.",
+    recordMovementButton: "Itala ang galaw",
+
+    // Record-movement dialog
+    recordMovementDialogTitle: "Itala ang galaw ng ibon",
+    dateLabel: "Petsa",
+    typeLabel: "Uri",
+    noteLabel: "Tala",
+    recordButton: "Itala",
+
+    noMovementsMessage: "Wala pang galaw — nasa unang bilang pa rin ang kawan.",
+
+    // Movement ledger table
+    ledgerDateHeader: "Petsa",
+    ledgerTypeHeader: "Uri",
+    ledgerBirdsHeader: "Mga Ibon",
+    ledgerNoteHeader: "Tala",
+  },
+
   // machine-drafted (#182) — pending native review. Task 25c (B4): new
   // namespace, backfilling tl so Tagalog mode renders translated text on the
   // Settings screen. Keys mirror en.ts settings exactly, including the

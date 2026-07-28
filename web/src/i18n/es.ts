@@ -544,6 +544,324 @@ export const es = {
     saleableYesBadge: "sí",
   },
 
+  // machine-drafted (#182) — pending native review. Task CT3 (B3 catch-up):
+  // backfilling es for the Feed & inventory screen (Task 16, en.ts, batch
+  // B3 — first of four B3 screens). Keys mirror en.ts inventory exactly,
+  // including the {{name}}/{{quantity}}/{{unit}}/{{category}}/{{code}}
+  // placeholders (no <Trans> tags in this namespace). Category and
+  // movement-type displays go through the `enums`
+  // inventoryCategoryLabel/inventoryMovementLabel helpers, not a key here —
+  // the {{category}} placeholder in notFeedableMessage IS that
+  // already-labelled value, per en.ts's own comment. "Lote" used throughout
+  // for "lot" (a received inventory batch), matching the poultry-farm sense
+  // of "lote" already established for nav.flocks/dailyEntry's "lote(s) de
+  // huevos".
+  inventory: {
+    title: "Alimento e inventario",
+    intro:
+      "Reciba existencias como compras; cada cambio queda en el registro de "
+      + "movimientos del artículo. El registro de uso de alimento contra los "
+      + "lotes llega después.",
+
+    // Imperative messages
+    loadInventoryFailed: "No se pudo cargar el inventario. ¿Está la API activa?",
+    invalidCostError: "Costo inválido.",
+    itemCreatedMessage: "Artículo creado.",
+    loadLedgerFailed: "No se pudo cargar el registro de movimientos.",
+    quantityMustBePositive: "La cantidad debe ser un número positivo.",
+    purchaseRecordedMessage: "Compra registrada — existencias recibidas.",
+    usageRecordedMessage:
+      "Uso de alimento registrado — se consumieron primero las existencias "
+      + "de los lotes más antiguos.",
+    adjustQuantityRequired:
+      "La cantidad de ajuste debe ser un número distinto de cero (negativo "
+      + "quita existencias).",
+    adjustReasonRequired: "Se requiere un motivo para las correcciones.",
+    correctionRecordedMessage: "Corrección registrada en el registro de movimientos.",
+
+    // Page-head button + New/edit item dialogs
+    newItemButton: "Nuevo artículo",
+    newItemDialogTitle: "Nuevo artículo de inventario",
+    editItemDialogTitle: "Editar artículo",
+    itemNameLabel: "Nombre del artículo *",
+    editItemNameLabel: "Nombre del artículo",
+    categoryLabel: "Categoría",
+    unitLabel: "Unidad *",
+    editUnitLabel: "Unidad",
+    defaultCostLabel: "Costo predeterminado/unidad",
+    addItemButton: "Agregar artículo",
+
+    // Item panel (opened item)
+    itemPanelHeading: "{{name}} — {{quantity}} {{unit}} disponible(s)",
+    recordPurchaseButton: "Registrar compra",
+    recordUsageButton: "Registrar uso",
+    correctStockButton: "Corregir existencias",
+    notFeedableMessage:
+      "Los artículos de {{category}} no se dan de comer a los lotes — el "
+      + "uso solo aplica a artículos de Alimento, Suplemento y Aditivo.",
+    noFlocksForUsageMessage: "No hay lotes — el uso necesita un lote para alimentar.",
+    correctionsNeedAdminMessage: "Las correcciones de existencias requieren un administrador.",
+    noLotsMessage: "Aún no hay lotes — las correcciones se aplican a un lote recibido.",
+
+    // Record-purchase dialog
+    recordPurchaseDialogTitle: "Registrar compra — {{name}}",
+    receivedLabel: "Recibido",
+    quantityLabelWithUnit: "Cantidad ({{unit}})",
+    unitCostLabel: "Costo unitario",
+    unitCostWithCurrencyLabel: "Costo unitario ({{code}})",
+    costPlaceholderItemDefault: "predeterminado del artículo",
+    costPlaceholderRequired: "requerido",
+    lotNumberLabel: "N.º de lote",
+    expiryLabel: "Vencimiento",
+    noteLabel: "Nota",
+    recordPurchaseSubmitButton: "Registrar compra",
+
+    // Record-usage dialog
+    recordUsageDialogTitle: "Registrar uso — {{name}}",
+    flockLabel: "Lote",
+    depletedFlockSuffix: " (agotado — solo para registrar fechas pasadas)",
+    dateLabel: "Fecha",
+    recordUsageSubmitButton: "Registrar uso",
+
+    // Correct-stock dialog
+    correctStockDialogTitle: "Corregir existencias — {{name}}",
+    lotFieldLabel: "Lote",
+    typeLabel: "Tipo",
+    adjustTypeAdjustmentOption: "Ajuste (±)",
+    adjustTypeDiscardOption: "Desecho (baja)",
+    adjustQuantityPlaceholderDiscard: "cantidad desechada",
+    adjustQuantityPlaceholderCorrection: "± corrección",
+    reasonLabel: "Motivo *",
+    recordCorrectionButton: "Registrar corrección",
+
+    // Movement ledger table
+    ledgerDateHeader: "Fecha",
+    ledgerTypeHeader: "Tipo",
+    ledgerQuantityHeader: "Cantidad",
+    ledgerNoteHeader: "Nota",
+    noMovementsMessage: "Aún no hay movimientos — registre una compra arriba.",
+    closeButton: "cerrar",
+
+    // Items table
+    nameHeader: "Nombre",
+    categoryHeader: "Categoría",
+    onHandHeader: "Disponible",
+    defaultCostHeader: "Costo predeterminado",
+    statusHeader: "Estado",
+    openButton: "abrir",
+    editButton: "editar",
+    deactivateButton: "desactivar",
+    activateButton: "activar",
+  },
+
+  // machine-drafted (#182) — pending native review. Task CT3 (B3 catch-up):
+  // backfilling es for the Product catalog + packed-unit conversions screen
+  // (Task 17, en.ts, batch B3 — second B3 screen). Keys mirror en.ts
+  // products exactly, including the {{count}}/{{code}}/{{unitCode}}
+  // placeholders (no <Trans> tags in this namespace). Active/Inactive status
+  // on both tables goes through the `enums` statusLabel helper, not a key
+  // here. Product/grade names and unitCode are free-form farm data and stay
+  // raw — never routed through the catalog.
+  products: {
+    title: "Productos",
+
+    // Imperative messages
+    loadCatalogFailed: "No se pudo cargar el catálogo. ¿Está la API activa?",
+    enterPriceAsNumber: "Ingrese el precio como un número simple.",
+    noDecimalPlaces: "Esta moneda no tiene decimales.",
+    atMostDecimals: "Como máximo {{count}} decimales para esta moneda.",
+
+    intro:
+      "Lo que vende la granja. Cada producto de huevo se asocia a un grado "
+      + "de huevo — las ventas toman existencias de los lotes de ese grado. "
+      + "Desactivar quita un producto de los selectores; el historial "
+      + "conserva su nombre.",
+
+    // Page-head button + New/edit product dialogs
+    newProductButton: "Nuevo producto",
+    newProductDialogTitle: "Nuevo producto",
+    editProductDialogTitle: "Editar producto",
+
+    // Product form labels
+    nameLabel: "Nombre",
+    gradeLabel: "Grado",
+    pickGradeOption: "Elegir un grado…",
+    soldPerLabel: "Se vende por",
+    defaultPriceLabel: "Precio predeterminado",
+    defaultPriceWithCurrencyLabel: "Precio predeterminado ({{code}})",
+    priceOptionalPlaceholder: "opcional",
+    notesLabel: "Notas",
+    addProductButton: "Agregar producto",
+
+    // Packed-unit (egg-unit-conversion) dialog
+    eggsPerUnit: "Huevos por {{unitCode}}",
+    packedUnitDialogTitle: "Unidad de empaque",
+    eggsPerUnitFieldLabel: "Huevos por unidad",
+    activeCheckboxLabel: "activo",
+
+    // Products table
+    noProductsMessage: "Aún no hay productos.",
+    nameHeader: "Nombre",
+    gradeHeader: "Grado",
+    soldPerHeader: "Se vende por",
+    defaultPriceHeader: "Precio predeterminado",
+    statusHeader: "Estado",
+    editButton: "editar",
+    deactivateButton: "desactivar",
+    activateButton: "activar",
+
+    // Packed units table
+    packedUnitsHeading: "Unidades de empaque",
+    packedUnitsIntro:
+      "Cuántos huevos contiene cada unidad al vender (un cartón es de 12, "
+      + "18 o 30 según su mercado — configure el suyo). Cambiar una unidad "
+      + "solo afecta las ventas futuras; los pedidos ya registrados "
+      + "conservan la cantidad con la que se vendieron.",
+    unitHeader: "Unidad",
+    eggsPerUnitHeader: "Huevos por unidad",
+    alwaysOneMessage: "siempre 1",
+  },
+
+  // machine-drafted (#182) — pending native review. Task CT3 (B3 catch-up):
+  // backfilling es for the Egg stock summary + drill-down screen (Task 18,
+  // en.ts, batch B3 — third B3 screen). Keys mirror en.ts stock exactly,
+  // including the {{available}}/{{grades}} placeholders (no <Trans> tags in
+  // this namespace). The movement ledger's Type cell goes through the
+  // `enums` stockMovementLabel helper, not a key here. Grade/lot names and
+  // quantity values are free-form farm data and stay raw.
+  stock: {
+    title: "Existencias",
+
+    // Imperative messages
+    loadStockFailed: "No se pudieron cargar las existencias. ¿Está la API activa?",
+    loadLotsFailed: "No se pudieron cargar los lotes del grado.",
+    loadMovementsFailed: "No se pudieron cargar los movimientos del lote.",
+
+    noStockMessage: "Aún no hay existencias — registre y envíe un registro diario.",
+
+    // By-grade stock table
+    gradeHeader: "Grado",
+    availableHeader: "Disponible",
+    restrictedHeader: "Restringido",
+    lotsButton: "lotes",
+    hideLotsButton: "ocultar lotes",
+    totalAvailableMessage:
+      "{{available}} huevos disponibles en {{grades}} grado(s). Restringido "
+      + "= en retiro de medicamentos, bloqueado para la venta.",
+
+    // Lots drill-down (per grade)
+    lotsHeading: "Lotes",
+    noLotsMessage: "Aún no hay lotes para este grado.",
+    producedOnHeader: "Fecha de producción",
+    producedHeader: "Producido",
+    historyButton: "historial",
+    hideHistoryButton: "ocultar historial",
+
+    // Movement ledger drill-down (per lot)
+    movementLedgerHeading: "Registro de movimientos",
+    movementLedgerIntro:
+      "Cada cambio en los huevos disponibles de este lote — la suma "
+      + "acumulada siempre es igual al saldo de arriba.",
+    ledgerWhenHeader: "Cuándo (UTC)",
+    ledgerTypeHeader: "Tipo",
+    ledgerChangeHeader: "Cambio",
+    ledgerReasonHeader: "Motivo",
+  },
+
+  // machine-drafted (#182) — pending native review. Task CT3 (B3 catch-up):
+  // backfilling es for the Flock roster + bird ledger screen (Task 19,
+  // en.ts, batch B3 — last B3 screen). Keys mirror en.ts flocks exactly,
+  // including the {{name}}/{{count}}/{{weeks}} placeholders (no <Trans>
+  // tags in this namespace). The bird-ledger Type picker/cell and the
+  // flocks table's Status badge go through the `enums`
+  // flockMovementLabel/statusLabel helpers, not a key here. Flock
+  // name/breed are free-form farm data and stay raw.
+  flocks: {
+    title: "Lotes",
+
+    // Imperative messages
+    loadFlocksFailed: "No se pudieron cargar los lotes. ¿Está la API activa?",
+    loadMovementsFailed: "No se pudieron cargar los movimientos.",
+
+    newFlockButton: "Nuevo lote",
+    intro:
+      "Agote cuando ya no queden aves; archive para ocultar un lote de los "
+      + "selectores y del panel. El historial sigue resolviendo los nombres "
+      + "de los lotes archivados.",
+
+    // New-flock dialog
+    newFlockDialogTitle: "Nuevo lote",
+    nameLabel: "Nombre *",
+    breedLabel: "Raza *",
+    placedLabel: "Colocación",
+    birdsLabel: "Aves",
+    addFlockButton: "Agregar lote",
+
+    // Edit-flock dialog
+    editFlockDialogTitle: "Editar lote",
+    editNameLabel: "Editar nombre",
+    editBreedLabel: "Editar raza",
+    editPlacedLabel: "Editar fecha de colocación",
+    editCountLabel: "Editar cantidad de aves",
+
+    // Show-archived toggle
+    showArchivedLabel: "mostrar {{count}} archivado(s)",
+
+    noFlocksMessage: "Aún no hay lotes.",
+
+    // Flocks table
+    nameHeader: "Nombre",
+    breedHeader: "Raza",
+    placedHeader: "Colocación",
+    ageHeader: "Edad",
+    birdsHeader: "Aves",
+    statusHeader: "Estado",
+    ageWeeksSuffix: "{{weeks}} sem",
+
+    // Row actions
+    editButton: "editar",
+    depleteButton: "agotar",
+    archiveButton: "archivar",
+    reactivateButton: "reactivar",
+    openLedgerButton: "aves",
+    closeLedgerButton: "cerrar",
+
+    // Deplete/archive confirm dialogs
+    depleteConfirmTitle: "¿Agotar \"{{name}}\"?",
+    depleteConfirmBody:
+      "El lote deja de aceptar nuevos registros. El registro de fechas "
+      + "pasadas (backfill) sigue funcionando.",
+    depleteConfirmLabel: "Agotar lote",
+    archiveConfirmTitle: "¿Archivar \"{{name}}\"?",
+    archiveConfirmBody:
+      "Desaparece de los selectores y del panel, y no acepta nada nuevo.",
+    archiveConfirmLabel: "Archivar lote",
+
+    // Bird ledger panel
+    ledgerHeading: "Registro de aves — {{name}}",
+    ledgerIntro: "Las filas de mortalidad provienen de los registros diarios enviados.",
+    ledgerIntroAdminNote:
+      " Registre los descartes aquí; use un ajuste negativo para corregir un "
+      + "conteo incorrecto.",
+    ledgerIntroWorkerNote: " Registrar descartes y ajustes requiere un administrador.",
+    recordMovementButton: "Registrar movimiento",
+
+    // Record-movement dialog
+    recordMovementDialogTitle: "Registrar movimiento de aves",
+    dateLabel: "Fecha",
+    typeLabel: "Tipo",
+    noteLabel: "Nota",
+    recordButton: "Registrar",
+
+    noMovementsMessage: "Aún no hay movimientos — el lote está en su conteo inicial.",
+
+    // Movement ledger table
+    ledgerDateHeader: "Fecha",
+    ledgerTypeHeader: "Tipo",
+    ledgerBirdsHeader: "Aves",
+    ledgerNoteHeader: "Nota",
+  },
+
   // machine-drafted (#182) — pending native review. Task 25c (B4): new
   // namespace, backfilling es so Spanish mode renders translated text on the
   // Settings screen. Keys mirror en.ts settings exactly, including the

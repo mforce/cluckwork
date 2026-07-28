@@ -41,6 +41,10 @@ export const TRANSLATED_NAMESPACES = [
   "dashboard",
   "water",
   "grades",
+  "inventory",
+  "products",
+  "stock",
+  "flocks",
 ] as const satisfies readonly (keyof typeof en)[];
 
 export type TranslatedNamespace = (typeof TRANSLATED_NAMESPACES)[number];
