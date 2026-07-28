@@ -1555,6 +1555,62 @@ export const en = {
     emptyMessage: "No audit events yet.",
     loadMoreButton: "load more",
   },
+  // Task 30 (B5, #182) — ExportPage: the manual-backup screen (#95,
+  // admin-only). English-only (not in TRANSLATED_NAMESPACES), same as
+  // `audit`/`history`. CSV column headers and file contents are generated
+  // SERVER-side (Cluckwork.Api/Endpoints/Export/CsvExport.cs) and are NOT
+  // client strings — out of scope here. Only the visible page copy below
+  // (headings, buttons, and the dataset picker's own labels) is externalized;
+  // the download filenames (`cluckwork-${d}.csv`, "cluckwork-backup.zip")
+  // stay raw, unkeyed — they're functional identifiers, not display copy, and
+  // changing them would be a download-mechanics change (out of scope).
+  export: {
+    heading: "Export",
+    intro:
+      "Download your account's data as CSV files — a manual backup you can "
+      + "keep anywhere. Money values are exported in minor units (cents) "
+      + "with their currency, exactly as stored.",
+
+    fullBackupHeading: "Full backup",
+    fullBackupButton: "Download full backup (zip)",
+    fullBackupHint: "One zip with every dataset below plus a manifest of row counts.",
+    // Shared between the full-backup button and every dataset button (each
+    // uses its own `busy === <key>` check) — one in-flight-download label,
+    // not a per-button duplicate.
+    preparingButton: "Preparing…",
+
+    singleDatasetsHeading: "Single datasets",
+
+    // Dataset picker labels — one flat "dataset.<slug>" key per
+    // EXPORT_DATASETS member (../api/cluckwork), text IDENTICAL to the raw
+    // wire slug (same "value equals the enum member" convention as
+    // sales:unit*/method*, en.ts ~L252). Keeps the button's accessible name
+    // byte-identical to the pre-sweep raw `{d}` render while routing display
+    // through the catalog, as the task brief requires ("a dataset NAME
+    // displayed as a picker label is page copy"). A future native-translation
+    // pass can replace these with humanized/localized text without touching
+    // ExportPage.tsx.
+    "dataset.flocks": "flocks",
+    "dataset.bird-movements": "bird-movements",
+    "dataset.daily-entries": "daily-entries",
+    "dataset.daily-entry-grades": "daily-entry-grades",
+    "dataset.egg-grades": "egg-grades",
+    "dataset.egg-lots": "egg-lots",
+    "dataset.customers": "customers",
+    "dataset.sales-orders": "sales-orders",
+    "dataset.sales-order-items": "sales-order-items",
+    "dataset.sales-order-allocations": "sales-order-allocations",
+    "dataset.payments": "payments",
+    "dataset.inventory-items": "inventory-items",
+    "dataset.inventory-lots": "inventory-lots",
+    "dataset.inventory-movements": "inventory-movements",
+    "dataset.feed-usages": "feed-usages",
+    "dataset.water-usages": "water-usages",
+    "dataset.expense-categories": "expense-categories",
+    "dataset.expenses": "expenses",
+    "dataset.egg-inventory-movements": "egg-inventory-movements",
+    "dataset.audit-events": "audit-events",
+  },
   // Closed-vocabulary labels (#182, Task 4). Consumed ONLY through the typed
   // helpers in enums.ts — never a raw t("enums:status." + value). Keys are FLAT
   // "family.RawValue" strings (keySeparator:false, see index.ts): the suffix is
