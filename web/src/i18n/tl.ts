@@ -1524,9 +1524,9 @@ export const tl = {
   // sales/history/flocks above. "Currency"/"Time zone"/"Locale"/"Logo"/
   // "Account"/"Stock"/"History"/"Audit"/"Export"/"Glossary" kept as English
   // loanwords, same treatment as settings/account above (flag for native
-  // review). The glossary table (h3 id="glossary") is NOT here — Task 33
-  // (B6b) owns it; tocGlossary is translated anyway since it is only the
-  // rail's link text, not the glossary section itself.
+  // review). The glossary table (h3 id="glossary") is translated separately,
+  // near the end of this block (Task 33, B6b) — tocGlossary above is just
+  // the rail's link text.
   help: {
     eyebrow: "Gabay ng user",
     heading: "Tulong",
@@ -2039,5 +2039,216 @@ export const tl = {
       + "kasamang araw). Naka-fix pa rin ang kawan/petsa ng isang entry at ang customer/petsa ng isang "
       + "order: kung mali ang napili, itala na lang ito ulit sa tamang isa (at kanselahin ang maling draft "
       + "na order).",
+
+    // machine-drafted (#182) — pending native review. Task 33 (B6b): the
+    // glossary table (37 rows) + closing repo-note. Keys and tags mirror
+    // en.ts exactly — catalogParity enforces key-set and tag parity.
+    // Domain nouns follow this pack's existing loanword precedent seen
+    // above (Stock, Currency, FIFO, Packed unit, Adjustment, Discard,
+    // Navigation, Cull, Mortality, Deplete, Archive kept English;
+    // void/confirm/cancel/adjust/reactivate as the established
+    // i-void/kumpirmahin/kanselahin/i-adjust/i-reactivate verb loanwords).
+    // The "specs/product/GLOSSARY.md" path inside glossaryRepoNote's <code>
+    // tag is kept literal (untranslated), per the Task 33 brief.
+    glossaryHeading: "Glossary",
+
+    glossaryNavigationTerm: "Navigation",
+    glossaryNavigationDef:
+      "Nasa sidebar sa kaliwa ang mga screen sa computer; sa telepono, ang apat na pinakamadalas mong "
+      + "gamitin ay mga tab sa ibaba, at ang iba pa ay nasa ilalim ng More.",
+
+    glossaryOperationalDayTerm: "Araw ng operasyon",
+    glossaryOperationalDayDef:
+      "Ang petsa ay ang araw sa kalendaryo ng iyong bukid, batay sa sariling time zone ng bukid at hindi "
+      + "sa relong nasa ibang lugar. Ito ang parehong \"ngayon\" saanman: kung ano ang bilang na petsang "
+      + "darating kapag nagtatala ka ng trabaho, kailan aalis ang itlog sa withdrawal period, kung aling "
+      + "itlog ang puwedeng kunin ng isang benta, ang araw na na-deplete o na-archive ang isang kawan, at "
+      + "ang range na binubuksan ng mga report. Bawat field na nagtatala kung KAILAN NANGYARI ANG ISANG "
+      + "BAGAY ay nagbubukas dito at hindi ito lalagpasan, kahit anong araw ang nasa device mo. Hindi "
+      + "limitado ang mga petsang dapat mahulog sa hinaharap — ang expiry ng isang batch ng feed, at ang "
+      + "mga filter ng History at Tubig.",
+
+    glossaryInstallToHomeScreenTerm: "Pag-install sa home screen",
+    glossaryInstallToHomeScreenDef:
+      "Ang pagdagdag ng Cluckwork sa home screen ng telepono o tablet mula sa browser, para magkaroon ito "
+      + "ng sariling icon at magbukas sa sarili nitong window nang walang mga bar ng browser. Iisa lang "
+      + "itong app, hindi hiwalay na download — walang i-a-update mula sa isang app store. Naialok lang sa "
+      + "pamamagitan ng secure (https) address, at <strong>hindi</strong> nito ginagawang offline ang app: "
+      + "kailangan pa rin nito ng koneksyon para mag-load at mag-save.",
+
+    glossaryNewVersionReadyTerm: "May bagong bersyon na",
+    glossaryNewVersionReadyDef:
+      "Pagkatapos ng release, napapansin ng naka-install na app ang bagong bersyon sa background at "
+      + "nagtatanong bago lumipat, sa halip na mag-reload habang nagta-type ka. Pindutin ang I-reload "
+      + "kapag maganda ang timing mo, o Mamaya at magtatanong ulit ito sa susunod. Walang mawawala sa "
+      + "pag-iwan nito — patuloy na gumagana ang tumatakbong app hanggang tanggapin mo ito.",
+
+    glossaryTooManySignInAttemptsTerm: "Masyadong maraming pagtatangkang mag-sign in",
+    glossaryTooManySignInAttemptsDef:
+      "Rate-limited ang pag-sign in para pabagalin ang panghuhula ng password: masyadong maraming "
+      + "pagtatangka mula sa iisang lugar sa loob ng ilang minuto ay tatanggihan gamit ang mensaheng ito "
+      + "hanggang lumipas ang maikling paghihintay. Hindi nito naaapektuhan ang session na naka-sign in "
+      + "na.",
+
+    glossarySomethingWentWrongScreenTerm: "Screen na \"Something went wrong\"",
+    glossarySomethingWentWrongScreenDef:
+      "Ipinapakita ito ng isang screen kapag may error, sa halip na maging blangko. Ligtas ang naka-save "
+      + "na data — maaaring kailanganin mong muling i-type ang anumang tina-type mo pa; i-tap ang "
+      + "I-reload o Bumalik sa dashboard. Naglalaman ang \"Error details\" ng mensahe para sa screenshot.",
+
+    glossaryDailyEntryTerm: "Araw-araw na Tala",
+    glossaryDailyEntryDef: "Ang araw ng isang kawan: itlog ayon sa grado, nawala, namatay. Draft hanggang isumite.",
+
+    glossaryEggLotTerm: "Lote ng itlog",
+    glossaryEggLotDef:
+      "Isang may petsang batch ng maibebentang itlog ng isang grado, ginawa sa pamamagitan ng pagsumite "
+      + "ng entry. Ang stock ay ang kabuuan ng mga lote.",
+
+    glossaryGradeTerm: "Grado",
+    glossaryGradeDef: "Isang grading bucket (sukat, kalidad, o custom). Ang mga grado na nabibili ay puwedeng ibenta.",
+
+    glossaryEggMovementLedgerTerm: "Talaan ng galaw ng itlog",
+    glossaryEggMovementLedgerDef:
+      "Ang history line by line sa likod ng balanse ng isang lote ng itlog: papasok na production, "
+      + "palabas na benta, at mga pagtatama at void na may kaukulang sign.",
+
+    glossaryFifoTerm: "FIFO",
+    glossaryFifoDef:
+      "\"First in, first out\" — palaging kinukuha muna ng benta at ng paggamit ng feed ang pinakalumang "
+      + "stock.",
+
+    glossaryCullTerm: "Cull",
+    glossaryCullDef: "Mga ibong sadyang inalis sa isang kawan (naibenta, pinatay, ibinigay) — hindi kamatayan.",
+
+    glossaryMortalityTerm: "Mortality",
+    glossaryMortalityDef:
+      "Mga kamatayan, itinatala sa araw-araw na entry; awtomatikong napupunta sa talaan ng ibon kapag "
+      + "isinumite.",
+
+    glossaryDepleteTerm: "Deplete",
+    glossaryDepleteDef:
+      "Markahan ang isang kawan na wala nang natitirang ibon. Nananatili ang history; ma-rereverse gamit "
+      + "ang Reactivate.",
+
+    glossaryArchiveTerm: "Archive",
+    glossaryArchiveDef: "Itago ang tapos na kawan mula sa araw-araw na trabaho. Ma-rereverse gamit ang Reactivate.",
+
+    glossaryWithdrawalRestrictionTerm: "Withdrawal restriction",
+    glossaryWithdrawalRestrictionDef:
+      "Isang hold sa mga itlog habang may withholding period ng gamot. Darating kasabay ng medication "
+      + "tracking — wala pang naglalagay ng restriction sa ngayon, kaya pamahalaan muna ang withholding "
+      + "period sa labas ng Cluckwork.",
+
+    glossaryProductTerm: "Produkto",
+    glossaryProductDef:
+      "Ang ibinebenta mo — tumuturo ang isang produktong itlog sa isang grado (ang pinagmumulan ng stock "
+      + "nito) at may dalang selling unit at default na presyo.",
+
+    glossaryPackedUnitTerm: "Packed unit",
+    glossaryPackedUnitDef:
+      "Ilang itlog ang laman ng isang dosena/tray/karton/case sa bukid mo. Iniingatan ng bawat linya ng "
+      + "benta ang bilang na ipinagbenta dito.",
+
+    glossarySalesLineTerm: "Linya ng benta",
+    glossarySalesLineDef:
+      "Isang produkto sa isang order: dami sa selling unit, may presyo kada unit; ang mga itlog sa likod "
+      + "nito ay dami × ang bilang ng itlog ng unit.",
+
+    glossaryConfirmOrderTerm: "Kumpirmahin (order)",
+    glossaryConfirmOrderDef:
+      "Ginagawang tunay na benta ang isang draft order at inilalaan ang stock. Ma-a-undo lang sa "
+      + "pamamagitan ng pag-void.",
+
+    glossaryVoidOrderTerm: "I-void (order)",
+    glossaryVoidOrderDef:
+      "Pag-undo ng isang maling kumpirmasyon — babalik ang stock sa eksaktong lote na pinagmulan nito. "
+      + "Kailangan ng dahilan.",
+
+    glossaryCancelOrderTerm: "Kanselahin (order)",
+    glossaryCancelOrderDef: "Isara ang isang draft na hindi natuloy. Walang kinalaman na stock.",
+
+    glossaryInventoryItemTerm: "Item sa imbentaryo",
+    glossaryInventoryItemDef:
+      "Isang catalog entry para sa isang bagay na nasa stock mo (feed, supplement…), na may fixed na unit "
+      + "of measure.",
+
+    glossaryInventoryLotTerm: "Lote ng imbentaryo",
+    glossaryInventoryLotDef:
+      "Isang natanggap na batch ng isang item, may sariling cost. On-hand = kabuuan ng mga lote.",
+
+    glossaryInventoryMovementLedgerTerm: "Talaan ng galaw ng imbentaryo",
+    glossaryInventoryMovementLedgerDef:
+      "Ang append-only na trail ng bawat pagbabago sa stock ng feed/supply. Ang mga pagtatama ay bagong "
+      + "row, hindi kailanman edit.",
+
+    glossaryWaterUsageTerm: "Paggamit ng tubig",
+    glossaryWaterUsageDef:
+      "Ang ininom ng isang kawan sa isang araw — direktang dami o meter delta. Editable sa lugar; naka-fix "
+      + "ang kawan/petsa.",
+
+    glossaryFeedUsageTerm: "Paggamit ng feed",
+    glossaryFeedUsageDef:
+      "Ang kinain ng isang kawan sa isang araw; ina-drain ang mga lote nang FIFO at tinatantiya ang cost "
+      + "mula rito.",
+
+    glossaryAdjustmentDiscardTerm: "Adjustment / Discard",
+    glossaryAdjustmentDiscardDef:
+      "Mga pagtatama sa stock laban sa isang lote, kailangan ng dahilan. Discard = write-off (spoilage).",
+
+    glossaryRolesTerm: "Mga Tungkulin",
+    glossaryRolesDef:
+      "Admin (may-ari), Manager, Manggagawa, Benta, Read-only — tingnan ang \"Sino ang puwedeng gumawa ng "
+      + "ano\". Nagtatala ang mga manggagawa; nagtatama at nagko-configure rin ang mga manager; "
+      + "hinahawakan ng benta ang mga order at bayad; nanonood lang ang read-only.",
+
+    glossaryLockedEntryTerm: "Naka-lock (entry)",
+    glossaryLockedEntryDef:
+      "Isang naisumiteng entry na mas matanda sa 7 araw — sarado sa mga karaniwang edit; gumagana pa rin "
+      + "ang pag-adjust/void ng admin.",
+
+    glossaryAdjustEntryTerm: "I-adjust (entry)",
+    glossaryAdjustEntryDef:
+      "Pagtatama ng admin sa isang naisumiteng entry. Awtomatikong nagtutugma ang stock at ang talaan ng "
+      + "ibon; hindi na magagalaw ang mga naibentang itlog; nananatiling nakikita ang mga naunang value.",
+
+    glossaryVoidEntryTerm: "I-void (entry)",
+    glossaryVoidEntryDef:
+      "Pag-undo ng admin sa buong naisumiteng entry — nauubusan ang mga lote, nire-reverse ang mga "
+      + "kamatayan, at nananatiling Na-void ang entry. Tinatanggihan kapag naibenta na ang mga itlog nito.",
+
+    glossaryFarmSettingsTerm: "Mga Setting ng Bukid",
+    glossaryFarmSettingsDef:
+      "Ang pangalan ng bukid, time zone, locale, currency, at unit system, kasama ang opsyonal na unang "
+      + "araw ng linggo at mga format ng petsa/oras. Setup → Mga Setting ng Bukid; nag-e-edit ang mga "
+      + "may-ari at manager, nakakabasa ang lahat — hindi permission ang pag-format ng pera at petsa.",
+
+    glossaryCurrencyLockTerm: "Currency lock",
+    glossaryCurrencyLockDef:
+      "Hindi na ma-e-edit ang currency ng bukid sa sandaling may magtala ng halaga dito — isang benta, "
+      + "isang bayad, isang gastos, isang produktong may presyo, pera na ginastos sa feed. Ipinapakita ng "
+      + "field na naka-lock ito kasama ang dahilan. Wala nang muling pinepresyuhan ang anumang naitala "
+      + "na, ito mismo ang buong punto.",
+
+    glossaryFarmLogoTerm: "Logo ng Bukid",
+    glossaryFarmLogoDef:
+      "Ang sarili mong larawan sa halip ng Cluckwork mark sa sidebar, ina-upload mula sa Mga Setting ng "
+      + "Bukid. PNG, JPEG, o WebP (2 MB bilang default), still images lang; mas mabasa ang isang "
+      + "parisukat at simpleng mark sa maliit na sukat ng sidebar. Naka-store bilang muling ginawang "
+      + "kopya na tinanggalan ng detalye ng camera at lokasyon.",
+
+    glossaryFarmPaletteTerm: "Paleta ng Bukid",
+    glossaryFarmPaletteDef:
+      "Ang accent color para sa buong bukid, pinipili ng isang admin sa Mga Setting ng Bukid. Hiwalay ito "
+      + "sa sariling setting ng light/night mode ng bawat tao.",
+
+    glossaryUiLanguageTerm: "Wika ng UI",
+    glossaryUiLanguageDef:
+      "Ang wikang ipinapakita sa interface, kada user — English, Español, o Tagalog — pinipili mula sa "
+      + "Account → Preferences. Ang English ang fallback para sa anumang screen na hindi pa naisasalin, "
+      + "kahit anong wika ang pinili mo.",
+
+    glossaryRepoNote:
+      "Nasa <code>specs/product/GLOSSARY.md</code> ng repository ang kumpletong mga depinisyon sa "
+      + "spec-language.",
   },
 } as const;

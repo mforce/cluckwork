@@ -441,94 +441,90 @@ export function HelpPage() {
         </tbody>
       </table>
 
-      <h3 id="glossary">Glossary</h3>
+      <h3 id="glossary">{t("glossaryHeading")}</h3>
       <table className="data">
         <tbody>
-          <tr><th scope="row">Navigation</th>
-            <td>Screens live in the left sidebar on a computer; on a phone the four you use most are tabs across the bottom, the rest under More.</td></tr>
-          <tr><th scope="row">Operational day</th>
-            <td>Dates mean your farm&apos;s calendar day, worked out from the farm&apos;s own timezone rather than a clock somewhere else. It is the same &quot;today&quot; everywhere: what counts as a future date when you record work, when eggs leave a withdrawal period, which eggs a sale can take, the day a flock is depleted or archived on, and the range reports open on. Every field that records WHEN SOMETHING HAPPENED opens on it and will not go past it, whatever day the device in your hand is on. Dates meant to fall in the future are not capped — a feed batch&apos;s expiry, and the History and Water filters.</td></tr>
-          <tr><th scope="row">Install to home screen</th>
-            <td>Adding Cluckwork to a phone or tablet&apos;s home screen from the browser, so it gets its own icon and opens in its own window without the browser bars. It is the same app, not a separate download — nothing to update from an app store. Only offered over a secure (https) address, and it does <strong>not</strong> make the app work offline: it still needs a connection to load and save.</td></tr>
-          <tr><th scope="row">A new version is ready</th>
-            <td>After a release, an installed app notices the new version in the background and asks before switching, rather than reloading while you are typing. Press Reload when convenient, or Later and it asks again next time. Nothing is lost by leaving it — the running app keeps working until you accept.</td></tr>
-          <tr><th scope="row">Too many sign-in attempts</th>
-            <td>Sign-in is rate limited to slow password guessing: too many attempts from one place in a few minutes are refused with this message until a short cool-off passes. It never affects an already signed-in session.</td></tr>
-          <tr><th scope="row">&quot;Something went wrong&quot; screen</th>
-            <td>What a screen shows when it hits an error, instead of going blank. Saved data is safe — anything you were still typing may need re-entering; tap Reload or Back to the dashboard. &quot;Error details&quot; holds the message for a screenshot.</td></tr>
-          <tr><th scope="row">Daily entry</th>
-            <td>One flock's day: eggs by grade, losses, deaths. Draft until submitted.</td></tr>
-          <tr><th scope="row">Egg lot</th>
-            <td>A dated batch of sellable eggs of one grade, created by submitting an entry. Stock is the sum of lots.</td></tr>
-          <tr><th scope="row">Grade</th>
-            <td>A grading bucket (size, quality, or custom). Saleable grades can be sold.</td></tr>
-          <tr><th scope="row">Egg movement ledger</th>
-            <td>The line-by-line history behind an egg lot&apos;s balance: production in, sales out, corrections and voids signed accordingly.</td></tr>
-          <tr><th scope="row">FIFO</th>
-            <td>"First in, first out" — sales and feed usage always take the oldest stock first.</td></tr>
-          <tr><th scope="row">Cull</th>
-            <td>Birds deliberately removed from a flock (sold, slaughtered, given away) — not deaths.</td></tr>
-          <tr><th scope="row">Mortality</th>
-            <td>Deaths, recorded on the daily entry; lands in the bird ledger automatically at submit.</td></tr>
-          <tr><th scope="row">Deplete</th>
-            <td>Mark a flock as having no birds left. History stays; reversible via Reactivate.</td></tr>
-          <tr><th scope="row">Archive</th>
-            <td>Hide a finished flock from daily work. Reversible via Reactivate.</td></tr>
-          <tr><th scope="row">Withdrawal restriction</th>
-            <td>A hold on eggs during a medication withholding period. Coming with medication tracking — nothing sets restrictions yet, so manage withholding periods outside Cluckwork for now.</td></tr>
-          <tr><th scope="row">Product</th>
-            <td>What you sell — an egg product points at a grade (its stock source) and carries a selling unit and default price.</td></tr>
-          <tr><th scope="row">Packed unit</th>
-            <td>How many eggs a dozen/tray/carton/case holds on your farm. Each sale line keeps the count it was sold with.</td></tr>
-          <tr><th scope="row">Sales line</th>
-            <td>One product on an order: quantity in selling units, priced per unit; the eggs behind it are quantity × the unit&apos;s egg count.</td></tr>
-          <tr><th scope="row">Confirm (order)</th>
-            <td>Turns a draft order into a real sale and allocates stock. Undone only by voiding.</td></tr>
-          <tr><th scope="row">Void (order)</th>
-            <td>Undo of a mistaken confirm — stock returns to the exact lots it came from. Needs a reason.</td></tr>
-          <tr><th scope="row">Cancel (order)</th>
-            <td>Close a draft that never happened. No stock involved.</td></tr>
-          <tr><th scope="row">Inventory item</th>
-            <td>A catalog entry for something you stock (feed, supplements…), with a fixed unit of measure.</td></tr>
-          <tr><th scope="row">Inventory lot</th>
-            <td>One received batch of an item, with its own cost. On-hand = sum of lots.</td></tr>
-          <tr><th scope="row">Inventory movement ledger</th>
-            <td>The append-only trail of every feed/supply stock change. Corrections are new rows, never edits.</td></tr>
-          <tr><th scope="row">Water usage</th>
-            <td>What a flock drank on a day — direct amount or meter delta. Editable in place; flock/date fixed.</td></tr>
-          <tr><th scope="row">Feed usage</th>
-            <td>What a flock ate on a day; drains lots FIFO and estimates cost from them.</td></tr>
-          <tr><th scope="row">Adjustment / Discard</th>
-            <td>Stock corrections against a lot, reason required. Discard = write-off (spoilage).</td></tr>
-          <tr><th scope="row">Roles</th>
-            <td>Admin (owner), Manager, Worker, Sales, Read-only — see "Who can do what". Workers record; managers also correct and configure; sales handles orders and payments; read-only just views.</td></tr>
-          <tr><th scope="row">Locked (entry)</th>
-            <td>A submitted entry older than 7 days — closed to routine edits; admin adjust/void still works.</td></tr>
-          <tr><th scope="row">Adjust (entry)</th>
-            <td>Admin correction of a submitted entry. Stock and bird ledger reconcile automatically; sold eggs are untouchable; previous values stay visible.</td></tr>
-          <tr><th scope="row">Void (entry)</th>
-            <td>Admin undo of a whole submitted entry — lots empty, deaths reverse, entry preserved as Voided. Refused once its eggs are sold.</td></tr>
-          <tr><th scope="row">Farm settings</th>
-            <td>The farm&apos;s name, timezone, locale, currency and unit system, plus optional first day of week and date/time formats. Setup → Farm settings; owners and managers edit, everyone reads — formatting money and dates is not a permission.</td></tr>
-          <tr><th scope="row">Currency lock</th>
-            <td>The farm currency stops being editable once anything has recorded an amount in it — a sale, a payment, an expense, a priced product, money spent on feed. The field shows locked with the reason. Nothing already recorded is ever re-priced, which is the whole point.</td></tr>
-          <tr><th scope="row">Farm logo</th>
-            <td>Your own image in place of the Cluckwork mark in the sidebar, uploaded from Farm settings. PNG, JPEG or WebP (2 MB by default), still images only; a square, simple mark reads best at the small sidebar size. Stored as a rebuilt copy with camera and location details stripped out.</td></tr>
+          <tr><th scope="row">{t("glossaryNavigationTerm")}</th>
+            <td>{t("glossaryNavigationDef")}</td></tr>
+          <tr><th scope="row">{t("glossaryOperationalDayTerm")}</th>
+            <td>{t("glossaryOperationalDayDef")}</td></tr>
+          <tr><th scope="row">{t("glossaryInstallToHomeScreenTerm")}</th>
+            <td><Trans ns="help" i18nKey="glossaryInstallToHomeScreenDef" components={{ strong: <strong /> }} /></td></tr>
+          <tr><th scope="row">{t("glossaryNewVersionReadyTerm")}</th>
+            <td>{t("glossaryNewVersionReadyDef")}</td></tr>
+          <tr><th scope="row">{t("glossaryTooManySignInAttemptsTerm")}</th>
+            <td>{t("glossaryTooManySignInAttemptsDef")}</td></tr>
+          <tr><th scope="row">{t("glossarySomethingWentWrongScreenTerm")}</th>
+            <td>{t("glossarySomethingWentWrongScreenDef")}</td></tr>
+          <tr><th scope="row">{t("glossaryDailyEntryTerm")}</th>
+            <td>{t("glossaryDailyEntryDef")}</td></tr>
+          <tr><th scope="row">{t("glossaryEggLotTerm")}</th>
+            <td>{t("glossaryEggLotDef")}</td></tr>
+          <tr><th scope="row">{t("glossaryGradeTerm")}</th>
+            <td>{t("glossaryGradeDef")}</td></tr>
+          <tr><th scope="row">{t("glossaryEggMovementLedgerTerm")}</th>
+            <td>{t("glossaryEggMovementLedgerDef")}</td></tr>
+          <tr><th scope="row">{t("glossaryFifoTerm")}</th>
+            <td>{t("glossaryFifoDef")}</td></tr>
+          <tr><th scope="row">{t("glossaryCullTerm")}</th>
+            <td>{t("glossaryCullDef")}</td></tr>
+          <tr><th scope="row">{t("glossaryMortalityTerm")}</th>
+            <td>{t("glossaryMortalityDef")}</td></tr>
+          <tr><th scope="row">{t("glossaryDepleteTerm")}</th>
+            <td>{t("glossaryDepleteDef")}</td></tr>
+          <tr><th scope="row">{t("glossaryArchiveTerm")}</th>
+            <td>{t("glossaryArchiveDef")}</td></tr>
+          <tr><th scope="row">{t("glossaryWithdrawalRestrictionTerm")}</th>
+            <td>{t("glossaryWithdrawalRestrictionDef")}</td></tr>
+          <tr><th scope="row">{t("glossaryProductTerm")}</th>
+            <td>{t("glossaryProductDef")}</td></tr>
+          <tr><th scope="row">{t("glossaryPackedUnitTerm")}</th>
+            <td>{t("glossaryPackedUnitDef")}</td></tr>
+          <tr><th scope="row">{t("glossarySalesLineTerm")}</th>
+            <td>{t("glossarySalesLineDef")}</td></tr>
+          <tr><th scope="row">{t("glossaryConfirmOrderTerm")}</th>
+            <td>{t("glossaryConfirmOrderDef")}</td></tr>
+          <tr><th scope="row">{t("glossaryVoidOrderTerm")}</th>
+            <td>{t("glossaryVoidOrderDef")}</td></tr>
+          <tr><th scope="row">{t("glossaryCancelOrderTerm")}</th>
+            <td>{t("glossaryCancelOrderDef")}</td></tr>
+          <tr><th scope="row">{t("glossaryInventoryItemTerm")}</th>
+            <td>{t("glossaryInventoryItemDef")}</td></tr>
+          <tr><th scope="row">{t("glossaryInventoryLotTerm")}</th>
+            <td>{t("glossaryInventoryLotDef")}</td></tr>
+          <tr><th scope="row">{t("glossaryInventoryMovementLedgerTerm")}</th>
+            <td>{t("glossaryInventoryMovementLedgerDef")}</td></tr>
+          <tr><th scope="row">{t("glossaryWaterUsageTerm")}</th>
+            <td>{t("glossaryWaterUsageDef")}</td></tr>
+          <tr><th scope="row">{t("glossaryFeedUsageTerm")}</th>
+            <td>{t("glossaryFeedUsageDef")}</td></tr>
+          <tr><th scope="row">{t("glossaryAdjustmentDiscardTerm")}</th>
+            <td>{t("glossaryAdjustmentDiscardDef")}</td></tr>
+          <tr><th scope="row">{t("glossaryRolesTerm")}</th>
+            <td>{t("glossaryRolesDef")}</td></tr>
+          <tr><th scope="row">{t("glossaryLockedEntryTerm")}</th>
+            <td>{t("glossaryLockedEntryDef")}</td></tr>
+          <tr><th scope="row">{t("glossaryAdjustEntryTerm")}</th>
+            <td>{t("glossaryAdjustEntryDef")}</td></tr>
+          <tr><th scope="row">{t("glossaryVoidEntryTerm")}</th>
+            <td>{t("glossaryVoidEntryDef")}</td></tr>
+          <tr><th scope="row">{t("glossaryFarmSettingsTerm")}</th>
+            <td>{t("glossaryFarmSettingsDef")}</td></tr>
+          <tr><th scope="row">{t("glossaryCurrencyLockTerm")}</th>
+            <td>{t("glossaryCurrencyLockDef")}</td></tr>
+          <tr><th scope="row">{t("glossaryFarmLogoTerm")}</th>
+            <td>{t("glossaryFarmLogoDef")}</td></tr>
           <tr>
-            <th scope="row">Farm palette</th>
-            <td>
-              The farm-wide accent colour, chosen by an admin in Farm settings.
-              Separate from each person's own light/night mode setting.
-            </td>
+            <th scope="row">{t("glossaryFarmPaletteTerm")}</th>
+            <td>{t("glossaryFarmPaletteDef")}</td>
           </tr>
-          <tr><th scope="row">UI language</th>
-            <td>The per-user language the interface is shown in — English, Español, or Tagalog — chosen from Account → Preferences. English is the fallback for any screen not yet translated, whatever language you picked.</td></tr>
+          <tr><th scope="row">{t("glossaryUiLanguageTerm")}</th>
+            <td>{t("glossaryUiLanguageDef")}</td></tr>
         </tbody>
       </table>
 
           <p className="muted">
-            Full spec-language definitions live in the repository's{" "}
-            <code>specs/product/GLOSSARY.md</code>.
+            <Trans ns="help" i18nKey="glossaryRepoNote" components={{ code: <code /> }} />
           </p>
         </div>
       </div>

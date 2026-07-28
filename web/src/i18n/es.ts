@@ -1462,9 +1462,9 @@ export const es = {
   // (Entrada diaria, Historial, Ventas, etc.) are translated here, unlike the
   // older "kept in English" precedent noted at the top of this file — every
   // screen HelpPage references is already in TRANSLATED_NAMESPACES by now.
-  // The glossary table (h3 id="glossary") is NOT here — Task 33 (B6b) owns
-  // it; tocGlossary is translated anyway since it is only the rail's link
-  // text, not the glossary section itself.
+  // The glossary table (h3 id="glossary") is translated separately, near the
+  // end of this block (Task 33, B6b) — tocGlossary above is just the rail's
+  // link text.
   help: {
     eyebrow: "Guía del usuario",
     heading: "Ayuda",
@@ -1967,5 +1967,212 @@ export const es = {
       + "con el día cargado). El lote/fecha de una entrada y el cliente/fecha de un pedido son fijos, sin "
       + "embargo: si se eligió mal, simplemente regístrelo de nuevo bajo el correcto (y cancele el pedido "
       + "en borrador equivocado).",
+
+    // machine-drafted (#182) — pending native review. Task 33 (B6b): the
+    // glossary table (37 rows) + closing repo-note, formal "usted" register
+    // matching the rest of this pack. Keys and tags mirror en.ts exactly —
+    // catalogParity enforces key-set and tag parity. The
+    // "specs/product/GLOSSARY.md" path inside glossaryRepoNote's <code> tag
+    // is kept literal (untranslated), per the Task 33 brief.
+    glossaryHeading: "Glosario",
+
+    glossaryNavigationTerm: "Navegación",
+    glossaryNavigationDef:
+      "En una computadora, las pantallas están en la barra lateral izquierda; en un teléfono, las cuatro "
+      + "que más usa aparecen como pestañas en la parte inferior, y el resto está bajo Más.",
+
+    glossaryOperationalDayTerm: "Día operativo",
+    glossaryOperationalDayDef:
+      "Las fechas significan el día calendario de su granja, calculado según la zona horaria propia de la "
+      + "granja y no la de un reloj en otro lugar. Es el mismo \"hoy\" en todas partes: lo que cuenta como "
+      + "fecha futura al registrar trabajo, cuándo salen los huevos de un período de retiro, qué huevos "
+      + "puede tomar una venta, el día en que se agota o archiva un lote, y el rango en que se abren los "
+      + "informes. Todo campo que registra CUÁNDO OCURRIÓ ALGO se abre en ese día y no permite ir más "
+      + "allá, sin importar en qué día esté el dispositivo que tiene en la mano. Las fechas que deben caer "
+      + "en el futuro no tienen ese límite — el vencimiento de un lote de alimento, y los filtros de "
+      + "Historial y Agua.",
+
+    glossaryInstallToHomeScreenTerm: "Instalar en la pantalla de inicio",
+    glossaryInstallToHomeScreenDef:
+      "Agregar Cluckwork a la pantalla de inicio de un teléfono o tableta desde el navegador, para que "
+      + "tenga su propio ícono y se abra en su propia ventana sin las barras del navegador. Es la misma "
+      + "aplicación, no una descarga aparte — nada que actualizar desde una tienda de aplicaciones. Solo se "
+      + "ofrece por una dirección segura (https), y <strong>no</strong> hace que la aplicación funcione sin "
+      + "conexión: todavía necesita conexión para cargar y guardar.",
+
+    glossaryNewVersionReadyTerm: "Hay una nueva versión disponible",
+    glossaryNewVersionReadyDef:
+      "Después de un lanzamiento, una aplicación instalada detecta la nueva versión en segundo plano y "
+      + "pregunta antes de cambiar, en lugar de recargar mientras está escribiendo. Presione Recargar "
+      + "cuando le convenga, o Más tarde y volverá a preguntar la próxima vez. No se pierde nada por "
+      + "dejarlo — la aplicación en ejecución sigue funcionando hasta que acepte.",
+
+    glossaryTooManySignInAttemptsTerm: "Demasiados intentos de inicio de sesión",
+    glossaryTooManySignInAttemptsDef:
+      "El inicio de sesión tiene un límite de frecuencia para frenar los intentos de adivinar contraseñas: "
+      + "demasiados intentos desde un mismo lugar en pocos minutos se rechazan con este mensaje hasta que "
+      + "pasa un breve período de espera. Nunca afecta a una sesión que ya inició.",
+
+    glossarySomethingWentWrongScreenTerm: "Pantalla \"Algo salió mal\"",
+    glossarySomethingWentWrongScreenDef:
+      "Lo que muestra una pantalla cuando encuentra un error, en lugar de quedar en blanco. Los datos "
+      + "guardados están seguros — es posible que deba volver a escribir lo que aún estaba ingresando; "
+      + "toque Recargar o Volver al panel. \"Detalles del error\" contiene el mensaje para una captura de "
+      + "pantalla.",
+
+    glossaryDailyEntryTerm: "Entrada diaria",
+    glossaryDailyEntryDef: "El día de un lote: huevos por grado, pérdidas, muertes. Borrador hasta que se envía.",
+
+    glossaryEggLotTerm: "Lote de huevos",
+    glossaryEggLotDef:
+      "Un lote fechado de huevos vendibles de un grado, creado al enviar una entrada. Las existencias son "
+      + "la suma de los lotes.",
+
+    glossaryGradeTerm: "Grado",
+    glossaryGradeDef:
+      "Una categoría de clasificación (tamaño, calidad o personalizada). Los grados vendibles se pueden "
+      + "vender.",
+
+    glossaryEggMovementLedgerTerm: "Libro mayor de movimientos de huevos",
+    glossaryEggMovementLedgerDef:
+      "El historial línea por línea detrás del saldo de un lote de huevos: producción que entra, ventas "
+      + "que salen, correcciones y anulaciones con su signo correspondiente.",
+
+    glossaryFifoTerm: "FIFO",
+    glossaryFifoDef:
+      "\"Primero en entrar, primero en salir\" — las ventas y el uso de alimento siempre toman primero las "
+      + "existencias más antiguas.",
+
+    glossaryCullTerm: "Descarte",
+    glossaryCullDef:
+      "Aves retiradas deliberadamente de un lote (vendidas, sacrificadas, regaladas) — no son muertes.",
+
+    glossaryMortalityTerm: "Mortalidad",
+    glossaryMortalityDef:
+      "Muertes, registradas en la entrada diaria; llegan al libro mayor de aves automáticamente al enviar.",
+
+    glossaryDepleteTerm: "Agotar",
+    glossaryDepleteDef:
+      "Marcar un lote como sin aves restantes. El historial se conserva; reversible mediante Reactivar.",
+
+    glossaryArchiveTerm: "Archivar",
+    glossaryArchiveDef: "Ocultar un lote terminado del trabajo diario. Reversible mediante Reactivar.",
+
+    glossaryWithdrawalRestrictionTerm: "Restricción de retiro",
+    glossaryWithdrawalRestrictionDef:
+      "Una retención sobre los huevos durante un período de retiro por medicación. Llegará con el "
+      + "seguimiento de medicación — todavía nada establece restricciones, así que por ahora gestione los "
+      + "períodos de retiro fuera de Cluckwork.",
+
+    glossaryProductTerm: "Producto",
+    glossaryProductDef:
+      "Lo que usted vende — un producto de huevo apunta a un grado (su fuente de existencias) y lleva una "
+      + "unidad de venta y un precio predeterminado.",
+
+    glossaryPackedUnitTerm: "Unidad empacada",
+    glossaryPackedUnitDef:
+      "Cuántos huevos contiene una docena/bandeja/cartón/caja en su granja. Cada línea de venta conserva "
+      + "el conteo con el que se vendió.",
+
+    glossarySalesLineTerm: "Línea de venta",
+    glossarySalesLineDef:
+      "Un producto en un pedido: cantidad en unidades de venta, con precio por unidad; los huevos detrás "
+      + "de ella son la cantidad × el conteo de huevos de la unidad.",
+
+    glossaryConfirmOrderTerm: "Confirmar (pedido)",
+    glossaryConfirmOrderDef:
+      "Convierte un pedido en borrador en una venta real y asigna existencias. Solo se deshace anulando.",
+
+    glossaryVoidOrderTerm: "Anular (pedido)",
+    glossaryVoidOrderDef:
+      "Deshacer una confirmación equivocada — las existencias regresan exactamente a los lotes de donde "
+      + "vinieron. Requiere un motivo.",
+
+    glossaryCancelOrderTerm: "Cancelar (pedido)",
+    glossaryCancelOrderDef: "Cerrar un borrador que nunca se concretó. No involucra existencias.",
+
+    glossaryInventoryItemTerm: "Artículo de inventario",
+    glossaryInventoryItemDef:
+      "Una entrada del catálogo para algo que usted almacena (alimento, suplementos…), con una unidad de "
+      + "medida fija.",
+
+    glossaryInventoryLotTerm: "Lote de inventario",
+    glossaryInventoryLotDef:
+      "Un lote recibido de un artículo, con su propio costo. Existencia disponible = suma de los lotes.",
+
+    glossaryInventoryMovementLedgerTerm: "Libro mayor de movimientos de inventario",
+    glossaryInventoryMovementLedgerDef:
+      "El rastro de solo adición de cada cambio en las existencias de alimento/suministros. Las "
+      + "correcciones son filas nuevas, nunca ediciones.",
+
+    glossaryWaterUsageTerm: "Uso de agua",
+    glossaryWaterUsageDef:
+      "Lo que bebió un lote en un día — cantidad directa o delta de medidor. Editable en el lugar; "
+      + "lote/fecha fijos.",
+
+    glossaryFeedUsageTerm: "Uso de alimento",
+    glossaryFeedUsageDef:
+      "Lo que comió un lote en un día; consume lotes en orden FIFO y estima el costo a partir de ellos.",
+
+    glossaryAdjustmentDiscardTerm: "Ajuste / Descarte",
+    glossaryAdjustmentDiscardDef:
+      "Correcciones de existencias contra un lote, motivo requerido. Descarte = baja (deterioro).",
+
+    glossaryRolesTerm: "Roles",
+    glossaryRolesDef:
+      "Admin (propietario), Gerente, Trabajador, Ventas, Solo lectura — vea \"Quién puede hacer qué\". Los "
+      + "trabajadores registran; los gerentes también corrigen y configuran; ventas gestiona pedidos y "
+      + "pagos; solo lectura únicamente visualiza.",
+
+    glossaryLockedEntryTerm: "Bloqueada (entrada)",
+    glossaryLockedEntryDef:
+      "Una entrada enviada de más de 7 días — cerrada a ediciones rutinarias; el ajuste/anulación de admin "
+      + "sigue funcionando.",
+
+    glossaryAdjustEntryTerm: "Ajustar (entrada)",
+    glossaryAdjustEntryDef:
+      "Corrección de admin sobre una entrada enviada. Las existencias y el libro mayor de aves se "
+      + "concilian automáticamente; los huevos vendidos son intocables; los valores anteriores permanecen "
+      + "visibles.",
+
+    glossaryVoidEntryTerm: "Anular (entrada)",
+    glossaryVoidEntryDef:
+      "Deshacer de admin de toda una entrada enviada — los lotes quedan vacíos, las muertes se revierten, "
+      + "la entrada se conserva como Anulada. Se rechaza una vez que sus huevos están vendidos.",
+
+    glossaryFarmSettingsTerm: "Configuración de la granja",
+    glossaryFarmSettingsDef:
+      "El nombre de la granja, la zona horaria, la configuración regional, la moneda y el sistema de "
+      + "unidades, además del primer día de la semana y los formatos de fecha/hora, opcionales. "
+      + "Configuración → Configuración de la granja; propietarios y gerentes editan, todos pueden leer — "
+      + "dar formato a montos y fechas no es un permiso.",
+
+    glossaryCurrencyLockTerm: "Bloqueo de moneda",
+    glossaryCurrencyLockDef:
+      "La moneda de la granja deja de ser editable en cuanto algo registra un monto en ella — una venta, "
+      + "un pago, un gasto, un producto con precio, dinero gastado en alimento. El campo se muestra "
+      + "bloqueado con el motivo. Nada de lo ya registrado se vuelve a valorar jamás, que es todo el punto.",
+
+    glossaryFarmLogoTerm: "Logotipo de la granja",
+    glossaryFarmLogoDef:
+      "Su propia imagen en lugar de la marca de Cluckwork en la barra lateral, subida desde Configuración "
+      + "de la granja. PNG, JPEG o WebP (2 MB por defecto), solo imágenes fijas; una marca cuadrada y "
+      + "simple se lee mejor en el tamaño pequeño de la barra lateral. Se guarda como una copia "
+      + "reconstruida sin los detalles de cámara y ubicación.",
+
+    glossaryFarmPaletteTerm: "Paleta de la granja",
+    glossaryFarmPaletteDef:
+      "El color de acento de toda la granja, elegido por un admin en Configuración de la granja. "
+      + "Independiente de la configuración de modo claro/nocturno de cada persona.",
+
+    glossaryUiLanguageTerm: "Idioma de la interfaz",
+    glossaryUiLanguageDef:
+      "El idioma por usuario en que se muestra la interfaz — inglés, español o tagalo — elegido desde "
+      + "Cuenta → Preferencias. El inglés es el idioma de reserva para cualquier pantalla aún no "
+      + "traducida, sea cual sea el idioma que eligió.",
+
+    glossaryRepoNote:
+      "Las definiciones completas en lenguaje de especificación viven en "
+      + "<code>specs/product/GLOSSARY.md</code> del repositorio.",
   },
 } as const;

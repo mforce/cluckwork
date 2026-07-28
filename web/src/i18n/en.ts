@@ -72,9 +72,8 @@ export const en = {
     "Me.Language.Format": "Language must be a 2–8 letter code, for example 'en'.",
   },
   // Shared navigation chrome (Task 7, #182) — the FIRST screen-externalization
-  // batch (B1). English-only: `nav` is deliberately NOT in TRANSLATED_NAMESPACES
-  // (see translations-status.ts), so es/tl fall back to these strings until a
-  // native-speaker pass adds the namespace. `navGroups()`/`tabEntries()`
+  // batch (B1). `nav` is in TRANSLATED_NAMESPACES — es/tl are machine-drafted
+  // (#182), pending native review. `navGroups()`/`tabEntries()`
   // (routes/nav.tsx) are PURE FUNCTIONS and cannot call useTranslation, so they
   // carry a typed `labelKey` into this namespace instead of English text; the
   // render sites (AppLayout, BottomNav) translate it. The same labelKeys feed
@@ -136,10 +135,9 @@ export const en = {
   },
   // Shared primitives (Task 8, #182, batch B1) — Dialog's close button reuses
   // `common.close` (no new key needed); these two components have genuinely
-  // new copy of their own. English-only for now: neither namespace is in
-  // TRANSLATED_NAMESPACES (see translations-status.ts), so es/tl fall back to
-  // these exact strings until a native-speaker pass adds them — same
-  // treatment as `nav` above.
+  // new copy of their own. Both namespaces are in TRANSLATED_NAMESPACES — es/tl
+  // are machine-drafted (#182), pending native review, same treatment as
+  // `nav` above.
   numberField: {
     // Interpolated with the caller-supplied field name (e.g. "total eggs"),
     // which is domain text passed in via NumberField's `label` prop, not
@@ -159,9 +157,9 @@ export const en = {
   },
   // The last three shared components (Task 9, #182, batch B1). Cancel reuses
   // common.cancel (see useConfirm below) rather than duplicating it here.
-  // English-only for now, same treatment as `nav`/`numberField`/`errorBoundary`
-  // above: neither namespace is in TRANSLATED_NAMESPACES, so es/tl fall back to
-  // these strings until a native-speaker pass adds them.
+  // Both namespaces are in TRANSLATED_NAMESPACES, same treatment as
+  // `nav`/`numberField`/`errorBoundary` above: es/tl are machine-drafted
+  // (#182), pending native review.
   themeToggle: {
     switchToLightMode: "Switch to light mode",
     switchToNightMode: "Switch to night mode",
@@ -237,12 +235,12 @@ export const en = {
     editUnitPriceAriaLabel: "Edit unit price",
 
     // Status-filter options
-    // NOTE (#182, Task 5): these four are a TEMPORARY translated duplicate of
-    // enums:status.{Draft,Confirmed,Cancelled,Voided} — es/tl carry real
-    // translations here, while `enums` is English-only, so the filter dropdown
-    // stays on this namespace rather than regressing to English-only labels.
-    // Reconcile when status gets its native-translation pass: migrate this
-    // dropdown to a then-translated enums:status and delete these four keys.
+    // NOTE (#182, Task 5): these four are a translated duplicate of
+    // enums:status.{Draft,Confirmed,Cancelled,Voided}. `enums` is now in
+    // TRANSLATED_NAMESPACES too (es/tl machine-drafted, #182, pending native
+    // review), so this duplication is no longer required to avoid regressing
+    // to English-only labels — reconciling this dropdown onto enums:status
+    // and deleting these four keys is a tracked follow-up, not done here.
     allOption: "All",
     statusDraft: "Draft",
     statusConfirmed: "Confirmed",
@@ -308,13 +306,12 @@ export const en = {
     paymentVoided: "Payment voided — the outstanding amount grew back.",
     orderVoided: "Order {{ref}} voided — stock returned to inventory.",
   },
-  // Daily entry capture screen (Task 11, #182, batch B2). English-only for
-  // now, same treatment as nav/numberField/errorBoundary/themeToggle/
-  // useConfirm/pwa above: `dailyEntry` is deliberately NOT in
-  // TRANSLATED_NAMESPACES, so es/tl fall back to these strings until a
-  // native-speaker pass adds the namespace. The one closed-vocabulary display
-  // on this screen (the entry-locked banner's status word) goes through the
-  // `enums` `statusLabel` helper, not a key here — see DailyEntryPage.tsx.
+  // Daily entry capture screen (Task 11, #182, batch B2). `dailyEntry` is in
+  // TRANSLATED_NAMESPACES, same treatment as nav/numberField/errorBoundary/
+  // themeToggle/useConfirm/pwa above: es/tl are machine-drafted (#182),
+  // pending native review. The one closed-vocabulary display on this screen
+  // (the entry-locked banner's status word) goes through the `enums`
+  // `statusLabel` helper, not a key here — see DailyEntryPage.tsx.
   dailyEntry: {
     title: "Daily entry",
 
@@ -410,14 +407,14 @@ export const en = {
     draftSavedMessage: "Draft saved.",
   },
   // Landing page — today's per-flock production, stock by grade, and recent
-  // sales (Task 12, #182, batch B2). English-only for now, same treatment as
-  // nav/numberField/errorBoundary/themeToggle/useConfirm/pwa/dailyEntry above:
-  // `dashboard` is deliberately NOT in TRANSLATED_NAMESPACES, so es/tl fall
-  // back to these strings until a native-speaker pass adds the namespace. The
-  // two status pills on this screen (today's per-flock entry status, and each
-  // recent order's status) go through the `enums` `statusLabel` helper, not a
-  // key here — see Dashboard.tsx. Wiring the per-flock entry pill is an
-  // INTENTIONAL harmonization, not text-preserving: a ManagerAdjusted entry
+  // sales (Task 12, #182, batch B2). `dashboard` is in TRANSLATED_NAMESPACES,
+  // same treatment as nav/numberField/errorBoundary/themeToggle/useConfirm/
+  // pwa/dailyEntry above: es/tl are machine-drafted (#182), pending native
+  // review. The two status pills on this screen (today's per-flock entry
+  // status, and each recent order's status) go through the `enums`
+  // `statusLabel` helper, not a key here — see Dashboard.tsx. Wiring the
+  // per-flock entry pill is an INTENTIONAL harmonization, not
+  // text-preserving: a ManagerAdjusted entry
   // used to render raw ("ManagerAdjusted") and now reads "Adjusted", matching
   // HistoryPage's own bespoke badge for the same state (see the `enums`
   // header comment below).
@@ -463,10 +460,10 @@ export const en = {
     totalHeader: "Total",
   },
   // Water usage capture + correction screen (Task 13, #182, batch B2).
-  // English-only for now, same treatment as nav/numberField/errorBoundary/
-  // themeToggle/useConfirm/pwa/dailyEntry/dashboard above: `water` is
-  // deliberately NOT in TRANSLATED_NAMESPACES, so es/tl fall back to these
-  // strings until a native-speaker pass adds the namespace. The two
+  // `water` is in TRANSLATED_NAMESPACES, same treatment as
+  // nav/numberField/errorBoundary/themeToggle/useConfirm/pwa/dailyEntry/
+  // dashboard above: es/tl are machine-drafted (#182), pending native
+  // review. The two
   // closed-vocabulary displays on this screen — the Source picker + table
   // cell, and the Unit picker + table cell + the quantity label's unit
   // suffix — go through the `enums` `waterSourceLabel`/`waterUnitLabel`
@@ -533,11 +530,11 @@ export const en = {
     loadMoreButton: "load more",
   },
   // Egg grade catalog admin screen (Task 14, #182, batch B2 — the last B2
-  // screen). English-only for now, same treatment as nav/numberField/
-  // errorBoundary/themeToggle/useConfirm/pwa/dailyEntry/dashboard/water above:
-  // `grades` is deliberately NOT in TRANSLATED_NAMESPACES, so es/tl fall back
-  // to these strings until a native-speaker pass adds the namespace. The one
-  // closed-vocabulary display on this screen — the Type picker + table cell —
+  // screen). `grades` is in TRANSLATED_NAMESPACES, same treatment as
+  // nav/numberField/errorBoundary/themeToggle/useConfirm/pwa/dailyEntry/
+  // dashboard/water above: es/tl are machine-drafted (#182), pending native
+  // review. The one closed-vocabulary display on this screen — the Type
+  // picker + table cell —
   // goes through the `enums` `gradeTypeLabel` helper, not a key here — see
   // GradesPage.tsx. Size/Quality/Custom are identity-labelled in English
   // today, so wiring it changes nothing visible (confirmed in the report).
@@ -597,12 +594,12 @@ export const en = {
     saleableYesBadge: "yes",
   },
   // Feed & inventory catalog + receiving/usage/correction screen (Task 16,
-  // #182, batch B3 — the biggest B3 screen). English-only for now, same
-  // treatment as nav/numberField/errorBoundary/themeToggle/useConfirm/pwa/
-  // dailyEntry/dashboard/water/grades above: `inventory` is deliberately NOT
-  // in TRANSLATED_NAMESPACES, so es/tl fall back to these strings until a
-  // native-speaker pass adds the namespace. Two closed-vocabulary displays go
-  // through `enums` helpers rather than a key here — see InventoryPage.tsx:
+  // #182, batch B3 — the biggest B3 screen). `inventory` is in
+  // TRANSLATED_NAMESPACES, same treatment as nav/numberField/errorBoundary/
+  // themeToggle/useConfirm/pwa/dailyEntry/dashboard/water/grades above: es/tl
+  // are machine-drafted (#182), pending native review. Two closed-vocabulary
+  // displays go through `enums` helpers rather than a key here — see
+  // InventoryPage.tsx:
   //   1. Category — the New/edit item picker option AND the items-table
   //      Category cell both use `inventoryCategoryLabel`; the "not feedable"
   //      message also interpolates the labelled category, never the raw
@@ -721,12 +718,11 @@ export const en = {
   },
   // Product catalog — what the farm sells — + packed-unit (egg-unit)
   // conversions admin screen (Task 17, #182, batch B3 — second B3 screen).
-  // English-only for now, same treatment as nav/numberField/errorBoundary/
-  // themeToggle/useConfirm/pwa/dailyEntry/dashboard/water/grades/inventory
-  // above: `products` is deliberately NOT in TRANSLATED_NAMESPACES, so es/tl
-  // fall back to these strings until a native-speaker pass adds the
-  // namespace. The Active/Inactive status display on BOTH tables (the
-  // products table's StatusBadge and the packed-unit table's plain-text
+  // `products` is in TRANSLATED_NAMESPACES, same treatment as
+  // nav/numberField/errorBoundary/themeToggle/useConfirm/pwa/dailyEntry/
+  // dashboard/water/grades/inventory above: es/tl are machine-drafted (#182),
+  // pending native review. The Active/Inactive status display on BOTH
+  // tables (the products table's StatusBadge and the packed-unit table's plain-text
   // cell) goes through the `enums` `statusLabel` helper, not a key here —
   // see ProductsPage.tsx. `unitCode`/`defaultUnit`, product names, and grade
   // names are free-form farm/API DATA, not client copy, and stay raw — never
@@ -816,12 +812,11 @@ export const en = {
   },
   // Egg stock summary + drill-down screen — by-grade balances expand into
   // lots, and each lot expands into its movement ledger (Task 18, #182, batch
-  // B3 — third B3 screen). English-only for now, same treatment as
-  // nav/numberField/errorBoundary/themeToggle/useConfirm/pwa/dailyEntry/
-  // dashboard/water/grades/inventory/products above: `stock` is deliberately
-  // NOT in TRANSLATED_NAMESPACES, so es/tl fall back to these strings until a
-  // native-speaker pass adds the namespace. The one closed-vocabulary display
-  // on this screen — the movement ledger's Type cell — goes through the
+  // B3 — third B3 screen). `stock` is in TRANSLATED_NAMESPACES, same
+  // treatment as nav/numberField/errorBoundary/themeToggle/useConfirm/pwa/
+  // dailyEntry/dashboard/water/grades/inventory/products above: es/tl are
+  // machine-drafted (#182), pending native review. The one closed-vocabulary
+  // display on this screen — the movement ledger's Type cell — goes through the
   // `enums` `stockMovementLabel` helper, not a key here — see StockPage.tsx.
   // All eight EggMovementType values are identity-labelled in English today,
   // so wiring it changes nothing visible (confirmed in the report). There is
@@ -877,13 +872,12 @@ export const en = {
   // Flock roster + bird ledger — create/edit identity fields, deplete/archive/
   // reactivate lifecycle, and mortality/cull/adjustment movements (Task 19,
   // #182, batch B3 — the last B3 screen (B4–B6 still remain in the sweep).
-  // English-only for now, same treatment as
+  // `flocks` is in TRANSLATED_NAMESPACES, same treatment as
   // nav/numberField/errorBoundary/themeToggle/useConfirm/pwa/dailyEntry/
-  // dashboard/water/grades/inventory/products/stock above: `flocks` is
-  // deliberately NOT in TRANSLATED_NAMESPACES, so es/tl fall back to these
-  // strings until a native-speaker pass adds the namespace. Two
-  // closed-vocabulary displays go through `enums` helpers rather than a key
-  // here — see FlocksPage.tsx:
+  // dashboard/water/grades/inventory/products/stock above: es/tl are
+  // machine-drafted (#182), pending native review. Two closed-vocabulary
+  // displays go through `enums` helpers rather than a key here — see
+  // FlocksPage.tsx:
   //   1. The bird ledger's Type PICKER (Cull/Adjustment — Mortality is
   //      system-generated from daily-entry deaths, so it never appears there)
   //      AND the ledger's Type CELL (the full Mortality/Cull/Adjustment
@@ -994,11 +988,11 @@ export const en = {
     ledgerNoteHeader: "Note",
   },
   // Farm settings — admin localization + logo (#123, #149) + the currency
-  // lock (§4.6) (Task 21, #182, batch B4). English-only for now, same
-  // treatment as nav/numberField/errorBoundary/themeToggle/useConfirm/pwa/
-  // dailyEntry/dashboard/water/grades/inventory/products/stock/flocks above:
-  // `settings` IS in TRANSLATED_NAMESPACES: es/tl carry machine-drafted
-  // translations (#182, pending native review).
+  // lock (§4.6) (Task 21, #182, batch B4). `settings` is in
+  // TRANSLATED_NAMESPACES, same treatment as nav/numberField/errorBoundary/
+  // themeToggle/useConfirm/pwa/dailyEntry/dashboard/water/grades/inventory/
+  // products/stock/flocks above: es/tl are machine-drafted (#182), pending
+  // native review.
   //
   // DATA left raw, never routed through this catalog: the timezone list
   // (Intl.supportedValuesOf), the locale/currency VALUES the admin types, the
@@ -1110,11 +1104,11 @@ export const en = {
       + "page to be sure it is applied everywhere.",
   },
   // Users admin screen — the user list plus create/edit/password/flock-
-  // scoping dialogs (Task 22, #182, batch B4). English-only for now, same
-  // treatment as nav/numberField/errorBoundary/themeToggle/useConfirm/pwa/
-  // dailyEntry/dashboard/water/grades/inventory/products/stock/flocks/
-  // settings above. `users` IS in TRANSLATED_NAMESPACES: es/tl carry
-  // machine-drafted translations (#182, pending native review).
+  // scoping dialogs (Task 22, #182, batch B4). `users` is in
+  // TRANSLATED_NAMESPACES, same treatment as nav/numberField/errorBoundary/
+  // themeToggle/useConfirm/pwa/dailyEntry/dashboard/water/grades/inventory/
+  // products/stock/flocks/settings above: es/tl are machine-drafted (#182),
+  // pending native review.
   //
   // Role enum wiring: the table's Role cell, the create-form Role picker's
   // option text, and the create-success message all render the closed
@@ -1188,11 +1182,11 @@ export const en = {
   },
   // Expenses screen — category management (a dialog panel: create/deactivate/
   // reactivate) + record/correct expenses, filtered by month and category
-  // (Task 23, #182, batch B4 — the last B4 screen). English-only for now, same
-  // treatment as nav/numberField/errorBoundary/themeToggle/useConfirm/pwa/
-  // dailyEntry/dashboard/water/grades/inventory/products/stock/flocks/
-  // settings/users above. `expenses` IS in TRANSLATED_NAMESPACES: es/tl carry
-  // machine-drafted translations (#182, pending native review).
+  // (Task 23, #182, batch B4 — the last B4 screen). `expenses` is in
+  // TRANSLATED_NAMESPACES, same treatment as nav/numberField/errorBoundary/
+  // themeToggle/useConfirm/pwa/dailyEntry/dashboard/water/grades/inventory/
+  // products/stock/flocks/settings/users above: es/tl are machine-drafted
+  // (#182), pending native review.
   //
   // PLAN CORRECTION (verified by controller): this screen has NO
   // payment-method/category enum. `ExpenseCategory` rows are free-form,
@@ -1293,11 +1287,11 @@ export const en = {
   },
   // Customers screen — the customer book: list + create dialog, with an
   // admin-only outstanding-balance column (Task 24, #182, batch B4).
-  // English-only for now, same treatment as nav/numberField/errorBoundary/
-  // themeToggle/useConfirm/pwa/dailyEntry/dashboard/water/grades/inventory/
-  // products/stock/flocks/settings/users/expenses above. `customers` IS in
-  // TRANSLATED_NAMESPACES: es/tl carry machine-drafted translations
-  // (#182, pending native review).
+  // `customers` is in TRANSLATED_NAMESPACES, same treatment as
+  // nav/numberField/errorBoundary/themeToggle/useConfirm/pwa/dailyEntry/
+  // dashboard/water/grades/inventory/products/stock/flocks/settings/users/
+  // expenses above: es/tl are machine-drafted (#182), pending native
+  // review.
   //
   // No status/enum on this screen — Customer has no closed-vocabulary field,
   // so nothing here routes through enums.ts. Customer name/phone/email/
@@ -1335,12 +1329,11 @@ export const en = {
   },
   // Daily-entry history — browse recorded entries with flock/date filters,
   // plus the admin-only adjust/void corrections (Task 27, #182, batch B5 —
-  // the last B4-onward records/export screen). English-only for now, same
-  // treatment as nav/numberField/errorBoundary/themeToggle/useConfirm/pwa/
-  // dailyEntry/dashboard/water/grades/inventory/products/stock/flocks/
-  // settings/users/expenses/customers above: `history` is deliberately NOT in
-  // TRANSLATED_NAMESPACES, so es/tl fall back to these strings until a
-  // native-speaker pass adds the namespace.
+  // the last B4-onward records/export screen). `history` is in
+  // TRANSLATED_NAMESPACES, same treatment as nav/numberField/errorBoundary/
+  // themeToggle/useConfirm/pwa/dailyEntry/dashboard/water/grades/inventory/
+  // products/stock/flocks/settings/users/expenses/customers above: es/tl are
+  // machine-drafted (#182), pending native review.
   //
   // Entry-status pills (statusCell): DELIBERATELY NOT routed through the
   // shared `enums` status family, even though enums.status already carries
@@ -1474,10 +1467,11 @@ export const en = {
     statusSubmitted: "Submitted",
     statusDraft: "Draft",
   },
-  // Task 28 (#182, B5) — ReportsPage. English-only (not in
-  // TRANSLATED_NAMESPACES), same as `history`/`nav`. Production renders for
-  // everyone; the Money section (sales/expenses/profit) is admin-gated —
-  // isAdmin is checked by the component, not this catalog.
+  // Task 28 (#182, B5) — ReportsPage. `reports` is in TRANSLATED_NAMESPACES,
+  // same as `history`/`nav`: es/tl are machine-drafted (#182), pending
+  // native review. Production renders for everyone; the Money section
+  // (sales/expenses/profit) is admin-gated — isAdmin is checked by the
+  // component, not this catalog.
   //
   // DATA left raw, never routed through this catalog: every date
   // (d.date/from/to), every numeric count/total (totalEggs, cracked/dirty/
@@ -1530,12 +1524,13 @@ export const en = {
       "\"Basic\" profit is confirmed revenue minus recorded expenses — no "
       + "cost-of-goods or inventory valuation.",
   },
-  // Task 29 (#182, B5) — AuditPage. English-only (not in
-  // TRANSLATED_NAMESPACES), same as `history`/`nav`/`reports`. The #93
-  // read-only audit trail (admin). The action/entity table cells and the
-  // action filter's option text route through enums:auditAction.*/
-  // enums:entityType.* (translated — see the `enums` header comment below),
-  // NOT this namespace. DATA left raw, never routed through this catalog:
+  // Task 29 (#182, B5) — AuditPage. `audit` is in TRANSLATED_NAMESPACES, same
+  // as `history`/`nav`/`reports`: es/tl are machine-drafted (#182), pending
+  // native review. The #93 read-only audit trail (admin). The action/entity
+  // table cells and the action filter's option text route through
+  // enums:auditAction.*/enums:entityType.* (also translated — see the
+  // `enums` header comment below), NOT this namespace. DATA left raw, never
+  // routed through this catalog:
   // every timestamp (e.occurredAtUtc), actorEmail, entityId, and the "—"
   // em-dash fallback for a null reason (same convention as
   // customers/expenses/users/flocks/history's raw "—").
@@ -1556,9 +1551,10 @@ export const en = {
     loadMoreButton: "load more",
   },
   // Task 30 (B5, #182) — ExportPage: the manual-backup screen (#95,
-  // admin-only). English-only (not in TRANSLATED_NAMESPACES), same as
-  // `audit`/`history`. CSV column headers and file contents are generated
-  // SERVER-side (Cluckwork.Api/Endpoints/Export/CsvExport.cs) and are NOT
+  // admin-only). `export` is in TRANSLATED_NAMESPACES, same as
+  // `audit`/`history`: es/tl are machine-drafted (#182), pending native
+  // review. CSV column headers and file contents are generated SERVER-side
+  // (Cluckwork.Api/Endpoints/Export/CsvExport.cs) and are NOT
   // client strings — out of scope here. Only the visible page copy below
   // (headings, buttons, and the dataset picker's own labels) is externalized;
   // the download filenames (`cluckwork-${d}.csv`, "cluckwork-backup.zip")
@@ -1630,9 +1626,12 @@ export const en = {
   //      StatusBadge label.
   //   2. UsersPage.tsx role table cell renders raw `{u.role}` = "ReadOnly";
   //      roleLabel makes it read "Read-only" (matching the picker option).
-  // Payment method and sale unit are intentionally absent — they belong to the
-  // TRANSLATED `sales` namespace (sales:method*/unit*, which carry es/tl), and
-  // duplicating them here (English-only) would regress that coverage.
+  // Payment method and sale unit are intentionally absent — they already live
+  // in the `sales` namespace (sales:method*/unit*, which carries its own
+  // es/tl). `enums` is in TRANSLATED_NAMESPACES too (#182, pending native
+  // review), so duplicating them here is no longer needed to avoid an
+  // English-only regression — it would just be a redundant second copy of
+  // the same vocabulary.
   enums: {
     // status — StatusBadge's STATUS_VALUES vocabulary. Identity except
     // ManagerAdjusted, whose pill reads "Adjusted".
@@ -1794,8 +1793,9 @@ export const en = {
 
     // Contents-rail labels (TOC array, 2nd element). Order mirrors the <h3
     // id=...> sections below — see the KEEP comment at the top of
-    // HelpPage.tsx. tocGlossary is translated even though the glossary
-    // SECTION itself (6b) is not, since it is just the rail's link text.
+    // HelpPage.tsx. tocGlossary is the rail's link text only; the glossary
+    // SECTION itself (heading + 37-row table + closing note) is externalized
+    // further down, near the end of this block (Task 33, B6b).
     tocGettingAround: "Getting around",
     tocSigningIn: "Signing in",
     tocDailyLoop: "The daily loop",
@@ -2272,6 +2272,194 @@ export const en = {
       + "<strong>edit</strong> jumps to the Daily entry screen with the day loaded). The flock/date of an "
       + "entry and the customer/date of an order are fixed, though: picked wrong, just record it again under "
       + "the right one (and cancel the wrong draft order).",
+
+    // Glossary (Task 33, B6b, #182): the 37-row term/definition table plus
+    // its closing repo-note paragraph. Externalized byte-faithful from the
+    // prior hardcoded English — see the Task 33 brief's alignment note:
+    // specs/product/GLOSSARY.md is the canonical 96-term termbase (Task 34
+    // reconciles it separately) and this in-app table is a curated subset,
+    // so its English wording is intentionally NOT rewritten here. HTML
+    // entities in the old JSX (&apos;/&quot;) are real apostrophe/quote
+    // characters below — same rendered text, just no entity escaping needed
+    // inside a JS string. <Trans>-only rows: glossaryInstallToHomeScreenDef
+    // (one <strong>) and glossaryRepoNote (one <code>, whose
+    // "specs/product/GLOSSARY.md" path text is literal — the closing note's
+    // <Trans> renders it via the components map, not a translated string).
+    glossaryHeading: "Glossary",
+
+    glossaryNavigationTerm: "Navigation",
+    glossaryNavigationDef:
+      "Screens live in the left sidebar on a computer; on a phone the four you use most are tabs across "
+      + "the bottom, the rest under More.",
+
+    glossaryOperationalDayTerm: "Operational day",
+    glossaryOperationalDayDef:
+      "Dates mean your farm's calendar day, worked out from the farm's own timezone rather than a clock "
+      + "somewhere else. It is the same \"today\" everywhere: what counts as a future date when you record "
+      + "work, when eggs leave a withdrawal period, which eggs a sale can take, the day a flock is depleted "
+      + "or archived on, and the range reports open on. Every field that records WHEN SOMETHING HAPPENED "
+      + "opens on it and will not go past it, whatever day the device in your hand is on. Dates meant to "
+      + "fall in the future are not capped — a feed batch's expiry, and the History and Water filters.",
+
+    glossaryInstallToHomeScreenTerm: "Install to home screen",
+    glossaryInstallToHomeScreenDef:
+      "Adding Cluckwork to a phone or tablet's home screen from the browser, so it gets its own icon and "
+      + "opens in its own window without the browser bars. It is the same app, not a separate download — "
+      + "nothing to update from an app store. Only offered over a secure (https) address, and it does "
+      + "<strong>not</strong> make the app work offline: it still needs a connection to load and save.",
+
+    glossaryNewVersionReadyTerm: "A new version is ready",
+    glossaryNewVersionReadyDef:
+      "After a release, an installed app notices the new version in the background and asks before "
+      + "switching, rather than reloading while you are typing. Press Reload when convenient, or Later and "
+      + "it asks again next time. Nothing is lost by leaving it — the running app keeps working until you "
+      + "accept.",
+
+    glossaryTooManySignInAttemptsTerm: "Too many sign-in attempts",
+    glossaryTooManySignInAttemptsDef:
+      "Sign-in is rate limited to slow password guessing: too many attempts from one place in a few "
+      + "minutes are refused with this message until a short cool-off passes. It never affects an already "
+      + "signed-in session.",
+
+    glossarySomethingWentWrongScreenTerm: "\"Something went wrong\" screen",
+    glossarySomethingWentWrongScreenDef:
+      "What a screen shows when it hits an error, instead of going blank. Saved data is safe — anything "
+      + "you were still typing may need re-entering; tap Reload or Back to the dashboard. \"Error "
+      + "details\" holds the message for a screenshot.",
+
+    glossaryDailyEntryTerm: "Daily entry",
+    glossaryDailyEntryDef: "One flock's day: eggs by grade, losses, deaths. Draft until submitted.",
+
+    glossaryEggLotTerm: "Egg lot",
+    glossaryEggLotDef:
+      "A dated batch of sellable eggs of one grade, created by submitting an entry. Stock is the sum of "
+      + "lots.",
+
+    glossaryGradeTerm: "Grade",
+    glossaryGradeDef: "A grading bucket (size, quality, or custom). Saleable grades can be sold.",
+
+    glossaryEggMovementLedgerTerm: "Egg movement ledger",
+    glossaryEggMovementLedgerDef:
+      "The line-by-line history behind an egg lot's balance: production in, sales out, corrections and "
+      + "voids signed accordingly.",
+
+    glossaryFifoTerm: "FIFO",
+    glossaryFifoDef: "\"First in, first out\" — sales and feed usage always take the oldest stock first.",
+
+    glossaryCullTerm: "Cull",
+    glossaryCullDef: "Birds deliberately removed from a flock (sold, slaughtered, given away) — not deaths.",
+
+    glossaryMortalityTerm: "Mortality",
+    glossaryMortalityDef: "Deaths, recorded on the daily entry; lands in the bird ledger automatically at submit.",
+
+    glossaryDepleteTerm: "Deplete",
+    glossaryDepleteDef: "Mark a flock as having no birds left. History stays; reversible via Reactivate.",
+
+    glossaryArchiveTerm: "Archive",
+    glossaryArchiveDef: "Hide a finished flock from daily work. Reversible via Reactivate.",
+
+    glossaryWithdrawalRestrictionTerm: "Withdrawal restriction",
+    glossaryWithdrawalRestrictionDef:
+      "A hold on eggs during a medication withholding period. Coming with medication tracking — nothing "
+      + "sets restrictions yet, so manage withholding periods outside Cluckwork for now.",
+
+    glossaryProductTerm: "Product",
+    glossaryProductDef:
+      "What you sell — an egg product points at a grade (its stock source) and carries a selling unit and "
+      + "default price.",
+
+    glossaryPackedUnitTerm: "Packed unit",
+    glossaryPackedUnitDef:
+      "How many eggs a dozen/tray/carton/case holds on your farm. Each sale line keeps the count it was "
+      + "sold with.",
+
+    glossarySalesLineTerm: "Sales line",
+    glossarySalesLineDef:
+      "One product on an order: quantity in selling units, priced per unit; the eggs behind it are "
+      + "quantity × the unit's egg count.",
+
+    glossaryConfirmOrderTerm: "Confirm (order)",
+    glossaryConfirmOrderDef: "Turns a draft order into a real sale and allocates stock. Undone only by voiding.",
+
+    glossaryVoidOrderTerm: "Void (order)",
+    glossaryVoidOrderDef:
+      "Undo of a mistaken confirm — stock returns to the exact lots it came from. Needs a reason.",
+
+    glossaryCancelOrderTerm: "Cancel (order)",
+    glossaryCancelOrderDef: "Close a draft that never happened. No stock involved.",
+
+    glossaryInventoryItemTerm: "Inventory item",
+    glossaryInventoryItemDef:
+      "A catalog entry for something you stock (feed, supplements…), with a fixed unit of measure.",
+
+    glossaryInventoryLotTerm: "Inventory lot",
+    glossaryInventoryLotDef: "One received batch of an item, with its own cost. On-hand = sum of lots.",
+
+    glossaryInventoryMovementLedgerTerm: "Inventory movement ledger",
+    glossaryInventoryMovementLedgerDef:
+      "The append-only trail of every feed/supply stock change. Corrections are new rows, never edits.",
+
+    glossaryWaterUsageTerm: "Water usage",
+    glossaryWaterUsageDef:
+      "What a flock drank on a day — direct amount or meter delta. Editable in place; flock/date fixed.",
+
+    glossaryFeedUsageTerm: "Feed usage",
+    glossaryFeedUsageDef: "What a flock ate on a day; drains lots FIFO and estimates cost from them.",
+
+    glossaryAdjustmentDiscardTerm: "Adjustment / Discard",
+    glossaryAdjustmentDiscardDef:
+      "Stock corrections against a lot, reason required. Discard = write-off (spoilage).",
+
+    glossaryRolesTerm: "Roles",
+    glossaryRolesDef:
+      "Admin (owner), Manager, Worker, Sales, Read-only — see \"Who can do what\". Workers record; "
+      + "managers also correct and configure; sales handles orders and payments; read-only just views.",
+
+    glossaryLockedEntryTerm: "Locked (entry)",
+    glossaryLockedEntryDef:
+      "A submitted entry older than 7 days — closed to routine edits; admin adjust/void still works.",
+
+    glossaryAdjustEntryTerm: "Adjust (entry)",
+    glossaryAdjustEntryDef:
+      "Admin correction of a submitted entry. Stock and bird ledger reconcile automatically; sold eggs are "
+      + "untouchable; previous values stay visible.",
+
+    glossaryVoidEntryTerm: "Void (entry)",
+    glossaryVoidEntryDef:
+      "Admin undo of a whole submitted entry — lots empty, deaths reverse, entry preserved as Voided. "
+      + "Refused once its eggs are sold.",
+
+    glossaryFarmSettingsTerm: "Farm settings",
+    glossaryFarmSettingsDef:
+      "The farm's name, timezone, locale, currency and unit system, plus optional first day of week and "
+      + "date/time formats. Setup → Farm settings; owners and managers edit, everyone reads — formatting "
+      + "money and dates is not a permission.",
+
+    glossaryCurrencyLockTerm: "Currency lock",
+    glossaryCurrencyLockDef:
+      "The farm currency stops being editable once anything has recorded an amount in it — a sale, a "
+      + "payment, an expense, a priced product, money spent on feed. The field shows locked with the "
+      + "reason. Nothing already recorded is ever re-priced, which is the whole point.",
+
+    glossaryFarmLogoTerm: "Farm logo",
+    glossaryFarmLogoDef:
+      "Your own image in place of the Cluckwork mark in the sidebar, uploaded from Farm settings. PNG, "
+      + "JPEG or WebP (2 MB by default), still images only; a square, simple mark reads best at the small "
+      + "sidebar size. Stored as a rebuilt copy with camera and location details stripped out.",
+
+    glossaryFarmPaletteTerm: "Farm palette",
+    glossaryFarmPaletteDef:
+      "The farm-wide accent colour, chosen by an admin in Farm settings. Separate from each person's own "
+      + "light/night mode setting.",
+
+    glossaryUiLanguageTerm: "UI language",
+    glossaryUiLanguageDef:
+      "The per-user language the interface is shown in — English, Español, or Tagalog — chosen from "
+      + "Account → Preferences. English is the fallback for any screen not yet translated, whatever "
+      + "language you picked.",
+
+    glossaryRepoNote:
+      "Full spec-language definitions live in the repository's <code>specs/product/GLOSSARY.md</code>.",
   },
 } as const;
 

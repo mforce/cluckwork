@@ -69,10 +69,11 @@ export function statusLabel(value: StatusValue | (string & {})): string {
 
 // NOTE: payment method and sale unit are deliberately NOT here. They already
 // live in the TRANSLATED `sales` namespace (sales:method*, sales:unit*), which
-// carries es/tl. `enums` is English-only, so labelling them here would REGRESS
-// Spanish/Tagalog coverage. Sale unit's only other render site (ProductsPage
-// `{p.defaultUnit}`) shows raw English today, which equals an English-only enum
-// label anyway — nothing is lost by leaving it until a real translation pass
+// carries its own es/tl. `enums` is in TRANSLATED_NAMESPACES too (#182,
+// pending native review), so adding them here would just be a redundant
+// second copy of the same vocabulary, not a translation-coverage gain. Sale
+// unit's only other render site (ProductsPage `{p.defaultUnit}`) shows the
+// raw value today — nothing is lost by leaving it until a native pass
 // decides on a shared source.
 
 // ---------------------------------------------------------------------------
