@@ -2020,43 +2020,33 @@ input.locked {
 
 /* Without this, the global button:disabled { opacity: .5 } halves the whole
    busy subtree — spinner included — reproducing the exact dead-button look the
-   busy state exists to replace. Busy dims the LABEL alone, one layer, below.
-   The rule being overridden is the base `button:disabled` in the button styles
-   near the top of this file; this compound selector out-specifies it only
-   while aria-busy is set. */
+   busy state exists to replace. The rule being overridden is the base
+   `button:disabled` in the button styles near the top of this file; this
+   compound selector out-specifies it only while aria-busy is set. */
 button:disabled[aria-busy="true"] {
   opacity: 1;
 }
 
-/* Anchors the overlaid spinner; scoped to busy so idle buttons keep whatever
-   positioning context they had. */
-button[aria-busy="true"] {
-  position: relative;
-}
-
-button[aria-busy="true"] .busy-label {
-  opacity: 0.45;
-}
-
-/* inline-flex so callers' icon/text pairs keep their gap inside the wrapper. */
+/* inline-flex so callers' icon/text pairs keep their gap inside the wrapper —
+   and so the spinner, rendered as the wrapper's first child while busy, seats
+   beside the label with that same gap. */
 .busy-label {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
 }
 
-/* Overlaid centered over the dimmed label, so the button never changes size
-   when it appears. currentColor keeps it legible on every button variant
-   (brand pill, danger, link). No reduced-motion query here: the global rule
-   above already kills the animation, and a static ring over a dimmed label
-   still reads as busy. */
+/* Beside the label at full brightness, not overlaid on a dimmed one — the
+   overlay version read as barely-there on filled buttons (owner call,
+   2026-07-28). currentColor keeps it legible on every button variant (brand
+   pill, danger, link). flex-shrink 0: the ring must never be crushed by a long
+   label. No reduced-motion query here: the global rule above already kills the
+   animation, and a static ring beside a "Saving…" label still reads as busy. */
 .spinner {
-  position: absolute;
-  inset: 0;
-  margin: auto;
+  flex-shrink: 0;
   width: 1em;
   height: 1em;
-  border: 2px solid currentColor;
+  border: 3px solid currentColor;
   border-right-color: transparent;
   border-radius: 50%;
   animation: spin 0.7s linear infinite;

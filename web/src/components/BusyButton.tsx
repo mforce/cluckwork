@@ -4,8 +4,13 @@ import { useTranslation } from "react-i18next";
 type Props = ButtonHTMLAttributes<HTMLButtonElement> & { busy?: boolean };
 
 // #236 — the busy trigger. Children pass through untouched (dynamic labels
-// like Login's "Signing in…" swap stay the caller's), wrapped only so the
-// label can dim in one opacity layer while the spinner overlays it.
+// like Login's "Signing in…" swap stay the caller's); the wrapper's inline-flex
+// gap is what seats the spinner beside them. The ring sits INLINE before the
+// label at full brightness — an earlier overlay version dimmed the label and
+// stacked the ring on top, and read as barely-there on the terracotta buttons
+// (owner call, 2026-07-28). The button widening slightly while busy is the
+// accepted cost; it is disabled for the duration, so nothing under the cursor
+// is clickable anyway.
 //
 // The live region is a SIBLING of the button, not a child: aria-busy tells AT
 // to defer announcing changes inside the busy element, so a region in there
@@ -19,8 +24,10 @@ export function BusyButton({ busy = false, disabled, children, ...rest }: Props)
   return (
     <>
       <button {...rest} disabled={disabled || busy} aria-busy={busy || undefined}>
-        {busy && <span className="spinner" aria-hidden="true" />}
-        <span className="busy-label">{children}</span>
+        <span className="busy-label">
+          {busy && <span className="spinner" aria-hidden="true" />}
+          {children}
+        </span>
       </button>
       <span role="status" className="sr-only">
         {busy ? t("working") : ""}

@@ -32,6 +32,18 @@ describe("BusyButton", () => {
     expect(spinner).toHaveAttribute("aria-hidden", "true");
   });
 
+  it("busy: the spinner sits inline before the label text, not overlaid", () => {
+    render(<BusyButton busy>Save</BusyButton>);
+    // Inside .busy-label (the inline-flex wrapper), as its first child: that is
+    // what puts the ring BESIDE the text with the wrapper's gap, instead of
+    // stacked on top of it (owner call, 2026-07-28 — the overlay read as faint).
+    const label = document.querySelector(".busy-label");
+    expect(label).not.toBeNull();
+    const spinner = label!.querySelector(".spinner");
+    expect(spinner).not.toBeNull();
+    expect(label!.firstElementChild).toBe(spinner);
+  });
+
   it("busy: the accessible name is EXACTLY the children text — spinner and status must not leak in", () => {
     render(<BusyButton busy>Save</BusyButton>);
     // Exact match: existing screen tests assert names like "Sign in" verbatim,
