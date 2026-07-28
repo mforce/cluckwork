@@ -453,6 +453,213 @@ export const tl = {
     outstandingHeader: "Nakabinbin",
   },
 
+  // machine-drafted (#182) — pending native review. Task 28 (B5): new
+  // namespace, backfilling tl so Tagalog mode renders translated text on the
+  // History screen. Keys mirror en.ts history exactly, including the
+  // {{status}}/{{date}}/{{flock}}/{{total}}/{{mortality}}/{{reason}}/{{time}}
+  // placeholders. "Daily entry page" (noEntriesMatch) is kept fully in
+  // English, matching the existing sales.addCustomerFirst "(Customers page)"
+  // precedent of leaving an unexternalized screen's name untranslated until
+  // dailyEntry itself is added to TRANSLATED_NAMESPACES. Status-pill labels
+  // (statusVoided/statusAdjusted/statusLocked/statusSubmitted/statusDraft)
+  // reuse the same words already chosen for enums.status.* for consistency.
+  history: {
+    loadingTitle: "Kasaysayan",
+    title: "Kasaysayan ng araw-araw na entry",
+
+    intro:
+      "Puwedeng i-adjust o i-void dito ang mga naisumite at naka-lock na "
+      + "entry — awtomatikong susunod ang stock at ang rekord ng manok; "
+      + "hindi na gumagalaw ang mga itlog na nabenta na. Palaging "
+      + "kailangan ng dahilan.",
+
+    concurrentConflictMessage:
+      "Kababago lang ng entry na ito sa ibang lugar — na-reload na ang listahan; subukan ulit.",
+    loadFlocksGradesFailed: "Hindi na-load ang mga kawan/grado.",
+    loadEntriesFailed: "Hindi na-load ang mga entry.",
+    conflictRebindMessage:
+      "Binago ng ibang tao ang entry na ito — ipinapakita na ngayon ng "
+      + "form ang pinakabagong mga value; i-apply ulit ang iyong pagtatama.",
+    nothingToAdjustMessage: "{{status}} na ngayon ang entry na ito — wala nang puwedeng i-adjust.",
+    conflictReloadFailedMessage:
+      "Binago ng ibang tao ang entry na ito at hindi na-reload ang "
+      + "listahan — i-reload ang page bago subukan ulit.",
+    exceedsSellableMessage:
+      "Hindi puwedeng lumampas ang mga na-grade na dami sa kabuuang itlog na bawas ang basag/marumi/tinapon.",
+    entryAdjustedMessage: "Na-adjust ang entry — na-update ang stock at ang rekord ng manok para tumugma.",
+    adjustReloadFailedMessage: "Na-save ang pag-adjust, pero hindi na-reload ang listahan — i-refresh ang page.",
+    voidConfirmTitle: "I-void ang entry ng {{date}} para sa {{flock}}?",
+    voidConfirmBody:
+      "Mawawalan ng laman ang mga lote ng itlog nito at mababaliktad ang "
+      + "mga namatay dito. Mananatiling Na-void ang entry. Tatanggihan "
+      + "kung nabenta na ang alinman sa mga itlog nito.",
+    voidConfirmLabel: "I-void ang entry",
+    entryVoidedMessage: "Na-void ang entry — nawalan ng laman ang mga lote ng itlog nito at nabaliktad ang mga namatay dito.",
+    voidReloadFailedMessage: "Na-save ang pag-void, pero hindi na-reload ang listahan — i-refresh ang page.",
+    voidConflictMessage: "Binago ng ibang tao ang entry na ito — na-reload na ang listahan; subukan ulit.",
+    voidConflictReloadFailedMessage:
+      "Binago ng ibang tao ang entry na ito at hindi na-reload ang "
+      + "listahan — i-reload ang page.",
+    loadMoreFailedMessage: "Hindi na-load ang karagdagan.",
+
+    // Filters
+    flockLabel: "Kawan",
+    allFlocksOption: "Lahat ng kawan",
+    fromLabel: "Mula",
+    toLabel: "Hanggang",
+
+    // Adjust dialog
+    adjustDialogTitle: "I-adjust ang entry",
+    adjustDialogTitleWithEntry: "I-adjust — {{date}}, {{flock}}",
+    previouslyAdjusted:
+      "Na-adjust na dati (kabuuan {{total}}, mortalidad {{mortality}} — \"{{reason}}\").",
+    totalEggsLabel: "Kabuuang itlog",
+    crackedLabel: "Basag",
+    dirtyLabel: "Marumi",
+    discardedLabel: "Tinapon",
+    deathsLabel: "Namatay",
+    inactiveGradeSuffix: " (hindi aktibo)",
+    reasonLabel: "Dahilan *",
+    saveAdjustmentButton: "I-save ang pag-adjust",
+
+    noEntriesMatch: "Walang tugmang entry — magtala ng isa sa Daily entry page.",
+
+    // Entries table
+    dateHeader: "Petsa",
+    flockHeader: "Kawan",
+    statusHeader: "Katayuan",
+    totalHeader: "Kabuuan",
+    // NOTE (flag for native review): "cr/di/ds" abbreviates the English
+    // cracked/dirty/discarded; re-abbreviated here to the initials of the
+    // Filipino words (basag/marumi/tapon → b/m/t) — confirm this reads
+    // clearly as a table-header abbreviation.
+    lossesHeader: "Nasira (b/m/t)",
+    mortalityHeader: "Mortalidad",
+    gradedHeader: "Na-grade",
+    editButton: "i-edit",
+    adjustButton: "i-adjust",
+    voidButton: "i-void",
+    loadMoreButton: "mag-load pa",
+
+    // Entry-status pills
+    statusVoided: "Na-void",
+    statusAdjusted: "Na-adjust",
+    statusLocked: "Naka-lock",
+    lockedAt: "Naka-lock {{time}}",
+    statusSubmitted: "Naisumite",
+    statusDraft: "Draft",
+  },
+
+  // machine-drafted (#182) — pending native review. Task 28 (B5): new
+  // namespace, backfilling tl so Tagalog mode renders translated text on the
+  // Reports screen. Keys mirror en.ts reports exactly, including the
+  // {{count}}/{{revenue}}/{{paid}}/{{outstanding}}/{{total}}/{{expenses}}/
+  // {{profit}} placeholders and the <strong> tag in profitLine. "Hen-days" /
+  // "Hen-day %" kept as English loanwords (technical poultry-industry
+  // metric, no settled short Filipino term) — flag for native review, same
+  // treatment as settings.timezoneLabel above. "cost-of-goods" /
+  // "inventory valuation" in profitFootnote kept partially in English for
+  // the same reason.
+  reports: {
+    title: "Mga Ulat",
+    fromLabel: "Mula",
+    toLabel: "Hanggang",
+
+    productionHeading: "Produksyon",
+    dateHeader: "Petsa",
+    eggsHeader: "Itlog",
+    lossesHeader: "Nasira (b/m/t)",
+    sellableHeader: "Maibebenta",
+    deathsHeader: "Namatay",
+    henDaysHeader: "Hen-days",
+    henDayPctHeader: "Hen-day %",
+    periodRowLabel: "Panahon",
+    gradeTotalsLabel: "Ayon sa grado:",
+
+    moneyHeading: "Pera",
+    salesRowLabel: "Benta",
+    salesSummary:
+      "{{count}} kumpirmadong order — kita {{revenue}}, nabayaran {{paid}}, nakabinbin {{outstanding}}",
+    salesVoidedSuffix: " ({{count}} na-void)",
+    expensesRowLabel: "Gastos",
+    expensesNone: "wala pang naitala",
+    expensesTotalSuffix: " — kabuuan {{total}}",
+    profitRowLabel: "Kita (payak)",
+    profitLine: "kita {{revenue}} − gastos {{expenses}} = <strong>{{profit}}</strong>",
+    profitFootnote:
+      "Ang \"payak\" na kita ay ang nakumpirmang kita bawas ang mga "
+      + "naitalang gastos — walang cost-of-goods o valuation ng imbentaryo.",
+  },
+
+  // machine-drafted (#182) — pending native review. Task 29 (B5): new
+  // namespace, backfilling tl so Tagalog mode renders translated text on the
+  // Audit screen. Keys mirror en.ts audit exactly (no placeholders in this
+  // namespace — the action/entity table cells route through the already-
+  // translated enums:auditAction.*/entityType.* labels, not this
+  // namespace). "corrective"/"destructive"/"configuration" kept as English
+  // loanword adjectives in intro (matching the loanword-heavy register
+  // elsewhere in this file, e.g. sales.confirmOrderButton); "Audit Log"
+  // kept as a loanword heading, same treatment as settings.localeLabel.
+  audit: {
+    heading: "Audit Log",
+    intro:
+      "Bawat corrective, destructive, o configuration na pagbabago — sino "
+      + "ang gumawa, kailan, at bakit. Isinusulat ang mga row kasabay ng "
+      + "pagbabago mismo at hindi na ito ine-edit pa.",
+    actionFilterLabel: "Aksyon",
+    allActionsOption: "Lahat ng aksyon",
+    whenHeader: "Kailan (UTC)",
+    whoHeader: "Sino",
+    actionHeader: "Aksyon",
+    entityHeader: "Entidad",
+    reasonHeader: "Dahilan",
+    emptyMessage: "Wala pang audit event.",
+    loadMoreButton: "mag-load pa",
+  },
+
+  // machine-drafted (#182) — pending native review. Task 30 (B5): new
+  // namespace, backfilling tl so Tagalog mode renders translated text on the
+  // Export screen. Keys mirror en.ts export exactly (no placeholders in
+  // this namespace). The "dataset.<slug>" keys are DISPLAY labels for the
+  // dataset picker (the wire value stays the raw slug) — translated to
+  // natural Filipino per the task brief.
+  export: {
+    heading: "Export",
+    intro:
+      "I-download ang datos ng iyong account bilang mga CSV file — isang "
+      + "manual na backup na puwede mong itago kahit saan. Ang mga "
+      + "halagang pera ay ine-export sa minor units (sentimo) kasama ang "
+      + "currency nito, eksakto gaya ng pagkaka-save.",
+
+    fullBackupHeading: "Buong backup",
+    fullBackupButton: "I-download ang buong backup (zip)",
+    fullBackupHint: "Isang zip na may lahat ng dataset sa ibaba kasama ang manifest ng bilang ng row.",
+    preparingButton: "Naghahanda…",
+
+    singleDatasetsHeading: "Mga indibidwal na dataset",
+
+    "dataset.flocks": "Mga kawan",
+    "dataset.bird-movements": "Mga paggalaw ng manok",
+    "dataset.daily-entries": "Mga araw-araw na entry",
+    "dataset.daily-entry-grades": "Mga grado ng araw-araw na entry",
+    "dataset.egg-grades": "Mga grado ng itlog",
+    "dataset.egg-lots": "Mga lote ng itlog",
+    "dataset.customers": "Mga customer",
+    "dataset.sales-orders": "Mga order ng benta",
+    "dataset.sales-order-items": "Mga item ng order ng benta",
+    "dataset.sales-order-allocations": "Mga allocation ng order ng benta",
+    "dataset.payments": "Mga bayad",
+    "dataset.inventory-items": "Mga item sa imbentaryo",
+    "dataset.inventory-lots": "Mga lote ng imbentaryo",
+    "dataset.inventory-movements": "Mga paggalaw ng imbentaryo",
+    "dataset.feed-usages": "Mga paggamit ng feed",
+    "dataset.water-usages": "Mga paggamit ng tubig",
+    "dataset.expense-categories": "Mga kategorya ng gastos",
+    "dataset.expenses": "Mga gastos",
+    "dataset.egg-inventory-movements": "Mga paggalaw ng imbentaryo ng itlog",
+    "dataset.audit-events": "Mga audit event",
+  },
+
   // machine-drafted (#182) — pending native review. Task 25c (B4): new
   // namespace, backfilling tl for the closed-vocabulary enum labels
   // (status/role/waterSource/waterUnit/gradeType/inventoryCategory/
@@ -552,5 +759,57 @@ export const tl = {
     "weekday.Thursday": "Huwebes",
     "weekday.Friday": "Biyernes",
     "weekday.Saturday": "Sabado",
+
+    // machine-drafted (#182) — pending native review. Task 29 (B5): audit
+    // action + entity type labels for AuditPage. Keys mirror en.ts exactly
+    // (flat "auditAction.Entity.Verb" / "entityType.Value" strings,
+    // keySeparator:false — see en.ts's auditAction header comment).
+    // "Order", "User", "Account", "item", and "conversion" kept as English
+    // loanwords, matching the sales/users precedent above; "kawan" (flock),
+    // "gastos" (expense), "bayad" (payment), "produkto" (product), "itlog"
+    // (egg), and "imbentaryo" (inventory) reuse the vocabulary already
+    // established in the sales/users/expenses/customers namespaces.
+    "auditAction.DailyEntry.Adjust": "Na-adjust ang araw-araw na entry",
+    "auditAction.DailyEntry.Void": "Na-void ang araw-araw na entry",
+    "auditAction.SalesOrder.Void": "Na-void ang order ng benta",
+    "auditAction.Payment.Void": "Na-void ang bayad",
+    "auditAction.Expense.Adjust": "Na-adjust ang gastos",
+    "auditAction.ExpenseCategory.Update": "Na-update ang kategorya ng gastos",
+    "auditAction.InventoryItem.Adjust": "Na-adjust ang item sa imbentaryo",
+    "auditAction.WaterUsage.Correct": "Naitama ang paggamit ng tubig",
+    "auditAction.Flock.BirdMovement": "Naitala ang paggalaw ng manok",
+    "auditAction.Flock.Update": "Na-update ang kawan",
+    "auditAction.Flock.Deplete": "Naubos ang kawan",
+    "auditAction.Flock.Archive": "Na-archive ang kawan",
+    "auditAction.Flock.Reactivate": "Na-reactivate ang kawan",
+    "auditAction.EggGrade.Update": "Na-update ang grado ng itlog",
+    "auditAction.EggGrade.Activate": "Na-activate ang grado ng itlog",
+    "auditAction.EggGrade.Deactivate": "Na-deactivate ang grado ng itlog",
+    "auditAction.User.Create": "Nagawa ang user",
+    "auditAction.User.Update": "Na-update ang user",
+    "auditAction.User.PasswordSet": "Naitakda ang password",
+    "auditAction.User.PasswordChanged": "Napalitan ang password",
+    "auditAction.User.FlockAssign": "Na-assign ang kawan sa user",
+    "auditAction.User.FlockUnassign": "Na-unassign ang kawan mula sa user",
+    "auditAction.Account.Export": "Na-export ang datos",
+    "auditAction.Product.Create": "Nagawa ang produkto",
+    "auditAction.Product.Update": "Na-update ang produkto",
+    "auditAction.Product.Activate": "Na-activate ang produkto",
+    "auditAction.Product.Deactivate": "Na-deactivate ang produkto",
+    "auditAction.EggUnitConversion.Update": "Na-update ang conversion ng yunit ng itlog",
+
+    "entityType.Account": "Account",
+    "entityType.DailyEntry": "Araw-araw na Entry",
+    "entityType.EggGrade": "Grado ng Itlog",
+    "entityType.EggUnitConversion": "Conversion ng Yunit ng Itlog",
+    "entityType.Expense": "Gastos",
+    "entityType.ExpenseCategory": "Kategorya ng Gastos",
+    "entityType.Flock": "Kawan",
+    "entityType.InventoryItem": "Item sa Imbentaryo",
+    "entityType.Payment": "Bayad",
+    "entityType.Product": "Produkto",
+    "entityType.SalesOrder": "Order ng Benta",
+    "entityType.User": "User",
+    "entityType.WaterUsage": "Paggamit ng Tubig",
   },
 } as const;

@@ -3,6 +3,7 @@ import { render, screen, fireEvent, act } from "@testing-library/react";
 import { ExportPage } from "./ExportPage";
 import { EXPORT_DATASETS, downloadExportCsv, downloadFullBackup } from "../api/cluckwork";
 import { ApiError } from "../api/client";
+import i18n from "../i18n";
 
 // Network seam only: stub the two download fns the screen can call, but keep
 // EXPORT_DATASETS real (the list the screen maps into buttons) via importOriginal.
@@ -169,5 +170,141 @@ describe("ExportPage busy state", () => {
     expect(
       screen.getByRole("button", { name: "Download full backup (zip)" }),
     ).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// i18n wiring (#182, Task 30, batch B5)
+// ---------------------------------------------------------------------------
+
+// `export` is English-only (not in TRANSLATED_NAMESPACES — see
+// translations-status.ts), so under ANY UI language the rendered text falls
+// back to this exact English string, same as a still-hardcoded literal would
+// render — asserting plain English under default lng:"en" would prove nothing
+// (CONTRIBUTING-i18n.md's fallback trap). Swap the catalog value at runtime
+// instead, the same i18n.addResource technique every prior batch uses, so
+// each marker only renders if the screen actually reads the catalog rather
+// than a literal that happens to still match it.
+describe("ExportPage i18n wiring (#182, Task 30)", () => {
+  function withOverride(ns: string, key: string, value: string, run: () => Promise<void> | void) {
+    const original = i18n.getResource("en", ns, key) as string;
+    i18n.addResource("en", ns, key, value);
+    return Promise.resolve(run()).finally(() => {
+      i18n.addResource("en", ns, key, original);
+    });
+  }
+
+  it("reads the heading from the catalog, not a hardcoded literal", async () => {
+    await withOverride("export", "heading", "HEADING-MARKER", async () => {
+      render(<ExportPage />);
+      expect(await screen.findByRole("heading", { name: "HEADING-MARKER" })).toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "Export" })).not.toBeInTheDocument();
+    });
+  });
+
+  it("reads the intro paragraph from the catalog, not a hardcoded literal", async () => {
+    await withOverride("export", "intro", "INTRO-MARKER", async () => {
+      render(<ExportPage />);
+      expect(await screen.findByText("INTRO-MARKER")).toBeInTheDocument();
+      expect(screen.queryByText(/Download your account's data/)).not.toBeInTheDocument();
+    });
+  });
+
+  it("reads the full-backup section heading from the catalog, not a hardcoded literal", async () => {
+    await withOverride("export", "fullBackupHeading", "SECTION-MARKER", async () => {
+      render(<ExportPage />);
+      expect(await screen.findByRole("heading", { name: "SECTION-MARKER" })).toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "Full backup" })).not.toBeInTheDocument();
+    });
+  });
+
+  it("reads the full-backup button label from the catalog, not a hardcoded literal", async () => {
+    await withOverride("export", "fullBackupButton", "BACKUP-BUTTON-MARKER", async () => {
+      render(<ExportPage />);
+      expect(await screen.findByRole("button", { name: "BACKUP-BUTTON-MARKER" })).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Download full backup (zip)" }),
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  it("reads the full-backup hint from the catalog, not a hardcoded literal", async () => {
+    await withOverride("export", "fullBackupHint", "HINT-MARKER", async () => {
+      render(<ExportPage />);
+      expect(await screen.findByText("HINT-MARKER")).toBeInTheDocument();
+      expect(
+        screen.queryByText(/One zip with every dataset below/),
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  it("reads the single-datasets section heading from the catalog, not a hardcoded literal", async () => {
+    await withOverride("export", "singleDatasetsHeading", "DATASETS-MARKER", async () => {
+      render(<ExportPage />);
+      expect(await screen.findByRole("heading", { name: "DATASETS-MARKER" })).toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "Single datasets" })).not.toBeInTheDocument();
+    });
+  });
+
+  // Proves `preparingButton` is a SHARED key: overriding it once changes the
+  // busy label on BOTH the full-backup button AND a dataset button — the two
+  // separate `busy === <key> ? t("preparingButton") : ...` call sites in the
+  // component read the same catalog entry rather than each carrying its own
+  // hardcoded "Preparing…" literal.
+  it("reads the shared preparing label on both the full-backup and a dataset button", async () => {
+    let resolveBackup!: (v: { blob: Blob; filename: string | null }) => void;
+    mockBackup.mockReturnValue(
+      new Promise<{ blob: Blob; filename: string | null }>((r) => (resolveBackup = r)),
+    );
+    let resolveCsv!: (v: { blob: Blob; filename: string | null }) => void;
+    mockCsv.mockReturnValue(
+      new Promise<{ blob: Blob; filename: string | null }>((r) => (resolveCsv = r)),
+    );
+
+    await withOverride("export", "preparingButton", "BUSY-MARKER", async () => {
+      render(<ExportPage />);
+
+      // Full-backup button, busy.
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "Download full backup (zip)" }));
+      });
+      expect(screen.getByRole("button", { name: "BUSY-MARKER" })).toBeInTheDocument();
+      expect(screen.queryByText("Preparing…")).not.toBeInTheDocument();
+      await act(async () => {
+        resolveBackup({ blob: blob(), filename: null });
+      });
+
+      // Same tree, a dataset button, busy — same catalog key drives both.
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "flocks" }));
+      });
+      expect(screen.getByRole("button", { name: "BUSY-MARKER" })).toBeInTheDocument();
+      expect(screen.queryByText("Preparing…")).not.toBeInTheDocument();
+      await act(async () => {
+        resolveCsv({ blob: blob(), filename: null });
+      });
+    });
+  });
+
+  // Per-dataset labels: overriding ONE dataset's key changes only that
+  // button, proving each of the 20 EXPORT_DATASETS members has its OWN
+  // catalog key ("dataset.<slug>"), not a single shared/derived string.
+  it("reads a single dataset's label from its own catalog key, leaving the rest untouched", async () => {
+    await withOverride("export", "dataset.customers", "CUSTOMERS-MARKER", async () => {
+      render(<ExportPage />);
+      expect(await screen.findByRole("button", { name: "CUSTOMERS-MARKER" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "customers" })).not.toBeInTheDocument();
+      // A different dataset's button is untouched by this override.
+      expect(screen.getByRole("button", { name: "flocks" })).toBeInTheDocument();
+    });
+  });
+
+  // Every EXPORT_DATASETS member resolves to a real, non-empty catalog entry
+  // — not a missing key silently falling back to i18next's raw-key render.
+  it("resolves every EXPORT_DATASETS member to a real catalog key", () => {
+    render(<ExportPage />);
+    for (const d of EXPORT_DATASETS) {
+      expect(i18n.exists(`export:dataset.${d}`)).toBe(true);
+    }
   });
 });

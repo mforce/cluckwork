@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   EXPORT_DATASETS,
   downloadExportCsv,
@@ -25,6 +26,7 @@ function saveBlob(blob: Blob, filename: string) {
 // #95 — manual backup (admin). Downloads only; restore is a deployment
 // operation (see the backup section in the README), not an app feature.
 export function ExportPage() {
+  const { t } = useTranslation("export");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -47,16 +49,12 @@ export function ExportPage() {
 
   return (
     <section>
-      <h2>Export</h2>
-      <p className="muted">
-        Download your account&apos;s data as CSV files — a manual backup you
-        can keep anywhere. Money values are exported in minor units (cents)
-        with their currency, exactly as stored.
-      </p>
+      <h2>{t("heading")}</h2>
+      <p className="muted">{t("intro")}</p>
 
       {error && <p className="error" role="alert">{error}</p>}
 
-      <h3>Full backup</h3>
+      <h3>{t("fullBackupHeading")}</h3>
       <p>
         <button
           disabled={busy !== null}
@@ -64,14 +62,12 @@ export function ExportPage() {
             void download("all", downloadFullBackup, "cluckwork-backup.zip")
           }
         >
-          {busy === "all" ? "Preparing…" : "Download full backup (zip)"}
+          {busy === "all" ? t("preparingButton") : t("fullBackupButton")}
         </button>
       </p>
-      <p className="muted">
-        One zip with every dataset below plus a manifest of row counts.
-      </p>
+      <p className="muted">{t("fullBackupHint")}</p>
 
-      <h3>Single datasets</h3>
+      <h3>{t("singleDatasetsHeading")}</h3>
       <ul className="export-list">
         {EXPORT_DATASETS.map((d) => (
           <li key={d}>
@@ -82,7 +78,7 @@ export function ExportPage() {
                 void download(d, () => downloadExportCsv(d), `cluckwork-${d}.csv`)
               }
             >
-              {busy === d ? "Preparing…" : d}
+              {busy === d ? t("preparingButton") : t(`dataset.${d}`)}
             </button>
           </li>
         ))}
