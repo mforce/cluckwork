@@ -434,6 +434,203 @@ export const es = {
     outstandingHeader: "Pendiente",
   },
 
+  // machine-drafted (#182) — pending native review. Task 28 (B5): new
+  // namespace, backfilling es so Spanish mode renders translated text on the
+  // History screen. Keys mirror en.ts history exactly, including the
+  // {{status}}/{{date}}/{{flock}}/{{total}}/{{mortality}}/{{reason}}/{{time}}
+  // placeholders. "Daily entry page" (noEntriesMatch) is kept in English,
+  // matching the existing sales.addCustomerFirst precedent of leaving an
+  // unexternalized screen's name untranslated until dailyEntry itself is
+  // added to TRANSLATED_NAMESPACES.
+  history: {
+    loadingTitle: "Historial",
+    title: "Historial de entradas diarias",
+
+    intro:
+      "Las entradas presentadas y bloqueadas se pueden ajustar o anular "
+      + "aquí — las existencias y el registro de aves se actualizan "
+      + "automáticamente; los huevos ya vendidos nunca se modifican. "
+      + "Siempre se requiere un motivo.",
+
+    concurrentConflictMessage:
+      "Esta entrada acaba de cambiar en otro lugar — la lista se ha vuelto a cargar; vuelva a intentarlo.",
+    loadFlocksGradesFailed: "No se pudieron cargar los lotes/grados.",
+    loadEntriesFailed: "No se pudieron cargar las entradas.",
+    conflictRebindMessage:
+      "Esta entrada fue cambiada por otra persona — el formulario muestra "
+      + "los valores más recientes; vuelva a aplicar su corrección.",
+    nothingToAdjustMessage: "Esta entrada ahora está {{status}} — no queda nada por ajustar.",
+    conflictReloadFailedMessage:
+      "Esta entrada fue cambiada por otra persona y la lista no se pudo "
+      + "volver a cargar — vuelva a cargar la página antes de reintentarlo.",
+    exceedsSellableMessage:
+      "Las cantidades clasificadas no pueden superar el total de huevos menos los agrietados/sucios/descartados.",
+    entryAdjustedMessage: "Entrada ajustada — las existencias y el registro de aves se actualizaron para coincidir.",
+    adjustReloadFailedMessage: "El ajuste se guardó, pero la lista no se pudo volver a cargar — actualice la página.",
+    voidConfirmTitle: "¿Anular la entrada del {{date}} para {{flock}}?",
+    voidConfirmBody:
+      "Sus lotes de huevos quedan vacíos y sus muertes se revierten. La "
+      + "entrada se conserva como Anulada. Se rechaza si alguno de sus "
+      + "huevos ya fue vendido.",
+    voidConfirmLabel: "Anular entrada",
+    entryVoidedMessage: "Entrada anulada — sus lotes de huevos quedaron vacíos y sus muertes se revirtieron.",
+    voidReloadFailedMessage: "La anulación se guardó, pero la lista no se pudo volver a cargar — actualice la página.",
+    voidConflictMessage:
+      "Esta entrada fue cambiada por otra persona — la lista se ha vuelto a cargar; vuelva a intentarlo.",
+    voidConflictReloadFailedMessage:
+      "Esta entrada fue cambiada por otra persona y la lista no se pudo "
+      + "volver a cargar — vuelva a cargar la página.",
+    loadMoreFailedMessage: "No se pudo cargar más.",
+
+    // Filters
+    flockLabel: "Lote",
+    allFlocksOption: "Todos los lotes",
+    fromLabel: "Desde",
+    toLabel: "Hasta",
+
+    // Adjust dialog
+    adjustDialogTitle: "Ajustar entrada",
+    adjustDialogTitleWithEntry: "Ajustar — {{date}}, {{flock}}",
+    previouslyAdjusted:
+      "Ajustado anteriormente (total {{total}}, mortalidad {{mortality}} — \"{{reason}}\").",
+    totalEggsLabel: "Total de huevos",
+    crackedLabel: "Agrietados",
+    dirtyLabel: "Sucios",
+    discardedLabel: "Descartados",
+    deathsLabel: "Muertes",
+    inactiveGradeSuffix: " (inactivo)",
+    reasonLabel: "Motivo *",
+    saveAdjustmentButton: "Guardar ajuste",
+
+    noEntriesMatch: "Ninguna entrada coincide — registre una en la página Daily entry.",
+
+    // Entries table
+    dateHeader: "Fecha",
+    flockHeader: "Lote",
+    statusHeader: "Estado",
+    totalHeader: "Total",
+    // NOTE (flag for native review): "cr/di/ds" abbreviates the English
+    // cracked/dirty/discarded; re-abbreviated here to the initials of the
+    // Spanish words (ag/su/de) — confirm this reads clearly as a
+    // table-header abbreviation.
+    lossesHeader: "Pérdidas (ag/su/de)",
+    mortalityHeader: "Mortalidad",
+    gradedHeader: "Clasificado",
+    editButton: "editar",
+    adjustButton: "ajustar",
+    voidButton: "anular",
+    loadMoreButton: "cargar más",
+
+    // Entry-status pills
+    statusVoided: "Anulado",
+    statusAdjusted: "Ajustado",
+    statusLocked: "Bloqueado",
+    lockedAt: "Bloqueado {{time}}",
+    statusSubmitted: "Presentado",
+    statusDraft: "Borrador",
+  },
+
+  // machine-drafted (#182) — pending native review. Task 28 (B5): new
+  // namespace, backfilling es so Spanish mode renders translated text on the
+  // Reports screen. Keys mirror en.ts reports exactly, including the
+  // {{count}}/{{revenue}}/{{paid}}/{{outstanding}}/{{total}}/{{expenses}}/
+  // {{profit}} placeholders and the <strong> tag in profitLine.
+  reports: {
+    title: "Informes",
+    fromLabel: "Desde",
+    toLabel: "Hasta",
+
+    productionHeading: "Producción",
+    dateHeader: "Fecha",
+    eggsHeader: "Huevos",
+    lossesHeader: "Pérdidas (ag/su/de)",
+    sellableHeader: "Vendible",
+    deathsHeader: "Muertes",
+    henDaysHeader: "Días-gallina",
+    henDayPctHeader: "% días-gallina",
+    periodRowLabel: "Período",
+    gradeTotalsLabel: "Por grado:",
+
+    moneyHeading: "Dinero",
+    salesRowLabel: "Ventas",
+    salesSummary:
+      "{{count}} pedido(s) confirmado(s) — ingresos {{revenue}}, pagado {{paid}}, pendiente {{outstanding}}",
+    salesVoidedSuffix: " ({{count}} anulado(s))",
+    expensesRowLabel: "Gastos",
+    expensesNone: "sin registrar",
+    expensesTotalSuffix: " — total {{total}}",
+    profitRowLabel: "Ganancia (básica)",
+    profitLine: "ingresos {{revenue}} − gastos {{expenses}} = <strong>{{profit}}</strong>",
+    profitFootnote:
+      "La ganancia \"básica\" es el ingreso confirmado menos los gastos "
+      + "registrados — sin costo de bienes vendidos ni valoración de inventario.",
+  },
+
+  // machine-drafted (#182) — pending native review. Task 29 (B5): new
+  // namespace, backfilling es so Spanish mode renders translated text on the
+  // Audit screen. Keys mirror en.ts audit exactly (no placeholders in this
+  // namespace — the action/entity table cells route through the already-
+  // translated enums:auditAction.*/entityType.* labels, not this namespace).
+  audit: {
+    heading: "Registro de auditoría",
+    intro:
+      "Todo cambio correctivo, destructivo o de configuración — quién lo "
+      + "hizo, cuándo y por qué. Las filas se escriben junto con el cambio "
+      + "mismo y nunca se editan.",
+    actionFilterLabel: "Acción",
+    allActionsOption: "Todas las acciones",
+    whenHeader: "Cuándo (UTC)",
+    whoHeader: "Quién",
+    actionHeader: "Acción",
+    entityHeader: "Entidad",
+    reasonHeader: "Motivo",
+    emptyMessage: "Aún no hay eventos de auditoría.",
+    loadMoreButton: "cargar más",
+  },
+
+  // machine-drafted (#182) — pending native review. Task 30 (B5): new
+  // namespace, backfilling es so Spanish mode renders translated text on the
+  // Export screen. Keys mirror en.ts export exactly (no placeholders in this
+  // namespace). The "dataset.<slug>" keys are DISPLAY labels for the dataset
+  // picker (the wire value stays the raw slug) — translated to natural
+  // Spanish per the task brief.
+  export: {
+    heading: "Exportar",
+    intro:
+      "Descargue los datos de su cuenta como archivos CSV — una copia de "
+      + "seguridad manual que puede guardar donde quiera. Los valores "
+      + "monetarios se exportan en unidades menores (centavos) con su "
+      + "moneda, exactamente como se almacenan.",
+
+    fullBackupHeading: "Copia de seguridad completa",
+    fullBackupButton: "Descargar copia de seguridad completa (zip)",
+    fullBackupHint: "Un zip con todos los conjuntos de datos a continuación más un manifiesto de recuentos de filas.",
+    preparingButton: "Preparando…",
+
+    singleDatasetsHeading: "Conjuntos de datos individuales",
+
+    "dataset.flocks": "Parvadas",
+    "dataset.bird-movements": "Movimientos de aves",
+    "dataset.daily-entries": "Entradas diarias",
+    "dataset.daily-entry-grades": "Grados de entradas diarias",
+    "dataset.egg-grades": "Grados de huevo",
+    "dataset.egg-lots": "Lotes de huevo",
+    "dataset.customers": "Clientes",
+    "dataset.sales-orders": "Pedidos de venta",
+    "dataset.sales-order-items": "Artículos de pedidos de venta",
+    "dataset.sales-order-allocations": "Asignaciones de pedidos de venta",
+    "dataset.payments": "Pagos",
+    "dataset.inventory-items": "Artículos de inventario",
+    "dataset.inventory-lots": "Lotes de inventario",
+    "dataset.inventory-movements": "Movimientos de inventario",
+    "dataset.feed-usages": "Usos de alimento",
+    "dataset.water-usages": "Usos de agua",
+    "dataset.expense-categories": "Categorías de gastos",
+    "dataset.expenses": "Gastos",
+    "dataset.egg-inventory-movements": "Movimientos de inventario de huevo",
+    "dataset.audit-events": "Eventos de auditoría",
+  },
+
   // machine-drafted (#182) — pending native review. Task 25c (B4): new
   // namespace, backfilling es for the closed-vocabulary enum labels
   // (status/role/waterSource/waterUnit/gradeType/inventoryCategory/
