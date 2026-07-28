@@ -285,7 +285,8 @@ export const AUDIT_ACTION_VALUES = [
   "Flock.Archive", "Flock.Reactivate", "EggGrade.Update", "EggGrade.Activate",
   "EggGrade.Deactivate", "User.Create", "User.Update", "User.PasswordSet",
   "User.PasswordChanged", "User.FlockAssign", "User.FlockUnassign",
-  "Account.Export", "Product.Create", "Product.Update", "Product.Activate",
+  "Account.Export", "Account.SetLogo", "Account.RemoveLogo", "Account.UpdateSettings",
+  "Product.Create", "Product.Update", "Product.Activate",
   "Product.Deactivate", "EggUnitConversion.Update",
 ] as const;
 export type AuditActionValue = (typeof AUDIT_ACTION_VALUES)[number];
@@ -313,6 +314,9 @@ const AUDIT_ACTION_KEYS = {
   "User.FlockAssign": "enums:auditAction.User.FlockAssign",
   "User.FlockUnassign": "enums:auditAction.User.FlockUnassign",
   "Account.Export": "enums:auditAction.Account.Export",
+  "Account.SetLogo": "enums:auditAction.Account.SetLogo",
+  "Account.RemoveLogo": "enums:auditAction.Account.RemoveLogo",
+  "Account.UpdateSettings": "enums:auditAction.Account.UpdateSettings",
   "Product.Create": "enums:auditAction.Product.Create",
   "Product.Update": "enums:auditAction.Product.Update",
   "Product.Activate": "enums:auditAction.Product.Activate",
@@ -329,7 +333,7 @@ export function auditActionLabel(value: AuditActionValue | (string & {})): strin
 // ---------------------------------------------------------------------------
 export const ENTITY_TYPE_VALUES = [
   "Account", "DailyEntry", "EggGrade", "EggUnitConversion", "Expense",
-  "ExpenseCategory", "Flock", "InventoryItem", "Payment", "Product",
+  "ExpenseCategory", "FarmLogo", "Flock", "InventoryItem", "Payment", "Product",
   "SalesOrder", "User", "WaterUsage",
 ] as const;
 export type EntityTypeValue = (typeof ENTITY_TYPE_VALUES)[number];
@@ -340,6 +344,7 @@ const ENTITY_TYPE_KEYS = {
   EggUnitConversion: "enums:entityType.EggUnitConversion",
   Expense: "enums:entityType.Expense",
   ExpenseCategory: "enums:entityType.ExpenseCategory",
+  FarmLogo: "enums:entityType.FarmLogo",
   Flock: "enums:entityType.Flock",
   InventoryItem: "enums:entityType.InventoryItem",
   Payment: "enums:entityType.Payment",
