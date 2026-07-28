@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
+import { useTranslation } from "react-i18next";
 import { Plus } from "lucide-react";
 import { createCustomer, formatMoney, listCustomerBalances, listCustomers } from "../api/cluckwork";
 import type { Customer, CustomerBalances } from "../api/cluckwork";
@@ -7,9 +8,13 @@ import { ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 import { Dialog } from "../components/Dialog";
 import { newId } from "../lib/ids";
+import i18n from "../i18n";
 
 // #23: customer book — name + phone required, the rest optional.
 export function CustomersPage() {
+  const { t } = useTranslation("customers");
+  const { t: tc } = useTranslation("common");
+
   // Balances are money data (#89): the column renders for admins only and the
   // API refuses workers regardless.
   const { isAdmin } = useAuth();
@@ -27,7 +32,7 @@ export function CustomersPage() {
   const createKey = useRef<string>(newId());
 
   const load = () =>
-    listCustomers().then(setCustomers).catch(() => setError("Could not load customers."));
+    listCustomers().then(setCustomers).catch(() => setError(i18n.t("customers:loadCustomersErrorMessage")));
 
   useEffect(() => { void load(); }, []);
 
@@ -35,7 +40,7 @@ export function CustomersPage() {
     if (!isAdmin) return;
     listCustomerBalances()
       .then(setBalances)
-      .catch(() => setError("Could not load customer balances."));
+      .catch(() => setError(i18n.t("customers:loadBalancesErrorMessage")));
   }, [isAdmin]);
 
   const outstandingFor = (customerId: string) => {
@@ -71,33 +76,33 @@ export function CustomersPage() {
   return (
     <section>
       <div className="page-head">
-        <h2>Customers</h2>
+        <h2>{t("title")}</h2>
         <button type="button" onClick={() => { setError(null); setCreating(true); }}>
-          <Plus size={16} aria-hidden /> New customer
+          <Plus size={16} aria-hidden /> {t("newCustomerButton")}
         </button>
       </div>
 
-      <Dialog open={creating} title="New customer" onClose={() => setCreating(false)}>
+      <Dialog open={creating} title={t("newCustomerButton")} onClose={() => setCreating(false)}>
         <form className="inline-form" onSubmit={onCreate}>
-          <label>Name *
+          <label>{t("nameFieldLabel")}
             <input value={name} required onChange={(e) => setName(e.target.value)} />
           </label>
-          <label>Phone *
+          <label>{t("phoneFieldLabel")}
             <input value={phone} required onChange={(e) => setPhone(e.target.value)} />
           </label>
-          <label>Email
+          <label>{t("emailFieldLabel")}
             <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
           </label>
-          <label>Address
+          <label>{t("addressFieldLabel")}
             <input value={address} onChange={(e) => setAddress(e.target.value)} />
           </label>
-          <label>Note
+          <label>{t("noteFieldLabel")}
             <input value={note} onChange={(e) => setNote(e.target.value)} />
           </label>
           {error && <p className="error">{error}</p>}
           <div className="dialog-foot">
-            <button type="button" className="link" onClick={() => setCreating(false)}>Cancel</button>
-            <button type="submit" disabled={busy}>Add customer</button>
+            <button type="button" className="link" onClick={() => setCreating(false)}>{tc("cancel")}</button>
+            <button type="submit" disabled={busy}>{t("addCustomerButton")}</button>
           </div>
         </form>
       </Dialog>
@@ -106,15 +111,15 @@ export function CustomersPage() {
       {error && !creating && <p className="error">{error}</p>}
 
       {customers === null ? (
-        <p className="muted">Loading…</p>
+        <p className="muted">{tc("loading")}</p>
       ) : customers.length === 0 ? (
-        <p className="muted">No customers yet.</p>
+        <p className="muted">{t("noCustomersMessage")}</p>
       ) : (
         <table className="data">
           <thead>
             <tr>
-              <th>Name</th><th>Phone</th><th>Email</th><th>Address</th><th>Note</th>
-              {isAdmin && <th>Outstanding</th>}
+              <th>{t("nameHeader")}</th><th>{t("phoneHeader")}</th><th>{t("emailHeader")}</th><th>{t("addressHeader")}</th><th>{t("noteHeader")}</th>
+              {isAdmin && <th>{t("outstandingHeader")}</th>}
             </tr>
           </thead>
           <tbody>

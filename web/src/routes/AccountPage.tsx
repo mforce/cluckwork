@@ -1,10 +1,11 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
-import { useTranslation } from "react-i18next";
+import { Trans, useTranslation } from "react-i18next";
 import { changePassword, ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 import { LanguageSelector } from "../session/LanguageSelector";
 import { SUPPORTED_LANGUAGES } from "../i18n";
+import { roleLabel } from "../i18n/enums";
 
 function errText(err: unknown): string {
   if (err instanceof ApiError) return err.message;
@@ -35,11 +36,11 @@ export function AccountPage() {
 
     // Caught here so a typo never costs a round-trip (the server checks too).
     if (next !== confirm) {
-      setError("The new passwords don't match.");
+      setError(t("passwordMismatchError"));
       return;
     }
     if (next.length < MIN_LENGTH) {
-      setError(`The new password must be at least ${MIN_LENGTH} characters.`);
+      setError(t("passwordTooShortError", { min: MIN_LENGTH }));
       return;
     }
 
@@ -49,7 +50,7 @@ export function AccountPage() {
       // cache (#165 review), since replaying it would hand back the access token
       // without the rotated refresh cookie.
       await changePassword({ currentPassword: current, newPassword: next });
-      setMessage("Password changed. Any other devices have been signed out.");
+      setMessage(t("passwordChangedMessage"));
       setCurrent("");
       setNext("");
       setConfirm("");
@@ -63,10 +64,10 @@ export function AccountPage() {
   return (
     <section>
       <div className="page-head">
-        <h2>Account</h2>
+        <h2>{t("heading")}</h2>
       </div>
       <p className="muted">
-        You are signed in with the <strong>{role}</strong> role.
+        <Trans ns="account" i18nKey="roleLine" values={{ role: roleLabel(role) }} components={{ strong: <strong /> }} />
       </p>
 
       {SUPPORTED_LANGUAGES.length > 1 && (
@@ -77,29 +78,28 @@ export function AccountPage() {
         </section>
       )}
 
-      <h3>Change password</h3>
+      <h3>{t("changePasswordHeading")}</h3>
       <p className="muted">
-        Changing your password signs you out everywhere else — this device stays
-        signed in.
+        {t("changePasswordHint")}
       </p>
       <form className="inline-form" onSubmit={onSubmit}>
-        <label>Current password *
+        <label>{t("currentPasswordLabel")}
           <input type="password" value={current} required autoComplete="current-password"
             onChange={(e) => setCurrent(e.target.value)} />
         </label>
-        <label>New password (min {MIN_LENGTH} chars) *
+        <label>{t("newPasswordLabel", { min: MIN_LENGTH })}
           <input type="password" value={next} required minLength={MIN_LENGTH}
             autoComplete="new-password"
             onChange={(e) => setNext(e.target.value)} />
         </label>
-        <label>Confirm new password *
+        <label>{t("confirmPasswordLabel")}
           <input type="password" value={confirm} required autoComplete="new-password"
             onChange={(e) => setConfirm(e.target.value)} />
         </label>
         {error && <p className="error">{error}</p>}
         {message && <p className="success">{message}</p>}
         <div className="dialog-foot">
-          <button type="submit" disabled={busy}>Change password</button>
+          <button type="submit" disabled={busy}>{t("changePasswordButton")}</button>
         </div>
       </form>
     </section>

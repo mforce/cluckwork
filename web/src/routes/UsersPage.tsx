@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
+import { useTranslation } from "react-i18next";
 import { KeyRound, Pencil, Plus } from "lucide-react";
 import {
   assignFlock, createUser, listFlockAssignments, listFlocks, listUsers, setUserPassword,
@@ -9,6 +10,8 @@ import type { Flock, FlockAssignment, User } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { Dialog } from "../components/Dialog";
 import { newId } from "../lib/ids";
+import i18n from "../i18n";
+import { ROLE_VALUES, roleLabel } from "../i18n/enums";
 
 function errText(err: unknown): string {
   if (err instanceof ApiError) return err.message;
@@ -18,6 +21,9 @@ function errText(err: unknown): string {
 // #73 — minimal user management: create a worker (or another admin) and see
 // who exists. The full user-administration UI belongs to the RBAC slice.
 export function UsersPage() {
+  const { t } = useTranslation("users");
+  const { t: tc } = useTranslation("common");
+
   const [users, setUsers] = useState<User[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -167,7 +173,7 @@ export function UsersPage() {
       // this cached response if the refresh below fails (#163 review).
       clearKey(scope);
       setUsers(await listUsers());
-      setMessage(`${role} account created for ${email.trim()}.`);
+      setMessage(i18n.t("users:createSuccessMessage", { role: roleLabel(role), email: email.trim() }));
       setEmail("");
       setPassword("");
       setRole("Worker");
@@ -220,7 +226,7 @@ export function UsersPage() {
     setError(null);
     setMessage(null);
     if (pwValue !== pwConfirm) {
-      setError("The passwords don't match.");
+      setError(i18n.t("users:passwordMismatchMessage"));
       return;
     }
     setBusy(true);
@@ -229,7 +235,7 @@ export function UsersPage() {
       await setUserPassword(target.id, { newPassword: pwValue }, keyFor(scope));
       clearKey(scope); // write confirmed before any refresh (#163 review)
       if (activePw.current !== target.id) return; // dialog moved on
-      setMessage(`Password set for ${target.email}. They have been signed out everywhere.`);
+      setMessage(i18n.t("users:passwordSetMessage", { email: target.email }));
       closePassword();
     } catch (err) {
       if (activePw.current === target.id) setError(errText(err));
@@ -256,7 +262,7 @@ export function UsersPage() {
       // The dialog may have been dismissed/reopened for another user while this
       // was in flight; only touch the UI if it's still this edit (#163 review).
       if (activeEdit.current !== target.id) return;
-      setMessage(`Updated ${target.email}.`);
+      setMessage(i18n.t("users:updatedMessage", { email: target.email }));
       closeEdit();
     } catch (err) {
       if (activeEdit.current === target.id) setError(errText(err));
@@ -265,53 +271,50 @@ export function UsersPage() {
     }
   }
 
-  if (error && users === null) return <section><h2>Users</h2><p className="error">{error}</p></section>;
-  if (users === null) return <section><h2>Users</h2><p className="muted">Loading…</p></section>;
+  if (error && users === null) return <section><h2>{t("heading")}</h2><p className="error">{error}</p></section>;
+  if (users === null) return <section><h2>{t("heading")}</h2><p className="muted">{tc("loading")}</p></section>;
 
   return (
     <section>
       <div className="page-head">
-        <h2>Users</h2>
+        <h2>{t("heading")}</h2>
         <button type="button" onClick={() => { setError(null); setMessage(null); setCreating(true); }}>
-          <Plus size={16} aria-hidden /> New user
+          <Plus size={16} aria-hidden /> {t("newUserButton")}
         </button>
       </div>
       <p className="muted">
-        Workers record the day&apos;s work (optionally narrowed to assigned
-        flocks). Managers additionally correct, void, and configure. Sales
-        handles customers, orders, and payments. Read-only sees stock, history,
-        and reports. Admin (owner) does everything, including managing users.
+        {t("roleDescription")}
       </p>
 
-      <Dialog open={creating} title="New user" onClose={() => setCreating(false)}>
+      <Dialog open={creating} title={t("newUserButton")} onClose={() => setCreating(false)}>
         <form className="inline-form" onSubmit={onCreate}>
-          <label>Email *
+          <label>{t("emailFieldLabel")}
             <input type="email" value={email} required maxLength={256}
               autoComplete="off"
               onChange={(e) => setEmail(e.target.value)} />
           </label>
-          <label>Password (min 12 chars) *
+          <label>{t("passwordFieldLabel")}
             <input type="password" value={password}
               required minLength={12} autoComplete="new-password"
               onChange={(e) => setPassword(e.target.value)} />
           </label>
-          <label>Name
+          <label>{t("nameFieldLabel")}
             <input type="text" value={name} maxLength={128} autoComplete="off"
               onChange={(e) => setName(e.target.value)} />
           </label>
-          <label>Role
+          <label>{t("roleFieldLabel")}
             <select value={role} onChange={(e) => setRole(e.target.value)}>
-              <option value="Worker">Worker</option>
-              <option value="Admin">Admin (owner)</option>
-              <option value="Manager">Manager</option>
-              <option value="Sales">Sales</option>
-              <option value="ReadOnly">Read-only</option>
+              {ROLE_VALUES.map((v) => (
+                <option key={v} value={v}>
+                  {v === "Admin" ? t("adminRoleOption", { label: roleLabel(v) }) : roleLabel(v)}
+                </option>
+              ))}
             </select>
           </label>
           {error && <p className="error">{error}</p>}
           <div className="dialog-foot">
-            <button type="button" className="link" onClick={() => setCreating(false)}>Cancel</button>
-            <button type="submit" disabled={busy}>Create user</button>
+            <button type="button" className="link" onClick={() => setCreating(false)}>{tc("cancel")}</button>
+            <button type="submit" disabled={busy}>{t("createUserButton")}</button>
           </div>
         </form>
       </Dialog>
@@ -323,24 +326,29 @@ export function UsersPage() {
 
       <table className="data">
         <thead>
-          <tr><th>Email</th><th>Name</th><th>Role</th><th></th></tr>
+          <tr>
+            <th>{t("emailColumnHeader")}</th>
+            <th>{t("nameColumnHeader")}</th>
+            <th>{t("roleColumnHeader")}</th>
+            <th></th>
+          </tr>
         </thead>
         <tbody>
           {users.map((u) => (
             <tr key={u.id}>
               <td>{u.email}</td>
               <td>{u.displayName ?? "—"}</td>
-              <td>{u.role}</td>
+              <td>{roleLabel(u.role)}</td>
               <td>
                 <button className="link" onClick={() => openEdit(u)}>
-                  <Pencil size={14} aria-hidden /> edit
+                  <Pencil size={14} aria-hidden /> {t("editButton")}
                 </button>
                 <button className="link" onClick={() => openPassword(u)}>
-                  <KeyRound size={14} aria-hidden /> password
+                  <KeyRound size={14} aria-hidden /> {t("resetPasswordButton")}
                 </button>
                 {u.role === "Worker" && (
                   <button className="link" onClick={() => void openAssignments(u.id)}>
-                    flocks
+                    {t("flocksButton")}
                   </button>
                 )}
               </td>
@@ -351,22 +359,21 @@ export function UsersPage() {
 
       <Dialog
         open={openUser !== null}
-        title={`Flock access — ${users.find((u) => u.id === openUser)?.email ?? ""}`}
+        title={t("flockAccessTitle", { email: users.find((u) => u.id === openUser)?.email ?? "" })}
         onClose={closeAssignments}
       >
         <p className="muted">
-          No assignments = the worker can record for any flock. The first
-          assignment narrows them to the listed flocks only.
+          {t("flockAccessHint")}
         </p>
         {assignments.length === 0 ? (
-          <p className="muted">No assignments — account-wide access.</p>
+          <p className="muted">{t("noAssignmentsMessage")}</p>
         ) : (
           <ul>
             {assignments.map((a) => (
               <li key={a.id}>
                 {flockName(a.flockId)}{" "}
                 <button className="link" disabled={busy} onClick={() => void onUnassign(a.id)}>
-                  remove
+                  {t("removeAssignmentButton")}
                 </button>
               </li>
             ))}
@@ -377,58 +384,57 @@ export function UsersPage() {
             {flocks.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
           </select>
           <button disabled={busy || !assignFlockId} onClick={() => void onAssign()}>
-            Assign flock
+            {t("assignFlockButton")}
           </button>
         </div>
         {error && <p className="error">{error}</p>}
         <div className="dialog-foot">
-          <button type="button" className="link" onClick={closeAssignments}>Done</button>
+          <button type="button" className="link" onClick={closeAssignments}>{t("doneButton")}</button>
         </div>
       </Dialog>
 
       <Dialog
         open={editUser !== null}
-        title={`Edit user — ${editUser?.email ?? ""}`}
+        title={t("editUserTitle", { email: editUser?.email ?? "" })}
         onClose={closeEdit}
       >
         <form className="inline-form" onSubmit={onUpdate}>
-          <label>Name
+          <label>{t("nameFieldLabel")}
             <input type="text" value={editName} maxLength={128} autoComplete="off"
               onChange={(e) => setEditName(e.target.value)} />
           </label>
-          <p className="muted">Leave blank to clear the name.</p>
+          <p className="muted">{t("clearNameHint")}</p>
           {error && <p className="error">{error}</p>}
           <div className="dialog-foot">
-            <button type="button" className="link" onClick={closeEdit}>Cancel</button>
-            <button type="submit" disabled={busy}>Save</button>
+            <button type="button" className="link" onClick={closeEdit}>{tc("cancel")}</button>
+            <button type="submit" disabled={busy}>{tc("save")}</button>
           </div>
         </form>
       </Dialog>
 
       <Dialog
         open={pwUser !== null}
-        title={`Set password — ${pwUser?.email ?? ""}`}
+        title={t("setPasswordTitle", { email: pwUser?.email ?? "" })}
         onClose={closePassword}
       >
         <form className="inline-form" onSubmit={onSetPassword}>
           <p className="muted">
-            You don&apos;t need their current password. Setting it signs them out
-            of every device — tell them the new password directly.
+            {t("passwordDialogHint")}
           </p>
-          <label>New password (min 12 chars) *
+          <label>{t("newPasswordFieldLabel")}
             <input type="password" value={pwValue} required minLength={12}
               autoComplete="new-password"
               onChange={(e) => setPwValue(e.target.value)} />
           </label>
-          <label>Confirm new password *
+          <label>{t("confirmPasswordFieldLabel")}
             <input type="password" value={pwConfirm} required
               autoComplete="new-password"
               onChange={(e) => setPwConfirm(e.target.value)} />
           </label>
           {error && <p className="error">{error}</p>}
           <div className="dialog-foot">
-            <button type="button" className="link" onClick={closePassword}>Cancel</button>
-            <button type="submit" disabled={busy}>Set password</button>
+            <button type="button" className="link" onClick={closePassword}>{tc("cancel")}</button>
+            <button type="submit" disabled={busy}>{t("setPasswordButton")}</button>
           </div>
         </form>
       </Dialog>

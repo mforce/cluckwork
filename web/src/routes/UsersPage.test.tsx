@@ -8,6 +8,7 @@ import {
 } from "../api/cluckwork";
 import type { Flock, FlockAssignment, User } from "../api/cluckwork";
 import { ApiError } from "../api/client";
+import i18n from "../i18n";
 
 // Network seam only; ApiError stays real (errText branches on `instanceof`).
 vi.mock("../api/cluckwork", () => ({
@@ -32,6 +33,11 @@ const mockListFlocks = vi.mocked(listFlocks);
 
 const WORKER_USER: User = { id: "u-w", email: "worker@farm.test", displayName: "Wendy", role: "Worker" };
 const ADMIN_USER: User = { id: "u-a", email: "boss@farm.test", displayName: null, role: "Admin" };
+// Role wiring fixture (#182, Task 22): ReadOnly is the one role whose enum
+// label is NOT its raw wire value (enums:role.ReadOnly = "Read-only"), so it's
+// the fixture that actually distinguishes roleLabel(u.role) from a plain
+// {u.role} render.
+const READONLY_USER: User = { id: "u-r", email: "ro@farm.test", displayName: null, role: "ReadOnly" };
 
 const flock = (id: string, name: string, status = "Active"): Flock => ({
   id, farmId: "farm", houseId: "house", name, breed: "ISA Brown",
@@ -105,6 +111,20 @@ describe("UsersPage load", () => {
     expect(within(adminRow).getByText("—")).toBeInTheDocument(); // null displayName
     // Flock scoping is a worker-only affordance — admins never narrow.
     expect(within(adminRow).queryByRole("button", { name: "flocks" })).not.toBeInTheDocument();
+  });
+
+  // #182, Task 22 — the table's Role cell renders roleLabel(u.role), not the
+  // raw wire value. Worker/Admin (above) are IDENTITY labels, so they'd pass
+  // even against a raw {u.role} render; ReadOnly is the one value the enum
+  // catalog renders differently ("Read-only") from its wire form ("ReadOnly"),
+  // so only this fixture actually proves the helper is wired in.
+  it("renders a ReadOnly user's role cell via roleLabel as 'Read-only', not the raw 'ReadOnly' wire value", async () => {
+    mockListUsers.mockResolvedValue([WORKER_USER, ADMIN_USER, READONLY_USER]);
+    await renderReady(ADMIN);
+
+    const roRow = screen.getByRole("row", { name: /ro@farm.test/ });
+    expect(within(roRow).getByText("Read-only")).toBeInTheDocument();
+    expect(within(roRow).queryByText("ReadOnly")).not.toBeInTheDocument();
   });
 });
 
@@ -548,5 +568,216 @@ describe("UsersPage role gating", () => {
     expect(screen.getByRole("button", { name: "New user" })).toBeInTheDocument();
     openCreate();
     expect(within(dialog()).getByLabelText("Email *")).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// i18n wiring (#182, Task 22, batch B4)
+// ---------------------------------------------------------------------------
+
+// `users` is English-only (not in TRANSLATED_NAMESPACES — see
+// translations-status.ts), so under ANY UI language the rendered text falls
+// back to this exact English string, same as a still-hardcoded literal would
+// render — asserting it, even under a non-English locale, would prove nothing
+// (CONTRIBUTING-i18n.md's fallback trap). Swap the catalog value at runtime
+// instead, the same i18n.addResource technique the other batches use, so each
+// marker only renders if the screen actually reads the catalog rather than a
+// literal that happens to still match it.
+describe("UsersPage i18n wiring (#182, Task 22)", () => {
+  function withOverride(ns: string, key: string, value: string, run: () => Promise<void> | void) {
+    const original = i18n.getResource("en", ns, key) as string;
+    i18n.addResource("en", ns, key, value);
+    return Promise.resolve(run()).finally(() => {
+      i18n.addResource("en", ns, key, original);
+    });
+  }
+
+  it("reads the heading from the catalog, not a hardcoded literal", async () => {
+    await withOverride("users", "heading", "HEADING-MARKER", async () => {
+      await renderReady(ADMIN);
+      expect(screen.getByRole("heading", { name: "HEADING-MARKER" })).toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "Users" })).not.toBeInTheDocument();
+    });
+  });
+
+  it("reads the New-user button label and reuses it as the create-dialog title, not a hardcoded literal", async () => {
+    await withOverride("users", "newUserButton", "NEW-USER-MARKER", async () => {
+      await renderReady(ADMIN);
+      const trigger = screen.getByRole("button", { name: /NEW-USER-MARKER/ });
+      expect(trigger).toBeInTheDocument();
+      fireEvent.click(trigger);
+      expect(await screen.findByRole("heading", { name: "NEW-USER-MARKER" })).toBeInTheDocument();
+      expect(screen.queryByText("New user")).not.toBeInTheDocument();
+    });
+  });
+
+  it("reads the role-description prose from the catalog, not a hardcoded literal", async () => {
+    await withOverride("users", "roleDescription", "ROLE-DESC-MARKER", async () => {
+      await renderReady(ADMIN);
+      expect(screen.getByText("ROLE-DESC-MARKER")).toBeInTheDocument();
+      expect(screen.queryByText(/Workers record the day/)).not.toBeInTheDocument();
+    });
+  });
+
+  it("reads the Email table column header from the catalog, not a hardcoded literal", async () => {
+    await withOverride("users", "emailColumnHeader", "EMAIL-HEADER-MARKER", async () => {
+      await renderReady(ADMIN);
+      expect(screen.getByText("EMAIL-HEADER-MARKER")).toBeInTheDocument();
+    });
+  });
+
+  it("reads the row 'edit' button label from the catalog, not a hardcoded literal", async () => {
+    await withOverride("users", "editButton", "EDIT-MARKER", async () => {
+      await renderReady(ADMIN);
+      const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
+      expect(within(workerRow).getByRole("button", { name: /EDIT-MARKER/ })).toBeInTheDocument();
+      expect(within(workerRow).queryByRole("button", { name: /^edit$/ })).not.toBeInTheDocument();
+    });
+  });
+
+  it("interpolates the worker's email into the flock-access dialog title from the catalog", async () => {
+    await withOverride("users", "flockAccessTitle", "FLOCK-MARKER {{email}} MARKER-END", async () => {
+      await renderReady(ADMIN);
+      const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
+      await act(async () => {
+        fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" }));
+      });
+      expect(
+        await screen.findByRole("dialog", { name: "FLOCK-MARKER worker@farm.test MARKER-END" }),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("reads the no-assignments message from the catalog, not a hardcoded literal", async () => {
+    mockListAssignments.mockResolvedValue([]);
+    await withOverride("users", "noAssignmentsMessage", "NO-ASSIGN-MARKER", async () => {
+      await renderReady(ADMIN);
+      const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
+      await act(async () => {
+        fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" }));
+      });
+      expect(await screen.findByText("NO-ASSIGN-MARKER")).toBeInTheDocument();
+      expect(screen.queryByText(/account-wide access/)).not.toBeInTheDocument();
+    });
+  });
+
+  it("reads the Create-user submit button from the catalog, not a hardcoded literal", async () => {
+    await withOverride("users", "createUserButton", "CREATE-MARKER", async () => {
+      await renderReady(ADMIN);
+      openCreate();
+      expect(within(dialog()).getByRole("button", { name: "CREATE-MARKER" })).toBeInTheDocument();
+    });
+  });
+
+  // The create-success message is built with the imperative i18n.t() (onCreate
+  // is an event handler, not render — see CONTRIBUTING-i18n.md's imperative
+  // i18n.t() pattern). Also proves {{role}} carries roleLabel(role) — the
+  // THIRD roleLabel site — rather than the raw wire value: picking ReadOnly
+  // renders "Read-only" in the interpolated slot.
+  it("interpolates roleLabel(role) and the email into the create-success message from the catalog", async () => {
+    mockCreateUser.mockResolvedValue({ id: "u-new" });
+    await withOverride(
+      "users", "createSuccessMessage", "CREATED-MARKER {{role}}/{{email}} MARKER-END",
+      async () => {
+        await renderReady(ADMIN);
+        openCreate();
+        fireEvent.change(within(dialog()).getByLabelText("Email *"), { target: { value: "ro@farm.test" } });
+        fireEvent.change(within(dialog()).getByLabelText(/Password/), { target: { value: `pw-${crypto.randomUUID()}` } });
+        fireEvent.change(within(dialog()).getByLabelText("Role"), { target: { value: "ReadOnly" } });
+        await act(async () => {
+          fireEvent.click(within(dialog()).getByRole("button", { name: "Create user" }));
+        });
+        expect(
+          await screen.findByText("CREATED-MARKER Read-only/ro@farm.test MARKER-END"),
+        ).toBeInTheDocument();
+      },
+    );
+  });
+
+  // Built with the imperative i18n.t() (onSetPassword's mismatch guard runs in
+  // an event handler, not render).
+  it("reads the password-mismatch message from the catalog, not a hardcoded literal", async () => {
+    await withOverride("users", "passwordMismatchMessage", "MISMATCH-MARKER", async () => {
+      await renderReady(ADMIN);
+      const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
+      fireEvent.click(within(workerRow).getByRole("button", { name: "password" }));
+      fireEvent.change(within(dialog()).getByLabelText(/New password/), { target: { value: "aaaaaaaaaaaa" } });
+      fireEvent.change(within(dialog()).getByLabelText(/Confirm new password/), { target: { value: "bbbbbbbbbbbb" } });
+      await act(async () => {
+        fireEvent.click(within(dialog()).getByRole("button", { name: "Set password" }));
+      });
+      expect(within(dialog()).getByText("MISMATCH-MARKER")).toBeInTheDocument();
+      expect(within(dialog()).queryByText(/don't match/i)).not.toBeInTheDocument();
+    });
+  });
+
+  // Built with the imperative i18n.t() (onSetPassword's success branch runs in
+  // an event handler).
+  it("interpolates the email into the password-set success message from the catalog", async () => {
+    mockSetUserPassword.mockResolvedValue(undefined);
+    await withOverride(
+      "users", "passwordSetMessage", "PW-SET-MARKER {{email}} MARKER-END",
+      async () => {
+        await renderReady(ADMIN);
+        const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
+        fireEvent.click(within(workerRow).getByRole("button", { name: "password" }));
+        const password = `pw-${crypto.randomUUID()}`;
+        fireEvent.change(within(dialog()).getByLabelText(/New password/), { target: { value: password } });
+        fireEvent.change(within(dialog()).getByLabelText(/Confirm new password/), { target: { value: password } });
+        await act(async () => {
+          fireEvent.click(within(dialog()).getByRole("button", { name: "Set password" }));
+        });
+        expect(await screen.findByText("PW-SET-MARKER worker@farm.test MARKER-END")).toBeInTheDocument();
+      },
+    );
+  });
+
+  // Built with the imperative i18n.t() (onUpdate's success branch runs in an
+  // event handler).
+  it("interpolates the email into the updated-user message from the catalog", async () => {
+    mockUpdateUser.mockResolvedValue(undefined);
+    await withOverride("users", "updatedMessage", "UPDATED-MARKER {{email}} MARKER-END", async () => {
+      await renderReady(ADMIN);
+      const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
+      fireEvent.click(within(workerRow).getByRole("button", { name: "edit" }));
+      fireEvent.change(within(dialog()).getByLabelText("Name"), { target: { value: "New Name" } });
+      await act(async () => {
+        fireEvent.click(within(dialog()).getByRole("button", { name: "Save" }));
+      });
+      expect(await screen.findByText("UPDATED-MARKER worker@farm.test MARKER-END")).toBeInTheDocument();
+    });
+  });
+
+  // Proves the Admin picker option's "(owner)" wrapper reads BOTH the `users`
+  // catalog string AND roleLabel("Admin") — not two hardcoded literals that
+  // happen to concatenate to "Admin (owner)".
+  it("interpolates roleLabel('Admin') into the Admin picker option from the catalog", async () => {
+    await withOverride("users", "adminRoleOption", "ADMIN-MARKER {{label}} MARKER-END", async () => {
+      await renderReady(ADMIN);
+      openCreate();
+      const select = within(dialog()).getByLabelText("Role");
+      expect(within(select).getByRole("option", { name: "ADMIN-MARKER Admin MARKER-END" })).toBeInTheDocument();
+      expect(within(select).queryByRole("option", { name: "Admin (owner)" })).not.toBeInTheDocument();
+    });
+  });
+
+  // Proves BOTH role sites — the table cell (roleLabel(u.role)) and the
+  // picker option text (roleLabel(v)) — read the SAME enums:role.ReadOnly
+  // catalog entry, not a hardcoded "Read-only" literal at either site.
+  it("reads the ReadOnly role label from the enums catalog at both the table cell and the picker option", async () => {
+    mockListUsers.mockResolvedValue([WORKER_USER, ADMIN_USER, READONLY_USER]);
+    await withOverride("enums", "role.ReadOnly", "READONLY-MARKER", async () => {
+      await renderReady(ADMIN);
+
+      const roRow = screen.getByRole("row", { name: /ro@farm.test/ });
+      expect(within(roRow).getByText("READONLY-MARKER")).toBeInTheDocument();
+      expect(within(roRow).queryByText("ReadOnly")).not.toBeInTheDocument();
+      expect(within(roRow).queryByText("Read-only")).not.toBeInTheDocument();
+
+      openCreate();
+      const select = within(dialog()).getByLabelText("Role");
+      expect(within(select).getByRole("option", { name: "READONLY-MARKER" })).toBeInTheDocument();
+      expect(within(select).queryByRole("option", { name: "Read-only" })).not.toBeInTheDocument();
+    });
   });
 });

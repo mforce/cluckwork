@@ -37,6 +37,33 @@ export const en = {
     preferences: "Preferences",
     language: "Language",
     languageHint: "The language the interface is shown in, just for you.",
+
+    // Task 25 (#182, B4) — the rest of AccountPage: the page heading, the
+    // role line, and the self-service change-password surface (#165).
+    heading: "Account",
+    // {{role}} is the signed-in account's own role, passed through
+    // enums.ts's roleLabel() by the component (Task 22 convention: role
+    // display always goes through roleLabel(), e.g. "ReadOnly" ->
+    // "Read-only") — so this stays a plain string placeholder here, not raw
+    // union data. <strong> is the only JSX interleaved in this screen's
+    // prose, hence the one <Trans> use.
+    roleLine: "You are signed in with the <strong>{{role}}</strong> role.",
+    changePasswordHeading: "Change password",
+    changePasswordHint:
+      "Changing your password signs you out everywhere else — this device "
+      + "stays signed in.",
+    // The trailing " *" is folded into the label text itself, matching how
+    // UsersPage's emailFieldLabel/newPasswordFieldLabel already handle a
+    // required-field marker — never a standalone "*" key.
+    currentPasswordLabel: "Current password *",
+    // {{min}} is MIN_LENGTH (AccountPage.tsx) — interpolated, not baked in,
+    // so the label and the validation message below can never drift apart.
+    newPasswordLabel: "New password (min {{min}} chars) *",
+    confirmPasswordLabel: "Confirm new password *",
+    changePasswordButton: "Change password",
+    passwordMismatchError: "The new passwords don't match.",
+    passwordTooShortError: "The new password must be at least {{min}} characters.",
+    passwordChangedMessage: "Password changed. Any other devices have been signed out.",
   },
   // Keyed by the API's stable validation codes (#45), which contain dots
   // (e.g. "Me.Language.Format"). With keySeparator:false (see init) these are
@@ -966,13 +993,353 @@ export const en = {
     ledgerBirdsHeader: "Birds",
     ledgerNoteHeader: "Note",
   },
+  // Farm settings — admin localization + logo (#123, #149) + the currency
+  // lock (§4.6) (Task 21, #182, batch B4). English-only for now, same
+  // treatment as nav/numberField/errorBoundary/themeToggle/useConfirm/pwa/
+  // dailyEntry/dashboard/water/grades/inventory/products/stock/flocks above:
+  // `settings` IS in TRANSLATED_NAMESPACES: es/tl carry machine-drafted
+  // translations (#182, pending native review).
+  //
+  // DATA left raw, never routed through this catalog: the timezone list
+  // (Intl.supportedValuesOf), the locale/currency VALUES the admin types, the
+  // "en-US" locale-format example (allowlisted in i18n-scan-allowlist.txt),
+  // and the curated palettes' lowercase ids (aubergine/forest/slate/
+  // terracotta — matched by exact-match CSS selectors and written into
+  // data-brand). Their DISPLAY names (paletteAubergine etc. below) ARE copy.
+  //
+  // Enum wiring: the Unit system and First day of week SELECTs are closed
+  // vocabularies, so their OPTION text is rendered through the shared
+  // `enums.ts` helpers (unitSystemLabel/weekdayLabel — both pre-built for
+  // this screen, identity labels, no visible change) rather than a key here;
+  // unitSystemLabel/firstDayOfWeekLabel below are the FIELD labels, not the
+  // option text. The four palette ids have no cross-screen enum family (this
+  // is their only render site), so their display names are flat keys here
+  // instead — see the PALETTE_LABEL_KEYS map in SettingsPage.tsx.
+  settings: {
+    heading: "Farm settings",
+    intro:
+      "How this farm names itself, and the locale, timezone and currency it "
+      + "records and reads its work in.",
+    loadFailedMessage: "Could not load farm settings.",
+
+    // Logo panel
+    logoSectionHeading: "Logo",
+    logoAlt: "Current farm logo",
+    logoLoadingMessage: "Loading the logo…",
+    logoLoadFailedMessage: "The logo could not be loaded.",
+    logoNoneMessage: "No logo set — the sidebar shows the Cluckwork mark.",
+    uploadLogoButton: "Upload a logo",
+    replaceLogoButton: "Replace the logo",
+    removeLogoButton: "Remove",
+    // {{cap}} is formatByteCap()'s already-formatted string (e.g. "2 MB") —
+    // client-side arithmetic, never routed through i18n.language.
+    logoRulesHint:
+      "PNG, JPEG or WebP, up to {{cap}} and 4096 px a side. Animated "
+      + "images are not accepted. The image is stored re-written, with "
+      + "camera and location metadata removed.",
+    // <Trans> key — the only string on this screen interleaving JSX
+    // (<strong>square</strong>), see CONTRIBUTING-i18n.md.
+    logoSquareHint:
+      "Use a <strong>square</strong> image — the logo shows small in the "
+      + "sidebar, so a simple, tightly-cropped mark (a symbol or a single "
+      + "letter) reads far better there than a wide or detailed picture. A "
+      + "transparent background on a light design works best.",
+    logoWorkingMessage: "Working…",
+    logoUpdatedMessage: "Logo updated.",
+    logoRemovedMessage: "Logo removed.",
+    // {{actualKb}}/{{limitKb}} are plain numeric DATA (the picked file's size
+    // and the server's own configured cap), not enum-labelled.
+    logoOversizeMessage: "That image is {{actualKb}} KB. The limit is {{limitKb}} KB.",
+    removeLogoConfirmTitle: "Remove the farm logo?",
+    removeLogoConfirmBody:
+      "The sidebar goes back to the Cluckwork mark. You can upload another "
+      + "at any time.",
+    removeLogoConfirmLabel: "Remove logo",
+
+    // Localization form
+    localizationSectionHeading: "Localization",
+    farmNameLabel: "Farm name",
+    timezoneLabel: "Timezone",
+    timezoneUnknownWarning:
+      "This browser does not know that timezone, so dates here would follow "
+      + "the device instead of the farm. Pick one from the list.",
+    localeLabel: "Locale",
+    currencyLabel: "Currency",
+    // {{code}} is the farm's currency CODE (DATA, e.g. "USD"), not enum-labelled.
+    currencyLockedNote:
+      "The currency is fixed at {{code}}: this farm has already recorded "
+      + "amounts in it. Recorded money is never re-priced, so changing this "
+      + "would leave every stored total meaning something else.",
+    unitSystemLabel: "Unit system",
+    firstDayOfWeekLabel: "First day of week",
+    // Reused for the First-day-of-week "no override" option AND both the
+    // date/time format placeholders — same English text, same meaning, in
+    // all three spots.
+    followLocaleOption: "Follow the locale",
+    paletteLegend: "Farm palette",
+    paletteHint:
+      "The accent colour for everyone on this farm. Each person still "
+      + "chooses light or night mode for themselves.",
+    // Curated palette DISPLAY names (#149) — the ids themselves stay raw DATA
+    // (see the namespace header comment above).
+    paletteAubergine: "Aubergine",
+    paletteForest: "Forest",
+    paletteSlate: "Slate",
+    paletteTerracotta: "Terracotta",
+    dateFormatLabel: "Date format",
+    timeFormatLabel: "Time format",
+    savingButton: "Saving…",
+    saveButton: "Save settings",
+    effectNote:
+      "The timezone applies everywhere as soon as it is saved. Locale, unit "
+      + "system and the format overrides are recorded against the farm and "
+      + "will drive how amounts, dates and measurements are displayed once "
+      + "that formatting lands.",
+    savedMessage: "Settings saved.",
+
+    // Imperative messages (event handlers — see CONTRIBUTING-i18n.md's
+    // imperative i18n.t() pattern).
+    versionConflictMessage:
+      "Someone else changed these settings while this screen was open. "
+      + "Reload and try again.",
+    saveReadBackFailedMessage:
+      "Saved. This screen could not read the settings back — reload the "
+      + "page before saving again.",
+    refreshFailedMessage:
+      "Saved. The rest of the app could not pick the change up — reload the "
+      + "page to be sure it is applied everywhere.",
+  },
+  // Users admin screen — the user list plus create/edit/password/flock-
+  // scoping dialogs (Task 22, #182, batch B4). English-only for now, same
+  // treatment as nav/numberField/errorBoundary/themeToggle/useConfirm/pwa/
+  // dailyEntry/dashboard/water/grades/inventory/products/stock/flocks/
+  // settings above. `users` IS in TRANSLATED_NAMESPACES: es/tl carry
+  // machine-drafted translations (#182, pending native review).
+  //
+  // Role enum wiring: the table's Role cell, the create-form Role picker's
+  // option text, and the create-success message all render the closed
+  // `role` vocabulary through roleLabel() (enums.ts) rather than a key here
+  // — see the `enums` namespace header comment below for the one
+  // intentional visible change that wiring makes (ReadOnly -> "Read-only").
+  // adminRoleOption below is the one exception: the picker's Admin option
+  // carries an extra "(owner)" qualifier that isn't part of the role's
+  // identity label, so it wraps roleLabel("Admin") rather than being used
+  // as the option text on its own.
+  users: {
+    heading: "Users",
+    newUserButton: "New user", // reused verbatim as the create-dialog title
+    roleDescription:
+      "Workers record the day's work (optionally narrowed to assigned "
+      + "flocks). Managers additionally correct, void, and configure. Sales "
+      + "handles customers, orders, and payments. Read-only sees stock, "
+      + "history, and reports. Admin (owner) does everything, including "
+      + "managing users.",
+
+    // Create-user dialog
+    emailFieldLabel: "Email *",
+    passwordFieldLabel: "Password (min 12 chars) *",
+    nameFieldLabel: "Name", // reused verbatim by the edit-user dialog below
+    roleFieldLabel: "Role",
+    // {{label}} is roleLabel("Admin") ("Admin", identity) — see the
+    // namespace header comment above.
+    adminRoleOption: "{{label}} (owner)",
+    createUserButton: "Create user",
+
+    // Users table
+    emailColumnHeader: "Email",
+    nameColumnHeader: "Name",
+    roleColumnHeader: "Role",
+    editButton: "edit",
+    resetPasswordButton: "password",
+    flocksButton: "flocks",
+
+    // Flock-access dialog (per-worker scoping). {{email}} is the user's
+    // email — DATA, not client copy.
+    flockAccessTitle: "Flock access — {{email}}",
+    flockAccessHint:
+      "No assignments = the worker can record for any flock. The first "
+      + "assignment narrows them to the listed flocks only.",
+    noAssignmentsMessage: "No assignments — account-wide access.",
+    removeAssignmentButton: "remove",
+    assignFlockButton: "Assign flock",
+    doneButton: "Done",
+
+    // Edit-user dialog. {{email}} is DATA.
+    editUserTitle: "Edit user — {{email}}",
+    clearNameHint: "Leave blank to clear the name.",
+
+    // Set-password dialog. {{email}} is DATA.
+    setPasswordTitle: "Set password — {{email}}",
+    passwordDialogHint:
+      "You don't need their current password. Setting it signs them out "
+      + "of every device — tell them the new password directly.",
+    newPasswordFieldLabel: "New password (min 12 chars) *",
+    confirmPasswordFieldLabel: "Confirm new password *",
+    setPasswordButton: "Set password",
+
+    // Imperative messages (event handlers — see CONTRIBUTING-i18n.md's
+    // imperative i18n.t() pattern). {{email}} is DATA; {{role}} is
+    // roleLabel(role) — see the namespace header comment above.
+    createSuccessMessage: "{{role}} account created for {{email}}.",
+    passwordMismatchMessage: "The passwords don't match.",
+    passwordSetMessage:
+      "Password set for {{email}}. They have been signed out everywhere.",
+    updatedMessage: "Updated {{email}}.",
+  },
+  // Expenses screen — category management (a dialog panel: create/deactivate/
+  // reactivate) + record/correct expenses, filtered by month and category
+  // (Task 23, #182, batch B4 — the last B4 screen). English-only for now, same
+  // treatment as nav/numberField/errorBoundary/themeToggle/useConfirm/pwa/
+  // dailyEntry/dashboard/water/grades/inventory/products/stock/flocks/
+  // settings/users above. `expenses` IS in TRANSLATED_NAMESPACES: es/tl carry
+  // machine-drafted translations (#182, pending native review).
+  //
+  // PLAN CORRECTION (verified by controller): this screen has NO
+  // payment-method/category enum. `ExpenseCategory` rows are free-form,
+  // admin-created records (createExpenseCategory), not a closed API
+  // vocabulary — so category NAMES stay raw DATA everywhere they render (the
+  // filter option, the add/edit pickers, the category-list rows, the
+  // deactivated-suffix rows) and are never routed through an enums.ts helper.
+  // Expense descriptions, notes, dates, amounts, and flock names are the same
+  // kind of free-form farm DATA and stay raw too. Money stays on the existing
+  // farm-locale `formatMoney` — never `i18n.language` (formattingIndependence
+  // guard).
+  //
+  // Money-decimal validation copy (enterValidAmount/noDecimalPlaces/
+  // atMostDecimals/enterAmountGreaterThanZero) duplicates sales/products'
+  // near-identical strings but is kept as its OWN local key set here per the
+  // task brief — a cross-screen consolidation is a tracked native-pass
+  // deferral, not this task's job.
+  expenses: {
+    title: "Expenses",
+
+    // Imperative messages (event handlers — see CONTRIBUTING-i18n.md's
+    // imperative i18n.t() pattern).
+    expenseRecordedMessage: "Expense recorded.",
+    expenseCorrectedMessage: "Expense corrected.",
+    // 409 rebind (onSaveEdit): someone else corrected this expense while the
+    // dialog was open — the panel is rebound to the server's latest values.
+    conflictRebindMessage:
+      "This expense was changed by someone else — the form now shows the "
+      + "latest values; re-apply your correction.",
+    categoryCreatedMessage: "Category created.",
+    // {{name}} is the category's free-form NAME (DATA), not client copy.
+    categoryDeactivatedMessage: "Category \"{{name}}\" deactivated.",
+    categoryReactivatedMessage: "Category \"{{name}}\" reactivated.",
+
+    // Amount-parsing validation (toMinorUnits, thrown from the add/edit
+    // submit handlers — imperative i18n.t() pattern, same shape as
+    // products:enterPriceAsNumber/noDecimalPlaces/atMostDecimals).
+    enterValidAmount: "Enter a valid amount.",
+    noDecimalPlaces: "This currency has no decimal places.",
+    atMostDecimals: "At most {{count}} decimal places for this currency.",
+    enterAmountGreaterThanZero: "Enter an amount greater than zero.",
+
+    // Filters
+    monthLabel: "Month",
+    // Shared by the filter select, the add-form select, and the edit-form
+    // select — all three already carry this identical label in source.
+    categoryLabel: "Category",
+    allCategoriesOption: "All categories",
+    hideCategoriesButton: "hide categories",
+    manageCategoriesButton: "manage categories",
+    // {{amount}} is formatMoney's already-formatted total — farm-locale DATA,
+    // never routed through i18n.language.
+    monthTotalLabel: "Month total: {{amount}}",
+
+    // Category-management panel
+    categoriesHeading: "Expense categories",
+    newCategoryButton: "New category",
+    newCategoryDialogTitle: "New expense category",
+    categoryNameLabel: "Category name",
+    addCategoryButton: "Add category",
+    // Appended to a deactivated category's free-form NAME (DATA) — shared by
+    // the filter option, the category-list row, and the edit-form select.
+    deactivatedSuffix: " (deactivated)",
+    deactivateButton: "deactivate",
+    reactivateButton: "reactivate",
+    noCategoriesMessage: "No categories yet — add one above.",
+
+    // Record-expense form
+    recordExpenseHeading: "Record an expense",
+    dateLabel: "Date", // shared by the add and edit forms
+    pickOption: "— pick —",
+    descriptionLabel: "Description", // shared by the add and edit forms
+    // {{code}} is the loaded/snapshot currency CODE (DATA) — shared by the
+    // add form (currency.code) and the edit form (editing.currencyCode).
+    amountLabel: "Amount ({{code}})",
+    flockOptionalLabel: "Flock (optional)", // shared by the add and edit forms
+    noneOption: "— none —",
+    noteOptionalLabel: "Note (optional)", // shared by the add and edit forms
+    recordExpenseButton: "Record expense",
+    addCategoryFirstMessage: "Add a category first — every expense needs one.",
+
+    // Correct-expense dialog. {{date}}/{{description}} are the expense's own
+    // free-form DATA, not client copy.
+    correctExpenseDialogTitle: "Correct expense",
+    correctExpenseDialogTitleWithExpense: "Correct — {{date}}, {{description}}",
+    saveCorrectionButton: "Save correction",
+
+    // Expenses table
+    noExpensesMessage: "No expenses for this month.",
+    dateHeader: "Date",
+    categoryHeader: "Category",
+    descriptionHeader: "Description",
+    amountHeader: "Amount",
+    flockHeader: "Flock",
+    noteHeader: "Note",
+    correctButton: "correct",
+    loadMoreButton: "load more",
+  },
+  // Customers screen — the customer book: list + create dialog, with an
+  // admin-only outstanding-balance column (Task 24, #182, batch B4).
+  // English-only for now, same treatment as nav/numberField/errorBoundary/
+  // themeToggle/useConfirm/pwa/dailyEntry/dashboard/water/grades/inventory/
+  // products/stock/flocks/settings/users/expenses above. `customers` IS in
+  // TRANSLATED_NAMESPACES: es/tl carry machine-drafted translations
+  // (#182, pending native review).
+  //
+  // No status/enum on this screen — Customer has no closed-vocabulary field,
+  // so nothing here routes through enums.ts. Customer name/phone/email/
+  // address/note are free-form farm DATA (createCustomer's own fields) and
+  // stay raw everywhere they render, including the "—" placeholder for a
+  // blank optional field (shared convention across the sweep — see
+  // ExpensesPage/UsersPage/FlocksPage, which leave the em dash un-keyed too).
+  // Outstanding balances stay on the existing farm-locale `formatMoney` —
+  // never `i18n.language` (formattingIndependence guard).
+  customers: {
+    title: "Customers",
+    newCustomerButton: "New customer", // reused verbatim as the create-dialog title
+
+    // Create-customer dialog
+    nameFieldLabel: "Name *",
+    phoneFieldLabel: "Phone *",
+    emailFieldLabel: "Email",
+    addressFieldLabel: "Address",
+    noteFieldLabel: "Note",
+    addCustomerButton: "Add customer",
+
+    // Imperative messages (mount-effect .catch callbacks — see
+    // CONTRIBUTING-i18n.md's imperative i18n.t() pattern).
+    loadCustomersErrorMessage: "Could not load customers.",
+    loadBalancesErrorMessage: "Could not load customer balances.",
+
+    // Customers table
+    noCustomersMessage: "No customers yet.",
+    nameHeader: "Name",
+    phoneHeader: "Phone",
+    emailHeader: "Email",
+    addressHeader: "Address",
+    noteHeader: "Note",
+    outstandingHeader: "Outstanding",
+  },
   // Closed-vocabulary labels (#182, Task 4). Consumed ONLY through the typed
   // helpers in enums.ts — never a raw t("enums:status." + value). Keys are FLAT
   // "family.RawValue" strings (keySeparator:false, see index.ts): the suffix is
   // the EXACT wire value the API sends, so the helper's Record can map value →
-  // key mechanically and the key is self-documenting. English-only for now —
-  // `enums` is deliberately NOT in TRANSLATED_NAMESPACES, so es/tl fall back to
-  // these strings until a native enum-translation pass lands.
+  // key mechanically and the key is self-documenting. `enums` IS in
+  // TRANSLATED_NAMESPACES: es/tl carry machine-drafted enum translations
+  // (#182, pending native review).
   //
   // Labels are chosen to be TEXT-PRESERVING on retrofit (Task 5+) — a screen
   // wired to a helper keeps its current text — EXCEPT at two sites the retrofit

@@ -5,6 +5,7 @@ import { renderWithProviders } from "../test/renderWithProviders";
 import { createCustomer, listCustomerBalances, listCustomers } from "../api/cluckwork";
 import type { Customer, CustomerBalances } from "../api/cluckwork";
 import { ApiError } from "../api/client";
+import i18n from "../i18n";
 
 // Keep the real formatMoney (renders the outstanding column); stub the network.
 vi.mock("../api/cluckwork", async (importOriginal) => {
@@ -165,5 +166,105 @@ describe("CustomersPage role gating", () => {
 
     expect(screen.queryByRole("columnheader", { name: "Outstanding" })).not.toBeInTheDocument();
     expect(mockBalances).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// i18n wiring (#182, Task 24, batch B4)
+// ---------------------------------------------------------------------------
+
+// `customers` is English-only (not in TRANSLATED_NAMESPACES — see
+// translations-status.ts), so under ANY UI language the rendered text falls
+// back to this exact English string, same as a still-hardcoded literal would
+// render — asserting plain English under default lng:"en" would prove nothing
+// (CONTRIBUTING-i18n.md's fallback trap). Swap the catalog value at runtime
+// instead, the same i18n.addResource technique the other batches use, so each
+// marker only renders if the screen actually reads the catalog rather than a
+// literal that happens to still match it. Together these cover every
+// render-pattern on this screen: a plain t() heading, a t() key SHARED across
+// two render sites (newCustomerButton — the open button AND the dialog
+// title), a t() field label inside the create dialog, a t() empty-state
+// message, a t() table header, and the imperative i18n.t() pattern used in
+// both mount-effect .catch callbacks (load errors have no hook access at that
+// call site, so they always go through the imperative singleton — see
+// CONTRIBUTING-i18n.md).
+describe("CustomersPage i18n wiring (#182, Task 24)", () => {
+  function withOverride(ns: string, key: string, value: string, run: () => Promise<void> | void) {
+    const original = i18n.getResource("en", ns, key) as string;
+    i18n.addResource("en", ns, key, value);
+    return Promise.resolve(run()).finally(() => {
+      i18n.addResource("en", ns, key, original);
+    });
+  }
+
+  it("reads the heading from the catalog, not a hardcoded literal", async () => {
+    await withOverride("customers", "title", "TITLE-MARKER", async () => {
+      renderWithProviders(<CustomersPage />, { token: WORKER });
+      expect(await screen.findByRole("heading", { name: "TITLE-MARKER" })).toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "Customers" })).not.toBeInTheDocument();
+    });
+  });
+
+  // Proves `newCustomerButton` is a SHARED key: overriding it once changes
+  // both the open button's label AND the dialog's title (the dialog title
+  // reuses the same key verbatim, same pattern as UsersPage's newUserButton).
+  it("reads the shared new-customer key on both the open button and the dialog title", async () => {
+    await withOverride("customers", "newCustomerButton", "NEW-CUSTOMER-MARKER", async () => {
+      renderWithProviders(<CustomersPage />, { token: WORKER });
+      const openButton = await screen.findByRole("button", { name: "NEW-CUSTOMER-MARKER" });
+      expect(screen.queryByRole("button", { name: "New customer" })).not.toBeInTheDocument();
+      fireEvent.click(openButton);
+      expect(await screen.findByRole("dialog", { name: "NEW-CUSTOMER-MARKER" })).toBeInTheDocument();
+    });
+  });
+
+  it("reads a create-dialog field label from the catalog, not a hardcoded literal", async () => {
+    await withOverride("customers", "nameFieldLabel", "NAME-LABEL-MARKER", async () => {
+      renderWithProviders(<CustomersPage />, { token: WORKER });
+      fireEvent.click(await screen.findByRole("button", { name: "New customer" }));
+      expect(within(screen.getByRole("dialog")).getByLabelText("NAME-LABEL-MARKER")).toBeInTheDocument();
+      expect(within(screen.getByRole("dialog")).queryByLabelText("Name *")).not.toBeInTheDocument();
+    });
+  });
+
+  it("reads the empty-state message from the catalog, not a hardcoded literal", async () => {
+    mockList.mockResolvedValue([]);
+    await withOverride("customers", "noCustomersMessage", "EMPTY-MARKER", async () => {
+      renderWithProviders(<CustomersPage />, { token: WORKER });
+      expect(await screen.findByText("EMPTY-MARKER")).toBeInTheDocument();
+      expect(screen.queryByText(/No customers yet/)).not.toBeInTheDocument();
+    });
+  });
+
+  it("reads a table column header from the catalog, not a hardcoded literal", async () => {
+    await withOverride("customers", "phoneHeader", "PHONE-HEADER-MARKER", async () => {
+      renderWithProviders(<CustomersPage />, { token: WORKER });
+      expect(await screen.findByRole("columnheader", { name: "PHONE-HEADER-MARKER" })).toBeInTheDocument();
+      expect(screen.queryByRole("columnheader", { name: "Phone" })).not.toBeInTheDocument();
+    });
+  });
+
+  // Imperative i18n.t() — the mount-effect .catch for the customers list.
+  // load() is defined inline in the component body, but it runs as a Promise
+  // callback (not render), so it goes through the imperative singleton, not
+  // the closure's `t`.
+  it("reads the load-customers error from the catalog, not a hardcoded literal", async () => {
+    mockList.mockRejectedValue(new Error("boom"));
+    await withOverride("customers", "loadCustomersErrorMessage", "LOAD-ERROR-MARKER", async () => {
+      renderWithProviders(<CustomersPage />, { token: WORKER });
+      expect(await screen.findByText("LOAD-ERROR-MARKER")).toBeInTheDocument();
+      expect(screen.queryByText(/Could not load customers/)).not.toBeInTheDocument();
+    });
+  });
+
+  // Imperative i18n.t() — the mount-effect .catch for admin-only balances,
+  // gated behind isAdmin (a separate effect from the customers list load).
+  it("reads the load-balances error from the catalog, not a hardcoded literal", async () => {
+    mockBalances.mockRejectedValue(new Error("boom"));
+    await withOverride("customers", "loadBalancesErrorMessage", "BALANCES-ERROR-MARKER", async () => {
+      renderWithProviders(<CustomersPage />, { token: ADMIN });
+      expect(await screen.findByText("BALANCES-ERROR-MARKER")).toBeInTheDocument();
+      expect(screen.queryByText(/Could not load customer balances/)).not.toBeInTheDocument();
+    });
   });
 });

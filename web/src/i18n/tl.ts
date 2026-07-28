@@ -43,6 +43,26 @@ export const tl = {
     preferences: "Mga Kagustuhan",
     language: "Wika",
     languageHint: "Ang wikang gagamitin sa interface, para lang sa iyo.",
+
+    // machine-drafted (#182) — pending native review. Task 25 (B4): the rest
+    // of AccountPage. Keys mirror en.ts exactly, including {{role}}/{{min}}
+    // placeholders and the <strong> tag in roleLine.
+    // "Account" kept as an English loanword (same treatment as
+    // sales.reference above) — the common term in PH tech UIs; flag for
+    // native review to confirm rather than assume.
+    heading: "Account",
+    roleLine: "Naka-sign in ka gamit ang tungkuling <strong>{{role}}</strong>.",
+    changePasswordHeading: "Palitan ang password",
+    changePasswordHint:
+      "Kapag pinalitan mo ang iyong password, ma-si-sign out ka sa lahat "
+      + "ng ibang device — mananatiling naka-sign in ang device na ito.",
+    currentPasswordLabel: "Kasalukuyang password *",
+    newPasswordLabel: "Bagong password (min {{min}} na karakter) *",
+    confirmPasswordLabel: "Kumpirmahin ang bagong password *",
+    changePasswordButton: "Palitan ang password",
+    passwordMismatchError: "Hindi magkatugma ang mga bagong password.",
+    passwordTooShortError: "Dapat hindi bababa sa {{min}} na karakter ang bagong password.",
+    passwordChangedMessage: "Napalitan ang password. Na-sign out na ang ibang mga device.",
   },
   errors: {
     "Me.Language.Format": "Dapat 2–8 letrang code ang wika, halimbawa 'en'.",
@@ -168,5 +188,369 @@ export const tl = {
     paymentRecorded: "Naitala ang bayad.",
     paymentVoided: "Na-void ang bayad — tumaas muli ang nakabinbin na halaga.",
     orderVoided: "Na-void ang order {{ref}} — naibalik ang stock sa imbentaryo.",
+  },
+
+  // machine-drafted (#182) — pending native review. Task 25c (B4): new
+  // namespace, backfilling tl so Tagalog mode renders translated text on the
+  // Settings screen. Keys mirror en.ts settings exactly, including the
+  // {{cap}}/{{actualKb}}/{{limitKb}}/{{code}} placeholders and the <strong>
+  // tag in logoSquareHint.
+  // "Time zone" / "Locale" / "Currency" / "Localization" kept as English
+  // loanwords (flag for native review) — no settled short Filipino term is in
+  // common use in PH tech UIs for these; same treatment as sales.reference
+  // above.
+  settings: {
+    heading: "Mga setting ng bukid",
+    intro:
+      "Kung paano tinatawag ng bukid na ito ang sarili nito, at ang locale, "
+      + "time zone, at currency na ginagamit nito sa pagtala at pagbasa ng trabaho.",
+    loadFailedMessage: "Hindi na-load ang mga setting ng bukid.",
+
+    // Logo panel
+    logoSectionHeading: "Logo",
+    logoAlt: "Kasalukuyang logo ng bukid",
+    logoLoadingMessage: "Naglo-load ang logo…",
+    logoLoadFailedMessage: "Hindi na-load ang logo.",
+    logoNoneMessage: "Walang naka-set na logo — ipinapakita ng sidebar ang Cluckwork mark.",
+    uploadLogoButton: "Mag-upload ng logo",
+    replaceLogoButton: "Palitan ang logo",
+    removeLogoButton: "Alisin",
+    logoRulesHint:
+      "PNG, JPEG, o WebP, hanggang {{cap}} at 4096 px kada gilid. Hindi "
+      + "tinatanggap ang mga animated na larawan. Na-save ang larawan nang "
+      + "na-rewrite, tanggal ang camera at location metadata.",
+    logoSquareHint:
+      "Gumamit ng <strong>parisukat</strong> na larawan — maliit lang "
+      + "lumalabas ang logo sa sidebar, kaya mas maganda ang tingin ng "
+      + "simple at maigsing-crop na marka (isang simbolo o iisang letra) "
+      + "doon kaysa sa malawak o detalyadong larawan. Mas maganda kung "
+      + "transparent ang background sa isang light na disenyo.",
+    logoWorkingMessage: "Pinoproseso…",
+    logoUpdatedMessage: "Na-update ang logo.",
+    logoRemovedMessage: "Naalis ang logo.",
+    logoOversizeMessage: "{{actualKb}} KB ang larawang iyon. Ang limitasyon ay {{limitKb}} KB.",
+    removeLogoConfirmTitle: "Alisin ang logo ng bukid?",
+    removeLogoConfirmBody:
+      "Babalik ang sidebar sa Cluckwork mark. Puwede kang mag-upload ulit "
+      + "anumang oras.",
+    removeLogoConfirmLabel: "Alisin ang logo",
+
+    // Localization form
+    localizationSectionHeading: "Localization",
+    farmNameLabel: "Pangalan ng bukid",
+    timezoneLabel: "Time zone",
+    timezoneUnknownWarning:
+      "Hindi kilala ng browser na ito ang time zone na iyon, kaya susundin "
+      + "ng mga petsa dito ang device sa halip na ang bukid. Pumili ng isa "
+      + "sa listahan.",
+    localeLabel: "Locale",
+    currencyLabel: "Currency",
+    currencyLockedNote:
+      "Naka-fix ang currency sa {{code}}: may mga halaga na itong naitala "
+      + "sa currency na ito. Hindi na muling pinepresyuhan ang naitalang "
+      + "pera, kaya kung babaguhin ito, magkakaiba na ang ibig sabihin ng "
+      + "bawat naka-save na total.",
+    unitSystemLabel: "Sistema ng yunit",
+    firstDayOfWeekLabel: "Unang araw ng linggo",
+    followLocaleOption: "Sundin ang locale",
+    paletteLegend: "Paleta ng bukid",
+    paletteHint:
+      "Ang accent color para sa lahat sa bukid na ito. Pipiliin pa rin ng "
+      + "bawat tao ang sarili nilang light mode o night mode.",
+    paletteAubergine: "Talong",
+    paletteForest: "Kagubatan",
+    paletteSlate: "Slate",
+    paletteTerracotta: "Terracotta",
+    dateFormatLabel: "Format ng petsa",
+    timeFormatLabel: "Format ng oras",
+    savingButton: "Sine-save…",
+    saveButton: "I-save ang mga setting",
+    effectNote:
+      "Agad na naaapektuhan ang lahat ng bahagi ng time zone kapag "
+      + "na-save na ito. Ang locale, sistema ng yunit, at ang mga override "
+      + "sa format ay naitala laban sa bukid at magtatakda kung paano "
+      + "ipapakita ang mga halaga, petsa, at sukat kapag dumating na ang "
+      + "format na iyon.",
+    savedMessage: "Na-save ang mga setting.",
+
+    // Imperative messages
+    versionConflictMessage:
+      "May ibang taong nagbago ng mga setting na ito habang bukas ang "
+      + "screen na ito. I-reload at subukan ulit.",
+    saveReadBackFailedMessage:
+      "Na-save. Hindi na-basa ulit ng screen na ito ang mga setting — "
+      + "i-reload ang page bago mag-save ulit.",
+    refreshFailedMessage:
+      "Na-save. Hindi na-detect ng ibang bahagi ng app ang pagbabago — "
+      + "i-reload ang page para masiguro na naaplay ito sa lahat ng lugar.",
+  },
+
+  // machine-drafted (#182) — pending native review. Task 25c (B4): new
+  // namespace, backfilling tl so Tagalog mode renders translated text on the
+  // Users screen. Keys mirror en.ts users exactly, including the
+  // {{label}}/{{email}}/{{role}} placeholders.
+  // "flock" translated as "kawan" (the standard Filipino word for a flock of
+  // birds) throughout, rather than kept as an English loanword — flag for
+  // native review to confirm against local farm-software usage.
+  users: {
+    heading: "Mga User",
+    newUserButton: "Bagong user",
+    roleDescription:
+      "Itinatala ng mga manggagawa ang trabaho ng araw (opsyonal na "
+      + "nakalimita sa mga naka-assign na kawan). Ginagawa rin ng mga "
+      + "Manager ang pagtatama, pag-void, at pag-configure. Ang Benta ang "
+      + "humahawak sa customer, order, at bayad. Nakikita ng Read-only ang "
+      + "stock, history, at reports. Ginagawa ng Admin (may-ari) ang lahat, "
+      + "kasama ang pamamahala ng mga user.",
+
+    // Create-user dialog
+    emailFieldLabel: "Email *",
+    passwordFieldLabel: "Password (min 12 na karakter) *",
+    nameFieldLabel: "Pangalan",
+    roleFieldLabel: "Tungkulin",
+    adminRoleOption: "{{label}} (may-ari)",
+    createUserButton: "Gumawa ng user",
+
+    // Users table
+    emailColumnHeader: "Email",
+    nameColumnHeader: "Pangalan",
+    roleColumnHeader: "Tungkulin",
+    editButton: "i-edit",
+    resetPasswordButton: "password",
+    flocksButton: "mga kawan",
+
+    // Flock-access dialog
+    flockAccessTitle: "Access sa kawan — {{email}}",
+    flockAccessHint:
+      "Walang assignment = puwedeng magtala ang manggagawa para sa kahit "
+      + "anong kawan. Ang unang assignment ang naglilimita sa kanila sa mga "
+      + "nakalistang kawan lang.",
+    noAssignmentsMessage: "Walang assignment — access sa buong account.",
+    removeAssignmentButton: "alisin",
+    assignFlockButton: "Mag-assign ng kawan",
+    doneButton: "Tapos na",
+
+    // Edit-user dialog
+    editUserTitle: "I-edit ang user — {{email}}",
+    clearNameHint: "Iwanang blangko para burahin ang pangalan.",
+
+    // Set-password dialog
+    setPasswordTitle: "Itakda ang password — {{email}}",
+    passwordDialogHint:
+      "Hindi mo kailangan ang kasalukuyan nilang password. Kapag itinakda "
+      + "mo ito, ma-si-sign out sila sa lahat ng device — sabihin nang "
+      + "direkta sa kanila ang bagong password.",
+    newPasswordFieldLabel: "Bagong password (min 12 na karakter) *",
+    confirmPasswordFieldLabel: "Kumpirmahin ang bagong password *",
+    setPasswordButton: "Itakda ang password",
+
+    // Imperative messages
+    createSuccessMessage: "Nagawa ang {{role}} account para sa {{email}}.",
+    passwordMismatchMessage: "Hindi magkatugma ang mga password.",
+    passwordSetMessage: "Naitakda ang password para sa {{email}}. Na-sign out na sila sa lahat ng lugar.",
+    updatedMessage: "Na-update ang {{email}}.",
+  },
+
+  // machine-drafted (#182) — pending native review. Task 25c (B4): new
+  // namespace, backfilling tl so Tagalog mode renders translated text on the
+  // Expenses screen. Keys mirror en.ts expenses exactly, including the
+  // {{name}}/{{count}}/{{amount}}/{{code}}/{{date}}/{{description}}
+  // placeholders.
+  expenses: {
+    title: "Mga Gastos",
+
+    // Imperative messages
+    expenseRecordedMessage: "Naitala ang gastos.",
+    expenseCorrectedMessage: "Naitama ang gastos.",
+    conflictRebindMessage:
+      "Binago ng ibang tao ang gastos na ito — ipinapakita na ngayon ng "
+      + "form ang pinakabagong mga value; i-apply ulit ang iyong pagtatama.",
+    categoryCreatedMessage: "Nagawa ang kategorya.",
+    categoryDeactivatedMessage: "Na-deactivate ang kategoryang \"{{name}}\".",
+    categoryReactivatedMessage: "Na-reactivate ang kategoryang \"{{name}}\".",
+
+    // Amount-parsing validation
+    enterValidAmount: "Maglagay ng valid na halaga.",
+    noDecimalPlaces: "Walang decimal ang currency na ito.",
+    atMostDecimals: "Pinakamarami {{count}} decimal para sa currency na ito.",
+    enterAmountGreaterThanZero: "Maglagay ng halagang higit sa zero.",
+
+    // Filters
+    monthLabel: "Buwan",
+    categoryLabel: "Kategorya",
+    allCategoriesOption: "Lahat ng kategorya",
+    hideCategoriesButton: "itago ang mga kategorya",
+    manageCategoriesButton: "pamahalaan ang mga kategorya",
+    monthTotalLabel: "Kabuuan ng buwan: {{amount}}",
+
+    // Category-management panel
+    categoriesHeading: "Mga kategorya ng gastos",
+    newCategoryButton: "Bagong kategorya",
+    newCategoryDialogTitle: "Bagong kategorya ng gastos",
+    categoryNameLabel: "Pangalan ng kategorya",
+    addCategoryButton: "Magdagdag ng kategorya",
+    deactivatedSuffix: " (naka-deactivate)",
+    deactivateButton: "i-deactivate",
+    reactivateButton: "i-reactivate",
+    noCategoriesMessage: "Wala pang kategorya — magdagdag ng isa sa itaas.",
+
+    // Record-expense form
+    recordExpenseHeading: "Magtala ng gastos",
+    dateLabel: "Petsa",
+    pickOption: "— pumili —",
+    descriptionLabel: "Deskripsyon",
+    amountLabel: "Halaga ({{code}})",
+    flockOptionalLabel: "Kawan (opsyonal)",
+    noneOption: "— wala —",
+    noteOptionalLabel: "Tala (opsyonal)",
+    recordExpenseButton: "Itala ang gastos",
+    addCategoryFirstMessage: "Magdagdag muna ng kategorya — kailangan nito ng bawat gastos.",
+
+    // Correct-expense dialog
+    correctExpenseDialogTitle: "Itama ang gastos",
+    correctExpenseDialogTitleWithExpense: "Itama — {{date}}, {{description}}",
+    saveCorrectionButton: "I-save ang pagtatama",
+
+    // Expenses table
+    noExpensesMessage: "Walang gastos ngayong buwan.",
+    dateHeader: "Petsa",
+    categoryHeader: "Kategorya",
+    descriptionHeader: "Deskripsyon",
+    amountHeader: "Halaga",
+    flockHeader: "Kawan",
+    noteHeader: "Tala",
+    correctButton: "itama",
+    loadMoreButton: "mag-load pa",
+  },
+
+  // machine-drafted (#182) — pending native review. Task 25c (B4): new
+  // namespace, backfilling tl so Tagalog mode renders translated text on the
+  // Customers screen. Keys mirror en.ts customers exactly (no placeholders
+  // in this namespace).
+  customers: {
+    title: "Mga Customer",
+    newCustomerButton: "Bagong customer",
+
+    // Create-customer dialog
+    nameFieldLabel: "Pangalan *",
+    phoneFieldLabel: "Telepono *",
+    emailFieldLabel: "Email",
+    addressFieldLabel: "Address",
+    noteFieldLabel: "Tala",
+    addCustomerButton: "Magdagdag ng customer",
+
+    // Imperative messages
+    loadCustomersErrorMessage: "Hindi na-load ang mga customer.",
+    loadBalancesErrorMessage: "Hindi na-load ang mga balance ng customer.",
+
+    // Customers table
+    noCustomersMessage: "Wala pang customer.",
+    nameHeader: "Pangalan",
+    phoneHeader: "Telepono",
+    emailHeader: "Email",
+    addressHeader: "Address",
+    noteHeader: "Tala",
+    outstandingHeader: "Nakabinbin",
+  },
+
+  // machine-drafted (#182) — pending native review. Task 25c (B4): new
+  // namespace, backfilling tl for the closed-vocabulary enum labels
+  // (status/role/waterSource/waterUnit/gradeType/inventoryCategory/
+  // inventoryMovement/flockMovement/stockMovement/unitSystem/weekday)
+  // consumed through enums.ts, so Settings' unit-system/weekday pickers and
+  // Users' role values render translated text too. Keys mirror en.ts enums
+  // exactly (flat "family.RawValue" strings, keySeparator:false — see
+  // en.ts's enums header comment). waterUnit.L/waterUnit.gal are left as the
+  // literal unit symbols (unchanged across en/es/tl), matching en's own
+  // comment.
+  // role.Admin/role.Manager/role.ReadOnly and a handful of inventory/stock
+  // terms (gradeType.Custom, inventoryCategory.Packaging, stockMovement.
+  // Reconciliation) are kept as English loanwords — common register in PH
+  // farm/business software, same treatment as sales.methodCash/methodCard
+  // above; flagged for native review alongside role.Worker ("Manggagawa")
+  // and role.Sales ("Benta", matching sales.title) which WERE translated.
+  enums: {
+    // status
+    "status.Active": "Aktibo",
+    "status.Inactive": "Hindi Aktibo",
+    "status.Draft": "Draft",
+    "status.Submitted": "Naisumite",
+    "status.Locked": "Naka-lock",
+    "status.ManagerAdjusted": "Na-adjust",
+    "status.Voided": "Na-void",
+    "status.Confirmed": "Kumpirmado",
+    "status.Shipped": "Ipinadala",
+    "status.Invoiced": "Na-invoice",
+    "status.Cancelled": "Kinansela",
+    "status.Depleted": "Naubos",
+    "status.Archived": "Naka-archive",
+
+    // role
+    "role.Worker": "Manggagawa",
+    "role.Admin": "Admin",
+    "role.Manager": "Manager",
+    "role.Sales": "Benta",
+    "role.ReadOnly": "Read-only",
+
+    // water source
+    "waterSource.Well": "Poso",
+    "waterSource.Municipal": "Munisipal",
+    "waterSource.Tank": "Tangke",
+    "waterSource.Other": "Iba pa",
+
+    // water unit — symbols, unchanged
+    "waterUnit.L": "L",
+    "waterUnit.gal": "gal",
+
+    // grade type
+    "gradeType.Size": "Sukat",
+    "gradeType.Quality": "Kalidad",
+    "gradeType.Custom": "Custom",
+
+    // inventory category
+    "inventoryCategory.Feed": "Feed",
+    "inventoryCategory.Supplement": "Suplemento",
+    "inventoryCategory.Additive": "Aditibo",
+    "inventoryCategory.Medication": "Gamot",
+    "inventoryCategory.Vaccine": "Bakuna",
+    "inventoryCategory.Packaging": "Packaging",
+    "inventoryCategory.Bedding": "Higaan",
+    "inventoryCategory.Sanitation": "Kalinisan",
+    "inventoryCategory.EquipmentPart": "Bahagi ng kagamitan",
+    "inventoryCategory.Other": "Iba pa",
+
+    // inventory movement type
+    "inventoryMovement.Purchase": "Pagbili",
+    "inventoryMovement.Usage": "Paggamit",
+    "inventoryMovement.Adjustment": "Pagsasaayos",
+    "inventoryMovement.Discard": "Pagtapon",
+
+    // flock (bird) movement type
+    "flockMovement.Mortality": "Pagkamatay",
+    "flockMovement.Cull": "Pagtanggal",
+    "flockMovement.Adjustment": "Pagsasaayos",
+
+    // egg stock movement type
+    "stockMovement.Production": "Produksyon",
+    "stockMovement.Sale": "Benta",
+    "stockMovement.Adjustment": "Pagsasaayos",
+    "stockMovement.Discard": "Pagtapon",
+    "stockMovement.InternalUse": "Panloob na paggamit",
+    "stockMovement.Transfer": "Paglipat",
+    "stockMovement.Reconciliation": "Reconciliation",
+    "stockMovement.Void": "Na-void",
+
+    // unit system
+    "unitSystem.Metric": "Metriko",
+    "unitSystem.Imperial": "Imperyal",
+
+    // weekday
+    "weekday.Sunday": "Linggo",
+    "weekday.Monday": "Lunes",
+    "weekday.Tuesday": "Martes",
+    "weekday.Wednesday": "Miyerkules",
+    "weekday.Thursday": "Huwebes",
+    "weekday.Friday": "Biyernes",
+    "weekday.Saturday": "Sabado",
   },
 } as const;
