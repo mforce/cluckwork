@@ -1514,4 +1514,533 @@ export const tl = {
     "entityType.User": "User",
     "entityType.WaterUsage": "Paggamit ng Tubig",
   },
+
+  // machine-drafted (#182) — pending native review. Task 32 (B6a): HelpPage
+  // prose, getting-around through mistakes (INCLUDING the "Fixing mistakes"
+  // table). Keys mirror en.ts help exactly, including every <strong>/<em>
+  // tag — catalogParity enforces tag parity per key. Screen names in prose
+  // reuse this pack's existing nav labels where one exists (e.g. "History",
+  // "Stock", "Audit", "Export" kept as English loanwords, "Araw-araw na
+  // Tala" for Daily entry, "Mga Kawan" for Flocks) — see nav above.
+  // Domain-verb loanwords ("i-void", "i-adjust", "isumite", "i-archive",
+  // "ubusin"/"naubos", "kumpirmahin") follow the precedent set in
+  // sales/history/flocks above. "Currency"/"Time zone"/"Locale"/"Logo"/
+  // "Account"/"Stock"/"History"/"Audit"/"Export"/"Glossary" kept as English
+  // loanwords, same treatment as settings/account above (flag for native
+  // review). The glossary table (h3 id="glossary") is NOT here — Task 33
+  // (B6b) owns it; tocGlossary is translated anyway since it is only the
+  // rail's link text, not the glossary section itself.
+  help: {
+    eyebrow: "Gabay ng user",
+    heading: "Tulong",
+    lead: "Kung paano gumagana ang Cluckwork, screen by screen — at kung paano mo aayusin ang mga pagkakamali.",
+    contentsAriaLabel: "Nilalaman ng tulong",
+    contentsEyebrow: "Nilalaman",
+
+    tocGettingAround: "Pag-navigate",
+    tocSigningIn: "Pag-sign in",
+    tocDailyLoop: "Ang pang-araw-araw na siklo",
+    tocRoles: "Sino ang puwedeng gumawa ng ano",
+    tocDialogs: "Pagdagdag at pagtatama",
+    tocDailyEntry: "Araw-araw na Tala",
+    tocFlocks: "Mga Kawan at Ibon",
+    tocGrades: "Mga Grado ng Itlog",
+    tocProducts: "Mga Produkto",
+    tocStock: "Stock",
+    tocInventory: "Feed at Imbentaryo",
+    tocWater: "Tubig",
+    tocSales: "Mga Customer at Benta",
+    tocReports: "Mga Report",
+    tocExpenses: "Mga Gastos",
+    tocHistory: "History",
+    tocAudit: "Audit Log",
+    tocExport: "Export at Backup",
+    tocFarmSettings: "Mga Setting ng Bukid",
+    tocFarmPalette: "Paleta ng Bukid",
+    tocInstall: "Pag-install sa Telepono",
+    tocMistakes: "Pagtatama ng mga Pagkakamali",
+    tocGlossary: "Glossary",
+
+    gettingAroundHeading: "Pag-navigate",
+    gettingAroundSidebar:
+      "Sa computer, nasa <strong>sidebar</strong> sa kaliwa ang bawat screen, nakagrupo ayon sa trabaho.",
+    gettingAroundTabs:
+      "Sa telepono, ang mga screen na pinakamadalas mong gamitin ay lumalabas bilang <strong>mga tab sa "
+      + "ibaba</strong>, malapit sa hinlalaki. Depende sa tungkulin mo kung alin sa apat ang makukuha mo — "
+      + "makukuha ng manggagawa ang Araw-araw na Tala, makukuha ng Benta ang Benta. Isang tap na lang ang "
+      + "lahat ng iba pa, sa ilalim ng <strong>Higit Pa</strong>.",
+    gettingAroundErrorScreen:
+      "Kapag nagpakita ang isang screen ng <strong>\"May Nangyaring Mali\"</strong>, ibig sabihin ay "
+      + "na-catch ng app ang isang error sa halip na mag-iwan sa iyo ng blangkong page. Ligtas ang anumang "
+      + "na-save mo na (maaaring kailanganin mong i-type ulit ang kahit anong tina-type mo pa) — i-tap ang "
+      + "<strong>I-reload</strong>, o <strong>Bumalik sa dashboard</strong> at subukan ulit. Kung "
+      + "paulit-ulit itong nangyayari, buksan ang \"Mga detalye ng error\" at magpadala ng screenshot.",
+
+    signingInHeading: "Pag-sign in",
+    signingInBasic:
+      "Mag-sign in gamit ang email at password na ni-set up ng iyong administrator. Ang maling password ay "
+      + "nagsasabi lang na <strong>Mali ang email o password</strong> — subukan ulit.",
+    signingInRateLimit:
+      "Para pabagalin ang sinumang nag-guess ng password, <strong>limitado</strong> ang mga pagsubok sa "
+      + "pag-sign in mula sa parehong lugar. Pagkatapos ng sobrang dami ng subok sa loob ng ilang minuto, "
+      + "makikita mo ang <strong>\"Sobra na ang subok sa pag-sign in\"</strong> — hindi iyon isang error, "
+      + "maghintay lang ng ilang minuto at subukan ulit. Hindi kailanman naaapektuhan ang pagiging <em>naka-"
+      + "sign in</em> na; normal na tumutuloy ang trabaho mo.",
+    signingInAccountLock:
+      "Bukod dito, ang sobrang dami ng maling password para sa <em>isang account</em> ay panandaliang "
+      + "nagba-block sa <em>account</em> na iyon. Habang naka-block, kahit ang tamang password ay nagsasabi "
+      + "pa rin ng <strong>Mali ang email o password</strong>. Pansamantala lang ang block — maghintay ng "
+      + "hanggang 15 minuto at subukan ulit.",
+    signingInPersistence:
+      "Ligtas na naka-save sa browser mo ang sign in mo at nananatiling aktibo habang nagtatrabaho ka, "
+      + "kahit mag-reload at kahit bukas ang app sa <strong>ilang tab</strong> nang sabay-sabay. "
+      + "Pagkatapos ma-<strong>update</strong> ang app, maaaring hilingin sa iyong mag-sign in muli — "
+      + "normal lang iyon.",
+    interfaceLanguage:
+      "<strong>Wika ng interface.</strong> Kahit sino ay puwedeng pumili ng wikang gagamitin sa interface "
+      + "mula sa <strong>Account → Mga Kagustuhan</strong> — English, Español, o Tagalog. Isang patuloy na "
+      + "trabaho ang pagsasalin: ang mga screen ng sign-in at benta, ang mga error message, at ang "
+      + "<strong>Account → Mga Kagustuhan</strong> mismo ay isinalin na ngayon; ang natitirang bahagi ng "
+      + "Account screen (kasama ang password section) at ang natitirang app ay isinasalin pa nang screen by "
+      + "screen. Hangga't hindi pa naisasalin ang isang screen, ipinapakita lang ito sa English, anuman ang "
+      + "wikang pinili mo.",
+
+    dailyLoopHeading: "Ang pang-araw-araw na siklo",
+    dailyLoopChain:
+      "Ang lahat sa Cluckwork ay nakasalalay sa iisang chain: nagtatala ka ng <strong>araw-araw na "
+      + "entry</strong> para sa bawat kawan (itlog ayon sa grado, nawala, namatay), <strong>isinusumite</strong> "
+      + "mo ito, at ang pagsumite ay lumilikha ng may petsang <strong>lote ng itlog</strong> — iyon ang iyong "
+      + "nabibiling <strong>stock</strong>. Ang isang <strong>order ng benta</strong> ay kumukuha mula sa "
+      + "stock kapag kinumpirma mo ito, palaging ang pinakalumang itlog muna. Gayon din ang daloy ng feed sa "
+      + "panig ng input: nagdadagdag ng feed sa stock ang mga pagbili, binabawasan ito ng araw-araw na "
+      + "paggamit kada kawan.",
+    dailyLoopSummary: "Magtala ng entry → isumite → lote ng itlog → stock → order → kumpirmahin.",
+
+    rolesHeading: "Sino ang puwedeng gumawa ng ano",
+    rolesWorkers:
+      "Limang uri ng sign-in. Isinasagawa ng mga <strong>Manggagawa</strong> ang pang-araw-araw na siklo — "
+      + "nagtatala at nagsusumite ng entry, tumatanggap ng feed, nagtatala ng paggamit ng feed at tubig, "
+      + "gumagawa ng kawan at customer, humahawak ng order mula draft hanggang kumpirmasyon. Puwedeng "
+      + "limitahan ang isang manggagawa sa <strong>mga naka-assign na kawan</strong>: kung walang "
+      + "assignment, puwede siyang magtala para sa kahit anong kawan; ang unang assignment ang naglilimita "
+      + "sa kanya sa mga nakalista lang.",
+    rolesManagers:
+      "Ginagawa ng mga <strong>Manager</strong> ang lahat ng ginagawa ng manggagawa, dagdag pa ang lahat "
+      + "ng <strong>nag-a-undo, nagtatama, o nag-co-configure</strong>: void, pagtatama ng stock at tubig, "
+      + "lifecycle ng kawan, pag-cull, ang mga katalogo ng grado/produkto/item, gastos, report ng pera, "
+      + "audit log, at export.",
+    rolesSalesReadOnly:
+      "Hinahawakan ng mga sign-in na <strong>Benta</strong> ang customer, order, at <strong>bayad</strong> "
+      + "— pero walang production capture at walang gastos. Nakikita ng mga sign-in na <strong>Read-"
+      + "only</strong> ang stock, history, at report, at hindi puwedeng magbago ng anuman.",
+    rolesAdmin:
+      "Ginagawa ng <strong>Admin (may-ari)</strong> ang lahat ng ginagawa ng manager at siya lang ang "
+      + "tungkuling namamahala ng mga user: gumagawa ng sign-in sa screen na <strong>Mga User</strong> "
+      + "(email, password, opsyonal na pangalan, at tungkulin) at nag-a-assign ng manggagawa sa mga kawan. "
+      + "Puwedeng baguhin sa ibang pagkakataon ang pangalan ng isang user mula sa aksyong "
+      + "<strong>i-edit</strong> ng row, at nagtatakda ang aksyong <strong>password</strong> ng nakalimutang "
+      + "password nang hindi kailangan ang luma. Ang pagbabago ng tungkulin ng isang existing na user ay "
+      + "darating sa susunod na release. Nakatago ang mga control na hindi mo puwedeng gamitin, at "
+      + "tinatanggihan pa rin ito ng server.",
+    ownPassword:
+      "<strong>Ang sarili mong password.</strong> Kahit sino, sa kahit anong tungkulin, ay puwedeng "
+      + "magpalit ng sariling password sa screen na <strong>Account</strong> sa pamamagitan ng pag-enter ng "
+      + "kasalukuyan at bagong password (hindi bababa sa 12 karakter). Ang pagpapalit nito — o ang "
+      + "pagseset ng admin nito para sa iyo — ay nagsa-sign out sa account na iyon sa bawat <em>ibang</em> "
+      + "device; mananatiling naka-sign in ang device na pinagpalitan mo. Ang isang bukas nang session sa "
+      + "ibang lugar ay puwedeng magtagal ng ilang minuto bago tumigil sa paggana.",
+
+    dialogsHeading: "Pagdagdag at pagtatama",
+    dialogsPopup:
+      "Nangyayari ang pagdadagdag at pagtatama sa isang popup. Hanapin ang button na <strong>Bago …</strong> "
+      + "sa tabi ng titulo ng screen — bagong grado, produkto, customer, kawan, item, user, order. Ang link "
+      + "na <strong>i-edit</strong> o <strong>tama</strong> ng bawat row ay nagbubukas ng parehong popup na "
+      + "may punan na ang mga value ng row na iyon.",
+    dialogsDrillDowns:
+      "Gayon din ang mga drill-down. Buksan ang talaan ng <strong>ibon</strong> ng isang kawan para "
+      + "magtala ng cull, ang isang item sa imbentaryo para magtala ng pagbili, paggamit ng feed, o "
+      + "pagtatama ng stock, ang isang order para <strong>magtala ng bayad</strong>, o ang <strong>mga "
+      + "kawan</strong> ng isang manggagawa para pamahalaan ang access niya — nananatili sa lugar nito ang "
+      + "talaan at ang form na ang lalapit sa iyo.",
+    dialogsCancel:
+      "Ang <strong>Kanselahin</strong>, Escape, o pag-click sa labas ay nagsasara ng popup at walang "
+      + "binabago. Kung nabigo ang pag-save, mananatiling bukas ang popup na kasama ang mga value at ang "
+      + "dahilan mo, para maayos mo ito at subukan ulit — ligtas ang muling pagsubok, hindi ito kailanman "
+      + "nagtatala ng parehong bagay nang dalawang beses.",
+    dialogsInlineForms:
+      "Ang mga screen na ang buong trabaho ay pagtatala ay pinapanatili ang form sa page mismo: "
+      + "<strong>Araw-araw na Tala</strong>, <strong>Tubig</strong>, pagtatala ng gastos, at pagdagdag ng "
+      + "linya sa isang draft na order. Ang mga ito ang ginagamit mo araw-araw — walang dagdag na click.",
+    dialogsConfirm:
+      "<strong>Nagtatanong muna ang mga aksyong hindi na maaaring i-undo.</strong> Ang pagsumite ng isang "
+      + "araw, pagkumpirma o pagkansela ng order, pag-ubos o pag-archive ng kawan — sinasabi ng bawat isa "
+      + "kung ano ang malapit nang mangyari at naghihintay. Nagsisimula ang keyboard sa "
+      + "<strong>Kanselahin</strong>, para hindi tuluyang tumuloy ang pagpindot ng Enter dahil sa ugali. "
+      + "Ang <strong>pulang</strong> button ay nangangahulugang ini-undo o inaalis ng aksyon ang isang "
+      + "bagay: pag-void, pagkansela ng draft, pag-ubos, pag-archive. Ang pagsumite ng isang araw at "
+      + "pagkumpirma ng order ay hindi rin puwedeng i-undo, pero ito ang normal na paraan sa buong linggo.",
+    dialogsVoidReason:
+      "<strong>Kailangan ng dahilan ang mga void.</strong> Ang pag-void ng isang araw-araw na entry, isang "
+      + "bayad, o isang nakumpirmang order ay nagtatanong sa parehong paraan pero humihiling muna ng "
+      + "nakasulat na dahilan — naitatala ito kasama ang void at ipinapakita saanman lumabas ang rekord na "
+      + "iyon pagkatapos, kaya isulat kung ano talaga ang nangyari. Iwanan itong blangko at sasabihin agad "
+      + "ito ng popup, pinapanatili ang anumang na-type mo na.",
+
+    dailyEntryHeading: "Araw-araw na Tala",
+    dailyEntryPanes:
+      "Piliin ang kawan at petsa sa itaas, pagkatapos ay magtrabaho sa dalawang panel nang magkatabi: "
+      + "<strong>1 Bilang ng itlog</strong> (kabuuan, basag, marumi, tinapon, namatay) at <strong>2 "
+      + "Pag-grade</strong>. Ang mga bilang ay lumilikha ng isang <strong>naibibentang</strong> figure, at "
+      + "iyon ang numerong dapat abutin ng mga grado — hindi ito puwedeng lampasan kailanman.",
+    dailyEntryGradingDown:
+      "<strong>Bumababa</strong> ang bilang sa pag-grade. Sa tabi ng mga grado ay makikita kung ilang "
+      + "naibibentang itlog pa ang kailangan mong ilagay; nagiging berde ito sa sandaling tumugma ang araw "
+      + "at pula kung lumagpas ka. Hindi ka puwedeng magsumite habang lumalagpas ito.",
+    dailyEntryButtons:
+      "May mga button na <strong>−</strong> at <strong>+</strong> ang bawat bilang. I-tap para sa isa, o "
+      + "<strong>i-hold</strong> — bumibilis ito habang tumatagal, kaya ilang daang itlog ay tumatagal lang "
+      + "ng isang segundo. Mas madali kaysa sa keypad kapag naka-guwantes. Huminto ang <strong>+</strong> ng "
+      + "isang grado kapag kumpleto na ang pag-grade sa araw, para hindi ka lumampas dito.",
+    dailyEntryPutAllIn:
+      "Karamihan sa mga araw ay natatapos sa parehong paraan — isang grado na lang ang kumukuha ng "
+      + "natitira. Ginagawa ito sa isang galaw ng <strong>Ilagay lahat sa…</strong> sa tabi ng natitirang "
+      + "bilang: i-drag ito papunta sa isang grado, o i-tap ito at pumili ng isa.",
+    dailyEntrySaveBar:
+      "Nananatili ang dalawang save button sa isang bar sa ibaba ng screen habang nag-scroll ka. Sa "
+      + "telepono, ipinapakita rin ng bar na iyon ang naibibentang bilang at kung ilan pa ang natitira, "
+      + "para hindi ka kailanman mawalan ng tingin kung tumutugma ang araw.",
+    dailyEntrySaveSubmit:
+      "Pinapanatiling editable ang araw ng <strong>I-save ang draft</strong>. Ginagawa itong opisyal ng "
+      + "<strong>Isumite</strong>: nililikha nito ang mga lote ng itlog ng araw at itinatala ang namatay sa "
+      + "talaan ng ibon ng kawan. Hindi na ito puwedeng i-edit ng manggagawa — puwede itong i-adjust o "
+      + "i-void ng admin (tingnan ang \"Pagtatama ng mga Pagkakamali\").",
+    dailyEntryLocking:
+      "<strong>Awtomatikong naka-lock ang mga naisumiteng entry pagkalipas ng 7 araw</strong>. Ang pagiging "
+      + "naka-lock ay nangangahulugan lang na lumipas na ang correction window para sa mga karaniwang ayos "
+      + "— gumagana pa rin ang pag-adjust/void ng admin sa mga naka-lock na entry.",
+    dailyEntryToday:
+      "Ang ibig sabihin ng \"Ngayon\" ay <strong>ang ngayon ng bukid mo</strong>, hindi ang oras sa ibang "
+      + "bahagi ng mundo. Puwede kang magtala ng kahit anong araw hanggang at kasama ito; tatanggihan ang "
+      + "isang araw na hindi pa nangyayari sa bukid — dito at sa lahat ng lugar na naglalagay ka ng petsa: "
+      + "paggamit ng feed at tubig, pagbili ng feed at pagtatama ng stock, gastos, bayad, at petsa ng "
+      + "paglagay ng kawan. Ang parehong petsa ang nagdedesisyon kung kailan lumalabas ang itlog sa isang "
+      + "withdrawal period, kung anong itlog ang puwedeng kunin ng isang benta, ang araw ng pag-ubos o "
+      + "pag-archive ng isang kawan, at ang range na binubuksan ng mga report — para walang hindi "
+      + "magkatugmang araw.",
+    dailyEntryOnePerDay:
+      "Isang entry kada kawan kada araw. Ang muling pagbukas ng isang araw na may draft ay nagloload nito "
+      + "para sa pag-edit at nagpapakita ng badge na <strong>Ina-edit ang draft</strong> sa tabi ng titulo, "
+      + "para hindi kailanman kamukha ng pagsisimula mula sa wala ang pagbabalik sa na-save na trabaho. "
+      + "Kung nabigo ang prefill, naka-block ang pag-save hanggang magtagumpay ito, para hindi kailanman "
+      + "ma-overwrite nang tahimik ang isang existing na draft.",
+    dailyEntryDepletedBackfill:
+      "Tumatanggap ang mga naubos na kawan ng backfilled na entry hanggang sa petsa ng pag-ubos nila; "
+      + "walang tinatanggap ang mga naka-archive na kawan.",
+
+    flocksHeading: "Mga Kawan at Ibon",
+    flocksCurrentBirds:
+      "Ang <strong>kasalukuyang ibon</strong> ng isang kawan = ang paunang bilang nito bawas ang lahat sa "
+      + "<strong>talaan ng ibon</strong> nito: namatay (awtomatikong idinaragdag kapag naisumite ang mga "
+      + "entry), <strong>cull</strong> (sadyang inalis na ibon — naibenta, pinatay, ibinigay), at manual na "
+      + "<strong>adjustment</strong> (pagtatama ng bilang, sa kahit anong direksyon).",
+    flocksLifecycle:
+      "Lifecycle: <strong>Aktibo</strong> (normal) → <strong>Naubos</strong> (wala nang ibon; nananatili "
+      + "ang history, pinapayagan ang backfill) → <strong>Naka-archive</strong> (nakatago mula sa "
+      + "pang-araw-araw na trabaho). Humihingi ng kumpirmasyon ang pag-ubos at pag-archive; parehong "
+      + "puwedeng i-reverse gamit ang <strong>Reactivate</strong>.",
+    flocksPermissions:
+      "Kahit sino ay puwedeng gumawa ng kawan at tumingin sa talaan ng ibon. Ang pag-edit ng kawan, mga "
+      + "pagbabago sa lifecycle, at pagtatala ng cull/adjustment ay para sa admin lang.",
+
+    gradesHeading: "Mga Grado ng Itlog",
+    gradesBuckets:
+      "Ang mga grado ang mga grading bucket ng bukid mo — sukat (Malaki…), kalidad (Basag…), o custom. "
+      + "Ang mga grado lang na <strong>nabibili</strong> ang lumalabas sa pagtatala ng entry at sa mga "
+      + "order; ang mga hindi nabibiling bucket ay para sa bookkeeping.",
+    gradesDeactivating:
+      "Hindi kailanman binubura ang mga grado. Ang <strong>Pag-deactivate</strong> ay nag-aalis ng isang "
+      + "grado sa pagtatala at sa mga picker ng order: patuloy na binibilang ang stock nito at puwede pa "
+      + "ring kumpirmahin ang mga linya ng order na naidagdag na noon, pero hindi na ito puwedeng ilagay sa "
+      + "<em>bagong</em> linya ng order — i-reactivate ang grado para ibenta ang natitirang stock. Patuloy "
+      + "na ipinapakita ng history ang pangalan nito.",
+    gradesAdminOnly: "Configuration ang katalogo ng grado — ang pamamahala nito ay para sa admin lang.",
+
+    productsHeading: "Mga Produkto (admin)",
+    productsWhatYouSell:
+      "Ang mga produkto ang ibinebenta mo — \"Malalaking Itlog kada dosena\", \"Halong karton\". Ang "
+      + "bawat produktong itlog ay tumuturo sa isang grado ng itlog (doon nanggagaling ang stock nito) at "
+      + "may dalang selling unit at opsyonal na default na presyo. Mga produktong itlog lang ang mayroon "
+      + "sa ngayon.",
+    productsPackedUnits:
+      "Ang <strong>mga packed unit</strong> ang nagtatakda kung ilang itlog ang laman ng bawat unit — "
+      + "puwedeng 12, 18, o 30 ang karton mo. Ang pagbabago ng isang unit ay nakakaapekto lang sa mga "
+      + "hinaharap na benta; pinapanatili ng mga lumang order ang bilang na ibinenta sa kanila.",
+
+    stockHeading: "Stock",
+    stockLots:
+      "Ang bawat grado ay lumalawak sa <strong>mga lote</strong> nito (isa kada naisumiteng araw), at ang "
+      + "bawat lote naman ay lumalawak sa <strong>talaan ng galaw</strong> nito — isang malinaw na linya "
+      + "para sa bawat production, benta, pagtatama, o void. Palaging katumbas ng balanseng ipinapakita ang "
+      + "tumatakbong kabuuan; walang nagbabago sa stock nang hindi nag-iiwan ng linya.",
+    stockRestricted:
+      "Ang stock ay ang kabuuan ng mga lote ng itlog mo kada grado. Ang column na "
+      + "<strong>restricted</strong> ay nakalaan para sa mga withholding period ng gamot — darating ang "
+      + "feature na iyon kasama ng medication tracking. <strong>Wala pang minamarkahang restricted na "
+      + "itlog, kaya hindi ipinapatupad ng system ang mga withdrawal time sa ngayon</strong> — pamahalaan "
+      + "ang mga withholding period sa labas ng Cluckwork sa ngayon.",
+    stockFifo: "Palaging kinukuha muna ng pagbebenta ang mga pinakalumang lote, para natural na umiikot ang stock.",
+
+    inventoryHeading: "Feed at Imbentaryo",
+    inventoryItems:
+      "Tinutukoy ng <strong>mga item</strong> kung ano ang tinatrack mo (feed, supplement…) at ang unit na "
+      + "sinusukat dito. Naka-lock ang unit sa sandaling natanggap na ang stock — dapat manatiling ang ibig "
+      + "sabihin ng mga nakatalang dami ang dating ibig sabihin nito.",
+    inventoryPurchaseUsage:
+      "Ang <strong>Itala ang pagbili</strong> ay nagtatala ng natanggap na stock bilang isang may petsang "
+      + "lote na may kasamang gastos. Ang <strong>Itala ang paggamit</strong> ay nagtatala kung ano ang "
+      + "kinain ng isang kawan sa isang araw: kumukuha ito mula sa mga pinakalumang lote muna (mga lote "
+      + "lang na umiiral noong petsang iyon) at tinatantya ang gastos mula sa mga aktwal na lote na nagamit.",
+    inventoryLedger:
+      "Napupunta ang bawat pagbabago sa <strong>talaan ng galaw</strong> ng item — pagbili, paggamit, "
+      + "pagtatama. Hindi kailanman ine-edit o binubura ang mga row ng talaan.",
+    inventoryCorrections:
+      "Inaayos ang mga typo at pagkasira gamit ang <strong>mga pagtatama</strong>: isang <em>Adjustment</em> "
+      + "(kahit anong direksyon) o isang <em>Discard</em> (write-off) laban sa isang tiyak na lote, laging "
+      + "may dahilan. Nananatiling nakikita ang orihinal na row at ang pagtatama.",
+    inventoryPermissions:
+      "Bukas sa lahat ang pagtatala ng pagbili at paggamit; ang katalogo ng item at mga pagtatama ng "
+      + "stock ay para sa admin lang.",
+
+    waterHeading: "Tubig",
+    waterRecording:
+      "Itala kung ano ang ininom ng bawat kawan kada araw: alinman sa direktang dami (litro o galon) o "
+      + "<strong>mga reading ng metro</strong> — ang dami ay ang pagkakaiba ng metro (katapusan − simula).",
+    waterCorrecting:
+      "Walang stock sa likod ng mga rekord ng tubig, kaya inaayos ang mga pagkakamali sa pamamagitan ng "
+      + "<strong>direktang pagtatama sa rekord</strong> (ang button na \"tama\", para sa admin lang) — "
+      + "walang compensating entry. Naka-fix ang kawan at petsa: kung mali ang napili, itala ito ulit sa "
+      + "tamang isa.",
+    waterLifecycle:
+      "Parehong panuntunan ng lifecycle gaya ng lahat ng lugar: tumatanggap ang mga naubos na kawan ng "
+      + "backfill hanggang sa petsa ng pag-ubos nila, walang tinatanggap ang mga naka-archive.",
+
+    salesHeading: "Mga Customer at Benta",
+    salesDrafts:
+      "Nagsisimula ang mga order bilang <strong>draft</strong>: magdagdag ng linya sa pamamagitan ng "
+      + "pagpili ng <strong>produkto</strong>, isang packed unit (dosena, karton, …), isang dami, at isang "
+      + "presyo kada unit (naka-prefill mula sa default ng produkto) — i-edit nang malaya, o "
+      + "<strong>kanselahin</strong> (mananatili ang draft, read-only). Naaalala ng bawat linya kung ilang "
+      + "itlog ang laman ng unit nito noong idinagdag ito, kaya hindi kailanman binabago ng muling "
+      + "pagtukoy sa isang karton ang mga lumang order.",
+    salesConfirming:
+      "Ang <strong>Pagkumpirma</strong> ng isang order ay naglalaan ng aktwal na stock — pinakalumang lote "
+      + "muna — at ito ang sandali kung saan lumilipat ang inventory.",
+    salesVoiding:
+      "Ang isang maling kumpirmasyon ay ina-undo gamit ang <strong>Void</strong> (admin lang, kailangan ng "
+      + "dahilan): bumabalik ang mga itlog sa eksaktong lote na pinagmulan nila, at mananatiling nakalista "
+      + "bilang Na-void ang order. Ang pag-void ay para sa mga pagkakamali, hindi para sa mga pagsauli ng "
+      + "naihatid na paninda. (Ang mga order na nakumpirma bago pa magkaroon ng lot-level allocation "
+      + "tracking ay hindi puwedeng i-void nang mag-isa — magtanong sa administrator mo.)",
+    salesPayments:
+      "<strong>Mga Bayad</strong> (Benta, Manager, o admin — ang pag-void ng isang bayad ay para sa "
+      + "admin/manager lang): ipinapakita ng panel ng isang nakumpirmang order ang settlement history nito "
+      + "— magtala ng bahagyang bayad (petsa, halaga, paraan, opsyonal na reference) hanggang umabot sa "
+      + "zero ang natitirang halaga; tinatanggihan ang overpayment. Ang isang maling bayad ay "
+      + "<strong>ina-void</strong> (kailangan ng dahilan) at tumataas muli ang natitirang halaga. Ang isang "
+      + "order na may bayad ay hindi puwedeng i-void hangga't hindi pa na-void ang mga bayad nito. "
+      + "Ipinapakita ng Customers page ang natitirang balanse ng bawat customer.",
+
+    reportsHeading: "Mga Report",
+    reportsProduction:
+      "<strong>Production</strong> (lahat): pumili ng date range — itlog kada araw, nawala, naibibenta, "
+      + "namatay, at <strong>hen-day %</strong> (itlog na nakolekta ÷ ibong buhay sa araw na iyon × 100), "
+      + "may kasamang period total at breakdown kada grado. Hindi binibilang ang draft at na-void na entry.",
+    reportsMoney:
+      "<strong>Pera</strong> (admin): buod ng benta para sa mga order ng range (kita / nabayaran / "
+      + "natitira), gastos kada kategorya, at <strong>basic profit</strong> — nakumpirmang kita bawas ang "
+      + "nakatalang gastos, walang cost-of-goods.",
+
+    expensesHeading: "Mga Gastos (admin)",
+    expensesRecording:
+      "Itala ang lumalabas na pera: petsa, kategorya, deskripsyon, at halaga (sa currency ng bukid), "
+      + "opsyonal na naka-link sa isang kawan. Ipinapakita ng month picker ang tumatakbong total; "
+      + "pinapamahalaan ang mga kategorya sa parehong screen (ang pag-deactivate ng isa ay nagtatago nito "
+      + "mula sa mga bagong gastos — pinapanatili ito ng mga naitala na).",
+    expensesCorrections:
+      "Ine-edit ng mga pagtatama ang gastos sa lugar nito (<strong>tama</strong> sa row). Kung may ibang "
+      + "tao na nagtama nito muna, nire-reload ng form ang mga value nila at hinihiling sa iyong mag-apply "
+      + "ulit. Hindi kailanman nagbabago ang currency na kinatalaan ng isang gastos.",
+    expensesAdminOnly:
+      "Data ng pera ang mga gastos, kaya ang buong screen — kasama ang pagtingin — ay para sa admin lang, "
+      + "hindi tulad ng mga production screen kung saan nagtatala ang manggagawa.",
+
+    historyHeading: "History",
+    historyBrowse:
+      "Tumingin sa mga naitalang araw-araw na entry, pinakabago muna, na-filter kada kawan at date range. "
+      + "Ipinapakita ng status column ang buhay ng entry: Draft, Naisumite, Naka-lock (7+ araw na), "
+      + "Na-adjust (i-hover para sa dahilan), o Na-void.",
+    historyAdminActions:
+      "Nagtatama ang mga admin mula rito: binubuksan ng <strong>i-adjust</strong> ang mga numero ng entry "
+      + "para sa pag-edit (kailangan ng dahilan), ina-undo ng <strong>i-void</strong> ang buong entry. "
+      + "Awtomatikong sumusunod ang stock at ang talaan ng ibon.",
+    historyDraftEdit:
+      "May link na <strong>i-edit</strong> ang mga row na draft (lahat, hindi lang admin) na tumatalon "
+      + "pabalik sa screen na Araw-araw na Tala na may kasamang kawan at araw na iyon — doon ine-edit ang "
+      + "mga draft, hindi ina-adjust.",
+
+    auditHeading: "Audit Log (admin)",
+    auditLog:
+      "Ang bawat corrective, destructive, o configuration na pagbabago ay napupunta sa audit log nang "
+      + "awtomatiko: sino ang gumawa nito, kailan (UTC), ano ang naapektuhan, at ang dahilan kung mayroon. "
+      + "Isinusulat ito kasabay ng pagbabago mismo — walang naiiwang bakas ang isang nabigong aksyon, "
+      + "palaging may naiiwan ang isang matagumpay — at hindi kailanman ine-edit, ng kahit sino.",
+
+    exportHeading: "Export at Backup (admin)",
+    exportCsv:
+      "Ida-download ng Export screen ang data mo bilang mga CSV file na puwede mong buksan sa kahit anong "
+      + "spreadsheet — isang dataset sa isang pagkakataon, o lahat nang sabay bilang isang zip (ang "
+      + "<strong>buong backup</strong>, may kasamang manifest ng bilang ng row). Magtago ng kopya sa ligtas "
+      + "na lugar ayon sa sarili mong schedule; darating ang mga automatic na scheduled backup sa susunod "
+      + "na phase.",
+    exportFormats:
+      "Naglalaman ang mga column ng pera ng minor unit (sentimo) kasama ang currency — eksaktong halaga, "
+      + "hindi display formatting. ISO ang mga petsa (YYYY-MM-DD), at UTC ang mga timestamp.",
+
+    farmSettingsHeading: "Mga Setting ng Bukid (admin)",
+    farmSettingsIntro:
+      "Nasa <strong>Setup → Mga Setting ng Bukid</strong> ang pangalan ng bukid at ang apat na bagay na "
+      + "nagdedesisyon kung paano babasahin ang lahat: <strong>time zone</strong>, <strong>locale</strong>, "
+      + "<strong>currency</strong>, at <strong>unit system</strong>. Opsyonal ang unang araw ng linggo at ang "
+      + "mga format ng petsa at oras — iwanan itong blangko at ang locale ang magdedesisyon. Agad na "
+      + "kumikilos ang time zone sa lahat ng lugar sa sandaling ma-save ito; naitatala ang iba pa laban sa "
+      + "bukid at magtatakda kung paano ipapakita ang mga halaga, petsa, at sukat kapag dumating na ang "
+      + "formatting na iyon.",
+    farmSettingsTimezone:
+      "Ang <strong>time zone</strong> ang araw ng bukid. Ang bawat field na nagtatala ng <em>kung kailan "
+      + "nangyari ang isang bagay</em> — araw-araw na entry, kawan, tubig, paggamit at pagbili ng feed, "
+      + "gastos, order at bayad — ay bumubukas dito at tumatanggi lumampas dito, anuman ang araw sa "
+      + "telepono o laptop na hawak mo, para hindi na makapag-alok ang isang device na nauuna sa bukid ng "
+      + "petsang tatanggihan din naman ng pag-save. Ang mga petsang nakatakdang mangyari sa hinaharap ay "
+      + "walang cap: ang <strong>expiry</strong> ng isang lote ng feed, at ang mga date range na ginagamit "
+      + "mo para i-filter ang History at Tubig.",
+    farmSettingsCurrency:
+      "Naka-lock ang <strong>currency</strong> sa sandaling itala ng bukid ang una nitong halaga — isang "
+      + "benta, isang bayad, isang gastos, isang produktong may presyo, o perang ginastos sa feed. "
+      + "Ipinapakita ang field na naka-lock kasama ang dahilan sa halip na hayaan kang mag-type ng code na "
+      + "tatanggihan naman. Hindi na muling pinepresyuhan ang anumang naitala na, kaya naman ito naka-lock.",
+    farmSettingsLogo:
+      "Pinapalitan ng <strong>logo</strong> ang Cluckwork mark sa sidebar para sa lahat sa bukid. PNG, "
+      + "JPEG, o WebP, hanggang sa size limit na ipinapakita sa screen (2 MB bilang default) at 4096 pixel "
+      + "kada gilid. Tinatanggihan ang mga animated na larawan sa halip na patagin ito. Isang muling "
+      + "ginawang kopya ang na-save: tinatanggal ang mga detalye ng camera at lokasyon papasok — ang isang "
+      + "larawang kinunan sa telepono ay may kasamang kung saan ito kinuha, at para sa isang bukid, iyon "
+      + "ang address nito. Alisin ito at babalik ang sidebar sa Cluckwork mark.",
+    farmSettingsSquareLogo:
+      "Gumamit ng <strong>parisukat</strong> na logo. Maliit itong lumalabas sa sidebar, kaya isang simple "
+      + "at maigsing-crop na marka — isang simbolo o iisang letra — ang mas magandang tingnan doon kaysa "
+      + "sa isang malawak na wordmark o isang detalyadong larawan, na bumabagsak sa isang bagay na hindi na "
+      + "mabasa. Panatilihin ang isang detalyadong logo para sa print o isang website; bigyan ang app ng "
+      + "isang malinis na maliit na marka.",
+
+    farmPaletteHeading: "Paleta ng Bukid",
+    farmPaletteIntro:
+      "Ang mga setting ng bukid ay nagpapahintulot sa isang admin na pumili ng accent color na ginagamit "
+      + "sa buong app para sa lahat sa bukid: Talong, Kagubatan, Slate, o Terracotta. Naaaplay ang pinili "
+      + "kapag nag-save ka, at nakikita ito ng lahat sa susunod na pag-load ng app nila.",
+    farmPaletteLightNight:
+      "Magkahiwalay at personal ang light mode at night mode. Pumipili ang bawat tao ng sarili nila gamit "
+      + "ang toggle sa sidebar, sa bawat device, at hindi kailanman ino-override ito ng paleta ng bukid — "
+      + "dinisenyo ang bawat paleta para gumana sa pareho.",
+
+    installHeading: "Pag-install sa Telepono",
+    installIntro:
+      "Puwedeng idagdag ang Cluckwork sa home screen ng isang telepono o tablet, kung saan makukuha nito "
+      + "ang sariling icon at magbubukas sa sariling window nang walang browser bar — mas maraming espasyo "
+      + "para sa mga entry screen at mas mabilis na maabot sa kulungan. Parehong app pa rin ito, hindi "
+      + "hiwalay na download, kaya walang kailangang i-update mula sa isang app store.",
+    installSteps:
+      "<strong>Android (Chrome):</strong> buksan ang menu at piliin ang <strong>I-install ang app</strong> o "
+      + "<strong>Idagdag sa Home Screen</strong>. <strong>iPhone/iPad (Safari):</strong> i-tap ang "
+      + "<strong>Share</strong>, pagkatapos ay <strong>Idagdag sa Home Screen</strong>.",
+    installHttps:
+      "Inaalok lang ang pag-install sa isang secure (<strong>https</strong>) address. Kung naaabot ng "
+      + "bukid mo ang Cluckwork sa isang plain na <strong>http</strong>, hindi lang lalabas ang opsyon — "
+      + "walang sira, at gumagana pa rin ang app nang eksakto tulad ng sa browser.",
+    installOffline:
+      "<strong>Hindi</strong> ginagawang offline ang app ng pag-install. Kailangan pa rin nito ng koneksyon "
+      + "para mag-load at mag-save; ang mga screen lang ng app mismo ang naka-save sa device para mabilis "
+      + "itong magsimula. Nakaplano pang trabaho ang pagtatala habang offline, hindi isang bagay na "
+      + "binubuksan ng pag-install.",
+    installNewVersion:
+      "Kapag may binagong bersyon, makikita mo ang <strong>\"May bagong bersyon ng Cluckwork na handa "
+      + "na\"</strong>. Hinihintay ka nito sa halip na mag-reload habang nagta-type ka — pindutin ang "
+      + "<strong>I-reload</strong> kapag maganda ang timing mo, o <strong>Mamaya</strong> at magtatanong "
+      + "ulit ito sa susunod. Walang mawawala sa pag-iwan nito.",
+
+    mistakesHeading: "Pagtatama ng mga Pagkakamali",
+    mistakesIntro:
+      "Kailangan ng sign-in ng admin ang bawat ayos sa talahanayang ito (tingnan ang \"Sino ang puwedeng "
+      + "gumawa ng ano\") — nagtatala ang manggagawa, nagtatama ang admin. Ang isang eksepsiyon: nagtatala "
+      + "pa rin ang isang <em>draft</em>, hindi nagtatama, kaya ine-edit ng manggagawa ang sarili nilang "
+      + "draft.",
+    mistakesTableMistakeHeader: "Pagkakamali",
+    mistakesTableFixHeader: "Ayos",
+
+    mistakesRow1Mistake: "Naubos o na-archive ang maling kawan",
+    mistakesRow1Fix: "Mga Kawan → <strong>Reactivate</strong> (buong ma-rereverse)",
+
+    mistakesRow2Mistake: "Maling bilang ng ibon",
+    mistakesRow2Fix: "Mga Kawan → talaan ng ibon → <strong>Adjustment</strong> (kahit anong direksyon)",
+
+    mistakesRow3Mistake: "Nakumpirma ang maling order ng benta",
+    mistakesRow3Fix:
+      "Benta → buksan ang order → <strong>I-void ang order</strong> (babalik ang stock sa mga lote nito; "
+      + "kailangan ng dahilan). Kung may naitalang bayad dito, i-void muna iyon.",
+
+    mistakesRow4Mistake: "Naitalang maling bayad",
+    mistakesRow4Fix:
+      "Benta → buksan ang order → mga bayad → <strong>i-void</strong> (kailangan ng dahilan): mananatili "
+      + "ang row at tataas muli ang natitirang halaga.",
+
+    mistakesRow5Mistake: "Maling <em>dami</em> sa isang pagbili ng feed / nasirang feed",
+    mistakesRow5Fix:
+      "Imbentaryo → buksan ang item → <strong>I-tama ang stock</strong> (Adjustment o Discard laban sa "
+      + "lote; kailangan ng dahilan). Mga dami lang ang puwedeng itama — hindi pa puwedeng ayusin ang "
+      + "maling gastos, petsa, o numero ng lote, kaya siguraduhin muna ang mga iyon bago mag-save.",
+
+    mistakesRow6Mistake: "Sobra o kulang ang naitalang paggamit ng feed",
+    mistakesRow6Fix:
+      "Parehong form ng pagtatama: ibinabalik ng isang positibong Adjustment sa lote ang labis na nagamit "
+      + "na stock (hanggang sa natanggap nito); inaalis naman ng negatibong isa ang kulang na naitalang "
+      + "stock. Nananatiling nakatala ang rekord ng paggamit mismo at ang tantiya ng gastos nito — "
+      + "inaayos ng mga pagtatama ang stock, hindi ang history.",
+
+    mistakesRow7Mistake: "Maling rekord ng tubig",
+    mistakesRow7Fix:
+      "Tubig → <strong>tama</strong> sa rekord — nae-edit sa lugar nito ang dami, source, metro, at tala "
+      + "(walang stock sa likod ng tubig). Naka-fix ang kawan at petsa: kung mali ang napili, itala ito "
+      + "ulit sa tamang isa.",
+
+    mistakesRow8Mistake: "Maling numero sa isang <em>naisumiteng</em> araw-araw na entry",
+    mistakesRow8Fix:
+      "History → <strong>i-adjust</strong> (admin) — kabuuan, nawala, mortality, at hati ng grado, may "
+      + "kasamang kinakailangang dahilan. Awtomatikong tumutugma ang stock at ang talaan ng ibon, pero "
+      + "hindi na kailanman puwedeng bawasan ang mga itlog na nabenta na: tinatanggihan ang pagbawas ng "
+      + "isang grado sa ibaba ng nabenta na. Nananatiling nakikita ang mga naunang value sa entry.",
+
+    mistakesRow9Mistake: "Ang buong <em>naisumiteng</em> entry ay mali (maling kawan o araw)",
+    mistakesRow9Fix:
+      "History → <strong>i-void</strong> (admin, kailangan ng dahilan): nawawalan ng laman ang mga lote ng "
+      + "itlog nito, ibinabalik ang mga namatay sa talaan ng ibon, at nananatiling Na-void ang entry. "
+      + "Tinatanggihan kung nabenta na ang alinman sa mga itlog nito — i-void muna ang benta. Pinapalaya "
+      + "ng pag-void ang araw: puwede nang itala ang tamang entry para sa parehong kawan at petsa.",
+
+    mistakesRow10Mistake: "Pagkakamali sa isang entry o order na <em>draft</em>",
+    mistakesRow10Fix:
+      "I-edit ito — nae-edit ang lahat: mga numero ng draft, linya ng grado, at linya ng order (mga draft "
+      + "na entry: History → <strong>i-edit</strong> tumatalon sa screen na Araw-araw na Tala na may "
+      + "kasamang araw). Naka-fix pa rin ang kawan/petsa ng isang entry at ang customer/petsa ng isang "
+      + "order: kung mali ang napili, itala na lang ito ulit sa tamang isa (at kanselahin ang maling draft "
+      + "na order).",
+  },
 } as const;

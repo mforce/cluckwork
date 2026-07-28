@@ -104,3 +104,97 @@ describe("HelpPage", () => {
     expect(within(toc).getByRole("link", { name: "Getting around" })).not.toHaveAttribute("aria-current");
   });
 });
+
+// ---------------------------------------------------------------------------
+// i18n wiring (#182, Task 32, batch B6a)
+// ---------------------------------------------------------------------------
+
+// `help` IS in TRANSLATED_NAMESPACES, but these tests still run under the
+// default English locale, so asserting the plain English string would prove
+// nothing beyond "the fallback still works" (the same CONTRIBUTING-i18n.md
+// fallback trap the other batches' i18n-wiring suites guard against). Swap
+// the catalog value at runtime instead — the same i18n.addResource technique
+// used by AccountPage.test.tsx/SettingsPage.test.tsx — so each marker only
+// renders if the component actually reads the catalog rather than a literal
+// that happens to still match it. A hardcoded literal instead of a t()/
+// <Trans> call fails these assertions: that IS the mutation probe.
+describe("HelpPage i18n wiring (#182, Task 32)", () => {
+  function withOverride(key: string, value: string, run: () => void) {
+    const original = i18n.getResource("en", "help", key) as string;
+    i18n.addResource("en", "help", key, value);
+    try {
+      run();
+    } finally {
+      i18n.addResource("en", "help", key, original);
+    }
+  }
+
+  it("reads the page heading from the catalog, not a hardcoded literal", () => {
+    withOverride("heading", "HEADING-MARKER", () => {
+      render(<HelpPage />);
+      expect(screen.getByRole("heading", { name: "HEADING-MARKER", level: 2 })).toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "Help", level: 2 })).not.toBeInTheDocument();
+    });
+  });
+
+  it("reads the lead paragraph from the catalog, not a hardcoded literal", () => {
+    withOverride("lead", "LEAD-MARKER", () => {
+      render(<HelpPage />);
+      expect(screen.getByText("LEAD-MARKER")).toBeInTheDocument();
+      expect(screen.queryByText(/how Cluckwork works/i)).not.toBeInTheDocument();
+    });
+  });
+
+  it("reads a contents-rail label from the catalog via its toc* key, not a hardcoded literal", () => {
+    withOverride("tocDailyLoop", "RAIL-MARKER", () => {
+      render(<HelpPage />);
+      const toc = screen.getByRole("navigation", { name: "Help contents" });
+      expect(within(toc).getByRole("link", { name: "RAIL-MARKER" })).toHaveAttribute("href", "#daily-loop");
+      expect(within(toc).queryByRole("link", { name: "The daily loop" })).not.toBeInTheDocument();
+    });
+  });
+
+  it("reads a plain (no-<Trans>) list item from the catalog via t(), not a hardcoded literal", () => {
+    withOverride("flocksPermissions", "PLAIN-ITEM-MARKER", () => {
+      render(<HelpPage />);
+      expect(screen.getByText("PLAIN-ITEM-MARKER")).toBeInTheDocument();
+      expect(screen.queryByText(/create a flock and view the bird ledger/i)).not.toBeInTheDocument();
+    });
+  });
+
+  it("reads a 'Fixing mistakes' table cell from the catalog, not a hardcoded literal", () => {
+    withOverride("mistakesRow1Mistake", "MISTAKE-ROW-MARKER", () => {
+      render(<HelpPage />);
+      expect(screen.getByRole("cell", { name: "MISTAKE-ROW-MARKER" })).toBeInTheDocument();
+      expect(screen.queryByText(/depleted or archived the wrong flock/i)).not.toBeInTheDocument();
+    });
+  });
+
+  // The multi-tag <Trans> proof: override a key whose en value carries BOTH
+  // a <strong> and an <em> tag (signingInRateLimit) with a marker of the same
+  // shape, and assert real STRONG/EM elements come out the other end — not
+  // literal "<strong>"/"<em>" text. This is what would catch a regression
+  // from <Trans components={{ strong: <strong/>, em: <em/> }}> back to a
+  // plain {t(...)} call (which would render the tags as inert text) or to a
+  // components map missing one of the two tags (which would render that
+  // tag's content as unwrapped plain text instead of an element).
+  it("renders a multi-tag paragraph's <strong> and <em> as real DOM elements via <Trans>", () => {
+    withOverride(
+      "signingInRateLimit",
+      "PRE-TEXT <strong>STRONG-MARK</strong> MID-TEXT <em>EM-MARK</em> POST-TEXT",
+      () => {
+        render(<HelpPage />);
+        const strong = screen.getByText("STRONG-MARK");
+        expect(strong.tagName).toBe("STRONG");
+        const em = screen.getByText("EM-MARK");
+        expect(em.tagName).toBe("EM");
+        // The surrounding plain text is still present, not swallowed —
+        // proves the whole marker string round-tripped through the catalog.
+        expect(screen.getByText(/PRE-TEXT/)).toBeInTheDocument();
+        expect(screen.getByText(/MID-TEXT/)).toBeInTheDocument();
+        expect(screen.getByText(/POST-TEXT/)).toBeInTheDocument();
+        expect(screen.queryByText(/slow down anyone guessing passwords/i)).not.toBeInTheDocument();
+      },
+    );
+  });
+});
