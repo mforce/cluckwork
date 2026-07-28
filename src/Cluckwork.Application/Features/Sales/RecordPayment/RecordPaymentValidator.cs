@@ -10,7 +10,8 @@ public sealed class RecordPaymentValidator : AbstractValidator<RecordPaymentComm
     {
         RuleFor(c => c.AmountMinorUnits)
             .GreaterThan(0)
-            .WithMessage("Payment amount must be greater than zero.");
+            .WithMessage("Payment amount must be greater than zero.")
+            .WithErrorCode("Payment.Amount.Positive");
 
         RuleFor(c => c.Method)
             // TryParse alone accepts numeric strings — both out-of-range ("999")
@@ -20,23 +21,28 @@ public sealed class RecordPaymentValidator : AbstractValidator<RecordPaymentComm
                        && !m.Trim().All(char.IsDigit)
                        && Enum.TryParse<PaymentMethod>(m, ignoreCase: true, out var parsed)
                        && Enum.IsDefined(parsed))
-            .WithMessage("Method must be one of: Cash, Check, Card, BankTransfer, MobilePayment, Other.");
+            .WithMessage("Method must be one of: Cash, Check, Card, BankTransfer, MobilePayment, Other.")
+            .WithErrorCode("Payment.Method.Allowed");
 
         RuleFor(c => c.ReferenceNumber)
             .Must(r => r is null || r.Trim().Length <= Payment.MaxReferenceLength)
-            .WithMessage($"Reference cannot exceed {Payment.MaxReferenceLength} characters.");
+            .WithMessage($"Reference cannot exceed {Payment.MaxReferenceLength} characters.")
+            .WithErrorCode("Payment.ReferenceNumber.MaxLength");
 
         RuleFor(c => c.Note)
             .Must(n => n is null || n.Trim().Length <= Payment.MaxNoteLength)
-            .WithMessage($"Note cannot exceed {Payment.MaxNoteLength} characters.");
+            .WithMessage($"Note cannot exceed {Payment.MaxNoteLength} characters.")
+            .WithErrorCode("Payment.Note.MaxLength");
 
         RuleFor(c => c.PaymentDate)
             // The farm's own today (#35), the same boundary every other
             // date-gated rule reads.
             .MustAsync(async (d, ct) => d <= await farmClock.TodayAsync(ct))
             .WithMessage("Payment date cannot be in the future.")
+            .WithErrorCode("Payment.PaymentDate.NotFuture")
             // An omitted JSON date binds as 0001-01-01 (codex review of #88).
             .Must(d => d >= new DateOnly(2000, 1, 1))
-            .WithMessage("Payment date is missing or unrealistically old.");
+            .WithMessage("Payment date is missing or unrealistically old.")
+            .WithErrorCode("Payment.PaymentDate.NotTooOld");
     }
 }

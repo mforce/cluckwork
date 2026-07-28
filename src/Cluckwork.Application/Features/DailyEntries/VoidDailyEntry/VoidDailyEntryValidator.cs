@@ -7,10 +7,12 @@ public sealed class VoidDailyEntryValidator : AbstractValidator<VoidDailyEntryCo
 {
     public VoidDailyEntryValidator()
     {
-        RuleFor(x => x.DailyEntryId).NotEmpty();
-        RuleFor(x => x.Version).GreaterThanOrEqualTo(0);
+        RuleFor(x => x.DailyEntryId).NotEmpty().WithErrorCode("DailyEntry.DailyEntryId.Required");
+        RuleFor(x => x.Version).GreaterThanOrEqualTo(0).WithErrorCode("DailyEntry.Version.NonNegative");
         RuleFor(x => x.Reason)
             .Must(v => !string.IsNullOrWhiteSpace(v)).WithMessage("A reason is required.")
-            .MaximumLength(DailyEntry.MaxReasonLength);
+            .WithErrorCode("DailyEntry.Reason.Required")
+            .MaximumLength(DailyEntry.MaxReasonLength)
+            .WithErrorCode("DailyEntry.Reason.MaxLength");
     }
 }

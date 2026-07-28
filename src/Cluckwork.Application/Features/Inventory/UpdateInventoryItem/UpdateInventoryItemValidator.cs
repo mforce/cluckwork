@@ -7,15 +7,15 @@ public sealed class UpdateInventoryItemValidator : AbstractValidator<UpdateInven
 {
     public UpdateInventoryItemValidator()
     {
-        RuleFor(x => x.InventoryItemId).NotEmpty();
+        RuleFor(x => x.InventoryItemId).NotEmpty().WithErrorCode("InventoryItem.InventoryItemId.Required");
         RuleFor(x => x.Name)
-            .Must(n => !string.IsNullOrWhiteSpace(n)).WithMessage("Item name is required.")
-            .MaximumLength(InventoryItem.MaxNameLength);
+            .Must(n => !string.IsNullOrWhiteSpace(n)).WithMessage("Item name is required.").WithErrorCode("InventoryItem.Name.Required")
+            .MaximumLength(InventoryItem.MaxNameLength).WithErrorCode("InventoryItem.Name.MaxLength");
         RuleFor(x => x.Unit)
-            .Must(u => !string.IsNullOrWhiteSpace(u)).WithMessage("Unit is required.")
-            .MaximumLength(InventoryItem.MaxUnitLength);
+            .Must(u => !string.IsNullOrWhiteSpace(u)).WithMessage("Unit is required.").WithErrorCode("InventoryItem.Unit.Required")
+            .MaximumLength(InventoryItem.MaxUnitLength).WithErrorCode("InventoryItem.Unit.MaxLength");
         RuleFor(x => x.DefaultUnitCostMinorUnits)
-            .GreaterThanOrEqualTo(0).When(x => x.DefaultUnitCostMinorUnits is not null)
-            .LessThanOrEqualTo(10_000_000_000_000).When(x => x.DefaultUnitCostMinorUnits is not null);
+            .GreaterThanOrEqualTo(0).WithErrorCode("InventoryItem.DefaultUnitCost.NonNegative").When(x => x.DefaultUnitCostMinorUnits is not null)
+            .LessThanOrEqualTo(10_000_000_000_000).WithErrorCode("InventoryItem.DefaultUnitCost.Max").When(x => x.DefaultUnitCostMinorUnits is not null);
     }
 }

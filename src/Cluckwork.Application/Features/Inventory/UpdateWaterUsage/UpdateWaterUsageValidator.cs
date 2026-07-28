@@ -7,50 +7,50 @@ public sealed class UpdateWaterUsageValidator : AbstractValidator<UpdateWaterUsa
 {
     public UpdateWaterUsageValidator()
     {
-        RuleFor(x => x.WaterUsageId).NotEmpty();
-        RuleFor(x => x.Version).GreaterThanOrEqualTo(0);
+        RuleFor(x => x.WaterUsageId).NotEmpty().WithErrorCode("WaterUsage.WaterUsageId.Required");
+        RuleFor(x => x.Version).GreaterThanOrEqualTo(0).WithErrorCode("WaterUsage.Version.NonNegative");
         RuleFor(x => x.Source)
-            .NotEmpty()
+            .NotEmpty().WithErrorCode("WaterUsage.Source.Required")
             .Must(s => Enum.GetNames<WaterSource>()
                 .Contains(s, StringComparer.OrdinalIgnoreCase))
-            .WithMessage("Source must be Well, Municipal, Tank, or Other.");
+            .WithMessage("Source must be Well, Municipal, Tank, or Other.").WithErrorCode("WaterUsage.Source.Allowed");
         RuleFor(x => x.Unit)
             .Must(u => u is null || WaterUsage.AllowedUnits.Contains(u))
-            .WithMessage($"Unit must be one of: {string.Join(", ", WaterUsage.AllowedUnits)}.");
+            .WithMessage($"Unit must be one of: {string.Join(", ", WaterUsage.AllowedUnits)}.").WithErrorCode("WaterUsage.Unit.Allowed");
         RuleFor(x => x.Quantity)
-            .GreaterThan(0)
-            .LessThanOrEqualTo(1_000_000_000m)
+            .GreaterThan(0).WithErrorCode("WaterUsage.Quantity.Positive")
+            .LessThanOrEqualTo(1_000_000_000m).WithErrorCode("WaterUsage.Quantity.Max")
             .Must(q => q is null || decimal.Round(q.Value, 3) == q.Value)
-            .WithMessage("Quantity supports at most 3 decimal places.")
+            .WithMessage("Quantity supports at most 3 decimal places.").WithErrorCode("WaterUsage.Quantity.Precision")
             .When(x => x.Quantity is not null);
         RuleFor(x => x)
             .Must(x => (x.MeterStart is null) == (x.MeterEnd is null))
             .WithName("MeterEnd")
-            .WithMessage("Meter start and end must be provided together.");
+            .WithMessage("Meter start and end must be provided together.").WithErrorCode("WaterUsage.MeterEnd.Paired");
         RuleFor(x => x)
             .Must(x => (x.MeterStart is null || (decimal.Round(x.MeterStart.Value, 3) == x.MeterStart
                             && x.MeterStart <= 1_000_000_000_000m))
                        && (x.MeterEnd is null || (decimal.Round(x.MeterEnd.Value, 3) == x.MeterEnd
                             && x.MeterEnd <= 1_000_000_000_000m)))
             .WithName("MeterEnd")
-            .WithMessage("Meter readings support at most 3 decimal places (sane range).");
+            .WithMessage("Meter readings support at most 3 decimal places (sane range).").WithErrorCode("WaterUsage.MeterEnd.Precision");
         RuleFor(x => x)
             .Must(x => x.MeterStart is null
                        || (x.MeterStart >= 0 && x.MeterEnd > x.MeterStart
                            && x.MeterEnd - x.MeterStart <= 1_000_000_000m))
             .WithName("MeterEnd")
-            .WithMessage("Meter end must exceed meter start (non-negative, sane range).")
+            .WithMessage("Meter end must exceed meter start (non-negative, sane range).").WithErrorCode("WaterUsage.MeterEnd.Ordering")
             .When(x => x.MeterStart is not null && x.MeterEnd is not null);
         RuleFor(x => x)
             .Must(x => x.Quantity is not null || x.MeterStart is not null)
             .WithName("Quantity")
-            .WithMessage("Provide a quantity or meter readings.");
+            .WithMessage("Provide a quantity or meter readings.").WithErrorCode("WaterUsage.Quantity.RequiredOrMeter");
         RuleFor(x => x)
             .Must(x => x.Quantity is null || x.MeterStart is null
                        || x.MeterEnd - x.MeterStart == x.Quantity)
             .WithName("Quantity")
-            .WithMessage("Quantity must equal the meter delta (or be omitted to derive it).");
+            .WithMessage("Quantity must equal the meter delta (or be omitted to derive it).").WithErrorCode("WaterUsage.Quantity.MatchesMeterDelta");
         RuleFor(x => x.Note)
-            .MaximumLength(WaterUsage.MaxNoteLength);
+            .MaximumLength(WaterUsage.MaxNoteLength).WithErrorCode("WaterUsage.Note.MaxLength");
     }
 }

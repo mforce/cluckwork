@@ -6,7 +6,7 @@ public sealed class CreateSalesOrderValidator : AbstractValidator<CreateSalesOrd
 {
     public CreateSalesOrderValidator()
     {
-        RuleFor(x => x.CustomerId).NotEmpty();
-        RuleFor(x => x.OrderDate).NotEmpty();
+        RuleFor(x => x.CustomerId).NotEmpty().WithErrorCode("SalesOrder.CustomerId.Required");
+        RuleFor(x => x.OrderDate).NotEmpty().WithErrorCode("SalesOrder.OrderDate.Required");
     }
 }

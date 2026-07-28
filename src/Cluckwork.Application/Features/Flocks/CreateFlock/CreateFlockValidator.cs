@@ -12,17 +12,23 @@ public sealed class CreateFlockValidator : AbstractValidator<CreateFlockCommand>
         RuleFor(x => x.Name)
             .Must(n => !string.IsNullOrWhiteSpace(n))
             .WithMessage("Flock name is required.")
-            .MaximumLength(Cluckwork.Domain.Flocks.Flock.MaxNameLength);
+            .WithErrorCode("Flock.Name.Required")
+            .MaximumLength(Cluckwork.Domain.Flocks.Flock.MaxNameLength)
+            .WithErrorCode("Flock.Name.MaxLength");
         RuleFor(x => x.Breed)
             .Must(b => !string.IsNullOrWhiteSpace(b))
             .WithMessage("Flock breed is required.")
-            .MaximumLength(Cluckwork.Domain.Flocks.Flock.MaxBreedLength);
-        RuleFor(x => x.InitialCount).GreaterThan(0);
+            .WithErrorCode("Flock.Breed.Required")
+            .MaximumLength(Cluckwork.Domain.Flocks.Flock.MaxBreedLength)
+            .WithErrorCode("Flock.Breed.MaxLength");
+        RuleFor(x => x.InitialCount).GreaterThan(0).WithErrorCode("Flock.InitialCount.Positive");
         RuleFor(x => x.PlacementDate)
             .NotEqual(default(DateOnly))
             .WithMessage("Placement date is required.")
+            .WithErrorCode("Flock.PlacementDate.Required")
             // The farm's own today (#35).
             .MustAsync(async (d, ct) => d <= await farmClock.TodayAsync(ct))
-            .WithMessage("Placement date cannot be in the future.");
+            .WithMessage("Placement date cannot be in the future.")
+            .WithErrorCode("Flock.PlacementDate.NotFuture");
     }
 }
