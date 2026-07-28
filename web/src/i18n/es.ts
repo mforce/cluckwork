@@ -223,12 +223,8 @@ export const es = {
     editQuantityAriaLabel: "Editar cantidad",
     editUnitPriceAriaLabel: "Editar precio unitario",
 
-    // Status-filter options
+    // Status-filter options — status labels now come from enums:status (#182).
     allOption: "Todos",
-    statusDraft: "Borrador",
-    statusConfirmed: "Confirmado",
-    statusCancelled: "Cancelado",
-    statusVoided: "Anulado",
 
     // Unit picker (the sale unit, e.g. "3 Dozen") — text equals the enum value.
     // NOTE (flag for native review): "Flat" (a 2.5/30-egg flat) has no single

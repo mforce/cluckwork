@@ -143,6 +143,14 @@ async function openOrder(order: SalesOrder, rowName: RegExp) {
 }
 
 describe("SalesPage i18n", () => {
+  function withOverride(ns: string, key: string, value: string, run: () => Promise<void> | void) {
+    const original = i18n.getResource("en", ns, key) as string;
+    i18n.addResource("en", ns, key, value);
+    return Promise.resolve(run()).finally(() => {
+      i18n.addResource("en", ns, key, original);
+    });
+  }
+
   it("renders its heading and primary action from the sales i18n catalog (#182)", async () => {
     await renderReady();
 
@@ -150,6 +158,22 @@ describe("SalesPage i18n", () => {
     // catalog rather than a string that happens to still match it.
     expect(screen.getByRole("heading", { name: i18n.t("sales:title") })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: i18n.t("sales:newOrder") })).toBeInTheDocument();
+  });
+
+  // #182 reconciliation: the status-filter labels now read the shared
+  // enums:status family via statusLabel(), NOT the removed sales-local
+  // statusDraft/statusConfirmed/… duplicate. Overriding the enums key flows
+  // through to the option TEXT while the option VALUE (the server filter param)
+  // stays the raw status code — the two read from different places. A
+  // regression that re-added a local sales:statusConfirmed key, or hardcoded
+  // the label, would break this.
+  it("reads the status-filter option text from enums:status while its value stays the raw code (#182)", async () => {
+    await withOverride("enums", "status.Confirmed", "CONFIRMED-ENUM-MARKER", async () => {
+      await renderReady();
+      const option = screen.getByRole("option", { name: "CONFIRMED-ENUM-MARKER" }) as HTMLOptionElement;
+      expect(option.value).toBe("Confirmed");
+      expect(screen.queryByRole("option", { name: "Confirmed" })).not.toBeInTheDocument();
+    });
   });
 });
 
