@@ -1,7 +1,6 @@
 namespace Cluckwork.Api.IntegrationTests;
 
 using System.Net;
-using System.Net.Http.Json;
 using System.Text.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 
@@ -9,10 +8,15 @@ using Cluckwork.Api.IntegrationTests.Infrastructure;
 public sealed class ErrorCodesContractTests(CluckworkWebApplicationFactory factory)
 {
     [Fact]
-    public async Task Uncoded_validator_400_keeps_errors_and_emits_no_errorCodes()
+    public async Task Coded_validator_400_emits_errorCodes_alongside_errors()
     {
-        // CreateUser with a blank email trips a FluentValidation rule that has NO
-        // explicit code — so `errors` is present and `errorCodes` is absent.
+        // Since #231 every validator carries explicit `Feature.Field.Rule` codes,
+        // so a real 400 now emits the additive `errorCodes` map next to `errors`.
+        // CreateUser with a blank email trips User.Email.Required, whose explicit
+        // code must appear in errorCodes. (The complementary "no explicit code →
+        // errorCodes omitted" branch is no longer reachable through a live
+        // endpoint; it is covered as a pure-function case in
+        // ValidationResponseTests.Default_framework_code_never_leaks.)
         var owner = $"o-{Guid.NewGuid():N}@test.local";
         var accountId = await factory.SeedAccountWithUserAsync(owner);
         var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(owner));
@@ -23,6 +27,8 @@ public sealed class ErrorCodesContractTests(CluckworkWebApplicationFactory facto
         Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
         using var doc = JsonDocument.Parse(await res.Content.ReadAsStringAsync());
         Assert.True(doc.RootElement.TryGetProperty("errors", out _));
-        Assert.False(doc.RootElement.TryGetProperty("errorCodes", out _));
+        Assert.True(doc.RootElement.TryGetProperty("errorCodes", out var codes));
+        // The blank-email failure carries its explicit, dotted code.
+        Assert.Contains("User.Email.Required", codes.GetRawText());
     }
 }

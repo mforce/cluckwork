@@ -16,7 +16,9 @@ public sealed class UpdateFarmSettingsValidator : AbstractValidator<UpdateFarmSe
         RuleFor(x => x.Name)
             .Must(n => !string.IsNullOrWhiteSpace(n))
             .WithMessage("A farm name is required.")
-            .MaximumLength(Account.MaxNameLength);
+            .WithErrorCode("FarmSettings.Name.Required")
+            .MaximumLength(Account.MaxNameLength)
+            .WithErrorCode("FarmSettings.Name.MaxLength");
 
         // The timezone gate that keeps #35's fail-closed path unreachable in
         // practice: FarmClock refuses to guess a date when the stored zone is
@@ -25,43 +27,57 @@ public sealed class UpdateFarmSettingsValidator : AbstractValidator<UpdateFarmSe
         RuleFor(x => x.TimeZoneId)
             .Must(tz => !string.IsNullOrWhiteSpace(tz))
             .WithMessage("A timezone is required.")
+            .WithErrorCode("FarmSettings.TimeZoneId.Required")
             .MaximumLength(Account.MaxTimeZoneIdLength)
+            .WithErrorCode("FarmSettings.TimeZoneId.MaxLength")
             .Must(BeAKnownTimeZone)
-            .WithMessage("Timezone must be a valid IANA timezone id, for example America/Los_Angeles.");
+            .WithMessage("Timezone must be a valid IANA timezone id, for example America/Los_Angeles.")
+            .WithErrorCode("FarmSettings.TimeZoneId.Known");
 
         RuleFor(x => x.Locale)
             .Must(l => !string.IsNullOrWhiteSpace(l))
             .WithMessage("A locale is required.")
+            .WithErrorCode("FarmSettings.Locale.Required")
             .MaximumLength(Account.MaxLocaleLength)
+            .WithErrorCode("FarmSettings.Locale.MaxLength")
             .Must(BeASpecificCulture)
-            .WithMessage("Locale must be a BCP 47 tag that includes a region, for example en-US, es-MX or ja-JP.");
+            .WithMessage("Locale must be a BCP 47 tag that includes a region, for example en-US, es-MX or ja-JP.")
+            .WithErrorCode("FarmSettings.Locale.Format");
 
         // Format only. An unlisted-but-well-formed code is legal and takes the
         // §4.6 fallback (symbol = code, minor unit = 2) rather than a 400.
         RuleFor(x => x.CurrencyCode)
             .Must(CurrencyCatalog.IsWellFormedCode)
-            .WithMessage("Currency must be a three-letter ISO 4217 code, for example USD.");
+            .WithMessage("Currency must be a three-letter ISO 4217 code, for example USD.")
+            .WithErrorCode("FarmSettings.CurrencyCode.Format");
 
         RuleFor(x => x.UnitSystem)
             .Must(BeEnumName<UnitSystem>)
-            .WithMessage("Unit system must be Metric or Imperial.");
+            .WithMessage("Unit system must be Metric or Imperial.")
+            .WithErrorCode("FarmSettings.UnitSystem.Allowed");
 
         RuleFor(x => x.FirstDayOfWeek)
             .Must(d => string.IsNullOrWhiteSpace(d) || BeEnumName<DayOfWeek>(d))
-            .WithMessage("First day of week must be a day name, for example Monday, or empty to follow the locale.");
+            .WithMessage("First day of week must be a day name, for example Monday, or empty to follow the locale.")
+            .WithErrorCode("FarmSettings.FirstDayOfWeek.Allowed");
 
         RuleFor(x => x.DateFormatOverride)
             .MaximumLength(Account.MaxFormatOverrideLength)
+            .WithErrorCode("FarmSettings.DateFormatOverride.MaxLength")
             .Must(BeAUsableFormat)
-            .WithMessage("Date format is not a usable .NET format string.");
+            .WithMessage("Date format is not a usable .NET format string.")
+            .WithErrorCode("FarmSettings.DateFormatOverride.Format");
 
         RuleFor(x => x.TimeFormatOverride)
             .MaximumLength(Account.MaxFormatOverrideLength)
+            .WithErrorCode("FarmSettings.TimeFormatOverride.MaxLength")
             .Must(BeAUsableFormat)
-            .WithMessage("Time format is not a usable .NET format string.");
+            .WithMessage("Time format is not a usable .NET format string.")
+            .WithErrorCode("FarmSettings.TimeFormatOverride.Format");
 
         RuleFor(x => x.Version)
-            .GreaterThanOrEqualTo(0);
+            .GreaterThanOrEqualTo(0)
+            .WithErrorCode("FarmSettings.Version.NonNegative");
     }
 
     // Exactly one name, nothing else. Enum.TryParse is far more permissive than

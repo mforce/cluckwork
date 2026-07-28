@@ -8,6 +8,7 @@ public sealed class UpdateUserValidator : AbstractValidator<UpdateUserCommand>
     {
         RuleFor(x => x.Name)
             .MaximumLength(Cluckwork.Application.Features.Users.UserName.MaxLength)
+            .WithErrorCode("User.Name.MaxLength")
             .When(x => x.Name is not null);
     }
 }

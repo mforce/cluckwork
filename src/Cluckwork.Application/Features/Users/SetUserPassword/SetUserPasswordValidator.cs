@@ -8,6 +8,8 @@ public sealed class SetUserPasswordValidator : AbstractValidator<SetUserPassword
     {
         RuleFor(x => x.NewPassword)
             .Must(v => !string.IsNullOrWhiteSpace(v)).WithMessage("A new password is required.")
-            .MinimumLength(Cluckwork.Application.Features.Users.PasswordRules.MinLength);
+            .WithErrorCode("User.NewPassword.Required")
+            .MinimumLength(Cluckwork.Application.Features.Users.PasswordRules.MinLength)
+            .WithErrorCode("User.NewPassword.MinLength");
     }
 }

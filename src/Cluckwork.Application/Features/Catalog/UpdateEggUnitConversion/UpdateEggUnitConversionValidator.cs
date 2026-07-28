@@ -6,6 +6,6 @@ public sealed class UpdateEggUnitConversionValidator : AbstractValidator<UpdateE
 {
     public UpdateEggUnitConversionValidator()
     {
-        RuleFor(x => x.EggsPerUnit).GreaterThanOrEqualTo(1);
+        RuleFor(x => x.EggsPerUnit).GreaterThanOrEqualTo(1).WithErrorCode("EggUnitConversion.EggsPerUnit.Min");
     }
 }

@@ -22,7 +22,8 @@ public sealed class CreateProductValidator : AbstractValidator<CreateProductComm
 
     public CreateProductValidator()
     {
-        RuleFor(x => x.Name).NotEmpty().MaximumLength(Product.MaxNameLength);
+        RuleFor(x => x.Name).NotEmpty().WithErrorCode("Product.Name.Required")
+            .MaximumLength(Product.MaxNameLength).WithErrorCode("Product.Name.MaxLength");
         RuleFor(x => x.ProductType)
             // Only egg products are sellable today; the other types exist in
             // the enum so the schema is ready, but creating one would produce
@@ -30,14 +31,17 @@ public sealed class CreateProductValidator : AbstractValidator<CreateProductComm
             .Must(t => !string.IsNullOrEmpty(t) && char.IsLetter(t[0])
                        && Enum.TryParse<ProductType>(t, ignoreCase: true, out var parsed)
                        && parsed == ProductType.Egg)
-            .WithMessage("Only egg products can be created in this phase.");
+            .WithMessage("Only egg products can be created in this phase.")
+            .WithErrorCode("Product.ProductType.Allowed");
         RuleFor(x => x.DefaultUnit)
             .Must(IsEggUnit)
-            .WithMessage("Egg products sell per egg, dozen, flat, tray, carton, or case.");
-        RuleFor(x => x.DefaultPriceMinorUnits).GreaterThanOrEqualTo(0)
+            .WithMessage("Egg products sell per egg, dozen, flat, tray, carton, or case.")
+            .WithErrorCode("Product.DefaultUnit.Allowed");
+        RuleFor(x => x.DefaultPriceMinorUnits).GreaterThanOrEqualTo(0).WithErrorCode("Product.DefaultPrice.NonNegative")
             .When(x => x.DefaultPriceMinorUnits is not null);
         RuleFor(x => x.EggGradeId).NotEmpty()
-            .WithMessage("An egg product must map to an egg grade.");
-        RuleFor(x => x.Notes).MaximumLength(Product.MaxNotesLength);
+            .WithMessage("An egg product must map to an egg grade.")
+            .WithErrorCode("Product.EggGradeId.Required");
+        RuleFor(x => x.Notes).MaximumLength(Product.MaxNotesLength).WithErrorCode("Product.Notes.MaxLength");
     }
 }

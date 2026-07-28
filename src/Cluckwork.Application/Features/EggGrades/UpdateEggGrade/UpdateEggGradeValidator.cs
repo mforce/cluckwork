@@ -7,12 +7,14 @@ public sealed class UpdateEggGradeValidator : AbstractValidator<UpdateEggGradeCo
 {
     public UpdateEggGradeValidator()
     {
-        RuleFor(c => c.EggGradeId).NotEmpty();
+        RuleFor(c => c.EggGradeId).NotEmpty().WithErrorCode("EggGrade.EggGradeId.Required");
 
         RuleFor(c => c.Name)
             .Must(n => !string.IsNullOrWhiteSpace(n))
             .WithMessage("Grade name is required.")
+            .WithErrorCode("EggGrade.Name.Required")
             .Must(n => n is null || n.Trim().Length <= EggGrade.MaxNameLength)
-            .WithMessage($"Grade name cannot exceed {EggGrade.MaxNameLength} characters.");
+            .WithMessage($"Grade name cannot exceed {EggGrade.MaxNameLength} characters.")
+            .WithErrorCode("EggGrade.Name.MaxLength");
     }
 }
