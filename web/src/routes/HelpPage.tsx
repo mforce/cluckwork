@@ -43,6 +43,9 @@ const TOC = [
 
 export function HelpPage() {
   const { t } = useTranslation("help");
+  // The busy-button line (#236) reads the same `common` key as the
+  // "Working…" announcement it explains, so the two can never drift.
+  const { t: tc } = useTranslation("common");
 
   // Scroll-spy the contents rail: highlight the section currently in view.
   const [activeId, setActiveId] = useState<string>(TOC[0][0]);
@@ -165,6 +168,11 @@ export function HelpPage() {
         </li>
         <li>
           <Trans ns="help" i18nKey="dialogsCancel" components={{ strong: <strong /> }} />
+        </li>
+        <li>
+          {/* #236 — the pending-save indicator, in the section that already
+              explains save/retry behaviour. */}
+          {tc("workingHint")}
         </li>
         <li>
           <Trans ns="help" i18nKey="dialogsInlineForms" components={{ strong: <strong /> }} />

@@ -7,7 +7,9 @@ import {
 } from "../api/cluckwork";
 import type { Expense, ExpenseCategory, Flock } from "../api/cluckwork";
 import { ApiError } from "../api/client";
+import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
+import { usePendingAction } from "../components/usePendingAction";
 import { useFarmToday } from "../farm/useFarm";
 import { newId } from "../lib/ids";
 import i18n from "../i18n";
@@ -37,7 +39,9 @@ export function ExpensesPage() {
   const [currency, setCurrency] = useState<{ code: string; minor: number }>({ code: "", minor: 2 });
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  // #236: the flight guard + per-scope spinner state live in the shared hook;
+  // this screen keeps only its idempotency-key discipline below.
+  const { busy, isPending, run: runPending } = usePendingAction();
 
   // filters
   const [month, setMonth] = useState(today.slice(0, 7)); // YYYY-MM
@@ -147,19 +151,19 @@ export function ExpensesPage() {
   };
 
   async function run(scope: string, fn: () => Promise<void>) {
-    if (busy) return;
-    setBusy(true);
-    setError(null);
-    setMessage(null);
-    try {
-      await fn();
-      settleKey(scope);
-    } catch (err) {
-      settleKey(scope, err);
-      setError(errText(err));
-    } finally {
-      setBusy(false);
-    }
+    // A skipped run (another flight already open) simply does nothing — no
+    // caller here branches on the outcome, so there is no boolean to map.
+    await runPending(scope, async () => {
+      setError(null);
+      setMessage(null);
+      try {
+        await fn();
+        settleKey(scope);
+      } catch (err) {
+        settleKey(scope, err);
+        setError(errText(err));
+      }
+    });
   }
 
   function onAdd(e: FormEvent) {
@@ -234,9 +238,14 @@ export function ExpensesPage() {
     });
   }
 
+  // The category-create scope is derived from the typed name (it keys the
+  // idempotent write); computed once per render so the handler and the submit
+  // button's isPending() can never disagree on the string.
+  const addCategoryScope = `add-category:${newCategoryName.trim().toLowerCase()}`;
+
   function onAddCategory(e: FormEvent) {
     e.preventDefault();
-    const scope = `add-category:${newCategoryName.trim().toLowerCase()}`;
+    const scope = addCategoryScope;
     void run(scope, async () => {
       await createExpenseCategory({ name: newCategoryName.trim() }, keyFor(scope));
       setNewCategoryName("");
@@ -292,14 +301,18 @@ export function ExpensesPage() {
 
           <Dialog open={addingCategory} title={t("newCategoryDialogTitle")} onClose={() => setAddingCategory(false)}>
             <form className="inline-form" onSubmit={onAddCategory}>
+              {/* Disabled during any flight: the create scope is derived from
+                  this name (addCategoryScope), so editing it mid-flight would
+                  re-point isPending at a scope nobody is running and drop the
+                  spinner while the request is still open (#242 review). */}
               <label>{t("categoryNameLabel")}
-                <input value={newCategoryName} required
+                <input value={newCategoryName} required disabled={busy}
                   onChange={(e) => setNewCategoryName(e.target.value)} />
               </label>
               {error && <p className="error">{error}</p>}
               <div className="dialog-foot">
                 <button type="button" className="link" onClick={() => setAddingCategory(false)}>{tc("cancel")}</button>
-                <button type="submit" disabled={busy}>{t("addCategoryButton")}</button>
+                <BusyButton type="submit" busy={isPending(addCategoryScope)} disabled={busy}>{t("addCategoryButton")}</BusyButton>
               </div>
             </form>
           </Dialog>
@@ -308,10 +321,10 @@ export function ExpensesPage() {
             {categories.map((c) => (
               <li key={c.id}>
                 {c.name}{c.active ? "" : t("deactivatedSuffix")}{" "}
-                <button className="link" type="button" disabled={busy}
-                  onClick={() => onToggleCategory(c)}>
+                <BusyButton className="link" type="button" busy={isPending(`toggle-category:${c.id}`)}
+                  disabled={busy} onClick={() => onToggleCategory(c)}>
                   {c.active ? t("deactivateButton") : t("reactivateButton")}
-                </button>
+                </BusyButton>
               </li>
             ))}
             {categories.length === 0 && <li className="muted">{t("noCategoriesMessage")}</li>}
@@ -350,7 +363,9 @@ export function ExpensesPage() {
           <input value={note} maxLength={500} onChange={(e) => setNote(e.target.value)} />
         </label>
         <div className="actions">
-          <button type="submit" disabled={busy || activeCategories.length === 0}>{t("recordExpenseButton")}</button>
+          <BusyButton type="submit" busy={isPending("add")} disabled={busy || activeCategories.length === 0}>
+            {t("recordExpenseButton")}
+          </BusyButton>
         </div>
       </form>
       {activeCategories.length === 0 && (
@@ -410,7 +425,9 @@ export function ExpensesPage() {
             <div className="dialog-foot">
               <button type="button" className="link" disabled={busy}
                 onClick={() => setEditing(null)}>{tc("cancel")}</button>
-              <button type="submit" disabled={busy}>{t("saveCorrectionButton")}</button>
+              <BusyButton type="submit" busy={isPending(`edit:${editing.id}`)} disabled={busy}>
+                {t("saveCorrectionButton")}
+              </BusyButton>
             </div>
           </form>
         )}
@@ -438,7 +455,10 @@ export function ExpensesPage() {
                 <td>{flockName(x.flockId)}</td>
                 <td>{x.note ?? "—"}</td>
                 <td>
-                  <button className="link" disabled={busy} onClick={() => startEdit(x)}>
+                  {/* Opens the correction dialog — non-mutating, so the
+                      spinner belongs to the dialog's Save, not here (#242). */}
+                  <button className="link" disabled={busy}
+                    onClick={() => startEdit(x)}>
                     {t("correctButton")}
                   </button>
                 </td>

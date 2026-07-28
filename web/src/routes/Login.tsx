@@ -4,7 +4,9 @@ import { useLocation, useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../auth/useAuth";
 import { ApiError } from "../api/client";
+import { BusyButton } from "../components/BusyButton";
 import { ThemeToggle } from "../components/ThemeToggle";
+import { usePendingAction } from "../components/usePendingAction";
 import i18n from "../i18n";
 
 interface LocationState {
@@ -40,20 +42,21 @@ export function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const { busy, run } = usePendingAction();
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    setError(null);
-    setBusy(true);
-    try {
-      await login(email, password);
-      navigate(from, { replace: true });
-    } catch (err) {
-      setError(messageFor(err));
-    } finally {
-      setBusy(false);
-    }
+    // The hook's ref skips a same-tick re-submit; setError stays inside the
+    // action so a skipped run never wipes a visible failure message.
+    await run("signin", async () => {
+      setError(null);
+      try {
+        await login(email, password);
+        navigate(from, { replace: true });
+      } catch (err) {
+        setError(messageFor(err));
+      }
+    });
   }
 
   return (
@@ -82,9 +85,9 @@ export function Login() {
           />
         </label>
         {error && <p className="error">{error}</p>}
-        <button type="submit" disabled={busy}>
+        <BusyButton type="submit" busy={busy}>
           {busy ? t("signingIn") : t("signIn")}
-        </button>
+        </BusyButton>
       </form>
     </main>
   );

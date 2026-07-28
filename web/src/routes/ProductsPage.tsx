@@ -10,8 +10,10 @@ import {
 import type { EggGrade, EggUnitConversion, Product } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
+import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
 import { StatusBadge } from "../components/StatusBadge";
+import { usePendingAction } from "../components/usePendingAction";
 import { newId } from "../lib/ids";
 import i18n from "../i18n";
 import { statusLabel } from "../i18n/enums";
@@ -38,7 +40,9 @@ export function ProductsPage() {
   const [grades, setGrades] = useState<EggGrade[]>([]);
   const [conversions, setConversions] = useState<EggUnitConversion[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  // #236 — the shared flight guard. `busy` inerts the whole screen; the one
+  // clicked trigger additionally spins via isPending(scope).
+  const { busy, isPending, run: runPending } = usePendingAction();
 
   // create form (F131: in a dialog)
   const [creating, setCreating] = useState(false);
@@ -115,22 +119,26 @@ export function ProductsPage() {
     return Number(match[1]) * 10 ** minor + Number(frac.padEnd(minor, "0") || 0);
   };
 
+  // Rebased on usePendingAction (#236): the hook owns the re-entry guard and
+  // the pending scope; the idempotency-key/refresh-before-rotate body stays
+  // exactly as reviewed. The same scope string doubles as the key scope.
   async function run(scope: string, action: (key: string) => Promise<unknown>) {
-    if (busy) return false;
-    setBusy(true);
-    setError(null);
-    try {
-      await action(keyFor(scope));
-      // Refresh must succeed before the key rotates (idempotent retry contract).
-      await refresh();
-      clearKey(scope);
-      return true;
-    } catch (err) {
-      setError(errorMessage(err));
-      return false;
-    } finally {
-      setBusy(false);
-    }
+    const ok = await runPending(scope, async () => {
+      setError(null);
+      try {
+        await action(keyFor(scope));
+        // Refresh must succeed before the key rotates (idempotent retry contract).
+        await refresh();
+        clearKey(scope);
+        return true;
+      } catch (err) {
+        setError(errorMessage(err));
+        return false;
+      }
+    });
+    // A SKIPPED run (undefined — another flight was open) is not a success: it
+    // must never close a dialog or reset a form as if it were.
+    return ok ?? false;
   }
 
   async function onCreate(e: FormEvent) {
@@ -263,7 +271,7 @@ export function ProductsPage() {
           {error && <p className="error" role="alert">{error}</p>}
           <div className="dialog-foot">
             <button type="button" className="link" onClick={() => setCreating(false)}>{tc("cancel")}</button>
-            <button disabled={busy}>{t("addProductButton")}</button>
+            <BusyButton disabled={busy} busy={isPending("create-product")}>{t("addProductButton")}</BusyButton>
           </div>
         </form>
       </Dialog>
@@ -297,7 +305,8 @@ export function ProductsPage() {
           {error && <p className="error" role="alert">{error}</p>}
           <div className="dialog-foot">
             <button type="button" className="link" onClick={() => setEditingId(null)}>{tc("cancel")}</button>
-            <button type="submit" disabled={busy}>{tc("save")}</button>
+            <BusyButton type="submit" disabled={busy}
+              busy={editingId !== null && isPending(`update:${editingId}`)}>{tc("save")}</BusyButton>
           </div>
         </form>
       </Dialog>
@@ -319,7 +328,8 @@ export function ProductsPage() {
           {error && <p className="error" role="alert">{error}</p>}
           <div className="dialog-foot">
             <button type="button" className="link" onClick={() => setEditingConvId(null)}>{tc("cancel")}</button>
-            <button type="submit" disabled={busy}>{tc("save")}</button>
+            <BusyButton type="submit" disabled={busy}
+              busy={editingConvId !== null && isPending(`conv:${editingConvId}`)}>{tc("save")}</BusyButton>
           </div>
         </form>
       </Dialog>
@@ -345,15 +355,15 @@ export function ProductsPage() {
                   <td>
                     <button className="link" disabled={busy} onClick={() => startEdit(p)}>{t("editButton")}</button>{" "}
                     {p.active ? (
-                      <button className="link" disabled={busy}
+                      <BusyButton className="link" disabled={busy} busy={isPending(`deact:${p.id}`)}
                         onClick={() => void run(`deact:${p.id}`, (key) => deactivateProduct(p.id, key))}>
                         {t("deactivateButton")}
-                      </button>
+                      </BusyButton>
                     ) : (
-                      <button className="link" disabled={busy}
+                      <BusyButton className="link" disabled={busy} busy={isPending(`act:${p.id}`)}
                         onClick={() => void run(`act:${p.id}`, (key) => activateProduct(p.id, key))}>
                         {t("activateButton")}
-                      </button>
+                      </BusyButton>
                     )}
                   </td>
                 )}

@@ -46,6 +46,14 @@ async function renderReady(token: Record<string, unknown>) {
 const openCreate = () => fireEvent.click(screen.getByRole("button", { name: "New grade" }));
 const dialog = () => screen.getByRole("dialog");
 
+// A promise the test resolves by hand — holds a request open so the busy
+// window is asserted deterministically, no timing guesses (client.test.ts idiom).
+function deferred<T>() {
+  let resolve!: (v: T) => void;
+  const promise = new Promise<T>((r) => (resolve = r));
+  return { promise, resolve };
+}
+
 describe("GradesPage display", () => {
   it("renders each grade with saleable + status columns", async () => {
     await renderReady(ADMIN);
@@ -150,6 +158,42 @@ describe("GradesPage admin actions", () => {
     const k3 = mockCreate.mock.calls[2][1];
     expect(k2).toBe(k1); // failure kept the key → exact replay
     expect(k3).not.toBe(k2); // success rotated it → the next write is fresh
+  });
+});
+
+describe("GradesPage pending states (#236)", () => {
+  it("maps a skipped run to failure: a submit landing under an open flight writes nothing and keeps its dialog and values", async () => {
+    const gate = deferred<void>();
+    mockDeactivate.mockReturnValue(gate.promise);
+    await renderReady(ADMIN);
+
+    // A long-running row action opens the flight and spins on its own scope.
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole("row", { name: /Grade A/ })).getByRole("button", { name: "deactivate" }));
+    });
+    expect(within(screen.getByRole("row", { name: /Grade A/ })).getByRole("button", { name: "deactivate" }))
+      .toHaveAttribute("aria-busy", "true");
+
+    // The create form fires UNDER that flight (its button is disabled, but
+    // Enter in a field still submits the form — the double-fire the boolean
+    // wrapper must map to false, never to success).
+    openCreate();
+    fireEvent.change(within(dialog()).getByLabelText("Name *"), { target: { value: "Jumbo" } });
+    await act(async () => {
+      fireEvent.submit(within(dialog()).getByLabelText("Name *").closest("form")!);
+    });
+
+    expect(mockCreate).not.toHaveBeenCalled(); // skipped, not queued
+    expect(screen.getByRole("dialog")).toBeInTheDocument(); // a skip must not close the dialog…
+    expect(within(dialog()).getByLabelText("Name *")).toHaveValue("Jumbo"); // …or reset the form
+
+    await act(async () => {
+      gate.resolve();
+    });
+    expect(mockDeactivate).toHaveBeenCalledTimes(1);
+    // The settled flight left the dialog untouched and ready for a real submit.
+    expect(within(dialog()).getByLabelText("Name *")).toHaveValue("Jumbo");
+    expect(within(dialog()).getByRole("button", { name: "Add grade" })).toBeEnabled();
   });
 });
 

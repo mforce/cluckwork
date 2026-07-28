@@ -3,6 +3,8 @@ import type { FormEvent } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { changePassword, ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
+import { BusyButton } from "../components/BusyButton";
+import { usePendingAction } from "../components/usePendingAction";
 import { LanguageSelector } from "../session/LanguageSelector";
 import { SUPPORTED_LANGUAGES } from "../i18n";
 import { roleLabel } from "../i18n/enums";
@@ -25,11 +27,12 @@ export function AccountPage() {
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
+  const { busy, run } = usePendingAction();
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
+    // State check first so an Enter-key re-submit mid-flight cannot clear the
+    // messages; the hook's ref closes the same-tick window the state misses.
     if (busy) return;
     setError(null);
     setMessage(null);
@@ -44,21 +47,20 @@ export function AccountPage() {
       return;
     }
 
-    setBusy(true);
-    try {
-      // No key threaded here: the server exempts this route from the response
-      // cache (#165 review), since replaying it would hand back the access token
-      // without the rotated refresh cookie.
-      await changePassword({ currentPassword: current, newPassword: next });
-      setMessage(t("passwordChangedMessage"));
-      setCurrent("");
-      setNext("");
-      setConfirm("");
-    } catch (err) {
-      setError(errText(err));
-    } finally {
-      setBusy(false);
-    }
+    await run("change-password", async () => {
+      try {
+        // No key threaded here: the server exempts this route from the response
+        // cache (#165 review), since replaying it would hand back the access token
+        // without the rotated refresh cookie.
+        await changePassword({ currentPassword: current, newPassword: next });
+        setMessage(t("passwordChangedMessage"));
+        setCurrent("");
+        setNext("");
+        setConfirm("");
+      } catch (err) {
+        setError(errText(err));
+      }
+    });
   }
 
   return (
@@ -99,7 +101,7 @@ export function AccountPage() {
         {error && <p className="error">{error}</p>}
         {message && <p className="success">{message}</p>}
         <div className="dialog-foot">
-          <button type="submit" disabled={busy}>{t("changePasswordButton")}</button>
+          <BusyButton type="submit" busy={busy}>{t("changePasswordButton")}</BusyButton>
         </div>
       </form>
     </section>

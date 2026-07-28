@@ -7,10 +7,12 @@ import {
 } from "../api/cluckwork";
 import type { EggGrade, Flock } from "../api/cluckwork";
 import { ApiError } from "../api/client";
+import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
 import { StatusBadge } from "../components/StatusBadge";
 import { NumberField } from "../components/NumberField";
 import { useConfirm } from "../components/useConfirm";
+import { usePendingAction } from "../components/usePendingAction";
 import { useFarmToday } from "../farm/useFarm";
 import { newId } from "../lib/ids";
 import i18n from "../i18n";
@@ -68,8 +70,9 @@ export function DailyEntryPage() {
   const [prefillRetry, setPrefillRetry] = useState(0);
   const failedTarget = useRef<string | null>(null);
 
-  const [busy, setBusy] = useState(false);
-  const inFlight = useRef(false);
+  // One shared flight for save/submit/create-flock (#236): the hook's internal
+  // ref replaced the hand-rolled inFlight ref this screen used to carry.
+  const { busy, isPending, run } = usePendingAction();
   // Stable idempotency keys per logical mutation: regenerated only after a
   // definitive success, so a retry after an ambiguous network failure dedupes
   // server-side instead of repeating the write.
@@ -265,30 +268,34 @@ export function DailyEntryPage() {
 
   async function onCreateFlock(e: FormEvent) {
     e.preventDefault();
-    setError(null);
-    try {
-      const created = await createFlock({
-        name: newFlockName,
-        breed: newFlockBreed,
-        placementDate: newFlockPlaced,
-        initialCount: newFlockCount,
-      }, flockKey.current);
-      flockKey.current = newId();
-      const refreshed = capturable(await listFlocks());
-      setFlocks(refreshed);
-      setFlockId(created.id);
-      setShowNewFlock(false);
-      setNewFlockName("");
-      setNewFlockBreed("");
-      setNewFlockPlaced(today);
-      setNewFlockCount(100);
-    } catch (err) {
-      setError(errorMessage(err));
-    }
+    // #236: this form shipped with NO in-flight guard at all — a double submit
+    // reached the API twice. The hook's ref is the guard now.
+    await run("create-flock", async () => {
+      setError(null);
+      try {
+        const created = await createFlock({
+          name: newFlockName,
+          breed: newFlockBreed,
+          placementDate: newFlockPlaced,
+          initialCount: newFlockCount,
+        }, flockKey.current);
+        flockKey.current = newId();
+        const refreshed = capturable(await listFlocks());
+        setFlocks(refreshed);
+        setFlockId(created.id);
+        setShowNewFlock(false);
+        setNewFlockName("");
+        setNewFlockBreed("");
+        setNewFlockPlaced(today);
+        setNewFlockCount(100);
+      } catch (err) {
+        setError(errorMessage(err));
+      }
+    });
   }
 
   async function onSave(submit: boolean) {
-    if (inFlight.current || !selectedFlock || prefillFailed || prefillPending) return;   // sync re-entry guard
+    if (busy || !selectedFlock || prefillFailed || prefillPending) return;
     // One-way action (#59): submit freezes the day and creates egg lots.
     if (submit) {
       const ok = await confirm({
@@ -297,57 +304,52 @@ export function DailyEntryPage() {
         confirmLabel: i18n.t("dailyEntry:confirmSubmitLabel"),
       });
       if (!ok) return;
-      // Only the ref is worth re-reading. window.confirm blocked the thread, so
-      // the guard above could not go stale; the dialog does not block, and a
-      // double-click can land two onSave calls before either sets inFlight.
-      // (The second confirm settles the first as dismissed, so the loser
-      // returns above — this catches the ordering where it does not.)
+      // The dialog does not block the thread, so a double-click can land two
+      // onSave calls before either opens a flight. (The second confirm settles
+      // the first as dismissed, so the loser usually returns above.) The
+      // ordering where it does not is caught by run()'s internal ref — two
+      // survivors funnel into run and exactly one action starts.
       //
-      // The other three are state, so re-reading them here would return the
-      // render-time closure, not what is true now. They are left out rather
-      // than mirrored in a ref: none of them can change while the dialog is up.
-      // flock and date sit behind the backdrop, and a prefill cannot start
+      // The state gates above are not re-read here: they would return the
+      // render-time closure, and none of them can change while the dialog is
+      // up. flock and date sit behind the backdrop, and a prefill cannot start
       // meanwhile because both save buttons are disabled while one is pending.
-      if (inFlight.current) return;
     }
-    inFlight.current = true;
-    setBusy(true);
-    setError(null);
-    setMessage(null);
-    try {
-      const lines = visibleGrades
-        .filter((g) => (gradeQty[g.id] ?? 0) > 0)
-        .map((g) => ({ eggGradeId: g.id, quantity: gradeQty[g.id] }));
-      const created = await recordDailyEntry({
-        farmId: selectedFlock.farmId,
-        houseId: selectedFlock.houseId,
-        flockId: selectedFlock.id,
-        date,
-        totalEggs,
-        crackedEggs: cracked,
-        dirtyEggs: dirty,
-        discardedEggs: discarded,
-        mortalityCount: mortality,
-        grades: gradesTouched ? lines : undefined,
-      }, saveKey.current);
-      if (submit) {
-        const result = await submitDailyEntry(created.id, saveKey.current);
-        setExistingStatus(result.status);
-        setMessage(i18n.t("dailyEntry:submittedMessage", { count: result.eggLotIds.length }));
-      } else {
-        // The day now has saved work, so the badge should say so immediately.
-        // Only the submit branch tracked status before, which left a first
-        // draft save unbadged until a reload re-prefilled the same day.
-        setExistingStatus("Draft");
-        setMessage(i18n.t("dailyEntry:draftSavedMessage"));
+    await run(submit ? "submit" : "save", async () => {
+      setError(null);
+      setMessage(null);
+      try {
+        const lines = visibleGrades
+          .filter((g) => (gradeQty[g.id] ?? 0) > 0)
+          .map((g) => ({ eggGradeId: g.id, quantity: gradeQty[g.id] }));
+        const created = await recordDailyEntry({
+          farmId: selectedFlock.farmId,
+          houseId: selectedFlock.houseId,
+          flockId: selectedFlock.id,
+          date,
+          totalEggs,
+          crackedEggs: cracked,
+          dirtyEggs: dirty,
+          discardedEggs: discarded,
+          mortalityCount: mortality,
+          grades: gradesTouched ? lines : undefined,
+        }, saveKey.current);
+        if (submit) {
+          const result = await submitDailyEntry(created.id, saveKey.current);
+          setExistingStatus(result.status);
+          setMessage(i18n.t("dailyEntry:submittedMessage", { count: result.eggLotIds.length }));
+        } else {
+          // The day now has saved work, so the badge should say so immediately.
+          // Only the submit branch tracked status before, which left a first
+          // draft save unbadged until a reload re-prefilled the same day.
+          setExistingStatus("Draft");
+          setMessage(i18n.t("dailyEntry:draftSavedMessage"));
+        }
+        saveKey.current = newId();
+      } catch (err) {
+        setError(errorMessage(err));
       }
-      saveKey.current = newId();
-    } catch (err) {
-      setError(errorMessage(err));
-    } finally {
-      inFlight.current = false;
-      setBusy(false);
-    }
+    });
   }
 
   if (loading) return <section><h2>{t("title")}</h2><p className="muted">{tc("loading")}</p></section>;
@@ -417,7 +419,9 @@ export function DailyEntryPage() {
           {error && <p className="error">{error}</p>}
           <div className="dialog-foot">
             <button type="button" className="link" onClick={() => setShowNewFlock(false)}>{tc("cancel")}</button>
-            <button type="submit">{t("createFlockButton")}</button>
+            <BusyButton type="submit" busy={isPending("create-flock")} disabled={busy}>
+              {t("createFlockButton")}
+            </BusyButton>
           </div>
         </form>
       </Dialog>
@@ -598,13 +602,16 @@ export function DailyEntryPage() {
             )}
           </p>
           <div className="actions">
-            <button disabled={busy || !flockId || lossesExceedTotal || entryLocked || prefillFailed || prefillPending}
-              onClick={() => onSave(false)}>{t("saveDraftButton")}</button>
-            <button
+            {/* Sibling triggers: each spins only for its own scope, while the
+                shared `busy` in disabled keeps the other one inert. */}
+            <BusyButton busy={isPending("save")}
+              disabled={busy || !flockId || lossesExceedTotal || entryLocked || prefillFailed || prefillPending}
+              onClick={() => onSave(false)}>{t("saveDraftButton")}</BusyButton>
+            <BusyButton busy={isPending("submit")}
               disabled={busy || !flockId || lossesExceedTotal || gradesSum > sellable || entryLocked || prefillFailed || prefillPending}
               onClick={() => onSave(true)}>
               {t("submitButton")}
-            </button>
+            </BusyButton>
           </div>
         </div>
       </div>

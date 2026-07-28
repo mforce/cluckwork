@@ -8,7 +8,9 @@ import {
 } from "../api/cluckwork";
 import type { FarmSettings, UpdateFarmSettings } from "../api/cluckwork";
 import { ApiError } from "../api/client";
+import { BusyButton } from "../components/BusyButton";
 import { useConfirm } from "../components/useConfirm";
+import { usePendingAction } from "../components/usePendingAction";
 import { useFarm } from "../farm/useFarm";
 import { useLogoObjectUrl } from "../farm/useLogoObjectUrl";
 import { BRANDS, DEFAULT_BRAND, applyBrand, isBrand } from "../lib/brand";
@@ -134,7 +136,16 @@ export function SettingsPage() {
   const [dateFormat, setDateFormat] = useState("");
   const [timeFormat, setTimeFormat] = useState("");
 
-  const [saving, setSaving] = useState(false);
+  // #236 — ONE flight for the whole screen (the old `saving` + `logoBusy`
+  // pair, consolidated). The cross-checks those two states enforced — no save
+  // during a logo write and vice versa — are now the hook's single-flight
+  // guarantee; the derived names below keep each surface bound to ITS scope
+  // only (palette radios and the Save label to "settings", the logo status
+  // region and the focus-after-remove effect to the logo scopes).
+  const { busy, isPending, run } = usePendingAction();
+  const saving = isPending("settings");
+  const logoBusy = isPending("logo:upload") || isPending("logo:remove");
+
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   // Set when a save landed but the follow-up read did not: the screen still
@@ -143,7 +154,6 @@ export function SettingsPage() {
   const [stale, setStale] = useState(false);
   const saveAttempt = useRef<Attempt | null>(null);
 
-  const [logoBusy, setLogoBusy] = useState(false);
   const [focusUploadAfterRemove, setFocusUploadAfterRemove] = useState(false);
   const [logoError, setLogoError] = useState<string | null>(null);
   const [logoMessage, setLogoMessage] = useState<string | null>(null);
@@ -220,71 +230,71 @@ export function SettingsPage() {
 
   async function onSave(e: FormEvent) {
     e.preventDefault();
-    if (saving || logoBusy || stale || loaded === null) return;
-    setSaving(true);
-    setSaveError(null);
-    setSaved(false);
+    // In-flight re-entry (the old `saving || logoBusy` check) is the hook's
+    // job now: run() below skips while any flight is open.
+    if (stale || loaded === null) return;
+    await run("settings", async () => {
+      setSaveError(null);
+      setSaved(false);
 
-    const body: UpdateFarmSettings = {
-      name: name.trim(),
-      timeZoneId: timeZoneId.trim(),
-      locale: locale.trim(),
-      currencyCode: currencyCode.trim().toUpperCase(),
-      unitSystem,
-      firstDayOfWeek: orNull(firstDayOfWeek),
-      dateFormatOverride: orNull(dateFormat),
-      timeFormatOverride: orNull(timeFormat),
-      brand,
-      version: loaded.settings.version,
-    };
-    const attempt = keyFor(saveAttempt.current, JSON.stringify(body));
-    saveAttempt.current = attempt;
+      const body: UpdateFarmSettings = {
+        name: name.trim(),
+        timeZoneId: timeZoneId.trim(),
+        locale: locale.trim(),
+        currencyCode: currencyCode.trim().toUpperCase(),
+        unitSystem,
+        firstDayOfWeek: orNull(firstDayOfWeek),
+        dateFormatOverride: orNull(dateFormat),
+        timeFormatOverride: orNull(timeFormat),
+        brand,
+        version: loaded.settings.version,
+      };
+      const attempt = keyFor(saveAttempt.current, JSON.stringify(body));
+      saveAttempt.current = attempt;
 
-    try {
-      await updateFarmSettings(body, attempt.key);
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 409) {
-        // The version this screen holds is now definitively wrong, and a retry
-        // sends the same one: the middleware caches only 2xx, so it re-executes
-        // and 409s again, forever. Disable the button so it agrees with the
-        // message rather than inviting the loop (pi round 2).
-        setStale(true);
-        setSaveError(i18n.t("settings:versionConflictMessage"));
-      } else {
-        setSaveError(errText(err));
+      try {
+        await updateFarmSettings(body, attempt.key);
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 409) {
+          // The version this screen holds is now definitively wrong, and a retry
+          // sends the same one: the middleware caches only 2xx, so it re-executes
+          // and 409s again, forever. Disable the button so it agrees with the
+          // message rather than inviting the loop (pi round 2).
+          setStale(true);
+          setSaveError(i18n.t("settings:versionConflictMessage"));
+        } else {
+          setSaveError(errText(err));
+        }
+        return;
       }
-      setSaving(false);
-      return;
-    }
 
-    // Written. Anything that fails from here is a REFRESH failure, and saying
-    // "could not save" about a save that landed is how a user ends up making
-    // the same change twice.
-    saveAttempt.current = null;
-    setSaved(true);
-    try {
-      const fresh = await load();
-      // Applied from THIS response rather than waiting on refresh() below:
-      // refresh() cannot throw (the provider has to survive a failed read), so
-      // a successful save with a failed refresh would otherwise leave the old
-      // palette live and cached while the authoritative value was in hand (#149).
-      applyBrand(fresh.settings.brand);
-    } catch {
-      setStale(true);
-      setSaveError(i18n.t("settings:saveReadBackFailedMessage"));
-      setSaving(false);
-      return;
-    }
+      // Written. Anything that fails from here is a REFRESH failure, and saying
+      // "could not save" about a save that landed is how a user ends up making
+      // the same change twice.
+      saveAttempt.current = null;
+      setSaved(true);
+      try {
+        const fresh = await load();
+        // Applied from THIS response rather than waiting on refresh() below:
+        // refresh() cannot throw (the provider has to survive a failed read), so
+        // a successful save with a failed refresh would otherwise leave the old
+        // palette live and cached while the authoritative value was in hand (#149).
+        applyBrand(fresh.settings.brand);
+      } catch {
+        setStale(true);
+        setSaveError(i18n.t("settings:saveReadBackFailedMessage"));
+        return;
+      }
 
-    // The chrome and every date input read the farm from context — this is what
-    // makes the change show without a reload (§4.5). It cannot throw (the
-    // provider has to survive a failed read), so it REPORTS: relying on a throw
-    // meant a failed /account left the save looking fully applied while the
-    // shell still held the old timezone (codex round 2).
-    const refreshed = await refresh();
-    if (!refreshed)
-      setSaveError(i18n.t("settings:refreshFailedMessage"));
-    setSaving(false);
+      // The chrome and every date input read the farm from context — this is what
+      // makes the change show without a reload (§4.5). It cannot throw (the
+      // provider has to survive a failed read), so it REPORTS: relying on a throw
+      // meant a failed /account left the save looking fully applied while the
+      // shell still held the old timezone (codex round 2).
+      const refreshed = await refresh();
+      if (!refreshed)
+        setSaveError(i18n.t("settings:refreshFailedMessage"));
+    });
   }
 
   async function onPickLogo(e: ChangeEvent<HTMLInputElement>) {
@@ -294,12 +304,13 @@ export function SettingsPage() {
     e.target.value = "";
     if (file === undefined) return;
 
-    if (saving || logoBusy) return;
+    if (busy) return;
     setLogoError(null);
     setLogoMessage(null);
     // The server refuses this too (413). Checking here spares the upload on
     // the wire and gives the size back in the message. The limit is the server's
-    // own, fetched with the settings.
+    // own, fetched with the settings. Refused BEFORE any flight opens — a local
+    // size check is not "Working…".
     if (file.size > maxUploadBytes) {
       setLogoError(i18n.t("settings:logoOversizeMessage", {
         actualKb: Math.ceil(file.size / 1024),
@@ -313,18 +324,17 @@ export function SettingsPage() {
     const attempt = keyFor(uploadAttempt.current, `${file.name}:${file.size}:${file.lastModified}`);
     uploadAttempt.current = attempt;
 
-    setLogoBusy(true);
-    try {
-      const stored = await uploadFarmLogo(file, attempt.key);
-      uploadAttempt.current = null;
-      applyLogoHash(stored.contentHash);
-      setLogoMessage(i18n.t("settings:logoUpdatedMessage"));
-      await refresh();
-    } catch (err) {
-      setLogoError(errText(err));
-    } finally {
-      setLogoBusy(false);
-    }
+    await run("logo:upload", async () => {
+      try {
+        const stored = await uploadFarmLogo(file, attempt.key);
+        uploadAttempt.current = null;
+        applyLogoHash(stored.contentHash);
+        setLogoMessage(i18n.t("settings:logoUpdatedMessage"));
+        await refresh();
+      } catch (err) {
+        setLogoError(errText(err));
+      }
+    });
   }
 
   async function onRemoveLogo() {
@@ -335,7 +345,7 @@ export function SettingsPage() {
       destructive: true,
     });
     if (!ok) return;
-    if (saving || logoBusy) return;
+    if (busy) return;
 
     setLogoError(null);
     setLogoMessage(null);
@@ -346,26 +356,25 @@ export function SettingsPage() {
     const attempt = keyFor(removeAttempt.current, `remove:${logoHash ?? ""}`);
     removeAttempt.current = attempt;
 
-    setLogoBusy(true);
-    try {
-      await removeFarmLogo(attempt.key);
-      removeAttempt.current = null;
-      applyLogoHash(null);
-      setLogoMessage(i18n.t("settings:logoRemovedMessage"));
-      // Deferred to an effect rather than called here. The Remove button that
-      // was just clicked unmounts with the logo and Dialog only restores focus
-      // to a trigger still in the document, so focus would land on <body> — but
-      // calling focus() at this point does nothing either, because the upload
-      // input is still `disabled={logoBusy}` and focus() on a disabled control
-      // is a no-op (the same hazard Dialog.tsx documents). It has to happen
-      // after the busy state clears (round 2: two agents).
-      setFocusUploadAfterRemove(true);
-      await refresh();
-    } catch (err) {
-      setLogoError(errText(err));
-    } finally {
-      setLogoBusy(false);
-    }
+    await run("logo:remove", async () => {
+      try {
+        await removeFarmLogo(attempt.key);
+        removeAttempt.current = null;
+        applyLogoHash(null);
+        setLogoMessage(i18n.t("settings:logoRemovedMessage"));
+        // Deferred to an effect rather than called here. The Remove button that
+        // was just clicked unmounts with the logo and Dialog only restores focus
+        // to a trigger still in the document, so focus would land on <body> — but
+        // calling focus() at this point does nothing either, because the upload
+        // input is still disabled while the logo flight is open, and focus() on
+        // a disabled control is a no-op (the same hazard Dialog.tsx documents).
+        // It has to happen after the busy state clears (round 2: two agents).
+        setFocusUploadAfterRemove(true);
+        await refresh();
+      } catch (err) {
+        setLogoError(errText(err));
+      }
+    });
   }
 
   if (loadError !== null) return (
@@ -407,17 +416,21 @@ export function SettingsPage() {
           {/* A real labelled file input rather than a button driving a hidden
               one: the picker is the control, and wrapping it in its own label
               keeps it reachable by keyboard and by name. */}
+          {/* Carve-out (#236): a labelled file input is not a button, so it
+              cannot be a BusyButton — it keeps the plain disable and the
+              existing logo status region below carries the announcement. */}
           <label className="logo-file">
             <Upload size={16} aria-hidden /> {hasLogo ? t("replaceLogoButton") : t("uploadLogoButton")}
-            <input ref={uploadInput} type="file" accept={LOGO_ACCEPT} disabled={logoBusy || saving}
+            <input ref={uploadInput} type="file" accept={LOGO_ACCEPT} disabled={busy}
               aria-describedby={logoRulesId}
               onChange={(e) => void onPickLogo(e)} />
           </label>
           {hasLogo && (
-            <button type="button" className="btn-danger" disabled={logoBusy || saving}
+            <BusyButton type="button" className="btn-danger" disabled={busy}
+              busy={isPending("logo:remove")}
               onClick={() => void onRemoveLogo()}>
               <Trash2 size={16} aria-hidden /> {t("removeLogoButton")}
-            </button>
+            </BusyButton>
           )}
         </div>
       </div>
@@ -427,10 +440,13 @@ export function SettingsPage() {
       <p className="muted">
         <Trans ns="settings" i18nKey="logoSquareHint" components={{ strong: <strong /> }} />
       </p>
-      {/* Both the upload and the removal are silent otherwise — the only signal
-          is an image appearing, which a screen reader does not see. */}
+      {/* The upload is silent otherwise — a file input cannot be a BusyButton,
+          so this region carries its "Working…". The removal is deliberately
+          NOT announced here: the Remove BusyButton's own live region already
+          says it, and both speaking would double the announcement (#242).
+          Results (logoMessage) still land here for both writes. */}
       <p className="success" role="status">
-        {logoBusy ? t("logoWorkingMessage") : logoMessage ?? ""}
+        {isPending("logo:upload") ? t("logoWorkingMessage") : logoMessage ?? ""}
       </p>
       {logoError !== null && <p className="error" role="alert">{logoError}</p>}
 
@@ -536,14 +552,15 @@ export function SettingsPage() {
         </label>
 
         <div className="actions">
-          {/* Disabled while a logo write is in flight too: the save issues its
-              own GET, and a delayed one landing after the logo write would
-              restore the hash the logo write had just replaced — the very
-              stale-response class removing load() from the logo path was meant
-              to close (codex round 2). */}
-          <button type="submit" disabled={saving || logoBusy || stale}>
+          {/* Disabled while a logo write is in flight too (`busy` covers every
+              scope): the save issues its own GET, and a delayed one landing
+              after the logo write would restore the hash the logo write had
+              just replaced — the very stale-response class removing load()
+              from the logo path was meant to close (codex round 2). It only
+              SPINS for its own scope, though — a logo flight merely disables. */}
+          <BusyButton type="submit" busy={saving} disabled={busy || stale}>
             {saving ? t("savingButton") : t("saveButton")}
-          </button>
+          </BusyButton>
         </div>
       </form>
 

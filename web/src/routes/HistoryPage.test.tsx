@@ -111,7 +111,10 @@ describe("HistoryPage adjust — sellable guard", () => {
       fireEvent.click(screen.getByRole("button", { name: "Save adjustment" }));
     });
 
-    expect(await screen.findByRole("status")).toHaveTextContent(/adjusted/);
+    // By text, then role-checked: BusyButton (#236) mounts an always-present
+    // status live region per row button, so role alone is ambiguous now.
+    const done = await screen.findByText(/Entry adjusted/);
+    expect(done).toHaveAttribute("role", "status");
     const [id, body] = mockAdjustDailyEntry.mock.calls[0];
     expect(id).toBe("de1");
     expect(body).toMatchObject({
@@ -218,6 +221,44 @@ describe("HistoryPage void — reason dialog", () => {
       { version: 1, reason: "miscounted the trays" },
       expect.any(String),
     );
+  });
+
+  it("spins the originating row's void button while the void is in flight; siblings disable without spinning (#236)", async () => {
+    const SECOND: DailyEntry = { ...SUBMITTED, id: "de9", date: "2026-07-17" };
+    mockListDailyEntries.mockResolvedValue([SUBMITTED, SECOND]);
+    // Held promise: every assertion here lands INSIDE the pending window.
+    let resolveVoid!: () => void;
+    vi.mocked(voidDailyEntry).mockReturnValue(new Promise<void>((r) => (resolveVoid = r)) as never);
+    renderWithProviders(<HistoryPage />, { token: ADMIN });
+
+    const row1 = await screen.findByRole("row", { name: /2026-07-19/ });
+    fireEvent.click(within(row1).getByRole("button", { name: "void" }));
+    fireEvent.change(within(voidDialog()).getByLabelText("Reason *"), { target: { value: "dupe" } });
+    await act(async () => {
+      fireEvent.click(within(voidDialog()).getByRole("button", { name: "Void entry" }));
+    });
+
+    // The dialog settled BEFORE the request started (useConfirm contract), so
+    // the originating row control is the pending indicator.
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    const voiding = within(row1).getByRole("button", { name: "void" });
+    expect(voiding).toBeDisabled();
+    expect(voiding).toHaveAttribute("aria-busy", "true");
+
+    // Sibling controls go inert but must NOT spin — exactly one control claims
+    // the flight (void:de1), the rest merely disable.
+    const row2 = screen.getByRole("row", { name: /2026-07-17/ });
+    expect(within(row2).getByRole("button", { name: "void" })).toBeDisabled();
+    expect(within(row2).getByRole("button", { name: "void" })).not.toHaveAttribute("aria-busy");
+    expect(within(row1).getByRole("button", { name: "adjust" })).toBeDisabled();
+    expect(within(row1).getByRole("button", { name: "adjust" })).not.toHaveAttribute("aria-busy");
+
+    await act(async () => resolveVoid());
+    // Settled: no pending scope remains, the row control is live again.
+    const settled = within(screen.getByRole("row", { name: /2026-07-19/ }))
+      .getByRole("button", { name: "void" });
+    expect(settled).toBeEnabled();
+    expect(settled).not.toHaveAttribute("aria-busy");
   });
 
   it("writes nothing when the void is dismissed", async () => {

@@ -8,8 +8,10 @@ import {
 import type { EggGrade } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
+import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
 import { StatusBadge } from "../components/StatusBadge";
+import { usePendingAction } from "../components/usePendingAction";
 import { newId } from "../lib/ids";
 import i18n from "../i18n";
 import { gradeTypeLabel, statusLabel } from "../i18n/enums";
@@ -32,7 +34,9 @@ export function GradesPage() {
   const { isAdmin } = useAuth();
   const [grades, setGrades] = useState<EggGrade[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  // #236: the flight guard + per-scope spinner state live in the shared hook;
+  // this screen keeps only its idempotency-key and refresh discipline below.
+  const { busy, isPending, run: runPending } = usePendingAction();
 
   // create form (F131: lives in a dialog, not a bar above the table)
   const [creating, setCreating] = useState(false);
@@ -67,23 +71,25 @@ export function GradesPage() {
       .catch(() => setError(i18n.t("grades:loadGradesFailed")));
   }, []);
 
-  async function run(scope: string, action: (key: string) => Promise<unknown>) {
-    if (busy) return;
-    setBusy(true);
-    setError(null);
-    try {
-      await action(keyFor(scope));
-      // The refresh must succeed before the key rotates: if it throws, the key
-      // survives and a retry replays the idempotent write instead of repeating it.
-      setGrades(await fetchGrades());
-      clearKey(scope);
-      return true;
-    } catch (err) {
-      setError(errorMessage(err));
-      return false;
-    } finally {
-      setBusy(false);
-    }
+  async function run(scope: string, action: (key: string) => Promise<unknown>): Promise<boolean> {
+    const outcome = await runPending(scope, async () => {
+      setError(null);
+      try {
+        await action(keyFor(scope));
+        // The refresh must succeed before the key rotates: if it throws, the key
+        // survives and a retry replays the idempotent write instead of repeating it.
+        setGrades(await fetchGrades());
+        clearKey(scope);
+        return true;
+      } catch (err) {
+        setError(errorMessage(err));
+        return false;
+      }
+    });
+    // A skipped run (another flight already open) reports `undefined` — never
+    // success: mapping it to false keeps a blocked submit from closing its
+    // dialog or resetting its form as if it had saved.
+    return outcome ?? false;
   }
 
   // A dialog opens on a clean form; cancelling keeps whatever was typed until
@@ -171,7 +177,7 @@ export function GradesPage() {
           {error && <p className="error">{error}</p>}
           <div className="dialog-foot">
             <button type="button" className="link" onClick={() => setCreating(false)}>{tc("cancel")}</button>
-            <button type="submit" disabled={busy}>{t("addGradeButton")}</button>
+            <BusyButton type="submit" busy={isPending("create-grade")} disabled={busy}>{t("addGradeButton")}</BusyButton>
           </div>
         </form>
       </Dialog>
@@ -196,7 +202,9 @@ export function GradesPage() {
           {error && <p className="error">{error}</p>}
           <div className="dialog-foot">
             <button type="button" className="link" onClick={() => setEditingId(null)}>{tc("cancel")}</button>
-            <button type="submit" disabled={busy}>{tc("save")}</button>
+            <BusyButton type="submit" busy={editingId !== null && isPending(`update:${editingId}`)} disabled={busy}>
+              {tc("save")}
+            </BusyButton>
           </div>
         </form>
       </Dialog>
@@ -226,18 +234,20 @@ export function GradesPage() {
               <td>
                 {isAdmin && (
                   <>
+                    {/* Opens the edit dialog — non-mutating, so the spinner
+                        belongs to the dialog's Save, not here (#242). */}
                     <button className="link" disabled={busy}
                       onClick={() => startEdit(g)}>{t("editButton")}</button>
                     {g.active ? (
-                      <button className="link" disabled={busy}
+                      <BusyButton className="link" busy={isPending(`deactivate:${g.id}`)} disabled={busy}
                         onClick={() => void run(`deactivate:${g.id}`, (key) => deactivateEggGrade(g.id, key))}>
                         {t("deactivateButton")}
-                      </button>
+                      </BusyButton>
                     ) : (
-                      <button className="link" disabled={busy}
+                      <BusyButton className="link" busy={isPending(`activate:${g.id}`)} disabled={busy}
                         onClick={() => void run(`activate:${g.id}`, (key) => activateEggGrade(g.id, key))}>
                         {t("activateButton")}
-                      </button>
+                      </BusyButton>
                     )}
                   </>
                 )}

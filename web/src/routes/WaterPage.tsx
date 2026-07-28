@@ -5,6 +5,8 @@ import { listFlocks, listWaterUsage, recordWaterUsage, updateWaterUsage } from "
 import type { Flock, WaterUsage } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
+import { BusyButton } from "../components/BusyButton";
+import { usePendingAction } from "../components/usePendingAction";
 import { useFarmToday } from "../farm/useFarm";
 import { newId } from "../lib/ids";
 import i18n from "../i18n";
@@ -38,7 +40,7 @@ export function WaterPage() {
   const [flocks, setFlocks] = useState<Flock[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const { busy, run } = usePendingAction();
 
   // capture form; editingId switches it to update mode. editingVersion is the
   // base Version the row was loaded with — sent back so a concurrent edit
@@ -141,43 +143,48 @@ export function WaterPage() {
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
+    // State check first so an Enter-key re-submit mid-flight cannot clear the
+    // messages; the hook's ref closes the same-tick window the state misses.
     if (busy) return;
-    setBusy(true);
     setError(null);
     setMessage(null);
-    try {
-      const body = {
-        source,
-        unit,
-        quantity: useMeters ? undefined : parseFloat(quantity),
-        meterStart: useMeters ? parseFloat(meterStart) : undefined,
-        meterEnd: useMeters ? parseFloat(meterEnd) : undefined,
-        note: note.trim() || undefined,
-      };
-      if (!useMeters && (!Number.isFinite(body.quantity!) || body.quantity! <= 0)) {
-        setError(i18n.t("water:quantityMustBePositive"));
-        return;
-      }
-      if (useMeters && (!Number.isFinite(body.meterStart!) || !Number.isFinite(body.meterEnd!))) {
-        setError(i18n.t("water:bothMeterReadingsRequired"));
-        return;
-      }
-      const scope = editingId ? `update:${editingId}` : `record:${flockId}:${date}`;
-      if (editingId) {
-        await updateWaterUsage(editingId, { ...body, version: editingVersion }, keyFor(scope));
-        setMessage(i18n.t("water:recordCorrectedMessage"));
-      } else {
-        await recordWaterUsage({ ...body, flockId, date }, keyFor(scope));
-        setMessage(i18n.t("water:recordedMessage"));
-      }
-      await load();
-      clearKey(scope);
-      resetForm();
-    } catch (err) {
-      setError(errText(err));
-    } finally {
-      setBusy(false);
+    const body = {
+      source,
+      unit,
+      quantity: useMeters ? undefined : parseFloat(quantity),
+      meterStart: useMeters ? parseFloat(meterStart) : undefined,
+      meterEnd: useMeters ? parseFloat(meterEnd) : undefined,
+      note: note.trim() || undefined,
+    };
+    // Validated before the flight opens: a rejected form never reads as busy.
+    if (!useMeters && (!Number.isFinite(body.quantity!) || body.quantity! <= 0)) {
+      setError(i18n.t("water:quantityMustBePositive"));
+      return;
     }
+    if (useMeters && (!Number.isFinite(body.meterStart!) || !Number.isFinite(body.meterEnd!))) {
+      setError(i18n.t("water:bothMeterReadingsRequired"));
+      return;
+    }
+    // The idempotency-key scope doubles as the pending scope — same string,
+    // independent lifecycles (the key survives a transport failure; the
+    // pending flight never does).
+    const scope = editingId ? `update:${editingId}` : `record:${flockId}:${date}`;
+    await run(scope, async () => {
+      try {
+        if (editingId) {
+          await updateWaterUsage(editingId, { ...body, version: editingVersion }, keyFor(scope));
+          setMessage(i18n.t("water:recordCorrectedMessage"));
+        } else {
+          await recordWaterUsage({ ...body, flockId, date }, keyFor(scope));
+          setMessage(i18n.t("water:recordedMessage"));
+        }
+        await load();
+        clearKey(scope);
+        resetForm();
+      } catch (err) {
+        setError(errText(err));
+      }
+    });
   }
 
   if (error && rows === null) return <section><h2>{t("title")}</h2><p className="error">{error}</p></section>;
@@ -240,9 +247,9 @@ export function WaterPage() {
         <label>{t("noteLabel")}
           <input value={note} maxLength={500} onChange={(e) => setNote(e.target.value)} />
         </label>
-        <button type="submit" disabled={busy || !flockId}>
+        <BusyButton type="submit" busy={busy} disabled={!flockId}>
           {editingId ? t("saveCorrectionButton") : t("recordWaterButton")}
-        </button>
+        </BusyButton>
         {editingId && (
           <button type="button" className="link" onClick={resetForm}>{t("cancelEditButton")}</button>
         )}

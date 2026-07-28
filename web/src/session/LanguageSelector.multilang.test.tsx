@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, act } from "@testing-library/react";
 import { MeContext } from "./SessionContext";
 import * as api from "../api/cluckwork";
 import i18n, { SUPPORTED_LANGUAGES } from "../i18n";
@@ -34,6 +34,30 @@ describe("LanguageSelector with all installed languages", () => {
     // stale `me` object (MeContext is never updated on a language switch).
     expect(select).toHaveValue("es");
 
-    await i18n.changeLanguage("en"); // reset for subsequent tests
+    // Wrapped in act: the persist's settle now clears the component's pending
+    // state (#236), and this flush would otherwise land outside act.
+    await act(async () => { await i18n.changeLanguage("en"); }); // reset for subsequent tests
+  });
+
+  it("disables the select while the persist is in flight, then re-enables (#236)", async () => {
+    const { LanguageSelector } = await import("./LanguageSelector");
+    // Held promise: the fire-and-forget PUT gains a component-local guard —
+    // the select must be inert exactly while the request is open.
+    let resolvePut!: () => void;
+    vi.mocked(api.putMeLanguage).mockReturnValue(new Promise<void>((r) => (resolvePut = r)));
+    render(
+      <MeContext.Provider value={{ id: "u1", email: "a@b.co", name: null, role: "Admin", language: "en" }}>
+        <LanguageSelector />
+      </MeContext.Provider>,
+    );
+
+    const select = screen.getByRole("combobox");
+    fireEvent.change(select, { target: { value: "tl" } });
+    expect(select).toBeDisabled(); // in flight — a second switch cannot race the first
+
+    await act(async () => resolvePut());
+    expect(select).toBeEnabled();
+
+    await act(async () => { await i18n.changeLanguage("en"); }); // reset for subsequent tests
   });
 });

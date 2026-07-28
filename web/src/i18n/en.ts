@@ -12,6 +12,11 @@ export const en = {
     add: "Add",
     confirm: "Confirm",
     loading: "Loading…",
+    working: "Working…",
+    // The Help page's one line on busy buttons (#236) — kept beside `working`,
+    // the announcement it explains.
+    workingHint:
+      "A spinning button means the save is still working — pressing it again will not record the same thing twice.",
     retry: "retry",
     required: "Required",
     optional: "Optional",

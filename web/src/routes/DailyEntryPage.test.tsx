@@ -246,6 +246,30 @@ describe("DailyEntryPage new-flock dialog", () => {
     expect(screen.getByLabelText("Flock")).toHaveValue("f2");
   });
 
+  it("creates exactly one flock when double-submitted mid-flight (#236 — this form had no guard)", async () => {
+    // Held promise: with no re-entry guard both clicks used to reach the API.
+    let resolveCreate!: (v: { id: string }) => void;
+    mockCreateFlock.mockReturnValue(new Promise((r) => (resolveCreate = r)));
+    await renderReady();
+    openNewFlock();
+
+    fireEvent.change(within(dialog()).getByLabelText("Name"), { target: { value: "Rhode Reds" } });
+    fireEvent.change(within(dialog()).getByLabelText("Breed"), { target: { value: "RIR" } });
+
+    const form = within(dialog()).getByRole("button", { name: "Create flock" }).closest("form")!;
+    await act(async () => {
+      // Same-tick double submit on the form itself — a disabled button alone
+      // cannot stop this; only the handler's own guard can.
+      fireEvent.submit(form);
+      fireEvent.submit(form);
+    });
+    expect(mockCreateFlock).toHaveBeenCalledTimes(1);
+
+    await act(async () => resolveCreate({ id: "f2" }));
+    expect(mockCreateFlock).toHaveBeenCalledTimes(1); // still exactly one after settle
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument(); // the one create succeeded
+  });
+
   it("closes on Cancel without creating anything", async () => {
     await renderReady();
     openNewFlock();

@@ -57,6 +57,23 @@ describe("HelpPage", () => {
     expect(screen.getByRole("rowheader", { name: "Farm logo" })).toBeInTheDocument();
   });
 
+  it("documents the busy-save indicator (#236) via the catalog key, not a drifting literal", () => {
+    // The line reads common:workingHint so it can never drift from the
+    // BusyButton announcement it explains — swap the catalog value and the
+    // page must follow (a hardcoded copy of the sentence would not).
+    const original = i18n.getResource("en", "common", "workingHint") as string;
+    i18n.addResource("en", "common", "workingHint", "WORKING-HINT-MARKER");
+    try {
+      render(<HelpPage />);
+      expect(screen.getByText("WORKING-HINT-MARKER")).toBeInTheDocument();
+    } finally {
+      i18n.addResource("en", "common", "workingHint", original);
+    }
+    // And the real copy renders by default.
+    render(<HelpPage />);
+    expect(screen.getByText(/A spinning button means the save is still working/)).toBeInTheDocument();
+  });
+
   it("explains the per-account sign-in lock as temporary, without a non-existent admin reset", () => {
     render(<HelpPage />);
     const signIn = screen.getByRole("heading", { name: "Signing in", level: 3 });

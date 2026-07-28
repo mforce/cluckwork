@@ -18,6 +18,9 @@ export const tl = {
     add: "Idagdag",
     confirm: "Kumpirmahin",
     loading: "Naglo-load…",
+    working: "Gumagana…",
+    workingHint:
+      "Kapag may umiikot na indicator ang isang button, gumagana pa ang pag-save — hindi maitatala nang dalawang beses kahit pindutin itong muli.",
     retry: "subukan ulit",
     required: "Kailangan",
     optional: "Opsyonal",

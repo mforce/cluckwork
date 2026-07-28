@@ -557,6 +557,79 @@ describe("UsersPage flock scoping", () => {
   });
 });
 
+// #236 — busy state swapped for the shared usePendingAction. Held flights
+// (deferred promises, client.test.ts idiom) pin that exactly the clicked
+// trigger spins while every sibling verb merely disables.
+describe("UsersPage pending states (#236)", () => {
+  function deferred<T>() {
+    let resolve!: (v: T) => void;
+    let reject!: (e: unknown) => void;
+    const promise = new Promise<T>((res, rej) => {
+      resolve = res;
+      reject = rej;
+    });
+    return { promise, resolve, reject };
+  }
+
+  it("spins the create submit while its flight is open, then closes clean", async () => {
+    const gate = deferred<{ id: string }>();
+    mockCreateUser.mockReturnValue(gate.promise);
+    await renderReady(ADMIN);
+    openCreate();
+    fireEvent.change(within(dialog()).getByLabelText("Email *"), { target: { value: "held@farm.test" } });
+    fireEvent.change(within(dialog()).getByLabelText(/Password/), { target: { value: `pw-${crypto.randomUUID()}` } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Create user" }));
+    });
+
+    const submit = within(dialog()).getByRole("button", { name: "Create user" });
+    expect(submit).toHaveAttribute("aria-busy", "true");
+    expect(submit).toBeDisabled();
+
+    await act(async () => { gate.resolve({ id: "u-new" }); });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(document.querySelector('[aria-busy="true"]')).toBeNull();
+    expect(await screen.findByText(/account created for held@farm\.test/)).toBeInTheDocument();
+  });
+
+  it("spins only the removed assignment's own verb; the sibling rows and Assign merely disable", async () => {
+    const ASSIGN_2: FlockAssignment = { id: "as2", flockId: "fl2" };
+    mockListAssignments.mockResolvedValue([ASSIGN_1, ASSIGN_2]);
+    const gate = deferred<void>();
+    mockUnassignFlock.mockReturnValue(gate.promise);
+    await renderReady(ADMIN);
+
+    const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
+    await act(async () => {
+      fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" }));
+    });
+    const items = await screen.findAllByRole("listitem");
+    await act(async () => {
+      fireEvent.click(within(items[0]).getByRole("button", { name: "remove" }));
+    });
+
+    const rows = screen.getAllByRole("listitem");
+    const removeA = within(rows[0]).getByRole("button", { name: "remove" });
+    expect(removeA).toHaveAttribute("aria-busy", "true");
+    expect(removeA).toBeDisabled();
+    const removeB = within(rows[1]).getByRole("button", { name: "remove" });
+    expect(removeB).toBeDisabled();
+    expect(removeB).not.toHaveAttribute("aria-busy");
+    const assignButton = screen.getByRole("button", { name: "Assign flock" });
+    expect(assignButton).toBeDisabled();
+    expect(assignButton).not.toHaveAttribute("aria-busy");
+    // The flock select embeds the selection in the assign scope: changing it
+    // mid-flight would re-point isPending at a scope nobody runs and drop
+    // the spinner while the request is open — so it locks with the flight.
+    expect(screen.getByRole("combobox")).toBeDisabled();
+
+    await act(async () => { gate.resolve(); });
+    expect(document.querySelector('[aria-busy="true"]')).toBeNull();
+    expect(screen.getByRole("button", { name: "Assign flock" })).toBeEnabled();
+    expect(screen.getByRole("combobox")).toBeEnabled();
+  });
+});
+
 describe("UsersPage role gating", () => {
   // The admin-only gate for this screen lives OUTSIDE the component: AppLayout
   // renders the /users nav link only when role === "Admin", and ProtectedRoute

@@ -43,6 +43,14 @@ const mockAdjustExpense = vi.mocked(adjustExpense);
 const mockCreateCategory = vi.mocked(createExpenseCategory);
 const mockUpdateCategory = vi.mocked(updateExpenseCategory);
 
+// A promise the test resolves by hand — holds a request open so the busy
+// window is asserted deterministically, no timing guesses (client.test.ts idiom).
+function deferred<T>() {
+  let resolve!: (v: T) => void;
+  const promise = new Promise<T>((r) => (resolve = r));
+  return { promise, resolve };
+}
+
 const CAT_FEED: ExpenseCategory = { id: "cat-feed", farmId: "farm1", name: "Feed", active: true };
 const CAT_UTIL: ExpenseCategory = { id: "cat-util", farmId: "farm1", name: "Utilities", active: true };
 const CAT_OLD: ExpenseCategory = { id: "cat-old", farmId: "farm1", name: "Legacy", active: false };
@@ -320,6 +328,67 @@ describe("ExpensesPage categories", () => {
     openNewCategory();
     expect(within(dialog()).getByLabelText("Category name")).toHaveValue(""); // reset on success
     expect(mockListCategories).toHaveBeenCalledTimes(2); // mount load + post-create refresh
+  });
+});
+
+describe("ExpensesPage pending states (#236)", () => {
+  it("category toggle: the toggled row spins while held, everything else disables without spinning", async () => {
+    const gate = deferred<void>();
+    mockUpdateCategory.mockReturnValue(gate.promise);
+    await renderReady();
+
+    fireEvent.click(screen.getByRole("button", { name: "manage categories" }));
+    // Feed first, Utilities second — the categories render in fixture order.
+    const [feedToggle, utilToggle] = screen.getAllByRole("button", { name: "deactivate" });
+    await act(async () => {
+      fireEvent.click(feedToggle);
+    });
+
+    // Exactly one control spins — the toggled row's own scope…
+    expect(feedToggle).toBeDisabled();
+    expect(feedToggle).toHaveAttribute("aria-busy", "true");
+    // …while the sibling category and the main submit merely disable.
+    expect(utilToggle).toBeDisabled();
+    expect(utilToggle).not.toHaveAttribute("aria-busy");
+    const record = screen.getByRole("button", { name: "Record expense" });
+    expect(record).toBeDisabled();
+    expect(record).not.toHaveAttribute("aria-busy");
+
+    await act(async () => {
+      gate.resolve();
+    });
+    await waitFor(() => expect(screen.getByText('Category "Feed" deactivated.')).toBeInTheDocument());
+    expect(document.querySelector('[aria-busy="true"]')).toBeNull();
+    expect(screen.getAllByRole("button", { name: "deactivate" })[0]).toBeEnabled();
+  });
+
+  it("locks the category-name input while its create is held — the pending scope is derived from it", async () => {
+    const gate = deferred<{ id: string }>();
+    mockCreateCategory.mockReturnValue(gate.promise);
+    await renderReady();
+
+    fireEvent.click(screen.getByRole("button", { name: "manage categories" }));
+    fireEvent.click(screen.getByRole("button", { name: "New category" }));
+    const dialog = () => screen.getByRole("dialog");
+    fireEvent.change(within(dialog()).getByLabelText("Category name"), { target: { value: "Fuel" } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Add category" }));
+    });
+
+    // The submit spins on the name-derived scope (addCategoryScope)…
+    expect(within(dialog()).getByRole("button", { name: "Add category" }))
+      .toHaveAttribute("aria-busy", "true");
+    // …so the name input locks with the flight: editing it mid-flight would
+    // re-point isPending at a scope nobody is running and drop the spinner
+    // while the request is still open (#242 review).
+    expect(within(dialog()).getByLabelText("Category name")).toBeDisabled();
+
+    await act(async () => {
+      gate.resolve({ id: "cat-new" });
+    });
+    // Success dismisses the dialog; nothing is left spinning.
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(document.querySelector('[aria-busy="true"]')).toBeNull();
   });
 });
 

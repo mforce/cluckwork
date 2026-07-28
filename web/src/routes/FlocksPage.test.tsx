@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, within, fireEvent, act } from "@testing-library/react";
+import { screen, within, fireEvent, act, waitFor } from "@testing-library/react";
 import { FlocksPage } from "./FlocksPage";
 import { renderWithProviders } from "../test/renderWithProviders";
 import {
@@ -67,6 +67,14 @@ beforeEach(() => {
   mockReactivate.mockResolvedValue(undefined);
   mockListMovements.mockResolvedValue([]);
 });
+
+// A promise the test resolves by hand — holds a request open so the busy
+// window is asserted deterministically, no timing guesses (client.test.ts idiom).
+function deferred<T>() {
+  let resolve!: (v: T) => void;
+  const promise = new Promise<T>((r) => (resolve = r));
+  return { promise, resolve };
+}
 
 // F135: deplete/archive ask in the app's own dialog, not window.confirm, so the
 // tests drive the real thing — click the trigger, then answer the question.
@@ -316,6 +324,49 @@ describe("FlocksPage lifecycle", () => {
 
     expect(mockReactivate).toHaveBeenCalledWith("f2", expect.any(String));
     expect(screen.queryByRole("dialog")).toBeNull(); // reactivate is the undo — no guard
+  });
+});
+
+describe("FlocksPage pending states (#236)", () => {
+  it("hands off from the confirm dialog: the row's archive button is the pending indicator, siblings disable without spinning, and settle re-enables it", async () => {
+    const gate = deferred<void>();
+    mockArchive.mockReturnValue(gate.promise);
+    await renderReady(ADMIN, [ACTIVE, DEPLETED]);
+
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole("row", { name: /Hen House 1/ })).getByRole("button", { name: "archive" }));
+    });
+    // Dialog buttons carry no busy state — the dialog settles before any I/O.
+    await answer("Archive flock");
+
+    // Once the confirmed request is in flight the dialog is gone and the
+    // ORIGINATING row control is the pending indicator.
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    const row = screen.getByRole("row", { name: /Hen House 1/ });
+    const archiveButton = within(row).getByRole("button", { name: "archive" });
+    expect(archiveButton).toBeDisabled();
+    expect(archiveButton).toHaveAttribute("aria-busy", "true");
+
+    // Sibling row: whole screen inert, but nothing else spins.
+    const sibling = screen.getByRole("row", { name: /Depleted Flock/ });
+    for (const name of ["archive", "reactivate", "edit"]) {
+      const button = within(sibling).getByRole("button", { name });
+      expect(button).toBeDisabled();
+      expect(button).not.toHaveAttribute("aria-busy");
+    }
+
+    await act(async () => {
+      gate.resolve();
+    });
+
+    // After the long confirmed request settles, the originating button is
+    // present and re-enabled; where focus sits during the disabled window is
+    // explicitly unasserted (design appendix — accepted limitation).
+    await waitFor(() => {
+      expect(within(screen.getByRole("row", { name: /Hen House 1/ }))
+        .getByRole("button", { name: "archive" })).toBeEnabled();
+    });
+    expect(document.querySelector('[aria-busy="true"]')).toBeNull();
   });
 });
 
