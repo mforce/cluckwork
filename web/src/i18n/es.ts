@@ -59,6 +59,118 @@ export const es = {
   errors: {
     "Me.Language.Format": "El idioma debe ser un código de 2 a 8 letras, por ejemplo 'en'.",
   },
+
+  // machine-drafted (#182) — pending native review. Task CT1 (B1 catch-up):
+  // backfilling es for the shared nav chrome (previously English-only under
+  // the now-dropped English-first policy). Keys mirror en.ts nav exactly.
+  // "groupYou" ("You") translated literally as "Usted" (formal register,
+  // matching account.* elsewhere) — flag for native review, an unusual
+  // section-heading rendering worth a second look.
+  nav: {
+    // Section headings (NavGroup.labelKey).
+    groupOverview: "Resumen",
+    groupProduction: "Producción",
+    groupSalesStock: "Ventas y existencias",
+    groupInsights: "Estadísticas",
+    groupSetup: "Configuración",
+    groupYou: "Usted",
+    groupHelp: "Ayuda",
+
+    // Destination labels (NavEntry.labelKey).
+    dashboard: "Panel",
+    dailyEntry: "Registro diario",
+    flocks: "Lotes",
+    water: "Agua",
+    inventory: "Inventario",
+    stock: "Existencias",
+    customers: "Clientes",
+    sales: "Ventas",
+    history: "Historial",
+    reports: "Informes",
+    expenses: "Gastos",
+    farmSettings: "Configuración de la granja",
+    grades: "Grados",
+    products: "Productos",
+    users: "Usuarios",
+    audit: "Auditoría",
+    export: "Exportación",
+    account: "Cuenta",
+    // Distinct key from groupHelp above, same coincidental-equal-text
+    // treatment as en.ts's own comment describes.
+    help: "Ayuda",
+
+    // AppLayout chrome.
+    skipToContent: "Saltar al contenido principal",
+    primaryNavAriaLabel: "Principal",
+    signOut: "Cerrar sesión",
+    farmLoadFailedNeverLoaded:
+      "No se pudo cargar la configuración de esta granja, así que las "
+      + "fechas siguen a este dispositivo en lugar de a la granja.",
+    farmLoadFailedStale:
+      "No se pudo volver a leer la configuración de esta granja, así que "
+      + "lo que ve aquí podría estar desactualizado.",
+    tryAgain: "Reintentar",
+    titleSuffix: " — Cluckwork",
+
+    // BottomNav chrome.
+    tabBarAriaLabel: "Secciones",
+    moreButton: "Más",
+    menuTitle: "Menú",
+    allSectionsAriaLabel: "Todas las secciones",
+  },
+
+  // machine-drafted (#182) — pending native review. Task CT1 (B1 catch-up):
+  // backfilling es for NumberField's stepper buttons. {{label}} is the
+  // caller-supplied field name, interpolated not translated.
+  numberField: {
+    increaseLabel: "Aumentar {{label}}",
+    decreaseLabel: "Disminuir {{label}}",
+  },
+
+  // machine-drafted (#182) — pending native review. Task CT1 (B1 catch-up):
+  // backfilling es for the app/screen error-boundary fallback UI.
+  errorBoundary: {
+    title: "Algo salió mal",
+    screenBody:
+      "Esta pantalla tuvo un problema y no pudo terminar de cargar. Todo lo "
+      + "que ya había guardado está a salvo, pero es posible que tenga que "
+      + "volver a escribir lo que todavía estaba escribiendo aquí. El resto "
+      + "de la aplicación sigue funcionando.",
+    appBody:
+      "La aplicación tuvo un problema y no pudo terminar de cargar. "
+      + "Recargar suele solucionarlo.",
+    reload: "Recargar",
+    backToDashboard: "Volver al panel",
+    detailsSummary: "Detalles del error",
+  },
+
+  // machine-drafted (#182) — pending native review. Task CT1 (B1 catch-up):
+  // backfilling es for the light/night mode toggle.
+  themeToggle: {
+    switchToLightMode: "Cambiar al modo claro",
+    switchToNightMode: "Cambiar al modo nocturno",
+    light: "Claro",
+    night: "Nocturno",
+  },
+
+  // machine-drafted (#182) — pending native review. Task CT1 (B1 catch-up):
+  // backfilling es for the shared useConfirm dialog's reason field. "Motivo"
+  // matches the existing sales.voidReasonLabel precedent.
+  useConfirm: {
+    reasonLabel: "Motivo *",
+    reasonRequired: "Se requiere un motivo.",
+  },
+
+  // machine-drafted (#182) — pending native review. Task CT1 (B1 catch-up):
+  // backfilling es for the service-worker "update ready" banner
+  // (UpdatePrompt.tsx, src/pwa).
+  pwa: {
+    updateAvailable: "Hay una nueva versión de Cluckwork lista.",
+    reload: "Recargar",
+    reloading: "Recargando…",
+    later: "Más tarde",
+  },
+
   sales: {
     // Headings
     title: "Ventas",

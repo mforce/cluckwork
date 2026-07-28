@@ -67,6 +67,121 @@ export const tl = {
   errors: {
     "Me.Language.Format": "Dapat 2–8 letrang code ang wika, halimbawa 'en'.",
   },
+
+  // machine-drafted (#182) — pending native review. Task CT1 (B1 catch-up):
+  // backfilling tl for the shared nav chrome (previously English-only under
+  // the now-dropped English-first policy). Keys mirror en.ts nav exactly.
+  // Several short abstract nouns kept as English loanwords (Overview,
+  // Insights, Setup, Dashboard, Stock, History, Audit, Export, Account) —
+  // same treatment as sales.reference/settings.timezoneLabel above, no
+  // settled short Filipino equivalent in common PH tech UI use; flag for
+  // native review.
+  nav: {
+    // Section headings (NavGroup.labelKey).
+    groupOverview: "Overview",
+    groupProduction: "Produksyon",
+    groupSalesStock: "Benta at Stock",
+    groupInsights: "Insights",
+    groupSetup: "Setup",
+    groupYou: "Ikaw",
+    groupHelp: "Tulong",
+
+    // Destination labels (NavEntry.labelKey).
+    dashboard: "Dashboard",
+    dailyEntry: "Araw-araw na Tala",
+    flocks: "Mga Kawan",
+    water: "Tubig",
+    inventory: "Imbentaryo",
+    stock: "Stock",
+    customers: "Mga Customer",
+    sales: "Benta",
+    history: "History",
+    reports: "Mga Report",
+    expenses: "Mga Gastos",
+    farmSettings: "Mga setting ng bukid",
+    grades: "Mga Grado",
+    products: "Mga Produkto",
+    users: "Mga User",
+    audit: "Audit",
+    export: "Export",
+    account: "Account",
+    // Distinct key from groupHelp above, same coincidental-equal-text
+    // treatment as en.ts's own comment describes.
+    help: "Tulong",
+
+    // AppLayout chrome.
+    skipToContent: "Lumaktaw papunta sa pangunahing content",
+    primaryNavAriaLabel: "Pangunahin",
+    signOut: "Mag-sign out",
+    farmLoadFailedNeverLoaded:
+      "Hindi na-load ang mga setting ng bukid na ito, kaya susundin ng mga "
+      + "petsa ang device na ito sa halip na ang bukid.",
+    farmLoadFailedStale:
+      "Hindi ma-refresh ang mga setting ng bukid na ito, kaya posibleng "
+      + "luma na ang nakikita mo rito.",
+    tryAgain: "Subukan Ulit",
+    titleSuffix: " — Cluckwork",
+
+    // BottomNav chrome.
+    tabBarAriaLabel: "Mga Seksyon",
+    moreButton: "Higit Pa",
+    menuTitle: "Menu",
+    allSectionsAriaLabel: "Lahat ng seksyon",
+  },
+
+  // machine-drafted (#182) — pending native review. Task CT1 (B1 catch-up):
+  // backfilling tl for NumberField's stepper buttons. {{label}} is the
+  // caller-supplied field name, interpolated not translated.
+  numberField: {
+    increaseLabel: "Dagdagan ang {{label}}",
+    decreaseLabel: "Bawasan ang {{label}}",
+  },
+
+  // machine-drafted (#182) — pending native review. Task CT1 (B1 catch-up):
+  // backfilling tl for the app/screen error-boundary fallback UI.
+  errorBoundary: {
+    title: "May Nangyaring Mali",
+    screenBody:
+      "Nagkaproblema ang screen na ito at hindi natapos mag-load. Ligtas "
+      + "ang anumang na-save mo na, pero maaaring kailanganin mong i-type "
+      + "ulit ang kahit anong tina-type mo pa dito. Gumagana pa rin ang "
+      + "ibang bahagi ng app.",
+    appBody:
+      "Nagkaproblema ang app at hindi natapos mag-load. Kadalasang "
+      + "naaayos ito ng pag-reload.",
+    reload: "I-reload",
+    backToDashboard: "Bumalik sa dashboard",
+    detailsSummary: "Mga detalye ng error",
+  },
+
+  // machine-drafted (#182) — pending native review. Task CT1 (B1 catch-up):
+  // backfilling tl for the light/night mode toggle. "Light"/"Night" (mode
+  // names) kept as English loanwords — flag for native review.
+  themeToggle: {
+    switchToLightMode: "Lumipat sa light mode",
+    switchToNightMode: "Lumipat sa night mode",
+    light: "Light",
+    night: "Night",
+  },
+
+  // machine-drafted (#182) — pending native review. Task CT1 (B1 catch-up):
+  // backfilling tl for the shared useConfirm dialog's reason field.
+  // "Dahilan" matches the existing sales.voidReasonLabel precedent.
+  useConfirm: {
+    reasonLabel: "Dahilan *",
+    reasonRequired: "Kailangan ng dahilan.",
+  },
+
+  // machine-drafted (#182) — pending native review. Task CT1 (B1 catch-up):
+  // backfilling tl for the service-worker "update ready" banner
+  // (UpdatePrompt.tsx, src/pwa).
+  pwa: {
+    updateAvailable: "May bagong bersyon ng Cluckwork na handa na.",
+    reload: "I-reload",
+    reloading: "Nire-reload…",
+    later: "Mamaya",
+  },
+
   sales: {
     // Headings
     title: "Benta",
