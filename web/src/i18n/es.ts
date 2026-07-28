@@ -1453,4 +1453,519 @@ export const es = {
     "entityType.User": "Usuario",
     "entityType.WaterUsage": "Uso de agua",
   },
+
+  // machine-drafted (#182) — pending native review. Task 32 (B6a): HelpPage
+  // prose, getting-around through mistakes (INCLUDING the "Fixing mistakes"
+  // table). Keys mirror en.ts help exactly, including every <strong>/<em> tag
+  // — catalogParity enforces tag parity per key. Formal "usted" register,
+  // matching the rest of this pack. Screen/feature names referenced in prose
+  // (Entrada diaria, Historial, Ventas, etc.) are translated here, unlike the
+  // older "kept in English" precedent noted at the top of this file — every
+  // screen HelpPage references is already in TRANSLATED_NAMESPACES by now.
+  // The glossary table (h3 id="glossary") is NOT here — Task 33 (B6b) owns
+  // it; tocGlossary is translated anyway since it is only the rail's link
+  // text, not the glossary section itself.
+  help: {
+    eyebrow: "Guía del usuario",
+    heading: "Ayuda",
+    lead: "Cómo funciona Cluckwork, pantalla por pantalla — y cómo deshacer errores.",
+    contentsAriaLabel: "Contenido de la ayuda",
+    contentsEyebrow: "Contenido",
+
+    tocGettingAround: "Cómo moverse",
+    tocSigningIn: "Iniciar sesión",
+    tocDailyLoop: "El ciclo diario",
+    tocRoles: "Quién puede hacer qué",
+    tocDialogs: "Agregar y corregir",
+    tocDailyEntry: "Entrada diaria",
+    tocFlocks: "Lotes y aves",
+    tocGrades: "Grados de huevo",
+    tocProducts: "Productos",
+    tocStock: "Existencias",
+    tocInventory: "Alimento e inventario",
+    tocWater: "Agua",
+    tocSales: "Clientes y ventas",
+    tocReports: "Informes",
+    tocExpenses: "Gastos",
+    tocHistory: "Historial",
+    tocAudit: "Registro de auditoría",
+    tocExport: "Exportar y respaldo",
+    tocFarmSettings: "Configuración de la granja",
+    tocFarmPalette: "Paleta de la granja",
+    tocInstall: "Instalar en un teléfono",
+    tocMistakes: "Corregir errores",
+    tocGlossary: "Glosario",
+
+    gettingAroundHeading: "Cómo moverse",
+    gettingAroundSidebar:
+      "En una computadora, cada pantalla está en la <strong>barra lateral</strong> de la izquierda, agrupada "
+      + "por función.",
+    gettingAroundTabs:
+      "En un teléfono, las pantallas que más usa aparecen como <strong>pestañas en la parte "
+      + "inferior</strong>, al alcance del pulgar. Cuáles cuatro obtiene depende de su rol — un trabajador "
+      + "obtiene Entrada diaria, alguien de ventas obtiene Ventas. Todo lo demás está a un toque de "
+      + "distancia bajo <strong>Más</strong>.",
+    gettingAroundErrorScreen:
+      "Si una pantalla alguna vez muestra <strong>\"Algo salió mal\"</strong>, eso es la aplicación "
+      + "capturando un error en lugar de dejarlo en una página en blanco. Todo lo que ya había guardado "
+      + "está a salvo (lo que todavía estaba escribiendo puede que deba ingresarlo de nuevo) — toque "
+      + "<strong>Recargar</strong>, o <strong>Volver al panel</strong> e inténtelo de nuevo. Si sigue "
+      + "sucediendo, abra \"Detalles del error\" y envíe una captura de pantalla.",
+
+    signingInHeading: "Iniciar sesión",
+    signingInBasic:
+      "Inicie sesión con el correo electrónico y la contraseña que configuró su administrador. Una "
+      + "contraseña incorrecta simplemente indica <strong>Correo electrónico o contraseña inválidos</strong> "
+      + "— inténtelo de nuevo.",
+    signingInRateLimit:
+      "Para frenar a cualquiera que intente adivinar contraseñas, los intentos de inicio de sesión desde "
+      + "el mismo lugar están <strong>limitados</strong>. Después de demasiados intentos en pocos minutos "
+      + "verá <strong>\"Demasiados intentos de inicio de sesión\"</strong> — eso no es una falla, solo "
+      + "espere unos minutos e inténtelo de nuevo. Estar <em>ya conectado</em> nunca se ve afectado; su "
+      + "trabajo continúa con normalidad.",
+    signingInAccountLock:
+      "Por separado, demasiadas contraseñas incorrectas para <em>una cuenta</em> bloquean brevemente "
+      + "<em>esa</em> cuenta. Mientras está bloqueada, incluso la contraseña correcta sigue indicando "
+      + "<strong>Correo electrónico o contraseña inválidos</strong>. El bloqueo es temporal — espere hasta "
+      + "unos 15 minutos e inténtelo de nuevo.",
+    signingInPersistence:
+      "Su inicio de sesión se guarda de forma segura en su navegador y permanece activo mientras trabaja, "
+      + "incluso al recargar y con la aplicación abierta en <strong>varias pestañas</strong> a la vez. "
+      + "Después de que la aplicación se <strong>actualiza</strong> es posible que se le pida iniciar "
+      + "sesión una vez más — eso es normal.",
+    interfaceLanguage:
+      "<strong>Idioma de la interfaz.</strong> Cualquiera puede elegir el idioma en que se muestra la "
+      + "interfaz desde <strong>Cuenta → Preferencias</strong> — inglés, español o tagalo. La traducción es "
+      + "un trabajo en progreso: las pantallas de inicio de sesión y ventas, los mensajes de error, y "
+      + "<strong>Cuenta → Preferencias</strong> mismo están traducidos hoy; el resto de la pantalla de "
+      + "Cuenta (incluida la sección de contraseña) y el resto de la aplicación se están traduciendo "
+      + "pantalla por pantalla. Hasta que una pantalla esté traducida, simplemente se muestra en inglés, "
+      + "sea cual sea el idioma que eligió.",
+
+    dailyLoopHeading: "El ciclo diario",
+    dailyLoopChain:
+      "Todo en Cluckwork depende de una sola cadena: usted registra una <strong>entrada diaria</strong> por "
+      + "cada lote (huevos por grado, pérdidas, muertes), la <strong>envía</strong>, y al enviarla se crean "
+      + "<strong>lotes de huevos</strong> fechados — esas son sus <strong>existencias</strong> vendibles. Un "
+      + "<strong>pedido de venta</strong> toma de las existencias al confirmarlo, siempre los huevos más "
+      + "antiguos primero. El alimento fluye de la misma manera del lado de entrada: las compras ingresan "
+      + "alimento a las existencias, el uso diario las reduce por lote.",
+    dailyLoopSummary: "Registrar entrada → enviar → lotes de huevos → existencias → pedido → confirmar.",
+
+    rolesHeading: "Quién puede hacer qué",
+    rolesWorkers:
+      "Cinco tipos de inicio de sesión. Los <strong>Trabajadores</strong> llevan a cabo el ciclo diario — "
+      + "registran y envían entradas, reciben alimento, registran el uso de alimento y agua, crean lotes y "
+      + "clientes, gestionan pedidos desde borrador hasta confirmación. Un trabajador puede restringirse a "
+      + "<strong>lotes asignados</strong>: sin asignaciones puede registrar para cualquier lote; la primera "
+      + "asignación lo restringe a los indicados.",
+    rolesManagers:
+      "Los <strong>Gerentes</strong> hacen todo lo que hacen los trabajadores, además de todo lo que "
+      + "<strong>deshace, corrige o configura</strong>: anulaciones, correcciones de existencias y agua, "
+      + "ciclo de vida de los lotes, sacrificios, los catálogos de grados/productos/artículos, gastos, "
+      + "informes de dinero, el registro de auditoría y las exportaciones.",
+    rolesSalesReadOnly:
+      "Los inicios de sesión de <strong>Ventas</strong> gestionan clientes, pedidos y <strong>pagos</strong> "
+      + "— pero no captura de producción ni gastos. Los inicios de sesión de <strong>Solo lectura</strong> "
+      + "ven existencias, historial e informes, y no pueden cambiar nada.",
+    rolesAdmin:
+      "<strong>Administrador (propietario)</strong> hace todo lo que hace un gerente y es el único rol que "
+      + "administra usuarios: crea inicios de sesión en la pantalla <strong>Usuarios</strong> (correo "
+      + "electrónico, contraseña, un nombre opcional y rol) y asigna trabajadores a lotes. El nombre de un "
+      + "usuario se puede cambiar más tarde desde la acción <strong>editar</strong> de la fila, y la acción "
+      + "<strong>contraseña</strong> establece una contraseña olvidada sin necesitar la anterior. Cambiar el "
+      + "rol de un usuario existente llega con una versión posterior. Los controles que no puede usar "
+      + "están ocultos, y el servidor los rechaza de todos modos.",
+    ownPassword:
+      "<strong>Su propia contraseña.</strong> Cualquiera, en cualquier rol, puede cambiar su propia "
+      + "contraseña en la pantalla <strong>Cuenta</strong> ingresando la actual y una nueva (al menos 12 "
+      + "caracteres). Cambiarla — o que un administrador se la establezca — cierra la sesión de esa cuenta "
+      + "en cada <em>otro</em> dispositivo; el dispositivo en el que la cambió permanece con la sesión "
+      + "iniciada. Una sesión ya abierta en otro lugar puede seguir activa unos minutos antes de dejar de "
+      + "funcionar.",
+
+    dialogsHeading: "Agregar y corregir",
+    dialogsPopup:
+      "Agregar y corregir ocurren en una ventana emergente. Busque el botón <strong>Nuevo …</strong> junto "
+      + "al título de la pantalla — nuevo grado, producto, cliente, lote, artículo, usuario, pedido. El "
+      + "enlace <strong>editar</strong> o <strong>corregir</strong> de cada fila abre la misma ventana "
+      + "emergente con los valores de esa fila ya completados.",
+    dialogsDrillDowns:
+      "Las vistas detalladas funcionan de la misma manera. Abra el libro mayor de <strong>aves</strong> de "
+      + "un lote para registrar un sacrificio, un artículo de inventario para registrar una compra, uso de "
+      + "alimento o una corrección de existencias, un pedido para <strong>registrar un pago</strong>, o los "
+      + "<strong>lotes</strong> de un trabajador para gestionar su acceso — el libro mayor permanece donde "
+      + "está y el formulario viene a usted.",
+    dialogsCancel:
+      "<strong>Cancelar</strong>, Escape, o un clic fuera cierra la ventana emergente y no cambia nada. Si "
+      + "un guardado falla, la ventana permanece abierta con sus valores y el motivo, para que pueda "
+      + "corregirlo e intentarlo de nuevo — reintentar es seguro, nunca registra lo mismo dos veces.",
+    dialogsInlineForms:
+      "Las pantallas cuyo único trabajo es la captura mantienen su formulario en la página: <strong>Entrada "
+      + "diaria</strong>, <strong>Agua</strong>, registrar un gasto, y agregar líneas a un pedido en "
+      + "borrador. Las que usa todos los días — sin clic adicional.",
+    dialogsConfirm:
+      "<strong>Las acciones que no se pueden deshacer preguntan primero.</strong> Enviar un día, confirmar "
+      + "o cancelar un pedido, agotar o archivar un lote — cada una indica lo que está por suceder y "
+      + "espera. El teclado comienza en <strong>Cancelar</strong>, para que presionar Enter por costumbre "
+      + "nunca lo confirme. Un botón <strong>rojo</strong> significa que la acción deshace o retira algo: "
+      + "anular, cancelar un borrador, agotar, archivar. Enviar un día y confirmar un pedido tampoco se "
+      + "pueden deshacer, pero son la forma normal de avanzar en la semana.",
+    dialogsVoidReason:
+      "<strong>Las anulaciones necesitan un motivo.</strong> Anular una entrada diaria, un pago o un "
+      + "pedido confirmado pregunta de la misma manera pero primero solicita un motivo por escrito — se "
+      + "guarda con la anulación y se muestra dondequiera que ese registro aparezca después, así que "
+      + "escriba lo que realmente sucedió. Déjelo vacío y la ventana emergente lo indica en el momento, "
+      + "conservando lo que haya escrito.",
+
+    dailyEntryHeading: "Entrada diaria",
+    dailyEntryPanes:
+      "Elija el lote y la fecha en la parte superior, luego trabaje en dos paneles uno al lado del otro: "
+      + "<strong>1 Conteo de huevos</strong> (total, rotos, sucios, descartados, muertes) y <strong>2 "
+      + "Clasificación</strong>. Los conteos producen una cifra <strong>vendible</strong>, y ese es el "
+      + "número al que deben sumar los grados — nunca pueden superarlo.",
+    dailyEntryGradingDown:
+      "La clasificación cuenta <strong>hacia abajo</strong>. Junto a los grados se muestra cuántos huevos "
+      + "vendibles le quedan por ubicar; se pone verde en cuanto el día cuadra y rojo si se excede. No "
+      + "puede enviar mientras esté excedido.",
+    dailyEntryButtons:
+      "Cada conteo tiene botones <strong>−</strong> y <strong>+</strong>. Toque para uno, o <strong>mantenga "
+      + "presionado</strong> — se acelera a medida que avanza, así que unos cientos de huevos toman "
+      + "aproximadamente un segundo. Más fácil que un teclado numérico con guantes puestos. El "
+      + "<strong>+</strong> de un grado se detiene una vez que el día está completamente clasificado, para "
+      + "que no pueda excederse con él.",
+    dailyEntryPutAllIn:
+      "La mayoría de los días terminan de la misma manera — un grado se lleva lo que queda. <strong>Poner "
+      + "todo en…</strong> junto al conteo restante lo hace en un solo movimiento: arrástrelo a un grado, o "
+      + "tóquelo y elija uno.",
+    dailyEntrySaveBar:
+      "Ambos botones de guardar permanecen en una barra en la parte inferior de la pantalla mientras se "
+      + "desplaza. En un teléfono esa barra también muestra el conteo vendible y cuántos quedan, para que "
+      + "nunca pierda de vista si el día cuadra.",
+    dailyEntrySaveSubmit:
+      "<strong>Guardar borrador</strong> mantiene el día editable. <strong>Enviar</strong> lo hace oficial: "
+      + "crea los lotes de huevos del día y registra las muertes en el libro mayor de aves del lote. Los "
+      + "trabajadores ya no pueden editarlo — un administrador puede ajustarlo o anularlo (vea \"Corregir "
+      + "errores\").",
+    dailyEntryLocking:
+      "Las entradas enviadas se <strong>bloquean automáticamente después de 7 días</strong>. Bloqueada "
+      + "solo significa que la ventana de corrección para arreglos rutinarios ha pasado — el "
+      + "ajuste/anulación por parte de un administrador aún funciona en entradas bloqueadas.",
+    dailyEntryToday:
+      "\"Hoy\" significa <strong>el hoy de su granja</strong>, no el reloj de alguna otra parte del mundo. "
+      + "Puede registrar cualquier día hasta e incluyendo ese; un día que aún no ha ocurrido en la granja "
+      + "se rechaza — aquí y en todos los demás lugares donde ingresa una fecha: uso de alimento y agua, "
+      + "compras de alimento y correcciones de existencias, gastos, pagos, y la fecha de colocación de un "
+      + "lote. La misma fecha decide cuándo los huevos salen de un período de retiro, qué huevos puede "
+      + "tomar una venta, el día en que un lote se agota o archiva, y el rango en que se abren los informes "
+      + "— para que nada discrepe sobre qué día es.",
+    dailyEntryOnePerDay:
+      "Una entrada por lote por día. Reabrir un día que tiene un borrador lo carga para edición y muestra "
+      + "una insignia de <strong>Editando borrador</strong> junto al título, para que retomar el trabajo "
+      + "guardado nunca parezca empezar de cero. Si el precargado falla, guardar se bloquea hasta que tenga "
+      + "éxito, para que un borrador existente nunca se sobrescriba en silencio.",
+    dailyEntryDepletedBackfill:
+      "Los lotes agotados aceptan entradas retroactivas hasta su fecha de agotamiento; los lotes "
+      + "archivados no aceptan ninguna.",
+
+    flocksHeading: "Lotes y aves",
+    flocksCurrentBirds:
+      "Las <strong>aves actuales</strong> de un lote = su conteo inicial menos todo lo registrado en su "
+      + "<strong>libro mayor de aves</strong>: muertes (agregadas automáticamente al enviar entradas), "
+      + "<strong>sacrificios</strong> (aves retiradas deliberadamente — vendidas, sacrificadas, regaladas), "
+      + "y <strong>ajustes</strong> manuales (correcciones de conteo, en cualquier dirección).",
+    flocksLifecycle:
+      "Ciclo de vida: <strong>Activo</strong> (normal) → <strong>Agotado</strong> (aves ya no quedan; el "
+      + "historial permanece, se permite retroactivo) → <strong>Archivado</strong> (oculto del trabajo "
+      + "diario). Agotar y archivar piden confirmación; ambos son reversibles con <strong>Reactivar</strong>.",
+    flocksPermissions:
+      "Cualquiera puede crear un lote y ver el libro mayor de aves. Editar un lote, los cambios de ciclo "
+      + "de vida y registrar sacrificios/ajustes son solo para administradores.",
+
+    gradesHeading: "Grados de huevo",
+    gradesBuckets:
+      "Los grados son las categorías de clasificación de su granja — tamaños (Grande…), calidades "
+      + "(Roto…), o personalizados. Solo los grados <strong>vendibles</strong> aparecen en la captura de "
+      + "entradas y en los pedidos; las categorías no vendibles son de contabilidad.",
+    gradesDeactivating:
+      "Los grados nunca se eliminan. <strong>Desactivar</strong> elimina un grado de la captura y de los "
+      + "selectores de pedidos: sus existencias siguen contándose y las líneas de pedido agregadas antes "
+      + "aún pueden confirmarse, pero no se puede colocar en líneas de pedido <em>nuevas</em> — reactive el "
+      + "grado para vender las existencias restantes. El historial sigue mostrando su nombre.",
+    gradesAdminOnly: "El catálogo de grados es configuración — administrarlo es solo para administradores.",
+
+    productsHeading: "Productos (admin)",
+    productsWhatYouSell:
+      "Los productos son lo que vende — \"Huevos Grandes por docena\", \"Cartón mixto\". Cada producto de "
+      + "huevo apunta a un grado de huevo (de ahí vienen sus existencias) y lleva una unidad de venta y un "
+      + "precio predeterminado opcional. Por ahora solo existen productos de huevo.",
+    productsPackedUnits:
+      "Las <strong>unidades empacadas</strong> establecen cuántos huevos contiene cada unidad — su cartón "
+      + "podría ser de 12, 18 o 30. Cambiar una unidad solo afecta las ventas futuras; los pedidos pasados "
+      + "conservan el conteo con el que se vendieron.",
+
+    stockHeading: "Existencias",
+    stockLots:
+      "Cada grado se expande en sus <strong>lotes</strong> (uno por día enviado), y cada lote en su "
+      + "<strong>libro mayor de movimientos</strong> — una línea explícita por cada producción, venta, "
+      + "corrección o anulación. La suma acumulada siempre es igual al saldo mostrado; nada cambia las "
+      + "existencias sin dejar una línea.",
+    stockRestricted:
+      "Las existencias son la suma de sus lotes de huevos por grado. La columna <strong>restringido</strong> "
+      + "está reservada para períodos de retiro por medicación — esa función llega con el seguimiento de "
+      + "medicación. <strong>Nada marca huevos como restringidos todavía, así que el sistema no impone "
+      + "tiempos de retiro hoy</strong> — gestione los períodos de retiro fuera de Cluckwork por ahora.",
+    stockFifo: "Vender siempre toma primero los lotes más antiguos, para que las existencias roten naturalmente.",
+
+    inventoryHeading: "Alimento e inventario",
+    inventoryItems:
+      "Los <strong>artículos</strong> definen lo que rastrea (alimento, suplementos…) y la unidad en que se "
+      + "mide. La unidad se bloquea una vez que se han recibido existencias — las cantidades registradas "
+      + "deben seguir significando lo que significaban.",
+    inventoryPurchaseUsage:
+      "<strong>Registrar compra</strong> asienta las existencias recibidas como un lote fechado con su "
+      + "costo. <strong>Registrar uso</strong> anota lo que comió un lote en un día: toma de los lotes más "
+      + "antiguos primero (solo lotes que existían en esa fecha) y estima el costo a partir de los lotes "
+      + "realmente consumidos.",
+    inventoryLedger:
+      "Cada cambio queda registrado en el <strong>libro mayor de movimientos</strong> del artículo — "
+      + "compras, uso, correcciones. Las filas del libro mayor nunca se editan ni se eliminan.",
+    inventoryCorrections:
+      "Los errores tipográficos y el deterioro se corrigen con <strong>correcciones</strong>: un "
+      + "<em>Ajuste</em> (en cualquier dirección) o un <em>Descarte</em> (baja) contra un lote específico, "
+      + "siempre con un motivo. La fila original y la corrección permanecen visibles.",
+    inventoryPermissions:
+      "Registrar compras y uso está abierto para todos; el catálogo de artículos y las correcciones de "
+      + "existencias son solo para administradores.",
+
+    waterHeading: "Agua",
+    waterRecording:
+      "Registre lo que bebió cada lote por día: una cantidad directa (litros o galones) o <strong>lecturas "
+      + "de medidor</strong> — la cantidad es entonces la diferencia del medidor (final − inicial).",
+    waterCorrecting:
+      "Los registros de agua no tienen existencias detrás, así que los errores se corrigen "
+      + "<strong>corrigiendo el registro directamente</strong> (el botón \"corregir\", solo para "
+      + "administradores) — sin asientos de compensación. El lote y la fecha son fijos: si se eligió mal, "
+      + "regístrelo de nuevo bajo el correcto.",
+    waterLifecycle:
+      "Misma regla de ciclo de vida que en todas partes: los lotes agotados aceptan retroactivos hasta su "
+      + "fecha de agotamiento, los archivados no aceptan nada.",
+
+    salesHeading: "Clientes y ventas",
+    salesDrafts:
+      "Los pedidos comienzan como <strong>borradores</strong>: agregue líneas eligiendo un "
+      + "<strong>producto</strong>, una unidad empacada (docena, cartón, …), una cantidad, y un precio por "
+      + "unidad (precargado desde el valor predeterminado del producto) — edite libremente, o "
+      + "<strong>cancele</strong> (el borrador se conserva, de solo lectura). Cada línea recuerda cuántos "
+      + "huevos contenía su unidad cuando se agregó, así que redefinir un cartón más tarde nunca cambia "
+      + "pedidos antiguos.",
+    salesConfirming:
+      "<strong>Confirmar</strong> un pedido asigna existencias reales — los lotes más antiguos primero — y "
+      + "es el punto donde el inventario cambia de manos.",
+    salesVoiding:
+      "Una confirmación errónea se deshace con <strong>Anular</strong> (solo administrador, motivo "
+      + "requerido): los huevos regresan exactamente a los lotes de donde vinieron, y el pedido queda "
+      + "listado como Anulado. Anular es para errores, no para devoluciones de mercancía entregada. (Los "
+      + "pedidos confirmados antes de que existiera el seguimiento de asignación a nivel de lote no pueden "
+      + "anularse por su cuenta — consulte a su administrador.)",
+    salesPayments:
+      "<strong>Pagos</strong> (Ventas, Gerente, o administrador — anular un pago es solo para "
+      + "administrador/gerente): el panel de un pedido confirmado muestra su historial de liquidación — "
+      + "registre pagos parciales (fecha, monto, método, referencia opcional) hasta que el saldo pendiente "
+      + "llegue a cero; el sobrepago se rechaza. Un pago erróneo se <strong>anula</strong> (motivo "
+      + "requerido) y el saldo pendiente vuelve a crecer. Un pedido con pagos no se puede anular hasta que "
+      + "sus pagos se anulen primero. La pantalla de Clientes muestra el saldo pendiente de cada cliente.",
+
+    reportsHeading: "Informes",
+    reportsProduction:
+      "<strong>Producción</strong> (todos): elija un rango de fechas — huevos por día, pérdidas, "
+      + "vendibles, muertes, y <strong>% de puesta diaria</strong> (huevos recolectados ÷ aves vivas ese "
+      + "día × 100), con totales del período y un desglose por grado. Las entradas en borrador y anuladas "
+      + "no cuentan.",
+    reportsMoney:
+      "<strong>Dinero</strong> (admin): resumen de ventas de los pedidos del rango (ingresos / pagado / "
+      + "pendiente), gastos por categoría, y <strong>ganancia básica</strong> — ingresos confirmados menos "
+      + "gastos registrados, sin costo de bienes vendidos.",
+
+    expensesHeading: "Gastos (admin)",
+    expensesRecording:
+      "Registre el dinero que sale: fecha, categoría, descripción y monto (en la moneda de la granja), "
+      + "opcionalmente vinculado a un lote. El selector de mes muestra un total acumulado; las categorías "
+      + "se administran en la misma pantalla (desactivar una la oculta de los gastos nuevos — los ya "
+      + "registrados la conservan).",
+    expensesCorrections:
+      "Las correcciones editan el gasto en su lugar (<strong>corregir</strong> en la fila). Si alguien más "
+      + "lo corrigió primero, el formulario recarga sus valores y le pide volver a aplicar. La moneda en "
+      + "que se registró un gasto nunca cambia.",
+    expensesAdminOnly:
+      "Los gastos son datos de dinero, así que toda la pantalla — incluida la visualización — es solo "
+      + "para administradores, a diferencia de las pantallas de producción donde los trabajadores registran.",
+
+    historyHeading: "Historial",
+    historyBrowse:
+      "Explore las entradas diarias registradas de más reciente a más antigua, filtradas por lote y rango "
+      + "de fechas. La columna de estado muestra la vida de la entrada: Borrador, Enviada, Bloqueada (7+ "
+      + "días), Ajustada (pase el cursor para ver el motivo), o Anulada.",
+    historyAdminActions:
+      "Los administradores corrigen desde aquí: <strong>ajustar</strong> abre los números de la entrada "
+      + "para edición (motivo requerido), <strong>anular</strong> deshace toda la entrada. Las existencias "
+      + "y el libro mayor de aves se actualizan automáticamente.",
+    historyDraftEdit:
+      "Las filas en borrador tienen un enlace <strong>editar</strong> (todos, no solo administradores) que "
+      + "salta de vuelta a la pantalla de Entrada diaria con ese lote y día cargados — los borradores se "
+      + "editan ahí, no se ajustan.",
+
+    auditHeading: "Registro de auditoría (admin)",
+    auditLog:
+      "Todo cambio correctivo, destructivo o de configuración queda en el registro de auditoría "
+      + "automáticamente: quién lo hizo, cuándo (UTC), qué afectó, y el motivo cuando se dio uno. Se "
+      + "escribe junto con el cambio mismo — una acción fallida no deja rastro, una exitosa siempre lo hace "
+      + "— y nunca es editable, por nadie.",
+
+    exportHeading: "Exportar y respaldo (admin)",
+    exportCsv:
+      "La pantalla de Exportar descarga sus datos como archivos CSV que puede abrir en cualquier hoja de "
+      + "cálculo — un conjunto de datos a la vez, o todo de una vez como un zip (el <strong>respaldo "
+      + "completo</strong>, con un manifiesto de conteos de filas). Guarde una copia en un lugar seguro "
+      + "según su propio calendario; los respaldos automáticos programados llegan en una fase posterior.",
+    exportFormats:
+      "Las columnas de dinero contienen unidades menores (centavos) más la moneda — valores exactos, no "
+      + "formato de presentación. Las fechas son ISO (AAAA-MM-DD), y las marcas de tiempo son UTC.",
+
+    farmSettingsHeading: "Configuración de la granja (admin)",
+    farmSettingsIntro:
+      "<strong>Configuración → Configuración de la granja</strong> contiene el nombre de la granja y las "
+      + "cuatro cosas que deciden cómo se lee todo: <strong>zona horaria</strong>, <strong>configuración "
+      + "regional</strong>, <strong>moneda</strong> y <strong>sistema de unidades</strong>. El primer día de "
+      + "la semana y los formatos de fecha y hora son opcionales — déjelos en blanco y la configuración "
+      + "regional decide. La zona horaria surte efecto en todas partes en el momento en que se guarda; el "
+      + "resto se registra contra la granja e influirá en cómo se muestran los montos, las fechas y las "
+      + "medidas una vez que ese formato esté disponible.",
+    farmSettingsTimezone:
+      "La <strong>zona horaria</strong> es el día de la granja. Cada campo que registra <em>cuándo sucedió "
+      + "algo</em> — entrada diaria, lotes, agua, uso y compras de alimento, gastos, pedidos y pagos — se "
+      + "abre en ella y se niega a ir más allá, sea cual sea el día en el teléfono o la laptop que tiene en "
+      + "la mano, para que un dispositivo adelantado a la granja ya no pueda ofrecer una fecha que el "
+      + "guardado luego rechace. Las fechas que están destinadas a estar en el futuro no tienen tope: la "
+      + "<strong>caducidad</strong> de un lote de alimento, y los rangos de fechas por los que filtra "
+      + "Historial y Agua.",
+    farmSettingsCurrency:
+      "La <strong>moneda</strong> se bloquea en el momento en que la granja registra su primer monto — una "
+      + "venta, un pago, un gasto, un producto con precio, o dinero gastado en alimento. El campo se "
+      + "muestra bloqueado con el motivo en lugar de dejarle escribir un código que sería rechazado. Nada "
+      + "de lo ya registrado se vuelve a fijar de precio jamás, que es exactamente por qué se bloquea.",
+    farmSettingsLogo:
+      "El <strong>logotipo</strong> reemplaza la marca de Cluckwork en la barra lateral para todos en la "
+      + "granja. PNG, JPEG o WebP, hasta el límite de tamaño mostrado en la pantalla (2 MB por defecto) y "
+      + "4096 píxeles por lado. Las imágenes animadas se rechazan en lugar de aplanarse. Lo que se guarda "
+      + "es una copia reconstruida: los detalles de cámara y ubicación se eliminan al ingresar — una foto "
+      + "tomada en un teléfono lleva dónde se tomó, y para una granja eso es su dirección. Elimínelo y la "
+      + "barra lateral vuelve a la marca de Cluckwork.",
+    farmSettingsSquareLogo:
+      "Use un logotipo <strong>cuadrado</strong>. Se muestra pequeño en la barra lateral, así que una "
+      + "marca simple y bien recortada — un símbolo o una sola letra — se ve mucho mejor ahí que un "
+      + "logotipo ancho o una imagen detallada, que se reducen a algo ilegible. Conserve un logotipo "
+      + "detallado para impresión o un sitio web; dele a la aplicación una marca pequeña y limpia.",
+
+    farmPaletteHeading: "Paleta de la granja",
+    farmPaletteIntro:
+      "La configuración de la granja permite a un administrador elegir el color de acento usado en toda "
+      + "la aplicación para todos en la granja: Berenjena, Bosque, Pizarra o Terracota. La elección se "
+      + "aplica al guardar, y todos la ven la próxima vez que carga su aplicación.",
+    farmPaletteLightNight:
+      "El modo claro y nocturno son independientes y personales. Cada persona elige el suyo con el "
+      + "interruptor en la barra lateral, en cada dispositivo, y la paleta de la granja nunca lo anula — "
+      + "cada paleta está diseñada para funcionar en ambos.",
+
+    installHeading: "Instalar en un teléfono",
+    installIntro:
+      "Cluckwork se puede agregar a la pantalla de inicio de un teléfono o tableta, donde obtiene su "
+      + "propio ícono y se abre en su propia ventana sin las barras del navegador — más espacio para las "
+      + "pantallas de entrada y más rápido de alcanzar en el galpón. Es la misma aplicación, no una "
+      + "descarga separada, así que no hay nada que actualizar desde una tienda de aplicaciones.",
+    installSteps:
+      "<strong>Android (Chrome):</strong> abra el menú y elija <strong>Instalar aplicación</strong> o "
+      + "<strong>Agregar a pantalla de inicio</strong>. <strong>iPhone/iPad (Safari):</strong> toque "
+      + "<strong>Compartir</strong>, luego <strong>Agregar a pantalla de inicio</strong>.",
+    installHttps:
+      "Instalar solo se ofrece a través de una dirección segura (<strong>https</strong>). Si su granja "
+      + "accede a Cluckwork en una dirección <strong>http</strong> simple, la opción simplemente no "
+      + "aparecerá — nada está roto, y la aplicación funciona exactamente como en el navegador.",
+    installOffline:
+      "Instalar <strong>no</strong> hace que la aplicación funcione sin conexión. Todavía necesita una "
+      + "conexión para cargar y guardar; solo las propias pantallas de la aplicación se guardan en el "
+      + "dispositivo para que inicie rápido. Registrar sin conexión es trabajo planeado, no algo que "
+      + "instalar active.",
+    installNewVersion:
+      "Cuando se publica una nueva versión verá <strong>\"Una nueva versión de Cluckwork está "
+      + "lista\"</strong>. Espera a que usted esté listo en lugar de recargar mientras está escribiendo — "
+      + "presione <strong>Recargar</strong> cuando le convenga, o <strong>Más tarde</strong> y volverá a "
+      + "preguntar la próxima vez. No se pierde nada por dejarlo.",
+
+    mistakesHeading: "Corregir errores",
+    mistakesIntro:
+      "Cada corrección en esta tabla necesita un inicio de sesión de administrador (vea \"Quién puede "
+      + "hacer qué\") — los trabajadores registran, los administradores corrigen. La única excepción: un "
+      + "<em>borrador</em> todavía se está registrando, no corrigiendo, así que los trabajadores editan sus "
+      + "propios borradores.",
+    mistakesTableMistakeHeader: "Error",
+    mistakesTableFixHeader: "Corrección",
+
+    mistakesRow1Mistake: "Agotó o archivó el lote equivocado",
+    mistakesRow1Fix: "Lotes → <strong>Reactivar</strong> (totalmente reversible)",
+
+    mistakesRow2Mistake: "Conteo de aves incorrecto",
+    mistakesRow2Fix: "Lotes → libro mayor de aves → <strong>Ajuste</strong> (en cualquier dirección)",
+
+    mistakesRow3Mistake: "Confirmó el pedido de venta equivocado",
+    mistakesRow3Fix:
+      "Ventas → abra el pedido → <strong>Anular pedido</strong> (las existencias regresan a sus lotes; "
+      + "motivo requerido). Si se registraron pagos en él, anúlelos primero.",
+
+    mistakesRow4Mistake: "Registró un pago incorrecto",
+    mistakesRow4Fix:
+      "Ventas → abra el pedido → pagos → <strong>anular</strong> (motivo requerido): la fila se conserva y "
+      + "el saldo pendiente vuelve a crecer.",
+
+    mistakesRow5Mistake: "<em>Cantidad</em> incorrecta en una compra de alimento / alimento echado a perder",
+    mistakesRow5Fix:
+      "Inventario → abra el artículo → <strong>Corregir existencias</strong> (Ajuste o Descarte contra el "
+      + "lote; motivo requerido). Solo las cantidades son corregibles — un costo, fecha o número de lote "
+      + "incorrecto aún no se puede corregir, así que verifique eso antes de guardar.",
+
+    mistakesRow6Mistake: "Uso de alimento sobre o subregistrado",
+    mistakesRow6Fix:
+      "Mismo formulario de corrección: un Ajuste positivo devuelve al lote las existencias usadas de más "
+      + "(hasta lo que recibió); uno negativo elimina existencias subregistradas. El registro de uso en sí "
+      + "y su estimación de costo permanecen como se registraron — las correcciones arreglan las "
+      + "existencias, no el historial.",
+
+    mistakesRow7Mistake: "Registro de agua incorrecto",
+    mistakesRow7Fix:
+      "Agua → <strong>corregir</strong> en el registro — cantidades, fuente, medidores y nota se editan en "
+      + "su lugar (sin existencias detrás del agua). El lote y la fecha son fijos: si se eligió mal, "
+      + "regístrelo de nuevo bajo el correcto.",
+
+    mistakesRow8Mistake: "Números incorrectos en una entrada diaria <em>enviada</em>",
+    mistakesRow8Fix:
+      "Historial → <strong>ajustar</strong> (admin) — totales, pérdidas, mortalidad y desglose por grado, "
+      + "con un motivo requerido. Las existencias y el libro mayor de aves se actualizan para coincidir "
+      + "automáticamente, pero los huevos ya vendidos nunca se pueden descontar: reducir un grado por "
+      + "debajo de lo vendido se rechaza. Los valores anteriores permanecen visibles en la entrada.",
+
+    mistakesRow9Mistake: "Toda la entrada <em>enviada</em> está equivocada (lote o día incorrecto)",
+    mistakesRow9Fix:
+      "Historial → <strong>anular</strong> (admin, motivo requerido): sus lotes de huevos se vacían, sus "
+      + "muertes se revierten en el libro mayor de aves, y la entrada se conserva como Anulada. Se rechaza "
+      + "si alguno de sus huevos ya se vendió — anule la venta primero. Anular libera el día: la entrada "
+      + "correcta puede entonces registrarse para el mismo lote y fecha.",
+
+    mistakesRow10Mistake: "Error en una entrada u orden en <em>borrador</em>",
+    mistakesRow10Fix:
+      "Edítela — los números del borrador, las líneas de grado y las líneas de pedido son todas editables "
+      + "(entradas en borrador: Historial → <strong>editar</strong> salta a la pantalla de Entrada diaria "
+      + "con el día cargado). El lote/fecha de una entrada y el cliente/fecha de un pedido son fijos, sin "
+      + "embargo: si se eligió mal, simplemente regístrelo de nuevo bajo el correcto (y cancele el pedido "
+      + "en borrador equivocado).",
+  },
 } as const;
