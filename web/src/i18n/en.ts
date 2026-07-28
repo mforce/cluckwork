@@ -997,8 +997,8 @@ export const en = {
   // lock (§4.6) (Task 21, #182, batch B4). English-only for now, same
   // treatment as nav/numberField/errorBoundary/themeToggle/useConfirm/pwa/
   // dailyEntry/dashboard/water/grades/inventory/products/stock/flocks above:
-  // `settings` is deliberately NOT in TRANSLATED_NAMESPACES, so es/tl fall
-  // back to these strings until a native-speaker pass adds the namespace.
+  // `settings` IS in TRANSLATED_NAMESPACES: es/tl carry machine-drafted
+  // translations (#182, pending native review).
   //
   // DATA left raw, never routed through this catalog: the timezone list
   // (Intl.supportedValuesOf), the locale/currency VALUES the admin types, the
@@ -1113,9 +1113,8 @@ export const en = {
   // scoping dialogs (Task 22, #182, batch B4). English-only for now, same
   // treatment as nav/numberField/errorBoundary/themeToggle/useConfirm/pwa/
   // dailyEntry/dashboard/water/grades/inventory/products/stock/flocks/
-  // settings above: `users` is deliberately NOT in TRANSLATED_NAMESPACES, so
-  // es/tl fall back to these strings until a native-speaker pass adds the
-  // namespace.
+  // settings above. `users` IS in TRANSLATED_NAMESPACES: es/tl carry
+  // machine-drafted translations (#182, pending native review).
   //
   // Role enum wiring: the table's Role cell, the create-form Role picker's
   // option text, and the create-success message all render the closed
@@ -1192,9 +1191,8 @@ export const en = {
   // (Task 23, #182, batch B4 — the last B4 screen). English-only for now, same
   // treatment as nav/numberField/errorBoundary/themeToggle/useConfirm/pwa/
   // dailyEntry/dashboard/water/grades/inventory/products/stock/flocks/
-  // settings/users above: `expenses` is deliberately NOT in
-  // TRANSLATED_NAMESPACES, so es/tl fall back to these strings until a
-  // native-speaker pass adds the namespace.
+  // settings/users above. `expenses` IS in TRANSLATED_NAMESPACES: es/tl carry
+  // machine-drafted translations (#182, pending native review).
   //
   // PLAN CORRECTION (verified by controller): this screen has NO
   // payment-method/category enum. `ExpenseCategory` rows are free-form,
@@ -1297,9 +1295,9 @@ export const en = {
   // admin-only outstanding-balance column (Task 24, #182, batch B4).
   // English-only for now, same treatment as nav/numberField/errorBoundary/
   // themeToggle/useConfirm/pwa/dailyEntry/dashboard/water/grades/inventory/
-  // products/stock/flocks/settings/users/expenses above: `customers` is
-  // deliberately NOT in TRANSLATED_NAMESPACES, so es/tl fall back to these
-  // strings until a native-speaker pass adds the namespace.
+  // products/stock/flocks/settings/users/expenses above. `customers` IS in
+  // TRANSLATED_NAMESPACES: es/tl carry machine-drafted translations
+  // (#182, pending native review).
   //
   // No status/enum on this screen — Customer has no closed-vocabulary field,
   // so nothing here routes through enums.ts. Customer name/phone/email/
@@ -1339,9 +1337,9 @@ export const en = {
   // helpers in enums.ts — never a raw t("enums:status." + value). Keys are FLAT
   // "family.RawValue" strings (keySeparator:false, see index.ts): the suffix is
   // the EXACT wire value the API sends, so the helper's Record can map value →
-  // key mechanically and the key is self-documenting. English-only for now —
-  // `enums` is deliberately NOT in TRANSLATED_NAMESPACES, so es/tl fall back to
-  // these strings until a native enum-translation pass lands.
+  // key mechanically and the key is self-documenting. `enums` IS in
+  // TRANSLATED_NAMESPACES: es/tl carry machine-drafted enum translations
+  // (#182, pending native review).
   //
   // Labels are chosen to be TEXT-PRESERVING on retrofit (Task 5+) — a screen
   // wired to a helper keeps its current text — EXCEPT at two sites the retrofit

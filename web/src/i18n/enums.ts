@@ -31,8 +31,8 @@
 // KEYS map, NOT against en.enums directly — a catalog-ONLY `enums` key with no
 // union member (e.g. a stray key nothing maps to) would go uncaught here.
 //
-// `enums` is intentionally NOT in TRANSLATED_NAMESPACES: it is English-only for
-// now and es/tl fall back to en for it until a native enum-translation pass.
+// `enums` IS in TRANSLATED_NAMESPACES: es/tl carry machine-drafted enum
+// translations (#182, pending native review).
 import { en } from "./en";
 import i18n from "./index";
 import { STATUS_VALUES } from "../components/StatusBadge";
