@@ -1794,8 +1794,9 @@ export const en = {
 
     // Contents-rail labels (TOC array, 2nd element). Order mirrors the <h3
     // id=...> sections below — see the KEEP comment at the top of
-    // HelpPage.tsx. tocGlossary is translated even though the glossary
-    // SECTION itself (6b) is not, since it is just the rail's link text.
+    // HelpPage.tsx. tocGlossary is the rail's link text only; the glossary
+    // SECTION itself (heading + 37-row table + closing note) is externalized
+    // further down, near the end of this block (Task 33, B6b).
     tocGettingAround: "Getting around",
     tocSigningIn: "Signing in",
     tocDailyLoop: "The daily loop",
@@ -2272,6 +2273,194 @@ export const en = {
       + "<strong>edit</strong> jumps to the Daily entry screen with the day loaded). The flock/date of an "
       + "entry and the customer/date of an order are fixed, though: picked wrong, just record it again under "
       + "the right one (and cancel the wrong draft order).",
+
+    // Glossary (Task 33, B6b, #182): the 37-row term/definition table plus
+    // its closing repo-note paragraph. Externalized byte-faithful from the
+    // prior hardcoded English — see the Task 33 brief's alignment note:
+    // specs/product/GLOSSARY.md is the canonical 96-term termbase (Task 34
+    // reconciles it separately) and this in-app table is a curated subset,
+    // so its English wording is intentionally NOT rewritten here. HTML
+    // entities in the old JSX (&apos;/&quot;) are real apostrophe/quote
+    // characters below — same rendered text, just no entity escaping needed
+    // inside a JS string. <Trans>-only rows: glossaryInstallToHomeScreenDef
+    // (one <strong>) and glossaryRepoNote (one <code>, whose
+    // "specs/product/GLOSSARY.md" path text is literal — the closing note's
+    // <Trans> renders it via the components map, not a translated string).
+    glossaryHeading: "Glossary",
+
+    glossaryNavigationTerm: "Navigation",
+    glossaryNavigationDef:
+      "Screens live in the left sidebar on a computer; on a phone the four you use most are tabs across "
+      + "the bottom, the rest under More.",
+
+    glossaryOperationalDayTerm: "Operational day",
+    glossaryOperationalDayDef:
+      "Dates mean your farm's calendar day, worked out from the farm's own timezone rather than a clock "
+      + "somewhere else. It is the same \"today\" everywhere: what counts as a future date when you record "
+      + "work, when eggs leave a withdrawal period, which eggs a sale can take, the day a flock is depleted "
+      + "or archived on, and the range reports open on. Every field that records WHEN SOMETHING HAPPENED "
+      + "opens on it and will not go past it, whatever day the device in your hand is on. Dates meant to "
+      + "fall in the future are not capped — a feed batch's expiry, and the History and Water filters.",
+
+    glossaryInstallToHomeScreenTerm: "Install to home screen",
+    glossaryInstallToHomeScreenDef:
+      "Adding Cluckwork to a phone or tablet's home screen from the browser, so it gets its own icon and "
+      + "opens in its own window without the browser bars. It is the same app, not a separate download — "
+      + "nothing to update from an app store. Only offered over a secure (https) address, and it does "
+      + "<strong>not</strong> make the app work offline: it still needs a connection to load and save.",
+
+    glossaryNewVersionReadyTerm: "A new version is ready",
+    glossaryNewVersionReadyDef:
+      "After a release, an installed app notices the new version in the background and asks before "
+      + "switching, rather than reloading while you are typing. Press Reload when convenient, or Later and "
+      + "it asks again next time. Nothing is lost by leaving it — the running app keeps working until you "
+      + "accept.",
+
+    glossaryTooManySignInAttemptsTerm: "Too many sign-in attempts",
+    glossaryTooManySignInAttemptsDef:
+      "Sign-in is rate limited to slow password guessing: too many attempts from one place in a few "
+      + "minutes are refused with this message until a short cool-off passes. It never affects an already "
+      + "signed-in session.",
+
+    glossarySomethingWentWrongScreenTerm: "\"Something went wrong\" screen",
+    glossarySomethingWentWrongScreenDef:
+      "What a screen shows when it hits an error, instead of going blank. Saved data is safe — anything "
+      + "you were still typing may need re-entering; tap Reload or Back to the dashboard. \"Error "
+      + "details\" holds the message for a screenshot.",
+
+    glossaryDailyEntryTerm: "Daily entry",
+    glossaryDailyEntryDef: "One flock's day: eggs by grade, losses, deaths. Draft until submitted.",
+
+    glossaryEggLotTerm: "Egg lot",
+    glossaryEggLotDef:
+      "A dated batch of sellable eggs of one grade, created by submitting an entry. Stock is the sum of "
+      + "lots.",
+
+    glossaryGradeTerm: "Grade",
+    glossaryGradeDef: "A grading bucket (size, quality, or custom). Saleable grades can be sold.",
+
+    glossaryEggMovementLedgerTerm: "Egg movement ledger",
+    glossaryEggMovementLedgerDef:
+      "The line-by-line history behind an egg lot's balance: production in, sales out, corrections and "
+      + "voids signed accordingly.",
+
+    glossaryFifoTerm: "FIFO",
+    glossaryFifoDef: "\"First in, first out\" — sales and feed usage always take the oldest stock first.",
+
+    glossaryCullTerm: "Cull",
+    glossaryCullDef: "Birds deliberately removed from a flock (sold, slaughtered, given away) — not deaths.",
+
+    glossaryMortalityTerm: "Mortality",
+    glossaryMortalityDef: "Deaths, recorded on the daily entry; lands in the bird ledger automatically at submit.",
+
+    glossaryDepleteTerm: "Deplete",
+    glossaryDepleteDef: "Mark a flock as having no birds left. History stays; reversible via Reactivate.",
+
+    glossaryArchiveTerm: "Archive",
+    glossaryArchiveDef: "Hide a finished flock from daily work. Reversible via Reactivate.",
+
+    glossaryWithdrawalRestrictionTerm: "Withdrawal restriction",
+    glossaryWithdrawalRestrictionDef:
+      "A hold on eggs during a medication withholding period. Coming with medication tracking — nothing "
+      + "sets restrictions yet, so manage withholding periods outside Cluckwork for now.",
+
+    glossaryProductTerm: "Product",
+    glossaryProductDef:
+      "What you sell — an egg product points at a grade (its stock source) and carries a selling unit and "
+      + "default price.",
+
+    glossaryPackedUnitTerm: "Packed unit",
+    glossaryPackedUnitDef:
+      "How many eggs a dozen/tray/carton/case holds on your farm. Each sale line keeps the count it was "
+      + "sold with.",
+
+    glossarySalesLineTerm: "Sales line",
+    glossarySalesLineDef:
+      "One product on an order: quantity in selling units, priced per unit; the eggs behind it are "
+      + "quantity × the unit's egg count.",
+
+    glossaryConfirmOrderTerm: "Confirm (order)",
+    glossaryConfirmOrderDef: "Turns a draft order into a real sale and allocates stock. Undone only by voiding.",
+
+    glossaryVoidOrderTerm: "Void (order)",
+    glossaryVoidOrderDef:
+      "Undo of a mistaken confirm — stock returns to the exact lots it came from. Needs a reason.",
+
+    glossaryCancelOrderTerm: "Cancel (order)",
+    glossaryCancelOrderDef: "Close a draft that never happened. No stock involved.",
+
+    glossaryInventoryItemTerm: "Inventory item",
+    glossaryInventoryItemDef:
+      "A catalog entry for something you stock (feed, supplements…), with a fixed unit of measure.",
+
+    glossaryInventoryLotTerm: "Inventory lot",
+    glossaryInventoryLotDef: "One received batch of an item, with its own cost. On-hand = sum of lots.",
+
+    glossaryInventoryMovementLedgerTerm: "Inventory movement ledger",
+    glossaryInventoryMovementLedgerDef:
+      "The append-only trail of every feed/supply stock change. Corrections are new rows, never edits.",
+
+    glossaryWaterUsageTerm: "Water usage",
+    glossaryWaterUsageDef:
+      "What a flock drank on a day — direct amount or meter delta. Editable in place; flock/date fixed.",
+
+    glossaryFeedUsageTerm: "Feed usage",
+    glossaryFeedUsageDef: "What a flock ate on a day; drains lots FIFO and estimates cost from them.",
+
+    glossaryAdjustmentDiscardTerm: "Adjustment / Discard",
+    glossaryAdjustmentDiscardDef:
+      "Stock corrections against a lot, reason required. Discard = write-off (spoilage).",
+
+    glossaryRolesTerm: "Roles",
+    glossaryRolesDef:
+      "Admin (owner), Manager, Worker, Sales, Read-only — see \"Who can do what\". Workers record; "
+      + "managers also correct and configure; sales handles orders and payments; read-only just views.",
+
+    glossaryLockedEntryTerm: "Locked (entry)",
+    glossaryLockedEntryDef:
+      "A submitted entry older than 7 days — closed to routine edits; admin adjust/void still works.",
+
+    glossaryAdjustEntryTerm: "Adjust (entry)",
+    glossaryAdjustEntryDef:
+      "Admin correction of a submitted entry. Stock and bird ledger reconcile automatically; sold eggs are "
+      + "untouchable; previous values stay visible.",
+
+    glossaryVoidEntryTerm: "Void (entry)",
+    glossaryVoidEntryDef:
+      "Admin undo of a whole submitted entry — lots empty, deaths reverse, entry preserved as Voided. "
+      + "Refused once its eggs are sold.",
+
+    glossaryFarmSettingsTerm: "Farm settings",
+    glossaryFarmSettingsDef:
+      "The farm's name, timezone, locale, currency and unit system, plus optional first day of week and "
+      + "date/time formats. Setup → Farm settings; owners and managers edit, everyone reads — formatting "
+      + "money and dates is not a permission.",
+
+    glossaryCurrencyLockTerm: "Currency lock",
+    glossaryCurrencyLockDef:
+      "The farm currency stops being editable once anything has recorded an amount in it — a sale, a "
+      + "payment, an expense, a priced product, money spent on feed. The field shows locked with the "
+      + "reason. Nothing already recorded is ever re-priced, which is the whole point.",
+
+    glossaryFarmLogoTerm: "Farm logo",
+    glossaryFarmLogoDef:
+      "Your own image in place of the Cluckwork mark in the sidebar, uploaded from Farm settings. PNG, "
+      + "JPEG or WebP (2 MB by default), still images only; a square, simple mark reads best at the small "
+      + "sidebar size. Stored as a rebuilt copy with camera and location details stripped out.",
+
+    glossaryFarmPaletteTerm: "Farm palette",
+    glossaryFarmPaletteDef:
+      "The farm-wide accent colour, chosen by an admin in Farm settings. Separate from each person's own "
+      + "light/night mode setting.",
+
+    glossaryUiLanguageTerm: "UI language",
+    glossaryUiLanguageDef:
+      "The per-user language the interface is shown in — English, Español, or Tagalog — chosen from "
+      + "Account → Preferences. English is the fallback for any screen not yet translated, whatever "
+      + "language you picked.",
+
+    glossaryRepoNote:
+      "Full spec-language definitions live in the repository's <code>specs/product/GLOSSARY.md</code>.",
   },
 } as const;
 

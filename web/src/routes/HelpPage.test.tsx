@@ -181,3 +181,94 @@ describe("HelpPage i18n wiring (#182, Task 32)", () => {
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// Glossary i18n wiring (#182, Task 33, batch B6b)
+// ---------------------------------------------------------------------------
+
+// Same withOverride technique as the B6a suite above, redefined locally so
+// this describe block stands alone — the glossary (h3 id="glossary" through
+// the closing repo-note) is externalized here, after the rest of the page's
+// prose was already done in 6a.
+describe("HelpPage glossary i18n wiring (#182, Task 33)", () => {
+  function withOverride(key: string, value: string, run: () => void) {
+    const original = i18n.getResource("en", "help", key) as string;
+    i18n.addResource("en", "help", key, value);
+    try {
+      run();
+    } finally {
+      i18n.addResource("en", "help", key, original);
+    }
+  }
+
+  it("reads the glossary heading from the catalog, not a hardcoded literal, and keeps id=\"glossary\"", () => {
+    withOverride("glossaryHeading", "GLOSSARY-HEADING-MARKER", () => {
+      const { container } = render(<HelpPage />);
+      expect(screen.getByRole("heading", { name: "GLOSSARY-HEADING-MARKER", level: 3 })).toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "Glossary", level: 3 })).not.toBeInTheDocument();
+      // the scroll-spy anchor id is untouched by the text-content change
+      expect(container.querySelector("h3#glossary")).toHaveTextContent("GLOSSARY-HEADING-MARKER");
+    });
+  });
+
+  it("reads a glossary row's term and definition from the catalog, not a hardcoded literal", () => {
+    withOverride("glossaryFifoTerm", "FIFO-TERM-MARKER", () => {
+      withOverride("glossaryFifoDef", "FIFO-DEF-MARKER", () => {
+        render(<HelpPage />);
+        expect(screen.getByRole("rowheader", { name: "FIFO-TERM-MARKER" })).toBeInTheDocument();
+        expect(screen.getByText("FIFO-DEF-MARKER")).toBeInTheDocument();
+        expect(screen.queryByRole("rowheader", { name: "FIFO" })).not.toBeInTheDocument();
+        expect(screen.queryByText(/first in, first out/i)).not.toBeInTheDocument();
+      });
+    });
+  });
+
+  // The Farm palette row's <td> is faithfully plain prose (no interleaved
+  // JSX) — confirm it also reads from the catalog via t(), not a literal.
+  it("reads the Farm palette row's definition from the catalog, not a hardcoded literal", () => {
+    withOverride("glossaryFarmPaletteDef", "FARM-PALETTE-DEF-MARKER", () => {
+      render(<HelpPage />);
+      expect(screen.getByText("FARM-PALETTE-DEF-MARKER")).toBeInTheDocument();
+      expect(screen.queryByText(/farm-wide accent colour/i)).not.toBeInTheDocument();
+    });
+  });
+
+  // The one <Trans>-in-a-row case: Install to home screen's definition
+  // carries a single <strong>not</strong>. Overriding with a marker of the
+  // same shape and asserting a real STRONG element comes out is what would
+  // catch a regression to a plain {t(...)} call (tags render as inert text)
+  // or a components map missing "strong" (content renders unwrapped).
+  it("renders the Install-to-home-screen row's <strong> as a real DOM element via <Trans>", () => {
+    withOverride(
+      "glossaryInstallToHomeScreenDef",
+      "PRE-TEXT <strong>STRONG-MARK</strong> POST-TEXT",
+      () => {
+        render(<HelpPage />);
+        const strong = screen.getByText("STRONG-MARK");
+        expect(strong.tagName).toBe("STRONG");
+        expect(screen.getByText(/PRE-TEXT/)).toBeInTheDocument();
+        expect(screen.getByText(/POST-TEXT/)).toBeInTheDocument();
+        expect(screen.queryByText(/does not make the app work offline/i)).not.toBeInTheDocument();
+      },
+    );
+  });
+
+  // The closing repo-note's <Trans> renders a <code> element around the
+  // (untranslated, literal) GLOSSARY.md path. Confirm both that the CODE
+  // element is real DOM (not inert "<code>" text) and that overriding the
+  // surrounding sentence proves the whole string is catalog-driven.
+  it("renders the closing note's <code> path as a real DOM element via <Trans>, from the catalog", () => {
+    withOverride(
+      "glossaryRepoNote",
+      "REPO-NOTE-MARKER <code>specs/product/GLOSSARY.md</code>.",
+      () => {
+        render(<HelpPage />);
+        const code = screen.getByText("specs/product/GLOSSARY.md");
+        expect(code.tagName).toBe("CODE");
+        expect(screen.getByText(/REPO-NOTE-MARKER/)).toBeInTheDocument();
+        expect(screen.queryByText(/Full spec-language definitions live in the repository's/i))
+          .not.toBeInTheDocument();
+      },
+    );
+  });
+});
