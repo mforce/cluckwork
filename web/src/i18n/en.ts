@@ -1474,6 +1474,62 @@ export const en = {
     statusSubmitted: "Submitted",
     statusDraft: "Draft",
   },
+  // Task 28 (#182, B5) — ReportsPage. English-only (not in
+  // TRANSLATED_NAMESPACES), same as `history`/`nav`. Production renders for
+  // everyone; the Money section (sales/expenses/profit) is admin-gated —
+  // isAdmin is checked by the component, not this catalog.
+  //
+  // DATA left raw, never routed through this catalog: every date
+  // (d.date/from/to), every numeric count/total (totalEggs, cracked/dirty/
+  // discarded, sellable, deaths, henDays, henDayPct and their period
+  // equivalents), the "—" em-dash fallback for a null henDayPct (same
+  // convention as customers/expenses/users/flocks/history's raw "—"), the
+  // grade-totals and expense-category lists (built from free-form
+  // name/quantity DATA via template-literal `.join(", ")`, matching
+  // HistoryPage's gradeName-list precedent), and every money string
+  // (formatMoney is farm-locale-driven, never keyed off i18n.language —
+  // interpolated into the templates below as pre-formatted DATA, same
+  // pattern as sales:orderTotal).
+  reports: {
+    title: "Reports",
+    fromLabel: "From",
+    toLabel: "To",
+
+    productionHeading: "Production",
+    dateHeader: "Date",
+    eggsHeader: "Eggs",
+    lossesHeader: "Losses (cr/di/ds)",
+    sellableHeader: "Sellable",
+    deathsHeader: "Deaths",
+    henDaysHeader: "Hen-days",
+    henDayPctHeader: "Hen-day %",
+    periodRowLabel: "Period",
+    gradeTotalsLabel: "By grade:",
+
+    moneyHeading: "Money",
+    salesRowLabel: "Sales",
+    // {{count}} is confirmedCount; {{revenue}}/{{paid}}/{{outstanding}} are
+    // pre-formatted formatMoney() strings (DATA).
+    salesSummary:
+      "{{count}} confirmed order(s) — revenue {{revenue}}, paid {{paid}}, outstanding {{outstanding}}",
+    // {{count}} is voidedCount — a second, independent {{count}} interpolation
+    // on the same screen, appended only when voidedCount > 0.
+    salesVoidedSuffix: " ({{count}} voided)",
+    expensesRowLabel: "Expenses",
+    expensesNone: "none recorded",
+    // {{total}} is expenses.grandTotalMinorUnits, pre-formatted (DATA).
+    expensesTotalSuffix: " — total {{total}}",
+    profitRowLabel: "Profit (basic)",
+    // <Trans> (not t()) — the only JSX interleaved in this screen's prose is
+    // the <strong> around the profit figure, same treatment as
+    // account:roleLine. {{revenue}}/{{expenses}}/{{profit}} are pre-formatted
+    // formatMoney() strings (DATA); the "−" is U+2212 MINUS SIGN (matching
+    // the pre-sweep source), not a hyphen.
+    profitLine: "revenue {{revenue}} − expenses {{expenses}} = <strong>{{profit}}</strong>",
+    profitFootnote:
+      "\"Basic\" profit is confirmed revenue minus recorded expenses — no "
+      + "cost-of-goods or inventory valuation.",
+  },
   // Closed-vocabulary labels (#182, Task 4). Consumed ONLY through the typed
   // helpers in enums.ts — never a raw t("enums:status." + value). Keys are FLAT
   // "family.RawValue" strings (keySeparator:false, see index.ts): the suffix is
