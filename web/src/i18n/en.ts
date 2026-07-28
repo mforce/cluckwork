@@ -1333,6 +1333,147 @@ export const en = {
     noteHeader: "Note",
     outstandingHeader: "Outstanding",
   },
+  // Daily-entry history — browse recorded entries with flock/date filters,
+  // plus the admin-only adjust/void corrections (Task 27, #182, batch B5 —
+  // the last B4-onward records/export screen). English-only for now, same
+  // treatment as nav/numberField/errorBoundary/themeToggle/useConfirm/pwa/
+  // dailyEntry/dashboard/water/grades/inventory/products/stock/flocks/
+  // settings/users/expenses/customers above: `history` is deliberately NOT in
+  // TRANSLATED_NAMESPACES, so es/tl fall back to these strings until a
+  // native-speaker pass adds the namespace.
+  //
+  // Entry-status pills (statusCell): DELIBERATELY NOT routed through the
+  // shared `enums` status family, even though enums.status already carries
+  // Draft/Submitted/Locked/ManagerAdjusted/Voided (Task 4/12) — this screen's
+  // bespoke pills predate that helper and keep their OWN display text here
+  // (statusVoided/statusAdjusted/statusLocked/statusSubmitted/statusDraft),
+  // per the task brief. Text is identical to enums' labels (identity, plus
+  // ManagerAdjusted -> "Adjusted"), so this is a naming/ownership choice, not
+  // a visible difference — see the `enums` namespace header comment, which
+  // already points AT this screen's own "Adjusted" pill as the precedent
+  // Dashboard's retrofit matched. lockedAt interpolates the raw lockedAtUtc
+  // timestamp (DATA) into the tooltip text (COPY).
+  //
+  // The nothingToAdjustMessage 409-rebind message interpolates
+  // fresh.status.toLowerCase() — lowercasing a raw wire enum value is
+  // locale-fragile (only ever reads correctly in English); tracked as a
+  // native-pass deferral (#182), not solved by this task (see the code
+  // comment at the call site, HistoryPage.tsx rebindAfterConflict).
+  //
+  // DATA left raw, never routed through this catalog: entry dates
+  // (e.date/adjusting.date), flock/grade names (flockName/gradeName, with
+  // their id.slice(0,8) fallback), the "—" placeholder for an entry with no
+  // graded lines (same convention as customers/expenses/users/flocks — see
+  // the `customers` namespace header comment above), free-form void/adjust
+  // reasons (voidReason/adjustReason, shown via the `title` attribute or
+  // interpolated verbatim into previouslyAdjusted), and every numeric count
+  // (totalEggs/crackedEggs/etc., adjustedFrom's snapshot counts).
+  history: {
+    // Titles. `loadingTitle` is the shorter heading the early-return
+    // load-error state uses before the real heading below — a pre-existing
+    // inconsistency, preserved verbatim rather than "fixed" as a drive-by
+    // (same treatment as grades:loadingTitle/title).
+    loadingTitle: "History",
+    title: "Daily entry history",
+
+    intro:
+      "Submitted and locked entries can be adjusted or voided here — stock "
+      + "and the bird ledger follow automatically; eggs already sold never "
+      + "move. A reason is always required.",
+
+    // Imperative messages (event handlers / promise callbacks — see
+    // CONTRIBUTING-i18n.md's imperative i18n.t() pattern). Several of these
+    // are near-duplicate concurrent-conflict copy at different call sites
+    // (errText's own 409 branch vs. onVoid's inline 409 branch, and the two
+    // "could not reload" variants) — kept as separate, text-preserving keys
+    // rather than consolidated, matching the sweep's convention of not
+    // drive-by-fixing pre-existing copy drift.
+    concurrentConflictMessage:
+      "This entry was just changed elsewhere — the list has been reloaded; retry.",
+    loadFlocksGradesFailed: "Could not load flocks/grades.",
+    loadEntriesFailed: "Could not load entries.",
+    conflictRebindMessage:
+      "This entry was changed by someone else — the form shows the latest "
+      + "values; re-apply your correction.",
+    // {{status}} is the RAW wire status, lowercased — see the locale-fragile
+    // note in the namespace header comment above.
+    nothingToAdjustMessage: "This entry is now {{status}} — nothing left to adjust.",
+    conflictReloadFailedMessage:
+      "This entry was changed by someone else and the list could not be "
+      + "reloaded — reload the page before retrying.",
+    exceedsSellableMessage:
+      "Graded quantities cannot exceed total eggs minus cracked/dirty/discarded.",
+    entryAdjustedMessage: "Entry adjusted — stock and bird ledger updated to match.",
+    adjustReloadFailedMessage: "The adjustment saved, but the list failed to reload — refresh the page.",
+    // askReason dialog (title / body / confirmLabel). {{date}}/{{flock}} are
+    // the entry's own free-form DATA (date string, resolved flock name).
+    voidConfirmTitle: "Void the {{date}} entry for {{flock}}?",
+    voidConfirmBody:
+      "Its egg lots empty and its deaths are reversed. The entry is kept as "
+      + "Voided. Refused if any of its eggs were already sold.",
+    voidConfirmLabel: "Void entry",
+    entryVoidedMessage: "Entry voided — its egg lots were emptied and its deaths reversed.",
+    voidReloadFailedMessage: "The void saved, but the list failed to reload — refresh the page.",
+    voidConflictMessage: "This entry was changed by someone else — the list has been reloaded; retry.",
+    voidConflictReloadFailedMessage:
+      "This entry was changed by someone else and the list could not be "
+      + "reloaded — reload the page.",
+    loadMoreFailedMessage: "Could not load more.",
+
+    // Filters
+    flockLabel: "Flock",
+    allFlocksOption: "All flocks",
+    fromLabel: "From",
+    toLabel: "To",
+
+    // Adjust dialog — title (two shapes: an entry bound vs. the fallback
+    // before one is), the "previously adjusted" recap, and the form.
+    adjustDialogTitle: "Adjust entry",
+    adjustDialogTitleWithEntry: "Adjust — {{date}}, {{flock}}",
+    // {{total}}/{{mortality}} are the prior snapshot's numeric DATA;
+    // {{reason}} is the free-form adjustReason DATA.
+    previouslyAdjusted:
+      "Previously adjusted (was total {{total}}, mortality {{mortality}} — \"{{reason}}\").",
+    totalEggsLabel: "Total eggs",
+    crackedLabel: "Cracked",
+    dirtyLabel: "Dirty",
+    discardedLabel: "Discarded",
+    deathsLabel: "Deaths",
+    // Appended to a grade line's free-form NAME (DATA) for a deactivated
+    // grade still on the entry — distinct wording from
+    // dailyEntry:deactivatedGradeSuffix (" (deactivated)"), preserved
+    // verbatim rather than reconciled (not this task's job).
+    inactiveGradeSuffix: " (inactive)",
+    reasonLabel: "Reason *",
+    saveAdjustmentButton: "Save adjustment",
+
+    noEntriesMatch: "No entries match — record one on the Daily entry page.",
+
+    // Entries table
+    dateHeader: "Date",
+    flockHeader: "Flock",
+    statusHeader: "Status",
+    totalHeader: "Total",
+    lossesHeader: "Losses (cr/di/ds)",
+    mortalityHeader: "Mortality",
+    gradedHeader: "Graded",
+    // Lowercase link-styled row actions, same treatment as
+    // sales:edit/water:correctButton/grades:editButton.
+    editButton: "edit",
+    adjustButton: "adjust",
+    voidButton: "void",
+    loadMoreButton: "load more",
+
+    // Entry-status pills (statusCell) — see the namespace header comment
+    // above for why this is a separate vocabulary from enums:status.
+    statusVoided: "Voided",
+    statusAdjusted: "Adjusted",
+    statusLocked: "Locked",
+    // {{time}} is the raw lockedAtUtc timestamp (DATA).
+    lockedAt: "Locked {{time}}",
+    statusSubmitted: "Submitted",
+    statusDraft: "Draft",
+  },
   // Closed-vocabulary labels (#182, Task 4). Consumed ONLY through the typed
   // helpers in enums.ts — never a raw t("enums:status." + value). Keys are FLAT
   // "family.RawValue" strings (keySeparator:false, see index.ts): the suffix is

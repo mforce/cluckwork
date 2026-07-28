@@ -3,9 +3,11 @@ import { screen, within, fireEvent, act } from "@testing-library/react";
 import { HistoryPage } from "./HistoryPage";
 import { renderWithProviders } from "../test/renderWithProviders";
 import {
-  adjustDailyEntry, listDailyEntries, listEggGrades, listFlocks, voidDailyEntry,
+  adjustDailyEntry, getDailyEntry, listDailyEntries, listEggGrades, listFlocks, voidDailyEntry,
 } from "../api/cluckwork";
 import type { DailyEntry, EggGrade, Flock } from "../api/cluckwork";
+import { ApiError } from "../api/client";
+import i18n from "../i18n";
 
 // HistoryPage's only runtime dep on the API module is the network seam; mock all
 // of it. ApiError comes from ../api/client (unmocked, real) so errText's
@@ -23,6 +25,7 @@ const mockListFlocks = vi.mocked(listFlocks);
 const mockListEggGrades = vi.mocked(listEggGrades);
 const mockListDailyEntries = vi.mocked(listDailyEntries);
 const mockAdjustDailyEntry = vi.mocked(adjustDailyEntry);
+const mockGetDailyEntry = vi.mocked(getDailyEntry);
 
 const FLOCK: Flock = {
   id: "f1", farmId: "farm1", houseId: "h1", name: "Hen House 1", breed: "ISA",
@@ -41,6 +44,11 @@ const SUBMITTED: DailyEntry = {
 };
 const DRAFT: DailyEntry = { ...SUBMITTED, id: "de2", date: "2026-07-18", status: "Draft", grades: [] };
 const DRAFT_ARCHIVED: DailyEntry = { ...DRAFT, id: "de3", flockId: "f2" };
+// The three statusCell states that carry their own bespoke badge + tooltip
+// (#182, Task 27) — a DISTINCT vocabulary from the shared enums:status family.
+const VOIDED: DailyEntry = { ...SUBMITTED, id: "de4", status: "Voided", voidReason: "spoiled" };
+const MANAGER_ADJUSTED: DailyEntry = { ...SUBMITTED, id: "de5", status: "ManagerAdjusted", adjustReason: "recount" };
+const LOCKED: DailyEntry = { ...SUBMITTED, id: "de6", status: "Locked", lockedAtUtc: "2026-07-19T08:00:00Z" };
 
 const ADMIN = { sub: "u1", role: "Admin" };
 
@@ -221,5 +229,184 @@ describe("HistoryPage void — reason dialog", () => {
 
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(vi.mocked(voidDailyEntry)).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// i18n wiring (#182, Task 27, batch B5)
+// ---------------------------------------------------------------------------
+
+// `history` is English-only (not in TRANSLATED_NAMESPACES — see
+// translations-status.ts), so under ANY UI language the rendered text falls
+// back to this exact English string, same as a still-hardcoded literal would
+// render — asserting plain English under default lng:"en" would prove nothing
+// (CONTRIBUTING-i18n.md's fallback trap). Swap the catalog value at runtime
+// instead, the same i18n.addResource technique the other batches use, so each
+// marker only renders if the screen actually reads the catalog rather than a
+// literal that happens to still match it.
+describe("HistoryPage i18n wiring (#182, Task 27)", () => {
+  function withOverride(ns: string, key: string, value: string, run: () => Promise<void> | void) {
+    const original = i18n.getResource("en", ns, key) as string;
+    i18n.addResource("en", ns, key, value);
+    return Promise.resolve(run()).finally(() => {
+      i18n.addResource("en", ns, key, original);
+    });
+  }
+
+  it("reads the heading from the catalog, not a hardcoded literal", async () => {
+    await withOverride("history", "title", "TITLE-MARKER", async () => {
+      renderWithProviders(<HistoryPage />, { token: ADMIN });
+      expect(await screen.findByRole("heading", { name: "TITLE-MARKER" })).toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "Daily entry history" })).not.toBeInTheDocument();
+    });
+  });
+
+  it("reads a table column header from the catalog, not a hardcoded literal", async () => {
+    await withOverride("history", "dateHeader", "DATE-HEADER-MARKER", async () => {
+      mockListDailyEntries.mockResolvedValue([SUBMITTED]);
+      renderWithProviders(<HistoryPage />, { token: ADMIN });
+      expect(await screen.findByRole("columnheader", { name: "DATE-HEADER-MARKER" })).toBeInTheDocument();
+      expect(screen.queryByRole("columnheader", { name: "Date" })).not.toBeInTheDocument();
+    });
+  });
+
+  it("reads the flock filter label from the catalog, not a hardcoded literal", async () => {
+    await withOverride("history", "flockLabel", "FLOCK-LABEL-MARKER", async () => {
+      renderWithProviders(<HistoryPage />, { token: ADMIN });
+      expect(await screen.findByLabelText("FLOCK-LABEL-MARKER")).toBeInTheDocument();
+      expect(screen.queryByLabelText("Flock")).not.toBeInTheDocument();
+    });
+  });
+
+  // Proves the adjust dialog's title reads the catalog template AND
+  // interpolates the entry's free-form date + resolved flock name (DATA) —
+  // a hardcoded template literal would never pick up the marker text even
+  // though the date/flock would still look right.
+  it("interpolates the date and flock into the adjust-dialog title from the catalog", async () => {
+    await withOverride("history", "adjustDialogTitleWithEntry", "ADJUST-MARKER {{date}} / {{flock}} END", async () => {
+      mockListDailyEntries.mockResolvedValue([SUBMITTED]);
+      await openAdjustPanel();
+      expect(screen.getByRole("dialog")).toHaveAccessibleName("ADJUST-MARKER 2026-07-19 / Hen House 1 END");
+    });
+  });
+
+  // Proves the void confirm dialog's title is built with the IMPERATIVE
+  // i18n.t() pattern (askReason runs in an event handler, not render) and
+  // still reads the catalog template + interpolates date/flock (DATA).
+  it("interpolates the date and flock into the void-confirm title from the catalog", async () => {
+    await withOverride("history", "voidConfirmTitle", "VOID-MARKER {{date}} / {{flock}} END", async () => {
+      mockListDailyEntries.mockResolvedValue([SUBMITTED]);
+      renderWithProviders(<HistoryPage />, { token: ADMIN });
+      fireEvent.click(await screen.findByRole("button", { name: "void" }));
+      expect(screen.getByRole("dialog")).toHaveAccessibleName("VOID-MARKER 2026-07-19 / Hen House 1 END");
+    });
+  });
+
+  // Proves the Voided pill's bespoke <span> reads the catalog, not the
+  // hardcoded literal the pre-sweep component had — voidReason stays raw DATA
+  // on the `title` attribute either way.
+  it("reads the Voided status pill from the catalog, not a hardcoded literal", async () => {
+    await withOverride("history", "statusVoided", "VOIDED-BADGE-MARKER", async () => {
+      mockListDailyEntries.mockResolvedValue([VOIDED]);
+      renderWithProviders(<HistoryPage />, { token: ADMIN });
+      const row = await screen.findByRole("row", { name: /Hen House 1/ });
+      expect(within(row).getByText("VOIDED-BADGE-MARKER")).toBeInTheDocument();
+      expect(within(row).queryByText("Voided")).not.toBeInTheDocument();
+      expect(within(row).getByTitle("spoiled")).toBeInTheDocument(); // voidReason: raw DATA, untouched
+    });
+  });
+
+  // Proves the default (Submitted/Draft) branch passes a translated `label`
+  // into StatusBadge rather than relying on the raw `status` prop — StatusBadge
+  // renders `label ?? status`, so a hardcoded/omitted label would still show
+  // "Submitted" today (identity text) but would NOT pick up this override.
+  it("reads the Submitted status label from the catalog via StatusBadge's label prop", async () => {
+    await withOverride("history", "statusSubmitted", "SUBMITTED-MARKER", async () => {
+      mockListDailyEntries.mockResolvedValue([SUBMITTED]);
+      renderWithProviders(<HistoryPage />, { token: ADMIN });
+      const row = await screen.findByRole("row", { name: /Hen House 1/ });
+      expect(within(row).getByText("SUBMITTED-MARKER")).toBeInTheDocument();
+      expect(within(row).queryByText("Submitted")).not.toBeInTheDocument();
+    });
+  });
+
+  // Explicit requirement: the ManagerAdjusted pill is an intentional
+  // harmonization, not a text-preserving retrofit — the raw wire status stays
+  // "ManagerAdjusted", but the pill has always read "Adjusted" (matching the
+  // shared enums:status.ManagerAdjusted label Dashboard's retrofit adopted;
+  // see the `enums` namespace header comment in en.ts). This is a correctness
+  // assertion under the real (default) catalog; the paired override test
+  // below proves the text is catalog-sourced rather than still hardcoded.
+  it("renders the ManagerAdjusted entry's status pill as 'Adjusted', not the raw status", async () => {
+    mockListDailyEntries.mockResolvedValue([MANAGER_ADJUSTED]);
+    renderWithProviders(<HistoryPage />, { token: ADMIN });
+    const row = await screen.findByRole("row", { name: /Hen House 1/ });
+    expect(within(row).getByText("Adjusted")).toBeInTheDocument();
+    expect(within(row).queryByText("ManagerAdjusted")).not.toBeInTheDocument();
+  });
+
+  it("reads the ManagerAdjusted ('Adjusted') status pill from the catalog, not a hardcoded literal", async () => {
+    await withOverride("history", "statusAdjusted", "ADJUSTED-BADGE-MARKER", async () => {
+      mockListDailyEntries.mockResolvedValue([MANAGER_ADJUSTED]);
+      renderWithProviders(<HistoryPage />, { token: ADMIN });
+      const row = await screen.findByRole("row", { name: /Hen House 1/ });
+      expect(within(row).getByText("ADJUSTED-BADGE-MARKER")).toBeInTheDocument();
+      expect(within(row).queryByText("Adjusted")).not.toBeInTheDocument();
+      expect(within(row).getByTitle("recount")).toBeInTheDocument(); // adjustReason: raw DATA, untouched
+    });
+  });
+
+  // Explicit requirement: the Locked pill's tooltip interpolates the raw
+  // lockedAtUtc timestamp (DATA) into the catalog's "Locked {{time}}"
+  // template (COPY) — a correctness assertion under the real (default)
+  // catalog that the substitution actually happens, not just that the
+  // template string exists.
+  it("interpolates the locked timestamp into the Locked pill's tooltip", async () => {
+    mockListDailyEntries.mockResolvedValue([LOCKED]);
+    renderWithProviders(<HistoryPage />, { token: ADMIN });
+    await screen.findByRole("row", { name: /Hen House 1/ });
+    expect(screen.getByTitle("Locked 2026-07-19T08:00:00Z")).toBeInTheDocument();
+  });
+
+  // Paired wiring proof: overriding the TEMPLATE (not just the value the
+  // {{time}} var carries) shows up verbatim around the interpolated
+  // timestamp — a hardcoded `Locked ${e.lockedAtUtc}` template literal could
+  // never pick up MARKER text on either side of the timestamp.
+  it("reads the lockedAt tooltip template from the catalog, not a hardcoded literal", async () => {
+    await withOverride("history", "lockedAt", "TIME-MARKER {{time}} MARKER-END", async () => {
+      mockListDailyEntries.mockResolvedValue([LOCKED]);
+      renderWithProviders(<HistoryPage />, { token: ADMIN });
+      await screen.findByRole("row", { name: /Hen House 1/ });
+      expect(screen.getByTitle("TIME-MARKER 2026-07-19T08:00:00Z MARKER-END")).toBeInTheDocument();
+      expect(screen.queryByTitle(/^Locked /)).not.toBeInTheDocument();
+    });
+  });
+
+  // Imperative i18n.t() — the mount-effect .catch for the entries list (the
+  // load() useCallback runs as a Promise callback, not render).
+  it("reads the load-entries error from the catalog, not a hardcoded literal", async () => {
+    mockListDailyEntries.mockRejectedValue(new Error("boom"));
+    await withOverride("history", "loadEntriesFailed", "LOAD-ENTRIES-ERROR-MARKER", async () => {
+      renderWithProviders(<HistoryPage />, { token: ADMIN });
+      expect(await screen.findByText("LOAD-ENTRIES-ERROR-MARKER")).toBeInTheDocument();
+      expect(screen.queryByText(/Could not load entries/)).not.toBeInTheDocument();
+    });
+  });
+
+  // Imperative i18n.t() with interpolation — the "nothing left to adjust"
+  // 409-rebind message, which interpolates the fresh entry's lowercased raw
+  // status (see the locale-fragile note in en.ts and at the call site).
+  it("interpolates the lowercased status into the nothing-to-adjust message from the catalog", async () => {
+    mockListDailyEntries.mockResolvedValue([SUBMITTED]);
+    mockAdjustDailyEntry.mockRejectedValue(new ApiError(409, "Conflict", "conflict"));
+    mockGetDailyEntry.mockResolvedValue({ ...VOIDED, status: "Voided" });
+    await withOverride("history", "nothingToAdjustMessage", "NOW-{{status}}-MARKER", async () => {
+      await openAdjustPanel();
+      fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: "recount" } });
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "Save adjustment" }));
+      });
+      expect(await screen.findByText("NOW-voided-MARKER")).toBeInTheDocument();
+    });
   });
 });
