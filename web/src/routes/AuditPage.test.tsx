@@ -101,6 +101,48 @@ describe("AuditPage load + render", () => {
     expect(changedOption.value).toBe("User.PasswordChanged");
   });
 
+  // #247 — the server emits Account.SetLogo/RemoveLogo/UpdateSettings, but the
+  // client filter list was missing all three, so admins could not filter by
+  // them (rows only showed under "All actions"). They must now be offered,
+  // labelled + value-preserved like every other action.
+  it("offers the farm logo + settings actions as filterable, labelled and value-preserved (#247)", async () => {
+    render(<AuditPage />);
+    await screen.findByText("No audit events yet.");
+    const setLogo = screen.getByRole("option", { name: "Farm logo set" }) as HTMLOptionElement;
+    const removeLogo = screen.getByRole("option", { name: "Farm logo removed" }) as HTMLOptionElement;
+    const updateSettings = screen.getByRole("option", { name: "Farm settings updated" }) as HTMLOptionElement;
+    expect(setLogo.value).toBe("Account.SetLogo");
+    expect(removeLogo.value).toBe("Account.RemoveLogo");
+    expect(updateSettings.value).toBe("Account.UpdateSettings");
+    // The raw codes must not leak as the visible option text.
+    expect(screen.queryByRole("option", { name: "Account.SetLogo" })).not.toBeInTheDocument();
+  });
+
+  // #247 — a logo row carries entityType "FarmLogo", which was absent from
+  // ENTITY_TYPE_VALUES and so degraded to the raw "FarmLogo" string. It must
+  // now render the friendly, translatable label through entityTypeLabel().
+  it("renders the FarmLogo entity type with its friendly label, not the raw code (#247)", async () => {
+    const LOGO_EVENT: AuditEvent = {
+      id: "a3",
+      occurredAtUtc: "2026-07-20T10:00:00Z",
+      actorEmail: "admin@farm.test",
+      action: "Account.SetLogo",
+      entityType: "FarmLogo",
+      entityId: "fl123456-89ab-cdef",
+      reason: null,
+      detailsJson: null,
+    };
+    mockListAuditEvents.mockResolvedValue([LOGO_EVENT]);
+    render(<AuditPage />);
+
+    const row = await screen.findByRole("row", { name: /admin@farm\.test/ });
+    // Action cell: friendly label, not the raw "Account.SetLogo".
+    expect(within(row).getByText("Farm logo set")).toBeInTheDocument();
+    // Entity cell: entityTypeLabel("FarmLogo") + first 8 chars of the id.
+    expect(within(row).getByText("Farm logo fl123456")).toBeInTheDocument();
+    expect(within(row).queryByText("FarmLogo fl123456")).not.toBeInTheDocument();
+  });
+
   it("maps each audit event's actor, action, entity and reason into its row", async () => {
     mockListAuditEvents.mockResolvedValue([EVENT_A, EVENT_B]);
     render(<AuditPage />);
