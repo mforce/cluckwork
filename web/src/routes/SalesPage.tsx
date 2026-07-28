@@ -569,7 +569,7 @@ export function SalesPage() {
                         <td>{p.referenceNumber ?? "—"}</td>
                         <td>
                           {p.voided
-                            ? <span className="badge badge-danger" title={p.voidReason ?? undefined}>{t("statusVoided")}</span>
+                            ? <span className="badge badge-danger" title={p.voidReason ?? undefined}>{statusLabel("Voided")}</span>
                             : isAdmin ? (
                               <button className="link" disabled={busy}
                                 onClick={() => void onVoidPayment(p.id, p.version)}>{t("voidPaymentButton")}</button>
@@ -668,10 +668,10 @@ export function SalesPage() {
         <label>{t("status")}
           <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
             <option value="">{t("allOption")}</option>
-            <option value="Draft">{t("statusDraft")}</option>
-            <option value="Confirmed">{t("statusConfirmed")}</option>
-            <option value="Cancelled">{t("statusCancelled")}</option>
-            <option value="Voided">{t("statusVoided")}</option>
+            <option value="Draft">{statusLabel("Draft")}</option>
+            <option value="Confirmed">{statusLabel("Confirmed")}</option>
+            <option value="Cancelled">{statusLabel("Cancelled")}</option>
+            <option value="Voided">{statusLabel("Voided")}</option>
           </select>
         </label>
         <label>{t("customer")}

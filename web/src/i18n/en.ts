@@ -234,18 +234,11 @@ export const en = {
     editQuantityAriaLabel: "Edit quantity",
     editUnitPriceAriaLabel: "Edit unit price",
 
-    // Status-filter options
-    // NOTE (#182, Task 5): these four are a translated duplicate of
-    // enums:status.{Draft,Confirmed,Cancelled,Voided}. `enums` is now in
-    // TRANSLATED_NAMESPACES too (es/tl machine-drafted, #182, pending native
-    // review), so this duplication is no longer required to avoid regressing
-    // to English-only labels — reconciling this dropdown onto enums:status
-    // and deleting these four keys is a tracked follow-up, not done here.
+    // Status-filter options. The Draft/Confirmed/Cancelled/Voided labels are
+    // rendered from the shared `enums:status` family via statusLabel() (#182) —
+    // no local duplicate here. `allOption` is filter-only chrome ("no status
+    // filter"), which has no enums equivalent, so it stays in this namespace.
     allOption: "All",
-    statusDraft: "Draft",
-    statusConfirmed: "Confirmed",
-    statusCancelled: "Cancelled",
-    statusVoided: "Voided",
 
     // Unit picker (the sale unit, e.g. "3 Dozen") — text equals the enum value.
     unitEgg: "Egg",

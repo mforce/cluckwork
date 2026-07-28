@@ -234,12 +234,8 @@ export const tl = {
     editQuantityAriaLabel: "I-edit ang dami",
     editUnitPriceAriaLabel: "I-edit ang presyo bawat yunit",
 
-    // Status-filter options
+    // Status-filter options — status labels now come from enums:status (#182).
     allOption: "Lahat",
-    statusDraft: "Draft",
-    statusConfirmed: "Kumpirmado",
-    statusCancelled: "Kinansela",
-    statusVoided: "Na-void",
 
     // Unit picker (the sale unit, e.g. "3 Dozen") — text equals the enum value.
     // NOTE (flag for native review): several unit/method nouns kept as common
