@@ -1530,6 +1530,31 @@ export const en = {
       "\"Basic\" profit is confirmed revenue minus recorded expenses — no "
       + "cost-of-goods or inventory valuation.",
   },
+  // Task 29 (#182, B5) — AuditPage. English-only (not in
+  // TRANSLATED_NAMESPACES), same as `history`/`nav`/`reports`. The #93
+  // read-only audit trail (admin). The action/entity table cells and the
+  // action filter's option text route through enums:auditAction.*/
+  // enums:entityType.* (translated — see the `enums` header comment below),
+  // NOT this namespace. DATA left raw, never routed through this catalog:
+  // every timestamp (e.occurredAtUtc), actorEmail, entityId, and the "—"
+  // em-dash fallback for a null reason (same convention as
+  // customers/expenses/users/flocks/history's raw "—").
+  audit: {
+    heading: "Audit log",
+    intro:
+      "Every corrective, destructive, or configuration change — who did it, "
+      + "when, and why. Rows are written with the change itself and never "
+      + "edited.",
+    actionFilterLabel: "Action",
+    allActionsOption: "All actions",
+    whenHeader: "When (UTC)",
+    whoHeader: "Who",
+    actionHeader: "Action",
+    entityHeader: "Entity",
+    reasonHeader: "Reason",
+    emptyMessage: "No audit events yet.",
+    loadMoreButton: "load more",
+  },
   // Closed-vocabulary labels (#182, Task 4). Consumed ONLY through the typed
   // helpers in enums.ts — never a raw t("enums:status." + value). Keys are FLAT
   // "family.RawValue" strings (keySeparator:false, see index.ts): the suffix is
@@ -1646,6 +1671,55 @@ export const en = {
     "weekday.Thursday": "Thursday",
     "weekday.Friday": "Friday",
     "weekday.Saturday": "Saturday",
+
+    // audit action (AuditPage filter/table) — AuditEvent.action, a server
+    // "Entity.Verb" capture-point code (#182, Task 29). Flat
+    // "auditAction.Entity.Verb" keys: keySeparator:false treats the whole
+    // dotted code as ONE literal key segment, so e.g. "DailyEntry.Adjust"
+    // becomes the key "auditAction.DailyEntry.Adjust", not a nested path.
+    "auditAction.DailyEntry.Adjust": "Daily entry adjusted",
+    "auditAction.DailyEntry.Void": "Daily entry voided",
+    "auditAction.SalesOrder.Void": "Sales order voided",
+    "auditAction.Payment.Void": "Payment voided",
+    "auditAction.Expense.Adjust": "Expense adjusted",
+    "auditAction.ExpenseCategory.Update": "Expense category updated",
+    "auditAction.InventoryItem.Adjust": "Inventory item adjusted",
+    "auditAction.WaterUsage.Correct": "Water usage corrected",
+    "auditAction.Flock.BirdMovement": "Bird movement recorded",
+    "auditAction.Flock.Update": "Flock updated",
+    "auditAction.Flock.Deplete": "Flock depleted",
+    "auditAction.Flock.Archive": "Flock archived",
+    "auditAction.Flock.Reactivate": "Flock reactivated",
+    "auditAction.EggGrade.Update": "Egg grade updated",
+    "auditAction.EggGrade.Activate": "Egg grade activated",
+    "auditAction.EggGrade.Deactivate": "Egg grade deactivated",
+    "auditAction.User.Create": "User created",
+    "auditAction.User.Update": "User updated",
+    "auditAction.User.PasswordSet": "Password set",
+    "auditAction.User.PasswordChanged": "Password changed",
+    "auditAction.User.FlockAssign": "Flock assigned to user",
+    "auditAction.User.FlockUnassign": "Flock unassigned from user",
+    "auditAction.Account.Export": "Data exported",
+    "auditAction.Product.Create": "Product created",
+    "auditAction.Product.Update": "Product updated",
+    "auditAction.Product.Activate": "Product activated",
+    "auditAction.Product.Deactivate": "Product deactivated",
+    "auditAction.EggUnitConversion.Update": "Egg unit conversion updated",
+
+    // entity type (AuditPage table entity cell) — AuditEvent.entityType.
+    "entityType.Account": "Account",
+    "entityType.DailyEntry": "Daily entry",
+    "entityType.EggGrade": "Egg grade",
+    "entityType.EggUnitConversion": "Egg unit conversion",
+    "entityType.Expense": "Expense",
+    "entityType.ExpenseCategory": "Expense category",
+    "entityType.Flock": "Flock",
+    "entityType.InventoryItem": "Inventory item",
+    "entityType.Payment": "Payment",
+    "entityType.Product": "Product",
+    "entityType.SalesOrder": "Sales order",
+    "entityType.User": "User",
+    "entityType.WaterUsage": "Water usage",
   },
 } as const;
 

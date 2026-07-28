@@ -552,5 +552,57 @@ export const tl = {
     "weekday.Thursday": "Huwebes",
     "weekday.Friday": "Biyernes",
     "weekday.Saturday": "Sabado",
+
+    // machine-drafted (#182) — pending native review. Task 29 (B5): audit
+    // action + entity type labels for AuditPage. Keys mirror en.ts exactly
+    // (flat "auditAction.Entity.Verb" / "entityType.Value" strings,
+    // keySeparator:false — see en.ts's auditAction header comment).
+    // "Order", "User", "Account", "item", and "conversion" kept as English
+    // loanwords, matching the sales/users precedent above; "kawan" (flock),
+    // "gastos" (expense), "bayad" (payment), "produkto" (product), "itlog"
+    // (egg), and "imbentaryo" (inventory) reuse the vocabulary already
+    // established in the sales/users/expenses/customers namespaces.
+    "auditAction.DailyEntry.Adjust": "Na-adjust ang araw-araw na entry",
+    "auditAction.DailyEntry.Void": "Na-void ang araw-araw na entry",
+    "auditAction.SalesOrder.Void": "Na-void ang order ng benta",
+    "auditAction.Payment.Void": "Na-void ang bayad",
+    "auditAction.Expense.Adjust": "Na-adjust ang gastos",
+    "auditAction.ExpenseCategory.Update": "Na-update ang kategorya ng gastos",
+    "auditAction.InventoryItem.Adjust": "Na-adjust ang item sa imbentaryo",
+    "auditAction.WaterUsage.Correct": "Naitama ang paggamit ng tubig",
+    "auditAction.Flock.BirdMovement": "Naitala ang paggalaw ng manok",
+    "auditAction.Flock.Update": "Na-update ang kawan",
+    "auditAction.Flock.Deplete": "Naubos ang kawan",
+    "auditAction.Flock.Archive": "Na-archive ang kawan",
+    "auditAction.Flock.Reactivate": "Na-reactivate ang kawan",
+    "auditAction.EggGrade.Update": "Na-update ang grado ng itlog",
+    "auditAction.EggGrade.Activate": "Na-activate ang grado ng itlog",
+    "auditAction.EggGrade.Deactivate": "Na-deactivate ang grado ng itlog",
+    "auditAction.User.Create": "Nagawa ang user",
+    "auditAction.User.Update": "Na-update ang user",
+    "auditAction.User.PasswordSet": "Naitakda ang password",
+    "auditAction.User.PasswordChanged": "Napalitan ang password",
+    "auditAction.User.FlockAssign": "Na-assign ang kawan sa user",
+    "auditAction.User.FlockUnassign": "Na-unassign ang kawan mula sa user",
+    "auditAction.Account.Export": "Na-export ang datos",
+    "auditAction.Product.Create": "Nagawa ang produkto",
+    "auditAction.Product.Update": "Na-update ang produkto",
+    "auditAction.Product.Activate": "Na-activate ang produkto",
+    "auditAction.Product.Deactivate": "Na-deactivate ang produkto",
+    "auditAction.EggUnitConversion.Update": "Na-update ang conversion ng yunit ng itlog",
+
+    "entityType.Account": "Account",
+    "entityType.DailyEntry": "Araw-araw na Entry",
+    "entityType.EggGrade": "Grado ng Itlog",
+    "entityType.EggUnitConversion": "Conversion ng Yunit ng Itlog",
+    "entityType.Expense": "Gastos",
+    "entityType.ExpenseCategory": "Kategorya ng Gastos",
+    "entityType.Flock": "Kawan",
+    "entityType.InventoryItem": "Item sa Imbentaryo",
+    "entityType.Payment": "Bayad",
+    "entityType.Product": "Produkto",
+    "entityType.SalesOrder": "Order ng Benta",
+    "entityType.User": "User",
+    "entityType.WaterUsage": "Paggamit ng Tubig",
   },
 } as const;
