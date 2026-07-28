@@ -88,8 +88,8 @@ describe("HistoryPage adjust — sellable guard", () => {
 
     // 46 + 45 = 91 > sellable 90, yet neither line individually exceeds 90 —
     // so this only fails if the guard actually SUMS the lines
-    fireEvent.change(screen.getByLabelText("Grade A"), { target: { value: "46" } });
-    fireEvent.change(screen.getByLabelText("Grade B"), { target: { value: "45" } });
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Grade A" }), { target: { value: "46" } });
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Grade B" }), { target: { value: "45" } });
     fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: "recount" } });
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Save adjustment" }));
@@ -104,8 +104,8 @@ describe("HistoryPage adjust — sellable guard", () => {
     mockAdjustDailyEntry.mockResolvedValue({ id: "de1", status: "ManagerAdjusted", version: 2 });
     await openAdjustPanel();
 
-    fireEvent.change(screen.getByLabelText("Grade A"), { target: { value: "45" } });
-    fireEvent.change(screen.getByLabelText("Grade B"), { target: { value: "45" } }); // 90 === sellable
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Grade A" }), { target: { value: "45" } });
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Grade B" }), { target: { value: "45" } }); // 90 === sellable
     fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: "recount" } });
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Save adjustment" }));

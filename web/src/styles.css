@@ -446,6 +446,20 @@ input[type="checkbox"] {
   min-width: 8rem;
 }
 
+/* A labelled stepper in a form (#250). Sibling label + NumberField, styled to
+   sit exactly like the label-wrapped inputs beside it — sibling because a
+   <label> may not contain interactive content other than its own control, and
+   the stepper carries two buttons. */
+.numfield-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.form-grid .numfield-field {
+  min-width: 8rem;
+}
+
 .inline-form {
   display: flex;
   gap: 0.5rem;
@@ -837,6 +851,14 @@ input.cell {
 .numfield input::-webkit-inner-spin-button {
   -webkit-appearance: none;
   margin: 0;
+}
+
+/* The dialog full-width input rule (".dialog .form-grid input…" above) would
+   stretch the stepper's input across the dialog and throw − and + to opposite
+   edges — the very reach problem F134's flanking buttons exist to avoid
+   (#250). Same specificity as that rule, later in the file, so it wins. */
+.dialog .numfield input:not([type="checkbox"]) {
+  width: 4.75rem;
 }
 
 .numfield-step {
@@ -1688,6 +1710,11 @@ label.check {
   }
 
   .form-grid label {
+    min-width: 0;
+    flex: 1 1 40%;
+  }
+
+  .form-grid .numfield-field {
     min-width: 0;
     flex: 1 1 40%;
   }

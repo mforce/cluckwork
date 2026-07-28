@@ -178,6 +178,53 @@ describe("SalesPage i18n", () => {
   });
 });
 
+// #250 — the quantity fields use the shared NumberField stepper (F134): −/+
+// beside the input, floored at 1 (a zero-quantity sale line is meaningless).
+// Steps land through the keyboard/click path here; the hold-to-repeat physics
+// are NumberField.test.tsx's job, not re-proven per screen.
+describe("SalesPage quantity steppers (#250)", () => {
+  it("steps the add-line quantity with −/+ and floors it at 1", async () => {
+    await renderReady();
+    await createDraft(draftEmpty(2, "USD"));
+
+    // Role query, not getByLabelText: the wrapping <label> makes every control
+    // inside it (the −/+ buttons too) answer to "Quantity"; only the input has
+    // the spinbutton role.
+    const qty = screen.getByRole("spinbutton", { name: "Quantity" });
+    fireEvent.change(qty, { target: { value: "2" } });
+    expect(qty).toHaveValue(2);
+
+    const minus = screen.getByRole("button", { name: "Decrease quantity" });
+    fireEvent.click(minus);
+    expect(qty).toHaveValue(1);
+    // At the floor the − disables rather than silently no-opping…
+    expect(minus).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Increase quantity" }));
+    expect(qty).toHaveValue(2);
+
+    // …and typing below it clamps back up.
+    fireEvent.change(qty, { target: { value: "0" } });
+    expect(qty).toHaveValue(1);
+  });
+
+  it("steps the inline-edit quantity with −/+ and floors it at 1", async () => {
+    const row = await openOrder(DRAFT_TWO, /Grade A Dozen/);
+    fireEvent.click(within(row).getByRole("button", { name: "edit" }));
+
+    const qty = screen.getByRole("spinbutton", { name: "Edit quantity" }); // sr-only label in the cell
+    expect(qty).toHaveValue(3); // seeded from the line (ITEM_A)
+
+    fireEvent.click(screen.getByRole("button", { name: "Decrease edit quantity" }));
+    fireEvent.click(screen.getByRole("button", { name: "Decrease edit quantity" }));
+    expect(qty).toHaveValue(1);
+    expect(screen.getByRole("button", { name: "Decrease edit quantity" })).toBeDisabled();
+
+    fireEvent.change(qty, { target: { value: "0" } });
+    expect(qty).toHaveValue(1);
+  });
+});
+
 describe("SalesPage line display", () => {
   it("shows per-line base eggs and money, with the order total distinct from any single line", async () => {
     const rowA = await openOrder(DRAFT_TWO, /Grade A Dozen/);

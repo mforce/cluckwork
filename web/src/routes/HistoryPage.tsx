@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
@@ -10,6 +10,7 @@ import { ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
+import { NumberField } from "../components/NumberField";
 import { useConfirm } from "../components/useConfirm";
 import { usePendingAction } from "../components/usePendingAction";
 import { StatusBadge } from "../components/StatusBadge";
@@ -54,6 +55,10 @@ export function HistoryPage() {
   // along so a concurrent correction surfaces as a 409, not an overwrite.
   const [adjusting, setAdjusting] = useState<DailyEntry | null>(null);
   const [total, setTotal] = useState(0);
+  // NumberField owns its own input, so the labels point at it by id (#250,
+  // same F134 idiom as the daily-entry screen this form mirrors).
+  const fieldId = useId();
+  const idFor = (name: string) => `${fieldId}-${name}`;
   const [cracked, setCracked] = useState(0);
   const [dirty, setDirty] = useState(0);
   const [discarded, setDiscarded] = useState(0);
@@ -328,33 +333,47 @@ export function HistoryPage() {
               </p>
             )}
             <form className="form-grid" onSubmit={onAdjustSubmit}>
-            <label>{t("totalEggsLabel")}
-              <input type="number" min={0} value={total} required
-                onChange={(e) => setTotal(Math.max(0, e.target.valueAsNumber || 0))} />
-            </label>
-            <label>{t("crackedLabel")}
-              <input type="number" min={0} value={cracked} required
-                onChange={(e) => setCracked(Math.max(0, e.target.valueAsNumber || 0))} />
-            </label>
-            <label>{t("dirtyLabel")}
-              <input type="number" min={0} value={dirty} required
-                onChange={(e) => setDirty(Math.max(0, e.target.valueAsNumber || 0))} />
-            </label>
-            <label>{t("discardedLabel")}
-              <input type="number" min={0} value={discarded} required
-                onChange={(e) => setDiscarded(Math.max(0, e.target.valueAsNumber || 0))} />
-            </label>
-            <label>{t("deathsLabel")}
-              <input type="number" min={0} value={mortality} required
-                onChange={(e) => setMortality(Math.max(0, e.target.valueAsNumber || 0))} />
-            </label>
+            {/* #250: same steppers as the daily-entry screen this correction
+                form mirrors. Sibling label, not wrapping — a <label> may not
+                contain interactive content other than its own control, and the
+                stepper carries two buttons. */}
+            <div className="numfield-field">
+              <label htmlFor={idFor("total")}>{t("totalEggsLabel")}</label>
+              <NumberField id={idFor("total")} label={t("totalEggsLabel").toLowerCase()}
+                value={total} onChange={setTotal} />
+            </div>
+            <div className="numfield-field">
+              <label htmlFor={idFor("cracked")}>{t("crackedLabel")}</label>
+              <NumberField id={idFor("cracked")} label={t("crackedLabel").toLowerCase()}
+                value={cracked} onChange={setCracked} />
+            </div>
+            <div className="numfield-field">
+              <label htmlFor={idFor("dirty")}>{t("dirtyLabel")}</label>
+              <NumberField id={idFor("dirty")} label={t("dirtyLabel").toLowerCase()}
+                value={dirty} onChange={setDirty} />
+            </div>
+            <div className="numfield-field">
+              <label htmlFor={idFor("discarded")}>{t("discardedLabel")}</label>
+              <NumberField id={idFor("discarded")} label={t("discardedLabel").toLowerCase()}
+                value={discarded} onChange={setDiscarded} />
+            </div>
+            <div className="numfield-field">
+              <label htmlFor={idFor("deaths")}>{t("deathsLabel")}</label>
+              <NumberField id={idFor("deaths")} label={t("deathsLabel").toLowerCase()}
+                value={mortality} onChange={setMortality} />
+            </div>
             {panelGrades(adjusting).map((g) => (
-              <label key={g.id}>{g.name}{g.active ? "" : t("inactiveGradeSuffix")}
-                <input type="number" min={0} value={lineQty[g.id] ?? 0}
-                  onChange={(e) => setLineQty((prev) => ({
-                    ...prev, [g.id]: Math.max(0, e.target.valueAsNumber || 0),
+              <div key={g.id} className="numfield-field">
+                <label htmlFor={idFor(`grade-${g.id}`)}>{g.name}{g.active ? "" : t("inactiveGradeSuffix")}</label>
+                <NumberField id={idFor(`grade-${g.id}`)} label={g.name.toLowerCase()}
+                  value={lineQty[g.id] ?? 0}
+                  onChange={(next) => setLineQty((prev) => ({
+                    ...prev,
+                    // A grade lives in a record, so its updater is adapted here —
+                    // still the functional form, which hold-to-repeat depends on.
+                    [g.id]: typeof next === "function" ? next(prev[g.id] ?? 0) : next,
                   }))} />
-              </label>
+              </div>
             ))}
             <label>{t("reasonLabel")}
               <input value={reason} maxLength={500} required

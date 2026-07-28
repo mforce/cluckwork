@@ -408,10 +408,15 @@ export function DailyEntryPage() {
             <input type="date" value={newFlockPlaced} max={today} required
               onChange={(e) => setNewFlockPlaced(e.target.value)} />
           </label>
-          <label>{t("birdsLabel")}
-            <input type="number" min={1} value={newFlockCount} required
-              onChange={(e) => setNewFlockCount(Math.max(1, e.target.valueAsNumber || 1))} />
-          </label>
+          {/* #250: the one count on this page that was still a raw input.
+              Sibling label, not wrapping — a <label> may not contain
+              interactive content other than its own control, and the stepper
+              carries two buttons. */}
+          <div className="numfield-field">
+            <label htmlFor={idFor("new-flock-birds")}>{t("birdsLabel")}</label>
+            <NumberField id={idFor("new-flock-birds")} label={t("birdsLabel").toLowerCase()}
+              value={newFlockCount} onChange={setNewFlockCount} min={1} />
+          </div>
           {/* The dialog carries its own copy while it is up. This used to read
               `!showNewFlock` here, inside a dialog that only exists WHEN
               showNewFlock — so a failed create rendered no error anywhere and

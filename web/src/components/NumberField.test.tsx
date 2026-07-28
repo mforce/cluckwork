@@ -168,6 +168,123 @@ describe("NumberField ceiling", () => {
   });
 });
 
+// #250: quantity fields floor at 1 — a zero-quantity sale line is meaningless —
+// while the daily-entry counts keep the default floor of 0 untouched.
+describe("NumberField floor", () => {
+  function Floored({ start = 5, min }: { start?: number; min: number }) {
+    const [value, setValue] = useState(start);
+    // Same label as Host, so the shared minus()/field() queries apply.
+    return <NumberField id="n" label="total eggs" value={value} onChange={setValue} min={min} />;
+  }
+
+  it("disables − on arrival at the floor, not at zero", async () => {
+    vi.useFakeTimers();
+    render(<Floored start={2} min={1} />);
+
+    await hold(minus(), 0);
+    expect(field()).toHaveValue(1);
+    expect(minus()).toBeDisabled();
+  });
+
+  it("stops a held − dead at the floor instead of running past it", async () => {
+    vi.useFakeTimers();
+    render(<Floored start={40} min={1} />);
+
+    // Long enough to remove ~40 unclamped.
+    await hold(minus(), 1300);
+    expect(field()).toHaveValue(1);
+  });
+
+  it("clamps a typed value up to the floor", () => {
+    render(<Floored start={5} min={1} />);
+    fireEvent.change(field(), { target: { value: "0" } });
+    expect(field()).toHaveValue(1);
+    // The attribute must carry the floor too: it is what native form
+    // validation enforces on the paths React never sees (e.g. a stale value
+    // surviving a Cull↔Adjustment type switch on the movement form).
+    expect(field()).toHaveAttribute("min", "1");
+  });
+
+  it("keyboard activation stops at the floor", async () => {
+    const user = (await import("@testing-library/user-event")).default.setup();
+    render(<Floored start={2} min={1} />);
+
+    minus().focus();
+    await user.keyboard("{Enter}");
+    expect(field()).toHaveValue(1);
+    expect(minus()).toBeDisabled();
+  });
+
+  it("supports an unbounded floor: typed negatives stay, − steps below zero, no min attribute", async () => {
+    // FlocksPage's Adjustment movement counts both ways — birds added (+) and
+    // removed (−) — so it passes -Infinity. The input must not carry
+    // min="-Infinity", which is not a valid HTML constraint.
+    vi.useFakeTimers();
+    render(<Floored start={0} min={Number.NEGATIVE_INFINITY} />);
+
+    // An actual step past zero — "the button is enabled" alone would survive a
+    // bump clamp that quietly regressed to Math.max(0, …).
+    await hold(minus(), 0);
+    expect(field()).toHaveValue(-1);
+
+    fireEvent.change(field(), { target: { value: "-5" } });
+    expect(field()).toHaveValue(-5);
+    expect(field()).not.toHaveAttribute("min");
+  });
+
+  it("stops doing work once wedged against a non-zero floor", async () => {
+    // The repeat's stop condition must compare against the FLOOR, not a
+    // hardcoded 0 — with min=1 a `now <= 0` regression never terminates: every
+    // tick clamps at 1, silently rescheduling forever.
+    vi.useFakeTimers();
+    const onChange = vi.fn();
+    function Counting() {
+      const [value, setValue] = useState(3);
+      return (
+        <NumberField id="n" label="total eggs" value={value} min={1}
+          onChange={(next) => { onChange(); setValue(next); }} />
+      );
+    }
+    render(<Counting />);
+
+    await act(async () => { fireEvent.pointerDown(minus()); });
+    await act(async () => { vi.advanceTimersByTime(2000); });
+    expect(field()).toHaveValue(1);
+
+    const settled = onChange.mock.calls.length;
+    await act(async () => { vi.advanceTimersByTime(10_000); });
+    expect(onChange).toHaveBeenCalledTimes(settled);
+
+    await act(async () => { fireEvent.pointerUp(minus()); });
+  });
+
+  it("obeys a floor that rises mid-hold, mirroring the live ceiling", async () => {
+    vi.useFakeTimers();
+    // The repeat outlives the render that started it (see "live limits"): a
+    // conditional floor — FlocksPage's movement quantity — can change under a
+    // held −, and the repeat must read the new one rather than its closure's.
+    function Rising() {
+      const [value, setValue] = useState(60);
+      const [min, setMin] = useState(0);
+      return (
+        <>
+          <NumberField id="n" label="total eggs" value={value} onChange={setValue} min={min} />
+          <button onClick={() => setMin(50)}>raise</button>
+        </>
+      );
+    }
+    render(<Rising />);
+
+    await act(async () => { fireEvent.pointerDown(minus()); });
+    await act(async () => { vi.advanceTimersByTime(500); });
+    await act(async () => { fireEvent.click(screen.getByText("raise")); });
+    await act(async () => { vi.advanceTimersByTime(2000); });
+    await act(async () => { fireEvent.pointerUp(minus()); });
+
+    expect(Number((field() as HTMLInputElement).value)).toBeGreaterThanOrEqual(50);
+  });
+});
+
 // Two fingers on the same field — one on −, one on + — fire two pointerDowns
 // with no stop between them. This is a phone-first screen, so it is reachable.
 describe("NumberField overlapping presses", () => {

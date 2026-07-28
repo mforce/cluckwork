@@ -1917,6 +1917,10 @@ export const en = {
       "The screens whose whole job is capture keep their form on the page: <strong>Daily entry</strong>, "
       + "<strong>Water</strong>, recording an expense, and adding lines to a draft order. Those you use every "
       + "day — no extra click.",
+    dialogsSteppers:
+      "Whole-number counts — egg counts, bird counts, sale quantities, eggs per unit — have thumb-sized "
+      + "<strong>−</strong> and <strong>+</strong> buttons: tap for one, <strong>hold</strong> to speed up. "
+      + "A sale line's quantity never steps below 1. Prices and fractional amounts are still typed.",
     dialogsConfirm:
       "<strong>Actions that cannot be undone ask first.</strong> Submitting a day, confirming or cancelling "
       + "an order, depleting or archiving a flock — each one says what is about to happen and waits. The "
