@@ -22,6 +22,11 @@ export const TRANSLATED_NAMESPACES = [
   "account",
   "errors",
   "sales",
+  "enums",
+  "settings",
+  "users",
+  "expenses",
+  "customers",
 ] as const satisfies readonly (keyof typeof en)[];
 
 export type TranslatedNamespace = (typeof TRANSLATED_NAMESPACES)[number];

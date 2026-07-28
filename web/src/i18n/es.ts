@@ -180,4 +180,352 @@ export const es = {
     paymentVoided: "Pago anulado — el monto pendiente aumentó de nuevo.",
     orderVoided: "Pedido {{ref}} anulado — existencias devueltas al inventario.",
   },
+
+  // machine-drafted (#182) — pending native review. Task 25c (B4): new
+  // namespace, backfilling es so Spanish mode renders translated text on the
+  // Settings screen. Keys mirror en.ts settings exactly, including the
+  // {{cap}}/{{actualKb}}/{{limitKb}}/{{code}} placeholders and the <strong>
+  // tag in logoSquareHint.
+  settings: {
+    heading: "Configuración de la granja",
+    intro:
+      "Cómo se llama esta granja, y la configuración regional, la zona "
+      + "horaria y la moneda en que registra y lee su trabajo.",
+    loadFailedMessage: "No se pudo cargar la configuración de la granja.",
+
+    // Logo panel
+    logoSectionHeading: "Logotipo",
+    logoAlt: "Logotipo actual de la granja",
+    logoLoadingMessage: "Cargando el logotipo…",
+    logoLoadFailedMessage: "No se pudo cargar el logotipo.",
+    logoNoneMessage: "No hay logotipo configurado — la barra lateral muestra la marca de Cluckwork.",
+    uploadLogoButton: "Subir un logotipo",
+    replaceLogoButton: "Reemplazar el logotipo",
+    removeLogoButton: "Quitar",
+    logoRulesHint:
+      "PNG, JPEG o WebP, de hasta {{cap}} y 4096 px por lado. No se aceptan "
+      + "imágenes animadas. La imagen se guarda reescrita, sin los metadatos "
+      + "de cámara ni ubicación.",
+    logoSquareHint:
+      "Use una imagen <strong>cuadrada</strong> — el logotipo se muestra "
+      + "pequeño en la barra lateral, así que una marca simple y bien "
+      + "recortada (un símbolo o una sola letra) se ve mucho mejor ahí que "
+      + "una imagen ancha o detallada. Un fondo transparente sobre un diseño "
+      + "claro funciona mejor.",
+    logoWorkingMessage: "Procesando…",
+    logoUpdatedMessage: "Logotipo actualizado.",
+    logoRemovedMessage: "Logotipo eliminado.",
+    logoOversizeMessage: "Esa imagen pesa {{actualKb}} KB. El límite es {{limitKb}} KB.",
+    removeLogoConfirmTitle: "¿Quitar el logotipo de la granja?",
+    removeLogoConfirmBody:
+      "La barra lateral vuelve a mostrar la marca de Cluckwork. Puede subir "
+      + "otro en cualquier momento.",
+    removeLogoConfirmLabel: "Quitar logotipo",
+
+    // Localization form
+    localizationSectionHeading: "Localización",
+    farmNameLabel: "Nombre de la granja",
+    timezoneLabel: "Zona horaria",
+    timezoneUnknownWarning:
+      "Este navegador no reconoce esa zona horaria, así que las fechas aquí "
+      + "seguirían al dispositivo en lugar de a la granja. Elija una de la lista.",
+    localeLabel: "Configuración regional",
+    currencyLabel: "Moneda",
+    currencyLockedNote:
+      "La moneda está fija en {{code}}: esta granja ya registró montos en "
+      + "ella. El dinero registrado nunca se vuelve a valorar, así que "
+      + "cambiar esto dejaría cada total guardado con otro significado.",
+    unitSystemLabel: "Sistema de unidades",
+    firstDayOfWeekLabel: "Primer día de la semana",
+    followLocaleOption: "Seguir la configuración regional",
+    paletteLegend: "Paleta de la granja",
+    paletteHint:
+      "El color de acento para todos en esta granja. Cada persona sigue "
+      + "eligiendo el modo claro o nocturno por sí misma.",
+    paletteAubergine: "Berenjena",
+    paletteForest: "Bosque",
+    paletteSlate: "Pizarra",
+    paletteTerracotta: "Terracota",
+    dateFormatLabel: "Formato de fecha",
+    timeFormatLabel: "Formato de hora",
+    savingButton: "Guardando…",
+    saveButton: "Guardar configuración",
+    effectNote:
+      "La zona horaria se aplica en todas partes en cuanto se guarda. La "
+      + "configuración regional, el sistema de unidades y los formatos "
+      + "personalizados se registran contra la granja y determinarán cómo "
+      + "se muestran los montos, las fechas y las medidas una vez que ese "
+      + "formato esté disponible.",
+    savedMessage: "Configuración guardada.",
+
+    // Imperative messages
+    versionConflictMessage:
+      "Otra persona cambió esta configuración mientras esta pantalla "
+      + "estaba abierta. Vuelva a cargar la página e inténtelo de nuevo.",
+    saveReadBackFailedMessage:
+      "Guardado. Esta pantalla no pudo volver a leer la configuración — "
+      + "vuelva a cargar la página antes de guardar de nuevo.",
+    refreshFailedMessage:
+      "Guardado. El resto de la aplicación no pudo detectar el cambio — "
+      + "vuelva a cargar la página para asegurarse de que se aplicó en "
+      + "todas partes.",
+  },
+
+  // machine-drafted (#182) — pending native review. Task 25c (B4): new
+  // namespace, backfilling es so Spanish mode renders translated text on the
+  // Users screen. Keys mirror en.ts users exactly, including the
+  // {{label}}/{{email}}/{{role}} placeholders.
+  users: {
+    heading: "Usuarios",
+    newUserButton: "Nuevo usuario",
+    roleDescription:
+      "Los trabajadores registran el trabajo del día (opcionalmente "
+      + "limitado a los lotes asignados). Los gerentes además corrigen, "
+      + "anulan y configuran. Ventas gestiona clientes, pedidos y pagos. "
+      + "Solo lectura ve existencias, historial e informes. Administrador "
+      + "(propietario) hace todo, incluida la gestión de usuarios.",
+
+    // Create-user dialog
+    emailFieldLabel: "Correo electrónico *",
+    passwordFieldLabel: "Contraseña (mín. 12 caracteres) *",
+    nameFieldLabel: "Nombre",
+    roleFieldLabel: "Rol",
+    adminRoleOption: "{{label}} (propietario)",
+    createUserButton: "Crear usuario",
+
+    // Users table
+    emailColumnHeader: "Correo electrónico",
+    nameColumnHeader: "Nombre",
+    roleColumnHeader: "Rol",
+    editButton: "editar",
+    resetPasswordButton: "contraseña",
+    flocksButton: "lotes",
+
+    // Flock-access dialog
+    flockAccessTitle: "Acceso a lotes — {{email}}",
+    flockAccessHint:
+      "Sin asignaciones = el trabajador puede registrar para cualquier "
+      + "lote. La primera asignación lo limita solo a los lotes indicados.",
+    noAssignmentsMessage: "Sin asignaciones — acceso a toda la cuenta.",
+    removeAssignmentButton: "quitar",
+    assignFlockButton: "Asignar lote",
+    doneButton: "Listo",
+
+    // Edit-user dialog
+    editUserTitle: "Editar usuario — {{email}}",
+    clearNameHint: "Deje en blanco para borrar el nombre.",
+
+    // Set-password dialog
+    setPasswordTitle: "Establecer contraseña — {{email}}",
+    passwordDialogHint:
+      "No necesita la contraseña actual. Al establecerla se cierra la "
+      + "sesión en todos los dispositivos — comunique la nueva contraseña "
+      + "directamente.",
+    newPasswordFieldLabel: "Nueva contraseña (mín. 12 caracteres) *",
+    confirmPasswordFieldLabel: "Confirmar nueva contraseña *",
+    setPasswordButton: "Establecer contraseña",
+
+    // Imperative messages
+    createSuccessMessage: "Cuenta de {{role}} creada para {{email}}.",
+    passwordMismatchMessage: "Las contraseñas no coinciden.",
+    passwordSetMessage: "Contraseña establecida para {{email}}. Se cerró la sesión en todos los dispositivos.",
+    updatedMessage: "Se actualizó {{email}}.",
+  },
+
+  // machine-drafted (#182) — pending native review. Task 25c (B4): new
+  // namespace, backfilling es so Spanish mode renders translated text on the
+  // Expenses screen. Keys mirror en.ts expenses exactly, including the
+  // {{name}}/{{count}}/{{amount}}/{{code}}/{{date}}/{{description}}
+  // placeholders.
+  expenses: {
+    title: "Gastos",
+
+    // Imperative messages
+    expenseRecordedMessage: "Gasto registrado.",
+    expenseCorrectedMessage: "Gasto corregido.",
+    conflictRebindMessage:
+      "Este gasto fue cambiado por otra persona — el formulario ahora "
+      + "muestra los valores más recientes; vuelva a aplicar su corrección.",
+    categoryCreatedMessage: "Categoría creada.",
+    categoryDeactivatedMessage: "Categoría \"{{name}}\" desactivada.",
+    categoryReactivatedMessage: "Categoría \"{{name}}\" reactivada.",
+
+    // Amount-parsing validation
+    enterValidAmount: "Ingrese un monto válido.",
+    noDecimalPlaces: "Esta moneda no tiene decimales.",
+    atMostDecimals: "Como máximo {{count}} decimales para esta moneda.",
+    enterAmountGreaterThanZero: "Ingrese un monto mayor que cero.",
+
+    // Filters
+    monthLabel: "Mes",
+    categoryLabel: "Categoría",
+    allCategoriesOption: "Todas las categorías",
+    hideCategoriesButton: "ocultar categorías",
+    manageCategoriesButton: "gestionar categorías",
+    monthTotalLabel: "Total del mes: {{amount}}",
+
+    // Category-management panel
+    categoriesHeading: "Categorías de gastos",
+    newCategoryButton: "Nueva categoría",
+    newCategoryDialogTitle: "Nueva categoría de gasto",
+    categoryNameLabel: "Nombre de la categoría",
+    addCategoryButton: "Agregar categoría",
+    deactivatedSuffix: " (desactivada)",
+    deactivateButton: "desactivar",
+    reactivateButton: "reactivar",
+    noCategoriesMessage: "Aún no hay categorías — agregue una arriba.",
+
+    // Record-expense form
+    recordExpenseHeading: "Registrar un gasto",
+    dateLabel: "Fecha",
+    pickOption: "— elegir —",
+    descriptionLabel: "Descripción",
+    amountLabel: "Monto ({{code}})",
+    flockOptionalLabel: "Lote (opcional)",
+    noneOption: "— ninguno —",
+    noteOptionalLabel: "Nota (opcional)",
+    recordExpenseButton: "Registrar gasto",
+    addCategoryFirstMessage: "Agregue una categoría primero — todo gasto necesita una.",
+
+    // Correct-expense dialog
+    correctExpenseDialogTitle: "Corregir gasto",
+    correctExpenseDialogTitleWithExpense: "Corregir — {{date}}, {{description}}",
+    saveCorrectionButton: "Guardar corrección",
+
+    // Expenses table
+    noExpensesMessage: "No hay gastos este mes.",
+    dateHeader: "Fecha",
+    categoryHeader: "Categoría",
+    descriptionHeader: "Descripción",
+    amountHeader: "Monto",
+    flockHeader: "Lote",
+    noteHeader: "Nota",
+    correctButton: "corregir",
+    loadMoreButton: "cargar más",
+  },
+
+  // machine-drafted (#182) — pending native review. Task 25c (B4): new
+  // namespace, backfilling es so Spanish mode renders translated text on the
+  // Customers screen. Keys mirror en.ts customers exactly (no placeholders
+  // in this namespace).
+  customers: {
+    title: "Clientes",
+    newCustomerButton: "Nuevo cliente",
+
+    // Create-customer dialog
+    nameFieldLabel: "Nombre *",
+    phoneFieldLabel: "Teléfono *",
+    emailFieldLabel: "Correo electrónico",
+    addressFieldLabel: "Dirección",
+    noteFieldLabel: "Nota",
+    addCustomerButton: "Agregar cliente",
+
+    // Imperative messages
+    loadCustomersErrorMessage: "No se pudieron cargar los clientes.",
+    loadBalancesErrorMessage: "No se pudieron cargar los saldos de los clientes.",
+
+    // Customers table
+    noCustomersMessage: "Aún no hay clientes.",
+    nameHeader: "Nombre",
+    phoneHeader: "Teléfono",
+    emailHeader: "Correo electrónico",
+    addressHeader: "Dirección",
+    noteHeader: "Nota",
+    outstandingHeader: "Pendiente",
+  },
+
+  // machine-drafted (#182) — pending native review. Task 25c (B4): new
+  // namespace, backfilling es for the closed-vocabulary enum labels
+  // (status/role/waterSource/waterUnit/gradeType/inventoryCategory/
+  // inventoryMovement/flockMovement/stockMovement/unitSystem/weekday)
+  // consumed through enums.ts, so Settings' unit-system/weekday pickers and
+  // Users' role values render translated text too. Keys mirror en.ts enums
+  // exactly (flat "family.RawValue" strings, keySeparator:false — see
+  // en.ts's enums header comment). waterUnit.L/waterUnit.gal are left as the
+  // literal unit symbols (unchanged across en/es/tl), matching en's own
+  // comment.
+  enums: {
+    // status
+    "status.Active": "Activo",
+    "status.Inactive": "Inactivo",
+    "status.Draft": "Borrador",
+    "status.Submitted": "Presentado",
+    "status.Locked": "Bloqueado",
+    "status.ManagerAdjusted": "Ajustado",
+    "status.Voided": "Anulado",
+    "status.Confirmed": "Confirmado",
+    "status.Shipped": "Enviado",
+    "status.Invoiced": "Facturado",
+    "status.Cancelled": "Cancelado",
+    "status.Depleted": "Agotado",
+    "status.Archived": "Archivado",
+
+    // role
+    "role.Worker": "Trabajador",
+    "role.Admin": "Administrador",
+    "role.Manager": "Gerente",
+    "role.Sales": "Ventas",
+    "role.ReadOnly": "Solo lectura",
+
+    // water source
+    "waterSource.Well": "Pozo",
+    "waterSource.Municipal": "Municipal",
+    "waterSource.Tank": "Tanque",
+    "waterSource.Other": "Otro",
+
+    // water unit — symbols, unchanged
+    "waterUnit.L": "L",
+    "waterUnit.gal": "gal",
+
+    // grade type
+    "gradeType.Size": "Tamaño",
+    "gradeType.Quality": "Calidad",
+    "gradeType.Custom": "Personalizado",
+
+    // inventory category
+    "inventoryCategory.Feed": "Alimento",
+    "inventoryCategory.Supplement": "Suplemento",
+    "inventoryCategory.Additive": "Aditivo",
+    "inventoryCategory.Medication": "Medicamento",
+    "inventoryCategory.Vaccine": "Vacuna",
+    "inventoryCategory.Packaging": "Empaque",
+    "inventoryCategory.Bedding": "Cama",
+    "inventoryCategory.Sanitation": "Saneamiento",
+    "inventoryCategory.EquipmentPart": "Pieza de equipo",
+    "inventoryCategory.Other": "Otro",
+
+    // inventory movement type
+    "inventoryMovement.Purchase": "Compra",
+    "inventoryMovement.Usage": "Uso",
+    "inventoryMovement.Adjustment": "Ajuste",
+    "inventoryMovement.Discard": "Desecho",
+
+    // flock (bird) movement type
+    "flockMovement.Mortality": "Mortalidad",
+    "flockMovement.Cull": "Descarte",
+    "flockMovement.Adjustment": "Ajuste",
+
+    // egg stock movement type
+    "stockMovement.Production": "Producción",
+    "stockMovement.Sale": "Venta",
+    "stockMovement.Adjustment": "Ajuste",
+    "stockMovement.Discard": "Desecho",
+    "stockMovement.InternalUse": "Uso interno",
+    "stockMovement.Transfer": "Transferencia",
+    "stockMovement.Reconciliation": "Conciliación",
+    "stockMovement.Void": "Anulado",
+
+    // unit system
+    "unitSystem.Metric": "Métrico",
+    "unitSystem.Imperial": "Imperial",
+
+    // weekday
+    "weekday.Sunday": "Domingo",
+    "weekday.Monday": "Lunes",
+    "weekday.Tuesday": "Martes",
+    "weekday.Wednesday": "Miércoles",
+    "weekday.Thursday": "Jueves",
+    "weekday.Friday": "Viernes",
+    "weekday.Saturday": "Sábado",
+  },
 } as const;
