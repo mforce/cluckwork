@@ -31,8 +31,8 @@
 // KEYS map, NOT against en.enums directly — a catalog-ONLY `enums` key with no
 // union member (e.g. a stray key nothing maps to) would go uncaught here.
 //
-// `enums` is intentionally NOT in TRANSLATED_NAMESPACES: it is English-only for
-// now and es/tl fall back to en for it until a native enum-translation pass.
+// `enums` IS in TRANSLATED_NAMESPACES: es/tl carry machine-drafted enum
+// translations (#182, pending native review).
 import { en } from "./en";
 import i18n from "./index";
 import { STATUS_VALUES } from "../components/StatusBadge";
@@ -271,6 +271,87 @@ export function weekdayLabel(value: WeekdayValue | (string & {})): string {
   return key ? i18n.t(key) : String(value);
 }
 
+// ---------------------------------------------------------------------------
+// audit action (AuditPage filter + table) — AuditEvent.action, a server
+// "Entity.Verb" capture-point code (#182, Task 29). This is also the single
+// source of truth for the filter's option list — AuditPage no longer keeps
+// its own local `actions` array (part of the #84 magic-strings debt).
+// ---------------------------------------------------------------------------
+export const AUDIT_ACTION_VALUES = [
+  "DailyEntry.Adjust", "DailyEntry.Void", "SalesOrder.Void", "Payment.Void",
+  "Expense.Adjust", "ExpenseCategory.Update", "InventoryItem.Adjust",
+  "WaterUsage.Correct", "Flock.BirdMovement", "Flock.Update", "Flock.Deplete",
+  "Flock.Archive", "Flock.Reactivate", "EggGrade.Update", "EggGrade.Activate",
+  "EggGrade.Deactivate", "User.Create", "User.Update", "User.PasswordSet",
+  "User.PasswordChanged", "User.FlockAssign", "User.FlockUnassign",
+  "Account.Export", "Product.Create", "Product.Update", "Product.Activate",
+  "Product.Deactivate", "EggUnitConversion.Update",
+] as const;
+export type AuditActionValue = (typeof AUDIT_ACTION_VALUES)[number];
+const AUDIT_ACTION_KEYS = {
+  "DailyEntry.Adjust": "enums:auditAction.DailyEntry.Adjust",
+  "DailyEntry.Void": "enums:auditAction.DailyEntry.Void",
+  "SalesOrder.Void": "enums:auditAction.SalesOrder.Void",
+  "Payment.Void": "enums:auditAction.Payment.Void",
+  "Expense.Adjust": "enums:auditAction.Expense.Adjust",
+  "ExpenseCategory.Update": "enums:auditAction.ExpenseCategory.Update",
+  "InventoryItem.Adjust": "enums:auditAction.InventoryItem.Adjust",
+  "WaterUsage.Correct": "enums:auditAction.WaterUsage.Correct",
+  "Flock.BirdMovement": "enums:auditAction.Flock.BirdMovement",
+  "Flock.Update": "enums:auditAction.Flock.Update",
+  "Flock.Deplete": "enums:auditAction.Flock.Deplete",
+  "Flock.Archive": "enums:auditAction.Flock.Archive",
+  "Flock.Reactivate": "enums:auditAction.Flock.Reactivate",
+  "EggGrade.Update": "enums:auditAction.EggGrade.Update",
+  "EggGrade.Activate": "enums:auditAction.EggGrade.Activate",
+  "EggGrade.Deactivate": "enums:auditAction.EggGrade.Deactivate",
+  "User.Create": "enums:auditAction.User.Create",
+  "User.Update": "enums:auditAction.User.Update",
+  "User.PasswordSet": "enums:auditAction.User.PasswordSet",
+  "User.PasswordChanged": "enums:auditAction.User.PasswordChanged",
+  "User.FlockAssign": "enums:auditAction.User.FlockAssign",
+  "User.FlockUnassign": "enums:auditAction.User.FlockUnassign",
+  "Account.Export": "enums:auditAction.Account.Export",
+  "Product.Create": "enums:auditAction.Product.Create",
+  "Product.Update": "enums:auditAction.Product.Update",
+  "Product.Activate": "enums:auditAction.Product.Activate",
+  "Product.Deactivate": "enums:auditAction.Product.Deactivate",
+  "EggUnitConversion.Update": "enums:auditAction.EggUnitConversion.Update",
+} as const satisfies Record<AuditActionValue, EnumsKey>;
+export function auditActionLabel(value: AuditActionValue | (string & {})): string {
+  const key = AUDIT_ACTION_KEYS[value as AuditActionValue];
+  return key ? i18n.t(key) : String(value);
+}
+
+// ---------------------------------------------------------------------------
+// entity type (AuditPage table entity cell) — AuditEvent.entityType.
+// ---------------------------------------------------------------------------
+export const ENTITY_TYPE_VALUES = [
+  "Account", "DailyEntry", "EggGrade", "EggUnitConversion", "Expense",
+  "ExpenseCategory", "Flock", "InventoryItem", "Payment", "Product",
+  "SalesOrder", "User", "WaterUsage",
+] as const;
+export type EntityTypeValue = (typeof ENTITY_TYPE_VALUES)[number];
+const ENTITY_TYPE_KEYS = {
+  Account: "enums:entityType.Account",
+  DailyEntry: "enums:entityType.DailyEntry",
+  EggGrade: "enums:entityType.EggGrade",
+  EggUnitConversion: "enums:entityType.EggUnitConversion",
+  Expense: "enums:entityType.Expense",
+  ExpenseCategory: "enums:entityType.ExpenseCategory",
+  Flock: "enums:entityType.Flock",
+  InventoryItem: "enums:entityType.InventoryItem",
+  Payment: "enums:entityType.Payment",
+  Product: "enums:entityType.Product",
+  SalesOrder: "enums:entityType.SalesOrder",
+  User: "enums:entityType.User",
+  WaterUsage: "enums:entityType.WaterUsage",
+} as const satisfies Record<EntityTypeValue, EnumsKey>;
+export function entityTypeLabel(value: EntityTypeValue | (string & {})): string {
+  const key = ENTITY_TYPE_KEYS[value as EntityTypeValue];
+  return key ? i18n.t(key) : String(value);
+}
+
 // Machine-iterable registry of every family: its raw-value tuple, its key map,
 // and its label function. enums.test.ts walks this to assert each value resolves
 // to a real, non-empty en.enums entry — so a new family added above is covered
@@ -303,4 +384,6 @@ export const ENUMS = {
   },
   unitSystem: { values: UNIT_SYSTEM_VALUES, keys: UNIT_SYSTEM_KEYS, label: unitSystemLabel },
   weekday: { values: WEEKDAY_VALUES, keys: WEEKDAY_KEYS, label: weekdayLabel },
+  auditAction: { values: AUDIT_ACTION_VALUES, keys: AUDIT_ACTION_KEYS, label: auditActionLabel },
+  entityType: { values: ENTITY_TYPE_VALUES, keys: ENTITY_TYPE_KEYS, label: entityTypeLabel },
 } as const;

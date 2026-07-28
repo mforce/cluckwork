@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
+import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 import {
   adjustDailyEntry, getDailyEntry, listDailyEntries, listEggGrades, listFlocks, voidDailyEntry,
@@ -13,13 +14,16 @@ import { useConfirm } from "../components/useConfirm";
 import { usePendingAction } from "../components/usePendingAction";
 import { StatusBadge } from "../components/StatusBadge";
 import { newId } from "../lib/ids";
+import i18n from "../i18n";
 
 const PAGE = 50;
 
+// Module-level helper — outside the hook's render context, so it always uses
+// the imperative i18n.t() singleton (see CONTRIBUTING-i18n.md).
 function errText(err: unknown): string {
   // Concurrent-correction conflicts get a human message instead of raw problem text.
   if (err instanceof ApiError && err.status === 409)
-    return "This entry was just changed elsewhere — the list has been reloaded; retry.";
+    return i18n.t("history:concurrentConflictMessage");
   if (err instanceof ApiError) return err.message;
   return err instanceof Error ? err.message : String(err);
 }
@@ -29,6 +33,8 @@ function errText(err: unknown): string {
 // adjust or void submitted/locked entries from here — the API reconciles
 // stock and the bird ledger and enforces the role either way.
 export function HistoryPage() {
+  const { t } = useTranslation("history");
+  const { t: tc } = useTranslation("common");
   const { isAdmin } = useAuth();
   const { askReason, confirmDialog } = useConfirm();
   const [entries, setEntries] = useState<DailyEntry[] | null>(null);
@@ -76,7 +82,7 @@ export function HistoryPage() {
     // deactivated grades or archived flocks and their names must still resolve.
     Promise.all([listFlocks({ includeArchived: true }), listEggGrades({ includeInactive: true })])
       .then(([f, g]) => { setFlocks(f); setGrades(g); })
-      .catch(() => setError("Could not load flocks/grades."));
+      .catch(() => setError(i18n.t("history:loadFlocksGradesFailed")));
   }, []);
 
   const load = useCallback(async (offset = 0) => {
@@ -92,7 +98,7 @@ export function HistoryPage() {
   }, [flockFilter, from, to]);
 
   useEffect(() => {
-    load().catch(() => setError("Could not load entries."));
+    load().catch(() => setError(i18n.t("history:loadEntriesFailed")));
   }, [load]);
 
   const flockName = (id: string) => flocks.find((f) => f.id === id)?.name ?? id.slice(0, 8);
@@ -147,13 +153,18 @@ export function HistoryPage() {
         const keptReason = reason;
         startAdjust(fresh);
         setReason(keptReason);
-        setError("This entry was changed by someone else — the form shows the latest values; re-apply your correction.");
+        setError(i18n.t("history:conflictRebindMessage"));
       } else {
         setAdjusting(null);
-        setError(`This entry is now ${fresh.status.toLowerCase()} — nothing left to adjust.`);
+        // .toLowerCase() on the raw wire status is locale-fragile (it only ever
+        // reads correctly in English) — tracked as a native-pass deferral
+        // (#182); interpolating the lowered value keeps this task
+        // text-preserving without solving the shared-component lowercase
+        // problem here.
+        setError(i18n.t("history:nothingToAdjustMessage", { status: fresh.status.toLowerCase() }));
       }
     } catch {
-      setError("This entry was changed by someone else and the list could not be reloaded — reload the page before retrying.");
+      setError(i18n.t("history:conflictReloadFailedMessage"));
     }
   }
 
@@ -171,7 +182,7 @@ export function HistoryPage() {
     // rejected form never reads as busy.
     const sellable = total - cracked - dirty - discarded;
     if (lines.reduce((sum, l) => sum + l.quantity, 0) > sellable) {
-      setError("Graded quantities cannot exceed total eggs minus cracked/dirty/discarded.");
+      setError(i18n.t("history:exceedsSellableMessage"));
       return;
     }
     await run(scope, async () => {
@@ -188,9 +199,9 @@ export function HistoryPage() {
         }, keyFor(scope));
         settleKey(scope);
         setAdjusting(null);
-        setMessage("Entry adjusted — stock and bird ledger updated to match.");
+        setMessage(i18n.t("history:entryAdjustedMessage"));
         await load().catch(() =>
-          setError("The adjustment saved, but the list failed to reload — refresh the page."));
+          setError(i18n.t("history:adjustReloadFailedMessage")));
       } catch (err) {
         settleKey(scope, err);
         if (err instanceof ApiError && err.status === 409) {
@@ -207,10 +218,9 @@ export function HistoryPage() {
     // app's own dialog, so the required check is inline and the typed text
     // survives it — window.prompt validated only after it had closed.
     const voidReason = await askReason({
-      title: `Void the ${e.date} entry for ${flockName(e.flockId)}?`,
-      body: "Its egg lots empty and its deaths are reversed. The entry is kept as Voided. "
-        + "Refused if any of its eggs were already sold.",
-      confirmLabel: "Void entry",
+      title: i18n.t("history:voidConfirmTitle", { date: e.date, flock: flockName(e.flockId) }),
+      body: i18n.t("history:voidConfirmBody"),
+      confirmLabel: i18n.t("history:voidConfirmLabel"),
       destructive: true,
     });
     if (voidReason === null) return;
@@ -226,15 +236,15 @@ export function HistoryPage() {
         settleKey(scope);
         // A stale adjust panel for the now-voided entry would only 409.
         if (adjusting?.id === e.id) setAdjusting(null);
-        setMessage("Entry voided — its egg lots were emptied and its deaths reversed.");
+        setMessage(i18n.t("history:entryVoidedMessage"));
         await load().catch(() =>
-          setError("The void saved, but the list failed to reload — refresh the page."));
+          setError(i18n.t("history:voidReloadFailedMessage")));
       } catch (err) {
         settleKey(scope, err);
         if (err instanceof ApiError && err.status === 409) {
-          setError("This entry was changed by someone else — the list has been reloaded; retry.");
+          setError(i18n.t("history:voidConflictMessage"));
           await load().catch(() => setError(
-            "This entry was changed by someone else and the list could not be reloaded — reload the page."));
+            i18n.t("history:voidConflictReloadFailedMessage")));
         } else {
           setError(errText(err));
         }
@@ -246,46 +256,57 @@ export function HistoryPage() {
     // Colored status pills (#52). The three states with tooltips keep an
     // explicit <span> so the title survives (StatusBadge takes no title);
     // plain states (Submitted → ok, Draft → neutral) go through StatusBadge.
+    // This pill's vocabulary (Draft/Submitted/Locked/ManagerAdjusted/Voided)
+    // is DISTINCT from the shared `enums` status family — its display text
+    // lives in this `history` namespace, not enums.ts (#182, Task 27).
     if (e.status === "Voided")
-      return <span className="badge badge-danger" title={e.voidReason ?? undefined}>Voided</span>;
+      return <span className="badge badge-danger" title={e.voidReason ?? undefined}>{t("statusVoided")}</span>;
     if (e.status === "ManagerAdjusted")
-      return <span className="badge badge-warn" title={e.adjustReason ?? undefined}>Adjusted</span>;
+      return <span className="badge badge-warn" title={e.adjustReason ?? undefined}>{t("statusAdjusted")}</span>;
     if (e.status === "Locked")
-      return <span className="badge badge-accent" title={e.lockedAtUtc ? `Locked ${e.lockedAtUtc}` : undefined}>Locked</span>;
-    return <StatusBadge status={e.status} />;
+      return (
+        <span className="badge badge-accent"
+          title={e.lockedAtUtc ? t("lockedAt", { time: e.lockedAtUtc }) : undefined}>
+          {t("statusLocked")}
+        </span>
+      );
+    return (
+      <StatusBadge status={e.status}
+        label={t(e.status === "Submitted" ? "statusSubmitted" : "statusDraft")} />
+    );
   }
 
-  if (error && entries === null) return <section><h2>History</h2><p className="error">{error}</p></section>;
+  if (error && entries === null) return <section><h2>{t("loadingTitle")}</h2><p className="error">{error}</p></section>;
 
   return (
     <section>
-      <h2>Daily entry history</h2>
+      <h2>{t("title")}</h2>
       {isAdmin && (
         <p className="muted">
-          Submitted and locked entries can be adjusted or voided here — stock
-          and the bird ledger follow automatically; eggs already sold never
-          move. A reason is always required.
+          {t("intro")}
         </p>
       )}
 
       <div className="form-grid">
-        <label>Flock
+        <label>{t("flockLabel")}
           <select value={flockFilter} onChange={(e) => setFlockFilter(e.target.value)}>
-            <option value="">All flocks</option>
+            <option value="">{t("allFlocksOption")}</option>
             {flocks.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
           </select>
         </label>
-        <label>From
+        <label>{t("fromLabel")}
           <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
         </label>
-        <label>To
+        <label>{t("toLabel")}
           <input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
         </label>
       </div>
 
       <Dialog
         open={adjusting !== null}
-        title={adjusting ? `Adjust — ${adjusting.date}, ${flockName(adjusting.flockId)}` : "Adjust entry"}
+        title={adjusting
+          ? t("adjustDialogTitleWithEntry", { date: adjusting.date, flock: flockName(adjusting.flockId) })
+          : t("adjustDialogTitle")}
         onClose={() => setAdjusting(null)}
         // A 409 swaps the server's newer entry into the open dialog; the record
         // identity changing pulls focus back to the first field, so the form is
@@ -296,49 +317,55 @@ export function HistoryPage() {
           <>
             {adjusting.adjustedFrom && (
               <p className="muted">
-                Previously adjusted (was total {adjusting.adjustedFrom.totalEggs},
-                mortality {adjusting.adjustedFrom.mortalityCount} — "{adjusting.adjustReason}").
+                {t("previouslyAdjusted", {
+                  total: adjusting.adjustedFrom.totalEggs,
+                  mortality: adjusting.adjustedFrom.mortalityCount,
+                  // adjustReason is typed string | null; a set adjustedFrom
+                  // always carries a reason in practice, but the fallback
+                  // keeps this a plain string for the interpolation type.
+                  reason: adjusting.adjustReason ?? "",
+                })}
               </p>
             )}
             <form className="form-grid" onSubmit={onAdjustSubmit}>
-            <label>Total eggs
+            <label>{t("totalEggsLabel")}
               <input type="number" min={0} value={total} required
                 onChange={(e) => setTotal(Math.max(0, e.target.valueAsNumber || 0))} />
             </label>
-            <label>Cracked
+            <label>{t("crackedLabel")}
               <input type="number" min={0} value={cracked} required
                 onChange={(e) => setCracked(Math.max(0, e.target.valueAsNumber || 0))} />
             </label>
-            <label>Dirty
+            <label>{t("dirtyLabel")}
               <input type="number" min={0} value={dirty} required
                 onChange={(e) => setDirty(Math.max(0, e.target.valueAsNumber || 0))} />
             </label>
-            <label>Discarded
+            <label>{t("discardedLabel")}
               <input type="number" min={0} value={discarded} required
                 onChange={(e) => setDiscarded(Math.max(0, e.target.valueAsNumber || 0))} />
             </label>
-            <label>Deaths
+            <label>{t("deathsLabel")}
               <input type="number" min={0} value={mortality} required
                 onChange={(e) => setMortality(Math.max(0, e.target.valueAsNumber || 0))} />
             </label>
             {panelGrades(adjusting).map((g) => (
-              <label key={g.id}>{g.name}{g.active ? "" : " (inactive)"}
+              <label key={g.id}>{g.name}{g.active ? "" : t("inactiveGradeSuffix")}
                 <input type="number" min={0} value={lineQty[g.id] ?? 0}
                   onChange={(e) => setLineQty((prev) => ({
                     ...prev, [g.id]: Math.max(0, e.target.valueAsNumber || 0),
                   }))} />
               </label>
             ))}
-            <label>Reason *
+            <label>{t("reasonLabel")}
               <input value={reason} maxLength={500} required
                 onChange={(e) => setReason(e.target.value)} />
             </label>
             {/* The 409 rebind reports here, beside the form it asks you to re-apply. */}
             {error && <p className="error" role="alert">{error}</p>}
             <div className="dialog-foot">
-              <button type="button" className="link" onClick={() => setAdjusting(null)}>Cancel</button>
+              <button type="button" className="link" onClick={() => setAdjusting(null)}>{tc("cancel")}</button>
               <BusyButton type="submit" busy={isPending(`adjust:${adjusting.id}`)}
-                disabled={busy || !reason.trim()}>Save adjustment</BusyButton>
+                disabled={busy || !reason.trim()}>{t("saveAdjustmentButton")}</BusyButton>
             </div>
             </form>
           </>
@@ -350,16 +377,16 @@ export function HistoryPage() {
       {message && <p className="success" role="status">{message}</p>}
 
       {entries === null ? (
-        <p className="muted">Loading…</p>
+        <p className="muted">{tc("loading")}</p>
       ) : entries.length === 0 ? (
-        <p className="muted">No entries match — record one on the Daily entry page.</p>
+        <p className="muted">{t("noEntriesMatch")}</p>
       ) : (
         <>
           <table className="data">
             <thead>
               <tr>
-                <th>Date</th><th>Flock</th><th>Status</th><th>Total</th>
-                <th>Losses (cr/di/ds)</th><th>Mortality</th><th>Graded</th>
+                <th>{t("dateHeader")}</th><th>{t("flockHeader")}</th><th>{t("statusHeader")}</th><th>{t("totalHeader")}</th>
+                <th>{t("lossesHeader")}</th><th>{t("mortalityHeader")}</th><th>{t("gradedHeader")}</th>
                 <th></th>
               </tr>
             </thead>
@@ -383,7 +410,7 @@ export function HistoryPage() {
                     {e.status === "Draft" && flockEditable(e.flockId) && (
                       <Link className="link"
                         to={`/daily-entry?flockId=${e.flockId}&date=${e.date}`}>
-                        edit
+                        {t("editButton")}
                       </Link>
                     )}
                     {isAdmin && correctable(e) && (
@@ -391,10 +418,10 @@ export function HistoryPage() {
                         {/* Opens the dialog — the mutation's own trigger (and
                             its spinner) is the dialog's Save adjustment. */}
                         <button className="link" disabled={busy}
-                          onClick={() => startAdjust(e)}>adjust</button>
+                          onClick={() => startAdjust(e)}>{t("adjustButton")}</button>
                         <BusyButton className="link" busy={isPending(`void:${e.id}`)}
                           disabled={busy}
-                          onClick={() => void onVoid(e)}>void</BusyButton>
+                          onClick={() => void onVoid(e)}>{t("voidButton")}</BusyButton>
                       </>
                     )}
                   </td>
@@ -404,8 +431,8 @@ export function HistoryPage() {
           </table>
           {hasMore && (
             <button className="link" disabled={busy}
-              onClick={() => void load(entries.length).catch(() => setError("Could not load more."))}>
-              load more
+              onClick={() => void load(entries.length).catch(() => setError(i18n.t("history:loadMoreFailedMessage")))}>
+              {t("loadMoreButton")}
             </button>
           )}
         </>

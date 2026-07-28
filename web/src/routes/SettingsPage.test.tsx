@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within, fireEvent, act, waitFor } from "@testing-library/react";
-import { SettingsPage, formatByteCap, PALETTE_LABELS } from "./SettingsPage";
+import { SettingsPage, formatByteCap } from "./SettingsPage";
 import { FarmContext } from "../farm/FarmContext";
 import {
   getFarmLogo, getFarmSettings, removeFarmLogo, updateFarmSettings,
@@ -10,6 +10,22 @@ import type { Account, FarmSettings } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { account, farmState } from "../test/fixtures";
 import { BRANDS } from "../lib/brand";
+import type { Brand } from "../lib/brand";
+import i18n from "../i18n";
+
+// Mirrors PALETTE_LABEL_KEYS in SettingsPage.tsx — kept local to the test
+// rather than imported, since the production module no longer exports a
+// label lookup (the labels themselves live in the `settings` i18n catalog,
+// see en.ts). Under the default "en" lng these ARE the rendered text, same
+// as every other functional assertion below that checks plain English; the
+// dedicated "i18n wiring" describe block further down proves the render
+// actually reads the catalog rather than a hardcoded literal.
+const PALETTE_NAMES: Record<Brand, string> = {
+  aubergine: "Aubergine",
+  forest: "Forest",
+  slate: "Slate",
+  terracotta: "Terracotta",
+};
 
 vi.mock("../api/cluckwork", async () => {
   const actual = await vi.importActual<typeof import("../api/cluckwork")>("../api/cluckwork");
@@ -322,7 +338,7 @@ describe("SettingsPage palette (#149)", () => {
     await renderReady(SETTINGS({ brand: "forest" }));
 
     for (const id of BRANDS)
-      expect(screen.getByRole("radio", { name: PALETTE_LABELS[id] })).toBeInTheDocument();
+      expect(screen.getByRole("radio", { name: PALETTE_NAMES[id] })).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: "Forest" })).toBeChecked();
   });
 
@@ -841,6 +857,154 @@ describe("SettingsPage pending scopes (#236)", () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// i18n wiring (#182, Task 21, batch B4)
+// ---------------------------------------------------------------------------
+
+// `settings` is English-only (not in TRANSLATED_NAMESPACES — see
+// translations-status.ts), so under ANY UI language the rendered text falls
+// back to this exact English string, same as a still-hardcoded literal would
+// render — asserting it, even under a non-English locale, would prove nothing
+// (CONTRIBUTING-i18n.md's fallback trap). Swap the catalog value at runtime
+// instead, the same i18n.addResource technique the other batches use, so each
+// marker only renders if the screen actually reads the catalog rather than a
+// literal that happens to still match it.
+describe("SettingsPage i18n wiring (#182, Task 21)", () => {
+  function withOverride(ns: string, key: string, value: string, run: () => Promise<void> | void) {
+    const original = i18n.getResource("en", ns, key) as string;
+    i18n.addResource("en", ns, key, value);
+    return Promise.resolve(run()).finally(() => {
+      i18n.addResource("en", ns, key, original);
+    });
+  }
+
+  it("reads the heading from the catalog, not a hardcoded literal", async () => {
+    await withOverride("settings", "heading", "HEADING-MARKER", async () => {
+      await renderReady();
+      expect(screen.getByRole("heading", { name: "HEADING-MARKER" })).toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "Farm settings" })).not.toBeInTheDocument();
+    });
+  });
+
+  it("reads the remove-logo button label from the catalog, not a hardcoded literal", async () => {
+    await withOverride("settings", "removeLogoButton", "REMOVE-MARKER", async () => {
+      await renderReady(SETTINGS({ logoContentHash: "deadbeef" }));
+      expect(screen.getByRole("button", { name: /REMOVE-MARKER/ })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /^Remove$/ })).not.toBeInTheDocument();
+    });
+  });
+
+  it("interpolates the byte cap into the logo rules hint from the catalog", async () => {
+    await withOverride(
+      "settings", "logoRulesHint", "RULES-MARKER {{cap}} MARKER-END",
+      async () => {
+        await renderReady();
+        expect(screen.getByText("RULES-MARKER 2 MB MARKER-END")).toBeInTheDocument();
+        expect(screen.queryByText(/up to 2 MB and 4096/)).not.toBeInTheDocument();
+      },
+    );
+  });
+
+  it("reads the JSX-interleaved square-logo hint from the catalog via <Trans>", async () => {
+    await withOverride("settings", "logoSquareHint", "SQUARE-HINT-MARKER", async () => {
+      await renderReady();
+      expect(screen.getByText("SQUARE-HINT-MARKER")).toBeInTheDocument();
+      expect(screen.queryByText(/reads far better there/)).not.toBeInTheDocument();
+    });
+  });
+
+  it("interpolates the locked currency code into the note from the catalog", async () => {
+    await withOverride(
+      "settings", "currencyLockedNote", "LOCKED-MARKER {{code}} MARKER-END",
+      async () => {
+        await renderReady(SETTINGS({}, false));
+        expect(screen.getByText("LOCKED-MARKER USD MARKER-END")).toBeInTheDocument();
+        expect(screen.queryByText(/The currency is fixed at USD/)).not.toBeInTheDocument();
+      },
+    );
+  });
+
+  // Proves the Unit system SELECT's option text reads the `unitSystem` ENUM
+  // label from the catalog (via unitSystemLabel) — not a hardcoded literal
+  // and not the raw wire value coincidentally matching it.
+  it("reads the unit-system option labels from the enums catalog, not a hardcoded literal", async () => {
+    await withOverride("enums", "unitSystem.Metric", "METRIC-MARKER", async () => {
+      await renderReady();
+      const select = screen.getByLabelText("Unit system");
+      expect(within(select).getByRole("option", { name: "METRIC-MARKER" })).toBeInTheDocument();
+      expect(within(select).queryByRole("option", { name: "Metric" })).not.toBeInTheDocument();
+    });
+  });
+
+  // Same proof for the First-day-of-week SELECT's `weekday` ENUM label (via
+  // weekdayLabel).
+  it("reads the first-day-of-week option labels from the enums catalog, not a hardcoded literal", async () => {
+    await withOverride("enums", "weekday.Monday", "MONDAY-MARKER", async () => {
+      await renderReady();
+      const select = screen.getByLabelText("First day of week");
+      expect(within(select).getByRole("option", { name: "MONDAY-MARKER" })).toBeInTheDocument();
+      expect(within(select).queryByRole("option", { name: "Monday" })).not.toBeInTheDocument();
+    });
+  });
+
+  it("reads a curated-palette display name from the catalog, not a hardcoded literal", async () => {
+    await withOverride("settings", "paletteAubergine", "PALETTE-MARKER", async () => {
+      await renderReady(SETTINGS({ brand: "aubergine" }));
+      expect(screen.getByRole("radio", { name: "PALETTE-MARKER" })).toBeInTheDocument();
+      expect(screen.queryByRole("radio", { name: "Aubergine" })).not.toBeInTheDocument();
+    });
+  });
+
+  // The confirm dialog's title is built with the imperative i18n.t()
+  // (onRemoveLogo is an event handler, not render — see
+  // CONTRIBUTING-i18n.md's imperative i18n.t() pattern).
+  it("reads the remove-logo confirm dialog title from the catalog, not a hardcoded literal", async () => {
+    await withOverride("settings", "removeLogoConfirmTitle", "CONFIRM-TITLE-MARKER", async () => {
+      await renderReady(SETTINGS({ logoContentHash: "deadbeef" }));
+      fireEvent.click(screen.getByRole("button", { name: /Remove/ }));
+      expect(await screen.findByRole("heading", { name: "CONFIRM-TITLE-MARKER" })).toBeInTheDocument();
+    });
+  });
+
+  it("reads the logo-removed success message from the catalog, not a hardcoded literal", async () => {
+    mockRemove.mockResolvedValue(undefined);
+    await withOverride("settings", "logoRemovedMessage", "REMOVED-MARKER", async () => {
+      await renderReady(SETTINGS({ logoContentHash: "deadbeef" }));
+      fireEvent.click(screen.getByRole("button", { name: /Remove/ }));
+      await act(async () => {
+        fireEvent.click(within(dialog()).getByRole("button", { name: "Remove logo" }));
+      });
+      expect(screen.getByText("REMOVED-MARKER")).toBeInTheDocument();
+      expect(screen.queryByText("Logo removed.")).not.toBeInTheDocument();
+    });
+  });
+
+  it("interpolates the oversize sizes into the logo-too-large message from the catalog", async () => {
+    await withOverride(
+      "settings", "logoOversizeMessage", "OVERSIZE-MARKER {{actualKb}}/{{limitKb}} MARKER-END",
+      async () => {
+        await renderReady(SETTINGS({ logoContentHash: null }));
+        await act(async () => {
+          fireEvent.change(screen.getByLabelText("Upload a logo"),
+            { target: { files: [imageOfSize(MAX_UPLOAD + 1024)] } });
+        });
+        expect(screen.getByRole("alert")).toHaveTextContent("OVERSIZE-MARKER 2049/2048 MARKER-END");
+      },
+    );
+  });
+
+  // The save-error message is built with the imperative i18n.t() (onSave's
+  // 409 branch is an event handler, not render).
+  it("reads the version-conflict save-error message from the catalog, not a hardcoded literal", async () => {
+    mockUpdate.mockRejectedValue(new ApiError(409, "Account.VersionMismatch", "Version mismatch."));
+    await withOverride("settings", "versionConflictMessage", "CONFLICT-MARKER", async () => {
+      await renderReady();
+      await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save settings" })); });
+      expect(screen.getByRole("alert")).toHaveTextContent("CONFLICT-MARKER");
+      expect(screen.queryByText(/Someone else changed these settings/i)).not.toBeInTheDocument();
+    });
+  });
+});
 
 describe("formatByteCap", () => {
   it("shows a whole number of MB without a decimal", () => {

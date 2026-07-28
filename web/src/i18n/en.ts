@@ -42,6 +42,33 @@ export const en = {
     preferences: "Preferences",
     language: "Language",
     languageHint: "The language the interface is shown in, just for you.",
+
+    // Task 25 (#182, B4) — the rest of AccountPage: the page heading, the
+    // role line, and the self-service change-password surface (#165).
+    heading: "Account",
+    // {{role}} is the signed-in account's own role, passed through
+    // enums.ts's roleLabel() by the component (Task 22 convention: role
+    // display always goes through roleLabel(), e.g. "ReadOnly" ->
+    // "Read-only") — so this stays a plain string placeholder here, not raw
+    // union data. <strong> is the only JSX interleaved in this screen's
+    // prose, hence the one <Trans> use.
+    roleLine: "You are signed in with the <strong>{{role}}</strong> role.",
+    changePasswordHeading: "Change password",
+    changePasswordHint:
+      "Changing your password signs you out everywhere else — this device "
+      + "stays signed in.",
+    // The trailing " *" is folded into the label text itself, matching how
+    // UsersPage's emailFieldLabel/newPasswordFieldLabel already handle a
+    // required-field marker — never a standalone "*" key.
+    currentPasswordLabel: "Current password *",
+    // {{min}} is MIN_LENGTH (AccountPage.tsx) — interpolated, not baked in,
+    // so the label and the validation message below can never drift apart.
+    newPasswordLabel: "New password (min {{min}} chars) *",
+    confirmPasswordLabel: "Confirm new password *",
+    changePasswordButton: "Change password",
+    passwordMismatchError: "The new passwords don't match.",
+    passwordTooShortError: "The new password must be at least {{min}} characters.",
+    passwordChangedMessage: "Password changed. Any other devices have been signed out.",
   },
   // Keyed by the API's stable validation codes (#45), which contain dots
   // (e.g. "Me.Language.Format"). With keySeparator:false (see init) these are
@@ -971,13 +998,631 @@ export const en = {
     ledgerBirdsHeader: "Birds",
     ledgerNoteHeader: "Note",
   },
+  // Farm settings — admin localization + logo (#123, #149) + the currency
+  // lock (§4.6) (Task 21, #182, batch B4). English-only for now, same
+  // treatment as nav/numberField/errorBoundary/themeToggle/useConfirm/pwa/
+  // dailyEntry/dashboard/water/grades/inventory/products/stock/flocks above:
+  // `settings` IS in TRANSLATED_NAMESPACES: es/tl carry machine-drafted
+  // translations (#182, pending native review).
+  //
+  // DATA left raw, never routed through this catalog: the timezone list
+  // (Intl.supportedValuesOf), the locale/currency VALUES the admin types, the
+  // "en-US" locale-format example (allowlisted in i18n-scan-allowlist.txt),
+  // and the curated palettes' lowercase ids (aubergine/forest/slate/
+  // terracotta — matched by exact-match CSS selectors and written into
+  // data-brand). Their DISPLAY names (paletteAubergine etc. below) ARE copy.
+  //
+  // Enum wiring: the Unit system and First day of week SELECTs are closed
+  // vocabularies, so their OPTION text is rendered through the shared
+  // `enums.ts` helpers (unitSystemLabel/weekdayLabel — both pre-built for
+  // this screen, identity labels, no visible change) rather than a key here;
+  // unitSystemLabel/firstDayOfWeekLabel below are the FIELD labels, not the
+  // option text. The four palette ids have no cross-screen enum family (this
+  // is their only render site), so their display names are flat keys here
+  // instead — see the PALETTE_LABEL_KEYS map in SettingsPage.tsx.
+  settings: {
+    heading: "Farm settings",
+    intro:
+      "How this farm names itself, and the locale, timezone and currency it "
+      + "records and reads its work in.",
+    loadFailedMessage: "Could not load farm settings.",
+
+    // Logo panel
+    logoSectionHeading: "Logo",
+    logoAlt: "Current farm logo",
+    logoLoadingMessage: "Loading the logo…",
+    logoLoadFailedMessage: "The logo could not be loaded.",
+    logoNoneMessage: "No logo set — the sidebar shows the Cluckwork mark.",
+    uploadLogoButton: "Upload a logo",
+    replaceLogoButton: "Replace the logo",
+    removeLogoButton: "Remove",
+    // {{cap}} is formatByteCap()'s already-formatted string (e.g. "2 MB") —
+    // client-side arithmetic, never routed through i18n.language.
+    logoRulesHint:
+      "PNG, JPEG or WebP, up to {{cap}} and 4096 px a side. Animated "
+      + "images are not accepted. The image is stored re-written, with "
+      + "camera and location metadata removed.",
+    // <Trans> key — the only string on this screen interleaving JSX
+    // (<strong>square</strong>), see CONTRIBUTING-i18n.md.
+    logoSquareHint:
+      "Use a <strong>square</strong> image — the logo shows small in the "
+      + "sidebar, so a simple, tightly-cropped mark (a symbol or a single "
+      + "letter) reads far better there than a wide or detailed picture. A "
+      + "transparent background on a light design works best.",
+    logoWorkingMessage: "Working…",
+    logoUpdatedMessage: "Logo updated.",
+    logoRemovedMessage: "Logo removed.",
+    // {{actualKb}}/{{limitKb}} are plain numeric DATA (the picked file's size
+    // and the server's own configured cap), not enum-labelled.
+    logoOversizeMessage: "That image is {{actualKb}} KB. The limit is {{limitKb}} KB.",
+    removeLogoConfirmTitle: "Remove the farm logo?",
+    removeLogoConfirmBody:
+      "The sidebar goes back to the Cluckwork mark. You can upload another "
+      + "at any time.",
+    removeLogoConfirmLabel: "Remove logo",
+
+    // Localization form
+    localizationSectionHeading: "Localization",
+    farmNameLabel: "Farm name",
+    timezoneLabel: "Timezone",
+    timezoneUnknownWarning:
+      "This browser does not know that timezone, so dates here would follow "
+      + "the device instead of the farm. Pick one from the list.",
+    localeLabel: "Locale",
+    currencyLabel: "Currency",
+    // {{code}} is the farm's currency CODE (DATA, e.g. "USD"), not enum-labelled.
+    currencyLockedNote:
+      "The currency is fixed at {{code}}: this farm has already recorded "
+      + "amounts in it. Recorded money is never re-priced, so changing this "
+      + "would leave every stored total meaning something else.",
+    unitSystemLabel: "Unit system",
+    firstDayOfWeekLabel: "First day of week",
+    // Reused for the First-day-of-week "no override" option AND both the
+    // date/time format placeholders — same English text, same meaning, in
+    // all three spots.
+    followLocaleOption: "Follow the locale",
+    paletteLegend: "Farm palette",
+    paletteHint:
+      "The accent colour for everyone on this farm. Each person still "
+      + "chooses light or night mode for themselves.",
+    // Curated palette DISPLAY names (#149) — the ids themselves stay raw DATA
+    // (see the namespace header comment above).
+    paletteAubergine: "Aubergine",
+    paletteForest: "Forest",
+    paletteSlate: "Slate",
+    paletteTerracotta: "Terracotta",
+    dateFormatLabel: "Date format",
+    timeFormatLabel: "Time format",
+    savingButton: "Saving…",
+    saveButton: "Save settings",
+    effectNote:
+      "The timezone applies everywhere as soon as it is saved. Locale, unit "
+      + "system and the format overrides are recorded against the farm and "
+      + "will drive how amounts, dates and measurements are displayed once "
+      + "that formatting lands.",
+    savedMessage: "Settings saved.",
+
+    // Imperative messages (event handlers — see CONTRIBUTING-i18n.md's
+    // imperative i18n.t() pattern).
+    versionConflictMessage:
+      "Someone else changed these settings while this screen was open. "
+      + "Reload and try again.",
+    saveReadBackFailedMessage:
+      "Saved. This screen could not read the settings back — reload the "
+      + "page before saving again.",
+    refreshFailedMessage:
+      "Saved. The rest of the app could not pick the change up — reload the "
+      + "page to be sure it is applied everywhere.",
+  },
+  // Users admin screen — the user list plus create/edit/password/flock-
+  // scoping dialogs (Task 22, #182, batch B4). English-only for now, same
+  // treatment as nav/numberField/errorBoundary/themeToggle/useConfirm/pwa/
+  // dailyEntry/dashboard/water/grades/inventory/products/stock/flocks/
+  // settings above. `users` IS in TRANSLATED_NAMESPACES: es/tl carry
+  // machine-drafted translations (#182, pending native review).
+  //
+  // Role enum wiring: the table's Role cell, the create-form Role picker's
+  // option text, and the create-success message all render the closed
+  // `role` vocabulary through roleLabel() (enums.ts) rather than a key here
+  // — see the `enums` namespace header comment below for the one
+  // intentional visible change that wiring makes (ReadOnly -> "Read-only").
+  // adminRoleOption below is the one exception: the picker's Admin option
+  // carries an extra "(owner)" qualifier that isn't part of the role's
+  // identity label, so it wraps roleLabel("Admin") rather than being used
+  // as the option text on its own.
+  users: {
+    heading: "Users",
+    newUserButton: "New user", // reused verbatim as the create-dialog title
+    roleDescription:
+      "Workers record the day's work (optionally narrowed to assigned "
+      + "flocks). Managers additionally correct, void, and configure. Sales "
+      + "handles customers, orders, and payments. Read-only sees stock, "
+      + "history, and reports. Admin (owner) does everything, including "
+      + "managing users.",
+
+    // Create-user dialog
+    emailFieldLabel: "Email *",
+    passwordFieldLabel: "Password (min 12 chars) *",
+    nameFieldLabel: "Name", // reused verbatim by the edit-user dialog below
+    roleFieldLabel: "Role",
+    // {{label}} is roleLabel("Admin") ("Admin", identity) — see the
+    // namespace header comment above.
+    adminRoleOption: "{{label}} (owner)",
+    createUserButton: "Create user",
+
+    // Users table
+    emailColumnHeader: "Email",
+    nameColumnHeader: "Name",
+    roleColumnHeader: "Role",
+    editButton: "edit",
+    resetPasswordButton: "password",
+    flocksButton: "flocks",
+
+    // Flock-access dialog (per-worker scoping). {{email}} is the user's
+    // email — DATA, not client copy.
+    flockAccessTitle: "Flock access — {{email}}",
+    flockAccessHint:
+      "No assignments = the worker can record for any flock. The first "
+      + "assignment narrows them to the listed flocks only.",
+    noAssignmentsMessage: "No assignments — account-wide access.",
+    removeAssignmentButton: "remove",
+    assignFlockButton: "Assign flock",
+    doneButton: "Done",
+
+    // Edit-user dialog. {{email}} is DATA.
+    editUserTitle: "Edit user — {{email}}",
+    clearNameHint: "Leave blank to clear the name.",
+
+    // Set-password dialog. {{email}} is DATA.
+    setPasswordTitle: "Set password — {{email}}",
+    passwordDialogHint:
+      "You don't need their current password. Setting it signs them out "
+      + "of every device — tell them the new password directly.",
+    newPasswordFieldLabel: "New password (min 12 chars) *",
+    confirmPasswordFieldLabel: "Confirm new password *",
+    setPasswordButton: "Set password",
+
+    // Imperative messages (event handlers — see CONTRIBUTING-i18n.md's
+    // imperative i18n.t() pattern). {{email}} is DATA; {{role}} is
+    // roleLabel(role) — see the namespace header comment above.
+    createSuccessMessage: "{{role}} account created for {{email}}.",
+    passwordMismatchMessage: "The passwords don't match.",
+    passwordSetMessage:
+      "Password set for {{email}}. They have been signed out everywhere.",
+    updatedMessage: "Updated {{email}}.",
+  },
+  // Expenses screen — category management (a dialog panel: create/deactivate/
+  // reactivate) + record/correct expenses, filtered by month and category
+  // (Task 23, #182, batch B4 — the last B4 screen). English-only for now, same
+  // treatment as nav/numberField/errorBoundary/themeToggle/useConfirm/pwa/
+  // dailyEntry/dashboard/water/grades/inventory/products/stock/flocks/
+  // settings/users above. `expenses` IS in TRANSLATED_NAMESPACES: es/tl carry
+  // machine-drafted translations (#182, pending native review).
+  //
+  // PLAN CORRECTION (verified by controller): this screen has NO
+  // payment-method/category enum. `ExpenseCategory` rows are free-form,
+  // admin-created records (createExpenseCategory), not a closed API
+  // vocabulary — so category NAMES stay raw DATA everywhere they render (the
+  // filter option, the add/edit pickers, the category-list rows, the
+  // deactivated-suffix rows) and are never routed through an enums.ts helper.
+  // Expense descriptions, notes, dates, amounts, and flock names are the same
+  // kind of free-form farm DATA and stay raw too. Money stays on the existing
+  // farm-locale `formatMoney` — never `i18n.language` (formattingIndependence
+  // guard).
+  //
+  // Money-decimal validation copy (enterValidAmount/noDecimalPlaces/
+  // atMostDecimals/enterAmountGreaterThanZero) duplicates sales/products'
+  // near-identical strings but is kept as its OWN local key set here per the
+  // task brief — a cross-screen consolidation is a tracked native-pass
+  // deferral, not this task's job.
+  expenses: {
+    title: "Expenses",
+
+    // Imperative messages (event handlers — see CONTRIBUTING-i18n.md's
+    // imperative i18n.t() pattern).
+    expenseRecordedMessage: "Expense recorded.",
+    expenseCorrectedMessage: "Expense corrected.",
+    // 409 rebind (onSaveEdit): someone else corrected this expense while the
+    // dialog was open — the panel is rebound to the server's latest values.
+    conflictRebindMessage:
+      "This expense was changed by someone else — the form now shows the "
+      + "latest values; re-apply your correction.",
+    categoryCreatedMessage: "Category created.",
+    // {{name}} is the category's free-form NAME (DATA), not client copy.
+    categoryDeactivatedMessage: "Category \"{{name}}\" deactivated.",
+    categoryReactivatedMessage: "Category \"{{name}}\" reactivated.",
+
+    // Amount-parsing validation (toMinorUnits, thrown from the add/edit
+    // submit handlers — imperative i18n.t() pattern, same shape as
+    // products:enterPriceAsNumber/noDecimalPlaces/atMostDecimals).
+    enterValidAmount: "Enter a valid amount.",
+    noDecimalPlaces: "This currency has no decimal places.",
+    atMostDecimals: "At most {{count}} decimal places for this currency.",
+    enterAmountGreaterThanZero: "Enter an amount greater than zero.",
+
+    // Filters
+    monthLabel: "Month",
+    // Shared by the filter select, the add-form select, and the edit-form
+    // select — all three already carry this identical label in source.
+    categoryLabel: "Category",
+    allCategoriesOption: "All categories",
+    hideCategoriesButton: "hide categories",
+    manageCategoriesButton: "manage categories",
+    // {{amount}} is formatMoney's already-formatted total — farm-locale DATA,
+    // never routed through i18n.language.
+    monthTotalLabel: "Month total: {{amount}}",
+
+    // Category-management panel
+    categoriesHeading: "Expense categories",
+    newCategoryButton: "New category",
+    newCategoryDialogTitle: "New expense category",
+    categoryNameLabel: "Category name",
+    addCategoryButton: "Add category",
+    // Appended to a deactivated category's free-form NAME (DATA) — shared by
+    // the filter option, the category-list row, and the edit-form select.
+    deactivatedSuffix: " (deactivated)",
+    deactivateButton: "deactivate",
+    reactivateButton: "reactivate",
+    noCategoriesMessage: "No categories yet — add one above.",
+
+    // Record-expense form
+    recordExpenseHeading: "Record an expense",
+    dateLabel: "Date", // shared by the add and edit forms
+    pickOption: "— pick —",
+    descriptionLabel: "Description", // shared by the add and edit forms
+    // {{code}} is the loaded/snapshot currency CODE (DATA) — shared by the
+    // add form (currency.code) and the edit form (editing.currencyCode).
+    amountLabel: "Amount ({{code}})",
+    flockOptionalLabel: "Flock (optional)", // shared by the add and edit forms
+    noneOption: "— none —",
+    noteOptionalLabel: "Note (optional)", // shared by the add and edit forms
+    recordExpenseButton: "Record expense",
+    addCategoryFirstMessage: "Add a category first — every expense needs one.",
+
+    // Correct-expense dialog. {{date}}/{{description}} are the expense's own
+    // free-form DATA, not client copy.
+    correctExpenseDialogTitle: "Correct expense",
+    correctExpenseDialogTitleWithExpense: "Correct — {{date}}, {{description}}",
+    saveCorrectionButton: "Save correction",
+
+    // Expenses table
+    noExpensesMessage: "No expenses for this month.",
+    dateHeader: "Date",
+    categoryHeader: "Category",
+    descriptionHeader: "Description",
+    amountHeader: "Amount",
+    flockHeader: "Flock",
+    noteHeader: "Note",
+    correctButton: "correct",
+    loadMoreButton: "load more",
+  },
+  // Customers screen — the customer book: list + create dialog, with an
+  // admin-only outstanding-balance column (Task 24, #182, batch B4).
+  // English-only for now, same treatment as nav/numberField/errorBoundary/
+  // themeToggle/useConfirm/pwa/dailyEntry/dashboard/water/grades/inventory/
+  // products/stock/flocks/settings/users/expenses above. `customers` IS in
+  // TRANSLATED_NAMESPACES: es/tl carry machine-drafted translations
+  // (#182, pending native review).
+  //
+  // No status/enum on this screen — Customer has no closed-vocabulary field,
+  // so nothing here routes through enums.ts. Customer name/phone/email/
+  // address/note are free-form farm DATA (createCustomer's own fields) and
+  // stay raw everywhere they render, including the "—" placeholder for a
+  // blank optional field (shared convention across the sweep — see
+  // ExpensesPage/UsersPage/FlocksPage, which leave the em dash un-keyed too).
+  // Outstanding balances stay on the existing farm-locale `formatMoney` —
+  // never `i18n.language` (formattingIndependence guard).
+  customers: {
+    title: "Customers",
+    newCustomerButton: "New customer", // reused verbatim as the create-dialog title
+
+    // Create-customer dialog
+    nameFieldLabel: "Name *",
+    phoneFieldLabel: "Phone *",
+    emailFieldLabel: "Email",
+    addressFieldLabel: "Address",
+    noteFieldLabel: "Note",
+    addCustomerButton: "Add customer",
+
+    // Imperative messages (mount-effect .catch callbacks — see
+    // CONTRIBUTING-i18n.md's imperative i18n.t() pattern).
+    loadCustomersErrorMessage: "Could not load customers.",
+    loadBalancesErrorMessage: "Could not load customer balances.",
+
+    // Customers table
+    noCustomersMessage: "No customers yet.",
+    nameHeader: "Name",
+    phoneHeader: "Phone",
+    emailHeader: "Email",
+    addressHeader: "Address",
+    noteHeader: "Note",
+    outstandingHeader: "Outstanding",
+  },
+  // Daily-entry history — browse recorded entries with flock/date filters,
+  // plus the admin-only adjust/void corrections (Task 27, #182, batch B5 —
+  // the last B4-onward records/export screen). English-only for now, same
+  // treatment as nav/numberField/errorBoundary/themeToggle/useConfirm/pwa/
+  // dailyEntry/dashboard/water/grades/inventory/products/stock/flocks/
+  // settings/users/expenses/customers above: `history` is deliberately NOT in
+  // TRANSLATED_NAMESPACES, so es/tl fall back to these strings until a
+  // native-speaker pass adds the namespace.
+  //
+  // Entry-status pills (statusCell): DELIBERATELY NOT routed through the
+  // shared `enums` status family, even though enums.status already carries
+  // Draft/Submitted/Locked/ManagerAdjusted/Voided (Task 4/12) — this screen's
+  // bespoke pills predate that helper and keep their OWN display text here
+  // (statusVoided/statusAdjusted/statusLocked/statusSubmitted/statusDraft),
+  // per the task brief. Text is identical to enums' labels (identity, plus
+  // ManagerAdjusted -> "Adjusted"), so this is a naming/ownership choice, not
+  // a visible difference — see the `enums` namespace header comment, which
+  // already points AT this screen's own "Adjusted" pill as the precedent
+  // Dashboard's retrofit matched. lockedAt interpolates the raw lockedAtUtc
+  // timestamp (DATA) into the tooltip text (COPY).
+  //
+  // The nothingToAdjustMessage 409-rebind message interpolates
+  // fresh.status.toLowerCase() — lowercasing a raw wire enum value is
+  // locale-fragile (only ever reads correctly in English); tracked as a
+  // native-pass deferral (#182), not solved by this task (see the code
+  // comment at the call site, HistoryPage.tsx rebindAfterConflict).
+  //
+  // DATA left raw, never routed through this catalog: entry dates
+  // (e.date/adjusting.date), flock/grade names (flockName/gradeName, with
+  // their id.slice(0,8) fallback), the "—" placeholder for an entry with no
+  // graded lines (same convention as customers/expenses/users/flocks — see
+  // the `customers` namespace header comment above), free-form void/adjust
+  // reasons (voidReason/adjustReason, shown via the `title` attribute or
+  // interpolated verbatim into previouslyAdjusted), and every numeric count
+  // (totalEggs/crackedEggs/etc., adjustedFrom's snapshot counts).
+  history: {
+    // Titles. `loadingTitle` is the shorter heading the early-return
+    // load-error state uses before the real heading below — a pre-existing
+    // inconsistency, preserved verbatim rather than "fixed" as a drive-by
+    // (same treatment as grades:loadingTitle/title).
+    loadingTitle: "History",
+    title: "Daily entry history",
+
+    intro:
+      "Submitted and locked entries can be adjusted or voided here — stock "
+      + "and the bird ledger follow automatically; eggs already sold never "
+      + "move. A reason is always required.",
+
+    // Imperative messages (event handlers / promise callbacks — see
+    // CONTRIBUTING-i18n.md's imperative i18n.t() pattern). Several of these
+    // are near-duplicate concurrent-conflict copy at different call sites
+    // (errText's own 409 branch vs. onVoid's inline 409 branch, and the two
+    // "could not reload" variants) — kept as separate, text-preserving keys
+    // rather than consolidated, matching the sweep's convention of not
+    // drive-by-fixing pre-existing copy drift.
+    concurrentConflictMessage:
+      "This entry was just changed elsewhere — the list has been reloaded; retry.",
+    loadFlocksGradesFailed: "Could not load flocks/grades.",
+    loadEntriesFailed: "Could not load entries.",
+    conflictRebindMessage:
+      "This entry was changed by someone else — the form shows the latest "
+      + "values; re-apply your correction.",
+    // {{status}} is the RAW wire status, lowercased — see the locale-fragile
+    // note in the namespace header comment above.
+    nothingToAdjustMessage: "This entry is now {{status}} — nothing left to adjust.",
+    conflictReloadFailedMessage:
+      "This entry was changed by someone else and the list could not be "
+      + "reloaded — reload the page before retrying.",
+    exceedsSellableMessage:
+      "Graded quantities cannot exceed total eggs minus cracked/dirty/discarded.",
+    entryAdjustedMessage: "Entry adjusted — stock and bird ledger updated to match.",
+    adjustReloadFailedMessage: "The adjustment saved, but the list failed to reload — refresh the page.",
+    // askReason dialog (title / body / confirmLabel). {{date}}/{{flock}} are
+    // the entry's own free-form DATA (date string, resolved flock name).
+    voidConfirmTitle: "Void the {{date}} entry for {{flock}}?",
+    voidConfirmBody:
+      "Its egg lots empty and its deaths are reversed. The entry is kept as "
+      + "Voided. Refused if any of its eggs were already sold.",
+    voidConfirmLabel: "Void entry",
+    entryVoidedMessage: "Entry voided — its egg lots were emptied and its deaths reversed.",
+    voidReloadFailedMessage: "The void saved, but the list failed to reload — refresh the page.",
+    voidConflictMessage: "This entry was changed by someone else — the list has been reloaded; retry.",
+    voidConflictReloadFailedMessage:
+      "This entry was changed by someone else and the list could not be "
+      + "reloaded — reload the page.",
+    loadMoreFailedMessage: "Could not load more.",
+
+    // Filters
+    flockLabel: "Flock",
+    allFlocksOption: "All flocks",
+    fromLabel: "From",
+    toLabel: "To",
+
+    // Adjust dialog — title (two shapes: an entry bound vs. the fallback
+    // before one is), the "previously adjusted" recap, and the form.
+    adjustDialogTitle: "Adjust entry",
+    adjustDialogTitleWithEntry: "Adjust — {{date}}, {{flock}}",
+    // {{total}}/{{mortality}} are the prior snapshot's numeric DATA;
+    // {{reason}} is the free-form adjustReason DATA.
+    previouslyAdjusted:
+      "Previously adjusted (was total {{total}}, mortality {{mortality}} — \"{{reason}}\").",
+    totalEggsLabel: "Total eggs",
+    crackedLabel: "Cracked",
+    dirtyLabel: "Dirty",
+    discardedLabel: "Discarded",
+    deathsLabel: "Deaths",
+    // Appended to a grade line's free-form NAME (DATA) for a deactivated
+    // grade still on the entry — distinct wording from
+    // dailyEntry:deactivatedGradeSuffix (" (deactivated)"), preserved
+    // verbatim rather than reconciled (not this task's job).
+    inactiveGradeSuffix: " (inactive)",
+    reasonLabel: "Reason *",
+    saveAdjustmentButton: "Save adjustment",
+
+    noEntriesMatch: "No entries match — record one on the Daily entry page.",
+
+    // Entries table
+    dateHeader: "Date",
+    flockHeader: "Flock",
+    statusHeader: "Status",
+    totalHeader: "Total",
+    lossesHeader: "Losses (cr/di/ds)",
+    mortalityHeader: "Mortality",
+    gradedHeader: "Graded",
+    // Lowercase link-styled row actions, same treatment as
+    // sales:edit/water:correctButton/grades:editButton.
+    editButton: "edit",
+    adjustButton: "adjust",
+    voidButton: "void",
+    loadMoreButton: "load more",
+
+    // Entry-status pills (statusCell) — see the namespace header comment
+    // above for why this is a separate vocabulary from enums:status.
+    statusVoided: "Voided",
+    statusAdjusted: "Adjusted",
+    statusLocked: "Locked",
+    // {{time}} is the raw lockedAtUtc timestamp (DATA).
+    lockedAt: "Locked {{time}}",
+    statusSubmitted: "Submitted",
+    statusDraft: "Draft",
+  },
+  // Task 28 (#182, B5) — ReportsPage. English-only (not in
+  // TRANSLATED_NAMESPACES), same as `history`/`nav`. Production renders for
+  // everyone; the Money section (sales/expenses/profit) is admin-gated —
+  // isAdmin is checked by the component, not this catalog.
+  //
+  // DATA left raw, never routed through this catalog: every date
+  // (d.date/from/to), every numeric count/total (totalEggs, cracked/dirty/
+  // discarded, sellable, deaths, henDays, henDayPct and their period
+  // equivalents), the "—" em-dash fallback for a null henDayPct (same
+  // convention as customers/expenses/users/flocks/history's raw "—"), the
+  // grade-totals and expense-category lists (built from free-form
+  // name/quantity DATA via template-literal `.join(", ")`, matching
+  // HistoryPage's gradeName-list precedent), and every money string
+  // (formatMoney is farm-locale-driven, never keyed off i18n.language —
+  // interpolated into the templates below as pre-formatted DATA, same
+  // pattern as sales:orderTotal).
+  reports: {
+    title: "Reports",
+    fromLabel: "From",
+    toLabel: "To",
+
+    productionHeading: "Production",
+    dateHeader: "Date",
+    eggsHeader: "Eggs",
+    lossesHeader: "Losses (cr/di/ds)",
+    sellableHeader: "Sellable",
+    deathsHeader: "Deaths",
+    henDaysHeader: "Hen-days",
+    henDayPctHeader: "Hen-day %",
+    periodRowLabel: "Period",
+    gradeTotalsLabel: "By grade:",
+
+    moneyHeading: "Money",
+    salesRowLabel: "Sales",
+    // {{count}} is confirmedCount; {{revenue}}/{{paid}}/{{outstanding}} are
+    // pre-formatted formatMoney() strings (DATA).
+    salesSummary:
+      "{{count}} confirmed order(s) — revenue {{revenue}}, paid {{paid}}, outstanding {{outstanding}}",
+    // {{count}} is voidedCount — a second, independent {{count}} interpolation
+    // on the same screen, appended only when voidedCount > 0.
+    salesVoidedSuffix: " ({{count}} voided)",
+    expensesRowLabel: "Expenses",
+    expensesNone: "none recorded",
+    // {{total}} is expenses.grandTotalMinorUnits, pre-formatted (DATA).
+    expensesTotalSuffix: " — total {{total}}",
+    profitRowLabel: "Profit (basic)",
+    // <Trans> (not t()) — the only JSX interleaved in this screen's prose is
+    // the <strong> around the profit figure, same treatment as
+    // account:roleLine. {{revenue}}/{{expenses}}/{{profit}} are pre-formatted
+    // formatMoney() strings (DATA); the "−" is U+2212 MINUS SIGN (matching
+    // the pre-sweep source), not a hyphen.
+    profitLine: "revenue {{revenue}} − expenses {{expenses}} = <strong>{{profit}}</strong>",
+    profitFootnote:
+      "\"Basic\" profit is confirmed revenue minus recorded expenses — no "
+      + "cost-of-goods or inventory valuation.",
+  },
+  // Task 29 (#182, B5) — AuditPage. English-only (not in
+  // TRANSLATED_NAMESPACES), same as `history`/`nav`/`reports`. The #93
+  // read-only audit trail (admin). The action/entity table cells and the
+  // action filter's option text route through enums:auditAction.*/
+  // enums:entityType.* (translated — see the `enums` header comment below),
+  // NOT this namespace. DATA left raw, never routed through this catalog:
+  // every timestamp (e.occurredAtUtc), actorEmail, entityId, and the "—"
+  // em-dash fallback for a null reason (same convention as
+  // customers/expenses/users/flocks/history's raw "—").
+  audit: {
+    heading: "Audit log",
+    intro:
+      "Every corrective, destructive, or configuration change — who did it, "
+      + "when, and why. Rows are written with the change itself and never "
+      + "edited.",
+    actionFilterLabel: "Action",
+    allActionsOption: "All actions",
+    whenHeader: "When (UTC)",
+    whoHeader: "Who",
+    actionHeader: "Action",
+    entityHeader: "Entity",
+    reasonHeader: "Reason",
+    emptyMessage: "No audit events yet.",
+    loadMoreButton: "load more",
+  },
+  // Task 30 (B5, #182) — ExportPage: the manual-backup screen (#95,
+  // admin-only). English-only (not in TRANSLATED_NAMESPACES), same as
+  // `audit`/`history`. CSV column headers and file contents are generated
+  // SERVER-side (Cluckwork.Api/Endpoints/Export/CsvExport.cs) and are NOT
+  // client strings — out of scope here. Only the visible page copy below
+  // (headings, buttons, and the dataset picker's own labels) is externalized;
+  // the download filenames (`cluckwork-${d}.csv`, "cluckwork-backup.zip")
+  // stay raw, unkeyed — they're functional identifiers, not display copy, and
+  // changing them would be a download-mechanics change (out of scope).
+  export: {
+    heading: "Export",
+    intro:
+      "Download your account's data as CSV files — a manual backup you can "
+      + "keep anywhere. Money values are exported in minor units (cents) "
+      + "with their currency, exactly as stored.",
+
+    fullBackupHeading: "Full backup",
+    fullBackupButton: "Download full backup (zip)",
+    fullBackupHint: "One zip with every dataset below plus a manifest of row counts.",
+    // Shared between the full-backup button and every dataset button (each
+    // uses its own `busy === <key>` check) — one in-flight-download label,
+    // not a per-button duplicate.
+    preparingButton: "Preparing…",
+
+    singleDatasetsHeading: "Single datasets",
+
+    // Dataset picker labels — one flat "dataset.<slug>" key per
+    // EXPORT_DATASETS member (../api/cluckwork), text IDENTICAL to the raw
+    // wire slug (same "value equals the enum member" convention as
+    // sales:unit*/method*, en.ts ~L252). Keeps the button's accessible name
+    // byte-identical to the pre-sweep raw `{d}` render while routing display
+    // through the catalog, as the task brief requires ("a dataset NAME
+    // displayed as a picker label is page copy"). A future native-translation
+    // pass can replace these with humanized/localized text without touching
+    // ExportPage.tsx.
+    "dataset.flocks": "flocks",
+    "dataset.bird-movements": "bird-movements",
+    "dataset.daily-entries": "daily-entries",
+    "dataset.daily-entry-grades": "daily-entry-grades",
+    "dataset.egg-grades": "egg-grades",
+    "dataset.egg-lots": "egg-lots",
+    "dataset.customers": "customers",
+    "dataset.sales-orders": "sales-orders",
+    "dataset.sales-order-items": "sales-order-items",
+    "dataset.sales-order-allocations": "sales-order-allocations",
+    "dataset.payments": "payments",
+    "dataset.inventory-items": "inventory-items",
+    "dataset.inventory-lots": "inventory-lots",
+    "dataset.inventory-movements": "inventory-movements",
+    "dataset.feed-usages": "feed-usages",
+    "dataset.water-usages": "water-usages",
+    "dataset.expense-categories": "expense-categories",
+    "dataset.expenses": "expenses",
+    "dataset.egg-inventory-movements": "egg-inventory-movements",
+    "dataset.audit-events": "audit-events",
+  },
   // Closed-vocabulary labels (#182, Task 4). Consumed ONLY through the typed
   // helpers in enums.ts — never a raw t("enums:status." + value). Keys are FLAT
   // "family.RawValue" strings (keySeparator:false, see index.ts): the suffix is
   // the EXACT wire value the API sends, so the helper's Record can map value →
-  // key mechanically and the key is self-documenting. English-only for now —
-  // `enums` is deliberately NOT in TRANSLATED_NAMESPACES, so es/tl fall back to
-  // these strings until a native enum-translation pass lands.
+  // key mechanically and the key is self-documenting. `enums` IS in
+  // TRANSLATED_NAMESPACES: es/tl carry machine-drafted enum translations
+  // (#182, pending native review).
   //
   // Labels are chosen to be TEXT-PRESERVING on retrofit (Task 5+) — a screen
   // wired to a helper keeps its current text — EXCEPT at two sites the retrofit
@@ -1087,6 +1732,55 @@ export const en = {
     "weekday.Thursday": "Thursday",
     "weekday.Friday": "Friday",
     "weekday.Saturday": "Saturday",
+
+    // audit action (AuditPage filter/table) — AuditEvent.action, a server
+    // "Entity.Verb" capture-point code (#182, Task 29). Flat
+    // "auditAction.Entity.Verb" keys: keySeparator:false treats the whole
+    // dotted code as ONE literal key segment, so e.g. "DailyEntry.Adjust"
+    // becomes the key "auditAction.DailyEntry.Adjust", not a nested path.
+    "auditAction.DailyEntry.Adjust": "Daily entry adjusted",
+    "auditAction.DailyEntry.Void": "Daily entry voided",
+    "auditAction.SalesOrder.Void": "Sales order voided",
+    "auditAction.Payment.Void": "Payment voided",
+    "auditAction.Expense.Adjust": "Expense adjusted",
+    "auditAction.ExpenseCategory.Update": "Expense category updated",
+    "auditAction.InventoryItem.Adjust": "Inventory item adjusted",
+    "auditAction.WaterUsage.Correct": "Water usage corrected",
+    "auditAction.Flock.BirdMovement": "Bird movement recorded",
+    "auditAction.Flock.Update": "Flock updated",
+    "auditAction.Flock.Deplete": "Flock depleted",
+    "auditAction.Flock.Archive": "Flock archived",
+    "auditAction.Flock.Reactivate": "Flock reactivated",
+    "auditAction.EggGrade.Update": "Egg grade updated",
+    "auditAction.EggGrade.Activate": "Egg grade activated",
+    "auditAction.EggGrade.Deactivate": "Egg grade deactivated",
+    "auditAction.User.Create": "User created",
+    "auditAction.User.Update": "User updated",
+    "auditAction.User.PasswordSet": "Password set",
+    "auditAction.User.PasswordChanged": "Password changed",
+    "auditAction.User.FlockAssign": "Flock assigned to user",
+    "auditAction.User.FlockUnassign": "Flock unassigned from user",
+    "auditAction.Account.Export": "Data exported",
+    "auditAction.Product.Create": "Product created",
+    "auditAction.Product.Update": "Product updated",
+    "auditAction.Product.Activate": "Product activated",
+    "auditAction.Product.Deactivate": "Product deactivated",
+    "auditAction.EggUnitConversion.Update": "Egg unit conversion updated",
+
+    // entity type (AuditPage table entity cell) — AuditEvent.entityType.
+    "entityType.Account": "Account",
+    "entityType.DailyEntry": "Daily entry",
+    "entityType.EggGrade": "Egg grade",
+    "entityType.EggUnitConversion": "Egg unit conversion",
+    "entityType.Expense": "Expense",
+    "entityType.ExpenseCategory": "Expense category",
+    "entityType.Flock": "Flock",
+    "entityType.InventoryItem": "Inventory item",
+    "entityType.Payment": "Payment",
+    "entityType.Product": "Product",
+    "entityType.SalesOrder": "Sales order",
+    "entityType.User": "User",
+    "entityType.WaterUsage": "Water usage",
   },
 } as const;
 

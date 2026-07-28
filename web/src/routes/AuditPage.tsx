@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { listAuditEvents } from "../api/cluckwork";
 import type { AuditEvent } from "../api/cluckwork";
 import { ApiError } from "../api/client";
+import { AUDIT_ACTION_VALUES, auditActionLabel, entityTypeLabel } from "../i18n/enums";
 
 function errText(err: unknown): string {
   if (err instanceof ApiError) return err.message;
@@ -13,6 +15,9 @@ const PAGE = 100;
 // #93 — read-only audit trail (admin). Deliberately no mutation surface: the
 // rows are written by the server inside the transactions they record.
 export function AuditPage() {
+  const { t } = useTranslation("audit");
+  const { t: tc } = useTranslation("common");
+
   const [events, setEvents] = useState<AuditEvent[] | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -52,34 +57,18 @@ export function AuditPage() {
 
   useEffect(() => { void load(); }, [load]);
 
-  // Must list every server-side capture-point action code — a missing entry
-  // is a silent filter gap ("All actions" still shows the rows). Centralizing
-  // these codes is part of the magic-strings debt (#84).
-  const actions = [
-    "DailyEntry.Adjust", "DailyEntry.Void", "SalesOrder.Void", "Payment.Void",
-    "Expense.Adjust", "ExpenseCategory.Update", "InventoryItem.Adjust",
-    "WaterUsage.Correct", "Flock.BirdMovement", "Flock.Update", "Flock.Deplete",
-    "Flock.Archive", "Flock.Reactivate", "EggGrade.Update", "EggGrade.Activate",
-    "EggGrade.Deactivate", "User.Create", "User.Update", "User.PasswordSet",
-    "User.PasswordChanged", "User.FlockAssign",
-    "User.FlockUnassign", "Account.Export",
-    "Product.Create", "Product.Update", "Product.Activate",
-    "Product.Deactivate", "EggUnitConversion.Update",
-  ];
-
   return (
     <section>
-      <h2>Audit log</h2>
-      <p className="muted">
-        Every corrective, destructive, or configuration change — who did it,
-        when, and why. Rows are written with the change itself and never edited.
-      </p>
+      <h2>{t("heading")}</h2>
+      <p className="muted">{t("intro")}</p>
 
       <div className="filters">
-        <label>Action
+        <label>{t("actionFilterLabel")}
           <select value={actionFilter} onChange={(e) => setActionFilter(e.target.value)}>
-            <option value="">All actions</option>
-            {actions.map((a) => <option key={a} value={a}>{a}</option>)}
+            <option value="">{t("allActionsOption")}</option>
+            {AUDIT_ACTION_VALUES.map((a) => (
+              <option key={a} value={a}>{auditActionLabel(a)}</option>
+            ))}
           </select>
         </label>
       </div>
@@ -87,22 +76,25 @@ export function AuditPage() {
       {error && <p className="error" role="alert">{error}</p>}
 
       {events === null ? (
-        <p className="muted">Loading…</p>
+        <p className="muted">{tc("loading")}</p>
       ) : events.length === 0 ? (
-        <p className="muted">No audit events yet.</p>
+        <p className="muted">{t("emptyMessage")}</p>
       ) : (
         <>
           <table className="data">
             <thead>
-              <tr><th>When (UTC)</th><th>Who</th><th>Action</th><th>Entity</th><th>Reason</th></tr>
+              <tr>
+                <th>{t("whenHeader")}</th><th>{t("whoHeader")}</th><th>{t("actionHeader")}</th>
+                <th>{t("entityHeader")}</th><th>{t("reasonHeader")}</th>
+              </tr>
             </thead>
             <tbody>
               {events.map((e) => (
                 <tr key={e.id} title={e.detailsJson ?? undefined}>
                   <td>{e.occurredAtUtc.replace("T", " ").slice(0, 19)}</td>
                   <td>{e.actorEmail}</td>
-                  <td>{e.action}</td>
-                  <td>{e.entityType} {e.entityId.slice(0, 8)}</td>
+                  <td>{auditActionLabel(e.action)}</td>
+                  <td>{entityTypeLabel(e.entityType)} {e.entityId.slice(0, 8)}</td>
                   <td>{e.reason ?? "—"}</td>
                 </tr>
               ))}
@@ -111,7 +103,7 @@ export function AuditPage() {
           {hasMore && (
             <button className="link" disabled={busy}
               onClick={() => void load(events.length)}>
-              load more
+              {t("loadMoreButton")}
             </button>
           )}
         </>

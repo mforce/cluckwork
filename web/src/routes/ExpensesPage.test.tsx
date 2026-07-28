@@ -8,6 +8,7 @@ import {
 } from "../api/cluckwork";
 import type { Expense, ExpenseCategory, ExpenseList, Flock } from "../api/cluckwork";
 import { ApiError } from "../api/client";
+import i18n from "../i18n";
 
 // Keep the REAL formatMoney (renders the row amounts + the month total) via
 // importOriginal; stub only the network seam. Every network fn the screen can
@@ -425,5 +426,157 @@ describe("ExpensesPage access (admin-only money data)", () => {
     expect(await screen.findByRole("heading", { name: "Expenses" })).toBeInTheDocument();
     await waitFor(() => expect(mockListExpenses).toHaveBeenCalled());
     expect(mockListCategories).toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// i18n wiring (#182, Task 23, batch B4)
+// ---------------------------------------------------------------------------
+
+// `expenses` is English-only (not in TRANSLATED_NAMESPACES — see
+// translations-status.ts), so under ANY UI language the rendered text falls
+// back to this exact English string, same as a still-hardcoded literal would
+// render — asserting it, even under a non-English locale, would prove nothing
+// (CONTRIBUTING-i18n.md's fallback trap). Swap the catalog value at runtime
+// instead, the same i18n.addResource technique the other batches use, so each
+// marker only renders if the screen actually reads the catalog rather than a
+// literal that happens to still match it. Together these cover every
+// render-pattern on this screen: a plain t() heading, a t() key interpolating
+// DATA (formatMoney's total, the expense's own date/description, a category's
+// free-form name), a t() key SHARED across several render sites
+// (deactivatedSuffix), and the imperative i18n.t() pattern in all three of
+// its shapes here — a plain success message, a message interpolating DATA,
+// and a message thrown from a plain (non-hook) helper (toMinorUnits) and a
+// catch block (the 409 rebind).
+describe("ExpensesPage i18n wiring (#182, Task 23)", () => {
+  function withOverride(ns: string, key: string, value: string, run: () => Promise<void> | void) {
+    const original = i18n.getResource("en", ns, key) as string;
+    i18n.addResource("en", ns, key, value);
+    return Promise.resolve(run()).finally(() => {
+      i18n.addResource("en", ns, key, original);
+    });
+  }
+
+  it("reads the heading from the catalog, not a hardcoded literal", async () => {
+    await withOverride("expenses", "title", "TITLE-MARKER", async () => {
+      renderWithProviders(<ExpensesPage />, { token: ADMIN });
+      expect(await screen.findByRole("heading", { name: "TITLE-MARKER" })).toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "Expenses" })).not.toBeInTheDocument();
+    });
+  });
+
+  // Proves the month-total copy template reads from the catalog while still
+  // interpolating formatMoney's already-formatted total (farm-locale DATA) —
+  // a hardcoded literal, or one that dropped the interpolation, would fail
+  // this even though "12.345 BHD" itself is unaffected by the marker.
+  it("interpolates formatMoney's total into the month-total label from the catalog", async () => {
+    mockListExpenses.mockResolvedValue({ items: [], totalMinorUnits: 12345, currencyCode: "BHD", currencyMinorUnit: 3 });
+    await withOverride("expenses", "monthTotalLabel", "TOTAL-MARKER {{amount}} END", async () => {
+      renderWithProviders(<ExpensesPage />, { token: ADMIN });
+      expect(await screen.findByText("TOTAL-MARKER 12.345 BHD END")).toBeInTheDocument();
+      expect(screen.queryByText(/Month total:/)).not.toBeInTheDocument();
+    });
+  });
+
+  // Proves the correction dialog's title reads the COPY template from the
+  // catalog while still interpolating the expense's own free-form date and
+  // description (DATA).
+  it("interpolates the expense's date and description into the correction dialog title from the catalog", async () => {
+    mockListExpenses.mockResolvedValue({ items: [EXP_OLD], totalMinorUnits: 1500, currencyCode: "JPY", currencyMinorUnit: 0 });
+    await withOverride(
+      "expenses", "correctExpenseDialogTitleWithExpense", "CORRECT-MARKER {{date}}/{{description}} END",
+      async () => {
+        renderWithProviders(<ExpensesPage />, { token: ADMIN });
+        const row = await screen.findByRole("row", { name: /Generator diesel/ });
+        fireEvent.click(within(row).getByRole("button", { name: "correct" }));
+        expect(
+          await screen.findByRole("dialog", { name: "CORRECT-MARKER 2026-07-05/Generator diesel END" }),
+        ).toBeInTheDocument();
+      },
+    );
+  });
+
+  // Proves `deactivatedSuffix` is a SHARED key: overriding it once changes the
+  // rendered text at the category-list row (asserted here), which is the same
+  // key read by the filter option and the edit-form's category picker.
+  it("reads the deactivated-category suffix from the catalog on the category-list row", async () => {
+    await withOverride("expenses", "deactivatedSuffix", " SUFFIX-MARKER", async () => {
+      renderWithProviders(<ExpensesPage />, { token: ADMIN });
+      fireEvent.click(await screen.findByRole("button", { name: "manage categories" }));
+      const rows = screen.getAllByRole("listitem");
+      const legacyRow = rows.find((li) => li.textContent?.includes("Legacy"));
+      expect(legacyRow?.textContent).toContain("SUFFIX-MARKER");
+      expect(legacyRow?.textContent).not.toContain("(deactivated)");
+    });
+  });
+
+  // Imperative i18n.t() — a plain success message set from an event handler
+  // (onAdd), not render.
+  it("reads the expense-recorded success message from the catalog, not a hardcoded literal", async () => {
+    mockCreateExpense.mockResolvedValue({ id: "e-new" });
+    await withOverride("expenses", "expenseRecordedMessage", "RECORDED-MARKER", async () => {
+      await renderReady("USD");
+      fireEvent.change(comboWithOption(/pick/), { target: { value: "cat-feed" } });
+      fireEvent.change(screen.getByLabelText("Description"), { target: { value: "Feed" } });
+      fireEvent.change(screen.getByLabelText(/Amount \(USD\)/), { target: { value: "1.00" } });
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "Record expense" }));
+      });
+      expect(await screen.findByText("RECORDED-MARKER")).toBeInTheDocument();
+      expect(screen.queryByText("Expense recorded.")).not.toBeInTheDocument();
+    });
+  });
+
+  // Imperative i18n.t() interpolating DATA — the category's free-form NAME —
+  // into a message built from an event handler (onToggleCategory).
+  it("interpolates the category's name into the deactivated message from the catalog", async () => {
+    mockUpdateCategory.mockResolvedValue(undefined);
+    await withOverride("expenses", "categoryDeactivatedMessage", "DEACT-MARKER {{name}} END", async () => {
+      renderWithProviders(<ExpensesPage />, { token: ADMIN });
+      fireEvent.click(await screen.findByRole("button", { name: "manage categories" }));
+      const rows = screen.getAllByRole("listitem");
+      const feedRow = rows.find((li) => li.textContent?.includes("Feed"))!;
+      await act(async () => {
+        fireEvent.click(within(feedRow).getByRole("button", { name: "deactivate" }));
+      });
+      expect(await screen.findByText("DEACT-MARKER Feed END")).toBeInTheDocument();
+    });
+  });
+
+  // Imperative i18n.t() thrown from toMinorUnits — a plain (non-hook) helper
+  // called synchronously inside the add-form's submit handler, never a
+  // rejected mount promise, so it's safe to exercise directly (same shape as
+  // ProductsPage's price-precision wiring test).
+  it("reads the amount-precision validation message from the catalog, not a hardcoded literal", async () => {
+    mockListExpenses.mockResolvedValue(emptyList("BHD", 3));
+    await withOverride("expenses", "atMostDecimals", "AT-MOST-MARKER {{count}} END", async () => {
+      await renderReady("BHD");
+      fireEvent.change(comboWithOption(/pick/), { target: { value: "cat-feed" } });
+      fireEvent.change(screen.getByLabelText("Description"), { target: { value: "Feed" } });
+      fireEvent.change(screen.getByLabelText(/Amount \(BHD\)/), { target: { value: "1.2345" } }); // 4dp > BHD's 3dp
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "Record expense" }));
+      });
+      expect(await screen.findByRole("alert")).toHaveTextContent("AT-MOST-MARKER 3 END");
+    });
+  });
+
+  // Imperative i18n.t() thrown from the 409 catch branch (onSaveEdit) — the
+  // version-conflict rebind message.
+  it("reads the version-conflict rebind message from the catalog, not a hardcoded literal", async () => {
+    mockListExpenses.mockResolvedValue({ items: [EXP_OLD], totalMinorUnits: 1500, currencyCode: "JPY", currencyMinorUnit: 0 });
+    mockAdjustExpense.mockRejectedValue(new ApiError(409, "Conflict", "stale"));
+    mockGetExpense.mockResolvedValue({ ...EXP_OLD, description: "Diesel (recount)", amountMinorUnits: 1800, version: 8 });
+    await withOverride("expenses", "conflictRebindMessage", "CONFLICT-MARKER", async () => {
+      renderWithProviders(<ExpensesPage />, { token: ADMIN });
+      const row = await screen.findByRole("row", { name: /Generator diesel/ });
+      fireEvent.click(within(row).getByRole("button", { name: "correct" }));
+      fireEvent.change(await screen.findByLabelText("Amount (BHD)"), { target: { value: "2.250" } });
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "Save correction" }));
+      });
+      expect(await screen.findByRole("alert")).toHaveTextContent("CONFLICT-MARKER");
+      expect(screen.queryByText(/changed by someone else/)).not.toBeInTheDocument();
+    });
   });
 });

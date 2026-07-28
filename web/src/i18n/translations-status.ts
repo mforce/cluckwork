@@ -1,10 +1,10 @@
 import type { en } from "./en";
 
 // Namespaces where es/tl are maintained in lockstep with en (#182,
-// English-first model). A screen added AFTER the English-first cutover ships
-// its strings to en.ts ONLY — es/tl are not required to add the namespace at
-// all, and simply fall back to English (fallbackLng, see index.ts) for it
-// until a native-speaker translation pass lands and adds the namespace here.
+// translate-now model). Every swept screen ships machine-drafted es/tl inline
+// (marked pending native review) and is listed here. Anything NOT listed falls
+// back to English (fallbackLng, see index.ts). New screens must add their
+// namespace to en.ts AND es.ts AND tl.ts AND this list in the same PR.
 //
 // catalogParity.test.ts:
 // - enforces key-set/non-empty/placeholder/tag parity between en and es/tl
@@ -22,6 +22,29 @@ export const TRANSLATED_NAMESPACES = [
   "account",
   "errors",
   "sales",
+  "enums",
+  "settings",
+  "users",
+  "expenses",
+  "customers",
+  "history",
+  "reports",
+  "audit",
+  "export",
+  "nav",
+  "numberField",
+  "errorBoundary",
+  "themeToggle",
+  "useConfirm",
+  "pwa",
+  "dailyEntry",
+  "dashboard",
+  "water",
+  "grades",
+  "inventory",
+  "products",
+  "stock",
+  "flocks",
 ] as const satisfies readonly (keyof typeof en)[];
 
 export type TranslatedNamespace = (typeof TRANSLATED_NAMESPACES)[number];

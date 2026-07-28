@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
+import { useTranslation } from "react-i18next";
 import {
   adjustExpense, createExpense, createExpenseCategory, formatMoney, getExpense,
   listExpenseCategories, listExpenses, listFlocks, updateExpenseCategory,
@@ -11,6 +12,7 @@ import { Dialog } from "../components/Dialog";
 import { usePendingAction } from "../components/usePendingAction";
 import { useFarmToday } from "../farm/useFarm";
 import { newId } from "../lib/ids";
+import i18n from "../i18n";
 
 function errText(err: unknown): string {
   if (err instanceof ApiError) return err.message;
@@ -23,6 +25,9 @@ const PAGE = 100;
 // Admin-only end to end: the route hides for workers and every endpoint
 // carries the Admin policy — money data, unlike the production screens.
 export function ExpensesPage() {
+  const { t } = useTranslation("expenses");
+  const { t: tc } = useTranslation("common");
+
   // Farm-local, not browser-local: since #35 the API judges "is this date in
   // the future?" against the FARM's day, so the pickers must agree (#123).
   const today = useFarmToday();
@@ -134,14 +139,14 @@ export function ExpensesPage() {
   // the account's current one (codex review of #88).
   const toMinorUnits = (display: string, minor: number) => {
     const m = display.trim().match(/^(\d+)(?:\.(\d+))?$/);
-    if (!m) throw new Error("Enter a valid amount.");
+    if (!m) throw new Error(i18n.t("expenses:enterValidAmount"));
     const frac = m[2] ?? "";
     if (frac.length > minor)
       throw new Error(minor === 0
-        ? "This currency has no decimal places."
-        : `At most ${minor} decimal places for this currency.`);
+        ? i18n.t("expenses:noDecimalPlaces")
+        : i18n.t("expenses:atMostDecimals", { count: minor }));
     const v = Number(m[1]) * 10 ** minor + Number(frac.padEnd(minor, "0") || "0");
-    if (!Number.isSafeInteger(v) || v <= 0) throw new Error("Enter an amount greater than zero.");
+    if (!Number.isSafeInteger(v) || v <= 0) throw new Error(i18n.t("expenses:enterAmountGreaterThanZero"));
     return v;
   };
 
@@ -179,7 +184,7 @@ export function ExpensesPage() {
       setAmount("");
       setNote("");
       await load();
-      setMessage("Expense recorded.");
+      setMessage(i18n.t("expenses:expenseRecordedMessage"));
     });
   }
 
@@ -216,7 +221,7 @@ export function ExpensesPage() {
         setEditing(null);
         setItems((prev) => prev?.map((x) => (x.id === updated.id ? updated : x)) ?? null);
         await load();
-        setMessage("Expense corrected.");
+        setMessage(i18n.t("expenses:expenseCorrectedMessage"));
       } catch (err) {
         // 409: someone else corrected it meanwhile — rebind the panel to the
         // fresh row (only unsent typing is lost, and the banner says why).
@@ -226,7 +231,7 @@ export function ExpensesPage() {
           settleKey(scope, err);
           await load();
           startEdit(await getExpense(target.id));
-          throw new Error("This expense was changed by someone else — the form now shows the latest values; re-apply your correction.");
+          throw new Error(i18n.t("expenses:conflictRebindMessage"));
         }
         throw err;
       }
@@ -246,7 +251,7 @@ export function ExpensesPage() {
       setNewCategoryName("");
       setAddingCategory(false);
       setCategories(await listExpenseCategories({ includeInactive: true }));
-      setMessage("Category created.");
+      setMessage(i18n.t("expenses:categoryCreatedMessage"));
     });
   }
 
@@ -255,57 +260,59 @@ export function ExpensesPage() {
     void run(scope, async () => {
       await updateExpenseCategory(c.id, { name: c.name, active: !c.active }, keyFor(scope));
       setCategories(await listExpenseCategories({ includeInactive: true }));
-      setMessage(c.active ? `Category "${c.name}" deactivated.` : `Category "${c.name}" reactivated.`);
+      setMessage(c.active
+        ? i18n.t("expenses:categoryDeactivatedMessage", { name: c.name })
+        : i18n.t("expenses:categoryReactivatedMessage", { name: c.name }));
     });
   }
 
   return (
     <section>
-      <h2>Expenses</h2>
+      <h2>{t("title")}</h2>
 
       <div className="filters">
-        <label>Month
+        <label>{t("monthLabel")}
           <input type="month" value={month} max={today.slice(0, 7)}
             onChange={(e) => setMonth(e.target.value)} />
         </label>
-        <label>Category
+        <label>{t("categoryLabel")}
           <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}>
-            <option value="">All categories</option>
+            <option value="">{t("allCategoriesOption")}</option>
             {categories.map((c) => (
-              <option key={c.id} value={c.id}>{c.name}{c.active ? "" : " (deactivated)"}</option>
+              <option key={c.id} value={c.id}>{c.name}{c.active ? "" : t("deactivatedSuffix")}</option>
             ))}
           </select>
         </label>
         <button className="link" type="button" onClick={() => setShowCategories((v) => !v)}>
-          {showCategories ? "hide categories" : "manage categories"}
+          {showCategories ? t("hideCategoriesButton") : t("manageCategoriesButton")}
         </button>
       </div>
 
-      <p><strong>Month total: {formatMoney(total, currency.code, currency.minor)}</strong></p>
+      <p><strong>{t("monthTotalLabel", { amount: formatMoney(total, currency.code, currency.minor) })}</strong></p>
 
       {showCategories && (
         <div className="order-panel">
-          <h3>Expense categories</h3>
+          <h3>{t("categoriesHeading")}</h3>
           <div className="panel-actions">
             <button type="button" onClick={() => { setError(null); setAddingCategory(true); }}>
-              New category
+              {t("newCategoryButton")}
             </button>
           </div>
 
-          <Dialog open={addingCategory} title="New expense category" onClose={() => setAddingCategory(false)}>
+          <Dialog open={addingCategory} title={t("newCategoryDialogTitle")} onClose={() => setAddingCategory(false)}>
             <form className="inline-form" onSubmit={onAddCategory}>
               {/* Disabled during any flight: the create scope is derived from
                   this name (addCategoryScope), so editing it mid-flight would
                   re-point isPending at a scope nobody is running and drop the
                   spinner while the request is still open (#242 review). */}
-              <label>Category name
+              <label>{t("categoryNameLabel")}
                 <input value={newCategoryName} required disabled={busy}
                   onChange={(e) => setNewCategoryName(e.target.value)} />
               </label>
               {error && <p className="error">{error}</p>}
               <div className="dialog-foot">
-                <button type="button" className="link" onClick={() => setAddingCategory(false)}>Cancel</button>
-                <BusyButton type="submit" busy={isPending(addCategoryScope)} disabled={busy}>Add category</BusyButton>
+                <button type="button" className="link" onClick={() => setAddingCategory(false)}>{tc("cancel")}</button>
+                <BusyButton type="submit" busy={isPending(addCategoryScope)} disabled={busy}>{t("addCategoryButton")}</BusyButton>
               </div>
             </form>
           </Dialog>
@@ -313,56 +320,56 @@ export function ExpensesPage() {
           <ul>
             {categories.map((c) => (
               <li key={c.id}>
-                {c.name}{c.active ? "" : " (deactivated)"}{" "}
+                {c.name}{c.active ? "" : t("deactivatedSuffix")}{" "}
                 <BusyButton className="link" type="button" busy={isPending(`toggle-category:${c.id}`)}
                   disabled={busy} onClick={() => onToggleCategory(c)}>
-                  {c.active ? "deactivate" : "reactivate"}
+                  {c.active ? t("deactivateButton") : t("reactivateButton")}
                 </BusyButton>
               </li>
             ))}
-            {categories.length === 0 && <li className="muted">No categories yet — add one above.</li>}
+            {categories.length === 0 && <li className="muted">{t("noCategoriesMessage")}</li>}
           </ul>
         </div>
       )}
 
-      <h3>Record an expense</h3>
+      <h3>{t("recordExpenseHeading")}</h3>
       <form className="form-grid" onSubmit={onAdd}>
-        <label>Date
+        <label>{t("dateLabel")}
           <input type="date" value={date} max={today} required
             onChange={(e) => setDate(e.target.value)} />
         </label>
-        <label>Category
+        <label>{t("categoryLabel")}
           <select value={categoryId} required onChange={(e) => setCategoryId(e.target.value)}>
-            <option value="">— pick —</option>
+            <option value="">{t("pickOption")}</option>
             {activeCategories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         </label>
-        <label>Description
+        <label>{t("descriptionLabel")}
           <input value={description} required maxLength={200}
             onChange={(e) => setDescription(e.target.value)} />
         </label>
-        <label>Amount ({currency.code || "…"})
+        <label>{t("amountLabel", { code: currency.code || "…" })}
           <input type="number" min={(1 / 10 ** currency.minor).toFixed(currency.minor)}
             step="any" value={amount} required
             onChange={(e) => setAmount(e.target.value)} />
         </label>
-        <label>Flock (optional)
+        <label>{t("flockOptionalLabel")}
           <select value={flockId} onChange={(e) => setFlockId(e.target.value)}>
-            <option value="">— none —</option>
+            <option value="">{t("noneOption")}</option>
             {flocks.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
           </select>
         </label>
-        <label>Note (optional)
+        <label>{t("noteOptionalLabel")}
           <input value={note} maxLength={500} onChange={(e) => setNote(e.target.value)} />
         </label>
         <div className="actions">
           <BusyButton type="submit" busy={isPending("add")} disabled={busy || activeCategories.length === 0}>
-            Record expense
+            {t("recordExpenseButton")}
           </BusyButton>
         </div>
       </form>
       {activeCategories.length === 0 && (
-        <p className="muted">Add a category first — every expense needs one.</p>
+        <p className="muted">{t("addCategoryFirstMessage")}</p>
       )}
 
       {/* An open dialog renders its own copy of the error. */}
@@ -371,7 +378,9 @@ export function ExpensesPage() {
 
       <Dialog
         open={editing !== null}
-        title={editing ? `Correct — ${editing.date}, ${editing.description}` : "Correct expense"}
+        title={editing
+          ? t("correctExpenseDialogTitleWithExpense", { date: editing.date, description: editing.description })
+          : t("correctExpenseDialogTitle")}
         onClose={() => setEditing(null)}
         // A 409 rebinds this dialog to the server's newer row; the record
         // identity changing pulls focus back to the first field rather than
@@ -380,34 +389,34 @@ export function ExpensesPage() {
       >
         {editing && (
           <form className="form-grid" onSubmit={onSaveEdit}>
-            <label>Date
+            <label>{t("dateLabel")}
               <input type="date" value={editDate} max={today} required
                 onChange={(e) => setEditDate(e.target.value)} />
             </label>
-            <label>Category
+            <label>{t("categoryLabel")}
               <select value={editCategory} required onChange={(e) => setEditCategory(e.target.value)}>
                 {editCategories.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}{c.active ? "" : " (deactivated)"}</option>
+                  <option key={c.id} value={c.id}>{c.name}{c.active ? "" : t("deactivatedSuffix")}</option>
                 ))}
               </select>
             </label>
-            <label>Description
+            <label>{t("descriptionLabel")}
               <input value={editDescription} required maxLength={200}
                 onChange={(e) => setEditDescription(e.target.value)} />
             </label>
-            <label>Amount ({editing.currencyCode})
+            <label>{t("amountLabel", { code: editing.currencyCode })}
               <input type="number"
                 min={(1 / 10 ** editing.currencyMinorUnit).toFixed(editing.currencyMinorUnit)}
                 step="any" value={editAmount} required
                 onChange={(e) => setEditAmount(e.target.value)} />
             </label>
-            <label>Flock (optional)
+            <label>{t("flockOptionalLabel")}
               <select value={editFlock} onChange={(e) => setEditFlock(e.target.value)}>
-                <option value="">— none —</option>
+                <option value="">{t("noneOption")}</option>
                 {flocks.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
               </select>
             </label>
-            <label>Note (optional)
+            <label>{t("noteOptionalLabel")}
               <input value={editNote} maxLength={500} onChange={(e) => setEditNote(e.target.value)} />
             </label>
             {/* The 409 rebind reports through here, so the conflict banner stays
@@ -415,9 +424,9 @@ export function ExpensesPage() {
             {error && <p className="error" role="alert">{error}</p>}
             <div className="dialog-foot">
               <button type="button" className="link" disabled={busy}
-                onClick={() => setEditing(null)}>Cancel</button>
+                onClick={() => setEditing(null)}>{tc("cancel")}</button>
               <BusyButton type="submit" busy={isPending(`edit:${editing.id}`)} disabled={busy}>
-                Save correction
+                {t("saveCorrectionButton")}
               </BusyButton>
             </div>
           </form>
@@ -425,15 +434,15 @@ export function ExpensesPage() {
       </Dialog>
 
       {items === null ? (
-        <p className="muted">Loading…</p>
+        <p className="muted">{tc("loading")}</p>
       ) : items.length === 0 ? (
-        <p className="muted">No expenses for this month.</p>
+        <p className="muted">{t("noExpensesMessage")}</p>
       ) : (
         <table className="data">
           <thead>
             <tr>
-              <th>Date</th><th>Category</th><th>Description</th><th>Amount</th>
-              <th>Flock</th><th>Note</th><th></th>
+              <th>{t("dateHeader")}</th><th>{t("categoryHeader")}</th><th>{t("descriptionHeader")}</th><th>{t("amountHeader")}</th>
+              <th>{t("flockHeader")}</th><th>{t("noteHeader")}</th><th></th>
             </tr>
           </thead>
           <tbody>
@@ -450,7 +459,7 @@ export function ExpensesPage() {
                       spinner belongs to the dialog's Save, not here (#242). */}
                   <button className="link" disabled={busy}
                     onClick={() => startEdit(x)}>
-                    correct
+                    {t("correctButton")}
                   </button>
                 </td>
               </tr>
@@ -461,7 +470,7 @@ export function ExpensesPage() {
       {hasMore && (
         <button className="link" disabled={busy}
           onClick={() => void load(items?.length ?? 0).catch((err) => setError(errText(err)))}>
-          load more
+          {t("loadMoreButton")}
         </button>
       )}
     </section>

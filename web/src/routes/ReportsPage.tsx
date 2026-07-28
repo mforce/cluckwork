@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Trans, useTranslation } from "react-i18next";
 import {
   formatMoney, getExpenseSummary, getProductionReport, getProfitReport, getSalesSummary,
 } from "../api/cluckwork";
@@ -19,6 +20,8 @@ function errText(err: unknown): string {
 // workers read it); the money cards are admin-only and the API refuses
 // workers on those routes regardless.
 export function ReportsPage() {
+  const { t } = useTranslation("reports");
+  const { t: tc } = useTranslation("common");
   // Farm-local, not browser-local: since #35 the API judges "is this date in
   // the future?" against the FARM's day, so the pickers must agree (#123).
   const today = useFarmToday();
@@ -71,30 +74,30 @@ export function ReportsPage() {
 
   return (
     <section>
-      <h2>Reports</h2>
+      <h2>{t("title")}</h2>
 
       <div className="filters">
-        <label>From
+        <label>{t("fromLabel")}
           <input type="date" value={from} max={to}
             onChange={(e) => setFrom(e.target.value)} />
         </label>
-        <label>To
+        <label>{t("toLabel")}
           <input type="date" value={to} max={today}
             onChange={(e) => setTo(e.target.value)} />
         </label>
       </div>
 
       {error && <p className="error" role="alert">{error}</p>}
-      {loading && <p className="muted">Loading…</p>}
+      {loading && <p className="muted">{tc("loading")}</p>}
 
       {production && (
         <>
-          <h3>Production</h3>
+          <h3>{t("productionHeading")}</h3>
           <table className="data">
             <thead>
               <tr>
-                <th>Date</th><th>Eggs</th><th>Losses (cr/di/ds)</th><th>Sellable</th>
-                <th>Deaths</th><th>Hen-days</th><th>Hen-day %</th>
+                <th>{t("dateHeader")}</th><th>{t("eggsHeader")}</th><th>{t("lossesHeader")}</th><th>{t("sellableHeader")}</th>
+                <th>{t("deathsHeader")}</th><th>{t("henDaysHeader")}</th><th>{t("henDayPctHeader")}</th>
               </tr>
             </thead>
             <tbody>
@@ -112,7 +115,7 @@ export function ReportsPage() {
             </tbody>
             <tfoot>
               <tr>
-                <th>Period</th>
+                <th>{t("periodRowLabel")}</th>
                 <th>{production.totalEggs}</th>
                 <th></th>
                 <th>{production.totalSellable}</th>
@@ -124,7 +127,7 @@ export function ReportsPage() {
           </table>
           {production.gradeTotals.length > 0 && (
             <p className="muted">
-              By grade:{" "}
+              {t("gradeTotalsLabel")}{" "}
               {production.gradeTotals.map((g) => `${g.name} ${g.quantity}`).join(", ")}
             </p>
           )}
@@ -133,44 +136,51 @@ export function ReportsPage() {
 
       {isAdmin && sales && expenses && profit && (
         <>
-          <h3>Money</h3>
+          <h3>{t("moneyHeading")}</h3>
           <table className="data">
             <tbody>
               <tr>
-                <th>Sales</th>
+                <th>{t("salesRowLabel")}</th>
                 <td>
-                  {sales.confirmedCount} confirmed order(s) —{" "}
-                  revenue {formatMoney(sales.revenueMinorUnits, sales.currencyCode, sales.currencyMinorUnit)},{" "}
-                  paid {formatMoney(sales.paidMinorUnits, sales.currencyCode, sales.currencyMinorUnit)},{" "}
-                  outstanding {formatMoney(sales.outstandingMinorUnits, sales.currencyCode, sales.currencyMinorUnit)}
-                  {sales.voidedCount > 0 ? ` (${sales.voidedCount} voided)` : ""}
+                  {t("salesSummary", {
+                    count: sales.confirmedCount,
+                    revenue: formatMoney(sales.revenueMinorUnits, sales.currencyCode, sales.currencyMinorUnit),
+                    paid: formatMoney(sales.paidMinorUnits, sales.currencyCode, sales.currencyMinorUnit),
+                    outstanding: formatMoney(sales.outstandingMinorUnits, sales.currencyCode, sales.currencyMinorUnit),
+                  })}
+                  {sales.voidedCount > 0 ? t("salesVoidedSuffix", { count: sales.voidedCount }) : ""}
                 </td>
               </tr>
               <tr>
-                <th>Expenses</th>
+                <th>{t("expensesRowLabel")}</th>
                 <td>
                   {expenses.categories.length === 0
-                    ? "none recorded"
+                    ? t("expensesNone")
                     : expenses.categories
                         .map((c) => `${c.name} ${formatMoney(c.totalMinorUnits, expenses.currencyCode, expenses.currencyMinorUnit)}`)
                         .join(", ")}
-                  {" — total "}
-                  {formatMoney(expenses.grandTotalMinorUnits, expenses.currencyCode, expenses.currencyMinorUnit)}
+                  {t("expensesTotalSuffix", {
+                    total: formatMoney(expenses.grandTotalMinorUnits, expenses.currencyCode, expenses.currencyMinorUnit),
+                  })}
                 </td>
               </tr>
               <tr>
-                <th>Profit (basic)</th>
+                <th>{t("profitRowLabel")}</th>
                 <td>
-                  revenue {formatMoney(profit.revenueMinorUnits, profit.currencyCode, profit.currencyMinorUnit)}{" "}
-                  − expenses {formatMoney(profit.expensesMinorUnits, profit.currencyCode, profit.currencyMinorUnit)}{" "}
-                  = <strong>{formatMoney(profit.profitMinorUnits, profit.currencyCode, profit.currencyMinorUnit)}</strong>
+                  <Trans ns="reports" i18nKey="profitLine"
+                    values={{
+                      revenue: formatMoney(profit.revenueMinorUnits, profit.currencyCode, profit.currencyMinorUnit),
+                      expenses: formatMoney(profit.expensesMinorUnits, profit.currencyCode, profit.currencyMinorUnit),
+                      profit: formatMoney(profit.profitMinorUnits, profit.currencyCode, profit.currencyMinorUnit),
+                    }}
+                    components={{ strong: <strong /> }}
+                  />
                 </td>
               </tr>
             </tbody>
           </table>
           <p className="muted">
-            "Basic" profit is confirmed revenue minus recorded expenses — no
-            cost-of-goods or inventory valuation.
+            {t("profitFootnote")}
           </p>
         </>
       )}
