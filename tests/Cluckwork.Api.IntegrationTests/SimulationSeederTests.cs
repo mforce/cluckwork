@@ -2,6 +2,7 @@ namespace Cluckwork.Api.IntegrationTests;
 
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Domain.Accounts;
+using Cluckwork.Domain.Eggs;
 using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
@@ -22,6 +23,15 @@ public sealed class SimulationSeedFactory : CluckworkWebApplicationFactory
 {
     public const string TimeZoneId = "America/Chicago";
 
+    // Shallow on purpose (task 3a): the production-history seed loop is
+    // O(HistoryDays * flocks) real handler round-trips against Testcontainers
+    // Postgres — 90 (the real SimulationOptions default) would make every
+    // test in this fixture slow. 12 still clears MinSentinelAgeDays (9) with
+    // margin, so the Draft/Submitted/Locked bands asserted below hold
+    // regardless of how the account timezone happens to skew against UTC at
+    // the moment the suite runs.
+    public const int HistoryDays = 12;
+
     // Runtime-generated — never a hardcoded credential (repo policy).
     public string AdminEmail { get; } = $"sim-admin-{Guid.NewGuid():N}@test.local";
     public string AdminPassword { get; } = $"Aa1!{Guid.NewGuid():N}";
@@ -40,6 +50,7 @@ public sealed class SimulationSeedFactory : CluckworkWebApplicationFactory
         builder.UseSetting("Seed:AdminPassword", AdminPassword);
         builder.UseSetting("Simulation:CastPassword", CastPassword);
         builder.UseSetting("Simulation:TimeZoneId", TimeZoneId);
+        builder.UseSetting("Simulation:HistoryDays", HistoryDays.ToString());
     }
 }
 
@@ -154,5 +165,81 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
         // The primary (SeedDefaults.AccountId) + the deterministic second sim
         // account — a re-run must not mint a third.
         Assert.Equal(2, accountCount);
+    }
+
+    // #243 later task: production daily-entry history on the two Task-2
+    // flocks, one entry per flock per day, plus the deterministic lock-sweep
+    // proof (the seeder runs DailyEntryLockSweep itself before SeedAsync
+    // returns — no wait on the DurableJobWorker's 30s poll).
+    [Fact]
+    public async Task SimulationSeed_SeedsProductionHistoryWithMixedLifecycleStatesAndAnAlreadyLockedSentinel()
+    {
+        using var client = factory.CreateClient(); // forces host init / first startup seed.
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var flocks = await db.Flocks.IgnoreQueryFilters()
+            .Where(f => f.AccountId == SeedDefaults.AccountId)
+            .ToListAsync();
+        Assert.Equal(2, flocks.Count);
+
+        var entries = await db.DailyEntries.IgnoreQueryFilters()
+            .Where(e => e.AccountId == SeedDefaults.AccountId)
+            .ToListAsync();
+
+        // Exactly one entry per (flock, day) across the whole shallow history
+        // window — nothing skipped, nothing doubled on a single seed pass.
+        Assert.Equal(flocks.Count * SimulationSeedFactory.HistoryDays, entries.Count);
+        Assert.All(flocks, f => Assert.Contains(entries, e => e.FlockId == f.Id));
+
+        // The seeder's own within-SeedAsync sweep call must already have run:
+        // at least one entry is Locked without the test driving the sweep
+        // itself or waiting on the background job worker.
+        Assert.Contains(entries, e => e.Status == DailyEntryStatus.Locked);
+        // A recent-but-old-enough entry stays Submitted (not yet lockable).
+        Assert.Contains(entries, e => e.Status == DailyEntryStatus.Submitted);
+        // The most recent seeded days stay Draft so that lifecycle state is
+        // populated too.
+        Assert.Contains(entries, e => e.Status == DailyEntryStatus.Draft);
+
+        // No other status should ever appear — the seeder never adjusts or
+        // voids what it seeds.
+        Assert.All(entries, e => Assert.True(
+            e.Status is DailyEntryStatus.Draft or DailyEntryStatus.Submitted or DailyEntryStatus.Locked,
+            $"Unexpected daily entry status {e.Status} on {e.Date}."));
+    }
+
+    [Fact]
+    public async Task SimulationSeed_ProductionHistory_IsIdempotent_NoDuplicateEntriesAfterTwoHostStarts()
+    {
+        using var firstClient = factory.CreateClient(); // first startup (may already be built).
+        using (var secondHost = factory.WithWebHostBuilder(_ => { }))
+        using (var secondClient = secondHost.CreateClient()) // second full Program.cs run, same DB.
+        {
+            // Nothing to do with the client — creating it is what forces the
+            // second host (and its startup seed, and its sweep call) to build.
+        }
+
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var flocks = await db.Flocks.IgnoreQueryFilters()
+            .Where(f => f.AccountId == SeedDefaults.AccountId)
+            .ToListAsync();
+        var entries = await db.DailyEntries.IgnoreQueryFilters()
+            .Where(e => e.AccountId == SeedDefaults.AccountId)
+            .ToListAsync();
+
+        // A second full seed pass converges rather than doubling: still
+        // exactly one entry per (flock, day), and each natural key
+        // (flock, date) is unique — the RecordDailyEntry natural-key
+        // existence check in SeedFlockHistoryAsync skipped every day the
+        // first pass already created.
+        Assert.Equal(flocks.Count * SimulationSeedFactory.HistoryDays, entries.Count);
+        var duplicateKeys = entries
+            .GroupBy(e => (e.FlockId, e.Date))
+            .Where(g => g.Count() > 1)
+            .ToList();
+        Assert.Empty(duplicateKeys);
     }
 }

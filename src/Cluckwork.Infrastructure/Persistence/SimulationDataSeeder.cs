@@ -1,7 +1,12 @@
 namespace Cluckwork.Infrastructure.Persistence;
 
+using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Accounts;
 using Cluckwork.Application.Features.Accounts.UpdateFarmSettings;
+using Cluckwork.Application.Features.DailyEntries;
+using Cluckwork.Application.Features.DailyEntries.RecordDailyEntry;
+using Cluckwork.Application.Features.DailyEntries.SubmitDailyEntry;
+using Cluckwork.Application.Features.EggGrades;
 using Cluckwork.Application.Features.Flocks.CreateFlock;
 using Cluckwork.Application.Features.Users;
 using Cluckwork.Application.Features.Users.AssignFlock;
@@ -9,6 +14,7 @@ using Cluckwork.Application.Features.Users.CreateUser;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Common;
 using Cluckwork.Infrastructure.Identity;
+using Cluckwork.Infrastructure.Jobs;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -16,12 +22,12 @@ using Microsoft.Extensions.Options;
 
 // #243 load-test simulation seeder: the additional cast (Managers/Sales/
 // Workers/ReadOnly beyond the seeded admin), a minimal flock topology, one
-// flock-restricted worker, the primary account's non-UTC timezone, and a
-// second pristine account (a tenant-isolation fixture for the load test).
-// Gated on Seed:Simulation (SeedOptions) AND Seed:Enabled; counts/timezone/
-// password/email-domain live in SimulationOptions. Bulk history (daily
-// entries, sales, lots) is a LATER #243 task — this only builds the cast and
-// topology the history will later be layered onto.
+// flock-restricted worker, the primary account's non-UTC timezone, a second
+// pristine account (a tenant-isolation fixture for the load test), and
+// production daily-entry history on the Task-2 flocks with a deterministic
+// proof of the automatic lock sweep. Gated on Seed:Simulation (SeedOptions)
+// AND Seed:Enabled; counts/timezone/password/email-domain/history length live
+// in SimulationOptions.
 //
 // Unlike DemoDataSeeder, this seeder is FAIL-CLOSED: no try/catch, no
 // partial-seed cleanup — any failure propagates straight out of SeedAsync and
@@ -40,10 +46,28 @@ public sealed class SimulationDataSeeder(
     IUserRoleAssignmentRepository assignments,
     IAccountRepository accounts,
     UpdateFarmSettingsHandler updateFarmSettings,
+    IEggGradeRepository eggGrades,
+    IDailyEntryRepository dailyEntries,
+    RecordDailyEntryHandler recordEntry,
+    SubmitDailyEntryHandler submitEntry,
+    DailyEntryLockSweep lockSweep,
+    IClock clock,
     IOptions<SeedOptions> seedOptions,
     IOptions<SimulationOptions> simulationOptions,
     ILogger<SimulationDataSeeder> logger)
 {
+    // The lock sweep locks Submitted entries strictly older than
+    // DailyEntryLockSweep.LockAfterDays (7) farm-local days. A day-9 entry
+    // clears that boundary with a 1-day safety margin even in the worst case
+    // where the farm's own "today" (IFarmClock, timezone-aware) reads one
+    // calendar day behind this seeder's UTC anchor — always guaranteed
+    // regardless of how short Simulation:HistoryDays is configured.
+    private const int MinSentinelAgeDays = DailyEntryLockSweep.LockAfterDays + 2;
+
+    // The most recent couple of seeded days per flock stay Draft so both
+    // lifecycle states exist in the seed; everything older is submitted.
+    private const int DraftWindowDays = 2;
+
     // Deterministic id for the second, pristine tenant — mirrors
     // SeedDefaults.AccountId's fixed-GUID convention (…001) so both read as
     // related in logs/DB dumps. Never Guid.NewGuid(): a fixed id is what
@@ -78,11 +102,27 @@ public sealed class SimulationDataSeeder(
                 $"Simulation seed requires the seeded admin ({seed.AdminEmail}) to already exist. " +
                 "Set Seed:AdminEmail/Seed:AdminPassword so DatabaseSeeder creates the Owner first.");
 
+        // Single injectable "today" anchor (#243 later task): captured ONCE,
+        // threaded through everything below instead of each step calling
+        // DateTime.UtcNow independently — deterministic, testable via a fixed
+        // IClock, and #277's load-test assertions can reason about dates
+        // relative to this one value.
+        var today = clock.TodayUtc;
+
         var workerIds = await SeedCastAsync(accountId, sim, ct);
-        var flockIds = await SeedFlockTopologyAsync(accountId, ct);
+        var flockIds = await SeedFlockTopologyAsync(accountId, today, ct);
         await RestrictOneWorkerAsync(accountId, workerIds, flockIds, ct);
+        // Timezone BEFORE any dated data exists (see SeedPrimaryTimeZoneAsync)
+        // — production history below must see the account's real timezone.
         await SeedPrimaryTimeZoneAsync(sim, ct);
+        await SeedProductionHistoryAsync(accountId, today, flockIds, sim, ct);
         await SeedSecondAccountAsync(ct);
+
+        // Deterministic lock-sweep proof: run the sweep synchronously as part
+        // of seeding rather than waiting on the DurableJobWorker's 30s poll,
+        // so the day-9 sentinel entry seeded above is already Locked by the
+        // time SeedAsync returns.
+        await lockSweep.RunAsync(ct);
 
         logger.LogInformation("Simulation seed complete (Seed:Simulation=true).");
     }
@@ -130,11 +170,11 @@ public sealed class SimulationDataSeeder(
         return result.Value;
     }
 
-    // --- Minimal flock topology (no history — a later #243 task) ------
+    // --- Minimal flock topology ----------------------------------------
 
-    private async Task<IReadOnlyList<Guid>> SeedFlockTopologyAsync(Guid accountId, CancellationToken ct)
+    private async Task<IReadOnlyList<Guid>> SeedFlockTopologyAsync(
+        Guid accountId, DateOnly today, CancellationToken ct)
     {
-        var today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
         (string Name, string Breed, DateOnly PlacementDate, int InitialCount)[] wanted =
         [
             ("Sim House A", "ISA Brown", today.AddDays(-30 * 7), 400),
@@ -215,6 +255,82 @@ public sealed class SimulationDataSeeder(
         Require(result, $"set primary account timezone to {sim.TimeZoneId}");
     }
 
+    // --- Production daily-entry history (#243 later task) --------------
+
+    // One entry per flock per day across Simulation:HistoryDays (or
+    // MinSentinelAgeDays, whichever is longer — the lock-sweep proof needs
+    // the sentinel regardless of how short HistoryDays is configured for a
+    // test). Every date is at least 1 day older than the "today" anchor:
+    // RecordDailyEntry/CreateFlock validate against the farm's OWN today
+    // (IFarmClock, #35), which can already read one calendar day behind this
+    // UTC anchor for a timezone west of UTC depending on time-of-day skew —
+    // an entry dated exactly "today" could spuriously fail the future-date
+    // rule. Starting at day 1 keeps every seeded date safely <= the farm's
+    // today no matter when seeding happens to run.
+    private async Task SeedProductionHistoryAsync(
+        Guid accountId, DateOnly today, IReadOnlyList<Guid> flockIds, SimulationOptions sim,
+        CancellationToken ct)
+    {
+        var grades = (await eggGrades.ListActiveAsync(SeedDefaults.FarmId, ct))
+            .Where(g => g.IsSaleable)
+            .ToDictionary(g => g.Name, g => g.Id);
+        if (grades.Count == 0)
+            throw new InvalidOperationException("Simulation seed needs the default egg grades.");
+
+        var historyDays = Math.Max(sim.HistoryDays, MinSentinelAgeDays);
+
+        for (var i = 0; i < flockIds.Count; i++)
+            await SeedFlockHistoryAsync(accountId, flockIds[i], baseline: 320 + i * 60, today, historyDays, grades, ct);
+    }
+
+    private async Task SeedFlockHistoryAsync(
+        Guid accountId, Guid flockId, int baseline, DateOnly today, int historyDays,
+        IReadOnlyDictionary<string, Guid> grades, CancellationToken ct)
+    {
+        for (var d = 1; d <= historyDays; d++)
+        {
+            var date = today.AddDays(-d);
+
+            // Idempotent re-run: RecordDailyEntryHandler itself only accepts
+            // edits to Draft entries, so a plain re-call would throw once the
+            // sentinel is Submitted/Locked — skip on existence instead
+            // (mirrors EnsureUserAsync/EnsureFlockAsync above).
+            var existing = await dailyEntries.FindByNaturalKeyAsync(
+                accountId, SeedDefaults.FarmId, SeedDefaults.HouseId, flockId, date, ct);
+            if (existing is not null) continue;
+
+            // Deterministic variation — no Random, reproducible seeds.
+            var total = baseline + (d * 7) % 23;
+            var cracked = 4 + d % 3;
+            var dirty = 2 + d % 2;
+            const int discarded = 1;
+            var mortality = d % 5 == 0 ? 1 : 0;
+            var sellable = total - cracked - dirty - discarded;
+            var large = sellable * 55 / 100;
+            var medium = sellable * 30 / 100;
+            var small = sellable - large - medium;
+
+            var recorded = await recordEntry.HandleAsync(new RecordDailyEntryCommand(
+                SeedDefaults.FarmId, SeedDefaults.HouseId, flockId, date,
+                total, cracked, dirty, discarded, mortality,
+                [
+                    new GradeQuantityDto(grades["Large"], large),
+                    new GradeQuantityDto(grades["Medium"], medium),
+                    new GradeQuantityDto(grades["Small"], small),
+                ]), accountId, ct);
+            Require(recorded, $"record daily entry for flock {flockId} on {date:yyyy-MM-dd}");
+            var entryId = recorded.Value;
+
+            // The most recent DraftWindowDays days stay Draft; everything
+            // older (including the day-9 sentinel) is submitted.
+            if (d > DraftWindowDays)
+            {
+                var submitted = await submitEntry.HandleAsync(entryId, accountId, ct);
+                Require(submitted, $"submit daily entry {entryId} for flock {flockId} on {date:yyyy-MM-dd}");
+            }
+        }
+    }
+
     // --- Second, pristine account (tenant-isolation fixture) -----------
 
     private async Task SeedSecondAccountAsync(CancellationToken ct)
@@ -238,5 +354,8 @@ public sealed class SimulationDataSeeder(
     }
 
     private static void Require(Result<Guid> result, string what) =>
+        Require(result.IsSuccess ? Result.Success() : Result.Failure(result.Error), what);
+
+    private static void Require(Result<SubmitDailyEntryResponse> result, string what) =>
         Require(result.IsSuccess ? Result.Success() : Result.Failure(result.Error), what);
 }
