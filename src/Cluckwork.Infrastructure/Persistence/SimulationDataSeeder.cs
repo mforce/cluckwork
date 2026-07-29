@@ -1,5 +1,8 @@
 namespace Cluckwork.Infrastructure.Persistence;
 
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Accounts;
 using Cluckwork.Application.Features.Accounts.UpdateFarmSettings;
@@ -27,6 +30,7 @@ using Cluckwork.Application.Features.Users.AssignFlock;
 using Cluckwork.Application.Features.Users.CreateUser;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Common;
+using Cluckwork.Domain.Eggs;
 using Cluckwork.Domain.Inventory;
 using Cluckwork.Domain.Sales;
 using Cluckwork.Infrastructure.Identity;
@@ -133,13 +137,17 @@ public sealed class SimulationDataSeeder(
     // guarantee instead of an ever-growing account table.
     public static readonly Guid SecondAccountId = new("0000000a-0000-0000-0000-000000000002");
 
-    public async Task SeedAsync(CancellationToken ct = default)
+    // #243 Task 3e — SeedAsync returns the manifest it just validated/emitted
+    // (null when the seed didn't run at all) so a test can call it directly
+    // from its own scope and assert against the manifest in memory, with no
+    // need to point CredentialOutputPath at a real volume.
+    public async Task<SimulationManifest?> SeedAsync(CancellationToken ct = default)
     {
         var seed = seedOptions.Value;
         // Seed:Enabled=false disables ALL startup seeding, same as
         // DatabaseSeeder/DemoDataSeeder; Seed:Simulation is this seeder's own
         // opt-in on top of that.
-        if (!seed.Simulation || !seed.Enabled) return;
+        if (!seed.Simulation || !seed.Enabled) return null;
 
         var sim = simulationOptions.Value;
         if (string.IsNullOrWhiteSpace(sim.CastPassword))
@@ -187,6 +195,13 @@ public sealed class SimulationDataSeeder(
         await lockSweep.RunAsync(ct);
 
         logger.LogInformation("Simulation seed complete (Seed:Simulation=true).");
+
+        // Completion manifest (#243 Task 3e) — always last: counts +
+        // validates the whole fixture above, then (only when a manifest path
+        // is configured) writes the artifact the #243 findings header and
+        // #277's Playwright suite read. Fail-closed: ValidateCounts throws on
+        // ANY shortfall, so a partial seed never gets a "complete" manifest.
+        return await EmitManifestAsync(accountId, today, sim, ct);
     }
 
     // --- Cast: Managers, Sales, ReadOnly, Workers (role-less) ---------
@@ -895,4 +910,385 @@ public sealed class SimulationDataSeeder(
 
     private static void Require(Result<RecordFeedUsageResponse> result, string what) =>
         Require(result.IsSuccess ? Result.Success() : Result.Failure(result.Error), what);
+
+    // --- Completion manifest (#243 Task 3e) -----------------------------
+    //
+    // The final seeding step: COUNT what was actually created, VALIDATE
+    // those counts against what the configured SimulationOptions intended to
+    // create, and (only when CredentialOutputPath is set) WRITE a JSON
+    // manifest recording the result. This is what closes the "partial seed
+    // silently looks done" gap — the #243 findings header and #277's
+    // Playwright suite both read this file (or, in tests, the in-memory
+    // SimulationManifest SeedAsync returns) and trust `complete: true`
+    // outright; a short/partial seed must throw HERE instead of quietly
+    // producing a manifest that says otherwise.
+    //
+    // Depth-robust by construction: every expectation in ComputeExpectedCounts
+    // is derived from SimulationOptions (sim.Managers/.../HistoryDays) or from
+    // this class's own structural constants (RecurringStartDay/
+    // RecurringCadenceDays, DraftWindowDays, FeedUsageDays/WaterUsageDays, the
+    // hardcoded topology/catalog/expense array lengths) — nothing here
+    // hardcodes "90 days" or "12 days"; the shallow SimulationSeedFactory test
+    // fixture (HistoryDays=12) and the real 90-day default validate against
+    // the SAME formulas.
+
+    public const int ManifestSchemaVersion = 1;
+
+    // Mirrors SeedFlockTopologyAsync's `wanted` array length. Kept as an
+    // independent constant (not read off that array) so ComputeExpectedCounts
+    // stays a pure function of SimulationOptions alone — it needs no `today`
+    // and no DB round-trip to state what the seed intends to produce.
+    private const int FlockTopologyCount = 2;
+
+    // Mirrors SeedSalesAsync's two EnsureDraftOrderAsync calls (customer1/2,
+    // never confirmed) and its three lifecycle EnsureConfirmedOrderAsync
+    // calls (customer1/2 unpaid + customer3 partially paid) — the recurring
+    // drip (SeedRecurringOrdersAsync) is added on top via RecurringPointCount.
+    private const int DraftOrdersCount = 2;
+    private const int LifecycleConfirmedOrdersCount = 3;
+
+    // Mirrors SeedExpensesAsync's `wanted` array length (the 4 hardcoded
+    // fixture expenses) — the recurring drip (SeedRecurringExpensesAsync) is
+    // added on top via RecurringPointCount, same convention as orders above.
+    private const int LifecycleExpensesCount = 4;
+
+    // SeedRecurringOrdersAsync and SeedRecurringExpensesAsync both loop
+    // `for (var d = RecurringStartDay; d <= historyDays; d += RecurringCadenceDays)`
+    // — this is that loop's iteration count, computed once so the manifest's
+    // expectations never drift from what those two loops actually do.
+    private static int RecurringPointCount(int historyDays) =>
+        historyDays < RecurringStartDay ? 0 : (historyDays - RecurringStartDay) / RecurringCadenceDays + 1;
+
+    private async Task<SimulationManifest> EmitManifestAsync(
+        Guid accountId, DateOnly today, SimulationOptions sim, CancellationToken ct)
+    {
+        var (counts, states) = await ComputeCountsAsync(accountId, ct);
+        var expected = ComputeExpectedCounts(sim);
+
+        // Fail-closed: throws on ANY shortfall — a partial/short seed must
+        // fail startup, not publish a "complete" manifest.
+        ValidateCounts(counts, states, expected);
+
+        var fingerprint = ComputeFingerprint(sim.Seed, counts, states);
+        var manifest = new SimulationManifest(
+            SchemaVersion: ManifestSchemaVersion,
+            Seed: sim.Seed,
+            HistoryDays: sim.HistoryDays,
+            GeneratedAtAnchor: today,
+            Counts: counts,
+            LifecycleStates: states,
+            Complete: true,
+            Fingerprint: fingerprint);
+
+        if (!string.IsNullOrWhiteSpace(sim.CredentialOutputPath))
+            await WriteManifestFileAsync(sim.CredentialOutputPath, manifest, ct);
+
+        logger.LogInformation(
+            "Simulation seed manifest complete (fingerprint {Fingerprint}).", fingerprint);
+
+        return manifest;
+    }
+
+    // Everything below except Users/Accounts already sits behind AppDbContext's
+    // tenant query filter (OnModelCreating), and SeedAsync resolved the
+    // tenant to accountId at the top — so these queries are already scoped to
+    // the primary account without an explicit .Where(AccountId == accountId).
+    // ApplicationUser carries no tenant filter (it's Identity's own table,
+    // not one of ours), so users are filtered explicitly. Account carries a
+    // filter too, but IgnoreQueryFilters is used deliberately — the manifest
+    // needs to see the second, pristine tenant fixture as well (mirrors
+    // SeedSecondAccountAsync's own IgnoreQueryFilters use).
+    private async Task<(SimulationManifestCounts Counts, SimulationLifecycleStates States)> ComputeCountsAsync(
+        Guid accountId, CancellationToken ct)
+    {
+        var usersTotal = await db.Users.CountAsync(u => u.AccountId == accountId, ct);
+        var ownerCount = (await users.GetUsersInRoleAsync(Roles.Owner)).Count(u => u.AccountId == accountId);
+        var managerCount = (await users.GetUsersInRoleAsync(Roles.Manager)).Count(u => u.AccountId == accountId);
+        var salesCount = (await users.GetUsersInRoleAsync(Roles.Sales)).Count(u => u.AccountId == accountId);
+        var readOnlyCount = (await users.GetUsersInRoleAsync(Roles.ReadOnly)).Count(u => u.AccountId == accountId);
+        // Workers deliberately carry no role row (SeedCastAsync) — derive by
+        // subtraction rather than a role lookup that would always find none.
+        var workerCount = usersTotal - ownerCount - managerCount - salesCount - readOnlyCount;
+
+        var accountCount = await db.Accounts.IgnoreQueryFilters().CountAsync(ct);
+        var flockCount = await db.Flocks.CountAsync(ct);
+
+        var dailyEntriesTotal = await db.DailyEntries.CountAsync(ct);
+        var draftEntries = await db.DailyEntries.CountAsync(e => e.Status == DailyEntryStatus.Draft, ct);
+        var submittedEntries = await db.DailyEntries.CountAsync(e => e.Status == DailyEntryStatus.Submitted, ct);
+        var lockedEntries = await db.DailyEntries.CountAsync(e => e.Status == DailyEntryStatus.Locked, ct);
+
+        var eggLotCount = await db.EggLots.CountAsync(ct);
+
+        var salesOrdersTotal = await db.SalesOrders.CountAsync(ct);
+        var draftOrders = await db.SalesOrders.CountAsync(o => o.Status == SalesOrderStatus.Draft, ct);
+        var confirmedOrders = await db.SalesOrders.CountAsync(o => o.Status == SalesOrderStatus.Confirmed, ct);
+        var shippedOrders = await db.SalesOrders.CountAsync(o => o.Status == SalesOrderStatus.Shipped, ct);
+        var invoicedOrders = await db.SalesOrders.CountAsync(o => o.Status == SalesOrderStatus.Invoiced, ct);
+        var cancelledOrders = await db.SalesOrders.CountAsync(o => o.Status == SalesOrderStatus.Cancelled, ct);
+        var voidedOrders = await db.SalesOrders.CountAsync(o => o.Status == SalesOrderStatus.Voided, ct);
+
+        var paymentCount = await db.Payments.CountAsync(ct);
+
+        var inventoryItemCount = await db.InventoryItems.CountAsync(ct);
+        var inventoryLotCount = await db.InventoryLots.CountAsync(ct);
+
+        var movementsTotal = await db.InventoryMovements.CountAsync(ct);
+        var purchaseMovements = await db.InventoryMovements.CountAsync(
+            m => m.Type == InventoryMovementType.Purchase, ct);
+        var usageMovements = await db.InventoryMovements.CountAsync(
+            m => m.Type == InventoryMovementType.Usage, ct);
+        var adjustmentMovements = await db.InventoryMovements.CountAsync(
+            m => m.Type == InventoryMovementType.Adjustment, ct);
+        var discardMovements = await db.InventoryMovements.CountAsync(
+            m => m.Type == InventoryMovementType.Discard, ct);
+
+        var feedUsageCount = await db.FeedUsages.CountAsync(ct);
+        var waterUsageCount = await db.WaterUsages.CountAsync(ct);
+
+        var expenseCategoryCount = await db.ExpenseCategories.CountAsync(ct);
+        var expenseCount = await db.Expenses.CountAsync(ct);
+
+        var counts = new SimulationManifestCounts(
+            Accounts: accountCount,
+            Owners: ownerCount,
+            Managers: managerCount,
+            Sales: salesCount,
+            Workers: workerCount,
+            ReadOnly: readOnlyCount,
+            UsersTotal: usersTotal,
+            Flocks: flockCount,
+            DailyEntriesTotal: dailyEntriesTotal,
+            EggLots: eggLotCount,
+            SalesOrdersTotal: salesOrdersTotal,
+            Payments: paymentCount,
+            InventoryItems: inventoryItemCount,
+            InventoryLots: inventoryLotCount,
+            InventoryMovementsTotal: movementsTotal,
+            FeedUsageRows: feedUsageCount,
+            WaterUsageRows: waterUsageCount,
+            ExpenseCategories: expenseCategoryCount,
+            Expenses: expenseCount);
+
+        var states = new SimulationLifecycleStates(
+            DailyEntries: new SimulationDailyEntryStates(draftEntries, submittedEntries, lockedEntries),
+            SalesOrders: new SimulationSalesOrderStates(
+                draftOrders, confirmedOrders, shippedOrders, invoicedOrders, cancelledOrders, voidedOrders),
+            InventoryMovements: new SimulationInventoryMovementStates(
+                purchaseMovements, usageMovements, adjustmentMovements, discardMovements));
+
+        return (counts, states);
+    }
+
+    // Pure function of SimulationOptions — no DB access, so it can be called
+    // from a unit test with a hand-built SimulationOptions too. See the
+    // class-level comment above ValidateCounts for why every field here is
+    // DERIVED rather than a hardcoded depth-specific number.
+    private static SimulationExpectedCounts ComputeExpectedCounts(SimulationOptions sim)
+    {
+        var historyDays = EffectiveHistoryDays(sim);
+        var recurringPoints = RecurringPointCount(historyDays);
+
+        return new SimulationExpectedCounts(
+            Accounts: 2, // primary + SecondAccountId — never a third on a re-run.
+            Owners: 1, // the reused seeded admin — this seeder never creates a second Owner.
+            Managers: sim.Managers,
+            Sales: sim.Sales,
+            Workers: sim.Workers,
+            ReadOnly: sim.ReadOnly,
+            Flocks: FlockTopologyCount,
+            DailyEntriesTotal: FlockTopologyCount * historyDays,
+            MinDraftEntries: 1,
+            MinSubmittedEntries: 1,
+            MinLockedEntries: 1,
+            MinEggLots: FlockTopologyCount,
+            SalesOrdersDraft: DraftOrdersCount,
+            SalesOrdersConfirmed: LifecycleConfirmedOrdersCount + recurringPoints,
+            Payments: 1, // exactly one partial payment (EnsurePartialPaymentAsync).
+            InventoryItems: InventoryItemsWanted.Length,
+            InventoryLots: InventoryItemsWanted.Length, // one opening lot per item.
+            InventoryPurchaseMovements: InventoryItemsWanted.Length,
+            InventoryAdjustmentOrDiscardMovements: InventoryItemsWanted.Length, // one each.
+            FeedUsageRows: FlockTopologyCount * FeedUsageDays,
+            WaterUsageRows: FlockTopologyCount * WaterUsageDays,
+            ExpenseCategories: ExpenseCategoriesWanted.Length,
+            Expenses: LifecycleExpensesCount + recurringPoints);
+    }
+
+    // Pure, no DB access — a test can hand this a synthetic short
+    // SimulationManifestCounts/SimulationLifecycleStates and assert it
+    // throws, proving the fail-closed path without needing to sabotage a
+    // real seed run. Collects every mismatch (rather than throwing on the
+    // first) so a single failed startup reports the whole shortfall at once.
+    internal static void ValidateCounts(
+        SimulationManifestCounts counts, SimulationLifecycleStates states, SimulationExpectedCounts expected)
+    {
+        var failures = new List<string>();
+        void Check(bool ok, string message)
+        {
+            if (!ok) failures.Add(message);
+        }
+
+        Check(counts.Accounts == expected.Accounts,
+            $"accounts: expected exactly {expected.Accounts}, got {counts.Accounts}");
+        Check(counts.Owners == expected.Owners, $"users.owners: expected {expected.Owners}, got {counts.Owners}");
+        Check(counts.Managers == expected.Managers,
+            $"users.managers: expected {expected.Managers}, got {counts.Managers}");
+        Check(counts.Sales == expected.Sales, $"users.sales: expected {expected.Sales}, got {counts.Sales}");
+        Check(counts.Workers == expected.Workers, $"users.workers: expected {expected.Workers}, got {counts.Workers}");
+        Check(counts.ReadOnly == expected.ReadOnly,
+            $"users.readOnly: expected {expected.ReadOnly}, got {counts.ReadOnly}");
+        Check(counts.Flocks == expected.Flocks, $"flocks: expected {expected.Flocks}, got {counts.Flocks}");
+        Check(counts.DailyEntriesTotal == expected.DailyEntriesTotal,
+            $"dailyEntries.total: expected {expected.DailyEntriesTotal}, got {counts.DailyEntriesTotal}");
+        Check(states.DailyEntries.Draft >= expected.MinDraftEntries,
+            $"dailyEntries.draft: expected >= {expected.MinDraftEntries}, got {states.DailyEntries.Draft}");
+        Check(states.DailyEntries.Submitted >= expected.MinSubmittedEntries,
+            $"dailyEntries.submitted: expected >= {expected.MinSubmittedEntries}, got {states.DailyEntries.Submitted}");
+        Check(states.DailyEntries.Locked >= expected.MinLockedEntries,
+            $"dailyEntries.locked: expected >= {expected.MinLockedEntries}, got {states.DailyEntries.Locked}");
+        Check(counts.EggLots >= expected.MinEggLots, $"eggLots: expected >= {expected.MinEggLots}, got {counts.EggLots}");
+        Check(states.SalesOrders.Draft == expected.SalesOrdersDraft,
+            $"salesOrders.draft: expected {expected.SalesOrdersDraft}, got {states.SalesOrders.Draft}");
+        Check(states.SalesOrders.Confirmed == expected.SalesOrdersConfirmed,
+            $"salesOrders.confirmed: expected {expected.SalesOrdersConfirmed}, got {states.SalesOrders.Confirmed}");
+        Check(counts.Payments == expected.Payments, $"payments: expected {expected.Payments}, got {counts.Payments}");
+        Check(counts.InventoryItems == expected.InventoryItems,
+            $"inventoryItems: expected {expected.InventoryItems}, got {counts.InventoryItems}");
+        Check(counts.InventoryLots == expected.InventoryLots,
+            $"inventoryLots: expected {expected.InventoryLots}, got {counts.InventoryLots}");
+        Check(states.InventoryMovements.Purchase == expected.InventoryPurchaseMovements,
+            $"inventoryMovements.purchase: expected {expected.InventoryPurchaseMovements}, got {states.InventoryMovements.Purchase}");
+        Check(states.InventoryMovements.Adjustment + states.InventoryMovements.Discard
+              == expected.InventoryAdjustmentOrDiscardMovements,
+            $"inventoryMovements.adjustment+discard: expected {expected.InventoryAdjustmentOrDiscardMovements}, " +
+            $"got {states.InventoryMovements.Adjustment + states.InventoryMovements.Discard}");
+        Check(counts.FeedUsageRows == expected.FeedUsageRows,
+            $"feedUsageRows: expected {expected.FeedUsageRows}, got {counts.FeedUsageRows}");
+        Check(counts.WaterUsageRows == expected.WaterUsageRows,
+            $"waterUsageRows: expected {expected.WaterUsageRows}, got {counts.WaterUsageRows}");
+        Check(counts.ExpenseCategories == expected.ExpenseCategories,
+            $"expenseCategories: expected {expected.ExpenseCategories}, got {counts.ExpenseCategories}");
+        Check(counts.Expenses == expected.Expenses, $"expenses: expected {expected.Expenses}, got {counts.Expenses}");
+
+        if (failures.Count > 0)
+            throw new InvalidOperationException(
+                "Simulation seed completion check failed — the seed is short/partial and must NOT be " +
+                "marked complete: " + string.Join("; ", failures));
+    }
+
+    private static readonly JsonSerializerOptions FingerprintJsonOptions = new(JsonSerializerDefaults.Web);
+
+    // Stable hash of counts+seed (same Convert.ToHexString(SHA256.HashData(...))
+    // convention as FarmLogo.ContentHash / IdempotencyMiddleware.Sha256) — a
+    // re-run that recomputes the SAME counts from the SAME seed always
+    // produces the SAME fingerprint (idempotent), and any real shortfall
+    // changes it.
+    private static string ComputeFingerprint(int seed, SimulationManifestCounts counts, SimulationLifecycleStates states)
+    {
+        var canonical = JsonSerializer.Serialize(new { seed, counts, states }, FingerprintJsonOptions);
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonical))).ToLowerInvariant();
+    }
+
+    private static readonly JsonSerializerOptions ManifestFileJsonOptions =
+        new(JsonSerializerDefaults.Web) { WriteIndented = true };
+
+    private async Task WriteManifestFileAsync(string path, SimulationManifest manifest, CancellationToken ct)
+    {
+        var directory = Path.GetDirectoryName(path);
+        if (!string.IsNullOrEmpty(directory))
+            Directory.CreateDirectory(directory);
+
+        // Atomic: serialize the whole manifest (complete + fingerprint
+        // included — they're computed last, in EmitManifestAsync, before this
+        // is ever called) to a temp file in the SAME directory, then rename
+        // over the final path. A reader (the #243 findings header, #277's
+        // Playwright suite) never observes a partially-written manifest —
+        // File.Move onto an existing path is a single filesystem rename, not
+        // a truncate-then-write.
+        var tempPath = path + ".tmp";
+        await using (var stream = File.Create(tempPath))
+            await JsonSerializer.SerializeAsync(stream, manifest, ManifestFileJsonOptions, ct);
+        File.Move(tempPath, path, overwrite: true);
+
+        logger.LogInformation("Simulation seed manifest written to {Path}.", path);
+    }
 }
+
+public sealed record SimulationDailyEntryStates(int Draft, int Submitted, int Locked);
+
+public sealed record SimulationSalesOrderStates(
+    int Draft, int Confirmed, int Shipped, int Invoiced, int Cancelled, int Voided);
+
+public sealed record SimulationInventoryMovementStates(int Purchase, int Usage, int Adjustment, int Discard);
+
+public sealed record SimulationLifecycleStates(
+    SimulationDailyEntryStates DailyEntries,
+    SimulationSalesOrderStates SalesOrders,
+    SimulationInventoryMovementStates InventoryMovements);
+
+public sealed record SimulationManifestCounts(
+    int Accounts,
+    int Owners,
+    int Managers,
+    int Sales,
+    int Workers,
+    int ReadOnly,
+    int UsersTotal,
+    int Flocks,
+    int DailyEntriesTotal,
+    int EggLots,
+    int SalesOrdersTotal,
+    int Payments,
+    int InventoryItems,
+    int InventoryLots,
+    int InventoryMovementsTotal,
+    int FeedUsageRows,
+    int WaterUsageRows,
+    int ExpenseCategories,
+    int Expenses);
+
+// Not persisted directly — folded into ValidateCounts' failure messages
+// above. Kept as its own type (rather than loose parameters) so
+// ComputeExpectedCounts and ValidateCounts share one shape, and so a test can
+// hand-build one for the fail-closed assertion.
+public sealed record SimulationExpectedCounts(
+    int Accounts,
+    int Owners,
+    int Managers,
+    int Sales,
+    int Workers,
+    int ReadOnly,
+    int Flocks,
+    int DailyEntriesTotal,
+    int MinDraftEntries,
+    int MinSubmittedEntries,
+    int MinLockedEntries,
+    int MinEggLots,
+    int SalesOrdersDraft,
+    int SalesOrdersConfirmed,
+    int Payments,
+    int InventoryItems,
+    int InventoryLots,
+    int InventoryPurchaseMovements,
+    int InventoryAdjustmentOrDiscardMovements,
+    int FeedUsageRows,
+    int WaterUsageRows,
+    int ExpenseCategories,
+    int Expenses);
+
+// #243 Task 3e — the seed's machine-readable completion artifact. schemaVersion
+// lets a future breaking reshape be detected by consumers instead of silently
+// misparsed; complete/fingerprint are always the last fields computed
+// (EmitManifestAsync) and the manifest is only ever constructed AFTER
+// ValidateCounts passes — there is no code path that produces one of these
+// with complete: true for a short/partial seed.
+public sealed record SimulationManifest(
+    int SchemaVersion,
+    int Seed,
+    int HistoryDays,
+    DateOnly GeneratedAtAnchor,
+    SimulationManifestCounts Counts,
+    SimulationLifecycleStates LifecycleStates,
+    bool Complete,
+    string Fingerprint);

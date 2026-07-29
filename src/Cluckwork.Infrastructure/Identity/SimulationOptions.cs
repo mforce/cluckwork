@@ -17,7 +17,13 @@ public sealed class SimulationOptions
     /// bootstrap generates it into .env.sim). Required when Simulation is enabled.
     public string CastPassword { get; set; } = "";
     public int Seed { get; set; } = 243;
-    /// Optional container path the seeder writes the cast manifest to. When null,
-    /// the seeder skips the write (keeps integration tests free of a volume mount).
+    /// Optional container path SimulationDataSeeder writes its completion
+    /// manifest to (#243 Task 3e — row counts, lifecycle-state matrix,
+    /// complete/fingerprint; see SimulationDataSeeder.EmitManifestAsync).
+    /// When null, the seeder skips the FILE write but still runs the count
+    /// validation (keeps integration tests free of a volume mount). Despite
+    /// the name, this is NOT the cast credential file — that's a separate
+    /// artifact bootstrap owns (a later #243 task); the property name is kept
+    /// to avoid churn on Task 1's binding test.
     public string? CredentialOutputPath { get; set; }
 }

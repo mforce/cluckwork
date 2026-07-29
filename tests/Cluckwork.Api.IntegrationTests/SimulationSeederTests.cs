@@ -658,4 +658,136 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
         var lines = text.Split("\r\n", StringSplitOptions.RemoveEmptyEntries);
         return lines.Length - 1; // minus the header row
     }
+
+    // #243 Task 3e — the completion manifest: validated row counts +
+    // lifecycle-state matrix + a stable fingerprint, emitted as the LAST step
+    // of SeedAsync. Simulation:CredentialOutputPath is left unset on this
+    // factory (SimulationSeedFactory.ConfigureWebHost above), so these tests
+    // exercise the in-memory manifest SeedAsync returns — no volume mount
+    // needed (per the task's own guidance). Calling SeedAsync() again
+    // directly (rather than only via factory.CreateClient()'s own internal,
+    // return-discarding call) is itself a valid idempotent re-run — same
+    // per-entity existence checks that make every other seed step converge.
+
+    // Recurring drip count for this fixture's shallow 12-day HistoryDays —
+    // duplicated from SimulationDataSeeder's own RecurringStartDay(9)/
+    // RecurringCadenceDays(7) formula, same "duplicate the private constants"
+    // convention as ExpectedFeedUsageDays etc. above: (12-9)/7+1 = 1.
+    private const int ExpectedRecurringPoints = 1;
+    private const int ExpectedConfirmedOrders = 3 + ExpectedRecurringPoints;
+    private const int ExpectedExpensesWithRecurring = 4 + ExpectedRecurringPoints;
+
+    [Fact]
+    public async Task SimulationSeed_EmitsACompleteManifestWithValidatedCountsAndLifecycleStates()
+    {
+        using var client = factory.CreateClient(); // forces host init / first startup seed.
+        using var scope = factory.Services.CreateScope();
+        var seeder = scope.ServiceProvider.GetRequiredService<SimulationDataSeeder>();
+
+        var manifest = await seeder.SeedAsync(); // idempotent re-run; returns the manifest.
+
+        Assert.NotNull(manifest);
+        Assert.True(manifest!.Complete);
+        Assert.False(string.IsNullOrWhiteSpace(manifest.Fingerprint));
+        Assert.Equal(SimulationDataSeeder.ManifestSchemaVersion, manifest.SchemaVersion);
+        Assert.Equal(SimulationSeedFactory.HistoryDays, manifest.HistoryDays);
+        // Anchor is "today" per the seeder's own IClock — within a day of the
+        // real wall clock (same tolerance UtcToday-based assertions above use).
+        Assert.True(Math.Abs(manifest.GeneratedAtAnchor.DayNumber - UtcToday.DayNumber) <= 1);
+
+        var counts = manifest.Counts;
+        Assert.Equal(2, counts.Accounts);
+        Assert.Equal(1, counts.Owners);
+        Assert.Equal(ExpectedManagers, counts.Managers);
+        Assert.Equal(ExpectedSales, counts.Sales);
+        Assert.Equal(ExpectedWorkers, counts.Workers);
+        Assert.Equal(ExpectedReadOnly, counts.ReadOnly);
+        Assert.Equal(1 + ExpectedCastUsers, counts.UsersTotal);
+        Assert.Equal(2, counts.Flocks);
+        Assert.Equal(2 * SimulationSeedFactory.HistoryDays, counts.DailyEntriesTotal);
+        Assert.True(counts.EggLots > 0);
+        Assert.Equal(2 + ExpectedConfirmedOrders, counts.SalesOrdersTotal);
+        Assert.Equal(1, counts.Payments);
+        Assert.Equal(2, counts.InventoryItems);
+        Assert.Equal(2, counts.InventoryLots);
+        // 2 Purchase + 2 Adjustment/Discard + one Usage row per feed usage.
+        Assert.Equal(2 * ExpectedFeedUsageDays + 4, counts.InventoryMovementsTotal);
+        Assert.Equal(2 * ExpectedFeedUsageDays, counts.FeedUsageRows);
+        Assert.Equal(2 * ExpectedWaterUsageDays, counts.WaterUsageRows);
+        Assert.Equal(2, counts.ExpenseCategories);
+        Assert.Equal(ExpectedExpensesWithRecurring, counts.Expenses);
+
+        var states = manifest.LifecycleStates;
+        Assert.True(states.DailyEntries.Draft >= 1);
+        Assert.True(states.DailyEntries.Submitted >= 1);
+        Assert.True(states.DailyEntries.Locked >= 1);
+        Assert.Equal(counts.DailyEntriesTotal, states.DailyEntries.Draft + states.DailyEntries.Submitted + states.DailyEntries.Locked);
+        Assert.Equal(2, states.SalesOrders.Draft);
+        Assert.Equal(ExpectedConfirmedOrders, states.SalesOrders.Confirmed);
+        Assert.Equal(0, states.SalesOrders.Shipped + states.SalesOrders.Invoiced
+                         + states.SalesOrders.Cancelled + states.SalesOrders.Voided);
+        Assert.Equal(2, states.InventoryMovements.Purchase);
+        Assert.Equal(2, states.InventoryMovements.Adjustment + states.InventoryMovements.Discard);
+        Assert.Equal(counts.FeedUsageRows, states.InventoryMovements.Usage);
+    }
+
+    [Fact]
+    public async Task SimulationSeed_Manifest_IsIdempotent_SameFingerprintAndCountsAcrossHostRestarts()
+    {
+        using var firstClient = factory.CreateClient(); // first startup (may already be built).
+        SimulationManifest? firstManifest;
+        using (var firstScope = factory.Services.CreateScope())
+        {
+            var seeder = firstScope.ServiceProvider.GetRequiredService<SimulationDataSeeder>();
+            firstManifest = await seeder.SeedAsync();
+        }
+
+        using var secondHost = factory.WithWebHostBuilder(_ => { });
+        using var secondClient = secondHost.CreateClient(); // second full Program.cs run, same DB.
+        SimulationManifest? secondManifest;
+        using (var secondScope = secondHost.Services.CreateScope())
+        {
+            var seeder = secondScope.ServiceProvider.GetRequiredService<SimulationDataSeeder>();
+            secondManifest = await seeder.SeedAsync();
+        }
+
+        Assert.NotNull(firstManifest);
+        Assert.NotNull(secondManifest);
+        Assert.True(secondManifest!.Complete);
+        Assert.Equal(firstManifest!.Fingerprint, secondManifest.Fingerprint);
+        Assert.Equal(firstManifest.Counts, secondManifest.Counts);
+        Assert.Equal(firstManifest.LifecycleStates, secondManifest.LifecycleStates);
+    }
+
+    // Pure unit-style check on SimulationDataSeeder.ValidateCounts (internal,
+    // visible via InternalsVisibleTo) — a hand-built "one worker short" actual
+    // count against the real expectations must throw, proving the fail-closed
+    // path without sabotaging a real Testcontainers seed run.
+    [Fact]
+    public void SimulationSeed_ValidateCounts_ThrowsWhenACountIsShortOfExpectations()
+    {
+        var counts = new SimulationManifestCounts(
+            Accounts: 2, Owners: 1, Managers: 1, Sales: 1, Workers: 2, ReadOnly: 4, UsersTotal: 9,
+            Flocks: 2, DailyEntriesTotal: 24, EggLots: 10, SalesOrdersTotal: 6, Payments: 1,
+            InventoryItems: 2, InventoryLots: 2, InventoryMovementsTotal: 12,
+            FeedUsageRows: 8, WaterUsageRows: 8, ExpenseCategories: 2, Expenses: 5);
+        var states = new SimulationLifecycleStates(
+            DailyEntries: new SimulationDailyEntryStates(Draft: 2, Submitted: 8, Locked: 14),
+            SalesOrders: new SimulationSalesOrderStates(
+                Draft: 2, Confirmed: 4, Shipped: 0, Invoiced: 0, Cancelled: 0, Voided: 0),
+            InventoryMovements: new SimulationInventoryMovementStates(Purchase: 2, Usage: 8, Adjustment: 1, Discard: 1));
+        // Expects one MORE worker than the counts above actually seeded — the
+        // "silently short seed" this validation exists to catch.
+        var expected = new SimulationExpectedCounts(
+            Accounts: 2, Owners: 1, Managers: 1, Sales: 1, Workers: 3, ReadOnly: 4,
+            Flocks: 2, DailyEntriesTotal: 24, MinDraftEntries: 1, MinSubmittedEntries: 1, MinLockedEntries: 1,
+            MinEggLots: 2, SalesOrdersDraft: 2, SalesOrdersConfirmed: 4, Payments: 1,
+            InventoryItems: 2, InventoryLots: 2, InventoryPurchaseMovements: 2,
+            InventoryAdjustmentOrDiscardMovements: 2, FeedUsageRows: 8, WaterUsageRows: 8,
+            ExpenseCategories: 2, Expenses: 5);
+
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => SimulationDataSeeder.ValidateCounts(counts, states, expected));
+        Assert.Contains("users.workers", ex.Message);
+    }
 }
