@@ -1,5 +1,7 @@
 namespace Cluckwork.Api.IntegrationTests;
 
+using System.Net.Http.Json;
+using System.Text;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Eggs;
@@ -361,11 +363,14 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
             .ToListAsync();
 
         // A second full seed pass converges rather than doubling — same
-        // three products, three customers, five orders (2 draft + 2
-        // confirmed-unpaid + 1 confirmed-partially-paid) as a single pass.
+        // three products, three customers, six orders (2 draft + 2
+        // confirmed-unpaid + 1 confirmed-partially-paid + 1 recurring
+        // confirmed, #243 Task 3d's RecurringStartDay/RecurringCadenceDays
+        // drip — exactly one point lands inside a 12-day HistoryDays window)
+        // as a single pass.
         Assert.Equal(3, products.Count);
         Assert.Equal(3, customers.Count);
-        Assert.Equal(5, orders.Count);
+        Assert.Equal(6, orders.Count);
         Assert.DoesNotContain(products.GroupBy(p => p.Name), g => g.Count() > 1);
         Assert.DoesNotContain(customers.GroupBy(c => c.Name), g => g.Count() > 1);
         Assert.DoesNotContain(orders.GroupBy(o => (o.CustomerId, o.OrderDate)), g => g.Count() > 1);
@@ -531,7 +536,126 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
         var expenses = await db.Expenses.IgnoreQueryFilters()
             .Where(e => e.AccountId == SeedDefaults.AccountId)
             .ToListAsync();
-        Assert.Equal(4, expenses.Count);
+        // 4 hardcoded + 1 recurring (#243 Task 3d's drip — one point lands
+        // inside a 12-day HistoryDays window, same as the sales recurring
+        // series above).
+        Assert.Equal(5, expenses.Count);
         Assert.DoesNotContain(expenses.GroupBy(e => e.Description), g => g.Count() > 1);
+    }
+
+    // #243 Task 3d — smoke test locking in the depth/density decision
+    // recorded in SimulationDataSeeder's header comment: the report and
+    // export endpoints (the load test's heaviest read paths) must return
+    // non-trivial volume against the sim seed, not a near-empty result. Real,
+    // authenticated HTTP calls as the seeded Owner — same pattern
+    // ReportsTests/ExportTests use, against this fixture's shallow (but
+    // representative) 12-day HistoryDays.
+
+    private static DateOnly UtcToday => DateOnly.FromDateTime(DateTime.UtcNow);
+
+    private sealed record ProductionDayDto(DateOnly Date, int TotalEggs);
+    private sealed record ProductionReportDto(
+        List<ProductionDayDto> Days, int TotalEggs, int TotalSellable, int TotalDeaths);
+    private sealed record SalesSummaryDto(
+        int ConfirmedCount, long RevenueMinorUnits, long PaidMinorUnits,
+        long OutstandingMinorUnits, int VoidedCount);
+    private sealed record ExpenseCategoryTotalDto(Guid ExpenseCategoryId, string Name, long TotalMinorUnits);
+    private sealed record ExpenseSummaryDto(List<ExpenseCategoryTotalDto> Categories, long GrandTotalMinorUnits);
+    private sealed record ProfitReportDto(long RevenueMinorUnits, long ExpensesMinorUnits, long ProfitMinorUnits);
+
+    [Fact]
+    public async Task SimulationSeed_ReportEndpoints_ReturnNonTrivialVolumeAcrossTheHistoryWindow()
+    {
+        using var seedClient = factory.CreateClient(); // forces host init / first startup seed.
+        // Not LoginForAccessTokenAsync: that logs in with TestHarness's fixed
+        // password, but the sim Owner's password is the factory's own
+        // runtime-generated AdminPassword (Seed:AdminPassword).
+        var loginResponse = await factory.TryLoginAsync(factory.AdminEmail, factory.AdminPassword);
+        loginResponse.EnsureSuccessStatusCode();
+        var tokens = await TestHarness.ReadTokensAsync(loginResponse);
+        var client = factory.CreateAuthedClient(tokens.AccessToken);
+
+        // Safely in the past on both ends regardless of UTC-vs-farm-local
+        // skew (same reasoning SimulationDataSeeder's own header comment
+        // uses for its seeded dates) — covers the whole seeded window (days
+        // 1..HistoryDays) with margin on both sides.
+        var from = UtcToday.AddDays(-(SimulationSeedFactory.HistoryDays + 1));
+        var to = UtcToday.AddDays(-1);
+        var range = $"from={from:yyyy-MM-dd}&to={to:yyyy-MM-dd}";
+
+        var production = await client.GetFromJsonAsync<ProductionReportDto>(
+            $"/api/v1/reports/production?{range}");
+        // One row per calendar day in [from, to] — multiple periods, not a
+        // single day or an empty report.
+        Assert.Equal(SimulationSeedFactory.HistoryDays + 1, production!.Days.Count);
+        Assert.True(production.TotalEggs > 0);
+        Assert.True(production.TotalSellable > 0);
+
+        var sales = await client.GetFromJsonAsync<SalesSummaryDto>($"/api/v1/reports/sales?{range}");
+        // 3 lifecycle confirmed orders (days 2/5/6) + 1 recurring (#243 Task
+        // 3d's drip, day 9) — spread across the window, not a single-order
+        // result.
+        Assert.Equal(4, sales!.ConfirmedCount);
+        Assert.True(sales.RevenueMinorUnits > 0);
+        Assert.True(sales.PaidMinorUnits > 0);
+        Assert.True(sales.OutstandingMinorUnits > 0);
+        Assert.Equal(0, sales.VoidedCount);
+
+        var expenses = await client.GetFromJsonAsync<ExpenseSummaryDto>($"/api/v1/reports/expenses?{range}");
+        // Both categories carry spend — not a single-category, single-row
+        // summary.
+        Assert.Equal(2, expenses!.Categories.Count);
+        Assert.All(expenses.Categories, c => Assert.True(c.TotalMinorUnits > 0));
+        Assert.True(expenses.GrandTotalMinorUnits > 0);
+
+        var profit = await client.GetFromJsonAsync<ProfitReportDto>($"/api/v1/reports/profit?{range}");
+        // Cross-checks against the two summaries above rather than
+        // re-deriving the arithmetic — same range, same underlying rows.
+        Assert.Equal(sales.RevenueMinorUnits, profit!.RevenueMinorUnits);
+        Assert.Equal(expenses.GrandTotalMinorUnits, profit.ExpensesMinorUnits);
+    }
+
+    [Fact]
+    public async Task SimulationSeed_ExportEndpoints_ReturnNonTrivialVolumeAcrossTheHistoryWindow()
+    {
+        using var seedClient = factory.CreateClient(); // forces host init / first startup seed.
+        // Not LoginForAccessTokenAsync: that logs in with TestHarness's fixed
+        // password, but the sim Owner's password is the factory's own
+        // runtime-generated AdminPassword (Seed:AdminPassword).
+        var loginResponse = await factory.TryLoginAsync(factory.AdminEmail, factory.AdminPassword);
+        loginResponse.EnsureSuccessStatusCode();
+        var tokens = await TestHarness.ReadTokensAsync(loginResponse);
+        var client = factory.CreateAuthedClient(tokens.AccessToken);
+
+        // Export ignores date ranges — it dumps the whole tenant-scoped
+        // table (#95) — so these counts are the account's full row counts,
+        // not a range slice.
+        var dailyEntries = await client.GetAsync("/api/v1/export/daily-entries");
+        dailyEntries.EnsureSuccessStatusCode();
+        Assert.Equal(
+            2 * SimulationSeedFactory.HistoryDays, // 2 flocks
+            await CountCsvDataRowsAsync(dailyEntries));
+
+        var salesOrders = await client.GetAsync("/api/v1/export/sales-orders");
+        salesOrders.EnsureSuccessStatusCode();
+        // 2 draft + 3 lifecycle confirmed + 1 recurring confirmed (#243
+        // Task 3d) — multiple rows, not the single-digit-but-really-just-one
+        // shape the export had before the recurring drip existed.
+        Assert.Equal(6, await CountCsvDataRowsAsync(salesOrders));
+
+        var expenses = await client.GetAsync("/api/v1/export/expenses");
+        expenses.EnsureSuccessStatusCode();
+        // 4 hardcoded + 1 recurring (#243 Task 3d).
+        Assert.Equal(5, await CountCsvDataRowsAsync(expenses));
+    }
+
+    // Data rows only: strips the UTF-8 BOM (#95's Excel guard) and the
+    // header line, same CSV shape ExportTests.cs already asserts against.
+    private static async Task<int> CountCsvDataRowsAsync(HttpResponseMessage response)
+    {
+        var bytes = await response.Content.ReadAsByteArrayAsync();
+        var text = Encoding.UTF8.GetString(bytes.AsSpan(3)); // skip the BOM
+        var lines = text.Split("\r\n", StringSplitOptions.RemoveEmptyEntries);
+        return lines.Length - 1; // minus the header row
     }
 }

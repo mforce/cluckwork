@@ -52,6 +52,28 @@ using Microsoft.Extensions.Options;
 // instead comes from per-entity existence checks (mirroring DatabaseSeeder /
 // DemoDataSeeder), so a clean re-run converges instead of erroring on
 // "already exists".
+//
+// #243 Task 3d — depth/density decision (Simulation:HistoryDays defaults to
+// 90): production history is already dense enough for the report/export read
+// paths without any change — it's one entry per (flock, day), so the
+// production report and the daily-entries/daily-entry-grades/egg-lots export
+// datasets scale directly with HistoryDays (2 flocks × 90 days = 180 entries,
+// ~500+ grade/lot rows once SubmitDailyEntry mints up to 3 egg lots per
+// entry). Sales and expenses were the thin spot: Task 3b/3c's lifecycle
+// fixtures (draft/confirmed/partially-paid orders, the 4 expenses) all sat
+// inside the most recent ~week of history, so a sales/expense/profit report
+// or an export request against an OLDER slice of the window saw nothing.
+// SeedRecurringOrdersAsync/SeedRecurringExpensesAsync below fix that with a
+// second, independent, deterministic drip of confirmed orders and expenses
+// spread every RecurringCadenceDays days across the WHOLE window (starting at
+// MinSentinelAgeDays so at least one recurring point survives even a
+// HistoryDays shorter than that floor) — ~12 extra confirmed orders and ~12
+// extra expenses at the 90-day default, so a report/export over any
+// representative slice of the history returns multiple rows, not a
+// single-week cluster. Feed/water usage stays capped at
+// FeedUsageDays/WaterUsageDays (4) — there's no report endpoint over that
+// data, only a flat export dataset, and it was already non-empty; widening it
+// would be bloat the task didn't ask for.
 public sealed class SimulationDataSeeder(
     AppDbContext db,
     TenantContext tenant,
@@ -155,7 +177,7 @@ public sealed class SimulationDataSeeder(
         // Inventory before feed usage: feed usage draws down a feed lot, so
         // the item + opening purchase must exist first (#243 Task 3c).
         await SeedInventoryOperationsAsync(accountId, today, flockIds, sim, ct);
-        await SeedSalesAsync(accountId, today, ct);
+        await SeedSalesAsync(accountId, today, sim, ct);
         await SeedSecondAccountAsync(ct);
 
         // Deterministic lock-sweep proof: run the sweep synchronously as part
@@ -417,7 +439,17 @@ public sealed class SimulationDataSeeder(
     private const int ConfirmedOrderQuantityEggs = 36;
     private const int DraftOrderQuantityEggs = 24;
 
-    private async Task SeedSalesAsync(Guid accountId, DateOnly today, CancellationToken ct)
+    // #243 Task 3d — see the class header's depth/density decision. This
+    // second series never touches days 1-7 (every hardcoded date above),
+    // starts at MinSentinelAgeDays (9, so it survives even a HistoryDays
+    // shorter than that floor), and repeats every RecurringCadenceDays out to
+    // the effective history length — spreading confirmed orders across the
+    // WHOLE window instead of leaving them clustered in the most recent week.
+    private const int RecurringStartDay = MinSentinelAgeDays;
+    private const int RecurringCadenceDays = 7;
+    private const int RecurringOrderQuantityEggs = 12;
+
+    private async Task SeedSalesAsync(Guid accountId, DateOnly today, SimulationOptions sim, CancellationToken ct)
     {
         var grades = await LoadSaleableGradesAsync(ct);
         var products = await SeedProductCatalogAsync(accountId, grades, ct);
@@ -447,6 +479,29 @@ public sealed class SimulationDataSeeder(
         var partialOrderId = await EnsureConfirmedOrderAsync(
             accountId, customer3, today.AddDays(-2), largeProductId, ConfirmedOrderQuantityEggs, ct);
         await EnsurePartialPaymentAsync(accountId, partialOrderId, today.AddDays(-1), ct);
+
+        await SeedRecurringOrdersAsync(accountId, today, customerIds, largeProductId, sim, ct);
+    }
+
+    // Spreads a modest, deterministic drip of additional confirmed orders
+    // across the full history window — see RecurringStartDay/RecurringCadenceDays
+    // above. Always the Large product: keeps it inside the same FIFO
+    // shared-old-lot-pool shape ConfirmedOrderQuantityEggs already documents,
+    // and every date here is <= EffectiveHistoryDays, so production history
+    // (seeded before sales) always has a lot on or before that date to
+    // allocate from.
+    private async Task SeedRecurringOrdersAsync(
+        Guid accountId, DateOnly today, IReadOnlyList<Guid> customerIds, Guid largeProductId,
+        SimulationOptions sim, CancellationToken ct)
+    {
+        var historyDays = EffectiveHistoryDays(sim);
+        var i = 0;
+        for (var d = RecurringStartDay; d <= historyDays; d += RecurringCadenceDays, i++)
+        {
+            var customerId = customerIds[i % customerIds.Count];
+            await EnsureConfirmedOrderAsync(
+                accountId, customerId, today.AddDays(-d), largeProductId, RecurringOrderQuantityEggs, ct);
+        }
     }
 
     private async Task<IReadOnlyDictionary<string, Guid>> SeedProductCatalogAsync(
@@ -627,7 +682,7 @@ public sealed class SimulationDataSeeder(
 
         await SeedFeedUsageAsync(accountId, today, flockIds, feedItemId, ct);
         await SeedWaterUsageAsync(accountId, today, flockIds, ct);
-        await SeedExpensesAsync(accountId, today, flockIds, ct);
+        await SeedExpensesAsync(accountId, today, flockIds, sim, ct);
     }
 
     private async Task<IReadOnlyDictionary<string, Guid>> SeedInventoryItemsAsync(Guid accountId, CancellationToken ct)
@@ -723,8 +778,13 @@ public sealed class SimulationDataSeeder(
 
     private static readonly string[] ExpenseCategoriesWanted = ["Sim Utilities", "Sim Repairs & Maintenance"];
 
+    // Deterministic recurring expense amount — see RecurringStartDay/
+    // RecurringCadenceDays above for why this exists (same thin-tail problem
+    // as sales, same fix).
+    private const long RecurringExpenseAmountMinorUnits = 4_000;
+
     private async Task SeedExpensesAsync(
-        Guid accountId, DateOnly today, IReadOnlyList<Guid> flockIds, CancellationToken ct)
+        Guid accountId, DateOnly today, IReadOnlyList<Guid> flockIds, SimulationOptions sim, CancellationToken ct)
     {
         var categoryIds = await SeedExpenseCategoriesAsync(accountId, ct);
 
@@ -741,6 +801,30 @@ public sealed class SimulationDataSeeder(
         foreach (var (category, daysAgo, description, amount, flockId) in wanted)
             await EnsureExpenseAsync(
                 accountId, categoryIds[category], today.AddDays(-daysAgo), description, amount, flockId, ct);
+
+        await SeedRecurringExpensesAsync(accountId, today, flockIds, categoryIds, sim, ct);
+    }
+
+    // Spreads a modest, deterministic drip of additional expenses across the
+    // full history window — mirrors SeedRecurringOrdersAsync. Category and
+    // flock attribution alternate so both categories and both flock-attributed
+    // / farm-wide expenses keep growing as HistoryDays grows, not just the
+    // count.
+    private async Task SeedRecurringExpensesAsync(
+        Guid accountId, DateOnly today, IReadOnlyList<Guid> flockIds,
+        IReadOnlyDictionary<string, Guid> categoryIds, SimulationOptions sim, CancellationToken ct)
+    {
+        var historyDays = EffectiveHistoryDays(sim);
+        var i = 0;
+        for (var d = RecurringStartDay; d <= historyDays; d += RecurringCadenceDays, i++)
+        {
+            var category = i % 2 == 0 ? "Sim Utilities" : "Sim Repairs & Maintenance";
+            var flockId = i % 2 == 0 ? (Guid?)null : flockIds[i % flockIds.Count];
+            var description = $"Sim Recurring Expense Day {d}";
+            await EnsureExpenseAsync(
+                accountId, categoryIds[category], today.AddDays(-d), description,
+                RecurringExpenseAmountMinorUnits, flockId, ct);
+        }
     }
 
     private async Task<IReadOnlyDictionary<string, Guid>> SeedExpenseCategoriesAsync(
