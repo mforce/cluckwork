@@ -9,7 +9,15 @@ using Cluckwork.Application.Features.DailyEntries;
 using Cluckwork.Application.Features.DailyEntries.RecordDailyEntry;
 using Cluckwork.Application.Features.DailyEntries.SubmitDailyEntry;
 using Cluckwork.Application.Features.EggGrades;
+using Cluckwork.Application.Features.Expenses.CreateExpense;
+using Cluckwork.Application.Features.Expenses.CreateExpenseCategory;
 using Cluckwork.Application.Features.Flocks.CreateFlock;
+using Cluckwork.Application.Features.Inventory;
+using Cluckwork.Application.Features.Inventory.CreateInventoryItem;
+using Cluckwork.Application.Features.Inventory.RecordAdjustment;
+using Cluckwork.Application.Features.Inventory.RecordFeedUsage;
+using Cluckwork.Application.Features.Inventory.RecordPurchase;
+using Cluckwork.Application.Features.Inventory.RecordWaterUsage;
 using Cluckwork.Application.Features.Sales.AddOrderItem;
 using Cluckwork.Application.Features.Sales.ConfirmSale;
 using Cluckwork.Application.Features.Sales.CreateSalesOrder;
@@ -19,6 +27,7 @@ using Cluckwork.Application.Features.Users.AssignFlock;
 using Cluckwork.Application.Features.Users.CreateUser;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Common;
+using Cluckwork.Domain.Inventory;
 using Cluckwork.Domain.Sales;
 using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Jobs;
@@ -63,6 +72,14 @@ public sealed class SimulationDataSeeder(
     AddOrderItemHandler addOrderItem,
     ConfirmSaleHandler confirmSale,
     RecordPaymentHandler recordPayment,
+    IInventoryItemRepository inventoryItems,
+    CreateInventoryItemHandler createInventoryItem,
+    RecordPurchaseHandler recordPurchase,
+    RecordAdjustmentHandler recordAdjustment,
+    RecordFeedUsageHandler recordFeedUsage,
+    RecordWaterUsageHandler recordWaterUsage,
+    CreateExpenseCategoryHandler createExpenseCategory,
+    CreateExpenseHandler createExpense,
     DailyEntryLockSweep lockSweep,
     IClock clock,
     IOptions<SeedOptions> seedOptions,
@@ -76,6 +93,12 @@ public sealed class SimulationDataSeeder(
     // calendar day behind this seeder's UTC anchor — always guaranteed
     // regardless of how short Simulation:HistoryDays is configured.
     private const int MinSentinelAgeDays = DailyEntryLockSweep.LockAfterDays + 2;
+
+    // Shared by production history and the inventory opening purchase below
+    // (#243 Task 3c) — both need "how many days of history actually exist"
+    // to anchor dates safely before it, regardless of how short
+    // Simulation:HistoryDays is configured for a test.
+    private static int EffectiveHistoryDays(SimulationOptions sim) => Math.Max(sim.HistoryDays, MinSentinelAgeDays);
 
     // The most recent couple of seeded days per flock stay Draft so both
     // lifecycle states exist in the seed; everything older is submitted.
@@ -129,6 +152,9 @@ public sealed class SimulationDataSeeder(
         // — production history below must see the account's real timezone.
         await SeedPrimaryTimeZoneAsync(sim, ct);
         await SeedProductionHistoryAsync(accountId, today, flockIds, sim, ct);
+        // Inventory before feed usage: feed usage draws down a feed lot, so
+        // the item + opening purchase must exist first (#243 Task 3c).
+        await SeedInventoryOperationsAsync(accountId, today, flockIds, sim, ct);
         await SeedSalesAsync(accountId, today, ct);
         await SeedSecondAccountAsync(ct);
 
@@ -286,7 +312,7 @@ public sealed class SimulationDataSeeder(
         CancellationToken ct)
     {
         var grades = await LoadSaleableGradesAsync(ct);
-        var historyDays = Math.Max(sim.HistoryDays, MinSentinelAgeDays);
+        var historyDays = EffectiveHistoryDays(sim);
 
         for (var i = 0; i < flockIds.Count; i++)
             await SeedFlockHistoryAsync(accountId, flockIds[i], baseline: 320 + i * 60, today, historyDays, grades, ct);
@@ -537,6 +563,221 @@ public sealed class SimulationDataSeeder(
         Require(result, $"record partial payment for sales order {orderId}");
     }
 
+    // --- Inventory: items, opening purchases, adjustments, feed/water usage,
+    // expenses (#243 Task 3c) --------------------------------------------
+    //
+    // Same real-handler-reuse discipline as sales above (CreateInventoryItem/
+    // RecordPurchase/RecordAdjustment/RecordFeedUsage/RecordWaterUsage/
+    // CreateExpenseCategory/CreateExpense) so reports/exports built against
+    // this data see the same shapes a user clicking through Inventory/
+    // Expenses would produce. Idempotency: items/categories by Name
+    // (EnsureFlockAsync-style); the opening purchase by "does the item
+    // already have a lot" (HasLotsAsync — this seeder only ever creates ONE
+    // opening lot per item); the adjustment by "does the lot already carry a
+    // correction movement"; usage/expense rows by the (flock/item, date) or
+    // Description natural key this seeder controls, same convention as
+    // SeedFlockHistoryAsync's natural-key skip and FindOrderAsync above.
+
+    private static readonly (string Name, string Category, string Unit, long DefaultUnitCostMinorUnits)[]
+        InventoryItemsWanted =
+        [
+            ("Sim Layer Feed", "Feed", "kg", 42),
+            ("Sim Pine Shavings", "Bedding", "bags", 850),
+        ];
+
+    private const decimal FeedOpeningPurchaseQuantity = 3000m; // kg
+    private const decimal BeddingOpeningPurchaseQuantity = 120m; // bags
+    private const decimal FeedDiscardQuantity = -15m; // kg — spoilage write-off
+    private const decimal BeddingAdjustmentQuantity = -6m; // bags — recount shrinkage
+
+    // Modest relative to the opening purchase (net of the discard above) —
+    // total feed usage across every flock/day stays far inside what's on
+    // hand, so the seed never fails closed on insufficient stock regardless
+    // of how many flocks are configured.
+    private const decimal FeedUsagePerFlockPerDay = 18m; // kg
+    private const int FeedUsageDays = 4;
+
+    private const decimal WaterUsagePerFlockPerDay = 250m; // L
+    private const int WaterUsageDays = 4;
+
+    private async Task SeedInventoryOperationsAsync(
+        Guid accountId, DateOnly today, IReadOnlyList<Guid> flockIds, SimulationOptions sim, CancellationToken ct)
+    {
+        // Received well before any usage date so FIFO always finds it on-hand
+        // as-of any usage day — same "older than everything it must cover"
+        // shape as the flock placement dates in SeedFlockTopologyAsync.
+        var openingDate = today.AddDays(-(EffectiveHistoryDays(sim) + 5));
+
+        var itemIds = await SeedInventoryItemsAsync(accountId, ct);
+        var feedItemId = itemIds["Sim Layer Feed"];
+        var beddingItemId = itemIds["Sim Pine Shavings"];
+
+        var feedLotId = await EnsureOpeningPurchaseAsync(
+            accountId, feedItemId, openingDate, FeedOpeningPurchaseQuantity, ct);
+        var beddingLotId = await EnsureOpeningPurchaseAsync(
+            accountId, beddingItemId, openingDate, BeddingOpeningPurchaseQuantity, ct);
+
+        var adjustmentDate = openingDate.AddDays(2);
+        await EnsureAdjustmentAsync(
+            accountId, feedItemId, feedLotId, adjustmentDate, "Discard",
+            FeedDiscardQuantity, "Simulation fixture: torn bag spoiled in storage", ct);
+        await EnsureAdjustmentAsync(
+            accountId, beddingItemId, beddingLotId, adjustmentDate, "Adjustment",
+            BeddingAdjustmentQuantity, "Simulation fixture: recount shrinkage", ct);
+
+        await SeedFeedUsageAsync(accountId, today, flockIds, feedItemId, ct);
+        await SeedWaterUsageAsync(accountId, today, flockIds, ct);
+        await SeedExpensesAsync(accountId, today, flockIds, ct);
+    }
+
+    private async Task<IReadOnlyDictionary<string, Guid>> SeedInventoryItemsAsync(Guid accountId, CancellationToken ct)
+    {
+        var itemIds = new Dictionary<string, Guid>();
+        foreach (var (name, category, unit, cost) in InventoryItemsWanted)
+            itemIds[name] = await EnsureInventoryItemAsync(accountId, name, category, unit, cost, ct);
+        return itemIds;
+    }
+
+    private async Task<Guid> EnsureInventoryItemAsync(
+        Guid accountId, string name, string category, string unit, long defaultUnitCostMinorUnits,
+        CancellationToken ct)
+    {
+        var existing = await db.InventoryItems.FirstOrDefaultAsync(i => i.Name == name, ct);
+        if (existing is not null) return existing.Id;
+
+        var result = await createInventoryItem.HandleAsync(
+            new CreateInventoryItemCommand(name, category, unit, defaultUnitCostMinorUnits), accountId, ct);
+        Require(result, $"create inventory item {name}");
+        return result.Value;
+    }
+
+    private async Task<Guid> EnsureOpeningPurchaseAsync(
+        Guid accountId, Guid itemId, DateOnly receivedDate, decimal quantity, CancellationToken ct)
+    {
+        // HasLotsAsync doubles as the idempotency probe: this seeder only
+        // ever creates ONE opening lot per item, so "any lot exists" is
+        // equivalent to "the opening purchase already ran".
+        if (await inventoryItems.HasLotsAsync(itemId, ct))
+            return (await db.InventoryLots.FirstAsync(l => l.InventoryItemId == itemId, ct)).Id;
+
+        // UnitCostMinorUnits omitted: falls back to the item's default cost
+        // set above.
+        var result = await recordPurchase.HandleAsync(new RecordPurchaseCommand(
+            itemId, receivedDate, quantity, UnitCostMinorUnits: null, LotNumber: "SIM-OPEN-1",
+            ExpiryDate: null, Note: "Simulation fixture opening stock"), accountId, ct);
+        Require(result, $"record opening purchase for inventory item {itemId}");
+        return result.Value;
+    }
+
+    private async Task EnsureAdjustmentAsync(
+        Guid accountId, Guid itemId, Guid lotId, DateOnly date, string type, decimal quantityDelta, string reason,
+        CancellationToken ct)
+    {
+        var hasAdjustment = await db.InventoryMovements.AnyAsync(
+            m => m.InventoryLotId == lotId
+                 && (m.Type == InventoryMovementType.Adjustment || m.Type == InventoryMovementType.Discard), ct);
+        if (hasAdjustment) return;
+
+        var result = await recordAdjustment.HandleAsync(new RecordAdjustmentCommand(
+            itemId, lotId, date, type, quantityDelta, reason), accountId, ct);
+        Require(result, $"record inventory adjustment for lot {lotId}");
+    }
+
+    private async Task SeedFeedUsageAsync(
+        Guid accountId, DateOnly today, IReadOnlyList<Guid> flockIds, Guid feedItemId, CancellationToken ct)
+    {
+        foreach (var flockId in flockIds)
+            for (var d = 1; d <= FeedUsageDays; d++)
+            {
+                // Day 1+ past, matching the daily-entry-history convention
+                // above (day-of-anchor could spuriously read as "future"
+                // against the farm's own, timezone-skewed today).
+                var date = today.AddDays(-d);
+                var exists = await db.FeedUsages.AnyAsync(
+                    u => u.FlockId == flockId && u.InventoryItemId == feedItemId && u.Date == date, ct);
+                if (exists) continue;
+
+                var result = await recordFeedUsage.HandleAsync(new RecordFeedUsageCommand(
+                    flockId, feedItemId, date, FeedUsagePerFlockPerDay,
+                    "Simulation fixture daily feeding"), accountId, ct);
+                Require(result, $"record feed usage for flock {flockId} on {date:yyyy-MM-dd}");
+            }
+    }
+
+    private async Task SeedWaterUsageAsync(
+        Guid accountId, DateOnly today, IReadOnlyList<Guid> flockIds, CancellationToken ct)
+    {
+        foreach (var flockId in flockIds)
+            for (var d = 1; d <= WaterUsageDays; d++)
+            {
+                var date = today.AddDays(-d);
+                var exists = await db.WaterUsages.AnyAsync(u => u.FlockId == flockId && u.Date == date, ct);
+                if (exists) continue;
+
+                var result = await recordWaterUsage.HandleAsync(new RecordWaterUsageCommand(
+                    flockId, date, WaterUsagePerFlockPerDay, Unit: "L", Source: "Well",
+                    MeterStart: null, MeterEnd: null, Note: "Simulation fixture daily water"), accountId, ct);
+                Require(result, $"record water usage for flock {flockId} on {date:yyyy-MM-dd}");
+            }
+    }
+
+    private static readonly string[] ExpenseCategoriesWanted = ["Sim Utilities", "Sim Repairs & Maintenance"];
+
+    private async Task SeedExpensesAsync(
+        Guid accountId, DateOnly today, IReadOnlyList<Guid> flockIds, CancellationToken ct)
+    {
+        var categoryIds = await SeedExpenseCategoriesAsync(accountId, ct);
+
+        // flockIds[1] is safe here: RestrictOneWorkerAsync already throws if
+        // fewer than 2 flocks exist, and it runs before this step.
+        (string Category, int DaysAgo, string Description, long AmountMinorUnits, Guid? FlockId)[] wanted =
+        [
+            ("Sim Utilities", 7, "Sim Electricity Bill", 15_000, null),
+            ("Sim Utilities", 3, "Sim Water Utility Bill", 8_000, null),
+            ("Sim Repairs & Maintenance", 5, "Sim Coop Roof Repair", 42_000, flockIds[0]),
+            ("Sim Repairs & Maintenance", 2, "Sim Feeder Replacement Part", 6_500, flockIds[1]),
+        ];
+
+        foreach (var (category, daysAgo, description, amount, flockId) in wanted)
+            await EnsureExpenseAsync(
+                accountId, categoryIds[category], today.AddDays(-daysAgo), description, amount, flockId, ct);
+    }
+
+    private async Task<IReadOnlyDictionary<string, Guid>> SeedExpenseCategoriesAsync(
+        Guid accountId, CancellationToken ct)
+    {
+        var categoryIds = new Dictionary<string, Guid>();
+        foreach (var name in ExpenseCategoriesWanted)
+            categoryIds[name] = await EnsureExpenseCategoryAsync(accountId, name, ct);
+        return categoryIds;
+    }
+
+    private async Task<Guid> EnsureExpenseCategoryAsync(Guid accountId, string name, CancellationToken ct)
+    {
+        var existing = await db.ExpenseCategories.FirstOrDefaultAsync(c => c.Name == name, ct);
+        if (existing is not null) return existing.Id;
+
+        var result = await createExpenseCategory.HandleAsync(new CreateExpenseCategoryCommand(name), accountId, ct);
+        Require(result, $"create expense category {name}");
+        return result.Value;
+    }
+
+    private async Task EnsureExpenseAsync(
+        Guid accountId, Guid categoryId, DateOnly date, string description, long amountMinorUnits, Guid? flockId,
+        CancellationToken ct)
+    {
+        // Description is the natural key THIS seeder controls (every entry
+        // above is a distinct fixture string) — same convention as
+        // FindOrderAsync's (CustomerId, OrderDate) above.
+        var exists = await db.Expenses.AnyAsync(e => e.Description == description, ct);
+        if (exists) return;
+
+        var result = await createExpense.HandleAsync(new CreateExpenseCommand(
+            categoryId, date, description, amountMinorUnits, flockId,
+            Note: "Simulation fixture expense"), accountId, ct);
+        Require(result, $"create expense {description}");
+    }
+
     // --- Second, pristine account (tenant-isolation fixture) -----------
 
     private async Task SeedSecondAccountAsync(CancellationToken ct)
@@ -566,5 +807,8 @@ public sealed class SimulationDataSeeder(
         Require(result.IsSuccess ? Result.Success() : Result.Failure(result.Error), what);
 
     private static void Require(Result<ConfirmSaleResponse> result, string what) =>
+        Require(result.IsSuccess ? Result.Success() : Result.Failure(result.Error), what);
+
+    private static void Require(Result<RecordFeedUsageResponse> result, string what) =>
         Require(result.IsSuccess ? Result.Success() : Result.Failure(result.Error), what);
 }

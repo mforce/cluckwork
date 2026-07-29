@@ -3,6 +3,7 @@ namespace Cluckwork.Api.IntegrationTests;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Eggs;
+using Cluckwork.Domain.Inventory;
 using Cluckwork.Domain.Sales;
 using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;
@@ -368,5 +369,169 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
         Assert.DoesNotContain(products.GroupBy(p => p.Name), g => g.Count() > 1);
         Assert.DoesNotContain(customers.GroupBy(c => c.Name), g => g.Count() > 1);
         Assert.DoesNotContain(orders.GroupBy(o => (o.CustomerId, o.OrderDate)), g => g.Count() > 1);
+    }
+
+    // #243 Task 3c: inventory items + an opening purchase (lot) + at least
+    // one adjustment/discard per item, feed/water usage across past days,
+    // and expense categories + expenses — seeded on top of the flock
+    // topology and production history above.
+
+    // SimulationDataSeeder's own private constants — duplicated here rather
+    // than exposed, same convention ExpectedManagers/ExpectedWorkers above
+    // already use for the cast counts.
+    private static readonly string[] ExpectedInventoryItemNames = ["Sim Layer Feed", "Sim Pine Shavings"];
+    private const int ExpectedFeedUsageDays = 4;
+    private const int ExpectedWaterUsageDays = 4;
+    private static readonly string[] ExpectedExpenseCategoryNames = ["Sim Utilities", "Sim Repairs & Maintenance"];
+    private static readonly string[] ExpectedExpenseDescriptions =
+    [
+        "Sim Electricity Bill", "Sim Water Utility Bill", "Sim Coop Roof Repair", "Sim Feeder Replacement Part",
+    ];
+
+    [Fact]
+    public async Task SimulationSeed_SeedsInventoryItemsWithAnOpeningPurchaseAndAnAdjustment()
+    {
+        using var client = factory.CreateClient(); // forces host init / first startup seed.
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var items = await db.InventoryItems.IgnoreQueryFilters()
+            .Where(i => i.AccountId == SeedDefaults.AccountId)
+            .ToListAsync();
+        foreach (var name in ExpectedInventoryItemNames)
+            Assert.Contains(items, i => i.Name == name);
+
+        foreach (var item in items.Where(i => ExpectedInventoryItemNames.Contains(i.Name)))
+        {
+            // Exactly one opening lot per item.
+            var lot = Assert.Single(await db.InventoryLots.IgnoreQueryFilters()
+                .Where(l => l.InventoryItemId == item.Id).ToListAsync());
+            Assert.True(lot.QuantityReceived > 0);
+            // The adjustment/discard below drew the lot down below what was
+            // received, without exhausting it.
+            Assert.True(lot.QuantityAvailable < lot.QuantityReceived);
+            Assert.True(lot.QuantityAvailable > 0);
+
+            var movements = await db.InventoryMovements.IgnoreQueryFilters()
+                .Where(m => m.InventoryLotId == lot.Id).ToListAsync();
+            Assert.Contains(movements, m => m.Type == InventoryMovementType.Purchase);
+            Assert.Contains(movements,
+                m => m.Type is InventoryMovementType.Adjustment or InventoryMovementType.Discard);
+        }
+    }
+
+    [Fact]
+    public async Task SimulationSeed_SeedsFeedAndWaterUsageAcrossPastDays()
+    {
+        using var client = factory.CreateClient(); // forces host init / first startup seed.
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var flocks = await db.Flocks.IgnoreQueryFilters()
+            .Where(f => f.AccountId == SeedDefaults.AccountId)
+            .ToListAsync();
+        Assert.Equal(2, flocks.Count);
+
+        var feedUsages = await db.FeedUsages.IgnoreQueryFilters()
+            .Where(u => u.AccountId == SeedDefaults.AccountId)
+            .ToListAsync();
+        Assert.Equal(flocks.Count * ExpectedFeedUsageDays, feedUsages.Count);
+        Assert.All(flocks, f => Assert.Contains(feedUsages, u => u.FlockId == f.Id));
+        Assert.All(feedUsages, u => Assert.True(u.Quantity > 0));
+        // Lot-cost costing (spec §12.4) — every seeded usage row priced.
+        Assert.All(feedUsages, u => Assert.True(u.EstimatedCost.MinorUnits > 0));
+
+        var waterUsages = await db.WaterUsages.IgnoreQueryFilters()
+            .Where(u => u.AccountId == SeedDefaults.AccountId)
+            .ToListAsync();
+        Assert.Equal(flocks.Count * ExpectedWaterUsageDays, waterUsages.Count);
+        Assert.All(flocks, f => Assert.Contains(waterUsages, u => u.FlockId == f.Id));
+        Assert.All(waterUsages, u => Assert.True(u.Quantity > 0));
+    }
+
+    [Fact]
+    public async Task SimulationSeed_SeedsExpenseCategoriesAndExpenses()
+    {
+        using var client = factory.CreateClient(); // forces host init / first startup seed.
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var categories = await db.ExpenseCategories.IgnoreQueryFilters()
+            .Where(c => c.AccountId == SeedDefaults.AccountId)
+            .ToListAsync();
+        foreach (var name in ExpectedExpenseCategoryNames)
+            Assert.Contains(categories, c => c.Name == name);
+
+        var expenses = await db.Expenses.IgnoreQueryFilters()
+            .Where(e => e.AccountId == SeedDefaults.AccountId)
+            .ToListAsync();
+        foreach (var description in ExpectedExpenseDescriptions)
+            Assert.Contains(expenses, e => e.Description == description);
+        Assert.All(expenses, e => Assert.True(e.AmountMinorUnits > 0));
+        // At least one expense is allocated to a flock (admin-tier data
+        // covers both farm-wide and flock-attributed expenses).
+        Assert.Contains(expenses, e => e.FlockId is not null);
+    }
+
+    [Fact]
+    public async Task SimulationSeed_InventoryFeedWaterExpenses_IsIdempotent_NoDuplicatesAfterTwoHostStarts()
+    {
+        using var firstClient = factory.CreateClient(); // first startup (may already be built).
+        using (var secondHost = factory.WithWebHostBuilder(_ => { }))
+        using (var secondClient = secondHost.CreateClient()) // second full Program.cs run, same DB.
+        {
+            // Nothing to do with the client — creating it is what forces the
+            // second host (and its startup seed) to build.
+        }
+
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var flocks = await db.Flocks.IgnoreQueryFilters()
+            .Where(f => f.AccountId == SeedDefaults.AccountId)
+            .ToListAsync();
+
+        var items = await db.InventoryItems.IgnoreQueryFilters()
+            .Where(i => i.AccountId == SeedDefaults.AccountId)
+            .ToListAsync();
+        Assert.Equal(2, items.Count);
+        Assert.DoesNotContain(items.GroupBy(i => i.Name), g => g.Count() > 1);
+
+        var lots = await db.InventoryLots.IgnoreQueryFilters()
+            .Where(l => l.AccountId == SeedDefaults.AccountId)
+            .ToListAsync();
+        // Exactly one opening lot per item — a second pass must not mint a
+        // second purchase.
+        Assert.Equal(2, lots.Count);
+
+        var adjustmentMovements = await db.InventoryMovements.IgnoreQueryFilters()
+            .Where(m => m.AccountId == SeedDefaults.AccountId
+                        && (m.Type == InventoryMovementType.Adjustment || m.Type == InventoryMovementType.Discard))
+            .ToListAsync();
+        Assert.Equal(2, adjustmentMovements.Count);
+
+        var feedUsages = await db.FeedUsages.IgnoreQueryFilters()
+            .Where(u => u.AccountId == SeedDefaults.AccountId)
+            .ToListAsync();
+        Assert.Equal(flocks.Count * ExpectedFeedUsageDays, feedUsages.Count);
+        Assert.DoesNotContain(feedUsages.GroupBy(u => (u.FlockId, u.InventoryItemId, u.Date)), g => g.Count() > 1);
+
+        var waterUsages = await db.WaterUsages.IgnoreQueryFilters()
+            .Where(u => u.AccountId == SeedDefaults.AccountId)
+            .ToListAsync();
+        Assert.Equal(flocks.Count * ExpectedWaterUsageDays, waterUsages.Count);
+        Assert.DoesNotContain(waterUsages.GroupBy(u => (u.FlockId, u.Date)), g => g.Count() > 1);
+
+        var categories = await db.ExpenseCategories.IgnoreQueryFilters()
+            .Where(c => c.AccountId == SeedDefaults.AccountId)
+            .ToListAsync();
+        Assert.Equal(2, categories.Count);
+        Assert.DoesNotContain(categories.GroupBy(c => c.Name), g => g.Count() > 1);
+
+        var expenses = await db.Expenses.IgnoreQueryFilters()
+            .Where(e => e.AccountId == SeedDefaults.AccountId)
+            .ToListAsync();
+        Assert.Equal(4, expenses.Count);
+        Assert.DoesNotContain(expenses.GroupBy(e => e.Description), g => g.Count() > 1);
     }
 }
