@@ -6,15 +6,18 @@ app + Postgres running under its own docker compose project
 deterministic fixture (a role-weighted user pool, a minimal flock topology,
 90 days of production history, and sales/inventory/expense lifecycle data).
 This directory owns the compose overlay, the secret bootstrap, the
-reset/verify script, the k6 load-test scripts, and monitoring (a local OTLP
+reset/verify script, the k6 load-test scripts, monitoring (a local OTLP
 metrics sink + `docker stats`/Postgres snapshotters — see "Monitoring"
-below). The orchestrator lands in a later #243 task.
+below), and the multi-rep baseline orchestrator (`run-baseline.sh` — see
+"Baseline orchestrator" below) that produces an honest findings doc under
+`tools/simulation/findings/`.
 
 ## Quickstart
 
 ```bash
 bash tools/simulation/bootstrap.sh   # generate .env.sim + .sim-cast.json (idempotent)
 bash tools/simulation/reset.sh       # wipe + rebuild + seed + verify the sim stack
+bash tools/simulation/run-baseline.sh   # N reps of the k6 baseline -> findings doc
 ```
 
 `reset.sh` leaves the app reachable at `http://127.0.0.1:8081/`. Log in with
@@ -207,6 +210,72 @@ file at all, and both `monitor/*.sh` scripts write to
 as the host user (already covered by the existing `out/` entry in
 `.gitignore`, which matches at any depth under `tools/simulation/`).
 
+## Baseline orchestrator (`run-baseline.sh`, #243 Task 9)
+
+Runs `REPS` (default 3) independent reps of the k6 baseline against a
+**fresh** `cluckwork-sim` stack each time, with monitoring wrapped around
+every rep, then aggregates across reps and renders an honest findings doc.
+
+```bash
+bash tools/simulation/run-baseline.sh
+```
+
+Per rep: `reset.sh` (fresh stack + seed) → start `docker-stats-sampler.sh`
+in the background + `pg-snapshot.sh start` → `k6 run baseline.js` (own
+`RUN_ID`/`REP`/`SUMMARY_OUT`) → `pg-snapshot.sh end` + stop the sampler →
+collect everything into `tools/simulation/monitor/out/<run-id>/rep-<n>/`
+(`summary.json`, `manifest.json`, `docker-stats.csv`,
+`pg-snapshot-{start,end}-*.txt`, `k6.log`, `meta.json`). After all reps: an
+`aggregate.json` lands next to the rep dirs, and a findings doc renders from
+`tools/simulation/findings/TEMPLATE.md` to
+`tools/simulation/findings/<run-id>-findings.md`.
+
+**Dev (default) vs. real (#243 Task 10) params:** this script does not
+redeclare or override any `WARMUP_*`/`CAPACITY_*`/`BASE_URL` default — those
+belong to `k6/baseline.js` alone (20s warmup + 2m capacity by default), and
+are simply inherited by the k6 subprocess like any other exported env var,
+so there is exactly one place that owns them:
+
+```bash
+# Fast dev/verification cycle (short durations):
+REPS=2 WARMUP_DURATION=10s CAPACITY_DURATION=25s bash tools/simulation/run-baseline.sh
+
+# Real #243 Task 10 run (capacity duration >= 2x the 15-min access-token
+# life, so the refresh path is actually exercised under load):
+REPS=3 CAPACITY_DURATION=40m bash tools/simulation/run-baseline.sh
+```
+
+Other env vars the orchestrator itself reads directly: `RUN_ID` (default
+`run-<UTC timestamp>`), `SAMPLER_INTERVAL` (`docker-stats-sampler.sh`
+`--interval`, default 2s), `PG_TOP_N` (`pg-snapshot.sh end --top`, default
+20).
+
+**#243 Task 9 MUST-FIX — all 10 cast users / all 5 personas in capacity:**
+`baseline.js` now defaults `CAPACITY_VUS=10` (the full cast: 1 Owner / 1
+Manager / 1 Sales / 3 Worker / 4 ReadOnly), made collision-free by an
+**inter-phase drain gap** — `capacity.startTime` is pushed past warmup's
+entire window (duration + `gracefulStop` + a buffer), which was empirically
+confirmed (live, repeated probes against this k6 version) to make k6 reuse
+one VU pool sized to `max(WARMUP_VUS, CAPACITY_VUS)` instead of needing
+extra concurrent slots that could hand capacity two VU ids aliased to the
+same cast user. See `k6/baseline.js`'s file header for the full mechanics.
+`run-baseline.sh` verifies this on every run: it parses each rep's
+`summary.json` `capacity.byPersona` and reports (both on stdout and in the
+findings doc's "Persona coverage" section) whether all 5 roles produced
+capacity-phase requests — a missing persona in any rep exits non-zero and is
+flagged prominently, never silently dropped.
+
+**Honesty rules baked into the findings doc:** ±10% p95 variance across reps
+is reported as an **observation**, never a pass/fail gate — this box is a
+noisy, co-located, uncapped shared machine. A rep with `unexpected_status >
+0` or `checks < 100%` is flagged but its data is always published, never
+silently dropped. The doc states plainly, at the top, that this is an
+**uncapped, co-located, non-sizing shakeout**, carries forward the **full
+deviation list**, and has a prominent **"Could NOT measure"** section
+(absolute prod throughput/latency, #269 DB-retry need, pool sizing vs prod,
+#273 telemetry volume) — it never presents a liftable absolute
+throughput/latency figure as production capacity.
+
 ## Files
 
 - `bootstrap.sh` — idempotent secret generator. `--force` regenerates the RSA
@@ -228,12 +297,19 @@ as the host user (already covered by the existing `out/` entry in
   "Monitoring").
 - `monitor/docker-stats-sampler.sh`, `monitor/pg-snapshot.sh` — the
   container-resource and Postgres snapshotters (see "Monitoring").
-- `.gitignore` — `.env.sim`, `.sim-cast.json`, `out/`, `*.pem` never get
-  committed (also mirrored in the root `.dockerignore` so they can never
-  enter the Docker build context either — the Dockerfile's build context is
-  the whole repo root). `out/` matches at any depth, so
-  `monitor/out/` (the monitoring scripts' own output directory) is covered
-  too.
+- `run-baseline.sh` — the multi-rep baseline orchestrator (see "Baseline
+  orchestrator" above).
+- `findings/TEMPLATE.md` — the checked-in findings-doc template
+  `run-baseline.sh` renders every run's data into. Generated docs land at
+  `findings/<run-id>-findings.md` — git-ignored (see `.gitignore` below);
+  only the template itself is tracked.
+- `.gitignore` — `.env.sim`, `.sim-cast.json`, `out/`, `*.pem`, and
+  generated findings docs (`findings/*.md`, except `findings/TEMPLATE.md`)
+  never get committed (the secrets/output half is also mirrored in the root
+  `.dockerignore` so they can never enter the Docker build context either —
+  the Dockerfile's build context is the whole repo root). `out/` matches at
+  any depth, so `monitor/out/` (the monitoring scripts' own output
+  directory, including every `run-baseline.sh` run) is covered too.
 
 ## Verifying without a full bring-up
 

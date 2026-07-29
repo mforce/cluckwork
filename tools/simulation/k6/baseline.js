@@ -4,9 +4,10 @@
 // WHY two k6 `scenarios` (not just a tag on one flat run): k6's built-in
 // aggregates (http_req_duration, checks, the end-of-run summary) fold in
 // EVERY sample regardless of tags — tagging warmup alone does not remove it
-// from the reported percentiles. Two scenarios, `capacity.startTime` set to
-// exactly `warmup`'s duration, gives a genuinely non-overlapping run (proven
-// below); a `tags: {phase: 'warmup'|'capacity'}` on EACH scenario (not on
+// from the reported percentiles. Two scenarios, `capacity.startTime` pushed
+// past `warmup`'s entire window (duration + gracefulStop + a buffer — see
+// "WHY THE DRAIN GAP IS THE FIX" below), gives a genuinely non-overlapping
+// run (proven below); a `tags: {phase: 'warmup'|'capacity'}` on EACH scenario (not on
 // individual requests) then labels every metric sample k6 produces during
 // that scenario — http_req_duration, checks, http_req_failed, http_reqs, and
 // even our own bundles.js `unexpected_status` Counter — with that phase,
@@ -18,43 +19,62 @@
 // persona:X}/{phase:capacity,flow:X} breakdowns below get built without
 // touching bundles.js's own {persona,flow,endpoint} tagging at all.
 //
-// EACH-VU-OWN-USER, why capacity defaults to 8 VUs (not the full 10-user
-// cast) when warmup defaults to 2: k6 numbers VUs uniquely for the WHOLE
-// test, not contiguously per scenario — confirmed live (two scenarios of
-// 3+3 VUs handed out ids like warmup={1,2,6}/capacity={3,4,5} in one run and
-// warmup={1,2,4}/capacity={3,5,6} in another; same script, different result
-// each run). `assignUser` (auth.js) maps a VU id to a cast user via
-// `(vuId-1) % castSize` — that's a bijection with ZERO collision risk ONLY
-// while every id k6 could ever hand out across the WHOLE test stays inside
-// [1, castSize] (10 here): direct-probed live and found a REAL collision
-// otherwise — WARMUP_VUS=2 + CAPACITY_VUS=10 (12 total) put both VU id 1 and
-// VU id 11 in the capacity scenario in one run, and (1-1)%10 == (11-1)%10,
-// i.e. two CONCURRENT capacity VUs assigned to the SAME cast user — exactly
-// the token-family collision the plan forbids. Defaults below
-// (WARMUP_VUS=2, CAPACITY_VUS=8, sum=10=castSize) keep every id k6 can ever
-// hand out inside [1,10], which makes `assignUser` collision-free by
-// construction for BOTH phases, always, regardless of which ids the
-// scheduler happens to give which scenario. If you raise WARMUP_VUS or
-// CAPACITY_VUS past that sum, setup() prints an explicit warning: the
-// script still runs (assignUser cycles deterministically, the plan's own
-// documented fallback: "cycle deterministically with a clear note") but the
-// zero-collision guarantee no longer holds — regenerate a bigger cast via
-// bootstrap.sh (raise Simulation__MaxVus) for a real run that needs more
-// concurrent VUs than the cast has people.
+// #243 TASK 9 MUST-FIX — ALL 10 CAST USERS / ALL 5 PERSONAS IN CAPACITY:
+// Task 7 originally shipped WARMUP_VUS=2 + CAPACITY_VUS=8 (sum=10=cast size)
+// specifically to dodge a VU-id collision (see "WHY THE DRAIN GAP IS THE
+// FIX" below) — but that meant capacity exercised only 8 of the 10 cast
+// users, so a single-instance persona (Owner/Manager/Sales — each exactly 1
+// user) could be ENTIRELY ABSENT from a given capacity run's numbers. #243
+// is a 10-user day: capacity MUST exercise all 10 users / all 5 personas,
+// every run. Fixed here:
+//   - CAPACITY_VUS now defaults to 10 (the full cast, all 5 personas in the
+//     seeded 1/1/1/3/4 ratio), not 8.
+//   - `capacity.startTime` is no longer just `WARMUP_DURATION`. It is pushed
+//     out to `WARMUP_DURATION + warmup's own gracefulStop + a buffer` (see
+//     INTER_PHASE_DRAIN_BUFFER_SECONDS below) — an INTER-PHASE DRAIN GAP
+//     wide enough that every warmup VU, including a gracefulStop straggler,
+//     is provably finished before capacity's first VU starts.
 //
-// PERSONA RATIO: capacity's actual persona mix is READ from whichever cast
-// users land in the capacity scenario (`user.role`, not forced by VU-id
-// arithmetic) — see the note above on why VU-id-to-scenario assignment is
-// scheduler-controlled and not something this script can pin down. With the
-// safe defaults (2 warmup + 8 capacity out of a 10-person cast: 1 Owner/1
-// Manager/1 Sales/3 Worker/4 ReadOnly), capacity gets whichever 8 of the 10
-// cast members warmup didn't borrow — i.e. the full ratio minus up to 2
-// members, not always the exact 1/1/1/2/3 scaled split. This is the
-// documented, deliberate trade: an EXACT forced ratio would need a
-// phase-local VU rank k6 does not expose to scripts, and would only be
-// achievable by giving up the zero-collision guarantee, which is the
-// harder, explicitly-stated safety rule. See the Task 7 report for the live
-// probe that established this.
+// WHY THE DRAIN GAP IS THE FIX (not cosmetic): k6 does not number VUs
+// contiguously per scenario, and — this is the load-bearing fact — it does
+// NOT always simply sum `vus` across scenarios either. Direct-probed live
+// against this k6 version (`k6 v2.0.0`), both with and without a drain gap:
+//   - WITH a drain gap that fully separates warmup's window (duration +
+//     gracefulStop) from capacity's start: k6 REUSES the same underlying VU
+//     pool for both scenarios, sized to `max(WARMUP_VUS, CAPACITY_VUS)`.
+//     With CAPACITY_VUS=10 > WARMUP_VUS=2, capacity consistently received
+//     EXACTLY `__VU` in {1..10} — a complete, collision-free residue system
+//     for `assignUser`'s `(vuId-1) % castSize` mapping, confirmed across
+//     repeated probes (same script, every run).
+//   - WITHOUT a sufficient gap (`capacity.startTime == WARMUP_DURATION`,
+//     with no allowance for warmup's `gracefulStop` straggler window): k6
+//     keeps extra VU slots alive to cover the brief overlap, so the pool
+//     grows past the cast size (ids up to 11, 12 observed live) — and
+//     capacity can then receive BOTH members of an aliased pair (e.g. ids 1
+//     and 11, both ≡0 mod 10), i.e. two CONCURRENT capacity VUs assigned the
+//     SAME cast user — exactly the token-family collision this harness
+//     forbids. This is the exact failure Task 7's original 2+8=10 sizing
+//     was dodging; the drain gap removes the need to dodge it at all by
+//     keeping the two scenarios' VU pools from ever needing to coexist.
+// Because warmup is fully drained before capacity's first login, it is safe
+// for warmup's (whichever, scheduler-assigned) VU ids to alias with cast
+// users capacity will ALSO use later — that's a sequential re-login onto an
+// already-idle session, not a concurrent collision. Warmup therefore does
+// not need, and does not attempt, persona-faithful coverage; it borrows
+// whichever cast members its VU ids happen to hash to, purely to prime the
+// JIT/EF-model/connection pool.
+//
+// Documented fallback (unchanged from Task 7): if you raise CAPACITY_VUS
+// past the cast size, `assignUser` cycles deterministically (modulo cast
+// size) rather than erroring, but the zero-collision guarantee stops
+// holding and setup() prints an explicit warning. Regenerate a bigger cast
+// via bootstrap.sh (raise Simulation__MaxVus) for a real run that needs
+// more concurrent capacity VUs than the cast has people.
+//
+// PERSONA RATIO: with CAPACITY_VUS=10=CAST_SIZE and the drain gap above,
+// capacity deterministically gets all 10 cast members every run — i.e. the
+// full seeded 1/1/1/3/4 (Owner/Manager/Sales/Worker/ReadOnly) ratio, not a
+// scaled-down subset.
 //
 // REAL RUN REQUIREMENT: access tokens live 15 minutes (DEFAULT_REFRESH_SKEW
 // in auth.js proactively refreshes ~60s before expiry). To actually exercise
@@ -100,9 +120,24 @@ const FLOW_ORDER = [
 
 const WARMUP_VUS = Number(__ENV.WARMUP_VUS || 2);
 const WARMUP_DURATION = __ENV.WARMUP_DURATION || '20s';
-const CAPACITY_VUS = Number(__ENV.CAPACITY_VUS || 8);
+// #243 Task 9 MUST-FIX: defaults to the FULL 10-user cast (all 5 personas in
+// the seeded 1/1/1/3/4 ratio), not 8 — see the file header. Safe because of
+// the inter-phase drain gap computed below, not VU-id arithmetic alone.
+const CAPACITY_VUS = Number(__ENV.CAPACITY_VUS || 10);
 const CAPACITY_DURATION = __ENV.CAPACITY_DURATION || '2m';
 const SUMMARY_OUT = __ENV.SUMMARY_OUT || 'tools/simulation/out/summary.json';
+// How long warmup's executor waits for an in-flight iteration to finish
+// after its `duration` elapses before k6 force-stops it. Applied as both
+// the warmup scenario's own `gracefulStop` and (below) as one component of
+// capacity's drain-gap startTime — the two must agree, so it is one
+// constant, not a literal duplicated in two places.
+const WARMUP_GRACEFUL_STOP = __ENV.WARMUP_GRACEFUL_STOP || '5s';
+// Extra safety margin (seconds) added on top of `WARMUP_DURATION +
+// WARMUP_GRACEFUL_STOP` before capacity's startTime — covers real-world
+// jitter (container scheduling, HTTP round-trip variance) beyond the exact
+// boundary that was already sufficient in repeated local probes. See "WHY
+// THE DRAIN GAP IS THE FIX" in the file header.
+const INTER_PHASE_DRAIN_BUFFER_SECONDS = Number(__ENV.INTER_PHASE_DRAIN_BUFFER_SECONDS || 5);
 
 // Access tokens live 15 minutes; a real baseline rep needs >= 2x that so the
 // refresh path is actually exercised under load. See the file header.
@@ -128,6 +163,19 @@ function parseDurationSeconds(str) {
 }
 
 const CAPACITY_DURATION_SECONDS = parseDurationSeconds(CAPACITY_DURATION);
+const WARMUP_DURATION_SECONDS = parseDurationSeconds(WARMUP_DURATION);
+const WARMUP_GRACEFUL_STOP_SECONDS = parseDurationSeconds(WARMUP_GRACEFUL_STOP);
+
+// #243 Task 9 MUST-FIX — the inter-phase drain gap: capacity's startTime
+// pushed past warmup's ENTIRE window (nominal duration + gracefulStop
+// straggler allowance + a buffer), so k6 reuses one VU pool for both
+// scenarios (sized to max(WARMUP_VUS, CAPACITY_VUS) — verified live, see
+// file header) instead of needing extra concurrent slots that would let
+// capacity receive an aliased pair of VU ids. This is what makes
+// CAPACITY_VUS=10=castSize collision-free by construction.
+const CAPACITY_START_SECONDS = WARMUP_DURATION_SECONDS + WARMUP_GRACEFUL_STOP_SECONDS
+  + INTER_PHASE_DRAIN_BUFFER_SECONDS;
+const CAPACITY_START_TIME = `${CAPACITY_START_SECONDS}s`;
 
 // Stagger initial logins across capacity VUs so they don't all hit /login in
 // the same instant capacity starts (a thundering-herd login stampede) — one
@@ -153,19 +201,25 @@ export const options = {
       duration: WARMUP_DURATION,
       tags: { phase: 'warmup' },
       exec: 'warmupFn',
-      gracefulStop: '5s',
+      gracefulStop: WARMUP_GRACEFUL_STOP,
     },
-    // Sequential, not concurrent: startTime == warmup's own duration, so
-    // capacity's first iteration cannot start before warmup's nominal
-    // window has elapsed (a `gracefulStop` straggler from warmup may still
-    // be in flight for a few seconds after — those requests stay tagged
-    // phase:warmup, so they never leak into the phase:capacity numbers
-    // below; see the Task 7 report for the live proof).
+    // Sequential, not concurrent: startTime is warmup's ENTIRE window
+    // (nominal duration + gracefulStop + a buffer — CAPACITY_START_TIME, see
+    // the file header's "WHY THE DRAIN GAP IS THE FIX"), not just
+    // WARMUP_DURATION. This is the #243 Task 9 MUST-FIX: without the
+    // gracefulStop+buffer allowance, a warmup straggler still in flight when
+    // capacity starts forces k6 to keep extra VU-pool slots alive
+    // concurrently, which can hand capacity two VU ids that alias to the
+    // same cast user (a real, confirmed-live collision). With the full
+    // drain gap, warmup is provably 100% finished before capacity's first
+    // VU starts, so k6 reuses one VU pool sized to CAPACITY_VUS and
+    // `assignUser` maps all 10 capacity VUs to all 10 distinct cast users,
+    // every run.
     capacity: {
       executor: 'constant-vus',
       vus: CAPACITY_VUS,
       duration: CAPACITY_DURATION,
-      startTime: WARMUP_DURATION,
+      startTime: CAPACITY_START_TIME,
       tags: { phase: 'capacity' },
       exec: 'capacityFn',
     },
@@ -221,7 +275,6 @@ export function setup() {
   // load with a stale credential or risking the 5-fails/15-min lockout.
   preflightCredentials(ALL_USERS);
 
-  const totalVus = WARMUP_VUS + CAPACITY_VUS;
   if (CAPACITY_VUS > CAST_SIZE) {
     console.warn(
       `baseline: CAPACITY_VUS (${CAPACITY_VUS}) exceeds the cast size ` +
@@ -231,15 +284,21 @@ export function setup() {
         `Regenerate a bigger cast via bootstrap.sh (raise Simulation__MaxVus) ` +
         `for a real run needing more concurrent VUs than the cast has people.`,
     );
-  } else if (totalVus > CAST_SIZE) {
+  } else if (WARMUP_VUS > CAPACITY_VUS) {
+    // The #243 Task 9 drain-gap fix relies on k6 reusing one VU pool sized
+    // to max(WARMUP_VUS, CAPACITY_VUS) once the two scenarios provably don't
+    // overlap in time (see file header). That reuse was only verified live
+    // for the WARMUP_VUS < CAPACITY_VUS shape this harness ships with —
+    // flip it and the pool sizes to WARMUP_VUS instead, which the
+    // (vuId-1)%castSize mapping still tolerates (it wraps deterministically)
+    // but no longer guarantees capacity sees all `min(CAPACITY_VUS,
+    // CAST_SIZE)` distinct cast users on every run.
     console.warn(
-      `baseline: WARMUP_VUS + CAPACITY_VUS (${totalVus}) exceeds the cast ` +
-        `size (${CAST_SIZE}) — k6 assigns VU ids uniquely per TEST, not ` +
-        `contiguously per scenario (confirmed nondeterministic across runs; ` +
-        `see the file header), so assignUser's collision-free guarantee no ` +
-        `longer holds for every id the scheduler could hand out. Defaults ` +
-        `(2 + 8 = 10) stay at the cast size specifically to avoid this — ` +
-        `you have overridden past it.`,
+      `baseline: WARMUP_VUS (${WARMUP_VUS}) exceeds CAPACITY_VUS ` +
+        `(${CAPACITY_VUS}) — the drain-gap VU-pool-reuse guarantee this ` +
+        `harness relies on (see file header) was only verified live for ` +
+        `WARMUP_VUS < CAPACITY_VUS. Keep warmup smaller than capacity for a ` +
+        `real run.`,
     );
   }
   if (CAPACITY_DURATION_SECONDS < REAL_RUN_MIN_CAPACITY_SECONDS) {
@@ -256,6 +315,7 @@ export function setup() {
     castSize: CAST_SIZE,
     warmupVus: WARMUP_VUS,
     capacityVus: CAPACITY_VUS,
+    capacityStartTime: CAPACITY_START_TIME,
   };
 }
 
@@ -330,7 +390,8 @@ export function capacityFn() {
 export function teardown(data) {
   console.log(
     `baseline: cast=${data.castSize} warmupVus=${data.warmupVus} ` +
-      `capacityVus=${data.capacityVus} @ ${__ENV.BASE_URL || 'http://127.0.0.1:8081'}`,
+      `capacityVus=${data.capacityVus} capacityStartTime=${data.capacityStartTime} ` +
+      `@ ${__ENV.BASE_URL || 'http://127.0.0.1:8081'}`,
   );
 }
 
@@ -391,6 +452,24 @@ export function handleSummary(data) {
         'rep needs to exercise the refresh path — this run is dev/smoke only.',
     );
   }
+  // #243 Task 9 MUST-FIX validity self-check: if CAPACITY_VUS==CAST_SIZE
+  // (the default), every persona must show up here with real requests — a
+  // missing/zero persona means the drain-gap fix (see file header) did not
+  // hold for this run and capacity silently dropped a persona again.
+  if (CAPACITY_VUS >= CAST_SIZE) {
+    const missingPersonas = PERSONA_ORDER.filter((persona) => {
+      const trend = byPersona[persona];
+      return !trend || !Number.isFinite(trend.p50);
+    });
+    if (missingPersonas.length > 0) {
+      notes.push(
+        `CAPACITY_VUS (${CAPACITY_VUS}) >= castSize (${CAST_SIZE}) but ` +
+          `byPersona has NO capacity requests for: ${missingPersonas.join(', ')}. ` +
+          'This should not happen with the inter-phase drain gap in place — ' +
+          'treat this run as INVALID for persona-coverage purposes and investigate.',
+      );
+    }
+  }
 
   const summary = {
     generatedAt: new Date().toISOString(),
@@ -398,8 +477,11 @@ export function handleSummary(data) {
     params: {
       warmupVus: WARMUP_VUS,
       warmupDuration: WARMUP_DURATION,
+      warmupGracefulStop: WARMUP_GRACEFUL_STOP,
       capacityVus: CAPACITY_VUS,
       capacityDuration: CAPACITY_DURATION,
+      capacityStartTime: CAPACITY_START_TIME,
+      interPhaseDrainBufferSeconds: INTER_PHASE_DRAIN_BUFFER_SECONDS,
       capacityLoginJitterSecondsMax: CAPACITY_LOGIN_JITTER_SECONDS,
       castSize: CAST_SIZE,
     },
@@ -424,8 +506,8 @@ export function handleSummary(data) {
   const lines = [];
   lines.push('#243 k6 baseline — warmup + capacity (capacity-only report)');
   lines.push(`  base URL: ${summary.baseUrl}`);
-  lines.push(`  warmup:   ${WARMUP_VUS} VUs x ${WARMUP_DURATION} (discarded)`);
-  lines.push(`  capacity: ${CAPACITY_VUS} VUs x ${CAPACITY_DURATION} (login jitter <= ${CAPACITY_LOGIN_JITTER_SECONDS}s)`);
+  lines.push(`  warmup:   ${WARMUP_VUS} VUs x ${WARMUP_DURATION} (discarded, gracefulStop=${WARMUP_GRACEFUL_STOP})`);
+  lines.push(`  capacity: ${CAPACITY_VUS} VUs x ${CAPACITY_DURATION} (starts @ ${CAPACITY_START_TIME}, login jitter <= ${CAPACITY_LOGIN_JITTER_SECONDS}s)`);
   lines.push(`  requests: total=${totalRequests} warmup=${warmupRequests} capacity=${capacityRequests}`);
   lines.push(`  capacity req/s: ${summary.capacity.requestsPerSecond?.toFixed(2)}`);
   lines.push(`  capacity http_req_failed rate: ${summary.capacity.httpReqFailedRate}`);
