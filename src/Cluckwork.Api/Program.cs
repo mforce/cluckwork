@@ -481,10 +481,11 @@ builder.Services.Configure<SeedOptions>(builder.Configuration.GetSection(SeedOpt
 builder.Services.AddScoped<DatabaseSeeder>();
 builder.Services.AddScoped<DemoDataSeeder>();
 
-// --- #243 load-test simulation seeder config (gated by Seed:Simulation; the
-// seeder itself lands in a later task — this only registers its options). ---
+// --- #243 load-test simulation seeder: cast + minimal topology + 2nd
+// account + primary tz, gated by Seed:Simulation. ---
 builder.Services.Configure<SimulationOptions>(
     builder.Configuration.GetSection(SimulationOptions.SectionName));
+builder.Services.AddScoped<SimulationDataSeeder>();
 
 // --- OpenAPI ---
 builder.Services.AddOpenApi();
@@ -535,6 +536,16 @@ else
 {
     using var demoScope = app.Services.CreateScope();
     await demoScope.ServiceProvider.GetRequiredService<DemoDataSeeder>().SeedAsync();
+}
+
+// #243 load-test simulation cast/topology: own scope for the same reason as
+// the demo scope above. Runs AFTER it (it reuses the seeded admin as Owner,
+// and stays independent of whatever DemoDataSeeder did or skipped). Fail
+// closed: SeedAsync self-gates on Seed:Simulation, but once it decides to run
+// it does not catch — a broken sim seed must fail startup, not boot half-built.
+{
+    using var simulationScope = app.Services.CreateScope();
+    await simulationScope.ServiceProvider.GetRequiredService<SimulationDataSeeder>().SeedAsync();
 }
 
 // Resolve the real client IP and scheme from a trusted proxy's forwarded
