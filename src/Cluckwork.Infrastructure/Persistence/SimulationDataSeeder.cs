@@ -176,7 +176,7 @@ public sealed class SimulationDataSeeder(
         var today = clock.TodayUtc;
 
         var workerIds = await SeedCastAsync(accountId, sim, ct);
-        var flockIds = await SeedFlockTopologyAsync(accountId, today, ct);
+        var flockIds = await SeedFlockTopologyAsync(accountId, today, sim, ct);
         await RestrictOneWorkerAsync(accountId, workerIds, flockIds, ct);
         // Timezone BEFORE any dated data exists (see SeedPrimaryTimeZoneAsync)
         // — production history below must see the account's real timezone.
@@ -249,13 +249,29 @@ public sealed class SimulationDataSeeder(
 
     // --- Minimal flock topology ----------------------------------------
 
+    // #279 review Fix 1 (codex): both flocks must be placed strictly OLDER
+    // than the deepest production-history entry SeedProductionHistoryAsync
+    // writes for EVERY flock (today.AddDays(-EffectiveHistoryDays(sim))) —
+    // previously House B was placed only ~70 days ago while
+    // Simulation:HistoryDays defaults to 90, so House B ended up with ~20
+    // days of daily entries dated BEFORE it was placed. The margin below adds
+    // headroom on top of the history floor so placement is never merely
+    // equal to the oldest entry date.
+    private const int FlockPlacementMarginDays = 7;
+
     private async Task<IReadOnlyList<Guid>> SeedFlockTopologyAsync(
-        Guid accountId, DateOnly today, CancellationToken ct)
+        Guid accountId, DateOnly today, SimulationOptions sim, CancellationToken ct)
     {
+        // Both flocks share the identical "safely older than all history"
+        // placement date — SeedFlockHistoryAsync's entry-date range
+        // (today.AddDays(-d) for d = 1..EffectiveHistoryDays(sim)) is the
+        // SAME for every flock, so both placements need the identical floor.
+        var placementDate = today.AddDays(-(EffectiveHistoryDays(sim) + FlockPlacementMarginDays));
+
         (string Name, string Breed, DateOnly PlacementDate, int InitialCount)[] wanted =
         [
-            ("Sim House A", "ISA Brown", today.AddDays(-30 * 7), 400),
-            ("Sim House B", "Lohmann Brown", today.AddDays(-10 * 7), 350),
+            ("Sim House A", "ISA Brown", placementDate, 400),
+            ("Sim House B", "Lohmann Brown", placementDate, 350),
         ];
 
         var ids = new List<Guid>();
@@ -924,21 +940,40 @@ public sealed class SimulationDataSeeder(
     // producing a manifest that says otherwise.
     //
     // Depth-robust by construction: every expectation in ComputeExpectedCounts
-    // is derived from SimulationOptions (sim.Managers/.../HistoryDays) or from
-    // this class's own structural constants (RecurringStartDay/
-    // RecurringCadenceDays, DraftWindowDays, FeedUsageDays/WaterUsageDays, the
+    // is derived from SimulationOptions (sim.Managers/.../HistoryDays), the
+    // seeder's own "today"/farm-local-"today" anchors, or this class's own
+    // structural constants (RecurringStartDay/RecurringCadenceDays,
+    // DraftWindowDays, GradesPerDailyEntry, FeedUsageDays/WaterUsageDays, the
     // hardcoded topology/catalog/expense array lengths) — nothing here
     // hardcodes "90 days" or "12 days"; the shallow SimulationSeedFactory test
     // fixture (HistoryDays=12) and the real 90-day default validate against
     // the SAME formulas.
+    //
+    // #279 review Fix 2 (Agent A + pi + codex, consensus): every count below
+    // is asserted EXACTLY, not as a ">= 1" floor — including the
+    // Draft/Submitted/Locked lifecycle split (Locked is derived by mirroring
+    // DailyEntryLockSweep's own cutoff — see ExpectedLockedEntryCount below —
+    // rather than left unchecked; Draft/Submitted then reconcile against the
+    // total). A bug that drops all-but-one row of any seeder-controlled band
+    // now fails ValidateCounts instead of still certifying complete: true.
 
     public const int ManifestSchemaVersion = 1;
 
     // Mirrors SeedFlockTopologyAsync's `wanted` array length. Kept as an
     // independent constant (not read off that array) so ComputeExpectedCounts
-    // stays a pure function of SimulationOptions alone — it needs no `today`
-    // and no DB round-trip to state what the seed intends to produce.
+    // needs no DB round-trip to state what the seed intends to produce — it
+    // still takes `today`/`farmToday` as plain DateOnly inputs (#279 Fix 2,
+    // for the exact Locked/Submitted split below) but is otherwise pure.
     private const int FlockTopologyCount = 2;
+
+    // Mirrors SeedFlockHistoryAsync's per-entry grade-quantity array literal
+    // (Large/Medium/Small): SubmitDailyEntryHandler mints exactly one egg lot
+    // per grade line, and the deterministic baseline/cracked/dirty/discarded
+    // math in SeedFlockHistoryAsync always leaves all three grade buckets > 0
+    // for every configured baseline — so every SUBMITTED entry (never a
+    // still-Draft one; see DraftWindowDays) produces exactly this many lots,
+    // not merely "at least one" (#279 Fix 2).
+    private const int GradesPerDailyEntry = 3;
 
     // Mirrors SeedSalesAsync's two EnsureDraftOrderAsync calls (customer1/2,
     // never confirmed) and its three lifecycle EnsureConfirmedOrderAsync
@@ -959,11 +994,34 @@ public sealed class SimulationDataSeeder(
     private static int RecurringPointCount(int historyDays) =>
         historyDays < RecurringStartDay ? 0 : (historyDays - RecurringStartDay) / RecurringCadenceDays + 1;
 
+    // Mirrors DailyEntryLockSweep.LockDueEntriesAsync's own cutoff
+    // (`farmToday.AddDays(-LockAfterDays)`) entry-by-entry, so the manifest's
+    // expected Locked count is a real derivation from the SAME rule the
+    // sweep applies — not a ">= 1" floor (#279 Fix 2). Only entries that were
+    // actually submitted (d > DraftWindowDays) are ever eligible; both flocks
+    // share the identical day-offset range so one per-flock count scales
+    // directly by FlockTopologyCount.
+    private static int ExpectedLockedEntryCount(DateOnly today, DateOnly farmToday, int historyDays)
+    {
+        var cutoff = farmToday.AddDays(-DailyEntryLockSweep.LockAfterDays);
+        var lockedPerFlock = 0;
+        for (var d = DraftWindowDays + 1; d <= historyDays; d++)
+            if (today.AddDays(-d) < cutoff) lockedPerFlock++;
+        return FlockTopologyCount * lockedPerFlock;
+    }
+
     private async Task<SimulationManifest> EmitManifestAsync(
         Guid accountId, DateOnly today, SimulationOptions sim, CancellationToken ct)
     {
         var (counts, states) = await ComputeCountsAsync(accountId, ct);
-        var expected = ComputeExpectedCounts(sim);
+        // Same farm-local "today" lookup DailyEntryLockSweep itself just used
+        // (lockSweep.RunAsync already ran, above, in SeedAsync) — recomputing
+        // it here mirrors the sweep's OWN cutoff derivation exactly instead
+        // of approximating it, at the cost of the same vanishingly small
+        // UTC-midnight-mid-SeedAsync race the class header already documents
+        // for MinSentinelAgeDays.
+        var farmToday = clock.TodayInZone(sim.TimeZoneId);
+        var expected = ComputeExpectedCounts(sim, today, farmToday);
 
         // Fail-closed: throws on ANY shortfall — a partial/short seed must
         // fail startup, not publish a "complete" manifest.
@@ -1080,14 +1138,33 @@ public sealed class SimulationDataSeeder(
         return (counts, states);
     }
 
-    // Pure function of SimulationOptions — no DB access, so it can be called
-    // from a unit test with a hand-built SimulationOptions too. See the
-    // class-level comment above ValidateCounts for why every field here is
-    // DERIVED rather than a hardcoded depth-specific number.
-    private static SimulationExpectedCounts ComputeExpectedCounts(SimulationOptions sim)
+    // Pure function of SimulationOptions plus the two plain DateOnly anchors
+    // (today, farmToday) — still no DB access, so a unit test can call it
+    // with hand-built inputs too. See the class-level comment above
+    // ValidateCounts for why every field here is DERIVED rather than a
+    // hardcoded depth-specific number.
+    private static SimulationExpectedCounts ComputeExpectedCounts(SimulationOptions sim, DateOnly today, DateOnly farmToday)
     {
         var historyDays = EffectiveHistoryDays(sim);
         var recurringPoints = RecurringPointCount(historyDays);
+
+        var dailyEntriesTotal = FlockTopologyCount * historyDays;
+        var draftEntries = FlockTopologyCount * DraftWindowDays;
+        var lockedEntries = ExpectedLockedEntryCount(today, farmToday, historyDays);
+        var submittedEntries = dailyEntriesTotal - draftEntries - lockedEntries;
+        // Entries that ever reached Submitted (whether still Submitted or
+        // since moved to Locked) — the population SubmitDailyEntryHandler
+        // actually minted egg lots for; Draft entries never call it.
+        var submittedOrLockedEntries = dailyEntriesTotal - draftEntries;
+
+        var salesOrdersConfirmed = LifecycleConfirmedOrdersCount + recurringPoints;
+        var feedUsageRows = FlockTopologyCount * FeedUsageDays;
+        // One Purchase + one Adjustment/Discard movement per inventory item,
+        // plus one Usage movement per feed usage row — EnsureOpeningPurchaseAsync
+        // creates exactly one lot per item, so FIFO in RecordFeedUsageHandler
+        // never needs to split a single usage across more than one lot.
+        var inventoryMovementsTotal =
+            InventoryItemsWanted.Length + InventoryItemsWanted.Length + feedUsageRows;
 
         return new SimulationExpectedCounts(
             Accounts: 2, // primary + SecondAccountId — never a third on a re-run.
@@ -1096,20 +1173,24 @@ public sealed class SimulationDataSeeder(
             Sales: sim.Sales,
             Workers: sim.Workers,
             ReadOnly: sim.ReadOnly,
+            UsersTotal: 1 + sim.Managers + sim.Sales + sim.Workers + sim.ReadOnly,
             Flocks: FlockTopologyCount,
-            DailyEntriesTotal: FlockTopologyCount * historyDays,
-            MinDraftEntries: 1,
-            MinSubmittedEntries: 1,
-            MinLockedEntries: 1,
-            MinEggLots: FlockTopologyCount,
+            DailyEntriesTotal: dailyEntriesTotal,
+            DraftEntries: draftEntries,
+            SubmittedEntries: submittedEntries,
+            LockedEntries: lockedEntries,
+            EggLots: GradesPerDailyEntry * submittedOrLockedEntries,
+            SalesOrdersTotal: DraftOrdersCount + salesOrdersConfirmed,
             SalesOrdersDraft: DraftOrdersCount,
-            SalesOrdersConfirmed: LifecycleConfirmedOrdersCount + recurringPoints,
+            SalesOrdersConfirmed: salesOrdersConfirmed,
             Payments: 1, // exactly one partial payment (EnsurePartialPaymentAsync).
             InventoryItems: InventoryItemsWanted.Length,
             InventoryLots: InventoryItemsWanted.Length, // one opening lot per item.
             InventoryPurchaseMovements: InventoryItemsWanted.Length,
             InventoryAdjustmentOrDiscardMovements: InventoryItemsWanted.Length, // one each.
-            FeedUsageRows: FlockTopologyCount * FeedUsageDays,
+            InventoryUsageMovements: feedUsageRows,
+            InventoryMovementsTotal: inventoryMovementsTotal,
+            FeedUsageRows: feedUsageRows,
             WaterUsageRows: FlockTopologyCount * WaterUsageDays,
             ExpenseCategories: ExpenseCategoriesWanted.Length,
             Expenses: LifecycleExpensesCount + recurringPoints);
@@ -1138,20 +1219,38 @@ public sealed class SimulationDataSeeder(
         Check(counts.Workers == expected.Workers, $"users.workers: expected {expected.Workers}, got {counts.Workers}");
         Check(counts.ReadOnly == expected.ReadOnly,
             $"users.readOnly: expected {expected.ReadOnly}, got {counts.ReadOnly}");
+        Check(counts.UsersTotal == expected.UsersTotal,
+            $"users.total: expected {expected.UsersTotal}, got {counts.UsersTotal}");
         Check(counts.Flocks == expected.Flocks, $"flocks: expected {expected.Flocks}, got {counts.Flocks}");
         Check(counts.DailyEntriesTotal == expected.DailyEntriesTotal,
             $"dailyEntries.total: expected {expected.DailyEntriesTotal}, got {counts.DailyEntriesTotal}");
-        Check(states.DailyEntries.Draft >= expected.MinDraftEntries,
-            $"dailyEntries.draft: expected >= {expected.MinDraftEntries}, got {states.DailyEntries.Draft}");
-        Check(states.DailyEntries.Submitted >= expected.MinSubmittedEntries,
-            $"dailyEntries.submitted: expected >= {expected.MinSubmittedEntries}, got {states.DailyEntries.Submitted}");
-        Check(states.DailyEntries.Locked >= expected.MinLockedEntries,
-            $"dailyEntries.locked: expected >= {expected.MinLockedEntries}, got {states.DailyEntries.Locked}");
-        Check(counts.EggLots >= expected.MinEggLots, $"eggLots: expected >= {expected.MinEggLots}, got {counts.EggLots}");
+        Check(states.DailyEntries.Draft == expected.DraftEntries,
+            $"dailyEntries.draft: expected {expected.DraftEntries}, got {states.DailyEntries.Draft}");
+        Check(states.DailyEntries.Submitted == expected.SubmittedEntries,
+            $"dailyEntries.submitted: expected {expected.SubmittedEntries}, got {states.DailyEntries.Submitted}");
+        Check(states.DailyEntries.Locked == expected.LockedEntries,
+            $"dailyEntries.locked: expected {expected.LockedEntries}, got {states.DailyEntries.Locked}");
+        var dailyEntriesSum = states.DailyEntries.Draft + states.DailyEntries.Submitted + states.DailyEntries.Locked;
+        Check(dailyEntriesSum == counts.DailyEntriesTotal,
+            $"dailyEntries reconciliation: draft+submitted+locked ({dailyEntriesSum}) != total ({counts.DailyEntriesTotal})");
+        Check(counts.EggLots == expected.EggLots, $"eggLots: expected {expected.EggLots}, got {counts.EggLots}");
+        Check(counts.SalesOrdersTotal == expected.SalesOrdersTotal,
+            $"salesOrders.total: expected {expected.SalesOrdersTotal}, got {counts.SalesOrdersTotal}");
         Check(states.SalesOrders.Draft == expected.SalesOrdersDraft,
             $"salesOrders.draft: expected {expected.SalesOrdersDraft}, got {states.SalesOrders.Draft}");
         Check(states.SalesOrders.Confirmed == expected.SalesOrdersConfirmed,
             $"salesOrders.confirmed: expected {expected.SalesOrdersConfirmed}, got {states.SalesOrders.Confirmed}");
+        // The seeder never ships/invoices/cancels/voids anything it creates
+        // (SeedSalesAsync's own header comment) — these terminal states must
+        // stay at exactly zero, not merely unchecked.
+        Check(states.SalesOrders.Shipped == 0, $"salesOrders.shipped: expected 0, got {states.SalesOrders.Shipped}");
+        Check(states.SalesOrders.Invoiced == 0, $"salesOrders.invoiced: expected 0, got {states.SalesOrders.Invoiced}");
+        Check(states.SalesOrders.Cancelled == 0, $"salesOrders.cancelled: expected 0, got {states.SalesOrders.Cancelled}");
+        Check(states.SalesOrders.Voided == 0, $"salesOrders.voided: expected 0, got {states.SalesOrders.Voided}");
+        var salesOrdersSum = states.SalesOrders.Draft + states.SalesOrders.Confirmed + states.SalesOrders.Shipped
+            + states.SalesOrders.Invoiced + states.SalesOrders.Cancelled + states.SalesOrders.Voided;
+        Check(salesOrdersSum == counts.SalesOrdersTotal,
+            $"salesOrders reconciliation: sum of states ({salesOrdersSum}) != total ({counts.SalesOrdersTotal})");
         Check(counts.Payments == expected.Payments, $"payments: expected {expected.Payments}, got {counts.Payments}");
         Check(counts.InventoryItems == expected.InventoryItems,
             $"inventoryItems: expected {expected.InventoryItems}, got {counts.InventoryItems}");
@@ -1163,6 +1262,14 @@ public sealed class SimulationDataSeeder(
               == expected.InventoryAdjustmentOrDiscardMovements,
             $"inventoryMovements.adjustment+discard: expected {expected.InventoryAdjustmentOrDiscardMovements}, " +
             $"got {states.InventoryMovements.Adjustment + states.InventoryMovements.Discard}");
+        Check(states.InventoryMovements.Usage == expected.InventoryUsageMovements,
+            $"inventoryMovements.usage: expected {expected.InventoryUsageMovements}, got {states.InventoryMovements.Usage}");
+        Check(counts.InventoryMovementsTotal == expected.InventoryMovementsTotal,
+            $"inventoryMovements.total: expected {expected.InventoryMovementsTotal}, got {counts.InventoryMovementsTotal}");
+        var inventoryMovementsSum = states.InventoryMovements.Purchase + states.InventoryMovements.Usage
+            + states.InventoryMovements.Adjustment + states.InventoryMovements.Discard;
+        Check(inventoryMovementsSum == counts.InventoryMovementsTotal,
+            $"inventoryMovements reconciliation: sum of states ({inventoryMovementsSum}) != total ({counts.InventoryMovementsTotal})");
         Check(counts.FeedUsageRows == expected.FeedUsageRows,
             $"feedUsageRows: expected {expected.FeedUsageRows}, got {counts.FeedUsageRows}");
         Check(counts.WaterUsageRows == expected.WaterUsageRows,
@@ -1184,9 +1291,26 @@ public sealed class SimulationDataSeeder(
     // re-run that recomputes the SAME counts from the SAME seed always
     // produces the SAME fingerprint (idempotent), and any real shortfall
     // changes it.
-    private static string ComputeFingerprint(int seed, SimulationManifestCounts counts, SimulationLifecycleStates states)
+    //
+    // #279 review Fix 3 (Agent A): states.DailyEntries (the Draft/Submitted/
+    // Locked split) is deliberately EXCLUDED — it depends on where the
+    // farm-local midnight lock-sweep boundary (DailyEntryLockSweep.
+    // LockAfterDays) falls relative to this seeder's UTC "today" anchor at
+    // the moment the sweep runs, so two otherwise-identical seed runs
+    // straddling that boundary would fingerprint differently even though
+    // every seeder-controlled COUNT (including DailyEntriesTotal) matches —
+    // a latent flake, and not reproducible day-to-day. states.SalesOrders and
+    // states.InventoryMovements stay in the hash: nothing time-based ever
+    // moves a sales order or inventory movement between states after the
+    // seeder writes it, so those splits are exactly as stable as counts. The
+    // split itself is still reported — just via manifest.LifecycleStates
+    // (#277), not folded into the fingerprint. Internal (not private) so
+    // SimulationSeederTests can probe it directly rather than only through
+    // the wall-clock-dependent integration path.
+    internal static string ComputeFingerprint(int seed, SimulationManifestCounts counts, SimulationLifecycleStates states)
     {
-        var canonical = JsonSerializer.Serialize(new { seed, counts, states }, FingerprintJsonOptions);
+        var canonical = JsonSerializer.Serialize(
+            new { seed, counts, states.SalesOrders, states.InventoryMovements }, FingerprintJsonOptions);
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonical))).ToLowerInvariant();
     }
 
@@ -1259,12 +1383,14 @@ public sealed record SimulationExpectedCounts(
     int Sales,
     int Workers,
     int ReadOnly,
+    int UsersTotal,
     int Flocks,
     int DailyEntriesTotal,
-    int MinDraftEntries,
-    int MinSubmittedEntries,
-    int MinLockedEntries,
-    int MinEggLots,
+    int DraftEntries,
+    int SubmittedEntries,
+    int LockedEntries,
+    int EggLots,
+    int SalesOrdersTotal,
     int SalesOrdersDraft,
     int SalesOrdersConfirmed,
     int Payments,
@@ -1272,6 +1398,8 @@ public sealed record SimulationExpectedCounts(
     int InventoryLots,
     int InventoryPurchaseMovements,
     int InventoryAdjustmentOrDiscardMovements,
+    int InventoryUsageMovements,
+    int InventoryMovementsTotal,
     int FeedUsageRows,
     int WaterUsageRows,
     int ExpenseCategories,

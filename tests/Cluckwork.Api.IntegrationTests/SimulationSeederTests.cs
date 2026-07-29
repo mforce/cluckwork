@@ -213,6 +213,35 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
             $"Unexpected daily entry status {e.Status} on {e.Date}."));
     }
 
+    // #279 review Fix 1 (codex): SeedProductionHistoryAsync writes the same
+    // day-offset range for EVERY flock regardless of when that flock was
+    // placed — a flock placed more recently than the oldest entry date would
+    // end up with history predating its own existence. Both flocks are now
+    // placed strictly older than the whole history window (see
+    // SimulationDataSeeder.FlockPlacementMarginDays), so this must hold for
+    // every seeded flock/entry pair.
+    [Fact]
+    public async Task SimulationSeed_EveryDailyEntryDate_IsOnOrAfterItsFlockPlacementDate()
+    {
+        using var client = factory.CreateClient(); // forces host init / first startup seed.
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var flocks = await db.Flocks.IgnoreQueryFilters()
+            .Where(f => f.AccountId == SeedDefaults.AccountId)
+            .ToListAsync();
+        var entries = await db.DailyEntries.IgnoreQueryFilters()
+            .Where(e => e.AccountId == SeedDefaults.AccountId)
+            .ToListAsync();
+
+        var placementByFlock = flocks.ToDictionary(f => f.Id, f => f.PlacementDate);
+        Assert.NotEmpty(entries);
+        Assert.All(entries, e => Assert.True(
+            e.Date >= placementByFlock[e.FlockId],
+            $"Daily entry dated {e.Date:yyyy-MM-dd} for flock {e.FlockId} predates that flock's " +
+            $"placement date {placementByFlock[e.FlockId]:yyyy-MM-dd}."));
+    }
+
     [Fact]
     public async Task SimulationSeed_ProductionHistory_IsIdempotent_NoDuplicateEntriesAfterTwoHostStarts()
     {
@@ -677,6 +706,15 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
     private const int ExpectedConfirmedOrders = 3 + ExpectedRecurringPoints;
     private const int ExpectedExpensesWithRecurring = 4 + ExpectedRecurringPoints;
 
+    // #279 review Fix 2: duplicated from SimulationDataSeeder's own
+    // DraftWindowDays/GradesPerDailyEntry private constants, same convention
+    // as the other "duplicate the private constant" fields above — lets this
+    // test assert the manifest's egg-lot and draft-entry counts EXACTLY
+    // instead of the ">= 1"/">0" floor the tightened ValidateCounts no longer
+    // accepts.
+    private const int ExpectedDraftWindowDays = 2;
+    private const int ExpectedGradesPerDailyEntry = 3;
+
     [Fact]
     public async Task SimulationSeed_EmitsACompleteManifestWithValidatedCountsAndLifecycleStates()
     {
@@ -705,7 +743,13 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
         Assert.Equal(1 + ExpectedCastUsers, counts.UsersTotal);
         Assert.Equal(2, counts.Flocks);
         Assert.Equal(2 * SimulationSeedFactory.HistoryDays, counts.DailyEntriesTotal);
-        Assert.True(counts.EggLots > 0);
+        // #279 review Fix 2: one lot per grade (Large/Medium/Small) for every
+        // entry that reached Submitted — Draft entries (the most recent
+        // ExpectedDraftWindowDays per flock) never call SubmitDailyEntryHandler,
+        // so they mint no lots.
+        Assert.Equal(
+            ExpectedGradesPerDailyEntry * 2 * (SimulationSeedFactory.HistoryDays - ExpectedDraftWindowDays),
+            counts.EggLots);
         Assert.Equal(2 + ExpectedConfirmedOrders, counts.SalesOrdersTotal);
         Assert.Equal(1, counts.Payments);
         Assert.Equal(2, counts.InventoryItems);
@@ -718,7 +762,16 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
         Assert.Equal(ExpectedExpensesWithRecurring, counts.Expenses);
 
         var states = manifest.LifecycleStates;
-        Assert.True(states.DailyEntries.Draft >= 1);
+        // Draft is stable (never sweep-dependent — always the most recent
+        // ExpectedDraftWindowDays days per flock), so it's asserted exactly;
+        // the Submitted/Locked split itself depends on where the farm-local
+        // midnight lock-sweep boundary falls relative to the UTC seed anchor
+        // at the moment this suite happens to run (#279 review Fix 2/3), so
+        // it's asserted via the total reconciliation below instead of
+        // hardcoding either band — SimulationDataSeeder.ValidateCounts itself
+        // (which this manifest's Complete: true already proves passed) DOES
+        // assert both exactly, mirroring DailyEntryLockSweep's own cutoff.
+        Assert.Equal(2 * ExpectedDraftWindowDays, states.DailyEntries.Draft);
         Assert.True(states.DailyEntries.Submitted >= 1);
         Assert.True(states.DailyEntries.Locked >= 1);
         Assert.Equal(counts.DailyEntriesTotal, states.DailyEntries.Draft + states.DailyEntries.Submitted + states.DailyEntries.Locked);
@@ -759,32 +812,85 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
         Assert.Equal(firstManifest.LifecycleStates, secondManifest.LifecycleStates);
     }
 
+    // #279 review Fix 3 (Agent A): ComputeFingerprint (internal, visible via
+    // InternalsVisibleTo) must exclude states.DailyEntries — the
+    // Draft/Submitted/Locked split depends on where the farm-local midnight
+    // lock-sweep boundary falls relative to the seeder's UTC anchor, so two
+    // otherwise-identical runs straddling that boundary must still
+    // fingerprint the SAME. A pure unit-style check with two hand-built
+    // DailyEntries splits (same total, different Submitted/Locked shape) is
+    // deterministic proof of the exclusion — unlike the integration
+    // idempotency test below, it doesn't depend on the suite actually running
+    // near a real UTC midnight.
+    [Fact]
+    public void SimulationSeed_Fingerprint_ExcludesTheDailyEntryLifecycleSplit()
+    {
+        var counts = new SimulationManifestCounts(
+            Accounts: 2, Owners: 1, Managers: 1, Sales: 1, Workers: 3, ReadOnly: 4, UsersTotal: 10,
+            Flocks: 2, DailyEntriesTotal: 24, EggLots: 60, SalesOrdersTotal: 6, Payments: 1,
+            InventoryItems: 2, InventoryLots: 2, InventoryMovementsTotal: 12,
+            FeedUsageRows: 8, WaterUsageRows: 8, ExpenseCategories: 2, Expenses: 5);
+        var states = new SimulationLifecycleStates(
+            DailyEntries: new SimulationDailyEntryStates(Draft: 4, Submitted: 10, Locked: 10),
+            SalesOrders: new SimulationSalesOrderStates(
+                Draft: 2, Confirmed: 4, Shipped: 0, Invoiced: 0, Cancelled: 0, Voided: 0),
+            InventoryMovements: new SimulationInventoryMovementStates(Purchase: 2, Usage: 8, Adjustment: 1, Discard: 1));
+        // Same total (24) and every other field, but a DIFFERENT
+        // Submitted/Locked split — the shape two runs straddling the
+        // farm-local midnight boundary would actually produce.
+        var statesWithDifferentLockSplit = states with
+        {
+            DailyEntries = new SimulationDailyEntryStates(Draft: 4, Submitted: 17, Locked: 3),
+        };
+
+        var fingerprint = SimulationDataSeeder.ComputeFingerprint(243, counts, states);
+        var fingerprintWithDifferentLockSplit =
+            SimulationDataSeeder.ComputeFingerprint(243, counts, statesWithDifferentLockSplit);
+        Assert.Equal(fingerprint, fingerprintWithDifferentLockSplit);
+
+        // Sanity check the hash isn't trivially constant: a field that DOES
+        // stay in the hash (SalesOrders, never sweep/clock-dependent) still
+        // changes it.
+        var statesWithDifferentSalesOrders = states with
+        {
+            SalesOrders = new SimulationSalesOrderStates(
+                Draft: 2, Confirmed: 3, Shipped: 0, Invoiced: 0, Cancelled: 0, Voided: 0),
+        };
+        var fingerprintWithDifferentSalesOrders =
+            SimulationDataSeeder.ComputeFingerprint(243, counts, statesWithDifferentSalesOrders);
+        Assert.NotEqual(fingerprint, fingerprintWithDifferentSalesOrders);
+    }
+
     // Pure unit-style check on SimulationDataSeeder.ValidateCounts (internal,
     // visible via InternalsVisibleTo) — a hand-built "one worker short" actual
     // count against the real expectations must throw, proving the fail-closed
-    // path without sabotaging a real Testcontainers seed run.
+    // path without sabotaging a real Testcontainers seed run. Every OTHER
+    // band is deliberately self-consistent (reconciliation checks pass) so
+    // the one intentional mismatch is what trips ValidateCounts (#279 review
+    // Fix 2's tightened, exact-count version).
     [Fact]
     public void SimulationSeed_ValidateCounts_ThrowsWhenACountIsShortOfExpectations()
     {
         var counts = new SimulationManifestCounts(
             Accounts: 2, Owners: 1, Managers: 1, Sales: 1, Workers: 2, ReadOnly: 4, UsersTotal: 9,
-            Flocks: 2, DailyEntriesTotal: 24, EggLots: 10, SalesOrdersTotal: 6, Payments: 1,
+            Flocks: 2, DailyEntriesTotal: 24, EggLots: 60, SalesOrdersTotal: 6, Payments: 1,
             InventoryItems: 2, InventoryLots: 2, InventoryMovementsTotal: 12,
             FeedUsageRows: 8, WaterUsageRows: 8, ExpenseCategories: 2, Expenses: 5);
         var states = new SimulationLifecycleStates(
-            DailyEntries: new SimulationDailyEntryStates(Draft: 2, Submitted: 8, Locked: 14),
+            DailyEntries: new SimulationDailyEntryStates(Draft: 4, Submitted: 10, Locked: 10),
             SalesOrders: new SimulationSalesOrderStates(
                 Draft: 2, Confirmed: 4, Shipped: 0, Invoiced: 0, Cancelled: 0, Voided: 0),
             InventoryMovements: new SimulationInventoryMovementStates(Purchase: 2, Usage: 8, Adjustment: 1, Discard: 1));
-        // Expects one MORE worker than the counts above actually seeded — the
-        // "silently short seed" this validation exists to catch.
+        // Expects one MORE worker (and, consequently, one more total user)
+        // than the counts above actually seeded — the "silently short seed"
+        // this validation exists to catch.
         var expected = new SimulationExpectedCounts(
-            Accounts: 2, Owners: 1, Managers: 1, Sales: 1, Workers: 3, ReadOnly: 4,
-            Flocks: 2, DailyEntriesTotal: 24, MinDraftEntries: 1, MinSubmittedEntries: 1, MinLockedEntries: 1,
-            MinEggLots: 2, SalesOrdersDraft: 2, SalesOrdersConfirmed: 4, Payments: 1,
+            Accounts: 2, Owners: 1, Managers: 1, Sales: 1, Workers: 3, ReadOnly: 4, UsersTotal: 10,
+            Flocks: 2, DailyEntriesTotal: 24, DraftEntries: 4, SubmittedEntries: 10, LockedEntries: 10,
+            EggLots: 60, SalesOrdersTotal: 6, SalesOrdersDraft: 2, SalesOrdersConfirmed: 4, Payments: 1,
             InventoryItems: 2, InventoryLots: 2, InventoryPurchaseMovements: 2,
-            InventoryAdjustmentOrDiscardMovements: 2, FeedUsageRows: 8, WaterUsageRows: 8,
-            ExpenseCategories: 2, Expenses: 5);
+            InventoryAdjustmentOrDiscardMovements: 2, InventoryUsageMovements: 8, InventoryMovementsTotal: 12,
+            FeedUsageRows: 8, WaterUsageRows: 8, ExpenseCategories: 2, Expenses: 5);
 
         var ex = Assert.Throws<InvalidOperationException>(
             () => SimulationDataSeeder.ValidateCounts(counts, states, expected));
