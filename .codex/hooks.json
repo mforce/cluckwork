@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/home/mforce/.local/bin/graphify hook-check"
+            "command": "~/.local/bin/graphify hook-check"
           }
         ]
       }

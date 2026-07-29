@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/home/mforce/.local/bin/graphify hook-guard search"
+            "command": "~/.local/bin/graphify hook-guard search"
           }
         ]
       },
@@ -15,7 +15,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/home/mforce/.local/bin/graphify hook-guard read"
+            "command": "~/.local/bin/graphify hook-guard read"
           }
         ]
       }
