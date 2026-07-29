@@ -481,6 +481,11 @@ builder.Services.Configure<SeedOptions>(builder.Configuration.GetSection(SeedOpt
 builder.Services.AddScoped<DatabaseSeeder>();
 builder.Services.AddScoped<DemoDataSeeder>();
 
+// --- #243 load-test simulation seeder config (gated by Seed:Simulation; the
+// seeder itself lands in a later task — this only registers its options). ---
+builder.Services.Configure<SimulationOptions>(
+    builder.Configuration.GetSection(SimulationOptions.SectionName));
+
 // --- OpenAPI ---
 builder.Services.AddOpenApi();
 

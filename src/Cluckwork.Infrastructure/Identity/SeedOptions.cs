@@ -22,4 +22,10 @@ public sealed class SeedOptions
     // flocks/entries/customers/orders through the real domain path. Default
     // false — production can never accidentally get fake data.
     public bool Demo { get; init; }
+
+    // #243 load-test simulation gate. Config lives separately in
+    // SimulationOptions (bound from its own "Simulation" section) — this flag
+    // only turns the simulation seeder on/off. Default false — production
+    // can never accidentally seed a load-test cast.
+    public bool Simulation { get; set; }
 }
