@@ -60,10 +60,24 @@ FINDINGS_TEMPLATE="$FINDINGS_DIR/TEMPLATE.md"
 SIM_OUT_MANIFEST="$SIM_DIR/out/manifest.json"
 SIM_CAST_FILE="$SIM_DIR/.sim-cast.json"
 ENV_SIM_FILE="$SIM_DIR/.env.sim"
+K6_SHELL_NIX="$SIM_DIR/k6/shell.nix"
+# PR #279 review — pinned k6 version (see k6/shell.nix's own header for why):
+# baseline.js's inter-phase drain gap was only ever live-probed against this
+# exact version. Bump the two together, deliberately, never independently.
+EXPECTED_K6_VERSION="v2.0.0"
+
+RENDER_ONLY_RUN_ID=""
 
 usage() {
   cat <<EOF
-Usage: $(basename "$0")
+Usage: $(basename "$0") [--render-only RUN_ID]
+
+  --render-only RUN_ID   Skip reset/docker/k6 entirely and re-run just the
+                          aggregation + findings-doc render step against an
+                          EXISTING tools/simulation/monitor/out/RUN_ID/rep-*/
+                          tree. Useful for verifying a rendering/TEMPLATE.md
+                          change without re-running a (possibly multi-hour)
+                          live baseline.
 
 Env vars this script reads directly:
   REPS               Number of reps (default: 3)
@@ -82,17 +96,27 @@ Examples:
   bash tools/simulation/run-baseline.sh                        # 3 reps, dev-short durations
   REPS=2 WARMUP_DURATION=10s CAPACITY_DURATION=25s bash tools/simulation/run-baseline.sh
   REPS=3 CAPACITY_DURATION=40m bash tools/simulation/run-baseline.sh   # #243 Task 10 real run
+  bash tools/simulation/run-baseline.sh --render-only run-20260729T170130Z
 EOF
 }
 
-for arg in "$@"; do
-  case "$arg" in
+while [[ $# -gt 0 ]]; do
+  case "$1" in
     -h | --help)
       usage
       exit 0
       ;;
+    --render-only)
+      if [[ $# -lt 2 || -z "$2" ]]; then
+        echo "--render-only requires a RUN_ID argument" >&2
+        usage >&2
+        exit 1
+      fi
+      RENDER_ONLY_RUN_ID="$2"
+      shift 2
+      ;;
     *)
-      echo "Unknown argument: $arg" >&2
+      echo "Unknown argument: $1" >&2
       usage >&2
       exit 1
       ;;
@@ -101,47 +125,138 @@ done
 
 # --- preflight: required files/tools --------------------------------------
 
-for f in "$RESET_SCRIPT" "$SAMPLER_SCRIPT" "$PGSNAP_SCRIPT" "$K6_SCRIPT" "$FINDINGS_TEMPLATE"; do
-  if [[ ! -f "$f" ]]; then
-    echo "run-baseline: required file missing: $f" >&2
-    exit 1
-  fi
-done
-if [[ ! -f "$ENV_SIM_FILE" || ! -f "$SIM_CAST_FILE" ]]; then
-  echo "run-baseline: tools/simulation/.env.sim or .sim-cast.json not found — run bootstrap.sh first." >&2
+if [[ ! -f "$FINDINGS_TEMPLATE" ]]; then
+  echo "run-baseline: required file missing: $FINDINGS_TEMPLATE" >&2
   exit 1
 fi
-
-command -v nix-shell >/dev/null 2>&1 || { echo "run-baseline: nix-shell not found (needed to run k6)." >&2; exit 1; }
-command -v docker >/dev/null 2>&1 || { echo "run-baseline: docker not found." >&2; exit 1; }
 command -v python3 >/dev/null 2>&1 || { echo "run-baseline: python3 not found (needed for aggregation)." >&2; exit 1; }
 command -v git >/dev/null 2>&1 || { echo "run-baseline: git not found." >&2; exit 1; }
 
-# Same hard safety gate as reset.sh and the monitor scripts. Every docker
-# command this orchestrator triggers happens inside a child script that
-# already gates itself independently — this is defense in depth, not the
-# only thing standing between an override and the real dev DB volume.
-COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-cluckwork-sim}"
-if [[ "$COMPOSE_PROJECT_NAME" != "cluckwork-sim" ]]; then
-  echo "ABORT: resolved compose project is '${COMPOSE_PROJECT_NAME}', not 'cluckwork-sim'." >&2
-  echo "Refusing to continue — see reset.sh for why this must never be overridden." >&2
-  exit 1
+if [[ -n "$RENDER_ONLY_RUN_ID" ]]; then
+  # --render-only: re-aggregate + re-render an EXISTING run's already-
+  # collected rep-*/summary.json files — no reset/docker/k6/sampler/
+  # pg-snapshot involved at all, so none of the live-path checks below apply.
+  RUN_ID="$RENDER_ONLY_RUN_ID"
+  if [[ ! "$RUN_ID" =~ ^[A-Za-z0-9._-]+$ ]]; then
+    echo "run-baseline: RUN_ID '${RUN_ID}' contains characters outside [A-Za-z0-9._-] — refusing." >&2
+    exit 1
+  fi
+  RUN_DIR="$MONITOR_OUT_DIR/$RUN_ID"
+  if [[ ! -d "$RUN_DIR" ]] || ! find "$RUN_DIR" -mindepth 1 -maxdepth 1 -name 'rep-*' -print -quit | grep -q .; then
+    echo "run-baseline: --render-only ${RUN_ID} but ${RUN_DIR} has no rep-* directories to render from." >&2
+    exit 1
+  fi
+  # REPS is otherwise set by the live path below (default 3, or an env
+  # override) — in render-only mode there's no live run to read it from, so
+  # derive it from what's actually on disk (only used for display/the
+  # params table's `REPS` row; the aggregator itself globs rep-* directly).
+  REPS="$(find "$RUN_DIR" -mindepth 1 -maxdepth 1 -type d -name 'rep-*' | wc -l | tr -d ' ')"
+  echo "== #243 run-baseline: --render-only RUN_ID=${RUN_ID} (re-rendering from existing raw data, no live run) =="
+  echo
+else
+  for f in "$RESET_SCRIPT" "$SAMPLER_SCRIPT" "$PGSNAP_SCRIPT" "$K6_SCRIPT" "$K6_SHELL_NIX"; do
+    if [[ ! -f "$f" ]]; then
+      echo "run-baseline: required file missing: $f" >&2
+      exit 1
+    fi
+  done
+  if [[ ! -f "$ENV_SIM_FILE" || ! -f "$SIM_CAST_FILE" ]]; then
+    echo "run-baseline: tools/simulation/.env.sim or .sim-cast.json not found — run bootstrap.sh first." >&2
+    exit 1
+  fi
+
+  command -v nix-shell >/dev/null 2>&1 || { echo "run-baseline: nix-shell not found (needed to run k6)." >&2; exit 1; }
+  command -v docker >/dev/null 2>&1 || { echo "run-baseline: docker not found." >&2; exit 1; }
+
+  # Same hard safety gate as reset.sh and the monitor scripts. Every docker
+  # command this orchestrator triggers happens inside a child script that
+  # already gates itself independently — this is defense in depth, not the
+  # only thing standing between an override and the real dev DB volume.
+  COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-cluckwork-sim}"
+  if [[ "$COMPOSE_PROJECT_NAME" != "cluckwork-sim" ]]; then
+    echo "ABORT: resolved compose project is '${COMPOSE_PROJECT_NAME}', not 'cluckwork-sim'." >&2
+    echo "Refusing to continue — see reset.sh for why this must never be overridden." >&2
+    exit 1
+  fi
+
+  # PR #279 review — pinned k6 version: fail loudly on ANY drift before
+  # starting rep 1, not partway through a (possibly multi-hour) run. See
+  # k6/shell.nix's own header for why this matters (baseline.js's
+  # inter-phase drain gap relies on VU-scheduling behavior only ever
+  # live-probed against this exact version).
+  echo "[preflight] verifying pinned k6 version (expect k6 ${EXPECTED_K6_VERSION})..."
+  k6_actual_version_line="$(nix-shell "$K6_SHELL_NIX" --run 'k6 version' 2>/dev/null || true)"
+  if [[ "$k6_actual_version_line" != "k6 ${EXPECTED_K6_VERSION}"* ]]; then
+    echo "run-baseline: k6 version mismatch — pinned shell.nix resolved to '${k6_actual_version_line:-<none>}', expected 'k6 ${EXPECTED_K6_VERSION}'." >&2
+    echo "  baseline.js's VU-scheduling (drain-gap) assumptions were only live-probed against ${EXPECTED_K6_VERSION} — see that file's header. Investigate before trusting this run's per-user capacity coverage." >&2
+    echo "  If this is a deliberate, reviewed k6 upgrade: re-verify the drain gap against the new version, then bump EXPECTED_K6_VERSION here AND the pinned revision in k6/shell.nix together." >&2
+    exit 1
+  fi
+  echo "[preflight] ${k6_actual_version_line} confirmed (pinned via ${K6_SHELL_NIX})."
+
+  REPS="${REPS:-3}"
+  RUN_ID="${RUN_ID:-run-$(date -u +%Y%m%dT%H%M%SZ)}"
+  SAMPLER_INTERVAL="${SAMPLER_INTERVAL:-2}"
+  PG_TOP_N="${PG_TOP_N:-20}"
+
+  # PR #279 review: RUN_ID is used verbatim as a directory/filename
+  # component below (RUN_DIR, findings/<RUN_ID>-findings.md) — restrict it to
+  # a safe charset rather than trusting whatever the caller's env happened
+  # to set.
+  if [[ ! "$RUN_ID" =~ ^[A-Za-z0-9._-]+$ ]]; then
+    echo "run-baseline: RUN_ID '${RUN_ID}' contains characters outside [A-Za-z0-9._-] — refusing." >&2
+    exit 1
+  fi
+
+  # PR #279 review — per-cast-user capacity coverage (baseline.js's own
+  # setup() hard-errors on this too) only holds when CAPACITY_VUS equals the
+  # cast size exactly. Preflight it here too so a bad override fails BEFORE
+  # burning a whole rep's reset.sh + k6 run, not partway into rep 1.
+  if [[ -n "${CAPACITY_VUS:-}" ]]; then
+    cast_size_from_file="$(python3 -c "
+import json, sys
+d = json.load(open(sys.argv[1]))
+print(1 + len(d.get('cast', [])))
+" "$SIM_CAST_FILE")"
+    if [[ "$CAPACITY_VUS" != "$cast_size_from_file" ]]; then
+      echo "run-baseline: CAPACITY_VUS (${CAPACITY_VUS}) must equal the cast size in .sim-cast.json (${cast_size_from_file}) — the per-user capacity coverage guarantee only holds at equality (baseline.js's setup() hard-errors on this too). Unset CAPACITY_VUS to use the cast-size default, or regenerate the cast via bootstrap.sh." >&2
+      exit 1
+    fi
+  fi
+
+  RUN_DIR="$MONITOR_OUT_DIR/$RUN_ID"
+  # PR #279 review: `mkdir -p` used to silently REUSE an existing (possibly
+  # stale/partial) RUN_DIR, letting a reused RUN_ID mix this run's reps with
+  # a previous run's. Refuse instead — an empty/nonexistent dir is fine
+  # (first use of this RUN_ID), anything already in it is not.
+  if [[ -d "$RUN_DIR" ]] && find "$RUN_DIR" -mindepth 1 -print -quit | grep -q .; then
+    echo "run-baseline: RUN_DIR '${RUN_DIR}' already exists and is non-empty — refusing to reuse a RUN_ID (would silently mix stale reps with this run's data). Pick a different RUN_ID or remove that directory first." >&2
+    exit 1
+  fi
+  mkdir -p "$RUN_DIR"
+
+  echo "== #243 run-baseline: RUN_ID=${RUN_ID} REPS=${REPS} =="
+  echo "   per-rep results -> ${RUN_DIR}/rep-<n>/"
+  echo "   findings template -> ${FINDINGS_TEMPLATE}"
+  echo
 fi
 
-REPS="${REPS:-3}"
-RUN_ID="${RUN_ID:-run-$(date -u +%Y%m%dT%H%M%SZ)}"
-SAMPLER_INTERVAL="${SAMPLER_INTERVAL:-2}"
-PG_TOP_N="${PG_TOP_N:-20}"
-
-RUN_DIR="$MONITOR_OUT_DIR/$RUN_ID"
-mkdir -p "$RUN_DIR"
-
-echo "== #243 run-baseline: RUN_ID=${RUN_ID} REPS=${REPS} =="
-echo "   per-rep results -> ${RUN_DIR}/rep-<n>/"
-echo "   findings template -> ${FINDINGS_TEMPLATE}"
-echo
-
 overall_exit=0
+
+# PR #279 review: without this, aborting mid-run (any `set -e` failure, or a
+# signal) left that rep's background docker-stats-sampler orphaned — nothing
+# ever killed it. `sampler_pid` is a plain (non-local) var, reassigned each
+# rep and already explicitly killed at the normal point in the happy path
+# below; this trap is the backstop for every OTHER exit path. Single-quoted
+# so `$sampler_pid` is read at trap-FIRE time (whichever rep was most
+# recently started), not at registration time — one registration here
+# correctly covers every rep in the loop.
+trap 'kill -TERM "${sampler_pid:-}" 2>/dev/null; wait "${sampler_pid:-}" 2>/dev/null || true' EXIT
+
+if [[ -n "$RENDER_ONLY_RUN_ID" ]]; then
+  echo "[render-only] skipping reset/docker/k6/monitoring — re-aggregating existing rep-*/ data under ${RUN_DIR}"
+  echo
+else
 
 for rep in $(seq 1 "$REPS"); do
   rep_dir="$RUN_DIR/rep-${rep}"
@@ -163,13 +278,28 @@ for rep in $(seq 1 "$REPS"); do
   sampler_pid=$!
 
   echo "[rep ${rep}] pg-snapshot start (resets pg_stat_statements; see file header re: scope)..."
+  # PR #279 review: wrapped in set +e/set -e the SAME way k6 already was
+  # below — previously an unguarded failure here (under the script-wide
+  # `set -euo pipefail`) aborted the ENTIRE multi-rep run immediately,
+  # leaking the just-started background sampler (now also caught by the
+  # EXIT trap above) and losing every later rep. A monitor hiccup now flags
+  # this rep instead of killing the run.
+  set +e
   bash "$PGSNAP_SCRIPT" start --out-dir "$rep_dir" >"$rep_dir/pg-snapshot-start.log" 2>&1
+  pgsnap_start_exit=$?
+  set -e
+  if [[ "$pgsnap_start_exit" -ne 0 ]]; then
+    echo "[rep ${rep}] WARNING: pg-snapshot start exited ${pgsnap_start_exit} — this rep's DB-growth/pg_stat_statements data may be incomplete. See ${rep_dir}/pg-snapshot-start.log." >&2
+    overall_exit=1
+  fi
 
   echo "[rep ${rep}] k6 baseline (RUN_ID=${RUN_ID} REP=${rep})..."
   k6_start_epoch=$(date +%s)
   set +e
+  # PR #279 review: pinned via k6/shell.nix instead of a bare `nix-shell -p
+  # k6` — see that file's header and the pinned-version preflight above.
   SUMMARY_OUT="$rep_dir/summary.json" RUN_ID="$RUN_ID" REP="$rep" \
-    nix-shell -p k6 --run "k6 run '$K6_SCRIPT'" >"$rep_dir/k6.log" 2>&1
+    nix-shell "$K6_SHELL_NIX" --run "k6 run '$K6_SCRIPT'" >"$rep_dir/k6.log" 2>&1
   k6_exit=$?
   set -e
   k6_end_epoch=$(date +%s)
@@ -177,13 +307,20 @@ for rep in $(seq 1 "$REPS"); do
 
   if [[ "$k6_exit" -ne 0 ]]; then
     echo "[rep ${rep}] k6 exited ${k6_exit} — likely a threshold breach (checks<100%, an" >&2
-    echo "[rep ${rep}] unexpected status, or a missing persona). FLAGGED but NOT dropped —" >&2
-    echo "[rep ${rep}] its data is still collected and published. See ${rep_dir}/k6.log." >&2
+    echo "[rep ${rep}] unexpected status, or a missing persona/cast-user). FLAGGED but NOT" >&2
+    echo "[rep ${rep}] dropped — its data is still collected and published. See ${rep_dir}/k6.log." >&2
     overall_exit=1
   fi
 
   echo "[rep ${rep}] pg-snapshot end..."
+  set +e
   bash "$PGSNAP_SCRIPT" end --out-dir "$rep_dir" --top "$PG_TOP_N" >"$rep_dir/pg-snapshot-end.log" 2>&1
+  pgsnap_end_exit=$?
+  set -e
+  if [[ "$pgsnap_end_exit" -ne 0 ]]; then
+    echo "[rep ${rep}] WARNING: pg-snapshot end exited ${pgsnap_end_exit} — this rep's DB-growth/pg_stat_statements data may be incomplete. See ${rep_dir}/pg-snapshot-end.log." >&2
+    overall_exit=1
+  fi
 
   echo "[rep ${rep}] stopping docker-stats-sampler..."
   kill -TERM "$sampler_pid" 2>/dev/null || true
@@ -220,7 +357,13 @@ PY
   echo
 done
 
-echo "== all ${REPS} rep(s) complete — aggregating + rendering findings doc =="
+fi  # end of the live (non-render-only) per-rep loop
+
+if [[ -n "$RENDER_ONLY_RUN_ID" ]]; then
+  echo "== render-only: aggregating + rendering findings doc for RUN_ID=${RUN_ID} =="
+else
+  echo "== all ${REPS} rep(s) complete — aggregating + rendering findings doc =="
+fi
 
 COMMIT_SHA="$(git -C "$REPO_ROOT" rev-parse HEAD)"
 COMMIT_SHA_SHORT="$(git -C "$REPO_ROOT" rev-parse --short HEAD)"
@@ -292,21 +435,41 @@ def median(values):
     return statistics.median(vals) if vals else None
 
 
-def fmt_ms(v):
-    return f"{v:.1f}ms" if isinstance(v, (int, float)) else "n/a"
-
-
 def fmt_num(v, nd=2):
     return f"{v:.{nd}f}" if isinstance(v, (int, float)) else "n/a"
 
 
-def spread_ms(values):
-    vals = [v for v in values if isinstance(v, (int, float))]
-    if not vals:
-        return "n/a"
-    if len(vals) == 1:
-        return fmt_ms(vals[0])
-    return f"{fmt_ms(min(vals))} .. {fmt_ms(max(vals))}"
+# PR #279 review (Fix 1 — locked "Fork B: no absolute numbers" contract):
+# the rendered findings Markdown must carry NO absolute latency (ms) or
+# throughput (req/s) figures anywhere — only relative/shape data (ratios,
+# per-persona/flow deltas vs the overall, distribution shape, cross-rep
+# spread as an observation). Raw absolute numbers stay ONLY in the
+# git-ignored raw JSON (summary.json/aggregate.json) this script also
+# writes — fmt_ratio/fmt_pct below are the only formatters the Markdown
+# tables below are allowed to use for anything latency/throughput-shaped.
+def fmt_ratio(v):
+    return f"{v:.2f}x" if isinstance(v, (int, float)) else "n/a"
+
+
+def fmt_pct(v):
+    return f"{v:+.1f}%" if isinstance(v, (int, float)) else "n/a"
+
+
+def ratio_of(v, base):
+    if isinstance(v, (int, float)) and isinstance(base, (int, float)) and base:
+        return v / base
+    return None
+
+
+def pct_delta_vs_median(values):
+    med = median(values)
+    out = []
+    for v in values:
+        if isinstance(v, (int, float)) and med:
+            out.append((v - med) / med * 100)
+        else:
+            out.append(None)
+    return out
 
 
 def parse_duration_seconds(s):
@@ -475,20 +638,74 @@ persona_coverage_warning = "" if persona_coverage_ok else (
     "`baseline.js`'s file header, \"WHY THE DRAIN GAP IS THE FIX\").\n"
 )
 
-# ---- overall / by-persona / by-flow latency shape ---------------------------
+# ---- per-cast-user capacity coverage (PR #279 review) -----------------------
+# Stricter than the role-level check above: proves every INDIVIDUAL cast
+# user (not just each of the 5 role tags) was owned by exactly one capacity
+# VU. Tolerates rep summaries captured before this field existed
+# (`capacity.byCastUser` missing) by reporting "no data" for that rep rather
+# than crashing — needed so `--render-only` can re-render a pre-PR-#279 run.
+
+cast_user_rows = [
+    "| Rep | cast users covered | missing | duplicated | OK? |",
+    "| --- | --- | --- | --- | --- |",
+]
+cast_user_coverage_ok = True
+any_cast_user_data = False
+for r in ok_reps:
+    by_cast_user = r["summary"]["capacity"].get("byCastUser")
+    if not by_cast_user:
+        cast_user_rows.append(f"| {r['rep']} | _(no data — pre-#279 run)_ | — | — | — |")
+        continue
+    any_cast_user_data = True
+    total = len(by_cast_user)
+    missing = [v["email"] for v in by_cast_user.values() if v.get("ownerCount", 0) == 0]
+    duplicated = [v["email"] for v in by_cast_user.values() if v.get("ownerCount", 0) > 1]
+    covered = total - len(missing)
+    rep_ok = not missing and not duplicated
+    cast_user_coverage_ok = cast_user_coverage_ok and rep_ok
+    cast_user_rows.append(
+        f"| {r['rep']} | {covered}/{total} | {', '.join(missing) or 'none'} | "
+        f"{', '.join(duplicated) or 'none'} | {'yes' if rep_ok else '**NO**'} |"
+    )
+cast_user_coverage_table = "\n".join(cast_user_rows)
+if not any_cast_user_data:
+    cast_user_coverage_warning = (
+        "\n_No rep in this run has `capacity.byCastUser` data — this run predates the PR #279 "
+        "per-user coverage check (only role-level coverage above is available for it). Re-run "
+        "with the current harness to get per-user coverage._\n"
+    )
+elif cast_user_coverage_ok:
+    cast_user_coverage_warning = (
+        "\nNo reps flagged — every cast user was owned by exactly one capacity VU, every rep.\n"
+    )
+else:
+    cast_user_coverage_warning = (
+        "\n**CRITICAL: at least one rep has a cast user missing or claimed by more than one VU "
+        "in the capacity phase.** This should not happen with `CAPACITY_VUS == castSize` and the "
+        "inter-phase drain gap in place — treat this run's per-user coverage (and by extension its "
+        "per-persona/flow breakdowns) as unreliable and investigate before relying on it (see "
+        "`baseline.js`'s file header, \"WHY THE DRAIN GAP IS THE FIX\").\n"
+    )
+
+# ---- overall / by-persona / by-flow latency SHAPE (relative only) -----------
+# PR #279 review (Fix 1): no absolute ms anywhere below — p95/p99 are shown
+# only as a ratio to that SAME rep's p50 (tail-heaviness shape), and each
+# persona/flow's percentile only as a ratio to that same rep's OVERALL
+# capacity percentile (2.2/2.3) — never a standalone millisecond figure.
 
 overall_p50s = [r["summary"]["capacity"].get("httpReqDuration", {}).get("p50") for r in ok_reps]
 overall_p95s = [r["summary"]["capacity"].get("httpReqDuration", {}).get("p95") for r in ok_reps]
 overall_p99s = [r["summary"]["capacity"].get("httpReqDuration", {}).get("p99") for r in ok_reps]
 
-overall_rows = ["| Rep | p50 | p95 | p99 |", "| --- | --- | --- | --- |"]
+p95_over_p50 = [ratio_of(overall_p95s[i], overall_p50s[i]) for i in range(len(ok_reps))]
+p99_over_p50 = [ratio_of(overall_p99s[i], overall_p50s[i]) for i in range(len(ok_reps))]
+
+overall_rows = ["| Rep | p95 / p50 (tail ratio) | p99 / p50 (tail ratio) |", "| --- | --- | --- |"]
 for i, r in enumerate(ok_reps):
-    overall_rows.append(f"| {r['rep']} | {fmt_ms(overall_p50s[i])} | {fmt_ms(overall_p95s[i])} | {fmt_ms(overall_p99s[i])} |")
+    overall_rows.append(f"| {r['rep']} | {fmt_ratio(p95_over_p50[i])} | {fmt_ratio(p99_over_p50[i])} |")
 overall_rows.append(
-    f"| **median** | **{fmt_ms(median(overall_p50s))}** | **{fmt_ms(median(overall_p95s))}** | "
-    f"**{fmt_ms(median(overall_p99s))}** |"
+    f"| **median** | **{fmt_ratio(median(p95_over_p50))}** | **{fmt_ratio(median(p99_over_p50))}** |"
 )
-overall_rows.append(f"| range | {spread_ms(overall_p50s)} | {spread_ms(overall_p95s)} | {spread_ms(overall_p99s)} |")
 overall_latency_table = "\n".join(overall_rows)
 
 p95_med = median(overall_p95s)
@@ -500,53 +717,76 @@ if p95_med:
             continue
         pct = (v - p95_med) / p95_med * 100
         flag = " — **>10% from median (observation, not a gate)**" if abs(pct) > 10 else ""
-        p95_variance_lines.append(f"- rep {r['rep']}: p95={fmt_ms(v)}, {pct:+.1f}% vs median{flag}")
+        p95_variance_lines.append(f"- rep {r['rep']}: {pct:+.1f}% vs median{flag}")
 else:
     p95_variance_lines.append("_(not enough data to compute variance)_")
 p95_variance_observation = "\n".join(p95_variance_lines)
 
 
 def build_breakdown_table(order, dict_key, label):
-    lines = [f"| {label} | rep | p50 | p95 | p99 |", "| --- | --- | --- | --- | --- |"]
+    lines = [
+        f"| {label} | rep | p50 vs overall | p95 vs overall | p99 vs overall |",
+        "| --- | --- | --- | --- | --- |",
+    ]
     for name in order:
-        p50s, p95s, p99s = [], [], []
-        for r in ok_reps:
+        r50s, r95s, r99s = [], [], []
+        for i, r in enumerate(ok_reps):
             trend = r["summary"]["capacity"][dict_key].get(name)
             p50 = trend.get("p50") if trend else None
             p95 = trend.get("p95") if trend else None
             p99 = trend.get("p99") if trend else None
-            p50s.append(p50)
-            p95s.append(p95)
-            p99s.append(p99)
-            lines.append(f"| {name} | {r['rep']} | {fmt_ms(p50)} | {fmt_ms(p95)} | {fmt_ms(p99)} |")
+            r50 = ratio_of(p50, overall_p50s[i])
+            r95 = ratio_of(p95, overall_p95s[i])
+            r99 = ratio_of(p99, overall_p99s[i])
+            r50s.append(r50)
+            r95s.append(r95)
+            r99s.append(r99)
+            lines.append(f"| {name} | {r['rep']} | {fmt_ratio(r50)} | {fmt_ratio(r95)} | {fmt_ratio(r99)} |")
         lines.append(
-            f"| **{name} median** | — | **{fmt_ms(median(p50s))}** | **{fmt_ms(median(p95s))}** | "
-            f"**{fmt_ms(median(p99s))}** |"
+            f"| **{name} median** | — | **{fmt_ratio(median(r50s))}** | **{fmt_ratio(median(r95s))}** | "
+            f"**{fmt_ratio(median(r99s))}** |"
         )
     return "\n".join(lines)
 
 
 flow_order = list(ok_reps[0]["summary"]["capacity"]["byFlow"].keys())
-by_persona_table = build_breakdown_table(persona_order, "byPersona", "Persona")
-by_flow_table = build_breakdown_table(flow_order, "byFlow", "Flow")
+by_persona_table = build_breakdown_table(persona_order, "byPersona", "Persona") + (
+    "\n\n_Ratio = that persona's percentile ÷ the SAME rep's OVERALL capacity percentile (2.1) — "
+    "1.00x means exactly average for this run, not a fixed target. No absolute ms is shown; see "
+    "the banner at the top of this document._"
+)
+by_flow_table = build_breakdown_table(flow_order, "byFlow", "Flow") + (
+    "\n\n_Ratio = that flow's percentile ÷ the SAME rep's OVERALL capacity percentile (2.1). No "
+    "absolute ms is shown; see the banner at the top of this document._"
+)
 
-# ---- request-rate mix --------------------------------------------------------
+# ---- request-rate mix (relative only) ----------------------------------------
+# PR #279 review (Fix 1): no absolute req/s or request-count figure below —
+# only each rep's percentage deviation from THIS run's own median, as a
+# cross-rep consistency check (same "shape, not magnitude" treatment as
+# 2.1-2.3 above).
 
 rps_values = [r["summary"]["capacity"].get("requestsPerSecond") for r in ok_reps]
 req_count_values = [r["summary"]["totals"].get("capacityRequestCount") for r in ok_reps]
 iter_values = [r["summary"]["capacity"].get("iterationCount") for r in ok_reps]
-rr_rows = ["| Rep | capacity req/s | capacity requests | iterations |", "| --- | --- | --- | --- |"]
+
+rps_deltas = pct_delta_vs_median(rps_values)
+req_deltas = pct_delta_vs_median(req_count_values)
+iter_deltas = pct_delta_vs_median(iter_values)
+
+rr_rows = [
+    "| Rep | req/s (Δ vs median) | capacity requests (Δ vs median) | iterations (Δ vs median) |",
+    "| --- | --- | --- | --- |",
+]
 for i, r in enumerate(ok_reps):
-    rr_rows.append(f"| {r['rep']} | {fmt_num(rps_values[i], 2)} | {req_count_values[i]} | {iter_values[i]} |")
-rr_rows.append(
-    f"| **median** | **{fmt_num(median(rps_values), 2)}** | **{fmt_num(median(req_count_values), 0)}** | "
-    f"**{fmt_num(median(iter_values), 0)}** |"
-)
+    rr_rows.append(f"| {r['rep']} | {fmt_pct(rps_deltas[i])} | {fmt_pct(req_deltas[i])} | {fmt_pct(iter_deltas[i])} |")
+rr_rows.append("| **median** | **0.0% (baseline)** | **0.0% (baseline)** | **0.0% (baseline)** |")
 request_rate_table = "\n".join(rr_rows) + (
-    "\n\n_Per-persona/flow request **counts** aren't captured by this harness — only latency "
-    "percentiles per persona/flow (see 2.2/2.3). The persona **mix** is fixed by the seeded cast "
-    "ratio (1 Owner / 1 Manager / 1 Sales / 3 Worker / 4 ReadOnly), not something that varies at "
-    "runtime._"
+    "\n\n_Absolute req/s and request counts are intentionally not shown (see banner above) — only "
+    "each rep's percentage deviation from this run's own median, as a cross-rep consistency check. "
+    "Per-persona/flow request **counts** aren't captured by this harness at all — only latency "
+    "shape per persona/flow (2.2/2.3). The persona **mix** is fixed by the seeded cast ratio (1 "
+    "Owner / 1 Manager / 1 Sales / 3 Worker / 4 ReadOnly), not something that varies at runtime._"
 )
 
 # ---- correctness signals + flagged reps --------------------------------------
@@ -680,6 +920,8 @@ replacements = {
     "{{WALL_CLOCK_TABLE}}": wall_clock_table,
     "{{PERSONA_COVERAGE_TABLE}}": persona_coverage_table,
     "{{PERSONA_COVERAGE_WARNING}}": persona_coverage_warning,
+    "{{CAST_USER_COVERAGE_TABLE}}": cast_user_coverage_table,
+    "{{CAST_USER_COVERAGE_WARNING}}": cast_user_coverage_warning,
     "{{OVERALL_LATENCY_TABLE}}": overall_latency_table,
     "{{P95_VARIANCE_OBSERVATION}}": p95_variance_observation,
     "{{BY_PERSONA_TABLE}}": by_persona_table,
@@ -712,6 +954,7 @@ aggregate = {
     "repsRequested": REPS,
     "repsWithSummary": len(ok_reps),
     "personaCoverageOk": persona_coverage_ok,
+    "castUserCoverageOk": cast_user_coverage_ok,
     "flaggedReps": [r["rep"] for r in flagged],
     "missingSummaryReps": [r["rep"] for r in missing_reps],
     "findingsDoc": str(OUTPUT_MD_PATH),
@@ -721,12 +964,13 @@ OUTPUT_JSON_PATH.write_text(json.dumps(aggregate, indent=2))
 print(f"Findings doc:   {OUTPUT_MD_PATH}")
 print(f"Aggregate JSON: {OUTPUT_JSON_PATH}")
 print(f"Persona coverage OK (all 5 roles, every rep): {persona_coverage_ok}")
+print(f"Cast-user coverage OK (every distinct user, every rep): {cast_user_coverage_ok}")
 if flagged:
     print(f"FLAGGED reps (checks<100% or unexpected_status>0 or k6 exit!=0): {[r['rep'] for r in flagged]}")
 if missing_reps:
     print(f"Reps with NO summary.json at all: {[r['rep'] for r in missing_reps]}")
 
-sys.exit(0 if persona_coverage_ok else 2)
+sys.exit(0 if (persona_coverage_ok and cast_user_coverage_ok) else 2)
 PY
 agg_exit=$?
 set -e

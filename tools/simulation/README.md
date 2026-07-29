@@ -220,6 +220,14 @@ every rep, then aggregates across reps and renders an honest findings doc.
 bash tools/simulation/run-baseline.sh
 ```
 
+**Pinned k6 version:** `run-baseline.sh` runs k6 through `tools/simulation/k6/shell.nix` (a pinned nixpkgs revision), never a bare `nix-shell -p k6` — and additionally asserts `k6 version` matches the `EXPECTED_K6_VERSION` recorded at the top of `run-baseline.sh` before starting any rep, failing loudly on a mismatch. This is currently **`k6 v2.0.0`**: `baseline.js`'s inter-phase drain gap relies on VU pool-reuse scheduling behavior that was only ever confirmed live against that exact version (see that file's header) — an unpinned/silently-upgraded k6 could change that behavior without anything else in this harness noticing. See `k6/shell.nix` for the pinned revision and how to deliberately bump it.
+
+**Re-rendering a findings doc without a live rerun:** `--render-only RUN_ID` skips reset/docker/k6 entirely and re-runs just the aggregation + findings-doc render step against an existing `tools/simulation/monitor/out/<RUN_ID>/rep-*/` tree (e.g. after changing `TEMPLATE.md` or the render logic itself, or to verify a rendering fix without re-running a multi-hour baseline):
+
+```bash
+bash tools/simulation/run-baseline.sh --render-only run-20260729T170130Z
+```
+
 Per rep: `reset.sh` (fresh stack + seed) → start `docker-stats-sampler.sh`
 in the background + `pg-snapshot.sh start` → `k6 run baseline.js` (own
 `RUN_ID`/`REP`/`SUMMARY_OUT`) → `pg-snapshot.sh end` + stop the sampler →
@@ -251,8 +259,10 @@ Other env vars the orchestrator itself reads directly: `RUN_ID` (default
 20).
 
 **#243 Task 9 MUST-FIX — all 10 cast users / all 5 personas in capacity:**
-`baseline.js` now defaults `CAPACITY_VUS=10` (the full cast: 1 Owner / 1
-Manager / 1 Sales / 3 Worker / 4 ReadOnly), made collision-free by an
+`baseline.js` now defaults `CAPACITY_VUS` to the full cast size (10 with the
+default 1 Owner / 1 Manager / 1 Sales / 3 Worker / 4 ReadOnly split — derived
+from the cast, not a hardcoded literal, so it can never drift from whatever
+`bootstrap.sh` actually generated), made collision-free by an
 **inter-phase drain gap** — `capacity.startTime` is pushed past warmup's
 entire window (duration + `gracefulStop` + a buffer), which was empirically
 confirmed (live, repeated probes against this k6 version) to make k6 reuse
@@ -263,7 +273,20 @@ same cast user. See `k6/baseline.js`'s file header for the full mechanics.
 `summary.json` `capacity.byPersona` and reports (both on stdout and in the
 findings doc's "Persona coverage" section) whether all 5 roles produced
 capacity-phase requests — a missing persona in any rep exits non-zero and is
-flagged prominently, never silently dropped.
+flagged prominently, never silently dropped. `CAPACITY_VUS` must equal the
+cast size exactly (`baseline.js`'s `setup()` hard-errors otherwise, and
+`run-baseline.sh` preflights the same check before starting any rep) — that
+equality is what the per-role check above relies on, and role-level coverage
+alone can pass while still missing (or double-covering) an individual user,
+so PR #279 added a **per-cast-user** check one level stricter than
+per-role: `capacity.byCastUser` (also in `summary.json`) records, per
+distinct cast user, exactly how many capacity VUs claimed them — the
+healthy value is 1 for every one of the `castSize` users; 0 means that user
+never got a capacity VU, >1 means two different VUs collided on the same
+user (the exact failure the drain gap exists to prevent). Surfaced the same
+way as persona coverage: on stdout, in `summary.json`
+(`capacity.castUserCoverageOk`), and in the findings doc's "Cast-user
+coverage" section.
 
 **Honesty rules baked into the findings doc:** ±10% p95 variance across reps
 is reported as an **observation**, never a pass/fail gate — this box is a
@@ -305,11 +328,15 @@ throughput/latency figure as production capacity.
   only the template itself is tracked.
 - `.gitignore` — `.env.sim`, `.sim-cast.json`, `out/`, `*.pem`, and
   generated findings docs (`findings/*.md`, except `findings/TEMPLATE.md`)
-  never get committed (the secrets/output half is also mirrored in the root
-  `.dockerignore` so they can never enter the Docker build context either —
-  the Dockerfile's build context is the whole repo root). `out/` matches at
-  any depth, so `monitor/out/` (the monitoring scripts' own output
-  directory, including every `run-baseline.sh` run) is covered too.
+  never get committed. `out/` matches at any depth (git's unanchored
+  `.gitignore` semantics), so `monitor/out/` (the monitoring scripts' own
+  output directory, including every `run-baseline.sh` run) is covered too.
+  The secrets/output half is **separately** mirrored in the root
+  `.dockerignore` — Docker's ignore-pattern matching is NOT the same as
+  git's: a bare `tools/simulation/out/` there only anchors that exact path,
+  not `tools/simulation/monitor/out/` (a sibling dir), so `.dockerignore`
+  lists both explicitly (plus the findings glob, same `*.md`/`!TEMPLATE.md`
+  pair as here) rather than relying on one pattern to cover both trees.
 
 ## Verifying without a full bring-up
 

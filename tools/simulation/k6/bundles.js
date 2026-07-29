@@ -58,10 +58,21 @@ const REP = __ENV.REP || '0';
 // the SAME iteration (e.g. sales: create-order then add-item both fire while
 // __VU/__ITER are unchanged) — call the returned function once per write, in
 // order, and never reuse a value except to retry that EXACT operation.
-export function makeIdemKeyFactory(persona) {
+//
+// `phase` (default 'capacity', the only caller today — see baseline.js's
+// personas/*.js) is baked into the key itself, not just an implicit
+// assumption: baseline.js's warmup and capacity scenarios REUSE the same
+// k6 VU pool once the inter-phase drain gap separates them (see baseline.js
+// file header), so a future warmup iteration could otherwise land on the
+// same {persona, __VU, __ITER, opIndex} tuple as a capacity iteration and
+// collide on the exact same idempotency key. warmupFn today never calls a
+// write bundle at all (dailyEntryScreen/salesBundle are only reachable via
+// personas/*.js's capacity `iterate()`), so this is a guard against a
+// FUTURE regression, not a live bug — see the file header's "Ground truth".
+export function makeIdemKeyFactory(persona, phase = 'capacity') {
   let opIndex = 0;
   return function nextIdemKey() {
-    const key = `${RUN_ID}:${REP}:${persona}:${__VU}:${__ITER}:${opIndex}`;
+    const key = `${RUN_ID}:${REP}:${phase}:${persona}:${__VU}:${__ITER}:${opIndex}`;
     opIndex += 1;
     return key;
   };

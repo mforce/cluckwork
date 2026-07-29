@@ -58,6 +58,18 @@ produced capacity-phase requests, per rep.
 {{PERSONA_COVERAGE_TABLE}}
 {{PERSONA_COVERAGE_WARNING}}
 
+### Cast-user coverage (PR #279: per-user, stricter than per-role above)
+
+Role-level coverage above can pass (all 5 roles present) while still
+missing an individual cast user, or — the exact collision the drain gap
+exists to prevent — silently double-counting one user under two concurrent
+VUs. `CAPACITY_VUS` must equal the cast size exactly (`baseline.js`'s
+`setup()` hard-errors otherwise); given that, each of the `castSize` cast
+users should be owned by **exactly one** capacity VU, every rep.
+
+{{CAST_USER_COVERAGE_TABLE}}
+{{CAST_USER_COVERAGE_WARNING}}
+
 ### Full deviation list (Production config, sanctioned deviations only)
 
 Every consumer of this harness's output — this doc included — must carry

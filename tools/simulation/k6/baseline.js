@@ -84,6 +84,7 @@
 // the configured duration is short.
 
 import { sleep } from 'k6';
+import { Counter } from 'k6/metrics';
 import { loadCastUsers } from './config.js';
 import { assignUser, login, maybeRefresh, preflightCredentials } from './auth.js';
 import {
@@ -116,16 +117,38 @@ const FLOW_ORDER = [
   'sales', 'customers', 'audit', 'users', 'export', 'deepLinkProbe', 'staticAssets',
 ];
 
+// PR #279 review — per-cast-user capacity coverage (hardens the persona-tag
+// coverage check above, which only ever proved 5 aggregated ROLE tags showed
+// up, not that all castSize INDIVIDUAL users each got exactly one capacity
+// VU). Incremented exactly ONCE per VU's lifetime (guarded by
+// capacityOwnerRecorded below, not on every relogin) so a legitimate
+// re-login after a fatal refresh 401 never inflates a user's count — a count
+// of anything other than 1 for a given userIndex is a real signal: 0 means
+// that cast user never got a capacity VU at all, >1 means two DIFFERENT VUs
+// both claimed the same user (the exact VU-pool-aliasing collision the
+// inter-phase drain gap above exists to prevent).
+const capacityUserOwner = new Counter('capacity_user_owner');
+
 // --- env / params ----------------------------------------------------------
 
 const WARMUP_VUS = Number(__ENV.WARMUP_VUS || 2);
 const WARMUP_DURATION = __ENV.WARMUP_DURATION || '20s';
-// #243 Task 9 MUST-FIX: defaults to the FULL 10-user cast (all 5 personas in
-// the seeded 1/1/1/3/4 ratio), not 8 — see the file header. Safe because of
-// the inter-phase drain gap computed below, not VU-id arithmetic alone.
-const CAPACITY_VUS = Number(__ENV.CAPACITY_VUS || 10);
+// #243 Task 9 MUST-FIX: defaults to the FULL cast (all 5 personas in the
+// seeded 1/1/1/3/4 ratio — CAST_SIZE, not a hardcoded 10, so this can never
+// silently drift from whatever bootstrap.sh actually generated), see the
+// file header. Safe because of the inter-phase drain gap computed below, not
+// VU-id arithmetic alone. PR #279 review: setup() below now HARD-ERRORS
+// (not just warns) if CAPACITY_VUS != CAST_SIZE — the per-user coverage
+// guarantee only holds at exact equality (see capacityUserOwner above).
+const CAPACITY_VUS = Number(__ENV.CAPACITY_VUS || CAST_SIZE);
 const CAPACITY_DURATION = __ENV.CAPACITY_DURATION || '2m';
-const SUMMARY_OUT = __ENV.SUMMARY_OUT || 'tools/simulation/out/summary.json';
+// PR #279 review: default changed from tools/simulation/out/ (written into
+// by the app container as root — see README's "Why no host-writable path
+// for the collector") to the monitor/out/ sibling dir the monitor scripts
+// already use, which is always host-writable. run-baseline.sh always
+// overrides this explicitly per rep; this default only matters for a
+// by-hand `k6 run baseline.js` invocation.
+const SUMMARY_OUT = __ENV.SUMMARY_OUT || 'tools/simulation/monitor/out/summary.json';
 // How long warmup's executor waits for an in-flight iteration to finish
 // after its `duration` elapses before k6 force-stops it. Applied as both
 // the warmup scenario's own `gracefulStop` and (below) as one component of
@@ -245,10 +268,16 @@ function buildThresholds() {
     // checks{phase:capacity} and unexpected_status{phase:capacity} above are
     // the real correctness gates.
     'http_req_failed{phase:capacity}': [],
-    // Loose dev-box sanity bound, NOT a prod SLA — this is an uncapped,
-    // sidecar, no-TLS, single-IP shakeout box (plan Fork B); an honest
-    // absolute latency/throughput claim is Task 9/10's job, not this one's.
-    'http_req_duration{phase:capacity}': ['p(95)<3000'],
+    // PR #279 review: this was a live gate (`p(95)<3000`) — an absolute
+    // latency SLA, which contradicts the locked Fork B decision ("no
+    // absolute latency/throughput claim from this uncapped, co-located,
+    // non-sizing shakeout box" — see findings/TEMPLATE.md's banner). Empty
+    // condition list now, same as the other informational entries below:
+    // this ONLY exists to force k6 to materialize the submetric in
+    // data.metrics for handleSummary/the findings doc's relative-shape
+    // rendering — it never gates the run. Correctness (checks==100%,
+    // unexpected_status==0 above) is the only thing that gates.
+    'http_req_duration{phase:capacity}': [],
     // Referenced with an empty condition list purely to force k6 to
     // materialize the submetric in data.metrics for handleSummary — these
     // never fail the run on their own.
@@ -264,6 +293,12 @@ function buildThresholds() {
   for (const flow of FLOW_ORDER) {
     t[`http_req_duration{phase:capacity,flow:${flow}}`] = [];
   }
+  // PR #279 review — per-cast-user capacity coverage (see capacityUserOwner
+  // above): one threshold per cast-user index so k6 materializes each in
+  // data.metrics, exactly the same pattern as persona/flow above.
+  for (let i = 0; i < CAST_SIZE; i += 1) {
+    t[`capacity_user_owner{userIndex:${i}}`] = [];
+  }
   return t;
 }
 
@@ -275,16 +310,27 @@ export function setup() {
   // load with a stale credential or risking the 5-fails/15-min lockout.
   preflightCredentials(ALL_USERS);
 
-  if (CAPACITY_VUS > CAST_SIZE) {
-    console.warn(
-      `baseline: CAPACITY_VUS (${CAPACITY_VUS}) exceeds the cast size ` +
-        `(${CAST_SIZE}) on its own — capacity VUs will deterministically ` +
-        `CYCLE through the cast (assignUser wraps modulo cast size), so ` +
-        `some concurrently-active capacity VUs WILL share a login/user. ` +
-        `Regenerate a bigger cast via bootstrap.sh (raise Simulation__MaxVus) ` +
-        `for a real run needing more concurrent VUs than the cast has people.`,
+  // PR #279 review: was a warning (only when CAPACITY_VUS > CAST_SIZE) — now
+  // a hard error on ANY inequality, in either direction. The per-user
+  // capacity coverage guarantee (capacityUserOwner above: every cast user
+  // appears as exactly one capacity VU) only holds when CAPACITY_VUS ==
+  // CAST_SIZE exactly — see the file header's "WHY THE DRAIN GAP IS THE
+  // FIX". Below CAST_SIZE silently drops some users from capacity entirely;
+  // above it forces assignUser to wrap and share a login across
+  // concurrently-active VUs. run-baseline.sh also preflights this same
+  // check before starting any rep, so this is defense in depth for a direct
+  // `k6 run baseline.js` invocation.
+  if (CAPACITY_VUS !== CAST_SIZE) {
+    throw new Error(
+      `baseline: CAPACITY_VUS (${CAPACITY_VUS}) must equal the cast size ` +
+        `(${CAST_SIZE}) exactly — the per-user capacity coverage guarantee ` +
+        '(every cast user owned by exactly one capacity VU, zero collisions) ' +
+        'only holds at equality. Regenerate a differently-sized cast via ' +
+        'bootstrap.sh (Simulation__Managers/Sales/Workers/ReadOnly) rather ' +
+        'than setting CAPACITY_VUS independently.',
     );
-  } else if (WARMUP_VUS > CAPACITY_VUS) {
+  }
+  if (WARMUP_VUS > CAPACITY_VUS) {
     // The #243 Task 9 drain-gap fix relies on k6 reusing one VU pool sized
     // to max(WARMUP_VUS, CAPACITY_VUS) once the two scenarios provably don't
     // overlap in time (see file header). That reuse was only verified live
@@ -366,6 +412,11 @@ export function warmupFn() {
 
 let capacitySession = null;
 let capacityPersonaModule = null;
+// PR #279 review: recorded exactly once per VU's lifetime (NOT reset when
+// capacitySession is nulled after a fatal refresh 401 below) — a relogin by
+// the SAME VU must never look like a second, different VU claiming the same
+// cast user. See capacityUserOwner's own comment above.
+let capacityOwnerRecorded = false;
 
 export function capacityFn() {
   if (capacitySession === null) {
@@ -378,13 +429,35 @@ export function capacityFn() {
     }
     capacitySession = login(user);
     capacityPersonaModule = module;
+    if (!capacityOwnerRecorded) {
+      const userIndex = ALL_USERS.indexOf(user);
+      capacityUserOwner.add(1, { userIndex: String(userIndex) });
+      capacityOwnerRecorded = true;
+    }
     // One "page load" per VU, matching persona-smoke.js — proves the static
     // shell serves fine under whatever concurrent load capacity is putting
     // on the app, not part of any persona's weighted mix.
     staticAssets(user.role);
   }
 
-  capacitySession = capacityPersonaModule.iterate(capacitySession);
+  try {
+    capacitySession = capacityPersonaModule.iterate(capacitySession);
+  } catch (err) {
+    // PR #279 review: a fatal refresh 401 (auth.js's refresh() — the server
+    // burns the whole token family on a reused/stale refresh cookie) used to
+    // leave `capacitySession` pointing at the now-permanently-invalid
+    // session forever, since the assignment above never completes when
+    // iterate() throws. Every SUBSEQUENT iteration for this VU would then
+    // retry maybeRefresh() against that same dead session and fail again —
+    // one real failure cascading into failed checks for the rest of the
+    // run. Null it here so the NEXT iteration's `capacitySession === null`
+    // branch above re-logs-in from scratch; this one iteration's
+    // already-recorded failed check(s)/thrown error remain the only
+    // casualty. Re-throw so k6 still surfaces this iteration's failure
+    // exactly as it did before.
+    capacitySession = null;
+    throw err;
+  }
 }
 
 export function teardown(data) {
@@ -435,6 +508,22 @@ export function handleSummary(data) {
     byFlow[flow] = extractTrend(m[`http_req_duration{phase:capacity,flow:${flow}}`]);
   }
 
+  // PR #279 review — per-cast-user capacity coverage: each entry is exactly
+  // how many times that cast user's VU recorded ownership (see
+  // capacityUserOwner above) — the expected/healthy value is 1 for every
+  // index. 0 = that user never got a capacity VU; >1 = two different VUs
+  // both claimed it (a real collision).
+  const byCastUser = {};
+  const missingCastUsers = [];
+  const duplicatedCastUsers = [];
+  for (let i = 0; i < CAST_SIZE; i += 1) {
+    const count = countOf(m[`capacity_user_owner{userIndex:${i}}`]) || 0;
+    byCastUser[i] = { email: ALL_USERS[i].email, role: ALL_USERS[i].role, ownerCount: count };
+    if (count === 0) missingCastUsers.push(ALL_USERS[i].email);
+    else if (count > 1) duplicatedCastUsers.push(ALL_USERS[i].email);
+  }
+  const castUserCoverageOk = missingCastUsers.length === 0 && duplicatedCastUsers.length === 0;
+
   const notes = [];
   if (totalRequests !== null && warmupRequests !== null && capacityRequests !== null
     && totalRequests !== warmupRequests + capacityRequests) {
@@ -470,6 +559,20 @@ export function handleSummary(data) {
       );
     }
   }
+  // PR #279 review: role-level coverage above can pass (all 5 roles present)
+  // while still missing an individual user, or — the collision the drain
+  // gap exists to prevent — silently double-counting one user under two
+  // concurrent VUs. This is the stricter, per-user check.
+  if (!castUserCoverageOk) {
+    const parts = [];
+    if (missingCastUsers.length > 0) parts.push(`missing: ${missingCastUsers.join(', ')}`);
+    if (duplicatedCastUsers.length > 0) parts.push(`duplicated (claimed by >1 VU): ${duplicatedCastUsers.join(', ')}`);
+    notes.push(
+      `Per-cast-user capacity coverage FAILED (${parts.join('; ')}). Every cast user must be ` +
+        'owned by exactly one capacity VU — see capacityUserOwner/byCastUser and the file ' +
+        'header\'s "WHY THE DRAIN GAP IS THE FIX". Treat this run as INVALID and investigate.',
+    );
+  }
 
   const summary = {
     generatedAt: new Date().toISOString(),
@@ -499,6 +602,8 @@ export function handleSummary(data) {
       iterationCount: countOf(m['iterations{phase:capacity}']),
       byPersona,
       byFlow,
+      byCastUser,
+      castUserCoverageOk,
     },
     notes,
   };
@@ -522,6 +627,7 @@ export function handleSummary(data) {
   for (const flow of FLOW_ORDER) {
     lines.push(formatTrend(`    ${flow}`, byFlow[flow]));
   }
+  lines.push(`  per-cast-user capacity coverage OK (all ${CAST_SIZE}, exactly once each): ${castUserCoverageOk}`);
   if (notes.length > 0) {
     lines.push('  notes:');
     for (const note of notes) lines.push(`    - ${note}`);

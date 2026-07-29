@@ -22,6 +22,15 @@
 
 set -euo pipefail
 
+# PR #279 review: .env.sim/.sim-cast.json (and the transient *.pem below)
+# hold the JWT private key and every generated password — restrict every
+# file this script creates to owner-only from the moment it's created, not
+# just after the fact. umask alone covers new files created by openssl/the
+# heredocs below; the explicit chmod 0600 calls near the end are belt and
+# suspenders for anything created before this line ran, or if the caller's
+# environment already had a laxer umask baked into a wrapper.
+umask 077
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_FILE="$SCRIPT_DIR/.env.sim"
 CAST_FILE="$SCRIPT_DIR/.sim-cast.json"
@@ -79,6 +88,7 @@ trap cleanup EXIT
 
 openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out "$PRIVATE_KEY_FILE" >/dev/null 2>&1
 openssl rsa -pubout -in "$PRIVATE_KEY_FILE" -out "$PUBLIC_KEY_FILE" >/dev/null 2>&1
+chmod 0600 "$PRIVATE_KEY_FILE" "$PUBLIC_KEY_FILE"
 
 # Join PEM lines with a literal "\n" and no trailing escape — the exact
 # format deploy/.env.example uses and PemKey.Normalize expects (env files
@@ -212,6 +222,7 @@ TRUSTED_PROXY_CIDR=127.0.0.1/32
 Otlp__Endpoint=http://otel-collector:4317
 Otlp__Protocol=grpc
 EOF
+chmod 0600 "$ENV_FILE"
 echo "Wrote $(basename "$ENV_FILE")."
 
 # --- Write .sim-cast.json (the k6/Playwright login source) -----------------
@@ -262,6 +273,7 @@ with open(out_path, "w") as f:
     json.dump(doc, f, indent=2)
     f.write("\n")
 PY
+chmod 0600 "$CAST_FILE"
 echo "Wrote $(basename "$CAST_FILE") ($((1 + MANAGERS + SALES + WORKERS + READONLY)) users: 1 Owner + ${MANAGERS} Manager + ${SALES} Sales + ${WORKERS} Worker + ${READONLY} ReadOnly)."
 
 echo "== Done. Both files are git-ignored (tools/simulation/.gitignore) — never commit them. =="

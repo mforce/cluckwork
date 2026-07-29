@@ -25,7 +25,7 @@ export const WEIGHTS = [
 /** One weighted iteration for a Manager VU. Refreshes the session first. */
 export function iterate(session) {
   session = maybeRefresh(session);
-  const idemKeyFn = makeIdemKeyFactory(PERSONA);
+  const idemKeyFn = makeIdemKeyFactory(PERSONA, 'capacity');
 
   switch (weightedPick(WEIGHTS)) {
     case 'history':

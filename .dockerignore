@@ -17,4 +17,18 @@ deploy/.env
 tools/simulation/.env.sim
 tools/simulation/.sim-cast.json
 tools/simulation/out/
+# PR #279 review: the line above only anchors tools/simulation/out/ itself —
+# unlike .gitignore's unanchored `out/` (which matches at any depth),
+# .dockerignore patterns without a wildcard are anchored to the build
+# context root, so the monitor scripts' own sibling output dir
+# (tools/simulation/monitor/out/ — every run-baseline.sh rep's raw
+# summary.json/docker-stats.csv/pg-snapshot files) was NOT excluded and was
+# cache-busting `dotnet publish` on every rep. Excluded explicitly here.
+tools/simulation/monitor/out/
 tools/simulation/*.pem
+# Generated findings docs (one per run-baseline.sh run, git-ignored — see
+# tools/simulation/.gitignore) also don't belong in the build context; negate
+# the one tracked file in that dir back in (mirrors .gitignore's own
+# findings/*.md + !findings/TEMPLATE.md pair).
+tools/simulation/findings/*.md
+!tools/simulation/findings/TEMPLATE.md
