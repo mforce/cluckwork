@@ -3,6 +3,7 @@ namespace Cluckwork.Api.IntegrationTests;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Eggs;
+using Cluckwork.Domain.Sales;
 using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
@@ -241,5 +242,131 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
             .Where(g => g.Count() > 1)
             .ToList();
         Assert.Empty(duplicateKeys);
+    }
+
+    // #243 Task 3b: sales catalog + customers + orders across the lifecycle +
+    // FIFO lot depletion + payments, seeded on top of the Task-3a production
+    // history above.
+    [Fact]
+    public async Task SimulationSeed_SeedsProductCatalogAndCustomers()
+    {
+        using var client = factory.CreateClient(); // forces host init / first startup seed.
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var products = await db.Products.IgnoreQueryFilters()
+            .Where(p => p.AccountId == SeedDefaults.AccountId)
+            .ToListAsync();
+        foreach (var name in new[] { "Sim Large Eggs", "Sim Medium Eggs", "Sim Small Eggs" })
+            Assert.Contains(products, p => p.Name == name);
+
+        var customers = await db.Customers.IgnoreQueryFilters()
+            .Where(c => c.AccountId == SeedDefaults.AccountId)
+            .ToListAsync();
+        foreach (var name in new[] { "Sim Customer 1", "Sim Customer 2", "Sim Customer 3" })
+            Assert.Contains(customers, c => c.Name == name);
+    }
+
+    [Fact]
+    public async Task SimulationSeed_SeedsSalesOrdersAcrossTheLifecycleWithAPartialPayment()
+    {
+        using var client = factory.CreateClient(); // forces host init / first startup seed.
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var orders = await db.SalesOrders.IgnoreQueryFilters()
+            .Where(o => o.AccountId == SeedDefaults.AccountId)
+            .ToListAsync();
+        var payments = await db.Payments.IgnoreQueryFilters()
+            .Where(p => p.AccountId == SeedDefaults.AccountId)
+            .ToListAsync();
+
+        // Draft: created + items added, never confirmed.
+        Assert.Contains(orders, o => o.Status == SalesOrderStatus.Draft);
+
+        // Confirmed, unpaid — a distinct order from the partially-paid one
+        // below, and also the "voidable confirmed order" a later hazard pass
+        // can act on (this seeder never voids anything itself).
+        Assert.Contains(orders, o =>
+            o.Status == SalesOrderStatus.Confirmed && payments.All(p => p.SalesOrderId != o.Id));
+
+        // Confirmed + partially paid: a real payment strictly less than the
+        // order total (never accidentally fully settled).
+        var partiallyPaid = orders.SingleOrDefault(o =>
+            o.Status == SalesOrderStatus.Confirmed && payments.Any(p => p.SalesOrderId == o.Id));
+        Assert.NotNull(partiallyPaid);
+        var payment = Assert.Single(payments, p => p.SalesOrderId == partiallyPaid!.Id);
+        Assert.False(payment.Voided);
+        Assert.True(payment.AmountMinorUnits < partiallyPaid.TotalAmount.MinorUnits,
+            $"Payment {payment.AmountMinorUnits} should be less than the order total {partiallyPaid.TotalAmount.MinorUnits}.");
+        Assert.True(payment.AmountMinorUnits > 0);
+
+        // The seeder never voids what it seeds.
+        Assert.DoesNotContain(orders, o => o.Status == SalesOrderStatus.Voided);
+    }
+
+    [Fact]
+    public async Task SimulationSeed_ConfirmedOrders_DepleteEggLotsFifoFromASharedOldLotPool()
+    {
+        using var client = factory.CreateClient(); // forces host init / first startup seed.
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var lots = await db.EggLots.IgnoreQueryFilters()
+            .Where(l => l.AccountId == SeedDefaults.AccountId)
+            .ToListAsync();
+        // Some lots drawn down by the confirmed orders' FIFO allocation.
+        Assert.Contains(lots, l => l.QuantityAvailable < l.QuantityProduced);
+
+        var allocations = await db.SalesOrderAllocations.IgnoreQueryFilters()
+            .Where(a => a.AccountId == SeedDefaults.AccountId)
+            .ToListAsync();
+        Assert.NotEmpty(allocations);
+
+        // All three confirmed orders sell the same product/grade in small
+        // quantities relative to a single day's lot (SimulationDataSeeder's
+        // ConfirmedOrderQuantityEggs) — FIFO (oldest ProductionDate first)
+        // means they compete for the SAME shallow pool of old lots rather
+        // than each landing on disjoint fresh stock: at least one lot has
+        // allocation rows from more than one distinct sales order.
+        var sharedLot = allocations
+            .GroupBy(a => a.EggLotId)
+            .FirstOrDefault(g => g.Select(a => a.SalesOrderId).Distinct().Count() > 1);
+        Assert.NotNull(sharedLot);
+    }
+
+    [Fact]
+    public async Task SimulationSeed_Sales_IsIdempotent_NoDuplicatesAfterTwoHostStarts()
+    {
+        using var firstClient = factory.CreateClient(); // first startup (may already be built).
+        using (var secondHost = factory.WithWebHostBuilder(_ => { }))
+        using (var secondClient = secondHost.CreateClient()) // second full Program.cs run, same DB.
+        {
+            // Nothing to do with the client — creating it is what forces the
+            // second host (and its startup seed) to build.
+        }
+
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var products = await db.Products.IgnoreQueryFilters()
+            .Where(p => p.AccountId == SeedDefaults.AccountId)
+            .ToListAsync();
+        var customers = await db.Customers.IgnoreQueryFilters()
+            .Where(c => c.AccountId == SeedDefaults.AccountId)
+            .ToListAsync();
+        var orders = await db.SalesOrders.IgnoreQueryFilters()
+            .Where(o => o.AccountId == SeedDefaults.AccountId)
+            .ToListAsync();
+
+        // A second full seed pass converges rather than doubling — same
+        // three products, three customers, five orders (2 draft + 2
+        // confirmed-unpaid + 1 confirmed-partially-paid) as a single pass.
+        Assert.Equal(3, products.Count);
+        Assert.Equal(3, customers.Count);
+        Assert.Equal(5, orders.Count);
+        Assert.DoesNotContain(products.GroupBy(p => p.Name), g => g.Count() > 1);
+        Assert.DoesNotContain(customers.GroupBy(c => c.Name), g => g.Count() > 1);
+        Assert.DoesNotContain(orders.GroupBy(o => (o.CustomerId, o.OrderDate)), g => g.Count() > 1);
     }
 }

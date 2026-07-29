@@ -3,16 +3,23 @@ namespace Cluckwork.Infrastructure.Persistence;
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Accounts;
 using Cluckwork.Application.Features.Accounts.UpdateFarmSettings;
+using Cluckwork.Application.Features.Catalog.CreateProduct;
+using Cluckwork.Application.Features.Customers.CreateCustomer;
 using Cluckwork.Application.Features.DailyEntries;
 using Cluckwork.Application.Features.DailyEntries.RecordDailyEntry;
 using Cluckwork.Application.Features.DailyEntries.SubmitDailyEntry;
 using Cluckwork.Application.Features.EggGrades;
 using Cluckwork.Application.Features.Flocks.CreateFlock;
+using Cluckwork.Application.Features.Sales.AddOrderItem;
+using Cluckwork.Application.Features.Sales.ConfirmSale;
+using Cluckwork.Application.Features.Sales.CreateSalesOrder;
+using Cluckwork.Application.Features.Sales.RecordPayment;
 using Cluckwork.Application.Features.Users;
 using Cluckwork.Application.Features.Users.AssignFlock;
 using Cluckwork.Application.Features.Users.CreateUser;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Common;
+using Cluckwork.Domain.Sales;
 using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Jobs;
 using Microsoft.AspNetCore.Identity;
@@ -50,6 +57,12 @@ public sealed class SimulationDataSeeder(
     IDailyEntryRepository dailyEntries,
     RecordDailyEntryHandler recordEntry,
     SubmitDailyEntryHandler submitEntry,
+    CreateProductHandler createProduct,
+    CreateCustomerHandler createCustomer,
+    CreateSalesOrderHandler createSalesOrder,
+    AddOrderItemHandler addOrderItem,
+    ConfirmSaleHandler confirmSale,
+    RecordPaymentHandler recordPayment,
     DailyEntryLockSweep lockSweep,
     IClock clock,
     IOptions<SeedOptions> seedOptions,
@@ -116,6 +129,7 @@ public sealed class SimulationDataSeeder(
         // — production history below must see the account's real timezone.
         await SeedPrimaryTimeZoneAsync(sim, ct);
         await SeedProductionHistoryAsync(accountId, today, flockIds, sim, ct);
+        await SeedSalesAsync(accountId, today, ct);
         await SeedSecondAccountAsync(ct);
 
         // Deterministic lock-sweep proof: run the sweep synchronously as part
@@ -271,16 +285,23 @@ public sealed class SimulationDataSeeder(
         Guid accountId, DateOnly today, IReadOnlyList<Guid> flockIds, SimulationOptions sim,
         CancellationToken ct)
     {
+        var grades = await LoadSaleableGradesAsync(ct);
+        var historyDays = Math.Max(sim.HistoryDays, MinSentinelAgeDays);
+
+        for (var i = 0; i < flockIds.Count; i++)
+            await SeedFlockHistoryAsync(accountId, flockIds[i], baseline: 320 + i * 60, today, historyDays, grades, ct);
+    }
+
+    // Shared by production history (above) and the sales catalog (#243 Task
+    // 3b) — both need the same saleable-grade lookup, keyed by name.
+    private async Task<IReadOnlyDictionary<string, Guid>> LoadSaleableGradesAsync(CancellationToken ct)
+    {
         var grades = (await eggGrades.ListActiveAsync(SeedDefaults.FarmId, ct))
             .Where(g => g.IsSaleable)
             .ToDictionary(g => g.Name, g => g.Id);
         if (grades.Count == 0)
             throw new InvalidOperationException("Simulation seed needs the default egg grades.");
-
-        var historyDays = Math.Max(sim.HistoryDays, MinSentinelAgeDays);
-
-        for (var i = 0; i < flockIds.Count; i++)
-            await SeedFlockHistoryAsync(accountId, flockIds[i], baseline: 320 + i * 60, today, historyDays, grades, ct);
+        return grades;
     }
 
     private async Task SeedFlockHistoryAsync(
@@ -331,6 +352,191 @@ public sealed class SimulationDataSeeder(
         }
     }
 
+    // --- Sales: catalog, customers, orders across the lifecycle, FIFO
+    // depletion, payments (#243 Task 3b) ------------------------------------
+    //
+    // Everything below runs through the SAME real handlers DemoDataSeeder
+    // uses (CreateProduct/CreateCustomer/CreateSalesOrder/AddOrderItem/
+    // ConfirmSale/RecordPayment) — orders confirmed here allocate FIFO
+    // against the graded lots the production history above just generated,
+    // exactly as a user clicking through the Sales screen would. Idempotency
+    // is per-entity existence checks (product/customer by Name, order by the
+    // (CustomerId, OrderDate) natural key this seeder controls), same style
+    // as EnsureUserAsync/EnsureFlockAsync above.
+
+    // One product per saleable grade, sold in individual eggs (factor 1) —
+    // keeps order-item quantities directly comparable to lot sizes, which is
+    // what makes the FIFO-contention shape below easy to reason about.
+    private static readonly (string GradeName, string ProductName, long PriceMinorUnits)[] CatalogWanted =
+    [
+        ("Large", "Sim Large Eggs", 45),
+        ("Medium", "Sim Medium Eggs", 38),
+        ("Small", "Sim Small Eggs", 30),
+    ];
+
+    private static readonly (string Name, string Phone, string Note)[] CustomersWanted =
+    [
+        ("Sim Customer 1", "555-0201", "Simulation fixture customer"),
+        ("Sim Customer 2", "555-0202", "Simulation fixture customer"),
+        ("Sim Customer 3", "555-0203", "Simulation fixture customer"),
+    ];
+
+    // Modest relative to a single day's Large lot (baseline 320+ eggs/day,
+    // ~55% Large) — small enough that every confirmed order below draws from
+    // the SAME shallow pool of the oldest available Large lots (FIFO always
+    // starts at the oldest ProductionDate) instead of each landing on
+    // disjoint fresh stock. That shared-pool shape is what a later hazard
+    // task needs to force FOR UPDATE lock contention; this task only sets
+    // the baseline shape up and never forces the contention itself.
+    private const int ConfirmedOrderQuantityEggs = 36;
+    private const int DraftOrderQuantityEggs = 24;
+
+    private async Task SeedSalesAsync(Guid accountId, DateOnly today, CancellationToken ct)
+    {
+        var grades = await LoadSaleableGradesAsync(ct);
+        var products = await SeedProductCatalogAsync(accountId, grades, ct);
+        var customerIds = await SeedCustomersAsync(accountId, ct);
+
+        var largeProductId = products["Large"];
+        var mediumProductId = products["Medium"];
+        var customer1 = customerIds[0];
+        var customer2 = customerIds[1];
+        var customer3 = customerIds[2];
+
+        // Draft: created, items added, never confirmed — no stock touched.
+        await EnsureDraftOrderAsync(
+            accountId, customer1, today.AddDays(-4), mediumProductId, DraftOrderQuantityEggs, ct);
+        await EnsureDraftOrderAsync(
+            accountId, customer2, today.AddDays(-3), mediumProductId, DraftOrderQuantityEggs, ct);
+
+        // Confirmed (unpaid): same product/grade as every other confirmed
+        // order below — see ConfirmedOrderQuantityEggs for why that matters.
+        await EnsureConfirmedOrderAsync(
+            accountId, customer1, today.AddDays(-6), largeProductId, ConfirmedOrderQuantityEggs, ct);
+        await EnsureConfirmedOrderAsync(
+            accountId, customer2, today.AddDays(-5), largeProductId, ConfirmedOrderQuantityEggs, ct);
+
+        // Confirmed + partially paid — also left un-voided, so it doubles as
+        // the "voidable confirmed order" a later hazard pass can void.
+        var partialOrderId = await EnsureConfirmedOrderAsync(
+            accountId, customer3, today.AddDays(-2), largeProductId, ConfirmedOrderQuantityEggs, ct);
+        await EnsurePartialPaymentAsync(accountId, partialOrderId, today.AddDays(-1), ct);
+    }
+
+    private async Task<IReadOnlyDictionary<string, Guid>> SeedProductCatalogAsync(
+        Guid accountId, IReadOnlyDictionary<string, Guid> grades, CancellationToken ct)
+    {
+        var products = new Dictionary<string, Guid>();
+        foreach (var (gradeName, productName, price) in CatalogWanted)
+        {
+            if (!grades.TryGetValue(gradeName, out var gradeId))
+                throw new InvalidOperationException(
+                    $"Simulation seed needs the '{gradeName}' egg grade for the sales catalog.");
+            products[gradeName] = await EnsureProductAsync(accountId, productName, gradeId, price, ct);
+        }
+        return products;
+    }
+
+    private async Task<Guid> EnsureProductAsync(
+        Guid accountId, string name, Guid eggGradeId, long priceMinorUnits, CancellationToken ct)
+    {
+        var existing = await db.Products.FirstOrDefaultAsync(p => p.Name == name, ct);
+        if (existing is not null) return existing.Id;
+
+        var result = await createProduct.HandleAsync(new CreateProductCommand(
+            name, "Egg", "Egg", priceMinorUnits, eggGradeId, "Simulation fixture product"), accountId, ct);
+        Require(result, $"create product {name}");
+        return result.Value;
+    }
+
+    private async Task<IReadOnlyList<Guid>> SeedCustomersAsync(Guid accountId, CancellationToken ct)
+    {
+        var ids = new List<Guid>();
+        foreach (var (name, phone, note) in CustomersWanted)
+            ids.Add(await EnsureCustomerAsync(accountId, name, phone, note, ct));
+        return ids;
+    }
+
+    private async Task<Guid> EnsureCustomerAsync(
+        Guid accountId, string name, string phone, string note, CancellationToken ct)
+    {
+        var existing = await db.Customers.FirstOrDefaultAsync(c => c.Name == name, ct);
+        if (existing is not null) return existing.Id;
+
+        var result = await createCustomer.HandleAsync(
+            new CreateCustomerCommand(name, phone, Note: note), accountId, ct);
+        Require(result, $"create customer {name}");
+        return result.Value;
+    }
+
+    // (CustomerId, OrderDate) is the natural key THIS seeder controls (every
+    // call site below uses a distinct date per customer) — SalesOrder itself
+    // has no other stable, human-chosen identity to check idempotency against
+    // (ReferenceNumber is minted from a random order id inside the handler).
+    private async Task<Guid?> FindOrderAsync(Guid customerId, DateOnly orderDate, CancellationToken ct) =>
+        (await db.SalesOrders
+            .FirstOrDefaultAsync(o => o.CustomerId == customerId && o.OrderDate == orderDate, ct))?.Id;
+
+    private async Task<Guid> EnsureDraftOrderAsync(
+        Guid accountId, Guid customerId, DateOnly orderDate, Guid productId, int quantityEggs,
+        CancellationToken ct)
+    {
+        var existing = await FindOrderAsync(customerId, orderDate, ct);
+        if (existing is not null) return existing.Value;
+
+        var created = await createSalesOrder.HandleAsync(
+            new CreateSalesOrderCommand(customerId, orderDate), accountId, ct);
+        Require(created, $"create sales order for customer {customerId} on {orderDate:yyyy-MM-dd}");
+        var orderId = created.Value;
+
+        // Unit/price both null: defaults from the product (Egg unit, the
+        // catalog price seeded above) — same pattern as DemoDataSeeder.
+        var added = await addOrderItem.HandleAsync(
+            new AddOrderItemCommand(orderId, productId, quantityEggs, null, null), accountId, ct);
+        Require(added, $"add item to sales order {orderId}");
+
+        return orderId;
+    }
+
+    private async Task<Guid> EnsureConfirmedOrderAsync(
+        Guid accountId, Guid customerId, DateOnly orderDate, Guid productId, int quantityEggs,
+        CancellationToken ct)
+    {
+        var orderId = await EnsureDraftOrderAsync(accountId, customerId, orderDate, productId, quantityEggs, ct);
+
+        // Status, not "the order already existed", decides whether to
+        // confirm — an order that exists but is still Draft still needs
+        // confirming on a re-run.
+        var order = await db.SalesOrders.FirstAsync(o => o.Id == orderId, ct);
+        if (order.Status == SalesOrderStatus.Confirmed) return orderId;
+
+        // FIFO allocation (tech spec §10.9.1): draws from the oldest
+        // available lots for this grade under a FOR UPDATE lock — this is
+        // what depletes the production history's egg lots.
+        var confirmed = await confirmSale.HandleAsync(new ConfirmSaleCommand(orderId), accountId, ct);
+        Require(confirmed, $"confirm sales order {orderId}");
+        return orderId;
+    }
+
+    private async Task EnsurePartialPaymentAsync(
+        Guid accountId, Guid orderId, DateOnly paymentDate, CancellationToken ct)
+    {
+        var hasPayment = await db.Payments.AnyAsync(p => p.SalesOrderId == orderId, ct);
+        if (hasPayment) return;
+
+        var order = await db.SalesOrders.FirstAsync(o => o.Id == orderId, ct);
+        // Half the total, rounded down — strictly less than TotalAmount so
+        // the order stays genuinely partially paid, never fully settled.
+        var amount = order.TotalAmount.MinorUnits / 2;
+        if (amount <= 0)
+            throw new InvalidOperationException(
+                $"Simulation seed: sales order {orderId}'s total is too small to seed a partial payment.");
+
+        var result = await recordPayment.HandleAsync(new RecordPaymentCommand(
+            orderId, paymentDate, amount, "Cash", null, "Simulation fixture partial payment"), accountId, ct);
+        Require(result, $"record partial payment for sales order {orderId}");
+    }
+
     // --- Second, pristine account (tenant-isolation fixture) -----------
 
     private async Task SeedSecondAccountAsync(CancellationToken ct)
@@ -357,5 +563,8 @@ public sealed class SimulationDataSeeder(
         Require(result.IsSuccess ? Result.Success() : Result.Failure(result.Error), what);
 
     private static void Require(Result<SubmitDailyEntryResponse> result, string what) =>
+        Require(result.IsSuccess ? Result.Success() : Result.Failure(result.Error), what);
+
+    private static void Require(Result<ConfirmSaleResponse> result, string what) =>
         Require(result.IsSuccess ? Result.Success() : Result.Failure(result.Error), what);
 }
