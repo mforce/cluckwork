@@ -144,8 +144,9 @@ cat >"$ENV_FILE" <<EOF
 # Deviations from deploy/.env.example (all sanctioned — see README.md):
 #   - all three rate-limit buckets below are raised far past production
 #     values so a load test isn't throttled as if it were an attack.
-#   - Otlp__Endpoint is explicitly empty (the local metrics sink is a later
-#     #243 task) — never points at a developer's real collector.
+#   - Otlp__Endpoint points at the sim-only otel-collector service (#243
+#     Task 8, tools/simulation/otel/collector.yaml) — never a developer's
+#     real deploy/.env collector endpoint.
 #   - AllowedHosts is "*" (no traefik/public hostname in front of the sim
 #     stack; CLUCKWORK_HOST/TRUSTED_PROXY_CIDR below are kept only for
 #     interpolation-var parity with deploy/.env.example).
@@ -205,9 +206,11 @@ AllowedHosts=*
 CLUCKWORK_HOST=cluckwork-sim.local
 TRUSTED_PROXY_CIDR=127.0.0.1/32
 
-# --- Telemetry: explicitly empty — the local metrics sink is a later #243
-# task. Never inherit a developer's real deploy/.env OTLP endpoint. ---
-Otlp__Endpoint=
+# --- Telemetry: local OTLP sink (#243 Task 8) — the otel-collector service
+# in docker-compose.sim.yml, sim-only. Never a developer's real deploy/.env
+# OTLP endpoint. ---
+Otlp__Endpoint=http://otel-collector:4317
+Otlp__Protocol=grpc
 EOF
 echo "Wrote $(basename "$ENV_FILE")."
 

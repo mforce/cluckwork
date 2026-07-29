@@ -5,9 +5,10 @@ app + Postgres running under its own docker compose project
 (`cluckwork-sim`), seeded by `SimulationDataSeeder` with a large,
 deterministic fixture (a role-weighted user pool, a minimal flock topology,
 90 days of production history, and sales/inventory/expense lifecycle data).
-This directory owns the compose overlay, the secret bootstrap, and the
-reset/verify script. The k6 load-test scripts, monitoring, and orchestrator
-land in later #243 tasks.
+This directory owns the compose overlay, the secret bootstrap, the
+reset/verify script, the k6 load-test scripts, and monitoring (a local OTLP
+metrics sink + `docker stats`/Postgres snapshotters — see "Monitoring"
+below). The orchestrator lands in a later #243 task.
 
 ## Quickstart
 
@@ -78,7 +79,7 @@ reading or changing it:
 | `Simulation__TimeZoneId` | `America/Chicago` | Non-UTC, so the primary account's timezone handling is actually exercised. |
 | `Simulation__CredentialOutputPath` | `/app/sim-cast/manifest.json` | Mounted to the host at `tools/simulation/out/manifest.json` via the `app` service's `./out:/app/sim-cast` volume. |
 | `RateLimiting__Login__PermitLimit` / `…Refresh…` / `…ClientErrors…` | `1000000` (windows unchanged) | All three per-IP buckets raised — see deviation list below. |
-| `Otlp__Endpoint` | *(empty)* | See deviation list below. |
+| `Otlp__Endpoint` / `Otlp__Protocol` | `http://otel-collector:4317` / `grpc` | See "Monitoring" and deviation list below. |
 | `AllowedHosts` | `*` | No traefik/public hostname in front of the sim stack (loopback only). |
 | `POSTGRES_DB` / `POSTGRES_USER` / `POSTGRES_PASSWORD` | `cluckwork_sim` / `cluckwork_sim` / generated | Isolated database, isolated named volume (`cluckwork-sim-postgres`, namespaced by the compose project to `cluckwork-sim_cluckwork-sim-postgres`) — never the real dev DB. |
 | App port | `127.0.0.1:8081` | Different from the real dev stack's `127.0.0.1:8080` (`deploy/docker-compose.yml`), so both can run at once without colliding. |
@@ -100,12 +101,11 @@ Development) with these deliberate, documented deviations, all isolated to
    resources, no managed-PG connection limits or TLS. **Invalidates:** any
    absolute throughput/latency number as representative of a networked,
    TLS, resource-capped production database.
-3. **`Otlp__Endpoint` is empty.** The minimal local metrics sink (an
-   `otel-collector` in the overlay) is a later #243 task — until then the app
-   exports no telemetry at all in the sim stack. **Invalidates:** nothing yet
-   observable via OTLP (app-side connection-pool saturation, EF/Npgsql
-   metrics) — the harness falls back to `docker stats` + `pg_stat_*`
-   snapshots for now.
+3. **`Otlp__Endpoint` points at the sim-only `otel-collector` service**
+   (`http://otel-collector:4317`, `Otlp__Protocol=grpc`) — see "Monitoring"
+   below. Never a developer's real deploy/.env collector endpoint.
+   **Invalidates:** nothing — this is strictly additive observability, not a
+   config deviation with a throughput/latency implication.
 4. **No traefik / TLS front door**, `AllowedHosts=*`, loopback-only
    port publish. The real stack fronts the app with traefik + TLS
    (`deploy/docker-compose.yml`'s `prod` profile); this stack is reached
@@ -125,6 +125,88 @@ enough. `reset.sh`'s preflight runs `CREATE EXTENSION IF NOT EXISTS
 pg_stat_statements;` (idempotent — a no-op if it already exists) and then a
 `SELECT` from it, in-container via `docker compose exec db psql`.
 
+## Monitoring (#243 Task 8)
+
+Why: under this lean stack, `pg_stat_activity` only shows connections that
+**reached** Postgres — it can't see a request queued in the app waiting for a
+free pooled connection (Npgsql's max pool is 100, exactly matching stock
+Postgres's `max_connections` of 100 — zero headroom). A local OTLP collector
+capturing the app's Npgsql/runtime meters makes that saturation visible
+while keeping the app in Production config, alongside container resource
+usage and Postgres-side snapshots.
+
+### Local OTLP metrics sink
+
+`otel-collector` (`otel/opentelemetry-collector-contrib`, config at
+`otel/collector.yaml`) receives the `app` container's OTLP push — enabled by
+`bootstrap.sh` pointing `Otlp__Endpoint` at `http://otel-collector:4317`
+(`Otlp__Protocol=grpc`; see `Program.cs`'s `OtlpOptions` — export is
+config-gated and turns on only when `Otlp:Endpoint` is set). Confirm export
+is live via the app's boot log:
+
+```bash
+docker compose -p cluckwork-sim --env-file tools/simulation/.env.sim \
+  -f tools/simulation/docker-compose.sim.yml logs app | grep "OTLP export"
+# app-1  | OTLP export enabled: traces -> http://otel-collector:4317/, metrics -> http://otel-collector:4317/ (Grpc)
+```
+
+The collector exposes two sinks, neither backed by a host volume (see "Why
+no host-writable path for the collector" below):
+
+- **Prometheus exporter**, host-curlable on loopback:
+  `curl -s http://127.0.0.1:8889/metrics`. This is the primary sink — grep it
+  for `db_client_.*npgsql` (Npgsql connection/operation metrics, e.g.
+  `db_client_operation_npgsql_executing`, `db_client_connection_npgsql_create_time_seconds`)
+  and `dotnet_gc_`/`dotnet_thread_pool_` (runtime GC/threadpool metrics).
+- **Debug exporter** — full per-datapoint detail on container stdout:
+  `docker compose -p cluckwork-sim ... logs otel-collector`.
+
+The collector also runs a `traces` pipeline (debug exporter only) purely so
+the OTLP receiver's trace gRPC service is registered — the app's exporter is
+configured for both signals off the one `Otlp:Endpoint`, and an
+unregistered trace service would make every span export fail loudly.
+
+### `monitor/docker-stats-sampler.sh`
+
+Samples `docker stats --no-stream` for every container in the
+`cluckwork-sim` project (app, db, otel-collector) on an interval, appending
+CSV rows (`timestamp,container,cpu_pct,mem,net_io,block_io`). Runs under the
+same `-p cluckwork-sim` safety gate as `reset.sh`. Stops on Ctrl-C/SIGTERM or
+after `--duration SECONDS`:
+
+```bash
+bash tools/simulation/monitor/docker-stats-sampler.sh --interval 2 --duration 60
+```
+
+### `monitor/pg-snapshot.sh`
+
+Three subcommands around a load-test run, all via `docker compose -p
+cluckwork-sim exec -T db psql` (never a host Postgres connection — `db` has
+no published port):
+
+```bash
+bash tools/simulation/monitor/pg-snapshot.sh start    # resets pg_stat_statements, records pg_database_size "before"
+# ... run k6 ...
+bash tools/simulation/monitor/pg-snapshot.sh sample    # pg_stat_activity (state/wait_event) + pg_blocking_pids + connections vs max_connections
+bash tools/simulation/monitor/pg-snapshot.sh end       # pg_database_size "after" + delta, top pg_stat_statements
+```
+
+Docker Block I/O (from the stats sampler above) is network/disk **traffic**,
+not size — `pg_database_size(current_database())` is the only correct way to
+see the database actually grow; `end` reports the before/after delta.
+
+### Why no host-writable path for the collector, and where output lands
+
+`tools/simulation/out/` is written into by the `app` container as **root**
+(`Simulation__CredentialOutputPath`), so anything landing there is
+root-owned and often not writable by the host user. Rather than
+`chown`/`sudo` around that, none of the Task 8 monitoring pieces touch it:
+the collector's two sinks (Prometheus scrape, debug-exporter stdout) need no
+file at all, and both `monitor/*.sh` scripts write to
+`tools/simulation/monitor/out/` — a sibling directory they create themselves
+as the host user (already covered by the existing `out/` entry in
+`.gitignore`, which matches at any depth under `tools/simulation/`).
+
 ## Files
 
 - `bootstrap.sh` — idempotent secret generator. `--force` regenerates the RSA
@@ -136,15 +218,22 @@ pg_stat_statements;` (idempotent — a no-op if it already exists) and then a
     every deterministic cast member, with role and password. This is **not**
     the same thing as `out/manifest.json` (the seeder's own row-count/
     completion manifest, written by the app itself).
-- `docker-compose.sim.yml` — the self-contained sim stack (see above).
+- `docker-compose.sim.yml` — the self-contained sim stack (see above; also
+  defines `otel-collector`).
 - `reset.sh` — `down -v` (guarded to the `cluckwork-sim` project) → `config
   -q` → `up -d --build` → poll `/health/ready` → preflight (plain HTTP `/` is
   200 not 307, `pg_stat_statements` query works, `out/manifest.json` is
   `complete` with the expected user count).
+- `otel/collector.yaml` — the local OTLP collector's config (see
+  "Monitoring").
+- `monitor/docker-stats-sampler.sh`, `monitor/pg-snapshot.sh` — the
+  container-resource and Postgres snapshotters (see "Monitoring").
 - `.gitignore` — `.env.sim`, `.sim-cast.json`, `out/`, `*.pem` never get
   committed (also mirrored in the root `.dockerignore` so they can never
   enter the Docker build context either — the Dockerfile's build context is
-  the whole repo root).
+  the whole repo root). `out/` matches at any depth, so
+  `monitor/out/` (the monitoring scripts' own output directory) is covered
+  too.
 
 ## Verifying without a full bring-up
 

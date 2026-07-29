@@ -90,16 +90,19 @@ services:
       # only so RateLimiting__TrustedProxies matches the base stack's shape.
       RateLimiting__TrustedProxies__0: ${TRUSTED_PROXY_CIDR}
       AllowedHosts: ${AllowedHosts}
-      # Explicitly empty (see SimulationOptions/.env.sim comments) — the
-      # local metrics sink is a later #243 task. Never a developer's real
-      # deploy/.env collector endpoint.
+      # #243 Task 8: points at the otel-collector service below, never a
+      # developer's real deploy/.env collector endpoint (bootstrap.sh
+      # generates this value into .env.sim; see otel/collector.yaml).
       Otlp__Endpoint: ${Otlp__Endpoint}
+      Otlp__Protocol: ${Otlp__Protocol}
     labels:
       # Provenance only — no traefik router/labels in this stack.
       - com.cluckwork.sim-host=${CLUCKWORK_HOST}
     depends_on:
       db:
         condition: service_healthy
+      otel-collector:
+        condition: service_started
     # Different host port than the real dev stack's 127.0.0.1:8080
     # (deploy/docker-compose.yml) so both can run at the same time without
     # colliding. Loopback only — never exposes the sim app to the LAN.
@@ -110,6 +113,24 @@ services:
     # inspection.
     volumes:
       - ./out:/app/sim-cast
+
+  # #243 Task 8: local OTLP metrics sink — see otel/collector.yaml. Makes
+  # app-side Npgsql connection-pool + .NET runtime metrics visible, which
+  # pg_stat_activity alone can't show (it only sees connections that
+  # already reached Postgres, not requests queued in the app waiting on the
+  # pool). No host volume: config is mounted read-only and the debug
+  # exporter only writes to container stdout — deliberately sidesteps
+  # ./out being root-owned (the app container writes as root) rather than
+  # fighting it.
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.114.0
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    volumes:
+      - ./otel/collector.yaml:/etc/otelcol-contrib/config.yaml:ro
+    ports:
+      # Prometheus exporter — host-curlable metrics scrape, loopback only
+      # (matches every other published port in this stack).
+      - "127.0.0.1:8889:8889"
 
 volumes:
   cluckwork-sim-postgres:
