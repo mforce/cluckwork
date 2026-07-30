@@ -525,8 +525,16 @@ if (args.Length > 0 && args[0] == "seed")
 {
     using var seedScope = app.Services.CreateScope();
     var sp = seedScope.ServiceProvider;
-    await sp.GetRequiredService<AppDbContext>().Database.MigrateAsync();
     var profile = GetArgValue(args, "--profile");
+
+    // #284 review — validate the profile AND its availability in this
+    // environment (the DI-registration/prod-guard check) BEFORE touching the
+    // database at all. Previously MigrateAsync ran first, so an unknown
+    // profile or a Production-blocked "demo" still mutated the schema (or
+    // threw raw) before the guard below ever ran. Nothing under this switch
+    // may write to the database — it only resolves services and picks which
+    // seed delegate to run once validation has passed.
+    Func<Task<DemoSeedResult>>? runSeed;
     switch (profile)
     {
         case "demo":
@@ -542,17 +550,34 @@ if (args.Length > 0 && args[0] == "seed")
                     "Demo seeding is not available in Production (DemoDataSeeder is not registered).");
                 return 1;
             }
-            await demoSeeder.SeedAsync();
+            runSeed = () => demoSeeder.SeedAsync();
             break;
         }
         // NOTE: a `simulation` profile (SimulationDataSeeder, PR #279) is
-        // meant to slot in here as one more case, same shape as "demo".
+        // meant to slot in here as one more case, same shape as "demo": resolve
+        // + validate its seeder, assign runSeed, break — never migrate/seed
+        // inline in the case itself.
         default:
             await Console.Error.WriteLineAsync(
                 $"Unknown or missing --profile '{profile}'. Known: demo.");
             return 1;
     }
-    app.Logger.LogInformation("Seed command complete (profile={Profile}).", profile);
+
+    await sp.GetRequiredService<AppDbContext>().Database.MigrateAsync();
+
+    // Fail-loud (#284 review): SeedAsync reports what happened instead of
+    // swallowing a no-op or an internal failure into a silent exit 0. Only
+    // Seeded/AlreadySeeded (the seeder's own idempotency guard) are success —
+    // everything else is a clear stderr message + non-zero exit.
+    var result = await runSeed();
+    if (!result.IsSuccess)
+    {
+        await Console.Error.WriteLineAsync(result.Message);
+        return 1;
+    }
+
+    app.Logger.LogInformation(
+        "Seed command complete (profile={Profile}): {Message}", profile, result.Message);
     return 0;
 }
 
