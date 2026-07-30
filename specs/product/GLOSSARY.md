@@ -558,6 +558,17 @@ stays signed in. Eviction is bounded by the access-token lifetime: an
 already-issued access token keeps working until it expires (~15 min), because
 tokens are stateless and there is no server-side denylist.
 
+**Break-glass reset (#265)** — the recovery path for the one case the two above
+leave uncovered: a **sole Owner** who has lost their password. There is no email
+reset, self-service needs the current password, and an Owner cannot reset their
+own account — so without this the only recourse is direct database surgery. An
+operator with server access runs the offline `recover-admin` command, which
+resets the password to a freshly generated temporary one, **clears any lockout**,
+rotates the security stamp, and revokes every session. It is audited as
+`User.BreakGlassReset` (distinct from `User.PasswordSet`, and recording the
+reason + the host it ran from) so the reset is conspicuous in the audit log. The
+temporary password must be changed on first login.
+
 **UI language** — a per-user preference controlling the language the interface
 renders in. Stored on `ApplicationUser.Language` as a BCP-47 primary language
 subtag (e.g. `en`) in lowercase; `null` means follow the app's default. Three

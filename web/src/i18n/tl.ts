@@ -1487,6 +1487,7 @@ export const tl = {
     "auditAction.User.Update": "Na-update ang user",
     "auditAction.User.PasswordSet": "Naitakda ang password",
     "auditAction.User.PasswordChanged": "Napalitan ang password",
+    "auditAction.User.BreakGlassReset": "Emergency na pag-reset ng password",
     "auditAction.User.FlockAssign": "Na-assign ang kawan sa user",
     "auditAction.User.FlockUnassign": "Na-unassign ang kawan mula sa user",
     "auditAction.Account.Export": "Na-export ang datos",

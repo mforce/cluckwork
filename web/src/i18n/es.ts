@@ -1429,6 +1429,7 @@ export const es = {
     "auditAction.User.Update": "Usuario actualizado",
     "auditAction.User.PasswordSet": "Contraseña establecida",
     "auditAction.User.PasswordChanged": "Contraseña cambiada",
+    "auditAction.User.BreakGlassReset": "Restablecimiento de emergencia",
     "auditAction.User.FlockAssign": "Lote asignado al usuario",
     "auditAction.User.FlockUnassign": "Lote desasignado del usuario",
     "auditAction.Account.Export": "Datos exportados",
