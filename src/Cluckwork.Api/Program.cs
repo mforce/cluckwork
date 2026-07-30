@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using Cluckwork.Api;
+using Cluckwork.Api.Cli;
 using Cluckwork.Api.Configuration;
 using Microsoft.Extensions.Options;
 using Cluckwork.Api.Endpoints.Accounts;
@@ -547,193 +548,13 @@ builder.Services.AddHostedService<DurableJobWorker>();
 // ----------------------------------------------------------------
 var app = builder.Build();
 
-// --- CLI dispatch: `seed --profile <name>` (#280) ---------------------------
-// A one-off command on the same binary, not a serving-process code path: it
-// migrates the schema, runs the requested profile's seeder(s), then EXITS —
-// Kestrel and the hosted services (durable job worker) below never start.
-// Placed immediately after Build() so it short-circuits before anything else
-// the serving process does at startup (OTLP boot log, base seed, etc.).
-if (args.Length > 0 && args[0] == "seed")
-{
-    using var seedScope = app.Services.CreateScope();
-    var sp = seedScope.ServiceProvider;
-    var profile = GetArgValue(args, "--profile");
-
-    // #284 review — validate the profile AND its availability in this
-    // environment (the DI-registration/prod-guard check) BEFORE touching the
-    // database at all. Previously MigrateAsync ran first, so an unknown
-    // profile or a Production-blocked "demo" still mutated the schema (or
-    // threw raw) before the guard below ever ran. Nothing under this switch
-    // may write to the database — it only resolves services and picks which
-    // seed delegate to run once validation has passed.
-    Func<Task<SeedResult>>? runSeed;
-    switch (profile)
-    {
-        case "demo":
-        {
-            // DemoDataSeeder is registered only outside Production (see the DI
-            // registration above) — GetService (not GetRequiredService) turns
-            // a missing registration into a clear operator-facing message
-            // instead of an opaque DI resolution exception.
-            var demoSeeder = sp.GetService<DemoDataSeeder>();
-            if (demoSeeder is null)
-            {
-                await Console.Error.WriteLineAsync(
-                    "Demo seeding is not available in Production (DemoDataSeeder is not registered).");
-                return 1;
-            }
-            runSeed = () => demoSeeder.SeedAsync();
-            break;
-        }
-        case "simulation":
-        {
-            // SimulationDataSeeder is registered only outside Production (see
-            // the DI registration above) — same GetService guard as demo.
-            var simSeeder = sp.GetService<SimulationDataSeeder>();
-            if (simSeeder is null)
-            {
-                await Console.Error.WriteLineAsync(
-                    "Simulation seeding is not available in Production (SimulationDataSeeder is not registered).");
-                return 1;
-            }
-            runSeed = () => simSeeder.SeedAsync();
-            break;
-        }
-        default:
-            await Console.Error.WriteLineAsync(
-                $"Unknown or missing --profile '{profile}'. Known: demo, simulation.");
-            return 1;
-    }
-
-    await sp.GetRequiredService<AppDbContext>().Database.MigrateAsync();
-
-    // Fail-loud (#284 review): SeedAsync reports what happened instead of
-    // swallowing a no-op or an internal failure into a silent exit 0. Only
-    // Seeded/AlreadySeeded (the seeder's own idempotency guard) are success —
-    // everything else is a clear stderr message + non-zero exit.
-    var result = await runSeed();
-    if (!result.IsSuccess)
-    {
-        await Console.Error.WriteLineAsync(result.Message);
-        return 1;
-    }
-
-    app.Logger.LogInformation(
-        "Seed command complete (profile={Profile}): {Message}", profile, result.Message);
-    return 0;
-}
-
-// --- CLI dispatch: `migrate` (#263) ---------------------------------------
-// Applies EF migrations then EXITS — the pre-deploy-job entrypoint that lets a
-// production deploy run schema DDL under a dedicated migrator/owner credential
-// (a one-off job), with `Database:MigrateOnStartup=false` so the request-serving
-// process — running under a least-privilege runtime role with no DDL grant —
-// never applies DDL at request time (the #263 privilege-separation goal). Same
-// run-then-exit shape as `seed`; fail-loud (non-zero exit + stderr on failure).
-// The runtime role's grants (USAGE + DML, no DDL) are a documented deploy step;
-// this command is the app-side enabler.
-if (args.Length > 0 && args[0] == "migrate")
-{
-    try
-    {
-        // Inside the try so a DI/provider resolution failure (e.g. a misspelled
-        // Database__Provider) also fails loud with exit 1 + a clean message,
-        // rather than an unhandled stack trace (#263 review).
-        using var migrateScope = app.Services.CreateScope();
-        var db = migrateScope.ServiceProvider.GetRequiredService<AppDbContext>();
-
-        var pending = (await db.Database.GetPendingMigrationsAsync()).ToList();
-        if (pending.Count == 0)
-        {
-            app.Logger.LogInformation("Migrate: schema already current; no migrations to apply.");
-            return 0;
-        }
-        app.Logger.LogInformation(
-            "Migrate: applying {Count} pending migration(s): {Migrations}",
-            pending.Count, string.Join(", ", pending));
-        await db.Database.MigrateAsync();
-        app.Logger.LogInformation("Migrate: schema is now current.");
-        return 0;
-    }
-    catch (Exception ex)
-    {
-        await Console.Error.WriteLineAsync($"Migrate failed: {ex.Message}");
-        app.Logger.LogError(ex, "Migrate command failed.");
-        return 1;
-    }
-}
-
-// --- CLI dispatch: `recover-admin --email <e> [--account <guid>] [--reason <t>]` (#265) ---
-// Offline break-glass recovery for a locked-out account — a sole Owner with a
-// lost password and no email/SMTP reset path would otherwise need direct DB
-// surgery. Same one-off-command shape as `seed` above (migrate, do the work,
-// EXIT before Kestrel starts), but deliberately NOT environment-gated: it must
-// work against a real Production database. Its safety comes from requiring shell
-// access to the deployment, plus a conspicuous "User.BreakGlassReset" audit row.
-if (args.Length > 0 && args[0] == "recover-admin")
-{
-    try
-    {
-        using var recoveryScope = app.Services.CreateScope();
-        var sp = recoveryScope.ServiceProvider;
-
-        var accountArg = GetArgValue(args, "--account");
-        Guid? accountId = null;
-        if (accountArg is not null)
-        {
-            if (!Guid.TryParse(accountArg, out var parsedAccount))
-            {
-                await Console.Error.WriteLineAsync($"Invalid --account '{accountArg}' — must be a GUID.");
-                return 1;
-            }
-            accountId = parsedAccount;
-        }
-
-        await sp.GetRequiredService<AppDbContext>().Database.MigrateAsync();
-
-        var recovery = sp.GetRequiredService<Cluckwork.Infrastructure.Identity.AdminRecoveryService>();
-        var recovered = await recovery.RecoverAsync(
-            GetArgValue(args, "--email"), accountId, GetArgValue(args, "--reason"), CancellationToken.None);
-        if (recovered.IsFailure)
-        {
-            await Console.Error.WriteLineAsync(
-                $"Recovery failed: {recovered.Error.Code} — {recovered.Error.Description}");
-            return 1;
-        }
-
-        // Print to stdout (NOT the logger) so the one-time password is shown to
-        // the operator and never lands in structured logs / the OTLP pipeline.
-        // NOTE: a host's stdout collector (docker logs, journald, a platform log
-        // pipeline) may still capture it — treat the value as sensitive and
-        // rotate it on first login, as the runbook instructs (#265 review).
-        var outcome = recovered.Value;
-        await Console.Out.WriteLineAsync(
-            $"Break-glass reset complete for {outcome.Email} (account {outcome.AccountId}). " +
-            "All existing sessions were revoked.");
-        await Console.Out.WriteLineAsync($"Temporary password: {outcome.TemporaryPassword}");
-        await Console.Out.WriteLineAsync(
-            "Log in with this now and change it immediately (Account → change password).");
-        return 0;
-    }
-    catch (Exception ex)
-    {
-        // Fail-loud per the runbook: an unexpected error (DB unreachable, a
-        // concurrent reset losing the CAS race, ...) becomes exit 1 + a clean
-        // stderr line, not a raw stack trace. The reset path's transaction rolls
-        // back, so nothing is left half-changed (#265 review).
-        await Console.Error.WriteLineAsync($"Recovery failed: {ex.Message}");
-        return 1;
-    }
-}
-
-static string? GetArgValue(string[] args, string flagName)
-{
-    for (var i = 0; i < args.Length - 1; i++)
-        if (args[i] == flagName)
-            return args[i + 1];
-    return null;
-}
-// ----------------------------------------------------------------
+// One-off operator commands (seed / migrate / recover-admin) run then EXIT
+// before the web host starts — Kestrel and the hosted services never run for
+// these. Each lives in Cluckwork.Api.Cli; the dispatcher returns the exit
+// code, or null when no CLI verb matched (a normal serving start). Extracted
+// from the ~180 inline lines that used to sit here (#288).
+if (await CliDispatcher.TryRunAsync(app, args) is { } cliExitCode)
+    return cliExitCode;
 
 // One boot line makes export misconfiguration observable — a typo'd env var
 // name otherwise silently disables the whole pipeline (#226 review).
