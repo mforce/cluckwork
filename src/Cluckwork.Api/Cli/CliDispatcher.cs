@@ -9,7 +9,10 @@ using Microsoft.AspNetCore.Builder;
 // in Program.cs (#288).
 public static class CliDispatcher
 {
-    private static readonly ICliCommand[] Commands =
+    // internal (not private) so a fast test can assert every verb is registered
+    // — a dropped entry here would otherwise silently start the web host instead
+    // of running the command, caught only by the slow subprocess tests (#288 review).
+    internal static readonly ICliCommand[] Commands =
     [
         new SeedCliCommand(),
         new MigrateCliCommand(),

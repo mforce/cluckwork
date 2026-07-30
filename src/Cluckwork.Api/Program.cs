@@ -503,9 +503,10 @@ builder.Services.AddScoped<DatabaseSeeder>();
 // Registered only outside Production (defense-in-depth): the primary guard is
 // that `seed` is a separate, explicitly-invoked command, but a Production
 // process must ALSO never be able to resolve DemoDataSeeder even if someone
-// mistakenly ran `seed --profile demo` against it — the CLI dispatch below
-// resolves it with GetService (not GetRequiredService) and turns the missing
-// registration into a clear operator-facing message. Intended flow: the
+// mistakenly ran `seed --profile demo` against it — the `seed` command
+// (`Cli/SeedCliCommand.cs`) resolves it with GetService (not GetRequiredService)
+// and turns the missing registration into a clear operator-facing message.
+// Intended flow: the
 // serving process for a real farm stays Production (base DatabaseSeeder
 // still seeds it on boot, unchanged); a non-Production process — a dev box,
 // CI, or the eventual sim/load-test harness (#243) — runs the same binary
@@ -516,7 +517,8 @@ if (!builder.Environment.IsProduction())
 // --- #243 load-test simulation seeder: cast + minimal topology + 2nd
 // account + primary tz. #279: no longer boot-seeded and no longer
 // self-gated on Seed:Simulation — its only caller is the explicit
-// `seed --profile simulation` command below, same shape as DemoDataSeeder.
+// `seed --profile simulation` command (`Cli/SeedCliCommand.cs`), same shape as
+// DemoDataSeeder.
 // Registered only outside Production (defense-in-depth, mirrors
 // DemoDataSeeder immediately above): the primary guard is that `seed` is a
 // separate, explicitly-invoked command, but a Production process must ALSO
@@ -553,7 +555,7 @@ var app = builder.Build();
 // these. Each lives in Cluckwork.Api.Cli; the dispatcher returns the exit
 // code, or null when no CLI verb matched (a normal serving start). Extracted
 // from the ~180 inline lines that used to sit here (#288).
-if (await CliDispatcher.TryRunAsync(app, args) is { } cliExitCode)
+if (await CliDispatcher.TryRunAsync(app, args) is int cliExitCode)
     return cliExitCode;
 
 // One boot line makes export misconfiguration observable — a typo'd env var

@@ -34,4 +34,10 @@
     <ProjectReference Include="..\Cluckwork.Infrastructure\Cluckwork.Infrastructure.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Let the integration tests reach internal Api types (e.g. the
+         CliDispatcher command registry) — mirrors Cluckwork.Infrastructure. -->
+    <InternalsVisibleTo Include="Cluckwork.Api.IntegrationTests" />
+  </ItemGroup>
+
 </Project>

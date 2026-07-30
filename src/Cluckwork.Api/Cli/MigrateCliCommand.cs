@@ -10,8 +10,10 @@ using Microsoft.Extensions.Logging;
 // entrypoint that lets a production deploy run schema DDL under a dedicated
 // migrator/owner credential (a one-off job), with `Database:MigrateOnStartup=false`
 // so the request-serving process — running under a least-privilege runtime role
-// with no DDL grant — never applies DDL at request time (the #263 goal). Same
-// run-then-exit shape as `seed`; fail-loud (non-zero exit + stderr on failure).
+// with no DDL grant — never applies DDL at request time (the #263 privilege-
+// separation goal). Same run-then-exit shape as `seed`; fail-loud (non-zero exit
+// + stderr on failure). The runtime role's grants (USAGE + DML, no DDL) are a
+// documented deploy step; this command is the app-side enabler.
 public sealed class MigrateCliCommand : ICliCommand
 {
     public string Name => "migrate";
