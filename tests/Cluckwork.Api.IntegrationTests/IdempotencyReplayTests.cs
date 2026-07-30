@@ -50,6 +50,69 @@ public sealed class IdempotencyReplayTests(CluckworkWebApplicationFactory factor
     }
 
     [Fact]
+    public async Task SameKey_ConcurrentRequests_OnlyOneSideEffect()
+    {
+        // Serialization smoke test for #289's fix. The actual race needed three
+        // actors (A completes, B in critical section, A's TryRemove unmaps the
+        // semaphore B holds, then C GetOrAdds a fresh semaphore alongside B) —
+        // unreproducible deterministically over HTTP without a controllable
+        // next delegate. Two concurrent requests with no prior completion both
+        // share the same semaphore in the old code (nothing has been removed
+        // yet), so they always serialise even before the fix. This test verifies
+        // the invariant they both exercise: exactly one side effect.
+        //
+        // Uses an expense as the probe (append-only, no natural-key uniqueness)
+        // so that Assert.Equal(1, count) is unambiguous — a double execution
+        // would leave two rows.
+        var email = $"u-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
+
+        // Seed an expense category (the expense FK target). The handler
+        // hardcodes SeedDefaults.FarmId — the category must match.
+        var categoryId = Guid.NewGuid();
+        await factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            db.ExpenseCategories.Add(Cluckwork.Domain.Expenses.ExpenseCategory.Create(
+                categoryId, accountId, Cluckwork.Domain.Accounts.SeedDefaults.FarmId,
+                "Test-Category"));
+            await db.SaveChangesAsync();
+        });
+
+        var body = new
+        {
+            expenseCategoryId = categoryId,
+            date = DateOnly.FromDateTime(DateTime.UtcNow.Date),
+            description = "Test expense",
+            amountMinorUnits = 10_00L,
+            flockId = (Guid?)null,
+            note = (string?)null
+        };
+        var key = Guid.NewGuid().ToString();
+
+        // Fire both requests concurrently, interleaving on the same key.
+        var taskA = client.PostWithKeyAsync("/api/v1/expenses", key, body);
+        var taskB = client.PostWithKeyAsync("/api/v1/expenses", key, body);
+        var responses = await Task.WhenAll(taskA, taskB);
+
+        // Both get a success response (the stripe serializes them; the second
+        // sees the replay record and returns the cached response).
+        foreach (var r in responses)
+            Assert.Equal(HttpStatusCode.Created, r.StatusCode);
+
+        var bodyA = await responses[0].Content.ReadAsStringAsync();
+        var bodyB = await responses[1].Content.ReadAsStringAsync();
+        Assert.Equal(bodyA, bodyB);
+
+        // Exactly one row persisted despite the concurrent requests. An expense
+        // has no natural-key uniqueness, so count > 1 would be unambiguous
+        // evidence of a duplicated side effect.
+        var count = await factory.WithTenantScopeAsync(accountId, db =>
+            db.Expenses.CountAsync(e => e.ExpenseCategoryId == categoryId));
+        Assert.Equal(1, count);
+    }
+
+    [Fact]
     public async Task MissingKey_Returns400()
     {
         var email = $"u-{Guid.NewGuid():N}@test.local";
