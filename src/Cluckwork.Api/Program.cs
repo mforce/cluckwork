@@ -192,6 +192,8 @@ builder.Services.AddScoped<Cluckwork.Application.Features.Export.IExportQueries,
 var dbProvider = builder.Configuration["Database:Provider"] ?? "Postgres";
 var connectionString = builder.Configuration.GetConnectionString("Default")
     ?? throw new InvalidOperationException("Connection string 'Default' is not configured.");
+// #262 — the Postgres configurator enforces the TLS floor only in Production.
+var enforceTlsFloor = builder.Environment.IsProduction();
 
 builder.Services.AddScoped<TenantStampInterceptor>();
 builder.Services.AddDbContext<AppDbContext>((sp, options) =>
@@ -199,7 +201,9 @@ builder.Services.AddDbContext<AppDbContext>((sp, options) =>
     options.AddInterceptors(sp.GetRequiredService<TenantStampInterceptor>());
     IDbProviderConfigurator configurator = dbProvider switch
     {
-        "Postgres" => new PostgresDbContextConfigurator(),
+        "Postgres" => new PostgresDbContextConfigurator(
+            enforceTlsFloor,
+            sp.GetRequiredService<ILogger<PostgresDbContextConfigurator>>()),
         _ => throw new NotSupportedException($"Unsupported database provider: {dbProvider}")
     };
     configurator.Configure(options, connectionString);

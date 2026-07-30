@@ -15,6 +15,39 @@ Demo sample data (#280/#284) is **command-only** — there is no `Seed__Demo` bo
 toggle. Against an already base-seeded, non-Production database, run
 `dotnet Cluckwork.Api.dll seed --profile demo` (see `AGENTS.md`).
 
+## Database connection string (#261 / #262)
+
+`ConnectionStrings__Default` accepts **two forms**:
+
+- **Npgsql key-value** — `Host=db;Port=5432;Database=cluckwork;Username=…;Password=…`.
+- **libpq URI** (#261) — `postgresql://user:pass@host:5432/dbname?sslmode=require`.
+  Many managed-Postgres platforms emit this form; it is translated to key-value
+  before use (host, port — default `5432` if omitted, URL-decoded password,
+  database from the path, and `sslmode`/cert query params are mapped through).
+  Both `postgres://` and `postgresql://` schemes are accepted.
+
+**TLS is required in Production (#262).** When the app runs as Production
+(`ASPNETCORE_ENVIRONMENT` unset → Production), it inspects `sslmode` **before**
+connecting and **fails to start** if the connection would be unencrypted:
+
+| `sslmode` | Production behaviour |
+| --- | --- |
+| `Disable` / `Allow` / `Prefer` (and *unset* — Npgsql defaults to `Prefer`) | **Boot fails** with a clear message — plaintext is a MITM risk. |
+| `Require` | Boots, but **logs a warning** — encrypted but the server cert is not verified. |
+| `VerifyCA` / `VerifyFull` | Boots silently — certificate-validated TLS (preferred; `VerifyFull` + a host CA is the recommended posture). |
+
+The app never auto-injects or silently upgrades `sslmode` — set it explicitly on
+the connection string. TLS is **not** enforced outside Production, so local dev
+and the Testcontainers integration suite keep using plaintext connections.
+
+> The bundled `docker-compose.yml` runs `app`/`migrate` as **Production** against
+> a co-located **plaintext** Postgres (`Host=db;…`, no `sslmode`). Under the floor
+> above that stack will refuse to boot until its Postgres serves TLS (then set
+> `sslmode=Require`) **or** you point `ConnectionStrings__Default` at a managed
+> Postgres whose URL carries `sslmode=require`. A real deploy uses TLS to the
+> database regardless; wiring TLS into the bundled local Postgres is tracked
+> separately.
+
 ## Static asset caching
 
 The API serves the SPA with cache headers tuned for a content-hashed build
