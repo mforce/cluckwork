@@ -230,6 +230,17 @@ var rateLimiting = builder.Configuration.GetSection(RateLimitingOptions.SectionN
 rateLimiting.Validate();
 var trustedProxies = rateLimiting.ParseTrustedProxies();
 
+// #264 — the farm clock resolves IANA zones via TimeZoneInfo, which needs the
+// runtime image to carry the tz database (tzdata/ICU). Validate eagerly so a
+// tzdata-less image or a typo'd zone fails loud at boot, never as a per-request
+// FarmTimeZoneException on the first stock screen: (1) a representative-zone
+// canary proves the image can resolve IANA ids at all, (2) the configured
+// Seed:TimeZoneId proves a provisioning typo is caught now.
+TimeZoneAvailability.EnsureResolvable(
+    TimeZoneAvailability.CanaryZoneId, "Startup time-zone smoke check");
+TimeZoneAvailability.EnsureResolvable(
+    builder.Configuration.GetValue<string>("Seed:TimeZoneId") ?? "UTC", "Configured Seed:TimeZoneId");
+
 // X-Forwarded-For (the client IP for the limiter) and X-Forwarded-Proto (the
 // real scheme, so HttpsRedirection/HSTS behave behind the proxy — #144). Both
 // are honoured only from the trusted proxy networks below.

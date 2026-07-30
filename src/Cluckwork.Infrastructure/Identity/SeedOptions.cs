@@ -12,6 +12,15 @@ public sealed class SeedOptions
     public string AdminPassword { get; init; } = string.Empty;
     public string AccountName { get; init; } = "Default Farm";
 
+    // #264 — the IANA timezone the default account is provisioned with. The farm
+    // clock (daily-entry boundary, 7-day auto-lock, FIFO availability) runs on
+    // this and FAILS CLOSED on an unusable zone, so provisioning a real farm on
+    // the literal "UTC" default silently ran every safety boundary in the wrong
+    // zone. Set this to the farm's real IANA id (e.g. "Asia/Manila") at cutover.
+    // Validated at boot (Program.cs) so a typo fails loud immediately instead of
+    // surfacing later as a per-request FarmTimeZoneException.
+    public string TimeZoneId { get; init; } = "UTC";
+
     // Optional second login without the Admin role (#73) — handy for testing
     // the worker experience. Same rule as the admin pair: both must be
     // supplied or the worker seed is skipped; no fallback credential exists.
