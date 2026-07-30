@@ -16,16 +16,44 @@ using Cluckwork.Domain.Flocks;
 using Cluckwork.Infrastructure.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
-// Dev/demo sample data (#58), gated on Seed:Demo (default false) AND an empty
-// flock catalog — runs once on a fresh database, no-op afterwards, never
-// resurrects deleted data. Everything goes through the real handlers with the
-// tenant resolved to the seeded account, so lots, stock, bird movements, and
-// FIFO allocation all exist exactly as if a user had clicked them in.
+// Outcome of a DemoDataSeeder.SeedAsync() call (#284 review). The only caller
+// is the `seed --profile demo` CLI command (Program.cs) — it must be able to
+// tell "actually seeded", "already present" (idempotent no-op), and "did not
+// seed" apart, and get an operator-facing message for the last two, instead
+// of a bare bool/void that reads as success either way.
+public enum DemoSeedStatus
+{
+    Seeded,
+    AlreadySeeded,
+    PrerequisitesMissing,
+    Failed
+}
+
+public sealed record DemoSeedResult(DemoSeedStatus Status, string Message)
+{
+    // Seeded and AlreadySeeded are both "the demo data is present" outcomes —
+    // the command exits 0 for either. PrerequisitesMissing/Failed exit non-zero.
+    public bool IsSuccess => Status is DemoSeedStatus.Seeded or DemoSeedStatus.AlreadySeeded;
+
+    public static DemoSeedResult Seeded(string message) => new(DemoSeedStatus.Seeded, message);
+    public static DemoSeedResult AlreadySeeded(string message) => new(DemoSeedStatus.AlreadySeeded, message);
+    public static DemoSeedResult PrerequisitesMissing(string message) => new(DemoSeedStatus.PrerequisitesMissing, message);
+    public static DemoSeedResult Failed(string message) => new(DemoSeedStatus.Failed, message);
+}
+
+// Dev/demo sample data (#58): runs once on a fresh database, no-op afterwards
+// (empty-flock-catalog guard), never resurrects deleted data. Everything goes
+// through the real handlers with the tenant resolved to the seeded account, so
+// lots, stock, bird movements, and FIFO allocation all exist exactly as if a
+// user had clicked them in.
 //
-// Best-effort like DatabaseSeeder: a failure logs and aborts the demo seed
-// without crashing the host (the app is fully usable without demo data).
+// #280/#284: no longer self-gated on Seed:Demo/Seed:Enabled — the ONLY caller
+// is the explicit `seed --profile demo` command (Program.cs), which is itself
+// the gate (plus the Production DI-registration guard there). A config toggle
+// that only prevented *boot*-seeding is meaningless once nothing calls this on
+// boot. Authoritative and fail-loud: SeedAsync reports what happened via
+// DemoSeedResult instead of swallowing every outcome into a silent success.
 public sealed class DemoDataSeeder(
     AppDbContext db,
     TenantContext tenant,
@@ -39,22 +67,38 @@ public sealed class DemoDataSeeder(
     CreateSalesOrderHandler createOrder,
     AddOrderItemHandler addItem,
     ConfirmSaleHandler confirmSale,
-    IOptions<SeedOptions> options,
     ILogger<DemoDataSeeder> logger)
 {
-    public async Task SeedAsync(CancellationToken ct = default)
+    public async Task<DemoSeedResult> SeedAsync(CancellationToken ct = default)
     {
-        // Seed:Enabled=false disables ALL startup seeding — demo included.
-        if (!options.Value.Demo || !options.Value.Enabled) return;
-
         var accountId = SeedDefaults.AccountId;
+
+        // Preflight the base prerequisite (#284 review): demo needs the default
+        // account, the Admin role, and the default egg grades (FK dep for the
+        // daily-entry grade lines below) that DatabaseSeeder creates on normal
+        // boot — but the seed command never runs DatabaseSeeder. Against a
+        // migrated-but-never-booted database this used to throw a raw
+        // FK/NullReference-shaped exception (or worse, swallow it) instead of
+        // telling the operator what to do.
+        var missingBaseData = await MissingBaseDataAsync(accountId, ct);
+        if (missingBaseData)
+        {
+            const string message =
+                "Demo seed prerequisites missing: the base data (default account, Admin role, default egg " +
+                "grades) is not seeded yet. Run the app once against this database with Seed:AdminEmail / " +
+                "Seed:AdminPassword set (DatabaseSeeder base-seeds on boot), then re-run `seed --profile demo`.";
+            logger.LogError(message);
+            return DemoSeedResult.PrerequisitesMissing(message);
+        }
+
         var anyFlocks = await db.Flocks
             .IgnoreQueryFilters()
             .AnyAsync(f => f.AccountId == accountId, ct);
         if (anyFlocks)
         {
-            logger.LogInformation("Demo seed skipped: flocks already exist.");
-            return;
+            const string message = "Demo seed skipped: flocks already exist.";
+            logger.LogInformation(message);
+            return DemoSeedResult.AlreadySeeded(message);
         }
 
         // Handlers and query filters need the tenant, which is unresolved at
@@ -64,13 +108,36 @@ public sealed class DemoDataSeeder(
         try
         {
             await SeedDemoAsync(accountId, ct);
-            logger.LogInformation("Demo data seeded (Seed:Demo=true).");
+            const string message = "Demo data seeded.";
+            logger.LogInformation(message);
+            return DemoSeedResult.Seeded(message);
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Demo seed failed; removing partial demo data.");
             await CleanupPartialSeedAsync(accountId);
+            return DemoSeedResult.Failed($"Demo seed failed: {ex.Message}");
         }
+    }
+
+    // Cheap existence checks only — this must run BEFORE tenant.Resolve, so
+    // every tenant-scoped query needs IgnoreQueryFilters (same reasoning as the
+    // anyFlocks check below and DatabaseSeeder's own startup checks). Roles
+    // carry no tenant filter, so db.Roles needs none.
+    private async Task<bool> MissingBaseDataAsync(Guid accountId, CancellationToken ct)
+    {
+        var accountExists = await db.Accounts
+            .IgnoreQueryFilters()
+            .AnyAsync(a => a.Id == accountId, ct);
+        if (!accountExists) return true;
+
+        var adminRoleExists = await db.Roles.AnyAsync(r => r.Name == DatabaseSeeder.AdminRole, ct);
+        if (!adminRoleExists) return true;
+
+        var anyGrades = await db.EggGrades
+            .IgnoreQueryFilters()
+            .AnyAsync(g => g.AccountId == accountId, ct);
+        return !anyGrades;
     }
 
     // The handlers commit step by step (ConfirmSale even opens its own

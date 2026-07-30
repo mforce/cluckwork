@@ -479,7 +479,20 @@ builder.Services.AddSingleton<IValidateOptions<FarmLogoOptions>, FarmLogoOptions
 // --- Startup seed (single-farm MVP) ---
 builder.Services.Configure<SeedOptions>(builder.Configuration.GetSection(SeedOptions.SectionName));
 builder.Services.AddScoped<DatabaseSeeder>();
-builder.Services.AddScoped<DemoDataSeeder>();
+// Demo sample data (#58) no longer seeds on boot — it now runs only via the
+// explicit `dotnet Cluckwork.Api.dll seed --profile demo` command (#280).
+// Registered only outside Production (defense-in-depth): the primary guard is
+// that `seed` is a separate, explicitly-invoked command, but a Production
+// process must ALSO never be able to resolve DemoDataSeeder even if someone
+// mistakenly ran `seed --profile demo` against it — the CLI dispatch below
+// resolves it with GetService (not GetRequiredService) and turns the missing
+// registration into a clear operator-facing message. Intended flow: the
+// serving process for a real farm stays Production (base DatabaseSeeder
+// still seeds it on boot, unchanged); a non-Production process — a dev box,
+// CI, or the eventual sim/load-test harness (#243) — runs the same binary
+// against its own throwaway database to add demo data on top.
+if (!builder.Environment.IsProduction())
+    builder.Services.AddScoped<DemoDataSeeder>();
 
 // --- OpenAPI ---
 builder.Services.AddOpenApi();
@@ -502,6 +515,81 @@ builder.Services.AddHostedService<DurableJobWorker>();
 // ----------------------------------------------------------------
 var app = builder.Build();
 
+// --- CLI dispatch: `seed --profile <name>` (#280) ---------------------------
+// A one-off command on the same binary, not a serving-process code path: it
+// migrates the schema, runs the requested profile's seeder(s), then EXITS —
+// Kestrel and the hosted services (durable job worker) below never start.
+// Placed immediately after Build() so it short-circuits before anything else
+// the serving process does at startup (OTLP boot log, base seed, etc.).
+if (args.Length > 0 && args[0] == "seed")
+{
+    using var seedScope = app.Services.CreateScope();
+    var sp = seedScope.ServiceProvider;
+    var profile = GetArgValue(args, "--profile");
+
+    // #284 review — validate the profile AND its availability in this
+    // environment (the DI-registration/prod-guard check) BEFORE touching the
+    // database at all. Previously MigrateAsync ran first, so an unknown
+    // profile or a Production-blocked "demo" still mutated the schema (or
+    // threw raw) before the guard below ever ran. Nothing under this switch
+    // may write to the database — it only resolves services and picks which
+    // seed delegate to run once validation has passed.
+    Func<Task<DemoSeedResult>>? runSeed;
+    switch (profile)
+    {
+        case "demo":
+        {
+            // DemoDataSeeder is registered only outside Production (see the DI
+            // registration above) — GetService (not GetRequiredService) turns
+            // a missing registration into a clear operator-facing message
+            // instead of an opaque DI resolution exception.
+            var demoSeeder = sp.GetService<DemoDataSeeder>();
+            if (demoSeeder is null)
+            {
+                await Console.Error.WriteLineAsync(
+                    "Demo seeding is not available in Production (DemoDataSeeder is not registered).");
+                return 1;
+            }
+            runSeed = () => demoSeeder.SeedAsync();
+            break;
+        }
+        // NOTE: a `simulation` profile (SimulationDataSeeder, PR #279) is
+        // meant to slot in here as one more case, same shape as "demo": resolve
+        // + validate its seeder, assign runSeed, break — never migrate/seed
+        // inline in the case itself.
+        default:
+            await Console.Error.WriteLineAsync(
+                $"Unknown or missing --profile '{profile}'. Known: demo.");
+            return 1;
+    }
+
+    await sp.GetRequiredService<AppDbContext>().Database.MigrateAsync();
+
+    // Fail-loud (#284 review): SeedAsync reports what happened instead of
+    // swallowing a no-op or an internal failure into a silent exit 0. Only
+    // Seeded/AlreadySeeded (the seeder's own idempotency guard) are success —
+    // everything else is a clear stderr message + non-zero exit.
+    var result = await runSeed();
+    if (!result.IsSuccess)
+    {
+        await Console.Error.WriteLineAsync(result.Message);
+        return 1;
+    }
+
+    app.Logger.LogInformation(
+        "Seed command complete (profile={Profile}): {Message}", profile, result.Message);
+    return 0;
+}
+
+static string? GetArgValue(string[] args, string flagName)
+{
+    for (var i = 0; i < args.Length - 1; i++)
+        if (args[i] == flagName)
+            return args[i + 1];
+    return null;
+}
+// ----------------------------------------------------------------
+
 // One boot line makes export misconfiguration observable — a typo'd env var
 // name otherwise silently disables the whole pipeline (#226 review).
 if (otlpTraceEndpoint is not null)
@@ -523,13 +611,6 @@ else
     if (builder.Configuration.GetValue("Database:MigrateOnStartup", true))
         await sp.GetRequiredService<AppDbContext>().Database.MigrateAsync();
     await sp.GetRequiredService<DatabaseSeeder>().SeedAsync();
-}
-
-// Demo sample data (#58): own scope — it resolves the TenantContext to the
-// seeded account, which must not leak into the scope above.
-{
-    using var demoScope = app.Services.CreateScope();
-    await demoScope.ServiceProvider.GetRequiredService<DemoDataSeeder>().SeedAsync();
 }
 
 // Resolve the real client IP and scheme from a trusted proxy's forwarded
@@ -794,6 +875,7 @@ app.MapFallbackToFile("index.html", new StaticFileOptions
 });
 
 app.Run();
+return 0;
 
 // Exposes Program for WebApplicationFactory in integration tests
 public partial class Program { }
