@@ -23,8 +23,10 @@ public static class PostgresConnectionString
     private const int DefaultPort = 5432;
 
     // libpq/managed URI query params whose Npgsql keyword differs (or which Npgsql only
-    // accepts under a spaced name — e.g. "application_name" throws, "Application Name" works).
-    // sslmode / ssl / cert params are handled explicitly below, not through this map.
+    // accepts under a spaced name — e.g. "channel_binding" throws, "Channel Binding" works).
+    // Npgsql 10.0.3 DOES support all of these under the spaced name, so they must be MAPPED,
+    // not dropped: channel_binding=require is an explicit SCRAM anti-MITM control an operator
+    // set. sslmode / ssl / cert params are handled explicitly below, not through this map.
     private static readonly Dictionary<string, string> LibpqParameterToNpgsqlKeyword =
         new(StringComparer.OrdinalIgnoreCase)
         {
@@ -34,6 +36,9 @@ public static class PostgresConnectionString
             ["dbname"] = "Database",
             ["application_name"] = "Application Name",
             ["connect_timeout"] = "Timeout",
+            ["channel_binding"] = "Channel Binding",
+            ["target_session_attrs"] = "Target Session Attributes",
+            ["ssl_negotiation"] = "SSL Negotiation",
         };
 
     /// <summary>
@@ -126,15 +131,18 @@ public static class PostgresConnectionString
             }
 
             var keyword = LibpqParameterToNpgsqlKeyword.GetValueOrDefault(key, key);
-            try
+            if (builder.ContainsKey(keyword))
             {
+                // A keyword Npgsql knows (native, or mapped from its libpq spelling):
+                // assign OUTSIDE any catch, so an INVALID VALUE on a real setting
+                // (e.g. connect_timeout=garbage) surfaces and fails startup instead of
+                // being silently dropped as if the parameter were unknown.
                 builder[keyword] = value;
             }
-            catch (ArgumentException)
+            else
             {
-                // A libpq/managed-URL parameter with no Npgsql equivalent (channel_binding,
-                // target_session_attrs, gssencmode, keepalives*, …). Skip it rather than
-                // fail the whole connection — Npgsql negotiates sensible defaults without it.
+                // Genuinely unknown to Npgsql (gssencmode, keepalives*, …). Skip it rather
+                // than fail the whole connection — Npgsql negotiates fine without it.
                 onWarning?.Invoke(
                     $"connection-URI parameter '{key}' has no Npgsql equivalent and was ignored.");
             }

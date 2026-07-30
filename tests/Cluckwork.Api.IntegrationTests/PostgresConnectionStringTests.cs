@@ -117,23 +117,39 @@ public sealed class PostgresConnectionStringTests
     }
 
     [Fact]
-    public void Uri_UnknownParams_SkippedWithWarning_KnownOnesMapped()
+    public void Uri_ManagedUrl_KnownParamsMapped_UnknownSkippedWithWarning()
     {
-        // Neon's default URL shape: sslmode + channel_binding, plus common libpq params.
-        // channel_binding/target_session_attrs have no Npgsql keyword -> skip-with-warning;
-        // application_name/connect_timeout DO map -> preserved. Must boot, not throw.
+        // A managed-Postgres URL shape (RFC 2606 example host — no provider name): sslmode
+        // plus the SCRAM anti-MITM control channel_binding, common libpq params, and one
+        // param with no Npgsql equivalent. Npgsql 10.0.3 SUPPORTS channel_binding /
+        // target_session_attrs under spaced names, so those must be MAPPED (not dropped);
+        // gssencmode has no equivalent -> skipped-with-warning. Must boot, not throw.
         var warnings = new List<string>();
         var b = Normalized(
-            "postgresql://user:pass@ep.neon.tech/neondb?sslmode=require&channel_binding=require" +
-            "&application_name=cluckwork&connect_timeout=10&target_session_attrs=read-write",
+            "postgresql://user:pass@db.example.com/appdb?sslmode=require&channel_binding=require" +
+            "&application_name=cluckwork&connect_timeout=10&target_session_attrs=read-write" +
+            "&gssencmode=disable",
             isProduction: true, onWarning: warnings.Add);
 
-        Assert.Equal("ep.neon.tech", b.Host);
+        Assert.Equal("db.example.com", b.Host);
         Assert.Equal(SslMode.Require, b.SslMode);
-        Assert.Equal("cluckwork", b.ApplicationName);   // application_name -> "Application Name"
-        Assert.Equal(10, b.Timeout);                    // connect_timeout    -> "Timeout"
-        Assert.Contains(warnings, w => w.Contains("channel_binding") && w.Contains("ignored"));
-        Assert.Contains(warnings, w => w.Contains("target_session_attrs") && w.Contains("ignored"));
+        Assert.Equal("cluckwork", b.ApplicationName);            // application_name  -> "Application Name"
+        Assert.Equal(10, b.Timeout);                             // connect_timeout   -> "Timeout"
+        Assert.Equal("Require", b["Channel Binding"]!.ToString()); // channel_binding -> "Channel Binding" (MAPPED)
+        Assert.Contains("Target Session Attributes", b.ConnectionString); // target_session_attrs (MAPPED)
+        var skip = Assert.Single(warnings, w => w.Contains("gssencmode"));
+        Assert.Contains("ignored", skip);
+    }
+
+    [Fact]
+    public void Uri_BadValueOnKnownKeyword_Throws_NotSilentlyDropped()
+    {
+        // connect_timeout maps to the real Npgsql "Timeout" keyword; a garbage value must
+        // SURFACE (fail startup) rather than be swallowed like an unknown parameter — even
+        // alongside a valid, TLS-passing sslmode.
+        Assert.ThrowsAny<ArgumentException>(() => PostgresConnectionString.NormalizeAndValidate(
+            "postgresql://u:p@db.example.com/db?sslmode=verify-full&connect_timeout=garbage",
+            isProduction: true));
     }
 
     // ---- #261: key-value passthrough ---------------------------------------
