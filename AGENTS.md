@@ -162,6 +162,20 @@ there's no fixed version to move to; prefer bumping or pinning a patched
 transitive version (npm `overrides` / direct NuGet reference) first. The same
 file feeds dependency-review's allowlist, so the gates never disagree.
 
+### Pin third-party Actions to a commit SHA
+
+Third-party GitHub Actions (anything **not** `actions/*` or `github/*`) are pinned
+to a full commit SHA with a trailing `# vX.Y.Z` comment — **never** a mutable
+version tag. A compromised action can retarget a "trusted" tag to malicious code
+that exfiltrates CI secrets; both the 2026-03 `aquasecurity/trivy-action` and the
+2025-03 `tj-actions/changed-files` incidents did exactly that. Dependabot's
+`github-actions` ecosystem reads the trailing comment and bumps **both** the SHA
+and the comment on a new release, so a SHA pin stays current. GitHub-owned
+`actions/*` and `github/*` may keep major-version tags (GitHub-controlled, lower
+risk). Currently SHA-pinned: `actions/create-github-app-token`,
+`aquasecurity/trivy-action`, and
+`advanced-security/component-detection-dependency-submission-action`.
+
 ## Git / PR workflow
 
 - `origin` = GitHub (`github.com/mforce/cluckwork`); `gitea` = backup mirror. Use `gh` for PRs.

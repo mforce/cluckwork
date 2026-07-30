@@ -56,7 +56,8 @@ jobs:
         run: dotnet restore Cluckwork.sln --locked-mode
 
       - name: Submit dependency snapshot
-        uses: advanced-security/component-detection-dependency-submission-action@v0.1.4
+        # SHA-pinned (not the mutable tag) — third-party action supply-chain rule (AGENTS.md).
+        uses: advanced-security/component-detection-dependency-submission-action@31f25a8de68ae5ce2ca274bc28546a78683c15ce # v0.1.4
         with:
           # NuGet only. npm is already covered by the graph's own
           # package-lock.json parsing (292 packages); submitting it again here
