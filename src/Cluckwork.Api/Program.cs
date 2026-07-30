@@ -558,6 +558,31 @@ var app = builder.Build();
 if (await CliDispatcher.TryRunAsync(app, args) is int cliExitCode)
     return cliExitCode;
 
+// #260 — proxy-trust boot guard, SERVING process only. The forwarded-headers
+// middleware above honours X-Forwarded-Proto/-For solely from the trustedProxies
+// networks; with that list empty in Production two controls silently go inert:
+// HSTS (#144) never sees the real HTTPS scheme and stops emitting, and the per-IP
+// login rate limiter (#143) collapses to one global bucket (every request looks
+// like it came from the proxy hop). Fail the boot loudly rather than run degraded.
+// Placed AFTER the CLI dispatcher's return so the one-off migrate/seed/recover-admin
+// verbs — which never serve traffic — are unaffected. Opt out only for a rare
+// direct-TLS-exposure deploy via RateLimiting:AllowNoTrustedProxies.
+if (app.Environment.IsProduction()
+    && trustedProxies.Length == 0
+    && !rateLimiting.AllowNoTrustedProxies)
+{
+    throw new InvalidOperationException(
+        "RateLimiting:TrustedProxies is empty in Production, so the app trusts no "
+        + "proxy's X-Forwarded-* headers. Two security controls then silently go "
+        + "inert: HSTS (#144) never sees the real HTTPS scheme and stops emitting, "
+        + "and the per-IP login rate limiter (#143) collapses to a single global "
+        + "bucket. Fix ONE of: (1) set RateLimiting:TrustedProxies to the edge "
+        + "proxy/load-balancer network CIDR (the hop that terminates TLS and adds "
+        + "X-Forwarded-*); or (2) for a rare deploy that terminates TLS itself with "
+        + "no fronting proxy, set RateLimiting:AllowNoTrustedProxies=true to "
+        + "acknowledge the direct-exposure trade-off and boot anyway.");
+}
+
 // One boot line makes export misconfiguration observable — a typo'd env var
 // name otherwise silently disables the whole pipeline (#226 review).
 if (otlpTraceEndpoint is not null)
