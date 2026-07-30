@@ -17,9 +17,11 @@ public sealed class TimeZoneAvailabilityTests
     [Fact]
     public void EnsureResolvable_TheImageCanary_Resolves()
     {
-        // Doubles as a build/CI-environment canary: if the runtime ever loses its
-        // tz database (a chiseled image, InvariantGlobalization=true), this fails —
-        // exactly the fleet-wide breakage #264 exists to catch early.
+        // Runs in the CI/build environment, which always has tzdata — so it does
+        // NOT (and cannot) catch a tzdata-less *base image*; only the Program.cs
+        // boot check does that, at real container startup. Its narrower value: it
+        // proves the guard accepts a real DST zone, and it fails if THIS
+        // environment ever lost tzdata (a regression signal, not the deploy guard).
         var ex = Record.Exception(() =>
             TimeZoneAvailability.EnsureResolvable(TimeZoneAvailability.CanaryZoneId, "canary"));
         Assert.Null(ex);
@@ -27,6 +29,7 @@ public sealed class TimeZoneAvailabilityTests
 
     [Theory]
     [InlineData("Not/AZone")]
+    [InlineData("")]
     [InlineData("   ")]
     public void EnsureResolvable_UnusableId_ThrowsWithActionableMessage(string badId)
     {
@@ -34,6 +37,18 @@ public sealed class TimeZoneAvailabilityTests
             () => TimeZoneAvailability.EnsureResolvable(badId, "ctx"));
         Assert.Contains("ctx", ex.Message);
         Assert.Contains(badId, ex.Message);
-        Assert.Contains("tz data", ex.Message);
+        Assert.Contains("tz database", ex.Message);
+    }
+
+    [Fact]
+    public void EnsureResolvable_NullId_Throws()
+    {
+        // A null id (e.g. an unset config value reaching the guard) must still
+        // throw the actionable message, not an NRE. Separate from the Theory
+        // because the message-Contains assertion cannot take a null needle.
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => TimeZoneAvailability.EnsureResolvable(null!, "ctx"));
+        Assert.Contains("ctx", ex.Message);
+        Assert.Contains("tz database", ex.Message);
     }
 }

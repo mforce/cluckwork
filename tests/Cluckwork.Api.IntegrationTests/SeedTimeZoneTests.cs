@@ -2,6 +2,7 @@ namespace Cluckwork.Api.IntegrationTests;
 
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Domain.Accounts;
+using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
@@ -67,5 +68,39 @@ public sealed class SeedTimeZoneTests : IClassFixture<ManilaSeedFactory>
         for (Exception? e = ex; e is not null; e = e.InnerException)
             parts.Add(e.Message);
         return string.Join(" | ", parts);
+    }
+}
+
+// #264 review — the DEFAULT path (no Seed:TimeZoneId configured) must seed the
+// SeedOptions.DefaultTimeZoneId ("UTC"). Guards it explicitly: a change to the
+// default that broke it (to ""/null, or a non-resolvable value) would fail here
+// instead of silently seeding a blank zone that every default farm then trips
+// FarmClock on. Own container (base seed writes the fixed SeedDefaults.AccountId).
+public sealed class DefaultTimeZoneSeedFactory : CluckworkWebApplicationFactory
+{
+    public string AdminEmail { get; } = $"tzdefault-{Guid.NewGuid():N}@test.local";
+    public string AdminPassword { get; } = $"Aa1!{Guid.NewGuid():N}";
+
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        base.ConfigureWebHost(builder);
+        builder.UseSetting("Seed:Enabled", "true");
+        builder.UseSetting("Seed:AdminEmail", AdminEmail);
+        builder.UseSetting("Seed:AdminPassword", AdminPassword);
+        // Deliberately NO Seed:TimeZoneId — exercise the default fallback.
+    }
+}
+
+public sealed class DefaultTimeZoneSeedTests(DefaultTimeZoneSeedFactory factory)
+    : IClassFixture<DefaultTimeZoneSeedFactory>
+{
+    [Fact]
+    public async Task DefaultAccount_WithNoConfiguredTimeZone_IsSeededWithTheDefault()
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var account = await db.Accounts.IgnoreQueryFilters()
+            .SingleAsync(a => a.Id == SeedDefaults.AccountId);
+        Assert.Equal(SeedOptions.DefaultTimeZoneId, account.TimeZoneId);
     }
 }

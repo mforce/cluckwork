@@ -3,11 +3,18 @@ namespace Cluckwork.Infrastructure.Time;
 // #264 — Cluckwork's farm-clock date logic (the daily-entry "today" boundary,
 // the 7-day auto-lock sweep, FIFO lot availability) resolves IANA zones via
 // TimeZoneInfo.FindSystemTimeZoneById, which needs the runtime image to carry
-// the tz database + ICU. The Debian `aspnet:10.0` base ships both, but nothing
-// pinned or tested that: switching to an Alpine/chiseled image (no tzdata) or
-// setting InvariantGlobalization=true would throw for EVERY farm's date logic
-// at once — a fleet-wide outage that FarmClock's fail-closed design would
-// otherwise surface only as a per-request FarmTimeZoneException at runtime.
+// the tz database. The Debian `aspnet:10.0` base ships it, but nothing pinned or
+// tested that: switching to an Alpine/chiseled image WITHOUT tzdata would throw
+// for EVERY farm's date logic at once — a fleet-wide outage that FarmClock's
+// fail-closed design would otherwise surface only as a per-request
+// FarmTimeZoneException at runtime.
+//
+// Scope note (#264 review): on Linux TimeZoneInfo reads the tz database
+// independently of ICU, so `InvariantGlobalization=true` does NOT break zone
+// resolution and this canary does NOT catch it. Invariant mode is separately
+// undesirable (it breaks culture-dependent currency/locale formatting) and is
+// documented as "don't" in the Dockerfile, but the failure this guard targets is
+// specifically a MISSING tz database.
 //
 // This turns that latent failure into a loud, immediate boot/config failure
 // with an actionable message. Called eagerly at startup (Program.cs) as an image
@@ -36,9 +43,9 @@ public static class TimeZoneAvailability
         {
             throw new InvalidOperationException(
                 $"{context}: the runtime cannot resolve IANA time zone '{timeZoneId}'. " +
-                "Cluckwork's farm-clock date logic requires the image to contain tz data (tzdata/ICU) " +
-                "and to NOT use InvariantGlobalization. Use a base image that ships the tz database " +
-                "(e.g. the Debian mcr.microsoft.com/dotnet/aspnet:10.0 image).", ex);
+                "Cluckwork's farm-clock date logic requires the image to contain the tz database. " +
+                "Use a base image that ships it (e.g. the Debian mcr.microsoft.com/dotnet/aspnet:10.0 " +
+                "image), not a tzdata-less Alpine/chiseled base.", ex);
         }
     }
 }
