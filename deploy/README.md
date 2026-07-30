@@ -15,6 +15,47 @@ Demo sample data (#280/#284) is **command-only** — there is no `Seed__Demo` bo
 toggle. Against an already base-seeded, non-Production database, run
 `dotnet Cluckwork.Api.dll seed --profile demo` (see `AGENTS.md`).
 
+## Database connection string (#261 / #262)
+
+`ConnectionStrings__Default` accepts **two forms**:
+
+- **Npgsql key-value** — `Host=db;Port=5432;Database=cluckwork;Username=…;Password=…`.
+- **libpq URI** (#261) — `postgresql://user:pass@host:5432/dbname?sslmode=require`.
+  Many managed-Postgres platforms emit this form; it is translated to key-value
+  before use (host — IPv6 `[::1]` kept bracketed, port — default `5432` if omitted,
+  URL-decoded password, database from the path, `sslmode`/cert query params mapped,
+  and legacy `ssl=true` → `sslmode=Require`). A libpq param with no Npgsql equivalent
+  (`channel_binding`, `target_session_attrs`, `gssencmode`, …) is **ignored with a
+  warning** rather than failing the connection, so managed URLs (e.g. one carrying
+  `channel_binding=require`) work. Both `postgres://` and `postgresql://` schemes are
+  accepted.
+
+**TLS is required in Production (#262).** When the app runs as Production
+(`ASPNETCORE_ENVIRONMENT` unset → Production), it inspects `sslmode` once **at boot**
+and **fails to start** unless the mode guarantees TLS. The floor is an **allow-list**
+(fail closed) — only the modes below pass; anything else, *including an undefined mode*,
+is rejected:
+
+| `sslmode` | Production behaviour |
+| --- | --- |
+| `VerifyCA` / `VerifyFull` | Boots silently — certificate-validated TLS (preferred; `VerifyFull` + a host CA is the recommended posture). |
+| `Require` | Boots, but **logs a warning** — encrypted but the server cert is not verified. |
+| `Disable` / `Allow` / `Prefer` (and *unset* — Npgsql defaults to `Prefer`), or any undefined value | **Boot fails** with a clear message — no guarantee of encryption (MITM risk). |
+
+The app never auto-injects or silently upgrades `sslmode` — set it explicitly on
+the connection string. TLS is **not** enforced outside Production, so local dev
+and the Testcontainers integration suite keep using plaintext connections.
+
+**Opt-out — `Database:AllowInsecureConnection`** (default `false`). Setting it `true`
+downgrades the boot failure above to a **loud warning** and boots anyway (a
+`Require`-only connection still warns; `VerifyCA`/`VerifyFull` stay silent). It exists
+for a co-located plaintext database over a private network. The bundled
+`docker-compose.yml` sets `Database__AllowInsecureConnection=true` on **both** the
+`app` and `migrate` services: that stack runs Production against a Postgres on the
+private compose bridge (`Host=db;…`, never published), where plaintext is acceptable.
+A real deployment uses TLS/managed Postgres (`sslmode=Require` min, `VerifyFull` + CA
+preferred) and **never** sets this flag.
+
 ## Static asset caching
 
 The API serves the SPA with cache headers tuned for a content-hashed build

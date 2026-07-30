@@ -28,6 +28,11 @@ public sealed class MigrateCommandTests
         psi.Environment["ASPNETCORE_ENVIRONMENT"] = environment;
         psi.Environment["ConnectionStrings__Default"] = connectionString;
         psi.Environment["Database__Provider"] = "Postgres";
+        // Runs Production against a plaintext Testcontainers DB (and, for the unreachable
+        // case, a plaintext dead host): opt out of the #262 TLS floor so the migrate verb
+        // actually runs — otherwise #262 would throw at config time, before the verb, and the
+        // unreachable test would see the TLS message instead of "Migrate failed".
+        psi.Environment["Database__AllowInsecureConnection"] = "true";
         psi.Environment["Jwt__Issuer"] = "cluckwork-test";
         psi.Environment["Jwt__Audience"] = "cluckwork-api-test";
         psi.Environment["Jwt__PublicKeyPem"] = TestJwtKeys.PublicKeyPem;

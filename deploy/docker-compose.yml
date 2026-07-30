@@ -14,6 +14,12 @@ services:
       ASPNETCORE_URLS: http://+:8080
       Database__Provider: Postgres
       ConnectionStrings__Default: Host=db;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+      # #262: this reference stack runs Production against a co-located Postgres over the
+      # private compose bridge with no TLS, so the Production TLS floor would refuse to
+      # boot. Opt out explicitly: plaintext over the internal bridge is acceptable HERE
+      # (single host, db never published). A real deploy uses managed/TLS Postgres
+      # (sslmode=Require min, VerifyFull+CA preferred) and NEVER sets this flag.
+      Database__AllowInsecureConnection: "true"
       # #143: the auth rate limiter takes the client IP from X-Forwarded-For only
       # when the request arrives from a trusted proxy — traefik, on the compose
       # network (docker's default address pool). Override if your network differs;
@@ -64,6 +70,9 @@ services:
     environment:
       Database__Provider: Postgres
       ConnectionStrings__Default: Host=db;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+      # #262: same as `app` — the migrate job also connects Production/plaintext over the
+      # private bridge, so it too opts out of the TLS floor for this reference stack.
+      Database__AllowInsecureConnection: "true"
     command: ["migrate"]
     restart: "no"
     depends_on:

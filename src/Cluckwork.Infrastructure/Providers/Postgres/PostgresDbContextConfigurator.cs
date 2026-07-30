@@ -9,6 +9,9 @@ public sealed class PostgresDbContextConfigurator : IDbProviderConfigurator
 
     public void Configure(DbContextOptionsBuilder builder, string connectionString)
     {
+        // connectionString is expected to be already normalized (URI -> key-value) and
+        // TLS-validated by PostgresConnectionString.NormalizeAndValidate at startup
+        // (#261/#262) — done ONCE there, not per DbContext resolution.
         builder.UseNpgsql(connectionString, npgsql =>
         {
             npgsql.MigrationsAssembly(MigrationsAssembly);
