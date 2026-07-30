@@ -45,17 +45,21 @@ using Microsoft.Extensions.Options;
 // flock-restricted worker, the primary account's non-UTC timezone, a second
 // pristine account (a tenant-isolation fixture for the load test), and
 // production daily-entry history on the Task-2 flocks with a deterministic
-// proof of the automatic lock sweep. Gated on Seed:Simulation (SeedOptions)
-// AND Seed:Enabled; counts/timezone/password/email-domain/history length live
-// in SimulationOptions.
+// proof of the automatic lock sweep. Counts/timezone/password/email-domain/
+// history length live in SimulationOptions.
 //
-// Unlike DemoDataSeeder, this seeder is FAIL-CLOSED: no try/catch, no
-// partial-seed cleanup — any failure propagates straight out of SeedAsync and
-// fails startup. A load-test environment with a silently short cast or a
-// missing tenant fixture is worse than one that refuses to boot. Idempotency
-// instead comes from per-entity existence checks (mirroring DatabaseSeeder /
-// DemoDataSeeder), so a clean re-run converges instead of erroring on
-// "already exists".
+// #279: no longer self-gated on Seed:Simulation/Seed:Enabled — the ONLY
+// caller is the explicit `seed --profile simulation` command (Program.cs),
+// which is itself the gate (plus the Production DI-registration guard
+// there), same shape as DemoDataSeeder. Unlike DemoDataSeeder, this seeder
+// still does no PARTIAL-seed cleanup on failure (a load-test environment
+// with a silently short cast or a missing tenant fixture is worse than one
+// that refuses to report success) — but SeedAsync now catches any internal
+// failure and reports it via SeedResult.Failed instead of letting it
+// propagate as an unhandled exception, so the `seed` command exits non-zero
+// cleanly. Idempotency comes from per-entity existence checks (mirroring
+// DatabaseSeeder/DemoDataSeeder), so a clean re-run converges instead of
+// erroring on "already exists".
 //
 // #243 Task 3d — depth/density decision (Simulation:HistoryDays defaults to
 // 90): production history is already dense enough for the report/export read
@@ -137,71 +141,142 @@ public sealed class SimulationDataSeeder(
     // guarantee instead of an ever-growing account table.
     public static readonly Guid SecondAccountId = new("0000000a-0000-0000-0000-000000000002");
 
-    // #243 Task 3e — SeedAsync returns the manifest it just validated/emitted
-    // (null when the seed didn't run at all) so a test can call it directly
-    // from its own scope and assert against the manifest in memory, with no
-    // need to point CredentialOutputPath at a real volume.
-    public async Task<SimulationManifest?> SeedAsync(CancellationToken ct = default)
+    // #279: the command result (Seeded/AlreadySeeded/PrerequisitesMissing/
+    // Failed) is now SEPARATE from the completion manifest artifact — the
+    // manifest is still computed/validated and (when CredentialOutputPath is
+    // configured) written to disk by EmitManifestAsync below exactly as
+    // before, but SeedAsync's return value no longer carries it; a caller
+    // that needs the manifest's contents reads the file (or, in a test with
+    // no CredentialOutputPath configured, there is none to read — point it at
+    // a real path instead).
+    public async Task<SeedResult> SeedAsync(CancellationToken ct = default)
     {
-        var seed = seedOptions.Value;
-        // Seed:Enabled=false disables ALL startup seeding, same as
-        // DatabaseSeeder/DemoDataSeeder; Seed:Simulation is this seeder's own
-        // opt-in on top of that.
-        if (!seed.Simulation || !seed.Enabled) return null;
-
         var sim = simulationOptions.Value;
         if (string.IsNullOrWhiteSpace(sim.CastPassword))
-            throw new InvalidOperationException(
-                "Seed:Simulation is enabled but Simulation:CastPassword is not set. " +
-                "The sim cast has no fallback credential.");
+        {
+            const string message =
+                "Simulation seed prerequisites missing: Simulation:CastPassword is not set. " +
+                "The sim cast has no fallback credential.";
+            logger.LogError(message);
+            return SeedResult.PrerequisitesMissing(message);
+        }
 
         var accountId = SeedDefaults.AccountId;
+        var seed = seedOptions.Value;
+
+        // Preflight the base prerequisite (mirrors DemoDataSeeder's own
+        // MissingBaseDataAsync, #284 review): the simulation needs the
+        // default account, the Admin role, the default egg grades, AND the
+        // seeded admin (reused below as Owner — this seeder never creates a
+        // second Owner) — all of which come from DatabaseSeeder's boot seed,
+        // which the `seed` command never runs. Checked BEFORE tenant.Resolve,
+        // so every tenant-scoped query needs IgnoreQueryFilters (same
+        // reasoning as DemoDataSeeder's preflight).
+        var missingBaseData = await MissingBaseDataAsync(accountId, seed.AdminEmail, ct);
+        if (missingBaseData)
+        {
+            var message =
+                "Simulation seed prerequisites missing: the base data (default account, Admin role, " +
+                "default egg grades, and the seeded admin reused as Owner) is not seeded yet. Run the " +
+                "app once against this database with Seed:AdminEmail / Seed:AdminPassword set " +
+                "(DatabaseSeeder base-seeds on boot), then re-run `seed --profile simulation`.";
+            logger.LogError(message);
+            return SeedResult.PrerequisitesMissing(message);
+        }
+
         // Handlers and query filters need the tenant, which is unresolved at
         // startup — resolve it to the seeded account for this scope (matches
         // DemoDataSeeder).
         tenant.Resolve(accountId);
 
-        // Reuse the seeded admin as Owner — never create a second Owner.
-        var owner = await users.FindByEmailAsync(seed.AdminEmail);
-        if (owner is null)
-            throw new InvalidOperationException(
-                $"Simulation seed requires the seeded admin ({seed.AdminEmail}) to already exist. " +
-                "Set Seed:AdminEmail/Seed:AdminPassword so DatabaseSeeder creates the Owner first.");
+        try
+        {
+            // Cheap "has a previous full run already completed" probe — the
+            // seeding below is idempotent regardless of this flag (every
+            // per-entity existence check converges on a re-run), but the
+            // RESULT should still distinguish "this is the first time" from
+            // "nothing new happened". SecondAccountId is created exactly once,
+            // as the LAST step of a first successful run (SeedSecondAccountAsync
+            // below), so its presence is a clean, single-query signal.
+            var alreadySeeded = await db.Accounts
+                .IgnoreQueryFilters()
+                .AnyAsync(a => a.Id == SecondAccountId, ct);
 
-        // Single injectable "today" anchor (#243 later task): captured ONCE,
-        // threaded through everything below instead of each step calling
-        // DateTime.UtcNow independently — deterministic, testable via a fixed
-        // IClock, and #277's load-test assertions can reason about dates
-        // relative to this one value.
-        var today = clock.TodayUtc;
+            // Single injectable "today" anchor (#243 later task): captured ONCE,
+            // threaded through everything below instead of each step calling
+            // DateTime.UtcNow independently — deterministic, testable via a fixed
+            // IClock, and #277's load-test assertions can reason about dates
+            // relative to this one value.
+            var today = clock.TodayUtc;
 
-        var workerIds = await SeedCastAsync(accountId, sim, ct);
-        var flockIds = await SeedFlockTopologyAsync(accountId, today, sim, ct);
-        await RestrictOneWorkerAsync(accountId, workerIds, flockIds, ct);
-        // Timezone BEFORE any dated data exists (see SeedPrimaryTimeZoneAsync)
-        // — production history below must see the account's real timezone.
-        await SeedPrimaryTimeZoneAsync(sim, ct);
-        await SeedProductionHistoryAsync(accountId, today, flockIds, sim, ct);
-        // Inventory before feed usage: feed usage draws down a feed lot, so
-        // the item + opening purchase must exist first (#243 Task 3c).
-        await SeedInventoryOperationsAsync(accountId, today, flockIds, sim, ct);
-        await SeedSalesAsync(accountId, today, sim, ct);
-        await SeedSecondAccountAsync(ct);
+            var workerIds = await SeedCastAsync(accountId, sim, ct);
+            var flockIds = await SeedFlockTopologyAsync(accountId, today, sim, ct);
+            await RestrictOneWorkerAsync(accountId, workerIds, flockIds, ct);
+            // Timezone BEFORE any dated data exists (see SeedPrimaryTimeZoneAsync)
+            // — production history below must see the account's real timezone.
+            await SeedPrimaryTimeZoneAsync(sim, ct);
+            await SeedProductionHistoryAsync(accountId, today, flockIds, sim, ct);
+            // Inventory before feed usage: feed usage draws down a feed lot, so
+            // the item + opening purchase must exist first (#243 Task 3c).
+            await SeedInventoryOperationsAsync(accountId, today, flockIds, sim, ct);
+            await SeedSalesAsync(accountId, today, sim, ct);
+            await SeedSecondAccountAsync(ct);
 
-        // Deterministic lock-sweep proof: run the sweep synchronously as part
-        // of seeding rather than waiting on the DurableJobWorker's 30s poll,
-        // so the day-9 sentinel entry seeded above is already Locked by the
-        // time SeedAsync returns.
-        await lockSweep.RunAsync(ct);
+            // Deterministic lock-sweep proof: run the sweep synchronously as part
+            // of seeding rather than waiting on the DurableJobWorker's 30s poll,
+            // so the day-9 sentinel entry seeded above is already Locked by the
+            // time SeedAsync returns.
+            await lockSweep.RunAsync(ct);
 
-        logger.LogInformation("Simulation seed complete (Seed:Simulation=true).");
+            // Completion manifest (#243 Task 3e) — always last: counts +
+            // validates the whole fixture above, then (only when a manifest path
+            // is configured) writes the artifact the #243 findings header and
+            // #277's Playwright suite read. Fail-closed: ValidateCounts throws on
+            // ANY shortfall, so a partial seed never gets a "complete" manifest —
+            // caught below, same as any other internal failure.
+            var manifest = await EmitManifestAsync(accountId, today, sim, ct);
 
-        // Completion manifest (#243 Task 3e) — always last: counts +
-        // validates the whole fixture above, then (only when a manifest path
-        // is configured) writes the artifact the #243 findings header and
-        // #277's Playwright suite read. Fail-closed: ValidateCounts throws on
-        // ANY shortfall, so a partial seed never gets a "complete" manifest.
-        return await EmitManifestAsync(accountId, today, sim, ct);
+            var message = alreadySeeded
+                ? $"Simulation seed already present; converged (fingerprint {manifest.Fingerprint})."
+                : $"Simulation data seeded (fingerprint {manifest.Fingerprint}).";
+            logger.LogInformation(message);
+            return alreadySeeded ? SeedResult.AlreadySeeded(message) : SeedResult.Seeded(message);
+        }
+        catch (Exception ex)
+        {
+            // Fail-loud but caught (#279): a load-test environment with a
+            // silently short cast or a missing tenant fixture is worse than
+            // one that refuses to report success, but the `seed` command
+            // still needs a clean non-zero exit instead of an unhandled
+            // exception. No partial-seed cleanup (unlike DemoDataSeeder) —
+            // every step's own existence check makes a subsequent re-run
+            // converge instead of erroring on "already exists".
+            logger.LogError(ex, "Simulation seed failed.");
+            return SeedResult.Failed($"Simulation seed failed: {ex.Message}");
+        }
+    }
+
+    // Cheap existence checks only, run BEFORE tenant.Resolve — every
+    // tenant-scoped query needs IgnoreQueryFilters (mirrors DemoDataSeeder's
+    // own MissingBaseDataAsync). Also checks the seeded admin (adminEmail)
+    // exists: this seeder reuses it as Owner and never creates a second one.
+    private async Task<bool> MissingBaseDataAsync(Guid accountId, string adminEmail, CancellationToken ct)
+    {
+        var accountExists = await db.Accounts
+            .IgnoreQueryFilters()
+            .AnyAsync(a => a.Id == accountId, ct);
+        if (!accountExists) return true;
+
+        var adminRoleExists = await db.Roles.AnyAsync(r => r.Name == DatabaseSeeder.AdminRole, ct);
+        if (!adminRoleExists) return true;
+
+        var anyGrades = await db.EggGrades
+            .IgnoreQueryFilters()
+            .AnyAsync(g => g.AccountId == accountId, ct);
+        if (!anyGrades) return true;
+
+        if (string.IsNullOrWhiteSpace(adminEmail)) return true;
+        return await users.FindByEmailAsync(adminEmail) is null;
     }
 
     // --- Cast: Managers, Sales, ReadOnly, Workers (role-less) ---------

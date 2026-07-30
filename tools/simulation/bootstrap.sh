@@ -4,7 +4,10 @@
 #
 # Produces two git-ignored artifacts (see tools/simulation/.gitignore):
 #   - tools/simulation/.env.sim   — everything docker-compose.sim.yml's `app`
-#     service needs to run SimulationDataSeeder in Production config.
+#     service needs: the serving container base-seeds (DatabaseSeeder) and
+#     stays Production; reset.sh separately runs `seed --profile simulation`
+#     (SimulationDataSeeder) as a one-shot, non-Production `docker compose
+#     run` against the same env file (#279).
 #   - tools/simulation/.sim-cast.json — the k6/Playwright LOGIN SOURCE: the
 #     Owner (reused seeded admin) + every deterministic cast member this
 #     script's counts imply. This is NOT SimulationDataSeeder's own
@@ -180,9 +183,10 @@ Jwt__Audience=cluckwork-api
 Jwt__PublicKeyPem="${JWT_PUBLIC_PEM}"
 Jwt__PrivateKeyPem="${JWT_PRIVATE_PEM}"
 
-# --- Startup seed: DatabaseSeeder (Owner) + SimulationDataSeeder (cast) ----
+# --- Startup seed: DatabaseSeeder (Owner) only — SimulationDataSeeder is no
+# longer boot-seeded; reset.sh runs it via the `seed --profile simulation`
+# command instead (#279). ---
 Seed__Enabled=true
-Seed__Simulation=true
 Seed__Demo=false
 Seed__AdminEmail=${SEED_ADMIN_EMAIL}
 Seed__AdminPassword=${SEED_ADMIN_PASSWORD}

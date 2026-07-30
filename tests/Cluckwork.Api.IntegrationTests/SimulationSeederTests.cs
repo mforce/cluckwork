@@ -1,7 +1,9 @@
 namespace Cluckwork.Api.IntegrationTests;
 
+using System.IO;
 using System.Net.Http.Json;
 using System.Text;
+using System.Text.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Eggs;
@@ -23,7 +25,7 @@ using Microsoft.Extensions.DependencyInjection;
 // both this and BaselineSeedCurrencyTests write to the fixed
 // SeedDefaults.AccountId, and other seeders running against the shared
 // container would pollute the cast/flock/timezone counts asserted here.
-public sealed class SimulationSeedFactory : CluckworkWebApplicationFactory
+public sealed class SimulationSeedFactory : CluckworkWebApplicationFactory, IAsyncLifetime
 {
     public const string TimeZoneId = "America/Chicago";
 
@@ -41,6 +43,18 @@ public sealed class SimulationSeedFactory : CluckworkWebApplicationFactory
     public string AdminPassword { get; } = $"Aa1!{Guid.NewGuid():N}";
     public string CastPassword { get; } = $"Aa1!{Guid.NewGuid():N}";
 
+    // #279 — SimulationDataSeeder.SeedAsync() no longer returns the manifest
+    // directly (it returns a shared SeedResult, mirroring DemoDataSeeder);
+    // the manifest is a separate artifact, written only when
+    // Simulation:CredentialOutputPath is configured — same as the real `seed
+    // --profile simulation` command. Pointing it at a temp file gives the
+    // manifest-content tests below something to read back.
+    public string ManifestPath { get; } =
+        Path.Combine(Path.GetTempPath(), $"sim-manifest-{Guid.NewGuid():N}.json");
+
+    // The SeedResult of the one seed run InitializeAsync performs below.
+    public SeedResult SeedResult { get; private set; } = null!;
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         base.ConfigureWebHost(builder);
@@ -49,12 +63,55 @@ public sealed class SimulationSeedFactory : CluckworkWebApplicationFactory
         // in the environment would seed demo flocks and pollute the flock
         // count asserted below — tests must be hermetic.
         builder.UseSetting("Seed:Demo", "false");
-        builder.UseSetting("Seed:Simulation", "true");
         builder.UseSetting("Seed:AdminEmail", AdminEmail);
         builder.UseSetting("Seed:AdminPassword", AdminPassword);
         builder.UseSetting("Simulation:CastPassword", CastPassword);
         builder.UseSetting("Simulation:TimeZoneId", TimeZoneId);
         builder.UseSetting("Simulation:HistoryDays", HistoryDays.ToString());
+        builder.UseSetting("Simulation:CredentialOutputPath", ManifestPath);
+    }
+
+    // #279 — SimulationDataSeeder no longer boot-seeds (it's wired only into
+    // the `seed --profile simulation` CLI command, never Program.cs's startup
+    // block), so this factory has to do what that command does: let
+    // base.InitializeAsync() start Postgres and force the host to build
+    // (migrations + the base DatabaseSeeder boot-seed run unchanged), then
+    // resolve SimulationDataSeeder directly and call it once — the same
+    // resolve-and-seed pattern DemoSeedTests already uses for
+    // DemoDataSeeder. This runs ONCE before any [Fact] in the class (xUnit's
+    // IClassFixture contract), so the fixture is in place for every Fact
+    // below; the "two full host restarts" idempotency Facts still call
+    // SeedAsync() a second time explicitly against their own second host.
+    //
+    // NOTE: redeclaring `IAsyncLifetime` above (already implemented by the
+    // base class) is required for xUnit to actually dispatch to THIS
+    // override — CluckworkWebApplicationFactory.InitializeAsync() is not
+    // virtual, so a `new` method alone would be silently skipped by any code
+    // that calls it through an IAsyncLifetime reference (as xUnit does).
+    public new async Task InitializeAsync()
+    {
+        await base.InitializeAsync();
+
+        using var scope = Services.CreateScope();
+        SeedResult = await scope.ServiceProvider.GetRequiredService<SimulationDataSeeder>().SeedAsync();
+        if (!SeedResult.IsSuccess)
+            throw new InvalidOperationException(
+                $"Simulation seed setup failed ({SeedResult.Status}): {SeedResult.Message}");
+    }
+
+    public new async Task DisposeAsync()
+    {
+        await base.DisposeAsync();
+        // Best-effort: a leftover temp manifest file is harmless but not
+        // worth keeping around.
+        try
+        {
+            if (File.Exists(ManifestPath)) File.Delete(ManifestPath);
+        }
+        catch
+        {
+            // Cleanup only — never fail the suite over a stray temp file.
+        }
     }
 }
 
@@ -73,7 +130,7 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
     [Fact]
     public async Task SimulationSeed_BuildsCastWithoutDuplicatingTheOwner()
     {
-        using var client = factory.CreateClient(); // forces host init / first startup seed.
+        using var client = factory.CreateClient(); // host + simulation data already seeded via InitializeAsync().
         using var scope = factory.Services.CreateScope();
         var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -154,12 +211,16 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
     [Fact]
     public async Task SimulationSeed_IsIdempotent_ExactlyTwoAccountsAfterTwoHostStarts()
     {
-        using var firstClient = factory.CreateClient(); // first startup (may already be built).
-        using (var secondHost = factory.WithWebHostBuilder(_ => { }))
-        using (var secondClient = secondHost.CreateClient()) // second full Program.cs run, same DB.
+        using var firstClient = factory.CreateClient(); // first host: simulation data already seeded via InitializeAsync().
+        using var secondHost = factory.WithWebHostBuilder(_ => { });
+        using var secondClient = secondHost.CreateClient(); // second full Program.cs run, same DB (base re-seeds).
+        using (var secondScope = secondHost.Services.CreateScope())
         {
-            // Nothing to do with the client — creating it is what forces the
-            // second host (and its startup seed) to build.
+            // #279 — boot alone no longer seeds simulation data; call it
+            // explicitly to prove SeedAsync itself converges across a
+            // genuine second full Program.cs run against the same DB.
+            var result = await secondScope.ServiceProvider.GetRequiredService<SimulationDataSeeder>().SeedAsync();
+            Assert.True(result.IsSuccess, result.Message);
         }
 
         using var scope = factory.Services.CreateScope();
@@ -178,7 +239,7 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
     [Fact]
     public async Task SimulationSeed_SeedsProductionHistoryWithMixedLifecycleStatesAndAnAlreadyLockedSentinel()
     {
-        using var client = factory.CreateClient(); // forces host init / first startup seed.
+        using var client = factory.CreateClient(); // host + simulation data already seeded via InitializeAsync().
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
@@ -223,7 +284,7 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
     [Fact]
     public async Task SimulationSeed_EveryDailyEntryDate_IsOnOrAfterItsFlockPlacementDate()
     {
-        using var client = factory.CreateClient(); // forces host init / first startup seed.
+        using var client = factory.CreateClient(); // host + simulation data already seeded via InitializeAsync().
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
@@ -245,12 +306,16 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
     [Fact]
     public async Task SimulationSeed_ProductionHistory_IsIdempotent_NoDuplicateEntriesAfterTwoHostStarts()
     {
-        using var firstClient = factory.CreateClient(); // first startup (may already be built).
-        using (var secondHost = factory.WithWebHostBuilder(_ => { }))
-        using (var secondClient = secondHost.CreateClient()) // second full Program.cs run, same DB.
+        using var firstClient = factory.CreateClient(); // first host: simulation data already seeded via InitializeAsync().
+        using var secondHost = factory.WithWebHostBuilder(_ => { });
+        using var secondClient = secondHost.CreateClient(); // second full Program.cs run, same DB (base re-seeds).
+        using (var secondScope = secondHost.Services.CreateScope())
         {
-            // Nothing to do with the client — creating it is what forces the
-            // second host (and its startup seed, and its sweep call) to build.
+            // #279 — boot alone no longer seeds simulation data (or re-runs
+            // the sweep); call SeedAsync explicitly to prove the second pass
+            // still converges.
+            var result = await secondScope.ServiceProvider.GetRequiredService<SimulationDataSeeder>().SeedAsync();
+            Assert.True(result.IsSuccess, result.Message);
         }
 
         using var scope = factory.Services.CreateScope();
@@ -282,7 +347,7 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
     [Fact]
     public async Task SimulationSeed_SeedsProductCatalogAndCustomers()
     {
-        using var client = factory.CreateClient(); // forces host init / first startup seed.
+        using var client = factory.CreateClient(); // host + simulation data already seeded via InitializeAsync().
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
@@ -302,7 +367,7 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
     [Fact]
     public async Task SimulationSeed_SeedsSalesOrdersAcrossTheLifecycleWithAPartialPayment()
     {
-        using var client = factory.CreateClient(); // forces host init / first startup seed.
+        using var client = factory.CreateClient(); // host + simulation data already seeded via InitializeAsync().
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
@@ -340,7 +405,7 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
     [Fact]
     public async Task SimulationSeed_ConfirmedOrders_DepleteEggLotsFifoFromASharedOldLotPool()
     {
-        using var client = factory.CreateClient(); // forces host init / first startup seed.
+        using var client = factory.CreateClient(); // host + simulation data already seeded via InitializeAsync().
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
@@ -370,12 +435,15 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
     [Fact]
     public async Task SimulationSeed_Sales_IsIdempotent_NoDuplicatesAfterTwoHostStarts()
     {
-        using var firstClient = factory.CreateClient(); // first startup (may already be built).
-        using (var secondHost = factory.WithWebHostBuilder(_ => { }))
-        using (var secondClient = secondHost.CreateClient()) // second full Program.cs run, same DB.
+        using var firstClient = factory.CreateClient(); // first host: simulation data already seeded via InitializeAsync().
+        using var secondHost = factory.WithWebHostBuilder(_ => { });
+        using var secondClient = secondHost.CreateClient(); // second full Program.cs run, same DB (base re-seeds).
+        using (var secondScope = secondHost.Services.CreateScope())
         {
-            // Nothing to do with the client — creating it is what forces the
-            // second host (and its startup seed) to build.
+            // #279 — boot alone no longer seeds simulation data; call it
+            // explicitly to prove the second pass still converges.
+            var result = await secondScope.ServiceProvider.GetRequiredService<SimulationDataSeeder>().SeedAsync();
+            Assert.True(result.IsSuccess, result.Message);
         }
 
         using var scope = factory.Services.CreateScope();
@@ -425,7 +493,7 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
     [Fact]
     public async Task SimulationSeed_SeedsInventoryItemsWithAnOpeningPurchaseAndAnAdjustment()
     {
-        using var client = factory.CreateClient(); // forces host init / first startup seed.
+        using var client = factory.CreateClient(); // host + simulation data already seeded via InitializeAsync().
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
@@ -457,7 +525,7 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
     [Fact]
     public async Task SimulationSeed_SeedsFeedAndWaterUsageAcrossPastDays()
     {
-        using var client = factory.CreateClient(); // forces host init / first startup seed.
+        using var client = factory.CreateClient(); // host + simulation data already seeded via InitializeAsync().
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
@@ -486,7 +554,7 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
     [Fact]
     public async Task SimulationSeed_SeedsExpenseCategoriesAndExpenses()
     {
-        using var client = factory.CreateClient(); // forces host init / first startup seed.
+        using var client = factory.CreateClient(); // host + simulation data already seeded via InitializeAsync().
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
@@ -510,12 +578,15 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
     [Fact]
     public async Task SimulationSeed_InventoryFeedWaterExpenses_IsIdempotent_NoDuplicatesAfterTwoHostStarts()
     {
-        using var firstClient = factory.CreateClient(); // first startup (may already be built).
-        using (var secondHost = factory.WithWebHostBuilder(_ => { }))
-        using (var secondClient = secondHost.CreateClient()) // second full Program.cs run, same DB.
+        using var firstClient = factory.CreateClient(); // first host: simulation data already seeded via InitializeAsync().
+        using var secondHost = factory.WithWebHostBuilder(_ => { });
+        using var secondClient = secondHost.CreateClient(); // second full Program.cs run, same DB (base re-seeds).
+        using (var secondScope = secondHost.Services.CreateScope())
         {
-            // Nothing to do with the client — creating it is what forces the
-            // second host (and its startup seed) to build.
+            // #279 — boot alone no longer seeds simulation data; call it
+            // explicitly to prove the second pass still converges.
+            var result = await secondScope.ServiceProvider.GetRequiredService<SimulationDataSeeder>().SeedAsync();
+            Assert.True(result.IsSuccess, result.Message);
         }
 
         using var scope = factory.Services.CreateScope();
@@ -595,7 +666,7 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
     [Fact]
     public async Task SimulationSeed_ReportEndpoints_ReturnNonTrivialVolumeAcrossTheHistoryWindow()
     {
-        using var seedClient = factory.CreateClient(); // forces host init / first startup seed.
+        using var seedClient = factory.CreateClient(); // host + simulation data already seeded via InitializeAsync().
         // Not LoginForAccessTokenAsync: that logs in with TestHarness's fixed
         // password, but the sim Owner's password is the factory's own
         // runtime-generated AdminPassword (Seed:AdminPassword).
@@ -647,7 +718,7 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
     [Fact]
     public async Task SimulationSeed_ExportEndpoints_ReturnNonTrivialVolumeAcrossTheHistoryWindow()
     {
-        using var seedClient = factory.CreateClient(); // forces host init / first startup seed.
+        using var seedClient = factory.CreateClient(); // host + simulation data already seeded via InitializeAsync().
         // Not LoginForAccessTokenAsync: that logs in with TestHarness's fixed
         // password, but the sim Owner's password is the factory's own
         // runtime-generated AdminPassword (Seed:AdminPassword).
@@ -690,13 +761,24 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
 
     // #243 Task 3e — the completion manifest: validated row counts +
     // lifecycle-state matrix + a stable fingerprint, emitted as the LAST step
-    // of SeedAsync. Simulation:CredentialOutputPath is left unset on this
-    // factory (SimulationSeedFactory.ConfigureWebHost above), so these tests
-    // exercise the in-memory manifest SeedAsync returns — no volume mount
-    // needed (per the task's own guidance). Calling SeedAsync() again
-    // directly (rather than only via factory.CreateClient()'s own internal,
-    // return-discarding call) is itself a valid idempotent re-run — same
-    // per-entity existence checks that make every other seed step converge.
+    // of SeedAsync. #279: SeedAsync's return value is now a shared SeedResult
+    // (mirroring DemoDataSeeder), not the manifest — the manifest is a
+    // separate artifact, written to Simulation:CredentialOutputPath
+    // (SimulationSeedFactory.ConfigureWebHost points it at a temp file, same
+    // as the real `seed --profile simulation` command's own manifest file),
+    // so these tests read it back from disk instead of from SeedAsync's
+    // return value. Calling SeedAsync() again directly (rather than only via
+    // factory.CreateClient()'s own internal, return-discarding call) is
+    // itself a valid idempotent re-run — same per-entity existence checks
+    // that make every other seed step converge.
+
+    private static async Task<SimulationManifest> ReadManifestAsync(string path)
+    {
+        await using var stream = File.OpenRead(path);
+        var manifest = await JsonSerializer.DeserializeAsync<SimulationManifest>(
+            stream, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        return manifest ?? throw new InvalidOperationException($"Failed to deserialize manifest at {path}.");
+    }
 
     // Recurring drip count for this fixture's shallow 12-day HistoryDays —
     // duplicated from SimulationDataSeeder's own RecurringStartDay(9)/
@@ -718,14 +800,16 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
     [Fact]
     public async Task SimulationSeed_EmitsACompleteManifestWithValidatedCountsAndLifecycleStates()
     {
-        using var client = factory.CreateClient(); // forces host init / first startup seed.
+        using var client = factory.CreateClient(); // host + simulation data already seeded via InitializeAsync().
         using var scope = factory.Services.CreateScope();
         var seeder = scope.ServiceProvider.GetRequiredService<SimulationDataSeeder>();
 
-        var manifest = await seeder.SeedAsync(); // idempotent re-run; returns the manifest.
+        var result = await seeder.SeedAsync(); // idempotent re-run.
+        Assert.True(result.IsSuccess, result.Message);
 
-        Assert.NotNull(manifest);
-        Assert.True(manifest!.Complete);
+        var manifest = await ReadManifestAsync(factory.ManifestPath);
+
+        Assert.True(manifest.Complete);
         Assert.False(string.IsNullOrWhiteSpace(manifest.Fingerprint));
         Assert.Equal(SimulationDataSeeder.ManifestSchemaVersion, manifest.SchemaVersion);
         Assert.Equal(SimulationSeedFactory.HistoryDays, manifest.HistoryDays);
@@ -787,27 +871,28 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
     [Fact]
     public async Task SimulationSeed_Manifest_IsIdempotent_SameFingerprintAndCountsAcrossHostRestarts()
     {
-        using var firstClient = factory.CreateClient(); // first startup (may already be built).
-        SimulationManifest? firstManifest;
+        using var firstClient = factory.CreateClient(); // first host: simulation data already seeded via InitializeAsync().
         using (var firstScope = factory.Services.CreateScope())
         {
             var seeder = firstScope.ServiceProvider.GetRequiredService<SimulationDataSeeder>();
-            firstManifest = await seeder.SeedAsync();
+            var firstResult = await seeder.SeedAsync();
+            Assert.True(firstResult.IsSuccess, firstResult.Message);
         }
+        // Read back BEFORE the second run overwrites the same file.
+        var firstManifest = await ReadManifestAsync(factory.ManifestPath);
 
         using var secondHost = factory.WithWebHostBuilder(_ => { });
         using var secondClient = secondHost.CreateClient(); // second full Program.cs run, same DB.
-        SimulationManifest? secondManifest;
         using (var secondScope = secondHost.Services.CreateScope())
         {
             var seeder = secondScope.ServiceProvider.GetRequiredService<SimulationDataSeeder>();
-            secondManifest = await seeder.SeedAsync();
+            var secondResult = await seeder.SeedAsync();
+            Assert.True(secondResult.IsSuccess, secondResult.Message);
         }
+        var secondManifest = await ReadManifestAsync(factory.ManifestPath);
 
-        Assert.NotNull(firstManifest);
-        Assert.NotNull(secondManifest);
-        Assert.True(secondManifest!.Complete);
-        Assert.Equal(firstManifest!.Fingerprint, secondManifest.Fingerprint);
+        Assert.True(secondManifest.Complete);
+        Assert.Equal(firstManifest.Fingerprint, secondManifest.Fingerprint);
         Assert.Equal(firstManifest.Counts, secondManifest.Counts);
         Assert.Equal(firstManifest.LifecycleStates, secondManifest.LifecycleStates);
     }

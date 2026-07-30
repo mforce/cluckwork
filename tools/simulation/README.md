@@ -12,11 +12,20 @@ below), and the multi-rep baseline orchestrator (`run-baseline.sh` — see
 "Baseline orchestrator" below) that produces an honest findings doc under
 `tools/simulation/findings/`.
 
+#279: the serving `app` container only base-seeds (`DatabaseSeeder`, the
+Owner) on boot and stays Production the whole time — `SimulationDataSeeder`
+is no longer a boot-time side effect. `reset.sh` seeds the sim cast/fixture
+by running `dotnet Cluckwork.Api.dll seed --profile simulation` as an
+explicit **one-shot** `docker compose run` against a non-Production
+environment (Program.cs's prod guard refuses the command in Production),
+the same command an operator would type by hand — mirroring `seed --profile
+demo` (#280) for the dev/demo profile.
+
 ## Quickstart
 
 ```bash
 bash tools/simulation/bootstrap.sh   # generate .env.sim + .sim-cast.json (idempotent)
-bash tools/simulation/reset.sh       # wipe + rebuild + seed + verify the sim stack
+bash tools/simulation/reset.sh       # wipe + rebuild + base-seed + `seed --profile simulation` + verify
 bash tools/simulation/run-baseline.sh   # N reps of the k6 baseline -> findings doc
 ```
 
@@ -25,7 +34,8 @@ any credential from `tools/simulation/.sim-cast.json` (the Owner, or any of
 the deterministic `sim-manager-N@sim.local` / `sim-sales-N@…` /
 `sim-worker-N@…` / `sim-readonly-N@…` cast members — see
 `SimulationDataSeeder.SeedCastAsync`). The seeder's own completion manifest
-(row counts + lifecycle-state matrix, not credentials) lands at
+(row counts + lifecycle-state matrix, not credentials), written by the
+`seed --profile simulation` one-shot run above, lands at
 `tools/simulation/out/manifest.json`.
 
 ## SAFETY: the `cluckwork-sim` project
@@ -75,7 +85,7 @@ reading or changing it:
 | Area | Value | Why |
 | --- | --- | --- |
 | `Jwt__PublicKeyPem` / `Jwt__PrivateKeyPem` | Freshly generated 2048-bit RSA keypair, `\n`-escaped single-line PEM (same format as `deploy/.env.example`) | Never reuse the real deploy keypair in a throwaway stack. `PemKey.Normalize` accepts this format regardless of whether docker compose's env-file interpolation later expands the `\n` escapes to real newlines itself (`Replace("\\n","\n")` is a no-op once they're already real) — verified both ways. |
-| `Seed__AdminEmail` / `Seed__AdminPassword` | `admin@sim.local` + a generated 20-char password (upper/lower/digit/symbol) | Reused as the Owner by `SimulationDataSeeder` — it never creates a second Owner. |
+| `Seed__AdminEmail` / `Seed__AdminPassword` | `admin@sim.local` + a generated 20-char password (upper/lower/digit/symbol) | Base-seeded by `DatabaseSeeder` on boot; reused as the Owner by `SimulationDataSeeder` (`seed --profile simulation`) — it never creates a second Owner. |
 | `Simulation__CastPassword` | One generated 20-char password shared by the whole cast | Every `sim-*@sim.local` login in `.sim-cast.json` uses this. |
 | `Simulation__Managers/Sales/Workers/ReadOnly` | `1/1/3/4` | Mirrors `SimulationOptions`' own C# defaults — written explicitly so `bootstrap.sh`'s `.sim-cast.json` can never silently drift from what the seeder actually creates. |
 | `Simulation__HistoryDays` | `90` | #243 Task 3d's chosen depth — enough for the production report and sales/expense/profit summaries to scan a meaningful volume. |
@@ -90,9 +100,16 @@ reading or changing it:
 
 ## Sanctioned deviations from Production config
 
-The app runs Production config (`ASPNETCORE_ENVIRONMENT` is not overridden to
-Development) with these deliberate, documented deviations, all isolated to
-`.env.sim`:
+The **serving** app container runs Production config (`ASPNETCORE_ENVIRONMENT`
+is not overridden to Development, and stays that way for the whole life of
+the stack) with these deliberate, documented deviations, all isolated to
+`.env.sim`. The ONE exception is the `seed --profile simulation` one-shot
+`reset.sh` runs after the serving container is up: that specific,
+short-lived `docker compose run` overrides `ASPNETCORE_ENVIRONMENT=Development`
+for itself only, because `SimulationDataSeeder` is deliberately unavailable
+in Production (Program.cs's DI registration + the `seed` command's own
+guard both refuse it there) — see "Why `seed --profile simulation` needs a
+non-Production environment" below.
 
 1. **All three per-IP rate-limit buckets raised** (Login, Refresh,
    ClientErrors) to `1000000`. Production keeps these tight to stop
@@ -118,6 +135,23 @@ Development) with these deliberate, documented deviations, all isolated to
 Every consumer of this harness's output (k6 results, findings docs, #277's
 Playwright suite) must carry this list forward rather than presenting
 sim-stack numbers as production-equivalent.
+
+## Why `seed --profile simulation` needs a non-Production environment
+
+`SimulationDataSeeder` is registered in DI only when
+`!builder.Environment.IsProduction()` (mirrors `DemoDataSeeder`) — a
+defense-in-depth guard so a Production process can never run the sim seed
+even if `seed --profile simulation` is invoked against it by mistake. Since
+the serving `app` container stays Production for its whole life (see
+"Sanctioned deviations" above), `reset.sh` cannot run the seed command
+against that long-running container — it runs it as a **separate,
+short-lived** `docker compose run --rm -e ASPNETCORE_ENVIRONMENT=Development
+app seed --profile simulation` instead. That override applies only to the
+one-shot container; the serving `app` service's own environment is
+untouched. Running the same command WITHOUT the override (i.e. against
+Production) is expected to print an operator-facing "not available in
+Production" message on stderr and exit 1 — this is the prod-guard working as
+intended, not a bug.
 
 ## `pg_stat_statements`
 
@@ -314,8 +348,11 @@ throughput/latency figure as production capacity.
   defines `otel-collector`).
 - `reset.sh` — `down -v` (guarded to the `cluckwork-sim` project) → `config
   -q` → `up -d --build` → poll `/health/ready` → preflight (plain HTTP `/` is
-  200 not 307, `pg_stat_statements` query works, `out/manifest.json` is
-  `complete` with the expected user count).
+  200 not 307, `pg_stat_statements` query works) → one-shot `docker compose
+  run --rm -e ASPNETCORE_ENVIRONMENT=Development app seed --profile
+  simulation` (#279 — the serving `app` stays Production the whole time) →
+  preflight (`out/manifest.json` is `complete` with the expected user
+  count).
 - `otel/collector.yaml` — the local OTLP collector's config (see
   "Monitoring").
 - `monitor/docker-stats-sampler.sh`, `monitor/pg-snapshot.sh` — the

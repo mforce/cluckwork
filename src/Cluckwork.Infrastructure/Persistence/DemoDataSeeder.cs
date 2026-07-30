@@ -17,12 +17,13 @@ using Cluckwork.Infrastructure.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
-// Outcome of a DemoDataSeeder.SeedAsync() call (#284 review). The only caller
-// is the `seed --profile demo` CLI command (Program.cs) — it must be able to
-// tell "actually seeded", "already present" (idempotent no-op), and "did not
-// seed" apart, and get an operator-facing message for the last two, instead
-// of a bare bool/void that reads as success either way.
-public enum DemoSeedStatus
+// Outcome of a seed-profile SeedAsync() call (#284 review, shared with
+// SimulationDataSeeder as of #279): the only callers are the `seed --profile
+// <name>` CLI command's cases (Program.cs) — each must be able to tell
+// "actually seeded", "already present" (idempotent no-op), and "did not seed"
+// apart, and get an operator-facing message for the last two, instead of a
+// bare bool/void that reads as success either way.
+public enum SeedStatus
 {
     Seeded,
     AlreadySeeded,
@@ -30,16 +31,17 @@ public enum DemoSeedStatus
     Failed
 }
 
-public sealed record DemoSeedResult(DemoSeedStatus Status, string Message)
+public sealed record SeedResult(SeedStatus Status, string Message)
 {
-    // Seeded and AlreadySeeded are both "the demo data is present" outcomes —
-    // the command exits 0 for either. PrerequisitesMissing/Failed exit non-zero.
-    public bool IsSuccess => Status is DemoSeedStatus.Seeded or DemoSeedStatus.AlreadySeeded;
+    // Seeded and AlreadySeeded are both "the profile's data is present"
+    // outcomes — the command exits 0 for either. PrerequisitesMissing/Failed
+    // exit non-zero.
+    public bool IsSuccess => Status is SeedStatus.Seeded or SeedStatus.AlreadySeeded;
 
-    public static DemoSeedResult Seeded(string message) => new(DemoSeedStatus.Seeded, message);
-    public static DemoSeedResult AlreadySeeded(string message) => new(DemoSeedStatus.AlreadySeeded, message);
-    public static DemoSeedResult PrerequisitesMissing(string message) => new(DemoSeedStatus.PrerequisitesMissing, message);
-    public static DemoSeedResult Failed(string message) => new(DemoSeedStatus.Failed, message);
+    public static SeedResult Seeded(string message) => new(SeedStatus.Seeded, message);
+    public static SeedResult AlreadySeeded(string message) => new(SeedStatus.AlreadySeeded, message);
+    public static SeedResult PrerequisitesMissing(string message) => new(SeedStatus.PrerequisitesMissing, message);
+    public static SeedResult Failed(string message) => new(SeedStatus.Failed, message);
 }
 
 // Dev/demo sample data (#58): runs once on a fresh database, no-op afterwards
@@ -53,7 +55,8 @@ public sealed record DemoSeedResult(DemoSeedStatus Status, string Message)
 // the gate (plus the Production DI-registration guard there). A config toggle
 // that only prevented *boot*-seeding is meaningless once nothing calls this on
 // boot. Authoritative and fail-loud: SeedAsync reports what happened via
-// DemoSeedResult instead of swallowing every outcome into a silent success.
+// SeedResult (shared with SimulationDataSeeder, #279) instead of swallowing
+// every outcome into a silent success.
 public sealed class DemoDataSeeder(
     AppDbContext db,
     TenantContext tenant,
@@ -69,7 +72,7 @@ public sealed class DemoDataSeeder(
     ConfirmSaleHandler confirmSale,
     ILogger<DemoDataSeeder> logger)
 {
-    public async Task<DemoSeedResult> SeedAsync(CancellationToken ct = default)
+    public async Task<SeedResult> SeedAsync(CancellationToken ct = default)
     {
         var accountId = SeedDefaults.AccountId;
 
@@ -88,7 +91,7 @@ public sealed class DemoDataSeeder(
                 "grades) is not seeded yet. Run the app once against this database with Seed:AdminEmail / " +
                 "Seed:AdminPassword set (DatabaseSeeder base-seeds on boot), then re-run `seed --profile demo`.";
             logger.LogError(message);
-            return DemoSeedResult.PrerequisitesMissing(message);
+            return SeedResult.PrerequisitesMissing(message);
         }
 
         var anyFlocks = await db.Flocks
@@ -98,7 +101,7 @@ public sealed class DemoDataSeeder(
         {
             const string message = "Demo seed skipped: flocks already exist.";
             logger.LogInformation(message);
-            return DemoSeedResult.AlreadySeeded(message);
+            return SeedResult.AlreadySeeded(message);
         }
 
         // Handlers and query filters need the tenant, which is unresolved at
@@ -110,13 +113,13 @@ public sealed class DemoDataSeeder(
             await SeedDemoAsync(accountId, ct);
             const string message = "Demo data seeded.";
             logger.LogInformation(message);
-            return DemoSeedResult.Seeded(message);
+            return SeedResult.Seeded(message);
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Demo seed failed; removing partial demo data.");
             await CleanupPartialSeedAsync(accountId);
-            return DemoSeedResult.Failed($"Demo seed failed: {ex.Message}");
+            return SeedResult.Failed($"Demo seed failed: {ex.Message}");
         }
     }
 

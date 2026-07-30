@@ -66,7 +66,6 @@ services:
       Jwt__PublicKeyPem: ${Jwt__PublicKeyPem}
       Jwt__PrivateKeyPem: ${Jwt__PrivateKeyPem}
       Seed__Enabled: ${Seed__Enabled}
-      Seed__Simulation: ${Seed__Simulation}
       Seed__Demo: ${Seed__Demo}
       Seed__AdminEmail: ${Seed__AdminEmail}
       Seed__AdminPassword: ${Seed__AdminPassword}
@@ -110,7 +109,11 @@ services:
       - "127.0.0.1:8081:8080"
     # The seeder's completion manifest (Simulation__CredentialOutputPath
     # above) lands on the host here for reset.sh's preflight and any local
-    # inspection.
+    # inspection. #279: the manifest is written by the `seed --profile
+    # simulation` one-shot `docker compose run --rm app ...` reset.sh invokes
+    # after this service is healthy (never by this long-running service on
+    # boot) — `run` reuses this same volume mapping, so the file still lands
+    # here.
     volumes:
       - ./out:/app/sim-cast
 

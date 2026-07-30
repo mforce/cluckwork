@@ -3,6 +3,14 @@
 # tools/simulation/reset.sh — destroy and rebuild the #243 sim stack from
 # scratch, then verify it booted, migrated, seeded, and is safely reachable.
 #
+# #279: simulation seeding is no longer a boot-time side effect — the
+# serving `app` container only base-seeds (Seed:AdminEmail/Seed:AdminPassword,
+# DatabaseSeeder) on boot and stays Production the whole time. Once it's up
+# and healthy, this script runs `seed --profile simulation` as an explicit
+# ONE-SHOT `docker compose run` against a non-Production environment (the
+# Program.cs prod-guard refuses the command in Production) — same command an
+# operator would type by hand, mirroring `seed --profile demo` (#280).
+#
 # HARD SAFETY RULE: every docker command below runs under the dedicated
 # `cluckwork-sim` compose project. Before anything destructive, the project
 # name that will actually be used is asserted to equal `cluckwork-sim` and
@@ -64,7 +72,7 @@ compose config -q
 echo "-- up -d --build --"
 compose up -d --build
 
-# --- Wait for /health/ready (covers boot + migration + seed) ---------------
+# --- Wait for /health/ready (covers boot + migration + the base seed) -----
 echo "-- waiting up to ${READY_TIMEOUT_SECONDS}s for /health/ready --"
 deadline=$(($(date +%s) + READY_TIMEOUT_SECONDS))
 until curl -fsS -o /dev/null "http://127.0.0.1:${APP_PORT}/health/ready"; do
@@ -95,6 +103,24 @@ compose exec -T db psql -U "$PGUSER" -d "$PGDB" -v ON_ERROR_STOP=1 \
   -c "CREATE EXTENSION IF NOT EXISTS pg_stat_statements;" \
   -c "SELECT count(*) FROM pg_stat_statements;" >/dev/null
 echo "pg_stat_statements OK."
+
+# --- Simulation seed: explicit one-shot command (#279) ---------------------
+# The serving `app` container (started above) never boot-seeds simulation
+# data and stays Production throughout. `seed --profile simulation` runs
+# here as a SEPARATE, short-lived container via `compose run --rm` — it
+# inherits the `app` service's image, environment, and the `./out:/app/
+# sim-cast` volume (so the manifest lands on the host below), but with
+# ASPNETCORE_ENVIRONMENT overridden to Development just for this one-shot
+# process: Program.cs's prod guard refuses `seed --profile simulation` in
+# Production (verified separately — see README), so Production must never
+# be the environment this command runs under.
+echo "-- seed --profile simulation (one-shot, non-Production) --"
+if ! compose run --rm -e ASPNETCORE_ENVIRONMENT=Development app \
+    seed --profile simulation; then
+  echo "FAILED: 'seed --profile simulation' exited non-zero." >&2
+  exit 1
+fi
+echo "seed --profile simulation -> exit 0."
 
 # --- Preflight 3: seeder manifest is complete with the expected user count -
 echo "-- preflight: sim manifest (${MANIFEST_FILE}) --"
