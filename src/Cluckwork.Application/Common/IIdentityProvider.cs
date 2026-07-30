@@ -32,6 +32,19 @@ public interface IIdentityProvider
     Task<Result> SetUserPasswordAsync(
         Guid accountId, Guid userId, string newPassword, CancellationToken ct = default);
 
+    // #265 — offline break-glass recovery for a locked-out account (e.g. a sole
+    // Owner with a lost password and no email/SMTP reset path). Same account-
+    // scoped reset as SetUserPasswordAsync — sets the password WITHOUT the
+    // current one, rotates the SecurityStamp, and revokes every refresh token —
+    // but records a DISTINCT audit action ("User.BreakGlassReset") carrying the
+    // operator's reason, so a break-glass reset is unmistakable in the log.
+    // Invoked only by the offline `recover-admin` CLI command; the caller must
+    // have resolved the tenant to accountId first so the audit row can be
+    // stamped (IAuditWriter fails closed on an unresolved tenant).
+    Task<Result> BreakGlassResetAsync(
+        Guid accountId, Guid userId, string newPassword, string? reason,
+        CancellationToken ct = default);
+
     // #165 — self-service change, proving the current password. Revokes every
     // refresh token for the user and returns a FRESH pair, so other devices are
     // signed out while the caller stays signed in on this one.

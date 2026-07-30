@@ -169,7 +169,11 @@ public sealed class DatabaseSeeder(
 
         if (exists) return;
 
-        db.Accounts.Add(Account.Create(SeedDefaults.AccountId, o.AccountName, "UTC", "USD"));
+        // #264 — timezone from Seed:TimeZoneId (default "UTC"), no longer a hard
+        // literal, so a real farm is provisioned in its own IANA zone. Currency
+        // stays "USD" here on purpose: the baseline seed writes no currency-binding
+        // rows, so it remains editable in-app after first boot (#178).
+        db.Accounts.Add(Account.Create(SeedDefaults.AccountId, o.AccountName, o.TimeZoneId, "USD"));
         try
         {
             await db.SaveChangesAsync(ct);
