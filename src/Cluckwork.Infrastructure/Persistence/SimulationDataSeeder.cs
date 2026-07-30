@@ -210,28 +210,39 @@ public sealed class SimulationDataSeeder(
             // re-run, so every date-relative natural key re-derives identically
             // and the fixture converges instead of growing a shifted copy. Only
             // a genuine first run (no row yet) takes clock.TodayUtc.
+            // Tenant is resolved, so the query filter already scopes this to
+            // accountId (SimulationSeedState carries the same filter as every
+            // other AccountId-bearing entity — #279 review).
             var state = await db.SimulationSeedStates
-                .IgnoreQueryFilters()
                 .FirstOrDefaultAsync(s => s.AccountId == accountId, ct);
             DateOnly today;
-            bool wasComplete;
+            // Whether a PRIOR run reached completion (its manifest succeeded). A
+            // run interrupted after writing fixtures but before the manifest left
+            // the marker null, so its retry is correctly NOT treated as a no-op.
+            bool priorRunCompleted;
             if (state is null)
             {
                 today = clock.TodayUtc;
                 state = new SimulationSeedState { AccountId = accountId, Anchor = today };
                 db.SimulationSeedStates.Add(state);
                 await db.SaveChangesAsync(ct); // persist the anchor BEFORE seeding
-                wasComplete = false;
+                priorRunCompleted = false;
             }
             else
             {
                 today = state.Anchor;
-                // The completion marker (set only after a prior run's manifest
-                // succeeded) is the REAL "already fully seeded" signal — a run
-                // interrupted after writing fixtures but before the manifest
-                // left it null, so its retry is correctly reported as Seeded.
-                wasComplete = state.CompletedAtUtc is not null;
+                priorRunCompleted = state.CompletedAtUtc is not null;
             }
+
+            // #279 review (codex re-check): "AlreadySeeded" must mean a genuine
+            // idempotent no-op. The completion marker alone can't tell a plain
+            // re-run from one where SimulationOptions changed (e.g. Managers
+            // 1→2) so that THIS run created new fixtures — both leave the marker
+            // set. So snapshot the counts BEFORE seeding; the run is AlreadySeeded
+            // only if a prior run completed AND this run changed nothing (the
+            // final manifest counts equal the pre-seed counts). A first run, an
+            // interrupted prior run, or a definition change all report Seeded.
+            var (countsBeforeSeed, _) = await ComputeCountsAsync(accountId, ct);
 
             var workerIds = await SeedCastAsync(accountId, sim, ct);
             var flockIds = await SeedFlockTopologyAsync(accountId, today, sim, ct);
@@ -261,15 +272,20 @@ public sealed class SimulationDataSeeder(
             var manifest = await EmitManifestAsync(accountId, today, sim, ct);
 
             // Durable completion marker — set ONLY now that exact validation +
-            // manifest emission have succeeded. A first run that got this far is
-            // recorded complete; a later re-run reads CompletedAtUtc and reports
-            // AlreadySeeded. Not fingerprinted/validated, so the timestamp value
-            // is free to differ between runs.
+            // manifest emission have succeeded, and only once (a first completion
+            // stamps it; later re-runs leave it). The timestamp itself isn't
+            // validated/fingerprinted, so its value is free to differ per run.
             if (state.CompletedAtUtc is null)
             {
                 state.CompletedAtUtc = new DateTimeOffset(clock.UtcNow, TimeSpan.Zero);
                 await db.SaveChangesAsync(ct);
             }
+
+            // AlreadySeeded == a prior run completed AND this run was a no-op. The
+            // manifest counts are wall-clock-stable (the Draft/Submitted/Locked
+            // split lives in LifecycleStates, not Counts), so a plain re-run
+            // matches while a definition change does not.
+            var wasComplete = priorRunCompleted && countsBeforeSeed.Equals(manifest.Counts);
 
             var message = wasComplete
                 ? $"Simulation seed already present; converged (fingerprint {manifest.Fingerprint})."

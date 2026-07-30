@@ -84,5 +84,11 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, TenantContext 
         builder.Entity<EggUnitConversion>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
         builder.Entity<UserRoleAssignment>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
         builder.Entity<FarmLogo>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
+        // #279 review (codex): SimulationSeedState is keyed by AccountId, so it
+        // gets the same tenant filter as every other AccountId-bearing entity
+        // (AGENTS.md §Multi-tenancy). The seeder always resolves the tenant
+        // before touching the row, so the filter is free defense-in-depth; the
+        // TenantStampInterceptor leaves the explicit non-empty AccountId alone.
+        builder.Entity<SimulationSeedState>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
     }
 }

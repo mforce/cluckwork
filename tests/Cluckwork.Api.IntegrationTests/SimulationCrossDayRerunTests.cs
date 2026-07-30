@@ -230,8 +230,45 @@ public sealed class SimulationDurableSeedStateTests(SimulationMutableClockFactor
         var manifest = await factory.ReadManifestAsync();
         Assert.Equal(crashedAnchor, manifest.GeneratedAtAnchor);
 
-        // The marker is now set, so a further run converges to AlreadySeeded.
+        // The marker is now set, so a plain re-run (nothing changed) is a no-op:
+        // AlreadySeeded.
         var again = await factory.SeedOnceAsync();
         Assert.Equal(SeedStatus.AlreadySeeded, again.Status);
+    }
+}
+
+// #279 review (codex re-check, finding 2) — a definition change after completion
+// must re-run as Seeded, not a silent AlreadySeeded. Own database (own factory
+// instance) because it seeds a full fixture and must not share state with the
+// durable-anchor test above.
+public sealed class SimulationSeedDefinitionChangeTests(SimulationMutableClockFactory factory)
+    : IClassFixture<SimulationMutableClockFactory>
+{
+    [Fact]
+    public async Task DefinitionChangeAfterCompletion_ReportsSeeded_NotSilentAlreadySeeded()
+    {
+        // A completed fixture: first run Seeded, plain re-run AlreadySeeded.
+        factory.Clock.Today = new DateOnly(2026, 6, 15);
+        Assert.Equal(SeedStatus.Seeded, (await factory.SeedOnceAsync()).Status);
+        Assert.Equal(SeedStatus.AlreadySeeded, (await factory.SeedOnceAsync()).Status);
+
+        // Now the fixture no longer matches its definition — modelled by deleting
+        // the pristine second account (the same count-changing signal a
+        // SimulationOptions change would produce). The durable completion marker
+        // is still set, but this run RE-CREATES the missing row, so it must
+        // report Seeded, not a misleading AlreadySeeded.
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            await db.Accounts.IgnoreQueryFilters()
+                .Where(a => a.Id == SimulationDataSeeder.SecondAccountId)
+                .ExecuteDeleteAsync();
+        }
+
+        var afterChange = await factory.SeedOnceAsync();
+        Assert.Equal(SeedStatus.Seeded, afterChange.Status);
+
+        // And it settles back to AlreadySeeded once nothing more changes.
+        Assert.Equal(SeedStatus.AlreadySeeded, (await factory.SeedOnceAsync()).Status);
     }
 }
