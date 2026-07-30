@@ -28,31 +28,32 @@ ever serving a stale app:
 | other root files (favicon, manifest, …) | `no-cache` | Unversioned but cheap — revalidate rather than pin. |
 | `/api/*` | *(none set by us)* | Dynamic responses carry no static cache header. |
 
-## CDN in front (Cloudflare free tier)
+## CDN in front (optional)
 
 Because the origin already emits correct `Cache-Control`, you get edge caching
-by proxying the **whole domain** through Cloudflare — no need to split the
-frontend onto a separate CDN origin.
+by proxying the **whole domain** through any CDN / reverse proxy — no need to
+split the frontend onto a separate CDN origin. Whatever CDN you put in front
+must satisfy these requirements (the specifics are provider-neutral on purpose):
 
-1. **Proxy the domain.** Point the DNS record for your Cluckwork host at the
-   origin with the orange-cloud proxy **on**. Traefik still terminates TLS at
-   the origin — use Cloudflare **"Full (strict)"**, not plain "Full": Full does
-   **not** validate the origin certificate, so an on-path attacker could present
-   any cert and intercept the (authenticated) API traffic. Give Traefik a
-   publicly-trusted or Cloudflare Origin CA certificate for the host, and
-   ideally lock the origin to Cloudflare (Authenticated Origin Pulls or an
-   IP allowlist) so it can't be reached directly.
-2. **Respect origin headers.** Leave Cloudflare's caching on "Standard" /
-   "respect existing headers" so it honours the `immutable` assets and
-   revalidates `index.html` as above — don't override with a blanket Edge TTL.
-3. **Bypass `/api/*`.** Add a cache rule: for `URI Path starts with /api/`,
-   **Bypass cache**. API responses are dynamic and per-tenant; they must never
-   be edge-cached. (They carry no cache header, but an explicit bypass rule is
-   the safe belt-and-braces.)
-4. **Bot / DDoS layer.** The proxy adds a bot-management and DDoS shield in
-   front of the login endpoint. This is a **partial** mitigation only —
-   API-side per-IP rate limiting on the auth endpoints (#143) is the real
-   control and is already in place; keep both.
+1. **Validate the origin certificate.** If the CDN terminates TLS and
+   re-originates to Traefik, use a *strict* mode that **validates the origin
+   cert** — never a mode that accepts any cert, or an on-path attacker could
+   present any certificate and intercept the (authenticated) API traffic. Give
+   Traefik a publicly-trusted (or the CDN's origin-CA) certificate for the host,
+   and ideally lock the origin to the CDN (authenticated origin pulls or an IP
+   allowlist) so it can't be reached directly.
+2. **Respect origin cache headers.** Configure the edge to honour the origin's
+   `Cache-Control` — hold the `immutable` assets and revalidate `index.html` as
+   above — rather than override with a blanket edge TTL.
+3. **Bypass `/api/*`.** Add a rule so paths under `/api/` are never edge-cached;
+   API responses are dynamic and per-tenant. (They carry no cache header, but an
+   explicit bypass is belt-and-braces.)
+4. **Bot / DDoS layer.** A CDN can add a bot-management / DDoS shield in front of
+   the login endpoint. This is a **partial** mitigation only — API-side per-IP
+   rate limiting on the auth endpoints (#143) is the real control and is already
+   in place; keep both.
 
-> Provisioning the Cloudflare account/zone is out of scope here — this repo only
-> ships the origin headers and this topology guide.
+> Provider-specific setup (DNS records, dashboard settings, origin-lock config)
+> is out of scope for this repo — it belongs in the deployment repo / ops
+> location. This repo only ships the origin headers and this provider-neutral
+> topology contract.
