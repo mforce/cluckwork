@@ -208,6 +208,13 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
     public void SimulationSeed_ConfiguredTimeZone_IsNotUtc() =>
         Assert.NotEqual("UTC", SimulationSeedFactory.TimeZoneId);
 
+    // #279 review Fix 6: the fixture's one InitializeAsync seed run — against a
+    // fresh database — is the genuine FIRST run and must report Seeded (the
+    // reruns above/below assert the AlreadySeeded side of the same signal).
+    [Fact]
+    public void SimulationSeed_FirstRun_ReportsSeeded() =>
+        Assert.Equal(SeedStatus.Seeded, factory.SeedResult.Status);
+
     [Fact]
     public async Task SimulationSeed_IsIdempotent_ExactlyTwoAccountsAfterTwoHostStarts()
     {
@@ -221,6 +228,9 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
             // genuine second full Program.cs run against the same DB.
             var result = await secondScope.ServiceProvider.GetRequiredService<SimulationDataSeeder>().SeedAsync();
             Assert.True(result.IsSuccess, result.Message);
+            // #279 review Fix 6: a rerun over the already-seeded fixture must
+            // report AlreadySeeded (the real completion probe), not Seeded.
+            Assert.Equal(SeedStatus.AlreadySeeded, result.Status);
         }
 
         using var scope = factory.Services.CreateScope();
@@ -316,6 +326,9 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
             // still converges.
             var result = await secondScope.ServiceProvider.GetRequiredService<SimulationDataSeeder>().SeedAsync();
             Assert.True(result.IsSuccess, result.Message);
+            // #279 review Fix 6: a rerun over the already-seeded fixture must
+            // report AlreadySeeded (the real completion probe), not Seeded.
+            Assert.Equal(SeedStatus.AlreadySeeded, result.Status);
         }
 
         using var scope = factory.Services.CreateScope();
@@ -444,6 +457,9 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
             // explicitly to prove the second pass still converges.
             var result = await secondScope.ServiceProvider.GetRequiredService<SimulationDataSeeder>().SeedAsync();
             Assert.True(result.IsSuccess, result.Message);
+            // #279 review Fix 6: a rerun over the already-seeded fixture must
+            // report AlreadySeeded (the real completion probe), not Seeded.
+            Assert.Equal(SeedStatus.AlreadySeeded, result.Status);
         }
 
         using var scope = factory.Services.CreateScope();
@@ -587,6 +603,9 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
             // explicitly to prove the second pass still converges.
             var result = await secondScope.ServiceProvider.GetRequiredService<SimulationDataSeeder>().SeedAsync();
             Assert.True(result.IsSuccess, result.Message);
+            // #279 review Fix 6: a rerun over the already-seeded fixture must
+            // report AlreadySeeded (the real completion probe), not Seeded.
+            Assert.Equal(SeedStatus.AlreadySeeded, result.Status);
         }
 
         using var scope = factory.Services.CreateScope();
@@ -877,6 +896,8 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
             var seeder = firstScope.ServiceProvider.GetRequiredService<SimulationDataSeeder>();
             var firstResult = await seeder.SeedAsync();
             Assert.True(firstResult.IsSuccess, firstResult.Message);
+            // Fixture already seeded via InitializeAsync — this pass converges.
+            Assert.Equal(SeedStatus.AlreadySeeded, firstResult.Status);
         }
         // Read back BEFORE the second run overwrites the same file.
         var firstManifest = await ReadManifestAsync(factory.ManifestPath);
@@ -888,6 +909,7 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
             var seeder = secondScope.ServiceProvider.GetRequiredService<SimulationDataSeeder>();
             var secondResult = await seeder.SeedAsync();
             Assert.True(secondResult.IsSuccess, secondResult.Message);
+            Assert.Equal(SeedStatus.AlreadySeeded, secondResult.Status);
         }
         var secondManifest = await ReadManifestAsync(factory.ManifestPath);
 

@@ -151,63 +151,76 @@ public sealed class SimulationDataSeeder(
     // a real path instead).
     public async Task<SeedResult> SeedAsync(CancellationToken ct = default)
     {
-        var sim = simulationOptions.Value;
-        if (string.IsNullOrWhiteSpace(sim.CastPassword))
-        {
-            const string message =
-                "Simulation seed prerequisites missing: Simulation:CastPassword is not set. " +
-                "The sim cast has no fallback credential.";
-            logger.LogError(message);
-            return SeedResult.PrerequisitesMissing(message);
-        }
-
-        var accountId = SeedDefaults.AccountId;
-        var seed = seedOptions.Value;
-
-        // Preflight the base prerequisite (mirrors DemoDataSeeder's own
-        // MissingBaseDataAsync, #284 review): the simulation needs the
-        // default account, the Admin role, the default egg grades, AND the
-        // seeded admin (reused below as Owner — this seeder never creates a
-        // second Owner) — all of which come from DatabaseSeeder's boot seed,
-        // which the `seed` command never runs. Checked BEFORE tenant.Resolve,
-        // so every tenant-scoped query needs IgnoreQueryFilters (same
-        // reasoning as DemoDataSeeder's preflight).
-        var missingBaseData = await MissingBaseDataAsync(accountId, seed.AdminEmail, ct);
-        if (missingBaseData)
-        {
-            var message =
-                "Simulation seed prerequisites missing: the base data (default account, Admin role, " +
-                "default egg grades, and the seeded admin reused as Owner) is not seeded yet. Run the " +
-                "app once against this database with Seed:AdminEmail / Seed:AdminPassword set " +
-                "(DatabaseSeeder base-seeds on boot), then re-run `seed --profile simulation`.";
-            logger.LogError(message);
-            return SeedResult.PrerequisitesMissing(message);
-        }
-
-        // Handlers and query filters need the tenant, which is unresolved at
-        // startup — resolve it to the seeded account for this scope (matches
-        // DemoDataSeeder).
-        tenant.Resolve(accountId);
-
+        // #279 review Fix 4 (codex): the WHOLE operational body — options
+        // access, the prerequisite queries, tenant.Resolve, and all seeding —
+        // runs inside this catch boundary, so an exception from ANY of them
+        // (e.g. the DB is unreachable during preflight) becomes a clean
+        // SeedResult.Failed and a non-zero command exit, never an unhandled
+        // throw escaping the `seed` command. The explicit PrerequisitesMissing
+        // returns below still short-circuit from inside the try.
         try
         {
-            // Cheap "has a previous full run already completed" probe — the
-            // seeding below is idempotent regardless of this flag (every
-            // per-entity existence check converges on a re-run), but the
-            // RESULT should still distinguish "this is the first time" from
-            // "nothing new happened". SecondAccountId is created exactly once,
-            // as the LAST step of a first successful run (SeedSecondAccountAsync
-            // below), so its presence is a clean, single-query signal.
-            var alreadySeeded = await db.Accounts
-                .IgnoreQueryFilters()
-                .AnyAsync(a => a.Id == SecondAccountId, ct);
+            var sim = simulationOptions.Value;
+            if (string.IsNullOrWhiteSpace(sim.CastPassword))
+            {
+                const string prereqMessage =
+                    "Simulation seed prerequisites missing: Simulation:CastPassword is not set. " +
+                    "The sim cast has no fallback credential.";
+                logger.LogError(prereqMessage);
+                return SeedResult.PrerequisitesMissing(prereqMessage);
+            }
 
-            // Single injectable "today" anchor (#243 later task): captured ONCE,
-            // threaded through everything below instead of each step calling
-            // DateTime.UtcNow independently — deterministic, testable via a fixed
-            // IClock, and #277's load-test assertions can reason about dates
-            // relative to this one value.
-            var today = clock.TodayUtc;
+            var accountId = SeedDefaults.AccountId;
+            var seed = seedOptions.Value;
+
+            // Preflight the base prerequisites (mirrors DemoDataSeeder's own
+            // MissingBaseDataAsync, #284 review): the simulation needs the
+            // default account, the Admin role, the three saleable egg grades it
+            // consumes by name, AND the seeded admin in the Owner role (reused
+            // below as Owner — this seeder never creates a second Owner) — all
+            // of which come from DatabaseSeeder's boot seed, which the `seed`
+            // command never runs. Checked BEFORE tenant.Resolve, so every
+            // tenant-scoped query needs IgnoreQueryFilters (same reasoning as
+            // DemoDataSeeder's preflight).
+            var missingBaseData = await MissingBaseDataAsync(accountId, seed.AdminEmail, ct);
+            if (missingBaseData)
+            {
+                var prereqMessage =
+                    "Simulation seed prerequisites missing: the base data (default account, Admin role, " +
+                    "the saleable Large/Medium/Small egg grades, and the seeded admin in the Owner role) " +
+                    "is not fully seeded yet. Run the app once against this database with " +
+                    "Seed:AdminEmail / Seed:AdminPassword set (DatabaseSeeder base-seeds on boot), then " +
+                    "re-run `seed --profile simulation`.";
+                logger.LogError(prereqMessage);
+                return SeedResult.PrerequisitesMissing(prereqMessage);
+            }
+
+            // Handlers and query filters need the tenant, which is unresolved at
+            // startup — resolve it to the seeded account for this scope (matches
+            // DemoDataSeeder).
+            tenant.Resolve(accountId);
+
+            // #279 review Fix 1 (codex, BLOCKER): the "today" anchor is NOT
+            // re-read from the clock on a re-run — it is RECOVERED from the data
+            // the first run already wrote (see ResolveAnchorAsync). Every
+            // date-relative natural key below (daily entries, orders, inventory,
+            // recurring drips — all `today.AddDays(-n)`) therefore re-derives to
+            // the SAME dates, so a re-run after a UTC-midnight rollover converges
+            // on the existing rows instead of creating a fresh, shifted set next
+            // to them. Only a genuine first run falls back to clock.TodayUtc.
+            var today = await ResolveAnchorAsync(accountId, ct);
+
+            // #279 review Fix 2 (codex): the "already fully seeded" signal is a
+            // REAL completion probe (does the whole fixture already validate?),
+            // not the mere presence of SecondAccountId — that account is written
+            // BEFORE the lock sweep + manifest validation, so a first run that
+            // crashed in the manifest step would leave it behind and make a
+            // repair run falsely report AlreadySeeded. Computed BEFORE any
+            // seeding this run does, so it reflects the PRIOR run's state. See
+            // FixtureIsCompleteAsync for why it tolerates the Submitted/Locked
+            // split (the one wall-clock-dependent count) while every stable
+            // count must already match.
+            var wasComplete = await FixtureIsCompleteAsync(accountId, today, sim, ct);
 
             var workerIds = await SeedCastAsync(accountId, sim, ct);
             var flockIds = await SeedFlockTopologyAsync(accountId, today, sim, ct);
@@ -236,11 +249,11 @@ public sealed class SimulationDataSeeder(
             // caught below, same as any other internal failure.
             var manifest = await EmitManifestAsync(accountId, today, sim, ct);
 
-            var message = alreadySeeded
+            var message = wasComplete
                 ? $"Simulation seed already present; converged (fingerprint {manifest.Fingerprint})."
                 : $"Simulation data seeded (fingerprint {manifest.Fingerprint}).";
             logger.LogInformation(message);
-            return alreadySeeded ? SeedResult.AlreadySeeded(message) : SeedResult.Seeded(message);
+            return wasComplete ? SeedResult.AlreadySeeded(message) : SeedResult.Seeded(message);
         }
         catch (Exception ex)
         {
@@ -256,10 +269,62 @@ public sealed class SimulationDataSeeder(
         }
     }
 
-    // Cheap existence checks only, run BEFORE tenant.Resolve — every
-    // tenant-scoped query needs IgnoreQueryFilters (mirrors DemoDataSeeder's
-    // own MissingBaseDataAsync). Also checks the seeded admin (adminEmail)
-    // exists: this seeder reuses it as Owner and never creates a second one.
+    // #279 review Fix 1 (codex, BLOCKER): recover the seed's "today" anchor from
+    // the data a prior run already wrote, so every calendar-relative natural key
+    // re-derives identically on a re-run (even one straddling a UTC-midnight
+    // rollover) and the fixture converges instead of growing a second, shifted
+    // copy. SeedFlockHistoryAsync dates entries at `today.AddDays(-d)` for
+    // d = 1..EffectiveHistoryDays, so the most recent seeded entry is exactly
+    // `today - 1` and the original anchor is `max(entry date) + 1`. Queried with
+    // IgnoreQueryFilters + explicit AccountId because this can run before the
+    // completion probe reads anything else, and to be independent of the tenant
+    // filter's state. A genuine first run (no seeded entries) falls back to the
+    // clock — the ONE place the wall clock still feeds the anchor.
+    private async Task<DateOnly> ResolveAnchorAsync(Guid accountId, CancellationToken ct)
+    {
+        var latestEntryDate = await db.DailyEntries
+            .IgnoreQueryFilters()
+            .Where(e => e.AccountId == accountId)
+            .MaxAsync(e => (DateOnly?)e.Date, ct);
+
+        return latestEntryDate is { } maxDate ? maxDate.AddDays(1) : clock.TodayUtc;
+    }
+
+    // #279 review Fix 2 (codex): a REAL "a prior run already completed the whole
+    // fixture" probe, run BEFORE this run seeds anything. Only a prior run that
+    // reached EmitManifestAsync could have produced a state where every expected
+    // count already matches. Deliberately tolerant of the single
+    // wall-clock-dependent split — an entry ages from Submitted to Locked as
+    // real time passes even with the anchor reused, so exactly like
+    // ComputeFingerprint this probe checks (submitted+locked) COMBINED, not the
+    // per-state split (see CollectCountFailures). A partial/short prior run
+    // fails the probe and the run is (correctly) reported as Seeded, never
+    // AlreadySeeded.
+    private async Task<bool> FixtureIsCompleteAsync(
+        Guid accountId, DateOnly today, SimulationOptions sim, CancellationToken ct)
+    {
+        var (counts, states) = await ComputeCountsAsync(accountId, ct);
+        var farmToday = clock.TodayInZone(sim.TimeZoneId);
+        var expected = ComputeExpectedCounts(sim, today, farmToday);
+        return CollectCountFailures(counts, states, expected, exactDailyEntryLifecycle: false).Count == 0;
+    }
+
+    // The three saleable grades SeedFlockHistoryAsync/SeedSalesAsync consume by
+    // name (grades["Large"/"Medium"/"Small"]). The base DatabaseSeeder creates
+    // them; preflight requires all three present AND saleable so a base seed
+    // missing one fails loud here instead of throwing KeyNotFoundException
+    // mid-seed (#279 review Fix 3).
+    private static readonly string[] RequiredSaleableGrades = ["Large", "Medium", "Small"];
+
+    // Existence + shape checks, run BEFORE tenant.Resolve — every tenant-scoped
+    // query needs IgnoreQueryFilters (mirrors DemoDataSeeder's own
+    // MissingBaseDataAsync). #279 review Fix 3 (codex): each check now PROVES the
+    // specific base datum this seeder depends on rather than a weaker proxy —
+    // the exact saleable Large/Medium/Small grades (not merely "any grade"), and
+    // the seeded admin BELONGING to the default account AND holding the
+    // Owner/Admin role (not merely "any user with this email"), since it is
+    // reused below as the single Owner and its miscount would only surface as a
+    // manifest failure after partial writes.
     private async Task<bool> MissingBaseDataAsync(Guid accountId, string adminEmail, CancellationToken ct)
     {
         var accountExists = await db.Accounts
@@ -270,13 +335,20 @@ public sealed class SimulationDataSeeder(
         var adminRoleExists = await db.Roles.AnyAsync(r => r.Name == DatabaseSeeder.AdminRole, ct);
         if (!adminRoleExists) return true;
 
-        var anyGrades = await db.EggGrades
+        // Tenant is unresolved here, so IgnoreQueryFilters + explicit AccountId
+        // (the repository's ListActiveAsync would apply the tenant filter and
+        // see nothing).
+        var saleableGradeNames = await db.EggGrades
             .IgnoreQueryFilters()
-            .AnyAsync(g => g.AccountId == accountId, ct);
-        if (!anyGrades) return true;
+            .Where(g => g.AccountId == accountId && g.IsSaleable)
+            .Select(g => g.Name)
+            .ToListAsync(ct);
+        if (!RequiredSaleableGrades.All(saleableGradeNames.Contains)) return true;
 
         if (string.IsNullOrWhiteSpace(adminEmail)) return true;
-        return await users.FindByEmailAsync(adminEmail) is null;
+        var admin = await users.FindByEmailAsync(adminEmail);
+        if (admin is null || admin.AccountId != accountId) return true;
+        return !await users.IsInRoleAsync(admin, DatabaseSeeder.AdminRole);
     }
 
     // --- Cast: Managers, Sales, ReadOnly, Workers (role-less) ---------
@@ -1009,10 +1081,11 @@ public sealed class SimulationDataSeeder(
     // create, and (only when CredentialOutputPath is set) WRITE a JSON
     // manifest recording the result. This is what closes the "partial seed
     // silently looks done" gap — the #243 findings header and #277's
-    // Playwright suite both read this file (or, in tests, the in-memory
-    // SimulationManifest SeedAsync returns) and trust `complete: true`
-    // outright; a short/partial seed must throw HERE instead of quietly
-    // producing a manifest that says otherwise.
+    // Playwright suite both read this file and trust `complete: true` outright;
+    // a short/partial seed must throw HERE instead of quietly producing a
+    // manifest that says otherwise. (SeedAsync itself returns a SeedResult, not
+    // the manifest — #279; the manifest is the on-disk artifact, and tests
+    // point Simulation:CredentialOutputPath at a temp file to read it back.)
     //
     // Depth-robust by construction: every expectation in ComputeExpectedCounts
     // is derived from SimulationOptions (sim.Managers/.../HistoryDays), the
@@ -1272,12 +1345,35 @@ public sealed class SimulationDataSeeder(
     }
 
     // Pure, no DB access — a test can hand this a synthetic short
-    // SimulationManifestCounts/SimulationLifecycleStates and assert it
-    // throws, proving the fail-closed path without needing to sabotage a
-    // real seed run. Collects every mismatch (rather than throwing on the
-    // first) so a single failed startup reports the whole shortfall at once.
+    // SimulationManifestCounts/SimulationLifecycleStates and assert it throws,
+    // proving the fail-closed path without needing to sabotage a real seed run.
+    // The fail-closed gate: delegates to CollectCountFailures with the EXACT
+    // Draft/Submitted/Locked split (this runs AFTER the lock sweep) and throws
+    // on any shortfall, reporting the WHOLE shortfall at once.
     internal static void ValidateCounts(
         SimulationManifestCounts counts, SimulationLifecycleStates states, SimulationExpectedCounts expected)
+    {
+        var failures = CollectCountFailures(counts, states, expected, exactDailyEntryLifecycle: true);
+        if (failures.Count > 0)
+            throw new InvalidOperationException(
+                "Simulation seed completion check failed — the seed is short/partial and must NOT be " +
+                "marked complete: " + string.Join("; ", failures));
+    }
+
+    // #279 review: the shared count-checking core. The throwing ValidateCounts
+    // above (the fail-closed gate, run AFTER the lock sweep) passes
+    // exactDailyEntryLifecycle:true and asserts the Draft/Submitted/Locked split
+    // exactly. FixtureIsCompleteAsync (the pre-seed "already complete?" probe,
+    // run BEFORE this run's sweep) passes false and checks (submitted+locked)
+    // COMBINED instead: with the anchor reused every COUNT is stable across a
+    // UTC-day boundary, but an entry can age from Submitted to Locked as
+    // wall-clock time advances, so the exact split is not a stable completion
+    // signal (the same reason ComputeFingerprint excludes it). Draft is always
+    // exact — Draft entries never age (the sweep only ever touches Submitted).
+    // Collects every mismatch rather than throwing on the first.
+    private static List<string> CollectCountFailures(
+        SimulationManifestCounts counts, SimulationLifecycleStates states, SimulationExpectedCounts expected,
+        bool exactDailyEntryLifecycle)
     {
         var failures = new List<string>();
         void Check(bool ok, string message)
@@ -1299,12 +1395,25 @@ public sealed class SimulationDataSeeder(
         Check(counts.Flocks == expected.Flocks, $"flocks: expected {expected.Flocks}, got {counts.Flocks}");
         Check(counts.DailyEntriesTotal == expected.DailyEntriesTotal,
             $"dailyEntries.total: expected {expected.DailyEntriesTotal}, got {counts.DailyEntriesTotal}");
+        // Draft is always exact (stable — Draft entries never age). The
+        // Submitted/Locked split is exact only in the fail-closed gate; the
+        // completion probe checks their SUM (see this method's header).
         Check(states.DailyEntries.Draft == expected.DraftEntries,
             $"dailyEntries.draft: expected {expected.DraftEntries}, got {states.DailyEntries.Draft}");
-        Check(states.DailyEntries.Submitted == expected.SubmittedEntries,
-            $"dailyEntries.submitted: expected {expected.SubmittedEntries}, got {states.DailyEntries.Submitted}");
-        Check(states.DailyEntries.Locked == expected.LockedEntries,
-            $"dailyEntries.locked: expected {expected.LockedEntries}, got {states.DailyEntries.Locked}");
+        if (exactDailyEntryLifecycle)
+        {
+            Check(states.DailyEntries.Submitted == expected.SubmittedEntries,
+                $"dailyEntries.submitted: expected {expected.SubmittedEntries}, got {states.DailyEntries.Submitted}");
+            Check(states.DailyEntries.Locked == expected.LockedEntries,
+                $"dailyEntries.locked: expected {expected.LockedEntries}, got {states.DailyEntries.Locked}");
+        }
+        else
+        {
+            var submittedOrLocked = states.DailyEntries.Submitted + states.DailyEntries.Locked;
+            var expectedSubmittedOrLocked = expected.SubmittedEntries + expected.LockedEntries;
+            Check(submittedOrLocked == expectedSubmittedOrLocked,
+                $"dailyEntries.submitted+locked: expected {expectedSubmittedOrLocked}, got {submittedOrLocked}");
+        }
         var dailyEntriesSum = states.DailyEntries.Draft + states.DailyEntries.Submitted + states.DailyEntries.Locked;
         Check(dailyEntriesSum == counts.DailyEntriesTotal,
             $"dailyEntries reconciliation: draft+submitted+locked ({dailyEntriesSum}) != total ({counts.DailyEntriesTotal})");
@@ -1353,10 +1462,7 @@ public sealed class SimulationDataSeeder(
             $"expenseCategories: expected {expected.ExpenseCategories}, got {counts.ExpenseCategories}");
         Check(counts.Expenses == expected.Expenses, $"expenses: expected {expected.Expenses}, got {counts.Expenses}");
 
-        if (failures.Count > 0)
-            throw new InvalidOperationException(
-                "Simulation seed completion check failed — the seed is short/partial and must NOT be " +
-                "marked complete: " + string.Join("; ", failures));
+        return failures;
     }
 
     private static readonly JsonSerializerOptions FingerprintJsonOptions = new(JsonSerializerDefaults.Web);

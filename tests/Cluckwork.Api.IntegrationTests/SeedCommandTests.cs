@@ -80,56 +80,13 @@ public sealed class SeedCommandTests : IClassFixture<SeedCommandFixture>
         return Process.Start(psi)!;
     }
 
-    // #284 review — robust subprocess runner, used for EVERY subprocess
-    // invocation below (including the idempotency rerun). Two failure modes
-    // motivated this:
-    //  1. The exact regression this suite targets: if the seed command fell
-    //     through into app.Run() instead of exiting, Kestrel binds and the
-    //     process never exits — and redirected stdout/stderr streams then
-    //     never reach EOF either, so a naive "wait then read" hangs forever
-    //     with no useful failure message.
-    //  2. Draining only one of stdout/stderr (as the old per-test code did)
-    //     risks a pipe-buffer deadlock: if the child writes enough to the
-    //     undrained stream to fill its OS pipe buffer, it blocks on write
-    //     while the test blocks on WaitForExitAsync — neither side proceeds.
-    // This starts both drains concurrently with the wait, bounds the wait,
-    // and on timeout kills the whole process tree (`dotnet <dll>` can itself
-    // be a wrapper process) so the test fails fast with a clear message
-    // instead of hanging the run.
-    private static async Task<(int ExitCode, string Stdout, string Stderr)> RunToCompletionAsync(
-        Process proc, TimeSpan timeout)
-    {
-        using (proc)
-        {
-            var stdoutTask = proc.StandardOutput.ReadToEndAsync();
-            var stderrTask = proc.StandardError.ReadToEndAsync();
-            var waitTask = proc.WaitForExitAsync();
-
-            var completed = await Task.WhenAny(waitTask, Task.Delay(timeout));
-            if (completed != waitTask)
-            {
-                try { proc.Kill(entireProcessTree: true); }
-                catch { /* exited between the timeout firing and the kill call */ }
-
-                // Killing the tree lets the redirected pipes reach EOF, so these
-                // complete quickly now rather than hanging alongside the process.
-                var partialStdout = await stdoutTask;
-                var partialStderr = await stderrTask;
-                Assert.Fail(
-                    $"`{proc.StartInfo.FileName} {proc.StartInfo.Arguments}` did not exit within {timeout}. " +
-                    "This is the exact regression under test: falling through into app.Run() instead of " +
-                    $"returning would hang here. Killed the process tree. stdout={partialStdout} stderr={partialStderr}");
-            }
-
-            var stdout = await stdoutTask;
-            var stderr = await stderrTask;
-            return (proc.ExitCode, stdout, stderr);
-        }
-    }
-
+    // Robust subprocess draining/timeout lives in the shared SeedCommandRunner
+    // (#279 review — extracted so SimulationSeedCommandTests reuses it verbatim
+    // instead of duplicating the pipe-deadlock/hang-detection logic).
     private Task<(int ExitCode, string Stdout, string Stderr)> RunSeedCommandAsync(
         string? profile, string environment = "Testing", string? connectionString = null) =>
-        RunToCompletionAsync(StartSeedCommand(profile, environment, connectionString), SubprocessTimeout);
+        SeedCommandRunner.RunToCompletionAsync(
+            StartSeedCommand(profile, environment, connectionString), SubprocessTimeout);
 
     [Fact]
     public async Task SeedCommand_Demo_SeedsDataAndExitsWithoutStartingKestrel()
