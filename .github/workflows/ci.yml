@@ -221,7 +221,11 @@ jobs:
       # false-fail a PR; the GITHUB_TOKEN env (below) authenticates the pull on a
       # cache miss. The action is pinned to a release tag (Dependabot keeps it current).
       - name: Scan image for HIGH/CRITICAL vulnerabilities
-        uses: aquasecurity/trivy-action@v0.36.0
+        # Supply-chain: pin the immutable commit, not the re-pointable tag —
+        # trivy-action was compromised 2026-03 (a repeat incident), so a tag could
+        # be re-pointed to a malicious release. Dependabot's github-actions
+        # ecosystem reads the trailing `# v0.36.0` to bump both SHA and comment.
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: cluckwork-api:ci
           scan-type: image
