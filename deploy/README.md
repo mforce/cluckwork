@@ -11,6 +11,10 @@ between an app bundle and its API.
 - `docker-compose.dev.yml` — just Postgres, for running the API from the IDE.
 - `traefik/` — reverse-proxy dynamic config (TLS, middleware).
 
+Demo sample data (#280/#284) is **command-only** — there is no `Seed__Demo` boot
+toggle. Against an already base-seeded, non-Production database, run
+`dotnet Cluckwork.Api.dll seed --profile demo` (see `AGENTS.md`).
+
 ## Static asset caching
 
 The API serves the SPA with cache headers tuned for a content-hashed build
