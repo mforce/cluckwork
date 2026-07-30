@@ -96,6 +96,16 @@ using Serilog;
 using System.Globalization;
 using System.Threading.RateLimiting;
 
+// #266 — the `healthcheck` verb is the container HEALTHCHECK probe. It only GETs
+// the already-running serving process's /health/ready over loopback, so — unlike
+// the migrate/seed/recover-admin verbs, which operate ON the built host via
+// CliDispatcher after Build() — it needs no host, DI, DB or config. Dispatch it
+// HERE, before anything is built, so a 30s HEALTHCHECK never pays a full app
+// startup, re-validates the connection string, or re-logs boot warnings on every
+// tick. (The other verbs can't move up: they require the built host's services.)
+if (args is [HealthCheckCliCommand.Verb, ..])
+    return await HealthCheckCliCommand.RunAsync(args);
+
 var builder = WebApplication.CreateBuilder(args);
 
 // --- Logging ---
@@ -874,6 +884,16 @@ app.Map("/error", (HttpContext context) =>
 // endpoints have literal segments and outrank this catch-all; the SPA fallback
 // is a bare non-file catch-all, so this /api-prefixed one wins for /api paths.
 app.Map("/api/{**rest}", () => Results.Problem(
+    statusCode: StatusCodes.Status404NotFound, title: "Not found"))
+    .ExcludeFromDescription();
+
+// #266 — same guard for /health/*: an unknown health path must 404, NOT fall
+// through to the SPA fallback (which returns index.html as a 200 text/html page).
+// Otherwise a removed/renamed /health/ready would be silently shadowed by a
+// 200 — and the container HEALTHCHECK probe (which accepts any 2xx) would report
+// a dead app HEALTHY. The literal /health/live + /health/ready above outrank this
+// catch-all; only unmatched /health/* paths hit it.
+app.Map("/health/{**rest}", () => Results.Problem(
     statusCode: StatusCodes.Status404NotFound, title: "Not found"))
     .ExcludeFromDescription();
 

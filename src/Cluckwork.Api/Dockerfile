@@ -58,4 +58,13 @@ COPY --from=web-build /web/sourcemaps ./sourcemaps
 # wwwroot + the published DLLs; binding :8080 needs no privilege (>1024). Runtime
 # writes nothing under /app — DataProtection keys go to $HOME (/home/app).
 USER $APP_UID
+# #266 — container readiness probe. The hardened runtime image ships no
+# curl/wget (#267), so the probe rides the same binary: `healthcheck` is a
+# run-then-exit verb that GETs /health/ready over loopback and exits non-zero
+# until dependencies are green (DB reachable + migrations applied). Compose /
+# an orchestrator then stops routing to an unready instance. start-period covers
+# boot — the app waits on the one-shot migrate job (#263), so readiness flips
+# green shortly after start; retries avoid flapping on a transient blip.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+    CMD ["dotnet", "Cluckwork.Api.dll", "healthcheck"]
 ENTRYPOINT ["dotnet", "Cluckwork.Api.dll"]

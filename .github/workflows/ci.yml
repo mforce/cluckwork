@@ -240,3 +240,109 @@ jobs:
           # a cache miss. (This action has no token INPUT for the DB — `github-pat`
           # is SBOM-submission only — so it goes through the env, which Trivy reads.)
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # #266 — smoke test: prove the freshly built image actually BOOTS and SERVES,
+      # not merely that it builds and scans clean. Runs the real run-then-exit
+      # `migrate` verb against a throwaway Postgres, boots the serving container,
+      # and asserts /health/ready goes green AND the in-container `healthcheck`
+      # verb (exactly what the Dockerfile HEALTHCHECK invokes) exits 0 on a ready
+      # instance. A Dockerfile/runtime regression that ships an unbootable image
+      # now fails CI here instead of surfacing at deploy time.
+      - name: Smoke test — boot the image and probe readiness
+        run: |
+          set -euo pipefail
+          PGPW="$(openssl rand -hex 16)"
+          CONN="Host=ci-db;Port=5432;Database=cluckwork;Username=cluckwork;Password=$PGPW"
+
+          # Ephemeral RSA keypair so the app can import its JWT signing keys at
+          # boot — generated at runtime (never a committed key). It only needs to
+          # be a valid keypair; the smoke test never mints or verifies a token.
+          openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out jwt-priv.pem 2>/dev/null
+          openssl rsa -in jwt-priv.pem -pubout -out jwt-pub.pem 2>/dev/null
+          JWT_PRIV="$(cat jwt-priv.pem)"
+          JWT_PUB="$(cat jwt-pub.pem)"
+
+          docker network create cluckwork-ci
+          docker run -d --name ci-db --network cluckwork-ci \
+            -e POSTGRES_USER=cluckwork -e POSTGRES_PASSWORD="$PGPW" -e POSTGRES_DB=cluckwork \
+            postgres:16-alpine
+          # Wait for Postgres to accept connections before migrating. Probe over
+          # TCP (`-h 127.0.0.1`), NOT the default unix socket: the postgres image
+          # runs a socket-only temporary server during initdb, and a socket-based
+          # pg_isready can go green against THAT while cross-container TCP (what the
+          # migrate container below uses) isn't listening yet — a classic race. The
+          # real server binds all interfaces at once, so a TCP probe only passes
+          # once migrate's path is actually up.
+          for i in $(seq 1 30); do
+            if docker exec ci-db pg_isready -h 127.0.0.1 -U cluckwork -d cluckwork >/dev/null 2>&1; then break; fi
+            if [ "$i" = 30 ]; then echo "Postgres never became ready"; exit 1; fi
+            sleep 2
+          done
+
+          # Apply the schema with the run-then-exit migrate verb (the pre-deploy job).
+          docker run --rm --network cluckwork-ci \
+            -e Database__Provider=Postgres \
+            -e "ConnectionStrings__Default=$CONN" \
+            -e Database__AllowInsecureConnection=true \
+            -e "Jwt__PrivateKeyPem=$JWT_PRIV" -e "Jwt__PublicKeyPem=$JWT_PUB" \
+            -e Jwt__Issuer=cluckwork-ci -e Jwt__Audience=cluckwork-api-ci \
+            cluckwork-api:ci migrate
+
+          # Boot the serving container. Production env (ASPNETCORE_ENVIRONMENT
+          # unset) trips both boot guards, so opt out of the TLS floor (#262 —
+          # plaintext PG on the private network) and the trusted-proxy requirement
+          # (#260 — no fronting proxy here), exactly as the compose stack does.
+          # Boot with a FAST health cadence (override the image's 30s timing) so
+          # Docker evaluates the image's own HEALTHCHECK within the job — see the
+          # health-status assertion below.
+          docker run -d --name ci-app --network cluckwork-ci -p 127.0.0.1:8080:8080 \
+            --health-start-period=3s --health-interval=3s --health-timeout=5s --health-retries=3 \
+            -e ASPNETCORE_URLS=http://+:8080 \
+            -e Database__Provider=Postgres \
+            -e "ConnectionStrings__Default=$CONN" \
+            -e Database__AllowInsecureConnection=true \
+            -e RateLimiting__AllowNoTrustedProxies=true \
+            -e "Jwt__PrivateKeyPem=$JWT_PRIV" -e "Jwt__PublicKeyPem=$JWT_PUB" \
+            -e Jwt__Issuer=cluckwork-ci -e Jwt__Audience=cluckwork-api-ci \
+            cluckwork-api:ci
+
+          # Poll /health/ready until it returns exactly HTTP 200 (DB reachable +
+          # migrations applied). Assert the status code explicitly — `curl -f`
+          # alone would also accept a 3xx.
+          ready=""
+          for i in $(seq 1 40); do
+            code="$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/health/ready || true)"
+            if [ "$code" = "200" ]; then ready=1; break; fi
+            sleep 3
+          done
+          if [ -z "$ready" ]; then echo "app /health/ready never returned 200 (last code: ${code:-none})"; exit 1; fi
+
+          # Liveness must be a plain 200 too.
+          [ "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/health/live)" = "200" ] \
+            || { echo "/health/live did not return 200"; exit 1; }
+
+          # Exercise Docker's OWN HEALTHCHECK directive (not just the verb): wait
+          # for the container to report `healthy`. A deleted/misspelled HEALTHCHECK
+          # line in the Dockerfile surfaces HERE — `.State.Health` is then nil and
+          # the inspect prints "none", which we fail on.
+          healthy=""
+          for i in $(seq 1 20); do
+            status="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' ci-app 2>/dev/null || echo none)"
+            if [ "$status" = "healthy" ]; then healthy=1; break; fi
+            if [ "$status" = "none" ]; then echo "image declares no HEALTHCHECK"; exit 1; fi
+            sleep 3
+          done
+          if [ -z "$healthy" ]; then echo "container never reported healthy (last: ${status:-none})"; exit 1; fi
+
+          # And assert the verb's exit-code contract directly, as the non-root user.
+          docker exec ci-app dotnet Cluckwork.Api.dll healthcheck
+
+      - name: Dump app logs on smoke-test failure
+        if: failure()
+        run: docker logs ci-app 2>&1 | tail -100 || true
+
+      - name: Tear down smoke-test containers
+        if: always()
+        run: |
+          docker rm -f ci-app ci-db >/dev/null 2>&1 || true
+          docker network rm cluckwork-ci >/dev/null 2>&1 || true

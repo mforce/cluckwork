@@ -15,6 +15,26 @@ Demo sample data (#280/#284) is **command-only** — there is no `Seed__Demo` bo
 toggle. Against an already base-seeded, non-Production database, run
 `dotnet Cluckwork.Api.dll seed --profile demo` (see `AGENTS.md`).
 
+## Container health check (#266)
+
+The runtime image **and** the compose `app` service both declare a `HEALTHCHECK`
+that runs the in-process `healthcheck` verb — `dotnet Cluckwork.Api.dll
+healthcheck`. The hardened runtime image ships no `curl`/`wget`, so the probe
+rides the same binary: it GETs `/health/ready` over loopback (port from
+`ASPNETCORE_URLS`, default `8080`) and exits `0` on a 2xx, `1` on any other
+status or an unreachable server.
+
+`/health/ready` is 503 while the database is unreachable or a migration is
+pending (#263), so `docker compose ps` shows the app **unhealthy** until it can
+actually serve — and any orchestrator that gates on container health stops
+routing to a stale or still-booting instance. Tune the cadence on the
+`HEALTHCHECK` (`--interval` / `--timeout` / `--start-period` / `--retries`) or
+the compose `healthcheck:` block.
+
+Behind an orchestrator, point its HTTP readiness probe at `/health/ready` as
+well (liveness at `/health/live`, which runs no checks); the host's readiness
+path, wait-for-CI gate, and post-deploy smoke test live in the deployment repo.
+
 ## Database connection string (#261 / #262)
 
 `ConnectionStrings__Default` accepts **two forms**:
