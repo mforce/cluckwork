@@ -1,0 +1,9 @@
+# graphify corpus exclusions (same syntax as .gitignore; merged after .gitignore, wins on conflict)
+#
+# NuGet/npm lock files: parsed as "code" by AST extraction, they produced
+# 217 framework-group noise nodes (net10.0 bridging 37 communities), a
+# dedicated lock-file community, and a large share of isolated nodes —
+# see graphify-out/memory/query_*_why_does_net10_0_bridge_37_communities.md.
+# Dependency truth for agents lives in the csproj/package.json manifests.
+packages.lock.json
+package-lock.json

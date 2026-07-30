@@ -3,3 +3,5 @@
 .graphify_root
 # Semantic extraction cache (~28 MB, derived; manifest.json drives --update)
 cache/
+# Per-machine token-cost ledger (upstream team-setup guidance: local only)
+cost.json
