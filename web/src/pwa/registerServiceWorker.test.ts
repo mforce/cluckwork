@@ -45,7 +45,14 @@ function fakeWorker(state = "installing") {
 }
 
 function fakeRegistration(over: Record<string, unknown> = {}) {
-  return { ...emitter(), installing: null, waiting: null, active: null, ...over };
+  return {
+    ...emitter(),
+    installing: null,
+    waiting: null,
+    active: null,
+    update: vi.fn(() => Promise.resolve()),
+    ...over,
+  };
 }
 
 /** Installs a controllable navigator.serviceWorker + isSecureContext. */
@@ -74,10 +81,23 @@ function stubEnv({
   return { container, registration };
 }
 
+let testTeardown: AbortController;
+function registerWorker(
+  onUpdate?: Parameters<typeof registerServiceWorker>[0],
+  signal: AbortSignal = testTeardown.signal,
+) {
+  return registerServiceWorker(onUpdate, signal);
+}
+
 beforeEach(() => {
+  testTeardown = new AbortController();
   vi.stubGlobal("location", { reload: vi.fn() });
 });
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  testTeardown.abort();
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
 
 describe("serviceWorkerSupported", () => {
   it("is false off a secure context, even when the API object exists", () => {
@@ -99,26 +119,102 @@ describe("serviceWorkerSupported", () => {
 describe("registerServiceWorker", () => {
   it("no-ops off a secure context — never touches register, never throws", async () => {
     const { container } = stubEnv({ secure: false });
-    await expect(registerServiceWorker()).resolves.toBeNull();
+    await expect(registerWorker()).resolves.toBeNull();
     expect(container.register).not.toHaveBeenCalled();
   });
 
   it("no-ops when the serviceWorker API is missing", async () => {
     stubEnv({ hasApi: false });
-    await expect(registerServiceWorker()).resolves.toBeNull();
+    await expect(registerWorker()).resolves.toBeNull();
   });
 
   it("registers the generated worker at the root scope", async () => {
     const { container, registration } = stubEnv();
-    await expect(registerServiceWorker()).resolves.toBe(registration);
+    await expect(registerWorker()).resolves.toBe(registration);
     expect(container.register).toHaveBeenCalledWith("/sw.js", { scope: "/" });
+  });
+
+  it("checks for a new worker every hour while the registration is active", async () => {
+    vi.useFakeTimers();
+    try {
+      const registration = fakeRegistration();
+      stubEnv({ registration });
+      const teardown = new AbortController();
+
+      await registerWorker(undefined, teardown.signal);
+      expect(registration.update).not.toHaveBeenCalled();
+
+      await vi.advanceTimersByTimeAsync(60 * 60_000);
+      expect(registration.update).toHaveBeenCalledTimes(1);
+
+      await vi.advanceTimersByTimeAsync(60 * 60_000);
+      expect(registration.update).toHaveBeenCalledTimes(2);
+
+      teardown.abort();
+      await vi.advanceTimersByTimeAsync(60 * 60_000);
+      expect(registration.update).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("checks for a new worker when a hidden app becomes visible", async () => {
+    const registration = fakeRegistration();
+    stubEnv({ registration });
+    const teardown = new AbortController();
+    const visibility = vi.spyOn(document, "visibilityState", "get");
+
+    await registerWorker(undefined, teardown.signal);
+
+    visibility.mockReturnValue("hidden");
+    document.dispatchEvent(new Event("visibilitychange"));
+    expect(registration.update).not.toHaveBeenCalled();
+
+    visibility.mockReturnValue("visible");
+    document.dispatchEvent(new Event("visibilitychange"));
+    expect(registration.update).toHaveBeenCalledTimes(1);
+
+    teardown.abort();
+    document.dispatchEvent(new Event("visibilitychange"));
+    expect(registration.update).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps a failed background update check silent", async () => {
+    const update = vi.fn(() => Promise.reject(new Error("offline")));
+    const registration = fakeRegistration({ update });
+    stubEnv({ registration });
+    const teardown = new AbortController();
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+
+    await registerWorker(undefined, teardown.signal);
+    document.dispatchEvent(new Event("visibilitychange"));
+    await Promise.resolve(); // let the rejected update settle through its catch
+
+    expect(update).toHaveBeenCalledTimes(1);
+    teardown.abort();
+  });
+
+  it("keeps a synchronously failed background update check silent", async () => {
+    const update = vi.fn(() => {
+      throw new Error("browser quirk");
+    });
+    const registration = fakeRegistration({ update });
+    stubEnv({ registration });
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+
+    await registerWorker();
+
+    expect(() =>
+      document.dispatchEvent(new Event("visibilitychange")),
+    ).not.toThrow();
+    expect(update).toHaveBeenCalledTimes(1);
   });
 
   it("resolves null (does not reject) when registration fails", async () => {
     // A CSP forbidding workers, a proxy rewriting /sw.js, private-mode storage:
     // none of these should break the page that is already running.
     stubEnv({ registerImpl: () => Promise.reject(new Error("blocked by CSP")) });
-    await expect(registerServiceWorker()).resolves.toBeNull();
+    await expect(registerWorker()).resolves.toBeNull();
   });
 
   it("reports an update that was already waiting from a previous visit", async () => {
@@ -126,7 +222,7 @@ describe("registerServiceWorker", () => {
     stubEnv({ registration: fakeRegistration({ waiting }) });
     const onUpdate = vi.fn();
 
-    await registerServiceWorker(onUpdate);
+    await registerWorker(onUpdate);
 
     expect(onUpdate).toHaveBeenCalledTimes(1);
     expect(typeof onUpdate.mock.calls[0][0]).toBe("function"); // the activator
@@ -138,7 +234,7 @@ describe("registerServiceWorker", () => {
     stubEnv({ registration });
     const onUpdate = vi.fn();
 
-    await registerServiceWorker(onUpdate);
+    await registerWorker(onUpdate);
     expect(onUpdate).not.toHaveBeenCalled();
 
     installing.state = "installed";
@@ -157,7 +253,7 @@ describe("registerServiceWorker", () => {
     stubEnv({ registration });
     const onUpdate = vi.fn();
 
-    await registerServiceWorker(onUpdate);
+    await registerWorker(onUpdate);
     expect(onUpdate).not.toHaveBeenCalled(); // still installing
 
     installing.state = "installed";
@@ -172,7 +268,7 @@ describe("registerServiceWorker", () => {
     stubEnv({ registration: fakeRegistration({ installing }) });
     const onUpdate = vi.fn();
 
-    await registerServiceWorker(onUpdate);
+    await registerWorker(onUpdate);
 
     expect(onUpdate).toHaveBeenCalledTimes(1);
   });
@@ -182,7 +278,7 @@ describe("registerServiceWorker", () => {
     stubEnv({ registration });
     const controller = new AbortController();
 
-    await registerServiceWorker(vi.fn(), controller.signal);
+    await registerWorker(vi.fn(), controller.signal);
     expect(registration.listenerCount("updatefound")).toBe(1);
 
     // Aborting detaches them — otherwise StrictMode's dev-mode effect replay
@@ -191,7 +287,7 @@ describe("registerServiceWorker", () => {
     expect(registration.listenerCount("updatefound")).toBe(0);
 
     // And a run started with an already-aborted signal attaches nothing.
-    await registerServiceWorker(vi.fn(), controller.signal);
+    await registerWorker(vi.fn(), controller.signal);
     expect(registration.listenerCount("updatefound")).toBe(0);
   });
 
@@ -204,7 +300,7 @@ describe("registerServiceWorker", () => {
     stubEnv({ registration });
     const onUpdate = vi.fn();
 
-    await registerServiceWorker(onUpdate);
+    await registerWorker(onUpdate);
     registration.fire("updatefound"); // same worker, second path
     installing.state = "installed";
     installing.fire("statechange");
@@ -219,7 +315,7 @@ describe("registerServiceWorker", () => {
     stubEnv({ registration, controller: null });
     const onUpdate = vi.fn();
 
-    await registerServiceWorker(onUpdate);
+    await registerWorker(onUpdate);
     registration.fire("updatefound");
     installing.fire("statechange");
 
