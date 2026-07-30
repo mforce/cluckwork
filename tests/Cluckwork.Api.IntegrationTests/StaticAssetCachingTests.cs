@@ -149,6 +149,21 @@ public sealed class StaticAssetCachingTests(StaticCachingFactory factory)
     }
 
     [Fact]
+    public async Task Unknown_health_path_404s_not_the_cached_spa()
+    {
+        // #266 — the container HEALTHCHECK probe accepts any 2xx from /health/ready,
+        // so an unknown /health/* path must NOT fall through to the SPA fallback
+        // (index.html, 200) — that would let a removed/renamed health endpoint read
+        // as HEALTHY to the orchestrator. Guarded by /health/{**rest} → 404,
+        // mirroring the /api catch-all. Without the guard this fixture (index.html
+        // present, fallback active) returns 200 text/html and this fails RED.
+        var res = await factory.CreateClient().GetAsync("/health/not-a-real-check");
+
+        Assert.Equal(HttpStatusCode.NotFound, res.StatusCode);
+        Assert.NotEqual("text/html", res.Content.Headers.ContentType?.MediaType);
+    }
+
+    [Fact]
     public async Task Service_worker_always_revalidates_so_updates_can_ship()
     {
         // #142: sw.js is the unhashed script every installed client polls to

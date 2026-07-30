@@ -31,6 +31,17 @@ services:
       # container healthcheck (Host: localhost) keeps working. HSTS + CSP + the
       # other security headers are emitted automatically outside Development.
       AllowedHosts: ${CLUCKWORK_HOST}
+    # #266 — readiness probe. The image already carries this HEALTHCHECK; declared
+    # here too so the stack's health is explicit and tunable. Runs the same
+    # `healthcheck` verb inside the container (no curl/wget on the hardened image,
+    # #267): exits non-zero until /health/ready is green (DB up + migrations
+    # applied), so `docker compose` reports the app unhealthy until it can serve.
+    healthcheck:
+      test: ["CMD", "dotnet", "Cluckwork.Api.dll", "healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
     depends_on:
       db:
         condition: service_healthy
