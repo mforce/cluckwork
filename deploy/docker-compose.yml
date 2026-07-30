@@ -7,6 +7,10 @@ services:
     env_file:
       - .env
     environment:
+      # ASPNETCORE_ENVIRONMENT is intentionally UNSET → defaults to Production →
+      # loads appsettings.Production.json (Database:MigrateOnStartup=false), so the
+      # serving process never runs DDL (#263). Setting it to Development here would
+      # silently re-enable boot-migration under the runtime credential — don't.
       ASPNETCORE_URLS: http://+:8080
       Database__Provider: Postgres
       ConnectionStrings__Default: Host=db;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
@@ -24,6 +28,12 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      # #263 — the schema is migrated by the one-shot `migrate` job below (run
+      # under the owner credential), not at request time. app serves with
+      # Database:MigrateOnStartup=false (Production appsettings default), so a
+      # least-privilege runtime role needs no DDL grant.
+      migrate:
+        condition: service_completed_successfully
     # Direct local access at http://localhost:8080 (SPA + API), independent of
     # traefik. Bound to loopback only — never exposes the plaintext API to the
     # LAN. In prod, front with traefik/TLS (the 'prod' profile) instead.
@@ -37,6 +47,28 @@ services:
       - traefik.http.services.cluckwork.loadbalancer.server.port=8080
     # NOTE: traefik discovers this by container label, not the service name —
     # the rename to `app` needs no label changes.
+
+  # #263 — one-shot pre-deploy migration job: applies EF migrations (schema DDL)
+  # then exits. The serving `app` waits for it (service_completed_successfully)
+  # and runs with Database:MigrateOnStartup=false, so request-serving never runs
+  # DDL. Here both use the single POSTGRES_USER; a real multi-role deploy points
+  # THIS job at the owner/migrator credential and `app` at a least-privilege
+  # runtime role (USAGE + DML, no DDL) — see AGENTS.md. `migrate` is a
+  # run-then-exit verb on the same image (ENTRYPOINT dotnet Cluckwork.Api.dll).
+  migrate:
+    build:
+      context: ..
+      dockerfile: src/Cluckwork.Api/Dockerfile
+    env_file:
+      - .env
+    environment:
+      Database__Provider: Postgres
+      ConnectionStrings__Default: Host=db;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+    command: ["migrate"]
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
 
   db:
     image: postgres:16-alpine
