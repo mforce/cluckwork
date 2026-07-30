@@ -51,8 +51,8 @@ public sealed class TrustedProxyGuardTests(TrustedProxyOptOutFactory factory)
         // The message must name both broken controls and both fixes so an
         // operator can act on it without reading the source.
         Assert.Contains("TrustedProxies", message);
-        Assert.Contains("#144", message);            // HSTS
-        Assert.Contains("#143", message);            // per-IP login limiter
+        Assert.Contains("HSTS", message);            // #144 — control an operator acts on
+        Assert.Contains("rate limiter", message);    // #143 — per-IP login limiter
         Assert.Contains("AllowNoTrustedProxies", message);
     }
 

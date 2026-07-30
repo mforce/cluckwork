@@ -567,6 +567,9 @@ if (await CliDispatcher.TryRunAsync(app, args) is int cliExitCode)
 // Placed AFTER the CLI dispatcher's return so the one-off migrate/seed/recover-admin
 // verbs — which never serve traffic — are unaffected. Opt out only for a rare
 // direct-TLS-exposure deploy via RateLimiting:AllowNoTrustedProxies.
+// Gated on IsProduction() (not !IsDevelopment()) deliberately: the integration
+// Testing env is also empty-proxied and must still boot; a real Staging serving
+// env, if ever introduced, would be added to this gate.
 if (app.Environment.IsProduction()
     && trustedProxies.Length == 0
     && !rateLimiting.AllowNoTrustedProxies)
