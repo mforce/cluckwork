@@ -1,0 +1,139 @@
+# #243 sim-harness overlay — a SELF-CONTAINED stack, deliberately NOT layered
+# on top of deploy/docker-compose.yml.
+#
+# Rationale: deploy/docker-compose.yml's `app`/`db` services both declare
+# `env_file: - .env` (loading the developer's REAL deploy/.env) *and* a base
+# `environment:` block that outranks any env_file. Layering a `-f
+# deploy/docker-compose.yml -f tools/simulation/docker-compose.sim.yml`
+# overlay would mean fighting that precedence to keep deploy/.env's real
+# secrets (Postgres creds, JWT keys, and especially any Otlp__Endpoint) from
+# leaking into the sim run — exactly the trap the #243 plan review flagged.
+# A fully independent `db`/`app` pair here removes the leak path entirely:
+# this file never references deploy/.env or deploy/docker-compose.yml at
+# all. The only thing tying the two together is that `app` builds the SAME
+# Dockerfile the real stack uses (prod-config fidelity).
+#
+# SAFETY: only ever run this under the `cluckwork-sim` project — via `-p
+# cluckwork-sim` or COMPOSE_PROJECT_NAME=cluckwork-sim (tools/simulation/.env.sim
+# sets the latter). `name:` below is a second, redundant safety net: even a
+# bare `docker compose -f tools/simulation/docker-compose.sim.yml up` run
+# from an unexpected directory still resolves to project `cluckwork-sim`,
+# never a directory-derived name. tools/simulation/reset.sh asserts the
+# resolved project name before it ever runs `down -v`; never run a bare
+# `docker compose down -v` against this file.
+name: cluckwork-sim
+
+services:
+  db:
+    image: postgres:16-alpine
+    # pg_stat_statements must be in shared_preload_libraries at server start
+    # (a monitoring task later in #243 reads it) — CREATE EXTENSION alone
+    # isn't enough for a library that needs preloading.
+    command: ["postgres", "-c", "shared_preload_libraries=pg_stat_statements"]
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - cluckwork-sim-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    # Deliberately NOT published — reset.sh's pg_stat_statements preflight
+    # runs in-container via `docker compose exec db psql`, never a host
+    # connection. Keeps this stack from ever colliding with a real dev
+    # Postgres on the host.
+
+  app:
+    build:
+      # Repo root — same build context the real deploy stack uses, so the
+      # image is byte-for-byte the same artifact (prod-config fidelity).
+      context: ../..
+      dockerfile: src/Cluckwork.Api/Dockerfile
+    # Config comes ONLY from --env-file tools/simulation/.env.sim (project
+    # interpolation, used by every ${...} below) plus this explicit
+    # environment: block — no env_file: on this service, so nothing can leak
+    # in from an ambient deploy/.env the way the base stack's services would.
+    environment:
+      ASPNETCORE_URLS: ${ASPNETCORE_URLS}
+      Database__Provider: ${Database__Provider}
+      Database__MigrateOnStartup: ${Database__MigrateOnStartup}
+      ConnectionStrings__Default: Host=db;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+      Jwt__Issuer: ${Jwt__Issuer}
+      Jwt__Audience: ${Jwt__Audience}
+      Jwt__PublicKeyPem: ${Jwt__PublicKeyPem}
+      Jwt__PrivateKeyPem: ${Jwt__PrivateKeyPem}
+      Seed__Enabled: ${Seed__Enabled}
+      Seed__Demo: ${Seed__Demo}
+      Seed__AdminEmail: ${Seed__AdminEmail}
+      Seed__AdminPassword: ${Seed__AdminPassword}
+      Simulation__CastPassword: ${Simulation__CastPassword}
+      Simulation__HistoryDays: ${Simulation__HistoryDays}
+      Simulation__TimeZoneId: ${Simulation__TimeZoneId}
+      Simulation__EmailDomain: ${Simulation__EmailDomain}
+      Simulation__Managers: ${Simulation__Managers}
+      Simulation__Sales: ${Simulation__Sales}
+      Simulation__Workers: ${Simulation__Workers}
+      Simulation__ReadOnly: ${Simulation__ReadOnly}
+      Simulation__Seed: ${Simulation__Seed}
+      Simulation__CredentialOutputPath: ${Simulation__CredentialOutputPath}
+      RateLimiting__Login__PermitLimit: ${RateLimiting__Login__PermitLimit}
+      RateLimiting__Login__WindowSeconds: ${RateLimiting__Login__WindowSeconds}
+      RateLimiting__Refresh__PermitLimit: ${RateLimiting__Refresh__PermitLimit}
+      RateLimiting__Refresh__WindowSeconds: ${RateLimiting__Refresh__WindowSeconds}
+      RateLimiting__ClientErrors__PermitLimit: ${RateLimiting__ClientErrors__PermitLimit}
+      RateLimiting__ClientErrors__WindowSeconds: ${RateLimiting__ClientErrors__WindowSeconds}
+      # No traefik in this stack, so this trusted-proxy CIDR is inert — kept
+      # only so RateLimiting__TrustedProxies matches the base stack's shape.
+      RateLimiting__TrustedProxies__0: ${TRUSTED_PROXY_CIDR}
+      AllowedHosts: ${AllowedHosts}
+      # #243 Task 8: points at the otel-collector service below, never a
+      # developer's real deploy/.env collector endpoint (bootstrap.sh
+      # generates this value into .env.sim; see otel/collector.yaml).
+      Otlp__Endpoint: ${Otlp__Endpoint}
+      Otlp__Protocol: ${Otlp__Protocol}
+    labels:
+      # Provenance only — no traefik router/labels in this stack.
+      - com.cluckwork.sim-host=${CLUCKWORK_HOST}
+    depends_on:
+      db:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
+    # Different host port than the real dev stack's 127.0.0.1:8080
+    # (deploy/docker-compose.yml) so both can run at the same time without
+    # colliding. Loopback only — never exposes the sim app to the LAN.
+    ports:
+      - "127.0.0.1:8081:8080"
+    # The seeder's completion manifest (Simulation__CredentialOutputPath
+    # above) lands on the host here for reset.sh's preflight and any local
+    # inspection. #279: the manifest is written by the `seed --profile
+    # simulation` one-shot `docker compose run --rm app ...` reset.sh invokes
+    # after this service is healthy (never by this long-running service on
+    # boot) — `run` reuses this same volume mapping, so the file still lands
+    # here.
+    volumes:
+      - ./out:/app/sim-cast
+
+  # #243 Task 8: local OTLP metrics sink — see otel/collector.yaml. Makes
+  # app-side Npgsql connection-pool + .NET runtime metrics visible, which
+  # pg_stat_activity alone can't show (it only sees connections that
+  # already reached Postgres, not requests queued in the app waiting on the
+  # pool). No host volume: config is mounted read-only and the debug
+  # exporter only writes to container stdout — deliberately sidesteps
+  # ./out being root-owned (the app container writes as root) rather than
+  # fighting it.
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.114.0
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    volumes:
+      - ./otel/collector.yaml:/etc/otelcol-contrib/config.yaml:ro
+    ports:
+      # Prometheus exporter — host-curlable metrics scrape, loopback only
+      # (matches every other published port in this stack).
+      - "127.0.0.1:8889:8889"
+
+volumes:
+  cluckwork-sim-postgres:

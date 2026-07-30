@@ -1,391 +1,347 @@
-# Graph Report - cluckwork  (2026-07-29)
+# Graph Report - .  (2026-07-29)
 
 ## Corpus Check
-- 666 files · ~538,101 words
-- Verdict: corpus is large enough that graph structure adds value.
+- Large corpus: 679 files · ~453,439 words. Semantic extraction will be expensive (many Claude tokens). Consider running on a subfolder.
 
 ## Summary
-- 6455 nodes · 14768 edges · 367 communities (289 shown, 78 thin omitted)
-- Extraction: 96% EXTRACTED · 4% INFERRED · 0% AMBIGUOUS · INFERRED: 577 edges (avg confidence: 0.8)
-- Token cost: 0 input · 0 output
-
-## Graph Freshness
-- Built from commit: `48ca629c`
-- Run `git rev-parse HEAD` and compare to check if the graph is stale.
-- Run `graphify update .` after code changes (no API cost).
+- 5941 nodes · 13588 edges · 329 communities (258 shown, 71 thin omitted)
+- Extraction: 96% EXTRACTED · 4% INFERRED · 0% AMBIGUOUS · INFERRED: 544 edges (avg confidence: 0.8)
+- Token cost: 0 input · 77,679 output
 
 ## Community Hubs (Navigation)
-- cluckwork.ts
-- Result
-- ImageSanitizerTests
-- App.tsx
-- client.ts
-- Cluckwork.Application.Common
-- ProductsPage.test.tsx
-- IEntityTypeConfiguration
-- EggGrade
-- Cluckwork.Domain.Sales
-- Payment
-- Cluckwork.Api.IntegrationTests
-- Cluckwork.Domain.Inventory
-- FarmSettingsTests
-- FarmLogoTests
-- HistoryPage.test.tsx
-- Cluckwork.Infrastructure.Persistence
-- DailyEntryAdjustTests
-- ExpenseEndpoints.cs
-- renderWithProviders.tsx
-- .Success
-- SalesPage.test.tsx
-- InventoryPage.test.tsx
-- Cluckwork Dashboard Wireframe (v4)
-- .Domain
-- .Report
-- FlockEndpoints
-- Task
-- UserPasswordTests
-- enums.ts
-- IdentityProvider
-- SettingsPage.tsx
-- .TodayAsync
-- UserEndpoints.cs
-- CluckworkWebApplicationFactory
-- index.ts
-- DailyEntry
-- Cluckwork.Domain.Eggs
-- FarmLocalDateRuleTests
-- SalesOrderTests
-- .SetupAsync
-- apiGet
-- OtlpOptions
-- .GetCustomer
-- RoleMatrixTests
-- Error
-- ExpensesPage.test.tsx
-- EggLedgerTests
-- PaymentsTests
-- ClientErrorReportTests
-- .SetupAsync
-- RecordDailyEntryValidatorTests
-- UpdateFarmSettingsValidatorTests
-- WaterUsage
-- SalesProductTests
-- SimulationDataSeeder.cs
-- i18n-scan.mjs
-- TenantContext
-- Cluckwork.Domain.Catalog
-- Cluckwork.Application.Features.Sales.RecordPayment
-- FeedUsageTests
-- StaticAssetCachingTests
-- vuln-gate.mjs
-- AggregateRoot
-- Cluckwork Product Specification v4.4
-- .SeedDemoAsync
-- .HandleAsync
-- FarmLocalBoundaryBehindUtcTests
-- DailyEntryTests
-- InventoryTests
-- Cluckwork.Infrastructure.Persistence.Migrations
-- SaleEndpoints
-- FeedUsage
-- .SetupAsync
-- AppDbContext
-- AdminGatingTests
-- CurrencyLockRaceTests
-- ExpenseCategory
-- .SetupAsync
-- ReadEndpointTests
-- baseline.js
-- .AdjustExpense
-- Account
-- SimulationDataSeeder
-- InventoryMovement
-- AccountSettingsTests
-- compilerOptions
-- RequestLoggingTests
-- Program.cs
-- .Resolve
-- .ChangePassword
-- .ExportDataset
-- AuditEvent
-- .SetLanguage
-- .HandleAsync
-- EggLot
-- InventoryLot
-- InventoryTests
-- .SetupAsync
-- .UpdateConversion
-- InventoryItem
-- FarmLocalBoundarySweepTests
-- .SetupAsync
-- registerServiceWorker.ts
-- cssTokens.ts
-- BirdMovementRepository
-- FlockTests
-- Legacy Import Wizard
-- .SetUserPassword
-- .ListAuditEvents
-- .ListPendingByOrderAsync
-- FarmClockTests
-- FlockManagementTests
-- MeEndpointsTests
-- .Problem
-- .InvokeAsync
-- devDependencies
-- compilerOptions
-- IIdentityProvider
-- IClassFixture
-- Fact
-- EggGradeManagementTests
-- ExpensesTests
-- RefreshTokenFlowTests
-- .SetupAsync
-- DailyEntryPage.test.tsx
-- AGENTS.md — Cluckwork Agent Brief
-- .Make
-- .SetLogo
-- .UpdateWaterUsage
-- .SetupAsync
-- RateLimitingTests
-- SimulationSeederTests
-- Migration
-- Expense
-- DailyEntryGradeTests
-- CustomersPage.test.tsx
-- CI workflow (build-and-test, web, dependency-review)
-- dependencies
-- ExportQueries
-- .HandleAsync
-- .GetSettings
-- AuthEndpoints.cs
-- Cluckwork.Api.csproj
-- AuthCookieContractTests
-- Egg Production Screen
-- Farm Localization Settings Screen
-- AccountLockoutTests
-- Alerts & Tasks Page
-- Health & Welfare Screen
-- IClock
-- .ListExpenses
-- .ConfigureWebHost
-- FarmLocalRestrictionTests
-- ExportPage.test.tsx
-- .CheckHealthAsync
-- Cluckwork.Api.Security
-- Egg Lot
-- Flock Setup Screen
-- Flock List Table (Flock, House, Breed, Age, Live Birds, Stage, HD %, Withdrawal, Status)
-- DemoSeedTests
-- #149 — Per-farm curated accent palettes (API + SPA)
-- Deploy: Railway + Cloudflare
-- lockfix.mjs classify
-- Task Breakdown (baseline scope)
-- Today's Core Loop
-- Reports Screen Wireframe
-- Product-Type Allocator Dispatch
-- Allocation Dispatch
-- Growth / Weight Records Screen
-- File Structure
-- IInventoryLotRepository
-- HelpPage.test.tsx
-- .HandleAsync
-- Cluckwork.Domain.csproj
-- .SavingChangesAsync
-- lockfix.mjs
-- OtlpExporterTests.cs
-- FakeRemoteIpStartupFilter
-- Cluckwork.Infrastructure.csproj
-- Beak Treatment Screen Wireframe
-- Modular Daily Entry Screen
-- Flock Detail Page
-- Product Catalog Table
-- .WriteAsync
-- Customer
-- Flock
-- BaselineSeedCurrencyTests
-- FarmLogoOptionsTests
-- CreateFlockValidatorTests
-- scripts
-- verify-sw.mjs
-- AuthCookies
-- Audit Log Screen
-- Bird Ledger
-- Egg Sales Allocation Wireframe
-- Feed & Inventory Screen
-- Account / Farm Setup Screen
-- .AnyAsync
-- IInventoryItemRepository
-- SeedAndFlockTests
-- DurableJobWorker
-- Cluckwork.Api.IntegrationTests.csproj
-- Expenses Screen Wireframe
-- Inventory Reconciliation Wireframe
-- Users & Roles Settings Screen Wireframe
-- IRepository
-- .HandleAsync
-- SeedCommandTests
-- DurableJobWorker.cs
-- IdempotencyReplayTests
-- Lock File Noise Finding
-- FarmLogoOptions
-- Daily Entry (states, uniqueness, modular sections)
-- Daily Entry Stepper
-- Settings Page Wireframe
-- Water & Additives Wireframe
-- .RunAsync
-- IdempotencyRecord
-- IUnitOfWork
-- FarmClock
-- IdempotencyUserScopeTests.cs
-- package.json
-- Dependabot lockfix workflow (workflow_run auto-heal)
-- AuthPolicies
-- SetLanguageValidator
-- DurableJobWorkerHeartbeat
-- Cluckwork.Application.csproj
-- Egg-Lot Allocation Concurrency Rule
-- Meat Lot
-- FarmBrands
-- ValueObject
-- TenantIsolationTests.cs
-- Cluckwork.Application.Tests.csproj
-- KD-6 Generated Client Drift Finding
-- app service (API + SPA bundle)
-- .CheckHealthAsync
-- InitialCreate
-- AddRefreshTokens
-- AddEggGradesAndDailyEntryGrades
-- ConvertLotsAndSalesToEggGradeIds
-- AddEggGradeManagement
-- 2. Results — relative/shape data only
-- i18n String Sweep Implementation Plan (revised after 5-lens plan review)
-- AddBirdMovements
-- AddBirdMovementEntryRefAndBackfill
-- AddSalesOrderVoidAndAllocations
-- AddInventoryFoundation
-- AddFeedUsage
-- AddWaterUsage
-- AddDailyEntryAdjustments
-- VoidedEntryVacatesNaturalKey
-- AddExpenses
-- AddPayments
-- AddAuditEvents
-- AddProductCatalog
-- AddEggInventoryMovements
-- AddUserRoleAssignments
-- FarmLocalizationSettings
-- FarmLogo
-- LogoUploadCeiling
-- AddRefreshTokenGraceAndConcurrency
-- FarmBrand
-- AddUserLanguage
-- ApplicationRole
-- ThrowingScopeFactory
-- Farm Localization Settings
-- 20260627123409_InitialCreate.Designer.cs
-- 20260716041655_ConvertLotsAndSalesToEggGradeIds.Designer.cs
-- 20260716053715_AddCustomers.Designer.cs
-- 20260716183154_AddFlockVersion.Designer.cs
-- 20260716185147_AddFlockLifecycleDates.Designer.cs
-- 20260716214949_AddBirdMovements.Designer.cs
-- 20260718033224_AddSalesOrderVoidAndAllocations.Designer.cs
-- 20260718043353_AddInventoryFoundation.Designer.cs
-- 20260718051919_AddFeedUsage.Designer.cs
-- 20260718183720_AddWaterUsage.Designer.cs
-- 20260719041603_AddDailyEntryAdjustments.Designer.cs
-- 20260719175107_VoidedEntryVacatesNaturalKey.Designer.cs
-- SimulationSeedCommandTests
-- 20260719224428_AddPayments.Designer.cs
-- 20260719233647_AddAuditEvents.Designer.cs
-- 20260720030329_AddProductCatalog.Designer.cs
-- 20260720033852_SalesItemsSellProducts.Designer.cs
-- 20260720041423_AddEggInventoryMovements.Designer.cs
-- 20260720051140_AddUserRoleAssignments.Designer.cs
-- 20260723040312_FarmLocalizationSettings.Designer.cs
-- #243 Release-Rehearsal Sim Harness
-- 20260723181854_LogoUploadCeiling.Designer.cs
-- 20260723235611_AddRefreshTokenGraceAndConcurrency.Designer.cs
-- i18n Infrastructure (SPA foundation) Implementation Plan
-- 20260726034441_AddUserLanguage.Designer.cs
-- TestTimeProvider
-- Maskable App Icon
-- PWA Icon 192
-- Egg Logo Mark
-- Maskable PWA Icon 512
-- verify skill: runtime E2E verification workflow
-- pre-commit
-- SPA Auth Flow (memory token + cookie refresh)
-- Typed English Catalog (en.ts source of truth)
+- SPA API Wrappers & Users Page
+- Application Handlers & Audit Contracts
+- Image Sanitizer & Media Domain
+- Save-Pending Dialog & API Errors
+- SPA HTTP Client & Auth
+- Feature Namespaces (App/API)
+- Products Page & Session
+- Catalog Domain & Repositories
+- Egg Grade Endpoints & Persistence
+- Feature/Endpoint Namespaces
+- Payments Endpoints
+- Integration Tests: Admin & Audit
+- Infrastructure Repositories
+- Integration Tests: Farm Settings
+- Integration Tests: Farm Logo
+- History & Grades Pages
+- Accounts Domain & Features
+- Integration Tests: Daily Entry Adjust
+- Feature Namespaces
+- SPA Nav & Error Boundary
+- Domain Aggregate Mutations
+- Sales Page & Order API
+- Inventory Page
+- Wireframe IA & Trace Findings
+- Sales Domain & Repository
+- Rate Limiting & IP Policies
+- Flock Endpoints
+- Integration Tests: Auth Cookies
+- Integration Tests: Usernames
+- i18n Enums & Audit Page
+- Identity & Tokens
+- Settings Page & Farm Logo
+- Reports Endpoints
+- Application Feature Namespaces
+- Testcontainers Fixture
+- Dialog & Confirm Components
+- Daily Entry Recording
+- EF Entity Configurations
+- Application Tests: Validation Rules
+- Money Value Object
+- Integration Tests: Reports
+- Reports Page
+- OTLP Telemetry Config
+- Customer Endpoints
+- Integration Tests: Role Matrix
+- Application Features Sales
+- Routes Expensespage Test
+- Api Integrationtests Eggledgertests
+- Api Integrationtests Paymentstests
+- Api Integrationtests Clienterrorreporttests
+- Api Integrationtests Customerandordertests
+- Api Endpoints Dailyentries
+- Application Accounts
+- Domain Inventory Waterusage
+- Api Integrationtests Salesproducttests
+- Application Features Inventory
+- I18n Scan Allowlist
+- Api Endpoints Inventory
+- Application Features Catalog
+- Application Features Dailyentries
+- Api Integrationtests Feedusagetests
+- Api Integrationtests Staticassetcachingtests
+- Vuln Gate Test
+- Application Features Users
+- Product Changelog
+- Infrastructure Persistence Demodataseeder
+- Infrastructure Repositories Egginventorymovementrepository
+- Api Integrationtests Farmlocalboundarybehindutctests
+- Domain Eggs
+- Domain Inventory
+- Infrastructure Persistence Migrations
+- Api Endpoints Sales
+- Infrastructure Repositories Feedusagerepository
+- Api Integrationtests Catalogtests
+- Api Integrationtests Currencylockserializationtests
+- Api Integrationtests Admingatingtests
+- Api Integrationtests Currencylockracetests
+- Infrastructure Repositories Expenserepositories
+- Api Integrationtests Audittests
+- Api Integrationtests Readendpointtests
+- Application Features Inventory
+- Api Endpoints Expenses
+- Infrastructure Repositories Accountrepository
+- Application Dailyentries
+- Infrastructure Repositories Inventorymovementrepository
+- Domain Accounts
+- Ref Dom
+- Api Integrationtests Requestloggingtests
+- Application Features Egggrades
+- Domain Accounts
+- Api Endpoints Auth
+- Api Endpoints Export
+- Api Endpoints Audit
+- Api Endpoints Me
+- Application Features Inventory
+- Infrastructure Repositories Egglotrepository
+- Infrastructure Repositories Inventorylotrepository
+- Api Integrationtests Inventorytests
+- Api Integrationtests Birdmovementtests
+- Api Endpoints Catalog
+- Infrastructure Repositories Inventoryitemrepository
+- Api Integrationtests Farmlocalboundarysweeptests
+- Api Integrationtests Handlerloggingtests
+- Pwa Registerserviceworker Test
+- Styles Test
+- Infrastructure Repositories Birdmovementrepository
+- Domain Flocks
+- Wireframes Legacy Import
+- Api Endpoints Users
+- Application Features Audit
+- Application Features Sales
+- Api Integrationtests Farmclocktests
+- Api Integrationtests Flockmanagementtests
+- Api Integrationtests Meendpointstests
+- Api Integrationtests Validationresponsetests
+- Api Middleware Idempotencymiddleware
+- Devdependencies Types React
+- Ref Es2023
+- Application Common Iidentityprovider
+- Application Features Inventory
+- Api Integrationtests Durablejobworkerresiliencetests
+- Api Integrationtests Egggrademanagementtests
+- Api Integrationtests Expensestests
+- Api Integrationtests Refreshtokenflowtests
+- Api Integrationtests Waterusagetests
+- Routes Dailyentrypage Test
+- Asymmetric Jwt Auth
+- Domain Expenses
+- Api Endpoints Accounts
+- Api Endpoints Water
+- Api Integrationtests Exporttests
+- Api Integrationtests Ratelimitingtests
+- Domain Eggs
+- Infrastructure Persistence Migrations
+- Domain Expenses Expense
+- Api Integrationtests Dailyentrygradetests
+- Routes Customerspage Test
+- Dependabot Dependabot Config
+- Fontsource Variable Inter
+- Infrastructure Repositories Exportqueries
+- Application Features Accounts
+- Api Endpoints Accounts
+- Application Features Users
+- Api Api
+- Api Integrationtests Authcookiecontracttests
+- Wireframes Egg Production
+- Wireframes Farm Localization
+- Api Integrationtests Accountlockouttests
+- Wireframes Alerts Tasks
+- Wireframes Health Welfare
+- Application Common Iclock
+- Application Features Expenses
+- Infrastructure Repositories Farmlogorepository
+- Api Integrationtests Farmlocalrestrictiontests
+- Routes Exportpage Test
+- Api Healthchecks Databasereadyhealthcheck
+- Api Integrationtests Clienterrorreporttests
+- Wireframes Egg Lots
+- Wireframes Flock Setup
+- Wireframes Flocks Flock
+- Api Integrationtests Demoseedtests
+- Application Features Egglots
+- Infrastructure Persistence Configurations
+- Superpowers 2026 07
+- Application Features Users
+- Wireframes Login Login
+- Wireframes Reports Bird
+- Wireframes Sales Allocation
+- Wireframes Sales Order
+- Wireframes Weight Records
+- Api Endpoints Stock
+- Application Features Inventory
+- Routes Helppage Test
+- Api Middleware Forbiddenproblemresulthandler
+- Domain
+- Infrastructure Persistence Interceptors
+- Github Scripts Lockfix
+- Api Integrationtests Otlpexportertests
+- Api Integrationtests Infrastructure
+- Infrastructure Infrastructure
+- Wireframes Beak Treatment
+- Wireframes Daily Entry
+- Wireframes Flock Detail
+- Wireframes Products Product
+- Api Endpoints Export
+- Infrastructure Persistence Configurations
+- Infrastructure Repositories Flockrepository
+- Api Integrationtests Baselineseedcurrencytests
+- Api Integrationtests Farmlogooptionstests
+- Application Flocks
+- Package Scripts
+- Scripts Verify Sw
+- Api Endpoints Auth
+- Wireframes Audit Log
+- Wireframes Bird Ledger
+- Wireframes Egg Allocation
+- Wireframes Feed Inventory
+- Wireframes Setup Account
+- Application Features Accounts
+- Application Features Inventory
+- Api Integrationtests Seedandflocktests
+- Infrastructure Jobs Durablejobworker
+- Api Integrationtests
+- Wireframes Expenses Expense
+- Wireframes Reconciliation Count
+- Wireframes Users Roles
+- Application Common Irepository
+- Application Features Accounts
+- Infrastructure Identity Refreshtoken
+- Infrastructure Jobs Durablejobworker
+- Api Integrationtests Idempotencyreplaytests
+- Dependency Submission Workflow
+- Api Configuration Farmlogooptions
+- Glossary Daily Entry
+- Wireframes Mobile Daily
+- Wireframes Settings Settings
+- Wireframes Water Additives
+- Infrastructure Jobs Dailyentrylocksweep
+- Infrastructure Persistence Idempotencyrecord
+- Infrastructure Persistence Unitofwork
+- Infrastructure Time Farmclock
+- Api Integrationtests Idempotencyuserscopetests
+- Package
+- Workflows Dependabot Lockfix
+- Api Authpolicies
+- Application Features Users
+- Infrastructure Jobs Durablejobworkerheartbeat
+- Application Application
+- Glossary Fifo Allocation
+- Wireframes Future Meat
+- Domain Accounts Farmbrands
+- Domain Common Valueobject
+- Api Integrationtests Tenantisolationtests
+- Application
+- In Sync Directive
+- Compose App Service
+- Api Healthchecks Durablejobworkerhealthcheck
+- Infrastructure Persistence Migrations
+- Infrastructure Persistence Migrations
+- Infrastructure Persistence Migrations
+- Infrastructure Persistence Migrations
+- Infrastructure Persistence Migrations
+- Infrastructure Persistence Migrations
+- Infrastructure Persistence Migrations
+- Infrastructure Persistence Migrations
+- Infrastructure Persistence Migrations
+- Infrastructure Persistence Migrations
+- Infrastructure Persistence Migrations
+- Infrastructure Persistence Migrations
+- Infrastructure Persistence Migrations
+- Infrastructure Persistence Migrations
+- Infrastructure Persistence Migrations
+- Infrastructure Persistence Migrations
+- Infrastructure Persistence Migrations
+- Infrastructure Persistence Migrations
+- Infrastructure Persistence Migrations
+- Infrastructure Persistence Migrations
+- Infrastructure Persistence Migrations
+- Infrastructure Persistence Migrations
+- Infrastructure Persistence Migrations
+- Infrastructure Persistence Migrations
+- Infrastructure Persistence Migrations
+- Infrastructure Persistence Migrations
+- Infrastructure Persistence Migrations
+- Infrastructure Identity Applicationrole
+- Api Integrationtests Durablejobworkerresiliencetests
+- Glossary Farm Settings
+- Infrastructure Persistence Migrations
+- Infrastructure Persistence Migrations
+- Infrastructure Persistence Migrations
+- Infrastructure Persistence Migrations
+- Infrastructure Persistence Migrations
+- Infrastructure Persistence Migrations
+- Infrastructure Persistence Migrations
+- Infrastructure Persistence Migrations
+- Infrastructure Persistence Migrations
+- Infrastructure Persistence Migrations
+- Infrastructure Persistence Migrations
+- Infrastructure Persistence Migrations
+- Infrastructure Persistence Migrations
+- Infrastructure Persistence Migrations
+- Infrastructure Persistence Migrations
+- Infrastructure Persistence Migrations
+- Infrastructure Persistence Migrations
+- Infrastructure Persistence Migrations
+- Infrastructure Persistence Migrations
+- Infrastructure Persistence Migrations
+- Infrastructure Persistence Migrations
+- Infrastructure Persistence Migrations
+- Infrastructure Persistence Migrations
+- Infrastructure Persistence Migrations
+- Infrastructure Persistence Migrations
+- Api Integrationtests Durablejobworkerresiliencetests
+- Icons Maskable Maskable
+- Icon 192 Pwa
+- Icon 192 Maskable
+- Icon 512 Maskable
+- Skills Verify Skill
+- Githooks Pre Commit
+- Glossary Session Tokens
+- I18n Catalog Parity
 - Apple Touch Icon
-- Cluckwork Brand
-- PWA Icon 512
-- themeInit.test.ts
-- tsconfig.json
-- Cloudflare CDN-in-front topology
-- lockfix-apply.sh
-- Account Lockout (#128)
-- @testing-library/jest-dom
-- ErrorBoundary.tsx
-- vitest
-- @vitest/coverage-v8
-- Two-layer backup: CSV export + pg_dump
-- Account > Farms > Houses > Flocks tenant hierarchy
-- Version Concurrency Token
-- Provider-Agnostic EF Core Strategy (KD-2)
-- Vertical-Slice Architecture (KD-1)
-- Slacc Design Language Analysis (DESIGN.md)
-- Pastel-Mesh Gradient (depth without shadows)
-- Pill Buttons (90px radius, over-padded)
-- i18n Infrastructure (API half) Implementation Plan
-- RequestLoggingFactory
-- OtlpExporterTests
-- .HandleAsync
-- .ListByUserAsync
-- BirdMovement
-- AppDbContextDesignTimeFactory.cs
-- .RunToCompletionAsync
-- StaticAssetCachingTests.cs
-- FakeOtlpCollector
-- .HandleAsync
-- SalesOrderAllocation
-- SimulationSeedState
-- AuditEndpoints
-- .ListPendingByOrderAsync
-- .ListAsync
-- .WriteAsync
-- FutureLotAllocationTests.cs
-- bootstrap.sh
-- pg-snapshot.sh
-- FarmClock.cs
-- AddSalesOrderVersion
-- AddCustomers
-- AddSimulationSeedState
-- EggLotConcurrencyTests.cs
-- ErrorCodesContractTests.cs
-- UserLanguageColumnTests.cs
-- WithdrawalRestrictedLotTests.cs
-- 20260711061819_AddRefreshTokens.Designer.cs
-- 20260716034027_AddEggGradesAndDailyEntryGrades.Designer.cs
-- 20260716173715_AddEggGradeManagement.Designer.cs
-- 20260730053303_AddSimulationSeedState.Designer.cs
-- FrozenClock
-- SimulationOptionsBindingTests.cs
-- docker-stats-sampler.sh
-- reset.sh
-- run-baseline.sh
-- jsdom
+- Public Favicon Brand
+- Icon 512 Pwa
+- Lib Themeinit Test
+- Tsconfig
+- Cloudflare Cdn Topology
+- Scripts Lockfix Apply
+- Glossary Account Lockout
+- Library Jest Dom
+- Library User Event
+- Package Devdependencies Vitest
+- Vitest Coverage V8
+- Readme Backup Restore
+- Multi Tenant Hierarchy
+- Glossary Version Token
+- Tech Spec Provider
+- Tech Spec Vertical
+- Design
+- Pastel Mesh Gradient
+- Design Pill Buttons
 
 ## God Nodes (most connected - your core abstractions)
-1. `Cluckwork.Application.Common` - 105 edges
-2. `Cluckwork.Infrastructure.Persistence` - 101 edges
-3. `TenantContext` - 94 edges
-4. `Result` - 79 edges
-5. `Cluckwork.Domain.Common` - 75 edges
+1. `Cluckwork.Application.Common` - 103 edges
+2. `TenantContext` - 94 edges
+3. `Cluckwork.Infrastructure.Persistence` - 92 edges
+4. `Result` - 78 edges
+5. `Cluckwork.Domain.Common` - 74 edges
 6. `ImageSanitizerTests` - 69 edges
-7. `Cluckwork.Api.IntegrationTests` - 64 edges
-8. `Cluckwork.Infrastructure.Persistence.Migrations` - 63 edges
-9. `Cluckwork.Api.IntegrationTests.Infrastructure` - 63 edges
-10. `SimulationDataSeeder` - 51 edges
+7. `Cluckwork.Infrastructure.Persistence.Migrations` - 61 edges
+8. `Cluckwork.Api.IntegrationTests` - 59 edges
+9. `Cluckwork.Api.IntegrationTests.Infrastructure` - 58 edges
+10. `FarmLogoTests` - 49 edges
 
 ## Surprising Connections (you probably didn't know these)
 - `Customers Screen Wireframe` --conceptually_related_to--> `Sales Nav Item`  [AMBIGUOUS]
@@ -458,1013 +414,993 @@
 - **Supply-Chain Security Pipeline** — agents_ci_security_gates, agents_nuget_lock_files, agents_dependency_submission_workflow, agents_dependabot_lockfix_workflow, agents_dependabot_config, agents_security_exceptions_escape_hatch [EXTRACTED 1.00]
 - **Wireframe IA Gap Analysis** — graphify_out_memory_query_20260729_075657_customers_screen_wireframe_vs_sales_nav_item___whe_customers_nav_gap_finding, graphify_out_memory_query_20260729_075657_sidebar_navigation_vs_restricted_egg_lots__sale_bl_restricted_lots_kpi_drill_through_finding, graphify_out_memory_query_20260729_075657_withdrawal_period_indicator_vs_alerts_badge___do_w_manual_withdrawal_alert_finding, specs_product_wireframes_dashboard_sidebar_navigation [INFERRED 0.75]
 
-## Communities (367 total, 78 thin omitted)
+## Communities (329 total, 71 thin omitted)
 
-### Community 0 - "cluckwork.ts"
+### Community 0 - "SPA API Wrappers & Users Page"
 Cohesion: 0.02
 Nodes (98): apiDelete(), apiPut(), archiveFlock(), assignFlock(), BirdMovement, Created, createUser(), CustomerBalance (+90 more)
 
-### Community 1 - "Result"
+### Community 1 - "Application Handlers & Audit Contracts"
 Cohesion: 0.03
-Nodes (73): CancellationToken, Guid, Task, CancellationToken, Func, Task, CancellationToken, Guid (+65 more)
+Nodes (73): CancellationToken, Guid, Task, CancellationToken, Func, Task, ResultLogging, ILogger (+65 more)
 
-### Community 2 - "ImageSanitizerTests"
-Cohesion: 0.08
+### Community 2 - "Image Sanitizer & Media Domain"
+Cohesion: 0.09
 Nodes (14): Cluckwork.Domain.Tests.Media, FrozenSet, ReadOnlySpan, ImageKind, ImageSanitizer, byte, int, SanitizedImage (+6 more)
 
-### Community 3 - "App.tsx"
+### Community 3 - "Save-Pending Dialog & API Errors"
 Cohesion: 0.07
 Nodes (59): Confirm-dialog handoff model, Save pending states design v3 (#236), ApiError, activateEggGrade(), activateProduct(), deactivateEggGrade(), deactivateProduct(), EggGrade (+51 more)
 
-### Community 4 - "client.ts"
+### Community 4 - "SPA HTTP Client & Auth"
 Cohesion: 0.05
 Nodes (56): RFC-7807, apiFetch(), apiGetBlob(), apiPutBytes(), attachTraceparent(), changePassword(), currentAccessToken(), getLastTraceId() (+48 more)
 
-### Community 5 - "Cluckwork.Application.Common"
-Cohesion: 0.08
-Nodes (9): Cluckwork.Application.Features.Flocks, Cluckwork.Domain.Flocks, Cluckwork.Application.Features.Users, Cluckwork.Application.Common, Cluckwork.Domain.Common, CursorPage, PagedResult, PasswordRules (+1 more)
-
-### Community 6 - "ProductsPage.test.tsx"
-Cohesion: 0.08
-Nodes (23): createProduct(), EggUnitConversion, Product, ACCOUNT, ADMIN, CONV_CARTON, CONV_INDIVIDUAL, dialog() (+15 more)
-
-### Community 7 - "IEntityTypeConfiguration"
+### Community 5 - "Feature Namespaces (App/API)"
 Cohesion: 0.05
-Nodes (40): IEntityTypeConfiguration, EggUnits, IEggUnitConversionRepository, IProductRepository, CancellationToken, Guid, IReadOnlyList, Task (+32 more)
+Nodes (38): Cluckwork.Application.Features.EggLots, Cluckwork.Application.Features.Flocks.DepleteFlock, Cluckwork.Application.Features.Eggs, Cluckwork.Application.Features.Flocks, Cluckwork.Infrastructure.Time, Cluckwork.Domain.Flocks, Cluckwork.Application.Features.EggGrades, Cluckwork.Application.Features.Flocks.ReactivateFlock (+30 more)
 
-### Community 8 - "EggGrade"
+### Community 6 - "Products Page & Session"
+Cohesion: 0.05
+Nodes (49): Account, createProduct(), EggUnitConversion, getAccount(), getMe(), Me, Product, putMeLanguage() (+41 more)
+
+### Community 7 - "Catalog Domain & Repositories"
+Cohesion: 0.06
+Nodes (31): Cluckwork.Application.Features.Catalog, EggUnits, IEggUnitConversionRepository, IProductRepository, CancellationToken, Guid, IReadOnlyList, Task (+23 more)
+
+### Community 8 - "Egg Grade Endpoints & Persistence"
 Cohesion: 0.07
 Nodes (35): DbUpdateException, CreateEggGradeRequest, EggGradeEndpoints, EggGradeResponse, UpdateEggGradeRequest, CancellationToken, Guid, IResult (+27 more)
 
-### Community 9 - "Cluckwork.Domain.Sales"
+### Community 9 - "Feature/Endpoint Namespaces"
+Cohesion: 0.05
+Nodes (36): Cluckwork.Application.Features.Sales.VoidSale, Cluckwork.Application.Features.Sales.AddOrderItem, Cluckwork.Domain.Tests.Sales, Cluckwork.Application.Features.Sales.CancelSalesOrder, Cluckwork.Application.Features.Sales, Cluckwork.Application.Features.Customers, Cluckwork.Api.Endpoints.Customers, Cluckwork.Application.Features.Customers.CreateCustomer (+28 more)
+
+### Community 10 - "Payments Endpoints"
 Cohesion: 0.06
-Nodes (26): Cluckwork.Application.Features.Sales.VoidSale, Cluckwork.Domain.Tests.Sales, Cluckwork.Application.Features.Sales.CancelSalesOrder, Cluckwork.Application.Features.Sales, Cluckwork.Application.Features.Customers, Cluckwork.Api.Endpoints.Customers, Cluckwork.Application.Features.Sales.ConfirmSale, Cluckwork.Application.Features.Sales.UpdateOrderItem (+18 more)
+Nodes (34): PaymentEndpoints, PaymentResponse, RecordPaymentRequest, CancellationToken, Guid, IResult, IValidator, RouteGroupBuilder (+26 more)
 
-### Community 10 - "Payment"
-Cohesion: 0.06
-Nodes (35): PaymentEndpoints, PaymentResponse, RecordPaymentRequest, VoidPaymentRequest, CancellationToken, Guid, IResult, IValidator (+27 more)
+### Community 11 - "Integration Tests: Admin & Audit"
+Cohesion: 0.05
+Nodes (19): Cluckwork.Api.IntegrationTests, Cluckwork.Api.IntegrationTests.Infrastructure, Cluckwork.Api.Endpoints.Auth, EggLotConcurrencyTests, Fact, Task, ErrorCodesContractTests, Fact (+11 more)
 
-### Community 11 - "Cluckwork.Api.IntegrationTests"
-Cohesion: 0.11
-Nodes (3): Cluckwork.Api.IntegrationTests, Cluckwork.Api.IntegrationTests.Infrastructure, Cluckwork.Api.Endpoints.Auth
+### Community 12 - "Infrastructure Repositories"
+Cohesion: 0.07
+Nodes (17): Cluckwork.Domain.Tests.Eggs, Cluckwork.Infrastructure.Persistence, Cluckwork.Api.Endpoints.Export, Cluckwork.Infrastructure.Identity, Cluckwork.Domain.Inventory, Cluckwork.Api.Endpoints.Reports, Cluckwork.Application.Features.Export, Cluckwork.Domain.Auditing (+9 more)
 
-### Community 12 - "Cluckwork.Domain.Inventory"
-Cohesion: 0.09
-Nodes (15): Cluckwork.Api.Endpoints.Export, Cluckwork.Domain.Tests.Inventory, Cluckwork.Application.Features.Inventory.RecordWaterUsage, Cluckwork.Domain.Inventory, Cluckwork.Application.Features.Export, Cluckwork.Api.Endpoints.Water, Cluckwork.Application.Features.Inventory, Cluckwork.Application.Features.Inventory.UpdateWaterUsage (+7 more)
-
-### Community 13 - "FarmSettingsTests"
+### Community 13 - "Integration Tests: Farm Settings"
 Cohesion: 0.14
 Nodes (20): AccountDto, AccountDto, FarmSettingsTests, FrozenClock, IdDto, ProblemDto, SettingsDto, AccountId (+12 more)
 
-### Community 14 - "FarmLogoTests"
-Cohesion: 0.08
-Nodes (25): FarmLogoMetadata, FarmLogo, DateTimeOffset, Guid, FarmLogoConfiguration, EntityTypeBuilder, FarmLogoRepository, CancellationToken (+17 more)
+### Community 14 - "Integration Tests: Farm Logo"
+Cohesion: 0.12
+Nodes (16): AccountDto, FarmLogoTests, LogoDto, ProblemDto, AccountId, byte, Client, Email (+8 more)
 
-### Community 15 - "HistoryPage.test.tsx"
+### Community 15 - "History & Grades Pages"
 Cohesion: 0.04
-Nodes (41): adjustDailyEntry(), createEggGrade(), getDailyEntry(), updateEggGrade(), voidDailyEntry(), renderReady(), renderReady(), ADMIN (+33 more)
+Nodes (43): adjustDailyEntry(), createEggGrade(), getDailyEntry(), updateEggGrade(), voidDailyEntry(), renderReady(), renderReady(), ADMIN (+35 more)
 
-### Community 16 - "Cluckwork.Infrastructure.Persistence"
+### Community 16 - "Accounts Domain & Features"
 Cohesion: 0.05
-Nodes (25): Cluckwork.Api.Endpoints.Accounts, Cluckwork.Domain.Accounts, Cluckwork.Infrastructure.Persistence, Cluckwork.Application.Features.Accounts.UpdateFarmSettings, Cluckwork.Application.Tests.Accounts, Cluckwork.Application.Features.Accounts, Cluckwork.Application.Features.Accounts.SetFarmLogo, Cluckwork.Domain.Media (+17 more)
+Nodes (23): Cluckwork.Api.Endpoints.Accounts, Cluckwork.Domain.Accounts, Cluckwork.Application.Features.Accounts.UpdateFarmSettings, Cluckwork.Application.Tests.Accounts, Cluckwork.Domain.Tests.Inventory, Cluckwork.Application.Features.Inventory.CreateInventoryItem, Cluckwork.Application.Features.Accounts, Cluckwork.Application.Features.Accounts.SetFarmLogo (+15 more)
 
-### Community 17 - "DailyEntryAdjustTests"
+### Community 17 - "Integration Tests: Daily Entry Adjust"
 Cohesion: 0.11
 Nodes (28): EntryDto, AdjustDto, Created, DailyEntryAdjustTests, EntryDto, FlockDto, GradeLine, AccountId (+20 more)
 
-### Community 18 - "ExpenseEndpoints.cs"
-Cohesion: 0.07
-Nodes (22): Cluckwork.Application.Features.Expenses.CreateExpenseCategory, Cluckwork.Application.Features.Expenses.AdjustExpense, Cluckwork.Application.Features.Expenses, Cluckwork.Api.Endpoints.Expenses, Cluckwork.Application.Features.Expenses.CreateExpense, Cluckwork.Application.Features.Expenses.UpdateExpenseCategory, Cluckwork.Domain.Expenses, AdjustExpenseRequest (+14 more)
-
-### Community 19 - "renderWithProviders.tsx"
+### Community 18 - "Feature Namespaces"
 Cohesion: 0.05
-Nodes (45): Account, getAccount(), getMe(), Me, BottomNav(), renderBottomNav(), FarmBrand(), mockGetFarmLogo (+37 more)
+Nodes (32): Cluckwork.Application.Features.Expenses.CreateExpenseCategory, Cluckwork.Application.Features.Expenses.AdjustExpense, Cluckwork.Infrastructure.Providers, Cluckwork.Application.Features.Expenses, Cluckwork.Api.Endpoints.Expenses, Cluckwork.Api.Endpoints.Water, Cluckwork.Application.Features.Expenses.CreateExpense, Cluckwork.Api.Endpoints.Audit (+24 more)
 
-### Community 20 - ".Success"
-Cohesion: 0.10
-Nodes (16): CancellationToken, Guid, Task, CancellationToken, Guid, Task, CancellationToken, Guid (+8 more)
+### Community 19 - "SPA Nav & Error Boundary"
+Cohesion: 0.07
+Nodes (27): BottomNav(), renderBottomNav(), ErrorBoundary, Props, Scope, State, inRouter(), FarmBrand() (+19 more)
 
-### Community 21 - "SalesPage.test.tsx"
+### Community 20 - "Domain Aggregate Mutations"
+Cohesion: 0.11
+Nodes (12): Result, Result, Result, Result, Flock, FlockStatus, DateOnly, int (+4 more)
+
+### Community 21 - "Sales Page & Order API"
 Cohesion: 0.07
 Nodes (45): apiPost(), addOrderItem(), cancelOrder(), confirmOrder(), createOrder(), getOrder(), listOrderPayments(), listOrders() (+37 more)
 
-### Community 22 - "InventoryPage.test.tsx"
+### Community 22 - "Inventory Page"
 Cohesion: 0.06
 Nodes (42): activateInventoryItem(), createInventoryItem(), deactivateInventoryItem(), formatMoney(), InventoryItem, InventoryLot, InventoryMovement, listInventoryItems() (+34 more)
 
-### Community 23 - "Cluckwork Dashboard Wireframe (v4)"
+### Community 23 - "Wireframe IA & Trace Findings"
 Cohesion: 0.06
 Nodes (48): Customers Navigation Gap Finding, Restricted Lots KPI Drill-Through Finding, Manual Withdrawal Alert Finding, Alerts Badge, Balance Due Filter, Customer Entity, Customer Records Table, Customers Screen Wireframe (+40 more)
 
-### Community 24 - ".Domain"
+### Community 24 - "Sales Domain & Repository"
 Cohesion: 0.09
-Nodes (27): IDomainEvent, ISalesOrderRepository, CancellationToken, DateOnly, Guid, IReadOnlyList, Task, SalesOrder (+19 more)
+Nodes (29): IDomainEvent, ISalesOrderRepository, CancellationToken, DateOnly, Guid, IReadOnlyList, Task, CancellationToken (+21 more)
 
-### Community 25 - ".Report"
+### Community 25 - "Rate Limiting & IP Policies"
 Cohesion: 0.06
 Nodes (23): Cluckwork.Api.RateLimiting, Cluckwork.Api.Endpoints.ClientErrors, FixedWindow, IPAddress, IPNetwork, ClientErrorEndpoints, ClientErrorReport, CancellationToken (+15 more)
 
-### Community 26 - "FlockEndpoints"
-Cohesion: 0.12
-Nodes (23): CreateFlockRequest, FlockEndpoints, FlockResponse, RecordBirdMovementRequest, UpdateFlockRequest, CancellationToken, Guid, int (+15 more)
+### Community 26 - "Flock Endpoints"
+Cohesion: 0.10
+Nodes (30): CreateFlockRequest, FlockEndpoints, FlockResponse, RecordBirdMovementRequest, UpdateFlockRequest, CancellationToken, Guid, int (+22 more)
 
-### Community 27 - "Task"
-Cohesion: 0.14
-Nodes (15): HttpStatusCode, AuthCookieSecureTests, HostPinningTests, PinnedHostFactory, SecurityDevelopmentFactory, SecurityHeadersDevelopmentTests, SecurityHeadersForwardedProxyTests, SecurityHeadersTests (+7 more)
+### Community 27 - "Integration Tests: Auth Cookies"
+Cohesion: 0.08
+Nodes (22): HttpStatusCode, IClassFixture, AuthCookieSecureTests, IWebHostBuilder, IWebHostBuilder, IWebHostBuilder, IWebHostBuilder, HostPinningTests (+14 more)
 
-### Community 28 - "UserPasswordTests"
+### Community 28 - "Integration Tests: Usernames"
 Cohesion: 0.14
 Nodes (19): Id, UserNameTests, UserRow, AccountId, Admin, Fact, Guid, HttpClient (+11 more)
 
-### Community 29 - "enums.ts"
+### Community 29 - "i18n Enums & Audit Page"
 Cohesion: 0.06
 Nodes (38): AuditEvent, listAuditEvents(), STATUS_VALUES, AUDIT_ACTION_VALUES, auditActionLabel(), AuditActionValue, ENTITY_TYPE_VALUES, entityTypeLabel() (+30 more)
 
-### Community 30 - "IdentityProvider"
-Cohesion: 0.11
-Nodes (20): Hash, IdentityUser, Raw, TokenPair, ApplicationUser, Guid, IdentityProvider, CancellationToken (+12 more)
+### Community 30 - "Identity & Tokens"
+Cohesion: 0.12
+Nodes (18): Hash, IdentityUser, Raw, TokenPair, ApplicationUser, Guid, IdentityProvider, CancellationToken (+10 more)
 
-### Community 31 - "SettingsPage.tsx"
+### Community 31 - "Settings Page & Farm Logo"
 Cohesion: 0.08
 Nodes (31): FarmSettings, getFarmLogo(), getFarmSettings(), FarmLogoImage, minted, mockGetFarmLogo, Probe(), revoked (+23 more)
 
-### Community 32 - ".TodayAsync"
+### Community 32 - "Reports Endpoints"
+Cohesion: 0.12
+Nodes (25): Code, Minor, ReportEndpoints, CancellationToken, DateOnly, int, IResult, RouteGroupBuilder (+17 more)
+
+### Community 33 - "Application Feature Namespaces"
+Cohesion: 0.06
+Nodes (28): Cluckwork.Api.Endpoints.Users, Cluckwork.Application.Features.Users.UpdateUser, Cluckwork.Application.Features.Users.CreateUser, Cluckwork.Application.Features.Users.AssignFlock, Cluckwork.Application.Features.Users, AssignFlockRequest, CreateUserRequest, FlockAssignmentResponse (+20 more)
+
+### Community 34 - "Testcontainers Fixture"
 Cohesion: 0.10
-Nodes (28): Code, Minor, ReportEndpoints, CancellationToken, DateOnly, int, IResult, RouteGroupBuilder (+20 more)
+Nodes (21): EggGradeId, IAsyncLifetime, PostgreSqlContainer, Quantity, CluckworkWebApplicationFactory, TestJwtKeys, int, string (+13 more)
 
-### Community 33 - "UserEndpoints.cs"
-Cohesion: 0.06
-Nodes (28): Cluckwork.Application.Features.Users.SetUserPassword, Cluckwork.Api.Endpoints.Users, Cluckwork.Application.Features.Users.UpdateUser, Cluckwork.Application.Features.Users.CreateUser, Cluckwork.Application.Features.Users.AssignFlock, FlockAssignmentResponse, UserResponse, CreateUserCommand (+20 more)
+### Community 35 - "Dialog & Confirm Components"
+Cohesion: 0.07
+Nodes (16): Host(), bootWithHint(), I18nMock, otherPacks, en, Resources, es, initialLanguage (+8 more)
 
-### Community 34 - "CluckworkWebApplicationFactory"
-Cohesion: 0.11
-Nodes (20): EggGradeId, PostgreSqlContainer, Quantity, CluckworkWebApplicationFactory, TestJwtKeys, int, string, TestHarness (+12 more)
+### Community 36 - "Daily Entry Recording"
+Cohesion: 0.10
+Nodes (22): Entity, CancellationToken, Guid, Task, DailyEntry, DailyEntryGrade, DailyEntryStatus, GradeQuantity (+14 more)
 
-### Community 35 - "index.ts"
-Cohesion: 0.06
-Nodes (21): putMeLanguage(), Host(), bootWithHint(), I18nMock, otherPacks, en, Resources, es (+13 more)
+### Community 37 - "EF Entity Configurations"
+Cohesion: 0.07
+Nodes (21): Cluckwork.Infrastructure.Persistence.Configurations, IEntityTypeConfiguration, AccountConfiguration, EntityTypeBuilder, ApplicationUserConfiguration, EntityTypeBuilder, EggUnitConversionConfiguration, ProductConfiguration (+13 more)
 
-### Community 36 - "DailyEntry"
-Cohesion: 0.09
-Nodes (25): Entity, CancellationToken, Guid, Task, DailyEntry, DailyEntryGrade, DailyEntryStatus, GradeQuantity (+17 more)
-
-### Community 37 - "Cluckwork.Domain.Eggs"
-Cohesion: 0.08
-Nodes (14): Cluckwork.Domain.Tests.Eggs, Cluckwork.Application.Features.EggLots, Cluckwork.Application.Features.Eggs, Cluckwork.Application.Features.EggGrades, Cluckwork.Infrastructure.Persistence.Configurations, Cluckwork.Application.Features.DailyEntries.VoidDailyEntry, Cluckwork.Application.Features.DailyEntries, Cluckwork.Domain.Eggs (+6 more)
-
-### Community 38 - "FarmLocalDateRuleTests"
+### Community 38 - "Application Tests: Validation Rules"
 Cohesion: 0.11
 Nodes (19): ErrorCode, HashSet, IPropertyValidator, PropertyName, FarmLocalDateRuleTests, DateOnly, Fact, Task (+11 more)
 
-### Community 39 - "SalesOrderTests"
-Cohesion: 0.10
-Nodes (9): Cluckwork.Domain.Tests.Common, Money, DateOnly, MoneyTests, Fact, SalesOrderTests, Fact, InlineData (+1 more)
+### Community 39 - "Money Value Object"
+Cohesion: 0.11
+Nodes (8): Cluckwork.Domain.Tests.Common, Money, MoneyTests, Fact, SalesOrderTests, Fact, InlineData, Theory
 
-### Community 40 - ".SetupAsync"
+### Community 40 - "Integration Tests: Reports"
 Cohesion: 0.12
 Nodes (23): Created, DayRow, GradeRow, ProductionDto, ProfitDto, ReportsTests, SalesDto, DateOnly (+15 more)
 
-### Community 41 - "apiGet"
+### Community 41 - "Reports Page"
 Cohesion: 0.09
 Nodes (31): apiGet(), ExpenseSummaryReport, getExpenseSummary(), getProductionReport(), getProfitReport(), getSalesSummary(), listInventoryLots(), listInventoryMovements() (+23 more)
 
-### Community 42 - "OtlpOptions"
-Cohesion: 0.22
-Nodes (8): OtlpOptions, OtlpExportProtocol, string, OtlpEndpointResolutionTests, InlineData, OtlpExportProtocol, Theory, Uri
+### Community 42 - "OTLP Telemetry Config"
+Cohesion: 0.10
+Nodes (17): HttpListener, IDisposable, OtlpOptions, OtlpExportProtocol, string, TaskCompletionSource, FakeOtlpCollector, OtlpEndpointResolutionTests (+9 more)
 
-### Community 43 - ".GetCustomer"
-Cohesion: 0.15
-Nodes (13): CustomerEndpoints, CustomerResponse, CancellationToken, Guid, int, IResult, RouteGroupBuilder, Task (+5 more)
+### Community 43 - "Customer Endpoints"
+Cohesion: 0.09
+Nodes (22): CustomerEndpoints, CancellationToken, Guid, int, IResult, IValidator, RouteGroupBuilder, Task (+14 more)
 
-### Community 44 - "RoleMatrixTests"
+### Community 44 - "Integration Tests: Role Matrix"
 Cohesion: 0.14
 Nodes (20): HttpRequestMessage, PaymentId, AssignmentRow, AuditRow, Created, PaymentCreated, PaymentItem, PaymentsPage (+12 more)
 
-### Community 45 - "Error"
-Cohesion: 0.21
-Nodes (9): RemoveFarmLogoHandler, CancellationToken, Task, AdjustDailyEntryHandler, AdjustDailyEntryResponse, CancellationToken, Guid, Task (+1 more)
+### Community 45 - "Application Features Sales"
+Cohesion: 0.08
+Nodes (19): AppError, Error, AdjustDailyEntryHandler, CancellationToken, Guid, Task, CancellationToken, Guid (+11 more)
 
-### Community 46 - "ExpensesPage.test.tsx"
+### Community 46 - "Routes Expensespage Test"
 Cohesion: 0.08
 Nodes (27): adjustExpense(), createExpense(), createExpenseCategory(), Expense, ExpenseCategory, ExpenseList, getExpense(), listExpenseCategories() (+19 more)
 
-### Community 47 - "EggLedgerTests"
+### Community 47 - "Api Integrationtests Eggledgertests"
 Cohesion: 0.13
 Nodes (23): EntryId, LotId, LotRow, MovementRow, Created, EggLedgerTests, EntryDto, LotRow (+15 more)
 
-### Community 48 - "PaymentsTests"
+### Community 48 - "Api Integrationtests Paymentstests"
 Cohesion: 0.17
 Nodes (20): CustomerId, OrderPaymentsDto, BalanceRow, BalancesDto, Created, OrderPaymentsDto, PaymentDto, PaymentsTests (+12 more)
 
-### Community 49 - "ClientErrorReportTests"
+### Community 49 - "Api Integrationtests Clienterrorreporttests"
 Cohesion: 0.17
 Nodes (13): HttpContent, ChunkedContent, ClientErrorReportTests, Fact, HttpClient, InlineData, IReadOnlyList, LogEvent (+5 more)
 
-### Community 50 - ".SetupAsync"
+### Community 50 - "Api Integrationtests Customerandordertests"
 Cohesion: 0.15
 Nodes (18): Products, CustomerAndOrderTests, CustomerDto, IdDto, ItemCreatedDto, OrderDto, OrderItemDto, StockDto (+10 more)
 
-### Community 51 - "RecordDailyEntryValidatorTests"
-Cohesion: 0.08
-Nodes (30): AdjustDailyEntryRequest, DailyEntryEndpoints, DailyEntryResponse, RecordDailyEntryRequest, VoidDailyEntryRequest, CancellationToken, DateOnly, Guid (+22 more)
-
-### Community 52 - "UpdateFarmSettingsValidatorTests"
-Cohesion: 0.19
-Nodes (6): UpdateFarmSettingsValidator, DateTimeOffset, UpdateFarmSettingsValidatorTests, Fact, InlineData, Theory
-
-### Community 53 - "WaterUsage"
+### Community 51 - "Api Endpoints Dailyentries"
 Cohesion: 0.14
-Nodes (16): WaterSource, WaterUsage, DateOnly, DateTime, Exception, Guid, int, Result (+8 more)
+Nodes (19): DailyEntryEndpoints, CancellationToken, DateOnly, Guid, int, IResult, IValidator, RouteGroupBuilder (+11 more)
 
-### Community 54 - "SalesProductTests"
+### Community 52 - "Application Accounts"
+Cohesion: 0.18
+Nodes (7): UpdateFarmSettingsCommand, UpdateFarmSettingsValidator, DateTimeOffset, UpdateFarmSettingsValidatorTests, Fact, InlineData, Theory
+
+### Community 53 - "Domain Inventory Waterusage"
+Cohesion: 0.11
+Nodes (21): IWaterUsageRepository, CancellationToken, DateOnly, Guid, IReadOnlyList, Task, WaterSource, WaterUsage (+13 more)
+
+### Community 54 - "Api Integrationtests Salesproducttests"
 Cohesion: 0.16
 Nodes (20): AccountView, ConversionRow, Created, ItemCreated, ItemDto, OrderDto, SalesProductTests, SettingsView (+12 more)
 
-### Community 55 - "SimulationDataSeeder.cs"
-Cohesion: 0.05
-Nodes (39): AbstractValidator, Cluckwork.Application.Features.Sales.AddOrderItem, Cluckwork.Application.Features.Inventory.CreateInventoryItem, Cluckwork.Application.Features.Inventory.RecordPurchase, Cluckwork.Application.Features.Inventory.RecordAdjustment, Cluckwork.Application.Features.Inventory.UpdateInventoryItem, Cluckwork.Application.Features.Customers.CreateCustomer, Cluckwork.Api.Endpoints.Inventory (+31 more)
+### Community 55 - "Application Features Inventory"
+Cohesion: 0.07
+Nodes (20): Cluckwork.Application.Features.Inventory.RecordPurchase, Cluckwork.Application.Features.Inventory.UpdateInventoryItem, Cluckwork.Api.Endpoints.Inventory, Cluckwork.Application.Features.Inventory.RecordFeedUsage, CreateInventoryItemRequest, FeedUsageResponse, InventoryItemResponse, InventoryLotResponse (+12 more)
 
-### Community 56 - "i18n-scan.mjs"
+### Community 56 - "I18n Scan Allowlist"
 Cohesion: 0.07
 Nodes (25): Farm Palette (curated accent set), OpenAPI-Generated Typed Client (KD-6), SPA i18n Conventions Guide, Hardcoded-String Scan (count ratchet), Aubergine Primary (#4a154b chromatic monotheism), PWA App Icon Sources README (#142), Maskable PWA Icon Variant, SPA index.html shell (+17 more)
 
-### Community 57 - "TenantContext"
-Cohesion: 0.22
-Nodes (14): InventoryEndpoints, CancellationToken, DateOnly, Guid, int, IResult, IValidator, RouteGroupBuilder (+6 more)
+### Community 57 - "Api Endpoints Inventory"
+Cohesion: 0.21
+Nodes (15): InventoryEndpoints, CancellationToken, DateOnly, Guid, int, IResult, IValidator, RouteGroupBuilder (+7 more)
 
-### Community 58 - "Cluckwork.Domain.Catalog"
+### Community 58 - "Application Features Catalog"
 Cohesion: 0.09
-Nodes (18): Cluckwork.Api.Endpoints.Catalog, Cluckwork.Application.Features.Catalog.SetProductActive, Cluckwork.Domain.Catalog, Cluckwork.Application.Features.Catalog.UpdateEggUnitConversion, Cluckwork.Application.Features.Catalog, Cluckwork.Application.Features.Catalog.CreateProduct, Cluckwork.Application.Features.Catalog.UpdateProduct, CreateProductRequest (+10 more)
+Nodes (17): Cluckwork.Api.Endpoints.Catalog, Cluckwork.Application.Features.Catalog.SetProductActive, Cluckwork.Domain.Catalog, Cluckwork.Application.Features.Catalog.UpdateEggUnitConversion, Cluckwork.Application.Features.Catalog.CreateProduct, Cluckwork.Application.Features.Catalog.UpdateProduct, CreateProductRequest, EggUnitConversionResponse (+9 more)
 
-### Community 59 - "Cluckwork.Application.Features.Sales.RecordPayment"
-Cohesion: 0.12
-Nodes (10): Cluckwork.Application.Tests.DailyEntries, Cluckwork.Application.Tests.Validation, Cluckwork.Application.Tests.Common, Cluckwork.Application.Features.Sales.RecordPayment, Cluckwork.Application.Tests.Flocks, Cluckwork.Application.Features.Flocks.UpdateFlock, UpdateFlockCommand, UpdateFlockValidator (+2 more)
+### Community 59 - "Application Features Dailyentries"
+Cohesion: 0.08
+Nodes (18): Cluckwork.Application.Tests.DailyEntries, Cluckwork.Application.Features.DailyEntries.RecordDailyEntry, Cluckwork.Application.Tests.Validation, Cluckwork.Api.Endpoints.DailyEntries, Cluckwork.Application.Tests.Common, Cluckwork.Application.Features.DailyEntries.VoidDailyEntry, Cluckwork.Application.Features.DailyEntries.AdjustDailyEntry, Cluckwork.Application.Tests.Flocks (+10 more)
 
-### Community 60 - "FeedUsageTests"
+### Community 60 - "Api Integrationtests Feedusagetests"
 Cohesion: 0.17
 Nodes (17): ItemId, Created, FeedUsageTests, ItemDto, LotCreated, MovementDto, MovementWithRef, UsageResponse (+9 more)
 
-### Community 61 - "StaticAssetCachingTests"
-Cohesion: 0.29
-Nodes (6): StaticAssetCachingTests, Fact, HttpResponseMessage, InlineData, Task, Theory
+### Community 61 - "Api Integrationtests Staticassetcachingtests"
+Cohesion: 0.14
+Nodes (12): Cluckwork.Api.Hosting, StaticAssetCaching, string, StaticFileResponseContext, StaticAssetCachingTests, StaticCachingFactory, Fact, HttpResponseMessage (+4 more)
 
-### Community 62 - "vuln-gate.mjs"
+### Community 62 - "Vuln Gate Test"
 Cohesion: 0.19
 Nodes (25): advisoryId(), canonicalGhsa(), dedupe(), describe(), ECOSYSTEMS, emitAllowlist(), exceptionProblem(), extractJson() (+17 more)
 
-### Community 63 - "AggregateRoot"
-Cohesion: 0.20
-Nodes (10): AggregateRoot, UserRoleAssignment, Guid, UserRoleAssignmentConfiguration, EntityTypeBuilder, UserRoleAssignmentRepository, CancellationToken, Guid (+2 more)
+### Community 63 - "Application Features Users"
+Cohesion: 0.14
+Nodes (14): IUserRoleAssignmentRepository, CancellationToken, Guid, IReadOnlyList, Task, UserRoleAssignment, Guid, UserRoleAssignmentConfiguration (+6 more)
 
-### Community 64 - "Cluckwork Product Specification v4.4"
+### Community 64 - "Product Changelog"
 Cohesion: 0.08
 Nodes (27): Product Spec Changelog (v4.3 rename / v4.4 corrections), Cluckwork Glossary, Audit Log (#93), Bird Movement Ledger (Mortality/Cull/Adjustment), Currency Change Rule (spec §4.6, extended), Egg Movement Ledger (#101), Farm Logo (#123), Flock Lifecycle (Active/Depleted/Archived) (+19 more)
 
-### Community 65 - ".SeedDemoAsync"
-Cohesion: 0.14
-Nodes (13): SubmitDailyEntryResponse, CancellationToken, Guid, Task, CancellationToken, Guid, Task, CancellationToken (+5 more)
+### Community 65 - "Infrastructure Persistence Demodataseeder"
+Cohesion: 0.11
+Nodes (17): CancellationToken, Guid, Task, SubmitDailyEntryResponse, CancellationToken, Guid, Task, CancellationToken (+9 more)
 
-### Community 66 - ".HandleAsync"
-Cohesion: 0.08
-Nodes (27): IEggInventoryMovementRepository, CancellationToken, Guid, IEnumerable, IReadOnlyList, Task, ConfirmSaleCommand, ConfirmSaleResponse (+19 more)
+### Community 66 - "Infrastructure Repositories Egginventorymovementrepository"
+Cohesion: 0.11
+Nodes (19): IEggInventoryMovementRepository, CancellationToken, Guid, IEnumerable, IReadOnlyList, Task, EggInventoryMovement, EggMovementType (+11 more)
 
-### Community 67 - "FarmLocalBoundaryBehindUtcTests"
-Cohesion: 0.22
-Nodes (13): FarmLocalBoundaryBehindUtcTests, IdDto, ProblemDto, ProductionDayDto, ProductionReportDto, AccountId, Client, Fact (+5 more)
+### Community 67 - "Api Integrationtests Farmlocalboundarybehindutctests"
+Cohesion: 0.18
+Nodes (16): FarmLocalBoundaryBehindUtcTests, FrozenClock, IdDto, ProblemDto, ProductionDayDto, ProductionReportDto, AccountId, Client (+8 more)
 
-### Community 68 - "DailyEntryTests"
+### Community 68 - "Domain Eggs"
 Cohesion: 0.20
 Nodes (3): DailyEntryTests, Fact, Guid
 
-### Community 69 - "InventoryTests"
+### Community 69 - "Domain Inventory"
 Cohesion: 0.16
 Nodes (4): InventoryTests, DateOnly, DateTime, Fact
 
-### Community 70 - "Cluckwork.Infrastructure.Persistence.Migrations"
+### Community 70 - "Infrastructure Persistence Migrations"
 Cohesion: 0.08
-Nodes (14): Cluckwork.Infrastructure.Persistence.Migrations, ModelSnapshot, AddSalesOrderVersion, ModelBuilder, AddBirdMovementEntryRefAndBackfill, ModelBuilder, AddExpenses, ModelBuilder (+6 more)
+Nodes (14): Cluckwork.Infrastructure.Persistence.Migrations, ModelSnapshot, AddSalesOrderVersion, ModelBuilder, AddRefreshTokens, ModelBuilder, AddEggGradesAndDailyEntryGrades, ModelBuilder (+6 more)
 
-### Community 71 - "SaleEndpoints"
+### Community 71 - "Api Endpoints Sales"
+Cohesion: 0.19
+Nodes (14): SaleEndpoints, CancellationToken, DateOnly, Guid, int, IResult, IValidator, RouteGroupBuilder (+6 more)
+
+### Community 72 - "Infrastructure Repositories Feedusagerepository"
 Cohesion: 0.13
-Nodes (21): AddOrderItemRequest, CreateSalesOrderRequest, SaleEndpoints, SalesOrderResponse, UpdateOrderItemRequest, VoidSaleRequest, CancellationToken, DateOnly (+13 more)
+Nodes (18): IFeedUsageRepository, CancellationToken, DateOnly, Guid, IReadOnlyList, Task, FeedUsage, DateOnly (+10 more)
 
-### Community 72 - "FeedUsage"
-Cohesion: 0.11
-Nodes (20): IFeedUsageRepository, CancellationToken, DateOnly, Guid, IReadOnlyList, Task, FeedUsage, DateOnly (+12 more)
-
-### Community 73 - ".SetupAsync"
+### Community 73 - "Api Integrationtests Catalogtests"
 Cohesion: 0.19
 Nodes (15): AuditRow, CatalogTests, ConversionRow, Created, ProductRow, AccountId, Client, Dictionary (+7 more)
 
-### Community 74 - "AppDbContext"
+### Community 74 - "Api Integrationtests Currencylockserializationtests"
 Cohesion: 0.17
 Nodes (13): DbSet, IdentityDbContext, IDesignTimeDbContextFactory, IsolationLevel, AppDbContext, Guid, ModelBuilder, AppDbContextDesignTimeFactory (+5 more)
 
-### Community 75 - "AdminGatingTests"
+### Community 75 - "Api Integrationtests Admingatingtests"
 Cohesion: 0.16
 Nodes (15): HttpMethod, AdminGatingTests, Created, UserRow, AccountId, Admin, DateOnly, Fact (+7 more)
 
-### Community 76 - "CurrencyLockRaceTests"
-Cohesion: 0.22
-Nodes (11): IServiceProvider, Seeded, CurrencyLockRaceTests, Seeded, Fact, Guid, MemberData, Task (+3 more)
+### Community 76 - "Api Integrationtests Currencylockracetests"
+Cohesion: 0.20
+Nodes (12): IServiceProvider, Seeded, Guid, CurrencyLockRaceTests, Seeded, Fact, Guid, MemberData (+4 more)
 
-### Community 77 - "ExpenseCategory"
-Cohesion: 0.16
-Nodes (12): ExpenseCategory, Guid, int, ExpenseCategoryConfiguration, ExpenseCategoryRepository, ExpenseRepository, CancellationToken, DateOnly (+4 more)
+### Community 77 - "Infrastructure Repositories Expenserepositories"
+Cohesion: 0.20
+Nodes (10): ExpenseCategory, int, ExpenseCategoryRepository, ExpenseRepository, CancellationToken, DateOnly, Guid, IQueryable (+2 more)
 
-### Community 78 - ".SetupAsync"
+### Community 78 - "Api Integrationtests Audittests"
 Cohesion: 0.15
 Nodes (17): AuditRow, AuditTests, Created, EntryDto, PaymentRow, PaymentsPage, AccountId, Client (+9 more)
 
-### Community 79 - "ReadEndpointTests"
+### Community 79 - "Api Integrationtests Readendpointtests"
 Cohesion: 0.15
 Nodes (17): EntryDto, GradeLineDto, IdDto, OrderDto, OrderItemDto, ReadEndpointTests, StockDto, AccountId (+9 more)
 
-### Community 80 - "baseline.js"
-Cohesion: 0.06
-Nodes (83): assignUser(), authHeaders(), extractSetCookie(), login(), maybeRefresh(), preflightCredentials(), refresh(), safeJson() (+75 more)
+### Community 80 - "Application Features Inventory"
+Cohesion: 0.10
+Nodes (13): AbstractValidator, Cluckwork.Application.Features.Inventory.RecordWaterUsage, Cluckwork.Application.Features.Inventory.RecordAdjustment, Cluckwork.Application.Features.Sales.UpdateOrderItem, Cluckwork.Application.Features.Inventory.UpdateWaterUsage, RecordAdjustmentCommand, RecordAdjustmentValidator, RecordWaterUsageCommand (+5 more)
 
-### Community 81 - ".AdjustExpense"
-Cohesion: 0.23
-Nodes (11): ExpenseEndpoints, CancellationToken, Guid, int, IResult, IValidator, RouteGroupBuilder, Task (+3 more)
+### Community 81 - "Api Endpoints Expenses"
+Cohesion: 0.20
+Nodes (13): ExpenseEndpoints, CancellationToken, DateOnly, Guid, int, IResult, IValidator, RouteGroupBuilder (+5 more)
 
-### Community 82 - "Account"
-Cohesion: 0.13
-Nodes (14): IAccountRepository, CancellationToken, Task, Account, DayOfWeek, Guid, int, string (+6 more)
+### Community 82 - "Infrastructure Repositories Accountrepository"
+Cohesion: 0.15
+Nodes (12): IAccountRepository, CancellationToken, Task, Account, DayOfWeek, Guid, int, string (+4 more)
 
-### Community 83 - "SimulationDataSeeder"
-Cohesion: 0.11
-Nodes (24): Counts, decimal, IReadOnlyDictionary, SimulationOptions, string, CancellationToken, SeedResult, SeedStatus (+16 more)
+### Community 83 - "Application Dailyentries"
+Cohesion: 0.24
+Nodes (7): GradeQuantityDto, RecordDailyEntryCommand, RecordDailyEntryValidator, RecordDailyEntryValidatorTests, DateOnly, Fact, Task
 
-### Community 84 - "InventoryMovement"
-Cohesion: 0.13
-Nodes (17): IInventoryMovementRepository, CancellationToken, Guid, IReadOnlyList, Task, InventoryMovement, InventoryMovementType, DateOnly (+9 more)
+### Community 84 - "Infrastructure Repositories Inventorymovementrepository"
+Cohesion: 0.14
+Nodes (16): IInventoryMovementRepository, CancellationToken, Guid, IReadOnlyList, Task, InventoryMovement, InventoryMovementType, DateOnly (+8 more)
 
-### Community 85 - "AccountSettingsTests"
+### Community 85 - "Domain Accounts"
 Cohesion: 0.23
 Nodes (5): AccountSettingsTests, DayOfWeek, Fact, InlineData, Theory
 
-### Community 86 - "compilerOptions"
+### Community 86 - "Ref Dom"
 Cohesion: 0.09
 Nodes (22): DOM, DOM.Iterable, ES2022, src, compilerOptions, allowImportingTsExtensions, jsx, lib (+14 more)
 
-### Community 87 - "RequestLoggingTests"
-Cohesion: 0.47
-Nodes (4): RequestLoggingTests, Fact, IReadOnlyList, Task
+### Community 87 - "Api Integrationtests Requestloggingtests"
+Cohesion: 0.20
+Nodes (12): ConcurrentQueue, ILogEventSink, CollectingSink, RequestLoggingCollection, RequestLoggingFactory, RequestLoggingTests, CollectingSink, Fact (+4 more)
 
-### Community 88 - "Program.cs"
-Cohesion: 0.06
-Nodes (33): Cluckwork.Application.Features.Flocks.DepleteFlock, Cluckwork.Api.Endpoints.Me, Cluckwork.Application.Features.EggGrades.UpdateEggGrade, Cluckwork.Api.Validation, Cluckwork.Infrastructure.Providers, Cluckwork.Application.Features.DailyEntries.RecordDailyEntry, Cluckwork.Application.Features.EggGrades.SetEggGradeActive, Cluckwork.Api.Endpoints.DailyEntries (+25 more)
+### Community 88 - "Application Features Egggrades"
+Cohesion: 0.10
+Nodes (12): Cluckwork.Api.Endpoints.Me, Cluckwork.Application.Features.EggGrades.UpdateEggGrade, Cluckwork.Api.Validation, Cluckwork.Application.Features.EggGrades.SetEggGradeActive, Cluckwork.Api.Endpoints.EggGrades, Cluckwork.Application.Features.Users.SetLanguage, Cluckwork.Application.Features.EggGrades.CreateEggGrade, MeResponse (+4 more)
 
-### Community 89 - ".Resolve"
+### Community 89 - "Domain Accounts"
 Cohesion: 0.19
 Nodes (8): FrozenDictionary, CurrencyCatalog, CurrencyInfo, int, CurrencyCatalogTests, Fact, InlineData, Theory
 
-### Community 90 - ".ChangePassword"
+### Community 90 - "Api Endpoints Auth"
 Cohesion: 0.21
 Nodes (13): IOptions, IWebHostEnvironment, HttpRequest, AuthEndpoints, CancellationToken, HttpRequest, HttpResponse, IResult (+5 more)
 
-### Community 91 - ".ExportDataset"
-Cohesion: 0.16
-Nodes (13): PipeWriter, ExportEndpoints, CancellationToken, IResult, JsonSerializerOptions, RouteGroupBuilder, Task, IAuditWriter (+5 more)
+### Community 91 - "Api Endpoints Export"
+Cohesion: 0.15
+Nodes (14): PipeWriter, ExportEndpoints, CancellationToken, IResult, JsonSerializerOptions, RouteGroupBuilder, Task, IAuditWriter (+6 more)
 
-### Community 92 - "AuditEvent"
-Cohesion: 0.31
-Nodes (6): AuditEvent, DateTimeOffset, Guid, int, AuditEventConfiguration, EntityTypeBuilder
+### Community 92 - "Api Endpoints Audit"
+Cohesion: 0.10
+Nodes (15): AuditEndpoints, AuditEventResponse, int, RouteGroupBuilder, AuditEvent, DateTimeOffset, Guid, int (+7 more)
 
-### Community 93 - ".SetLanguage"
+### Community 93 - "Api Endpoints Me"
 Cohesion: 0.13
 Nodes (15): MeEndpoints, SetLanguageRequest, CancellationToken, IResult, IValidator, RouteGroupBuilder, Task, ICurrentUser (+7 more)
 
-### Community 94 - ".HandleAsync"
-Cohesion: 0.13
-Nodes (11): IFlockScopeGuard, CancellationToken, Guid, Task, CancellationToken, Guid, Task, CancellationToken (+3 more)
+### Community 94 - "Application Features Inventory"
+Cohesion: 0.10
+Nodes (17): CancellationToken, DateOnly, Task, IFlockScopeGuard, CancellationToken, Guid, Task, CancellationToken (+9 more)
 
-### Community 95 - "EggLot"
-Cohesion: 0.08
-Nodes (28): StockEndpoints, CancellationToken, Guid, int, IResult, RouteGroupBuilder, Task, IEggLotRepository (+20 more)
+### Community 95 - "Infrastructure Repositories Egglotrepository"
+Cohesion: 0.23
+Nodes (9): EggLot, DateOnly, Guid, EggLotRepository, CancellationToken, DateOnly, Guid, IReadOnlyList (+1 more)
 
-### Community 96 - "InventoryLot"
-Cohesion: 0.17
-Nodes (13): InventoryLot, DateOnly, Guid, int, Money, InventoryLotConfiguration, InventoryLotRepository, CancellationToken (+5 more)
+### Community 96 - "Infrastructure Repositories Inventorylotrepository"
+Cohesion: 0.19
+Nodes (12): InventoryLot, DateOnly, Guid, int, Money, InventoryLotRepository, CancellationToken, DateOnly (+4 more)
 
-### Community 97 - "InventoryTests"
+### Community 97 - "Api Integrationtests Inventorytests"
 Cohesion: 0.24
 Nodes (11): Created, InventoryTests, ItemDto, LotDto, MovementDto, DateOnly, Fact, Guid (+3 more)
 
-### Community 98 - ".SetupAsync"
+### Community 98 - "Api Integrationtests Birdmovementtests"
 Cohesion: 0.18
 Nodes (14): FlockDto, BirdMovementTests, FlockDto, IdDto, MovementDto, AccountId, Client, DateOnly (+6 more)
 
-### Community 99 - ".UpdateConversion"
+### Community 99 - "Api Endpoints Catalog"
 Cohesion: 0.23
 Nodes (11): ProductEndpoints, CancellationToken, Guid, IResult, IValidator, RouteGroupBuilder, Task, CreateProductHandler (+3 more)
 
-### Community 100 - "InventoryItem"
-Cohesion: 0.18
-Nodes (12): RecordFeedUsageHandler, InventoryCategory, InventoryItem, Guid, int, Money, InventoryItemConfiguration, InventoryItemRepository (+4 more)
+### Community 100 - "Infrastructure Repositories Inventoryitemrepository"
+Cohesion: 0.20
+Nodes (11): RecordFeedUsageHandler, InventoryCategory, InventoryItem, Guid, int, Money, InventoryItemRepository, CancellationToken (+3 more)
 
-### Community 101 - "FarmLocalBoundarySweepTests"
+### Community 101 - "Api Integrationtests Farmlocalboundarysweeptests"
 Cohesion: 0.20
 Nodes (13): FarmLocalBoundarySweepTests, FrozenClock, IdDto, AccountId, Client, DateOnly, DateTime, Fact (+5 more)
 
-### Community 102 - ".SetupAsync"
+### Community 102 - "Api Integrationtests Handlerloggingtests"
 Cohesion: 0.20
 Nodes (14): CreatedDto, HandlerLoggingTests, AccountId, Client, Dictionary, Fact, FarmId, FlockId (+6 more)
 
-### Community 103 - "registerServiceWorker.ts"
+### Community 103 - "Pwa Registerserviceworker Test"
 Cohesion: 0.17
 Nodes (14): activateUpdate(), notify(), registerServiceWorker(), serviceWorkerSupported(), emitter(), fakeRegistration(), fakeWorker(), Listener (+6 more)
 
-### Community 104 - "cssTokens.ts"
+### Community 104 - "Styles Test"
 Cohesion: 0.16
 Nodes (18): DARK_REQUIRED, GOLDEN, LIGHT_REQUIRED, MODES, allBlocks(), applies(), Block, channel() (+10 more)
 
-### Community 105 - "BirdMovementRepository"
-Cohesion: 0.29
-Nodes (6): BirdMovementRepository, CancellationToken, Dictionary, Guid, IReadOnlyList, Task
+### Community 105 - "Infrastructure Repositories Birdmovementrepository"
+Cohesion: 0.18
+Nodes (12): AggregateRoot, BirdMovement, BirdMovementType, DateOnly, Guid, int, BirdMovementRepository, CancellationToken (+4 more)
 
-### Community 106 - "FlockTests"
-Cohesion: 0.26
-Nodes (3): Cluckwork.Domain.Tests.Flocks, FlockTests, Fact
+### Community 106 - "Domain Flocks"
+Cohesion: 0.23
+Nodes (4): Cluckwork.Domain.Tests.Flocks, Guid, FlockTests, Fact
 
-### Community 107 - "Legacy Import Wizard"
+### Community 107 - "Wireframes Legacy Import"
 Cohesion: 0.13
 Nodes (20): Sales History Import Type Confirmed Finding, Backdated Flag, Column Mapping, CSV/Excel Upload, Customers Import Type, Customers Import Type, Download Template Action, Existing Flocks Import Type (+12 more)
 
-### Community 108 - ".SetUserPassword"
-Cohesion: 0.21
-Nodes (13): AssignFlockRequest, CreateUserRequest, SetUserPasswordRequest, UpdateUserRequest, UserEndpoints, CancellationToken, Guid, IResult (+5 more)
+### Community 108 - "Api Endpoints Users"
+Cohesion: 0.24
+Nodes (11): IDictionary, UserEndpoints, CancellationToken, Guid, IResult, IValidator, RouteGroupBuilder, Task (+3 more)
 
-### Community 109 - ".ListAuditEvents"
-Cohesion: 0.15
-Nodes (12): CancellationToken, DateOnly, Guid, IResult, Task, IAuditEventRepository, CancellationToken, DateOnly (+4 more)
+### Community 109 - "Application Features Audit"
+Cohesion: 0.11
+Nodes (17): CancellationToken, DateOnly, Guid, IResult, Task, IAuditEventRepository, CancellationToken, DateOnly (+9 more)
 
-### Community 110 - ".ListPendingByOrderAsync"
-Cohesion: 0.36
-Nodes (6): ISalesOrderAllocationRepository, SalesOrderAllocationRepository, CancellationToken, Guid, IReadOnlyList, Task
+### Community 110 - "Application Features Sales"
+Cohesion: 0.16
+Nodes (13): ISalesOrderAllocationRepository, CancellationToken, Guid, IReadOnlyList, Task, SalesOrderAllocation, DateTime, Guid (+5 more)
 
-### Community 111 - "FarmClockTests"
+### Community 111 - "Api Integrationtests Farmclocktests"
 Cohesion: 0.24
 Nodes (7): FarmClockTests, StubAccounts, CancellationToken, Fact, InlineData, Task, Theory
 
-### Community 112 - "FlockManagementTests"
+### Community 112 - "Api Integrationtests Flockmanagementtests"
 Cohesion: 0.28
 Nodes (10): FlockDto, FlockManagementTests, IdDto, AccountId, Client, Fact, Guid, HttpClient (+2 more)
 
-### Community 113 - "MeEndpointsTests"
+### Community 113 - "Api Integrationtests Meendpointstests"
 Cohesion: 0.17
 Nodes (11): MeEndpointsTests, MeRow, Fact, Guid, HttpClient, IEnumerable, InlineData, MemberData (+3 more)
 
-### Community 114 - ".Problem"
-Cohesion: 0.16
-Nodes (11): Codes, Errors, IDictionary, ValidationResponse, Dictionary, IResult, ValidationResult, ValidationResponseTests (+3 more)
+### Community 114 - "Api Integrationtests Validationresponsetests"
+Cohesion: 0.19
+Nodes (9): Codes, Errors, ValidationResponse, Dictionary, ValidationResult, ValidationResponseTests, Fact, ValidationResult (+1 more)
 
-### Community 115 - ".InvokeAsync"
+### Community 115 - "Api Middleware Idempotencymiddleware"
 Cohesion: 0.15
 Nodes (14): IDiagnosticContext, IdempotencyMiddleware, ConcurrentDictionary, HttpContext, string, Task, TenantResolutionMiddleware, HttpContext (+6 more)
 
-### Community 116 - "devDependencies"
+### Community 116 - "Devdependencies Types React"
 Cohesion: 0.11
-Nodes (19): @testing-library/react, @testing-library/user-event, @types/node, @types/react, @types/react-dom, typescript, vite, vite-plugin-pwa (+11 more)
+Nodes (19): jsdom, @testing-library/react, @types/node, @types/react, @types/react-dom, typescript, vite, vite-plugin-pwa (+11 more)
 
-### Community 117 - "compilerOptions"
+### Community 117 - "Ref Es2023"
 Cohesion: 0.11
 Nodes (18): ES2023, node, vite.config.ts, compilerOptions, allowImportingTsExtensions, lib, module, moduleDetection (+10 more)
 
-### Community 118 - "IIdentityProvider"
+### Community 118 - "Application Common Iidentityprovider"
 Cohesion: 0.29
 Nodes (8): IIdentityProvider, UserProfile, UserSummary, CancellationToken, Guid, IReadOnlyList, Result, Task
 
-### Community 119 - "IClassFixture"
-Cohesion: 0.09
-Nodes (23): Accounts, DailyEntries, EggLots, IAsyncLifetime, IClassFixture, MutableClock, SalesOrders, Task (+15 more)
+### Community 119 - "Application Features Inventory"
+Cohesion: 0.13
+Nodes (13): CancellationToken, Guid, Task, CreateInventoryItemHandler, CancellationToken, Guid, Task, CancellationToken (+5 more)
 
-### Community 120 - "Fact"
-Cohesion: 0.27
-Nodes (6): DurableJobWorkerResilienceTests, HealthEndpointTests, Exception, Fact, Func, Task
+### Community 120 - "Api Integrationtests Durablejobworkerresiliencetests"
+Cohesion: 0.21
+Nodes (8): DurableJobWorkerHealthCheckTests, DurableJobWorkerResilienceTests, HealthEndpointTests, Exception, Fact, Func, HealthCheckContext, Task
 
-### Community 121 - "EggGradeManagementTests"
+### Community 121 - "Api Integrationtests Egggrademanagementtests"
 Cohesion: 0.23
 Nodes (11): EggGradeManagementTests, FlockDto, GradeDto, IdDto, AccountId, Client, Fact, Guid (+3 more)
 
-### Community 122 - "ExpensesTests"
+### Community 122 - "Api Integrationtests Expensestests"
 Cohesion: 0.27
 Nodes (11): CategoryDto, Created, ExpenseDto, ExpensesTests, ListDto, DateOnly, Fact, Guid (+3 more)
 
-### Community 123 - "RefreshTokenFlowTests"
-Cohesion: 0.27
-Nodes (7): RefreshGraceDisabledFactory, RefreshGraceDisabledTests, RefreshTokenFlowTests, Fact, HttpClient, Task, WebApplicationFactoryClientOptions
+### Community 123 - "Api Integrationtests Refreshtokenflowtests"
+Cohesion: 0.25
+Nodes (8): TokenPairDto, RefreshGraceDisabledFactory, RefreshGraceDisabledTests, RefreshTokenFlowTests, Fact, HttpClient, Task, WebApplicationFactoryClientOptions
 
-### Community 124 - ".SetupAsync"
+### Community 124 - "Api Integrationtests Waterusagetests"
 Cohesion: 0.22
 Nodes (12): Created, Row, WaterUsageTests, AccountId, Client, DateOnly, Fact, FlockId (+4 more)
 
-### Community 125 - "DailyEntryPage.test.tsx"
+### Community 125 - "Routes Dailyentrypage Test"
 Cohesion: 0.14
 Nodes (15): createFlock(), recordDailyEntry(), submitDailyEntry(), FLOCK, GRADES, mockCreateFlock, mockListDailyEntries, mockListEggGrades (+7 more)
 
-### Community 126 - "AGENTS.md — Cluckwork Agent Brief"
-Cohesion: 0.16
-Nodes (15): Asymmetric JWT Auth, AGENTS.md — Cluckwork Agent Brief, FluentValidation Validation, Git / PR Workflow, Graphify Usage Rules, Handler per Feature (No MediatR), Integration Tests via Testcontainers, Layered DDD Architecture (+7 more)
+### Community 126 - "Asymmetric Jwt Auth"
+Cohesion: 0.14
+Nodes (17): Asymmetric JWT Auth, AGENTS.md — Cluckwork Agent Brief, FluentValidation Validation, Git / PR Workflow, Graphify Usage Rules, Handler per Feature (No MediatR), Integration Tests via Testcontainers, Layered DDD Architecture (+9 more)
 
-### Community 127 - ".Make"
+### Community 127 - "Domain Expenses"
 Cohesion: 0.20
 Nodes (7): Cluckwork.Domain.Tests.Expenses, ExpenseCategoryTests, ExpenseTests, DateOnly, Fact, InlineData, Theory
 
-### Community 128 - ".SetLogo"
-Cohesion: 0.21
-Nodes (10): EntityTagHeaderValue, FarmLogoEndpoints, FarmLogoResponse, CancellationToken, HttpContext, HttpRequest, IOptionsSnapshot, IResult (+2 more)
-
-### Community 129 - ".UpdateWaterUsage"
-Cohesion: 0.12
-Nodes (19): RecordWaterUsageRequest, UpdateWaterUsageRequest, WaterUsageEndpoints, CancellationToken, DateOnly, Guid, int, IResult (+11 more)
-
-### Community 130 - ".SetupAsync"
+### Community 128 - "Api Endpoints Accounts"
 Cohesion: 0.19
+Nodes (11): EntityTagHeaderValue, FarmLogoEndpoints, CancellationToken, HttpContext, HttpRequest, IOptionsSnapshot, IResult, RouteGroupBuilder (+3 more)
+
+### Community 129 - "Api Endpoints Water"
+Cohesion: 0.18
+Nodes (13): RecordWaterUsageRequest, UpdateWaterUsageRequest, WaterUsageEndpoints, CancellationToken, DateOnly, Guid, int, IResult (+5 more)
+
+### Community 130 - "Api Integrationtests Exporttests"
+Cohesion: 0.20
 Nodes (12): AuditRow, Created, ExportTests, AccountId, Client, Fact, FarmId, FlockId (+4 more)
 
-### Community 131 - "RateLimitingTests"
-Cohesion: 0.43
-Nodes (5): RateLimitingTests, Fact, HttpClient, HttpResponseMessage, Task
+### Community 131 - "Api Integrationtests Ratelimitingtests"
+Cohesion: 0.31
+Nodes (8): RateLimitFactory, RateLimitingTests, Fact, HttpClient, HttpResponseMessage, int, string, Task
 
-### Community 132 - "SimulationSeederTests"
-Cohesion: 0.13
-Nodes (11): ExpenseCategoryTotalDto, ExpenseSummaryDto, ProductionDayDto, ProductionReportDto, ProfitReportDto, SalesSummaryDto, SimulationSeederTests, DateOnly (+3 more)
+### Community 132 - "Domain Eggs"
+Cohesion: 0.30
+Nodes (3): EggLotTests, DateOnly, Fact
 
-### Community 133 - "Migration"
+### Community 133 - "Infrastructure Persistence Migrations"
 Cohesion: 0.15
-Nodes (7): Migration, AddFlockVersion, MigrationBuilder, AddFlockLifecycleDates, MigrationBuilder, SalesItemsSellProducts, MigrationBuilder
+Nodes (7): Migration, AddSalesOrderVersion, MigrationBuilder, AddCustomers, MigrationBuilder, SalesItemsSellProducts, MigrationBuilder
 
-### Community 134 - "Expense"
-Cohesion: 0.27
-Nodes (7): Expense, DateOnly, Guid, int, Result, ExpenseConfiguration, EntityTypeBuilder
+### Community 134 - "Domain Expenses Expense"
+Cohesion: 0.21
+Nodes (8): Expense, DateOnly, Guid, int, Result, ExpenseCategoryConfiguration, ExpenseConfiguration, EntityTypeBuilder
 
-### Community 135 - "DailyEntryGradeTests"
-Cohesion: 0.36
+### Community 135 - "Api Integrationtests Dailyentrygradetests"
+Cohesion: 0.33
 Nodes (5): DailyEntryGradeTests, EggGradeDto, Fact, Guid, Task
 
-### Community 136 - "CustomersPage.test.tsx"
+### Community 136 - "Routes Customerspage Test"
 Cohesion: 0.13
 Nodes (13): createCustomer(), Customer, CustomerBalances, ADMIN, BALANCES, C1, C2, dialog() (+5 more)
 
-### Community 137 - "CI workflow (build-and-test, web, dependency-review)"
-Cohesion: 0.23
-Nodes (12): Dependabot version-update configuration, vite/vitest peer-locked major-bump group, vuln-gate.mjs shared vulnerability gate script, CI workflow (build-and-test, web, dependency-review), Dependency review job (PR diff-scoped gate), --locked-mode deterministic restore (NU1004 on drift), npm production audit gate (high+, blocking), NuGet vulnerability audit gate (high+, blocking) (+4 more)
+### Community 137 - "Dependabot Dependabot Config"
+Cohesion: 0.17
+Nodes (15): Dependabot version-update configuration, vite/vitest peer-locked major-bump group, vuln-gate.mjs shared vulnerability gate script, CI workflow (build-and-test, web, dependency-review), Dependency review job (PR diff-scoped gate), --locked-mode deterministic restore (NU1004 on drift), npm production audit gate (high+, blocking), NuGet vulnerability audit gate (high+, blocking) (+7 more)
 
-### Community 138 - "dependencies"
+### Community 138 - "Fontsource Variable Inter"
 Cohesion: 0.13
 Nodes (15): @fontsource-variable/inter, i18next, lucide-react, react, react-dom, react-i18next, react-router, dependencies (+7 more)
 
-### Community 139 - "ExportQueries"
+### Community 139 - "Infrastructure Repositories Exportqueries"
 Cohesion: 0.19
 Nodes (10): IAsyncEnumerable, ExportDataset, ExportQueries, CancellationToken, Func, IAsyncDisposable, IQueryable, IReadOnlyList (+2 more)
 
-### Community 140 - ".HandleAsync"
-Cohesion: 0.13
-Nodes (12): ReadOnlyMemory, ResultLogging, ILogger, SetFarmLogoHandler, CancellationToken, FarmLogoMetadata, Guid, Task (+4 more)
-
-### Community 141 - ".GetSettings"
+### Community 140 - "Application Features Accounts"
 Cohesion: 0.18
-Nodes (11): AccountEndpoints, AccountResponse, CancellationToken, IOptionsSnapshot, IResult, RouteGroupBuilder, Task, FarmLogoContent (+3 more)
+Nodes (9): ReadOnlyMemory, FarmLogoContent, IFarmLogoRepository, CancellationToken, Task, CancellationToken, FarmLogoMetadata, Guid (+1 more)
 
-### Community 142 - "AuthEndpoints.cs"
+### Community 141 - "Api Endpoints Accounts"
+Cohesion: 0.23
+Nodes (9): AccountEndpoints, AccountResponse, UpdateFarmSettingsRequest, CancellationToken, IOptionsSnapshot, IResult, IValidator, RouteGroupBuilder (+1 more)
+
+### Community 142 - "Application Features Users"
 Cohesion: 0.15
 Nodes (10): Cluckwork.Application.Features.Users.ChangeOwnPassword, AccessTokenResponse, ChangeOwnPasswordRequest, LoginRequest, ChangeOwnPasswordCommand, ChangeOwnPasswordHandler, CancellationToken, Guid (+2 more)
 
-### Community 143 - "Cluckwork.Api.csproj"
+### Community 143 - "Api Api"
 Cohesion: 0.14
 Nodes (13): Microsoft.AspNetCore.Authentication.JwtBearer (10.*), Microsoft.AspNetCore.OpenApi (10.*), Microsoft.OpenApi (2.11.0), OpenTelemetry.Exporter.OpenTelemetryProtocol (1.*), OpenTelemetry.Extensions.Hosting (1.*), OpenTelemetry.Instrumentation.AspNetCore (1.*), OpenTelemetry.Instrumentation.EntityFrameworkCore (1.16.0-beta.1), OpenTelemetry.Instrumentation.Runtime (1.*) (+5 more)
 
-### Community 144 - "AuthCookieContractTests"
+### Community 144 - "Api Integrationtests Authcookiecontracttests"
 Cohesion: 0.27
 Nodes (7): Response, SetCookie, AuthCookieContractTests, Fact, HttpResponseMessage, Task, WebApplicationFactoryClientOptions
 
-### Community 145 - "Egg Production Screen"
+### Community 145 - "Wireframes Egg Production"
 Cohesion: 0.20
 Nodes (14): Daily Entry, Egg Grade (Saleable / Cracked / Dirty), Egg Inventory Navigation Item, Egg Lots Navigation Item, Egg Production Screen, Entry Status (Submitted), Export Action, Farm Context Selector (Farm: Main Farm) (+6 more)
 
-### Community 146 - "Farm Localization Settings Screen"
+### Community 146 - "Wireframes Farm Localization"
 Cohesion: 0.20
 Nodes (14): Audit UTC Timestamps Card (stable log), Display Defaults Panel (first day of week, date/time format overrides, number formatting, unit system), Farm Currency (code USD, symbol $, minor unit 2), Farm Locale (en-US), Farm Localization Settings Screen, Farm Timezone (America/Los_Angeles), Farm Today Preview Card (06/26/2026 from farm timezone), Financial Rules Panel (sales/expenses currency copied from farm, payments use order currency, cross-farm aggregation warning) (+6 more)
 
-### Community 147 - "AccountLockoutTests"
+### Community 147 - "Api Integrationtests Accountlockouttests"
 Cohesion: 0.32
 Nodes (7): AccountLockoutTests, Fact, HttpClient, HttpResponseMessage, int, string, Task
 
-### Community 148 - "Alerts & Tasks Page"
+### Community 148 - "Wireframes Alerts Tasks"
 Cohesion: 0.19
 Nodes (13): Alerts Badge (count 5, red pill in header), Alerts Tab (active), Alerts & Tasks Page, Email Digest Tab, Farm Selector (Farm: Main Farm), Alert Records Table (columns: Severity, Type, Message, Farm/House/Flock, Triggered, Status, Action), Rules Tab (alert rule configuration), Sidebar Navigation (Dashboard, Daily Entry, Flocks, Egg Lots, Egg Inventory, Sales, Feed & Inventory, Health, Alerts [active], Reports, Settings) (+5 more)
 
-### Community 149 - "Health & Welfare Screen"
+### Community 149 - "Wireframes Health Welfare"
 Cohesion: 0.23
 Nodes (13): Cluckwork App, Event Severity, Farm Context Selector, Flock, Follow-up, Health Event, Health & Welfare Screen, Lab Tests (+5 more)
 
-### Community 150 - "IClock"
+### Community 150 - "Application Common Iclock"
 Cohesion: 0.19
 Nodes (9): IClock, DateOnly, DateTime, SystemClock, DateOnly, DateTime, FrozenClock, DateOnly (+1 more)
 
-### Community 151 - ".ListExpenses"
-Cohesion: 0.31
-Nodes (8): DateOnly, IExpenseCategoryRepository, IExpenseRepository, CancellationToken, DateOnly, Guid, IReadOnlyList, Task
+### Community 151 - "Application Features Expenses"
+Cohesion: 0.36
+Nodes (7): IExpenseCategoryRepository, IExpenseRepository, CancellationToken, DateOnly, Guid, IReadOnlyList, Task
 
-### Community 152 - ".ConfigureWebHost"
-Cohesion: 0.09
-Nodes (15): ClientErrorReportFactory, CollectingSink, int, IWebHostBuilder, IWebHostBuilder, RateLimitFactory, int, IWebHostBuilder (+7 more)
+### Community 152 - "Infrastructure Repositories Farmlogorepository"
+Cohesion: 0.28
+Nodes (6): FarmLogo, DateTimeOffset, Guid, FarmLogoRepository, CancellationToken, Task
 
-### Community 153 - "FarmLocalRestrictionTests"
+### Community 153 - "Api Integrationtests Farmlocalrestrictiontests"
 Cohesion: 0.24
 Nodes (9): FarmLocalRestrictionTests, FrozenClock, StockRow, DateOnly, DateTime, Fact, HttpClient, string (+1 more)
 
-### Community 154 - "ExportPage.test.tsx"
+### Community 154 - "Routes Exportpage Test"
 Cohesion: 0.26
 Nodes (9): downloadExportCsv(), downloadFullBackup(), EXPORT_DATASETS, errText(), ExportPage(), saveBlob(), anchorClicks, mockBackup (+1 more)
 
-### Community 155 - ".CheckHealthAsync"
+### Community 155 - "Api Healthchecks Databasereadyhealthcheck"
 Cohesion: 0.18
 Nodes (9): Cluckwork.Api.HealthChecks, IHealthCheck, DatabaseReadyHealthCheck, CancellationToken, HealthCheckContext, HealthCheckResult, Task, DurableJobWorkerHealthCheck (+1 more)
 
-### Community 156 - "Cluckwork.Api.Security"
-Cohesion: 0.33
-Nodes (4): Cluckwork.Api.Security, SecurityHeaders, IApplicationBuilder, string
+### Community 156 - "Api Integrationtests Clienterrorreporttests"
+Cohesion: 0.15
+Nodes (8): Cluckwork.Api.Security, SecurityHeaders, IApplicationBuilder, string, ClientErrorReportFactory, CollectingSink, int, IWebHostBuilder
 
-### Community 157 - "Egg Lot"
+### Community 157 - "Wireframes Egg Lots"
 Cohesion: 0.24
 Nodes (12): Egg Inventory, Egg Lot, Egg Lots / Traceability Page, Egg Lots Wireframe, FIFO Lot Consumption, Lot Filter Bar, Flock, Egg Lot KPI Stat Cards (+4 more)
 
-### Community 158 - "Flock Setup Screen"
+### Community 158 - "Wireframes Flock Setup"
 Cohesion: 0.26
 Nodes (12): Bird Ledger, Create Placement Movement Action, Dates & Counts Panel (Placement date, Starting birds, Expected lay date, Expected harvest date), Flock (Domain Entity), Flock Purpose Taxonomy (layer, pullet, broiler, breeder, mixed-purpose), Flock Setup Screen, Identity Panel (Flock name, Species, Breed/strain, Source supplier), Production Panel (Purpose, Model, Sex, Stage, Validity check) (+4 more)
 
-### Community 159 - "Flock List Table (Flock, House, Breed, Age, Live Birds, Stage, HD %, Withdrawal, Status)"
+### Community 159 - "Wireframes Flocks Flock"
 Cohesion: 0.21
 Nodes (12): Alerts Badge, Farm Context Selector, Flock Filter Toolbar (Search, Filter: Active, Filter: Stage, + New Flock), Flock List Table (Flock, House, Breed, Age, Live Birds, Stage, HD %, Withdrawal, Status), Flock Stage (Growing / Laying), Flocks Screen Wireframe, Hen-Day Percentage (HD %), Layer Batch (+4 more)
 
-### Community 160 - "DemoSeedTests"
-Cohesion: 0.21
+### Community 160 - "Api Integrationtests Demoseedtests"
+Cohesion: 0.18
 Nodes (9): Program, DemoSeedTests, FlockDto, OrderDto, StockDto, TokenDto, Fact, Task (+1 more)
 
-### Community 161 - "#149 — Per-farm curated accent palettes (API + SPA)"
-Cohesion: 0.08
-Nodes (23): #149 — Per-farm curated accent palettes (API + SPA), 422 with a stable code, for free, API, Applying it, Audit, `brand.ts`, mirroring `theme.ts`, Clear the cache on logout, Docs (+15 more)
+### Community 161 - "Application Features Egglots"
+Cohesion: 0.42
+Nodes (7): IEggLotRepository, StockByGrade, CancellationToken, DateOnly, Guid, IReadOnlyList, Task
 
-### Community 162 - "Deploy: Railway + Cloudflare"
-Cohesion: 0.09
-Nodes (21): 1a. Link the repo, 1b. Configure the app service, 1c. Add Postgres, 1d. Verify, 2a. Point your domain to Cloudflare, 2b. DNS record, 2c. TLS mode, 2d. Update Railway env vars (+13 more)
+### Community 162 - "Infrastructure Persistence Configurations"
+Cohesion: 0.23
+Nodes (6): FeedUsageConfiguration, InventoryItemConfiguration, InventoryLotConfiguration, InventoryMovementConfiguration, WaterUsageConfiguration, EntityTypeBuilder
 
-### Community 164 - "lockfix.mjs classify"
+### Community 164 - "Superpowers 2026 07"
 Cohesion: 0.20
 Nodes (10): lockfix-apply.sh trusted applicator script, lockfix.mjs classify(), lockfix.mjs LOCK_FILES allowlist (7 paths), commit job — trusted push with GitHub App token, ConcurrencyStamp compare-and-swap on token consumption, Grace-window mint-on-retry idempotent refresh (#176), Leap-frog chain-extension hole + RevokedByGrace fix, Refresh-token reuse detection (family revoke on divergence) (+2 more)
 
-### Community 165 - "Task Breakdown (baseline scope)"
-Cohesion: 0.09
-Nodes (21): #243 Release-Rehearsal Harness — Capacity Baseline Implementation Plan (v2), Explicitly deferred (NOT this plan), File Structure, Forks (locked), Global Constraints, Review v1→v2 changelog (folded from the 4-lens plan review: architect + contrarian + codex + pi — unanimous "must change first"), Task 10 — First baseline run + honest report, Task 1 — `SimulationOptions` (separate root) + `Seed:Simulation` gate (+13 more)
+### Community 165 - "Application Features Users"
+Cohesion: 0.22
+Nodes (7): Cluckwork.Application.Features.Users.SetUserPassword, SetUserPasswordCommand, SetUserPasswordHandler, CancellationToken, Guid, Task, SetUserPasswordValidator
 
-### Community 166 - "Today's Core Loop"
+### Community 166 - "Wireframes Login Login"
 Cohesion: 0.31
 Nodes (11): Cluckwork, Daily Entry, Egg Lots, Forgot Password, Inventory Ledger, Login Form, Login Wireframe, Reports (+3 more)
 
-### Community 167 - "Reports Screen Wireframe"
+### Community 167 - "Wireframes Reports Bird"
 Cohesion: 0.25
 Nodes (11): Bird Ledger Report Panel, Broiler KPIs Card (FCR / ADG — marked Future), Egg Production Report Panel, Feed Usage Report Panel, Future Meat Reports Panel, Layer KPIs Card (Hen-day %, Eggs/dozen), Pullet KPIs Card (Weight readiness — marked Future), Reports Screen Wireframe (+3 more)
 
-### Community 168 - "Product-Type Allocator Dispatch"
+### Community 168 - "Wireframes Sales Allocation"
 Cohesion: 0.22
 Nodes (11): Product-Type Allocator Dispatch, Bird Ledger Allocator (Future Module, Disabled), Egg Lot Allocation, Meat Lot Allocator (Future Module, Disabled), v4 Product-Generic Sales, product_type_snapshot, Product Type Taxonomy (egg, live_bird, meat, service), Sale Confirmation (+3 more)
 
-### Community 169 - "Allocation Dispatch"
+### Community 169 - "Wireframes Sales Order"
 Cohesion: 0.25
 Nodes (11): Allocation Dispatch, Bird Ledger (Future Allocation Target), Egg Lots, Generic Sales Order Wireframe, Meat Lots (Future Allocation Target), Order Lifecycle Actions (Save Draft, Allocate, Confirm Sale), Order Panel (Customer, Order date, Status, Delivery method), Product Lines Panel (Product, Product type snapshot, Quantity, Unit, Unit price) (+3 more)
 
-### Community 170 - "Growth / Weight Records Screen"
+### Community 170 - "Wireframes Weight Records"
 Cohesion: 0.27
 Nodes (11): ADG KPI Card, Avg Weight KPI Card, Growth Notes Panel, Growth / Weight Records Screen, Recent Weight Records Panel, Sample Count KPI Card, Sidebar Navigation (Growth active), Target vs Actual Panel (+3 more)
 
-### Community 171 - "File Structure"
-Cohesion: 0.10
-Nodes (20): File Structure, Global Constraints, Per-Farm Accent Palettes (#149) Implementation Plan, Review record, Self-Review, Suggested PR split, Task 10: Apply the brand in the SPA shell, Task 11: Clear the palette on every session teardown (+12 more)
+### Community 171 - "Api Endpoints Stock"
+Cohesion: 0.31
+Nodes (7): StockEndpoints, CancellationToken, Guid, int, IResult, RouteGroupBuilder, Task
 
-### Community 172 - "IInventoryLotRepository"
+### Community 172 - "Application Features Inventory"
 Cohesion: 0.38
 Nodes (7): IInventoryLotRepository, CancellationToken, DateOnly, Dictionary, Guid, IReadOnlyList, Task
 
-### Community 173 - "HelpPage.test.tsx"
+### Community 173 - "Routes Helppage Test"
 Cohesion: 0.20
 Nodes (4): HelpPage(), IOEntry, MockIO, TOC
 
-### Community 174 - ".HandleAsync"
+### Community 174 - "Api Middleware Forbiddenproblemresulthandler"
 Cohesion: 0.20
 Nodes (8): AuthorizationMiddlewareResultHandler, AuthorizationPolicy, IAuthorizationMiddlewareResultHandler, PolicyAuthorizationResult, RequestDelegate, ForbiddenProblemResultHandler, HttpContext, Task
 
-### Community 175 - "Cluckwork.Domain.csproj"
+### Community 175 - "Domain"
 Cohesion: 0.22
 Nodes (7): net10.0, Microsoft.NET.Sdk, net10.0, Microsoft.NET.Test.Sdk (18.*), xunit (2.*), xunit.runner.visualstudio (3.*), Microsoft.NET.Sdk
 
-### Community 176 - ".SavingChangesAsync"
+### Community 176 - "Infrastructure Persistence Interceptors"
 Cohesion: 0.29
 Nodes (7): DbContext, DbContextEventData, InterceptionResult, SaveChangesInterceptor, TenantStampInterceptor, CancellationToken, ValueTask
 
-### Community 177 - "lockfix.mjs"
+### Community 177 - "Github Scripts Lockfix"
 Cohesion: 0.36
 Nodes (7): ALLOW, changedPaths(), classify(), EXIT, LOCK_FILES, main(), readStdin()
 
-### Community 178 - "OtlpExporterTests.cs"
+### Community 178 - "Api Integrationtests Otlpexportertests"
 Cohesion: 0.22
 Nodes (7): ICollectionFixture, IntegrationCollection, string, OtlpCollection, OtlpFactory, IWebHostBuilder, string
 
-### Community 179 - "FakeRemoteIpStartupFilter"
+### Community 179 - "Api Integrationtests Infrastructure"
 Cohesion: 0.20
 Nodes (7): IStartupFilter, FakeRemoteIpStartupFilter, Action, IApplicationBuilder, FakeRemoteIpStartupFilter, Action, IApplicationBuilder
 
-### Community 180 - "Cluckwork.Infrastructure.csproj"
+### Community 180 - "Infrastructure Infrastructure"
 Cohesion: 0.20
 Nodes (9): Microsoft.AspNetCore.Identity.EntityFrameworkCore (10.*), Microsoft.EntityFrameworkCore (10.*), Npgsql.EntityFrameworkCore.PostgreSQL (10.*), Serilog.Extensions.Logging (10.*), System.IdentityModel.Tokens.Jwt (8.*), net10.0, FluentValidation (12.*), Microsoft.EntityFrameworkCore.Design (10.*) (+1 more)
 
-### Community 181 - "Beak Treatment Screen Wireframe"
+### Community 181 - "Wireframes Beak Treatment"
 Cohesion: 0.29
 Nodes (10): Cluckwork App Shell, Details Panel, Flock, Follow-up Panel, Health Section, Procedure Panel, Save Procedure Action, Schedule Follow-up Action (+2 more)
 
-### Community 182 - "Modular Daily Entry Screen"
+### Community 182 - "Wireframes Daily Entry"
 Cohesion: 0.31
 Nodes (10): Add Health Event Action, Copy From Yesterday, Core Section (Date, Farm, House, Flock, Production model, Copy from yesterday), Draft / Submit Workflow, Egg Section (Large, Medium, Cracked, Dirty, Discarded), Modular Daily Entry Screen, Production Model (egg / meat / raising / breeding / mixed), Sidebar Navigation (Dashboard, Daily Entry, Flocks, Products, Sales, Egg Lots, Bird Ledger, Growth, Reports, Settings) (+2 more)
 
-### Community 183 - "Flock Detail Page"
+### Community 183 - "Wireframes Flock Detail"
 Cohesion: 0.29
 Nodes (10): Feed Cost per Dozen, Flock Detail Page, Hen-Day Production Rate, Flock KPI Cards, Production Curve Panel, Recent Events Panel, Sidebar Navigation, Flock Detail Tab Bar (+2 more)
 
-### Community 184 - "Product Catalog Table"
+### Community 184 - "Wireframes Products Product"
 Cohesion: 0.33
 Nodes (10): Allocation Source, Bird Ledger, Egg Lots, Mapped Grade, Meat Lots, Product Catalog Table, v4: Product-generic Sales, Product Types (egg, live_bird, meat, pullet) (+2 more)
 
-### Community 185 - ".WriteAsync"
+### Community 185 - "Api Endpoints Export"
 Cohesion: 0.24
 Nodes (5): CsvExport, CancellationToken, IEnumerable, Stream, Task
 
-### Community 186 - "Customer"
-Cohesion: 0.17
-Nodes (10): Customer, Guid, int, CustomerConfiguration, EntityTypeBuilder, CustomerRepository, CancellationToken, Guid (+2 more)
+### Community 186 - "Infrastructure Persistence Configurations"
+Cohesion: 0.27
+Nodes (5): CustomerConfiguration, SalesOrderAllocationConfiguration, SalesOrderConfiguration, SalesOrderItemConfiguration, EntityTypeBuilder
 
-### Community 187 - "Flock"
-Cohesion: 0.11
-Nodes (16): CreateFlockHandler, CancellationToken, Guid, Task, Flock, FlockStatus, DateOnly, Guid (+8 more)
+### Community 187 - "Infrastructure Repositories Flockrepository"
+Cohesion: 0.29
+Nodes (5): FlockRepository, CancellationToken, Guid, IReadOnlyList, Task
 
-### Community 188 - "BaselineSeedCurrencyTests"
+### Community 188 - "Api Integrationtests Baselineseedcurrencytests"
 Cohesion: 0.22
 Nodes (7): BaselineSeedCurrencyTests, BaselineSeedFactory, SettingsDto, TokenDto, Fact, IWebHostBuilder, Task
 
-### Community 189 - "FarmLogoOptionsTests"
+### Community 189 - "Api Integrationtests Farmlogooptionstests"
 Cohesion: 0.33
 Nodes (5): FarmLogoOptionsTests, Fact, InlineData, Theory, ValidateOptionsResult
 
-### Community 190 - "CreateFlockValidatorTests"
+### Community 190 - "Application Flocks"
 Cohesion: 0.49
 Nodes (4): CreateFlockValidatorTests, DateOnly, Fact, Task
 
-### Community 191 - "scripts"
+### Community 191 - "Package Scripts"
 Cohesion: 0.20
 Nodes (10): scripts, build, dev, i18n:scan, preview, test, test:coverage, test:watch (+2 more)
 
-### Community 192 - "verify-sw.mjs"
+### Community 192 - "Scripts Verify Sw"
 Cohesion: 0.22
 Nodes (8): apiish, denylist, extractDenylist(), failures, precached, readRegexAt(), sw, swPath
 
-### Community 193 - "AuthCookies"
+### Community 193 - "Api Endpoints Auth"
 Cohesion: 0.31
 Nodes (5): CookieOptions, AuthCookies, Action, HttpResponse, string
 
-### Community 194 - "Audit Log Screen"
+### Community 194 - "Wireframes Audit Log"
 Cohesion: 0.31
 Nodes (9): Audit Log Screen, Audit Record (change entry with actor, action, entity, reason, old/new values), Audit Log Export Action, Audit Log Filter Bar (Entity, User, Action, Date range, Export), Audit Records Table (Time, User, Action, Entity, Reason, Old Values, New Values), Settings Section (active nav item), Sidebar Navigation (Dashboard, Daily Entry, Flocks, Egg Lots, Egg Inventory, Sales, Feed & Inventory, Health, Alerts, Reports, Settings), Top Bar (Cluckwork, Farm: Main Farm, Alerts 5, User) (+1 more)
 
-### Community 195 - "Bird Ledger"
+### Community 195 - "Wireframes Bird Ledger"
 Cohesion: 0.31
 Nodes (9): Bird Ledger, Bird Movement Record, Cluckwork, Daily Entry, Flock, Harvest Record, Live Bird Ledger Screen (Wireframe), Running Bird Balance (+1 more)
 
-### Community 196 - "Egg Sales Allocation Wireframe"
+### Community 196 - "Wireframes Egg Allocation"
 Cohesion: 0.36
 Nodes (9): Allocation Summary Cards, Egg Lot Records Table, Egg Lot Restriction, Egg Lot Traceability, FIFO Allocation Method, Manual Allocation Override, Product-generic Sales (v4), Cluckwork Sidebar Navigation (+1 more)
 
-### Community 197 - "Feed & Inventory Screen"
+### Community 197 - "Wireframes Feed Inventory"
 Cohesion: 0.31
 Nodes (9): App Top Bar (Cluckwork brand, Farm selector, Alerts badge, User), Category Filter Tabs (Feed, Medication, Vaccines, Additives, Packaging, Movements), Expiry / Lot Tracking, Feed & Inventory Screen, Feed & Inventory Wireframe, General Inventory Ledger, Inventory Records Table (Item, Category, Qty, Unit, Lot, Expiry, Cost, Actions), Sidebar Navigation (Dashboard, Daily Entry, Flocks, Egg Lots, Egg Inventory, Sales, Feed & Inventory, Health, Alerts, Reports, Settings) (+1 more)
 
-### Community 198 - "Account / Farm Setup Screen"
+### Community 198 - "Wireframes Setup Account"
 Cohesion: 0.33
 Nodes (9): Account / Farm Setup Screen, Account Panel, Farm Panel, House & First Flock Panel, Invite Users Action, First-Run Onboarding Flow, Save Setup Action, Sidebar Navigation (+1 more)
 
-### Community 199 - ".AnyAsync"
+### Community 199 - "Application Features Accounts"
 Cohesion: 0.22
 Nodes (6): ICurrencyBoundRowProbe, CancellationToken, Task, CurrencyBoundRowProbe, CancellationToken, Task
 
-### Community 200 - "IInventoryItemRepository"
+### Community 200 - "Application Features Inventory"
 Cohesion: 0.47
 Nodes (5): IInventoryItemRepository, CancellationToken, Guid, IReadOnlyList, Task
 
-### Community 201 - "SeedAndFlockTests"
+### Community 201 - "Api Integrationtests Seedandflocktests"
 Cohesion: 0.33
 Nodes (5): FlockDto, IdDto, SeedAndFlockTests, Fact, Task
 
-### Community 202 - "DurableJobWorker"
+### Community 202 - "Infrastructure Jobs Durablejobworker"
 Cohesion: 0.46
 Nodes (5): BackgroundService, DurableJobWorker, CancellationToken, Task, TimeSpan
 
-### Community 203 - "Cluckwork.Api.IntegrationTests.csproj"
+### Community 203 - "Api Integrationtests"
 Cohesion: 0.25
 Nodes (7): Microsoft.AspNetCore.Mvc.Testing (10.*), Testcontainers.PostgreSql (4.*), net10.0, Microsoft.NET.Test.Sdk (18.*), xunit (2.*), xunit.runner.visualstudio (3.*), Microsoft.NET.Sdk
 
-### Community 204 - "Expenses Screen Wireframe"
+### Community 204 - "Wireframes Expenses Expense"
 Cohesion: 0.39
 Nodes (8): Cost Allocation Method, Expense Filter and Add Bar, Expense Records Table, Expenses Screen Wireframe, Feed Cost per Dozen Metric, Expense KPI Summary Cards, Receipt Attachment, Sidebar Navigation
 
-### Community 205 - "Inventory Reconciliation Wireframe"
+### Community 205 - "Wireframes Reconciliation Count"
 Cohesion: 0.39
 Nodes (8): Count Panel, Inventory Reconciliation Wireframe, Ledger Movement, Preview Movement Action, Required Reason Panel, Select Inventory Panel, Sidebar Navigation, Submit Reconciliation Action
 
-### Community 206 - "Users & Roles Settings Screen Wireframe"
+### Community 206 - "Wireframes Users Roles"
 Cohesion: 0.36
 Nodes (8): Farm Context Selector, Financial Access Permission Dimension, User Role Records Table, Role-Based Data Scoping (Farm/House/Flock), Global Sidebar Navigation (Settings Active), Users/Roles/Assignments/Permissions Tab Bar, Top Bar (Farm Selector, Alerts Badge, User Menu), Users & Roles Settings Screen Wireframe
 
-### Community 207 - "IRepository"
-Cohesion: 0.18
-Nodes (9): IRepository, CancellationToken, Task, IBirdMovementRepository, CancellationToken, Dictionary, Guid, IReadOnlyList (+1 more)
+### Community 207 - "Application Common Irepository"
+Cohesion: 0.32
+Nodes (3): IRepository, CancellationToken, Task
 
-### Community 208 - ".HandleAsync"
-Cohesion: 0.28
-Nodes (7): UpdateFarmSettingsRequest, IValidator, UpdateFarmSettingsCommand, UpdateFarmSettingsHandler, CancellationToken, Result, Task
+### Community 208 - "Application Features Accounts"
+Cohesion: 0.50
+Nodes (4): UpdateFarmSettingsHandler, CancellationToken, Result, Task
 
-### Community 209 - "SeedCommandTests"
-Cohesion: 0.18
-Nodes (11): SeedCommandFixture, SeedCommandTests, ExitCode, Fact, IWebHostBuilder, Process, Stderr, Stdout (+3 more)
+### Community 209 - "Infrastructure Identity Refreshtoken"
+Cohesion: 0.36
+Nodes (5): RefreshToken, RefreshTokenConfiguration, DateTimeOffset, EntityTypeBuilder, Guid
 
-### Community 210 - "DurableJobWorker.cs"
+### Community 210 - "Infrastructure Jobs Durablejobworker"
 Cohesion: 0.29
 Nodes (6): DurableJob, DurableJobModelBuilderExtensions, DurableJobStatus, DateTimeOffset, Guid, ModelBuilder
 
-### Community 211 - "IdempotencyReplayTests"
+### Community 211 - "Api Integrationtests Idempotencyreplaytests"
 Cohesion: 0.39
 Nodes (4): IdempotencyReplayTests, Fact, Guid, Task
 
-### Community 212 - "Lock File Noise Finding"
-Cohesion: 0.24
-Nodes (10): CI Security Gates (#146), Dependabot Configuration, Dependabot Lock-File Healing Workflow, Dependency Submission Workflow, NuGet Lock Files Convention, Project reference chain Domain<-Application<-Infrastructure<-Api<-tests, Lock File Noise Finding, Cluckwork.Api.csproj (+2 more)
+### Community 212 - "Dependency Submission Workflow"
+Cohesion: 0.38
+Nodes (7): Dependency Submission Workflow, NuGet Lock Files Convention, Project reference chain Domain<-Application<-Infrastructure<-Api<-tests, Lock File Noise Finding, Cluckwork.Api.csproj, net10.0 Dependency Group (Api lock), net10.0 Dependency Group (Api.IntegrationTests lock)
 
-### Community 213 - "FarmLogoOptions"
+### Community 213 - "Api Configuration Farmlogooptions"
 Cohesion: 0.38
 Nodes (5): IValidateOptions, FarmLogoOptions, FarmLogoOptionsValidator, string, ValidateOptionsResult
 
-### Community 214 - "Daily Entry (states, uniqueness, modular sections)"
+### Community 214 - "Glossary Daily Entry"
 Cohesion: 0.29
 Nodes (7): Daily Entry Lifecycle (#69), Daily Entry (states, uniqueness, modular sections), Write Idempotency Rule, Background Jobs (PeriodicTimer + durable jobs table), Offline Conflict Resolution (state-machine keyed), Application-Layer Mutation Queue (outbox sync), Offline for Data Capture Only (KD-4)
 
-### Community 215 - "Daily Entry Stepper"
+### Community 215 - "Wireframes Mobile Daily"
 Cohesion: 0.52
 Nodes (7): Copy From Yesterday, Daily Entry Stepper, Draft/Submit Workflow, Egg Grade Entry, Feed/Water Usage Entry, Mobile Daily Entry Wireframe, Quick Entry Form
 
-### Community 216 - "Settings Page Wireframe"
+### Community 216 - "Wireframes Settings Settings"
 Cohesion: 0.43
 Nodes (7): Backups Panel, Daily Entry Locks Panel, Defaults Panel, Global Top Bar, Settings Page Wireframe, Settings Tab Bar, Sidebar Navigation
 
-### Community 217 - "Water & Additives Wireframe"
+### Community 217 - "Wireframes Water Additives"
 Cohesion: 0.48
 Nodes (7): Additive Application Panel, Hydration KPIs Panel, Recent Additives Panel, App Sidebar Navigation, Water & Additives Wireframe, Water Trend Chart, Water Usage Panel
 
-### Community 218 - ".RunAsync"
+### Community 218 - "Infrastructure Jobs Dailyentrylocksweep"
 Cohesion: 0.43
 Nodes (5): DailyEntryLockSweep, CancellationToken, Guid, int, Task
 
-### Community 219 - "IdempotencyRecord"
+### Community 219 - "Infrastructure Persistence Idempotencyrecord"
 Cohesion: 0.29
 Nodes (5): IdempotencyModelBuilderExtensions, IdempotencyRecord, DateTimeOffset, Guid, ModelBuilder
 
-### Community 220 - "IUnitOfWork"
-Cohesion: 0.32
-Nodes (5): IUnitOfWork, UnitOfWork, CancellationToken, Func, Task
+### Community 220 - "Infrastructure Persistence Unitofwork"
+Cohesion: 0.38
+Nodes (4): UnitOfWork, CancellationToken, Func, Task
 
-### Community 221 - "FarmClock"
+### Community 221 - "Infrastructure Time Farmclock"
 Cohesion: 0.43
 Nodes (5): FarmClock, CancellationToken, DateOnly, string, Task
 
-### Community 222 - "IdempotencyUserScopeTests.cs"
+### Community 222 - "Api Integrationtests Idempotencyuserscopetests"
 Cohesion: 0.38
 Nodes (4): IdempotencyUserScopeTests, MeRow, Fact, Task
 
-### Community 223 - "package.json"
+### Community 223 - "Package"
 Cohesion: 0.29
 Nodes (6): name, overrides, brace-expansion, private, type, version
 
-### Community 224 - "Dependabot lockfix workflow (workflow_run auto-heal)"
+### Community 224 - "Workflows Dependabot Lockfix"
 Cohesion: 0.40
 Nodes (6): compute job — credential-free lock regeneration, Dependabot lockfix workflow (workflow_run auto-heal), Provenance gate (Dependabot-only job-level if), Dependabot lockfix implementation plan (#203), Privilege separation: restore and write credential never coexist, Dependabot lockfix security design (#203)
 
-### Community 225 - "AuthPolicies"
+### Community 225 - "Api Authpolicies"
 Cohesion: 0.40
 Nodes (4): AuthorizationOptions, ClaimsPrincipal, AuthPolicies, string
 
-### Community 226 - "SetLanguageValidator"
+### Community 226 - "Application Features Users"
 Cohesion: 0.40
 Nodes (3): GeneratedRegex, Regex, SetLanguageValidator
 
-### Community 227 - "DurableJobWorkerHeartbeat"
-Cohesion: 0.50
-Nodes (3): DurableJobWorkerHeartbeat, DateTimeOffset, long
+### Community 227 - "Infrastructure Jobs Durablejobworkerheartbeat"
+Cohesion: 0.40
+Nodes (3): long, DurableJobWorkerHeartbeat, DateTimeOffset
 
-### Community 228 - "Cluckwork.Application.csproj"
+### Community 228 - "Application Application"
 Cohesion: 0.33
 Nodes (5): Microsoft.Extensions.Logging.Abstractions (10.*), Riok.Mapperly (4.*), net10.0, FluentValidation (12.*), Microsoft.NET.Sdk
 
-### Community 229 - "Egg-Lot Allocation Concurrency Rule"
+### Community 229 - "Glossary Fifo Allocation"
 Cohesion: 0.33
 Nodes (6): FIFO Allocation, Egg-Lot Allocation Concurrency Rule, Sales Order Item Egg Allocations, Egg Lot, Medication Withdrawal Restriction, Sale-Confirmation Transaction (pessimistic lock)
 
-### Community 230 - "Meat Lot"
+### Community 230 - "Wireframes Future Meat"
 Cohesion: 0.60
 Nodes (6): Egg Lots, Future Meat Module, Harvest Record, Meat Lot, Product-Generic Sales (v4), Sales Allocation
 
-### Community 231 - "FarmBrands"
+### Community 231 - "Domain Accounts Farmbrands"
 Cohesion: 0.33
 Nodes (4): FarmBrands, int, IReadOnlyList, string
 
-### Community 233 - "TenantIsolationTests.cs"
+### Community 233 - "Api Integrationtests Tenantisolationtests"
 Cohesion: 0.47
 Nodes (3): TenantIsolationTests, Fact, Task
 
-### Community 234 - "Cluckwork.Application.Tests.csproj"
+### Community 234 - "Application"
 Cohesion: 0.33
 Nodes (5): net10.0, Microsoft.NET.Test.Sdk (18.*), xunit (2.*), xunit.runner.visualstudio (3.*), Microsoft.NET.Sdk
 
-### Community 235 - "KD-6 Generated Client Drift Finding"
-Cohesion: 0.33
-Nodes (7): Documentation-in-Sync Directive, Phase 1.0 MVP (Shipped), Phase 1.1 (Current Phase), KD-6 Generated Client Drift Finding, Product Glossary (GLOSSARY.md), OpenAPI-Generated Typed Client (KD-6), Cluckwork Web SPA README
+### Community 235 - "In Sync Directive"
+Cohesion: 0.50
+Nodes (5): Documentation-in-Sync Directive, KD-6 Generated Client Drift Finding, Product Glossary (GLOSSARY.md), OpenAPI-Generated Typed Client (KD-6), Cluckwork Web SPA README
 
-### Community 236 - "app service (API + SPA bundle)"
+### Community 236 - "Compose App Service"
 Cohesion: 0.40
 Nodes (5): app service (API + SPA bundle), prod Postgres service, traefik reverse-proxy service (prod profile), Traefik dynamic config directory, Single-container single-origin deployment (API serves SPA)
 
-### Community 237 - ".CheckHealthAsync"
-Cohesion: 0.22
-Nodes (6): CancellationToken, HealthCheckContext, HealthCheckResult, Task, DurableJobWorkerHealthCheckTests, HealthCheckContext
+### Community 237 - "Api Healthchecks Durablejobworkerhealthcheck"
+Cohesion: 0.40
+Nodes (4): CancellationToken, HealthCheckContext, HealthCheckResult, Task
 
-### Community 243 - "2. Results — relative/shape data only"
-Cohesion: 0.10
-Nodes (19): 1. Header, #243 Release-Rehearsal Sim Harness — Capacity Baseline Findings, 2.1 Capacity-phase latency shape (`phase:capacity` only; warmup discarded), 2.2 By persona (relative comparison, not absolute), 2.3 By flow (relative comparison, not absolute), 2.4 Request-rate mix, 2.5 Correctness signals (status codes / checks / unexpected_status), 2.6 Resource utilization trend (`docker stats`, app/db/otel-collector) (+11 more)
-
-### Community 244 - "i18n String Sweep Implementation Plan (revised after 5-lens plan review)"
-Cohesion: 0.11
-Nodes (18): Batch B0 — Foundation upgrade (PR 0, prerequisite for all others), Batch B1 — Shared chrome + primitive components (PR 1, base = B0), Batch B2 — Daily operations (PR 2, base = B1), Batch B3 — Inventory domain (PR 3, base = B1), Batch B4 — Finance & people (PR 4, base = B1), Batch B5 — Records & export (PR 5, base = B1), Batch B6 — Help page (2 PRs, base = main after B1), File Structure (+10 more)
-
-### Community 265 - "ApplicationRole"
+### Community 265 - "Infrastructure Identity Applicationrole"
 Cohesion: 0.50
 Nodes (3): IdentityRole, ApplicationRole, Guid
 
-### Community 266 - "ThrowingScopeFactory"
+### Community 266 - "Api Integrationtests Durablejobworkerresiliencetests"
 Cohesion: 0.50
 Nodes (3): IServiceScope, IServiceScopeFactory, ThrowingScopeFactory
 
-### Community 267 - "Farm Localization Settings"
+### Community 267 - "Glossary Farm Settings"
 Cohesion: 0.50
 Nodes (4): Farm Settings (#123), Operational Day (farm-local dates), Farm Localization Settings, Formatting Boundary (farm locale, not UI language)
 
-### Community 280 - "SimulationSeedCommandTests"
-Cohesion: 0.18
-Nodes (11): SimulationSeedCommandFixture, SimulationSeedCommandTests, ExitCode, Fact, IWebHostBuilder, Process, Stderr, Stdout (+3 more)
-
-### Community 288 - "#243 Release-Rehearsal Sim Harness"
-Cohesion: 0.12
-Nodes (16): #243 Release-Rehearsal Sim Harness, Baseline orchestrator (`run-baseline.sh`, #243 Task 9), Files, Load-bearing parameters, Local OTLP metrics sink, `monitor/docker-stats-sampler.sh`, `monitor/pg-snapshot.sh`, Monitoring (#243 Task 8) (+8 more)
-
-### Community 291 - "i18n Infrastructure (SPA foundation) Implementation Plan"
-Cohesion: 0.13
-Nodes (14): File Structure, Final: whole-branch review + PR, Global Constraints, i18n Infrastructure (SPA foundation) Implementation Plan, Self-Review, Task 1: react-i18next + typed English catalog + init, Task 2: `getMe` + `Me` type + `putMeLanguage` + `resolveLanguage`, Task 3: `SessionProvider` coordinated bootstrap + `MeContext` + `FarmProvider` seeding (+6 more)
-
-### Community 293 - "TestTimeProvider"
+### Community 293 - "Api Integrationtests Durablejobworkerresiliencetests"
 Cohesion: 0.67
 Nodes (3): TestTimeProvider, DateTimeOffset, TimeProvider
 
-### Community 294 - "Maskable App Icon"
+### Community 294 - "Icons Maskable Maskable"
 Cohesion: 0.67
 Nodes (4): Cluckwork Brand, Egg Glyph, Maskable App Icon, Maskable Safe Zone Constraint
 
-### Community 295 - "PWA Icon 192"
+### Community 295 - "Icon 192 Pwa"
 Cohesion: 0.67
 Nodes (4): Cluckwork Branding, Egg Motif, PWA Icon 192, PWA Manifest Integration
 
-### Community 296 - "Egg Logo Mark"
+### Community 296 - "Icon 192 Maskable"
 Cohesion: 0.50
 Nodes (4): Cluckwork Brand Identity, Egg Logo Mark, Maskable PWA Icon 192, PWA Maskable Safe Zone
 
-### Community 297 - "Maskable PWA Icon 512"
+### Community 297 - "Icon 512 Maskable"
 Cohesion: 0.50
 Nodes (4): Cluckwork Egg Brand Mark, Cluckwork Web App Manifest Icon Declaration, Maskable PWA Icon 512, PWA Maskable Icon Safe Zone
 
-### Community 298 - "verify skill: runtime E2E verification workflow"
+### Community 298 - "Skills Verify Skill"
 Cohesion: 0.67
 Nodes (3): API-level scenario seeding with bearer token + Idempotency-Key, verify skill: runtime E2E verification workflow, dev Postgres service (loopback :5432)
 
-### Community 300 - "SPA Auth Flow (memory token + cookie refresh)"
+### Community 300 - "Glossary Session Tokens"
 Cohesion: 0.67
 Nodes (3): Session Tokens (#145/#169/#176), ASP.NET Identity + JWT behind IIdentityProvider (KD-5), SPA Auth Flow (memory token + cookie refresh)
 
-### Community 301 - "Typed English Catalog (en.ts source of truth)"
+### Community 301 - "I18n Catalog Parity"
 Cohesion: 0.67
 Nodes (3): Catalog Parity Enforcement, Typed English Catalog (en.ts source of truth), i18n Key Naming (namespace:camelCaseKey)
 
@@ -1472,117 +1408,13 @@ Nodes (3): Catalog Parity Enforcement, Typed English Catalog (en.ts source of tr
 Cohesion: 0.67
 Nodes (3): Apple Touch Icon, Egg Motif Branding, iOS Home Screen Integration
 
-### Community 303 - "Cluckwork Brand"
+### Community 303 - "Public Favicon Brand"
 Cohesion: 1.00
 Nodes (3): Cluckwork Brand, Cluckwork Favicon, Egg Motif
 
-### Community 304 - "PWA Icon 512"
+### Community 304 - "Icon 512 Pwa"
 Cohesion: 0.67
 Nodes (3): Cluckwork Egg Branding Motif, PWA Icon 512, PWA Manifest Icon Integration
-
-### Community 311 - "ErrorBoundary.tsx"
-Cohesion: 0.15
-Nodes (5): ErrorBoundary, Props, Scope, State, inRouter()
-
-### Community 329 - "i18n Infrastructure (API half) Implementation Plan"
-Cohesion: 0.15
-Nodes (12): File Structure, Final: whole-branch review + PR, Global Constraints, i18n Infrastructure (API half) Implementation Plan, Self-Review, Task 1: `ApplicationUser.Language` column + config + migration, Task 2: `ValidationResponse` — additive `errorCodes` helper, Task 3: `GET /api/v1/me` (+4 more)
-
-### Community 330 - "RequestLoggingFactory"
-Cohesion: 0.20
-Nodes (9): ConcurrentQueue, ILogEventSink, CollectingSink, RequestLoggingCollection, RequestLoggingFactory, CollectingSink, IWebHostBuilder, LogEvent (+1 more)
-
-### Community 331 - "OtlpExporterTests"
-Cohesion: 0.32
-Nodes (4): OtlpExporterTests, Fact, Task, TimeSpan
-
-### Community 332 - ".HandleAsync"
-Cohesion: 0.24
-Nodes (5): AppError, Error, CancellationToken, Guid, Task
-
-### Community 333 - ".ListByUserAsync"
-Cohesion: 0.38
-Nodes (5): IUserRoleAssignmentRepository, CancellationToken, Guid, IReadOnlyList, Task
-
-### Community 334 - "BirdMovement"
-Cohesion: 0.31
-Nodes (7): BirdMovement, BirdMovementType, DateOnly, Guid, int, BirdMovementConfiguration, EntityTypeBuilder
-
-### Community 335 - "AppDbContextDesignTimeFactory.cs"
-Cohesion: 0.22
-Nodes (5): Cluckwork.Infrastructure.Providers.Postgres, Cluckwork.Infrastructure.Persistence.Interceptors, IDbProviderConfigurator, PostgresDbContextConfigurator, DbContextOptionsBuilder
-
-### Community 336 - ".RunToCompletionAsync"
-Cohesion: 0.22
-Nodes (7): SeedCommandRunner, ExitCode, Process, Stderr, Stdout, Task, TimeSpan
-
-### Community 337 - "StaticAssetCachingTests.cs"
-Cohesion: 0.29
-Nodes (4): Cluckwork.Api.Hosting, StaticAssetCaching, string, StaticFileResponseContext
-
-### Community 338 - "FakeOtlpCollector"
-Cohesion: 0.29
-Nodes (5): HttpListener, IDisposable, TaskCompletionSource, FakeOtlpCollector, ConcurrentDictionary
-
-### Community 339 - ".HandleAsync"
-Cohesion: 0.29
-Nodes (6): CreateCustomerRequest, IValidator, CreateCustomerHandler, CancellationToken, Guid, Task
-
-### Community 340 - "SalesOrderAllocation"
-Cohesion: 0.36
-Nodes (4): SalesOrderAllocation, DateTime, Guid, SalesOrderAllocationConfiguration
-
-### Community 341 - "SimulationSeedState"
-Cohesion: 0.25
-Nodes (6): SimulationSeedState, SimulationSeedStateModelBuilderExtensions, DateOnly, DateTimeOffset, Guid, ModelBuilder
-
-### Community 342 - "AuditEndpoints"
-Cohesion: 0.33
-Nodes (4): AuditEndpoints, AuditEventResponse, int, RouteGroupBuilder
-
-### Community 343 - ".ListPendingByOrderAsync"
-Cohesion: 0.47
-Nodes (4): CancellationToken, Guid, IReadOnlyList, Task
-
-### Community 344 - ".ListAsync"
-Cohesion: 0.33
-Nodes (5): CancellationToken, DateOnly, Guid, IReadOnlyList, Task
-
-### Community 345 - ".WriteAsync"
-Cohesion: 0.33
-Nodes (5): AuditWriter, CancellationToken, Guid, JsonSerializerOptions, Task
-
-### Community 346 - "FutureLotAllocationTests.cs"
-Cohesion: 0.33
-Nodes (4): FutureLotAllocationTests, StockRow, Fact, Task
-
-### Community 348 - "pg-snapshot.sh"
-Cohesion: 0.47
-Nodes (3): psql_(), pg-snapshot.sh script, usage()
-
-### Community 349 - "FarmClock.cs"
-Cohesion: 0.40
-Nodes (3): Cluckwork.Infrastructure.Time, InvalidOperationException, FarmTimeZoneException
-
-### Community 353 - "EggLotConcurrencyTests.cs"
-Cohesion: 0.40
-Nodes (3): EggLotConcurrencyTests, Fact, Task
-
-### Community 354 - "ErrorCodesContractTests.cs"
-Cohesion: 0.40
-Nodes (3): ErrorCodesContractTests, Fact, Task
-
-### Community 355 - "UserLanguageColumnTests.cs"
-Cohesion: 0.40
-Nodes (3): UserLanguageColumnTests, Fact, Task
-
-### Community 356 - "WithdrawalRestrictedLotTests.cs"
-Cohesion: 0.40
-Nodes (3): WithdrawalRestrictedLotTests, Fact, Task
-
-### Community 361 - "FrozenClock"
-Cohesion: 0.67
-Nodes (3): FrozenClock, DateOnly, DateTime
 
 ## Ambiguous Edges - Review These
 - `OpenAPI-Generated Typed Client (KD-6)` → `Cluckwork Web SPA README`  [AMBIGUOUS]
@@ -1603,9 +1435,9 @@ Nodes (3): FrozenClock, DateOnly, DateTime
   graphify-out/memory/query_20260729_075455_what_is_the_exact_relationship_between_the_spa_s_h.md · relation: conceptually_related_to
 
 ## Knowledge Gaps
-- **901 isolated node(s):** `lockfix-apply.sh script`, `EXIT`, `NOW`, `net10.0`, `Microsoft.AspNetCore.OpenApi (10.*)` (+896 more)
+- **716 isolated node(s):** `lockfix-apply.sh script`, `EXIT`, `NOW`, `net10.0`, `Microsoft.AspNetCore.OpenApi (10.*)` (+711 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **78 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **71 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_

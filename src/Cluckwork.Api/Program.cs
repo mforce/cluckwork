@@ -494,6 +494,20 @@ builder.Services.AddScoped<DatabaseSeeder>();
 if (!builder.Environment.IsProduction())
     builder.Services.AddScoped<DemoDataSeeder>();
 
+// --- #243 load-test simulation seeder: cast + minimal topology + 2nd
+// account + primary tz. #279: no longer boot-seeded and no longer
+// self-gated on Seed:Simulation — its only caller is the explicit
+// `seed --profile simulation` command below, same shape as DemoDataSeeder.
+// Registered only outside Production (defense-in-depth, mirrors
+// DemoDataSeeder immediately above): the primary guard is that `seed` is a
+// separate, explicitly-invoked command, but a Production process must ALSO
+// never be able to resolve SimulationDataSeeder even if someone mistakenly
+// ran `seed --profile simulation` against it.
+builder.Services.Configure<SimulationOptions>(
+    builder.Configuration.GetSection(SimulationOptions.SectionName));
+if (!builder.Environment.IsProduction())
+    builder.Services.AddScoped<SimulationDataSeeder>();
+
 // --- OpenAPI ---
 builder.Services.AddOpenApi();
 
@@ -534,7 +548,7 @@ if (args.Length > 0 && args[0] == "seed")
     // threw raw) before the guard below ever ran. Nothing under this switch
     // may write to the database — it only resolves services and picks which
     // seed delegate to run once validation has passed.
-    Func<Task<DemoSeedResult>>? runSeed;
+    Func<Task<SeedResult>>? runSeed;
     switch (profile)
     {
         case "demo":
@@ -553,13 +567,23 @@ if (args.Length > 0 && args[0] == "seed")
             runSeed = () => demoSeeder.SeedAsync();
             break;
         }
-        // NOTE: a `simulation` profile (SimulationDataSeeder, PR #279) is
-        // meant to slot in here as one more case, same shape as "demo": resolve
-        // + validate its seeder, assign runSeed, break — never migrate/seed
-        // inline in the case itself.
+        case "simulation":
+        {
+            // SimulationDataSeeder is registered only outside Production (see
+            // the DI registration above) — same GetService guard as demo.
+            var simSeeder = sp.GetService<SimulationDataSeeder>();
+            if (simSeeder is null)
+            {
+                await Console.Error.WriteLineAsync(
+                    "Simulation seeding is not available in Production (SimulationDataSeeder is not registered).");
+                return 1;
+            }
+            runSeed = () => simSeeder.SeedAsync();
+            break;
+        }
         default:
             await Console.Error.WriteLineAsync(
-                $"Unknown or missing --profile '{profile}'. Known: demo.");
+                $"Unknown or missing --profile '{profile}'. Known: demo, simulation.");
             return 1;
     }
 

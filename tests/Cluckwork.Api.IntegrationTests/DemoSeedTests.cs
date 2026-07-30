@@ -84,7 +84,7 @@ public sealed class DemoSeedTests(CluckworkWebApplicationFactory factory)
         {
             var result2 = await seedScope2.ServiceProvider.GetRequiredService<DemoDataSeeder>().SeedAsync();
             Assert.True(result2.IsSuccess, result2.Message);
-            Assert.Equal(DemoSeedStatus.AlreadySeeded, result2.Status);
+            Assert.Equal(SeedStatus.AlreadySeeded, result2.Status);
         }
         var login2 = await client2.PostAsJsonAsync("/api/v1/auth/login", new { email, password });
         login2.EnsureSuccessStatusCode();
@@ -124,7 +124,7 @@ public sealed class DemoSeedTests(CluckworkWebApplicationFactory factory)
         {
             var result = await seedScope.ServiceProvider.GetRequiredService<DemoDataSeeder>().SeedAsync();
             Assert.True(result.IsSuccess, result.Message);
-            Assert.Equal(DemoSeedStatus.Seeded, result.Status);
+            Assert.Equal(SeedStatus.Seeded, result.Status);
         }
 
         using (var postScope = host.Services.CreateScope())

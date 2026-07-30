@@ -41,6 +41,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, TenantContext 
     public DbSet<ProductEggGradeMapping> ProductEggGradeMappings => Set<ProductEggGradeMapping>();
     public DbSet<EggUnitConversion> EggUnitConversions => Set<EggUnitConversion>();
     public DbSet<IdempotencyRecord> IdempotencyRecords => Set<IdempotencyRecord>();
+    public DbSet<SimulationSeedState> SimulationSeedStates => Set<SimulationSeedState>();
     public DbSet<DurableJob> DurableJobs => Set<DurableJob>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<UserRoleAssignment> UserRoleAssignments => Set<UserRoleAssignment>();
@@ -51,6 +52,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, TenantContext 
         base.OnModelCreating(builder);
         builder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
         builder.ConfigureIdempotency();
+        builder.ConfigureSimulationSeedState();
         builder.ConfigureDurableJobs();
 
         // Global query filters enforce tenant isolation on every read (tech spec §4.2).
@@ -82,5 +84,11 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, TenantContext 
         builder.Entity<EggUnitConversion>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
         builder.Entity<UserRoleAssignment>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
         builder.Entity<FarmLogo>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
+        // #279 review (codex): SimulationSeedState is keyed by AccountId, so it
+        // gets the same tenant filter as every other AccountId-bearing entity
+        // (AGENTS.md §Multi-tenancy). The seeder always resolves the tenant
+        // before touching the row, so the filter is free defense-in-depth; the
+        // TenantStampInterceptor leaves the explicit non-empty AccountId alone.
+        builder.Entity<SimulationSeedState>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
     }
 }

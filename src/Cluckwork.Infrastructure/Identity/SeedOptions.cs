@@ -22,4 +22,11 @@ public sealed class SeedOptions
     // flocks/entries/customers/orders through the real domain path. Default
     // false — production can never accidentally get fake data.
     public bool Demo { get; init; }
+
+    // #243/#279: there is deliberately NO Simulation gate here. The simulation
+    // seeder is invoked ONLY by the explicit `seed --profile simulation`
+    // command (Program.cs), which is itself the gate (plus the Production
+    // DI-registration guard there) — same shape as demo. Its data-shape config
+    // lives separately in SimulationOptions (bound from its own "Simulation"
+    // section).
 }

@@ -1,0 +1,170 @@
+#!/usr/bin/env bash
+#
+# tools/simulation/reset.sh — destroy and rebuild the #243 sim stack from
+# scratch, then verify it booted, migrated, seeded, and is safely reachable.
+#
+# #279: simulation seeding is no longer a boot-time side effect — the
+# serving `app` container only base-seeds (Seed:AdminEmail/Seed:AdminPassword,
+# DatabaseSeeder) on boot and stays Production the whole time. Once it's up
+# and healthy, this script runs `seed --profile simulation` as an explicit
+# ONE-SHOT `docker compose run` against a non-Production environment (the
+# Program.cs prod-guard refuses the command in Production) — same command an
+# operator would type by hand, mirroring `seed --profile demo` (#280).
+#
+# HARD SAFETY RULE: every docker command below runs under the dedicated
+# `cluckwork-sim` compose project. Before anything destructive, the project
+# name that will actually be used is asserted to equal `cluckwork-sim` and
+# the script ABORTS otherwise — the real dev stack
+# (deploy/docker-compose.yml) owns a named Postgres volume under the DEFAULT
+# compose project, and a `down -v` under any other project risks deleting
+# the wrong volume, including the developer's real local database. Never run
+# a bare `docker compose down -v` against this stack.
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ENV_FILE="$SCRIPT_DIR/.env.sim"
+COMPOSE_FILE="$SCRIPT_DIR/docker-compose.sim.yml"
+OUT_DIR="$SCRIPT_DIR/out"
+MANIFEST_FILE="$OUT_DIR/manifest.json"
+APP_PORT=8081
+READY_TIMEOUT_SECONDS=300
+
+if [[ ! -f "$ENV_FILE" ]]; then
+  echo "tools/simulation/.env.sim not found — run bootstrap.sh first." >&2
+  exit 1
+fi
+
+# --- HARD SAFETY GATE (must run before ANY docker command) -----------------
+# .env.sim itself sets COMPOSE_PROJECT_NAME=cluckwork-sim, but an operator's
+# shell can still override it — so this checks the value that will actually
+# be used (the shell env wins over anything in the --env-file), not just
+# what the file says.
+COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-cluckwork-sim}"
+if [[ "$COMPOSE_PROJECT_NAME" != "cluckwork-sim" ]]; then
+  echo "ABORT: resolved compose project is '${COMPOSE_PROJECT_NAME}', not 'cluckwork-sim'." >&2
+  echo "Refusing to continue — this script's 'down -v' must never run against any" >&2
+  echo "project other than the dedicated cluckwork-sim one. The real dev stack" >&2
+  echo "(deploy/docker-compose.yml) owns a named Postgres volume under the DEFAULT" >&2
+  echo "project; running this under the wrong project risks deleting the wrong" >&2
+  echo "volume. Do not override COMPOSE_PROJECT_NAME for this script." >&2
+  exit 1
+fi
+echo "Compose project: ${COMPOSE_PROJECT_NAME} (safety gate passed)."
+
+compose() {
+  docker compose -p "$COMPOSE_PROJECT_NAME" --env-file "$ENV_FILE" -f "$COMPOSE_FILE" "$@"
+}
+
+read_env_value() {
+  local key="$1"
+  grep -E "^${key}=" "$ENV_FILE" | tail -n1 | cut -d'=' -f2-
+}
+
+echo "== Sim reset: project ${COMPOSE_PROJECT_NAME} =="
+
+echo "-- down -v (cluckwork-sim volumes only) --"
+compose down -v --remove-orphans
+
+echo "-- config -q (validate before build) --"
+compose config -q
+
+echo "-- up -d --build --"
+compose up -d --build
+
+# --- Wait for /health/ready (covers boot + migration + the base seed) -----
+echo "-- waiting up to ${READY_TIMEOUT_SECONDS}s for /health/ready --"
+deadline=$(($(date +%s) + READY_TIMEOUT_SECONDS))
+until curl -fsS -o /dev/null "http://127.0.0.1:${APP_PORT}/health/ready"; do
+  if (( $(date +%s) >= deadline )); then
+    echo "TIMEOUT waiting for /health/ready after ${READY_TIMEOUT_SECONDS}s." >&2
+    compose logs app --tail=200 >&2 || true
+    exit 1
+  fi
+  sleep 3
+done
+echo "/health/ready -> 200."
+
+# --- Preflight 1: plain HTTP root is 200, not a 307 HTTPS redirect ---------
+echo "-- preflight: GET / is 200 (no HTTPS redirect on plain HTTP) --"
+root_status="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${APP_PORT}/")"
+if [[ "$root_status" != "200" ]]; then
+  echo "FAILED: GET / returned ${root_status} (expected 200 — a 307 would mean an" >&2
+  echo "unwanted HTTPS redirect on plain HTTP)." >&2
+  exit 1
+fi
+echo "GET / -> 200."
+
+# --- Preflight 2: pg_stat_statements is preloaded and queryable ------------
+echo "-- preflight: pg_stat_statements --"
+PGDB="$(read_env_value POSTGRES_DB)"
+PGUSER="$(read_env_value POSTGRES_USER)"
+compose exec -T db psql -U "$PGUSER" -d "$PGDB" -v ON_ERROR_STOP=1 \
+  -c "CREATE EXTENSION IF NOT EXISTS pg_stat_statements;" \
+  -c "SELECT count(*) FROM pg_stat_statements;" >/dev/null
+echo "pg_stat_statements OK."
+
+# --- Simulation seed: explicit one-shot command (#279) ---------------------
+# The serving `app` container (started above) never boot-seeds simulation
+# data and stays Production throughout. `seed --profile simulation` runs
+# here as a SEPARATE, short-lived container via `compose run --rm` — it
+# inherits the `app` service's image, environment, and the `./out:/app/
+# sim-cast` volume (so the manifest lands on the host below), but with
+# ASPNETCORE_ENVIRONMENT overridden to Development just for this one-shot
+# process: Program.cs's prod guard refuses `seed --profile simulation` in
+# Production (verified separately — see README), so Production must never
+# be the environment this command runs under.
+echo "-- seed --profile simulation (one-shot, non-Production) --"
+if ! compose run --rm -e ASPNETCORE_ENVIRONMENT=Development app \
+    seed --profile simulation; then
+  echo "FAILED: 'seed --profile simulation' exited non-zero." >&2
+  exit 1
+fi
+echo "seed --profile simulation -> exit 0."
+
+# --- Preflight 3: seeder manifest is complete with the expected user count -
+echo "-- preflight: sim manifest (${MANIFEST_FILE}) --"
+if [[ ! -f "$MANIFEST_FILE" ]]; then
+  echo "FAILED: ${MANIFEST_FILE} does not exist (SimulationDataSeeder should have" >&2
+  echo "written it to Simulation__CredentialOutputPath, mounted at ./out on the host)." >&2
+  exit 1
+fi
+
+EXPECTED_USERS=$(( \
+  1 \
+  + $(read_env_value Simulation__Managers) \
+  + $(read_env_value Simulation__Sales) \
+  + $(read_env_value Simulation__Workers) \
+  + $(read_env_value Simulation__ReadOnly) \
+))
+
+MANIFEST_FILE="$MANIFEST_FILE" EXPECTED_USERS="$EXPECTED_USERS" python3 - <<'PY'
+import json
+import os
+import sys
+
+path = os.environ["MANIFEST_FILE"]
+expected_users = int(os.environ["EXPECTED_USERS"])
+
+with open(path) as f:
+    manifest = json.load(f)
+
+if manifest.get("complete") is not True:
+    print(f"FAILED: manifest 'complete' is {manifest.get('complete')!r}, expected True.", file=sys.stderr)
+    sys.exit(1)
+
+actual_users = manifest.get("counts", {}).get("usersTotal")
+if actual_users != expected_users:
+    print(
+        f"FAILED: manifest counts.usersTotal is {actual_users!r}, expected {expected_users}.",
+        file=sys.stderr,
+    )
+    sys.exit(1)
+
+print(f"manifest OK: complete=true, counts.usersTotal={actual_users}.")
+PY
+
+echo "== Sim reset complete: cluckwork-sim is up, migrated, seeded, and verified. =="
+echo "App:      http://127.0.0.1:${APP_PORT}/"
+echo "Manifest: ${MANIFEST_FILE}"
+echo "Cast:     $(dirname "$ENV_FILE")/.sim-cast.json"

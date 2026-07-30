@@ -1,0 +1,68 @@
+# tools/simulation/otel/collector.yaml — #243 Task 8 local OTLP metrics sink.
+#
+# Receives the sim `app` container's OTLP push (Program.cs enables export
+# only when Otlp:Endpoint is set — see docker-compose.sim.yml's `app`
+# service and .env.sim, both pointed at this collector by bootstrap.sh) and
+# makes the metrics that matter for #243's Fork A refinement inspectable
+# from the host WITHOUT touching prod config or app source:
+#
+#   - Npgsql connection-pool metrics (max pool 100 == stock Postgres
+#     max_connections 100, zero headroom) — pg_stat_activity alone can't see
+#     a request queued in the app waiting for a free pooled connection,
+#     only connections that already reached Postgres.
+#   - .NET runtime meters (GC, thread pool) and ASP.NET Core meters.
+#
+# Two exporters, deliberately no host volume on either:
+#   - prometheus: the primary, host-curlable sink (task 8 asks for this by
+#     preference) — published on loopback via docker-compose.sim.yml
+#     (127.0.0.1:8889).
+#   - debug: full per-datapoint detail on container stdout, read with
+#     `docker compose -p cluckwork-sim logs otel-collector`. No file
+#     exporter — tools/simulation/out/ is root-owned (the app container
+#     writes as root) and this sidesteps that entirely rather than fighting
+#     it.
+#
+# Sim-only: nothing here is referenced by deploy/ or app source.
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch: {}
+
+exporters:
+  prometheus:
+    endpoint: 0.0.0.0:8889
+    # Otherwise every metric collapses onto one target with resource
+    # attributes (service.name etc.) dropped — keep them as labels so a scrape
+    # is still attributable to the `app` service.
+    resource_to_telemetry_conversion:
+      enabled: true
+
+  debug:
+    verbosity: detailed
+
+service:
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [prometheus, debug]
+    # No traces pipeline consumer is required by task 8, but the app's OTLP
+    # exporter is configured for BOTH signals off the one Otlp:Endpoint
+    # (Program.cs) — omitting a traces pipeline here would leave the OTLP
+    # receiver's trace gRPC service unregistered and every span export call
+    # would fail loudly. debug-only keeps that path clean without adding a
+    # second inspectable sink nobody asked for.
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [debug]
+  telemetry:
+    logs:
+      level: info
