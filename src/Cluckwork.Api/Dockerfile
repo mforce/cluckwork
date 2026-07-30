@@ -35,8 +35,8 @@ RUN dotnet publish src/Cluckwork.Api/Cluckwork.Api.csproj -c Release -o /out --n
 # farm clock resolves IANA zones via TimeZoneInfo.FindSystemTimeZoneById for
 # every safety-sensitive local-day decision (daily-entry boundary, 7-day
 # auto-lock, FIFO availability) and FAILS CLOSED on an unresolvable zone. The
-# Debian aspnet:10.0 image below ships tzdata; do NOT switch to an Alpine/chiseled
-# base WITHOUT tzdata — that would break every farm's date logic at once.
+# Ubuntu 24.04 (Noble) aspnet:10.0 image below ships tzdata; do NOT switch to an
+# Alpine/chiseled base WITHOUT tzdata — that would break every farm's date logic at once.
 # Program.cs asserts a representative IANA id resolves at boot, so this regression
 # fails the container start loudly instead of silently.
 # Separately, do NOT set InvariantGlobalization=true: it does not break tz lookup

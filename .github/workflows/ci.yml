@@ -212,10 +212,14 @@ jobs:
       # HAS a fix (`ignore-unfixed: true`). That mirrors the #146 dependency-gate
       # philosophy: the actionable response to an advisory is "move to a fixed
       # version", so a base-OS CVE with no upstream fix yet can't be actioned by a
-      # bump and must not wedge every unrelated PR. Unfixed findings still print in
-      # the Trivy table for visibility; when a fix ships, Dependabot's `docker`
-      # ecosystem bumps the pinned base digest and this gate confirms it cleared.
-      # The action is pinned to a release tag (Dependabot keeps it current).
+      # bump and must not wedge every unrelated PR. `ignore-unfixed: true` drops
+      # those from the report entirely — the gate blocks only on FIXABLE
+      # HIGH/CRITICAL; when a fix ships, Dependabot's `docker` ecosystem bumps the
+      # pinned base digest and this gate confirms it cleared. Trivy's vuln DB is
+      # cached across runs (the action's `cache` default), the primary defence
+      # against the GHCR anonymous-pull TOOMANYREQUESTS that can transiently
+      # false-fail a PR; the GITHUB_TOKEN env (below) authenticates the pull on a
+      # cache miss. The action is pinned to a release tag (Dependabot keeps it current).
       - name: Scan image for HIGH/CRITICAL vulnerabilities
         uses: aquasecurity/trivy-action@v0.36.0
         with:
@@ -226,3 +230,9 @@ jobs:
           ignore-unfixed: true
           exit-code: "1"
           format: table
+        env:
+          # Trivy reads GITHUB_TOKEN to authenticate its vuln-DB pull from GHCR,
+          # lifting the anonymous rate limit that would otherwise TOOMANYREQUESTS
+          # a cache miss. (This action has no token INPUT for the DB — `github-pat`
+          # is SBOM-submission only — so it goes through the env, which Trivy reads.)
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
