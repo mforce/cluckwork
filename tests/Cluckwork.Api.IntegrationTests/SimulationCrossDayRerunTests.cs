@@ -12,16 +12,18 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
-// #279 review Fix 1 (codex, BLOCKER) — the regression test for cross-UTC-day
-// idempotency. The seeder writes date-relative natural keys (daily entries,
-// orders, inventory, recurring drips — all `today.AddDays(-n)`). If the anchor
-// were re-read from the wall clock on every run, a re-run after a UTC-midnight
-// rollover would write a fresh, date-shifted copy of every dated fixture beside
-// the old rows, and the exact-count manifest validation would then return
-// Failed rather than AlreadySeeded. This fixture injects a CONTROLLABLE clock so
-// the test can advance "today" by a calendar day between two seed runs and prove
-// the run converges (AlreadySeeded, unchanged fingerprint, no duplicate rows).
-public sealed class SimulationCrossDayFactory : CluckworkWebApplicationFactory, IAsyncLifetime
+// #279 review (codex, BLOCKER + re-check) — idempotency of the simulation seed
+// under a controllable clock. The seeder writes date-relative natural keys
+// (daily entries, orders, inventory, recurring drips — all `today.AddDays(-n)`),
+// and both its anchor AND its "already seeded?" signal live in a durable
+// SimulationSeedState row rather than being inferred from the fixture rows. This
+// factory injects an advanceable IClock (no auto-seed — each test drives its own
+// SeedAsync calls) so two isolated test classes can prove:
+//   - a re-run after a UTC-midnight rollover converges (AlreadySeeded, unchanged
+//     fingerprint, no shifted duplicate rows), reusing the durable anchor;
+//   - a run whose durable row has no completion marker (a crashed prior run)
+//     recovers THAT row's anchor and reports Seeded, not AlreadySeeded.
+public sealed class SimulationMutableClockFactory : CluckworkWebApplicationFactory, IAsyncLifetime
 {
     public const string TimeZoneId = "America/Chicago";
 
@@ -30,17 +32,16 @@ public sealed class SimulationCrossDayFactory : CluckworkWebApplicationFactory, 
     public const int HistoryDays = 12;
 
     // Runtime-generated — never a hardcoded credential (repo policy).
-    public string AdminEmail { get; } = $"sim-xday-admin-{Guid.NewGuid():N}@test.local";
+    public string AdminEmail { get; } = $"sim-mc-admin-{Guid.NewGuid():N}@test.local";
     public string AdminPassword { get; } = $"Aa1!{Guid.NewGuid():N}";
     public string CastPassword { get; } = $"Aa1!{Guid.NewGuid():N}";
 
     public string ManifestPath { get; } =
-        Path.Combine(Path.GetTempPath(), $"sim-xday-manifest-{Guid.NewGuid():N}.json");
+        Path.Combine(Path.GetTempPath(), $"sim-mc-manifest-{Guid.NewGuid():N}.json");
 
     // Fixed, in the past, so seeded dates never depend on the real wall clock —
-    // the test drives this between the two seed runs. Shared singleton (see the
-    // IClock override below), so a scope created after the test advances it reads
-    // the new value.
+    // each test sets this explicitly. Shared singleton (see the IClock override
+    // below), so a scope created after the test advances it reads the new value.
     public MutableClock Clock { get; } = new(new DateOnly(2026, 6, 15));
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -67,7 +68,7 @@ public sealed class SimulationCrossDayFactory : CluckworkWebApplicationFactory, 
 
     // NOTE: this factory doesn't override InitializeAsync (base init — start
     // Postgres, build host, run the base boot seed — is exactly what's wanted;
-    // the test drives the two simulation seed runs itself). But re-declaring
+    // each test drives the simulation seed runs itself). But re-declaring
     // IAsyncLifetime is still required so xUnit dispatches DisposeAsync to THIS
     // override (the base methods aren't virtual — a `new` method alone is
     // silently skipped when called through the IAsyncLifetime reference xUnit
@@ -87,9 +88,23 @@ public sealed class SimulationCrossDayFactory : CluckworkWebApplicationFactory, 
         }
     }
 
+    public async Task<SeedResult> SeedOnceAsync()
+    {
+        using var scope = Services.CreateScope();
+        return await scope.ServiceProvider.GetRequiredService<SimulationDataSeeder>().SeedAsync();
+    }
+
+    public async Task<SimulationManifest> ReadManifestAsync()
+    {
+        await using var stream = File.OpenRead(ManifestPath);
+        var manifest = await JsonSerializer.DeserializeAsync<SimulationManifest>(
+            stream, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        return manifest ?? throw new InvalidOperationException($"Failed to deserialize manifest at {ManifestPath}.");
+    }
+
     // Advanceable IClock. UtcNow is anchored at NOON so converting to a
     // west-of-UTC farm zone (America/Chicago) stays the SAME calendar day —
-    // keeping the test's own tz math deterministic rather than flaking on a
+    // keeping the tests' own tz math deterministic rather than flaking on a
     // midnight-UTC boundary.
     public sealed class MutableClock(DateOnly today) : IClock
     {
@@ -107,34 +122,45 @@ public sealed class SimulationCrossDayFactory : CluckworkWebApplicationFactory, 
     }
 }
 
-public sealed class SimulationCrossDayRerunTests(SimulationCrossDayFactory factory)
-    : IClassFixture<SimulationCrossDayFactory>
+public sealed class SimulationCrossDayRerunTests(SimulationMutableClockFactory factory)
+    : IClassFixture<SimulationMutableClockFactory>
 {
     [Fact]
     public async Task Rerun_AfterUtcDayRollover_ConvergesToAlreadySeeded_WithUnchangedFingerprintAndNoDuplicateRows()
     {
         // Day D — the genuine first run against the fresh, base-seeded database.
         factory.Clock.Today = new DateOnly(2026, 6, 15);
-        var first = await SeedOnceAsync();
+        var first = await factory.SeedOnceAsync();
         Assert.Equal(SeedStatus.Seeded, first.Status);
 
-        var firstManifest = await ReadManifestAsync(factory.ManifestPath);
+        var firstManifest = await factory.ReadManifestAsync();
         var afterFirst = await SnapshotAsync();
+
+        // The durable state row was written: anchor recorded == the manifest's
+        // anchor, and the completion marker is set once the manifest succeeded.
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var stateRow = await db.SimulationSeedStates.IgnoreQueryFilters()
+                .SingleAsync(s => s.AccountId == SeedDefaults.AccountId);
+            Assert.Equal(firstManifest.GeneratedAtAnchor, stateRow.Anchor);
+            Assert.NotNull(stateRow.CompletedAtUtc);
+        }
 
         // Advance the wall clock past UTC midnight — the exact scenario codex
         // flagged. A naive fresh-clock anchor would re-derive every dated key one
         // day later and write a second, shifted copy.
         factory.Clock.Today = new DateOnly(2026, 6, 16);
-        var second = await SeedOnceAsync();
+        var second = await factory.SeedOnceAsync();
 
         // Converges: AlreadySeeded (not Seeded, not Failed) and exit-0 semantics.
         Assert.Equal(SeedStatus.AlreadySeeded, second.Status);
         Assert.True(second.IsSuccess, second.Message);
 
-        var secondManifest = await ReadManifestAsync(factory.ManifestPath);
+        var secondManifest = await factory.ReadManifestAsync();
         var afterSecond = await SnapshotAsync();
 
-        // The anchor was RECOVERED from the day-D data, not re-read from the
+        // The anchor was reused from the durable row, not re-read from the
         // advanced clock — so the manifest's anchor, fingerprint, and counts are
         // all identical to day D's.
         Assert.True(secondManifest.Complete);
@@ -144,12 +170,6 @@ public sealed class SimulationCrossDayRerunTests(SimulationCrossDayFactory facto
 
         // And no shifted duplicates actually landed in the database.
         Assert.Equal(afterFirst, afterSecond);
-    }
-
-    private async Task<SeedResult> SeedOnceAsync()
-    {
-        using var scope = factory.Services.CreateScope();
-        return await scope.ServiceProvider.GetRequiredService<SimulationDataSeeder>().SeedAsync();
     }
 
     // Row counts for every date-relative fixture the anchor drives — a shifted
@@ -167,12 +187,51 @@ public sealed class SimulationCrossDayRerunTests(SimulationCrossDayFactory facto
             .CountAsync(o => o.AccountId == SeedDefaults.AccountId);
         return (accounts, dailyEntries, eggLots, salesOrders);
     }
+}
 
-    private static async Task<SimulationManifest> ReadManifestAsync(string path)
+// #279 review (codex re-check, findings #1 + #2) — the durable-anchor / durable
+// completion-marker guarantees, isolated on their own database (own factory
+// instance via IClassFixture).
+public sealed class SimulationDurableSeedStateTests(SimulationMutableClockFactory factory)
+    : IClassFixture<SimulationMutableClockFactory>
+{
+    [Fact]
+    public async Task PriorRunWithoutCompletionMarker_RecoversItsDurableAnchor_AndReportsSeeded()
     {
-        await using var stream = File.OpenRead(path);
-        var manifest = await JsonSerializer.DeserializeAsync<SimulationManifest>(
-            stream, new JsonSerializerOptions(JsonSerializerDefaults.Web));
-        return manifest ?? throw new InvalidOperationException($"Failed to deserialize manifest at {path}.");
+        // Simulate a first run that crashed AFTER persisting its anchor (the very
+        // first thing SeedAsync writes) but BEFORE the completion marker — no
+        // manifest was ever emitted. The anchor is deliberately in the PAST and
+        // 10 days off the clock's "today", so the assertions prove the seeder
+        // takes the anchor from the durable row, not the wall clock (and thus is
+        // immune to any foreign daily entry a load test wrote into the account —
+        // a max(entry-date) recovery would not be).
+        var crashedAnchor = new DateOnly(2026, 6, 10);
+        factory.Clock.Today = new DateOnly(2026, 6, 20);
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            db.SimulationSeedStates.Add(new SimulationSeedState
+            {
+                AccountId = SeedDefaults.AccountId,
+                Anchor = crashedAnchor,
+                CompletedAtUtc = null, // never completed
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var result = await factory.SeedOnceAsync();
+
+        // A prior run that never set the completion marker is NOT AlreadySeeded —
+        // this run finishes the fixture and reports Seeded.
+        Assert.Equal(SeedStatus.Seeded, result.Status);
+
+        // Seeded against the DURABLE anchor (2026-06-10), not the clock's "today"
+        // (2026-06-20).
+        var manifest = await factory.ReadManifestAsync();
+        Assert.Equal(crashedAnchor, manifest.GeneratedAtAnchor);
+
+        // The marker is now set, so a further run converges to AlreadySeeded.
+        var again = await factory.SeedOnceAsync();
+        Assert.Equal(SeedStatus.AlreadySeeded, again.Status);
     }
 }

@@ -41,6 +41,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, TenantContext 
     public DbSet<ProductEggGradeMapping> ProductEggGradeMappings => Set<ProductEggGradeMapping>();
     public DbSet<EggUnitConversion> EggUnitConversions => Set<EggUnitConversion>();
     public DbSet<IdempotencyRecord> IdempotencyRecords => Set<IdempotencyRecord>();
+    public DbSet<SimulationSeedState> SimulationSeedStates => Set<SimulationSeedState>();
     public DbSet<DurableJob> DurableJobs => Set<DurableJob>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<UserRoleAssignment> UserRoleAssignments => Set<UserRoleAssignment>();
@@ -51,6 +52,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, TenantContext 
         base.OnModelCreating(builder);
         builder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
         builder.ConfigureIdempotency();
+        builder.ConfigureSimulationSeedState();
         builder.ConfigureDurableJobs();
 
         // Global query filters enforce tenant isolation on every read (tech spec §4.2).

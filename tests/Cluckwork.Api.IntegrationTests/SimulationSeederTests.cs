@@ -229,7 +229,7 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
             var result = await secondScope.ServiceProvider.GetRequiredService<SimulationDataSeeder>().SeedAsync();
             Assert.True(result.IsSuccess, result.Message);
             // #279 review Fix 6: a rerun over the already-seeded fixture must
-            // report AlreadySeeded (the real completion probe), not Seeded.
+            // report AlreadySeeded (the durable completion marker), not Seeded.
             Assert.Equal(SeedStatus.AlreadySeeded, result.Status);
         }
 
@@ -327,7 +327,7 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
             var result = await secondScope.ServiceProvider.GetRequiredService<SimulationDataSeeder>().SeedAsync();
             Assert.True(result.IsSuccess, result.Message);
             // #279 review Fix 6: a rerun over the already-seeded fixture must
-            // report AlreadySeeded (the real completion probe), not Seeded.
+            // report AlreadySeeded (the durable completion marker), not Seeded.
             Assert.Equal(SeedStatus.AlreadySeeded, result.Status);
         }
 
@@ -458,7 +458,7 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
             var result = await secondScope.ServiceProvider.GetRequiredService<SimulationDataSeeder>().SeedAsync();
             Assert.True(result.IsSuccess, result.Message);
             // #279 review Fix 6: a rerun over the already-seeded fixture must
-            // report AlreadySeeded (the real completion probe), not Seeded.
+            // report AlreadySeeded (the durable completion marker), not Seeded.
             Assert.Equal(SeedStatus.AlreadySeeded, result.Status);
         }
 
@@ -604,7 +604,7 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
             var result = await secondScope.ServiceProvider.GetRequiredService<SimulationDataSeeder>().SeedAsync();
             Assert.True(result.IsSuccess, result.Message);
             // #279 review Fix 6: a rerun over the already-seeded fixture must
-            // report AlreadySeeded (the real completion probe), not Seeded.
+            // report AlreadySeeded (the durable completion marker), not Seeded.
             Assert.Equal(SeedStatus.AlreadySeeded, result.Status);
         }
 

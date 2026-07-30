@@ -200,27 +200,38 @@ public sealed class SimulationDataSeeder(
             // DemoDataSeeder).
             tenant.Resolve(accountId);
 
-            // #279 review Fix 1 (codex, BLOCKER): the "today" anchor is NOT
-            // re-read from the clock on a re-run — it is RECOVERED from the data
-            // the first run already wrote (see ResolveAnchorAsync). Every
-            // date-relative natural key below (daily entries, orders, inventory,
-            // recurring drips — all `today.AddDays(-n)`) therefore re-derives to
-            // the SAME dates, so a re-run after a UTC-midnight rollover converges
-            // on the existing rows instead of creating a fresh, shifted set next
-            // to them. Only a genuine first run falls back to clock.TodayUtc.
-            var today = await ResolveAnchorAsync(accountId, ct);
-
-            // #279 review Fix 2 (codex): the "already fully seeded" signal is a
-            // REAL completion probe (does the whole fixture already validate?),
-            // not the mere presence of SecondAccountId — that account is written
-            // BEFORE the lock sweep + manifest validation, so a first run that
-            // crashed in the manifest step would leave it behind and make a
-            // repair run falsely report AlreadySeeded. Computed BEFORE any
-            // seeding this run does, so it reflects the PRIOR run's state. See
-            // FixtureIsCompleteAsync for why it tolerates the Submitted/Locked
-            // split (the one wall-clock-dependent count) while every stable
-            // count must already match.
-            var wasComplete = await FixtureIsCompleteAsync(accountId, today, sim, ct);
+            // #279 review (codex re-check): the anchor AND the completion signal
+            // are a DURABLE row (SimulationSeedState), not inferred from fixture
+            // data or from SecondAccountId. Written BEFORE any dated fixture row,
+            // so the anchor survives (a) a UTC-midnight rollover, (b) foreign
+            // daily entries a load test writes into this account (which would
+            // poison a max(entry-date) recovery), and (c) a crash before the
+            // first entry exists. `today` is re-read from the row on every
+            // re-run, so every date-relative natural key re-derives identically
+            // and the fixture converges instead of growing a shifted copy. Only
+            // a genuine first run (no row yet) takes clock.TodayUtc.
+            var state = await db.SimulationSeedStates
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(s => s.AccountId == accountId, ct);
+            DateOnly today;
+            bool wasComplete;
+            if (state is null)
+            {
+                today = clock.TodayUtc;
+                state = new SimulationSeedState { AccountId = accountId, Anchor = today };
+                db.SimulationSeedStates.Add(state);
+                await db.SaveChangesAsync(ct); // persist the anchor BEFORE seeding
+                wasComplete = false;
+            }
+            else
+            {
+                today = state.Anchor;
+                // The completion marker (set only after a prior run's manifest
+                // succeeded) is the REAL "already fully seeded" signal — a run
+                // interrupted after writing fixtures but before the manifest
+                // left it null, so its retry is correctly reported as Seeded.
+                wasComplete = state.CompletedAtUtc is not null;
+            }
 
             var workerIds = await SeedCastAsync(accountId, sim, ct);
             var flockIds = await SeedFlockTopologyAsync(accountId, today, sim, ct);
@@ -249,6 +260,17 @@ public sealed class SimulationDataSeeder(
             // caught below, same as any other internal failure.
             var manifest = await EmitManifestAsync(accountId, today, sim, ct);
 
+            // Durable completion marker — set ONLY now that exact validation +
+            // manifest emission have succeeded. A first run that got this far is
+            // recorded complete; a later re-run reads CompletedAtUtc and reports
+            // AlreadySeeded. Not fingerprinted/validated, so the timestamp value
+            // is free to differ between runs.
+            if (state.CompletedAtUtc is null)
+            {
+                state.CompletedAtUtc = new DateTimeOffset(clock.UtcNow, TimeSpan.Zero);
+                await db.SaveChangesAsync(ct);
+            }
+
             var message = wasComplete
                 ? $"Simulation seed already present; converged (fingerprint {manifest.Fingerprint})."
                 : $"Simulation data seeded (fingerprint {manifest.Fingerprint}).";
@@ -269,45 +291,6 @@ public sealed class SimulationDataSeeder(
         }
     }
 
-    // #279 review Fix 1 (codex, BLOCKER): recover the seed's "today" anchor from
-    // the data a prior run already wrote, so every calendar-relative natural key
-    // re-derives identically on a re-run (even one straddling a UTC-midnight
-    // rollover) and the fixture converges instead of growing a second, shifted
-    // copy. SeedFlockHistoryAsync dates entries at `today.AddDays(-d)` for
-    // d = 1..EffectiveHistoryDays, so the most recent seeded entry is exactly
-    // `today - 1` and the original anchor is `max(entry date) + 1`. Queried with
-    // IgnoreQueryFilters + explicit AccountId because this can run before the
-    // completion probe reads anything else, and to be independent of the tenant
-    // filter's state. A genuine first run (no seeded entries) falls back to the
-    // clock — the ONE place the wall clock still feeds the anchor.
-    private async Task<DateOnly> ResolveAnchorAsync(Guid accountId, CancellationToken ct)
-    {
-        var latestEntryDate = await db.DailyEntries
-            .IgnoreQueryFilters()
-            .Where(e => e.AccountId == accountId)
-            .MaxAsync(e => (DateOnly?)e.Date, ct);
-
-        return latestEntryDate is { } maxDate ? maxDate.AddDays(1) : clock.TodayUtc;
-    }
-
-    // #279 review Fix 2 (codex): a REAL "a prior run already completed the whole
-    // fixture" probe, run BEFORE this run seeds anything. Only a prior run that
-    // reached EmitManifestAsync could have produced a state where every expected
-    // count already matches. Deliberately tolerant of the single
-    // wall-clock-dependent split — an entry ages from Submitted to Locked as
-    // real time passes even with the anchor reused, so exactly like
-    // ComputeFingerprint this probe checks (submitted+locked) COMBINED, not the
-    // per-state split (see CollectCountFailures). A partial/short prior run
-    // fails the probe and the run is (correctly) reported as Seeded, never
-    // AlreadySeeded.
-    private async Task<bool> FixtureIsCompleteAsync(
-        Guid accountId, DateOnly today, SimulationOptions sim, CancellationToken ct)
-    {
-        var (counts, states) = await ComputeCountsAsync(accountId, ct);
-        var farmToday = clock.TodayInZone(sim.TimeZoneId);
-        var expected = ComputeExpectedCounts(sim, today, farmToday);
-        return CollectCountFailures(counts, states, expected, exactDailyEntryLifecycle: false).Count == 0;
-    }
 
     // The three saleable grades SeedFlockHistoryAsync/SeedSalesAsync consume by
     // name (grades["Large"/"Medium"/"Small"]). The base DatabaseSeeder creates
@@ -1347,33 +1330,14 @@ public sealed class SimulationDataSeeder(
     // Pure, no DB access — a test can hand this a synthetic short
     // SimulationManifestCounts/SimulationLifecycleStates and assert it throws,
     // proving the fail-closed path without needing to sabotage a real seed run.
-    // The fail-closed gate: delegates to CollectCountFailures with the EXACT
-    // Draft/Submitted/Locked split (this runs AFTER the lock sweep) and throws
-    // on any shortfall, reporting the WHOLE shortfall at once.
+    // The fail-closed gate, run AFTER the lock sweep: asserts every count EXACTLY
+    // (including the Draft/Submitted/Locked split) and throws on any shortfall,
+    // collecting every mismatch so one failed run reports the WHOLE shortfall.
+    // (#279: the "already seeded?" question is answered by the durable
+    // SimulationSeedState.CompletedAtUtc marker, NOT by a tolerant count probe,
+    // so this method has a single exact mode again.)
     internal static void ValidateCounts(
         SimulationManifestCounts counts, SimulationLifecycleStates states, SimulationExpectedCounts expected)
-    {
-        var failures = CollectCountFailures(counts, states, expected, exactDailyEntryLifecycle: true);
-        if (failures.Count > 0)
-            throw new InvalidOperationException(
-                "Simulation seed completion check failed — the seed is short/partial and must NOT be " +
-                "marked complete: " + string.Join("; ", failures));
-    }
-
-    // #279 review: the shared count-checking core. The throwing ValidateCounts
-    // above (the fail-closed gate, run AFTER the lock sweep) passes
-    // exactDailyEntryLifecycle:true and asserts the Draft/Submitted/Locked split
-    // exactly. FixtureIsCompleteAsync (the pre-seed "already complete?" probe,
-    // run BEFORE this run's sweep) passes false and checks (submitted+locked)
-    // COMBINED instead: with the anchor reused every COUNT is stable across a
-    // UTC-day boundary, but an entry can age from Submitted to Locked as
-    // wall-clock time advances, so the exact split is not a stable completion
-    // signal (the same reason ComputeFingerprint excludes it). Draft is always
-    // exact — Draft entries never age (the sweep only ever touches Submitted).
-    // Collects every mismatch rather than throwing on the first.
-    private static List<string> CollectCountFailures(
-        SimulationManifestCounts counts, SimulationLifecycleStates states, SimulationExpectedCounts expected,
-        bool exactDailyEntryLifecycle)
     {
         var failures = new List<string>();
         void Check(bool ok, string message)
@@ -1395,25 +1359,12 @@ public sealed class SimulationDataSeeder(
         Check(counts.Flocks == expected.Flocks, $"flocks: expected {expected.Flocks}, got {counts.Flocks}");
         Check(counts.DailyEntriesTotal == expected.DailyEntriesTotal,
             $"dailyEntries.total: expected {expected.DailyEntriesTotal}, got {counts.DailyEntriesTotal}");
-        // Draft is always exact (stable — Draft entries never age). The
-        // Submitted/Locked split is exact only in the fail-closed gate; the
-        // completion probe checks their SUM (see this method's header).
         Check(states.DailyEntries.Draft == expected.DraftEntries,
             $"dailyEntries.draft: expected {expected.DraftEntries}, got {states.DailyEntries.Draft}");
-        if (exactDailyEntryLifecycle)
-        {
-            Check(states.DailyEntries.Submitted == expected.SubmittedEntries,
-                $"dailyEntries.submitted: expected {expected.SubmittedEntries}, got {states.DailyEntries.Submitted}");
-            Check(states.DailyEntries.Locked == expected.LockedEntries,
-                $"dailyEntries.locked: expected {expected.LockedEntries}, got {states.DailyEntries.Locked}");
-        }
-        else
-        {
-            var submittedOrLocked = states.DailyEntries.Submitted + states.DailyEntries.Locked;
-            var expectedSubmittedOrLocked = expected.SubmittedEntries + expected.LockedEntries;
-            Check(submittedOrLocked == expectedSubmittedOrLocked,
-                $"dailyEntries.submitted+locked: expected {expectedSubmittedOrLocked}, got {submittedOrLocked}");
-        }
+        Check(states.DailyEntries.Submitted == expected.SubmittedEntries,
+            $"dailyEntries.submitted: expected {expected.SubmittedEntries}, got {states.DailyEntries.Submitted}");
+        Check(states.DailyEntries.Locked == expected.LockedEntries,
+            $"dailyEntries.locked: expected {expected.LockedEntries}, got {states.DailyEntries.Locked}");
         var dailyEntriesSum = states.DailyEntries.Draft + states.DailyEntries.Submitted + states.DailyEntries.Locked;
         Check(dailyEntriesSum == counts.DailyEntriesTotal,
             $"dailyEntries reconciliation: draft+submitted+locked ({dailyEntriesSum}) != total ({counts.DailyEntriesTotal})");
@@ -1462,7 +1413,10 @@ public sealed class SimulationDataSeeder(
             $"expenseCategories: expected {expected.ExpenseCategories}, got {counts.ExpenseCategories}");
         Check(counts.Expenses == expected.Expenses, $"expenses: expected {expected.Expenses}, got {counts.Expenses}");
 
-        return failures;
+        if (failures.Count > 0)
+            throw new InvalidOperationException(
+                "Simulation seed completion check failed — the seed is short/partial and must NOT be " +
+                "marked complete: " + string.Join("; ", failures));
     }
 
     private static readonly JsonSerializerOptions FingerprintJsonOptions = new(JsonSerializerDefaults.Web);
