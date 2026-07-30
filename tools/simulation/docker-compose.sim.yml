@@ -113,7 +113,8 @@ services:
     # simulation` one-shot `docker compose run --rm app ...` reset.sh invokes
     # after this service is healthy (never by this long-running service on
     # boot) — `run` reuses this same volume mapping, so the file still lands
-    # here.
+    # here. #267: the image is non-root (uid 1654), which can't write this
+    # root-owned bind mount, so reset.sh runs that one-shot with `--user 0`.
     volumes:
       - ./out:/app/sim-cast
 
