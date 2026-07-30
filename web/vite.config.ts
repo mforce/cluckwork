@@ -104,6 +104,15 @@ export default defineConfig(({ mode }) => {
       setupFiles: ["./src/test/setup.ts"],
       globals: false,
       include: ["src/**/*.test.{ts,tsx}"],
+      // Node 25+ ships the WHATWG Web Storage API natively, so `localStorage`
+      // already exists on globalThis (as undefined unless node runs with
+      // --localstorage-file). Vitest's jsdom environment only bridges window
+      // globals that are NOT already present on globalThis, so under Node 25+
+      // every bare `localStorage` access in app or test code hits Node's
+      // undefined stub instead of jsdom's Storage and throws. Strip Node's
+      // webstorage from the test workers so jsdom's implementation is bridged
+      // exactly as on older Node.
+      execArgv: ["--no-experimental-webstorage"],
       // #121: coverage gate. The thresholds are a REGRESSION FLOOR near the
       // current numbers, not a target — the global floor is deliberately low
       // (the SPA still has ~14 untested screens) and ratchets up as each

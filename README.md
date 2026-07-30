@@ -30,7 +30,7 @@ cluckwork/
 
 ## Getting started
 
-Prerequisites: **.NET 10 SDK**, **Docker**, **Node 22+**.
+Prerequisites: **.NET 10 SDK**, **Docker**, **Node 26+**.
 
 ### Run the whole app (Docker)
 
