@@ -2,13 +2,22 @@ namespace Cluckwork.Api.IntegrationTests;
 
 using System.Net.Http.Headers;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
 
-// #58 — Seed:Demo sample data: seeds once through the real domain path on a
-// fresh catalog, no-ops on the second startup, and never runs when the flag
-// is off (the default for every other test in this collection — their hosts
-// have no Seed:* config at all).
+// #58 — Demo sample data: seeds once through the real domain path on a fresh
+// catalog, no-ops on the second call, and never runs when the flag is off
+// (the default for every other test in this collection — their hosts have no
+// Seed:* config at all).
+//
+// #280 — demo data no longer seeds on boot: the host still needs
+// Seed:Demo=true (DemoDataSeeder self-gates on it) but nothing invokes
+// SeedAsync() automatically anymore, so each host below calls it explicitly
+// once CreateClient has forced host startup (migrations + the base
+// DatabaseSeeder, which this depends on for the seeded account, still run on
+// boot unchanged).
 [Collection(IntegrationCollection.Name)]
 public sealed class DemoSeedTests(CluckworkWebApplicationFactory factory)
 {
@@ -33,9 +42,13 @@ public sealed class DemoSeedTests(CluckworkWebApplicationFactory factory)
         var email = $"demo-{Guid.NewGuid():N}@test.local";
         var password = $"Aa1!{Guid.NewGuid():N}";
 
-        // First startup seeds; CreateClient forces host initialization.
+        // First startup: CreateClient forces host initialization (migrations +
+        // base DatabaseSeeder run on boot, unchanged). Demo data itself no
+        // longer boot-seeds (#280) — call DemoDataSeeder directly.
         using var host = DemoHost(email, password);
         var client = host.CreateClient();
+        using (var seedScope = host.Services.CreateScope())
+            await seedScope.ServiceProvider.GetRequiredService<DemoDataSeeder>().SeedAsync();
         var login = await client.PostAsJsonAsync("/api/v1/auth/login", new { email, password });
         login.EnsureSuccessStatusCode();
         var token = (await login.Content.ReadFromJsonAsync<TokenDto>())!.AccessToken;
@@ -58,9 +71,12 @@ public sealed class DemoSeedTests(CluckworkWebApplicationFactory factory)
         var entries = await client.GetFromJsonAsync<List<object>>("/api/v1/daily-entries");
         Assert.True(entries!.Count >= 14, $"expected a week of entries, got {entries.Count}");
 
-        // Second startup on the same database: guard makes it a no-op.
+        // Second startup on the same database: the explicit SeedAsync call
+        // below is a no-op — DemoDataSeeder's own empty-catalog guard fires.
         using var second = DemoHost(email, password);
         var client2 = second.CreateClient();
+        using (var seedScope2 = second.Services.CreateScope())
+            await seedScope2.ServiceProvider.GetRequiredService<DemoDataSeeder>().SeedAsync();
         var login2 = await client2.PostAsJsonAsync("/api/v1/auth/login", new { email, password });
         login2.EnsureSuccessStatusCode();
         var token2 = (await login2.Content.ReadFromJsonAsync<TokenDto>())!.AccessToken;
