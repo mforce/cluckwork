@@ -18,11 +18,11 @@ public sealed class ProductionInsecureDbFactory : CluckworkWebApplicationFactory
     {
         base.ConfigureWebHost(builder);
         // Real Production env is what flips isProduction=true in Program.cs (the floor only
-        // enforces there). The base factory connects plaintext via Testcontainers.
+        // enforces there). The base factory connects plaintext via Testcontainers AND provides
+        // both Production boot-guard opt-outs (#262 AllowInsecureConnection, #260
+        // AllowNoTrustedProxies), so this host boots and the fixture migration runs. Case (a)
+        // below flips ONLY AllowInsecureConnection off to observe the #262 floor firing.
         builder.UseEnvironment("Production");
-        // The explicit opt-out lets THIS host boot over the plaintext container connection,
-        // so the fixture's schema migration can run; the throw case removes it below.
-        builder.UseSetting("Database:AllowInsecureConnection", "true");
     }
 }
 

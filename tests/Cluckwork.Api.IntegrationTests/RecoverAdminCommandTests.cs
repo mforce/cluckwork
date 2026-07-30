@@ -38,6 +38,9 @@ public sealed class RecoverAdminCommandTests : IClassFixture<BreakGlassRecoveryF
         psi.Environment["ASPNETCORE_ENVIRONMENT"] = environment;
         psi.Environment["ConnectionStrings__Default"] = _factory.ConnectionString;
         psi.Environment["Database__Provider"] = "Postgres";
+        // The Testcontainers DB is plaintext; opt out of the #262 Production TLS floor so
+        // recover-admin runs (it returns before the #260 serving guard, so only this is needed).
+        psi.Environment["Database__AllowInsecureConnection"] = "true";
         psi.Environment["Jwt__Issuer"] = "cluckwork-test";
         psi.Environment["Jwt__Audience"] = "cluckwork-api-test";
         psi.Environment["Jwt__PublicKeyPem"] = TestJwtKeys.PublicKeyPem;

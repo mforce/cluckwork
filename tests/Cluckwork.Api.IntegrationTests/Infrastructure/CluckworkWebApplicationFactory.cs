@@ -61,6 +61,15 @@ public class CluckworkWebApplicationFactory : WebApplicationFactory<Program>, IA
         // A small logo cap (#123) so the size-boundary tests allocate KB, not
         // megabytes. Well under the 5 MB ceiling, so it validates at startup.
         builder.UseSetting("FarmLogo:MaxUploadBytes", LogoUploadCap.ToString());
+        // The Testcontainers DB is a co-located PLAINTEXT Postgres with no fronting
+        // proxy, so Production-derived tests opt out of BOTH deploy-config boot guards:
+        // #262 (Database:AllowInsecureConnection) and #260 (RateLimiting:AllowNoTrustedProxies).
+        // This mirrors the bundled compose reference stack. It is a no-op in the default
+        // "Testing" env (both guards are Production-gated); it's the Production-derived
+        // factories (TrustedProxyGuardTests, ConnectionTlsFloorWiringTests) that need it.
+        // A guard-specific test overrides the single flag it exercises back to false.
+        builder.UseSetting("Database:AllowInsecureConnection", "true");
+        builder.UseSetting("RateLimiting:AllowNoTrustedProxies", "true");
     }
 
     // Mirrors the FarmLogo:MaxUploadBytes above so the size tests can size their
