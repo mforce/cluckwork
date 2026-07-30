@@ -71,3 +71,21 @@ updates:
       nuget-minor-patch:
         patterns: ["*"]
         update-types: ["minor", "patch"]
+
+  # #267 — the Dockerfile (src/Cluckwork.Api/Dockerfile) pins its three base
+  # images (node, .NET sdk, .NET aspnet) to immutable @sha256 digests, so a
+  # rebuild reproduces the exact bytes CI's Trivy scan cleared. A pinned digest
+  # never floats, so without this it silently rots past the next base-image
+  # security fix. Dependabot opens the digest-bump PR; the Trivy gate in ci.yml
+  # then confirms the new base is clean. Grouped so the three bump together as one
+  # reviewable PR; security fixes still arrive ungrouped (Dependabot's default).
+  - package-ecosystem: "docker"
+    directory: "/src/Cluckwork.Api"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(docker)"
+    groups:
+      docker-base-images:
+        patterns: ["*"]

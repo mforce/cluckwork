@@ -1,5 +1,10 @@
 # --- Web build: compile the React/Vite SPA to static assets ---
-FROM node:24-alpine AS web-build
+# #267 — base images are pinned to an immutable @sha256 digest (the multi-arch
+# index digest) so a rebuild resolves the SAME bytes CI scanned, never a silently
+# re-tagged "latest 10.0". Dependabot's `docker` ecosystem opens the bump PR when
+# a newer digest ships a security fix; refresh with
+#   docker buildx imagetools inspect <image>:<tag> --format '{{.Manifest.Digest}}'
+FROM node:24-alpine@sha256:a0b9bf06e4e6193cf7a0f58816cc935ff8c2a908f81e6f1a95432d679c54fbfd AS web-build
 WORKDIR /web
 COPY web/package.json web/package-lock.json ./
 RUN npm ci
@@ -14,7 +19,7 @@ RUN mkdir /web/sourcemaps && \
     find /web/dist -name '*.map' -exec mv {} /web/sourcemaps/ \;
 
 # --- API build: restore + publish the .NET app ---
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0@sha256:ed034a8bf0b24ded0cbbac07e17825d8e9ebfe21e308191d0f7421eaf5ad4664 AS build
 WORKDIR /src
 COPY Cluckwork.sln ./
 COPY src/Cluckwork.Domain/Cluckwork.Domain.csproj src/Cluckwork.Domain/
@@ -30,14 +35,14 @@ RUN dotnet publish src/Cluckwork.Api/Cluckwork.Api.csproj -c Release -o /out --n
 # farm clock resolves IANA zones via TimeZoneInfo.FindSystemTimeZoneById for
 # every safety-sensitive local-day decision (daily-entry boundary, 7-day
 # auto-lock, FIFO availability) and FAILS CLOSED on an unresolvable zone. The
-# Debian aspnet:10.0 image below ships tzdata; do NOT switch to an Alpine/chiseled
-# base WITHOUT tzdata — that would break every farm's date logic at once.
+# Ubuntu 24.04 (Noble) aspnet:10.0 image below ships tzdata; do NOT switch to an
+# Alpine/chiseled base WITHOUT tzdata — that would break every farm's date logic at once.
 # Program.cs asserts a representative IANA id resolves at boot, so this regression
 # fails the container start loudly instead of silently.
 # Separately, do NOT set InvariantGlobalization=true: it does not break tz lookup
 # on Linux (tzdata is read independently of ICU), but it breaks culture-dependent
 # currency/locale formatting the app relies on. Keep ICU (the default here).
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:10.0@sha256:1fa23fc4872d95fd71c2833ebe65d7e84a43b2d51a31d119516852f13d9505a7 AS runtime
 WORKDIR /app
 EXPOSE 8080
 
@@ -45,4 +50,12 @@ FROM runtime AS final
 COPY --from=build /out .
 COPY --from=web-build /web/dist ./wwwroot
 COPY --from=web-build /web/sourcemaps ./sourcemaps
+# #267 — drop root for the request-serving process. The aspnet:10.0 base image
+# already ships a non-root `app` account (uid/gid 1654, exposed as $APP_UID); we
+# reuse it rather than mint our own. The numeric $APP_UID (not the name) satisfies
+# a Kubernetes `runAsNonRoot` gate, which can't verify a username maps to non-zero.
+# The COPYs above run as root and land world-readable files, so the app can read
+# wwwroot + the published DLLs; binding :8080 needs no privilege (>1024). Runtime
+# writes nothing under /app — DataProtection keys go to $HOME (/home/app).
+USER $APP_UID
 ENTRYPOINT ["dotnet", "Cluckwork.Api.dll"]

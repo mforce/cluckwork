@@ -20,8 +20,9 @@
 #
 # Output lands under tools/simulation/monitor/out/ — a HOST-writable
 # directory this script creates itself, deliberately separate from
-# tools/simulation/out/ (written into by the app container as root via
-# Simulation__CredentialOutputPath — sidestepped, not fought).
+# tools/simulation/out/ (written into by the one-shot seed container as root —
+# reset.sh forces --user 0 since the image is non-root (#267) — via
+# Simulation__CredentialOutputPath; sidestepped, not fought).
 
 set -euo pipefail
 

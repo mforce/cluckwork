@@ -27,6 +27,14 @@ public sealed class RateLimitingOptions
     // resolves the real client IP; the limiter never parses XFF itself.
     public string[] TrustedProxies { get; init; } = [];
 
+    // Opt-out for the #260 Production boot guard. Leaving TrustedProxies empty in
+    // Production normally fails the boot: with no trusted proxy the forwarded
+    // headers are ignored, so HSTS (#144) never sees the real HTTPS scheme and the
+    // per-IP login limiter (#143) collapses to one global bucket. Set true ONLY for
+    // a deliberate direct-TLS-exposure deploy (the app terminates TLS itself, no
+    // fronting proxy) to acknowledge that trade-off and boot anyway.
+    public bool AllowNoTrustedProxies { get; init; }
+
     public sealed class FixedWindow
     {
         public int PermitLimit { get; init; }

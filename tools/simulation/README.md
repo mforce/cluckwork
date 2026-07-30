@@ -234,9 +234,11 @@ see the database actually grow; `end` reports the before/after delta.
 
 ### Why no host-writable path for the collector, and where output lands
 
-`tools/simulation/out/` is written into by the `app` container as **root**
-(`Simulation__CredentialOutputPath`), so anything landing there is
-root-owned and often not writable by the host user. Rather than
+`tools/simulation/out/` is written into by the one-shot `seed` container as
+**root** — the image is non-root (uid 1654, #267), so reset.sh runs that
+container with `--user 0` to write the manifest (`Simulation__CredentialOutputPath`)
+— so anything landing there is root-owned and often not writable by the host
+user. Rather than
 `chown`/`sudo` around that, none of the Task 8 monitoring pieces touch it:
 the collector's two sinks (Prometheus scrape, debug-exporter stdout) need no
 file at all, and both `monitor/*.sh` scripts write to

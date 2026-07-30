@@ -114,8 +114,16 @@ echo "pg_stat_statements OK."
 # process: Program.cs's prod guard refuses `seed --profile simulation` in
 # Production (verified separately — see README), so Production must never
 # be the environment this command runs under.
-echo "-- seed --profile simulation (one-shot, non-Production) --"
-if ! compose run --rm -e ASPNETCORE_ENVIRONMENT=Development app \
+#
+# --user 0: the image runs as the non-root `app` user (uid 1654, #267 image
+# hardening) so the PRODUCTION serving container drops root. But this throwaway
+# one-shot must write its completion manifest to the ./out bind mount, which
+# Docker creates root-owned — so uid 1654 gets EACCES and the manifest preflight
+# below fails. Overriding just this short-lived seed container back to root
+# restores the pre-#267 write (./out was always root-owned; the serving `app`
+# above stays non-root). Keep --user 0 here or reset breaks at the manifest step.
+echo "-- seed --profile simulation (one-shot, non-Production, root for ./out write) --"
+if ! compose run --rm --user 0 -e ASPNETCORE_ENVIRONMENT=Development app \
     seed --profile simulation; then
   echo "FAILED: 'seed --profile simulation' exited non-zero." >&2
   exit 1

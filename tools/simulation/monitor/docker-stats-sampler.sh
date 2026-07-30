@@ -14,8 +14,9 @@
 #
 # Output lands under tools/simulation/monitor/out/ — a HOST-writable
 # directory this script creates itself. Deliberately not
-# tools/simulation/out/: that directory is written into by the app
-# container as root (Simulation__CredentialOutputPath), so files landing
+# tools/simulation/out/: that directory is written into by the one-shot
+# seed container as root (reset.sh forces --user 0 since the image is
+# non-root, #267; Simulation__CredentialOutputPath), so files landing
 # there are root-owned and the host user often can't write next to them.
 # Using a sibling directory sidesteps that rather than chown/sudo.
 
