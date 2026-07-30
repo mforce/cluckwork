@@ -247,7 +247,7 @@ public sealed class IdentityProvider(
             return Result.Failure(Error.NotFound("Users", userId));
 
         return await ResetPasswordAndRevokeAsync(
-            user, newPassword, "User.PasswordSet", reason: null, ct);
+            user, newPassword, "User.PasswordSet", reason: null, details: null, ct);
     }
 
     public async Task<Result> BreakGlassResetAsync(
@@ -261,21 +261,27 @@ public sealed class IdentityProvider(
         if (user is null)
             return Result.Failure(Error.NotFound("Users", userId));
 
+        // Record WHERE the offline command ran (#265 review): the CLI has no
+        // authenticated actor, so the audit row would otherwise attribute the
+        // reset to "(unresolved)". Capturing host + OS user gives the break-glass
+        // row real accountability beyond the free-text reason.
+        var details = new { host = Environment.MachineName, osUser = Environment.UserName };
+
         // A DISTINCT audit action + the operator's reason so a break-glass reset
         // stands out from an ordinary Owner-initiated one (#265).
         return await ResetPasswordAndRevokeAsync(
-            user, newPassword, "User.BreakGlassReset", reason, ct);
+            user, newPassword, "User.BreakGlassReset", reason, details, ct);
     }
 
     // Shared core (#165 SetUserPassword + #265 break-glass): reset the password
     // without the current one — which applies the full policy and rotates the
-    // SecurityStamp — evict every live session, and append one audit row, all in
-    // a single transaction so the password change and the session revocation land
-    // together or not at all (#165 review). An already-issued access token stays
-    // valid until it expires (~15 min) — there is no server-side denylist.
+    // SecurityStamp — clear any lockout, evict every live session, and append one
+    // audit row, all in a single transaction so the password change and the
+    // session revocation land together or not at all (#165 review). An already-
+    // issued access token stays valid until it expires (~15 min) — no denylist.
     private async Task<Result> ResetPasswordAndRevokeAsync(
         ApplicationUser user, string newPassword, string auditAction, string? reason,
-        CancellationToken ct)
+        object? details, CancellationToken ct)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
 
@@ -286,9 +292,17 @@ public sealed class IdentityProvider(
         if (!reset.Succeeded)
             return Result.Failure(Error.Validation("Users.PasswordRejected", Describe(reset)));
 
+        // Clear any active lockout / failed-attempt count (#265 review). Without
+        // this, the exact case break-glass exists for — a user locked out by
+        // repeated failed logins — would get a fresh password that LoginAsync
+        // still refuses until the lockout window expires (it checks
+        // IsLockedOutAsync before the password), defeating the recovery.
+        await userManager.ResetAccessFailedCountAsync(user);
+        await userManager.SetLockoutEndDateAsync(user, null);
+
         await RevokeAllActiveForUserAsync(user.Id, timeProvider.GetUtcNow(), ct);
         await audit.WriteAsync(auditAction, "User", user.Id,
-            reason: reason, details: null, ct: ct);
+            reason: reason, details: details, ct: ct);
         await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
         return Result.Success();

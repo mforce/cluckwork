@@ -618,43 +618,58 @@ if (args.Length > 0 && args[0] == "seed")
 // access to the deployment, plus a conspicuous "User.BreakGlassReset" audit row.
 if (args.Length > 0 && args[0] == "recover-admin")
 {
-    using var recoveryScope = app.Services.CreateScope();
-    var sp = recoveryScope.ServiceProvider;
-
-    var accountArg = GetArgValue(args, "--account");
-    Guid? accountId = null;
-    if (accountArg is not null)
+    try
     {
-        if (!Guid.TryParse(accountArg, out var parsedAccount))
+        using var recoveryScope = app.Services.CreateScope();
+        var sp = recoveryScope.ServiceProvider;
+
+        var accountArg = GetArgValue(args, "--account");
+        Guid? accountId = null;
+        if (accountArg is not null)
         {
-            await Console.Error.WriteLineAsync($"Invalid --account '{accountArg}' — must be a GUID.");
+            if (!Guid.TryParse(accountArg, out var parsedAccount))
+            {
+                await Console.Error.WriteLineAsync($"Invalid --account '{accountArg}' — must be a GUID.");
+                return 1;
+            }
+            accountId = parsedAccount;
+        }
+
+        await sp.GetRequiredService<AppDbContext>().Database.MigrateAsync();
+
+        var recovery = sp.GetRequiredService<Cluckwork.Infrastructure.Identity.AdminRecoveryService>();
+        var recovered = await recovery.RecoverAsync(
+            GetArgValue(args, "--email"), accountId, GetArgValue(args, "--reason"), CancellationToken.None);
+        if (recovered.IsFailure)
+        {
+            await Console.Error.WriteLineAsync(
+                $"Recovery failed: {recovered.Error.Code} — {recovered.Error.Description}");
             return 1;
         }
-        accountId = parsedAccount;
+
+        // Print to stdout (NOT the logger) so the one-time password is shown to
+        // the operator and never lands in structured logs / the OTLP pipeline.
+        // NOTE: a host's stdout collector (docker logs, journald, a platform log
+        // pipeline) may still capture it — treat the value as sensitive and
+        // rotate it on first login, as the runbook instructs (#265 review).
+        var outcome = recovered.Value;
+        await Console.Out.WriteLineAsync(
+            $"Break-glass reset complete for {outcome.Email} (account {outcome.AccountId}). " +
+            "All existing sessions were revoked.");
+        await Console.Out.WriteLineAsync($"Temporary password: {outcome.TemporaryPassword}");
+        await Console.Out.WriteLineAsync(
+            "Log in with this now and change it immediately (Account → change password).");
+        return 0;
     }
-
-    await sp.GetRequiredService<AppDbContext>().Database.MigrateAsync();
-
-    var recovery = sp.GetRequiredService<Cluckwork.Infrastructure.Identity.AdminRecoveryService>();
-    var recovered = await recovery.RecoverAsync(
-        GetArgValue(args, "--email"), accountId, GetArgValue(args, "--reason"), CancellationToken.None);
-    if (recovered.IsFailure)
+    catch (Exception ex)
     {
-        await Console.Error.WriteLineAsync(
-            $"Recovery failed: {recovered.Error.Code} — {recovered.Error.Description}");
+        // Fail-loud per the runbook: an unexpected error (DB unreachable, a
+        // concurrent reset losing the CAS race, ...) becomes exit 1 + a clean
+        // stderr line, not a raw stack trace. The reset path's transaction rolls
+        // back, so nothing is left half-changed (#265 review).
+        await Console.Error.WriteLineAsync($"Recovery failed: {ex.Message}");
         return 1;
     }
-
-    // Print to stdout (NOT the logger) so the one-time password is shown to the
-    // operator and never lands in structured logs / the OTLP pipeline.
-    var outcome = recovered.Value;
-    await Console.Out.WriteLineAsync(
-        $"Break-glass reset complete for {outcome.Email} (account {outcome.AccountId}). " +
-        "All existing sessions were revoked.");
-    await Console.Out.WriteLineAsync($"Temporary password: {outcome.TemporaryPassword}");
-    await Console.Out.WriteLineAsync(
-        "Log in with this now and change it immediately (Account → change password).");
-    return 0;
 }
 
 static string? GetArgValue(string[] args, string flagName)

@@ -18,11 +18,12 @@ Without this command the only recourse would be direct SQL surgery on the
 
 ## What it does (atomically, in one transaction)
 
-1. Finds the user by email (across accounts; disambiguate with `--account` if ever ambiguous).
+1. Finds the user by email — **case-insensitive**, matching the login path (across accounts; disambiguate with `--account` if ever ambiguous).
 2. Sets a **freshly generated** strong temporary password (never one you pass on the command line).
 3. **Rotates the security stamp** (invalidates Identity-derived state).
-4. **Revokes every refresh token** for that user — all existing sessions/devices are signed out.
-5. Writes a conspicuous **`User.BreakGlassReset` audit row** carrying your `--reason`.
+4. **Clears any active lockout** and failed-attempt count — so a user locked out by repeated failed logins (the common trigger) can actually use the new password immediately, not after the 15-minute lockout expires.
+5. **Revokes every refresh token** for that user — all existing sessions/devices are signed out.
+6. Writes a conspicuous **`User.BreakGlassReset` audit row** carrying your `--reason` **and the host/OS-user that ran the command**.
 
 > An access token already issued stays valid until it expires (~15 min) — there
 > is no server-side denylist. Refresh is dead immediately, so the session cannot

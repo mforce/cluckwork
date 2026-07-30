@@ -5,6 +5,7 @@ using Cluckwork.Application.Common;
 using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -47,6 +48,7 @@ public sealed class AdminRecoveryServiceTests : IClassFixture<BreakGlassRecovery
         // stale identity-map copy of the next step's writes.
         string oldRefreshToken;
         Guid adminUserId;
+        Guid adminAccountId;
         string originalStamp;
         using (var s = Scope())
         {
@@ -58,28 +60,45 @@ public sealed class AdminRecoveryServiceTests : IClassFixture<BreakGlassRecovery
             var db = s.ServiceProvider.GetRequiredService<AppDbContext>();
             var admin = await db.Users.SingleAsync(u => u.Email == _factory.AdminEmail);
             adminUserId = admin.Id;
+            adminAccountId = admin.AccountId;
             originalStamp = admin.SecurityStamp!;
+
+            // Lock the account out — the exact state break-glass must recover from
+            // (repeated failed logins → a 15-min lockout). LoginAsync checks
+            // IsLockedOutAsync BEFORE the password, so the temporary password can
+            // only succeed below if the reset actually cleared the lockout (#265
+            // review).
+            var um = s.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            await um.SetLockoutEndDateAsync(admin, DateTimeOffset.UtcNow.AddMinutes(30));
+            Assert.True(await um.IsLockedOutAsync(admin), "precondition: admin should be locked out");
         }
 
-        // Break-glass reset.
+        // Break-glass reset — recover using an UPPERCASE spelling of the email to
+        // prove the lookup matches NormalizedEmail (case-insensitive), like login.
         string tempPassword;
         using (var s = Scope())
         {
             var svc = s.ServiceProvider.GetRequiredService<AdminRecoveryService>();
-            var result = await svc.RecoverAsync(_factory.AdminEmail, accountId: null, reason: "quarterly drill");
+            var result = await svc.RecoverAsync(
+                _factory.AdminEmail.ToUpperInvariant(), accountId: null, reason: "quarterly drill");
             Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Description : "");
             Assert.Equal(_factory.AdminEmail, result.Value.Email);
             tempPassword = result.Value.TemporaryPassword;
         }
 
-        // The temporary password logs in; the old one no longer does.
+        // The temporary password logs in (proving the lockout was cleared); the
+        // old one no longer does.
         using (var s = Scope())
         {
             var idp = s.ServiceProvider.GetRequiredService<IIdentityProvider>();
             Assert.True((await idp.LoginAsync(_factory.AdminEmail, tempPassword)).IsSuccess,
-                "temporary password should log in");
+                "temporary password should log in (the reset must clear the lockout)");
             Assert.True((await idp.LoginAsync(_factory.AdminEmail, _factory.AdminPassword)).IsFailure,
                 "old password must be rejected after recovery");
+
+            var um = s.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var admin = await um.FindByEmailAsync(_factory.AdminEmail);
+            Assert.False(await um.IsLockedOutAsync(admin!), "the lockout must be cleared by recovery");
         }
 
         // The refresh token minted before recovery is dead.
@@ -100,8 +119,10 @@ public sealed class AdminRecoveryServiceTests : IClassFixture<BreakGlassRecovery
             // AuditEvent carries the tenant query filter, so IgnoreQueryFilters is
             // required here — this scope never resolved a tenant.
             var audited = await db.AuditEvents.IgnoreQueryFilters().AnyAsync(a =>
-                a.Action == "User.BreakGlassReset" && a.EntityId == adminUserId && a.Reason == "quarterly drill");
-            Assert.True(audited, "expected a User.BreakGlassReset audit row for the admin carrying the reason");
+                a.Action == "User.BreakGlassReset" && a.EntityId == adminUserId
+                && a.AccountId == adminAccountId && a.Reason == "quarterly drill");
+            Assert.True(audited,
+                "expected a User.BreakGlassReset audit row stamped to the admin's account, carrying the reason");
         }
     }
 
