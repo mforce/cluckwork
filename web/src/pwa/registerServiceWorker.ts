@@ -26,6 +26,11 @@ const SW_URL = "/sw.js";
 // disabled "Reloading…" button the user cannot escape (#142 review).
 const ACTIVATION_TIMEOUT_MS = 5_000;
 
+// Browsers normally check for a new worker during navigation. A standalone PWA
+// can stay open for an entire shift without navigating, so poll often enough
+// for a deploy prompt to surface while avoiding a noisy sw.js request cadence.
+const UPDATE_CHECK_INTERVAL_MS = 60 * 60_000;
+
 // True only where the SW API is actually usable. `isSecureContext` covers the
 // https-or-localhost rule without hard-coding hostnames.
 export function serviceWorkerSupported(): boolean {
@@ -75,6 +80,8 @@ export async function registerServiceWorker(
       { signal },
     );
 
+    scheduleUpdateChecks(registration, signal);
+
     return registration;
   } catch {
     // Registration can fail for reasons entirely outside the app's control — a
@@ -82,6 +89,40 @@ export async function registerServiceWorker(
     // rules. None of them should break the page that is already running.
     return null;
   }
+}
+
+// Long-lived standalone PWAs do not navigate, so the browser may never discover
+// a newly deployed sw.js on its own. Check hourly and whenever the app returns
+// to the foreground. Both triggers stop with the registration's other listeners.
+function scheduleUpdateChecks(
+  registration: ServiceWorkerRegistration,
+  signal?: AbortSignal,
+) {
+  if (signal?.aborted) return;
+
+  const check = () => {
+    try {
+      void registration.update().catch(() => {
+        // Offline, proxy, and storage failures must not disturb the running app.
+      });
+    } catch {
+      // Match registerServiceWorker's never-throw contract for browser quirks
+      // that throw synchronously instead of returning a rejected promise.
+    }
+  };
+
+  const interval = globalThis.setInterval(check, UPDATE_CHECK_INTERVAL_MS);
+  signal?.addEventListener("abort", () => globalThis.clearInterval(interval), {
+    once: true,
+  });
+
+  document.addEventListener(
+    "visibilitychange",
+    () => {
+      if (document.visibilityState === "visible") check();
+    },
+    { signal },
+  );
 }
 
 // Workers already being watched. The initial-`installing` and `updatefound`
