@@ -616,10 +616,14 @@ if (args.Length > 0 && args[0] == "seed")
 // this command is the app-side enabler.
 if (args.Length > 0 && args[0] == "migrate")
 {
-    using var migrateScope = app.Services.CreateScope();
-    var db = migrateScope.ServiceProvider.GetRequiredService<AppDbContext>();
     try
     {
+        // Inside the try so a DI/provider resolution failure (e.g. a misspelled
+        // Database__Provider) also fails loud with exit 1 + a clean message,
+        // rather than an unhandled stack trace (#263 review).
+        using var migrateScope = app.Services.CreateScope();
+        var db = migrateScope.ServiceProvider.GetRequiredService<AppDbContext>();
+
         var pending = (await db.Database.GetPendingMigrationsAsync()).ToList();
         if (pending.Count == 0)
         {

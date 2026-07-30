@@ -44,12 +44,28 @@ public sealed class DatabaseSeeder(
             return;
         }
 
-        await SeedDefaultAccountAsync(o, ct);
-        await SeedDefaultEggGradesAsync(ct);
-        await SeedDefaultEggUnitConversionsAsync(ct);
-        await SeedAdminRoleAsync();
-        await SeedAdminUserAsync(o);
-        await SeedWorkerUserAsync(o);
+        try
+        {
+            await SeedDefaultAccountAsync(o, ct);
+            await SeedDefaultEggGradesAsync(ct);
+            await SeedDefaultEggUnitConversionsAsync(ct);
+            await SeedAdminRoleAsync();
+            await SeedAdminUserAsync(o);
+            await SeedWorkerUserAsync(o);
+        }
+        catch (Exception ex)
+        {
+            // Best-effort by contract: seeding must never crash the host. The
+            // per-step handlers already swallow expected DbUpdateExceptions; this
+            // outer guard covers the rest — most importantly the first existence
+            // SELECT hitting a schema that has not been migrated yet
+            // (Database:MigrateOnStartup=false + the migrate job not run), which
+            // would otherwise 42P01 the boot. The app still starts, and readiness
+            // then reports the pending migrations as unhealthy (#263 review).
+            logger.LogError(ex,
+                "Database seeding failed; continuing without it. If the schema is not yet " +
+                "migrated, run the `migrate` command (or the pre-deploy migration job) first.");
+        }
     }
 
     // Spec §9.1 suggested defaults. Saleable grades are what daily-entry grade

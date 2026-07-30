@@ -20,9 +20,15 @@ public class CluckworkWebApplicationFactory : WebApplicationFactory<Program>, IA
 
     public string ConnectionString => _postgres.GetConnectionString();
 
+    // Default true: the suite runs against a migrated schema. A factory can
+    // override to false to observe a host booting against an UNMIGRATED database
+    // (e.g. the #263 MigrateOnStartup=false skip test).
+    protected virtual bool MigrateSchemaOnInitialize => true;
+
     public async Task InitializeAsync()
     {
         await _postgres.StartAsync();
+        if (!MigrateSchemaOnInitialize) return;
 
         using var scope = Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();

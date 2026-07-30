@@ -7,6 +7,10 @@ services:
     env_file:
       - .env
     environment:
+      # ASPNETCORE_ENVIRONMENT is intentionally UNSET → defaults to Production →
+      # loads appsettings.Production.json (Database:MigrateOnStartup=false), so the
+      # serving process never runs DDL (#263). Setting it to Development here would
+      # silently re-enable boot-migration under the runtime credential — don't.
       ASPNETCORE_URLS: http://+:8080
       Database__Provider: Postgres
       ConnectionStrings__Default: Host=db;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}

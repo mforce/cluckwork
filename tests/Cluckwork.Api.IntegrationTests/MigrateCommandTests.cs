@@ -63,9 +63,11 @@ public sealed class MigrateCommandTests
             Assert.True(created, "migrate should have created the schema (AspNetUsers table missing)");
         }
 
-        // Re-run against the now-current database: still exit 0, nothing to apply.
+        // Re-run against the now-current database: still exit 0, and it took the
+        // no-op branch (proves idempotency, not merely "the rerun didn't crash").
         var (exit2, out2, err2) = await RunAsync(cs);
         Assert.True(0 == exit2, $"expected exit 0 on rerun, got {exit2}. stdout={out2} stderr={err2}");
+        Assert.Contains("already current", out2);
     }
 
     [Fact]
