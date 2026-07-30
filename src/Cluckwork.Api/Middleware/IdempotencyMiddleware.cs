@@ -1,6 +1,5 @@
 namespace Cluckwork.Api.Middleware;
 
-using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
 using Cluckwork.Infrastructure.Identity;
@@ -10,7 +9,26 @@ using Microsoft.EntityFrameworkCore;
 public sealed class IdempotencyMiddleware(RequestDelegate next)
 {
     private const string HeaderName = "Idempotency-Key";
-    private static readonly ConcurrentDictionary<string, SemaphoreSlim> Locks = new();
+
+    // Fixed stripe array — NOT a ConcurrentDictionary. The old GetOrAdd +
+    // TryRemove pattern had a race: A releases the semaphore, B acquires it,
+    // A removes the mapping, C GetOrAdds a fresh semaphore and acquires it,
+    // and B + C are inside the critical section for the same key concurrently,
+    // duplicating the handler's side effects (#289). A stripe gives bounded
+    // memory and no dynamic add/remove at all. Different keys colliding on
+    // the same stripe serialise — a small latency cost on unrelated requests
+    // but no correctness impact. Single-process only — across replicas the
+    // stripe is per-process and the DB unique index on idempotency_records
+    // only settles which response gets stored, not which handler runs (same
+    // response-vs-side-effects gap as #289).
+    private static readonly SemaphoreSlim[] Stripes = Enumerable.Range(0, 256)
+        .Select(_ => new SemaphoreSlim(1, 1)).ToArray();
+
+    // 256 is a power of two, so bitwise-AND replaces modulo without the
+    // (uint)int → long promotion. string.GetHashCode is randomised per
+    // process, which is fine — striping only needs in-process consistency.
+    private static SemaphoreSlim StripeFor(string lockKey) =>
+        Stripes[lockKey.GetHashCode() & (Stripes.Length - 1)];
 
     // #165 — routes whose RESPONSE must never be cached or replayed. A record
     // stores only status/content-type/body, so caching one of these would both
@@ -73,9 +91,9 @@ public sealed class IdempotencyMiddleware(RequestDelegate next)
             && context.Request.Path.StartsWithSegments("/api/v1/me", StringComparison.OrdinalIgnoreCase);
         var keyHash = userScoped ? Sha256($"{user.UserId}:{rawKey}") : Sha256(rawKey.ToString());
         var lockKey = $"{tenant.AccountId}:{endpointHash}:{keyHash}";
-        var semaphore = Locks.GetOrAdd(lockKey, _ => new SemaphoreSlim(1, 1));
+        var stripe = StripeFor(lockKey);
 
-        await semaphore.WaitAsync(context.RequestAborted);
+        await stripe.WaitAsync(context.RequestAborted);
         try
         {
             var existing = await db.IdempotencyRecords
@@ -159,10 +177,7 @@ public sealed class IdempotencyMiddleware(RequestDelegate next)
         }
         finally
         {
-            semaphore.Release();
-            // Remove after release so the dictionary doesn't grow without bound.
-            // TryRemove(KVP) is atomic: only removes if this exact instance is still mapped.
-            Locks.TryRemove(new KeyValuePair<string, SemaphoreSlim>(lockKey, semaphore));
+            stripe.Release();
         }
     }
 
