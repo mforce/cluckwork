@@ -190,10 +190,20 @@ builder.Services.AddScoped<Cluckwork.Application.Features.Export.IExportQueries,
 
 // --- EF Core ---
 var dbProvider = builder.Configuration["Database:Provider"] ?? "Postgres";
-var connectionString = builder.Configuration.GetConnectionString("Default")
+var rawConnectionString = builder.Configuration.GetConnectionString("Default")
     ?? throw new InvalidOperationException("Connection string 'Default' is not configured.");
-// #262 — the Postgres configurator enforces the TLS floor only in Production.
-var enforceTlsFloor = builder.Environment.IsProduction();
+// #261/#262 — normalize (accept URI form) + validate (Production TLS floor) ONCE at
+// startup, not inside the per-scope AddDbContext callback: a floor violation becomes a
+// clean boot failure (thrown here, before Build), and the warnings are logged once
+// (replayed via app.Logger after Build) instead of on every DbContext resolution.
+// Database:AllowInsecureConnection is the explicit opt-out for a co-located plaintext DB
+// (the bundled compose stack); a real deploy leaves it false and uses TLS.
+var connectionStringWarnings = new List<string>();
+var connectionString = PostgresConnectionString.NormalizeAndValidate(
+    rawConnectionString,
+    isProduction: builder.Environment.IsProduction(),
+    allowInsecureConnection: builder.Configuration.GetValue<bool>("Database:AllowInsecureConnection"),
+    onWarning: connectionStringWarnings.Add);
 
 builder.Services.AddScoped<TenantStampInterceptor>();
 builder.Services.AddDbContext<AppDbContext>((sp, options) =>
@@ -201,9 +211,7 @@ builder.Services.AddDbContext<AppDbContext>((sp, options) =>
     options.AddInterceptors(sp.GetRequiredService<TenantStampInterceptor>());
     IDbProviderConfigurator configurator = dbProvider switch
     {
-        "Postgres" => new PostgresDbContextConfigurator(
-            enforceTlsFloor,
-            sp.GetRequiredService<ILogger<PostgresDbContextConfigurator>>()),
+        "Postgres" => new PostgresDbContextConfigurator(),
         _ => throw new NotSupportedException($"Unsupported database provider: {dbProvider}")
     };
     configurator.Configure(options, connectionString);
@@ -553,6 +561,12 @@ builder.Services.AddHostedService<DurableJobWorker>();
 
 // ----------------------------------------------------------------
 var app = builder.Build();
+
+// #262 — replay the connection-string TLS warnings once, now that a logger exists (a
+// floor violation already failed the boot above during configuration). Logged before the
+// CLI dispatch so the migrate/seed one-shot verbs surface it too.
+foreach (var connectionStringWarning in connectionStringWarnings)
+    app.Logger.LogWarning("{ConnectionStringWarning}", connectionStringWarning);
 
 // One-off operator commands (seed / migrate / recover-admin) run then EXIT
 // before the web host starts — Kestrel and the hosted services never run for

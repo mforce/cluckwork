@@ -10,8 +10,9 @@ using Npgsql;
 // collection, so no Postgres container spins up for these facts.
 public sealed class PostgresConnectionStringTests
 {
-    private static NpgsqlConnectionStringBuilder Normalized(string cs, bool isProduction = false, Action<string>? onWarning = null)
-        => new(PostgresConnectionString.NormalizeAndValidate(cs, isProduction, onWarning));
+    private static NpgsqlConnectionStringBuilder Normalized(
+        string cs, bool isProduction = false, Action<string>? onWarning = null, bool allowInsecure = false)
+        => new(PostgresConnectionString.NormalizeAndValidate(cs, isProduction, allowInsecure, onWarning));
 
     // ---- #261: URI-form translation ----------------------------------------
 
@@ -56,6 +57,17 @@ public sealed class PostgresConnectionStringTests
     }
 
     [Fact]
+    public void Uri_IPv6Host_KeepsBrackets()
+    {
+        // System.Uri yields the bracketed literal for an IPv6 host, and Npgsql accepts
+        // it verbatim (empirically confirmed to connect). Lock the behaviour in.
+        var b = Normalized("postgresql://user:pass@[::1]:5432/db");
+
+        Assert.Equal("[::1]", b.Host);
+        Assert.Equal(5432, b.Port);
+    }
+
+    [Fact]
     public void Uri_SslModeQueryParam_MapsToBuilderKey()
     {
         var b = Normalized("postgresql://user:pass@h/db?sslmode=require");
@@ -73,6 +85,57 @@ public sealed class PostgresConnectionStringTests
         Assert.Equal(SslMode.VerifyFull, b.SslMode);
     }
 
+    [Fact]
+    public void Uri_VerifyFull_TranslatesHostAndMode()
+    {
+        // Asserts the RESULTING host + mode from the translated key-value string —
+        // not merely "did not throw" (UseNpgsql defers parsing, so a null-check alone
+        // passes even if translation never ran).
+        var b = Normalized("postgresql://u:p@dbhost/db?sslmode=verify-full", isProduction: true);
+
+        Assert.Equal("dbhost", b.Host);
+        Assert.Equal("db", b.Database);
+        Assert.Equal(SslMode.VerifyFull, b.SslMode);
+    }
+
+    [Fact]
+    public void Uri_LegacySslTrueFlag_MapsToRequire()
+    {
+        var b = Normalized("postgresql://u:p@h/db?ssl=true");
+
+        Assert.Equal(SslMode.Require, b.SslMode);
+    }
+
+    [Fact]
+    public void Uri_DuplicateQueryKey_IsLastWins()
+    {
+        // A duplicate key must NOT comma-join (which could yield an undefined SslMode);
+        // last value wins.
+        var b = Normalized("postgresql://u:p@h/db?sslmode=disable&sslmode=verify-full");
+
+        Assert.Equal(SslMode.VerifyFull, b.SslMode);
+    }
+
+    [Fact]
+    public void Uri_UnknownParams_SkippedWithWarning_KnownOnesMapped()
+    {
+        // Neon's default URL shape: sslmode + channel_binding, plus common libpq params.
+        // channel_binding/target_session_attrs have no Npgsql keyword -> skip-with-warning;
+        // application_name/connect_timeout DO map -> preserved. Must boot, not throw.
+        var warnings = new List<string>();
+        var b = Normalized(
+            "postgresql://user:pass@ep.neon.tech/neondb?sslmode=require&channel_binding=require" +
+            "&application_name=cluckwork&connect_timeout=10&target_session_attrs=read-write",
+            isProduction: true, onWarning: warnings.Add);
+
+        Assert.Equal("ep.neon.tech", b.Host);
+        Assert.Equal(SslMode.Require, b.SslMode);
+        Assert.Equal("cluckwork", b.ApplicationName);   // application_name -> "Application Name"
+        Assert.Equal(10, b.Timeout);                    // connect_timeout    -> "Timeout"
+        Assert.Contains(warnings, w => w.Contains("channel_binding") && w.Contains("ignored"));
+        Assert.Contains(warnings, w => w.Contains("target_session_attrs") && w.Contains("ignored"));
+    }
+
     // ---- #261: key-value passthrough ---------------------------------------
 
     [Fact]
@@ -86,7 +149,7 @@ public sealed class PostgresConnectionStringTests
         Assert.Equal(kv, result);
     }
 
-    // ---- #262: production TLS floor ----------------------------------------
+    // ---- #262: production TLS floor (allow-list, fail closed) ---------------
 
     [Theory]
     [InlineData("Host=h;Username=u;Password=p;SSL Mode=Disable")]
@@ -100,6 +163,20 @@ public sealed class PostgresConnectionStringTests
 
         Assert.Contains("TLS", ex.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("sslmode", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Theory]
+    [InlineData("Host=h;Username=u;Password=p;SSL Mode=99")] // undefined numeric mode
+    [InlineData("Host=h;Username=u;Password=p;SSL Mode=7")]  // undefined (flags-join artifact)
+    public void Production_UndefinedSslMode_Throws(string cs)
+    {
+        // CRITICAL (#1): the floor is an allow-list. An undefined SslMode (which Npgsql
+        // parses without error to e.g. (SslMode)99) must NOT slip through as a no-op —
+        // it does not guarantee TLS, so it must fail closed.
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => PostgresConnectionString.NormalizeAndValidate(cs, isProduction: true));
+
+        Assert.Contains("TLS", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -116,9 +193,10 @@ public sealed class PostgresConnectionStringTests
         var warnings = new List<string>();
 
         var result = PostgresConnectionString.NormalizeAndValidate(
-            "Host=h;Username=u;Password=p;SSL Mode=Require", isProduction: true, warnings.Add);
+            "Host=h;Username=u;Password=p;SSL Mode=Require", isProduction: true, onWarning: warnings.Add);
 
-        Assert.Contains("SSL Mode=Require", result);
+        // Assert the RESULTING mode, not a substring of the input.
+        Assert.Equal(SslMode.Require, new NpgsqlConnectionStringBuilder(result).SslMode);
         var warning = Assert.Single(warnings);
         Assert.Contains("VerifyFull", warning, StringComparison.OrdinalIgnoreCase);
     }
@@ -131,7 +209,7 @@ public sealed class PostgresConnectionStringTests
         var warnings = new List<string>();
 
         var ex = Record.Exception(
-            () => PostgresConnectionString.NormalizeAndValidate(cs, isProduction: true, warnings.Add));
+            () => PostgresConnectionString.NormalizeAndValidate(cs, isProduction: true, onWarning: warnings.Add));
 
         Assert.Null(ex);
         Assert.Empty(warnings);
@@ -144,46 +222,62 @@ public sealed class PostgresConnectionStringTests
         var warnings = new List<string>();
 
         var ex = Record.Exception(() => PostgresConnectionString.NormalizeAndValidate(
-            "Host=h;Username=u;Password=p;SSL Mode=Disable", isProduction: false, warnings.Add));
+            "Host=h;Username=u;Password=p;SSL Mode=Disable", isProduction: false, onWarning: warnings.Add));
+
+        Assert.Null(ex);
+        Assert.Empty(warnings);
+    }
+
+    // ---- #262: AllowInsecureConnection opt-out -----------------------------
+
+    [Fact]
+    public void Production_WeakSslMode_WithAllowInsecure_BootsWithLoudWarning()
+    {
+        var warnings = new List<string>();
+
+        var ex = Record.Exception(() => PostgresConnectionString.NormalizeAndValidate(
+            "Host=db;Username=u;Password=p", isProduction: true,
+            allowInsecureConnection: true, onWarning: warnings.Add));
+
+        Assert.Null(ex);
+        var warning = Assert.Single(warnings);
+        Assert.Contains("AllowInsecureConnection", warning);
+        Assert.Contains("UNENCRYPTED", warning, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Production_WeakSslMode_WithoutAllowInsecure_StillThrows()
+    {
+        Assert.Throws<InvalidOperationException>(() => PostgresConnectionString.NormalizeAndValidate(
+            "Host=db;Username=u;Password=p", isProduction: true, allowInsecureConnection: false));
+    }
+
+    [Fact]
+    public void AllowInsecure_DoesNotSuppress_VerifyFullSilence()
+    {
+        // The flag only downgrades the weak-mode throw; verified TLS stays silent.
+        var warnings = new List<string>();
+
+        var ex = Record.Exception(() => PostgresConnectionString.NormalizeAndValidate(
+            "Host=h;Username=u;Password=p;SSL Mode=VerifyFull", isProduction: true,
+            allowInsecureConnection: true, onWarning: warnings.Add));
 
         Assert.Null(ex);
         Assert.Empty(warnings);
     }
 
     // ---- wired class: PostgresDbContextConfigurator ------------------------
-    // Configure() only builds options (UseNpgsql does not open a connection), so
-    // these need no Docker — they prove the isProduction flag reaches the floor.
+    // Normalization/validation now happens ONCE at startup; the configurator just
+    // consumes the precomputed string. Prove it actually wires UseNpgsql (no Docker —
+    // UseNpgsql builds options, it does not open a connection).
 
     [Fact]
-    public void Configurator_Production_PlaintextConnection_ThrowsOnConfigure()
+    public void Configurator_Configure_BuildsNpgsqlOptions()
     {
-        var configurator = new PostgresDbContextConfigurator(isProduction: true);
+        var options = new DbContextOptionsBuilder();
 
-        Assert.Throws<InvalidOperationException>(() => configurator.Configure(
-            new DbContextOptionsBuilder(), "Host=h;Username=u;Password=p;SSL Mode=Disable"));
-    }
+        new PostgresDbContextConfigurator().Configure(options, "Host=h;Username=u;Password=p");
 
-    [Fact]
-    public void Configurator_NonProduction_PlaintextConnection_Configures()
-    {
-        var configurator = new PostgresDbContextConfigurator(isProduction: false);
-
-        var ex = Record.Exception(() => configurator.Configure(
-            new DbContextOptionsBuilder(), "Host=h;Username=u;Password=p;SSL Mode=Disable"));
-
-        Assert.Null(ex);
-    }
-
-    [Fact]
-    public void Configurator_Production_UriWithVerifyFull_IsTranslatedAndConfigures()
-    {
-        var configurator = new PostgresDbContextConfigurator(isProduction: true);
-
-        // URI form (#261) accepted AND certificate-validated TLS (#262) — Npgsql
-        // parses the translated key-value string without throwing.
-        var ex = Record.Exception(() => configurator.Configure(
-            new DbContextOptionsBuilder(), "postgresql://u:p@h/db?sslmode=verify-full"));
-
-        Assert.Null(ex);
+        Assert.True(options.IsConfigured);
     }
 }

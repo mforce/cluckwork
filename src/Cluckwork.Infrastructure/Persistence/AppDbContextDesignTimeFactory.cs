@@ -13,7 +13,10 @@ public sealed class AppDbContextDesignTimeFactory : IDesignTimeDbContextFactory<
         var connectionString = Environment.GetEnvironmentVariable("CLUCKWORK_MIGRATIONS_CONNECTION")
             ?? "Host=localhost;Database=cluckwork_migrations;Username=postgres;Password=postgres";
 
-        new PostgresDbContextConfigurator().Configure(options, connectionString);
+        // Design-time (dotnet ef) is never Production — normalize for URI support (#261)
+        // but skip the TLS floor. Key-value strings pass through unchanged.
+        var normalized = PostgresConnectionString.NormalizeAndValidate(connectionString, isProduction: false);
+        new PostgresDbContextConfigurator().Configure(options, normalized);
         options.AddInterceptors(new TenantStampInterceptor(new TenantContext()));
 
         return new AppDbContext(options.Options, new TenantContext());
