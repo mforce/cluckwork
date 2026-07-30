@@ -1750,6 +1750,7 @@ export const en = {
     "auditAction.User.Update": "User updated",
     "auditAction.User.PasswordSet": "Password set",
     "auditAction.User.PasswordChanged": "Password changed",
+    "auditAction.User.BreakGlassReset": "Break-glass reset",
     "auditAction.User.FlockAssign": "Flock assigned to user",
     "auditAction.User.FlockUnassign": "Flock unassigned from user",
     "auditAction.Account.Export": "Data exported",
