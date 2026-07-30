@@ -9,8 +9,15 @@ using System.Security.Cryptography;
 // once by the `recover-admin` command and is expected to rotate it immediately
 // after logging in.
 //
-// Character sets deliberately omit visually ambiguous glyphs (0/O, 1/l/I) so the
-// operator can transcribe the one-time value without confusion.
+// .NET has no built-in policy-compliant password generator — the classic
+// System.Web.Security.Membership.GeneratePassword is full-framework only, and
+// ASP.NET Core Identity provides the password policy/hasher but no generator, so
+// a NuGet dependency for this tiny amount of logic isn't worth the supply-chain
+// surface. The randomness itself IS the BCL's CSPRNG: RandomNumberGenerator's
+// GetItems (unbiased selection) + Shuffle (unbiased Fisher–Yates). The only
+// custom part is the character sets — deliberately omitting visually ambiguous
+// glyphs (0/O, 1/l/I) so the operator can transcribe the one-time value — and
+// the guarantee of one character from each required policy class.
 internal static class TemporaryPassword
 {
     private const string Lower = "abcdefghijkmnpqrstuvwxyz";  // no 'l'
@@ -22,25 +29,18 @@ internal static class TemporaryPassword
 
     public static string Generate()
     {
-        // Guarantee one character from each required policy class, fill the rest
-        // from the full alphabet, then cryptographically shuffle so the
-        // guaranteed characters do not sit in fixed, predictable positions.
-        var chars = new List<char> { Pick(Lower), Pick(Upper), Pick(Digits), Pick(Symbols) };
-        while (chars.Count < Length)
-            chars.Add(Pick(All));
-        Shuffle(chars);
-        return new string([.. chars]);
-    }
+        Span<char> buffer = stackalloc char[Length];
 
-    private static char Pick(string set) => set[RandomNumberGenerator.GetInt32(set.Length)];
+        // One guaranteed character from each required policy class...
+        RandomNumberGenerator.GetItems(Lower, buffer[..1]);
+        RandomNumberGenerator.GetItems(Upper, buffer[1..2]);
+        RandomNumberGenerator.GetItems(Digits, buffer[2..3]);
+        RandomNumberGenerator.GetItems(Symbols, buffer[3..4]);
+        // ...the rest from the full alphabet...
+        RandomNumberGenerator.GetItems(All, buffer[4..]);
+        // ...then shuffle so the guaranteed characters aren't in fixed positions.
+        RandomNumberGenerator.Shuffle(buffer);
 
-    private static void Shuffle(IList<char> list)
-    {
-        // Fisher–Yates with a CSPRNG-backed unbiased index.
-        for (var i = list.Count - 1; i > 0; i--)
-        {
-            var j = RandomNumberGenerator.GetInt32(i + 1);
-            (list[i], list[j]) = (list[j], list[i]);
-        }
+        return new string(buffer);
     }
 }
