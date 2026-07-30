@@ -1,8 +1,5 @@
-using System.Security.Cryptography;
 using Cluckwork.Api;
 using Cluckwork.Api.Cli;
-using Cluckwork.Api.Configuration;
-using Microsoft.Extensions.Options;
 using Cluckwork.Api.Endpoints.Accounts;
 using Cluckwork.Api.Endpoints.Audit;
 using Cluckwork.Api.Endpoints.Auth;
@@ -14,550 +11,44 @@ using Cluckwork.Api.Endpoints.EggGrades;
 using Cluckwork.Api.Endpoints.Expenses;
 using Cluckwork.Api.Endpoints.Export;
 using Cluckwork.Api.Endpoints.Flocks;
-using Cluckwork.Api.Endpoints.Reports;
 using Cluckwork.Api.Endpoints.Inventory;
 using Cluckwork.Api.Endpoints.Me;
+using Cluckwork.Api.Endpoints.Reports;
 using Cluckwork.Api.Endpoints.Sales;
-using Cluckwork.Api.Endpoints.Water;
 using Cluckwork.Api.Endpoints.Stock;
 using Cluckwork.Api.Endpoints.Users;
+using Cluckwork.Api.Endpoints.Water;
 using Cluckwork.Api.Hosting;
 using Cluckwork.Api.Middleware;
-using Cluckwork.Api.RateLimiting;
 using Cluckwork.Api.Security;
-using Cluckwork.Application.Common;
-using Cluckwork.Application.Features.Accounts;
-using Cluckwork.Application.Features.Customers;
-using Cluckwork.Application.Features.Customers.CreateCustomer;
-using Cluckwork.Application.Features.DailyEntries;
-using Cluckwork.Application.Features.DailyEntries.AdjustDailyEntry;
-using Cluckwork.Application.Features.DailyEntries.RecordDailyEntry;
-using Cluckwork.Application.Features.DailyEntries.SubmitDailyEntry;
-using Cluckwork.Application.Features.DailyEntries.VoidDailyEntry;
-using Cluckwork.Application.Features.EggGrades;
-using Cluckwork.Application.Features.Inventory;
-using Cluckwork.Application.Features.Inventory.CreateInventoryItem;
-using Cluckwork.Application.Features.Inventory.RecordAdjustment;
-using Cluckwork.Application.Features.Inventory.RecordFeedUsage;
-using Cluckwork.Application.Features.Inventory.RecordPurchase;
-using Cluckwork.Application.Features.Inventory.RecordWaterUsage;
-using Cluckwork.Application.Features.Inventory.UpdateWaterUsage;
-using Cluckwork.Application.Features.Inventory.UpdateInventoryItem;
-using Cluckwork.Application.Features.EggGrades.CreateEggGrade;
-using Cluckwork.Application.Features.EggGrades.SetEggGradeActive;
-using Cluckwork.Application.Features.EggGrades.UpdateEggGrade;
-using Cluckwork.Application.Features.Expenses;
-using Cluckwork.Application.Features.Expenses.AdjustExpense;
-using Cluckwork.Application.Features.Expenses.CreateExpense;
-using Cluckwork.Application.Features.Expenses.CreateExpenseCategory;
-using Cluckwork.Application.Features.Expenses.UpdateExpenseCategory;
-using Cluckwork.Application.Features.EggLots;
-using Cluckwork.Application.Features.Flocks;
-using Cluckwork.Application.Features.Flocks.ArchiveFlock;
-using Cluckwork.Application.Features.Flocks.CreateFlock;
-using Cluckwork.Application.Features.Flocks.DepleteFlock;
-using Cluckwork.Application.Features.Flocks.ReactivateFlock;
-using Cluckwork.Application.Features.Flocks.RecordBirdMovement;
-using Cluckwork.Application.Features.Flocks.UpdateFlock;
-using Cluckwork.Application.Features.Sales;
-using Cluckwork.Application.Features.Sales.AddOrderItem;
-using Cluckwork.Application.Features.Sales.CancelSalesOrder;
-using Cluckwork.Application.Features.Sales.ConfirmSale;
-using Cluckwork.Application.Features.Sales.CreateSalesOrder;
-using Cluckwork.Application.Features.Sales.RecordPayment;
-using Cluckwork.Application.Features.Sales.RemoveOrderItem;
-using Cluckwork.Application.Features.Sales.UpdateOrderItem;
-using Cluckwork.Application.Features.Sales.VoidPayment;
-using Cluckwork.Application.Features.Sales.VoidSale;
-using Cluckwork.Application.Features.Users.CreateUser;
-using Cluckwork.Application.Features.Users.SetLanguage;
-using Cluckwork.Infrastructure.Identity;
-using Cluckwork.Infrastructure.Jobs;
 using Cluckwork.Infrastructure.Persistence;
-using Cluckwork.Infrastructure.Persistence.Interceptors;
-using Cluckwork.Infrastructure.Providers;
-using Cluckwork.Infrastructure.Providers.Postgres;
-using Cluckwork.Infrastructure.Repositories;
-using Cluckwork.Infrastructure.Time;
-using FluentValidation;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics;
-using Microsoft.AspNetCore.HostFiltering;
-using Microsoft.AspNetCore.HttpOverrides;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
-using OpenTelemetry.Metrics;
-using OpenTelemetry.Resources;
-using OpenTelemetry.Trace;
 using Serilog;
-using System.Globalization;
-using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// --- Logging ---
-// ReadFrom.Services lets DI-registered enrichers/sinks join the pipeline —
-// the integration tests tap the logger this way (#214).
-// preserveStaticLogger: the MEL bridge must bind THIS host's logger, never
-// the process-global Log.Logger — a co-hosted Serilog app's shutdown flips
-// the static to SilentLogger and every logger category created afterwards
-// goes permanently quiet (third bug of this family: options.Logger, then
-// DiagnosticContext, now the bridge itself).
-builder.Services.AddSerilog((services, cfg) => cfg
-    .ReadFrom.Configuration(builder.Configuration)
-    .ReadFrom.Services(services), preserveStaticLogger: true);
-// Bind IDiagnosticContext property creation to THIS host's logger. The default
-// falls back to the process-global static Log.Logger at Set() time — after any
-// co-hosted Serilog app shuts down (Log.CloseAndFlush -> SilentLogger), every
-// Set() becomes a silent no-op and enrichment like AccountId vanishes. Same
-// failure class as the request-logging options.Logger pinning below.
-builder.Services.AddSingleton(sp =>
-    new Serilog.Extensions.Hosting.DiagnosticContext(sp.GetRequiredService<Serilog.ILogger>()));
-builder.Services.AddSingleton<Serilog.IDiagnosticContext>(sp =>
-    sp.GetRequiredService<Serilog.Extensions.Hosting.DiagnosticContext>());
+var telemetry = builder.Services.AddCluckworkTelemetry(builder.Configuration);
 
-// --- OpenTelemetry ---
-// The exporter is config-gated (#214): traces leave the process only when
-// Otlp:Endpoint is set (compose forwards Otlp__* from deploy/.env via
-// env_file). Unset = spans stay in-process, exactly the pre-#214 behavior.
-// Endpoint and protocol are validated eagerly — even with export disabled a
-// typo'd protocol fails at boot, not silently.
-var otlp = builder.Configuration.GetSection(OtlpOptions.SectionName).Get<OtlpOptions>()
-    ?? new OtlpOptions();
-var otlpProtocol = otlp.ParseProtocol();
-var otlpTraceEndpoint = otlp.Enabled ? otlp.ResolveTraceEndpoint() : null;
-var otlpMetricsEndpoint = otlp.Enabled ? otlp.ResolveMetricsEndpoint() : null;
+var persistence = builder.Services.AddCluckworkPersistence(
+    builder.Configuration,
+    builder.Environment);
 
-// One exporter recipe for both signals — vendor auth must never drift
-// between traces and metrics (#227 review).
-Action<OpenTelemetry.Exporter.OtlpExporterOptions> ConfigureOtlpExporter(Uri endpoint) => options =>
-{
-    options.Endpoint = endpoint;
-    options.Protocol = otlpProtocol;
-    // Vendor auth rides in headers, e.g. "Authorization=Basic …".
-    if (!string.IsNullOrWhiteSpace(otlp.Headers))
-        options.Headers = otlp.Headers;
-};
+builder.Services.AddCluckworkIdentity(builder.Configuration);
 
-builder.Services.AddOpenTelemetry()
-    // One resource for every signal (#227 review — the intended API for this).
-    .ConfigureResource(resource => resource.AddService("Cluckwork.Api"))
-    .WithTracing(trace =>
-    {
-        trace
-            // Not ParentBased: an internet client could otherwise suppress
-            // tracing of its own requests via a traceparent sampled=0 flag.
-            .SetSampler(new AlwaysOnSampler())
-            // Probe spans are pure noise (and billable at SaaS vendors):
-            // /health/live+ready poll every few seconds forever.
-            .AddAspNetCoreInstrumentation(o =>
-                o.Filter = ctx => !ctx.Request.Path.StartsWithSegments("/health"))
-            .AddEntityFrameworkCoreInstrumentation();
-        if (otlpTraceEndpoint is not null)
-            trace.AddOtlpExporter(ConfigureOtlpExporter(otlpTraceEndpoint));
-    })
-    // #215 — metrics beside the traces, same endpoint gate. Meter set: ALL
-    // built-in ASP.NET Core meters (hosting request duration, Kestrel,
-    // routing, rate limiting, auth/Identity, memory pool — this app uses the
-    // lot), .NET runtime (GC/threads/exceptions), Npgsql, EF Core.
-    .WithMetrics(metrics =>
-    {
-        metrics
-            .AddAspNetCoreInstrumentation()
-            .AddRuntimeInstrumentation()
-            .AddMeter("Npgsql", "Microsoft.EntityFrameworkCore");
-        if (otlpMetricsEndpoint is not null)
-            metrics.AddOtlpExporter(ConfigureOtlpExporter(otlpMetricsEndpoint));
-    });
+var rateLimiting = builder.Services.AddCluckworkRateLimiting(
+    builder.Configuration);
+builder.Services.AddCluckworkEdgeSecurity(rateLimiting.TrustedProxies);
 
-// --- Multi-tenancy (scoped per request) ---
-builder.Services.AddScoped<TenantContext>();
-// The acting user, resolved beside the tenant (#93 audit trail).
-builder.Services.AddScoped<Cluckwork.Infrastructure.Identity.CurrentUserContext>();
-builder.Services.AddScoped<Cluckwork.Application.Common.ICurrentUser>(sp =>
-    sp.GetRequiredService<Cluckwork.Infrastructure.Identity.CurrentUserContext>());
-builder.Services.AddScoped<Cluckwork.Application.Common.IAuditWriter, AuditWriter>();
-builder.Services.AddScoped<Cluckwork.Application.Features.Audit.IAuditEventRepository, AuditEventRepository>();
-builder.Services.AddScoped<Cluckwork.Application.Features.Eggs.IEggInventoryMovementRepository, EggInventoryMovementRepository>();
-builder.Services.AddScoped<Cluckwork.Application.Features.Users.IUserRoleAssignmentRepository, UserRoleAssignmentRepository>();
-builder.Services.AddScoped<Cluckwork.Application.Common.IFlockScopeGuard, FlockScopeGuard>();
-builder.Services.AddScoped<Cluckwork.Application.Features.Users.AssignFlock.AssignFlockHandler>();
-builder.Services.AddScoped<Cluckwork.Application.Features.Users.AssignFlock.UnassignFlockHandler>();
-builder.Services.AddScoped<Cluckwork.Application.Features.Export.IExportQueries, ExportQueries>();
-
-// --- EF Core ---
-var dbProvider = builder.Configuration["Database:Provider"] ?? "Postgres";
-var rawConnectionString = builder.Configuration.GetConnectionString("Default")
-    ?? throw new InvalidOperationException("Connection string 'Default' is not configured.");
-// #261/#262 — normalize (accept URI form) + validate (Production TLS floor) ONCE at
-// startup, not inside the per-scope AddDbContext callback: a floor violation becomes a
-// clean boot failure (thrown here, before Build), and the warnings are logged once
-// (replayed via app.Logger after Build) instead of on every DbContext resolution.
-// Database:AllowInsecureConnection is the explicit opt-out for a co-located plaintext DB
-// (the bundled compose stack); a real deploy leaves it false and uses TLS.
-var connectionStringWarnings = new List<string>();
-var connectionString = PostgresConnectionString.NormalizeAndValidate(
-    rawConnectionString,
-    isProduction: builder.Environment.IsProduction(),
-    allowInsecureConnection: builder.Configuration.GetValue<bool>("Database:AllowInsecureConnection"),
-    onWarning: connectionStringWarnings.Add);
-
-builder.Services.AddScoped<TenantStampInterceptor>();
-builder.Services.AddDbContext<AppDbContext>((sp, options) =>
-{
-    options.AddInterceptors(sp.GetRequiredService<TenantStampInterceptor>());
-    IDbProviderConfigurator configurator = dbProvider switch
-    {
-        "Postgres" => new PostgresDbContextConfigurator(),
-        _ => throw new NotSupportedException($"Unsupported database provider: {dbProvider}")
-    };
-    configurator.Configure(options, connectionString);
-});
-
-// --- ASP.NET Core Identity ---
-builder.Services
-    .AddIdentityCore<ApplicationUser>(opts =>
-    {
-        opts.Password.RequiredLength = 12;
-        // Per-account lockout (#128): 5 failures locks the account for a 15-minute
-        // cool-off (matching the #143 per-IP login window). Enforced in
-        // IdentityProvider.LoginAsync; CreateAsync enables lockout on new users
-        // via AllowedForNewUsers (default true).
-        opts.Lockout.MaxFailedAccessAttempts = 5;
-        opts.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
-    })
-    .AddRoles<ApplicationRole>()
-    .AddEntityFrameworkStores<AppDbContext>()
-    .AddDefaultTokenProviders();
-
-// --- Auth rate limiting (#143) ---
-// Per-client-IP fixed windows on the anonymous auth endpoints. The real client
-// IP is resolved by the framework ForwardedHeaders middleware below (not by
-// hand-parsing X-Forwarded-For); this only buckets by it. Config is validated
-// eagerly so a bad value fails at boot, not on the first login request.
-var rateLimiting = builder.Configuration.GetSection(RateLimitingOptions.SectionName)
-    .Get<RateLimitingOptions>() ?? new RateLimitingOptions();
-rateLimiting.Validate();
-var trustedProxies = rateLimiting.ParseTrustedProxies();
-
-// #264 — the farm clock resolves IANA zones via TimeZoneInfo, which needs the
-// runtime image to carry the tz database. Validate eagerly so a tzdata-less
-// image or a typo'd zone fails loud at boot, never as a per-request
-// FarmTimeZoneException on the first stock screen: (1) a representative-zone
-// canary proves the image can resolve IANA ids at all, (2) the configured
-// Seed:TimeZoneId proves a provisioning typo is caught now. The `?? DefaultTimeZoneId`
-// reads the SAME fallback the seeder uses, so the guard validates exactly what
-// would be seeded (#264 review).
-TimeZoneAvailability.EnsureResolvable(
-    TimeZoneAvailability.CanaryZoneId, "Startup time-zone smoke check");
-TimeZoneAvailability.EnsureResolvable(
-    builder.Configuration.GetValue<string>("Seed:TimeZoneId") ?? SeedOptions.DefaultTimeZoneId,
-    "Configured Seed:TimeZoneId");
-
-// X-Forwarded-For (the client IP for the limiter) and X-Forwarded-Proto (the
-// real scheme, so HttpsRedirection/HSTS behave behind the proxy — #144). Both
-// are honoured only from the trusted proxy networks below.
-builder.Services.Configure<ForwardedHeadersOptions>(options =>
-{
-    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-    // Bound the trusted hop chain by network membership, not a fixed count.
-    options.ForwardLimit = null;
-    // Replace the framework defaults (which trust loopback) with exactly the
-    // configured proxy networks — an untrusted peer's XFF is then ignored.
-    options.KnownIPNetworks.Clear();
-    options.KnownProxies.Clear();
-    foreach (var network in trustedProxies)
-        options.KnownIPNetworks.Add(network);
-});
-
-// HSTS (#144) — emitted outside Development once the forwarded proto tells the
-// app the request is really HTTPS. A year, subdomains included.
-builder.Services.AddHsts(options =>
-{
-    options.MaxAge = TimeSpan.FromDays(365);
-    options.IncludeSubDomains = true;
-});
-
-// Host pinning (#144): the framework host-filtering middleware reads the
-// `AllowedHosts` config value; deployments set it to the public hostname so a
-// forged Host header is rejected (400). Loopback is force-added whenever a
-// specific host is pinned, so in-container health probes (Host: localhost) keep
-// working no matter what the operator configured. A "*" value disables pinning.
-builder.Services.PostConfigure<HostFilteringOptions>(options =>
-{
-    if (options.AllowedHosts.Contains("*")) return;
-    // Config binds AllowedHosts as a fixed-size array; replace it with a list
-    // that also admits loopback, rather than mutating the array in place.
-    var hosts = new List<string>(options.AllowedHosts);
-    foreach (var loopback in new[] { "localhost", "127.0.0.1", "[::1]" })
-        if (!hosts.Contains(loopback))
-            hosts.Add(loopback);
-    options.AllowedHosts = hosts;
-});
-
-builder.Services.AddRateLimiter(limiter =>
-{
-    limiter.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-    limiter.OnRejected = static async (context, ct) =>
-    {
-        if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
-            context.HttpContext.Response.Headers.RetryAfter =
-                ((int)Math.Ceiling(retryAfter.TotalSeconds)).ToString(CultureInfo.InvariantCulture);
-        await Results.Problem(
-                title: "Too many requests",
-                detail: "Too many requests from this address. Try again later.",
-                statusCode: StatusCodes.Status429TooManyRequests)
-            .ExecuteAsync(context.HttpContext);
-    };
-    AddFixedWindowByClientIp(limiter, RateLimitingOptions.LoginPolicyName, rateLimiting.Login);
-    AddFixedWindowByClientIp(limiter, RateLimitingOptions.RefreshPolicyName, rateLimiting.Refresh);
-    AddFixedWindowByClientIp(limiter, RateLimitingOptions.ClientErrorsPolicyName, rateLimiting.ClientErrors);
-
-    static void AddFixedWindowByClientIp(
-        Microsoft.AspNetCore.RateLimiting.RateLimiterOptions limiter,
-        string policyName, RateLimitingOptions.FixedWindow window) =>
-        limiter.AddPolicy(policyName, context =>
-            RateLimitPartition.GetFixedWindowLimiter(
-                RateLimitKey.ForClient(context.Connection.RemoteIpAddress),
-                _ => new FixedWindowRateLimiterOptions
-                {
-                    PermitLimit = window.PermitLimit,
-                    Window = TimeSpan.FromSeconds(window.WindowSeconds),
-                    QueueLimit = 0
-                }));
-});
-
-// --- JWT Bearer (asymmetric signing; tech spec §7.4) ---
-builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
-var jwtPublicKeyPem = PemKey.Normalize(builder.Configuration["Jwt:PublicKeyPem"]
-    ?? throw new InvalidOperationException("Jwt:PublicKeyPem is not configured."));
-
-builder.Services
-    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(opts =>
-    {
-        var rsa = RSA.Create();
-        rsa.ImportFromPem(jwtPublicKeyPem);
-
-        // Keep the raw JWT claim names ("role", "sub", "account_id") instead of
-        // remapping to the legacy XML-schema claim types — the SPA decodes the
-        // same short names from the token payload (#73).
-        opts.MapInboundClaims = false;
-        opts.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidIssuer = builder.Configuration["Jwt:Issuer"],
-            ValidateAudience = true,
-            ValidAudience = builder.Configuration["Jwt:Audience"],
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
-            IssuerSigningKey = new RsaSecurityKey(rsa),
-            ClockSkew = TimeSpan.FromSeconds(30),
-            RoleClaimType = "role"
-        };
-    });
-
-// #73 — Admin vs not-Admin only; house/flock-scoped RBAC is a later slice.
-builder.Services.AddAuthorization(opts => opts.AddCluckworkPolicies());
-builder.Services.AddSingleton<Microsoft.AspNetCore.Authorization.IAuthorizationMiddlewareResultHandler,
-    ForbiddenProblemResultHandler>();
-
-// --- Application ports ---
-builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
-builder.Services.AddScoped<IClock, SystemClock>();
-// #35: farm-local date boundary, shared by the stock read, sale allocation and
-// the future-date validators. Scoped so one request resolves the tenant's
-// timezone once and every boundary in it agrees.
-builder.Services.AddScoped<IFarmClock, FarmClock>();
-builder.Services.AddSingleton(TimeProvider.System);
-builder.Services.AddScoped<IIdentityProvider, IdentityProvider>();
-// #265 — offline break-glass account recovery (the `recover-admin` CLI command
-// below). Always registered, including in Production: unlike the demo/simulation
-// seeders, break-glass MUST work against a real deployment's database.
-builder.Services.AddScoped<Cluckwork.Infrastructure.Identity.AdminRecoveryService>();
-builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
-builder.Services.AddScoped<IDailyEntryRepository, DailyEntryRepository>();
-builder.Services.AddScoped<IEggLotRepository, EggLotRepository>();
-builder.Services.AddScoped<IEggGradeRepository, EggGradeRepository>();
-builder.Services.AddScoped<Cluckwork.Application.Features.Catalog.IProductRepository, ProductRepository>();
-builder.Services.AddScoped<Cluckwork.Application.Features.Catalog.IEggUnitConversionRepository, EggUnitConversionRepository>();
-builder.Services.AddScoped<IExpenseCategoryRepository, ExpenseCategoryRepository>();
-builder.Services.AddScoped<IExpenseRepository, ExpenseRepository>();
-builder.Services.AddScoped<ISalesOrderRepository, SalesOrderRepository>();
-builder.Services.AddScoped<ISalesOrderAllocationRepository, SalesOrderAllocationRepository>();
-builder.Services.AddScoped<IPaymentRepository, PaymentRepository>();
-builder.Services.AddScoped<Cluckwork.Application.Features.Reports.IReportQueries, ReportQueries>();
-builder.Services.AddScoped<IInventoryItemRepository, InventoryItemRepository>();
-builder.Services.AddScoped<IInventoryLotRepository, InventoryLotRepository>();
-builder.Services.AddScoped<IInventoryMovementRepository, InventoryMovementRepository>();
-builder.Services.AddScoped<IFeedUsageRepository, FeedUsageRepository>();
-builder.Services.AddScoped<IWaterUsageRepository, WaterUsageRepository>();
-builder.Services.AddScoped<IFlockRepository, FlockRepository>();
-builder.Services.AddScoped<IBirdMovementRepository, BirdMovementRepository>();
-builder.Services.AddScoped<ICustomerRepository, CustomerRepository>();
-builder.Services.AddScoped<IAccountRepository, AccountRepository>();
-builder.Services.AddScoped<Cluckwork.Application.Features.Accounts.ICurrencyBoundRowProbe, CurrencyBoundRowProbe>();
-builder.Services.AddScoped<Cluckwork.Application.Features.Accounts.IFarmLogoRepository, FarmLogoRepository>();
-
-// --- Validators ---
-builder.Services.AddScoped<IValidator<RecordDailyEntryCommand>, RecordDailyEntryValidator>();
-builder.Services.AddScoped<IValidator<Cluckwork.Application.Features.Catalog.CreateProduct.CreateProductCommand>,
-    Cluckwork.Application.Features.Catalog.CreateProduct.CreateProductValidator>();
-builder.Services.AddScoped<IValidator<Cluckwork.Application.Features.Catalog.UpdateProduct.UpdateProductCommand>,
-    Cluckwork.Application.Features.Catalog.UpdateProduct.UpdateProductValidator>();
-builder.Services.AddScoped<IValidator<Cluckwork.Application.Features.Catalog.UpdateEggUnitConversion.UpdateEggUnitConversionCommand>,
-    Cluckwork.Application.Features.Catalog.UpdateEggUnitConversion.UpdateEggUnitConversionValidator>();
-builder.Services.AddScoped<IValidator<CreateFlockCommand>, CreateFlockValidator>();
-builder.Services.AddScoped<IValidator<CreateCustomerCommand>, CreateCustomerValidator>();
-builder.Services.AddScoped<IValidator<CreateSalesOrderCommand>, CreateSalesOrderValidator>();
-builder.Services.AddScoped<IValidator<AddOrderItemCommand>, AddOrderItemValidator>();
-builder.Services.AddScoped<IValidator<UpdateOrderItemCommand>, UpdateOrderItemValidator>();
-builder.Services.AddScoped<IValidator<CreateEggGradeCommand>, CreateEggGradeValidator>();
-builder.Services.AddScoped<IValidator<UpdateEggGradeCommand>, UpdateEggGradeValidator>();
-builder.Services.AddScoped<IValidator<CreateExpenseCategoryCommand>, CreateExpenseCategoryValidator>();
-builder.Services.AddScoped<IValidator<UpdateExpenseCategoryCommand>, UpdateExpenseCategoryValidator>();
-builder.Services.AddScoped<IValidator<CreateExpenseCommand>, CreateExpenseValidator>();
-builder.Services.AddScoped<IValidator<AdjustExpenseCommand>, AdjustExpenseValidator>();
-builder.Services.AddScoped<IValidator<UpdateFlockCommand>, UpdateFlockValidator>();
-builder.Services.AddScoped<IValidator<RecordBirdMovementCommand>, RecordBirdMovementValidator>();
-builder.Services.AddScoped<IValidator<VoidSaleCommand>, VoidSaleValidator>();
-builder.Services.AddScoped<IValidator<RecordPaymentCommand>, RecordPaymentValidator>();
-builder.Services.AddScoped<IValidator<VoidPaymentCommand>, VoidPaymentValidator>();
-builder.Services.AddScoped<IValidator<CreateInventoryItemCommand>, CreateInventoryItemValidator>();
-builder.Services.AddScoped<IValidator<UpdateInventoryItemCommand>, UpdateInventoryItemValidator>();
-builder.Services.AddScoped<IValidator<RecordPurchaseCommand>, RecordPurchaseValidator>();
-builder.Services.AddScoped<IValidator<RecordFeedUsageCommand>, RecordFeedUsageValidator>();
-builder.Services.AddScoped<IValidator<RecordAdjustmentCommand>, RecordAdjustmentValidator>();
-builder.Services.AddScoped<IValidator<RecordWaterUsageCommand>, RecordWaterUsageValidator>();
-builder.Services.AddScoped<IValidator<UpdateWaterUsageCommand>, UpdateWaterUsageValidator>();
-builder.Services.AddScoped<IValidator<CreateUserCommand>, CreateUserValidator>();
-builder.Services.AddScoped<IValidator<Cluckwork.Application.Features.Users.UpdateUser.UpdateUserCommand>,
-    Cluckwork.Application.Features.Users.UpdateUser.UpdateUserValidator>();
-builder.Services.AddScoped<IValidator<Cluckwork.Application.Features.Users.SetUserPassword.SetUserPasswordCommand>,
-    Cluckwork.Application.Features.Users.SetUserPassword.SetUserPasswordValidator>();
-builder.Services.AddScoped<IValidator<Cluckwork.Application.Features.Users.ChangeOwnPassword.ChangeOwnPasswordCommand>,
-    Cluckwork.Application.Features.Users.ChangeOwnPassword.ChangeOwnPasswordValidator>();
-builder.Services.AddScoped<IValidator<AdjustDailyEntryCommand>, AdjustDailyEntryValidator>();
-builder.Services.AddScoped<IValidator<VoidDailyEntryCommand>, VoidDailyEntryValidator>();
-builder.Services.AddScoped<IValidator<SetLanguageCommand>, SetLanguageValidator>();
-builder.Services.AddScoped<
-    IValidator<Cluckwork.Application.Features.Accounts.UpdateFarmSettings.UpdateFarmSettingsCommand>,
-    Cluckwork.Application.Features.Accounts.UpdateFarmSettings.UpdateFarmSettingsValidator>();
-
-// --- Handlers (direct — no mediator, tech spec §2.1) ---
-builder.Services.AddScoped<RecordDailyEntryHandler>();
-builder.Services.AddScoped<SubmitDailyEntryHandler>();
-builder.Services.AddScoped<CreateCustomerHandler>();
-builder.Services.AddScoped<CreateSalesOrderHandler>();
-builder.Services.AddScoped<AddOrderItemHandler>();
-builder.Services.AddScoped<CancelSalesOrderHandler>();
-builder.Services.AddScoped<RemoveOrderItemHandler>();
-builder.Services.AddScoped<UpdateOrderItemHandler>();
-builder.Services.AddScoped<ConfirmSaleHandler>();
-builder.Services.AddScoped<VoidSaleHandler>();
-builder.Services.AddScoped<RecordPaymentHandler>();
-builder.Services.AddScoped<VoidPaymentHandler>();
-builder.Services.AddScoped<CreateInventoryItemHandler>();
-builder.Services.AddScoped<UpdateInventoryItemHandler>();
-builder.Services.AddScoped<SetInventoryItemActiveHandler>();
-builder.Services.AddScoped<RecordPurchaseHandler>();
-builder.Services.AddScoped<RecordFeedUsageHandler>();
-builder.Services.AddScoped<RecordAdjustmentHandler>();
-builder.Services.AddScoped<RecordWaterUsageHandler>();
-builder.Services.AddScoped<UpdateWaterUsageHandler>();
-builder.Services.AddScoped<CreateFlockHandler>();
-builder.Services.AddScoped<DepleteFlockHandler>();
-builder.Services.AddScoped<CreateEggGradeHandler>();
-builder.Services.AddScoped<Cluckwork.Application.Features.Catalog.CreateProduct.CreateProductHandler>();
-builder.Services.AddScoped<Cluckwork.Application.Features.Catalog.UpdateProduct.UpdateProductHandler>();
-builder.Services.AddScoped<Cluckwork.Application.Features.Catalog.SetProductActive.SetProductActiveHandler>();
-builder.Services.AddScoped<Cluckwork.Application.Features.Catalog.UpdateEggUnitConversion.UpdateEggUnitConversionHandler>();
-builder.Services.AddScoped<UpdateEggGradeHandler>();
-builder.Services.AddScoped<SetEggGradeActiveHandler>();
-builder.Services.AddScoped<CreateExpenseCategoryHandler>();
-builder.Services.AddScoped<UpdateExpenseCategoryHandler>();
-builder.Services.AddScoped<CreateExpenseHandler>();
-builder.Services.AddScoped<AdjustExpenseHandler>();
-builder.Services.AddScoped<UpdateFlockHandler>();
-builder.Services.AddScoped<ArchiveFlockHandler>();
-builder.Services.AddScoped<RecordBirdMovementHandler>();
-builder.Services.AddScoped<ReactivateFlockHandler>();
-builder.Services.AddScoped<CreateUserHandler>();
-builder.Services.AddScoped<Cluckwork.Application.Features.Users.UpdateUser.UpdateUserHandler>();
-builder.Services.AddScoped<Cluckwork.Application.Features.Users.SetUserPassword.SetUserPasswordHandler>();
-builder.Services.AddScoped<Cluckwork.Application.Features.Users.ChangeOwnPassword.ChangeOwnPasswordHandler>();
-builder.Services.AddScoped<SetLanguageHandler>();
-builder.Services.AddScoped<AdjustDailyEntryHandler>();
-builder.Services.AddScoped<
-    Cluckwork.Application.Features.Accounts.UpdateFarmSettings.UpdateFarmSettingsHandler>();
-builder.Services.AddScoped<
-    Cluckwork.Application.Features.Accounts.SetFarmLogo.SetFarmLogoHandler>();
-builder.Services.AddScoped<
-    Cluckwork.Application.Features.Accounts.RemoveFarmLogo.RemoveFarmLogoHandler>();
-builder.Services.AddScoped<VoidDailyEntryHandler>();
-
-// --- Farm logo upload cap (#123): operational limit under the domain ceiling,
-// validated at startup so a value above the ceiling fails the boot, not the
-// first upload.
-builder.Services.AddOptions<FarmLogoOptions>()
-    .Bind(builder.Configuration.GetSection(FarmLogoOptions.SectionName))
-    .ValidateOnStart();
-builder.Services.AddSingleton<IValidateOptions<FarmLogoOptions>, FarmLogoOptionsValidator>();
-
-// --- Startup seed (single-farm MVP) ---
-builder.Services.Configure<SeedOptions>(builder.Configuration.GetSection(SeedOptions.SectionName));
-builder.Services.AddScoped<DatabaseSeeder>();
-// Demo sample data (#58) no longer seeds on boot — it now runs only via the
-// explicit `dotnet Cluckwork.Api.dll seed --profile demo` command (#280).
-// Registered only outside Production (defense-in-depth): the primary guard is
-// that `seed` is a separate, explicitly-invoked command, but a Production
-// process must ALSO never be able to resolve DemoDataSeeder even if someone
-// mistakenly ran `seed --profile demo` against it — the `seed` command
-// (`Cli/SeedCliCommand.cs`) resolves it with GetService (not GetRequiredService)
-// and turns the missing registration into a clear operator-facing message.
-// Intended flow: the
-// serving process for a real farm stays Production (base DatabaseSeeder
-// still seeds it on boot, unchanged); a non-Production process — a dev box,
-// CI, or the eventual sim/load-test harness (#243) — runs the same binary
-// against its own throwaway database to add demo data on top.
-if (!builder.Environment.IsProduction())
-    builder.Services.AddScoped<DemoDataSeeder>();
-
-// --- #243 load-test simulation seeder: cast + minimal topology + 2nd
-// account + primary tz. #279: no longer boot-seeded and no longer
-// self-gated on Seed:Simulation — its only caller is the explicit
-// `seed --profile simulation` command (`Cli/SeedCliCommand.cs`), same shape as
-// DemoDataSeeder.
-// Registered only outside Production (defense-in-depth, mirrors
-// DemoDataSeeder immediately above): the primary guard is that `seed` is a
-// separate, explicitly-invoked command, but a Production process must ALSO
-// never be able to resolve SimulationDataSeeder even if someone mistakenly
-// ran `seed --profile simulation` against it.
-builder.Services.Configure<SimulationOptions>(
-    builder.Configuration.GetSection(SimulationOptions.SectionName));
-if (!builder.Environment.IsProduction())
-    builder.Services.AddScoped<SimulationDataSeeder>();
+builder.Services.AddCluckworkFeatures(builder.Configuration);
 
 // --- OpenAPI ---
 builder.Services.AddOpenApi();
 
-// --- Health checks ---
-// Readiness includes the database (#65): during a DB outage — or with
-// migrations pending — the API stays up (liveness green) while /health/ready
-// turns 503 so orchestrators stop routing traffic until it recovers. The job
-// worker reports via a heartbeat: a stall shows as Degraded (still HTTP 200 —
-// a dead background job must not pull API traffic).
-builder.Services.AddSingleton<DurableJobWorkerHeartbeat>();
-builder.Services.AddHealthChecks()
-    .AddCheck<Cluckwork.Api.HealthChecks.DatabaseReadyHealthCheck>("database")
-    .AddCheck<Cluckwork.Api.HealthChecks.DurableJobWorkerHealthCheck>("durable-job-worker");
-
-// --- Durable job scaffold (tech spec §9) + recurring sweeps ---
-builder.Services.AddSingleton<DailyEntryLockSweep>();
-builder.Services.AddHostedService<DurableJobWorker>();
+builder.Services.AddCluckworkHealthChecks();
+builder.Services.AddCluckworkJobs();
 
 // ----------------------------------------------------------------
 var app = builder.Build();
@@ -565,7 +56,7 @@ var app = builder.Build();
 // #262 — replay the connection-string TLS warnings once, now that a logger exists (a
 // floor violation already failed the boot above during configuration). Logged before the
 // CLI dispatch so the migrate/seed one-shot verbs surface it too.
-foreach (var connectionStringWarning in connectionStringWarnings)
+foreach (var connectionStringWarning in persistence.ConnectionStringWarnings)
     app.Logger.LogWarning("{ConnectionStringWarning}", connectionStringWarning);
 
 // One-off operator commands (seed / migrate / recover-admin) run then EXIT
@@ -589,8 +80,8 @@ if (await CliDispatcher.TryRunAsync(app, args) is int cliExitCode)
 // Testing env is also empty-proxied and must still boot; a real Staging serving
 // env, if ever introduced, would be added to this gate.
 if (app.Environment.IsProduction()
-    && trustedProxies.Length == 0
-    && !rateLimiting.AllowNoTrustedProxies)
+    && rateLimiting.TrustedProxies.Length == 0
+    && !rateLimiting.Options.AllowNoTrustedProxies)
 {
     throw new InvalidOperationException(
         "RateLimiting:TrustedProxies is empty in Production, so the app trusts no "
@@ -606,10 +97,12 @@ if (app.Environment.IsProduction()
 
 // One boot line makes export misconfiguration observable — a typo'd env var
 // name otherwise silently disables the whole pipeline (#226 review).
-if (otlpTraceEndpoint is not null)
+if (telemetry.TraceEndpoint is not null)
     app.Logger.LogInformation(
         "OTLP export enabled: traces -> {OtlpTraceEndpoint}, metrics -> {OtlpMetricsEndpoint} ({OtlpProtocol})",
-        otlpTraceEndpoint, otlpMetricsEndpoint, otlpProtocol);
+        telemetry.TraceEndpoint,
+        telemetry.MetricsEndpoint,
+        telemetry.Protocol);
 else
     app.Logger.LogInformation("OTLP export disabled (Otlp:Endpoint not set)");
 // ----------------------------------------------------------------
