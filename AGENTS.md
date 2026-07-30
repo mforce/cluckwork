@@ -54,6 +54,29 @@ dotnet test  Cluckwork.sln                 # 688 tests as of 2026-07; integratio
 - Local API debug config uses `dotnet user-secrets` (keyed by `UserSecretsId` in `Cluckwork.Api.csproj`).
 - No hardcoded passwords/keys in source — GitGuardian scans PRs. Generate test credentials at runtime.
 
+## Host-agnostic repo (deployment boundary)
+
+This repo is **host-portable** — it must build and run against any host without
+carrying provider-specific config. The app reads every environment specific from
+config/env (connection string, `RateLimiting:TrustedProxies`, `Seed:TimeZoneId`,
+Postgres `sslmode`, …) and **never names or branches on a hosting provider**.
+
+- **Stays here** (portable operational contract): the Dockerfile, `deploy/`
+  compose as a local/reference stack, health probes (`/health/live`,
+  `/health/ready`), the `migrate` / `seed` / `recover-admin` verbs,
+  `.env.example`, and docs that state *requirements* ("needs tzdata + ICU",
+  "needs a trusted-proxy list", "needs TLS to Postgres", "a fronting CDN must
+  respect origin cache headers").
+- **Does NOT belong here** (goes to the **`cluckwork-deploy`** repo —
+  `github.com/mforce/cluckwork-deploy`): provider deploy manifests
+  (`railway.json`, `fly.toml`), IaC (Terraform/Pulumi),
+  CDN / DNS / edge config, secret-store wiring, provider-named runbooks, and the
+  concrete environment *values* (proxy CIDRs, CA bundles, connection URLs).
+
+Reviewers: treat a hardcoded provider name in code, config, or a committed doc
+like a missing test — flag it. Naming a provider as a passing *example* in prose
+is tolerable only when no portable phrasing works; prefer the neutral term.
+
 ## Pre-commit hook (opt-in)
 
 `git config core.hooksPath .githooks` enables a ~2s pre-commit hook: unit tests

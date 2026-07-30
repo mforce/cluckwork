@@ -12,7 +12,7 @@ using Microsoft.Net.Http.Headers;
 //
 // The same policy is applied to plain static-file responses AND to the SPA
 // fallback (an unknown route rewritten to index.html), so both go out with the
-// correct header. A fronting CDN (Cloudflare) can then respect these values:
+// correct header. A fronting CDN can then respect these values:
 // edge-cache the immutable assets forever, revalidate index.html, and — via its
 // own rules — bypass /api/* entirely (dynamic responses carry no cache header).
 public static class StaticAssetCaching
