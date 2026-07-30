@@ -234,11 +234,6 @@
     "ast_hash": "8a5571185b34b9c8102c504c243aa38c",
     "semantic_hash": "8a5571185b34b9c8102c504c243aa38c"
   },
-  "src/Cluckwork.Api/packages.lock.json": {
-    "mtime": 1785308983.6144216,
-    "ast_hash": "1a8efd16d61524e8bbe0d0c2bce7521d",
-    "semantic_hash": "1a8efd16d61524e8bbe0d0c2bce7521d"
-  },
   "src/Cluckwork.Application/Cluckwork.Application.csproj": {
     "mtime": 1785308983.6144216,
     "ast_hash": "d15e10bec5e4ce75d8698beb78712694",
@@ -1024,11 +1019,6 @@
     "ast_hash": "48486e76a00661735960b57f8a594f48",
     "semantic_hash": "48486e76a00661735960b57f8a594f48"
   },
-  "src/Cluckwork.Application/packages.lock.json": {
-    "mtime": 1785308983.6172702,
-    "ast_hash": "098d6761920d159e0538313e2197de02",
-    "semantic_hash": "098d6761920d159e0538313e2197de02"
-  },
   "src/Cluckwork.Domain/Accounts/Account.cs": {
     "mtime": 1785308983.6173499,
     "ast_hash": "4757ab6dadf8e0ee35f43fbcf5fcab9d",
@@ -1233,11 +1223,6 @@
     "mtime": 1785308983.6183553,
     "ast_hash": "57e42504e755672a67b574c27f8951b1",
     "semantic_hash": "57e42504e755672a67b574c27f8951b1"
-  },
-  "src/Cluckwork.Domain/packages.lock.json": {
-    "mtime": 1785308983.6183553,
-    "ast_hash": "65fcf5846f810311931b4940838ac845",
-    "semantic_hash": "65fcf5846f810311931b4940838ac845"
   },
   "src/Cluckwork.Infrastructure/Cluckwork.Infrastructure.csproj": {
     "mtime": 1785308983.6183553,
@@ -1864,11 +1849,6 @@
     "ast_hash": "7a3e5d36b3a9ca568f45c3d2e6efe534",
     "semantic_hash": "7a3e5d36b3a9ca568f45c3d2e6efe534"
   },
-  "src/Cluckwork.Infrastructure/packages.lock.json": {
-    "mtime": 1785308983.6217341,
-    "ast_hash": "ded12fc86641141861763aed72bfd624",
-    "semantic_hash": "ded12fc86641141861763aed72bfd624"
-  },
   "tests/Cluckwork.Api.IntegrationTests/AccountLockoutTests.cs": {
     "mtime": 1785308983.621803,
     "ast_hash": "d7bb9d82e1f39fdec55ca88103adf106",
@@ -2194,11 +2174,6 @@
     "ast_hash": "305ffcf9595aac32bff2a1ec7a4de40c",
     "semantic_hash": "305ffcf9595aac32bff2a1ec7a4de40c"
   },
-  "tests/Cluckwork.Api.IntegrationTests/packages.lock.json": {
-    "mtime": 1785308983.6230128,
-    "ast_hash": "6cd0db2c5437e38e7be46182199087da",
-    "semantic_hash": "6cd0db2c5437e38e7be46182199087da"
-  },
   "tests/Cluckwork.Application.Tests/Accounts/UpdateFarmSettingsValidatorTests.cs": {
     "mtime": 1785308983.623675,
     "ast_hash": "2bef6d4065ac6f4183d72d6e51e063dc",
@@ -2238,11 +2213,6 @@
     "mtime": 1785308983.623737,
     "ast_hash": "545eb04bbec8542c063a07282409983d",
     "semantic_hash": "545eb04bbec8542c063a07282409983d"
-  },
-  "tests/Cluckwork.Application.Tests/packages.lock.json": {
-    "mtime": 1785308983.623737,
-    "ast_hash": "8bc47c9470817d6574800d56ba570d4c",
-    "semantic_hash": "8bc47c9470817d6574800d56ba570d4c"
   },
   "tests/Cluckwork.Domain.Tests/Accounts/AccountSettingsTests.cs": {
     "mtime": 1785308983.6238484,
@@ -2308,11 +2278,6 @@
     "mtime": 1785308983.62413,
     "ast_hash": "6f9c8973499e7078b5205543573fbffa",
     "semantic_hash": "6f9c8973499e7078b5205543573fbffa"
-  },
-  "tests/Cluckwork.Domain.Tests/packages.lock.json": {
-    "mtime": 1785308983.62413,
-    "ast_hash": "990f409f35770be4595b38750d6d1214",
-    "semantic_hash": "990f409f35770be4595b38750d6d1214"
   },
   "web/package.json": {
     "mtime": 1785308983.6247737,
@@ -3070,9 +3035,9 @@
     "semantic_hash": "feef572f2e63b14c3b3de96deb12bf19"
   },
   "AGENTS.md": {
-    "mtime": 1785308983.6118543,
-    "ast_hash": "538b8d0c444ea8bdbed7c9edd863ccbb",
-    "semantic_hash": "538b8d0c444ea8bdbed7c9edd863ccbb"
+    "mtime": 1785365577.765887,
+    "ast_hash": "ef83c4fe58cd0f544b9d2e772ed89cb0",
+    "semantic_hash": "ef83c4fe58cd0f544b9d2e772ed89cb0"
   },
   "README.md": {
     "mtime": 1785308983.6118543,
@@ -3383,5 +3348,50 @@
     "mtime": 1785308983.624846,
     "ast_hash": "f8992c119a9b9d536299732624853987",
     "semantic_hash": "f8992c119a9b9d536299732624853987"
+  },
+  ".claude/settings.json": {
+    "mtime": 1785365813.3203177,
+    "ast_hash": "659a2237f7b3a1f6cf34e95f4c3b699d",
+    "semantic_hash": "659a2237f7b3a1f6cf34e95f4c3b699d"
+  },
+  ".codex/hooks.json": {
+    "mtime": 1785365801.999328,
+    "ast_hash": "7193a8ae43ebb0e4cad1dc2539471fc6",
+    "semantic_hash": "7193a8ae43ebb0e4cad1dc2539471fc6"
+  },
+  "CLAUDE.md": {
+    "mtime": 1785366069.3763952,
+    "ast_hash": "5c27369b226fcf2be8a6cfe52224e767",
+    "semantic_hash": "5c27369b226fcf2be8a6cfe52224e767"
+  },
+  "graphify-out/memory/query_20260729_075455_what_is_the_exact_relationship_between_the_spa_s_h.md": {
+    "mtime": 1785311695.999761,
+    "ast_hash": "97492aac77b93788e94812c4f84d7db4",
+    "semantic_hash": "97492aac77b93788e94812c4f84d7db4"
+  },
+  "graphify-out/memory/query_20260729_075657_customers_screen_wireframe_vs_sales_nav_item___whe.md": {
+    "mtime": 1785311817.0565333,
+    "ast_hash": "a8f6a2a065d539f9731388789dc4f365",
+    "semantic_hash": "a8f6a2a065d539f9731388789dc4f365"
+  },
+  "graphify-out/memory/query_20260729_075657_sidebar_navigation_vs_restricted_egg_lots__sale_bl.md": {
+    "mtime": 1785311817.1129725,
+    "ast_hash": "15ce48565264f8c252c38551e40c6239",
+    "semantic_hash": "15ce48565264f8c252c38551e40c6239"
+  },
+  "graphify-out/memory/query_20260729_075657_withdrawal_period_indicator_vs_alerts_badge___do_w.md": {
+    "mtime": 1785311817.1689508,
+    "ast_hash": "83cdc7fea7b05c0a4c0c3ce29ff9112e",
+    "semantic_hash": "83cdc7fea7b05c0a4c0c3ce29ff9112e"
+  },
+  "graphify-out/memory/query_20260729_075746_legacy_import_wizard_vs_sales_history_import_type.md": {
+    "mtime": 1785311866.9391723,
+    "ast_hash": "430b95f22c7a095c7188df59d530aee0",
+    "semantic_hash": "430b95f22c7a095c7188df59d530aee0"
+  },
+  "graphify-out/memory/query_20260729_075746_why_does_net10_0_bridge_37_communities.md": {
+    "mtime": 1785311866.9957035,
+    "ast_hash": "b717b5ccbbff81cee2b7b4fbdd164ec7",
+    "semantic_hash": "b717b5ccbbff81cee2b7b4fbdd164ec7"
   }
 }
