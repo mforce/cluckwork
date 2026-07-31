@@ -289,15 +289,20 @@ jobs:
             cluckwork-api:ci migrate
 
           # Boot the serving container. Production env (ASPNETCORE_ENVIRONMENT
-          # unset) trips both boot guards, so opt out of the TLS floor (#262 —
-          # plaintext PG on the private network) and the trusted-proxy requirement
-          # (#260 — no fronting proxy here), exactly as the compose stack does.
+          # unset) trips the Production serving guards, so opt out of the TLS
+          # floor (#262 — plaintext PG on the private network) and the
+          # trusted-proxy requirement (#260 — no fronting proxy here), exactly
+          # as the compose stack does — and (#319) supply a concrete,
+          # synthetic, CI-only AllowedHosts (never a real deploy hostname; the
+          # repo stays host-agnostic). Loopback still works: edge-security
+          # config force-adds localhost/127.0.0.1/[::1] to host filtering.
           # Boot with a FAST health cadence (override the image's 30s timing) so
           # Docker evaluates the image's own HEALTHCHECK within the job — see the
           # health-status assertion below.
           docker run -d --name ci-app --network cluckwork-ci -p 127.0.0.1:8080:8080 \
             --health-start-period=3s --health-interval=3s --health-timeout=5s --health-retries=3 \
             -e ASPNETCORE_URLS=http://+:8080 \
+            -e AllowedHosts=cluckwork-ci.local \
             -e Database__Provider=Postgres \
             -e "ConnectionStrings__Default=$CONN" \
             -e Database__AllowInsecureConnection=true \
