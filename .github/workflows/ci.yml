@@ -208,6 +208,30 @@ jobs:
       - name: Build runtime image
         run: docker build -f src/Cluckwork.Api/Dockerfile -t cluckwork-api:ci .
 
+      # #315 — prove --locked-mode is enforced in the Docker restore: perturb an
+      # exact-pinned PackageReference WITHOUT refreshing its lock and assert the
+      # build fails (NU1004). `--target build` stops at the restore/publish stage
+      # (skips the SPA/web stage), so this is a fast negative check on a throwaway
+      # copy of the committed tree — the real build above is untouched.
+      - name: Stale lock fails the Docker restore (--locked-mode drift guard)
+        run: |
+          set -euo pipefail
+          work="$(mktemp -d)"
+          git archive HEAD | tar -x -C "$work"
+          cd "$work"
+          sed -i 's#<PackageReference Include="Microsoft.OpenApi" Version="2.11.0" #<PackageReference Include="Microsoft.OpenApi" Version="2.10.0" #' \
+            src/Cluckwork.Api/Cluckwork.Api.csproj
+          # Fail loudly (don't silently pass) if the pin used as the perturbation
+          # target has since moved — the guard must be kept pointing at a real pin.
+          grep -q '<PackageReference Include="Microsoft.OpenApi" Version="2.10.0" ' \
+            src/Cluckwork.Api/Cluckwork.Api.csproj \
+            || { echo "::error::drift-guard perturbation target not found; update the Microsoft.OpenApi version it edits"; exit 1; }
+          if docker build --target build -f src/Cluckwork.Api/Dockerfile -t cluckwork-lockdrift:ci . ; then
+            echo "::error::Docker restore succeeded with a stale packages.lock.json — --locked-mode is not enforced"
+            exit 1
+          fi
+          echo "OK: a stale lock correctly failed the Docker --locked-mode restore"
+
       # BLOCKING gate: fail the build on a HIGH or CRITICAL CVE — but only one that
       # HAS a fix (`ignore-unfixed: true`). That mirrors the #146 dependency-gate
       # philosophy: the actionable response to an advisory is "move to a fixed

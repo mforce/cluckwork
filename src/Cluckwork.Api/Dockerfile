@@ -21,12 +21,22 @@ RUN mkdir /web/sourcemaps && \
 # --- API build: restore + publish the .NET app ---
 FROM mcr.microsoft.com/dotnet/sdk:10.0@sha256:ed034a8bf0b24ded0cbbac07e17825d8e9ebfe21e308191d0f7421eaf5ad4664 AS build
 WORKDIR /src
+# #315 — copy EVERY restore input (Directory.Build.props + each project file AND
+# its packages.lock.json, for the API project and the projects it references)
+# BEFORE the restore layer, then restore with --locked-mode. This makes the image
+# resolve the SAME deterministic NuGet graph CI enforces: a stale/hand-edited lock
+# fails the build (NU1004) instead of silently floating to a different version.
+# Directory.Build.props sets RestorePackagesWithLockFile, so it must precede
+# restore. Only the SERVING projects are restored here (not the test projects),
+# so only their four lock files are needed. Copying just these inputs (not the
+# full source tree) keeps the restore layer cached across source-only changes.
+COPY Directory.Build.props ./
 COPY Cluckwork.sln ./
-COPY src/Cluckwork.Domain/Cluckwork.Domain.csproj src/Cluckwork.Domain/
-COPY src/Cluckwork.Application/Cluckwork.Application.csproj src/Cluckwork.Application/
-COPY src/Cluckwork.Infrastructure/Cluckwork.Infrastructure.csproj src/Cluckwork.Infrastructure/
-COPY src/Cluckwork.Api/Cluckwork.Api.csproj src/Cluckwork.Api/
-RUN dotnet restore src/Cluckwork.Api/Cluckwork.Api.csproj
+COPY src/Cluckwork.Domain/Cluckwork.Domain.csproj src/Cluckwork.Domain/packages.lock.json src/Cluckwork.Domain/
+COPY src/Cluckwork.Application/Cluckwork.Application.csproj src/Cluckwork.Application/packages.lock.json src/Cluckwork.Application/
+COPY src/Cluckwork.Infrastructure/Cluckwork.Infrastructure.csproj src/Cluckwork.Infrastructure/packages.lock.json src/Cluckwork.Infrastructure/
+COPY src/Cluckwork.Api/Cluckwork.Api.csproj src/Cluckwork.Api/packages.lock.json src/Cluckwork.Api/
+RUN dotnet restore src/Cluckwork.Api/Cluckwork.Api.csproj --locked-mode
 COPY . .
 RUN dotnet publish src/Cluckwork.Api/Cluckwork.Api.csproj -c Release -o /out --no-restore
 
