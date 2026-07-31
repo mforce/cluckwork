@@ -22,7 +22,10 @@ public sealed class CreateUserValidator : AbstractValidator<CreateUserCommand>
             .Must(v => !string.IsNullOrWhiteSpace(v)).WithMessage("Password is required.")
             .WithErrorCode("User.Password.Required")
             .MinimumLength(12)
-            .WithErrorCode("User.Password.MinLength");
+            .WithErrorCode("User.Password.MinLength")
+            // #309 — bound the credential ahead of the PBKDF2 hash.
+            .MaximumLength(Cluckwork.Application.Features.Users.PasswordRules.MaxLength)
+            .WithErrorCode("User.Password.MaxLength");
         RuleFor(x => x.Role)
             .Must(r => r == WorkerRole || Cluckwork.Domain.Accounts.Roles.Assignable.Contains(r))
             .WithMessage("Role must be Admin (owner), Manager, Sales, ReadOnly, or Worker.")

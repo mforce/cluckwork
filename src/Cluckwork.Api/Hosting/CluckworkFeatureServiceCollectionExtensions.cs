@@ -220,6 +220,11 @@ internal static class CluckworkFeatureServiceCollectionExtensions
         services.AddScoped<
             IValidator<Cluckwork.Application.Features.Users.ChangeOwnPassword.ChangeOwnPasswordCommand>,
             Cluckwork.Application.Features.Users.ChangeOwnPassword.ChangeOwnPasswordValidator>();
+        // #309 — the login DTO validator lives in the Api assembly (it validates
+        // the Api LoginRequest). MAX-length only; see LoginRequestValidator.
+        services.AddScoped<
+            IValidator<Cluckwork.Api.Endpoints.Auth.LoginRequest>,
+            Cluckwork.Api.Endpoints.Auth.LoginRequestValidator>();
         services.AddScoped<
             IValidator<AdjustDailyEntryCommand>,
             AdjustDailyEntryValidator>();

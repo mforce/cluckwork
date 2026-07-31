@@ -194,6 +194,19 @@ app.UseSerilogRequestLogging(options =>
 // opt in via RequireRateLimiting are affected.
 app.UseRateLimiter();
 
+// #309 — enforce the per-endpoint request-body byte caps (the auth/credential
+// endpoints opt in via WithMaxRequestBodyBytes). Placed AFTER Serilog request
+// logging and the rate limiter — NOT right after UseExceptionHandler — so a
+// declared-oversize body (the cheapest attack: no need to stream anything) is
+// still logged (#214's one-line-per-request contract) and still consumes a
+// login rate-limit permit (#143) before this middleware returns early; an
+// earlier placement let an attacker flood oversized bodies at unlimited rate
+// while every legitimate-sized attempt was throttled. Still ahead of
+// auth/tenant/idempotency/binding/the PBKDF2 hasher — routing has already run
+// (this is well after UseExceptionHandler), so the matched endpoint's metadata
+// is available, and an over-limit body is refused before any of that work.
+app.UseCluckworkRequestBodyLimit();
+
 app.UseAuthentication();
 app.UseMiddleware<TenantResolutionMiddleware>();
 // Authorization must run BEFORE idempotency: the replay path returns cached

@@ -41,6 +41,8 @@ export const tl = {
     tooManyAttempts:
       "Sobra na ang subok sa pag-sign in. Maghintay ng ilang minuto at subukan ulit.",
     apiDown: "Hindi makapag-sign in. Gumagana ba ang API?",
+    // machine-drafted (#182) — pending native review.
+    credentialsTooLong: "Sobrang haba niyan — tingnan ang iyong email at password.",
   },
   account: {
     preferences: "Mga Kagustuhan",

@@ -1,5 +1,6 @@
 namespace Cluckwork.Api.Endpoints.Auth;
 
+using Cluckwork.Api.Hosting;
 using Cluckwork.Api.RateLimiting;
 using Cluckwork.Api.Validation;
 using Cluckwork.Application.Common;
@@ -10,6 +11,13 @@ using Microsoft.Extensions.Options;
 
 public static class AuthEndpoints
 {
+    // #309 — the refresh token is a 256-bit value rendered as standard Base64
+    // (Convert.ToBase64String — not URL-safe, so it can include +, / and =
+    // padding), which is exactly 44 chars for 32 bytes (IdentityProvider's
+    // GenerateRefreshToken); 512 is a generous ceiling that still rejects a
+    // padded/garbage cookie value before it reaches the token store.
+    private const int MaxRefreshTokenLength = 512;
+
     public static RouteGroupBuilder MapAuthEndpoints(this RouteGroupBuilder group)
     {
         // Strict limit — login is the password-spraying target (#143). On success
@@ -18,6 +26,14 @@ public static class AuthEndpoints
         group.MapPost("/login", Login)
             .AllowAnonymous()
             .RequireRateLimiting(RateLimitingOptions.LoginPolicyName)
+            // #309 — 4 KB, not 2 KB: System.Text.Json's DEFAULT encoder escapes
+            // non-ASCII as 6-byte \uXXXX sequences, so a maximum-length (256-char)
+            // email + password serialized via HttpClient.PostAsJsonAsync (this
+            // repo's own integration tests use it) can reach ~3.1 KB — a 2 KB cap
+            // rejected a legitimate maximum-length credential. An oversized body
+            // is still 413'd before binding / the PBKDF2 verify (incl. the
+            // unknown-user equalization hash).
+            .WithMaxRequestBodyBytes(4096)
             .WithName("Login")
             .WithSummary("Exchange credentials for an access token; sets the refresh-token cookie.");
 
@@ -28,6 +44,9 @@ public static class AuthEndpoints
         group.MapPost("/refresh", Refresh)
             .AllowAnonymous()
             .RequireRateLimiting(RateLimitingOptions.RefreshPolicyName)
+            // #309 — refresh carries no body of its own (the token rides in the
+            // cookie); 1 KB is a defensive cap so a junk body can't be streamed in.
+            .WithMaxRequestBodyBytes(1024)
             .WithName("RefreshToken")
             .WithSummary("Rotate the refresh-token cookie and return a fresh access token.");
 
@@ -50,6 +69,11 @@ public static class AuthEndpoints
         group.MapPost("/change-password", ChangePassword)
             .RequireAuthorization()
             .RequireRateLimiting(RateLimitingOptions.LoginPolicyName)
+            // #309 — 4 KB, not 2 KB: two maximum-length (256-char) passwords
+            // escaped by System.Text.Json's default \uXXXX encoder (see the
+            // login comment above) measured at ~3.1 KB; 4 KB still caps the body
+            // ahead of binding and the current-password PBKDF2 verify.
+            .WithMaxRequestBodyBytes(4096)
             .WithName("ChangeOwnPassword")
             .WithSummary("Change your own password; signs out other devices.");
 
@@ -62,9 +86,16 @@ public static class AuthEndpoints
     private static bool CookieSecure(IWebHostEnvironment env) => !env.IsDevelopment();
 
     private static async Task<IResult> Login(
-        LoginRequest request, IIdentityProvider identity, HttpResponse response,
-        IOptions<JwtOptions> jwt, IWebHostEnvironment env, CancellationToken ct)
+        LoginRequest request, IIdentityProvider identity, IValidator<LoginRequest> validator,
+        HttpResponse response, IOptions<JwtOptions> jwt, IWebHostEnvironment env, CancellationToken ct)
     {
+        // #309 — reject an OVERSIZED email/password (400) before the hasher. An
+        // empty/short credential is NOT rejected here: it still flows to
+        // LoginAsync and returns the generic non-enumerating 401 (unchanged).
+        var validation = await validator.ValidateAsync(request, ct);
+        if (!validation.IsValid)
+            return ValidationResponse.Problem(validation);
+
         var result = await identity.LoginAsync(request.Email, request.Password, ct);
         if (!result.IsSuccess)
             return Results.Problem(result.Error.Description, statusCode: 401, title: result.Error.Code);
@@ -77,6 +108,20 @@ public static class AuthEndpoints
         HttpRequest request, HttpResponse response, IIdentityProvider identity,
         IOptions<JwtOptions> jwt, IWebHostEnvironment env, CancellationToken ct)
     {
+        // #309 — refresh carries no bound body parameter (the token rides in the
+        // cookie), so the middleware's byte-capped stream is only enforced if
+        // something actually reads Request.Body — for every OTHER auth endpoint,
+        // JSON parameter binding does that automatically; refresh has none.
+        // Actively drain (and discard) the body here so an oversized/chunked body
+        // throws (413) instead of silently passing through unread. Reproduced
+        // live: without this, a multi-MB chunked body reaches this handler
+        // untouched. Drained first (before the CSRF header check) to reject the
+        // cheapest attack first; the throw propagates normally up through the
+        // pipeline to UseExceptionHandler/`/error` (this is a handler-thrown
+        // exception, not one swallowed inside framework JSON-binding code), which
+        // already maps BadHttpRequestException to a 413 ProblemDetails.
+        await request.Body.CopyToAsync(Stream.Null, ct);
+
         // CSRF: SameSite=Strict already keeps the cookie off cross-site requests;
         // the custom header (which a cross-site simple request can't set) is the
         // belt-and-braces second check.
@@ -86,6 +131,18 @@ public static class AuthEndpoints
         var refreshToken = AuthCookies.ReadRefreshCookie(request);
         if (refreshToken is null)
             return Results.Problem("Not authenticated.", statusCode: 401, title: "Identity.InvalidRefreshToken");
+
+        // #309 — a real refresh token is a fixed, short base64 string. Treat an
+        // over-length cookie value like a MISSING cookie (clear + the same
+        // "Not authenticated." 401 as the branch just above) rather than like a
+        // genuine-but-rejected token from RefreshAsync below (which returns
+        // result.Error.Description, a different string) — both are equally
+        // non-enumerating, this just matches the response actually produced.
+        if (refreshToken.Length > MaxRefreshTokenLength)
+        {
+            AuthCookies.ClearRefreshCookie(response, CookieSecure(env));
+            return Results.Problem("Not authenticated.", statusCode: 401, title: "Identity.InvalidRefreshToken");
+        }
 
         var result = await identity.RefreshAsync(refreshToken, ct);
         if (!result.IsSuccess)

@@ -87,15 +87,17 @@ export function AccountPage() {
       <form className="inline-form" onSubmit={onSubmit}>
         <label>{t("currentPasswordLabel")}
           <input type="password" value={current} required autoComplete="current-password"
+            maxLength={256}
             onChange={(e) => setCurrent(e.target.value)} />
         </label>
         <label>{t("newPasswordLabel", { min: MIN_LENGTH })}
-          <input type="password" value={next} required minLength={MIN_LENGTH}
+          <input type="password" value={next} required minLength={MIN_LENGTH} maxLength={256}
             autoComplete="new-password"
             onChange={(e) => setNext(e.target.value)} />
         </label>
         <label>{t("confirmPasswordLabel")}
           <input type="password" value={confirm} required autoComplete="new-password"
+            maxLength={256}
             onChange={(e) => setConfirm(e.target.value)} />
         </label>
         {error && <p className="error">{error}</p>}

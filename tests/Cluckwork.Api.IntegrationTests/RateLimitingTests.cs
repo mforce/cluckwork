@@ -89,6 +89,31 @@ public sealed class RateLimitingTests : IClassFixture<RateLimitFactory>
         Assert.False(string.IsNullOrWhiteSpace(problem.GetProperty("title").GetString()));
     }
 
+    // #309 Fix 2 — the body-limit middleware used to run BEFORE the rate
+    // limiter, so a declared-oversize login body 413'd and `return`ed before
+    // UseRateLimiter ever consumed a permit: an attacker could flood oversized
+    // bodies at unlimited rate while every legitimate-sized attempt was
+    // throttled. It now runs AFTER UseRateLimiter, so an oversized body still
+    // draws from the same bucket a legitimate attempt would.
+    [Fact]
+    public async Task Oversized_login_body_still_consumes_a_rate_limit_permit()
+    {
+        var client = ProxiedClient("203.0.113.70");
+
+        for (var i = 0; i < RateLimitFactory.LoginLimit; i++)
+        {
+            var oversized = await client.PostAsJsonAsync("/api/v1/auth/login",
+                new { email = "nobody@example.com", password = new string('a', 8192) });
+            Assert.Equal(HttpStatusCode.RequestEntityTooLarge, oversized.StatusCode);
+        }
+
+        // The bucket is exhausted purely by oversized-body attempts — the next
+        // request, even a normal-sized one, must 429 rather than reach the
+        // handler.
+        var limited = await PostLoginAsync(client);
+        Assert.Equal(HttpStatusCode.TooManyRequests, limited.StatusCode);
+    }
+
     [Fact]
     public async Task Refresh_has_its_own_bucket_independent_of_login()
     {

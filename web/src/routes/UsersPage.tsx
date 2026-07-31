@@ -302,7 +302,7 @@ export function UsersPage() {
           </label>
           <label>{t("passwordFieldLabel")}
             <input type="password" value={password}
-              required minLength={12} autoComplete="new-password"
+              required minLength={12} maxLength={256} autoComplete="new-password"
               onChange={(e) => setPassword(e.target.value)} />
           </label>
           <label>{t("nameFieldLabel")}
@@ -439,12 +439,12 @@ export function UsersPage() {
             {t("passwordDialogHint")}
           </p>
           <label>{t("newPasswordFieldLabel")}
-            <input type="password" value={pwValue} required minLength={12}
+            <input type="password" value={pwValue} required minLength={12} maxLength={256}
               autoComplete="new-password"
               onChange={(e) => setPwValue(e.target.value)} />
           </label>
           <label>{t("confirmPasswordFieldLabel")}
-            <input type="password" value={pwConfirm} required
+            <input type="password" value={pwConfirm} required maxLength={256}
               autoComplete="new-password"
               onChange={(e) => setPwConfirm(e.target.value)} />
           </label>
