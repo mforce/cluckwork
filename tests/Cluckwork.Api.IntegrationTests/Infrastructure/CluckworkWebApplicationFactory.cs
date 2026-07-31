@@ -62,14 +62,17 @@ public class CluckworkWebApplicationFactory : WebApplicationFactory<Program>, IA
         // megabytes. Well under the 5 MB ceiling, so it validates at startup.
         builder.UseSetting("FarmLogo:MaxUploadBytes", LogoUploadCap.ToString());
         // The Testcontainers DB is a co-located PLAINTEXT Postgres with no fronting
-        // proxy, so Production-derived tests opt out of BOTH deploy-config boot guards:
-        // #262 (Database:AllowInsecureConnection) and #260 (RateLimiting:AllowNoTrustedProxies).
-        // This mirrors the bundled compose reference stack. It is a no-op in the default
-        // "Testing" env (both guards are Production-gated); it's the Production-derived
-        // factories (TrustedProxyGuardTests, ConnectionTlsFloorWiringTests) that need it.
-        // A guard-specific test overrides the single flag it exercises back to false.
+        // proxy, so Production-derived tests opt out of the deploy-config boot guards:
+        // #262 (Database:AllowInsecureConnection), #260 (RateLimiting:AllowNoTrustedProxies),
+        // and #319 (a concrete AllowedHosts — appsettings defaults to "*", which fails the
+        // Production boot). This mirrors the bundled compose reference stack. All three are
+        // no-ops in the default "Testing" env (the guards are Production-gated); it's the
+        // Production-derived factories (TrustedProxyGuardTests, ConnectionTlsFloorWiringTests,
+        // AllowedHostsGuardTests) that need them. A guard-specific test overrides the single
+        // setting it exercises.
         builder.UseSetting("Database:AllowInsecureConnection", "true");
         builder.UseSetting("RateLimiting:AllowNoTrustedProxies", "true");
+        builder.UseSetting("AllowedHosts", "cluckwork.test");
     }
 
     // Mirrors the FarmLogo:MaxUploadBytes above so the size tests can size their

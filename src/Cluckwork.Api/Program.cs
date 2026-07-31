@@ -105,6 +105,28 @@ if (app.Environment.IsProduction()
         + "acknowledge the direct-exposure trade-off and boot anyway.");
 }
 
+// #319 — AllowedHosts boot guard, SERVING process only. appsettings.json defaults
+// AllowedHosts to "*"; a deploy that omits or misnames the host variable (a blank
+// ${CLUCKWORK_HOST} substitution was observed) then silently disables Host-header
+// filtering (#144) and a forged Host header is accepted. Fail the boot loudly
+// unless a concrete public host is pinned. Loopback is force-added for health
+// probes later (AddCluckworkEdgeSecurity), so it need not appear in config here.
+// Placed AFTER the CLI dispatcher's return (like #260) so the one-off migrate/
+// seed/recover-admin verbs are unaffected; healthcheck already early-dispatches.
+if (app.Environment.IsProduction())
+{
+    var configuredHosts = (builder.Configuration["AllowedHosts"] ?? string.Empty)
+        .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+    var hasConcretePublicHost = configuredHosts.Length > 0 && configuredHosts.All(h => h != "*");
+    if (!hasConcretePublicHost)
+        throw new InvalidOperationException(
+            "AllowedHosts is missing, blank, or wildcard ('*') in Production, so Host-header "
+            + "filtering (#144) is off and a forged Host header is accepted. Set AllowedHosts to "
+            + "the concrete public hostname the app serves (the deployment supplies it as "
+            + "CLUCKWORK_HOST). Loopback (localhost/127.0.0.1/[::1]) is always allowed for "
+            + "container health probes, so it need not be listed.");
+}
+
 // One boot line makes export misconfiguration observable — a typo'd env var
 // name otherwise silently disables the whole pipeline (#226 review).
 if (telemetry.TraceEndpoint is not null)
