@@ -13,7 +13,7 @@ public class CluckworkWebApplicationFactory : WebApplicationFactory<Program>, IA
 {
     // Must match the image pinned in deploy/docker-compose.yml and docker-compose.dev.yml —
     // tests have to validate against the same Postgres version prod runs.
-    private const string PostgresImage = "postgres:16-alpine";
+    private const string PostgresImage = "postgres:18.4-trixie@sha256:3a82e1f56c8f0f5616a11103ac3d47e632c3938698946a7ad26da0df1334744a";
 
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder(PostgresImage)
         .Build();

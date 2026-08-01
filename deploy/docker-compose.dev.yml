@@ -8,7 +8,7 @@ name: cluckwork-dev
 
 services:
   db:
-    image: postgres:16-alpine
+    image: postgres:18.4-trixie@sha256:3a82e1f56c8f0f5616a11103ac3d47e632c3938698946a7ad26da0df1334744a
     environment:
       POSTGRES_DB: cluckwork
       POSTGRES_USER: cluckwork
@@ -16,12 +16,12 @@ services:
     ports:
       - "127.0.0.1:5432:5432"
     volumes:
-      - cluckwork-dev-pg:/var/lib/postgresql/data
+      - cluckwork-dev-pg18:/var/lib/postgresql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U cluckwork -d cluckwork"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U cluckwork -d cluckwork"]
       interval: 10s
       timeout: 5s
       retries: 5
 
 volumes:
-  cluckwork-dev-pg:
+  cluckwork-dev-pg18:
