@@ -74,6 +74,13 @@ internal static class CluckworkIdentityServiceCollectionExtensions
         services.AddScoped<FirstRunAdminService>();
         services.AddScoped<IJwtTokenService, JwtTokenService>();
 
+        // #308 — the registry is a SINGLETON: replay tracking and logout
+        // epochs must be visible across every request, not scoped per-request
+        // like TenantContext/CurrentUserContext. The service itself is scoped
+        // (it resolves UserManager, which is scoped).
+        services.AddSingleton<IStepUpGrantRegistry, InMemoryStepUpGrantRegistry>();
+        services.AddScoped<IStepUpGrantService, StepUpGrantService>();
+
         return services;
     }
 }

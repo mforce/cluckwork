@@ -129,6 +129,9 @@ export function HelpPage() {
         <li>
           <Trans ns="help" i18nKey="signingInPersistence" components={{ strong: <strong /> }} />
         </li>
+        <li>
+          <Trans ns="help" i18nKey="signingInStepUp" components={{ strong: <strong /> }} />
+        </li>
       </ul>
 
       <p>
@@ -474,6 +477,8 @@ export function HelpPage() {
             <td>{t("glossaryTooManySignInAttemptsDef")}</td></tr>
           <tr><th scope="row">{t("glossaryTooManyReportsTerm")}</th>
             <td>{t("glossaryTooManyReportsDef")}</td></tr>
+          <tr><th scope="row">{t("glossaryStepUpAuthTerm")}</th>
+            <td>{t("glossaryStepUpAuthDef")}</td></tr>
           <tr><th scope="row">{t("glossarySomethingWentWrongScreenTerm")}</th>
             <td>{t("glossarySomethingWentWrongScreenDef")}</td></tr>
           <tr><th scope="row">{t("glossaryDailyEntryTerm")}</th>

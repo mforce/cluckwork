@@ -1024,6 +1024,11 @@ export const tl = {
     adminRoleOption: "{{label}} (may-ari)",
     createUserButton: "Gumawa ng user",
 
+    // #308 — muling pagkumpirma ng password (machine-drafted, pending native review)
+    stepUpFieldLabel: "Ang kasalukuyan mong password *",
+    stepUpCreateHint: "Ang paggawa ng isa pang Owner ay nangangailangan muling ilagay ang kasalukuyan mong password.",
+    stepUpResetHint: "Ang pag-reset ng password ng isang Owner ay nangangailangan muling ilagay ang kasalukuyan mong password.",
+
     // Users table
     emailColumnHeader: "Email",
     nameColumnHeader: "Pangalan",
@@ -1619,6 +1624,13 @@ export const tl = {
       + "password. Mag-sign in gamit ito at diretso kang mapupunta sa isang screen ng <strong>Itakda ang iyong "
       + "password</strong> sa halip na ang normal na app; wala pang gumagana hangga't hindi ka pumipili ng "
       + "sarili mong password doon. Iba ito sa karaniwang <em>Pagbabago ng password</em>.",
+    // #308 (machine-drafted, pending native review)
+    signingInStepUp:
+      "May dalawang aksyon sa <strong>Users</strong> screen na humihiling sa iyong <strong>muling ilagay ang "
+      + "kasalukuyan mong password</strong> mismo sa dialog: ang paggawa ng isa pang Owner, at ang pag-reset "
+      + "ng password ng isang umiiral na Owner. Kinukumpirma nito na ikaw talaga bago bigyan ng ganoong "
+      + "kalaking access — walang ibang aksyon sa screen na iyon (paggawa ng Worker/Manager/Sales/Read-only "
+      + "user, pag-reset ng password nila) ang muling nagtatanong.",
     interfaceLanguage:
       "<strong>Wika ng interface.</strong> Kahit sino ay puwedeng pumili ng wikang gagamitin sa interface "
       + "mula sa <strong>Account → Mga Kagustuhan</strong> — English, Español, o Tagalog. Isang patuloy na "
@@ -2136,6 +2148,14 @@ export const tl = {
       + "pagtatangka mula sa iisang lugar sa loob ng ilang minuto ay tatanggihan gamit ang mensaheng ito "
       + "hanggang lumipas ang maikling paghihintay. Hindi nito naaapektuhan ang session na naka-sign in "
       + "na.",
+
+    // #308 (machine-drafted, pending native review)
+    glossaryStepUpAuthTerm: "Karagdagang pagpapatunay (step-up)",
+    glossaryStepUpAuthDef:
+      "Isang karagdagang tsek bukod sa pagiging naka-sign in: bago gumawa ng isa pang Owner o mag-reset ng "
+      + "password ng umiiral na Owner, hinihiling ng Users screen na muling ilagay ang kasalukuyan mong "
+      + "password mismo sa dialog. Kinukumpirma nito na ikaw talaga bago bigyan ng ganoong kalaking access "
+      + "— walang ibang aksyon sa screen na iyon ang muling nagtatanong.",
 
     glossarySomethingWentWrongScreenTerm: "Screen na \"Something went wrong\"",
     glossarySomethingWentWrongScreenDef:

@@ -15,13 +15,9 @@ public sealed class IdentityProvider(
     AppDbContext db,
     IOptions<JwtOptions> jwtOptions,
     TimeProvider timeProvider,
-    Cluckwork.Application.Common.IAuditWriter audit) : IIdentityProvider
+    Cluckwork.Application.Common.IAuditWriter audit,
+    IStepUpGrantRegistry stepUpGrants) : IIdentityProvider
 {
-    // Pre-computed V3 PBKDF2 hash used to equalize login timing when the email is not found,
-    // preventing user enumeration via response-time analysis.
-    private static readonly string DummyHash =
-        new PasswordHasher<ApplicationUser>().HashPassword(new ApplicationUser(), "DummyP@ssw0rd!9x");
-
     public async Task<Result<TokenPair>> LoginAsync(string email, string password, CancellationToken ct = default)
     {
         var user = await userManager.FindByEmailAsync(email);
@@ -29,7 +25,7 @@ public sealed class IdentityProvider(
         {
             // Always pay the PBKDF2 cost so that "user not found" and "wrong password"
             // are indistinguishable by timing.
-            userManager.PasswordHasher.VerifyHashedPassword(new ApplicationUser(), DummyHash, password);
+            userManager.PasswordHasher.VerifyHashedPassword(new ApplicationUser(), TimingEqualization.DummyHash, password);
             return Result.Failure<TokenPair>(Error.Validation("Identity.InvalidCredentials", "Invalid email or password."));
         }
 
@@ -39,9 +35,9 @@ public sealed class IdentityProvider(
         // the reply never reveals whether an account exists or is locked.
         if (await userManager.IsLockedOutAsync(user))
         {
-            // ?? DummyHash guards the (currently unreachable) passwordless-user case
+            // DummyHash guards the (currently unreachable) passwordless-user case
             // so this stays a 401, never an NRE/500 that would leak account state.
-            userManager.PasswordHasher.VerifyHashedPassword(user, user.PasswordHash ?? DummyHash, password);
+            userManager.PasswordHasher.VerifyHashedPassword(user, user.PasswordHash ?? TimingEqualization.DummyHash, password);
             return Result.Failure<TokenPair>(Error.Validation("Identity.InvalidCredentials", "Invalid email or password."));
         }
 
@@ -62,28 +58,10 @@ public sealed class IdentityProvider(
         return Result.Success(jwtTokenService.CreateTokenPair(user, [.. roles], rawToken));
     }
 
-    // AccessFailedAsync persists the increment under the user row's optimistic
-    // concurrency stamp. Parallel failed logins for one account would otherwise
-    // drop the losing writer's increment, letting a distributed burst dodge the
-    // threshold — the exact attack per-account lockout (vs the per-IP limiter)
-    // exists to stop. Retry against a freshly reloaded user until it commits.
-    private async Task RecordFailedAccessAsync(ApplicationUser user)
-    {
-        // Bounded generously: only the concurrency-conflict path retries, and the
-        // per-account contention that produces conflicts is itself capped by the
-        // per-IP rate limiter (#143). The cap prevents an unbounded loop while
-        // still letting every real failure land under normal contention.
-        for (var attempt = 0; attempt < 10; attempt++)
-        {
-            if ((await userManager.AccessFailedAsync(user)).Succeeded)
-                return;
-            // The write lost the concurrency race. FindById would hand back the
-            // same identity-map instance (stale stamp), so refresh the tracked
-            // entity's values from the DB before retrying — `db` is the same
-            // scoped context the UserManager store writes through.
-            await db.Entry(user).ReloadAsync();
-        }
-    }
+    // Shared with /auth/step-up (#308) via AccountLockout — see the note there
+    // on why every password oracle must apply this, not just login.
+    private Task RecordFailedAccessAsync(ApplicationUser user) =>
+        AccountLockout.RecordFailedAccessAsync(userManager, db, user);
 
     public async Task<Result<TokenPair>> RefreshAsync(string refreshToken, CancellationToken ct = default)
     {
@@ -462,9 +440,57 @@ public sealed class IdentityProvider(
         // rotated concurrently. WHERE RevokedAt == null makes it idempotent.
         var presentedHash = Hash(refreshToken);
         var now = timeProvider.GetUtcNow();
+
+        // #308 — a real logout must invalidate any outstanding step-up grant for
+        // this user (a grant captured before this logout must not work after it),
+        // so read the owning user id BEFORE the bulk update.
+        //
+        // Deliberately NOT filtered on RevokedAt: the cookie may already be stale
+        // because a background refresh rotated it moments earlier, and #336's
+        // review caught that the revoked-only lookup silently skipped recording
+        // the logout in exactly that case — leaving a grant valid for the rest of
+        // its lifetime after the user had logged out. Identifying the user is
+        // what matters here, not whether this particular row is still live. A
+        // genuinely unknown token still records nothing (logout is best-effort
+        // and always fires, see AuthEndpoints.Logout).
+        var tokenRow = await db.RefreshTokens
+            .Where(t => t.TokenHash == presentedHash)
+            .Select(t => new { t.UserId })
+            .FirstOrDefaultAsync(ct);
+
+        // #336 review (2nd round) — record BEFORE the bulk update, not after.
+        // RecordLogout is in-memory and cannot fail; ExecuteUpdateAsync hits the
+        // database and can throw (transient connection loss, deadlock). With the
+        // record afterwards, that exception skipped it entirely: the SPA has
+        // already cleared its local token and treats logout as best-effort, so
+        // the user believes they logged out while a captured access token plus an
+        // unexpired step-up grant stayed usable for the rest of the grant's life.
+        // Recording first means a database failure over-revokes (grants dead,
+        // refresh row possibly still live) instead of under-revoking — the same
+        // fail-safe direction AuthEndpoints.Logout applies to the bearer path one
+        // layer up. That fix corrected only the outer call site; this is the same
+        // hazard inside the cookie path.
+        if (tokenRow is not null)
+            stepUpGrants.RecordLogout(tokenRow.UserId, now);
+
         await db.RefreshTokens
             .Where(t => t.TokenHash == presentedHash && t.RevokedAt == null)
             .ExecuteUpdateAsync(s => s.SetProperty(t => t.RevokedAt, now), ct);
+    }
+
+    // #336 review — the access-token half of logout revocation. The cookie owner
+    // above and the caller's authenticated identity can be DIFFERENT users (see
+    // IIdentityProvider.RecordLogoutAsync), so the cookie alone cannot identify
+    // who logged out. Records the instant only; refresh tokens are untouched.
+    //
+    // Uses the same injected TimeProvider as the cookie path, so a single logout
+    // that records both users stamps them with one consistent instant. The
+    // registry keeps the LATEST recorded instant per user, so a same-user logout
+    // that reaches both paths is idempotent rather than double-counted.
+    public Task RecordLogoutAsync(Guid userId, CancellationToken ct = default)
+    {
+        stepUpGrants.RecordLogout(userId, timeProvider.GetUtcNow());
+        return Task.CompletedTask;
     }
 
     private RefreshToken NewToken(ApplicationUser user, string tokenHash)

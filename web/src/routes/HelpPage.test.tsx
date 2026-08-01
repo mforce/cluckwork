@@ -286,6 +286,24 @@ describe("HelpPage glossary i18n wiring (#182, Task 33)", () => {
     });
   });
 
+  // #308 — step-up authentication's in-app glossary row. Same shape as the
+  // FIFO row above: proves the row exists and reads term + def from the
+  // catalog, not a hardcoded literal.
+  it("reads the step-up authentication row's term and definition from the catalog, not a hardcoded literal", () => {
+    withOverride("glossaryStepUpAuthTerm", "STEP-UP-TERM-MARKER", () => {
+      withOverride("glossaryStepUpAuthDef", "STEP-UP-DEF-MARKER", () => {
+        render(<HelpPage />);
+        expect(screen.getByRole("rowheader", { name: "STEP-UP-TERM-MARKER" })).toBeInTheDocument();
+        expect(screen.getByText("STEP-UP-DEF-MARKER")).toBeInTheDocument();
+        expect(screen.queryByRole("rowheader", { name: "Step-up authentication" })).not.toBeInTheDocument();
+        // "re-enter your current password" also appears in the unrelated Signing-in
+        // prose (signingInStepUp) — assert against phrasing unique to the glossary
+        // def so this doesn't false-pass against that other section.
+        expect(screen.queryByText(/extra check on top of being signed in/i)).not.toBeInTheDocument();
+      });
+    });
+  });
+
   // The Farm palette row's <td> is faithfully plain prose (no interleaved
   // JSX) — confirm it also reads from the catalog via t(), not a literal.
   it("reads the Farm palette row's definition from the catalog, not a hardcoded literal", () => {

@@ -1156,6 +1156,13 @@ export const en = {
     adminRoleOption: "{{label}} (owner)",
     createUserButton: "Create user",
 
+    // #308 — step-up re-confirmation, shown only for the two sensitive cases
+    // (creating another Owner; resetting an existing Owner's password).
+    // Shared field label; distinct hints explain WHY it appeared for each.
+    stepUpFieldLabel: "Your current password *",
+    stepUpCreateHint: "Creating another Owner needs your current password again.",
+    stepUpResetHint: "Resetting an Owner's password needs your current password again.",
+
     // Users table
     emailColumnHeader: "Email",
     nameColumnHeader: "Name",
@@ -1882,6 +1889,14 @@ export const en = {
       + "one-time setup command that prints a temporary one. Sign in with it and you'll immediately land on a "
       + "<strong>Set your password</strong> screen instead of the normal app; nothing else works until you pick "
       + "your own password there. This is separate from an ordinary <em>Change password</em>.",
+    // #308 — step-up re-confirmation for the two sensitive user-administration
+    // actions. Deliberately does NOT mention "grant"/"token" — that's internal
+    // mechanism, not user-facing language.
+    signingInStepUp:
+      "Two actions on the <strong>Users</strong> screen ask you to <strong>re-enter your current password</strong> "
+      + "right there in the dialog: creating another Owner, and resetting an existing Owner's password. This "
+      + "confirms it's really you before handing out that much access — every other action on that screen "
+      + "(creating a Worker/Manager/Sales/Read-only user, resetting one of their passwords) does not ask again.",
     interfaceLanguage:
       "<strong>Interface language.</strong> Everyone can choose the language the interface is shown in from "
       + "<strong>Account → Preferences</strong> — English, Español, or Tagalog. Translation is a work in "
@@ -2369,6 +2384,13 @@ export const en = {
       + "line. Nothing is recorded or lost — press retry on the Reports screen a moment later; it "
       + "re-runs with the same dates you picked. Each farm has its own allowance, so "
       + "another farm's reports never use up yours.",
+    // #308
+    glossaryStepUpAuthTerm: "Step-up authentication",
+    glossaryStepUpAuthDef:
+      "An extra check on top of being signed in: before creating another Owner or resetting an existing "
+      + "Owner's password, the Users screen asks you to re-enter your current password right there in the "
+      + "dialog. It confirms it's really you before handing out that much access — every other action on "
+      + "that screen does not ask again.",
 
     glossarySomethingWentWrongScreenTerm: "\"Something went wrong\" screen",
     glossarySomethingWentWrongScreenDef:

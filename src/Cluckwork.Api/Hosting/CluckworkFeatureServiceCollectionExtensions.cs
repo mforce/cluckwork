@@ -225,6 +225,10 @@ internal static class CluckworkFeatureServiceCollectionExtensions
         services.AddScoped<
             IValidator<Cluckwork.Api.Endpoints.Auth.LoginRequest>,
             Cluckwork.Api.Endpoints.Auth.LoginRequestValidator>();
+        // #308
+        services.AddScoped<
+            IValidator<Cluckwork.Api.Endpoints.Auth.StepUpRequest>,
+            Cluckwork.Api.Endpoints.Auth.StepUpRequestValidator>();
         services.AddScoped<
             IValidator<AdjustDailyEntryCommand>,
             AdjustDailyEntryValidator>();

@@ -1,5 +1,5 @@
 // Typed wrappers over the Cluckwork JSON API (mirrors the endpoint DTOs).
-import { apiDelete, apiGet, apiGetBlob, apiPost, apiPut, apiPutBytes } from "./client";
+import { apiDelete, apiGet, apiGetBlob, apiPost, apiPut, apiPutBytes, STEP_UP_HEADER } from "./client";
 
 export interface EggGrade {
   id: string;
@@ -581,9 +581,13 @@ export const assignFlock = (userId: string, flockId: string, key?: string) =>
 export const unassignFlock = (userId: string, assignmentId: string, key?: string) =>
   apiDelete<void>(`/users/${userId}/flock-assignments/${assignmentId}`, key);
 
+// #308 — stepUpToken is required by the server only when body.role is
+// "Admin" (Owner); every other role is created exactly as before. Callers get
+// it from api/client.ts's stepUp().
 export const createUser = (body: {
   email: string; password: string; role: string; name?: string;
-}, key?: string) => apiPost<Created>("/users", body, key);
+}, key?: string, stepUpToken?: string) => apiPost<Created>(
+  "/users", body, key, stepUpToken ? { [STEP_UP_HEADER]: stepUpToken } : undefined);
 
 // #163 — edit a user's display name. `name: null` clears it back to "—".
 export const updateUser = (id: string, body: { name: string | null }, key?: string) =>
@@ -591,8 +595,13 @@ export const updateUser = (id: string, body: { name: string | null }, key?: stri
 
 // #165 — an Owner sets a user's password without knowing the current one. The
 // server signs that user out of every device.
-export const setUserPassword = (id: string, body: { newPassword: string }, key?: string) =>
-  apiPut<void>(`/users/${id}/password`, body, key);
+//
+// #308 — stepUpToken is required by the server only when the TARGET user
+// currently holds the Owner role; resetting any other role is unchanged.
+export const setUserPassword = (
+  id: string, body: { newPassword: string }, key?: string, stepUpToken?: string,
+) => apiPut<void>(
+  `/users/${id}/password`, body, key, stepUpToken ? { [STEP_UP_HEADER]: stepUpToken } : undefined);
 
 // Formats minor units per the order's snapshotted currency (JPY has 0 decimals).
 export function formatMoney(minorUnits: number, currencyCode: string, minorUnit: number): string {

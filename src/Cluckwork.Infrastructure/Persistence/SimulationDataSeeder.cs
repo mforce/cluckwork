@@ -389,8 +389,11 @@ public sealed class SimulationDataSeeder(
         var existing = await users.FindByEmailAsync(email);
         if (existing is not null) return existing.Id;
 
+        // #308 — actingUserId only matters for the Role==Owner step-up gate,
+        // and this seeder never creates one (see the "Cast" comment above:
+        // Managers, Sales, ReadOnly, Workers only) — Guid.Empty is inert here.
         var result = await createUser.HandleAsync(
-            new CreateUserCommand(email, password, role, name), accountId, ct);
+            new CreateUserCommand(email, password, role, name), accountId, Guid.Empty, ct);
         Require(result, $"create cast user {email}");
         return result.Value;
     }

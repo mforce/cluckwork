@@ -16,6 +16,7 @@ public sealed class AdminGatingTests(CluckworkWebApplicationFactory factory)
 {
     private sealed record Created(Guid Id);
     private sealed record UserRow(Guid Id, string Email, string? DisplayName, string Role);
+    private sealed record StepUpDto(string Token, DateTimeOffset ExpiresAt);
 
     private static readonly DateOnly Today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
 
@@ -280,10 +281,21 @@ public sealed class AdminGatingTests(CluckworkWebApplicationFactory factory)
         var gated = await SendWithKeyAsync(hand, HttpMethod.Post, $"/api/v1/flocks/{flockId}/deplete");
         Assert.Equal(HttpStatusCode.Forbidden, gated.StatusCode);
 
-        // An admin-created ADMIN gets the role and passes the gate.
+        // An admin-created ADMIN gets the role and passes the gate. #308 —
+        // creating another Owner is step-up-gated, so re-confirm the current
+        // password first and attach the grant.
         var newAdminEmail = $"boss-{Guid.NewGuid():N}@test.local";
-        var createdAdmin = await admin.PostWithKeyAsync("/api/v1/users", Guid.NewGuid().ToString(),
-            new { email = newAdminEmail, password = TestHarness.Password, role = "Admin" });
+        var grant = await admin.PostAsJsonAsync(
+            "/api/v1/auth/step-up", new { password = TestHarness.Password });
+        Assert.Equal(HttpStatusCode.OK, grant.StatusCode);
+        var stepUpToken = (await grant.Content.ReadFromJsonAsync<StepUpDto>())!.Token;
+        var createAdminRequest = new HttpRequestMessage(HttpMethod.Post, "/api/v1/users")
+        {
+            Content = JsonContent.Create(new { email = newAdminEmail, password = TestHarness.Password, role = "Admin" }),
+        };
+        createAdminRequest.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
+        createAdminRequest.Headers.Add("X-Cluckwork-Step-Up", stepUpToken);
+        var createdAdmin = await admin.SendAsync(createAdminRequest);
         Assert.Equal(HttpStatusCode.Created, createdAdmin.StatusCode);
         var boss = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(newAdminEmail));
         var bossGated = await boss.GetAsync("/api/v1/users");

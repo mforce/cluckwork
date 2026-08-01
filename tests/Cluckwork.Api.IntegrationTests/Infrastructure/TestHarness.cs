@@ -362,16 +362,23 @@ internal static class TestHarness
         return client.SendAsync(request);
     }
 
-    // POST /auth/logout the SPA way (#145): anonymous, cookie-authenticated —
-    // the refresh cookie + CSRF header, no bearer and no Idempotency-Key (an
-    // authenticated logout would resolve a tenant and then need one).
+    // POST /auth/logout the SPA way (#145): cookie-authenticated — the refresh
+    // cookie + CSRF header, and never an Idempotency-Key (the route is exempt).
+    //
+    // #336 — accessToken sends the bearer the SPA now attaches when the tab
+    // still holds one. The two credentials are independent on purpose, so a
+    // test can present a cookie and a bearer naming DIFFERENT users (the
+    // per-origin cookie vs. per-tab token split), or a bearer with no cookie
+    // at all. Left null it behaves exactly as before.
     public static Task<HttpResponseMessage> PostLogoutAsync(
-        this HttpClient client, string? refreshToken, bool csrf = true)
+        this HttpClient client, string? refreshToken, bool csrf = true, string? accessToken = null)
     {
         var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/logout");
         if (csrf) request.Headers.Add(AuthCookies.CsrfHeaderName, "1");
         if (refreshToken is not null)
             request.Headers.Add("Cookie", $"{AuthCookies.RefreshCookieName}={refreshToken}");
+        if (accessToken is not null)
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
         return client.SendAsync(request);
     }
 

@@ -11,6 +11,8 @@ import {
   logout,
   restoreSession,
   changePassword,
+  stepUp,
+  STEP_UP_HEADER,
   ApiError,
   setOnUnauthenticated,
   setOnTokensChanged,
@@ -439,6 +441,27 @@ describe("write idempotency", () => {
     expect(headerOf(fetchMock.mock.calls[0] as Call, "Content-Type")).toBe("application/json");
   });
 
+  // #308 — apiPost/apiPut's optional 4th param is how CreateUser/SetUserPassword
+  // attach the step-up grant. Both sides of the boundary: present when a caller
+  // passes one, absent otherwise (every other write in the app).
+  it("apiPost attaches an extra header (e.g. the step-up grant) when given one", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ id: "1" }));
+    await apiPost("/users", { role: "Admin" }, "key", { [STEP_UP_HEADER]: "grant-abc" });
+    expect(headerOf(fetchMock.mock.calls[0] as Call, STEP_UP_HEADER)).toBe("grant-abc");
+  });
+
+  it("apiPost carries no step-up header when none is given (every ordinary write)", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ id: "1" }));
+    await apiPost("/customers", { name: "x" });
+    expect(headerOf(fetchMock.mock.calls[0] as Call, STEP_UP_HEADER)).toBeNull();
+  });
+
+  it("apiPut attaches an extra header (e.g. the step-up grant) when given one", async () => {
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
+    await apiPut("/users/1/password", { newPassword: "x" }, "key", { [STEP_UP_HEADER]: "grant-def" });
+    expect(headerOf(fetchMock.mock.calls[0] as Call, STEP_UP_HEADER)).toBe("grant-def");
+  });
+
   it("apiPutBytes sends the body as-is under its own content type (#123 logo upload)", async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ contentHash: "abc" }));
     const bytes = new Blob([new Uint8Array([1, 2, 3])], { type: "image/png" });
@@ -546,7 +569,8 @@ describe("auth endpoints", () => {
     expect(new Headers(init.headers).get("Authorization")).toBeNull(); // login is unauthenticated
   });
 
-  it("logout revokes cookie-authenticated (CSRF header, NO bearer, no body), then clears the token", async () => {
+  it("logout revokes cookie-authenticated (CSRF header, no body), then clears the token", async () => {
+    setAccessToken("at-logout");
     fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
     await logout();
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -555,10 +579,37 @@ describe("auth endpoints", () => {
     expect(init.method).toBe("POST");
     expect(init.body).toBeUndefined(); // refresh token is in the cookie, not the body
     expect(headerOf(fetchMock.mock.calls[0] as Call, CSRF)).toBe("1");
-    // No bearer: logout authenticates by the cookie so it works even with an
-    // expired access token and needs no Idempotency-Key (#145 review).
-    expect(authOf(fetchMock.mock.calls[0] as Call)).toBeNull();
     expect(getAccessToken()).toBeNull();
+  });
+
+  // #336 — the refresh cookie is per-ORIGIN (one per browser, last login wins)
+  // while this token store is per-TAB, so the cookie can belong to a DIFFERENT
+  // user than the one logging out. The bearer is what tells the server who
+  // actually clicked logout, so their step-up grants are the ones revoked;
+  // without it the server revokes the cookie owner's and leaves this user's
+  // alive. It must be read BEFORE the synchronous clear, or it is always null.
+  it("logout sends this tab's bearer, captured before the token is cleared", async () => {
+    const token = `tok-${crypto.randomUUID()}`;
+    setAccessToken(token);
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+    await logout();
+
+    expect(authOf(fetchMock.mock.calls[0] as Call)).toBe(`Bearer ${token}`);
+    expect(getAccessToken()).toBeNull();
+  });
+
+  // …but it stays OPTIONAL. The endpoint is AllowAnonymous, so a tab with no
+  // token (or an expired one already dropped) must still fire the request and
+  // end the session off the cookie alone — never send "Bearer null".
+  it("logout omits the bearer entirely when this tab holds no access token", async () => {
+    clearAccessToken();
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+    await logout();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(authOf(fetchMock.mock.calls[0] as Call)).toBeNull();
   });
 
   it("logout clears the local token even when the server revoke fails", async () => {
@@ -652,6 +703,78 @@ describe("changePassword (#165)", () => {
 
     await expect(changePassword({ currentPassword: "x", newPassword: "y" })).rejects.toThrow(ApiError);
     expect(getAccessToken()).toBe("at1"); // unchanged
+  });
+});
+
+// #308 — step-up grant issuance. Consumed by UsersPage.tsx immediately before
+// the one sensitive write it unlocks; this file only proves the transport
+// contract (posts the password, authenticated, returns the grant as-is).
+describe("stepUp (#308)", () => {
+  it("posts the password to /auth/step-up as an authenticated write and returns the grant", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ token: "grant-abc", expiresAt: FUTURE }));
+    const password = `Aa1!${crypto.randomUUID()}`;
+
+    const grant = await stepUp(password);
+
+    const call = fetchMock.mock.calls[0] as Call;
+    expect(call[0]).toBe("/api/v1/auth/step-up");
+    expect(call[1].method).toBe("POST");
+    expect(authOf(call)).toBe("Bearer at1");
+    expect(JSON.parse(String(call[1].body))).toEqual({ password });
+    expect(grant).toEqual({ token: "grant-abc", expiresAt: FUTURE });
+  });
+
+  it("propagates a rejection (wrong current password) as an ApiError carrying the server's message", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ title: "Users.CurrentPasswordIncorrect", detail: "Current password is incorrect." }, 400));
+
+    const err = await stepUp("wrong").catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err).toMatchObject({ status: 400, message: "Current password is incorrect." });
+  });
+
+  // #336 review — the damage a 401 here would do is NOT the status the user
+  // sees, it is the replay: apiFetch treats every 401 as an expired access
+  // token, refreshes, and re-sends the SAME password. One typed password would
+  // then reach the server's password check twice, so its five-attempt account
+  // lockout would trip after three submissions and each attempt would burn a
+  // refresh-token rotation. Pin the single request, not just the status.
+  it("issues exactly one request for a rejected password — no refresh, no replay", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({ title: "Users.CurrentPasswordIncorrect", detail: "Current password is incorrect." }, 400));
+
+    await expect(stepUp("wrong")).rejects.toThrow(ApiError);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(callsTo(fetchMock, "/auth/step-up")).toHaveLength(1);
+    expect(callsTo(fetchMock, "/auth/refresh")).toHaveLength(0);
+    // The session is untouched: no teardown, no navigate-to-login.
+    expect(getAccessToken()).toBe("at1");
+    expect(onUnauth).not.toHaveBeenCalled();
+    expect(onTokens).not.toHaveBeenCalled();
+  });
+
+  // The other side of the boundary: a REAL 401 (the session truly expired) must
+  // still take the refresh-and-retry path, so the fix above is a status
+  // distinction and not a blanket opt-out of transparent refresh.
+  it("still refreshes and retries when the session itself has expired (401)", async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ title: "Unauthorized" }, 401))
+      .mockResolvedValueOnce(accessResponse("at2"))
+      .mockResolvedValueOnce(jsonResponse({ token: "grant-abc", expiresAt: FUTURE }));
+
+    const grant = await stepUp("right");
+
+    expect(grant).toEqual({ token: "grant-abc", expiresAt: FUTURE });
+    expect(callsTo(fetchMock, "/auth/step-up")).toHaveLength(2);
+    expect(callsTo(fetchMock, "/auth/refresh")).toHaveLength(1);
+  });
+
+  it("does not touch in-memory auth state — it is not a token-store writer", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ token: "grant-abc", expiresAt: FUTURE }));
+    await stepUp("whatever");
+    expect(getAccessToken()).toBe("at1"); // unchanged
+    expect(onTokens).not.toHaveBeenCalled();
   });
 });
 

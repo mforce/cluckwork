@@ -193,6 +193,9 @@ internal sealed class ChangePasswordThrowingIdentityProvider(IIdentityProvider i
     public Task RevokeRefreshTokenAsync(string refreshToken, CancellationToken ct = default) =>
         inner.RevokeRefreshTokenAsync(refreshToken, ct);
 
+    public Task RecordLogoutAsync(Guid userId, CancellationToken ct = default) =>
+        inner.RecordLogoutAsync(userId, ct);
+
     public Task<Result<Guid>> CreateUserAsync(
         Guid accountId, string email, string password, string? role,
         string? name = null, bool mustChangePassword = false, CancellationToken ct = default) =>

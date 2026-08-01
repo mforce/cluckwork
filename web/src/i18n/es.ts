@@ -988,6 +988,11 @@ export const es = {
     adminRoleOption: "{{label}} (propietario)",
     createUserButton: "Crear usuario",
 
+    // #308 — re-confirmación de contraseña (machine-drafted, pending native review)
+    stepUpFieldLabel: "Tu contraseña actual *",
+    stepUpCreateHint: "Crear otro propietario requiere volver a ingresar tu contraseña actual.",
+    stepUpResetHint: "Restablecer la contraseña de un propietario requiere volver a ingresar tu contraseña actual.",
+
     // Users table
     emailColumnHeader: "Correo electrónico",
     nameColumnHeader: "Nombre",
@@ -1559,6 +1564,13 @@ export const es = {
       + "sesión con ella y llegará de inmediato a una pantalla de <strong>Establecer su contraseña</strong> en "
       + "lugar de la aplicación normal; nada más funciona hasta que elija su propia contraseña allí. Esto es "
       + "distinto de un <em>Cambio de contraseña</em> ordinario.",
+    // #308 (machine-drafted, pending native review)
+    signingInStepUp:
+      "Dos acciones en la pantalla <strong>Usuarios</strong> le piden <strong>volver a ingresar su contraseña "
+      + "actual</strong> directamente en el diálogo: crear otro propietario y restablecer la contraseña de un "
+      + "propietario existente. Esto confirma que realmente es usted antes de otorgar tanto acceso — ninguna "
+      + "otra acción en esa pantalla (crear un usuario Worker/Manager/Sales/Read-only, restablecer su "
+      + "contraseña) vuelve a preguntar.",
     interfaceLanguage:
       "<strong>Idioma de la interfaz.</strong> Cualquiera puede elegir el idioma en que se muestra la "
       + "interfaz desde <strong>Cuenta → Preferencias</strong> — inglés, español o tagalo. La traducción es "
@@ -2060,6 +2072,14 @@ export const es = {
       "El inicio de sesión tiene un límite de frecuencia para frenar los intentos de adivinar contraseñas: "
       + "demasiados intentos desde un mismo lugar en pocos minutos se rechazan con este mensaje hasta que "
       + "pasa un breve período de espera. Nunca afecta a una sesión que ya inició.",
+
+    // #308 (machine-drafted, pending native review)
+    glossaryStepUpAuthTerm: "Autenticación reforzada (step-up)",
+    glossaryStepUpAuthDef:
+      "Una comprobación adicional además de haber iniciado sesión: antes de crear otro propietario o "
+      + "restablecer la contraseña de un propietario existente, la pantalla Usuarios le pide volver a "
+      + "ingresar su contraseña actual directamente en el diálogo. Esto confirma que realmente es usted "
+      + "antes de otorgar tanto acceso — ninguna otra acción en esa pantalla vuelve a preguntar.",
 
     glossarySomethingWentWrongScreenTerm: "Pantalla \"Algo salió mal\"",
     glossarySomethingWentWrongScreenDef:

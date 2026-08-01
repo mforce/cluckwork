@@ -6,6 +6,7 @@ using Cluckwork.Api.Validation;
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Users.ChangeOwnPassword;
 using Cluckwork.Infrastructure.Identity;
+using Cluckwork.Infrastructure.Persistence;
 using FluentValidation;
 using Microsoft.Extensions.Options;
 
@@ -17,6 +18,12 @@ public static class AuthEndpoints
     // GenerateRefreshToken); 512 is a generous ceiling that still rejects a
     // padded/garbage cookie value before it reaches the token store.
     private const int MaxRefreshTokenLength = 512;
+
+    // #308 — the step-up grant rides as its own header, never the request
+    // body: it is proof-of-recent-auth, not domain data, so keeping it out of
+    // the JSON body means it can never accidentally get folded into a payload
+    // dump/log. Mirrors AuthCookies.CsrfHeaderName's rationale.
+    public const string StepUpHeaderName = "X-Cluckwork-Step-Up";
 
     public static RouteGroupBuilder MapAuthEndpoints(this RouteGroupBuilder group)
     {
@@ -52,9 +59,17 @@ public static class AuthEndpoints
 
         // Anonymous + cookie-authenticated (like refresh): logout is proven by the
         // HttpOnly refresh cookie plus the CSRF header, so it works even with an
-        // expired access token and needs no Idempotency-Key (an authenticated
-        // logout would resolve a tenant and the idempotency middleware would then
-        // demand one). It must always be able to destroy the session (#145 review).
+        // expired access token. It must always be able to destroy the session
+        // (#145 review).
+        //
+        // #336 review — the SPA now ALSO sends its bearer when it still has one,
+        // so the handler can revoke the access-token user's step-up grants and
+        // not just the cookie owner's (see Logout). AllowAnonymous is what keeps
+        // that additive: a missing or expired bearer simply leaves the caller
+        // unauthenticated instead of failing the request. An authenticated
+        // logout does resolve a tenant, which would normally make
+        // IdempotencyMiddleware demand an Idempotency-Key — /auth/logout is
+        // exempted there precisely so this stays a header-free call.
         group.MapPost("/logout", Logout)
             .AllowAnonymous()
             .WithName("Logout")
@@ -76,6 +91,24 @@ public static class AuthEndpoints
             .WithMaxRequestBodyBytes(4096)
             .WithName("ChangeOwnPassword")
             .WithSummary("Change your own password; signs out other devices.");
+
+        // #308 — re-confirm the CURRENT password to mint a short-lived,
+        // audience-limited step-up grant for a sensitive user-administration
+        // operation (see StepUpGrantService for the full threat model). Open
+        // to any authenticated role (the two consumers — CreateUser,
+        // SetUserPassword — are already Owner-only), so the endpoint stays a
+        // generic building block. Carries the login rate limit for the same
+        // reason change-password does: it verifies a credential, so an
+        // attacker holding a stolen access token must not get unlimited
+        // password-guessing attempts.
+        group.MapPost("/step-up", StepUp)
+            .RequireAuthorization()
+            .RequireRateLimiting(RateLimitingOptions.LoginPolicyName)
+            // A single ≤256-char password; mirrors change-password's 4 KB cap
+            // (System.Text.Json's \uXXXX escaping of non-ASCII, #309).
+            .WithMaxRequestBodyBytes(4096)
+            .WithName("StepUp")
+            .WithSummary("Re-confirm the current password; returns a short-lived step-up grant.");
 
         return group;
     }
@@ -182,12 +215,97 @@ public static class AuthEndpoints
         return Results.Ok(new AccessTokenResponse(result.Value.AccessToken, result.Value.AccessTokenExpiry));
     }
 
+    // #308 — mints the step-up grant. Non-enumerating on failure: a wrong
+    // password is fine to say plainly (the caller is already proven to be a
+    // specific authenticated user re-confirming their OWN credential — see
+    // the class-level threat model on StepUpGrantService).
+    private static async Task<IResult> StepUp(
+        StepUpRequest request, IStepUpGrantService stepUp, IValidator<StepUpRequest> validator,
+        ICurrentUser currentUser, TenantContext tenant, CancellationToken ct)
+    {
+        if (!currentUser.IsResolved || !tenant.IsResolved) return Results.Unauthorized();
+
+        var validation = await validator.ValidateAsync(request, ct);
+        if (!validation.IsValid)
+            return ValidationResponse.Problem(validation);
+
+        var result = await stepUp.IssueAsync(tenant.AccountId, currentUser.UserId, request.Password, ct);
+        if (!result.IsSuccess)
+            // #336 review — 400, exactly as ChangePassword above returns the SAME
+            // Users.CurrentPasswordIncorrect error. A rejected step-up password is a
+            // credential rejection, NOT an expired session, and it must not be
+            // reported as one: the SPA's apiFetch treats every 401 as a stale access
+            // token, silently refreshes, and REPLAYS the identical request. One typed
+            // password would then cost TWO failed accesses, cutting the #128 five-
+            // attempt account lockout this endpoint just gained to three — while
+            // burning a refresh-token rotation per attempt, and signing the user out
+            // mid-flow whenever the refresh itself is unavailable. Only the genuinely
+            // unauthenticated branch above stays 401.
+            return Results.Problem(
+                result.Error.Description,
+                statusCode: StatusCodes.Status400BadRequest,
+                title: result.Error.Code);
+
+        return Results.Ok(new StepUpResponse(result.Value.Token, result.Value.ExpiresAt));
+    }
+
+    // #336 review — logout revokes along TWO independent axes, because the two
+    // credentials a logout can present do not necessarily name the same user:
+    //
+    //   - the refresh COOKIE is per-origin. A browser holds exactly one, and the
+    //     most recent login owns it.
+    //   - the ACCESS TOKEN is per-tab: web/src/auth/tokenStore.ts keeps it in
+    //     that tab's module memory, so a tab logged in as A survives a later
+    //     login as B in another tab.
+    //
+    // So user A clicking logout in their tab can present B's cookie. Deriving
+    // the grant owner from the cookie alone recorded the logout against B and
+    // left A's outstanding step-up grant usable with A's still-valid (stolen)
+    // access token — after A had explicitly logged out, which is exactly the
+    // person StepUpGrantService's logout guarantee exists for. The same gap
+    // opened whenever the cookie was simply missing or expired.
+    //
+    // Hence both, each guarded on its own presence and neither depending on the
+    // other:
+    //   - cookie present  -> revoke that refresh token AND record its owner's
+    //                        logout (the session actually being ended).
+    //   - caller authenticated -> record the bearer subject's logout, so their
+    //                        grants die even when the cookie names someone else,
+    //                        or is absent/expired entirely.
+    // Same user via both paths is idempotent — the registry keeps the latest
+    // instant per user, so it is recorded once, not twice.
+    //
+    // Still ANONYMOUS-capable: the bearer is optional, so a logout with an
+    // expired access token keeps working off the cookie alone (#145). The CSRF
+    // header stays mandatory either way. /auth/logout is exempt from
+    // IdempotencyMiddleware, so the now-possible authenticated call does not
+    // start demanding an Idempotency-Key.
+    //
+    // PR #336 review — the bearer recording runs FIRST, before the cookie
+    // revocation, and its own success does not depend on the cookie path at
+    // all. RecordLogoutAsync is in-memory (IStepUpGrantRegistry) and cannot
+    // fail; RevokeRefreshTokenAsync hits the database and CAN throw (e.g. a
+    // transient outage). With the DB call first, that exception used to skip
+    // the bearer recording entirely — the caller's outstanding step-up grant
+    // stayed valid, and a captured access token + grant could still perform
+    // the privileged operation after the user had logged out, any time before
+    // the grant's own short expiry, if the DB recovered in the meantime.
+    // Recording first instead means a DB failure still revokes the bearer's
+    // grants — over-revoking is the fail-safe direction for a security
+    // control, unlike under-revoking. The exception is deliberately NOT
+    // caught here: the request failing loudly when the DB is down is worth
+    // preserving (nothing here should silently paper over a real outage), and
+    // the SPA already treats logout as best-effort on its side regardless of
+    // status code.
     private static async Task<IResult> Logout(
         HttpRequest request, HttpResponse response, IIdentityProvider identity,
-        IWebHostEnvironment env, CancellationToken ct)
+        ICurrentUser currentUser, IWebHostEnvironment env, CancellationToken ct)
     {
         if (!AuthCookies.HasCsrfHeader(request))
             return Results.Problem("Missing required header.", statusCode: 403, title: "Auth.CsrfHeaderRequired");
+
+        if (currentUser.IsResolved)
+            await identity.RecordLogoutAsync(currentUser.UserId, ct);
 
         var refreshToken = AuthCookies.ReadRefreshCookie(request);
         if (refreshToken is not null)
@@ -204,3 +322,7 @@ public sealed record ChangeOwnPasswordRequest(string CurrentPassword, string New
 // #145 — the refresh token is delivered as a cookie, so the body returns only
 // the access token and its expiry.
 public sealed record AccessTokenResponse(string AccessToken, DateTimeOffset AccessTokenExpiry);
+
+public sealed record StepUpRequest(string Password);
+
+public sealed record StepUpResponse(string Token, DateTimeOffset ExpiresAt);

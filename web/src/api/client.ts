@@ -11,6 +11,11 @@ const BASE = "/api/v1";
 // alongside the cookie's SameSite=Strict. Mirrors AuthCookies.CsrfHeaderName.
 const CSRF_HEADER = "X-Cluckwork-Auth";
 
+// #308 — carries a short-lived step-up grant (see stepUp() below) on the two
+// sensitive user-administration calls that need one. Mirrors
+// AuthEndpoints.StepUpHeaderName.
+export const STEP_UP_HEADER = "X-Cluckwork-Step-Up";
+
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -208,6 +213,27 @@ export async function changePassword(
   onTokensChanged?.();
 }
 
+// #308 — re-confirms the CURRENT password to mint a short-lived step-up grant
+// for one sensitive user-administration call (creating another Owner;
+// resetting an Owner's password). The grant is returned to the caller and
+// used EXACTLY ONCE, immediately, as the X-Cluckwork-Step-Up header on that
+// one follow-up request (see UsersPage.tsx) — this function itself never
+// stores the token or the password anywhere longer-lived than its own return
+// value, and there is nothing here to clear on logout: unlike the access
+// token, no module-level state holds a step-up grant at all.
+//
+// #336 review — this goes through apiPost, so it inherits the transparent
+// refresh-and-retry every 401 triggers. That is only safe because the server
+// answers a REJECTED password with 400 (Users.CurrentPasswordIncorrect), the
+// same status change-password uses, and reserves 401 for a genuinely
+// unauthenticated caller. If /auth/step-up ever went back to 401 for a wrong
+// password, one typed password would be replayed as two failed accesses —
+// halving the server's five-attempt account lockout and rotating the refresh
+// token per attempt. The contract is pinned by a test in client.test.ts.
+export async function stepUp(password: string): Promise<{ token: string; expiresAt: string }> {
+  return apiPost<{ token: string; expiresAt: string }>("/auth/step-up", { password });
+}
+
 export async function logout(): Promise<void> {
   // #310 — bump the generation and clear in-memory state SYNCHRONOUSLY, before
   // any await: local logout must win immediately, whatever a slower in-flight
@@ -221,14 +247,31 @@ export async function logout(): Promise<void> {
   // discarded on arrival by the generation check in refreshTokens().
   sessionGeneration++;
   abortInFlightRefresh?.();
+  // #336 — capture BEFORE clearing: this tab's access token names the user who
+  // actually clicked logout, and the clear below is deliberately synchronous.
+  // Read it after and we would always send nothing.
+  const bearer = getAccessToken();
   clearAccessToken();
   try {
     // Cookie-authenticated: the HttpOnly refresh cookie rides along and the CSRF
-    // header satisfies the check. No bearer (so it works even if the access token
-    // had expired) and no Idempotency-Key (the request is anonymous). Always
-    // fires — JS can't read the HttpOnly cookie to know whether a session exists,
-    // so we always ask the server to revoke + clear it.
-    await raw<void>("/auth/logout", { method: "POST", headers: { [CSRF_HEADER]: "1" } });
+    // header satisfies the check. Always fires — JS can't read the HttpOnly
+    // cookie to know whether a session exists, so we always ask the server to
+    // revoke + clear it.
+    //
+    // #336 — the bearer is sent too, when this tab still has one. The refresh
+    // cookie is per-origin (one per browser, last login wins) while this store
+    // is per-tab, so the cookie can belong to a DIFFERENT user than the one
+    // logging out here; without the bearer the server would revoke that other
+    // user's step-up grants and leave this user's alive. It stays OPTIONAL —
+    // the endpoint is AllowAnonymous, so an already-expired token just leaves
+    // the call unauthenticated and the cookie path still ends the session, and
+    // the server exempts /auth/logout from the Idempotency-Key requirement so
+    // authenticating it does not make the request need one.
+    await raw<void>(
+      "/auth/logout",
+      { method: "POST", headers: { [CSRF_HEADER]: "1" } },
+      bearer ?? undefined,
+    );
   } catch (err) {
     // Best-effort revoke: the in-memory token is already cleared above and this
     // failure can never reverse that. Still surfaced (not silently swallowed,
@@ -350,18 +393,32 @@ export function apiGet<T>(path: string): Promise<T> {
 // key replays the original response instead of repeating the side effect.
 // Callers retrying a logical mutation after an ambiguous failure should pass
 // the SAME key so the server dedupes instead of repeating the write.
-export function apiPost<T>(path: string, body?: unknown, idempotencyKey?: string): Promise<T> {
+//
+// #308 — extraHeaders is how CreateUser/SetUserPassword attach the
+// X-Cluckwork-Step-Up header for a sensitive operation; every other caller
+// omits it.
+export function apiPost<T>(
+  path: string,
+  body?: unknown,
+  idempotencyKey?: string,
+  extraHeaders?: Record<string, string>,
+): Promise<T> {
   return apiFetch<T>(path, {
     method: "POST",
-    headers: { "Idempotency-Key": idempotencyKey ?? newId() },
+    headers: { "Idempotency-Key": idempotencyKey ?? newId(), ...extraHeaders },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
 }
 
-export function apiPut<T>(path: string, body: unknown, idempotencyKey?: string): Promise<T> {
+export function apiPut<T>(
+  path: string,
+  body: unknown,
+  idempotencyKey?: string,
+  extraHeaders?: Record<string, string>,
+): Promise<T> {
   return apiFetch<T>(path, {
     method: "PUT",
-    headers: { "Idempotency-Key": idempotencyKey ?? newId() },
+    headers: { "Idempotency-Key": idempotencyKey ?? newId(), ...extraHeaders },
     body: JSON.stringify(body),
   });
 }
