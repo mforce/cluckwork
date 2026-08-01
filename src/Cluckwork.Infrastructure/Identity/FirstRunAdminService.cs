@@ -6,6 +6,7 @@ using Cluckwork.Domain.Common;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 // #283 Part 2 — first-run admin provisioning. Invoked ONLY by the
 // `bootstrap-admin` CLI command (Cli/BootstrapAdminCliCommand.cs), a one-shot
@@ -43,7 +44,8 @@ public sealed class FirstRunAdminService(
     AppDbContext db,
     TenantContext tenant,
     UserManager<ApplicationUser> userManager,
-    IIdentityProvider identity)
+    IIdentityProvider identity,
+    ILogger<FirstRunAdminService> logger)
 {
     // Two-int pg_advisory_lock(int, int) form (a distinct 64-bit keyspace
     // from the single-bigint overload) so this can never collide with a
@@ -96,14 +98,54 @@ public sealed class FirstRunAdminService(
                 // cancellation can't also skip releasing the lock and strand
                 // every subsequent invocation behind it for the rest of the
                 // session's lifetime.
-                await db.Database.ExecuteSqlInterpolatedAsync(
-                    $"SELECT pg_advisory_unlock({AdvisoryLockClassId}, {AdvisoryLockObjectId})",
-                    CancellationToken.None);
+                //
+                // Best-effort only (PR #339 review): the lock is
+                // SESSION-scoped on THIS pinned connection, so losing the
+                // connection or session releases it automatically — the
+                // explicit unlock is cleanup, not a correctness requirement.
+                // An exception here (e.g. the connection drops right after
+                // ProvisionUnderLockAsync's commit) must never replace a
+                // successful Result: the one-time generated password lives
+                // nowhere else, and a retry would just observe the
+                // already-created Owner and no-op, stranding the operator
+                // behind break-glass recovery. Swallowed and logged instead
+                // of rethrown; a genuine ProvisionUnderLockAsync failure is
+                // unaffected — it already returned/threw before this runs.
+                await TryCleanupAsync(
+                    () => db.Database.ExecuteSqlInterpolatedAsync(
+                        $"SELECT pg_advisory_unlock({AdvisoryLockClassId}, {AdvisoryLockObjectId})",
+                        CancellationToken.None),
+                    "advisory unlock");
             }
         }
         finally
         {
-            await db.Database.CloseConnectionAsync();
+            // Same reasoning as the unlock above: closing an already-broken
+            // connection can itself throw, and that must not suppress the
+            // outcome computed above either.
+            await TryCleanupAsync(
+                () => db.Database.CloseConnectionAsync(),
+                "connection close");
+        }
+    }
+
+    // Runs best-effort post-commit cleanup: on failure, logs and swallows
+    // rather than letting the exception replace the caller's real result.
+    // Never logs anything derived from the temporary password — this only
+    // ever wraps lock/connection plumbing, not provisioning itself.
+    private async Task TryCleanupAsync(Func<Task> cleanup, string what)
+    {
+        try
+        {
+            await cleanup();
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex,
+                "First-run admin provisioning: {What} cleanup failed after the provisioning " +
+                "outcome was already determined; ignoring (the advisory lock is session-scoped " +
+                "and releases automatically once the connection/session is gone).",
+                what);
         }
     }
 
