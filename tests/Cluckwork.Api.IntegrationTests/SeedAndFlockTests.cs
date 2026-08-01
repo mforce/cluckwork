@@ -2,33 +2,26 @@ namespace Cluckwork.Api.IntegrationTests;
 
 using System.Net;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+using Cluckwork.Domain.Accounts;
 
-// #5: startup seeding makes the app usable end-to-end, and flock CRUD is the
-// first setup surface. Covers seeded-admin login + create/list/get/deplete.
+// #5: the app is usable end-to-end, and flock CRUD is the first setup
+// surface. Covers a provisioned-admin login + create/list/get/deplete.
 [Collection(IntegrationCollection.Name)]
 public sealed class SeedAndFlockTests(CluckworkWebApplicationFactory factory)
 {
     [Fact]
-    public async Task SeededAdmin_CanLogIn()
+    public async Task ProvisionedAdmin_CanLogIn()
     {
-        const string email = "admin@cluckwork.local";
-        // Generated per run — keeps a real-looking password out of source (no
-        // hardcoded-secret scanner false positives) while satisfying the identity
-        // policy (upper/lower/digit/symbol, >=12 chars).
-        var password = $"Aa1!{Guid.NewGuid():N}";
+        // #283 — the default account/Admin role are #283 migration-baked
+        // static reference data (no Seed:* config, no runtime seeder); only
+        // the login user itself is seeded here, standing in for a real
+        // `bootstrap-admin` run (covered end-to-end by BootstrapAdminCommandTests).
+        var email = $"admin-{Guid.NewGuid():N}@test.local";
+        await factory.SeedUserAsync(SeedDefaults.AccountId, email, Roles.Owner);
 
-        // A host built with Seed:* config runs the startup seeder against the
-        // shared container, creating the default account + admin user.
-        using var seeded = factory.WithWebHostBuilder(builder =>
-        {
-            builder.UseSetting("Seed:Enabled", "true");
-            builder.UseSetting("Seed:AdminEmail", email);
-            builder.UseSetting("Seed:AdminPassword", password);
-        });
-
-        var client = seeded.CreateClient();
+        var client = factory.CreateClient();
         var response = await client.PostAsJsonAsync(
-            "/api/v1/auth/login", new { email, password });
+            "/api/v1/auth/login", new { email, password = TestHarness.Password });
 
         var body = await response.Content.ReadAsStringAsync();
         Assert.True(response.StatusCode == HttpStatusCode.OK,

@@ -66,8 +66,22 @@ public sealed class LegacyIdempotencyRowMigrationTests(LegacyIdempotencyRowFacto
         // include everything up through AddSimulationSeedState).
         await MigrateToAsync(factory, MigrationBeforeAtomicClaims);
 
+        // Only the ACCOUNT and its expense category are created against this
+        // deliberately-behind schema — all the hand-inserted legacy row and
+        // the later retry need. The login USER is created after step 3
+        // instead: #283's AddBaseReferenceDataAndMustChangePassword adds
+        // AspNetUsers.MustChangePassword, and the current EF model writes
+        // that column on every insert, so a user row simply cannot be written
+        // against a schema pinned before it. Moving the user creation (rather
+        // than the migration target) keeps the repro itself exact: the legacy
+        // idempotency row is still inserted under the pre-#307 schema.
         var email = $"legacy-{Guid.NewGuid():N}@test.local";
-        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var accountId = Guid.NewGuid();
+        await factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            db.Accounts.Add(Account.Create(accountId, "Test Farm Co", "UTC", "USD"));
+            await db.SaveChangesAsync();
+        });
         var categoryId = Guid.NewGuid();
         await factory.WithTenantScopeAsync(accountId, async db =>
         {
@@ -99,6 +113,9 @@ public sealed class LegacyIdempotencyRowMigrationTests(LegacyIdempotencyRowFacto
 
         // 3. Apply the migration under test.
         await MigrateToAsync(factory, null);
+
+        // Now — and only now — the schema can hold a user row (see step 1).
+        await factory.SeedUserAsync(accountId, email, asAdmin: true);
 
         // The backfill flipped it to Completed with the "hash unknown" sentinel.
         await factory.WithTenantScopeAsync(accountId, async db =>

@@ -17,6 +17,7 @@ public static class CliDispatcher
         new SeedCliCommand(),
         new MigrateCliCommand(),
         new RecoverAdminCliCommand(),
+        new BootstrapAdminCliCommand(),
     ];
 
     // Whether these args will dispatch to a one-off verb rather than start the

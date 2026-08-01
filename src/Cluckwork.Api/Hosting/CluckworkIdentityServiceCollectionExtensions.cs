@@ -68,6 +68,10 @@ internal static class CluckworkIdentityServiceCollectionExtensions
         services.AddScoped<IIdentityProvider, IdentityProvider>();
         // Break-glass recovery must remain available in Production.
         services.AddScoped<AdminRecoveryService>();
+        // #283 — first-run admin provisioning (`bootstrap-admin`), same
+        // always-available-in-Production posture as break-glass recovery: a
+        // real deploy's first login depends on it.
+        services.AddScoped<FirstRunAdminService>();
         services.AddScoped<IJwtTokenService, JwtTokenService>();
 
         return services;

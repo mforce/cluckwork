@@ -40,5 +40,15 @@ public sealed class AccountConfiguration : IEntityTypeConfiguration<Account>
 
         // Derived from the stored symbol/code — not a column.
         builder.Ignore(e => e.CurrencySymbol);
+
+        // #283 Part 1 — the default single-farm account is static reference
+        // data, seeded via idempotent raw SQL in the
+        // AddBaseReferenceDataAndMustChangePassword migration, NOT via EF's
+        // HasData(). HasData bakes InsertData/DeleteData keyed by PRIMARY KEY,
+        // which assumes a virgin schema; every real deployment had already
+        // run the old runtime DatabaseSeeder at least once, so that migration
+        // must be idempotent against PRE-EXISTING rows instead — see the
+        // migration file for the WHERE NOT EXISTS logic and why HasData can't
+        // express it (PR #339 review).
     }
 }

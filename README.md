@@ -36,14 +36,25 @@ Prerequisites: **.NET 10 SDK**, **Docker**, **Node 26+**.
 
 ```bash
 cp deploy/.env.example deploy/.env
-# edit deploy/.env: set POSTGRES_PASSWORD, a JWT RSA keypair (Jwt__*KeyPem),
-# and Seed__AdminEmail / Seed__AdminPassword (password must be >=12 chars,
-# upper/lower/digit/symbol)
+# edit deploy/.env: set POSTGRES_PASSWORD and a JWT RSA keypair (Jwt__*KeyPem)
 
 docker compose -f deploy/docker-compose.yml up --build
 ```
 
-The app comes up on **http://localhost:8080**. On first boot it applies migrations and seeds the default account + admin user, so you can log in with the `Seed__Admin*` credentials. Optionally set `Seed__WorkerEmail` / `Seed__WorkerPassword` to also seed a login **without** the Admin role — useful for testing the worker experience (corrective actions hidden and refused).
+The app comes up on **http://localhost:8080**. Base data (the default account, roles, default egg grades) ships as part of the EF migrations, so it's already there — but there is no admin user yet (no credential is ever baked into the repo). Provision the first one:
+
+```bash
+docker compose -f deploy/docker-compose.yml run --rm app \
+  bootstrap-admin --email admin@example.com
+```
+
+Pass the **verb only** — the image's `ENTRYPOINT` is already
+`dotnet Cluckwork.Api.dll`, and `docker compose run` *appends* to it. Repeating
+`dotnet Cluckwork.Api.dll` here would make `args[0]` be `dotnet`, which matches
+no CLI verb, so the container would boot the web server instead of provisioning
+anything.
+
+This writes the generated one-time password to **stdout only** — never the application logger or the OTLP pipeline. A host's stdout collector (docker logs, journald, a platform log pipeline) may still capture it, so treat that output as sensitive while the password is valid. Sign in with it — the app immediately shows a **Set your password** screen and refuses everything else until you pick your own. Re-running the command against an already-provisioned account is a safe no-op.
 
 ### Frontend development
 

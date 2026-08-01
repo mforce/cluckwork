@@ -92,5 +92,16 @@ public sealed class EggGradeConfiguration : IEntityTypeConfiguration<EggGrade>
         // lower(Name) expression index (EF can't model it); see the
         // AddEggGradeManagement migration. Handlers pre-check via
         // NameExistsAsync for a friendly 409; the index is the real guarantee.
+
+        // #283 Part 1 — spec §9.1's default grades are static reference data,
+        // seeded via idempotent raw SQL in the
+        // AddBaseReferenceDataAndMustChangePassword migration, NOT via EF's
+        // HasData(): every real deployment already ran the old runtime
+        // DatabaseSeeder at least once, which minted these 10 rows with
+        // RANDOM ids (EggGrade.Create(Guid.NewGuid(), ...)) — HasData's
+        // InsertData is keyed by PRIMARY KEY, so it cannot detect "this row
+        // already exists under a different id" and collides on the real
+        // unique constraint (AccountId, FarmId, lower(Name)) instead. See the
+        // migration file (PR #339 review).
     }
 }

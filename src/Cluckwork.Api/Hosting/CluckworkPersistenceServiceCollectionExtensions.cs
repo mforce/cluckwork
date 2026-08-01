@@ -45,20 +45,20 @@ internal static class CluckworkPersistenceServiceCollectionExtensions
             configurator.Configure(options, connectionString);
         });
 
-        // Farm-local boundaries require IANA tzdata/ICU. Validate both the image
-        // canary and the configured provisioning zone before the host builds.
+        // Farm-local boundaries require IANA tzdata/ICU. Validate the image
+        // canary before the host builds. #283 — the second half of this guard
+        // (a configured Seed:TimeZoneId provisioning zone) is retired along
+        // with the runtime seeder it fed: the default account is now a fixed
+        // "UTC" migration literal (baked via raw migrationBuilder.Sql with
+        // WHERE NOT EXISTS guards), and a real farm sets its own IANA zone via
+        // Settings after first login (Account.UpdateSettings) — no boot-time
+        // config value to validate.
         TimeZoneAvailability.EnsureResolvable(
             TimeZoneAvailability.CanaryZoneId,
             "Startup time-zone smoke check");
-        TimeZoneAvailability.EnsureResolvable(
-            configuration.GetValue<string>("Seed:TimeZoneId")
-                ?? SeedOptions.DefaultTimeZoneId,
-            "Configured Seed:TimeZoneId");
 
-        // Startup and explicit-command seeders share the same persistence graph.
-        services.Configure<SeedOptions>(
-            configuration.GetSection(SeedOptions.SectionName));
-        services.AddScoped<DatabaseSeeder>();
+        // Explicit-command seeders (demo/simulation) share the same
+        // persistence graph as the serving process.
         if (!environment.IsProduction())
             services.AddScoped<DemoDataSeeder>();
 

@@ -25,12 +25,13 @@ const mockSetOnUnauthenticated = vi.mocked(setOnUnauthenticated);
 const mockRestoreSession = vi.mocked(restoreSession);
 
 function Probe() {
-  const { role, isAdmin, isAuthenticated, login, logout } = useAuth();
+  const { role, isAdmin, isAuthenticated, mustChangePassword, login, logout } = useAuth();
   return (
     <div>
       <span data-testid="role">{role}</span>
       <span data-testid="admin">{String(isAdmin)}</span>
       <span data-testid="auth">{String(isAuthenticated)}</span>
+      <span data-testid="pending-pw">{String(mustChangePassword)}</span>
       <button onClick={() => void login("a@b.co", "pw")}>login</button>
       <button onClick={() => void logout()}>logout</button>
     </div>
@@ -209,6 +210,46 @@ describe("AuthProvider lifecycle", () => {
     });
 
     expect(localStorage.getItem("cluckwork.theme")).toBe("dark");
+  });
+
+  // #283 — mustChangePassword is decoded through the SAME refreshClaims path
+  // as role/isAdmin (login, refresh, bootstrap), so these mirror the existing
+  // role-derivation tests above rather than re-deriving a new mechanism.
+  it("derives mustChangePassword=true from a token carrying must_change_password", async () => {
+    setStoredToken({ sub: "u1", role: "Admin", must_change_password: "true" });
+    renderAuth();
+    expect(screen.getByTestId("pending-pw")).toHaveTextContent("true");
+  });
+
+  it("derives mustChangePassword=false when the claim is absent", async () => {
+    setStoredToken({ sub: "u1", role: "Admin" });
+    renderAuth();
+    expect(screen.getByTestId("pending-pw")).toHaveTextContent("false");
+  });
+
+  it("clears mustChangePassword when a refreshed token no longer carries the claim (a completed password change)", async () => {
+    setStoredToken({ sub: "u1", role: "Admin", must_change_password: "true" });
+    renderAuth();
+    expect(screen.getByTestId("pending-pw")).toHaveTextContent("true");
+
+    const onTokensChanged = mockSetOnTokensChanged.mock.calls[0][0];
+    setStoredToken({ sub: "u1", role: "Admin" }); // the fresh pair ChangeOwnPasswordAsync issues
+    await act(async () => onTokensChanged!());
+
+    expect(screen.getByTestId("pending-pw")).toHaveTextContent("false");
+  });
+
+  it("logout clears mustChangePassword back to false", async () => {
+    setStoredToken({ sub: "u1", role: "Admin", must_change_password: "true" });
+    mockApiLogout.mockImplementation(async () => clearAccessToken());
+    renderAuth();
+    expect(screen.getByTestId("pending-pw")).toHaveTextContent("true");
+
+    await act(async () => {
+      fireEvent.click(screen.getByText("logout"));
+    });
+
+    expect(screen.getByTestId("pending-pw")).toHaveTextContent("false");
   });
 
   it("unregisters its client callbacks on unmount", () => {

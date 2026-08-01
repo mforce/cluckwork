@@ -54,18 +54,20 @@ public sealed class DemoDataSeeder(
 
         // Preflight the base prerequisite (#284 review): demo needs the default
         // account, the Admin role, and the default egg grades (FK dep for the
-        // daily-entry grade lines below) that DatabaseSeeder creates on normal
-        // boot — but the seed command never runs DatabaseSeeder. Against a
-        // migrated-but-never-booted database this used to throw a raw
-        // FK/NullReference-shaped exception (or worse, swallow it) instead of
-        // telling the operator what to do.
+        // daily-entry grade lines below). #283 — these are now static
+        // reference data baked into the migration itself via raw
+        // migrationBuilder.Sql with WHERE NOT EXISTS guards, so this check
+        // should never actually fire against a database this process's own
+        // MigrateAsync just brought current; it stays as defense-in-depth
+        // against a hand-rolled/partially-restored schema.
         var missingBaseData = await MissingBaseDataAsync(accountId, ct);
         if (missingBaseData)
         {
             const string message =
                 "Demo seed prerequisites missing: the base data (default account, Admin role, default egg " +
-                "grades) is not seeded yet. Run the app once against this database with Seed:AdminEmail / " +
-                "Seed:AdminPassword set (DatabaseSeeder base-seeds on boot), then re-run `seed --profile demo`.";
+                "grades) is not present. It ships as part of the EF migrations (#283) — run `migrate` (or " +
+                "let this command's own migrate-first step apply it) against a current schema, then re-run " +
+                "`seed --profile demo`.";
             logger.LogError(message);
             return SeedResult.PrerequisitesMissing(message);
         }
@@ -101,8 +103,8 @@ public sealed class DemoDataSeeder(
 
     // Cheap existence checks only — this must run BEFORE tenant.Resolve, so
     // every tenant-scoped query needs IgnoreQueryFilters (same reasoning as the
-    // anyFlocks check below and DatabaseSeeder's own startup checks). Roles
-    // carry no tenant filter, so db.Roles needs none.
+    // anyFlocks check below). Roles carry no tenant filter, so db.Roles needs
+    // none.
     private async Task<bool> MissingBaseDataAsync(Guid accountId, CancellationToken ct)
     {
         var accountExists = await db.Accounts
@@ -110,7 +112,7 @@ public sealed class DemoDataSeeder(
             .AnyAsync(a => a.Id == accountId, ct);
         if (!accountExists) return true;
 
-        var adminRoleExists = await db.Roles.AnyAsync(r => r.Name == DatabaseSeeder.AdminRole, ct);
+        var adminRoleExists = await db.Roles.AnyAsync(r => r.Name == Roles.Owner, ct);
         if (!adminRoleExists) return true;
 
         var anyGrades = await db.EggGrades
@@ -124,8 +126,8 @@ public sealed class DemoDataSeeder(
     // later step fails, committed rows would otherwise trip the empty-catalog
     // guard forever with a half-seeded demo. Cleanup is safe on a fresh
     // database: the flock guard proves the flock-rooted rows are ours, and
-    // DatabaseSeeder never writes customers/orders — nothing else can have
-    // created them before first startup completes.
+    // nothing else writes customers/orders into a fresh account before this
+    // seeder's first run.
     private async Task CleanupPartialSeedAsync(Guid accountId)
     {
         try

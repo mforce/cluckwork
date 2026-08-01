@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { currentUserRole, currentUserIsAdmin } from "./claims";
+import { currentUserRole, currentUserIsAdmin, currentUserMustChangePassword } from "./claims";
 import { setStoredToken, setRawAccessToken } from "../test/jwt";
 
 // localStorage is reset after every test in src/test/setup.ts (single source of
@@ -98,5 +98,36 @@ describe("currentUserIsAdmin", () => {
 
   it("no token (Worker) → false", () => {
     expect(currentUserIsAdmin()).toBe(false);
+  });
+});
+
+// #283 — the first-run "must set a new password" claim JwtTokenService adds
+// ONLY when true (mirrors the role claims' omit-if-absent shape).
+describe("currentUserMustChangePassword", () => {
+  it("returns false when no token is stored", () => {
+    expect(currentUserMustChangePassword()).toBe(false);
+  });
+
+  it("returns false when the claim is absent (the ordinary case)", () => {
+    setStoredToken({ sub: "u1", role: "Admin" });
+    expect(currentUserMustChangePassword()).toBe(false);
+  });
+
+  it("returns true when the claim is the string \"true\"", () => {
+    setStoredToken({ sub: "u1", role: "Admin", must_change_password: "true" });
+    expect(currentUserMustChangePassword()).toBe(true);
+  });
+
+  // The server only ever adds the claim with the literal string "true" (never
+  // "false", never a boolean) — anything else must NOT be read as pending, or
+  // a malformed/tampered client-side value could wedge a user on the gate.
+  it("returns false for any other claim value, not just \"true\"", () => {
+    setStoredToken({ sub: "u1", role: "Admin", must_change_password: "yes" });
+    expect(currentUserMustChangePassword()).toBe(false);
+  });
+
+  it("a malformed token decodes to false, same as the other claim decoders", () => {
+    setRawAccessToken("not-a-jwt");
+    expect(currentUserMustChangePassword()).toBe(false);
   });
 });

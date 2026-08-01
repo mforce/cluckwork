@@ -60,5 +60,16 @@ public sealed class EggUnitConversionConfiguration : IEntityTypeConfiguration<Eg
         // One row per unit code per account (farm overrides are a later
         // phase — the spec reserves them, the MVP is single-farm).
         builder.HasIndex(c => new { c.AccountId, c.UnitCode }).IsUnique();
+
+        // #283 Part 1 — the default account's packed-unit defaults (#97) are
+        // static reference data, seeded via idempotent raw SQL in the
+        // AddBaseReferenceDataAndMustChangePassword migration, NOT via EF's
+        // HasData(): every real deployment already ran the old runtime
+        // DatabaseSeeder at least once, which minted these 6 rows with RANDOM
+        // ids (EggUnitConversion.Defaults -> Create(Guid.NewGuid(), ...)) —
+        // HasData's InsertData is keyed by PRIMARY KEY, so it can't detect a
+        // pre-existing row under a different id and collides on the real
+        // unique constraint (AccountId, UnitCode) instead. See the migration
+        // file (PR #339 review).
     }
 }

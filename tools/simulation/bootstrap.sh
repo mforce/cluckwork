@@ -4,10 +4,12 @@
 #
 # Produces two git-ignored artifacts (see tools/simulation/.gitignore):
 #   - tools/simulation/.env.sim   — everything docker-compose.sim.yml's `app`
-#     service needs: the serving container base-seeds (DatabaseSeeder) and
-#     stays Production; reset.sh separately runs `seed --profile simulation`
-#     (SimulationDataSeeder) as a one-shot, non-Production `docker compose
-#     run` against the same env file (#279).
+#     service needs. #283: the default account/roles/egg grades ship as part
+#     of the EF migrations (the serving container's normal migrate-on-startup
+#     boot provisions them — no Seed:* config); reset.sh separately runs the
+#     one-shot `bootstrap-admin` command (the Owner) and then `seed --profile
+#     simulation` (SimulationDataSeeder, the fixture cast/history), both as
+#     `docker compose run` against this same env file (#279).
 #   - tools/simulation/.sim-cast.json — the k6/Playwright LOGIN SOURCE: the
 #     Owner (reused seeded admin) + every deterministic cast member this
 #     script's counts imply. This is NOT SimulationDataSeeder's own
@@ -183,13 +185,15 @@ Jwt__Audience=cluckwork-api
 Jwt__PublicKeyPem="${JWT_PUBLIC_PEM}"
 Jwt__PrivateKeyPem="${JWT_PRIVATE_PEM}"
 
-# --- Startup seed: DatabaseSeeder (Owner) only — SimulationDataSeeder is no
-# longer boot-seeded; reset.sh runs it via the `seed --profile simulation`
-# command instead (#279). ---
-Seed__Enabled=true
-Seed__Demo=false
-Seed__AdminEmail=${SEED_ADMIN_EMAIL}
-Seed__AdminPassword=${SEED_ADMIN_PASSWORD}
+# --- First-run admin (#283) — SCRIPT-LEVEL values, not app config (no
+# double-underscore key, so docker-compose's env-file parser does NOT expose
+# these to the app as ASP.NET config; the app never reads a "seed" credential
+# from anywhere). reset.sh reads these back to call `bootstrap-admin`, then
+# rotates the printed one-time password to SIM_ADMIN_PASSWORD via the real
+# login+change-password API — every other script/persona in this harness
+# keeps a stable, known Owner credential exactly as before #283. ---
+SIM_ADMIN_EMAIL=${SEED_ADMIN_EMAIL}
+SIM_ADMIN_PASSWORD=${SEED_ADMIN_PASSWORD}
 
 # --- #243 simulation cast/fixture (SimulationOptions) -----------------
 Simulation__CastPassword=${SIM_CAST_PASSWORD}

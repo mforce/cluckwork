@@ -83,6 +83,42 @@ internal static class TestHarness
         }
     }
 
+    // #283 — seed a user with MustChangePassword=true, exactly the shape
+    // `bootstrap-admin` produces for the first-run Owner. Separate helper
+    // (rather than another SeedUserAsync overload) because this is a rare,
+    // deliberately-flagged shape, not a general seeding knob.
+    public static async Task<Guid> SeedUserPendingPasswordChangeAsync(
+        this CluckworkWebApplicationFactory factory, Guid accountId, string email, string? role = Cluckwork.Domain.Accounts.Roles.Owner)
+    {
+        using var scope = factory.Services.CreateScope();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var user = new ApplicationUser
+        {
+            Id = Guid.NewGuid(),
+            UserName = email,
+            Email = email,
+            AccountId = accountId,
+            MustChangePassword = true,
+        };
+        var result = await users.CreateAsync(user, Password);
+        if (!result.Succeeded)
+            throw new InvalidOperationException(
+                "Seed user creation failed: " + string.Join("; ", result.Errors.Select(e => e.Description)));
+
+        if (role is not null)
+        {
+            var roles = scope.ServiceProvider.GetRequiredService<RoleManager<ApplicationRole>>();
+            if (!await roles.RoleExistsAsync(role))
+                await roles.CreateAsync(new ApplicationRole { Id = Guid.NewGuid(), Name = role });
+            var added = await users.AddToRoleAsync(user, role);
+            if (!added.Succeeded)
+                throw new InvalidOperationException(
+                    "Seed role assignment failed: " + string.Join("; ", added.Errors.Select(e => e.Description)));
+        }
+
+        return user.Id;
+    }
+
     // #104 — pile a second role onto an existing user (multi-role principals
     // are reachable via Identity even though the API assigns one; the policy
     // precedence tests need them).
