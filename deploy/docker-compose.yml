@@ -91,13 +91,13 @@ services:
         condition: service_healthy
 
   db:
-    image: postgres:16-alpine
+    image: postgres:18.4-trixie@sha256:3a82e1f56c8f0f5616a11103ac3d47e632c3938698946a7ad26da0df1334744a
     env_file:
       - .env
     volumes:
-      - cluckwork-postgres:/var/lib/postgresql/data
+      - cluckwork-postgres-pg18:/var/lib/postgresql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -121,4 +121,4 @@ services:
       - ./traefik:/etc/traefik/dynamic:ro
 
 volumes:
-  cluckwork-postgres:
+  cluckwork-postgres-pg18:

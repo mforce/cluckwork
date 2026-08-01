@@ -289,7 +289,7 @@ jobs:
           docker network create cluckwork-ci
           docker run -d --name ci-db --network cluckwork-ci \
             -e POSTGRES_USER=cluckwork -e POSTGRES_PASSWORD="$PGPW" -e POSTGRES_DB=cluckwork \
-            postgres:16-alpine
+            postgres:18.4-trixie@sha256:3a82e1f56c8f0f5616a11103ac3d47e632c3938698946a7ad26da0df1334744a
           # Wait for Postgres to accept connections before migrating. Probe over
           # TCP (`-h 127.0.0.1`), NOT the default unix socket: the postgres image
           # runs a socket-only temporary server during initdb, and a socket-based
