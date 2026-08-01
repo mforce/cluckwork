@@ -574,6 +574,45 @@ describe("auth endpoints", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect((fetchMock.mock.calls[0] as Call)[0]).toBe("/api/v1/auth/logout");
   });
+
+  // #310 — local invalidation must win immediately, independent of the network.
+  it("clears in-memory auth state synchronously, before the server call settles", async () => {
+    const gate = deferred<Response>();
+    fetchMock.mockReturnValueOnce(gate.promise); // server call hangs
+    setAccessToken("live-token");
+
+    const done = logout();
+    await Promise.resolve(); // let logout()'s synchronous prefix run; network still pending
+    expect(getAccessToken()).toBeNull();
+
+    gate.resolve(new Response(null, { status: 204 }));
+    await done;
+  });
+
+  // #310 — a full network rejection (not just a non-2xx response) must behave
+  // the same as the existing 500 case above: local state wins regardless.
+  it("clears the local token even when the server call rejects outright (network error)", async () => {
+    setAccessToken("live-token");
+    fetchMock.mockRejectedValueOnce(new TypeError("network down"));
+    await expect(logout()).resolves.toBeUndefined();
+    expect(getAccessToken()).toBeNull();
+  });
+
+  // #310 — the revoke failure must be observable (not silently swallowed) but
+  // must never expose the token that was already cleared.
+  it("reports a server-side revoke failure without leaking the token", async () => {
+    const consoleErr = vi.spyOn(console, "error").mockImplementation(() => {});
+    setAccessToken("super-secret-live-token");
+    fetchMock.mockRejectedValueOnce(new TypeError("network down"));
+
+    await expect(logout()).resolves.toBeUndefined();
+
+    expect(getAccessToken()).toBeNull();
+    expect(consoleErr).toHaveBeenCalledTimes(1);
+    const logged = consoleErr.mock.calls[0].map((a) => String(a)).join(" ");
+    expect(logged).not.toContain("super-secret-live-token");
+    consoleErr.mockRestore();
+  });
 });
 
 describe("changePassword (#165)", () => {
@@ -741,5 +780,125 @@ describe("cross-tab refresh coordination (#169)", () => {
     expect(a).toEqual({ ok: true });
     expect(callsTo(fetchMock, "/auth/refresh")).toHaveLength(1); // still refreshes, just uncoordinated
     expect(getAccessToken()).toBe("at2");
+  });
+});
+
+// #310 — login, bootstrap refresh, explicit refresh, and logout are one browser
+// session state machine. A stale completion (one whose generation was superseded
+// by a later login or an earlier logout) may never commit tokens or state.
+describe("session generation (#310)", () => {
+  it("commits a bootstrap refresh normally when nothing else races it (control)", async () => {
+    clearAccessToken();
+    fetchMock.mockResolvedValueOnce(accessResponse("bootedToken"));
+
+    await expect(restoreSession()).resolves.toBe(true);
+
+    expect(getAccessToken()).toBe("bootedToken");
+    expect(onTokens).toHaveBeenCalledTimes(1);
+  });
+
+  it("discards a bootstrap refresh that resolves after logout — the session does not resurrect", async () => {
+    clearAccessToken();
+    const refreshGate = deferred<Response>();
+    fetchMock.mockImplementation((url: string) => {
+      if (url.endsWith("/auth/refresh")) return refreshGate.promise;
+      if (url.endsWith("/auth/logout")) return Promise.resolve(new Response(null, { status: 204 }));
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    const restoring = restoreSession(); // bootstrap refresh in flight, held open
+    await drain();
+    expect(callsTo(fetchMock, "/auth/refresh")).toHaveLength(1);
+
+    await logout(); // user logs out while the bootstrap refresh is still pending
+
+    refreshGate.resolve(accessResponse("resurrected-token")); // the stale refresh finally answers
+    await expect(restoring).resolves.toBe(false); // discarded — never reports a restored session
+
+    expect(getAccessToken()).toBeNull(); // must stay logged out
+    expect(onTokens).not.toHaveBeenCalled(); // the stale completion must not fire tokensChanged
+  });
+
+  it("commits an explicit login normally when nothing else races it (control)", async () => {
+    clearAccessToken();
+    fetchMock.mockResolvedValueOnce(accessResponse("loggedInToken"));
+
+    await login({ email: "a@b.co", password: "pw" });
+
+    expect(getAccessToken()).toBe("loggedInToken");
+    expect(onTokens).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not let a late bootstrap refresh overwrite a newer explicit login", async () => {
+    clearAccessToken();
+    const refreshGate = deferred<Response>();
+    fetchMock.mockImplementation((url: string) => {
+      if (url.endsWith("/auth/refresh")) return refreshGate.promise;
+      if (url.endsWith("/auth/login")) return Promise.resolve(accessResponse("newLoginToken"));
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    const restoring = restoreSession(); // older bootstrap refresh in flight
+    await drain();
+
+    await login({ email: "a@b.co", password: "pw" }); // a newer, explicit login completes first
+    expect(getAccessToken()).toBe("newLoginToken");
+    expect(onTokens).toHaveBeenCalledTimes(1);
+
+    refreshGate.resolve(accessResponse("staleBootstrapToken")); // the old refresh answers late
+    await expect(restoring).resolves.toBe(false); // discarded, not adopted
+
+    expect(getAccessToken()).toBe("newLoginToken"); // untouched by the stale refresh
+    expect(onTokens).toHaveBeenCalledTimes(1); // still just the login's single notification
+  });
+
+  it("a late-FAILING obsolete refresh does not clear or corrupt a newer session", async () => {
+    // Distinct from the success case above: here the stale refresh's own network
+    // call fails (refresh token revoked) — the failure path must be gated too, or
+    // it would clearAccessToken()/onUnauthenticated() and boot the fresh login.
+    clearAccessToken();
+    const refreshGate = deferred<Response>();
+    fetchMock.mockImplementation((url: string) => {
+      if (url.endsWith("/auth/refresh")) return refreshGate.promise;
+      if (url.endsWith("/auth/login")) return Promise.resolve(accessResponse("freshLoginToken"));
+      if (url.endsWith("/stock")) return Promise.resolve(jsonResponse({ ok: true }));
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    // apiGet with no in-memory token forces currentAccessToken() to park on a
+    // silent refresh — the same refresh a bootstrap would trigger.
+    const fetching = apiGet<{ ok: boolean }>("/stock").catch((e: unknown) => e);
+    await drain();
+
+    await login({ email: "a@b.co", password: "pw" }); // supersedes the still-parked refresh
+    expect(getAccessToken()).toBe("freshLoginToken");
+
+    refreshGate.resolve(jsonResponse({ title: "refresh token revoked" }, 401)); // stale refresh FAILS late
+    await fetching;
+
+    expect(getAccessToken()).toBe("freshLoginToken"); // untouched by the stale failure
+    expect(onUnauth).not.toHaveBeenCalled(); // must not tear down the fresh session
+  });
+
+  it("discards a login that resolves after a concurrent logout — does not resurrect authentication", async () => {
+    clearAccessToken();
+    const loginGate = deferred<Response>();
+    fetchMock.mockImplementation((url: string) => {
+      if (url.endsWith("/auth/login")) return loginGate.promise;
+      if (url.endsWith("/auth/logout")) return Promise.resolve(new Response(null, { status: 204 }));
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    const loggingIn = login({ email: "a@b.co", password: "pw" }).catch((e: unknown) => e);
+    await drain();
+
+    await logout(); // fires while the login request is still in flight
+
+    loginGate.resolve(accessResponse("late-login-token"));
+    const result = await loggingIn;
+    expect(result).toBeInstanceOf(Error); // discarded, surfaced as a rejection — not silently accepted
+
+    expect(getAccessToken()).toBeNull();
+    expect(onTokens).not.toHaveBeenCalled();
   });
 });
