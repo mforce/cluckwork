@@ -132,60 +132,85 @@ public sealed class IdentityProvider(
         return Result.Success(jwtTokenService.CreateTokenPair(user, [.. roles], rawToken));
     }
 
-    public async Task<Result<Guid>> CreateUserAsync(
+    public Task<Result<Guid>> CreateUserAsync(
         Guid accountId, string email, string password, string? role,
-        string? name = null, bool mustChangePassword = false, CancellationToken ct = default)
-    {
+        string? name = null, bool mustChangePassword = false, CancellationToken ct = default) =>
         // One transaction around create + role assignment: a failed admin
         // creation must not survive as a usable role-less worker account
         // (codex review of PR #78). Disposal without commit rolls back.
         // #307 — joins IdempotencyMiddleware's ambient request transaction
         // when one is open, instead of nesting a second one.
-        await using var transaction = await AmbientTransaction.BeginAsync(db.Database, ct);
-
-        var user = new ApplicationUser
+        //
+        // #269 — for a normal HTTP /api/v1/users call this is always the
+        // joined case (below). It is "owned" — and therefore retried whole,
+        // via AmbientTransaction.RunAsync — only for the CLI bootstrap-admin
+        // path (#283), which has no ambient transaction. Every value this
+        // delegate produces (Guid.NewGuid() twice, the ApplicationUser/
+        // ApplicationRole instances) is generated FRESH on each invocation
+        // with a NEW id, so a rolled-back prior attempt's now-stale tracked
+        // entities (EF doesn't untrack them just because the DB rolled back)
+        // never collide with a retry's fresh ones — no ChangeTracker cleanup
+        // needed (a blanket db.ChangeTracker.Clear() was tried here first and
+        // reverted: on the CLI/owned path this same AppDbContext can be
+        // shared by a longer-lived caller — e.g. SimulationDataSeeder — that
+        // holds OTHER entities tracked across several handler calls; clearing
+        // detached one of those out from under it and silently dropped its
+        // own later SaveChanges — #269 review). The one residual case this
+        // can't fully close: if a transient failure fires in the narrow
+        // window AFTER Postgres has already durably committed but BEFORE
+        // Npgsql's ack reaches this process (the classic ambiguous-commit
+        // race — see #269's PR description for the full analysis), the
+        // retried attempt's CreateAsync sees the SAME email already taken and
+        // reports "Users.DuplicateEmail" even though the user WAS created.
+        // Narrow, low-severity (the operator can see the user already
+        // exists), and inherent to EnableRetryOnFailure itself, not something
+        // this class can close without a request-scoped idempotency guard the
+        // CLI path doesn't have.
+        AmbientTransaction.RunAsync(db.Database, async (transaction, token) =>
         {
-            Id = Guid.NewGuid(),
-            UserName = email,
-            Email = email,
-            EmailConfirmed = true,
-            AccountId = accountId,
-            DisplayName = name, // #163 — optional display name at creation
-            MustChangePassword = mustChangePassword // #283 — true only for bootstrap-admin's Owner
-        };
-
-        var created = await userManager.CreateAsync(user, password);
-        if (!created.Succeeded)
-            return Result.Failure<Guid>(await CreateFailureAsync(created, email, accountId));
-
-        if (role is not null)
-        {
-            if (!Cluckwork.Domain.Accounts.Roles.Assignable.Contains(role))
-                return Result.Failure<Guid>(Error.Validation(
-                    "Users.UnknownRole", $"'{role}' is not an assignable role."));
-
-            if (!await roleManager.RoleExistsAsync(role))
+            var user = new ApplicationUser
             {
-                var roleCreated = await roleManager.CreateAsync(
-                    new ApplicationRole { Id = Guid.NewGuid(), Name = role });
-                if (!roleCreated.Succeeded)
-                    return Result.Failure<Guid>(Error.Validation("Users.CreateFailed", Describe(roleCreated)));
+                Id = Guid.NewGuid(),
+                UserName = email,
+                Email = email,
+                EmailConfirmed = true,
+                AccountId = accountId,
+                DisplayName = name, // #163 — optional display name at creation
+                MustChangePassword = mustChangePassword // #283 — true only for bootstrap-admin's Owner
+            };
+
+            var created = await userManager.CreateAsync(user, password);
+            if (!created.Succeeded)
+                return Result.Failure<Guid>(await CreateFailureAsync(created, email, accountId));
+
+            if (role is not null)
+            {
+                if (!Cluckwork.Domain.Accounts.Roles.Assignable.Contains(role))
+                    return Result.Failure<Guid>(Error.Validation(
+                        "Users.UnknownRole", $"'{role}' is not an assignable role."));
+
+                if (!await roleManager.RoleExistsAsync(role))
+                {
+                    var roleCreated = await roleManager.CreateAsync(
+                        new ApplicationRole { Id = Guid.NewGuid(), Name = role });
+                    if (!roleCreated.Succeeded)
+                        return Result.Failure<Guid>(Error.Validation("Users.CreateFailed", Describe(roleCreated)));
+                }
+
+                var addedToRole = await userManager.AddToRoleAsync(user, role);
+                if (!addedToRole.Succeeded)
+                    return Result.Failure<Guid>(Error.Validation("Users.CreateFailed", Describe(addedToRole)));
             }
 
-            var addedToRole = await userManager.AddToRoleAsync(user, role);
-            if (!addedToRole.Succeeded)
-                return Result.Failure<Guid>(Error.Validation("Users.CreateFailed", Describe(addedToRole)));
-        }
+            // Same transaction as the creation (#93): the event needs its own
+            // SaveChanges because UserManager flushed its writes already.
+            await audit.WriteAsync("User.Create", "User", user.Id,
+                reason: null, details: new { email, role = role ?? "Worker" }, ct: token);
+            await db.SaveChangesAsync(token);
 
-        // Same transaction as the creation (#93): the event needs its own
-        // SaveChanges because UserManager flushed its writes already.
-        await audit.WriteAsync("User.Create", "User", user.Id,
-            reason: null, details: new { email, role = role ?? "Worker" }, ct: ct);
-        await db.SaveChangesAsync(ct);
-
-        await transaction.CommitAsync(ct);
-        return Result.Success(user.Id);
-    }
+            await transaction.CommitAsync(token);
+            return Result.Success(user.Id);
+        }, ct);
 
     public async Task<Result> UpdateUserAsync(
         Guid accountId, Guid userId, string? name, CancellationToken ct = default)
@@ -260,50 +285,86 @@ public sealed class IdentityProvider(
     // audit row, all in a single transaction so the password change and the
     // session revocation land together or not at all (#165 review). An already-
     // issued access token stays valid until it expires (~15 min) — no denylist.
-    private async Task<Result> ResetPasswordAndRevokeAsync(
+    private Task<Result> ResetPasswordAndRevokeAsync(
         ApplicationUser user, string newPassword, string auditAction, string? reason,
         object? details, CancellationToken ct)
     {
+        var userId = user.Id;
         // #307 — joins IdempotencyMiddleware's ambient request transaction
         // when one is open, instead of nesting a second one.
-        await using var transaction = await AmbientTransaction.BeginAsync(db.Database, ct);
+        //
+        // #269 — SetUserPassword (an authenticated admin call) is joined in
+        // production; BreakGlassResetAsync's caller is the `recover-admin`
+        // CLI verb, which has no ambient transaction, so it always runs the
+        // "owned"/retried path below. Retrying this specific delegate is
+        // FULLY safe even under a genuinely ambiguous commit (the narrow
+        // "Postgres committed, the ack was what got lost" race): newPassword
+        // is a value fixed by the CALLER (a freshly generated temp password
+        // for break-glass, or an admin's chosen password for SetUserPassword)
+        // — not regenerated per attempt — and GeneratePasswordResetTokenAsync
+        // computes a fresh token off whatever SecurityStamp is CURRENTLY
+        // stored, so a retried attempt resets to the SAME target password
+        // again and lands in the SAME final state whether or not a prior
+        // attempt's commit actually landed. `user` is refetched fresh each
+        // attempt rather than closing over the caller's reference, and
+        // explicitly RELOADED — not db.ChangeTracker.Clear() (#269 review:
+        // that blanket-cleared entities an unrelated, longer-lived caller
+        // sharing this same AppDbContext still held tracked, e.g.
+        // SimulationDataSeeder's SimulationSeedState, silently dropping ITS
+        // pending SaveChanges) — so a retried attempt never reuses a stale
+        // in-memory copy a rolled-back prior attempt's ResetPasswordAsync
+        // already mutated (EF's identity map would otherwise hand back that
+        // SAME tracked instance instead of the database's real current row).
+        return AmbientTransaction.RunAsync(db.Database, async (transaction, token) =>
+        {
+            var freshUser = await userManager.FindByIdAsync(userId.ToString());
+            if (freshUser is null)
+                return Result.Failure(Error.NotFound("Users", userId));
+            await db.Entry(freshUser).ReloadAsync(token);
 
-        // Reset via a generated token — Identity's supported way to set a password
-        // without the current one.
-        var resetToken = await userManager.GeneratePasswordResetTokenAsync(user);
-        var reset = await userManager.ResetPasswordAsync(user, resetToken, newPassword);
-        if (!reset.Succeeded)
-            return Result.Failure(Error.Validation("Users.PasswordRejected", Describe(reset)));
+            // Reset via a generated token — Identity's supported way to set a password
+            // without the current one.
+            var resetToken = await userManager.GeneratePasswordResetTokenAsync(freshUser);
+            var reset = await userManager.ResetPasswordAsync(freshUser, resetToken, newPassword);
+            if (!reset.Succeeded)
+                return Result.Failure(Error.Validation("Users.PasswordRejected", Describe(reset)));
 
-        // #283 — any successful password reset clears a pending first-run gate.
-        // Covers an Owner using SetUserPassword or an offline break-glass reset
-        // on a user who never got around to their forced first-run change; the
-        // user obviously already has a working password at that point, so
-        // there is nothing left to force. `user` is the same DbContext-tracked
-        // instance db.SaveChangesAsync persists below — no separate save needed.
-        user.MustChangePassword = false;
+            // #283 — any successful password reset clears a pending first-run gate.
+            // Covers an Owner using SetUserPassword or an offline break-glass reset
+            // on a user who never got around to their forced first-run change; the
+            // user obviously already has a working password at that point, so
+            // there is nothing left to force. `freshUser` is the same DbContext-
+            // tracked instance db.SaveChangesAsync persists below — no separate
+            // save needed.
+            freshUser.MustChangePassword = false;
 
-        // Clear any active lockout / failed-attempt count (#265 review). Without
-        // this, the exact case break-glass exists for — a user locked out by
-        // repeated failed logins — would get a fresh password that LoginAsync
-        // still refuses until the lockout window expires (it checks
-        // IsLockedOutAsync before the password), defeating the recovery.
-        await userManager.ResetAccessFailedCountAsync(user);
-        await userManager.SetLockoutEndDateAsync(user, null);
+            // Clear any active lockout / failed-attempt count (#265 review). Without
+            // this, the exact case break-glass exists for — a user locked out by
+            // repeated failed logins — would get a fresh password that LoginAsync
+            // still refuses until the lockout window expires (it checks
+            // IsLockedOutAsync before the password), defeating the recovery.
+            await userManager.ResetAccessFailedCountAsync(freshUser);
+            await userManager.SetLockoutEndDateAsync(freshUser, null);
 
-        await RevokeAllActiveForUserAsync(user.Id, timeProvider.GetUtcNow(), ct);
-        await audit.WriteAsync(auditAction, "User", user.Id,
-            reason: reason, details: details, ct: ct);
-        await db.SaveChangesAsync(ct);
-        await transaction.CommitAsync(ct);
-        return Result.Success();
+            await RevokeAllActiveForUserAsync(freshUser.Id, timeProvider.GetUtcNow(), token);
+            await audit.WriteAsync(auditAction, "User", freshUser.Id,
+                reason: reason, details: details, ct: token);
+            await db.SaveChangesAsync(token);
+            await transaction.CommitAsync(token);
+            return Result.Success();
+        }, ct);
     }
 
     public async Task<Result<TokenPair>> ChangeOwnPasswordAsync(
         Guid userId, string currentPassword, string newPassword, CancellationToken ct = default)
     {
-        var user = await userManager.FindByIdAsync(userId.ToString());
-        if (user is null)
+        // Fast pre-check outside any transaction — nothing to open one for
+        // when the user plainly doesn't exist. ChangePasswordAsync below
+        // re-verifies against a FRESH copy per attempt regardless (see the
+        // #269 comment on the retry block) — this outer check just avoids
+        // paying for that when it can never succeed.
+        var exists = await userManager.FindByIdAsync(userId.ToString());
+        if (exists is null)
             return Result.Failure<TokenPair>(Error.Validation(
                 "Identity.InvalidCredentials", "Invalid email or password."));
 
@@ -312,43 +373,84 @@ public sealed class IdentityProvider(
         // the caller out of everything while reporting an error (#165 review).
         // #307 — joins IdempotencyMiddleware's ambient request transaction
         // when one is open, instead of nesting a second one.
-        await using var transaction = await AmbientTransaction.BeginAsync(db.Database, ct);
-
-        // ChangePasswordAsync verifies the current password AND applies the policy.
-        var changed = await userManager.ChangePasswordAsync(user, currentPassword, newPassword);
-        if (!changed.Succeeded)
+        //
+        // #269 — this endpoint is EXEMPT from idempotency wrapping
+        // (IdempotencyMiddleware.ResponseNotCacheable — a password change is
+        // self-invalidating, so replay was never useful here), which means it
+        // is ALWAYS the "owned"/retried case in production: every real call
+        // runs through AmbientTransaction.RunAsync's execution-strategy loop,
+        // never the joined no-op. A retried attempt refetches AND RELOADS
+        // `user` — it must not operate on `exists` or a prior attempt's
+        // in-memory instance, whose PasswordHash/SecurityStamp a failed (but
+        // rolled-back) ChangePasswordAsync call may already have overwritten
+        // in memory (EF's identity map hands back that SAME tracked instance
+        // on a plain re-fetch), which would make the retry's OWN current-
+        // password check compare against the wrong value. This is a
+        // per-entity ReloadAsync, not db.ChangeTracker.Clear() — #269 review:
+        // a blanket clear here detached entities an unrelated, longer-lived
+        // caller sharing this AppDbContext still held tracked (e.g.
+        // SimulationDataSeeder's SimulationSeedState, reached indirectly via
+        // CreateUserHandler → IdentityProvider.CreateUserAsync), silently
+        // dropping that caller's own pending SaveChanges.
+        //
+        // Ambiguous-commit residual: in the narrow window where Postgres has
+        // already durably committed but the acknowledgment is what triggered
+        // the "transient failure" (see #269's PR description), a retried
+        // attempt's ChangePasswordAsync re-verifies currentPassword against
+        // the NOW-CHANGED stored hash and fails with
+        // "Users.CurrentPasswordIncorrect" even though the change already
+        // succeeded — a false-negative error on an otherwise-successful
+        // request. This is not new: the pre-#269 design already documented
+        // this exact endpoint as "self-invalidating" under an ambiguous
+        // network failure between server and CLIENT (the comment above);
+        // this adds one more, narrower trigger for the identical, already-
+        // accepted failure mode, not a new class of risk. The user's
+        // recourse is unchanged: retry the change, or attempt to log in with
+        // the new password.
+        return await AmbientTransaction.RunAsync(db.Database, async (transaction, token) =>
         {
-            // Distinguish "your current password is wrong" from "the new one is
-            // too weak" — the user needs to know which to fix. Neither leaks
-            // anything: the caller is already authenticated as this user.
-            var wrongCurrent = changed.Errors.Any(e => e.Code == "PasswordMismatch");
-            return Result.Failure<TokenPair>(wrongCurrent
-                ? Error.Validation("Users.CurrentPasswordIncorrect", "Current password is incorrect.")
-                : Error.Validation("Users.PasswordRejected", Describe(changed)));
-        }
+            var user = await userManager.FindByIdAsync(userId.ToString());
+            if (user is null)
+                return Result.Failure<TokenPair>(Error.Validation(
+                    "Identity.InvalidCredentials", "Invalid email or password."));
+            await db.Entry(user).ReloadAsync(token);
 
-        // #283 — this is the SPA's first-login "set your password" screen's
-        // actual mechanism (it reuses this endpoint: the operator already
-        // knows the generated first-run password as their "current" one).
-        // Clearing the flag here is what lets the fresh token pair below omit
-        // the must_change_password claim, un-gating the rest of the app.
-        if (user.MustChangePassword)
-            user.MustChangePassword = false;
+            // ChangePasswordAsync verifies the current password AND applies the policy.
+            var changed = await userManager.ChangePasswordAsync(user, currentPassword, newPassword);
+            if (!changed.Succeeded)
+            {
+                // Distinguish "your current password is wrong" from "the new one is
+                // too weak" — the user needs to know which to fix. Neither leaks
+                // anything: the caller is already authenticated as this user.
+                var wrongCurrent = changed.Errors.Any(e => e.Code == "PasswordMismatch");
+                return Result.Failure<TokenPair>(wrongCurrent
+                    ? Error.Validation("Users.CurrentPasswordIncorrect", "Current password is incorrect.")
+                    : Error.Validation("Users.PasswordRejected", Describe(changed)));
+            }
 
-        // Every session dies (other devices are signed out), then this caller gets
-        // a fresh pair so the device that made the change stays signed in.
-        var now = timeProvider.GetUtcNow();
-        await RevokeAllActiveForUserAsync(user.Id, now, ct);
+            // #283 — this is the SPA's first-login "set your password" screen's
+            // actual mechanism (it reuses this endpoint: the operator already
+            // knows the generated first-run password as their "current" one).
+            // Clearing the flag here is what lets the fresh token pair below omit
+            // the must_change_password claim, un-gating the rest of the app.
+            if (user.MustChangePassword)
+                user.MustChangePassword = false;
 
-        var (rawToken, tokenHash) = GenerateRefreshToken();
-        db.RefreshTokens.Add(NewToken(user, tokenHash));
-        await audit.WriteAsync("User.PasswordChanged", "User", user.Id,
-            reason: null, details: null, ct: ct);
-        await db.SaveChangesAsync(ct);
-        await transaction.CommitAsync(ct);
+            // Every session dies (other devices are signed out), then this caller gets
+            // a fresh pair so the device that made the change stays signed in.
+            var now = timeProvider.GetUtcNow();
+            await RevokeAllActiveForUserAsync(user.Id, now, token);
 
-        var roles = await userManager.GetRolesAsync(user);
-        return Result.Success(jwtTokenService.CreateTokenPair(user, [.. roles], rawToken));
+            var (rawToken, tokenHash) = GenerateRefreshToken();
+            db.RefreshTokens.Add(NewToken(user, tokenHash));
+            await audit.WriteAsync("User.PasswordChanged", "User", user.Id,
+                reason: null, details: null, ct: token);
+            await db.SaveChangesAsync(token);
+            await transaction.CommitAsync(token);
+
+            var roles = await userManager.GetRolesAsync(user);
+            return Result.Success(jwtTokenService.CreateTokenPair(user, [.. roles], rawToken));
+        }, ct);
     }
 
     // Identity's duplicate-email wording is only surfaced when the email

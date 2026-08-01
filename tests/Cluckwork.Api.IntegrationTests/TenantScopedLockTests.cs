@@ -6,7 +6,6 @@ using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Inventory;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 
 // #313 — SalesOrderRepository.GetByIdLockedAsync and InventoryItemRepository.GetByIdLockedAsync
 // select by Id alone and only check AccountId AFTER the row loads, because the raw FOR UPDATE
@@ -33,10 +32,21 @@ public sealed class TenantScopedLockTests(CluckworkWebApplicationFactory factory
         var orderId = await factory.SeedSalesOrderAsync(accountB, gradesB["Large"], 10);
 
         // B holds an open FOR UPDATE transaction on its own order row — the
-        // legitimate case this lock exists to serialize against.
-        using var holderScope = factory.Services.CreateScope();
-        holderScope.ServiceProvider.GetRequiredService<TenantContext>().Resolve(accountB);
-        var holderDb = holderScope.ServiceProvider.GetRequiredService<AppDbContext>();
+        // legitimate case this lock exists to serialize against. Built
+        // directly (not via factory.Services — #269: that DbContext now
+        // carries EnableRetryOnFailure, which forbids a manually-begun
+        // transaction unless it's driven through
+        // database.CreateExecutionStrategy().ExecuteAsync; this test needs
+        // precise, uninterrupted control of a hand-held lock across several
+        // sequential steps, which retry-as-a-whole-unit can't express) —
+        // same "own plain, non-retrying AppDbContext" pattern
+        // ReportQueryBoundingTests/StepUpAuthTests use for exactly this
+        // reason.
+        var holderTenant = new TenantContext();
+        holderTenant.Resolve(accountB);
+        await using var holderDb = new AppDbContext(
+            new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(factory.ConnectionString).Options,
+            holderTenant);
         await using var holderTx = await holderDb.Database.BeginTransactionAsync();
         await holderDb.Database.ExecuteSqlInterpolatedAsync(
             $"""SELECT 1 FROM "SalesOrders" WHERE "Id" = {orderId} FOR UPDATE""");
@@ -74,10 +84,14 @@ public sealed class TenantScopedLockTests(CluckworkWebApplicationFactory factory
             await db.SaveChangesAsync();
         });
 
-        // B holds an open FOR UPDATE transaction on its own item row.
-        using var holderScope = factory.Services.CreateScope();
-        holderScope.ServiceProvider.GetRequiredService<TenantContext>().Resolve(accountB);
-        var holderDb = holderScope.ServiceProvider.GetRequiredService<AppDbContext>();
+        // B holds an open FOR UPDATE transaction on its own item row. Built
+        // directly, not via factory.Services — see the #269 comment on the
+        // sibling test above.
+        var holderTenant = new TenantContext();
+        holderTenant.Resolve(accountB);
+        await using var holderDb = new AppDbContext(
+            new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(factory.ConnectionString).Options,
+            holderTenant);
         await using var holderTx = await holderDb.Database.BeginTransactionAsync();
         await holderDb.Database.ExecuteSqlInterpolatedAsync(
             $"""SELECT 1 FROM "InventoryItems" WHERE "Id" = {itemId} FOR UPDATE""");

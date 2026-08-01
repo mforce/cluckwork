@@ -1,5 +1,6 @@
 namespace Cluckwork.Api.IntegrationTests;
 
+using Cluckwork.Infrastructure.Providers;
 using Cluckwork.Infrastructure.Providers.Postgres;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -292,7 +293,8 @@ public sealed class PostgresConnectionStringTests
     {
         var options = new DbContextOptionsBuilder();
 
-        new PostgresDbContextConfigurator().Configure(options, "Host=h;Username=u;Password=p");
+        new PostgresDbContextConfigurator().Configure(
+            options, "Host=h;Username=u;Password=p", new DatabaseResilienceOptions());
 
         Assert.True(options.IsConfigured);
     }

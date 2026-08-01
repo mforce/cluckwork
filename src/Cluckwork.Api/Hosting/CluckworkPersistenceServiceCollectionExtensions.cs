@@ -23,6 +23,15 @@ internal static class CluckworkPersistenceServiceCollectionExtensions
             ?? throw new InvalidOperationException(
                 "Connection string 'Default' is not configured.");
 
+        // #269 — bound synchronously here (mirrors RateLimitingOptions in
+        // CluckworkRateLimitingServiceCollectionExtensions) rather than via
+        // IOptions<T>: the resolved value is needed immediately below, inside
+        // the AddDbContext configuration delegate.
+        var resilience = configuration
+            .GetSection(DatabaseResilienceOptions.SectionName)
+            .Get<DatabaseResilienceOptions>() ?? new DatabaseResilienceOptions();
+        resilience.Validate();
+
         // Normalize and validate once at startup, not in the per-scope callback.
         var connectionStringWarnings = new List<string>();
         var connectionString = PostgresConnectionString.NormalizeAndValidate(
@@ -42,7 +51,7 @@ internal static class CluckworkPersistenceServiceCollectionExtensions
                 _ => throw new NotSupportedException(
                     $"Unsupported database provider: {dbProvider}")
             };
-            configurator.Configure(options, connectionString);
+            configurator.Configure(options, connectionString, resilience);
         });
 
         // Farm-local boundaries require IANA tzdata/ICU. Validate the image

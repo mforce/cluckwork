@@ -132,19 +132,36 @@ public sealed class DemoDataSeeder(
     {
         try
         {
-            // One transaction: cleanup is all-or-nothing, never half-purged.
-            await using var transaction = await db.Database.BeginTransactionAsync();
-            // FK-safe order: children before parents.
-            await db.SalesOrderItems.IgnoreQueryFilters().Where(x => x.AccountId == accountId).ExecuteDeleteAsync();
-            await db.SalesOrders.IgnoreQueryFilters().Where(x => x.AccountId == accountId).ExecuteDeleteAsync();
-            await db.Customers.IgnoreQueryFilters().Where(x => x.AccountId == accountId).ExecuteDeleteAsync();
-            await db.BirdMovements.IgnoreQueryFilters().Where(x => x.AccountId == accountId).ExecuteDeleteAsync();
-            await db.EggInventoryMovements.IgnoreQueryFilters().Where(x => x.AccountId == accountId).ExecuteDeleteAsync();
-            await db.EggLots.IgnoreQueryFilters().Where(x => x.AccountId == accountId).ExecuteDeleteAsync();
-            await db.DailyEntryGrades.IgnoreQueryFilters().Where(x => x.AccountId == accountId).ExecuteDeleteAsync();
-            await db.DailyEntries.IgnoreQueryFilters().Where(x => x.AccountId == accountId).ExecuteDeleteAsync();
-            await db.Flocks.IgnoreQueryFilters().Where(x => x.AccountId == accountId).ExecuteDeleteAsync();
-            await transaction.CommitAsync();
+            // #269 — EnableRetryOnFailure forbids BeginTransactionAsync
+            // outside database.CreateExecutionStrategy().ExecuteAsync, so the
+            // whole cleanup (previously just "one transaction: all-or-
+            // nothing, never half-purged") now runs through that: a
+            // transient failure reruns the whole delete set against a fresh
+            // transaction. That is safe unconditionally here — every
+            // statement is a predicate DELETE ("WHERE AccountId = X"), which
+            // is naturally idempotent under retry: rerunning it after a
+            // rolled-back attempt (nothing committed) or even, in the
+            // theoretical ambiguous-commit race, after a prior attempt's
+            // DELETE actually landed, just deletes zero additional rows
+            // either way. This is a CLI-only, offline command with no client
+            // waiting on a response to disambiguate — there is nothing here
+            // for an idempotency key to protect against.
+            var strategy = db.Database.CreateExecutionStrategy();
+            await strategy.ExecuteAsync(async () =>
+            {
+                await using var transaction = await db.Database.BeginTransactionAsync();
+                // FK-safe order: children before parents.
+                await db.SalesOrderItems.IgnoreQueryFilters().Where(x => x.AccountId == accountId).ExecuteDeleteAsync();
+                await db.SalesOrders.IgnoreQueryFilters().Where(x => x.AccountId == accountId).ExecuteDeleteAsync();
+                await db.Customers.IgnoreQueryFilters().Where(x => x.AccountId == accountId).ExecuteDeleteAsync();
+                await db.BirdMovements.IgnoreQueryFilters().Where(x => x.AccountId == accountId).ExecuteDeleteAsync();
+                await db.EggInventoryMovements.IgnoreQueryFilters().Where(x => x.AccountId == accountId).ExecuteDeleteAsync();
+                await db.EggLots.IgnoreQueryFilters().Where(x => x.AccountId == accountId).ExecuteDeleteAsync();
+                await db.DailyEntryGrades.IgnoreQueryFilters().Where(x => x.AccountId == accountId).ExecuteDeleteAsync();
+                await db.DailyEntries.IgnoreQueryFilters().Where(x => x.AccountId == accountId).ExecuteDeleteAsync();
+                await db.Flocks.IgnoreQueryFilters().Where(x => x.AccountId == accountId).ExecuteDeleteAsync();
+                await transaction.CommitAsync();
+            });
             logger.LogInformation("Partial demo data removed; next startup will retry the demo seed.");
         }
         catch (Exception ex)

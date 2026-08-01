@@ -2,6 +2,7 @@ namespace Cluckwork.Infrastructure.Persistence;
 
 using System.Net;
 using Cluckwork.Infrastructure.Persistence.Interceptors;
+using Cluckwork.Infrastructure.Providers;
 using Cluckwork.Infrastructure.Providers.Postgres;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
@@ -75,7 +76,10 @@ public sealed class AppDbContextDesignTimeFactory : IDesignTimeDbContextFactory<
         }
 
         var options = new DbContextOptionsBuilder<AppDbContext>();
-        new PostgresDbContextConfigurator().Configure(options, normalized);
+        // #269 — design-time tooling has no config to bind resilience from;
+        // defaults are harmless here (dotnet ef runs once, interactively, and
+        // is never the `migrate` verb — that uses the built host's own config).
+        new PostgresDbContextConfigurator().Configure(options, normalized, new DatabaseResilienceOptions());
         options.AddInterceptors(new TenantStampInterceptor(new TenantContext()));
 
         return new AppDbContext(options.Options, new TenantContext());

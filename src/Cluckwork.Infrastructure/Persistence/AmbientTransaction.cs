@@ -1,5 +1,6 @@
 namespace Cluckwork.Infrastructure.Persistence;
 
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage;
 
@@ -19,16 +20,36 @@ using Microsoft.EntityFrameworkCore.Storage;
 // the idempotency middleware wraps (unit tests calling a handler directly, a
 // CLI command, a read), Database.CurrentTransaction is null and this behaves
 // exactly like a plain BeginTransactionAsync.
+//
+// #269 — EnableRetryOnFailure adds a second constraint on top of the one
+// above: a transaction opened OUTSIDE database.CreateExecutionStrategy()
+// .ExecuteAsync makes EF throw InvalidOperationException the moment
+// anything else touches the DbContext while it's open — unconditionally, not
+// just on an actual transient failure. So the "owned" case (no ambient
+// transaction to join — THIS call is the one opening it) can no longer just
+// call BeginTransactionAsync and hand back a scope for the caller to drive
+// at its own pace; it has to run the caller's ENTIRE unit of work through
+// the execution strategy, so a transient failure anywhere inside reruns the
+// whole thing against a fresh transaction. RunAsync below is the one place
+// that decides which case applies; every caller passes its whole
+// transactional unit as `work` rather than holding the scope open itself.
 public static class AmbientTransaction
 {
-    public static async Task<IAmbientTransactionScope> BeginAsync(
-        DatabaseFacade database, CancellationToken ct = default)
+    public static async Task<T> RunAsync<T>(
+        DatabaseFacade database,
+        Func<IAmbientTransactionScope, CancellationToken, Task<T>> work,
+        CancellationToken ct = default)
     {
         if (database.CurrentTransaction is not null)
-            return JoinedTransactionScope.Instance;
+            return await work(JoinedTransactionScope.Instance, ct);
 
-        var transaction = await database.BeginTransactionAsync(ct);
-        return new OwnedTransactionScope(transaction);
+        var strategy = database.CreateExecutionStrategy();
+        return await strategy.ExecuteAsync(async () =>
+        {
+            var transaction = await database.BeginTransactionAsync(ct);
+            await using var scope = new OwnedTransactionScope(transaction);
+            return await work(scope, ct);
+        });
     }
 }
 
