@@ -76,6 +76,35 @@ private compose bridge (`Host=db;…`, never published), where plaintext is acce
 A real deployment uses TLS/managed Postgres (`sslmode=Require` min, `VerifyFull` + CA
 preferred) and **never** sets this flag.
 
+## Design-time migrations (`dotnet ef`) (#318)
+
+`AppDbContextDesignTimeFactory` is what `dotnet ef migrations add` / `dotnet ef
+database update` use to build a `DbContext` on a developer's machine — separate
+from the `migrate` CLI verb above, which runs against the built host's own
+configuration. It reads the target from an environment variable, never a
+default:
+
+```sh
+export CLUCKWORK_MIGRATIONS_CONNECTION="Host=<host>;Database=<db>;Username=<user>;Password=<password>"
+dotnet ef migrations add <Name> --project src/Cluckwork.Infrastructure --startup-project src/Cluckwork.Api
+```
+
+`CLUCKWORK_MIGRATIONS_CONNECTION` also accepts the libpq URI form, e.g.
+`postgresql://<user>:<password>@<host>:5432/<db>?sslmode=verify-full`.
+
+- **Unset or blank fails immediately** with a message naming the variable —
+  there is no fallback connection, so a typo can never silently point tooling
+  at an unintended database.
+- **The same allow-list TLS floor as a Production boot** (#261/#262) applies to
+  every target: `VerifyCA`/`VerifyFull` pass silently, `Require` passes with a
+  warning, anything weaker fails.
+- **Loopback plaintext escape hatch** — set
+  `CLUCKWORK_MIGRATIONS_ALLOW_INSECURE_LOOPBACK=true` to permit a plaintext
+  connection, but *only* when `CLUCKWORK_MIGRATIONS_CONNECTION` targets a
+  loopback host (`localhost` / `127.0.0.1` / `::1`), e.g. the
+  `docker-compose.dev.yml` Postgres on `localhost:5432`. Setting it against any
+  other host fails the tooling instead of silently widening scope.
+
 ## Static asset caching
 
 The API serves the SPA with cache headers tuned for a content-hashed build
