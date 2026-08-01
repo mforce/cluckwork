@@ -878,10 +878,50 @@ describe("session generation (#310)", () => {
     expect(getAccessToken()).toBe("freshLoginToken");
 
     refreshGate.resolve(jsonResponse({ title: "refresh token revoked" }, 401)); // stale refresh FAILS late
-    await fetching;
+    const settled = await fetching;
 
     expect(getAccessToken()).toBe("freshLoginToken"); // untouched by the stale failure
     expect(onUnauth).not.toHaveBeenCalled(); // must not tear down the fresh session
+    // #310 review — the parked request itself must not surface the internal
+    // discard marker. The login committed a valid token, so the request the
+    // user is actually waiting on proceeds on it rather than failing with
+    // "Discarded: superseded by…", which every screen would render verbatim.
+    expect(settled).toEqual({ ok: true });
+  });
+
+  // #310 review — changePassword is a token-store writer too, and logout is
+  // reachable from every screen, so it needs the same generation guard as
+  // login/refresh; without it the response writes a fresh token back over a
+  // session the user already ended.
+  it("discards a change-password response that resolves after logout (#310)", async () => {
+    const changeGate = deferred<Response>();
+    setAccessToken(`tok-${crypto.randomUUID()}`);
+    fetchMock.mockImplementation((url: string) => {
+      if (url.endsWith("/auth/change-password")) return changeGate.promise;
+      if (url.endsWith("/auth/logout")) return Promise.resolve(jsonResponse({}, 204));
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    const changing = changePassword({ currentPassword: "a", newPassword: "b" })
+      .catch((e: unknown) => e);
+    await drain();
+
+    await logout();
+    expect(getAccessToken()).toBeNull();
+
+    changeGate.resolve(jsonResponse({ accessToken: "resurrected" }));
+    await changing;
+
+    expect(getAccessToken()).toBeNull(); // the ended session stays ended
+  });
+
+  it("commits a change-password response normally when nothing races it (control)", async () => {
+    setAccessToken(`tok-${crypto.randomUUID()}`);
+    fetchMock.mockResolvedValueOnce(accessResponse("at-after-change"));
+
+    await changePassword({ currentPassword: "a", newPassword: "b" });
+
+    expect(getAccessToken()).toBe("at-after-change");
   });
 
   it("discards a login that resolves after a concurrent logout — does not resurrect authentication", async () => {

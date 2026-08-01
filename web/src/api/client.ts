@@ -165,7 +165,14 @@ export async function login(body: LoginRequest): Promise<void> {
 export async function changePassword(
   body: { currentPassword: string; newPassword: string },
 ): Promise<void> {
+  // #310 — this is a token-store writer like login/refresh, so it needs the
+  // same generation guard: logout is reachable from every screen (AppLayout's
+  // persistent button), so a user who submits a password change and logs out
+  // before it lands would otherwise have the response write a fresh token back
+  // over the cleared session.
+  const generation = sessionGeneration;
   const res = await apiPost<AccessTokenResponse>("/auth/change-password", body);
+  if (sessionGeneration !== generation) throw new StaleSessionError();
   setAccessToken(res.accessToken);
   onTokensChanged?.();
 }
@@ -173,8 +180,13 @@ export async function changePassword(
 export async function logout(): Promise<void> {
   // #310 — bump the generation and clear in-memory state SYNCHRONOUSLY, before
   // any await: local logout must win immediately, whatever a slower in-flight
-  // login/refresh does later. Also cancel any refresh currently in flight
-  // (cancellation where possible) so it stops sooner instead of only being
+  // login/refresh does later. Also cancel any refresh currently in flight —
+  // note this only reaches a refresh that has already been GRANTED the
+  // cross-tab lock (#169); one still queued behind another tab has no
+  // controller yet, so it will still fire its request and then be discarded on
+  // arrival by the generation check. Correctness rests on the generation, not
+  // on the abort; the abort is only an optimisation so it stops sooner
+  // instead of only being
   // discarded on arrival by the generation check in refreshTokens().
   sessionGeneration++;
   abortInFlightRefresh?.();
@@ -359,6 +371,12 @@ export async function apiGetBlob(
       const refreshed = await refreshTokens();
       return await rawBlob(path, refreshed);
     } catch (refreshErr) {
+      // #310 review — same supersession handling as apiFetch.
+      if (refreshErr instanceof StaleSessionError) {
+        const fresh = getAccessToken();
+        if (fresh) return await rawBlob(path, fresh);
+        throw err;
+      }
       if (isTransientRefreshFailure(refreshErr)) throw refreshErr;
       clearAccessToken();
       onUnauthenticated?.();
@@ -393,6 +411,14 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
       const refreshed = await refreshTokens();
       return await raw<T>(path, init, refreshed);
     } catch (refreshErr) {
+      // #310 review — superseded mid-retry: retry once on the newer login's
+      // token, or surface the ORIGINAL 401 if a logout ended the session.
+      // Never let the internal marker reach the caller.
+      if (refreshErr instanceof StaleSessionError) {
+        const fresh = getAccessToken();
+        if (fresh) return await raw<T>(path, init, fresh);
+        throw err;
+      }
       if (isTransientRefreshFailure(refreshErr)) throw refreshErr;
       clearAccessToken();
       onUnauthenticated?.();
@@ -414,10 +440,24 @@ async function currentAccessToken(): Promise<string> {
     // superseded session: a newer login already committed its own token, or a
     // logout already tore everything down. Either way, this failure must not
     // touch the CURRENT session — no clearing, no onUnauthenticated navigate.
-    if (err instanceof StaleSessionError) throw err;
+    if (err instanceof StaleSessionError) return supersededToken();
     onUnauthenticated?.();
     throw new ApiError(401, "NoSession", "Not authenticated.");
   }
+}
+
+// #310 review — resolve a discarded refresh against whatever superseded it.
+// A newer LOGIN has already committed its token, so the caller's request is
+// perfectly valid and should proceed on it. A newer LOGOUT left no session,
+// and has already navigated, so this raises a plain 401 rather than firing
+// onUnauthenticated a second time. Either way StaleSessionError itself stops
+// here: it is an internal control marker, and every screen renders a non-
+// ApiError's `.message` verbatim, so letting it escape would show the user
+// "Discarded: superseded by..." in place of a real error.
+function supersededToken(): string {
+  const fresh = getAccessToken();
+  if (fresh) return fresh;
+  throw new ApiError(401, "NoSession", "Not authenticated.");
 }
 
 // A refresh failure is "transient" when the session is likely still valid, so we
