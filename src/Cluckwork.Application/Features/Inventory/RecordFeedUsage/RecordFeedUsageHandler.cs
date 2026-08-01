@@ -47,7 +47,7 @@ public sealed class RecordFeedUsageHandler(
         {
             // Item lock first (item → lots, matching the purchase path) —
             // serializes against purchases and unit edits.
-            var item = await items.GetByIdLockedAsync(command.InventoryItemId, transactionCt);
+            var item = await items.GetByIdLockedAsync(accountId, command.InventoryItemId, transactionCt);
             if (item is null || item.AccountId != accountId)
             {
                 outcome = Result.Failure<RecordFeedUsageResponse>(

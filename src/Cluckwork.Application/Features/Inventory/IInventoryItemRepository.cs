@@ -21,8 +21,10 @@ public interface IInventoryItemRepository : IRepository<InventoryItem, Guid>
     // Tracked read under a FOR UPDATE row lock — call inside an open
     // transaction. Serializes unit edits against concurrent first purchases:
     // without it, a purchase can record the old unit while an update that saw
-    // no lots commits a new one (TOCTOU).
-    Task<InventoryItem?> GetByIdLockedAsync(Guid id, CancellationToken ct = default);
+    // no lots commits a new one (TOCTOU). accountId is part of the lock
+    // predicate itself (#313) — a foreign-tenant id must never even attempt
+    // the row lock, let alone wait on it.
+    Task<InventoryItem?> GetByIdLockedAsync(Guid accountId, Guid id, CancellationToken ct = default);
 }
 
 // Stock roll-up for list screens: on-hand = Σ lots' QuantityAvailable.

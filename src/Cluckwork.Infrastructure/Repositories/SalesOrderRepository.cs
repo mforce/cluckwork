@@ -20,13 +20,15 @@ public sealed class SalesOrderRepository(AppDbContext db) : ISalesOrderRepositor
 
     // FOR UPDATE row lock + fresh load (call inside an open transaction). The
     // raw query can't compose with Include, so items load in a second step —
-    // the row lock is already held by then. Tenant scoping is the caller's
-    // job (the handler checks AccountId), hence IgnoreQueryFilters like the
-    // other locked reads.
-    public async Task<SalesOrder?> GetByIdLockedAsync(Guid id, CancellationToken ct = default)
+    // the row lock is already held by then. AccountId is IN the predicate
+    // (#313): a foreign-tenant id matches no row here, so FOR UPDATE is never
+    // attempted against it — the caller's post-load AccountId check (kept as
+    // defense in depth) would otherwise run only after the query filter is
+    // bypassed via IgnoreQueryFilters, i.e. after the lock is already waited on.
+    public async Task<SalesOrder?> GetByIdLockedAsync(Guid accountId, Guid id, CancellationToken ct = default)
     {
         var order = await db.SalesOrders.FromSqlInterpolated($"""
-            SELECT * FROM "SalesOrders" WHERE "Id" = {id} FOR UPDATE
+            SELECT * FROM "SalesOrders" WHERE "Id" = {id} AND "AccountId" = {accountId} FOR UPDATE
             """)
             .IgnoreQueryFilters()
             .FirstOrDefaultAsync(ct);
