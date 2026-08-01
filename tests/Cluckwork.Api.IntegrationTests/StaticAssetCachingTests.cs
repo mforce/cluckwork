@@ -98,11 +98,14 @@ public sealed class StaticAssetCachingTests(StaticCachingFactory factory)
         // A real API route (protected → 401 unauthenticated). Asserting 401 also
         // guards the test: if this ever fell through to the SPA fallback it would
         // be a 200 with no-cache, and this would fail loudly rather than pass.
+        // #312 gives every API response its own private/no-store default, so the
+        // header now exists — the assertion here narrows to "not the STATIC asset
+        // policy" (ResponseCacheControlTests owns the private/no-store contract).
         var res = await factory.CreateClient().GetAsync("/api/v1/flocks");
 
         Assert.Equal(HttpStatusCode.Unauthorized, res.StatusCode);
-        Assert.False(res.Headers.Contains("Cache-Control"),
-            "API responses must not carry the static cache header");
+        Assert.NotEqual(StaticAssetCaching.ImmutableAsset, CacheControl(res));
+        Assert.NotEqual(StaticAssetCaching.AlwaysRevalidate, CacheControl(res));
     }
 
     [Theory]
@@ -123,14 +126,17 @@ public sealed class StaticAssetCachingTests(StaticCachingFactory factory)
     }
 
     [Fact]
-    public async Task Missing_asset_with_a_file_extension_is_a_plain_404_no_cache_header()
+    public async Task Missing_asset_with_a_file_extension_is_a_plain_404_never_immutable()
     {
         // A dotted miss (looks like a file) is excluded from the SPA fallback's
-        // non-file constraint, so it 404s from the static pipeline with no header.
+        // non-file constraint, so it 404s from the static pipeline with no static
+        // cache header. #312's default policy still applies to it (nothing else
+        // set Cache-Control), just never the static asset values.
         var res = await factory.CreateClient().GetAsync("/assets/missing.js");
 
         Assert.Equal(HttpStatusCode.NotFound, res.StatusCode);
-        Assert.False(res.Headers.Contains("Cache-Control"));
+        Assert.NotEqual(StaticAssetCaching.ImmutableAsset, CacheControl(res));
+        Assert.NotEqual(StaticAssetCaching.AlwaysRevalidate, CacheControl(res));
     }
 
     [Fact]
@@ -144,8 +150,10 @@ public sealed class StaticAssetCachingTests(StaticCachingFactory factory)
 
         Assert.Equal(HttpStatusCode.NotFound, res.StatusCode);
         Assert.NotEqual("text/html", res.Content.Headers.ContentType?.MediaType);
-        Assert.False(res.Headers.Contains("Cache-Control"),
-            "an unknown API path must not carry the static cache header");
+        // #312: it carries the default private/no-store policy (asserted in
+        // ResponseCacheControlTests) but never the static asset policy.
+        Assert.NotEqual(StaticAssetCaching.ImmutableAsset, CacheControl(res));
+        Assert.NotEqual(StaticAssetCaching.AlwaysRevalidate, CacheControl(res));
     }
 
     [Fact]
