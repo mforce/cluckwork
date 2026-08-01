@@ -49,6 +49,37 @@ public sealed class ReportConcurrencyLimiterTests
         Assert.True(okForB.IsAcquired);
     }
 
+    // #311 — pins the "refuse, never queue" contract the GLOSSARY and Help copy
+    // promise, under the one configuration that could plausibly break it. Note
+    // what this test does and does not catch: it does NOT distinguish
+    // QueueLimit = 0 from QueueLimit = 5 in the partition options, because
+    // AttemptAcquire never consults the queue either way — that indistinguishability
+    // IS the bug, and it is why the boot guard in RateLimitingOptions.Validate,
+    // not this test, is the real fix. What it does catch is the change that would
+    // make the queue live: swapping Acquire's non-waiting AttemptAcquire for a
+    // waiting acquire, which would silently start parking over-cap reports
+    // instead of returning the documented 429.
+    [Fact]
+    public void An_over_cap_acquire_refuses_instead_of_waiting_even_with_a_queue_configured()
+    {
+        var options = new RateLimitingOptions
+        {
+            ReportsConcurrency = new RateLimitingOptions.ConcurrencyPolicy
+            {
+                PermitLimit = 1,
+                QueueLimit = 5,
+            }
+        };
+        using var limiter = new ReportConcurrencyLimiter(options);
+        var accountId = Guid.NewGuid();
+
+        using var held = limiter.Acquire(accountId);
+        using var overCap = limiter.Acquire(accountId);
+
+        Assert.True(held.IsAcquired);
+        Assert.False(overCap.IsAcquired);
+    }
+
     [Fact]
     public void Releasing_a_lease_frees_the_permit_for_the_same_account()
     {

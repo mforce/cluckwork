@@ -59,6 +59,20 @@ public sealed class RateLimitingOptionsTests
         Assert.Throws<InvalidOperationException>(options.Validate);
     }
 
+    // #311 — the ACCEPTED side of the queue-limit boundary. Paired with the
+    // rejection tests below so neither passes with the guard removed: a fixture
+    // that only probed the rejected side would still be green if the guard were
+    // widened to reject everything.
+    [Fact]
+    public void Zero_reports_concurrency_queue_limit_is_accepted()
+    {
+        var options = new RateLimitingOptions
+        {
+            ReportsConcurrency = new RateLimitingOptions.ConcurrencyPolicy { PermitLimit = 4, QueueLimit = 0 }
+        };
+        Assert.Null(Record.Exception(options.Validate));
+    }
+
     [Fact]
     public void Negative_reports_concurrency_queue_limit_is_rejected()
     {
@@ -67,5 +81,48 @@ public sealed class RateLimitingOptionsTests
             ReportsConcurrency = new RateLimitingOptions.ConcurrencyPolicy { PermitLimit = 4, QueueLimit = -1 }
         };
         Assert.Throws<InvalidOperationException>(options.Validate);
+    }
+
+    // #311 — a POSITIVE queue limit must fail the boot too, not just a negative
+    // one. The limiter refuses over-cap reports outright (AttemptAcquire, never
+    // a waiting acquire), so a queue would never be used; accepting the setting
+    // would leave the operator believing requests wait their turn when they are
+    // being 429'd. The message has to say so, hence the content assertions.
+    [Theory]
+    [InlineData(1)]
+    [InlineData(16)]
+    public void Positive_reports_concurrency_queue_limit_is_rejected(int queueLimit)
+    {
+        var options = new RateLimitingOptions
+        {
+            ReportsConcurrency =
+                new RateLimitingOptions.ConcurrencyPolicy { PermitLimit = 4, QueueLimit = queueLimit }
+        };
+
+        var ex = Assert.Throws<InvalidOperationException>(options.Validate);
+
+        Assert.Contains("RateLimiting:ReportsConcurrency:QueueLimit", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("must be 0", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("never queued", ex.Message, StringComparison.Ordinal);
+    }
+
+    // #311 — the guard is only meaningful if the running limiter really refuses
+    // instead of waiting. Asserted here (not only in ReportConcurrencyLimiterTests)
+    // so the reason the config value must be 0 is pinned next to the rejection.
+    [Fact]
+    public void An_over_cap_acquire_is_refused_rather_than_queued()
+    {
+        var options = new RateLimitingOptions
+        {
+            ReportsConcurrency = new RateLimitingOptions.ConcurrencyPolicy { PermitLimit = 1, QueueLimit = 0 }
+        };
+        using var limiter = new ReportConcurrencyLimiter(options);
+        var accountId = Guid.NewGuid();
+
+        using var held = limiter.Acquire(accountId);
+        using var overCap = limiter.Acquire(accountId);
+
+        Assert.True(held.IsAcquired);
+        Assert.False(overCap.IsAcquired);
     }
 }
