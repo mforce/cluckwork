@@ -7,10 +7,14 @@ using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Common;
 using Cluckwork.Infrastructure.Identity;
+using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 // #308 — step-up authentication for privileged user administration. A stolen
 // but still-valid Owner access token must not be enough, on its own, to (a)
@@ -526,6 +530,123 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
         var users = await owner.GetFromJsonAsync<List<UserRow>>("/api/v1/users");
         Assert.DoesNotContain(users!, u => u.Email == newOwnerEmail);
+    }
+
+    // Throws only on the bulk revoke UPDATE inside RevokeRefreshTokenAsync, so
+    // the owner LOOKUP immediately before it still succeeds. A decorator over
+    // IIdentityProvider cannot express this — it would replace the whole method
+    // and skip the lookup too, which is exactly the half that must still run.
+    private sealed class RevokeUpdateFaultInterceptor : DbCommandInterceptor
+    {
+        public volatile bool Armed;
+
+        private void MaybeFail(System.Data.Common.DbCommand command)
+        {
+            // The RefreshToken entity maps to the explicitly snake_cased table
+            // "refresh_tokens" (RefreshToken.cs: builder.ToTable("refresh_tokens")) —
+            // not the CLR type name. Matching "RefreshTokens" here was a silent
+            // no-op: it never matched the real generated SQL, so the interceptor
+            // never fired regardless of how it was wired into the host.
+            if (Armed
+                && command.CommandText.Contains("UPDATE", StringComparison.OrdinalIgnoreCase)
+                && command.CommandText.Contains("refresh_tokens", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Simulated refresh-token revoke failure (test fault injection).");
+        }
+
+        public override ValueTask<InterceptionResult<int>> NonQueryExecutingAsync(
+            System.Data.Common.DbCommand command, CommandEventData eventData, InterceptionResult<int> result,
+            CancellationToken cancellationToken = default)
+        {
+            MaybeFail(command);
+            return base.NonQueryExecutingAsync(command, eventData, result, cancellationToken);
+        }
+
+        public override ValueTask<InterceptionResult<System.Data.Common.DbDataReader>> ReaderExecutingAsync(
+            System.Data.Common.DbCommand command, CommandEventData eventData,
+            InterceptionResult<System.Data.Common.DbDataReader> result,
+            CancellationToken cancellationToken = default)
+        {
+            MaybeFail(command);
+            return base.ReaderExecutingAsync(command, eventData, result, cancellationToken);
+        }
+    }
+
+    // #336 review (2nd round) — the cookie path's own ordering, one layer below
+    // Logout_WhenCookieRevocationThrows_... above. That test proves the BEARER
+    // is recorded when RevokeRefreshTokenAsync throws wholesale; this one proves
+    // the COOKIE OWNER is recorded when the failure happens INSIDE it, after the
+    // owner lookup succeeded but during the bulk UPDATE.
+    //
+    // Exercises IdentityProvider.RevokeRefreshTokenAsync directly rather than
+    // through the HTTP endpoint. Two DI-based ways to fault ONLY the bulk UPDATE
+    // from outside the host were tried first and both fail silently: a second
+    // AddDbContext(...) never attaches (DbContextOptions is registered with
+    // TryAdd semantics, so it's a no-op) and AddSingleton<IInterceptor>(...)
+    // alone never fires against the host's own context either. Building the
+    // provider's other dependencies off the real host (real UserManager /
+    // RoleManager / JwtTokenService / JwtOptions, so login/step-up plumbing
+    // stays production code) but constructing the AppDbContext directly with
+    // the interceptor attached — same pattern as ReportQueryBoundingTests —
+    // reaches the exact statement. Asserting on a privately-held
+    // IStepUpGrantRegistry, rather than a second HTTP round trip through a
+    // step-up grant, is also the more direct guarantee: the grant is dead,
+    // not "some request somewhere came back 403".
+    [Fact]
+    public async Task RevokeRefreshTokenAsync_WhenTheBulkUpdateThrows_StillRecordsTheOwnersLogout()
+    {
+        var email = $"admin-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var tokens = await factory.LoginAsync(email);
+
+        using var scope = factory.Services.CreateScope();
+        var services = scope.ServiceProvider;
+        var userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
+        var user = await userManager.FindByEmailAsync(email);
+        Assert.NotNull(user);
+
+        var interceptor = new RevokeUpdateFaultInterceptor();
+        var tenant = new TenantContext();
+        tenant.Resolve(accountId);
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseNpgsql(factory.ConnectionString)
+            .AddInterceptors(interceptor)
+            .Options;
+        await using var db = new AppDbContext(options, tenant);
+
+        // A registry we hold a direct reference to — not the host's DI singleton
+        // — so the assertion below reads the exact call this provider made,
+        // rather than going back through HTTP.
+        var registry = new InMemoryStepUpGrantRegistry();
+        var timeProvider = services.GetRequiredService<TimeProvider>();
+        var provider = new IdentityProvider(
+            userManager,
+            services.GetRequiredService<RoleManager<ApplicationRole>>(),
+            services.GetRequiredService<IJwtTokenService>(),
+            db,
+            services.GetRequiredService<IOptions<JwtOptions>>(),
+            timeProvider,
+            services.GetRequiredService<IAuditWriter>(),
+            registry);
+
+        var beforeRevoke = timeProvider.GetUtcNow();
+
+        // TestHarness.ExtractRefreshCookie reads the raw Set-Cookie header text,
+        // which ASP.NET Core percent-encodes (the trailing base64 "=" comes back
+        // as "%3D"). Every other helper here calls back over HTTP, where the
+        // framework's own Cookie-header parsing decodes it again before the
+        // endpoint ever sees it — a round trip this direct, in-process call
+        // skips, so it must undo the encoding itself or hash a value the login
+        // call never actually stored.
+        var rawRefreshToken = Uri.UnescapeDataString(tokens.RefreshToken);
+
+        interceptor.Armed = true;
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => provider.RevokeRefreshTokenAsync(rawRefreshToken));
+        interceptor.Armed = false;
+
+        // THE FINDING'S ASSERTION: the owner lookup (before the faulted UPDATE)
+        // still ran, and its result was recorded despite the throw.
+        Assert.True(registry.IsRevokedByLogout(user!.Id, beforeRevoke));
     }
 
     // The over-revocation guard. Recording a logout must bound the PAST, never

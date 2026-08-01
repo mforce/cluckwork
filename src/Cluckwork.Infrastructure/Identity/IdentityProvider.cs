@@ -441,12 +441,24 @@ public sealed class IdentityProvider(
             .Select(t => new { t.UserId })
             .FirstOrDefaultAsync(ct);
 
+        // #336 review (2nd round) — record BEFORE the bulk update, not after.
+        // RecordLogout is in-memory and cannot fail; ExecuteUpdateAsync hits the
+        // database and can throw (transient connection loss, deadlock). With the
+        // record afterwards, that exception skipped it entirely: the SPA has
+        // already cleared its local token and treats logout as best-effort, so
+        // the user believes they logged out while a captured access token plus an
+        // unexpired step-up grant stayed usable for the rest of the grant's life.
+        // Recording first means a database failure over-revokes (grants dead,
+        // refresh row possibly still live) instead of under-revoking — the same
+        // fail-safe direction AuthEndpoints.Logout applies to the bearer path one
+        // layer up. That fix corrected only the outer call site; this is the same
+        // hazard inside the cookie path.
+        if (tokenRow is not null)
+            stepUpGrants.RecordLogout(tokenRow.UserId, now);
+
         await db.RefreshTokens
             .Where(t => t.TokenHash == presentedHash && t.RevokedAt == null)
             .ExecuteUpdateAsync(s => s.SetProperty(t => t.RevokedAt, now), ct);
-
-        if (tokenRow is not null)
-            stepUpGrants.RecordLogout(tokenRow.UserId, now);
     }
 
     // #336 review — the access-token half of logout revocation. The cookie owner
