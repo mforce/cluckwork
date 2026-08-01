@@ -1801,10 +1801,10 @@ export const es = {
     reportsThrottle:
       "<strong>Si se rechaza un informe</strong>: la granja ejecuta solo unos pocos informes a la vez, para "
       + "que una pantalla ocupada no ralentice la aplicación para los demás. Pedir varios al mismo tiempo — "
-      + "varias personas abriendo Informes a la vez, o recargas repetidas — puede responder "
+      + "varias personas abriendo Informes a la vez, o reintentos repetidos — puede responder "
       + "<strong>inténtelo de nuevo en un momento</strong> en lugar de una tabla. No se registró ni se "
-      + "perdió nada: las fechas que eligió siguen en los campos, así que recargue en un momento y el "
-      + "informe se ejecuta.",
+      + "perdió nada: presione <strong>reintentar</strong> en la pantalla de Informes un momento después "
+      + "y se vuelve a ejecutar con las mismas fechas que eligió.",
 
     expensesHeading: "Gastos (admin)",
     expensesRecording:
@@ -2031,7 +2031,8 @@ export const es = {
       "La granja ejecuta solo unos pocos informes al mismo tiempo, para que una pantalla ocupada no "
       + "ralentice la aplicación para todos. Por encima de eso, un informe responde pidiendo que lo "
       + "intente de nuevo en un momento en lugar de esperar en cola. No se registra ni se pierde nada — "
-      + "recargue en un momento. Cada granja tiene su propio margen, así que los informes de otra granja "
+      + "presione reintentar en la pantalla de Informes un momento después; se vuelve a ejecutar con las "
+      + "mismas fechas que eligió. Cada granja tiene su propio margen, así que los informes de otra granja "
       + "nunca consumen el suyo.",
 
     glossaryTooManySignInAttemptsTerm: "Demasiados intentos de inicio de sesión",

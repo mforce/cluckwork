@@ -2107,9 +2107,9 @@ export const en = {
     reportsThrottle:
       "<strong>If a report is refused</strong>: the farm runs only a few reports at a time, so one "
       + "busy screen cannot slow the app for everyone else. Asking for several at once — a few people "
-      + "opening Reports together, or repeated reloads — can come back as <strong>try again shortly</strong> "
-      + "instead of a table. Nothing was recorded and nothing was lost: the dates you picked stay in the "
-      + "boxes, so reload in a moment and the report runs.",
+      + "opening Reports together, or repeated retries — can come back as <strong>try again shortly</strong> "
+      + "instead of a table. Nothing was recorded and nothing was lost: press <strong>retry</strong> "
+      + "on the Reports screen a moment later and it re-runs with the same dates you picked.",
 
     // Expenses
     expensesHeading: "Expenses (admin)",
@@ -2342,7 +2342,8 @@ export const en = {
     glossaryTooManyReportsDef:
       "The farm runs only a few reports at the same time, so one busy screen cannot slow the app for "
       + "everyone. Over that, a report comes back asking you to try again shortly instead of waiting in "
-      + "line. Nothing is recorded or lost — reload in a moment. Each farm has its own allowance, so "
+      + "line. Nothing is recorded or lost — press retry on the Reports screen a moment later; it "
+      + "re-runs with the same dates you picked. Each farm has its own allowance, so "
       + "another farm's reports never use up yours.",
 
     glossarySomethingWentWrongScreenTerm: "\"Something went wrong\" screen",
