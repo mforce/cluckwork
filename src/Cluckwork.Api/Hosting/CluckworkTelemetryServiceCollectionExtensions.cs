@@ -9,10 +9,15 @@ using Serilog;
 
 internal static class CluckworkTelemetryServiceCollectionExtensions
 {
+    // isServingProcess is false for the one-off CLI verbs (migrate / seed /
+    // recover-admin). They dispatch after Build(), so a throw during service
+    // registration would abort them before CliDispatcher ever ran — see the
+    // endpoint-resolution block below for why that matters.
     public static CluckworkTelemetryRegistration AddCluckworkTelemetry(
         this IServiceCollection services,
         IConfiguration configuration,
-        IHostEnvironment environment)
+        IHostEnvironment environment,
+        bool isServingProcess = true)
     {
         // ReadFrom.Services lets DI-registered enrichers/sinks join the pipeline —
         // the integration tests tap the logger this way (#214).
@@ -39,8 +44,29 @@ internal static class CluckworkTelemetryServiceCollectionExtensions
             ?? new OtlpOptions();
         var protocol = otlp.ParseProtocol();
         var isProduction = environment.IsProduction();
-        var traceEndpoint = otlp.Enabled ? otlp.ResolveTraceEndpoint(isProduction) : null;
-        var metricsEndpoint = otlp.Enabled ? otlp.ResolveMetricsEndpoint(isProduction) : null;
+        Uri? traceEndpoint = null;
+        Uri? metricsEndpoint = null;
+        if (otlp.Enabled)
+        {
+            try
+            {
+                traceEndpoint = otlp.ResolveTraceEndpoint(isProduction);
+                metricsEndpoint = otlp.ResolveMetricsEndpoint(isProduction);
+            }
+            catch (InvalidOperationException ex) when (!isServingProcess)
+            {
+                // A one-off verb must not die on a telemetry misconfiguration it
+                // does not depend on. `recover-admin` in particular is the
+                // break-glass path for a locked-out farm (#265) and is
+                // deliberately NOT environment-gated — an unrelated bad
+                // Otlp:Endpoint blocking an emergency password reset would be a
+                // worse failure than the one this validation prevents. Degrade to
+                // export DISABLED rather than exporting insecurely: the verb runs,
+                // and nothing leaves the process over an unvalidated endpoint.
+                Console.Error.WriteLine(
+                    $"warning: OTLP export disabled for this command — {ex.Message}");
+            }
+        }
 
         Action<OtlpExporterOptions> ConfigureOtlpExporter(Uri endpoint) => options =>
         {

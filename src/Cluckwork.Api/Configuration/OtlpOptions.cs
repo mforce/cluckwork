@@ -93,9 +93,16 @@ public sealed class OtlpOptions
         // Both signals share this one endpoint, so a signal-suffixed URL can't
         // be right: '.../v1/traces' would send metrics to /v1/traces/v1/metrics
         // and the collector 404s them silently. Fail at boot instead.
+        // The path alone is enough to act on, and is the only part that can be
+        // wrong here — echoing the whole endpoint would put userinfo or a query
+        // credential in the message. That is currently unreachable only because
+        // the checks above throw first, which is an ordering accident, not a
+        // property: keep every rejection message non-echoing so a later reorder
+        // cannot quietly reopen the leak.
         if (SignalPaths.Any(p => uri.AbsolutePath.TrimEnd('/').EndsWith(p, StringComparison.Ordinal)))
             throw new InvalidOperationException(
-                $"Otlp:Endpoint must be the collector's base URL (the app appends per-signal paths itself), got '{Endpoint}'.");
+                $"Otlp:Endpoint must be the collector's base URL (the app appends per-signal paths itself), "
+                + $"but its path '{uri.AbsolutePath}' already names a signal.");
 
         var builder = new UriBuilder(uri);
         builder.Path = builder.Path.TrimEnd('/') + signalPath;
