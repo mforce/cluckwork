@@ -158,7 +158,10 @@ public sealed class OtlpExporterTests(OtlpFactory factory)
 // Pure endpoint-resolution rules (unit-level, no host): the exporter uses an
 // explicit Endpoint AS-IS, so the app owns the /v1/traces append for
 // http/protobuf — including the edges reviewers flagged (trailing slashes,
-// query strings, vendor base paths).
+// vendor base paths). #316 — a query string used to ride along as a "vendor
+// base path" edge case; it is now rejected outright (see
+// Endpoint_with_query_string_fails_in_every_environment below) because it can
+// carry tenant/vendor identifiers into logs.
 public sealed class OtlpEndpointResolutionTests
 {
     // Both signals resolve from ONE base endpoint — asserting them together
@@ -167,7 +170,6 @@ public sealed class OtlpEndpointResolutionTests
     [InlineData("http://collector:4318", "http://collector:4318/v1/traces", "http://collector:4318/v1/metrics")]
     [InlineData("http://collector:4318/", "http://collector:4318/v1/traces", "http://collector:4318/v1/metrics")]
     [InlineData("https://host/otlp", "https://host/otlp/v1/traces", "https://host/otlp/v1/metrics")]
-    [InlineData("http://c:4318/base?tenant=1", "http://c:4318/base/v1/traces?tenant=1", "http://c:4318/base/v1/metrics?tenant=1")]
     public void Http_protobuf_appends_each_signal_path_to_the_base(
         string given, string traces, string metrics)
     {
@@ -208,6 +210,149 @@ public sealed class OtlpEndpointResolutionTests
     [InlineData(null, OtlpExportProtocol.Grpc)]
     public void Protocol_parsing_is_trimmed_and_case_insensitive(string? given, OtlpExportProtocol expected) =>
         Assert.Equal(expected, new OtlpOptions { Protocol = given }.ParseProtocol());
+
+    // #316 — an https endpoint always resolves, in Production or anywhere else.
+    [Fact]
+    public void Https_endpoint_resolves_in_Production()
+    {
+        var options = new OtlpOptions { Endpoint = "https://collector.test:4318", Protocol = "grpc" };
+        Assert.Equal(new Uri("https://collector.test:4318"), options.ResolveTraceEndpoint(isProduction: true));
+        Assert.Equal(new Uri("https://collector.test:4318"), options.ResolveMetricsEndpoint(isProduction: true));
+    }
+
+    // Plaintext HTTP to a real (non-loopback) collector is fine outside
+    // Production — the pre-#316 behavior every other test in this class
+    // relies on — but must fail once isProduction flips true.
+    [Fact]
+    public void Plaintext_remote_endpoint_resolves_outside_Production()
+    {
+        var options = new OtlpOptions { Endpoint = "http://collector.test:4318", Protocol = "grpc" };
+        Assert.Equal(new Uri("http://collector.test:4318"), options.ResolveTraceEndpoint(isProduction: false));
+    }
+
+    [Fact]
+    public void Plaintext_remote_endpoint_fails_in_Production()
+    {
+        var options = new OtlpOptions { Endpoint = "http://collector.test:4318", Protocol = "grpc" };
+        var ex = Assert.Throws<InvalidOperationException>(() => options.ResolveTraceEndpoint(isProduction: true));
+        Assert.Contains("https", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Otlp:AllowInsecureEndpoint", ex.Message);
+    }
+
+    // The documented development escape hatch: a loopback collector may stay
+    // plaintext even in Production, but ONLY with the flag explicitly set.
+    [Theory]
+    [InlineData("http://127.0.0.1:4318")]
+    [InlineData("http://localhost:4318")]
+    [InlineData("http://[::1]:4318")]
+    public void Plaintext_loopback_endpoint_fails_in_Production_without_the_opt_out(string endpoint)
+    {
+        var options = new OtlpOptions { Endpoint = endpoint, Protocol = "grpc" };
+        var ex = Assert.Throws<InvalidOperationException>(() => options.ResolveTraceEndpoint(isProduction: true));
+        Assert.Contains("Otlp:AllowInsecureEndpoint", ex.Message);
+    }
+
+    [Theory]
+    [InlineData("http://127.0.0.1:4318")]
+    [InlineData("http://localhost:4318")]
+    [InlineData("http://[::1]:4318")]
+    public void Plaintext_loopback_endpoint_resolves_in_Production_with_the_opt_out(string endpoint)
+    {
+        var options = new OtlpOptions { Endpoint = endpoint, Protocol = "grpc", AllowInsecureEndpoint = true };
+        var resolved = options.ResolveTraceEndpoint(isProduction: true);
+        Assert.Equal(new Uri(endpoint), resolved);
+    }
+
+    // #316 review — the opt-out is NOT loopback-scoped. The sim harness (#243)
+    // runs its serving app in Production against `http://otel-collector:4317`,
+    // a sidecar reached by compose-service name on the stack's own private
+    // network — not loopback, but equally traffic that never leaves the stack.
+    // A loopback-only escape hatch failed that boot outright. This pins the
+    // exact shape the sim uses so the regression can't return silently.
+    [Fact]
+    public void Plaintext_private_network_sidecar_resolves_in_Production_with_the_opt_out()
+    {
+        var options = new OtlpOptions
+        {
+            Endpoint = "http://otel-collector:4317",
+            Protocol = "grpc",
+            AllowInsecureEndpoint = true
+        };
+
+        var resolved = options.ResolveTraceEndpoint(isProduction: true);
+
+        Assert.Equal(new Uri("http://otel-collector:4317"), resolved);
+    }
+
+    // The opt-out is the ONLY thing that permits it: unset, the same sidecar
+    // endpoint still fails closed in Production.
+    [Fact]
+    public void Plaintext_private_network_sidecar_still_fails_without_the_opt_out()
+    {
+        var options = new OtlpOptions { Endpoint = "http://otel-collector:4317", Protocol = "grpc" };
+
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => options.ResolveTraceEndpoint(isProduction: true));
+
+        Assert.Contains("https", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    // #316 — userinfo/query/fragment are rejected regardless of environment:
+    // they can carry a vendor credential or tenant identifier into logs.
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Endpoint_with_userinfo_fails_in_every_environment(bool isProduction)
+    {
+        var fakeSecret = $"vendor-secret-{Guid.NewGuid():N}";
+        var options = new OtlpOptions { Endpoint = $"https://user:{fakeSecret}@collector.test:4318" };
+
+        var ex = Assert.Throws<InvalidOperationException>(() => options.ResolveTraceEndpoint(isProduction));
+
+        Assert.Contains("userinfo", ex.Message, StringComparison.OrdinalIgnoreCase);
+        // The message must never echo the credential it just rejected.
+        Assert.DoesNotContain(fakeSecret, ex.Message);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Endpoint_with_query_string_fails_in_every_environment(bool isProduction)
+    {
+        var fakeTenant = $"tenant-{Guid.NewGuid():N}";
+        var options = new OtlpOptions { Endpoint = $"https://collector.test:4318/base?tenant={fakeTenant}" };
+
+        var ex = Assert.Throws<InvalidOperationException>(() => options.ResolveTraceEndpoint(isProduction));
+
+        Assert.Contains("query", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(fakeTenant, ex.Message);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Endpoint_with_fragment_fails_in_every_environment(bool isProduction)
+    {
+        var options = new OtlpOptions { Endpoint = "https://collector.test:4318/base#section" };
+
+        var ex = Assert.Throws<InvalidOperationException>(() => options.ResolveTraceEndpoint(isProduction));
+
+        Assert.Contains("fragment", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Endpoint_shape_rejection_message_never_echoes_the_raw_endpoint()
+    {
+        var fakeSecret = $"vendor-secret-{Guid.NewGuid():N}";
+        var withUserInfo = new OtlpOptions { Endpoint = $"https://svc:{fakeSecret}@collector.test:4318" };
+        var withQuery = new OtlpOptions { Endpoint = $"https://collector.test:4318?key={fakeSecret}" };
+
+        var userInfoEx = Assert.Throws<InvalidOperationException>(() => withUserInfo.ResolveTraceEndpoint());
+        var queryEx = Assert.Throws<InvalidOperationException>(() => withQuery.ResolveTraceEndpoint());
+
+        Assert.DoesNotContain(withUserInfo.Endpoint, userInfoEx.Message);
+        Assert.DoesNotContain(withQuery.Endpoint, queryEx.Message);
+    }
 }
 
 [CollectionDefinition(Name)]

@@ -27,7 +27,8 @@ public sealed class RecoverAdminCommandTests : IClassFixture<BreakGlassRecoveryF
         _ = _factory.Services;
     }
 
-    private Process StartRecoverCommand(string arguments, string environment)
+    private Process StartRecoverCommand(
+        string arguments, string environment, IDictionary<string, string>? extraEnvironment = null)
     {
         var psi = new ProcessStartInfo("dotnet", $"\"{ApiDllPath}\" recover-admin {arguments}")
         {
@@ -45,13 +46,17 @@ public sealed class RecoverAdminCommandTests : IClassFixture<BreakGlassRecoveryF
         psi.Environment["Jwt__Audience"] = "cluckwork-api-test";
         psi.Environment["Jwt__PublicKeyPem"] = TestJwtKeys.PublicKeyPem;
         psi.Environment["Jwt__PrivateKeyPem"] = TestJwtKeys.PrivateKeyPem;
+        foreach (var (key, value) in extraEnvironment ?? new Dictionary<string, string>())
+            psi.Environment[key] = value;
         return Process.Start(psi)!;
     }
 
     private Task<(int ExitCode, string Stdout, string Stderr)> RunAsync(
-        string arguments, string environment = "Production") =>
+        string arguments,
+        string environment = "Production",
+        IDictionary<string, string>? extraEnvironment = null) =>
         SeedCommandRunner.RunToCompletionAsync(
-            StartRecoverCommand(arguments, environment), SubprocessTimeout);
+            StartRecoverCommand(arguments, environment, extraEnvironment), SubprocessTimeout);
 
     [Fact]
     public async Task RecoverAdmin_InProduction_ResetsPassword_PrintsWorkingTemporaryPassword()
@@ -71,6 +76,29 @@ public sealed class RecoverAdminCommandTests : IClassFixture<BreakGlassRecoveryF
             "the printed temporary password should log in");
         Assert.True((await idp.LoginAsync(_factory.AdminEmail, _factory.AdminPassword)).IsFailure,
             "the old seeded password must be rejected after recovery");
+    }
+
+    // #316 review — the OTLP guard validates during service registration, which
+    // runs BEFORE CliDispatcher. Enforcing it for a one-off verb meant a
+    // plaintext Otlp:Endpoint aborted recover-admin with an unhandled exception
+    // (SIGABRT, exit 134) — an unrelated telemetry setting blocking the
+    // break-glass path for a locked-out farm (#265), which is worse than the
+    // leak the guard prevents. The verb must run; export is simply disabled.
+    [Fact]
+    public async Task RecoverAdmin_WithPlaintextOtlpEndpoint_StillRecovers_ExportDisabled()
+    {
+        var (exitCode, stdout, stderr) = await RunAsync(
+            $"--email {_factory.AdminEmail} --reason otlp-guard-drill",
+            extraEnvironment: new Dictionary<string, string>
+            {
+                ["Otlp__Endpoint"] = "http://collector.example:4318",
+                ["Otlp__Protocol"] = "grpc",
+            });
+
+        Assert.True(0 == exitCode, $"expected exit 0, got {exitCode}. stdout={stdout} stderr={stderr}");
+        Assert.Contains("Temporary password:", stdout);
+        // Degraded, not silently exporting over plaintext.
+        Assert.Contains("OTLP export disabled", stderr);
     }
 
     [Fact]

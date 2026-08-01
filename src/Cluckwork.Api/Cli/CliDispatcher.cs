@@ -19,6 +19,14 @@ public static class CliDispatcher
         new RecoverAdminCliCommand(),
     ];
 
+    // Whether these args will dispatch to a one-off verb rather than start the
+    // web host. TryRunAsync can only answer this AFTER Build(), but service
+    // registration needs to know sooner: a registration-time guard that throws
+    // would abort a verb before it ever dispatched. Same reason #260/#319 place
+    // their serving-process guards after this dispatcher.
+    public static bool IsCliInvocation(string[] args) =>
+        args.Length > 0 && Array.Exists(Commands, c => c.Name == args[0]);
+
     public static async Task<int?> TryRunAsync(WebApplication app, string[] args)
     {
         if (args.Length == 0)

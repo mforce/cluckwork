@@ -94,6 +94,10 @@ services:
       # generates this value into .env.sim; see otel/collector.yaml).
       Otlp__Endpoint: ${Otlp__Endpoint}
       Otlp__Protocol: ${Otlp__Protocol}
+      # #316 — Production requires an https collector; this one is a sidecar on
+      # this stack's private network, so plaintext is acknowledged explicitly
+      # (same posture as Database__AllowInsecureConnection above).
+      Otlp__AllowInsecureEndpoint: ${Otlp__AllowInsecureEndpoint}
     labels:
       # Provenance only — no traefik router/labels in this stack.
       - com.cluckwork.sim-host=${CLUCKWORK_HOST}
