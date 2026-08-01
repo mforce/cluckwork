@@ -219,11 +219,14 @@ export function UsersPage() {
         clearKey(scope);
         setUsers(await listUsers());
         setMessage(i18n.t("users:createSuccessMessage", { role: roleLabel(role), email: email.trim() }));
-        setEmail("");
-        setPassword("");
-        setRole("Worker");
-        setName("");
-        setCreating(false);
+        // #336 review — close through closeCreate() rather than repeating the
+        // field resets here. The duplicated list had already drifted: it never
+        // cleared createStepUpPassword, so switching Owner -> Worker after
+        // typing the proof password (the Owner branch above then never runs)
+        // left the operator's own account password in state, visible on the
+        // next reopen. One reset path means new dialog state can only be
+        // forgotten in one place, not two — the #314 lesson, relearned.
+        closeCreate();
       } catch (err) {
         setError(errText(err));
       }

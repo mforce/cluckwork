@@ -1047,6 +1047,36 @@ describe("UsersPage step-up authentication (#308)", () => {
     expect(ownerPasswordInput()).toHaveValue("");
   });
 
+  // #336 review — the leak the test above cannot see. Its Owner submit runs the
+  // `role === OWNER_ROLE` branch, which clears the field on the way past. Switch
+  // BACK to a non-Owner role after typing and that branch never runs, so only
+  // the dialog-close reset can clear it — and the success path used to repeat
+  // the field resets inline instead of calling closeCreate(), missing this one.
+  // The operator's OWN account password then survived into the next open. Same
+  // shape as #314: a second reset path that drifted from the first.
+  it("clears the step-up password when the role is switched away from Owner before a successful create", async () => {
+    mockCreateUser.mockResolvedValue({ id: "u-new" });
+    await renderReady(ADMIN);
+    openCreate();
+    fireEvent.change(within(dialog()).getByLabelText("Email *"), { target: { value: "worker@farm.test" } });
+    fireEvent.change(createPasswordInput(), { target: { value: `pw-${crypto.randomUUID()}` } });
+
+    // Pick Owner, type the proof password, then change your mind.
+    selectAdminRole();
+    fireEvent.change(ownerPasswordInput(), { target: { value: "OwnerCurrentPw!1" } });
+    fireEvent.change(within(dialog()).getByLabelText("Role"), { target: { value: "Worker" } });
+
+    await act(async () => { fireEvent.click(within(dialog()).getByRole("button", { name: "Create user" })); });
+
+    // No grant was needed for a Worker — so nothing cleared the field en route.
+    expect(mockStepUp).not.toHaveBeenCalled();
+    expect(mockCreateUser.mock.calls[0][2]).toBeUndefined();
+
+    openCreate();
+    selectAdminRole();
+    expect(ownerPasswordInput()).toHaveValue("");
+  });
+
   it("cancel: closing the create dialog makes no step-up or create call, and clears the field", async () => {
     await renderReady(ADMIN);
     openCreate();
