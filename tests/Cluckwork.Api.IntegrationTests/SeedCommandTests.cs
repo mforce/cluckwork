@@ -4,7 +4,6 @@ using System.Diagnostics;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Infrastructure.Persistence;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Testcontainers.PostgreSql;
@@ -17,45 +16,21 @@ using Testcontainers.PostgreSql;
 // operator runs, so the dispatch code genuinely executes end to end (schema
 // migrate, profile switch, exit before Kestrel).
 //
-// Own factory/container (own database), same reasoning as BaselineSeedFactory
-// and DemoSeedTests: DemoDataSeeder writes to the fixed SeedDefaults.AccountId,
-// so this must not share a database with anything else that seeds it.
-public sealed class SeedCommandFixture : CluckworkWebApplicationFactory
+// Own factory/container (own database), same reasoning as DemoSeedTests:
+// DemoDataSeeder writes to the fixed SeedDefaults.AccountId, so this must not
+// share a database with anything else that seeds it.
+public sealed class SeedCommandTests : IClassFixture<CluckworkWebApplicationFactory>
 {
-    // Runtime-generated — never a hardcoded credential.
-    public string AdminEmail { get; } = $"seedcmd-{Guid.NewGuid():N}@test.local";
-    public string AdminPassword { get; } = $"Aa1!{Guid.NewGuid():N}";
-
-    protected override void ConfigureWebHost(IWebHostBuilder builder)
-    {
-        base.ConfigureWebHost(builder);
-        // Base data only (Account/Admin role/egg grades): scope 1a's CLI
-        // dispatch deliberately migrates + runs only the requested profile's
-        // seeder — it does not also invoke DatabaseSeeder (base provisioning
-        // stays boot-only; #283 is the separate issue for touching that). So
-        // this in-process host boots once, the unchanged startupScope base
-        // seed runs, and the `seed --profile demo` *subprocess* under test
-        // then runs against that already-provisioned database — exactly the
-        // "boot the serving process once, then run `seed` against the same
-        // database" flow described in Program.cs.
-        builder.UseSetting("Seed:Enabled", "true");
-        builder.UseSetting("Seed:AdminEmail", AdminEmail);
-        builder.UseSetting("Seed:AdminPassword", AdminPassword);
-    }
-}
-
-public sealed class SeedCommandTests : IClassFixture<SeedCommandFixture>
-{
-    private readonly SeedCommandFixture _factory;
+    private readonly CluckworkWebApplicationFactory _factory;
     private static readonly string ApiDllPath = typeof(Program).Assembly.Location;
     private static readonly TimeSpan SubprocessTimeout = TimeSpan.FromSeconds(60);
 
-    public SeedCommandTests(SeedCommandFixture factory)
+    public SeedCommandTests(CluckworkWebApplicationFactory factory)
     {
         _factory = factory;
-        // Forces host startup (idempotent/cached after the first call): the
-        // base seed must have already run before any `seed --profile demo`
-        // subprocess below depends on the account it creates.
+        // Forces host + Postgres container startup (schema migrated —
+        // #283's base reference data ships as part of THAT) before any `seed
+        // --profile demo` subprocess below depends on it.
         _ = _factory.Services;
     }
 
@@ -146,16 +121,17 @@ public sealed class SeedCommandTests : IClassFixture<SeedCommandFixture>
         Assert.DoesNotContain("No service for type", stderr);
     }
 
-    // #284 review — a migrated-but-never-base-seeded database (the base
-    // account/Admin role/egg grades that DatabaseSeeder creates on normal boot
-    // don't exist here — nothing has ever booted this database as a serving
-    // process). Own throwaway Postgres: this must NOT share _factory's
-    // database, which SeedCommandFixture already base-seeds via
-    // Seed:Enabled/AdminEmail/AdminPassword. The command applies migrations
-    // itself, so the schema exists but the seed rows never do — exactly the
-    // "migrated but unprovisioned" case the DemoDataSeeder preflight guards.
+    // #283 review — supersedes the old "base data missing" demo test: since
+    // roles/egg grades/the default account are now static reference data
+    // baked into the migrations themselves (this command's own MigrateAsync
+    // step provisions them), DemoDataSeeder's preflight can no longer
+    // actually FIND them missing against ANY freshly migrated database — this
+    // is the stronger guarantee that replaces it. Own throwaway, entirely
+    // untouched Postgres — never migrated by anything before this subprocess
+    // runs, so a green result here proves `seed --profile demo` needs nothing
+    // but a connection string.
     [Fact]
-    public async Task SeedCommand_Demo_BaseDataMissing_ExitsNonZeroWithClearMessage()
+    public async Task SeedCommand_Demo_AgainstAnUntouchedDatabase_MigratesAndSeedsInOneStep()
     {
         await using var freshDb = new PostgreSqlBuilder("postgres:18.4-trixie@sha256:3a82e1f56c8f0f5616a11103ac3d47e632c3938698946a7ad26da0df1334744a").Build();
         await freshDb.StartAsync();
@@ -163,7 +139,6 @@ public sealed class SeedCommandTests : IClassFixture<SeedCommandFixture>
         var (exitCode, stdout, stderr) = await RunSeedCommandAsync(
             "demo", connectionString: freshDb.GetConnectionString());
 
-        Assert.True(1 == exitCode, $"expected exit 1, got {exitCode}. stdout={stdout} stderr={stderr}");
-        Assert.Contains("base data", stderr, StringComparison.OrdinalIgnoreCase);
+        Assert.True(0 == exitCode, $"expected exit 0, got {exitCode}. stdout={stdout} stderr={stderr}");
     }
 }

@@ -5,7 +5,6 @@ using System.IO;
 using System.Text.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Infrastructure.Persistence;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Testcontainers.PostgreSql;
@@ -22,23 +21,25 @@ using Testcontainers.PostgreSql;
 // Own factory/container, same reasoning as SeedCommandTests: the simulation
 // seeder writes to the fixed SeedDefaults.AccountId, so it must not share a
 // database with anything else that seeds it.
-public sealed class SimulationSeedCommandFixture : CluckworkWebApplicationFactory
+//
+// #283 — the default account/Admin role/egg grades ship as migration-baked
+// static reference data (no Seed:* config, no runtime seeder); the Owner
+// admin itself does not, so it's seeded in-process here — standing in for a
+// real `bootstrap-admin` run — before the `seed --profile simulation`
+// subprocess under test runs against the same already-provisioned database.
+public sealed class SimulationSeedCommandFixture : CluckworkWebApplicationFactory, IAsyncLifetime
 {
     // Runtime-generated — never a hardcoded credential.
     public string AdminEmail { get; } = $"simcmd-{Guid.NewGuid():N}@test.local";
-    public string AdminPassword { get; } = $"Aa1!{Guid.NewGuid():N}";
     public string CastPassword { get; } = $"Aa1!{Guid.NewGuid():N}";
 
-    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    // NOTE: redeclaring `IAsyncLifetime` is required for xUnit to dispatch to
+    // THIS override (same reasoning as SimulationSeedFactory).
+    public new async Task InitializeAsync()
     {
-        base.ConfigureWebHost(builder);
-        // Base data only (Account/Admin role/egg grades) via the boot seed —
-        // the `seed --profile simulation` subprocess under test then runs
-        // against that already-provisioned database, exactly the "boot the
-        // serving process once, then run `seed`" flow (see SeedCommandFixture).
-        builder.UseSetting("Seed:Enabled", "true");
-        builder.UseSetting("Seed:AdminEmail", AdminEmail);
-        builder.UseSetting("Seed:AdminPassword", AdminPassword);
+        await base.InitializeAsync();
+        await this.SeedUserAsync(
+            Cluckwork.Domain.Accounts.SeedDefaults.AccountId, AdminEmail, Cluckwork.Domain.Accounts.Roles.Owner);
     }
 }
 
@@ -81,14 +82,11 @@ public sealed class SimulationSeedCommandTests : IClassFixture<SimulationSeedCom
         psi.Environment["Jwt__Audience"] = "cluckwork-api-test";
         psi.Environment["Jwt__PublicKeyPem"] = TestJwtKeys.PublicKeyPem;
         psi.Environment["Jwt__PrivateKeyPem"] = TestJwtKeys.PrivateKeyPem;
-        // The simulation preflight looks up the base-seeded admin (reused as
-        // Owner) by Seed:AdminEmail — the subprocess needs the SAME email the
-        // fixture's boot seed used, or the preflight can't find it and reports
-        // PrerequisitesMissing. (Demo needs no such var — it never touches the
-        // admin.) The real reset.sh `compose run` inherits this from the app
-        // service's own env, so this only mirrors that here. No AdminPassword:
-        // the admin already exists; the sim command never re-runs the base seed.
-        psi.Environment["Seed__AdminEmail"] = _factory.AdminEmail;
+        // #283 — the simulation preflight now looks up the reused Owner by
+        // ROLE membership in the default account, not by a configured email
+        // (Seed:AdminEmail is retired along with the runtime seeder that fed
+        // it) — the fixture's InitializeAsync already seeded that Owner
+        // in-process, so the subprocess needs nothing further to find it.
         // The simulation profile's own config (its own "Simulation" section) —
         // no Seed:Simulation gate exists anymore (#279); the command IS the gate.
         psi.Environment["Simulation__CastPassword"] = _factory.CastPassword;

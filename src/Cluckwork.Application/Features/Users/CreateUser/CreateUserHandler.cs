@@ -13,5 +13,5 @@ public sealed class CreateUserHandler(IIdentityProvider identity)
         identity.CreateUserAsync(
             accountId, command.Email.Trim(), command.Password,
             role: command.Role == CreateUserValidator.WorkerRole ? null : command.Role,
-            name: UserName.Normalize(command.Name), ct);
+            name: UserName.Normalize(command.Name), ct: ct);
 }

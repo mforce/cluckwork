@@ -14,10 +14,13 @@ public interface IIdentityProvider
 
     // #103 — role is one of Roles.Assignable, or null for a plain worker
     // (workers deliberately carry no role row). #163 — name is the optional
-    // display name (null = none).
+    // display name (null = none). #283 — mustChangePassword is true ONLY for
+    // the `bootstrap-admin` first-run command's Owner; every other caller
+    // (the Users page's CreateUser, the demo/simulation seeders) leaves it
+    // false — an ordinary new user is not put through the forced-change gate.
     Task<Result<Guid>> CreateUserAsync(
         Guid accountId, string email, string password, string? role,
-        string? name = null, CancellationToken ct = default);
+        string? name = null, bool mustChangePassword = false, CancellationToken ct = default);
 
     // #163 — edit an existing user's display name, scoped to the account so a
     // foreign user id resolves to a NotFound failure, never a cross-tenant edit.

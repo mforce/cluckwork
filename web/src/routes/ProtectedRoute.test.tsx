@@ -30,4 +30,19 @@ describe("ProtectedRoute", () => {
     expect(screen.getByText("protected home")).toBeInTheDocument();
     expect(screen.queryByText("login screen")).not.toBeInTheDocument();
   });
+
+  // #283 — a token carrying must_change_password renders the first-login
+  // set-password screen INSTEAD of the outlet, on every path behind the gate
+  // (not just a designated route) — proven here by mounting at "/", which the
+  // outlet-rendering test above shows the protected page for when the claim
+  // is absent.
+  it("renders the set-password screen, not the outlet, when must_change_password is set", () => {
+    renderWithProviders(tree(), {
+      route: "/",
+      token: { sub: "u1", role: "Admin", must_change_password: "true" },
+    });
+    expect(screen.getByRole("heading", { name: "Set your password" })).toBeInTheDocument();
+    expect(screen.queryByText("protected home")).not.toBeInTheDocument();
+    expect(screen.queryByText("login screen")).not.toBeInTheDocument();
+  });
 });

@@ -3,13 +3,26 @@
 # tools/simulation/reset.sh — destroy and rebuild the #243 sim stack from
 # scratch, then verify it booted, migrated, seeded, and is safely reachable.
 #
-# #279: simulation seeding is no longer a boot-time side effect — the
-# serving `app` container only base-seeds (Seed:AdminEmail/Seed:AdminPassword,
-# DatabaseSeeder) on boot and stays Production the whole time. Once it's up
-# and healthy, this script runs `seed --profile simulation` as an explicit
-# ONE-SHOT `docker compose run` against a non-Production environment (the
-# Program.cs prod-guard refuses the command in Production) — same command an
-# operator would type by hand, mirroring `seed --profile demo` (#280).
+# #283: the default account/roles/egg grades are static reference data baked
+# into the EF migrations themselves — the serving `app` container's own boot
+# (migrate-on-startup, unchanged) already provisions them, no Seed:* config
+# involved. There is still no admin user after that (no credential is ever
+# baked in), so once the container is healthy this script runs the one-shot
+# `bootstrap-admin` command (always available in Production, same posture as
+# `recover-admin` — no environment override needed), captures the printed
+# temporary password, and immediately rotates it via the real
+# login+change-password API calls to the STABLE password bootstrap.sh already
+# generated into .sim-cast.json — so every other script/k6 persona in this
+# harness keeps reading a known, unchanging Owner credential exactly as
+# before, and the forced-first-change gate (#283's MustChangePassword) is
+# cleared before anything else runs.
+#
+# #279: simulation FIXTURE seeding is a separate, later one-shot step — once
+# the app is up and the admin is provisioned, this script runs `seed
+# --profile simulation` as an explicit ONE-SHOT `docker compose run` against
+# a non-Production environment (the Program.cs prod-guard refuses the command
+# in Production) — same command an operator would type by hand, mirroring
+# `seed --profile demo` (#280).
 #
 # HARD SAFETY RULE: every docker command below runs under the dedicated
 # `cluckwork-sim` compose project. Before anything destructive, the project
@@ -103,6 +116,71 @@ compose exec -T db psql -U "$PGUSER" -d "$PGDB" -v ON_ERROR_STOP=1 \
   -c "CREATE EXTENSION IF NOT EXISTS pg_stat_statements;" \
   -c "SELECT count(*) FROM pg_stat_statements;" >/dev/null
 echo "pg_stat_statements OK."
+
+# --- First-run admin (#283): bootstrap-admin, then rotate off the printed --
+# one-time password to the STABLE credential .sim-cast.json already carries.
+# Always a fresh create here — reset.sh just did `down -v`, so the account
+# never has an Owner yet; the "already provisioned" no-op branch never fires
+# in this script's flow.
+echo "-- bootstrap-admin (one-shot, first-run Owner) --"
+SEED_ADMIN_EMAIL="$(read_env_value SIM_ADMIN_EMAIL)"
+SEED_ADMIN_PASSWORD="$(read_env_value SIM_ADMIN_PASSWORD)"
+BOOTSTRAP_OUTPUT="$(compose run --rm app bootstrap-admin --email "$SEED_ADMIN_EMAIL")"
+echo "$BOOTSTRAP_OUTPUT"
+TEMP_PASSWORD="$(printf '%s\n' "$BOOTSTRAP_OUTPUT" | sed -n 's/^Temporary password: //p')"
+if [[ -z "$TEMP_PASSWORD" ]]; then
+  echo "FAILED: could not find a 'Temporary password: ' line in bootstrap-admin's output." >&2
+  exit 1
+fi
+echo "bootstrap-admin -> Owner created; rotating off the printed temporary password."
+
+SEED_ADMIN_EMAIL="$SEED_ADMIN_EMAIL" TEMP_PASSWORD="$TEMP_PASSWORD" \
+  SEED_ADMIN_PASSWORD="$SEED_ADMIN_PASSWORD" APP_PORT="$APP_PORT" python3 - <<'PY'
+import json
+import os
+import sys
+import urllib.request
+import uuid
+
+base = f"http://127.0.0.1:{os.environ['APP_PORT']}/api/v1/auth"
+email = os.environ["SEED_ADMIN_EMAIL"]
+temp_password = os.environ["TEMP_PASSWORD"]
+final_password = os.environ["SEED_ADMIN_PASSWORD"]
+
+
+def post(path, body, token=None, idempotency_key=None):
+    req = urllib.request.Request(
+        f"{base}{path}",
+        data=json.dumps(body).encode(),
+        method="POST",
+        headers={"Content-Type": "application/json"},
+    )
+    if token:
+        req.add_header("Authorization", f"Bearer {token}")
+    if idempotency_key:
+        req.add_header("Idempotency-Key", idempotency_key)
+    try:
+        with urllib.request.urlopen(req) as resp:
+            return json.loads(resp.read())
+    except urllib.error.HTTPError as exc:
+        print(f"FAILED: POST {path} -> {exc.code}: {exc.read().decode()}", file=sys.stderr)
+        sys.exit(1)
+
+
+# The printed one-time password IS a real login (bootstrap-admin logs the
+# account in with MustChangePassword=true, not merely creates it) — proving
+# that also proves the temp password actually reached the account.
+login = post("/login", {"email": email, "password": temp_password})
+# Clears MustChangePassword server-side and rotates every session — the SAME
+# endpoint the SPA's first-login "Set your password" screen uses.
+post(
+    "/change-password",
+    {"currentPassword": temp_password, "newPassword": final_password},
+    token=login["accessToken"],
+    idempotency_key=str(uuid.uuid4()),
+)
+print(f"Owner {email} rotated onto the stable .sim-cast.json password.")
+PY
 
 # --- Simulation seed: explicit one-shot command (#279) ---------------------
 # The serving `app` container (started above) never boot-seeds simulation

@@ -144,17 +144,20 @@ else
     app.Logger.LogInformation("OTLP export disabled (Otlp:Endpoint not set)");
 // ----------------------------------------------------------------
 
-// --- Startup: apply migrations, then seed (both idempotent) ---
-// The two switches are independent: Database:MigrateOnStartup (default true)
-// gates only the migration — useful when a deploy job runs migrations — while
-// seeding always runs and self-gates on Seed:Enabled + supplied credentials
-// (see DatabaseSeeder).
+// --- Startup: apply migrations (idempotent) ---
+// Database:MigrateOnStartup (default true, but Production sets it false —
+// #263) gates schema DDL. #283 — there is no runtime seeder to run after it:
+// the base reference data (roles, default egg grades, the default account)
+// ships AS PART OF the migrations themselves (InsertData/HasData), so a
+// freshly migrated database is already usable with no further boot-time step
+// and no Seed:* config. The first admin is provisioned separately, out of
+// band, by the one-shot `bootstrap-admin` command (never a serving-boot side
+// effect — see Cli/BootstrapAdminCliCommand.cs).
 {
     using var startupScope = app.Services.CreateScope();
     var sp = startupScope.ServiceProvider;
     if (builder.Configuration.GetValue("Database:MigrateOnStartup", true))
         await sp.GetRequiredService<AppDbContext>().Database.MigrateAsync();
-    await sp.GetRequiredService<DatabaseSeeder>().SeedAsync();
 }
 
 // Resolve the real client IP and scheme from a trusted proxy's forwarded
@@ -244,6 +247,11 @@ app.UseCluckworkRequestBodyLimit();
 
 app.UseAuthentication();
 app.UseMiddleware<TenantResolutionMiddleware>();
+// #283 — the first-run "you must set a new password" gate. BEFORE
+// UseAuthorization (deliberately) so it applies uniformly regardless of which
+// AuthPolicies tier an endpoint carries, and before idempotency so a blocked
+// write never consumes a key.
+app.UseMiddleware<MustChangePasswordMiddleware>();
 // Authorization must run BEFORE idempotency: the replay path returns cached
 // responses without invoking the endpoint, so a role-denied caller replaying
 // an admin's key must hit the 403 first (codex review of PR #78).

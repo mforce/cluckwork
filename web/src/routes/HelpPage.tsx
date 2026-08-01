@@ -118,6 +118,9 @@ export function HelpPage() {
           <Trans ns="help" i18nKey="signingInBasic" components={{ strong: <strong /> }} />
         </li>
         <li>
+          <Trans ns="help" i18nKey="signingInFirstRun" components={{ strong: <strong />, em: <em /> }} />
+        </li>
+        <li>
           <Trans ns="help" i18nKey="signingInRateLimit" components={{ strong: <strong />, em: <em /> }} />
         </li>
         <li>

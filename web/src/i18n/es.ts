@@ -38,6 +38,19 @@ export const es = {
     apiDown: "No se pudo iniciar sesión. ¿Está la API en ejecución?",
     // machine-drafted (#182) — pending native review.
     credentialsTooLong: "Eso es demasiado largo — revise su correo electrónico y contraseña.",
+    // machine-drafted (#283) — pending native review.
+    setPasswordHeading: "Establezca su contraseña",
+    setPasswordHint:
+      "Este es su primer inicio de sesión. Establezca una nueva contraseña para "
+      + "continuar — la contraseña temporal no volverá a funcionar después de esto.",
+    temporaryPasswordLabel: "Contraseña temporal",
+    setPasswordNewLabel: "Nueva contraseña (mín. {{min}} caracteres)",
+    setPasswordConfirmLabel: "Confirmar nueva contraseña",
+    setPasswordButton: "Establecer contraseña",
+    setPasswordSubmitting: "Estableciendo contraseña…",
+    setPasswordSignOut: "Cerrar sesión",
+    setPasswordMismatchError: "Las nuevas contraseñas no coinciden.",
+    setPasswordTooShortError: "La nueva contraseña debe tener al menos {{min}} caracteres.",
   },
   account: {
     preferences: "Preferencias",
@@ -1539,6 +1552,13 @@ export const es = {
       + "incluso al recargar y con la aplicación abierta en <strong>varias pestañas</strong> a la vez. "
       + "Después de que la aplicación se <strong>actualiza</strong> es posible que se le pida iniciar "
       + "sesión una vez más — eso es normal.",
+    // machine-drafted (#283) — pending native review.
+    signingInFirstRun:
+      "<strong>Primer inicio de sesión en una granja nueva.</strong> No hay una contraseña predeterminada — "
+      + "un operador ejecuta un comando de configuración único que imprime una contraseña temporal. Inicie "
+      + "sesión con ella y llegará de inmediato a una pantalla de <strong>Establecer su contraseña</strong> en "
+      + "lugar de la aplicación normal; nada más funciona hasta que elija su propia contraseña allí. Esto es "
+      + "distinto de un <em>Cambio de contraseña</em> ordinario.",
     interfaceLanguage:
       "<strong>Idioma de la interfaz.</strong> Cualquiera puede elegir el idioma en que se muestra la "
       + "interfaz desde <strong>Cuenta → Preferencias</strong> — inglés, español o tagalo. La traducción es "

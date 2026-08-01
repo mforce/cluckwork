@@ -43,6 +43,19 @@ export const tl = {
     apiDown: "Hindi makapag-sign in. Gumagana ba ang API?",
     // machine-drafted (#182) — pending native review.
     credentialsTooLong: "Sobrang haba niyan — tingnan ang iyong email at password.",
+    // machine-drafted (#283) — pending native review.
+    setPasswordHeading: "Itakda ang iyong password",
+    setPasswordHint:
+      "Ito ang iyong unang pag-sign in. Magtakda ng bagong password para "
+      + "magpatuloy — hindi na gagana ang pansamantalang password pagkatapos nito.",
+    temporaryPasswordLabel: "Pansamantalang password",
+    setPasswordNewLabel: "Bagong password (min {{min}} karakter)",
+    setPasswordConfirmLabel: "Kumpirmahin ang bagong password",
+    setPasswordButton: "Itakda ang password",
+    setPasswordSubmitting: "Itinatakda ang password…",
+    setPasswordSignOut: "Mag-sign out",
+    setPasswordMismatchError: "Hindi magkatugma ang mga bagong password.",
+    setPasswordTooShortError: "Dapat hindi bababa sa {{min}} karakter ang bagong password.",
   },
   account: {
     preferences: "Mga Kagustuhan",
@@ -1599,6 +1612,13 @@ export const tl = {
       + "kahit mag-reload at kahit bukas ang app sa <strong>ilang tab</strong> nang sabay-sabay. "
       + "Pagkatapos ma-<strong>update</strong> ang app, maaaring hilingin sa iyong mag-sign in muli — "
       + "normal lang iyon.",
+    // machine-drafted (#283) — pending native review.
+    signingInFirstRun:
+      "<strong>Unang pag-sign in sa isang bagong-bagong farm.</strong> Walang default na password — "
+      + "nagpapatakbo ang isang operator ng isang beses na setup command na naglilimbag ng pansamantalang "
+      + "password. Mag-sign in gamit ito at diretso kang mapupunta sa isang screen ng <strong>Itakda ang iyong "
+      + "password</strong> sa halip na ang normal na app; wala pang gumagana hangga't hindi ka pumipili ng "
+      + "sarili mong password doon. Iba ito sa karaniwang <em>Pagbabago ng password</em>.",
     interfaceLanguage:
       "<strong>Wika ng interface.</strong> Kahit sino ay puwedeng pumili ng wikang gagamitin sa interface "
       + "mula sa <strong>Account → Mga Kagustuhan</strong> — English, Español, o Tagalog. Isang patuloy na "
