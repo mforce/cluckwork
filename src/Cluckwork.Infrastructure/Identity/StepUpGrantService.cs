@@ -55,11 +55,21 @@ using Microsoft.IdentityModel.Tokens;
 //     so a grant issued before such a change no longer matches the user's
 //     CURRENT stamp → REVOKED denial.
 //   - Revoked by logout: IStepUpGrantRegistry also tracks the instant each
-//     user last logged out (wired from IdentityProvider.RevokeRefreshToken-
-//     Async — the same call AuthEndpoints.Logout already makes). A grant
-//     ISSUED AT OR BEFORE that instant is refused even if unexpired and
-//     unused, so a grant captured before a legitimate logout cannot be used
-//     after it → REVOKED denial. That comparison runs against a DEDICATED
+//     user last logged out. A grant ISSUED AT OR BEFORE that instant is
+//     refused even if unexpired and unused, so a grant captured before a
+//     legitimate logout cannot be used after it → REVOKED denial.
+//     AuthEndpoints.Logout records that instant along TWO independent axes,
+//     because the credentials a logout presents need not name one user: the
+//     refresh COOKIE is per-origin (one per browser, last login wins) while
+//     the SPA holds each ACCESS TOKEN in its own tab's memory. So the cookie
+//     owner is recorded via IdentityProvider.RevokeRefreshTokenAsync, AND the
+//     authenticated bearer's subject via RecordLogoutAsync. Deriving the owner
+//     from the cookie alone (as this shipped) meant a user logging out from a
+//     tab whose cookie had since been claimed by a different user — or whose
+//     cookie was missing/expired — kept their grant alive, which is precisely
+//     the person this guarantee is for (#336 review). Neither axis revokes the
+//     other's refresh tokens: ending one tab's session must not sign the user
+//     out of every device. That comparison runs against a DEDICATED
 //     tick-precision issuance claim (PreciseIssuedAtClaim), NOT the JWT's own
 //     nbf/ValidFrom: nbf is a NumericDate, i.e. floored to whole seconds,
 //     while the recorded logout instant keeps sub-second ticks — so a user who

@@ -65,6 +65,18 @@ public sealed class IdempotencyMiddleware(RequestDelegate next, IOptions<Idempot
         // live, single-use step-up grant. Caching/replaying it would hand back
         // an already-consumed (or since-expired) token instead of a fresh one.
         "/api/v1/auth/step-up",
+        // #336 review — logout is a pure side effect (its body is an empty 204),
+        // so replaying a stored response would return "success" while revoking
+        // NOTHING: the caller believes the session ended when it did not. It is
+        // also idempotent by construction, so it needs no replay protection.
+        //
+        // Being on this list is load-bearing for a second reason: the exemption
+        // is checked BEFORE the tenant gate below, and logout became able to
+        // carry a bearer (#336 — it must revoke the access-token user's step-up
+        // grants, not only the cookie owner's). Without this entry that bearer
+        // would resolve a tenant and every authenticated logout would 400 for a
+        // missing Idempotency-Key, i.e. the SPA could no longer log out.
+        "/api/v1/auth/logout",
     ];
 
     public async Task InvokeAsync(

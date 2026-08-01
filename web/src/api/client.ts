@@ -247,14 +247,31 @@ export async function logout(): Promise<void> {
   // discarded on arrival by the generation check in refreshTokens().
   sessionGeneration++;
   abortInFlightRefresh?.();
+  // #336 — capture BEFORE clearing: this tab's access token names the user who
+  // actually clicked logout, and the clear below is deliberately synchronous.
+  // Read it after and we would always send nothing.
+  const bearer = getAccessToken();
   clearAccessToken();
   try {
     // Cookie-authenticated: the HttpOnly refresh cookie rides along and the CSRF
-    // header satisfies the check. No bearer (so it works even if the access token
-    // had expired) and no Idempotency-Key (the request is anonymous). Always
-    // fires — JS can't read the HttpOnly cookie to know whether a session exists,
-    // so we always ask the server to revoke + clear it.
-    await raw<void>("/auth/logout", { method: "POST", headers: { [CSRF_HEADER]: "1" } });
+    // header satisfies the check. Always fires — JS can't read the HttpOnly
+    // cookie to know whether a session exists, so we always ask the server to
+    // revoke + clear it.
+    //
+    // #336 — the bearer is sent too, when this tab still has one. The refresh
+    // cookie is per-origin (one per browser, last login wins) while this store
+    // is per-tab, so the cookie can belong to a DIFFERENT user than the one
+    // logging out here; without the bearer the server would revoke that other
+    // user's step-up grants and leave this user's alive. It stays OPTIONAL —
+    // the endpoint is AllowAnonymous, so an already-expired token just leaves
+    // the call unauthenticated and the cookie path still ends the session, and
+    // the server exempts /auth/logout from the Idempotency-Key requirement so
+    // authenticating it does not make the request need one.
+    await raw<void>(
+      "/auth/logout",
+      { method: "POST", headers: { [CSRF_HEADER]: "1" } },
+      bearer ?? undefined,
+    );
   } catch (err) {
     // Best-effort revoke: the in-memory token is already cleared above and this
     // failure can never reverse that. Still surfaced (not silently swallowed,

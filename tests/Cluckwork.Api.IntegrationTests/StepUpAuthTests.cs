@@ -287,6 +287,178 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
         Assert.DoesNotContain(users!, u => u.Email == newOwnerEmail);
     }
 
+    // ---------- Logout revocation identifies the RIGHT user (#336 review) ----------
+    //
+    // The two credentials a logout can present do not necessarily name the same
+    // user. The refresh cookie is per-ORIGIN — a browser holds exactly one and
+    // the most recent login owns it — while the SPA keeps each access token in
+    // its own TAB's memory (web/src/auth/tokenStore.ts). So a tab still logged
+    // in as A survives a later login as B in another tab, and A clicking logout
+    // presents B's cookie.
+    //
+    // Deriving the grant owner from the cookie alone therefore recorded the
+    // logout against B and left A's grant usable with A's still-valid (stolen)
+    // access token — after A had explicitly logged out. That is exactly the
+    // person StepUpGrantService's logout guarantee exists for, so the guarantee
+    // silently did not hold for them. Logout now records BOTH the cookie owner
+    // and the authenticated bearer's subject.
+
+    // Seeds an independent account + Owner and logs them in. Two of these are two
+    // unmistakably different users, so nothing below can pass by conflating them.
+    private async Task<(HttpClient Client, TokenPairDto Tokens)> OwnerSessionAsync()
+    {
+        var email = $"admin-{Guid.NewGuid():N}@test.local";
+        await factory.SeedAccountWithUserAsync(email);
+        var tokens = await factory.LoginAsync(email);
+        return (factory.CreateAuthedClient(tokens.AccessToken), tokens);
+    }
+
+    // THE FINDING. A holds a grant and logs out from A's own tab — but the
+    // browser's single per-origin cookie now belongs to B, so that is what rides
+    // along. Recording only the cookie's owner revokes B's grants and leaves A's
+    // alive, which is the whole bug.
+    [Fact]
+    public async Task CreateOwner_StepUpRevokedByLogout_EvenWhenTheCookieBelongsToAnotherUser()
+    {
+        var (ownerA, tokensA) = await OwnerSessionAsync();
+        var (_, tokensB) = await OwnerSessionAsync(); // logged in later — owns the cookie now
+
+        var grant = await StepUpAsync(ownerA, TestHarness.Password);
+
+        // A's tab logs out: A's bearer, B's cookie. Exactly what the browser sends.
+        var loggedOut = await factory.CreateClient(Cookieless)
+            .PostLogoutAsync(tokensB.RefreshToken, accessToken: tokensA.AccessToken);
+        Assert.Equal(HttpStatusCode.NoContent, loggedOut.StatusCode);
+
+        // A's access token is untouched by the logout (no server-side denylist) —
+        // the realistic "captured before logout, replayed after" shape.
+        var newOwnerEmail = $"boss-{Guid.NewGuid():N}@test.local";
+        var response = await CreateUserWithStepUpAsync(ownerA, newOwnerEmail, "Admin", grant.Token);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        var users = await ownerA.GetFromJsonAsync<List<UserRow>>("/api/v1/users");
+        Assert.DoesNotContain(users!, u => u.Email == newOwnerEmail);
+    }
+
+    // …and the cookie owner is still revoked too. The fix ADDS the bearer's
+    // subject; it must not quietly swap one user for the other, or an ordinary
+    // logout would stop ending the session it was actually given.
+    [Fact]
+    public async Task Logout_WithAForeignCookie_StillRevokesThatCookiesOwnSession()
+    {
+        var (_, tokensA) = await OwnerSessionAsync();
+        var (_, tokensB) = await OwnerSessionAsync();
+
+        await factory.CreateClient(Cookieless)
+            .PostLogoutAsync(tokensB.RefreshToken, accessToken: tokensA.AccessToken);
+
+        // B's refresh token — the credential actually presented — is dead.
+        var refreshed = await factory.CreateClient(Cookieless).PostRefreshAsync(tokensB.RefreshToken);
+        Assert.Equal(HttpStatusCode.Unauthorized, refreshed.StatusCode);
+    }
+
+    // The bearer path is deliberately NARROWER than the cookie path: it kills the
+    // user's step-up grants without revoking their refresh tokens. Ending one
+    // tab's session must not sign A out of every other device, which revoking the
+    // whole token family would do. Guards against "fixing" this by over-revoking.
+    [Fact]
+    public async Task Logout_WithAForeignCookie_DoesNotRevokeTheBearerUsersOtherSessions()
+    {
+        var (_, tokensA) = await OwnerSessionAsync();
+        var (_, tokensB) = await OwnerSessionAsync();
+
+        await factory.CreateClient(Cookieless)
+            .PostLogoutAsync(tokensB.RefreshToken, accessToken: tokensA.AccessToken);
+
+        // A's own refresh token was never presented and is still good.
+        var refreshed = await factory.CreateClient(Cookieless).PostRefreshAsync(tokensA.RefreshToken);
+        Assert.Equal(HttpStatusCode.OK, refreshed.StatusCode);
+    }
+
+    // The finding's other named case: no cookie at all (never set, already
+    // cleared, or expired). The cookie-only lookup had nothing to key on and
+    // recorded nothing, so the grant survived a logout the user really performed.
+    [Fact]
+    public async Task CreateOwner_StepUpRevokedByLogout_EvenWithNoRefreshCookieAtAll()
+    {
+        var (owner, tokens) = await OwnerSessionAsync();
+        var grant = await StepUpAsync(owner, TestHarness.Password);
+
+        var loggedOut = await factory.CreateClient(Cookieless)
+            .PostLogoutAsync(refreshToken: null, accessToken: tokens.AccessToken);
+        Assert.Equal(HttpStatusCode.NoContent, loggedOut.StatusCode);
+
+        var newOwnerEmail = $"boss-{Guid.NewGuid():N}@test.local";
+        var response = await CreateUserWithStepUpAsync(owner, newOwnerEmail, "Admin", grant.Token);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        var users = await owner.GetFromJsonAsync<List<UserRow>>("/api/v1/users");
+        Assert.DoesNotContain(users!, u => u.Email == newOwnerEmail);
+    }
+
+    // Regression: the ordinary case the SPA now sends — cookie and bearer both
+    // present and naming the SAME user. Both paths record a logout for one user;
+    // the registry keeps the latest instant per user, so this is idempotent
+    // rather than double-counted, and revocation still works.
+    [Fact]
+    public async Task CreateOwner_StepUpRevokedByLogout_WhenCookieAndBearerAreTheSameUser()
+    {
+        var (owner, tokens) = await OwnerSessionAsync();
+        var grant = await StepUpAsync(owner, TestHarness.Password);
+
+        var loggedOut = await factory.CreateClient(Cookieless)
+            .PostLogoutAsync(tokens.RefreshToken, accessToken: tokens.AccessToken);
+        Assert.Equal(HttpStatusCode.NoContent, loggedOut.StatusCode);
+
+        var newOwnerEmail = $"boss-{Guid.NewGuid():N}@test.local";
+        var response = await CreateUserWithStepUpAsync(owner, newOwnerEmail, "Admin", grant.Token);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+
+        // The session ended as well — the cookie path is intact alongside the new one.
+        var refreshed = await factory.CreateClient(Cookieless).PostRefreshAsync(tokens.RefreshToken);
+        Assert.Equal(HttpStatusCode.Unauthorized, refreshed.StatusCode);
+    }
+
+    // The over-revocation guard. Recording a logout must bound the PAST, never
+    // poison the user: a grant minted AFTER the logout is a fresh, deliberate
+    // re-authentication and has to work, or a single logout would permanently
+    // lock the user out of privileged administration.
+    [Fact]
+    public async Task CreateOwner_StepUpIssuedAfterAnAuthenticatedLogout_IsStillAccepted()
+    {
+        var (owner, tokens) = await OwnerSessionAsync();
+
+        await factory.CreateClient(Cookieless)
+            .PostLogoutAsync(tokens.RefreshToken, accessToken: tokens.AccessToken);
+
+        // A brand-new grant, re-confirming the password after the logout.
+        var grant = await StepUpAsync(owner, TestHarness.Password);
+
+        var newOwnerEmail = $"boss-{Guid.NewGuid():N}@test.local";
+        var response = await CreateUserWithStepUpAsync(owner, newOwnerEmail, "Admin", grant.Token);
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var users = await owner.GetFromJsonAsync<List<UserRow>>("/api/v1/users");
+        Assert.Contains(users!, u => u.Email == newOwnerEmail && u.Role == "Admin");
+    }
+
+    // An authenticated logout must not start demanding an Idempotency-Key. The
+    // bearer resolves a tenant, which is exactly what makes IdempotencyMiddleware
+    // require one — /auth/logout is exempt so the SPA can still log out. Without
+    // that exemption this is a 400 and logout is broken for every user.
+    [Fact]
+    public async Task Logout_WithABearer_NeedsNoIdempotencyKey()
+    {
+        var (_, tokens) = await OwnerSessionAsync();
+
+        var response = await factory.CreateClient(Cookieless)
+            .PostLogoutAsync(tokens.RefreshToken, accessToken: tokens.AccessToken);
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.NotEqual(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
     // ---------- Logout revocation at sub-second precision (#336 review) ----------
 
     // The logout instant is recorded with full sub-second ticks, but a JWT's

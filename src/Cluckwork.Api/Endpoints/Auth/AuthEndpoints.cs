@@ -59,9 +59,17 @@ public static class AuthEndpoints
 
         // Anonymous + cookie-authenticated (like refresh): logout is proven by the
         // HttpOnly refresh cookie plus the CSRF header, so it works even with an
-        // expired access token and needs no Idempotency-Key (an authenticated
-        // logout would resolve a tenant and the idempotency middleware would then
-        // demand one). It must always be able to destroy the session (#145 review).
+        // expired access token. It must always be able to destroy the session
+        // (#145 review).
+        //
+        // #336 review — the SPA now ALSO sends its bearer when it still has one,
+        // so the handler can revoke the access-token user's step-up grants and
+        // not just the cookie owner's (see Logout). AllowAnonymous is what keeps
+        // that additive: a missing or expired bearer simply leaves the caller
+        // unauthenticated instead of failing the request. An authenticated
+        // logout does resolve a tenant, which would normally make
+        // IdempotencyMiddleware demand an Idempotency-Key — /auth/logout is
+        // exempted there precisely so this stays a header-free call.
         group.MapPost("/logout", Logout)
             .AllowAnonymous()
             .WithName("Logout")
@@ -241,9 +249,40 @@ public static class AuthEndpoints
         return Results.Ok(new StepUpResponse(result.Value.Token, result.Value.ExpiresAt));
     }
 
+    // #336 review — logout revokes along TWO independent axes, because the two
+    // credentials a logout can present do not necessarily name the same user:
+    //
+    //   - the refresh COOKIE is per-origin. A browser holds exactly one, and the
+    //     most recent login owns it.
+    //   - the ACCESS TOKEN is per-tab: web/src/auth/tokenStore.ts keeps it in
+    //     that tab's module memory, so a tab logged in as A survives a later
+    //     login as B in another tab.
+    //
+    // So user A clicking logout in their tab can present B's cookie. Deriving
+    // the grant owner from the cookie alone recorded the logout against B and
+    // left A's outstanding step-up grant usable with A's still-valid (stolen)
+    // access token — after A had explicitly logged out, which is exactly the
+    // person StepUpGrantService's logout guarantee exists for. The same gap
+    // opened whenever the cookie was simply missing or expired.
+    //
+    // Hence both, each guarded on its own presence and neither depending on the
+    // other:
+    //   - cookie present  -> revoke that refresh token AND record its owner's
+    //                        logout (the session actually being ended).
+    //   - caller authenticated -> record the bearer subject's logout, so their
+    //                        grants die even when the cookie names someone else,
+    //                        or is absent/expired entirely.
+    // Same user via both paths is idempotent — the registry keeps the latest
+    // instant per user, so it is recorded once, not twice.
+    //
+    // Still ANONYMOUS-capable: the bearer is optional, so a logout with an
+    // expired access token keeps working off the cookie alone (#145). The CSRF
+    // header stays mandatory either way. /auth/logout is exempt from
+    // IdempotencyMiddleware, so the now-possible authenticated call does not
+    // start demanding an Idempotency-Key.
     private static async Task<IResult> Logout(
         HttpRequest request, HttpResponse response, IIdentityProvider identity,
-        IWebHostEnvironment env, CancellationToken ct)
+        ICurrentUser currentUser, IWebHostEnvironment env, CancellationToken ct)
     {
         if (!AuthCookies.HasCsrfHeader(request))
             return Results.Problem("Missing required header.", statusCode: 403, title: "Auth.CsrfHeaderRequired");
@@ -251,6 +290,8 @@ public static class AuthEndpoints
         var refreshToken = AuthCookies.ReadRefreshCookie(request);
         if (refreshToken is not null)
             await identity.RevokeRefreshTokenAsync(refreshToken, ct);
+        if (currentUser.IsResolved)
+            await identity.RecordLogoutAsync(currentUser.UserId, ct);
         AuthCookies.ClearRefreshCookie(response, CookieSecure(env));
         return Results.NoContent();
     }

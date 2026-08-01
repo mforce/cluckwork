@@ -449,6 +449,21 @@ public sealed class IdentityProvider(
             stepUpGrants.RecordLogout(tokenRow.UserId, now);
     }
 
+    // #336 review — the access-token half of logout revocation. The cookie owner
+    // above and the caller's authenticated identity can be DIFFERENT users (see
+    // IIdentityProvider.RecordLogoutAsync), so the cookie alone cannot identify
+    // who logged out. Records the instant only; refresh tokens are untouched.
+    //
+    // Uses the same injected TimeProvider as the cookie path, so a single logout
+    // that records both users stamps them with one consistent instant. The
+    // registry keeps the LATEST recorded instant per user, so a same-user logout
+    // that reaches both paths is idempotent rather than double-counted.
+    public Task RecordLogoutAsync(Guid userId, CancellationToken ct = default)
+    {
+        stepUpGrants.RecordLogout(userId, timeProvider.GetUtcNow());
+        return Task.CompletedTask;
+    }
+
     private RefreshToken NewToken(ApplicationUser user, string tokenHash)
     {
         var now = timeProvider.GetUtcNow();

@@ -12,6 +12,20 @@ public interface IIdentityProvider
 
     Task RevokeRefreshTokenAsync(string refreshToken, CancellationToken ct = default);
 
+    // #308/#336 review — record that THIS user logged out, independently of any
+    // refresh token. RevokeRefreshTokenAsync already records a logout for the
+    // cookie's owner, but the cookie and the caller's access token can name
+    // DIFFERENT users: the refresh cookie is per-origin (one per browser, last
+    // login wins) while the SPA keeps each access token in its own tab's memory.
+    // So the user who actually clicked logout is the bearer's subject, and only
+    // this call reaches them — see AuthEndpoints.Logout.
+    //
+    // Deliberately narrower than RevokeRefreshTokenAsync: it invalidates the
+    // user's outstanding step-up grants WITHOUT revoking their refresh tokens.
+    // Ending one tab's session must not sign the user out of every other device,
+    // which revoking the whole token family would do.
+    Task RecordLogoutAsync(Guid userId, CancellationToken ct = default);
+
     // #103 — role is one of Roles.Assignable, or null for a plain worker
     // (workers deliberately carry no role row). #163 — name is the optional
     // display name (null = none).

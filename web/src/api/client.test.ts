@@ -569,7 +569,8 @@ describe("auth endpoints", () => {
     expect(new Headers(init.headers).get("Authorization")).toBeNull(); // login is unauthenticated
   });
 
-  it("logout revokes cookie-authenticated (CSRF header, NO bearer, no body), then clears the token", async () => {
+  it("logout revokes cookie-authenticated (CSRF header, no body), then clears the token", async () => {
+    setAccessToken("at-logout");
     fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
     await logout();
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -578,10 +579,37 @@ describe("auth endpoints", () => {
     expect(init.method).toBe("POST");
     expect(init.body).toBeUndefined(); // refresh token is in the cookie, not the body
     expect(headerOf(fetchMock.mock.calls[0] as Call, CSRF)).toBe("1");
-    // No bearer: logout authenticates by the cookie so it works even with an
-    // expired access token and needs no Idempotency-Key (#145 review).
-    expect(authOf(fetchMock.mock.calls[0] as Call)).toBeNull();
     expect(getAccessToken()).toBeNull();
+  });
+
+  // #336 — the refresh cookie is per-ORIGIN (one per browser, last login wins)
+  // while this token store is per-TAB, so the cookie can belong to a DIFFERENT
+  // user than the one logging out. The bearer is what tells the server who
+  // actually clicked logout, so their step-up grants are the ones revoked;
+  // without it the server revokes the cookie owner's and leaves this user's
+  // alive. It must be read BEFORE the synchronous clear, or it is always null.
+  it("logout sends this tab's bearer, captured before the token is cleared", async () => {
+    const token = `tok-${crypto.randomUUID()}`;
+    setAccessToken(token);
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+    await logout();
+
+    expect(authOf(fetchMock.mock.calls[0] as Call)).toBe(`Bearer ${token}`);
+    expect(getAccessToken()).toBeNull();
+  });
+
+  // …but it stays OPTIONAL. The endpoint is AllowAnonymous, so a tab with no
+  // token (or an expired one already dropped) must still fire the request and
+  // end the session off the cookie alone — never send "Bearer null".
+  it("logout omits the bearer entirely when this tab holds no access token", async () => {
+    clearAccessToken();
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+    await logout();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(authOf(fetchMock.mock.calls[0] as Call)).toBeNull();
   });
 
   it("logout clears the local token even when the server revoke fails", async () => {
