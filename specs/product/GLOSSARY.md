@@ -595,7 +595,8 @@ text. Scheduled backups belong to Phase 1.5 (spec §17.5).
 drill-down panel's actions (record a purchase, feed usage, a stock
 correction, a bird movement, a customer payment) work the same way. The list
 never shifts to make room for a form, and closing — **Cancel**, Escape, or a
-click outside — leaves the data untouched. What a dialog submits is exactly
+click outside — records nothing and discards what was typed: reopening starts
+from a clean form, never a half-finished one (#314). What a dialog submits is exactly
 what the old inline form submitted: same fields, same validation, same
 idempotency and version guards. Screens whose whole job is capture keep their
 form on the page: **Daily entry**, **Water**, recording an expense, and

@@ -193,6 +193,20 @@ export function UsersPage() {
     });
   }
 
+  // #314 — close the create dialog from any path (Cancel, X, Escape, overlay).
+  // Don't leave the typed plaintext password sitting in component state after
+  // the dialog is gone (same pattern as closePassword's #165 fix). Role resets
+  // too: a stale "Admin" from an abandoned attempt would otherwise still be
+  // selected on reopen, so an operator who thinks they're starting fresh can
+  // grant admin by accident. Matches the full reset onCreate does on success.
+  function closeCreate() {
+    setCreating(false);
+    setEmail("");
+    setPassword("");
+    setRole("Worker");
+    setName("");
+  }
+
   // #163 — open the edit dialog seeded with the user's current name.
   function openEdit(u: User) {
     setError(null);
@@ -293,7 +307,7 @@ export function UsersPage() {
         {t("roleDescription")}
       </p>
 
-      <Dialog open={creating} title={t("newUserButton")} onClose={() => setCreating(false)}>
+      <Dialog open={creating} title={t("newUserButton")} onClose={closeCreate}>
         <form className="inline-form" onSubmit={onCreate}>
           <label>{t("emailFieldLabel")}
             <input type="email" value={email} required maxLength={256}
@@ -320,7 +334,7 @@ export function UsersPage() {
           </label>
           {error && <p className="error">{error}</p>}
           <div className="dialog-foot">
-            <button type="button" className="link" onClick={() => setCreating(false)}>{tc("cancel")}</button>
+            <button type="button" className="link" onClick={closeCreate}>{tc("cancel")}</button>
             <BusyButton type="submit" disabled={busy} busy={isPending("create")}>{t("createUserButton")}</BusyButton>
           </div>
         </form>

@@ -1918,9 +1918,10 @@ export const en = {
       + "payment</strong>, or a worker's <strong>flocks</strong> to manage their access — the ledger stays "
       + "where it is and the form comes to you.",
     dialogsCancel:
-      "<strong>Cancel</strong>, Escape, or a click outside closes the popup and changes nothing. If a save "
-      + "fails, the popup stays open with your values and the reason, so you can fix it and try again — "
-      + "retrying is safe, it never records the same thing twice.",
+      "<strong>Cancel</strong>, Escape, or a click outside closes the popup, records nothing, and clears "
+      + "what you typed — reopen it and you start from a blank form. If a save fails, the popup stays open "
+      + "with your values and the reason, so you can fix it and try again — retrying is safe, it never "
+      + "records the same thing twice.",
     dialogsInlineForms:
       "The screens whose whole job is capture keep their form on the page: <strong>Daily entry</strong>, "
       + "<strong>Water</strong>, recording an expense, and adding lines to a draft order. Those you use every "

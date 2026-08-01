@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, within, fireEvent, act } from "@testing-library/react";
 import { UsersPage } from "./UsersPage";
@@ -348,6 +349,116 @@ describe("UsersPage dialog dismissal", () => {
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(mockCreateUser).not.toHaveBeenCalled();
+  });
+
+  // #314 — the typed plaintext password used to survive every close path
+  // except a successful submit, and reappear when the dialog was reopened.
+  const passwordInput = () => within(dialog()).getByLabelText(/Password/);
+  // Runtime-generated so no literal secret lands in source (GitGuardian).
+  const typeCreatePassword = () => {
+    fireEvent.change(within(dialog()).getByLabelText("Email *"), { target: { value: "leaky@farm.test" } });
+    fireEvent.change(passwordInput(), { target: { value: `pw-${crypto.randomUUID()}` } });
+  };
+
+  it("clears the typed password on Cancel, so reopening the dialog shows it empty (#314)", async () => {
+    await renderReady(ADMIN);
+    openCreate();
+    typeCreatePassword();
+
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+
+    openCreate();
+    expect(passwordInput()).toHaveValue("");
+  });
+
+  // #314 review — password wasn't the only state that leaked across a close.
+  // An abandoned "Admin" selection stayed selected on reopen, so an operator
+  // who believed they were starting a fresh entry could grant admin by
+  // accident. The whole form resets, not just the credential field.
+  it("resets an abandoned Admin role selection, so reopening never pre-grants admin (#314)", async () => {
+    await renderReady(ADMIN);
+    openCreate();
+    typeCreatePassword();
+    fireEvent.change(within(dialog()).getByLabelText(/Role/), { target: { value: "Admin" } });
+
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+
+    openCreate();
+    expect(within(dialog()).getByLabelText(/Role/)).toHaveValue("Worker");
+    expect(within(dialog()).getByLabelText("Email *")).toHaveValue("");
+  });
+
+  it("clears the typed password on the close (X) button, so reopening the dialog shows it empty (#314)", async () => {
+    await renderReady(ADMIN);
+    openCreate();
+    typeCreatePassword();
+
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Close" }));
+
+    openCreate();
+    expect(passwordInput()).toHaveValue("");
+  });
+
+  it("clears the typed password on Escape, so reopening the dialog shows it empty (#314)", async () => {
+    await renderReady(ADMIN);
+    openCreate();
+    typeCreatePassword();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    openCreate();
+    expect(passwordInput()).toHaveValue("");
+  });
+
+  it("clears the typed password on a backdrop click, so reopening the dialog shows it empty (#314)", async () => {
+    await renderReady(ADMIN);
+    openCreate();
+    typeCreatePassword();
+
+    fireEvent.click(document.querySelector(".dialog-backdrop")!);
+
+    openCreate();
+    expect(passwordInput()).toHaveValue("");
+  });
+
+  it("clears the typed password once creation succeeds, before/as the dialog unmounts (#314)", async () => {
+    mockCreateUser.mockResolvedValue({ id: "u-new" });
+    await renderReady(ADMIN);
+    openCreate();
+    typeCreatePassword();
+
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Create user" }));
+    });
+
+    openCreate();
+    expect(passwordInput()).toHaveValue("");
+  });
+
+  it("clears the typed password if the Users route unmounts while the dialog is open, so a fresh mount never shows it (#314)", async () => {
+    // Stands in for a route change: toggling this flag mounts/unmounts a
+    // real UsersPage instance, the same lifecycle react-router drives when
+    // navigating away from and back to /users.
+    function ToggleHarness() {
+      const [show, setShow] = useState(true);
+      return (
+        <>
+          <button onClick={() => setShow((s) => !s)}>toggle users page</button>
+          {show && <UsersPage />}
+        </>
+      );
+    }
+    renderWithProviders(<ToggleHarness />, { token: ADMIN });
+    await screen.findByText("worker@farm.test");
+    openCreate();
+    typeCreatePassword();
+
+    fireEvent.click(screen.getByRole("button", { name: "toggle users page" })); // unmount
+    fireEvent.click(screen.getByRole("button", { name: "toggle users page" })); // remount
+    await screen.findByText("worker@farm.test");
+
+    openCreate();
+    expect(passwordInput()).toHaveValue("");
   });
 });
 
