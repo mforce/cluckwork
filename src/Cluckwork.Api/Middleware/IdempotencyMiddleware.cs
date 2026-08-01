@@ -210,9 +210,7 @@ public sealed class IdempotencyMiddleware(RequestDelegate next, IOptions<Idempot
                     // committed its side effects — otherwise a retry with the
                     // same key could execute the operation again.
                     await transaction.CommitAsync(CancellationToken.None);
-                    context.Response.StatusCode = statusCode;
-                    if (!string.IsNullOrWhiteSpace(contentType)) context.Response.ContentType = contentType;
-                    await context.Response.WriteAsync(body, context.RequestAborted);
+                    await EmitAsync(context, statusCode, contentType, body);
                     return;
                 }
 
@@ -243,9 +241,7 @@ public sealed class IdempotencyMiddleware(RequestDelegate next, IOptions<Idempot
             // same key does not have to wait out the lease.
             await transaction.RollbackAsync(CancellationToken.None);
             await ReleaseClaimAsync(db, accountId, endpointHash, keyHash, ownerToken, CancellationToken.None);
-            context.Response.StatusCode = statusCode;
-            if (!string.IsNullOrWhiteSpace(contentType)) context.Response.ContentType = contentType;
-            await context.Response.WriteAsync(body, context.RequestAborted);
+            await EmitAsync(context, statusCode, contentType, body);
         }
         catch
         {
@@ -379,13 +375,47 @@ public sealed class IdempotencyMiddleware(RequestDelegate next, IOptions<Idempot
         }
     }
 
-    private static async Task ReplayAsync(HttpContext context, IdempotencyRecord record)
+    private static Task ReplayAsync(HttpContext context, IdempotencyRecord record) =>
+        EmitAsync(
+            context,
+            record.StatusCode ?? StatusCodes.Status200OK,
+            record.ContentType,
+            record.ResponseBody ?? string.Empty);
+
+    // #340 — the single place this middleware puts a buffered or replayed
+    // response back on the wire. It exists because there are THREE of them
+    // (publish, non-2xx echo, replay) and they must not drift: each one has to
+    // respect the statuses that carry no message body.
+    //
+    // Kestrel enforces that rule on ANY write once the status is set, and
+    // HttpResponseWritingExtensions.WriteAsync("") is still a write — it calls
+    // BodyWriter.GetSpan(...) then Advance(0), and HttpProtocol.Advance throws
+    // "Writing to the response body is invalid for responses with status code
+    // 204." So an empty echo is not a harmless no-op; before #307 the echo was
+    // buffer.CopyToAsync(originalBody), which really did write nothing for an
+    // empty buffer, and that is the only reason this never surfaced earlier.
+    //
+    // The failure is also invisible from the client side: WriteAsync starts the
+    // response before it writes, so the 204 and its headers are already on the
+    // wire when Advance throws — the caller sees a valid 204 while the server
+    // logs an unhandled exception and the connection dies. Assert on the
+    // server-side completion log, not the status code (see
+    // KestrelResponseWriteTests).
+    private static async Task EmitAsync(
+        HttpContext context, int statusCode, string? contentType, string body)
     {
-        context.Response.StatusCode = record.StatusCode ?? StatusCodes.Status200OK;
-        if (!string.IsNullOrWhiteSpace(record.ContentType))
-            context.Response.ContentType = record.ContentType;
-        await context.Response.WriteAsync(record.ResponseBody ?? string.Empty, context.RequestAborted);
+        context.Response.StatusCode = statusCode;
+        if (!CanHaveBody(statusCode)) return;
+        if (!string.IsNullOrWhiteSpace(contentType)) context.Response.ContentType = contentType;
+        await context.Response.WriteAsync(body, context.RequestAborted);
     }
+
+    // RFC 9110 §15.3.5 / §15.3.6 / §15.4.5 — 204, 205 and 304 responses never
+    // carry a message body.
+    private static bool CanHaveBody(int statusCode) => statusCode
+        is not StatusCodes.Status204NoContent
+        and not StatusCodes.Status205ResetContent
+        and not StatusCodes.Status304NotModified;
 
     private static async Task WriteProblemAsync(HttpContext context, int status, string type, string title)
     {

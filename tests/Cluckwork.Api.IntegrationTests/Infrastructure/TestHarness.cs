@@ -259,14 +259,23 @@ internal static class TestHarness
     // Cookies are managed explicitly in these tests (login reads the Set-Cookie,
     // refresh/logout send it back by hand), so the client must NOT keep its own
     // jar — otherwise an explicit Cookie header collides with the container.
-    private static readonly WebApplicationFactoryClientOptions Cookieless = new() { HandleCookies = false };
+    //
+    // The BaseAddress must be copied off the factory rather than left at the
+    // WebApplicationFactoryClientOptions default: only the PARAMETERLESS
+    // CreateClient() rewrites the base address to the bound Kestrel port under
+    // UseKestrel(0), so a client built from an options object would otherwise
+    // point at http://localhost/ and reach nothing. Under the in-memory
+    // TestServer (every other suite) the factory's ClientOptions.BaseAddress is
+    // that same default, so this changes nothing there.
+    private static WebApplicationFactoryClientOptions Cookieless(CluckworkWebApplicationFactory factory) =>
+        new() { HandleCookies = false, BaseAddress = factory.ClientOptions.BaseAddress };
 
     // Logs in over HTTP; the access token comes from the body and the refresh
     // token from the HttpOnly Set-Cookie (#145).
     public static async Task<TokenPairDto> LoginAsync(
         this CluckworkWebApplicationFactory factory, string email)
     {
-        var client = factory.CreateClient(Cookieless);
+        var client = factory.CreateClient(Cookieless(factory));
         var response = await client.PostAsJsonAsync(
             "/api/v1/auth/login", new { email, password = Password });
         response.EnsureSuccessStatusCode();
@@ -280,7 +289,7 @@ internal static class TestHarness
     public static HttpClient CreateAuthedClient(
         this CluckworkWebApplicationFactory factory, string accessToken)
     {
-        var client = factory.CreateClient(Cookieless);
+        var client = factory.CreateClient(Cookieless(factory));
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
         return client;
     }
@@ -356,7 +365,7 @@ internal static class TestHarness
     // test can assert both that a new password works and that the old one 401s.
     public static Task<HttpResponseMessage> TryLoginAsync(
         this CluckworkWebApplicationFactory factory, string email, string password) =>
-        factory.CreateClient(Cookieless).PostAsJsonAsync(
+        factory.CreateClient(Cookieless(factory)).PostAsJsonAsync(
             "/api/v1/auth/login", new { email, password });
 
     // --- Row-lock observation (#162, #313) ---
