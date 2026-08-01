@@ -40,7 +40,7 @@ if (args is [HealthCheckCliCommand.Verb, ..])
 
 var builder = WebApplication.CreateBuilder(args);
 
-var telemetry = builder.Services.AddCluckworkTelemetry(builder.Configuration);
+var telemetry = builder.Services.AddCluckworkTelemetry(builder.Configuration, builder.Environment);
 
 var persistence = builder.Services.AddCluckworkPersistence(
     builder.Configuration,

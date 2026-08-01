@@ -11,7 +11,8 @@ internal static class CluckworkTelemetryServiceCollectionExtensions
 {
     public static CluckworkTelemetryRegistration AddCluckworkTelemetry(
         this IServiceCollection services,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        IHostEnvironment environment)
     {
         // ReadFrom.Services lets DI-registered enrichers/sinks join the pipeline —
         // the integration tests tap the logger this way (#214).
@@ -37,8 +38,9 @@ internal static class CluckworkTelemetryServiceCollectionExtensions
         var otlp = configuration.GetSection(OtlpOptions.SectionName).Get<OtlpOptions>()
             ?? new OtlpOptions();
         var protocol = otlp.ParseProtocol();
-        var traceEndpoint = otlp.Enabled ? otlp.ResolveTraceEndpoint() : null;
-        var metricsEndpoint = otlp.Enabled ? otlp.ResolveMetricsEndpoint() : null;
+        var isProduction = environment.IsProduction();
+        var traceEndpoint = otlp.Enabled ? otlp.ResolveTraceEndpoint(isProduction) : null;
+        var metricsEndpoint = otlp.Enabled ? otlp.ResolveMetricsEndpoint(isProduction) : null;
 
         Action<OtlpExporterOptions> ConfigureOtlpExporter(Uri endpoint) => options =>
         {

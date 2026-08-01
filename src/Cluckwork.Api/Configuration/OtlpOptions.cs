@@ -6,6 +6,17 @@ using OpenTelemetry.Exporter;
 // eagerly at boot (repo convention): a malformed protocol or endpoint fails
 // startup with a pointed message — never silently, never on the first export.
 // Endpoint unset = export disabled (the pre-#214 behavior).
+//
+// #316 — plaintext HTTP exposes telemetry and Otlp:Headers credentials in
+// transit, and a URI carrying userinfo/query/fragment can leak vendor
+// credentials or tenant identifiers into console logs or the exception
+// message itself. So: userinfo/query/fragment are rejected in EVERY
+// environment (never echoed back in a message — they might carry a secret),
+// and Production additionally requires https. The one documented escape
+// hatch, Otlp:AllowInsecureLoopback, is deliberately narrow: even set, it
+// only permits plaintext to a loopback host, never a remote collector — the
+// same allow-list-not-deny-list, explicit-named-opt-out shape as the
+// Postgres TLS floor (#261/#262).
 public sealed class OtlpOptions
 {
     public const string SectionName = "Otlp";
@@ -13,6 +24,7 @@ public sealed class OtlpOptions
     public string? Endpoint { get; init; }
     public string? Protocol { get; init; }
     public string? Headers { get; init; }
+    public bool AllowInsecureLoopback { get; init; }
 
     public bool Enabled => !string.IsNullOrWhiteSpace(Endpoint);
 
@@ -27,19 +39,53 @@ public sealed class OtlpOptions
     // The exporter posts to an explicit Endpoint AS-IS — the OTLP spec's
     // per-signal append only happens on the OTEL_* env-var route — so for
     // http/protobuf the signal path is appended here unless already present.
-    public Uri ResolveTraceEndpoint() => ResolveSignalEndpoint("/v1/traces");
+    // isProduction defaults to false so the pure endpoint-shape/append tests
+    // (OtlpEndpointResolutionTests) don't need to thread an environment
+    // through every call; the real boot path (AddCluckworkTelemetry) always
+    // passes it explicitly.
+    public Uri ResolveTraceEndpoint(bool isProduction = false) =>
+        ResolveSignalEndpoint("/v1/traces", isProduction);
 
     // #215 — metrics ride the same base endpoint, own signal path.
-    public Uri ResolveMetricsEndpoint() => ResolveSignalEndpoint("/v1/metrics");
+    public Uri ResolveMetricsEndpoint(bool isProduction = false) =>
+        ResolveSignalEndpoint("/v1/metrics", isProduction);
 
     private static readonly string[] SignalPaths = ["/v1/traces", "/v1/metrics"];
 
-    private Uri ResolveSignalEndpoint(string signalPath)
+    private Uri ResolveSignalEndpoint(string signalPath, bool isProduction)
     {
         if (!Uri.TryCreate(Endpoint, UriKind.Absolute, out var uri)
             || uri.Scheme is not ("http" or "https"))
             throw new InvalidOperationException(
-                $"Otlp:Endpoint must be an absolute http(s) URI, got '{Endpoint}'.");
+                "Otlp:Endpoint must be an absolute http(s) URI.");
+
+        // #316 — never echo the raw Endpoint value in these three messages: a
+        // rejected URI is, by definition, one that might be carrying a secret
+        // (userinfo credential, a vendor query param) in exactly the
+        // component being rejected.
+        if (!string.IsNullOrEmpty(uri.UserInfo))
+            throw new InvalidOperationException(
+                "Otlp:Endpoint must not include userinfo (a username/password in the URI). "
+                + "Put vendor credentials in Otlp:Headers instead.");
+
+        if (!string.IsNullOrEmpty(uri.Query))
+            throw new InvalidOperationException(
+                "Otlp:Endpoint must not include a query string — it can leak tenant/vendor "
+                + "parameters into logs and the exported telemetry. Put vendor credentials in "
+                + "Otlp:Headers and keep the endpoint a bare base URL.");
+
+        if (!string.IsNullOrEmpty(uri.Fragment))
+            throw new InvalidOperationException(
+                "Otlp:Endpoint must not include a fragment.");
+
+        if (isProduction && uri.Scheme != Uri.UriSchemeHttps
+            && !(AllowInsecureLoopback && uri.IsLoopback))
+            throw new InvalidOperationException(
+                "Production OTLP export requires an https Otlp:Endpoint: plaintext HTTP exposes "
+                + "telemetry and Otlp:Headers credentials in transit. For a local loopback "
+                + "collector during development, set Otlp:AllowInsecureLoopback=true — it only "
+                + "permits plaintext to a loopback host (127.0.0.1/::1/localhost), never a "
+                + "remote endpoint.");
 
         if (ParseProtocol() is not OtlpExportProtocol.HttpProtobuf)
             return uri;
