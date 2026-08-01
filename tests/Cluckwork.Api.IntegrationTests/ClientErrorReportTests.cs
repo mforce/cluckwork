@@ -196,6 +196,41 @@ public sealed class ClientErrorReportTests(ClientErrorReportFactory factory)
         Assert.Contains("line one\nline two", ScalarOf(logged, "Stack"));
     }
 
+    // #273 — the concrete leak the issue was filed against: this endpoint's
+    // whole point is writing CALLER-CONTROLLED free text to the log
+    // (Message/Stack), and until now nothing scrubbed it. Values are
+    // generated at runtime, never hardcoded (a literal secret in a test file
+    // is exactly what GitGuardian flags, hardcoded or not).
+    [Fact]
+    public async Task Report_content_containing_an_email_and_connection_credentials_is_redacted_before_it_reaches_the_log()
+    {
+        var client = ClientFrom("203.0.113.120");
+        var marker = $"crash-{Guid.NewGuid():N}";
+        var fakeEmail = $"{Guid.NewGuid():N}@example.test";
+        var fakeSecret = Guid.NewGuid().ToString("N");
+
+        var response = await client.PostAsJsonAsync(Path, new
+        {
+            message = $"{marker} reported by {fakeEmail} conn=\"Host=db;Password={fakeSecret};\"",
+            stack = $"Error handling request for {fakeEmail}",
+            scope = "screen"
+        });
+
+        Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
+        var logged = Assert.Single(ReportEvents(),
+            e => ScalarOf(e, "Message")?.Contains(marker) == true);
+
+        var loggedMessage = ScalarOf(logged, "Message")!;
+        var loggedStack = ScalarOf(logged, "Stack")!;
+        Assert.DoesNotContain(fakeEmail, loggedMessage);
+        Assert.DoesNotContain(fakeSecret, loggedMessage);
+        Assert.DoesNotContain(fakeEmail, loggedStack);
+        Assert.Contains("[REDACTED]", loggedMessage);
+        Assert.Contains("[REDACTED]", loggedStack);
+        // The non-PII marker survives — this is REDACTION, not truncation.
+        Assert.Contains(marker, loggedMessage);
+    }
+
     [Fact]
     public async Task Missing_message_field_is_rejected_with_400()
     {

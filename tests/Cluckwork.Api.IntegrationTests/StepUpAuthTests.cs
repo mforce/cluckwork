@@ -626,7 +626,9 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
             services.GetRequiredService<IOptions<JwtOptions>>(),
             timeProvider,
             services.GetRequiredService<IAuditWriter>(),
-            registry);
+            registry,
+            services.GetRequiredService<Microsoft.AspNetCore.Http.IHttpContextAccessor>(),
+            services.GetRequiredService<Microsoft.Extensions.Logging.ILogger<IdentityProvider>>());
 
         var beforeRevoke = timeProvider.GetUtcNow();
 

@@ -1,0 +1,251 @@
+namespace Cluckwork.Api.IntegrationTests;
+
+using System.Collections.Concurrent;
+using System.Data.Common;
+using System.Net;
+using Cluckwork.Api.IntegrationTests.Infrastructure;
+using Cluckwork.Application.Common;
+using Cluckwork.Infrastructure.Identity;
+using Cluckwork.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Serilog.Core;
+using Serilog.Events;
+
+// #273 — the five stable structured security events the amendment to #273
+// requires: failed login, account lockout, refresh-token replay detection,
+// refresh revocation failure, and (in AuthRateLimitLoggingTests.cs) auth
+// rate-limit rejection. Same CollectingSink tap RequestLoggingTests uses
+// (#214), own factory/collection so this class's assertions never see another
+// suite's traffic.
+public sealed class SecurityEventLoggingFactory : CluckworkWebApplicationFactory
+{
+    public CollectingSink Sink { get; } = new();
+
+    // #176 grace would otherwise let an immediate re-presentation of a just-
+    // rotated token through as a benign retry instead of a genuine replay —
+    // disabled so ReplayDetected/RevocationFailed tests are deterministic
+    // without a real time delay.
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        base.ConfigureWebHost(builder);
+        builder.UseSetting("Jwt:RefreshReuseGraceSeconds", "0");
+        builder.ConfigureTestServices(services =>
+            services.AddSingleton<ILogEventSink>(Sink));
+    }
+
+    public sealed class CollectingSink : ILogEventSink
+    {
+        public ConcurrentQueue<LogEvent> Events { get; } = new();
+        public void Emit(LogEvent logEvent) => Events.Enqueue(logEvent);
+    }
+}
+
+[Collection(SecurityEventLoggingCollection.Name)]
+public sealed class SecurityEventLoggingTests(SecurityEventLoggingFactory factory)
+{
+    private const int LockoutMaxFailedAttempts = 5; // CluckworkIdentityServiceCollectionExtensions: options.Lockout.MaxFailedAccessAttempts
+
+    private static string? ScalarOf(LogEvent e, string name) =>
+        e.Properties.TryGetValue(name, out var value) && value is ScalarValue scalar
+            ? scalar.Value?.ToString()
+            : null;
+
+    private IReadOnlyList<LogEvent> EventsFor(string securityEvent) =>
+        [.. factory.Sink.Events.Where(e => ScalarOf(e, "SecurityEvent") == securityEvent)];
+
+    private async Task<string> SeedUserAsync()
+    {
+        var email = $"secevt-{Guid.NewGuid():N}@test.local";
+        await factory.SeedAccountWithUserAsync(email);
+        return email;
+    }
+
+    // ---------- Auth.LoginFailed — must not be an identity-existence oracle ----------
+
+    [Fact]
+    public async Task Failed_login_for_unknown_user_and_wrong_password_emit_the_identical_LoginFailed_shape()
+    {
+        factory.Sink.Events.Clear();
+        var email = await SeedUserAsync();
+        var client = factory.CreateClient();
+
+        var unknownEmail = $"nobody-{Guid.NewGuid():N}@test.local";
+        var unknown = await client.PostAsJsonAsync(
+            "/api/v1/auth/login", new { email = unknownEmail, password = "WrongPassw0rd!x" });
+        var wrongPassword = await client.PostAsJsonAsync(
+            "/api/v1/auth/login", new { email, password = "WrongPassw0rd!x" });
+
+        Assert.Equal(HttpStatusCode.Unauthorized, unknown.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, wrongPassword.StatusCode);
+
+        var events = EventsFor(SecurityEvents.LoginFailed);
+        Assert.Equal(2, events.Count);
+        foreach (var e in events)
+        {
+            // No user id, no email, on EITHER branch — the log must not carry a
+            // signal the HTTP response (identical 401 on both) doesn't already
+            // carry. The property set is exactly {SecurityEvent, ClientIp} plus
+            // whatever Serilog/the request pipeline always attaches (TraceId etc).
+            Assert.False(e.Properties.ContainsKey("UserId"));
+            Assert.False(e.Properties.ContainsKey("Email"));
+            Assert.NotNull(ScalarOf(e, "ClientIp"));
+        }
+        // Same property KEYS on both — no branch-specific field leaks through.
+        var unknownKeys = events[0].Properties.Keys.OrderBy(k => k);
+        var wrongKeys = events[1].Properties.Keys.OrderBy(k => k);
+        Assert.Equal(unknownKeys, wrongKeys);
+    }
+
+    // ---------- Auth.AccountLockedOut — fires once, at the threshold crossing ----------
+
+    [Fact]
+    public async Task Login_attempts_crossing_the_lockout_threshold_emit_AccountLockedOut_exactly_once()
+    {
+        factory.Sink.Events.Clear();
+        var email = await SeedUserAsync();
+        var client = factory.CreateClient();
+
+        using var scope = factory.Services.CreateScope();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var userId = (await users.FindByEmailAsync(email))!.Id;
+
+        for (var i = 0; i < LockoutMaxFailedAttempts; i++)
+            await client.PostAsJsonAsync("/api/v1/auth/login", new { email, password = "WrongPassw0rd!x" });
+
+        var lockedOutEvents = EventsFor(SecurityEvents.AccountLockedOut);
+        var loginFailedEvents = EventsFor(SecurityEvents.LoginFailed);
+
+        var locked = Assert.Single(lockedOutEvents);
+        Assert.Equal(userId.ToString(), ScalarOf(locked, "UserId"));
+        // Every attempt (including the one that also locked the account) is a
+        // LoginFailed; only the last one ALSO gets AccountLockedOut.
+        Assert.Equal(LockoutMaxFailedAttempts, loginFailedEvents.Count);
+    }
+
+    // ---------- Auth.RefreshTokenReplayDetected ----------
+
+    [Fact]
+    public async Task Reuse_of_an_already_rotated_refresh_token_emits_ReplayDetected_exactly_once()
+    {
+        factory.Sink.Events.Clear();
+        var email = await SeedUserAsync();
+
+        using var scope = factory.Services.CreateScope();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var userId = (await users.FindByEmailAsync(email))!.Id;
+
+        var tokens = await factory.LoginAsync(email);
+        var client = factory.CreateClient(new() { HandleCookies = false });
+
+        // Rotate once — token A is now revoked, replaced by B. Grace is disabled
+        // on this factory, so presenting A again below is unambiguously a replay.
+        var rotated = await client.PostRefreshAsync(tokens.RefreshToken);
+        rotated.EnsureSuccessStatusCode();
+
+        var replay = await client.PostRefreshAsync(tokens.RefreshToken);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, replay.StatusCode);
+        var replayEvents = EventsFor(SecurityEvents.RefreshTokenReplayDetected);
+        var replayEvent = Assert.Single(replayEvents);
+        Assert.Equal(userId.ToString(), ScalarOf(replayEvent, "UserId"));
+        // No revocation-failure event: the (real, unfaulted) revoke succeeded.
+        Assert.Empty(EventsFor(SecurityEvents.RefreshRevocationFailed));
+    }
+
+    // ---------- Auth.RefreshRevocationFailed ----------
+
+    // Fault-injects the bulk UPDATE that revokes a token family so the "safety
+    // action itself failed" path is genuinely exercised, not just asserted by
+    // reading the source. Same technique StepUpAuthTests.
+    // RevokeRefreshTokenAsync_WhenTheBulkUpdateThrows_StillRecordsTheOwnersLogout
+    // already proved works against this host — including the hard-won detail
+    // that RefreshToken maps to the snake_cased "refresh_tokens" table, not the
+    // CLR type name, which silently no-ops a naive match.
+    private sealed class ThrowingRefreshTokenUpdateInterceptor : DbCommandInterceptor
+    {
+        public volatile bool Armed;
+
+        private void MaybeFail(DbCommand command)
+        {
+            if (Armed
+                && command.CommandText.Contains("UPDATE", StringComparison.OrdinalIgnoreCase)
+                && command.CommandText.Contains("refresh_tokens", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Simulated refresh-token revoke failure (test fault injection).");
+        }
+
+        public override ValueTask<InterceptionResult<int>> NonQueryExecutingAsync(
+            DbCommand command, CommandEventData eventData, InterceptionResult<int> result,
+            CancellationToken cancellationToken = default)
+        {
+            MaybeFail(command);
+            return base.NonQueryExecutingAsync(command, eventData, result, cancellationToken);
+        }
+    }
+
+    [Fact]
+    public async Task Refresh_replay_whose_revoke_throws_emits_RevocationFailed_and_still_fails_the_call()
+    {
+        factory.Sink.Events.Clear();
+        var email = await SeedUserAsync();
+
+        using var scope = factory.Services.CreateScope();
+        var services = scope.ServiceProvider;
+        var userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
+        var user = await userManager.FindByEmailAsync(email);
+        Assert.NotNull(user);
+
+        var tokens = await factory.LoginAsync(email);
+        var client = factory.CreateClient(new() { HandleCookies = false });
+        var rotated = await client.PostRefreshAsync(tokens.RefreshToken);
+        rotated.EnsureSuccessStatusCode();
+
+        // Direct construction (bypassing HTTP/DI for the DbContext only) so the
+        // interceptor attaches to the EXACT context this call uses — mirrors
+        // StepUpAuthTests' proven pattern; every other dependency comes off the
+        // real host so login/token plumbing stays production code.
+        var interceptor = new ThrowingRefreshTokenUpdateInterceptor();
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseNpgsql(factory.ConnectionString)
+            .AddInterceptors(interceptor)
+            .Options;
+        await using var db = new AppDbContext(options, new TenantContext());
+
+        var provider = new IdentityProvider(
+            userManager,
+            services.GetRequiredService<RoleManager<ApplicationRole>>(),
+            services.GetRequiredService<IJwtTokenService>(),
+            db,
+            services.GetRequiredService<IOptions<JwtOptions>>(),
+            services.GetRequiredService<TimeProvider>(),
+            services.GetRequiredService<IAuditWriter>(),
+            services.GetRequiredService<IStepUpGrantRegistry>(),
+            services.GetRequiredService<IHttpContextAccessor>(),
+            services.GetRequiredService<ILogger<IdentityProvider>>());
+
+        var rawRefreshToken = Uri.UnescapeDataString(tokens.RefreshToken);
+
+        interceptor.Armed = true;
+        await Assert.ThrowsAsync<InvalidOperationException>(() => provider.RefreshAsync(rawRefreshToken));
+        interceptor.Armed = false;
+
+        var replayEvents = EventsFor(SecurityEvents.RefreshTokenReplayDetected);
+        var failedEvents = EventsFor(SecurityEvents.RefreshRevocationFailed);
+        Assert.Single(replayEvents);
+        var failed = Assert.Single(failedEvents);
+        Assert.Equal(user!.Id.ToString(), ScalarOf(failed, "UserId"));
+    }
+}
+
+[CollectionDefinition(Name)]
+public sealed class SecurityEventLoggingCollection : ICollectionFixture<SecurityEventLoggingFactory>
+{
+    public const string Name = "security-event-logging";
+}

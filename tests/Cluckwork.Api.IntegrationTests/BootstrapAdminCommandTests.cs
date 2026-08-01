@@ -66,12 +66,24 @@ public sealed class BootstrapAdminCommandTests : IClassFixture<CluckworkWebAppli
         Assert.True(0 == exitCode, $"expected exit 0, got {exitCode}. stdout={stdout} stderr={stderr}");
         Assert.Contains(email, stdout);
         Assert.Contains("Temporary password:", stdout);
-        // The password itself never reaches stderr (nothing does on success),
-        // and — the actual "never the logger" guarantee — never a structured
-        // log line either; that is asserted separately via SerilogSinkTests-
-        // style coverage is out of scope here, but stderr staying empty on
-        // success is the observable half from outside the process.
+        // The password itself never reaches stderr (nothing does on success).
         Assert.Equal(string.Empty, stderr);
+        // #273 — the actual "never the logger" guarantee, asserted directly:
+        // Serilog's own Console sink ALSO writes to this process's stdout (the
+        // "Console" WriteTo in appsettings.json), so a stray structured log
+        // line would land in this SAME captured stream, not go missing — this
+        // is precisely how a regression here would be observable. NOT "exactly
+        // 3 lines": a legitimate operational Serilog line (e.g. the connection-
+        // string warning RecoverAdminCommandTests hits in Production) can
+        // legally appear here too, so the invariant is narrower and precise —
+        // the password appears EXACTLY ONCE in the whole capture (the one
+        // explicit Console.Out line), and never inside a Serilog line (which
+        // always opens with its outputTemplate's "[HH:mm:ss LVL]" bracket).
+        var tempPassword = ExtractTemporaryPassword(stdout);
+        Assert.Equal(1, CountOccurrences(stdout, tempPassword));
+        Assert.DoesNotContain(
+            stdout.Split('\n', StringSplitOptions.RemoveEmptyEntries),
+            line => line.TrimStart().StartsWith('[') && line.Contains(tempPassword));
 
         using var scope = _factory.Services.CreateScope();
         var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
@@ -201,5 +213,24 @@ public sealed class BootstrapAdminCommandTests : IClassFixture<CluckworkWebAppli
             .ToListAsync();
         var owner = Assert.Single(owners);
         Assert.Contains(owner.Email, new[] { emailA, emailB });
+    }
+
+    private static string ExtractTemporaryPassword(string stdout)
+    {
+        const string marker = "Temporary password:";
+        var line = stdout.Split('\n').First(l => l.Contains(marker));
+        return line[(line.IndexOf(marker, StringComparison.Ordinal) + marker.Length)..].Trim();
+    }
+
+    private static int CountOccurrences(string haystack, string needle)
+    {
+        var count = 0;
+        var index = 0;
+        while ((index = haystack.IndexOf(needle, index, StringComparison.Ordinal)) >= 0)
+        {
+            count++;
+            index += needle.Length;
+        }
+        return count;
     }
 }

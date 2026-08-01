@@ -4,8 +4,10 @@ using System.Security.Cryptography;
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Common;
 using Cluckwork.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 public sealed class IdentityProvider(
@@ -16,7 +18,9 @@ public sealed class IdentityProvider(
     IOptions<JwtOptions> jwtOptions,
     TimeProvider timeProvider,
     Cluckwork.Application.Common.IAuditWriter audit,
-    IStepUpGrantRegistry stepUpGrants) : IIdentityProvider
+    IStepUpGrantRegistry stepUpGrants,
+    IHttpContextAccessor httpContextAccessor,
+    ILogger<IdentityProvider> logger) : IIdentityProvider
 {
     public async Task<Result<TokenPair>> LoginAsync(string email, string password, CancellationToken ct = default)
     {
@@ -26,6 +30,7 @@ public sealed class IdentityProvider(
             // Always pay the PBKDF2 cost so that "user not found" and "wrong password"
             // are indistinguishable by timing.
             userManager.PasswordHasher.VerifyHashedPassword(new ApplicationUser(), TimingEqualization.DummyHash, password);
+            LogLoginFailed();
             return Result.Failure<TokenPair>(Error.Validation("Identity.InvalidCredentials", "Invalid email or password."));
         }
 
@@ -38,12 +43,27 @@ public sealed class IdentityProvider(
             // DummyHash guards the (currently unreachable) passwordless-user case
             // so this stays a 401, never an NRE/500 that would leak account state.
             userManager.PasswordHasher.VerifyHashedPassword(user, user.PasswordHash ?? TimingEqualization.DummyHash, password);
+            // #273 — same LoginFailed shape as the "user not found" branch above:
+            // an attempt against an ALREADY-locked account re-fires LoginFailed but
+            // never AccountLockedOut again — that fired once, at the transition.
+            LogLoginFailed();
             return Result.Failure<TokenPair>(Error.Validation("Identity.InvalidCredentials", "Invalid email or password."));
         }
 
         if (!await userManager.CheckPasswordAsync(user, password))
         {
-            await RecordFailedAccessAsync(user);
+            var justLockedOut = await RecordFailedAccessAsync(user);
+            // #273 — LoginFailed carries NO user id/email on any of the three
+            // branches (see SecurityEvents.LoginFailed): logging must not turn
+            // into the identity-existence oracle the API response already
+            // avoids. AccountLockedOut is a SEPARATE event, safe to name the
+            // user on, because it only ever fires here — never on the
+            // "user not found" branch — so its mere presence can't be used to
+            // tell a nonexistent email apart from a wrong password.
+            LogLoginFailed();
+            if (justLockedOut)
+                logger.LogWarning("{SecurityEvent} user={UserId} client={ClientIp}",
+                    SecurityEvents.AccountLockedOut, user.Id, ClientIp);
             return Result.Failure<TokenPair>(Error.Validation("Identity.InvalidCredentials", "Invalid email or password."));
         }
 
@@ -60,8 +80,19 @@ public sealed class IdentityProvider(
 
     // Shared with /auth/step-up (#308) via AccountLockout — see the note there
     // on why every password oracle must apply this, not just login.
-    private Task RecordFailedAccessAsync(ApplicationUser user) =>
+    private Task<bool> RecordFailedAccessAsync(ApplicationUser user) =>
         AccountLockout.RecordFailedAccessAsync(userManager, db, user);
+
+    // #273 — resolved per-call (never cached on the instance): IdentityProvider
+    // is scoped per REQUEST, so this is safe to read lazily, but reading it
+    // fresh here rather than in the constructor keeps the dependency honest
+    // for a caller with no ambient HttpContext (a future non-HTTP caller would
+    // just see null -> "unknown", not throw).
+    private string ClientIp =>
+        httpContextAccessor.HttpContext?.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+
+    private void LogLoginFailed() =>
+        logger.LogWarning("{SecurityEvent} client={ClientIp}", SecurityEvents.LoginFailed, ClientIp);
 
     public async Task<Result<TokenPair>> RefreshAsync(string refreshToken, CancellationToken ct = default)
     {
@@ -89,6 +120,12 @@ public sealed class IdentityProvider(
             var graced = await TryGraceReplacementAsync(stored, now, ct);
             if (graced is null)
             {
+                // #273 — a genuine replay: log BEFORE attempting the revoke, so
+                // detection is recorded even if the revoke itself throws (the
+                // catch below logs that separately as Auth.RefreshRevocationFailed
+                // and rethrows — this call still completes and returns normally).
+                logger.LogWarning("{SecurityEvent} user={UserId} client={ClientIp}",
+                    SecurityEvents.RefreshTokenReplayDetected, stored.UserId, ClientIp);
                 await RevokeAllActiveForUserAsync(stored.UserId, now, ct);
                 return Result.Failure<TokenPair>(Error.Validation("Identity.InvalidRefreshToken", "Refresh token is invalid."));
             }
@@ -473,9 +510,7 @@ public sealed class IdentityProvider(
         if (tokenRow is not null)
             stepUpGrants.RecordLogout(tokenRow.UserId, now);
 
-        await db.RefreshTokens
-            .Where(t => t.TokenHash == presentedHash && t.RevokedAt == null)
-            .ExecuteUpdateAsync(s => s.SetProperty(t => t.RevokedAt, now), ct);
+        await RevokeByHashAsync(presentedHash, now, tokenRow?.UserId, ct);
     }
 
     // #336 review — the access-token half of logout revocation. The cookie owner
@@ -533,10 +568,46 @@ public sealed class IdentityProvider(
         // Bulk update rather than tracked read-modify-save: it never trips the
         // #176 xmin concurrency token (so it is safe to call from the rotation
         // fail path) and revokes the whole family in one statement.
-        await db.RefreshTokens
-            .Where(t => t.UserId == userId && t.RevokedAt == null)
-            .ExecuteUpdateAsync(s => s.SetProperty(t => t.RevokedAt, now), ct);
+        await RunRevocationAsync(
+            userId,
+            () => db.RefreshTokens
+                .Where(t => t.UserId == userId && t.RevokedAt == null)
+                .ExecuteUpdateAsync(s => s.SetProperty(t => t.RevokedAt, now), ct));
     }
+
+    // #273 — single hardening point for EVERY refresh-token revocation this
+    // class performs (replay-triggered family revocation, logout, password
+    // reset/change, break-glass): if the bulk update itself throws instead of
+    // completing, the safety action meant to lock a suspected attacker out of
+    // every session never ran. That is worth its own alertable event
+    // (Auth.RefreshRevocationFailed), separate from whatever triggered the
+    // revoke attempt (a replay, a logout, a password change, ...) — logging it
+    // here once, rather than at each of the three call sites, is what keeps it
+    // from being forgotten at a future fourth one. Logs and RETHROWS: the
+    // caller's existing behavior on a DB failure (bubble up, eventually a 500)
+    // is unchanged — this only adds observability, never swallows the failure.
+    // OperationCanceledException is excluded: a client hangup/cancellation
+    // aborting the update is not a security signal worth alerting on.
+    private async Task RunRevocationAsync(Guid? userId, Func<Task> revoke)
+    {
+        try
+        {
+            await revoke();
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogError(ex, "{SecurityEvent} user={UserId}",
+                SecurityEvents.RefreshRevocationFailed, userId);
+            throw;
+        }
+    }
+
+    private Task RevokeByHashAsync(string tokenHash, DateTimeOffset now, Guid? userId, CancellationToken ct) =>
+        RunRevocationAsync(
+            userId,
+            () => db.RefreshTokens
+                .Where(t => t.TokenHash == tokenHash && t.RevokedAt == null)
+                .ExecuteUpdateAsync(s => s.SetProperty(t => t.RevokedAt, now), ct));
 
     // 256-bit random token; only the SHA-256 hash is persisted.
     private static (string Raw, string Hash) GenerateRefreshToken()

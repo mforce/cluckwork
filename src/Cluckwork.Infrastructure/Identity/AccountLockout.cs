@@ -28,18 +28,32 @@ internal static class AccountLockout
     // per-account contention that produces conflicts is itself capped by the
     // per-IP rate limiter. The cap prevents an unbounded loop while still letting
     // every real failure land under normal contention.
-    public static async Task RecordFailedAccessAsync(
+    //
+    // #273 — returns whether THIS call is the one that crossed the lockout
+    // threshold (the account was NOT locked before it, and IS immediately
+    // after). Callers use that to fire the Auth.AccountLockedOut security event
+    // exactly once per lockout episode, not on every subsequent failed attempt
+    // against an already-locked account. Every caller here already checked
+    // IsLockedOutAsync before reaching this method (LoginAsync, StepUpGrantService
+    // .IssueAsync — both return early on an already-locked account), so the
+    // account is guaranteed unlocked on entry; a post-call true is therefore a
+    // genuine transition, not a re-observation.
+    public static async Task<bool> RecordFailedAccessAsync(
         UserManager<ApplicationUser> userManager, AppDbContext db, ApplicationUser user)
     {
         for (var attempt = 0; attempt < 10; attempt++)
         {
             if ((await userManager.AccessFailedAsync(user)).Succeeded)
-                return;
+                return await userManager.IsLockedOutAsync(user);
             // The write lost the concurrency race. FindById would hand back the
             // same identity-map instance (stale stamp), so refresh the tracked
             // entity's values from the DB before retrying — `db` is the same
             // scoped context the UserManager store writes through.
             await db.Entry(user).ReloadAsync();
         }
+        // Exhausted retries without a successful write — the caller's failed
+        // attempt was never actually recorded, so this can't be reported as a
+        // lockout transition.
+        return false;
     }
 }
