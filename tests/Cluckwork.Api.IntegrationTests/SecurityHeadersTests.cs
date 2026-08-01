@@ -201,11 +201,10 @@ public sealed class SecurityDevelopmentFactory : CluckworkWebApplicationFactory
             services.AddSingleton<IStartupFilter, FakeRemoteIpStartupFilter>());
         // Development loads the machine's user-secrets; override the sensitive
         // keys from a last-added (highest-precedence) source so the test host
-        // stays hermetic — no machine seed creds, no stray connection string.
+        // stays hermetic — no stray connection string.
         builder.ConfigureAppConfiguration((_, cfg) => cfg.AddInMemoryCollection(
             new Dictionary<string, string?>
             {
-                ["Seed:Enabled"] = "false",
                 ["ConnectionStrings:Default"] = ConnectionString,
                 ["Jwt:PrivateKeyPem"] = TestJwtKeys.PrivateKeyPem,
                 ["Jwt:PublicKeyPem"] = TestJwtKeys.PublicKeyPem,

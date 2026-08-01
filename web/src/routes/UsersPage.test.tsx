@@ -1175,6 +1175,9 @@ describe("UsersPage step-up authentication (#308)", () => {
       <MemoryRouter initialEntries={["/"]}>
         <AuthContext.Provider value={{
           isAuthenticated, isLoading: false, isAdmin: true, role: "Admin" as Role,
+          // #283 — an Owner working the Users screen is already past the
+          // first-run set-password gate.
+          mustChangePassword: false,
           login: vi.fn(), logout: vi.fn(),
         }}
         >

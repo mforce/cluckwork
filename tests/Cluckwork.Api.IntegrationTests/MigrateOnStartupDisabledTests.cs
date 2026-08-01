@@ -13,23 +13,20 @@ using Npgsql;
 // is caught by readiness rather than served against a stale schema. The base
 // factory normally migrates in InitializeAsync, so this one opts out to leave the
 // schema unmigrated and observe the serving host booting against it.
+//
+// #283 — there is no longer a runtime seeder to prove resilient against a
+// missing table: base provisioning ships in the migrations themselves, and
+// nothing else touches the database at boot. This test now proves the
+// simpler, stronger claim directly — the serving process boots and stays up
+// against an unmigrated schema with NO Seed:* config at all.
 public sealed class NoBootMigrateFactory : CluckworkWebApplicationFactory
 {
-    // Seeding is ENABLED with real creds so the boot exercises DatabaseSeeder
-    // against the unmigrated schema — proving the seeder logs+skips (per its
-    // contract) instead of crash-looping the host on a missing table (#263 review).
-    public string AdminEmail { get; } = $"nomigrate-{Guid.NewGuid():N}@test.local";
-    public string AdminPassword { get; } = $"Aa1!{Guid.NewGuid():N}";
-
     protected override bool MigrateSchemaOnInitialize => false;
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         base.ConfigureWebHost(builder);
         builder.UseSetting("Database:MigrateOnStartup", "false");
-        builder.UseSetting("Seed:Enabled", "true");
-        builder.UseSetting("Seed:AdminEmail", AdminEmail);
-        builder.UseSetting("Seed:AdminPassword", AdminPassword);
     }
 }
 
@@ -41,9 +38,7 @@ public sealed class MigrateOnStartupDisabledTests(NoBootMigrateFactory factory)
     [Fact]
     public async Task MigrateOnStartupFalse_DoesNotMigrateOnBoot_StaysUp_AndReadinessReportsUnhealthy()
     {
-        // Boots the serving host against the unmigrated schema. Must not throw:
-        // the seeder hits a missing table and logs+skips (contract), so boot
-        // completes instead of crash-looping.
+        // Boots the serving host against the unmigrated schema. Must not throw.
         var client = _factory.CreateClient();
 
         // 1. Boot did NOT apply migrations — a table only a migration creates is absent.
@@ -56,7 +51,7 @@ public sealed class MigrateOnStartupDisabledTests(NoBootMigrateFactory factory)
             Assert.True(notMigrated, "MigrateOnStartup=false must NOT migrate on a serving boot");
         }
 
-        // 2. The host stayed up (seeder resilience): liveness is green.
+        // 2. The host stayed up: liveness is green.
         var live = await client.GetAsync("/health/live");
         Assert.Equal(HttpStatusCode.OK, live.StatusCode);
 

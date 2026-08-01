@@ -36,6 +36,18 @@ public sealed class JwtTokenService(IOptions<JwtOptions> options, TimeProvider t
             new("account_id", user.AccountId.ToString())
         };
         claims.AddRange(roles.Select(r => new Claim("role", r)));
+        // #283 — carried only when true (mirrors the role claims' omit-if-absent
+        // shape). MustChangePasswordMiddleware reads this to block every
+        // endpoint but auth/change-password + auth/logout until the first-run
+        // admin (or anyone else whose password was force-reset) sets their own
+        // password; claims.ts decodes the same claim to show the SPA's
+        // first-login screen instead of the normal app shell. A short (~15 min)
+        // access-token lifetime bounds how long a token minted BEFORE a
+        // password change stays valid — ChangeOwnPasswordAsync also revokes
+        // every refresh token, so the old access token's window is the only
+        // survivor, same as every other credential rotation in this app.
+        if (user.MustChangePassword)
+            claims.Add(new Claim("must_change_password", "true"));
 
         var token = new JwtSecurityToken(
             jwtOptions.Issuer,

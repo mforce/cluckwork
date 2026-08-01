@@ -26,9 +26,13 @@ public sealed class CreateUserHandler(IIdentityProvider identity, IStepUpGrantSe
             if (!proof.IsSuccess) return Result.Failure<Guid>(proof.Error);
         }
 
+        // #339 — `mustChangePassword` stays defaulted (false). The forced-change
+        // gate exists for the `bootstrap-admin` temp password the system itself
+        // generates; a user an Owner creates here already gets a password the
+        // Owner chose, so it is not put through that gate.
         return await identity.CreateUserAsync(
             accountId, command.Email.Trim(), command.Password,
             role: role,
-            name: UserName.Normalize(command.Name), ct);
+            name: UserName.Normalize(command.Name), ct: ct);
     }
 }

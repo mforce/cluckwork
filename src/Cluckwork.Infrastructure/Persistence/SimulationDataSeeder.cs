@@ -112,7 +112,6 @@ public sealed class SimulationDataSeeder(
     CreateExpenseHandler createExpense,
     DailyEntryLockSweep lockSweep,
     IClock clock,
-    IOptions<SeedOptions> seedOptions,
     IOptions<SimulationOptions> simulationOptions,
     ILogger<SimulationDataSeeder> logger)
 {
@@ -171,26 +170,29 @@ public sealed class SimulationDataSeeder(
             }
 
             var accountId = SeedDefaults.AccountId;
-            var seed = seedOptions.Value;
 
             // Preflight the base prerequisites (mirrors DemoDataSeeder's own
             // MissingBaseDataAsync, #284 review): the simulation needs the
             // default account, the Admin role, the three saleable egg grades it
-            // consumes by name, AND the seeded admin in the Owner role (reused
-            // below as Owner — this seeder never creates a second Owner) — all
-            // of which come from DatabaseSeeder's boot seed, which the `seed`
+            // consumes by name (all #283 migration-baked static reference data,
+            // so these three should never actually be missing against a
+            // current schema — kept as defense-in-depth), AND an existing
+            // Owner-role user in the default account (reused below as Owner —
+            // this seeder never creates a second Owner). Unlike the first
+            // three, the Owner user is a REAL prerequisite: it comes only from
+            // the `bootstrap-admin` first-run command (#283), which the `seed`
             // command never runs. Checked BEFORE tenant.Resolve, so every
             // tenant-scoped query needs IgnoreQueryFilters (same reasoning as
             // DemoDataSeeder's preflight).
-            var missingBaseData = await MissingBaseDataAsync(accountId, seed.AdminEmail, ct);
+            var missingBaseData = await MissingBaseDataAsync(accountId, ct);
             if (missingBaseData)
             {
                 var prereqMessage =
                     "Simulation seed prerequisites missing: the base data (default account, Admin role, " +
-                    "the saleable Large/Medium/Small egg grades, and the seeded admin in the Owner role) " +
-                    "is not fully seeded yet. Run the app once against this database with " +
-                    "Seed:AdminEmail / Seed:AdminPassword set (DatabaseSeeder base-seeds on boot), then " +
-                    "re-run `seed --profile simulation`.";
+                    "the saleable Large/Medium/Small egg grades, and an admin in the Owner role) is not " +
+                    "fully present. The account/role/grades ship with the EF migrations (#283); the Owner " +
+                    "admin does not — run `dotnet Cluckwork.Api.dll bootstrap-admin --email <e>` against " +
+                    "this database, then re-run `seed --profile simulation`.";
                 logger.LogError(prereqMessage);
                 return SeedResult.PrerequisitesMissing(prereqMessage);
             }
@@ -309,8 +311,8 @@ public sealed class SimulationDataSeeder(
 
 
     // The three saleable grades SeedFlockHistoryAsync/SeedSalesAsync consume by
-    // name (grades["Large"/"Medium"/"Small"]). The base DatabaseSeeder creates
-    // them; preflight requires all three present AND saleable so a base seed
+    // name (grades["Large"/"Medium"/"Small"]). The #283 migration bakes them
+    // in; preflight requires all three present AND saleable so a schema
     // missing one fails loud here instead of throwing KeyNotFoundException
     // mid-seed (#279 review Fix 3).
     private static readonly string[] RequiredSaleableGrades = ["Large", "Medium", "Small"];
@@ -319,19 +321,21 @@ public sealed class SimulationDataSeeder(
     // query needs IgnoreQueryFilters (mirrors DemoDataSeeder's own
     // MissingBaseDataAsync). #279 review Fix 3 (codex): each check now PROVES the
     // specific base datum this seeder depends on rather than a weaker proxy —
-    // the exact saleable Large/Medium/Small grades (not merely "any grade"), and
-    // the seeded admin BELONGING to the default account AND holding the
-    // Owner/Admin role (not merely "any user with this email"), since it is
-    // reused below as the single Owner and its miscount would only surface as a
-    // manifest failure after partial writes.
-    private async Task<bool> MissingBaseDataAsync(Guid accountId, string adminEmail, CancellationToken ct)
+    // the exact saleable Large/Medium/Small grades (not merely "any grade").
+    // #283 — the Owner check no longer takes an email: Seed:AdminEmail is
+    // retired along with the runtime seeder that read it, so this asks the
+    // question the seeder actually cares about — does ANY Owner-role user
+    // exist in the default account — via GetUsersInRoleAsync rather than a
+    // configured address. Reused below as the single Owner; this seeder never
+    // creates a second one.
+    private async Task<bool> MissingBaseDataAsync(Guid accountId, CancellationToken ct)
     {
         var accountExists = await db.Accounts
             .IgnoreQueryFilters()
             .AnyAsync(a => a.Id == accountId, ct);
         if (!accountExists) return true;
 
-        var adminRoleExists = await db.Roles.AnyAsync(r => r.Name == DatabaseSeeder.AdminRole, ct);
+        var adminRoleExists = await db.Roles.AnyAsync(r => r.Name == Roles.Owner, ct);
         if (!adminRoleExists) return true;
 
         // Tenant is unresolved here, so IgnoreQueryFilters + explicit AccountId
@@ -344,10 +348,8 @@ public sealed class SimulationDataSeeder(
             .ToListAsync(ct);
         if (!RequiredSaleableGrades.All(saleableGradeNames.Contains)) return true;
 
-        if (string.IsNullOrWhiteSpace(adminEmail)) return true;
-        var admin = await users.FindByEmailAsync(adminEmail);
-        if (admin is null || admin.AccountId != accountId) return true;
-        return !await users.IsInRoleAsync(admin, DatabaseSeeder.AdminRole);
+        var owners = await users.GetUsersInRoleAsync(Roles.Owner);
+        return !owners.Any(u => u.AccountId == accountId);
     }
 
     // --- Cast: Managers, Sales, ReadOnly, Workers (role-less) ---------
@@ -1047,8 +1049,7 @@ public sealed class SimulationDataSeeder(
     private async Task SeedSecondAccountAsync(CancellationToken ct)
     {
         // The account query filter would hide a second tenant's row —
-        // IgnoreQueryFilters to see it regardless of which tenant is resolved
-        // (matches DatabaseSeeder.SeedDefaultAccountAsync).
+        // IgnoreQueryFilters to see it regardless of which tenant is resolved.
         var exists = await db.Accounts.IgnoreQueryFilters().AnyAsync(a => a.Id == SecondAccountId, ct);
         if (exists) return;
 

@@ -134,7 +134,7 @@ public sealed class IdentityProvider(
 
     public async Task<Result<Guid>> CreateUserAsync(
         Guid accountId, string email, string password, string? role,
-        string? name = null, CancellationToken ct = default)
+        string? name = null, bool mustChangePassword = false, CancellationToken ct = default)
     {
         // One transaction around create + role assignment: a failed admin
         // creation must not survive as a usable role-less worker account
@@ -150,7 +150,8 @@ public sealed class IdentityProvider(
             Email = email,
             EmailConfirmed = true,
             AccountId = accountId,
-            DisplayName = name // #163 — optional display name at creation
+            DisplayName = name, // #163 — optional display name at creation
+            MustChangePassword = mustChangePassword // #283 — true only for bootstrap-admin's Owner
         };
 
         var created = await userManager.CreateAsync(user, password);
@@ -274,6 +275,14 @@ public sealed class IdentityProvider(
         if (!reset.Succeeded)
             return Result.Failure(Error.Validation("Users.PasswordRejected", Describe(reset)));
 
+        // #283 — any successful password reset clears a pending first-run gate.
+        // Covers an Owner using SetUserPassword or an offline break-glass reset
+        // on a user who never got around to their forced first-run change; the
+        // user obviously already has a working password at that point, so
+        // there is nothing left to force. `user` is the same DbContext-tracked
+        // instance db.SaveChangesAsync persists below — no separate save needed.
+        user.MustChangePassword = false;
+
         // Clear any active lockout / failed-attempt count (#265 review). Without
         // this, the exact case break-glass exists for — a user locked out by
         // repeated failed logins — would get a fresh password that LoginAsync
@@ -317,6 +326,14 @@ public sealed class IdentityProvider(
                 ? Error.Validation("Users.CurrentPasswordIncorrect", "Current password is incorrect.")
                 : Error.Validation("Users.PasswordRejected", Describe(changed)));
         }
+
+        // #283 — this is the SPA's first-login "set your password" screen's
+        // actual mechanism (it reuses this endpoint: the operator already
+        // knows the generated first-run password as their "current" one).
+        // Clearing the flag here is what lets the fresh token pair below omit
+        // the must_change_password claim, un-gating the rest of the app.
+        if (user.MustChangePassword)
+            user.MustChangePassword = false;
 
         // Every session dies (other devices are signed out), then this caller gets
         // a fresh pair so the device that made the change stays signed in.

@@ -4,7 +4,7 @@ import {
   login as apiLogin, logout as apiLogout, restoreSession,
   setOnTokensChanged, setOnUnauthenticated,
 } from "../api/client";
-import { currentUserIsAdmin, currentUserRole } from "./claims";
+import { currentUserIsAdmin, currentUserMustChangePassword, currentUserRole } from "./claims";
 import type { Role } from "./claims";
 import { clearAccessToken, getAccessToken, purgeLegacyTokens } from "./tokenStore";
 
@@ -18,6 +18,11 @@ interface AuthState {
   // isAdmin = Owner OR Manager (the corrective/config tier).
   isAdmin: boolean;
   role: Role;
+  // #283 — true while the signed-in user must set a new password before
+  // anything else works (the first-run admin, until they do). ProtectedRoute
+  // reads this to show the set-password screen instead of the app shell; the
+  // API's MustChangePasswordMiddleware is the actual enforcement.
+  mustChangePassword: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
 }
@@ -32,6 +37,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(() => getAccessToken() === null);
   const [isAdmin, setIsAdmin] = useState(currentUserIsAdmin);
   const [role, setRole] = useState<Role>(currentUserRole);
+  const [mustChangePassword, setMustChangePassword] = useState(currentUserMustChangePassword);
+
+  // One place that re-derives every claim-decoded field from the current
+  // token, called everywhere a token pair changes (login, transparent
+  // refresh, load-time bootstrap) — a spot that set isAdmin/role individually
+  // is exactly how a future new claim (like this one) gets forgotten in one
+  // of the call sites.
+  const refreshClaims = useCallback(() => {
+    setIsAdmin(currentUserIsAdmin());
+    setRole(currentUserRole());
+    setMustChangePassword(currentUserMustChangePassword());
+  }, []);
 
   // When any authenticated request exhausts its refresh, drop auth state so the
   // router redirects to /login. Token rotation (login or transparent refresh)
@@ -42,15 +59,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       clearAccessToken();
       setIsAuthenticated(false);
     });
-    setOnTokensChanged(() => {
-      setIsAdmin(currentUserIsAdmin());
-      setRole(currentUserRole());
-    });
+    setOnTokensChanged(refreshClaims);
     return () => {
       setOnUnauthenticated(null);
       setOnTokensChanged(null);
     };
-  }, []);
+  }, [refreshClaims]);
 
   // Session bootstrap: purge any pre-#145 localStorage token, then (if memory is
   // empty) try a silent refresh via the HttpOnly cookie. Success restores the
@@ -67,8 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (cancelled) return;
         if (restored) {
           setIsAuthenticated(true);
-          setIsAdmin(currentUserIsAdmin());
-          setRole(currentUserRole());
+          refreshClaims();
         }
       })
       // restoreSession never rejects today, but clearing isLoading here too keeps
@@ -79,14 +92,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [refreshClaims]);
 
   const login = useCallback(async (email: string, password: string) => {
     await apiLogin({ email, password });
     setIsAuthenticated(true);
-    setIsAdmin(currentUserIsAdmin());
-    setRole(currentUserRole());
-  }, []);
+    refreshClaims();
+  }, [refreshClaims]);
 
   const logout = useCallback(async () => {
     // The farm palette (cluckwork.brand) is deliberately NOT cleared here: this
@@ -97,11 +109,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsAuthenticated(false);
     setIsAdmin(false);
     setRole("Worker");
+    setMustChangePassword(false);
   }, []);
 
   const value = useMemo(
-    () => ({ isAuthenticated, isLoading, isAdmin, role, login, logout }),
-    [isAuthenticated, isLoading, isAdmin, role, login, logout],
+    () => ({ isAuthenticated, isLoading, isAdmin, role, mustChangePassword, login, logout }),
+    [isAuthenticated, isLoading, isAdmin, role, mustChangePassword, login, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -1,8 +1,11 @@
 namespace Cluckwork.Infrastructure.Identity;
 
 /// Config for the #243 load-test simulation seeder (bound from the "Simulation"
-/// section, separate from SeedOptions). The Owner persona reuses the seeded
-/// admin (Seed:AdminEmail/Password); the counts below are the ADDITIONAL cast.
+/// section). #283: the Owner persona reuses whichever Owner the `bootstrap-admin`
+/// verb already provisioned — SeedOptions and the `Seed:AdminEmail`/`Seed:AdminPassword`
+/// config keys are retired along with the runtime seeder that fed them, so no
+/// admin credential is configured here or anywhere else. The counts below are
+/// the ADDITIONAL cast beyond that Owner.
 public sealed class SimulationOptions
 {
     public const string SectionName = "Simulation";

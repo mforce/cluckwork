@@ -40,7 +40,7 @@ public sealed class SimulationSeedFactory : CluckworkWebApplicationFactory, IAsy
 
     // Runtime-generated — never a hardcoded credential (repo policy).
     public string AdminEmail { get; } = $"sim-admin-{Guid.NewGuid():N}@test.local";
-    public string AdminPassword { get; } = $"Aa1!{Guid.NewGuid():N}";
+    public string AdminPassword { get; } = TestHarness.Password;
     public string CastPassword { get; } = $"Aa1!{Guid.NewGuid():N}";
 
     // #279 — SimulationDataSeeder.SeedAsync() no longer returns the manifest
@@ -58,13 +58,6 @@ public sealed class SimulationSeedFactory : CluckworkWebApplicationFactory, IAsy
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         base.ConfigureWebHost(builder);
-        builder.UseSetting("Seed:Enabled", "true");
-        // Explicit, not just the SeedOptions default: a stray Seed__Demo=true
-        // in the environment would seed demo flocks and pollute the flock
-        // count asserted below — tests must be hermetic.
-        builder.UseSetting("Seed:Demo", "false");
-        builder.UseSetting("Seed:AdminEmail", AdminEmail);
-        builder.UseSetting("Seed:AdminPassword", AdminPassword);
         builder.UseSetting("Simulation:CastPassword", CastPassword);
         builder.UseSetting("Simulation:TimeZoneId", TimeZoneId);
         builder.UseSetting("Simulation:HistoryDays", HistoryDays.ToString());
@@ -73,12 +66,13 @@ public sealed class SimulationSeedFactory : CluckworkWebApplicationFactory, IAsy
 
     // #279 — SimulationDataSeeder no longer boot-seeds (it's wired only into
     // the `seed --profile simulation` CLI command, never Program.cs's startup
-    // block), so this factory has to do what that command does: let
-    // base.InitializeAsync() start Postgres and force the host to build
-    // (migrations + the base DatabaseSeeder boot-seed run unchanged), then
-    // resolve SimulationDataSeeder directly and call it once — the same
-    // resolve-and-seed pattern DemoSeedTests already uses for
-    // DemoDataSeeder. This runs ONCE before any [Fact] in the class (xUnit's
+    // block), so this factory has to do what that command does. #283 — the
+    // default account/Admin role/saleable egg grades are now migration-baked
+    // static reference data (no Seed:* config, no runtime seeder); the Owner
+    // admin itself is NOT, so it's seeded directly here — standing in for a
+    // real `bootstrap-admin` run — BEFORE calling SimulationDataSeeder
+    // directly (the same resolve-and-seed pattern DemoSeedTests uses for
+    // DemoDataSeeder). This runs ONCE before any [Fact] in the class (xUnit's
     // IClassFixture contract), so the fixture is in place for every Fact
     // below; the "two full host restarts" idempotency Facts still call
     // SeedAsync() a second time explicitly against their own second host.
@@ -91,6 +85,7 @@ public sealed class SimulationSeedFactory : CluckworkWebApplicationFactory, IAsy
     public new async Task InitializeAsync()
     {
         await base.InitializeAsync();
+        await this.SeedUserAsync(SeedDefaults.AccountId, AdminEmail, Roles.Owner);
 
         using var scope = Services.CreateScope();
         SeedResult = await scope.ServiceProvider.GetRequiredService<SimulationDataSeeder>().SeedAsync();
@@ -686,9 +681,10 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
     public async Task SimulationSeed_ReportEndpoints_ReturnNonTrivialVolumeAcrossTheHistoryWindow()
     {
         using var seedClient = factory.CreateClient(); // host + simulation data already seeded via InitializeAsync().
-        // Not LoginForAccessTokenAsync: that logs in with TestHarness's fixed
-        // password, but the sim Owner's password is the factory's own
-        // runtime-generated AdminPassword (Seed:AdminPassword).
+        // Not LoginForAccessTokenAsync: this uses the factory's OWN email
+        // (factory.AdminEmail), not a fresh one — TestHarness.Password is the
+        // right password (SeedUserAsync always uses it), but the email must
+        // match the specific Owner InitializeAsync seeded and the seeder reused.
         var loginResponse = await factory.TryLoginAsync(factory.AdminEmail, factory.AdminPassword);
         loginResponse.EnsureSuccessStatusCode();
         var tokens = await TestHarness.ReadTokensAsync(loginResponse);
@@ -738,9 +734,10 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
     public async Task SimulationSeed_ExportEndpoints_ReturnNonTrivialVolumeAcrossTheHistoryWindow()
     {
         using var seedClient = factory.CreateClient(); // host + simulation data already seeded via InitializeAsync().
-        // Not LoginForAccessTokenAsync: that logs in with TestHarness's fixed
-        // password, but the sim Owner's password is the factory's own
-        // runtime-generated AdminPassword (Seed:AdminPassword).
+        // Not LoginForAccessTokenAsync: this uses the factory's OWN email
+        // (factory.AdminEmail), not a fresh one — TestHarness.Password is the
+        // right password (SeedUserAsync always uses it), but the email must
+        // match the specific Owner InitializeAsync seeded and the seeder reused.
         var loginResponse = await factory.TryLoginAsync(factory.AdminEmail, factory.AdminPassword);
         loginResponse.EnsureSuccessStatusCode();
         var tokens = await TestHarness.ReadTokensAsync(loginResponse);

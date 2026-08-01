@@ -461,8 +461,8 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
 
         public Task<Result<Guid>> CreateUserAsync(
             Guid accountId, string email, string password, string? role,
-            string? name = null, CancellationToken ct = default) =>
-            inner.CreateUserAsync(accountId, email, password, role, name, ct);
+            string? name = null, bool mustChangePassword = false, CancellationToken ct = default) =>
+            inner.CreateUserAsync(accountId, email, password, role, name, mustChangePassword, ct);
 
         public Task<Result> UpdateUserAsync(
             Guid accountId, Guid userId, string? name, CancellationToken ct = default) =>

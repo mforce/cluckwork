@@ -12,12 +12,21 @@ below), and the multi-rep baseline orchestrator (`run-baseline.sh` — see
 "Baseline orchestrator" below) that produces an honest findings doc under
 `tools/simulation/findings/`.
 
-#279: the serving `app` container only base-seeds (`DatabaseSeeder`, the
-Owner) on boot and stays Production the whole time — `SimulationDataSeeder`
-is no longer a boot-time side effect. `reset.sh` seeds the sim cast/fixture
-by running `dotnet Cluckwork.Api.dll seed --profile simulation` as an
-explicit **one-shot** `docker compose run` against a non-Production
-environment (Program.cs's prod guard refuses the command in Production),
+#283: the default account/roles/egg grades ship as static reference data in
+the EF migrations themselves — the serving `app` container's ordinary
+migrate-on-startup boot provisions them, no `Seed:*` config involved. There
+is still no Owner after that (no credential is ever baked into a migration),
+so `reset.sh` runs the one-shot `bootstrap-admin` command once the container
+is healthy, captures its printed one-time password, and rotates it via the
+real login+change-password API calls to the stable password already in
+`.sim-cast.json` — every persona/script in this harness keeps a known,
+unchanging Owner credential.
+
+#279: `SimulationDataSeeder` (the cast/fixture) is not a boot-time side
+effect either. `reset.sh` seeds it by running `dotnet Cluckwork.Api.dll seed
+--profile simulation` as an explicit **one-shot** `docker compose run`
+against a non-Production environment (Program.cs's prod guard refuses the
+command in Production),
 the same command an operator would type by hand — mirroring `seed --profile
 demo` (#280) for the dev/demo profile.
 
@@ -85,7 +94,7 @@ reading or changing it:
 | Area | Value | Why |
 | --- | --- | --- |
 | `Jwt__PublicKeyPem` / `Jwt__PrivateKeyPem` | Freshly generated 2048-bit RSA keypair, `\n`-escaped single-line PEM (same format as `deploy/.env.example`) | Never reuse the real deploy keypair in a throwaway stack. `PemKey.Normalize` accepts this format regardless of whether docker compose's env-file interpolation later expands the `\n` escapes to real newlines itself (`Replace("\\n","\n")` is a no-op once they're already real) — verified both ways. |
-| `Seed__AdminEmail` / `Seed__AdminPassword` | `admin@sim.local` + a generated 20-char password (upper/lower/digit/symbol) | Base-seeded by `DatabaseSeeder` on boot; reused as the Owner by `SimulationDataSeeder` (`seed --profile simulation`) — it never creates a second Owner. |
+| `SIM_ADMIN_EMAIL` / `SIM_ADMIN_PASSWORD` | `admin@sim.local` + a generated 20-char password (upper/lower/digit/symbol) | **Script-level only** (no `__`, so it never reaches the app as config — #283, no credential is boot-config-driven anymore). `reset.sh` reads these to call `bootstrap-admin --email "$SIM_ADMIN_EMAIL"`, then rotates the printed one-time password to `SIM_ADMIN_PASSWORD`; reused as the Owner by `SimulationDataSeeder` (`seed --profile simulation`) — it never creates a second Owner. |
 | `Simulation__CastPassword` | One generated 20-char password shared by the whole cast | Every `sim-*@sim.local` login in `.sim-cast.json` uses this. |
 | `Simulation__Managers/Sales/Workers/ReadOnly` | `1/1/3/4` | Mirrors `SimulationOptions`' own C# defaults — written explicitly so `bootstrap.sh`'s `.sim-cast.json` can never silently drift from what the seeder actually creates. |
 | `Simulation__HistoryDays` | `90` | #243 Task 3d's chosen depth — enough for the production report and sales/expense/profit summaries to scan a meaningful volume. |

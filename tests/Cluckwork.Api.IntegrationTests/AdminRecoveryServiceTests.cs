@@ -2,29 +2,39 @@ namespace Cluckwork.Api.IntegrationTests;
 
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Common;
+using Cluckwork.Domain.Accounts;
 using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
-// #265 — break-glass recovery fixture: base-seeds a known admin (Seed:*) into
-// its OWN Postgres container so resetting that admin's password (which the tests
-// do) can't disturb any other suite. Own container per the #279 isolation rule:
-// a suite that mutates a full seeded fixture must not share a database.
-public sealed class BreakGlassRecoveryFixture : CluckworkWebApplicationFactory
+// #265 — break-glass recovery fixture: seeds a known admin into its OWN
+// Postgres container so resetting that admin's password (which the tests do)
+// can't disturb any other suite. Own container per the #279 isolation rule: a
+// suite that mutates a full seeded fixture must not share a database.
+//
+// #283 — the default account/Admin role are now migration-baked static
+// reference data (no Seed:* config); the admin USER is seeded directly here
+// (via InitializeAsync, so it's in place before any [Fact] runs — mirrors
+// what a real `bootstrap-admin` run would produce), standing in for that
+// command exactly like SeedAndFlockTests/BaselineSeedCurrencyTests do.
+public sealed class BreakGlassRecoveryFixture : CluckworkWebApplicationFactory, IAsyncLifetime
 {
     // Runtime-generated — never a hardcoded credential (GitGuardian scans PRs).
     public string AdminEmail { get; } = $"breakglass-{Guid.NewGuid():N}@test.local";
-    public string AdminPassword { get; } = $"Aa1!{Guid.NewGuid():N}";
+    public string AdminPassword { get; } = TestHarness.Password;
 
-    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    // NOTE: redeclaring `IAsyncLifetime` (both here and in the base list
+    // above) is required for xUnit to dispatch to THIS override —
+    // CluckworkWebApplicationFactory.InitializeAsync() is not virtual, so a
+    // `new` method alone is silently skipped by any code that calls it
+    // through an IAsyncLifetime reference, as xUnit does (mirrors the same
+    // pattern in SimulationSeederTests).
+    public new async Task InitializeAsync()
     {
-        base.ConfigureWebHost(builder);
-        builder.UseSetting("Seed:Enabled", "true");
-        builder.UseSetting("Seed:AdminEmail", AdminEmail);
-        builder.UseSetting("Seed:AdminPassword", AdminPassword);
+        await base.InitializeAsync();
+        await this.SeedUserAsync(SeedDefaults.AccountId, AdminEmail, Roles.Owner);
     }
 }
 
@@ -35,7 +45,7 @@ public sealed class AdminRecoveryServiceTests : IClassFixture<BreakGlassRecovery
     public AdminRecoveryServiceTests(BreakGlassRecoveryFixture factory)
     {
         _factory = factory;
-        _ = _factory.Services; // force the base seed (admin user) before any test
+        _ = _factory.Services; // force host startup (IAsyncLifetime.InitializeAsync seeds the admin)
     }
 
     private IServiceScope Scope() => _factory.Services.CreateScope();
@@ -54,7 +64,7 @@ public sealed class AdminRecoveryServiceTests : IClassFixture<BreakGlassRecovery
         {
             var idp = s.ServiceProvider.GetRequiredService<IIdentityProvider>();
             var login = await idp.LoginAsync(_factory.AdminEmail, _factory.AdminPassword);
-            Assert.True(login.IsSuccess, "seeded admin should log in before recovery");
+            Assert.True(login.IsSuccess, "seeded admin should log in before recovery: " + (login.IsFailure ? login.Error.Code + " " + login.Error.Description : ""));
             oldRefreshToken = login.Value.RefreshToken;
 
             var db = s.ServiceProvider.GetRequiredService<AppDbContext>();

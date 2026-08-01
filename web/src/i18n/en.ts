@@ -40,6 +40,22 @@ export const en = {
     // #309 — the request body exceeded the server's byte cap (413), which in
     // practice means an implausibly long email/password.
     credentialsTooLong: "That's too long — check your email and password.",
+    // #283 — the first-run "set your password" screen (SetPasswordPage),
+    // shown instead of the app shell whenever the signed-in user's token
+    // carries must_change_password. Reuses /auth/change-password: the
+    // operator already knows the generated temporary password.
+    setPasswordHeading: "Set your password",
+    setPasswordHint:
+      "This is your first sign-in. Set a new password to continue — the "
+      + "temporary one won't work again after this.",
+    temporaryPasswordLabel: "Temporary password",
+    setPasswordNewLabel: "New password (min {{min}} chars)",
+    setPasswordConfirmLabel: "Confirm new password",
+    setPasswordButton: "Set password",
+    setPasswordSubmitting: "Setting password…",
+    setPasswordSignOut: "Sign out",
+    setPasswordMismatchError: "The new passwords don't match.",
+    setPasswordTooShortError: "The new password must be at least {{min}} characters.",
   },
   account: {
     preferences: "Preferences",
@@ -1865,6 +1881,14 @@ export const en = {
       "Your sign-in is kept in your browser securely and stays active as you work, even across reloads and "
       + "with the app open in <strong>several tabs</strong> at once. After the app is <strong>updated</strong> "
       + "you may be asked to sign in once more — that's expected.",
+    // #283 — first-run provisioning: no default credential ever ships with
+    // the app, so the very first sign-in always starts from a printed
+    // one-time password.
+    signingInFirstRun:
+      "<strong>First sign-in on a brand-new farm.</strong> There is no default password — an operator runs a "
+      + "one-time setup command that prints a temporary one. Sign in with it and you'll immediately land on a "
+      + "<strong>Set your password</strong> screen instead of the normal app; nothing else works until you pick "
+      + "your own password there. This is separate from an ordinary <em>Change password</em>.",
     // #308 — step-up re-confirmation for the two sensitive user-administration
     // actions. Deliberately does NOT mention "grant"/"token" — that's internal
     // mechanism, not user-facing language.

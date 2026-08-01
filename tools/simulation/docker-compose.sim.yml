@@ -65,10 +65,10 @@ services:
       Jwt__Audience: ${Jwt__Audience}
       Jwt__PublicKeyPem: ${Jwt__PublicKeyPem}
       Jwt__PrivateKeyPem: ${Jwt__PrivateKeyPem}
-      Seed__Enabled: ${Seed__Enabled}
-      Seed__Demo: ${Seed__Demo}
-      Seed__AdminEmail: ${Seed__AdminEmail}
-      Seed__AdminPassword: ${Seed__AdminPassword}
+      # #283 — no Seed__* vars: the default account/roles/egg grades ship in
+      # the EF migrations (this service's normal migrate-on-startup boot
+      # provisions them), and the Owner is provisioned separately by
+      # reset.sh's `bootstrap-admin` one-shot step, never boot config.
       Simulation__CastPassword: ${Simulation__CastPassword}
       Simulation__HistoryDays: ${Simulation__HistoryDays}
       Simulation__TimeZoneId: ${Simulation__TimeZoneId}

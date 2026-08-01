@@ -106,11 +106,45 @@ public sealed class MultiInstanceIdempotencyTests : IAsyncLifetime
         return port;
     }
 
+    // #283 — the real first-run provisioning path: a one-shot `bootstrap-admin`
+    // subprocess on the SAME binary a deploy runs (there is no boot-time admin
+    // seeding and no Seed:* config any more — a serving instance provisions no
+    // credential at all). Returns the freshly generated temporary password the
+    // command prints to stdout, which is the ONLY copy that will ever exist.
+    private async Task<string> BootstrapAdminAsync(string adminEmail)
+    {
+        var psi = MakeBaseStartInfo("bootstrap-admin", "--email", adminEmail);
+        var process = Process.Start(psi)!;
+        var (exitCode, stdout, stderr) = await SeedCommandRunner.RunToCompletionAsync(process, SubprocessExitTimeout);
+        Assert.True(exitCode == 0, $"bootstrap-admin failed: exit={exitCode} stdout={stdout} stderr={stderr}");
+        return ParseTemporaryPassword(stdout);
+    }
+
+    // BootstrapAdminCliCommand's stdout contract: a single
+    // "Temporary password: <value>" line. Parsed rather than pattern-matched
+    // loosely so a change to that contract fails here LOUDLY instead of
+    // silently handing the login an empty string.
+    private static string ParseTemporaryPassword(string stdout)
+    {
+        const string Marker = "Temporary password: ";
+        var line = stdout.Split('\n')
+            .Select(l => l.TrimEnd('\r'))
+            .SingleOrDefault(l => l.StartsWith(Marker, StringComparison.Ordinal));
+        Assert.True(line is not null,
+            $"bootstrap-admin stdout did not carry exactly one '{Marker}' line. stdout={stdout}");
+        var password = line![Marker.Length..];
+        Assert.False(string.IsNullOrWhiteSpace(password), $"parsed an empty temporary password. stdout={stdout}");
+        return password;
+    }
+
     // Boots a REAL serving instance (no CLI verb — the normal Kestrel path)
     // against the shared Postgres, with its own ephemeral port and its own
     // OS process. Database:MigrateOnStartup=false because MigrateSchemaAsync
-    // already applied the schema — mirrors the real deploy split (#263).
-    private (Process Process, string BaseUrl) StartServingInstance(string adminEmail, string adminPassword)
+    // already applied the schema — mirrors the real deploy split (#263). It
+    // deliberately gets NO admin credential config: under #283 a serving
+    // process never provisions a user, so both replicas here are pure
+    // request-servers reading the admin `bootstrap-admin` already created.
+    private (Process Process, string BaseUrl) StartServingInstance()
     {
         var port = GetFreeTcpPort();
         var psi = MakeBaseStartInfo();
@@ -118,13 +152,6 @@ public sealed class MultiInstanceIdempotencyTests : IAsyncLifetime
         psi.Environment["Database__MigrateOnStartup"] = "false";
         psi.Environment["RateLimiting__Login__PermitLimit"] = "1000000";
         psi.Environment["RateLimiting__Refresh__PermitLimit"] = "1000000";
-        // Real boot-time seeding (DatabaseSeeder) — not test-harness DI
-        // reach-in — provisions the default account + admin user, exactly
-        // how a real deploy's first boot would.
-        psi.Environment["Seed__Enabled"] = "true";
-        psi.Environment["Seed__AdminEmail"] = adminEmail;
-        psi.Environment["Seed__AdminPassword"] = adminPassword;
-        psi.Environment["Seed__AccountName"] = "Multi-Instance Race Farm";
 
         var process = Process.Start(psi)!;
         _liveProcesses.Add(process);
@@ -177,23 +204,43 @@ public sealed class MultiInstanceIdempotencyTests : IAsyncLifetime
     public async Task ConcurrentSameKeyWrite_AcrossTwoReplicas_ProducesExactlyOneDomainMutation()
     {
         var adminEmail = $"admin-{Guid.NewGuid():N}@multiinstance.test.local";
-        var adminPassword = "Aa1!" + Convert.ToHexString(RandomNumberGenerator.GetBytes(6));
 
-        var (_, urlA) = StartServingInstance(adminEmail, adminPassword);
+        // #283 provisioning, exactly as an operator does it: the real
+        // `bootstrap-admin` verb on the real binary, out of process — not a
+        // test-harness DI/DB reach-in — mints the default account's first
+        // Owner with a password only this command ever prints.
+        var temporaryPassword = await BootstrapAdminAsync(adminEmail);
+
+        var (_, urlA) = StartServingInstance();
         using var httpA = new HttpClient { BaseAddress = new Uri(urlA), Timeout = TimeSpan.FromSeconds(30) };
         await WaitUntilReadyAsync(httpA, ReadyTimeout);
 
-        var (_, urlB) = StartServingInstance(adminEmail, adminPassword);
+        var (_, urlB) = StartServingInstance();
         using var httpB = new HttpClient { BaseAddress = new Uri(urlB), Timeout = TimeSpan.FromSeconds(30) };
         await WaitUntilReadyAsync(httpB, ReadyTimeout);
 
-        // Everything from here on is real HTTP against the real, seeded
+        // Everything from here on is real HTTP against the real, bootstrapped
         // admin — no direct DB/DI reach-in from the test.
         var loginResponse = await httpA.PostAsJsonAsync(
-            "/api/v1/auth/login", new { email = adminEmail, password = adminPassword });
+            "/api/v1/auth/login", new { email = adminEmail, password = temporaryPassword });
         Assert.True(loginResponse.IsSuccessStatusCode,
             $"login against instance A failed: {loginResponse.StatusCode} {await loginResponse.Content.ReadAsStringAsync()}");
-        var accessToken = ExtractString(await loginResponse.Content.ReadAsStringAsync(), "accessToken");
+        var temporaryAccessToken = ExtractString(await loginResponse.Content.ReadAsStringAsync(), "accessToken");
+
+        // #283 — a bootstrapped Owner carries MustChangePassword=true, so
+        // MustChangePasswordMiddleware refuses EVERY endpoint outside its
+        // two-path allowlist until the password is actually changed. Walking
+        // the real first-login flow (rather than clearing the flag in the DB)
+        // keeps this test's "real HTTP only" property intact — and the
+        // response hands back the post-change access token to carry on with.
+        var newPassword = "Aa1!" + Convert.ToHexString(RandomNumberGenerator.GetBytes(12));
+        httpA.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", temporaryAccessToken);
+        var changeResponse = await httpA.PostAsJsonAsync(
+            "/api/v1/auth/change-password",
+            new { currentPassword = temporaryPassword, newPassword });
+        Assert.True(changeResponse.IsSuccessStatusCode,
+            $"first-login password change failed: {changeResponse.StatusCode} {await changeResponse.Content.ReadAsStringAsync()}");
+        var accessToken = ExtractString(await changeResponse.Content.ReadAsStringAsync(), "accessToken");
 
         // The SAME bearer token authenticates against BOTH instances — proof
         // they share signing key/issuer/audience like two real replicas

@@ -33,7 +33,6 @@ public sealed class SimulationMutableClockFactory : CluckworkWebApplicationFacto
 
     // Runtime-generated — never a hardcoded credential (repo policy).
     public string AdminEmail { get; } = $"sim-mc-admin-{Guid.NewGuid():N}@test.local";
-    public string AdminPassword { get; } = $"Aa1!{Guid.NewGuid():N}";
     public string CastPassword { get; } = $"Aa1!{Guid.NewGuid():N}";
 
     public string ManifestPath { get; } =
@@ -47,10 +46,6 @@ public sealed class SimulationMutableClockFactory : CluckworkWebApplicationFacto
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         base.ConfigureWebHost(builder);
-        builder.UseSetting("Seed:Enabled", "true");
-        builder.UseSetting("Seed:Demo", "false");
-        builder.UseSetting("Seed:AdminEmail", AdminEmail);
-        builder.UseSetting("Seed:AdminPassword", AdminPassword);
         builder.UseSetting("Simulation:CastPassword", CastPassword);
         builder.UseSetting("Simulation:TimeZoneId", TimeZoneId);
         builder.UseSetting("Simulation:HistoryDays", HistoryDays.ToString());
@@ -66,14 +61,21 @@ public sealed class SimulationMutableClockFactory : CluckworkWebApplicationFacto
         });
     }
 
-    // NOTE: this factory doesn't override InitializeAsync (base init — start
-    // Postgres, build host, run the base boot seed — is exactly what's wanted;
-    // each test drives the simulation seed runs itself). But re-declaring
-    // IAsyncLifetime is still required so xUnit dispatches DisposeAsync to THIS
+    // #283 — base init (start Postgres, build host, migrate — the account/
+    // Admin role/egg grades ship WITH that migration now) is exactly what's
+    // wanted; each test still drives its own simulation seed runs. The one
+    // thing base init no longer provides is the Owner admin (no runtime
+    // seeder creates it), so it's seeded here — standing in for a real
+    // `bootstrap-admin` run — before any test's SeedOnceAsync() depends on it.
+    // Re-declaring IAsyncLifetime is required so xUnit dispatches to THIS
     // override (the base methods aren't virtual — a `new` method alone is
     // silently skipped when called through the IAsyncLifetime reference xUnit
-    // holds), otherwise the temp manifest cleanup below never runs.
-    public new async Task InitializeAsync() => await base.InitializeAsync();
+    // holds).
+    public new async Task InitializeAsync()
+    {
+        await base.InitializeAsync();
+        await this.SeedUserAsync(SeedDefaults.AccountId, AdminEmail, Roles.Owner);
+    }
 
     public new async Task DisposeAsync()
     {

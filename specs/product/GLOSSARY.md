@@ -588,8 +588,40 @@ and cleared the instant it is sent. TOTP/WebAuthn step-up is a deferred
 follow-up (#320); the offline `recover-admin` break-glass command (see below)
 is a separate CLI verb and never touches this browser flow.
 
-**Break-glass reset (#265)** — the recovery path for the one case the two above
-leave uncovered: a **sole Owner** who has lost their password. There is no email
+**First-run admin provisioning (#283)** — how a fresh deploy gets its first
+Owner without ever shipping a repo-known credential. The default account, the
+four assignable roles, and the default egg grades are **static reference
+data**: they ship inside the EF migrations themselves (no runtime seeder, no
+`Seed:*` config — a migrated database already has them). The first admin does
+**not**: an operator runs the offline `bootstrap-admin --email <address>`
+command once, which generates a random password, creates the Owner with it,
+and writes the password to **stdout only** — never the application logger or
+the OTLP pipeline. A host's stdout collector (docker logs, journald, a
+platform log pipeline) may still capture it, so that output must be treated
+as sensitive while the password is valid. Re-running the command against an
+already-provisioned account is a safe no-op (no second Owner, no password
+reprinted). This is a **separate mechanism** from break-glass recovery below (a pre-auth, one-shot
+setup secret vs. an offline recovery for a locked-out existing account) and
+from the browser step-up re-confirmation a signed-in Owner uses for sensitive
+actions (#308) — three distinct credential types, audiences, and lifetimes,
+never conflated.
+
+**Must-change-password gate (#283)** — the flag (`ApplicationUser
+.MustChangePassword`) that forces the printed one-time password to actually
+get replaced instead of sitting valid indefinitely. Set only by
+`bootstrap-admin` on the Owner it creates. While set, the access token carries
+a matching claim, the SPA shows a **"Set your password"** screen in place of
+the app (any route), and the API refuses every other endpoint with 403 except
+signing out and the change-password call itself. Submitting the printed
+password as the "current" one and a new password clears the flag — the same
+`/auth/change-password` endpoint the Account screen's regular self-service
+change already uses. Resetting a user's password through any other path (an
+Owner's Users-screen reset, break-glass) also clears a pending flag, so a
+locked-out first-run admin is never left stuck.
+
+**Break-glass reset (#265)** — the recovery path for the one case that
+**self-service password change** and **first-run admin provisioning** leave
+uncovered: a **sole Owner** who has lost their password. There is no email
 reset, self-service needs the current password, and an Owner cannot reset their
 own account — so without this the only recourse is direct database surgery. An
 operator with server access runs the offline `recover-admin` command, which
