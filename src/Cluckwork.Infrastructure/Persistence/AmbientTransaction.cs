@@ -38,11 +38,13 @@ using Microsoft.EntityFrameworkCore.Storage;
 // a failed attempt leaves its entities tracked as Added on this same scoped
 // AppDbContext (EF does not detach them, so a retry flushes the failed
 // attempt's rows alongside the fresh ones — duplicate users on the unique
-// email index, duplicate audit rows, a refresh token nobody was ever issued),
-// and for `bootstrap-admin` the unit sits inside a SESSION-scoped
-// pg_advisory_lock that a reconnect drops without the retry reacquiring it or
-// re-checking for an Owner. See SingleAttemptExecution for the full rationale
-// and for what retrying still covers.
+// email index, duplicate audit rows, a refresh token nobody was ever issued).
+// For `bootstrap-admin` the unit additionally sits inside a SESSION-scoped
+// pg_advisory_lock that a reconnect drops — but note this scope is NOT where
+// that is handled: FirstRunAdminService wraps its whole lock/check/create
+// region itself, because the reads OUTSIDE this transaction were the ones
+// being retried. See SingleAttemptExecution for the full rationale and for
+// what retrying still covers.
 public static class AmbientTransaction
 {
     public static async Task<T> RunAsync<T>(

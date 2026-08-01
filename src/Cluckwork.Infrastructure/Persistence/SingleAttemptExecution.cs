@@ -14,7 +14,7 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 //
 // That guard is right, and it is the whole design constraint here: a
 // transaction that spans work which is NOT replayable cannot be made
-// resilient by retrying it. Two such regions exist in this codebase:
+// resilient by retrying it. Three such regions exist in this codebase:
 //
 //   * IdempotencyMiddleware's request-wide transaction, which by design (#307)
 //     covers `next(context)` — the entire downstream HTTP pipeline. Replaying
@@ -26,8 +26,15 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 //   * An "owned" AmbientTransaction unit (AmbientTransaction.RunAsync), which
 //     can leave the failed attempt's entities tracked as Added on the SAME
 //     scoped AppDbContext — EF does not detach them, and a retry would flush
-//     them alongside the fresh ones — and which, for `bootstrap-admin`, spans
-//     a SESSION-scoped pg_advisory_lock that a reconnect silently drops.
+//     them alongside the fresh ones.
+//   * FirstRunAdminService's whole lock -> check -> create region (#350 review
+//     round 2). Wrapping only the create was not enough: the READS that decide
+//     whether to create were ordinary EF units, so the strategy retried them,
+//     and a retry RECONNECTS — dropping the SESSION-scoped pg_advisory_lock
+//     and leaving the create to run unguarded. Nesting matters here: inside an
+//     execution strategy EF suspends retries for every nested operation, which
+//     is exactly why wrapping the OUTER region is what stops the inner reads
+//     being replayed.
 //
 // So those regions run through the execution strategy (satisfying EF's guard)
 // but EXACTLY ONCE: the operation is never replayed, because the first
