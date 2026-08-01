@@ -39,7 +39,7 @@ tools/simulation/out/
 # summary.json/docker-stats.csv/pg-snapshot files) was NOT excluded and was
 # cache-busting `dotnet publish` on every rep. Excluded explicitly here.
 tools/simulation/monitor/out/
-tools/simulation/*.pem
+# (tools/simulation/*.pem used to be listed here; **/*.pem above now covers it.)
 # Generated findings docs (one per run-baseline.sh run, git-ignored — see
 # tools/simulation/.gitignore) also don't belong in the build context; negate
 # the one tracked file in that dir back in (mirrors .gitignore's own
