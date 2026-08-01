@@ -83,6 +83,26 @@ public sealed class FarmLogoTests(CluckworkWebApplicationFactory factory)
     }
 
     [Fact]
+    public async Task LogoResponse_KeepsItsDeliberateRevalidatePolicy_NotTheDefaultNoStore()
+    {
+        // #312 gives every response a default `private, no-store`, added only via
+        // TryAdd — this endpoint sets `private, no-cache` itself (revalidate via
+        // ETag rather than never-store, so a 304 round trip stays cheap) and that
+        // deliberate choice must survive the new default unclobbered.
+        var (client, _, _) = await AdminAsync();
+        await PutLogoAsync(client, TinyPng);
+
+        var fetched = await client.GetAsync(LogoPath);
+
+        Assert.Equal(HttpStatusCode.OK, fetched.StatusCode);
+        var cc = fetched.Headers.CacheControl;
+        Assert.NotNull(cc);
+        Assert.True(cc!.Private);
+        Assert.True(cc.NoCache);
+        Assert.False(cc.NoStore, "the logo's own no-cache/revalidate policy must not become no-store");
+    }
+
+    [Fact]
     public async Task TheServedTypeComesFromTheBytes_NotFromWhatTheClientClaimed()
     {
         var (client, _, _) = await AdminAsync();

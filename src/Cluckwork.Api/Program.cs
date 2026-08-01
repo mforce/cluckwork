@@ -162,6 +162,14 @@ app.UseForwardedHeaders();
 // forwarded headers so it also covers static files and error responses.
 app.UseSecurityHeaders();
 
+// #312 — default private/no-store Cache-Control on every response (API reads,
+// writes, auth, validation, errors, exports). Same outermost placement as
+// UseSecurityHeaders and for the same reason: it must also cover the
+// exception-handler re-execution and any response produced below, while still
+// letting a downstream stage's own deliberate Cache-Control (static assets,
+// the SPA fallback, the farm logo's revalidate policy) win via TryAdd.
+app.UseDefaultResponseCaching();
+
 // HSTS outside Development — only meaningful now the forwarded proto is trusted
 // so Request.IsHttps reflects the real client scheme.
 if (!app.Environment.IsDevelopment())

@@ -116,7 +116,8 @@ ever serving a stale app:
 | `/assets/*` (Vite output) | `public, max-age=31536000, immutable` | Content-hashed filename — the bytes never change under a given name, so cache forever and skip revalidation. |
 | `index.html` (direct **and** the SPA fallback) | `no-cache` | Unhashed entry point that names the current bundle — always revalidate so a new deploy propagates immediately. `no-cache` still allows conditional (ETag) requests; it is **not** `no-store`. |
 | other root files (favicon, manifest, …) | `no-cache` | Unversioned but cheap — revalidate rather than pin. |
-| `/api/*` | *(none set by us)* | Dynamic responses carry no static cache header. |
+| `/api/*`, auth, validation/error responses, exports | `private, no-store` | #312 — a safe-by-default origin policy: authenticated JSON, CSV/zip exports and auth responses (even pre-authentication) may carry tenant data, so nothing about them may be stored by a browser cache or an intermediary. |
+| `/health/*` | *(unaffected)* | The health-check middleware sets its own no-caching headers; #312's default explicitly excludes `/health` rather than override that framework-owned contract. |
 
 ## CDN in front (optional)
 
@@ -136,8 +137,11 @@ must satisfy these requirements (the specifics are provider-neutral on purpose):
    `Cache-Control` — hold the `immutable` assets and revalidate `index.html` as
    above — rather than override with a blanket edge TTL.
 3. **Bypass `/api/*`.** Add a rule so paths under `/api/` are never edge-cached;
-   API responses are dynamic and per-tenant. (They carry no cache header, but an
-   explicit bypass is belt-and-braces.)
+   API responses are dynamic and per-tenant. The origin already sends
+   `Cache-Control: private, no-store` on them (#312), but an explicit edge
+   bypass stays required as defense in depth — a misconfigured edge rule or a
+   future CDN default that doesn't fully honour `no-store` must not be the only
+   thing standing between a forgetful config and cached tenant data.
 4. **Bot / DDoS layer.** A CDN can add a bot-management / DDoS shield in front of
    the login endpoint. This is a **partial** mitigation only — API-side per-IP
    rate limiting on the auth endpoints (#143) is the real control and is already
