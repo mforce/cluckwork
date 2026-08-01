@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
@@ -65,6 +66,40 @@ public sealed class IdempotencyMiddleware(RequestDelegate next, IOptions<Idempot
     public async Task InvokeAsync(
         HttpContext context, AppDbContext db, TenantContext tenant, CurrentUserContext user)
     {
+        // #345 — UseExceptionHandler (Program.cs) does not just render a body: on
+        // an unhandled exception it rewrites Request.Path to "/error" and
+        // RE-EXECUTES the whole downstream pipeline, this middleware included. On
+        // that second pass the method is still the original write verb and the
+        // tenant still resolves from the original request's bearer token, but the
+        // PATH is now "/error" — so every path-derived decision below is made
+        // about a request the client never sent. Two measured consequences:
+        //
+        //   (a) the ResponseNotCacheable exemption is matched on Request.Path, so
+        //       it stops matching: a /auth/change-password that throws re-enters
+        //       here as "/error", carries no Idempotency-Key (correctly — it is
+        //       exempt), and gets this middleware's own 400
+        //       "Idempotency-Key header is required" INSTEAD of the exception's
+        //       real mapped status. A 500 was being served to the client as a 400.
+        //
+        //   (b) for a tracked write the re-entry claims a SECOND, "/error"-scoped
+        //       row (EndpointHash covers the path, so it does NOT collide with
+        //       the original request's claim — that one is already released by
+        //       the catch below). Harmless in the happy case, but it makes
+        //       rendering an error a DATABASE WRITE: when the fault IS the
+        //       database, the claim INSERT throws too, the exception handler
+        //       itself fails, and the client gets no ProblemDetails at all —
+        //       just a dropped/500-with-no-body connection.
+        //
+        // Idempotency has nothing to contribute to a re-execution: the client's
+        // request was already claimed, executed and released (or replayed) by the
+        // first pass, and "/error" is a synthetic path no client can retry against.
+        // So skip entirely — do not merely widen the exemption match.
+        if (context.Features.Get<IExceptionHandlerFeature>() is not null)
+        {
+            await next(context);
+            return;
+        }
+
         if (!HttpMethods.IsPost(context.Request.Method)
             && !HttpMethods.IsPut(context.Request.Method)
             && !HttpMethods.IsPatch(context.Request.Method)
@@ -252,13 +287,14 @@ public sealed class IdempotencyMiddleware(RequestDelegate next, IOptions<Idempot
             // parallel-race test drives) leaves its entities tracked as Modified
             // — EF does not detach them on failure. UseExceptionHandler is
             // registered BEFORE this middleware, so it re-executes the WHOLE
-            // pipeline (including this middleware, for a synthetic "POST:/error"
-            // claim) on the SAME scoped AppDbContext. Without clearing here, that
-            // re-entry's own claim-insert SaveChangesAsync would try to flush the
-            // SAME stale entities and re-throw the SAME exception — uncaught,
-            // since it happens before this middleware's own try block on the
-            // re-entry — which is exactly what let the exception escape all the
-            // way to the client instead of the mapped 409.
+            // downstream pipeline on the SAME scoped AppDbContext. Since #345 that
+            // re-execution no longer re-enters the claim protocol (see the
+            // IExceptionHandlerFeature skip at the top), so nothing here flushes
+            // the tracker any more — but ANY future re-executed middleware or
+            // /error handler that touched this DbContext would otherwise re-flush
+            // the SAME stale entities and re-throw the SAME exception, uncaught,
+            // letting it escape to the client instead of the mapped 409. Keep the
+            // scope's tracker clean before unwinding.
             db.ChangeTracker.Clear();
             try { await ReleaseClaimAsync(db, accountId, endpointHash, keyHash, ownerToken, CancellationToken.None); }
             catch { /* best-effort — an abandoned claim still recovers via lease expiry */ }
