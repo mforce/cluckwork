@@ -1,5 +1,6 @@
 namespace Cluckwork.Infrastructure.Identity;
 
+using System.Globalization;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
@@ -58,7 +59,22 @@ using Microsoft.IdentityModel.Tokens;
 //     Async — the same call AuthEndpoints.Logout already makes). A grant
 //     ISSUED AT OR BEFORE that instant is refused even if unexpired and
 //     unused, so a grant captured before a legitimate logout cannot be used
-//     after it → REVOKED denial.
+//     after it → REVOKED denial. That comparison runs against a DEDICATED
+//     tick-precision issuance claim (PreciseIssuedAtClaim), NOT the JWT's own
+//     nbf/ValidFrom: nbf is a NumericDate, i.e. floored to whole seconds,
+//     while the recorded logout instant keeps sub-second ticks — so a user who
+//     logs out at :00.500, signs back in and takes a FRESH grant at :00.800
+//     would have that grant read as issued at :00.000, i.e. at-or-before their
+//     own logout, and be locked out of the feature until the second rolled
+//     over (#336 review). Flooring the stored logout instead would NOT fix it
+//     (both collapse to :00.000, and the comparison is at-or-before), and
+//     relaxing the comparison to strictly-before would accept a grant
+//     genuinely minted earlier in the logout's own second — precisely what
+//     this guard exists to refuse. So the issuance instant is carried at full
+//     precision inside the SIGNED grant (we mint it, so we control its
+//     claims); the standard whole-second nbf/exp are untouched. A missing or
+//     unparseable precise claim FAILS CLOSED into the same denial — it never
+//     falls back to the floored nbf.
 //   - Non-enumerating failure handling: every one of the above rejection
 //     reasons — missing, malformed, expired, replayed, wrong-account/user,
 //     stamp-revoked, logout-revoked — maps to the SAME error
@@ -98,6 +114,12 @@ public sealed class StepUpGrantService(
 {
     // Never sourced from config — see the threat-model note above.
     internal const string Audience = "cluckwork-step-up";
+
+    // Tick-precision issuance instant (UTC ticks, invariant decimal). Carried
+    // ALONGSIDE — never instead of — the standard nbf/exp, which stay
+    // whole-second NumericDates. Only the logout-revocation comparison reads
+    // it; see the "Revoked by logout" bullet above for why nbf cannot serve.
+    internal const string PreciseIssuedAtClaim = "stepup_iat_ticks";
 
     // #309-style defensive cap ahead of parsing: a real grant is a compact JWT
     // a few hundred bytes long: 2048-bit RSA signature + a handful of short
@@ -165,6 +187,10 @@ public sealed class StepUpGrantService(
             // Embeds the CURRENT stamp so any later rotation (password
             // change/reset) invalidates this grant — see the class comment.
             new("security_stamp", user.SecurityStamp ?? string.Empty),
+            // Sub-second issuance instant for the logout comparison. Inside the
+            // signed payload, so it is integrity-protected exactly like every
+            // other claim here.
+            new(PreciseIssuedAtClaim, now.UtcTicks.ToString(CultureInfo.InvariantCulture)),
         };
 
         var token = new JwtSecurityToken(
@@ -225,15 +251,22 @@ public sealed class StepUpGrantService(
         var acct = jwt.Claims.FirstOrDefault(c => c.Type == "account_id")?.Value;
         var jtiClaim = jwt.Claims.FirstOrDefault(c => c.Type == JwtRegisteredClaimNames.Jti)?.Value;
         var stamp = jwt.Claims.FirstOrDefault(c => c.Type == "security_stamp")?.Value;
+        var issuedAtTicks = jwt.Claims.FirstOrDefault(c => c.Type == PreciseIssuedAtClaim)?.Value;
+        // NumberStyles.None: digits only — no sign, whitespace or separators.
+        // A missing, non-numeric or out-of-range value collapses into the same
+        // malformed-claims denial rather than falling back to the floored nbf.
         if (sub != userId.ToString() || acct != accountId.ToString()
-            || !Guid.TryParse(jtiClaim, out var jti) || stamp is null)
+            || !Guid.TryParse(jtiClaim, out var jti) || stamp is null
+            || !long.TryParse(issuedAtTicks, NumberStyles.None, CultureInfo.InvariantCulture, out var ticks)
+            || ticks < DateTimeOffset.MinValue.UtcTicks || ticks > DateTimeOffset.MaxValue.UtcTicks)
             return Result.Failure(DeniedError); // wrong-account / wrong-user / malformed claims
 
         var user = await userManager.FindByIdAsync(userId.ToString());
         if (user is null || user.AccountId != accountId || user.SecurityStamp != stamp)
             return Result.Failure(DeniedError); // revoked by a security-stamp change
 
-        var issuedAt = new DateTimeOffset(jwt.ValidFrom, TimeSpan.Zero);
+        // Tick-precision, NOT jwt.ValidFrom — see the class comment.
+        var issuedAt = new DateTimeOffset(ticks, TimeSpan.Zero);
         if (registry.IsRevokedByLogout(userId, issuedAt))
             return Result.Failure(DeniedError); // revoked by logout
 

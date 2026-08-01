@@ -21,6 +21,10 @@ public interface IStepUpGrantRegistry
     // this instant is subsequently treated as revoked by IsRevokedByLogout.
     void RecordLogout(Guid userId, DateTimeOffset at);
 
-    // True when userId has a recorded logout at or after issuedAt.
+    // True when userId has a recorded logout at or after issuedAt. Both
+    // instants are compared at FULL precision, so the caller must pass a
+    // sub-second-accurate issuance time — StepUpGrantService reads its own
+    // tick-precision claim for this, never the grant's whole-second JWT nbf
+    // (see that class's "Revoked by logout" note).
     bool IsRevokedByLogout(Guid userId, DateTimeOffset issuedAt);
 }

@@ -278,6 +278,116 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
         Assert.DoesNotContain(users!, u => u.Email == newOwnerEmail);
     }
 
+    // ---------- Logout revocation at sub-second precision (#336 review) ----------
+
+    // The logout instant is recorded with full sub-second ticks, but a JWT's
+    // nbf is a NumericDate — whole seconds. Reading issuance off nbf therefore
+    // rounded a grant DOWN into (or before) the logout's own second. The three
+    // tests below pin both sides of that boundary; see StepUpGrantService's
+    // "Revoked by logout" note for why neither flooring the stored logout nor
+    // loosening the comparison is an acceptable fix.
+
+    // A whole-second UTC anchor, so the offsets below sit unambiguously inside
+    // ONE second and every grant minted between :00.000 and :00.999 shares the
+    // same floored nbf.
+    private static DateTimeOffset WholeSecondAnchor()
+    {
+        var now = DateTimeOffset.UtcNow;
+        return new DateTimeOffset(now.UtcTicks - (now.UtcTicks % TimeSpan.TicksPerSecond), TimeSpan.Zero);
+    }
+
+    // The logout registry is an in-process singleton, so the logout and the
+    // step-up MUST both run against the same host — hence one frozen-clock
+    // factory shared by every call in these tests, not the ambient `factory`.
+    private async Task<(HttpClient Owner, string RefreshToken, ManualTimeProvider Clock,
+        WebApplicationFactory<Program> Host)> FrozenClockOwnerAsync(DateTimeOffset start)
+    {
+        var email = $"admin-{Guid.NewGuid():N}@test.local";
+        await factory.SeedAccountWithUserAsync(email);
+        var pair = await factory.LoginAsync(email);
+
+        var clock = new ManualTimeProvider(start);
+        var frozen = factory.WithWebHostBuilder(b =>
+            b.ConfigureTestServices(s => s.AddSingleton<TimeProvider>(clock)));
+        var owner = frozen.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
+        owner.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", pair.AccessToken);
+        return (owner, pair.RefreshToken, clock, frozen);
+    }
+
+    private static async Task LogoutAsync(WebApplicationFactory<Program> host, string refreshToken)
+    {
+        var response = await host.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false })
+            .PostLogoutAsync(refreshToken);
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+    }
+
+    // THE BUG. Log out at :00.500, sign back in and take a FRESH grant at
+    // :00.800 — genuinely after the logout, but sharing its UTC second. Off
+    // nbf the grant reads as issued at :00.000 and is refused for the rest of
+    // the second, stranding a user who did nothing wrong.
+    [Fact]
+    public async Task CreateOwner_StepUpIssuedAfterLogoutInTheSameSecond_IsAccepted()
+    {
+        var anchor = WholeSecondAnchor();
+        var (owner, refreshToken, clock, host) = await FrozenClockOwnerAsync(anchor.AddMilliseconds(500));
+
+        await LogoutAsync(host, refreshToken);
+
+        // Same whole second, later ticks — a grant that did not exist at logout.
+        clock.Now = anchor.AddMilliseconds(800);
+        var grant = await StepUpAsync(owner, TestHarness.Password);
+
+        var newOwnerEmail = $"boss-{Guid.NewGuid():N}@test.local";
+        var response = await CreateUserWithStepUpAsync(owner, newOwnerEmail, "Admin", grant.Token);
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var users = await owner.GetFromJsonAsync<List<UserRow>>("/api/v1/users");
+        Assert.Contains(users!, u => u.Email == newOwnerEmail && u.Role == "Admin");
+    }
+
+    // THE SECURITY PROPERTY, and the reason strictly-before is not an option:
+    // a grant minted at :00.200 and a logout at :00.500 land in the same
+    // second, and the grant is genuinely EARLIER. It must still be refused.
+    [Fact]
+    public async Task CreateOwner_StepUpIssuedBeforeLogoutInTheSameSecond_IsStillRevoked()
+    {
+        var anchor = WholeSecondAnchor();
+        var (owner, refreshToken, clock, host) = await FrozenClockOwnerAsync(anchor.AddMilliseconds(200));
+
+        var grant = await StepUpAsync(owner, TestHarness.Password);
+
+        clock.Now = anchor.AddMilliseconds(500);
+        await LogoutAsync(host, refreshToken);
+
+        var newOwnerEmail = $"boss-{Guid.NewGuid():N}@test.local";
+        var response = await CreateUserWithStepUpAsync(owner, newOwnerEmail, "Admin", grant.Token);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        var users = await owner.GetFromJsonAsync<List<UserRow>>("/api/v1/users");
+        Assert.DoesNotContain(users!, u => u.Email == newOwnerEmail);
+    }
+
+    // The exact tick where at-or-before and strictly-before disagree: grant and
+    // logout at the SAME instant. "At or before" is the documented contract, so
+    // this must be refused — the test that goes green if anyone loosens the
+    // comparison to `<` while chasing the same-second bug above.
+    [Fact]
+    public async Task CreateOwner_StepUpIssuedAtTheExactLogoutInstant_IsStillRevoked()
+    {
+        var (owner, refreshToken, _, host) = await FrozenClockOwnerAsync(WholeSecondAnchor().AddMilliseconds(500));
+
+        var grant = await StepUpAsync(owner, TestHarness.Password);
+        // Clock untouched: the logout is recorded at the grant's own instant.
+        await LogoutAsync(host, refreshToken);
+
+        var newOwnerEmail = $"boss-{Guid.NewGuid():N}@test.local";
+        var response = await CreateUserWithStepUpAsync(owner, newOwnerEmail, "Admin", grant.Token);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        var users = await owner.GetFromJsonAsync<List<UserRow>>("/api/v1/users");
+        Assert.DoesNotContain(users!, u => u.Email == newOwnerEmail);
+    }
+
     [Fact]
     public async Task StepUpFailures_AllProduceTheIdenticalNonEnumeratingResponse()
     {
