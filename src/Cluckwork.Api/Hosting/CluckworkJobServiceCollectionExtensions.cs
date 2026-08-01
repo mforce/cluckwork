@@ -9,6 +9,7 @@ internal static class CluckworkJobServiceCollectionExtensions
     {
         services.AddSingleton<DurableJobWorkerHeartbeat>();
         services.AddSingleton<DailyEntryLockSweep>();
+        services.AddSingleton<RefreshTokenPurgeSweep>();
         services.AddHostedService<DurableJobWorker>();
         return services;
     }

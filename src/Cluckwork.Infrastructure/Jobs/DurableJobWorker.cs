@@ -29,6 +29,7 @@ public sealed class DurableJobWorker(
     ILogger<DurableJobWorker> logger,
     DurableJobWorkerHeartbeat? heartbeat = null,
     DailyEntryLockSweep? lockSweep = null,
+    RefreshTokenPurgeSweep? refreshTokenPurgeSweep = null,
     TimeSpan? pollInterval = null,
     TimeSpan? initialBackoff = null) : BackgroundService
 {
@@ -109,6 +110,8 @@ public sealed class DurableJobWorker(
         // resilience unit tests, which exercise the loop, not the sweeps).
         if (lockSweep is not null)
             await lockSweep.RunAsync(ct);
+        if (refreshTokenPurgeSweep is not null)
+            await refreshTokenPurgeSweep.RunAsync(ct);
     }
 }
 
