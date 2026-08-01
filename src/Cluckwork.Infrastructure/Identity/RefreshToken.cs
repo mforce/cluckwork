@@ -49,6 +49,10 @@ public sealed class RefreshTokenConfiguration : IEntityTypeConfiguration<Refresh
         builder.Property(e => e.RevokedByGrace).HasDefaultValue(false);
         builder.HasIndex(e => e.TokenHash).IsUnique();
         builder.HasIndex(e => e.UserId);
+        // #270 — covers RefreshTokenPurgeSweep's delete predicate
+        // (WHERE ExpiresAt < cutoff), which would otherwise seq-scan the whole
+        // table on every poll.
+        builder.HasIndex(e => e.ExpiresAt);
 
         // #176 — consuming a refresh token (revoke-and-rotate) must be an atomic
         // compare-and-swap: two concurrent presentations of the same token would
