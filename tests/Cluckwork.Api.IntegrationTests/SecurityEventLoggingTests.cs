@@ -240,6 +240,26 @@ public sealed class SecurityEventLoggingTests(SecurityEventLoggingFactory factor
             MaybeFail(command);
             return base.NonQueryExecutingAsync(command, eventData, result, cancellationToken);
         }
+
+        // #273 codex review (P2e) test support — a TRACKED SaveChangesAsync
+        // update against an entity with an IsConcurrencyToken property (like
+        // RefreshToken.ConcurrencyStamp) is issued by Npgsql/EF as a command
+        // with a RETURNING clause so the affected-row count can be read back,
+        // which routes through ReaderExecutingAsync rather than
+        // NonQueryExecutingAsync — confirmed by instrumenting this
+        // interceptor and observing zero NonQueryExecutingAsync calls for the
+        // ordinary (non-bulk) rotation path. The bulk ExecuteUpdateAsync calls
+        // RunRevocationAsync wraps have no such concurrency check and go
+        // through NonQueryExecutingAsync above instead, so both overrides are
+        // needed to fault-inject every shape of "the UPDATE against
+        // refresh_tokens throws."
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+            DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result,
+            CancellationToken cancellationToken = default)
+        {
+            MaybeFail(command);
+            return base.ReaderExecutingAsync(command, eventData, result, cancellationToken);
+        }
     }
 
     [Fact]
@@ -293,6 +313,72 @@ public sealed class SecurityEventLoggingTests(SecurityEventLoggingFactory factor
         var failedEvents = EventsFor(SecurityEvents.RefreshRevocationFailed);
         Assert.Single(replayEvents);
         var failed = Assert.Single(failedEvents);
+        Assert.Equal(user!.Id.ToString(), ScalarOf(failed, "UserId"));
+    }
+
+    // #273 codex review (P2e) — RunRevocationAsync's wrapper only covered the
+    // BULK-UPDATE revocations (family revoke, logout, break-glass/password
+    // reset/change). Ordinary, NON-replay refresh rotation also revokes a
+    // token (RefreshAsync sets stored.RevokedAt and SaveChangesAsync — a
+    // tracked read-modify-save, not a bulk update) and previously sat outside
+    // that hardening point entirely: a non-concurrency SaveChangesAsync
+    // failure there silently skipped Auth.RefreshRevocationFailed even though
+    // the class comment claimed every revocation was covered. Same fault-
+    // injection technique as the replay test above, but exercised on the
+    // FIRST (live, non-replay) rotation so this proves the OTHER code path.
+    [Fact]
+    public async Task Ordinary_refresh_rotation_whose_revoke_throws_emits_RevocationFailed_and_still_fails_the_call()
+    {
+        factory.Sink.Events.Clear();
+        var email = await SeedUserAsync();
+
+        using var scope = factory.Services.CreateScope();
+        var services = scope.ServiceProvider;
+        var userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
+        var user = await userManager.FindByEmailAsync(email);
+        Assert.NotNull(user);
+
+        var tokens = await factory.LoginAsync(email);
+
+        var interceptor = new ThrowingRefreshTokenUpdateInterceptor();
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseNpgsql(factory.ConnectionString)
+            .AddInterceptors(interceptor)
+            .Options;
+        await using var db = new AppDbContext(options, new TenantContext());
+
+        var provider = new IdentityProvider(
+            userManager,
+            services.GetRequiredService<RoleManager<ApplicationRole>>(),
+            services.GetRequiredService<IJwtTokenService>(),
+            db,
+            services.GetRequiredService<IOptions<JwtOptions>>(),
+            services.GetRequiredService<TimeProvider>(),
+            services.GetRequiredService<IAuditWriter>(),
+            services.GetRequiredService<IStepUpGrantRegistry>(),
+            services.GetRequiredService<IHttpContextAccessor>(),
+            services.GetRequiredService<AuthSecurityEventLogger>(),
+            services.GetRequiredService<ILogger<IdentityProvider>>());
+
+        var rawRefreshToken = Uri.UnescapeDataString(tokens.RefreshToken);
+
+        // This is the token's FIRST rotation — not a replay — so it exercises
+        // RefreshAsync's tracked-save revocation, never the bulk-update path
+        // RunRevocationAsync wraps. Note the exception TYPE differs from the
+        // bulk-update replay test above: a tracked SaveChangesAsync failure
+        // arrives wrapped as DbUpdateException (EF Core's own wrapping around
+        // the ReaderExecutingAsync fault this interceptor injects), where
+        // ExecuteUpdateAsync's bulk path lets the raw InvalidOperationException
+        // through unwrapped. Either way it is NOT a DbUpdateConcurrencyException,
+        // so it takes the log-and-rethrow branch, not the benign-race branch.
+        interceptor.Armed = true;
+        await Assert.ThrowsAsync<DbUpdateException>(() => provider.RefreshAsync(rawRefreshToken));
+        interceptor.Armed = false;
+
+        // Not a replay: ReplayDetected must stay silent so this failure is
+        // attributable to the right event.
+        Assert.Empty(EventsFor(SecurityEvents.RefreshTokenReplayDetected));
+        var failed = Assert.Single(EventsFor(SecurityEvents.RefreshRevocationFailed));
         Assert.Equal(user!.Id.ToString(), ScalarOf(failed, "UserId"));
     }
 }

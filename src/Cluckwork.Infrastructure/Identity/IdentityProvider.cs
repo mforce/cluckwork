@@ -157,7 +157,25 @@ public sealed class IdentityProvider(
             // #176 — another request consumed this exact token first (concurrent
             // presentation of the same token). The winner already minted the one
             // live child; fail this one closed rather than fork a second session.
+            // Benign and EXPECTED under normal traffic, so — unlike the catch
+            // below — this is not itself worth an Auth.RefreshRevocationFailed
+            // alert.
             return Result.Failure<TokenPair>(Error.Validation("Identity.InvalidRefreshToken", "Refresh token is invalid."));
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // #273 codex review (P2e) — this SaveChangesAsync is ALSO a
+            // refresh-token revocation (it sets stored.RevokedAt = now on the
+            // presented token as part of the rotation, above), but it is a
+            // tracked read-modify-save rather than one of the bulk
+            // ExecuteUpdateAsync calls RunRevocationAsync wraps, so it sat
+            // outside that "single hardening point for EVERY refresh-token
+            // revocation this class performs" — a non-concurrency failure
+            // here (a real outage, not a benign race) silently skipped the
+            // alert. Same event, same log shape, same rethrow-never-swallow
+            // contract as RunRevocationAsync — see LogRevocationFailed.
+            LogRevocationFailed(ex, user.Id);
+            throw;
         }
 
         // Roles re-read on every refresh so a demotion takes effect within one
@@ -572,19 +590,29 @@ public sealed class IdentityProvider(
                 .ExecuteUpdateAsync(s => s.SetProperty(t => t.RevokedAt, now), ct));
     }
 
-    // #273 — single hardening point for EVERY refresh-token revocation this
-    // class performs (replay-triggered family revocation, logout, password
-    // reset/change, break-glass): if the bulk update itself throws instead of
+    // #273 — hardening point for the BULK-UPDATE refresh-token revocations
+    // this class performs (replay-triggered family revocation, logout,
+    // password reset/change, break-glass — all via RevokeAllActiveForUserAsync
+    // / RevokeByHashAsync): if the bulk update itself throws instead of
     // completing, the safety action meant to lock a suspected attacker out of
     // every session never ran. That is worth its own alertable event
     // (Auth.RefreshRevocationFailed), separate from whatever triggered the
     // revoke attempt (a replay, a logout, a password change, ...) — logging it
-    // here once, rather than at each of the three call sites, is what keeps it
-    // from being forgotten at a future fourth one. Logs and RETHROWS: the
-    // caller's existing behavior on a DB failure (bubble up, eventually a 500)
-    // is unchanged — this only adds observability, never swallows the failure.
+    // here once, rather than at each bulk-update call site, is what keeps it
+    // from being forgotten at a future one. Logs and RETHROWS: the caller's
+    // existing behavior on a DB failure (bubble up, eventually a 500) is
+    // unchanged — this only adds observability, never swallows the failure.
     // OperationCanceledException is excluded: a client hangup/cancellation
     // aborting the update is not a security signal worth alerting on.
+    //
+    // #273 codex review (P2e) — NOT the only revocation this class performs:
+    // RefreshAsync's own token rotation also revokes (a tracked
+    // read-modify-save, not a bulk update — see its own try/catch), and that
+    // path cannot funnel through this method's Func<Task> shape without also
+    // swallowing the DbUpdateConcurrencyException it must handle differently
+    // (a benign race, not a failure worth alerting on). Both paths log through
+    // the same LogRevocationFailed helper below, so they stay identical in
+    // shape even though they can't share this wrapper's control flow.
     private async Task RunRevocationAsync(Guid? userId, Func<Task> revoke)
     {
         try
@@ -593,11 +621,22 @@ public sealed class IdentityProvider(
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            logger.LogError(ex, "{SecurityEvent} user={UserId}",
-                SecurityEvents.RefreshRevocationFailed, userId);
+            LogRevocationFailed(ex, userId);
             throw;
         }
     }
+
+    // #273 codex review (P2e) — the actual log call, factored out so
+    // RunRevocationAsync's three bulk-update revocations (family revoke,
+    // logout, break-glass/password-reset/change's RevokeAllActiveForUserAsync)
+    // and RefreshAsync's tracked rotation (which revokes by read-modify-save,
+    // not a bulk update, so it cannot go through RunRevocationAsync's
+    // Func<Task> shape without also swallowing the DbUpdateConcurrencyException
+    // it needs to handle separately) log the IDENTICAL event/shape rather than
+    // risking the two call sites drifting apart.
+    private void LogRevocationFailed(Exception ex, Guid? userId) =>
+        logger.LogError(ex, "{SecurityEvent} user={UserId}",
+            SecurityEvents.RefreshRevocationFailed, userId);
 
     private Task RevokeByHashAsync(string tokenHash, DateTimeOffset now, Guid? userId, CancellationToken ct) =>
         RunRevocationAsync(
