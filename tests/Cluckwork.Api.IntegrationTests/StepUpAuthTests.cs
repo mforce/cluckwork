@@ -4,6 +4,8 @@ using System.Net;
 using System.Net.Http.Headers;
 using Cluckwork.Api.Endpoints.Auth;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+using Cluckwork.Application.Common;
+using Cluckwork.Domain.Common;
 using Cluckwork.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -418,6 +420,112 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
         // The session ended as well — the cookie path is intact alongside the new one.
         var refreshed = await factory.CreateClient(Cookieless).PostRefreshAsync(tokens.RefreshToken);
         Assert.Equal(HttpStatusCode.Unauthorized, refreshed.StatusCode);
+    }
+
+    // ---------- Bearer logout survives a cookie-path DB failure (PR #336 review) ----------
+    //
+    // RevokeRefreshTokenAsync (the cookie path) hits the database and can
+    // throw — a transient outage being the realistic case. RecordLogoutAsync
+    // (the bearer path) is in-memory and does not. Before AuthEndpoints.Logout
+    // recorded the bearer FIRST, a throw from the cookie path skipped the
+    // bearer recording entirely: the caller's outstanding step-up grant
+    // stayed valid, so a captured access token + grant could still perform
+    // the privileged operation after the user had logged out, any time
+    // before the grant's own short expiry, if the database recovered first.
+
+    // Decorates the REAL IIdentityProvider so RevokeRefreshTokenAsync throws
+    // exactly like a genuine DB outage, while everything else — including
+    // RecordLogoutAsync — runs the real EF-backed implementation unchanged.
+    // A decorator over a test double for one method, rather than mocking the
+    // whole interface, so login/step-up/etc keep exercising production code
+    // and only the ONE call this finding is about is faulted.
+    private sealed class RevokeRefreshTokenThrowsDecorator(IdentityProvider inner) : IIdentityProvider
+    {
+        public Task<Result<TokenPair>> LoginAsync(
+            string email, string password, CancellationToken ct = default) =>
+            inner.LoginAsync(email, password, ct);
+
+        public Task<Result<TokenPair>> RefreshAsync(string refreshToken, CancellationToken ct = default) =>
+            inner.RefreshAsync(refreshToken, ct);
+
+        public Task RevokeRefreshTokenAsync(string refreshToken, CancellationToken ct = default) =>
+            throw new InvalidOperationException(
+                "Simulated transient DB outage (#336 review regression test).");
+
+        public Task RecordLogoutAsync(Guid userId, CancellationToken ct = default) =>
+            inner.RecordLogoutAsync(userId, ct);
+
+        public Task<Result<Guid>> CreateUserAsync(
+            Guid accountId, string email, string password, string? role,
+            string? name = null, CancellationToken ct = default) =>
+            inner.CreateUserAsync(accountId, email, password, role, name, ct);
+
+        public Task<Result> UpdateUserAsync(
+            Guid accountId, Guid userId, string? name, CancellationToken ct = default) =>
+            inner.UpdateUserAsync(accountId, userId, name, ct);
+
+        public Task<Result> SetUserPasswordAsync(
+            Guid accountId, Guid userId, string newPassword, CancellationToken ct = default) =>
+            inner.SetUserPasswordAsync(accountId, userId, newPassword, ct);
+
+        public Task<Result> BreakGlassResetAsync(
+            Guid accountId, Guid userId, string newPassword, string? reason, CancellationToken ct = default) =>
+            inner.BreakGlassResetAsync(accountId, userId, newPassword, reason, ct);
+
+        public Task<Result<TokenPair>> ChangeOwnPasswordAsync(
+            Guid userId, string currentPassword, string newPassword, CancellationToken ct = default) =>
+            inner.ChangeOwnPasswordAsync(userId, currentPassword, newPassword, ct);
+
+        public Task<IReadOnlyList<UserSummary>> ListUsersAsync(Guid accountId, CancellationToken ct = default) =>
+            inner.ListUsersAsync(accountId, ct);
+
+        public Task<UserProfile?> GetUserAsync(Guid accountId, Guid userId, CancellationToken ct = default) =>
+            inner.GetUserAsync(accountId, userId, ct);
+
+        public Task<Result> SetLanguageAsync(
+            Guid accountId, Guid userId, string? language, CancellationToken ct = default) =>
+            inner.SetLanguageAsync(accountId, userId, language, ct);
+    }
+
+    [Fact]
+    public async Task Logout_WhenCookieRevocationThrows_StillRecordsTheBearersLogout_AndFails500()
+    {
+        var email = $"admin-{Guid.NewGuid():N}@test.local";
+        await factory.SeedAccountWithUserAsync(email);
+        var tokens = await factory.LoginAsync(email);
+
+        // The step-up registry is an in-process singleton (see
+        // FrozenClockOwnerAsync above) — grant issuance and the post-logout
+        // check must run against the SAME host as the faulted logout call.
+        var faulted = factory.WithWebHostBuilder(b => b.ConfigureTestServices(s =>
+        {
+            s.AddScoped<IdentityProvider>();
+            s.AddScoped<IIdentityProvider>(sp =>
+                new RevokeRefreshTokenThrowsDecorator(sp.GetRequiredService<IdentityProvider>()));
+        }));
+
+        var owner = faulted.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
+        owner.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", tokens.AccessToken);
+
+        var grant = await StepUpAsync(owner, TestHarness.Password);
+
+        // Cookie present (so RevokeRefreshTokenAsync is reached and throws)
+        // AND the caller authenticated (so the bearer path has a subject to
+        // record). Exactly the ordinary logged-in-tab shape.
+        var loggedOut = await faulted.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false })
+            .PostLogoutAsync(tokens.RefreshToken, accessToken: tokens.AccessToken);
+
+        // The request still fails loudly when the DB is down — worth
+        // preserving; the SPA already treats logout as best-effort.
+        Assert.Equal(HttpStatusCode.InternalServerError, loggedOut.StatusCode);
+
+        // THE FINDING'S ASSERTION: despite the 500, the bearer's grant is dead.
+        var newOwnerEmail = $"boss-{Guid.NewGuid():N}@test.local";
+        var response = await CreateUserWithStepUpAsync(owner, newOwnerEmail, "Admin", grant.Token);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        var users = await owner.GetFromJsonAsync<List<UserRow>>("/api/v1/users");
+        Assert.DoesNotContain(users!, u => u.Email == newOwnerEmail);
     }
 
     // The over-revocation guard. Recording a logout must bound the PAST, never

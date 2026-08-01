@@ -280,6 +280,23 @@ public static class AuthEndpoints
     // header stays mandatory either way. /auth/logout is exempt from
     // IdempotencyMiddleware, so the now-possible authenticated call does not
     // start demanding an Idempotency-Key.
+    //
+    // PR #336 review — the bearer recording runs FIRST, before the cookie
+    // revocation, and its own success does not depend on the cookie path at
+    // all. RecordLogoutAsync is in-memory (IStepUpGrantRegistry) and cannot
+    // fail; RevokeRefreshTokenAsync hits the database and CAN throw (e.g. a
+    // transient outage). With the DB call first, that exception used to skip
+    // the bearer recording entirely — the caller's outstanding step-up grant
+    // stayed valid, and a captured access token + grant could still perform
+    // the privileged operation after the user had logged out, any time before
+    // the grant's own short expiry, if the DB recovered in the meantime.
+    // Recording first instead means a DB failure still revokes the bearer's
+    // grants — over-revoking is the fail-safe direction for a security
+    // control, unlike under-revoking. The exception is deliberately NOT
+    // caught here: the request failing loudly when the DB is down is worth
+    // preserving (nothing here should silently paper over a real outage), and
+    // the SPA already treats logout as best-effort on its side regardless of
+    // status code.
     private static async Task<IResult> Logout(
         HttpRequest request, HttpResponse response, IIdentityProvider identity,
         ICurrentUser currentUser, IWebHostEnvironment env, CancellationToken ct)
@@ -287,11 +304,12 @@ public static class AuthEndpoints
         if (!AuthCookies.HasCsrfHeader(request))
             return Results.Problem("Missing required header.", statusCode: 403, title: "Auth.CsrfHeaderRequired");
 
+        if (currentUser.IsResolved)
+            await identity.RecordLogoutAsync(currentUser.UserId, ct);
+
         var refreshToken = AuthCookies.ReadRefreshCookie(request);
         if (refreshToken is not null)
             await identity.RevokeRefreshTokenAsync(refreshToken, ct);
-        if (currentUser.IsResolved)
-            await identity.RecordLogoutAsync(currentUser.UserId, ct);
         AuthCookies.ClearRefreshCookie(response, CookieSecure(env));
         return Results.NoContent();
     }
