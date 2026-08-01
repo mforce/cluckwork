@@ -22,6 +22,15 @@ function messageFor(err: unknown): string {
     if (err.status === 401) return i18n.t("auth:invalidCredentials");
     // Rate limited (#143) — too many attempts from this address.
     if (err.status === 429) return i18n.t("auth:tooManyAttempts");
+    // #309 — an oversized-credential validation error (400, e.g. a >256-char
+    // email/password). ApiError already carries the server's real, non-
+    // enumerating message (parseError flattens body.detail / body.errors), so
+    // show that instead of the generic apiDown copy, which would misleadingly
+    // suggest the API itself is unreachable.
+    if (err.status === 400) return err.message || i18n.t("auth:apiDown");
+    // #309 — the request body exceeded the endpoint's byte cap (413), which in
+    // practice means an implausibly long email/password.
+    if (err.status === 413) return i18n.t("auth:credentialsTooLong");
   }
   return i18n.t("auth:apiDown");
 }
@@ -71,6 +80,7 @@ export function Login() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             autoComplete="username"
+            maxLength={256}
             required
           />
         </label>
@@ -81,6 +91,7 @@ export function Login() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             autoComplete="current-password"
+            maxLength={256}
             required
           />
         </label>

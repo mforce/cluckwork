@@ -121,6 +121,44 @@ describe("Login", () => {
     expect(screen.queryByText("dashboard (protected)")).not.toBeInTheDocument();
   });
 
+  it("shows the server-parsed message on a 400 (oversized credential), not the generic apiDown copy (#309)", async () => {
+    mockApiLogin.mockRejectedValue(
+      new ApiError(400, "Bad Request", "Password must not exceed 256 characters."));
+    renderWithProviders(tree(), { route: "/login", token: null });
+
+    fillCredentials("owner@farm.co", "pw");
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    });
+
+    expect(await screen.findByText("Password must not exceed 256 characters.")).toBeInTheDocument();
+    expect(screen.queryByText(/Could not sign in/)).not.toBeInTheDocument();
+  });
+
+  it("falls back to the generic apiDown message on a 400 with no server message (#309)", async () => {
+    mockApiLogin.mockRejectedValue(new ApiError(400, "Bad Request", ""));
+    renderWithProviders(tree(), { route: "/login", token: null });
+
+    fillCredentials("owner@farm.co", "pw");
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    });
+
+    expect(await screen.findByText(/Could not sign in/)).toBeInTheDocument();
+  });
+
+  it("shows a too-long message on a 413 (oversized request body) (#309)", async () => {
+    mockApiLogin.mockRejectedValue(new ApiError(413, "Invalid request body", "too large"));
+    renderWithProviders(tree(), { route: "/login", token: null });
+
+    fillCredentials("owner@farm.co", "pw");
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    });
+
+    expect(await screen.findByText(i18n.t("auth:credentialsTooLong"))).toBeInTheDocument();
+  });
+
   it("shows a generic error when the network fails (a non-ApiError rejection)", async () => {
     mockApiLogin.mockRejectedValue(new TypeError("Failed to fetch"));
     renderWithProviders(tree(), { route: "/login", token: null });

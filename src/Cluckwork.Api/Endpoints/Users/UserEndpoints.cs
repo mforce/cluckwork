@@ -1,5 +1,6 @@
 namespace Cluckwork.Api.Endpoints.Users;
 
+using Cluckwork.Api.Hosting;
 using Cluckwork.Api.Validation;
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Users;
@@ -17,6 +18,12 @@ public static class UserEndpoints
     public static RouteGroupBuilder MapUserEndpoints(this RouteGroupBuilder group)
     {
         group.MapPost("/", CreateUser)
+            // #309 — 8 KB, not 4 KB: email + role + name + a ≤256-char password,
+            // with System.Text.Json's default \uXXXX escaping of non-ASCII
+            // (measured ~3.9 KB worst case against the old 4 KB cap — only 5%
+            // margin, fragile to any future field addition). 8 KB caps the body
+            // ahead of binding and the new-password PBKDF2 hash with real margin.
+            .WithMaxRequestBodyBytes(8192)
             .WithName("CreateUser")
             .WithSummary("Create a user for this account (Admin or Worker).");
 
@@ -33,6 +40,9 @@ public static class UserEndpoints
         // path; there is no email reset). Owner-only, and it signs the target out
         // of every device.
         group.MapPut("/{id:guid}/password", SetUserPassword)
+            // #309 — a single ≤256-char password; 2 KB caps the body ahead of
+            // binding and the new-password PBKDF2 hash.
+            .WithMaxRequestBodyBytes(2048)
             .WithName("SetUserPassword")
             .WithSummary("Set a user's password and revoke their sessions.");
 

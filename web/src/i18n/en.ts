@@ -37,6 +37,9 @@ export const en = {
     tooManyAttempts:
       "Too many sign-in attempts. Please wait a few minutes and try again.",
     apiDown: "Could not sign in. Is the API running?",
+    // #309 — the request body exceeded the server's byte cap (413), which in
+    // practice means an implausibly long email/password.
+    credentialsTooLong: "That's too long — check your email and password.",
   },
   account: {
     preferences: "Preferences",

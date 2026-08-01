@@ -36,6 +36,8 @@ export const es = {
     tooManyAttempts:
       "Demasiados intentos de inicio de sesión. Espere unos minutos y vuelva a intentarlo.",
     apiDown: "No se pudo iniciar sesión. ¿Está la API en ejecución?",
+    // machine-drafted (#182) — pending native review.
+    credentialsTooLong: "Eso es demasiado largo — revise su correo electrónico y contraseña.",
   },
   account: {
     preferences: "Preferencias",
