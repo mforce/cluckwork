@@ -955,6 +955,116 @@ describe("session generation (#310)", () => {
     expect(callsTo(fetchMock, "/auth/logout")).toHaveLength(2);
   });
 
+  // #310 review — a request parked on a refresh that a LOGOUT discarded must
+  // surface a normal 401, not the internal StaleSessionError whose message
+  // every screen would render verbatim. (The newer-login counterpart, where the
+  // request proceeds on the fresh token, is asserted above.)
+  it("surfaces a plain 401 — not the discard marker — when logout ended the session", async () => {
+    clearAccessToken();
+    const refreshGate = deferred<Response>();
+    fetchMock.mockImplementation((url: string) => {
+      if (url.endsWith("/auth/refresh")) return refreshGate.promise;
+      if (url.endsWith("/auth/logout")) return Promise.resolve(new Response(null, { status: 204 }));
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    const fetching = apiGet("/stock").catch((e: unknown) => e);
+    await drain();
+
+    await logout();
+    refreshGate.resolve(accessResponse("discarded-token"));
+
+    const settled = await fetching;
+    expect(settled).toBeInstanceOf(ApiError);
+    expect(settled).toMatchObject({ status: 401 });
+  });
+
+  // The two outcomes again for apiFetch's 401-RETRY branch specifically. The
+  // test above enters through currentAccessToken (empty token store); this one
+  // starts authenticated, 401s, and is superseded mid-retry — a separate branch.
+  it("retries a request on the newer login's token when the retry refresh is superseded", async () => {
+    const refreshGate = deferred<Response>();
+    fetchMock.mockImplementation((url: string) => {
+      if (url.endsWith("/stock") && getAccessToken() === "newLoginToken")
+        return Promise.resolve(jsonResponse({ value: 7 }));
+      if (url.endsWith("/stock")) return Promise.resolve(jsonResponse({ title: "expired" }, 401));
+      if (url.endsWith("/auth/refresh")) return refreshGate.promise;
+      if (url.endsWith("/auth/login")) return Promise.resolve(accessResponse("newLoginToken"));
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    const fetching = apiGet<{ value: number }>("/stock");
+    await drain();
+
+    await login({ email: "a@b.co", password: "pw" });
+    refreshGate.resolve(accessResponse("stale-token"));
+
+    expect(await fetching).toEqual({ value: 7 });
+  });
+
+  it("surfaces the original 401 when logout supersedes a retry refresh", async () => {
+    const refreshGate = deferred<Response>();
+    fetchMock.mockImplementation((url: string) => {
+      if (url.endsWith("/stock")) return Promise.resolve(jsonResponse({ title: "expired" }, 401));
+      if (url.endsWith("/auth/refresh")) return refreshGate.promise;
+      if (url.endsWith("/auth/logout")) return Promise.resolve(new Response(null, { status: 204 }));
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    const fetching = apiGet("/stock").catch((e: unknown) => e);
+    await drain();
+
+    await logout();
+    refreshGate.resolve(accessResponse("discarded-token"));
+
+    const settled = await fetching;
+    expect(settled).toBeInstanceOf(ApiError);
+    expect(settled).toMatchObject({ status: 401 });
+  });
+
+  // The same two outcomes for the blob path, whose 401-retry is a separate
+  // branch from apiFetch's.
+  it("retries a download on the newer login's token when a refresh is superseded", async () => {
+    const refreshGate = deferred<Response>();
+    fetchMock.mockImplementation((url: string) => {
+      if (url.endsWith("/export/all") && getAccessToken() === "newLoginToken")
+        return Promise.resolve(new Response("data", { status: 200 }));
+      if (url.endsWith("/export/all")) return Promise.resolve(jsonResponse({ title: "expired" }, 401));
+      if (url.endsWith("/auth/refresh")) return refreshGate.promise;
+      if (url.endsWith("/auth/login")) return Promise.resolve(accessResponse("newLoginToken"));
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    const downloading = apiGetBlob("/export/all");
+    await drain();
+
+    await login({ email: "a@b.co", password: "pw" }); // supersedes the parked refresh
+    refreshGate.resolve(accessResponse("stale-token"));
+
+    const { blob } = await downloading;
+    expect(blob.size).toBe(4); // "data" — served on the live login's token
+  });
+
+  it("surfaces the original 401 on a download when logout ended the session", async () => {
+    const refreshGate = deferred<Response>();
+    fetchMock.mockImplementation((url: string) => {
+      if (url.endsWith("/export/all")) return Promise.resolve(jsonResponse({ title: "expired" }, 401));
+      if (url.endsWith("/auth/refresh")) return refreshGate.promise;
+      if (url.endsWith("/auth/logout")) return Promise.resolve(new Response(null, { status: 204 }));
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    const downloading = apiGetBlob("/export/all").catch((e: unknown) => e);
+    await drain();
+
+    await logout();
+    refreshGate.resolve(accessResponse("discarded-token"));
+
+    const settled = await downloading;
+    expect(settled).toBeInstanceOf(ApiError);
+    expect(settled).toMatchObject({ status: 401 });
+  });
+
   // #310 review — the revoke is scoped to "the session is gone". When a newer
   // LOGIN supersedes an older flight, the cookie in the browser belongs to that
   // live login; revoking it would sign the user out of the thing they just did.
