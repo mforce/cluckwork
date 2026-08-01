@@ -161,7 +161,9 @@ public sealed class IdentityProvider(
         // One transaction around create + role assignment: a failed admin
         // creation must not survive as a usable role-less worker account
         // (codex review of PR #78). Disposal without commit rolls back.
-        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        // #307 — joins IdempotencyMiddleware's ambient request transaction
+        // when one is open, instead of nesting a second one.
+        await using var transaction = await AmbientTransaction.BeginAsync(db.Database, ct);
 
         var user = new ApplicationUser
         {
@@ -283,7 +285,9 @@ public sealed class IdentityProvider(
         ApplicationUser user, string newPassword, string auditAction, string? reason,
         object? details, CancellationToken ct)
     {
-        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        // #307 — joins IdempotencyMiddleware's ambient request transaction
+        // when one is open, instead of nesting a second one.
+        await using var transaction = await AmbientTransaction.BeginAsync(db.Database, ct);
 
         // Reset via a generated token — Identity's supported way to set a password
         // without the current one.
@@ -319,7 +323,9 @@ public sealed class IdentityProvider(
         // One transaction around change + revoke + re-issue: the bulk revoke is
         // immediate SQL, so a failure before the fresh token is saved would sign
         // the caller out of everything while reporting an error (#165 review).
-        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        // #307 — joins IdempotencyMiddleware's ambient request transaction
+        // when one is open, instead of nesting a second one.
+        await using var transaction = await AmbientTransaction.BeginAsync(db.Database, ct);
 
         // ChangePasswordAsync verifies the current password AND applies the policy.
         var changed = await userManager.ChangePasswordAsync(user, currentPassword, newPassword);

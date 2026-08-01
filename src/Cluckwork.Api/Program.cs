@@ -55,6 +55,10 @@ builder.Services.AddCluckworkEdgeSecurity(rateLimiting.TrustedProxies);
 
 builder.Services.AddCluckworkFeatures(builder.Configuration);
 
+// #307 — lease duration / max-wait bounds for the idempotency claim protocol.
+builder.Services.Configure<IdempotencyOptions>(
+    builder.Configuration.GetSection(IdempotencyOptions.SectionName));
+
 // --- OpenAPI ---
 builder.Services.AddOpenApi();
 

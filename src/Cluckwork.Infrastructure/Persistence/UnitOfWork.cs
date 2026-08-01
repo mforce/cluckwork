@@ -1,8 +1,6 @@
 namespace Cluckwork.Infrastructure.Persistence;
 
 using Cluckwork.Application.Common;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Storage;
 
 public sealed class UnitOfWork(AppDbContext db) : IUnitOfWork
 {
@@ -12,16 +10,21 @@ public sealed class UnitOfWork(AppDbContext db) : IUnitOfWork
     public async Task<bool> ExecuteInTransactionAsync(
         Func<CancellationToken, Task<bool>> operation, CancellationToken ct = default)
     {
-        await using IDbContextTransaction transaction = await db.Database.BeginTransactionAsync(ct);
+        // #307 — AmbientTransaction.BeginAsync joins IdempotencyMiddleware's
+        // request-wide transaction when one is already open on this SAME
+        // scoped AppDbContext (see its doc comment), instead of nesting a
+        // second BeginTransactionAsync or committing/rolling back a
+        // transaction this call doesn't own.
+        await using var scope = await AmbientTransaction.BeginAsync(db.Database, ct);
         var shouldCommit = await operation(ct);
         if (!shouldCommit)
         {
-            await transaction.RollbackAsync(ct);
+            await scope.RollbackAsync(ct);
             return false;
         }
 
         await db.SaveChangesAsync(ct);
-        await transaction.CommitAsync(ct);
+        await scope.CommitAsync(ct);
         return true;
     }
 }
