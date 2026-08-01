@@ -15,35 +15,35 @@ using Npgsql;
 // #269 — the request path used to have no resilience to a transient DB
 // failure: UseNpgsql carried no execution strategy, so a managed-Postgres
 // failover or a dropped pooled connection threw straight to a 500. These
-// tests prove:
-//   1. a TRANSIENT failure mid-request is retried and the request succeeds,
-//      exactly once (no duplicated mutation);
+// tests pin what EnableRetryOnFailure now does — and, just as importantly,
+// where it deliberately stops (see SingleAttemptExecution / RetryBoundaryTests):
+//   1. a TRANSIENT failure on an operation EF runs as a self-contained unit
+//      (every read, and every SaveChanges outside a user-initiated
+//      transaction) is retried and the request succeeds;
 //   2. a NON-transient failure is never retried — it fails on the first
 //      attempt;
 //   3. retries are BOUNDED — a sustained "failure" eventually gives up
 //      rather than retrying forever;
-//   4. the export's explicit REPEATABLE READ transaction (ExportQueries
-//      .BeginConsistentReadAsync) still works now that the DbContext carries
-//      a retrying execution strategy (EnableRetryOnFailure forbids a
-//      manually-begun transaction outside CreateExecutionStrategy()
-//      .ExecuteAsync — see PostgresDbContextConfigurator / AmbientTransaction).
+//   4. an idempotency-wrapped WRITE is deliberately NOT retried server-side;
+//      what recovers it is the client's own retry with the same
+//      Idempotency-Key, which #307 already makes exactly-once;
+//   5. the export's explicit REPEATABLE READ transaction (ExportQueries
+//      .BeginConsistentReadAsync) still works now that the request DbContext
+//      carries a retrying execution strategy.
 //
 // Fault injection: IUnitOfWork is re-registered in ConfigureTestServices to
 // decorate the real UnitOfWork and throw a chosen PostgresException on the
 // first N calls to SaveChangesAsync — the same "re-register the SCOPED
 // SERVICE, not a DbCommandInterceptor on the host's own DbContext" technique
-// StepUpAuthTests documents (a second AddDbContext/AddSingleton<IInterceptor>
-// against the host's real context silently never fires). PostgresException is
-// constructed directly (its public 4-arg constructor takes messageText/
-// severity/invariantSeverity/sqlState) rather than produced by an actually
-// dropped connection — what NpgsqlRetryingExecutionStrategy.ShouldRetryOn
-// checks is PostgresException.IsTransient, which is computed purely from
-// SqlState, not from how the exception was constructed. Verified directly
-// against the exact Npgsql/EFCore.PG packages this solution references
-// before writing these tests: PostgresErrorCodes.CannotConnectNow ("57P03")
-// -> IsTransient == true (retried), PostgresErrorCodes.UniqueViolation
-// -> IsTransient == false (not retried) — a generic exception would NOT be
-// retried at all and would give a test that passes for the wrong reason.
+// StepUpAuthTests documents. Command-level faults (used for the read path)
+// go through TransientCommandFaultInterceptor instead. PostgresException is
+// constructed directly rather than produced by an actually dropped
+// connection — what NpgsqlRetryingExecutionStrategy.ShouldRetryOn checks is
+// PostgresException.IsTransient, computed purely from SqlState:
+// PostgresErrorCodes.CannotConnectNow ("57P03") -> IsTransient == true
+// (retried), PostgresErrorCodes.UniqueViolation -> false (not retried) — a
+// generic exception would not be retried at all and would give a test that
+// passes for the wrong reason.
 public sealed class TransientFaultState
 {
     public int Attempts;
@@ -84,6 +84,8 @@ public class TransientFaultFactory : CluckworkWebApplicationFactory
 {
     public TransientFaultState FaultState { get; } = new();
 
+    public TransientCommandFaultInterceptor CommandFault { get; } = new();
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         base.ConfigureWebHost(builder);
@@ -94,43 +96,42 @@ public class TransientFaultFactory : CluckworkWebApplicationFactory
             services.AddScoped<IUnitOfWork>(sp => new FaultInjectingUnitOfWork(
                 new UnitOfWork(sp.GetRequiredService<AppDbContext>()),
                 sp.GetRequiredService<TransientFaultState>()));
+            services.AddDbContext<AppDbContext>((_, options) => options.AddInterceptors(CommandFault));
         });
     }
 }
 
 public sealed class TransientDbResilienceTests(TransientFaultFactory factory)
-    : IClassFixture<TransientFaultFactory>
+    : IClassFixture<TransientFaultFactory>, IDisposable
 {
+    public void Dispose() => factory.CommandFault.Disarm();
+
+    // A READ is a self-contained unit of work: EF runs each query through the
+    // execution strategy on its own, and re-running one has no side effect to
+    // double. This is where #269's resilience lives.
     [Fact]
-    public async Task TransientFailure_DuringSaveChanges_IsRetried_AndTheRequestSucceedsExactlyOnce()
+    public async Task TransientFailure_OnARead_IsRetried_AndTheRequestSucceeds()
     {
         var email = $"resilience-{Guid.NewGuid():N}@test.local";
         var accountId = await factory.SeedAccountWithUserAsync(email);
+        var name = $"Read Retry {Guid.NewGuid():N}";
+        await factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            db.Customers.Add(Customer.Create(Guid.NewGuid(), accountId, name, "555-0100"));
+            await db.SaveChangesAsync();
+        });
         var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
 
-        // Fails the first 2 attempts with a Postgres error the retry
-        // strategy classifies transient, then lets the 3rd through.
-        factory.FaultState.Reset(failCount: 2, sqlState: PostgresErrorCodes.CannotConnectNow);
+        factory.FaultState.Reset(failCount: 0, sqlState: PostgresErrorCodes.CannotConnectNow);
+        factory.CommandFault.Arm("FROM \"Customers\"", afterExecution: false);
 
-        var name = $"Retried Customer {Guid.NewGuid():N}";
-        var response = await client.PostWithKeyAsync(
-            "/api/v1/customers", Guid.NewGuid().ToString(),
-            new { name, phone = "555-0100" });
+        var response = await client.GetAsync("/api/v1/customers");
 
-        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-
-        // THE FINDING'S ASSERTION: genuinely retried more than once — not a
-        // single lucky pass. Without EnableRetryOnFailure this exact scenario
-        // 500s on the FIRST attempt (Attempts == 1, response not 201).
-        Assert.True(factory.FaultState.Attempts >= 3,
-            $"expected at least 3 SaveChangesAsync attempts (2 failures + 1 success), got {factory.FaultState.Attempts}");
-
-        // Exactly one row — the retried attempt must not have duplicated a
-        // mutation a prior (rolled-back) attempt would have produced had it
-        // actually committed.
-        var count = await factory.WithTenantScopeAsync(accountId,
-            db => db.Customers.CountAsync(c => c.Name == name));
-        Assert.Equal(1, count);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        // THE ASSERTION: genuinely retried, not a single lucky pass. Without
+        // EnableRetryOnFailure this exact scenario 500s on the FIRST attempt.
+        Assert.Equal(2, factory.CommandFault.Matches);
+        Assert.Contains(name, await response.Content.ReadAsStringAsync());
     }
 
     [Fact]
@@ -152,6 +153,40 @@ public sealed class TransientDbResilienceTests(TransientFaultFactory factory)
         Assert.Equal(1, factory.FaultState.Attempts);
     }
 
+    // The deliberate limit of #269, stated as a test so it cannot regress into
+    // a silent replay of `next(context)`: an idempotency-wrapped write is
+    // executed ONCE. A transient failure inside it surfaces (as it did
+    // pre-#269), and what makes the request recoverable is the CLIENT retrying
+    // with the same Idempotency-Key — #307's protocol, which keeps that
+    // exactly-once. See RetryBoundaryTests / SingleAttemptExecution for why
+    // replaying the pipeline is not an option.
+    [Fact]
+    public async Task TransientFailure_InsideAWrappedWrite_IsNotReplayed_ButTheClientsOwnRetrySucceeds()
+    {
+        var email = $"resilience-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
+
+        factory.FaultState.Reset(failCount: 1, sqlState: PostgresErrorCodes.CannotConnectNow);
+
+        var key = Guid.NewGuid().ToString();
+        var name = $"Client Retried {Guid.NewGuid():N}";
+        var body = new { name, phone = "555-0100" };
+
+        var first = await client.PostWithKeyAsync("/api/v1/customers", key, body);
+        Assert.Equal(HttpStatusCode.InternalServerError, first.StatusCode);
+        Assert.Equal(1, factory.FaultState.Attempts);
+
+        // Same key, same body: the claim the failed attempt released is
+        // re-claimed and the handler runs for real this time.
+        var second = await client.PostWithKeyAsync("/api/v1/customers", key, body);
+        Assert.Equal(HttpStatusCode.Created, second.StatusCode);
+
+        var count = await factory.WithTenantScopeAsync(accountId,
+            db => db.Customers.CountAsync(c => c.Name == name));
+        Assert.Equal(1, count);
+    }
+
     [Fact]
     public async Task Export_ExplicitRepeatableReadTransaction_StillWorksUnderTheRetryStrategy()
     {
@@ -159,10 +194,10 @@ public sealed class TransientDbResilienceTests(TransientFaultFactory factory)
         var accountId = await factory.SeedAccountWithUserAsync(email);
         // No fault this test — proves the explicit-transaction path itself
         // (ExportQueries.BeginConsistentReadAsync) doesn't throw EF's "does
-        // not support user-initiated transactions" now that the DbContext
-        // carries EnableRetryOnFailure; a pre-#269 configurator never hit
-        // this at all (no retry strategy configured), so this specifically
-        // guards the wrapping added in ExportQueries.
+        // not support user-initiated transactions" now that the request
+        // DbContext carries EnableRetryOnFailure; a pre-#269 configurator
+        // never hit this at all (no retry strategy configured), so this
+        // specifically guards the wrapping added in ExportQueries.
         factory.FaultState.Reset(failCount: 0, sqlState: PostgresErrorCodes.CannotConnectNow);
 
         var customerName = $"Export Check {Guid.NewGuid():N}";
@@ -208,8 +243,10 @@ public sealed class BoundedRetryFactory : TransientFaultFactory
 }
 
 public sealed class BoundedTransientRetryTests(BoundedRetryFactory factory)
-    : IClassFixture<BoundedRetryFactory>
+    : IClassFixture<BoundedRetryFactory>, IDisposable
 {
+    public void Dispose() => factory.CommandFault.Disarm();
+
     [Fact]
     public async Task TransientFailure_ExceedingMaxRetryCount_EventuallyGivesUp_NeverInfinite()
     {
@@ -219,16 +256,15 @@ public sealed class BoundedTransientRetryTests(BoundedRetryFactory factory)
 
         // Always transient — never lets a single attempt through — proves the
         // strategy gives up after Database:Resilience:MaxRetryCount retries
-        // instead of retrying forever.
-        factory.FaultState.Reset(failCount: int.MaxValue, sqlState: PostgresErrorCodes.CannotConnectNow);
+        // instead of retrying forever. Driven on the READ path, the one that
+        // actually retries (see TransientDbResilienceTests' class comment).
+        factory.CommandFault.ArmAlways("FROM \"Customers\"");
 
-        var response = await client.PostWithKeyAsync(
-            "/api/v1/customers", Guid.NewGuid().ToString(),
-            new { name = $"NeverSucceeds {Guid.NewGuid():N}", phone = "555-0100" });
+        var response = await client.GetAsync("/api/v1/customers");
 
         Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
         // Exactly MaxRetryCount + 1: the first attempt, plus every retry —
         // never more (bounded) and never fewer (the retries actually ran).
-        Assert.Equal(BoundedRetryFactory.MaxRetryCount + 1, factory.FaultState.Attempts);
+        Assert.Equal(BoundedRetryFactory.MaxRetryCount + 1, factory.CommandFault.Matches);
     }
 }
