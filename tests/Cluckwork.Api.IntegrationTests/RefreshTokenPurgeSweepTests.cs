@@ -164,4 +164,26 @@ public sealed class RefreshTokenPurgeSweepTests(CluckworkWebApplicationFactory f
         Assert.True(await ExistsAsync(freshA.Id));
         Assert.True(await ExistsAsync(freshB.Id));
     }
+
+    // #270 review — the delete is batched (the first sweep after this ships is
+    // the big one, and an unbounded ExecuteDelete would take months of backlog
+    // in a single statement). Batching is only correct if a backlog larger than
+    // one batch still fully drains, so seed across the boundary and prove it.
+    [Fact]
+    public async Task Sweep_DrainsABacklogLargerThanOneBatch()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var aged = Enumerable.Range(0, RefreshTokenPurgeSweep.BatchSizeForTests + 25)
+            .Select(_ => NewToken(
+                expiresAt: now - RefreshTokenPurgeSweep.PurgeGrace - TimeSpan.FromHours(1)))
+            .ToArray();
+        var survivor = NewToken(expiresAt: now.AddDays(10));
+        await SeedAsync([.. aged, survivor]);
+
+        await RunSweepAsync();
+
+        foreach (var token in aged)
+            Assert.False(await ExistsAsync(token.Id), "every aged row should drain, not just the first batch");
+        Assert.True(await ExistsAsync(survivor.Id));
+    }
 }

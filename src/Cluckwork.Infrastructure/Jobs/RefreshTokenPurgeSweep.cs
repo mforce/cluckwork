@@ -47,20 +47,71 @@ public sealed class RefreshTokenPurgeSweep(
 {
     public static readonly TimeSpan PurgeGrace = TimeSpan.FromDays(1);
 
+    // Bounded like DailyEntryLockSweep's BatchSize, and for the same reason. The
+    // premise of #270 is a table that has accumulated for months, so the FIRST
+    // sweep after this ships is the big one: an unbounded ExecuteDelete would take
+    // it in a single statement — long lock retention, a WAL spike, and a mound of
+    // dead tuples for autovacuum. Drain in batches instead, capped per tick so one
+    // poll can't monopolise the worker; whatever is left goes on the next tick.
+    private const int BatchSize = 500;
+    private const int MaxBatchesPerRun = 20;
+
+    // So a test can seed a backlog that provably spans more than one batch
+    // without hardcoding the size in two places.
+    internal static int BatchSizeForTests => BatchSize;
+
     public async Task RunAsync(CancellationToken ct)
     {
         using var scope = scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
         var cutoff = timeProvider.GetUtcNow() - PurgeGrace;
-        // Strictly OLDER than the cutoff: a row exactly at the boundary survives
-        // to the next poll rather than racing the instant it crosses it.
-        var deleted = await db.RefreshTokens
-            .Where(t => t.ExpiresAt < cutoff)
-            .ExecuteDeleteAsync(ct);
+        var total = 0;
+        var capped = true;
 
-        if (deleted > 0)
+        try
+        {
+            for (var batch = 0; batch < MaxBatchesPerRun; batch++)
+            {
+                // Strictly older than the cutoff. Exact equality is a measure-zero
+                // case against a moving clock and carries no guarantee worth
+                // pinning — what matters, and what the tests pin, is the retention
+                // WINDOW: a row is safe until its own ExpiresAt plus the grace.
+                var deleted = await db.RefreshTokens
+                    .Where(t => t.ExpiresAt < cutoff)
+                    .OrderBy(t => t.ExpiresAt)
+                    .Take(BatchSize)
+                    .ExecuteDeleteAsync(ct);
+
+                total += deleted;
+                if (deleted < BatchSize)
+                {
+                    capped = false;
+                    break;
+                }
+            }
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            // Contain the failure the way DailyEntryLockSweep does. This is
+            // housekeeping: letting a transient DB error escape would fail the
+            // whole poll iteration and push the worker into backoff, delaying the
+            // business-critical daily-entry lock sweep along with it.
+            logger.LogError(ex, "Refresh-token purge sweep failed; will retry next poll.");
+            return;
+        }
+
+        if (total > 0)
             logger.LogInformation(
-                "Purged {Count} refresh tokens expired before {Cutoff}.", deleted, cutoff);
+                "Purged {Count} refresh tokens expired before {Cutoff}.", total, cutoff);
+
+        if (capped)
+            logger.LogInformation(
+                "Refresh-token purge hit its {Max}-batch cap; more remain for the next poll.",
+                MaxBatchesPerRun);
     }
 }
