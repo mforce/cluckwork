@@ -22,39 +22,6 @@ using Microsoft.Extensions.DependencyInjection;
 [Collection(IntegrationCollection.Name)]
 public sealed class TenantScopedLockTests(CluckworkWebApplicationFactory factory)
 {
-    private static readonly TimeSpan Deadline = TimeSpan.FromSeconds(15);
-
-    private async Task<bool> AnyoneBlockedBehindAsync(int holderPid)
-    {
-        var blocked = false;
-        await factory.WithTenantScopeAsync(Guid.NewGuid(), async db =>
-        {
-            blocked = (await db.Database.SqlQuery<long>($"""
-                SELECT count(*) AS "Value" FROM pg_stat_activity
-                WHERE pg_blocking_pids(pid) @> ARRAY[{holderPid}]
-                """).SingleAsync()) > 0;
-        });
-        return blocked;
-    }
-
-    private static Task<int> BackendPidAsync(AppDbContext db) =>
-        db.Database.SqlQuery<int>($"""SELECT pg_backend_pid() AS "Value" """).SingleAsync();
-
-    // Polls until the competing request either finishes or provably parks
-    // behind the holder's lock. A true result proves the vulnerability: the
-    // foreign-tenant request reached (and waited on) the owning tenant's lock.
-    private async Task<bool> WaitUntilDoneOrBlockedAsync(Task competing, int holderPid)
-    {
-        var stopAt = DateTime.UtcNow + Deadline;
-        while (DateTime.UtcNow < stopAt)
-        {
-            if (competing.IsCompleted) return false;
-            if (await AnyoneBlockedBehindAsync(holderPid)) return true;
-            await Task.Delay(50);
-        }
-        throw new TimeoutException("Neither completion nor a lock wait was observed.");
-    }
-
     [Fact]
     public async Task VoidSale_ForOtherTenantsOrder_DoesNotBlockOnTheOwningTenantsHeldLock()
     {
@@ -73,14 +40,14 @@ public sealed class TenantScopedLockTests(CluckworkWebApplicationFactory factory
         await using var holderTx = await holderDb.Database.BeginTransactionAsync();
         await holderDb.Database.ExecuteSqlInterpolatedAsync(
             $"""SELECT 1 FROM "SalesOrders" WHERE "Id" = {orderId} FOR UPDATE""");
-        var holderPid = await BackendPidAsync(holderDb);
+        var holderPid = await holderDb.BackendPidAsync();
 
         // A, fully authenticated for its OWN tenant, tries to void B's order id.
         var clientA = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(userA));
         var voidTask = clientA.PostWithKeyAsync(
             $"/api/v1/sales/{orderId}/void", Guid.NewGuid().ToString(), new { reason = "cross-tenant probe" });
 
-        var blocked = await WaitUntilDoneOrBlockedAsync(voidTask, holderPid);
+        var blocked = await factory.WaitUntilDoneOrBlockedAsync(voidTask, holderPid);
         Assert.False(blocked,
             "tenant A's request must not park behind tenant B's row lock — the raw SQL predicate " +
             "must exclude B's row for A's tenant before FOR UPDATE is attempted");
@@ -114,7 +81,7 @@ public sealed class TenantScopedLockTests(CluckworkWebApplicationFactory factory
         await using var holderTx = await holderDb.Database.BeginTransactionAsync();
         await holderDb.Database.ExecuteSqlInterpolatedAsync(
             $"""SELECT 1 FROM "InventoryItems" WHERE "Id" = {itemId} FOR UPDATE""");
-        var holderPid = await BackendPidAsync(holderDb);
+        var holderPid = await holderDb.BackendPidAsync();
 
         // A, fully authenticated for its OWN tenant (and Admin, as UpdateItem
         // requires), tries to update B's item id.
@@ -123,7 +90,7 @@ public sealed class TenantScopedLockTests(CluckworkWebApplicationFactory factory
             $"/api/v1/inventory/items/{itemId}", Guid.NewGuid().ToString(),
             new { name = "Hijacked", unit = "kg", defaultUnitCostMinorUnits = (long?)null });
 
-        var blocked = await WaitUntilDoneOrBlockedAsync(updateTask, holderPid);
+        var blocked = await factory.WaitUntilDoneOrBlockedAsync(updateTask, holderPid);
         Assert.False(blocked,
             "tenant A's request must not park behind tenant B's row lock — the raw SQL predicate " +
             "must exclude B's row for A's tenant before FOR UPDATE is attempted");
