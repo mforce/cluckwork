@@ -10,9 +10,14 @@ using Npgsql;
 // (no Docker) mirroring PostgresConnectionStringTests — the floor's LOGIC lives there; this
 // locks how the design-time factory decides what connection string to hand it.
 //
-// Mutates process environment variables, so tests run sequentially within THIS class (xunit's
-// default — no parallelization is enabled within a test class) and every test restores both
-// env vars in a finally block to avoid leaking state into the next test.
+// Mutates PROCESS-GLOBAL environment variables. Sequencing within the class is xunit's
+// default, but that alone is not enough: an unlabelled class is its own implicit collection
+// and still runs in wall-clock parallel with every OTHER collection in the assembly. Nothing
+// else reads these two variables today, so isolation would be accidental rather than
+// structural — one future test touching either name would flake silently. The dedicated
+// DisableParallelization collection below makes it structural; each test also restores both
+// variables so state never leaks to the next.
+[Collection(EnvironmentMutatingCollection.Name)]
 public sealed class AppDbContextDesignTimeFactoryTests : IDisposable
 {
     private readonly string? _originalConnection =
@@ -184,6 +189,35 @@ public sealed class AppDbContextDesignTimeFactoryTests : IDisposable
     // ---- properly TLS'd connections succeed regardless of host --------------
 
     [Fact]
+    public void RequireSslMode_NonLoopbackHost_IsAcceptedWithAWarning()
+    {
+        // The floor's middle tier: Require is weaker than VerifyCA/VerifyFull, so it warns
+        // rather than passing silently — but it must still be ACCEPTED. Without this the
+        // warn branch has no coverage at all and could be deleted with every test staying
+        // green, while a stricter mutant that rejected Require would also go unnoticed.
+        SetConnection("Host=db.internal.example;Username=u;Password=p;SSL Mode=Require");
+        SetLoopbackOptIn(null);
+
+        var originalError = Console.Error;
+        var captured = new StringWriter();
+        Console.SetError(captured);
+        try
+        {
+            using var context = new AppDbContextDesignTimeFactory().CreateDbContext([]);
+
+            Assert.NotNull(context);
+        }
+        finally
+        {
+            Console.SetError(originalError);
+        }
+
+        // Pins the warning EMISSION, not just the acceptance — deleting the warn loop
+        // would otherwise leave every test green.
+        Assert.Contains("warning:", captured.ToString(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void VerifyFullConnection_NonLoopbackHost_SucceedsWithoutOptIn()
     {
         SetConnection(
@@ -222,4 +256,14 @@ public sealed class AppDbContextDesignTimeFactoryTests : IDisposable
 
         Assert.NotNull(context);
     }
+}
+
+// Environment variables are process-global, so a class that mutates them must not run
+// alongside anything else in the assembly. DisableParallelization holds this collection
+// apart from every other collection, making the isolation structural rather than a
+// coincidence of nothing else currently reading the same names.
+[CollectionDefinition(Name, DisableParallelization = true)]
+public sealed class EnvironmentMutatingCollection
+{
+    public const string Name = "environment-mutating";
 }
