@@ -14,7 +14,10 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 //
 // That guard is right, and it is the whole design constraint here: a
 // transaction that spans work which is NOT replayable cannot be made
-// resilient by retrying it. Three such regions exist in this codebase:
+// resilient by retrying it. Four such regions exist in this codebase — note
+// the fourth is NOT a transaction at all, which is the point: what disqualifies
+// a unit from replay is that a replay is OBSERVABLE, and a transaction is only
+// the most common way for that to be true.
 //
 //   * IdempotencyMiddleware's request-wide transaction, which by design (#307)
 //     covers `next(context)` — the entire downstream HTTP pipeline. Replaying
@@ -35,6 +38,14 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 //     execution strategy EF suspends retries for every nested operation, which
 //     is exactly why wrapping the OUTER region is what stops the inner reads
 //     being replayed.
+//   * AccountLockout's AccessFailedAsync save (#350 review round 4). No
+//     transaction here — a plain SaveChanges, exactly the "self-contained
+//     unit" the retry is FOR. What makes it unreplayable is the CALLER: a
+//     replay of an already-committed increment comes back as an Identity
+//     concurrency failure, and the caller's reload loop cannot tell that apart
+//     from losing a race to a parallel writer, so it increments a SECOND time.
+//     One wrong password would then cost two failed accesses and lock the
+//     account at half the configured threshold. See AccountLockout.
 //
 // So those regions run through the execution strategy (satisfying EF's guard)
 // but EXACTLY ONCE: the operation is never replayed, because the first

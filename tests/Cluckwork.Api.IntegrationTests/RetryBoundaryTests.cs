@@ -7,6 +7,7 @@ using Cluckwork.Domain.Accounts;
 using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -188,6 +189,119 @@ public sealed class RetryBoundaryTests : IClassFixture<RetryBoundaryFactory>, ID
             db => db.Users.IgnoreQueryFilters().CountAsync(u => u.Email == newEmail));
         Assert.Equal(0, users);
     }
+
+    // --- codex 3696894701 (P2) ---
+    // ONE wrong password must cost exactly ONE failed access.
+    //
+    // AccessFailedAsync's save is a self-contained EF unit — login is anonymous
+    // so IdempotencyMiddleware's tenant gate skips it, and /auth/step-up (the
+    // other password oracle, #308) is on ResponseNotCacheable and skips it too.
+    // Neither is wrapped in a user-initiated transaction, so under
+    // EnableRetryOnFailure the execution strategy replays that save on its own.
+    // When Postgres COMMITted the increment and only the ACKNOWLEDGMENT was
+    // lost, the replay re-issues the UPDATE carrying the now-stale Identity
+    // ConcurrencyStamp, matches 0 rows, and comes back as
+    // IdentityResult.Failed — at that layer indistinguishable from losing a
+    // race to a parallel writer. AccountLockout's reload loop then reloads the
+    // ALREADY-incremented user and increments it a second time.
+    //
+    // The consequence is a real availability defect, not a cosmetic one: at two
+    // increments per wrong password the #128 threshold of 5 is reached after 3
+    // attempts. The identical "one wrong password, two failed accesses" bug
+    // shipped once already on a different path (#336) and had to be fixed.
+    //
+    // PROVES: with a lost commit acknowledgment injected on that very UPDATE,
+    // the failed-access save is executed EXACTLY ONCE and the counter moves by
+    // EXACTLY ONE. Pre-fix both are wrong (3 executions, +2).
+    // DOES NOT PROVE: anything about a genuine parallel conflict — the next
+    // test covers that the reload loop survives this fix. Nor that a real
+    // network-level ack loss is byte-for-byte this interceptor's throw; what it
+    // pins is the classification the strategy actually keys on
+    // (PostgresException.IsTransient, computed from SqlState).
+    [Fact]
+    public async Task LostAcknowledgmentOnTheFailedAccessUpdate_CountsOneWrongPasswordOnce_NotTwice()
+    {
+        var email = $"retry-boundary-{Guid.NewGuid():N}@test.local";
+        var accountId = await _factory.SeedAccountWithUserAsync(email);
+
+        _factory.CommandFault.Arm("UPDATE \"AspNetUsers\"", afterExecution: true);
+        var response = await _factory.CreateClient().PostAsJsonAsync(
+            "/api/v1/auth/login", new { email, password = FreshPassword() });
+        _factory.CommandFault.Disarm();
+
+        // The increment's UPDATE genuinely reached the server and committed —
+        // the fault fires only from the post-execution hook. Without this the
+        // test could pass having never exercised the ambiguous commit at all.
+        Assert.True(_factory.CommandFault.Matches >= 1);
+
+        // The load-bearing assertion, asserted FIRST because it is the one that
+        // states the defect: one wrong password, one failed access. Pre-fix
+        // this reads 2, so #128's threshold of 5 would fire after 3 attempts.
+        Assert.Equal(1, await FailedAccessCountAsync(accountId, email));
+        // And the mechanism behind it: the save was never replayed. Pre-fix
+        // this reads 3 — the original, the strategy's replay, and the reload
+        // loop's second AccessFailedAsync.
+        Assert.Equal(1, _factory.CommandFault.Matches);
+
+        // Deliberate, and exactly the pre-#269 behaviour: a transient failure
+        // inside a single-attempt region surfaces instead of being absorbed,
+        // so the caller does not get a 401 that silently under-counted. The
+        // concrete 409 is Program.cs's existing global DbUpdateException
+        // mapping ("Data conflict … Retry"), which this fix neither introduces
+        // nor endorses — it is recorded so the surfacing is not mistaken for a
+        // successful, absorbed retry. The client's remedy is to try again.
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+    }
+
+    // --- codex 3696894701 (P2), the other side ---
+    // The single-attempt boundary must not neuter the reload loop it wraps.
+    // Two genuinely separate failed attempts that both read the user before
+    // either writes are a real concurrency conflict: the loser MUST reload and
+    // retry, or its increment is dropped and a distributed burst walks under
+    // the #128 threshold — the exact attack AccountLockout exists to stop.
+    //
+    // Driven sequentially through two scoped UserManager/AppDbContext pairs so
+    // the loser is deterministic rather than raced for.
+    //
+    // PROVES: after the fix, an IdentityResult.Failed caused by an ACTUAL
+    // parallel writer is still reloaded and retried, so both attempts count.
+    // DOES NOT PROVE: that concurrently-issued HTTP logins interleave this way
+    // (AccountLockoutTests.Parallel_failed_attempts_are_all_counted_and_still_lock
+    // covers that end-to-end); this pins the mechanism, not the scheduling.
+    [Fact]
+    public async Task AGenuineConcurrencyConflict_OnTheFailedAccessUpdate_IsStillReloadedAndRetried()
+    {
+        var email = $"retry-boundary-{Guid.NewGuid():N}@test.local";
+        var accountId = await _factory.SeedAccountWithUserAsync(email);
+
+        using var winner = _factory.Services.CreateScope();
+        using var loser = _factory.Services.CreateScope();
+        var winnerUsers = winner.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var loserUsers = loser.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+
+        // Both scopes read BEFORE either writes, so the second one's tracked
+        // ConcurrencyStamp is stale by the time it saves.
+        var winnerUser = await winnerUsers.FindByEmailAsync(email);
+        var loserUser = await loserUsers.FindByEmailAsync(email);
+        Assert.NotNull(winnerUser);
+        Assert.NotNull(loserUser);
+
+        await AccountLockout.RecordFailedAccessAsync(
+            winnerUsers, winner.ServiceProvider.GetRequiredService<AppDbContext>(), winnerUser);
+        await AccountLockout.RecordFailedAccessAsync(
+            loserUsers, loser.ServiceProvider.GetRequiredService<AppDbContext>(), loserUser);
+
+        // Two distinct failed attempts, two increments: the loser reloaded and
+        // retried rather than silently dropping its increment.
+        Assert.Equal(2, await FailedAccessCountAsync(accountId, email));
+    }
+
+    private Task<int> FailedAccessCountAsync(Guid accountId, string email) =>
+        _factory.WithTenantScopeAsync(accountId, db => db.Users
+            .IgnoreQueryFilters()
+            .Where(u => u.Email == email)
+            .Select(u => u.AccessFailedCount)
+            .SingleAsync());
 
     // Generated per call — never a literal credential in source (AGENTS.md).
     internal static string FreshPassword() => $"Aa1!{Guid.NewGuid():N}";
