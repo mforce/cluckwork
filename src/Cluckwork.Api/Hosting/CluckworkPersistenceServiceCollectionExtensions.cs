@@ -49,9 +49,10 @@ internal static class CluckworkPersistenceServiceCollectionExtensions
         // canary before the host builds. #283 — the second half of this guard
         // (a configured Seed:TimeZoneId provisioning zone) is retired along
         // with the runtime seeder it fed: the default account is now a fixed
-        // "UTC" migration literal (AccountConfiguration.HasData), and a real
-        // farm sets its own IANA zone via Settings after first login
-        // (Account.UpdateSettings) — no boot-time config value to validate.
+        // "UTC" migration literal (baked via raw migrationBuilder.Sql with
+        // WHERE NOT EXISTS guards), and a real farm sets its own IANA zone via
+        // Settings after first login (Account.UpdateSettings) — no boot-time
+        // config value to validate.
         TimeZoneAvailability.EnsureResolvable(
             TimeZoneAvailability.CanaryZoneId,
             "Startup time-zone smoke check");

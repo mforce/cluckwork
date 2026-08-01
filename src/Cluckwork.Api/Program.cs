@@ -148,11 +148,12 @@ else
 // Database:MigrateOnStartup (default true, but Production sets it false —
 // #263) gates schema DDL. #283 — there is no runtime seeder to run after it:
 // the base reference data (roles, default egg grades, the default account)
-// ships AS PART OF the migrations themselves (InsertData/HasData), so a
-// freshly migrated database is already usable with no further boot-time step
-// and no Seed:* config. The first admin is provisioned separately, out of
-// band, by the one-shot `bootstrap-admin` command (never a serving-boot side
-// effect — see Cli/BootstrapAdminCliCommand.cs).
+// ships AS PART OF the migrations themselves via raw migrationBuilder.Sql with
+// WHERE NOT EXISTS guards (NOT EF's InsertData/HasData), so a freshly migrated
+// database is already usable with no further boot-time step and no Seed:*
+// config. The first admin is provisioned separately, out of band, by the
+// one-shot `bootstrap-admin` command (never a serving-boot side effect — see
+// Cli/BootstrapAdminCliCommand.cs).
 {
     using var startupScope = app.Services.CreateScope();
     var sp = startupScope.ServiceProvider;

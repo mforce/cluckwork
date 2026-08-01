@@ -14,11 +14,12 @@ using Microsoft.EntityFrameworkCore;
 // handles args/stdout/exit-codes, this does the real work).
 //
 // The default account/Admin role/default egg grades are #283 Part 1 static
-// reference data baked into the EF migrations (InsertData) — always present
-// once the schema is current. NO user row is ever baked into a migration
-// (that would ship every deployment the same publicly-known credential): the
-// first Owner is created HERE, on first run, with a freshly generated
-// password nothing but this one process ever sees.
+// reference data baked into the EF migrations via raw migrationBuilder.Sql
+// with WHERE NOT EXISTS guards — always present once the schema is current.
+// NO user row is ever baked into a migration (that would ship every
+// deployment the same publicly-known credential): the first Owner is created
+// HERE, on first run, with a freshly generated password nothing but this one
+// process ever sees.
 //
 // Idempotent (#283 requirement): a re-run against an already-provisioned
 // account (an Owner already exists) is a clean no-op success — never a

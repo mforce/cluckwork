@@ -55,9 +55,10 @@ public sealed class DemoDataSeeder(
         // Preflight the base prerequisite (#284 review): demo needs the default
         // account, the Admin role, and the default egg grades (FK dep for the
         // daily-entry grade lines below). #283 — these are now static
-        // reference data baked into the migration itself (InsertData), so this
-        // check should never actually fire against a database this process's
-        // own MigrateAsync just brought current; it stays as defense-in-depth
+        // reference data baked into the migration itself via raw
+        // migrationBuilder.Sql with WHERE NOT EXISTS guards, so this check
+        // should never actually fire against a database this process's own
+        // MigrateAsync just brought current; it stays as defense-in-depth
         // against a hand-rolled/partially-restored schema.
         var missingBaseData = await MissingBaseDataAsync(accountId, ct);
         if (missingBaseData)
