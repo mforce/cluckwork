@@ -91,10 +91,16 @@ public sealed class ReportsConcurrencyLimitTests(ReportsConcurrencyLimitFactory 
         var emailA = $"a-{Guid.NewGuid():N}@test.local";
         var accountA = await factory.SeedAccountWithUserAsync(emailA);
         var clientA = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(emailA));
+        // #311 review — bound the wait. Without the filter the "rejected" call
+        // blocks on the gate instead of 429ing, and the default 100s HttpClient
+        // timeout turns a real regression into a slow, illegible timeout rather
+        // than a fast assertion diff.
+        clientA.Timeout = TimeSpan.FromSeconds(10);
 
         var emailB = $"b-{Guid.NewGuid():N}@test.local";
         await factory.SeedAccountWithUserAsync(emailB);
         var clientB = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(emailB));
+        clientB.Timeout = TimeSpan.FromSeconds(10);
 
         var gate = factory.Services.GetRequiredService<ReportGate>();
         gate.Arm(accountA);

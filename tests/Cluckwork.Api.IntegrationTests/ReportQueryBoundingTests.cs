@@ -104,18 +104,32 @@ public sealed class ReportQueryBoundingTests(CluckworkWebApplicationFactory fact
         Assert.Equal(500 + 495 * 3 + 465 * 6, report.TotalHenDays);
 
         var birdMovementCommands = capture.Commands
-            .Where(c => c.Contains("\"BirdMovements\"", StringComparison.Ordinal))
+            .Where(c => c.Sql.Contains("\"BirdMovements\"", StringComparison.Ordinal))
             .ToList();
 
         // Two SQL-side aggregates (opening balance, in-range per-day) — not one
         // unfiltered scan, and not one query per day/flock (no N+1 against the
         // 500 seeded rows).
         Assert.Equal(2, birdMovementCommands.Count);
-        Assert.All(birdMovementCommands, sql =>
+
+        // …and each is bounded by the REQUESTED range, asserted on the parameter
+        // values rather than on the shape of the generated SQL. The opening
+        // balance carries `from` (Date < from); the in-range aggregate carries
+        // both. A query that dropped its date bound would still contain a "<"
+        // somewhere, so only the values prove the bound is really there.
+        static bool CarriesDate(CapturedCommand command, DateOnly date) =>
+            command.Parameters.Any(p => p switch
+            {
+                DateOnly d => d == date,
+                DateTime dt => DateOnly.FromDateTime(dt) == date,
+                _ => false,
+            });
+
+        Assert.All(birdMovementCommands, command =>
             Assert.True(
-                sql.Contains("\"Date\"", StringComparison.Ordinal)
-                && (sql.Contains('<') || sql.Contains(">=")),
-                $"Expected a date-bounded predicate in the BirdMovements query, got: {sql}"));
+                CarriesDate(command, from),
+                $"Expected the range start {from:O} as a bound parameter, got: {command.Sql}"));
+        Assert.Contains(birdMovementCommands, command => CarriesDate(command, to));
     }
 
     // A pre-cancelled token must stop the report before it completes, rather
@@ -137,17 +151,23 @@ public sealed class ReportQueryBoundingTests(CluckworkWebApplicationFactory fact
 
 // Captures every command EF Core sends to Postgres for inspection — a
 // deterministic alternative to inferring query shape from timing or row counts.
+internal sealed record CapturedCommand(string Sql, IReadOnlyList<object?> Parameters);
+
 internal sealed class SqlCaptureInterceptor : DbCommandInterceptor
 {
-    private readonly List<string> _commands = [];
+    private readonly List<CapturedCommand> _commands = [];
 
-    public IReadOnlyList<string> Commands => _commands;
+    public IReadOnlyList<CapturedCommand> Commands => _commands;
 
+    // Parameters as well as text: the bound being pushed into SQL is a VALUE,
+    // and asserting it by sniffing generated SQL for a "<" is far too loose —
+    // "<" appears in "<>" and in plenty of unrelated command text (#311 review).
     public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
         DbCommand command, CommandEventData eventData,
         InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default)
     {
-        lock (_commands) _commands.Add(command.CommandText);
+        var parameters = command.Parameters.Cast<DbParameter>().Select(p => p.Value).ToList();
+        lock (_commands) _commands.Add(new CapturedCommand(command.CommandText, parameters));
         return base.ReaderExecutingAsync(command, eventData, result, cancellationToken);
     }
 }

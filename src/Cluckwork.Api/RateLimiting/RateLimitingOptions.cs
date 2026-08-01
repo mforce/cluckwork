@@ -17,10 +17,6 @@ public sealed class RateLimitingOptions
     // LOG, not a credential — enough for a genuinely crashing screen to get its
     // story out, too little to flood the log from one address.
     public const string ClientErrorsPolicyName = "client-errors";
-    // #311: caps concurrently in-flight report queries per ACCOUNT (not IP —
-    // see ReportConcurrencyLimiter for why this can't ride the same
-    // IP-keyed RequireRateLimiting pipeline as the policies above).
-    public const string ReportsConcurrencyPolicyName = "reports-concurrency";
 
     public FixedWindow Login { get; init; } = new() { PermitLimit = 10, WindowSeconds = 900 };
     public FixedWindow Refresh { get; init; } = new() { PermitLimit = 60, WindowSeconds = 900 };

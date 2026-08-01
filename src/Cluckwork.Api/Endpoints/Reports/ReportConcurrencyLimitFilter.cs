@@ -22,8 +22,12 @@ public sealed class ReportConcurrencyLimitFilter(ReportConcurrencyLimiter limite
         EndpointFilterInvocationContext context, EndpointFilterDelegate next)
     {
         var tenant = context.HttpContext.RequestServices.GetRequiredService<TenantContext>();
+        // No account to partition by, so there is nothing to meter — fall through
+        // and let the handler reject it. Unauthenticated is the common case, but
+        // TenantResolutionMiddleware also leaves this unresolved for an
+        // AUTHENTICATED request whose JWT carries no usable account_id claim.
         if (!tenant.IsResolved)
-            return await next(context); // unauthenticated — the handler itself returns 401
+            return await next(context);
 
         using var lease = limiter.Acquire(tenant.AccountId);
         if (!lease.IsAcquired)
