@@ -17,3 +17,19 @@ appsettings.Development.local.json
 Thumbs.db
 .claude/worktrees/
 node_modules/
+
+# Database dumps/backups — never commit real data (#317)
+*.sql
+*.sql.gz
+*.dump
+*.dump.gz
+*.bak
+*.backup
+
+# Private-key and container-secret formats — never commit real key material
+# (#317). Test/CI credentials are generated at runtime instead (see
+# tests/Cluckwork.Api.IntegrationTests/Infrastructure/CluckworkWebApplicationFactory.cs).
+*.pem
+*.key
+*.p12
+*.pfx

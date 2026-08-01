@@ -13,6 +13,20 @@ web/.vite
 **/.env
 !**/.env.example
 deploy/.env
+# Database dumps/backups and private-key/container-secret formats never
+# belong in a build context (#317). Unlike .gitignore, .dockerignore patterns
+# need an explicit **/ to match at any depth (see the tools/simulation note
+# below) — a bare *.pem here would only match the context root.
+**/*.sql
+**/*.sql.gz
+**/*.dump
+**/*.dump.gz
+**/*.bak
+**/*.backup
+**/*.pem
+**/*.key
+**/*.p12
+**/*.pfx
 # #243 sim harness: generated secrets/output — never enter the build context.
 tools/simulation/.env.sim
 tools/simulation/.sim-cast.json
@@ -25,7 +39,7 @@ tools/simulation/out/
 # summary.json/docker-stats.csv/pg-snapshot files) was NOT excluded and was
 # cache-busting `dotnet publish` on every rep. Excluded explicitly here.
 tools/simulation/monitor/out/
-tools/simulation/*.pem
+# (tools/simulation/*.pem used to be listed here; **/*.pem above now covers it.)
 # Generated findings docs (one per run-baseline.sh run, git-ignored — see
 # tools/simulation/.gitignore) also don't belong in the build context; negate
 # the one tracked file in that dir back in (mirrors .gitignore's own
