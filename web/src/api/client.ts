@@ -221,6 +221,15 @@ export async function changePassword(
 // stores the token or the password anywhere longer-lived than its own return
 // value, and there is nothing here to clear on logout: unlike the access
 // token, no module-level state holds a step-up grant at all.
+//
+// #336 review — this goes through apiPost, so it inherits the transparent
+// refresh-and-retry every 401 triggers. That is only safe because the server
+// answers a REJECTED password with 400 (Users.CurrentPasswordIncorrect), the
+// same status change-password uses, and reserves 401 for a genuinely
+// unauthenticated caller. If /auth/step-up ever went back to 401 for a wrong
+// password, one typed password would be replayed as two failed accesses —
+// halving the server's five-attempt account lockout and rotating the refresh
+// token per attempt. The contract is pinned by a test in client.test.ts.
 export async function stepUp(password: string): Promise<{ token: string; expiresAt: string }> {
   return apiPost<{ token: string; expiresAt: string }>("/auth/step-up", { password });
 }

@@ -696,11 +696,50 @@ describe("stepUp (#308)", () => {
     expect(grant).toEqual({ token: "grant-abc", expiresAt: FUTURE });
   });
 
-  it("propagates a rejection (e.g. wrong current password) as an ApiError", async () => {
+  it("propagates a rejection (wrong current password) as an ApiError carrying the server's message", async () => {
     fetchMock.mockResolvedValueOnce(
-      jsonResponse({ title: "Users.CurrentPasswordIncorrect", detail: "Current password is incorrect." }, 401));
+      jsonResponse({ title: "Users.CurrentPasswordIncorrect", detail: "Current password is incorrect." }, 400));
+
+    const err = await stepUp("wrong").catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err).toMatchObject({ status: 400, message: "Current password is incorrect." });
+  });
+
+  // #336 review — the damage a 401 here would do is NOT the status the user
+  // sees, it is the replay: apiFetch treats every 401 as an expired access
+  // token, refreshes, and re-sends the SAME password. One typed password would
+  // then reach the server's password check twice, so its five-attempt account
+  // lockout would trip after three submissions and each attempt would burn a
+  // refresh-token rotation. Pin the single request, not just the status.
+  it("issues exactly one request for a rejected password — no refresh, no replay", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({ title: "Users.CurrentPasswordIncorrect", detail: "Current password is incorrect." }, 400));
 
     await expect(stepUp("wrong")).rejects.toThrow(ApiError);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(callsTo(fetchMock, "/auth/step-up")).toHaveLength(1);
+    expect(callsTo(fetchMock, "/auth/refresh")).toHaveLength(0);
+    // The session is untouched: no teardown, no navigate-to-login.
+    expect(getAccessToken()).toBe("at1");
+    expect(onUnauth).not.toHaveBeenCalled();
+    expect(onTokens).not.toHaveBeenCalled();
+  });
+
+  // The other side of the boundary: a REAL 401 (the session truly expired) must
+  // still take the refresh-and-retry path, so the fix above is a status
+  // distinction and not a blanket opt-out of transparent refresh.
+  it("still refreshes and retries when the session itself has expired (401)", async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ title: "Unauthorized" }, 401))
+      .mockResolvedValueOnce(accessResponse("at2"))
+      .mockResolvedValueOnce(jsonResponse({ token: "grant-abc", expiresAt: FUTURE }));
+
+    const grant = await stepUp("right");
+
+    expect(grant).toEqual({ token: "grant-abc", expiresAt: FUTURE });
+    expect(callsTo(fetchMock, "/auth/step-up")).toHaveLength(2);
+    expect(callsTo(fetchMock, "/auth/refresh")).toHaveLength(1);
   });
 
   it("does not touch in-memory auth state — it is not a token-store writer", async () => {

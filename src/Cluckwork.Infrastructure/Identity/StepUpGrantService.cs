@@ -83,7 +83,12 @@ using Microsoft.IdentityModel.Tokens;
 //     failure (wrong current password) is allowed to say so plainly: the
 //     caller is already a specific authenticated user re-confirming their
 //     OWN credential, so there is nothing left to enumerate — this mirrors
-//     ChangeOwnPasswordAsync's "Users.CurrentPasswordIncorrect".
+//     ChangeOwnPasswordAsync's "Users.CurrentPasswordIncorrect", and (#336
+//     review) carries that flow's 400 rather than a 401: the SPA's apiFetch
+//     reads every 401 as an expired access token and transparently refreshes
+//     and REPLAYS the request, which would double-count each wrong password
+//     against the per-account lockout below. 401 stays reserved for a caller
+//     whose session genuinely isn't there.
 //   - Rate-limited like login/change-password (the endpoint opts into
 //     RateLimitingOptions.LoginPolicyName): an attacker holding a stolen
 //     access token still cannot brute-force the password behind unlimited

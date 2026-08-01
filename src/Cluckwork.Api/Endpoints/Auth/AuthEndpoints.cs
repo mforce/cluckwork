@@ -223,7 +223,20 @@ public static class AuthEndpoints
 
         var result = await stepUp.IssueAsync(tenant.AccountId, currentUser.UserId, request.Password, ct);
         if (!result.IsSuccess)
-            return Results.Problem(result.Error.Description, statusCode: 401, title: result.Error.Code);
+            // #336 review — 400, exactly as ChangePassword above returns the SAME
+            // Users.CurrentPasswordIncorrect error. A rejected step-up password is a
+            // credential rejection, NOT an expired session, and it must not be
+            // reported as one: the SPA's apiFetch treats every 401 as a stale access
+            // token, silently refreshes, and REPLAYS the identical request. One typed
+            // password would then cost TWO failed accesses, cutting the #128 five-
+            // attempt account lockout this endpoint just gained to three — while
+            // burning a refresh-token rotation per attempt, and signing the user out
+            // mid-flow whenever the refresh itself is unavailable. Only the genuinely
+            // unauthenticated branch above stays 401.
+            return Results.Problem(
+                result.Error.Description,
+                statusCode: StatusCodes.Status400BadRequest,
+                title: result.Error.Code);
 
         return Results.Ok(new StepUpResponse(result.Value.Token, result.Value.ExpiresAt));
     }

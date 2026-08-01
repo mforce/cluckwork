@@ -4,6 +4,8 @@ using System.Net;
 using System.Net.Http.Headers;
 using Cluckwork.Api.Endpoints.Auth;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+using Cluckwork.Infrastructure.Identity;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
@@ -93,13 +95,20 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
+    // #336 review — a wrong step-up password is a CREDENTIAL rejection, not an
+    // expired session, and must not be reported with the session-expiry status:
+    // the SPA's apiFetch treats every 401 as a stale access token and silently
+    // refreshes-and-replays the identical request (see the paired test below for
+    // what that costs). 400 is what ChangePassword already returns for the SAME
+    // Users.CurrentPasswordIncorrect error — this endpoint now matches it.
     [Fact]
-    public async Task StepUp_WrongCurrentPassword_Is401_AndSaysSo()
+    public async Task StepUp_WrongCurrentPassword_IsACredentialRejection_NotASessionExpiry()
     {
         var (owner, _) = await AdminAsync();
         var response = await owner.PostAsJsonAsync("/api/v1/auth/step-up", new { password = FreshPassword() });
 
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.NotEqual(HttpStatusCode.Unauthorized, response.StatusCode);
         Assert.Contains("Current password is incorrect", await response.Content.ReadAsStringAsync());
     }
 
@@ -518,5 +527,133 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
             var grant = await StepUpAsync(admin, TestHarness.Password);
             Assert.False(string.IsNullOrWhiteSpace(grant.Token));
         }
+    }
+
+    // ---------- #336 review: one user attempt must cost ONE failed access ----------
+    //
+    // web/src/api/client.ts's apiFetch treats EVERY 401 as an expired access
+    // token: it silently refreshes the session and REPLAYS the identical
+    // request. While /auth/step-up answered a wrong password with 401, one
+    // password the operator typed once reached the password check TWICE — so
+    // the #128 five-attempt lockout the endpoint gained just above tripped after
+    // three submissions, each attempt also burned a refresh-token rotation, and
+    // a failed refresh signed the user out mid-flow.
+    //
+    // The damage is invisible to a bare HttpClient, which issues one request per
+    // attempt no matter what the status is — a status-code assertion alone would
+    // stay green if the 401 came back. So these two drive the endpoint through a
+    // faithful stand-in for the real client instead.
+    private static readonly WebApplicationFactoryClientOptions Cookieless =
+        new() { HandleCookies = false };
+
+    private sealed class SpaLikeClient(HttpClient http, TokenPairDto tokens)
+    {
+        public TokenPairDto Tokens { get; private set; } = tokens;
+
+        private Task<HttpResponseMessage> PostAsync(string password)
+        {
+            var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/step-up")
+            {
+                Content = JsonContent.Create(new { password })
+            };
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", Tokens.AccessToken);
+            return http.SendAsync(request);
+        }
+
+        // One user-visible attempt, performed exactly as apiFetch performs it:
+        // on a 401 (and ONLY a 401) refresh the session and replay the same
+        // password; anything else surfaces to the caller untouched.
+        public async Task<HttpStatusCode> StepUpAsync(string password)
+        {
+            var response = await PostAsync(password);
+            if (response.StatusCode != HttpStatusCode.Unauthorized) return response.StatusCode;
+
+            var refreshed = await http.PostRefreshAsync(Tokens.RefreshToken);
+            if (!refreshed.IsSuccessStatusCode) return response.StatusCode;
+            Tokens = await TestHarness.ReadTokensAsync(refreshed);
+            return (await PostAsync(password)).StatusCode;
+        }
+    }
+
+    private async Task<(string Email, SpaLikeClient Spa)> SpaSessionAsync()
+    {
+        var email = $"admin-{Guid.NewGuid():N}@test.local";
+        await factory.SeedAccountWithUserAsync(email);
+        var tokens = await factory.LoginAsync(email);
+        return (email, new SpaLikeClient(factory.CreateClient(Cookieless), tokens));
+    }
+
+    // Read straight off the user row — the lockout's own bookkeeping, not a
+    // status code that could agree with the bug by coincidence.
+    private async Task<(int FailedCount, bool LockedOut)> LockoutStateAsync(string email)
+    {
+        using var scope = factory.Services.CreateScope();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var user = await users.FindByEmailAsync(email)
+            ?? throw new InvalidOperationException($"No user {email}");
+        return (user.AccessFailedCount, await users.IsLockedOutAsync(user));
+    }
+
+    [Fact]
+    public async Task StepUp_WrongPassword_RecordsExactlyOneFailedAccessPerUserAttempt()
+    {
+        var (email, spa) = await SpaSessionAsync();
+        var originalRefreshToken = spa.Tokens.RefreshToken;
+
+        // Four attempts — one short of the threshold, so nothing here is masked
+        // by the account locking part-way through. The COUNT is asserted before
+        // the status deliberately: the status is pinned by its own test above,
+        // and a mutant that restores the 401 should fail here on the damage it
+        // does (Expected 1, Actual 2) rather than on the status that caused it.
+        var statuses = new List<HttpStatusCode>();
+        for (var attempt = 1; attempt <= 4; attempt++)
+        {
+            statuses.Add(await spa.StepUpAsync(FreshPassword()));
+
+            // N attempts, N increments — never 2N.
+            var (failedCount, _) = await LockoutStateAsync(email);
+            Assert.Equal(attempt, failedCount);
+        }
+
+        Assert.All(statuses, status => Assert.Equal(HttpStatusCode.BadRequest, status));
+
+        // …and no attempt triggered a transparent refresh, so the session's
+        // refresh token was never needlessly rotated either.
+        Assert.Equal(originalRefreshToken, spa.Tokens.RefreshToken);
+    }
+
+    [Fact]
+    public async Task StepUp_LockoutTripsOnTheFifthUserAttempt_NotTheThird()
+    {
+        var (email, spa) = await SpaSessionAsync();
+
+        for (var attempt = 1; attempt <= 4; attempt++)
+            await spa.StepUpAsync(FreshPassword());
+
+        // The third submission is where the doubled count used to lock the
+        // account; four real failures are still below the threshold of five.
+        var afterFour = await LockoutStateAsync(email);
+        Assert.Equal(4, afterFour.FailedCount);
+        Assert.False(afterFour.LockedOut);
+
+        // The correct password still works at this point — the operator who
+        // mistyped four times is not locked out of their own farm.
+        var admin = factory.CreateAuthedClient(spa.Tokens.AccessToken);
+        var grant = await StepUpAsync(admin, TestHarness.Password);
+        Assert.False(string.IsNullOrWhiteSpace(grant.Token));
+
+        // A success resets the counter, so drive the full five from zero: the
+        // FIFTH attempt — not the third — is the one that locks the account.
+        for (var attempt = 1; attempt <= 4; attempt++)
+            await spa.StepUpAsync(FreshPassword());
+        Assert.False((await LockoutStateAsync(email)).LockedOut);
+
+        await spa.StepUpAsync(FreshPassword());
+        Assert.True((await LockoutStateAsync(email)).LockedOut);
+
+        // Locked: even the CORRECT password is refused now, with the same reply.
+        var afterLockout = await admin.PostAsJsonAsync(
+            "/api/v1/auth/step-up", new { password = TestHarness.Password });
+        Assert.Equal(HttpStatusCode.BadRequest, afterLockout.StatusCode);
     }
 }
