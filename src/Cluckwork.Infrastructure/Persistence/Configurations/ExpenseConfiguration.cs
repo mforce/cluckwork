@@ -15,8 +15,9 @@ public sealed class ExpenseCategoryConfiguration : IEntityTypeConfiguration<Expe
         builder.Property(c => c.Version).IsConcurrencyToken();
 
         // Name uniqueness is case-insensitive per farm — enforced by a raw
-        // lower(Name) expression index (EF can't model it); see the AddExpenses
-        // migration. Handlers pre-check via NameExistsAsync for a friendly 409;
+        // lower(Name) expression index (EF can't model it); see the InitialCreate
+        // migration (#245 squashed the AddExpenses one that introduced it).
+        // Handlers pre-check via NameExistsAsync for a friendly 409;
         // the index is the real guarantee (grade-catalog pattern).
     }
 }

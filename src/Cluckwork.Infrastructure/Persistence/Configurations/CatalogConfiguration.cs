@@ -20,8 +20,9 @@ public sealed class ProductConfiguration : IEntityTypeConfiguration<Product>
         builder.Property(p => p.Version).IsConcurrencyToken();
 
         // Name uniqueness is case-insensitive per account — raw lower(Name)
-        // expression index added in the AddProductCatalog migration (EF can't
-        // model it); NameExistsAsync pre-checks for a friendly 409.
+        // expression index carried in the InitialCreate migration (EF can't model
+        // it; #245 squashed the AddProductCatalog one that introduced it);
+        // NameExistsAsync pre-checks for a friendly 409.
     }
 }
 
@@ -63,13 +64,13 @@ public sealed class EggUnitConversionConfiguration : IEntityTypeConfiguration<Eg
 
         // #283 Part 1 — the default account's packed-unit defaults (#97) are
         // static reference data, seeded via idempotent raw SQL in the
-        // AddBaseReferenceDataAndMustChangePassword migration, NOT via EF's
-        // HasData(): every real deployment already ran the old runtime
-        // DatabaseSeeder at least once, which minted these 6 rows with RANDOM
-        // ids (EggUnitConversion.Defaults -> Create(Guid.NewGuid(), ...)) —
-        // HasData's InsertData is keyed by PRIMARY KEY, so it can't detect a
-        // pre-existing row under a different id and collides on the real
-        // unique constraint (AccountId, UnitCode) instead. See the migration
+        // InitialCreate migration (originally #283's
+        // AddBaseReferenceDataAndMustChangePassword, carried by hand through
+        // #245's squash), NOT via EF's HasData(): HasData would put these 6
+        // rows in the MODEL, and EggUnitConversion.Update retunes EggsPerUnit,
+        // so a later model-diff would revert the farm's own edit. The
+        // migration's guard is per-key on the real unique constraint
+        // (AccountId, UnitCode), not on the primary key — see the migration
         // file (PR #339 review).
     }
 }

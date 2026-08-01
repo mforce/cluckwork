@@ -375,14 +375,18 @@ public sealed class IdempotencyMiddleware(RequestDelegate next, IOptions<Idempot
 
         if (existing is null) return new ClaimAttempt(ClaimKind.Retry);
         // An empty RequestHash means "unknown" — the row was backfilled by the
-        // AtomicIdempotencyClaims migration from a row written under the pre-#307
-        // schema, which never recorded a hash at all. No REAL request hash is ever
-        // the empty string (sha256 of even a zero-byte body is a 64-char hex
+        // pre-#245 AtomicIdempotencyClaims migration from a row written under the
+        // pre-#307 schema, which never recorded a hash at all. No REAL request hash
+        // is ever the empty string (sha256 of even a zero-byte body is a 64-char hex
         // string), so "" is an unambiguous, collision-free sentinel: treat it as
         // matching so a legacy completed row still replays instead of 409ing
-        // forever, rather than trying to reconstruct a hash nothing recorded. This
-        // shim's reason to exist goes away once #245's InitialCreate squash retires
-        // every pre-#307 row.
+        // forever, rather than trying to reconstruct a hash nothing recorded.
+        //
+        // #245 — the squash HAS now retired every pre-#307 row (that migration is
+        // gone, and every database carrying such rows was dropped and recreated),
+        // so this branch is unreachable in practice. Left in place deliberately as
+        // an inert guard rather than removed in the squash commit, which changes no
+        // behaviour; deleting it is a separate, reviewable change.
         if (existing.RequestHash.Length > 0 && existing.RequestHash != requestHash)
             return new ClaimAttempt(ClaimKind.HashConflict, existing);
         if (existing.Status == IdempotencyStatus.Completed) return new ClaimAttempt(ClaimKind.Completed, existing);
