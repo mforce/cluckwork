@@ -35,7 +35,7 @@ public sealed class IdempotencyUserScopeTests(CluckworkWebApplicationFactory fac
     }
 
     [Fact]
-    public async Task Same_user_same_key_still_replays()
+    public async Task Same_user_same_key_sameBody_stillReplays()
     {
         var email = $"o-{Guid.NewGuid():N}@test.local";
         var accountId = await factory.SeedAccountWithUserAsync(email);
@@ -43,12 +43,32 @@ public sealed class IdempotencyUserScopeTests(CluckworkWebApplicationFactory fac
 
         var key = Guid.NewGuid().ToString();
         var first = await client.PutWithKeyAsync("/api/v1/me/language", key, new { language = "en" });
-        // Different body, same key: a genuine replay returns the cached 204 without
-        // re-executing the handler, so the language must stay "en" — if replay ever
-        // broke into re-execution this would flip to "fr" and fail.
-        var second = await client.PutWithKeyAsync("/api/v1/me/language", key, new { language = "fr" });
+        // Same key, SAME body: a genuine replay returns the cached 204 without
+        // re-executing the handler.
+        var second = await client.PutWithKeyAsync("/api/v1/me/language", key, new { language = "en" });
         Assert.Equal(HttpStatusCode.NoContent, first.StatusCode);
         Assert.Equal(HttpStatusCode.NoContent, second.StatusCode);
+        Assert.Equal("en", (await client.GetFromJsonAsync<MeRow>("/api/v1/me"))!.Language);
+    }
+
+    // #307 — reusing a key with a DIFFERENT request payload is a protocol
+    // conflict, not a replay: the handler must never run a second time under
+    // a caller-supplied guess at what the first request "really" was.
+    [Fact]
+    public async Task Same_user_same_key_differentBody_returnsConflict_andNeverReexecutes()
+    {
+        var email = $"o-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
+
+        var key = Guid.NewGuid().ToString();
+        var first = await client.PutWithKeyAsync("/api/v1/me/language", key, new { language = "en" });
+        // Different body, same key: a conflict, never a re-execution — the
+        // language must stay "en" (if the handler ran again with "fr" this
+        // would flip and the last assertion below would fail).
+        var second = await client.PutWithKeyAsync("/api/v1/me/language", key, new { language = "fr" });
+        Assert.Equal(HttpStatusCode.NoContent, first.StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, second.StatusCode);
         Assert.Equal("en", (await client.GetFromJsonAsync<MeRow>("/api/v1/me"))!.Language);
     }
 }
