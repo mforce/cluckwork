@@ -371,6 +371,23 @@ describe("UsersPage dialog dismissal", () => {
     expect(passwordInput()).toHaveValue("");
   });
 
+  // #314 review — password wasn't the only state that leaked across a close.
+  // An abandoned "Admin" selection stayed selected on reopen, so an operator
+  // who believed they were starting a fresh entry could grant admin by
+  // accident. The whole form resets, not just the credential field.
+  it("resets an abandoned Admin role selection, so reopening never pre-grants admin (#314)", async () => {
+    await renderReady(ADMIN);
+    openCreate();
+    typeCreatePassword();
+    fireEvent.change(within(dialog()).getByLabelText(/Role/), { target: { value: "Admin" } });
+
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+
+    openCreate();
+    expect(within(dialog()).getByLabelText(/Role/)).toHaveValue("Worker");
+    expect(within(dialog()).getByLabelText("Email *")).toHaveValue("");
+  });
+
   it("clears the typed password on the close (X) button, so reopening the dialog shows it empty (#314)", async () => {
     await renderReady(ADMIN);
     openCreate();

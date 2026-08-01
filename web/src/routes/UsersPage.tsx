@@ -195,11 +195,16 @@ export function UsersPage() {
 
   // #314 — close the create dialog from any path (Cancel, X, Escape, overlay).
   // Don't leave the typed plaintext password sitting in component state after
-  // the dialog is gone (same pattern as closePassword's #165 fix); success
-  // already clears it as part of onCreate.
+  // the dialog is gone (same pattern as closePassword's #165 fix). Role resets
+  // too: a stale "Admin" from an abandoned attempt would otherwise still be
+  // selected on reopen, so an operator who thinks they're starting fresh can
+  // grant admin by accident. Matches the full reset onCreate does on success.
   function closeCreate() {
     setCreating(false);
+    setEmail("");
     setPassword("");
+    setRole("Worker");
+    setName("");
   }
 
   // #163 — open the edit dialog seeded with the user's current name.
