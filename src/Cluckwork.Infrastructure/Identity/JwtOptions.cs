@@ -18,4 +18,9 @@ public sealed class JwtOptions
     // revoked. Kept short vs the ~15-min refresh cadence to bound the inherent
     // in-window relaxation of theft-detection; set 0 to disable (strict replay).
     public int RefreshReuseGraceSeconds { get; init; } = 10;
+
+    // #308 — step-up grant lifetime (POST /auth/step-up). Short enough to
+    // bound what a captured grant is worth, long enough to complete one
+    // confirm-password step and fire the one sensitive request it unlocks.
+    public int StepUpGrantMinutes { get; init; } = 5;
 }

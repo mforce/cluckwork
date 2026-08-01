@@ -551,12 +551,42 @@ current one. The Owner path **refuses self-targeting**: skipping the
 current-password proof for your own account would turn a stolen access token
 into a permanent takeover, so an Owner changes their own password like everyone
 else. One Owner *can* reset a co-Owner's password (all Owners are equivalent);
-it is audited (`User.PasswordSet`) but not otherwise restricted.
+it is audited (`User.PasswordSet`) and, since #308, requires a **step-up
+grant** because the target holds Owner (see below) — resetting any other
+role's password is unchanged and stays ungated.
 Both revoke every refresh token for that user, so other devices are signed out
 — the self-service path hands the device that made the change a fresh pair so it
 stays signed in. Eviction is bounded by the access-token lifetime: an
 already-issued access token keeps working until it expires (~15 min), because
 tokens are stateless and there is no server-side denylist.
+
+**Step-up authentication (#308)** — a fresh proof of identity required, on top
+of a normal valid Owner access token, before two specific actions: **creating
+another Owner**, and **resetting an existing Owner's password**. The threat it
+closes: a stolen-but-still-valid Owner access token (good for ~15 min, no
+server-side denylist — see **Password change** above) is otherwise enough on
+its own to mint a second, independent Owner or take over an existing one,
+turning short-lived token theft into durable account control. Every other
+action on the Users screen — creating a Worker/Manager/Sales/Read-only user,
+resetting one of their passwords, editing a display name, flock assignment —
+is **unchanged and ungated**; the point is to gate exactly the two operations
+that can multiply or hand over account control, not to add a blanket prompt to
+ordinary farm administration.
+The mechanism is **current-password re-confirmation**: the Users screen shows
+an inline "your current password" field only when the action needs it (never
+a separate popup), which the SPA exchanges for a short-lived (5 minutes by
+default), single-use, account-and-user-bound **step-up grant** via
+`POST /auth/step-up` and attaches to the one follow-up request. The grant is a
+JWT carrying a DIFFERENT audience than the normal access token, so it cannot
+be used as a Bearer token anywhere else; it is invalidated by a security-stamp
+change (any password change/reset for that user) and by that user logging out,
+and a used or expired grant is refused. Every rejection reason (missing,
+expired, replayed, wrong account, revoked) returns the identical
+non-enumerating denial, so a caller cannot tell which one applies. The
+entered password itself is never stored — held only in the dialog's own field
+and cleared the instant it is sent. TOTP/WebAuthn step-up is a deferred
+follow-up (#320); the offline `recover-admin` break-glass command (see below)
+is a separate CLI verb and never touches this browser flow.
 
 **Break-glass reset (#265)** — the recovery path for the one case the two above
 leave uncovered: a **sole Owner** who has lost their password. There is no email

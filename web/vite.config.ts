@@ -156,6 +156,11 @@ export default defineConfig(({ mode }) => {
           // Ratcheted after #250 (NumberField floor + stepper rollout with
           // component + screen tests): actuals 90.7/87.7/82.0/78.1, floors
           // keep ~1pt headroom.
+          //
+          // Re-measured after #308 (step-up authentication: client.ts +
+          // cluckwork.ts + UsersPage.tsx changes, all covered): actuals
+          // 91.03/88.02/82.32/78.34 — every number moved UP, so the floors
+          // below are unchanged (still ~1-1.3pt headroom, same convention).
           lines: 90,
           statements: 87,
           functions: 81,

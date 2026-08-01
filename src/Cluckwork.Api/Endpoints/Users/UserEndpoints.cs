@@ -10,6 +10,7 @@ using Cluckwork.Application.Features.Users.SetUserPassword;
 using Cluckwork.Application.Features.Users.UpdateUser;
 using Cluckwork.Infrastructure.Persistence;
 using FluentValidation;
+using Microsoft.AspNetCore.Mvc;
 
 // #73 — minimal user management: enough for an admin to create a worker (or
 // another admin) and see who exists. Full user administration is the RBAC slice.
@@ -104,21 +105,29 @@ public static class UserEndpoints
 
     private static async Task<IResult> CreateUser(
         CreateUserRequest request,
+        [FromHeader(Name = Cluckwork.Api.Endpoints.Auth.AuthEndpoints.StepUpHeaderName)] string? stepUpToken,
         CreateUserHandler handler,
         IValidator<CreateUserCommand> validator,
         TenantContext tenant,
+        ICurrentUser currentUser,
         CancellationToken ct)
     {
-        if (!tenant.IsResolved) return Results.Unauthorized();
+        if (!tenant.IsResolved || !currentUser.IsResolved) return Results.Unauthorized();
 
-        var command = new CreateUserCommand(request.Email, request.Password, request.Role, request.Name);
+        var command = new CreateUserCommand(
+            request.Email, request.Password, request.Role, request.Name, stepUpToken);
         var validation = await validator.ValidateAsync(command, ct);
         if (!validation.IsValid)
             return ValidationResponse.Problem(validation);
 
-        var result = await handler.HandleAsync(command, tenant.AccountId, ct);
-        return result.IsSuccess
-            ? Results.Created("/api/v1/users", new { Id = result.Value })
+        var result = await handler.HandleAsync(command, tenant.AccountId, currentUser.UserId, ct);
+        if (result.IsSuccess)
+            return Results.Created("/api/v1/users", new { Id = result.Value });
+        // #308 — a missing/invalid step-up grant is a 403 (authenticated, but
+        // lacking a required additional proof), distinct from the 422s below
+        // used for ordinary validation/domain failures.
+        return result.Error.Code == Cluckwork.Application.Common.StepUpErrorCodes.Required
+            ? Results.Problem(result.Error.Description, statusCode: StatusCodes.Status403Forbidden, title: result.Error.Code)
             : Results.Problem(result.Error.Description, statusCode: 422, title: result.Error.Code);
     }
 
@@ -149,6 +158,7 @@ public static class UserEndpoints
     private static async Task<IResult> SetUserPassword(
         Guid id,
         SetUserPasswordRequest request,
+        [FromHeader(Name = Cluckwork.Api.Endpoints.Auth.AuthEndpoints.StepUpHeaderName)] string? stepUpToken,
         SetUserPasswordHandler handler,
         IValidator<SetUserPasswordCommand> validator,
         TenantContext tenant,
@@ -169,13 +179,17 @@ public static class UserEndpoints
                 statusCode: StatusCodes.Status400BadRequest,
                 title: "Users.CannotSetOwnPassword");
 
-        var command = new SetUserPasswordCommand(id, request.NewPassword);
+        var command = new SetUserPasswordCommand(id, request.NewPassword, stepUpToken);
         var validation = await validator.ValidateAsync(command, ct);
         if (!validation.IsValid)
             return ValidationResponse.Problem(validation);
 
-        var result = await handler.HandleAsync(command, tenant.AccountId, ct);
+        var result = await handler.HandleAsync(command, tenant.AccountId, currentUser.UserId, ct);
         if (result.IsSuccess) return Results.NoContent();
+        // #308 — a missing/invalid step-up grant is a 403, checked before the
+        // generic NotFound/422 mapping below.
+        if (result.Error.Code == Cluckwork.Application.Common.StepUpErrorCodes.Required)
+            return Results.Problem(result.Error.Description, statusCode: StatusCodes.Status403Forbidden, title: result.Error.Code);
         return result.Error.Code.EndsWith(".NotFound", StringComparison.Ordinal)
             ? Results.NotFound()
             : Results.Problem(result.Error.Description, statusCode: 422, title: result.Error.Code);

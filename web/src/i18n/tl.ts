@@ -1011,6 +1011,11 @@ export const tl = {
     adminRoleOption: "{{label}} (may-ari)",
     createUserButton: "Gumawa ng user",
 
+    // #308 — muling pagkumpirma ng password (machine-drafted, pending native review)
+    stepUpFieldLabel: "Ang kasalukuyan mong password *",
+    stepUpCreateHint: "Ang paggawa ng isa pang Owner ay nangangailangan muling ilagay ang kasalukuyan mong password.",
+    stepUpResetHint: "Ang pag-reset ng password ng isang Owner ay nangangailangan muling ilagay ang kasalukuyan mong password.",
+
     // Users table
     emailColumnHeader: "Email",
     nameColumnHeader: "Pangalan",
@@ -1599,6 +1604,13 @@ export const tl = {
       + "kahit mag-reload at kahit bukas ang app sa <strong>ilang tab</strong> nang sabay-sabay. "
       + "Pagkatapos ma-<strong>update</strong> ang app, maaaring hilingin sa iyong mag-sign in muli — "
       + "normal lang iyon.",
+    // #308 (machine-drafted, pending native review)
+    signingInStepUp:
+      "May dalawang aksyon sa <strong>Users</strong> screen na humihiling sa iyong <strong>muling ilagay ang "
+      + "kasalukuyan mong password</strong> mismo sa dialog: ang paggawa ng isa pang Owner, at ang pag-reset "
+      + "ng password ng isang umiiral na Owner. Kinukumpirma nito na ikaw talaga bago bigyan ng ganoong "
+      + "kalaking access — walang ibang aksyon sa screen na iyon (paggawa ng Worker/Manager/Sales/Read-only "
+      + "user, pag-reset ng password nila) ang muling nagtatanong.",
     interfaceLanguage:
       "<strong>Wika ng interface.</strong> Kahit sino ay puwedeng pumili ng wikang gagamitin sa interface "
       + "mula sa <strong>Account → Mga Kagustuhan</strong> — English, Español, o Tagalog. Isang patuloy na "

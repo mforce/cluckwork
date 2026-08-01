@@ -11,6 +11,11 @@ const BASE = "/api/v1";
 // alongside the cookie's SameSite=Strict. Mirrors AuthCookies.CsrfHeaderName.
 const CSRF_HEADER = "X-Cluckwork-Auth";
 
+// #308 — carries a short-lived step-up grant (see stepUp() below) on the two
+// sensitive user-administration calls that need one. Mirrors
+// AuthEndpoints.StepUpHeaderName.
+export const STEP_UP_HEADER = "X-Cluckwork-Step-Up";
+
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -208,6 +213,18 @@ export async function changePassword(
   onTokensChanged?.();
 }
 
+// #308 — re-confirms the CURRENT password to mint a short-lived step-up grant
+// for one sensitive user-administration call (creating another Owner;
+// resetting an Owner's password). The grant is returned to the caller and
+// used EXACTLY ONCE, immediately, as the X-Cluckwork-Step-Up header on that
+// one follow-up request (see UsersPage.tsx) — this function itself never
+// stores the token or the password anywhere longer-lived than its own return
+// value, and there is nothing here to clear on logout: unlike the access
+// token, no module-level state holds a step-up grant at all.
+export async function stepUp(password: string): Promise<{ token: string; expiresAt: string }> {
+  return apiPost<{ token: string; expiresAt: string }>("/auth/step-up", { password });
+}
+
 export async function logout(): Promise<void> {
   // #310 — bump the generation and clear in-memory state SYNCHRONOUSLY, before
   // any await: local logout must win immediately, whatever a slower in-flight
@@ -350,18 +367,32 @@ export function apiGet<T>(path: string): Promise<T> {
 // key replays the original response instead of repeating the side effect.
 // Callers retrying a logical mutation after an ambiguous failure should pass
 // the SAME key so the server dedupes instead of repeating the write.
-export function apiPost<T>(path: string, body?: unknown, idempotencyKey?: string): Promise<T> {
+//
+// #308 — extraHeaders is how CreateUser/SetUserPassword attach the
+// X-Cluckwork-Step-Up header for a sensitive operation; every other caller
+// omits it.
+export function apiPost<T>(
+  path: string,
+  body?: unknown,
+  idempotencyKey?: string,
+  extraHeaders?: Record<string, string>,
+): Promise<T> {
   return apiFetch<T>(path, {
     method: "POST",
-    headers: { "Idempotency-Key": idempotencyKey ?? newId() },
+    headers: { "Idempotency-Key": idempotencyKey ?? newId(), ...extraHeaders },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
 }
 
-export function apiPut<T>(path: string, body: unknown, idempotencyKey?: string): Promise<T> {
+export function apiPut<T>(
+  path: string,
+  body: unknown,
+  idempotencyKey?: string,
+  extraHeaders?: Record<string, string>,
+): Promise<T> {
   return apiFetch<T>(path, {
     method: "PUT",
-    headers: { "Idempotency-Key": idempotencyKey ?? newId() },
+    headers: { "Idempotency-Key": idempotencyKey ?? newId(), ...extraHeaders },
     body: JSON.stringify(body),
   });
 }

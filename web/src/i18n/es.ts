@@ -975,6 +975,11 @@ export const es = {
     adminRoleOption: "{{label}} (propietario)",
     createUserButton: "Crear usuario",
 
+    // #308 — re-confirmación de contraseña (machine-drafted, pending native review)
+    stepUpFieldLabel: "Tu contraseña actual *",
+    stepUpCreateHint: "Crear otro propietario requiere volver a ingresar tu contraseña actual.",
+    stepUpResetHint: "Restablecer la contraseña de un propietario requiere volver a ingresar tu contraseña actual.",
+
     // Users table
     emailColumnHeader: "Correo electrónico",
     nameColumnHeader: "Nombre",
@@ -1539,6 +1544,13 @@ export const es = {
       + "incluso al recargar y con la aplicación abierta en <strong>varias pestañas</strong> a la vez. "
       + "Después de que la aplicación se <strong>actualiza</strong> es posible que se le pida iniciar "
       + "sesión una vez más — eso es normal.",
+    // #308 (machine-drafted, pending native review)
+    signingInStepUp:
+      "Dos acciones en la pantalla <strong>Usuarios</strong> le piden <strong>volver a ingresar su contraseña "
+      + "actual</strong> directamente en el diálogo: crear otro propietario y restablecer la contraseña de un "
+      + "propietario existente. Esto confirma que realmente es usted antes de otorgar tanto acceso — ninguna "
+      + "otra acción en esa pantalla (crear un usuario Worker/Manager/Sales/Read-only, restablecer su "
+      + "contraseña) vuelve a preguntar.",
     interfaceLanguage:
       "<strong>Idioma de la interfaz.</strong> Cualquiera puede elegir el idioma en que se muestra la "
       + "interfaz desde <strong>Cuenta → Preferencias</strong> — inglés, español o tagalo. La traducción es "

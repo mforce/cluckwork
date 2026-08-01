@@ -11,6 +11,8 @@ import {
   logout,
   restoreSession,
   changePassword,
+  stepUp,
+  STEP_UP_HEADER,
   ApiError,
   setOnUnauthenticated,
   setOnTokensChanged,
@@ -439,6 +441,27 @@ describe("write idempotency", () => {
     expect(headerOf(fetchMock.mock.calls[0] as Call, "Content-Type")).toBe("application/json");
   });
 
+  // #308 — apiPost/apiPut's optional 4th param is how CreateUser/SetUserPassword
+  // attach the step-up grant. Both sides of the boundary: present when a caller
+  // passes one, absent otherwise (every other write in the app).
+  it("apiPost attaches an extra header (e.g. the step-up grant) when given one", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ id: "1" }));
+    await apiPost("/users", { role: "Admin" }, "key", { [STEP_UP_HEADER]: "grant-abc" });
+    expect(headerOf(fetchMock.mock.calls[0] as Call, STEP_UP_HEADER)).toBe("grant-abc");
+  });
+
+  it("apiPost carries no step-up header when none is given (every ordinary write)", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ id: "1" }));
+    await apiPost("/customers", { name: "x" });
+    expect(headerOf(fetchMock.mock.calls[0] as Call, STEP_UP_HEADER)).toBeNull();
+  });
+
+  it("apiPut attaches an extra header (e.g. the step-up grant) when given one", async () => {
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
+    await apiPut("/users/1/password", { newPassword: "x" }, "key", { [STEP_UP_HEADER]: "grant-def" });
+    expect(headerOf(fetchMock.mock.calls[0] as Call, STEP_UP_HEADER)).toBe("grant-def");
+  });
+
   it("apiPutBytes sends the body as-is under its own content type (#123 logo upload)", async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ contentHash: "abc" }));
     const bytes = new Blob([new Uint8Array([1, 2, 3])], { type: "image/png" });
@@ -652,6 +675,39 @@ describe("changePassword (#165)", () => {
 
     await expect(changePassword({ currentPassword: "x", newPassword: "y" })).rejects.toThrow(ApiError);
     expect(getAccessToken()).toBe("at1"); // unchanged
+  });
+});
+
+// #308 — step-up grant issuance. Consumed by UsersPage.tsx immediately before
+// the one sensitive write it unlocks; this file only proves the transport
+// contract (posts the password, authenticated, returns the grant as-is).
+describe("stepUp (#308)", () => {
+  it("posts the password to /auth/step-up as an authenticated write and returns the grant", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ token: "grant-abc", expiresAt: FUTURE }));
+    const password = `Aa1!${crypto.randomUUID()}`;
+
+    const grant = await stepUp(password);
+
+    const call = fetchMock.mock.calls[0] as Call;
+    expect(call[0]).toBe("/api/v1/auth/step-up");
+    expect(call[1].method).toBe("POST");
+    expect(authOf(call)).toBe("Bearer at1");
+    expect(JSON.parse(String(call[1].body))).toEqual({ password });
+    expect(grant).toEqual({ token: "grant-abc", expiresAt: FUTURE });
+  });
+
+  it("propagates a rejection (e.g. wrong current password) as an ApiError", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ title: "Users.CurrentPasswordIncorrect", detail: "Current password is incorrect." }, 401));
+
+    await expect(stepUp("wrong")).rejects.toThrow(ApiError);
+  });
+
+  it("does not touch in-memory auth state — it is not a token-store writer", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ token: "grant-abc", expiresAt: FUTURE }));
+    await stepUp("whatever");
+    expect(getAccessToken()).toBe("at1"); // unchanged
+    expect(onTokens).not.toHaveBeenCalled();
   });
 });
 

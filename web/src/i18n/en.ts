@@ -1140,6 +1140,13 @@ export const en = {
     adminRoleOption: "{{label}} (owner)",
     createUserButton: "Create user",
 
+    // #308 — step-up re-confirmation, shown only for the two sensitive cases
+    // (creating another Owner; resetting an existing Owner's password).
+    // Shared field label; distinct hints explain WHY it appeared for each.
+    stepUpFieldLabel: "Your current password *",
+    stepUpCreateHint: "Creating another Owner needs your current password again.",
+    stepUpResetHint: "Resetting an Owner's password needs your current password again.",
+
     // Users table
     emailColumnHeader: "Email",
     nameColumnHeader: "Name",
@@ -1858,6 +1865,14 @@ export const en = {
       "Your sign-in is kept in your browser securely and stays active as you work, even across reloads and "
       + "with the app open in <strong>several tabs</strong> at once. After the app is <strong>updated</strong> "
       + "you may be asked to sign in once more — that's expected.",
+    // #308 — step-up re-confirmation for the two sensitive user-administration
+    // actions. Deliberately does NOT mention "grant"/"token" — that's internal
+    // mechanism, not user-facing language.
+    signingInStepUp:
+      "Two actions on the <strong>Users</strong> screen ask you to <strong>re-enter your current password</strong> "
+      + "right there in the dialog: creating another Owner, and resetting an existing Owner's password. This "
+      + "confirms it's really you before handing out that much access — every other action on that screen "
+      + "(creating a Worker/Manager/Sales/Read-only user, resetting one of their passwords) does not ask again.",
     interfaceLanguage:
       "<strong>Interface language.</strong> Everyone can choose the language the interface is shown in from "
       + "<strong>Account → Preferences</strong> — English, Español, or Tagalog. Translation is a work in "

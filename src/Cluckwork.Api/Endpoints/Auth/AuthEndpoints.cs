@@ -6,6 +6,7 @@ using Cluckwork.Api.Validation;
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Users.ChangeOwnPassword;
 using Cluckwork.Infrastructure.Identity;
+using Cluckwork.Infrastructure.Persistence;
 using FluentValidation;
 using Microsoft.Extensions.Options;
 
@@ -17,6 +18,12 @@ public static class AuthEndpoints
     // GenerateRefreshToken); 512 is a generous ceiling that still rejects a
     // padded/garbage cookie value before it reaches the token store.
     private const int MaxRefreshTokenLength = 512;
+
+    // #308 — the step-up grant rides as its own header, never the request
+    // body: it is proof-of-recent-auth, not domain data, so keeping it out of
+    // the JSON body means it can never accidentally get folded into a payload
+    // dump/log. Mirrors AuthCookies.CsrfHeaderName's rationale.
+    public const string StepUpHeaderName = "X-Cluckwork-Step-Up";
 
     public static RouteGroupBuilder MapAuthEndpoints(this RouteGroupBuilder group)
     {
@@ -76,6 +83,24 @@ public static class AuthEndpoints
             .WithMaxRequestBodyBytes(4096)
             .WithName("ChangeOwnPassword")
             .WithSummary("Change your own password; signs out other devices.");
+
+        // #308 — re-confirm the CURRENT password to mint a short-lived,
+        // audience-limited step-up grant for a sensitive user-administration
+        // operation (see StepUpGrantService for the full threat model). Open
+        // to any authenticated role (the two consumers — CreateUser,
+        // SetUserPassword — are already Owner-only), so the endpoint stays a
+        // generic building block. Carries the login rate limit for the same
+        // reason change-password does: it verifies a credential, so an
+        // attacker holding a stolen access token must not get unlimited
+        // password-guessing attempts.
+        group.MapPost("/step-up", StepUp)
+            .RequireAuthorization()
+            .RequireRateLimiting(RateLimitingOptions.LoginPolicyName)
+            // A single ≤256-char password; mirrors change-password's 4 KB cap
+            // (System.Text.Json's \uXXXX escaping of non-ASCII, #309).
+            .WithMaxRequestBodyBytes(4096)
+            .WithName("StepUp")
+            .WithSummary("Re-confirm the current password; returns a short-lived step-up grant.");
 
         return group;
     }
@@ -182,6 +207,27 @@ public static class AuthEndpoints
         return Results.Ok(new AccessTokenResponse(result.Value.AccessToken, result.Value.AccessTokenExpiry));
     }
 
+    // #308 — mints the step-up grant. Non-enumerating on failure: a wrong
+    // password is fine to say plainly (the caller is already proven to be a
+    // specific authenticated user re-confirming their OWN credential — see
+    // the class-level threat model on StepUpGrantService).
+    private static async Task<IResult> StepUp(
+        StepUpRequest request, IStepUpGrantService stepUp, IValidator<StepUpRequest> validator,
+        ICurrentUser currentUser, TenantContext tenant, CancellationToken ct)
+    {
+        if (!currentUser.IsResolved || !tenant.IsResolved) return Results.Unauthorized();
+
+        var validation = await validator.ValidateAsync(request, ct);
+        if (!validation.IsValid)
+            return ValidationResponse.Problem(validation);
+
+        var result = await stepUp.IssueAsync(tenant.AccountId, currentUser.UserId, request.Password, ct);
+        if (!result.IsSuccess)
+            return Results.Problem(result.Error.Description, statusCode: 401, title: result.Error.Code);
+
+        return Results.Ok(new StepUpResponse(result.Value.Token, result.Value.ExpiresAt));
+    }
+
     private static async Task<IResult> Logout(
         HttpRequest request, HttpResponse response, IIdentityProvider identity,
         IWebHostEnvironment env, CancellationToken ct)
@@ -204,3 +250,7 @@ public sealed record ChangeOwnPasswordRequest(string CurrentPassword, string New
 // #145 — the refresh token is delivered as a cookie, so the body returns only
 // the access token and its expiry.
 public sealed record AccessTokenResponse(string AccessToken, DateTimeOffset AccessTokenExpiry);
+
+public sealed record StepUpRequest(string Password);
+
+public sealed record StepUpResponse(string Token, DateTimeOffset ExpiresAt);

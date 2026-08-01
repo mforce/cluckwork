@@ -15,13 +15,9 @@ public sealed class IdentityProvider(
     AppDbContext db,
     IOptions<JwtOptions> jwtOptions,
     TimeProvider timeProvider,
-    Cluckwork.Application.Common.IAuditWriter audit) : IIdentityProvider
+    Cluckwork.Application.Common.IAuditWriter audit,
+    IStepUpGrantRegistry stepUpGrants) : IIdentityProvider
 {
-    // Pre-computed V3 PBKDF2 hash used to equalize login timing when the email is not found,
-    // preventing user enumeration via response-time analysis.
-    private static readonly string DummyHash =
-        new PasswordHasher<ApplicationUser>().HashPassword(new ApplicationUser(), "DummyP@ssw0rd!9x");
-
     public async Task<Result<TokenPair>> LoginAsync(string email, string password, CancellationToken ct = default)
     {
         var user = await userManager.FindByEmailAsync(email);
@@ -29,7 +25,7 @@ public sealed class IdentityProvider(
         {
             // Always pay the PBKDF2 cost so that "user not found" and "wrong password"
             // are indistinguishable by timing.
-            userManager.PasswordHasher.VerifyHashedPassword(new ApplicationUser(), DummyHash, password);
+            userManager.PasswordHasher.VerifyHashedPassword(new ApplicationUser(), TimingEqualization.DummyHash, password);
             return Result.Failure<TokenPair>(Error.Validation("Identity.InvalidCredentials", "Invalid email or password."));
         }
 
@@ -39,9 +35,9 @@ public sealed class IdentityProvider(
         // the reply never reveals whether an account exists or is locked.
         if (await userManager.IsLockedOutAsync(user))
         {
-            // ?? DummyHash guards the (currently unreachable) passwordless-user case
+            // DummyHash guards the (currently unreachable) passwordless-user case
             // so this stays a 401, never an NRE/500 that would leak account state.
-            userManager.PasswordHasher.VerifyHashedPassword(user, user.PasswordHash ?? DummyHash, password);
+            userManager.PasswordHasher.VerifyHashedPassword(user, user.PasswordHash ?? TimingEqualization.DummyHash, password);
             return Result.Failure<TokenPair>(Error.Validation("Identity.InvalidCredentials", "Invalid email or password."));
         }
 
@@ -445,9 +441,23 @@ public sealed class IdentityProvider(
         // rotated concurrently. WHERE RevokedAt == null makes it idempotent.
         var presentedHash = Hash(refreshToken);
         var now = timeProvider.GetUtcNow();
+
+        // #308 — a real logout must invalidate any outstanding step-up grant
+        // for this user (a grant captured before this logout must not work
+        // after it), so read the owning user id BEFORE the bulk update. A
+        // no-op call (unknown/already-revoked token — logout is best-effort
+        // and always fires, see AuthEndpoints.Logout) records nothing.
+        var tokenRow = await db.RefreshTokens
+            .Where(t => t.TokenHash == presentedHash && t.RevokedAt == null)
+            .Select(t => new { t.UserId })
+            .FirstOrDefaultAsync(ct);
+
         await db.RefreshTokens
             .Where(t => t.TokenHash == presentedHash && t.RevokedAt == null)
             .ExecuteUpdateAsync(s => s.SetProperty(t => t.RevokedAt, now), ct);
+
+        if (tokenRow is not null)
+            stepUpGrants.RecordLogout(tokenRow.UserId, now);
     }
 
     private RefreshToken NewToken(ApplicationUser user, string tokenHash)

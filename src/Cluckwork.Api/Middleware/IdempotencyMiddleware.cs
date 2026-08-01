@@ -61,6 +61,10 @@ public sealed class IdempotencyMiddleware(RequestDelegate next, IOptions<Idempot
     private static readonly string[] ResponseNotCacheable =
     [
         "/api/v1/auth/change-password",
+        // #308 — same reasoning as change-password: the response body is a
+        // live, single-use step-up grant. Caching/replaying it would hand back
+        // an already-consumed (or since-expired) token instead of a fresh one.
+        "/api/v1/auth/step-up",
     ];
 
     public async Task InvokeAsync(

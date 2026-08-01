@@ -1,14 +1,21 @@
 import { useState } from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, within, fireEvent, act } from "@testing-library/react";
+import { screen, within, fireEvent, act, render } from "@testing-library/react";
+import { MemoryRouter } from "react-router";
 import { UsersPage } from "./UsersPage";
 import { renderWithProviders } from "../test/renderWithProviders";
+import { farmState } from "../test/fixtures";
+import { AuthContext } from "../auth/AuthContext";
+import type { Role } from "../auth/claims";
+import { FarmContext } from "../farm/FarmContext";
+import { MeContext } from "../session/SessionContext";
+import type { Me } from "../api/cluckwork";
 import {
   assignFlock, createUser, listFlockAssignments, listFlocks, listUsers, setUserPassword,
   unassignFlock, updateUser,
 } from "../api/cluckwork";
 import type { Flock, FlockAssignment, User } from "../api/cluckwork";
-import { ApiError } from "../api/client";
+import { ApiError, stepUp } from "../api/client";
 import i18n from "../i18n";
 
 // Network seam only; ApiError stays real (errText branches on `instanceof`).
@@ -23,6 +30,14 @@ vi.mock("../api/cluckwork", () => ({
   listFlocks: vi.fn(),
 }));
 
+// #308 — only stepUp is mocked; ApiError/STEP_UP_HEADER/apiPost etc. stay real
+// (errText branches on `instanceof ApiError`, same rationale as the cluckwork
+// mock above).
+vi.mock("../api/client", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../api/client")>();
+  return { ...actual, stepUp: vi.fn() };
+});
+
 const mockListUsers = vi.mocked(listUsers);
 const mockCreateUser = vi.mocked(createUser);
 const mockUpdateUser = vi.mocked(updateUser);
@@ -31,6 +46,7 @@ const mockListAssignments = vi.mocked(listFlockAssignments);
 const mockAssignFlock = vi.mocked(assignFlock);
 const mockUnassignFlock = vi.mocked(unassignFlock);
 const mockListFlocks = vi.mocked(listFlocks);
+const mockStepUp = vi.mocked(stepUp);
 
 const WORKER_USER: User = { id: "u-w", email: "worker@farm.test", displayName: "Wendy", role: "Worker" };
 const ADMIN_USER: User = { id: "u-a", email: "boss@farm.test", displayName: null, role: "Admin" };
@@ -305,7 +321,10 @@ describe("UsersPage set password (#165)", () => {
     fireEvent.change(within(dialog()).getByLabelText(/Confirm new password/), { target: { value: password } });
     await act(async () => { fireEvent.click(within(dialog()).getByRole("button", { name: "Set password" })); });
 
-    expect(mockSetUserPassword).toHaveBeenCalledWith("u-w", { newPassword: password }, expect.any(String));
+    // #308 — the 4th arg (stepUpToken) is undefined: the target is a Worker,
+    // not an Owner, so no step-up grant is requested at all.
+    expect(mockSetUserPassword).toHaveBeenCalledWith(
+      "u-w", { newPassword: password }, expect.any(String), undefined);
     // Success closes the dialog and says the target was signed out.
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(await screen.findByText(/signed out everywhere/i)).toBeInTheDocument();
@@ -963,5 +982,190 @@ describe("UsersPage i18n wiring (#182, Task 22)", () => {
       expect(within(select).getByRole("option", { name: "READONLY-MARKER" })).toBeInTheDocument();
       expect(within(select).queryByRole("option", { name: "Read-only" })).not.toBeInTheDocument();
     });
+  });
+});
+
+// #308 — step-up re-confirmation for the two sensitive user-administration
+// actions (creating another Owner; resetting an Owner's password). Every
+// other role/target combination is proven UNCHANGED by the existing "create"
+// and "set password" describe blocks above (they never fill/expect a
+// step-up field and still pass) — that is the "no blanket prompt" half of
+// the acceptance criteria; this block covers the gated half plus the SPA's
+// own contract (prompt only when needed, never store the password, clear on
+// logout).
+describe("UsersPage step-up authentication (#308)", () => {
+  const ownerPasswordInput = () => within(dialog()).getByLabelText(/Your current password/);
+  const createPasswordInput = () => within(dialog()).getByLabelText(/Password \(min 12 chars\)/);
+  const selectAdminRole = () =>
+    fireEvent.change(within(dialog()).getByLabelText("Role"), { target: { value: "Admin" } });
+  const openPwFor = (rowName: RegExp) =>
+    fireEvent.click(within(screen.getByRole("row", { name: rowName })).getByRole("button", { name: "password" }));
+
+  it("shows the step-up field only once the Admin (Owner) role is picked, never for any other role", async () => {
+    await renderReady(ADMIN);
+    openCreate();
+
+    expect(within(dialog()).queryByLabelText(/Your current password/)).not.toBeInTheDocument();
+    fireEvent.change(within(dialog()).getByLabelText("Role"), { target: { value: "Manager" } });
+    expect(within(dialog()).queryByLabelText(/Your current password/)).not.toBeInTheDocument();
+
+    selectAdminRole();
+    expect(ownerPasswordInput()).toBeInTheDocument();
+  });
+
+  it("success: creating another Owner exchanges the current password for a grant and attaches it", async () => {
+    mockStepUp.mockResolvedValue({ token: "grant-123", expiresAt: "2026-01-01T00:05:00Z" });
+    mockCreateUser.mockResolvedValue({ id: "u-new" });
+    await renderReady(ADMIN);
+    openCreate();
+
+    fireEvent.change(within(dialog()).getByLabelText("Email *"), { target: { value: "boss@farm.test" } });
+    fireEvent.change(createPasswordInput(), { target: { value: `pw-${crypto.randomUUID()}` } });
+    selectAdminRole();
+    fireEvent.change(ownerPasswordInput(), { target: { value: "OwnerCurrentPw!1" } });
+    await act(async () => { fireEvent.click(within(dialog()).getByRole("button", { name: "Create user" })); });
+
+    expect(mockStepUp).toHaveBeenCalledWith("OwnerCurrentPw!1");
+    expect(mockCreateUser.mock.calls[0][2]).toBe("grant-123"); // the grant, as the 3rd arg
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(await screen.findByText(/account created for boss@farm\.test/i)).toBeInTheDocument();
+  });
+
+  it("never stores the entered step-up password: reopening after a successful use shows it empty", async () => {
+    mockStepUp.mockResolvedValue({ token: "grant-123", expiresAt: "2026-01-01T00:05:00Z" });
+    mockCreateUser.mockResolvedValue({ id: "u-new" });
+    await renderReady(ADMIN);
+    openCreate();
+    fireEvent.change(within(dialog()).getByLabelText("Email *"), { target: { value: "boss2@farm.test" } });
+    fireEvent.change(createPasswordInput(), { target: { value: `pw-${crypto.randomUUID()}` } });
+    selectAdminRole();
+    fireEvent.change(ownerPasswordInput(), { target: { value: "OwnerCurrentPw!1" } });
+    await act(async () => { fireEvent.click(within(dialog()).getByRole("button", { name: "Create user" })); });
+
+    openCreate();
+    selectAdminRole();
+    expect(ownerPasswordInput()).toHaveValue("");
+  });
+
+  it("cancel: closing the create dialog makes no step-up or create call, and clears the field", async () => {
+    await renderReady(ADMIN);
+    openCreate();
+    selectAdminRole();
+    fireEvent.change(ownerPasswordInput(), { target: { value: "typed-but-abandoned" } });
+
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+
+    expect(mockStepUp).not.toHaveBeenCalled();
+    expect(mockCreateUser).not.toHaveBeenCalled();
+
+    openCreate();
+    selectAdminRole();
+    expect(ownerPasswordInput()).toHaveValue("");
+  });
+
+  it("server rejection: a wrong current password refuses the grant, keeps the dialog open, and creates no user", async () => {
+    mockStepUp.mockRejectedValue(
+      new ApiError(401, "Users.CurrentPasswordIncorrect", "Current password is incorrect."));
+    await renderReady(ADMIN);
+    openCreate();
+    fireEvent.change(within(dialog()).getByLabelText("Email *"), { target: { value: "boss3@farm.test" } });
+    fireEvent.change(createPasswordInput(), { target: { value: `pw-${crypto.randomUUID()}` } });
+    selectAdminRole();
+    fireEvent.change(ownerPasswordInput(), { target: { value: "wrong-password" } });
+
+    await act(async () => { fireEvent.click(within(dialog()).getByRole("button", { name: "Create user" })); });
+
+    expect(within(dialog()).getByText(/Current password is incorrect/)).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(mockCreateUser).not.toHaveBeenCalled();
+  });
+
+  it("expiry: a grant the server refuses as no-longer-valid keeps the dialog open and creates no user", async () => {
+    mockStepUp.mockResolvedValue({ token: "stale-grant", expiresAt: "2026-01-01T00:05:00Z" });
+    mockCreateUser.mockRejectedValue(
+      new ApiError(403, "Identity.StepUpRequired", "Recent re-authentication is required for this action."));
+    await renderReady(ADMIN);
+    openCreate();
+    fireEvent.change(within(dialog()).getByLabelText("Email *"), { target: { value: "boss4@farm.test" } });
+    fireEvent.change(createPasswordInput(), { target: { value: `pw-${crypto.randomUUID()}` } });
+    selectAdminRole();
+    fireEvent.change(ownerPasswordInput(), { target: { value: "OwnerCurrentPw!1" } });
+
+    await act(async () => { fireEvent.click(within(dialog()).getByRole("button", { name: "Create user" })); });
+
+    expect(within(dialog()).getByText(/re-authentication is required/i)).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("does not prompt at all when resetting a non-Owner's password", async () => {
+    await renderReady(ADMIN);
+    openPwFor(/worker@farm.test/);
+    expect(screen.queryByLabelText(/Your current password/)).not.toBeInTheDocument();
+  });
+
+  it("resetting an Owner's password prompts for the step-up field and attaches the grant", async () => {
+    mockStepUp.mockResolvedValue({ token: "grant-456", expiresAt: "2026-01-01T00:05:00Z" });
+    mockSetUserPassword.mockResolvedValue(undefined);
+    await renderReady(ADMIN);
+
+    openPwFor(/boss@farm.test/);
+    expect(ownerPasswordInput()).toBeInTheDocument();
+
+    const newPw = `Aa1!${crypto.randomUUID()}`;
+    fireEvent.change(within(dialog()).getByLabelText(/New password/), { target: { value: newPw } });
+    fireEvent.change(within(dialog()).getByLabelText(/Confirm new password/), { target: { value: newPw } });
+    fireEvent.change(ownerPasswordInput(), { target: { value: "OwnerCurrentPw!1" } });
+    await act(async () => { fireEvent.click(within(dialog()).getByRole("button", { name: "Set password" })); });
+
+    expect(mockStepUp).toHaveBeenCalledWith("OwnerCurrentPw!1");
+    expect(mockSetUserPassword).toHaveBeenCalledWith(
+      "u-a", { newPassword: newPw }, expect.any(String), "grant-456");
+  });
+
+  it("cancel on the reset dialog makes no step-up or set-password call", async () => {
+    await renderReady(ADMIN);
+    openPwFor(/boss@farm.test/);
+    fireEvent.change(ownerPasswordInput(), { target: { value: "typed-but-abandoned" } });
+
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+
+    expect(mockStepUp).not.toHaveBeenCalled();
+    expect(mockSetUserPassword).not.toHaveBeenCalled();
+  });
+
+  // #308 acceptance criteria — "clears proof state on logout". A controlled
+  // AuthContext (rather than the real AuthProvider renderWithProviders uses)
+  // lets this test flip isAuthenticated directly, in place, so the dialog
+  // stays mounted (its LOCAL state untouched by the rerender) and the field
+  // is directly observable — proving the effect cleared it, not incidental
+  // unmounting.
+  it("clears any half-entered step-up password the instant the session ends", async () => {
+    const me: Me = { id: "u1", email: "test@farm.local", name: null, role: "Admin", language: null };
+    const tree = (isAuthenticated: boolean) => (
+      <MemoryRouter initialEntries={["/"]}>
+        <AuthContext.Provider value={{
+          isAuthenticated, isLoading: false, isAdmin: true, role: "Admin" as Role,
+          login: vi.fn(), logout: vi.fn(),
+        }}
+        >
+          <MeContext.Provider value={me}>
+            <FarmContext.Provider value={farmState({ farm: null })}>
+              <UsersPage />
+            </FarmContext.Provider>
+          </MeContext.Provider>
+        </AuthContext.Provider>
+      </MemoryRouter>
+    );
+    const view = render(tree(true));
+    await screen.findByText("worker@farm.test");
+
+    openCreate();
+    selectAdminRole();
+    fireEvent.change(ownerPasswordInput(), { target: { value: "still-typing" } });
+    expect(ownerPasswordInput()).toHaveValue("still-typing");
+
+    view.rerender(tree(false)); // simulated logout
+
+    expect(ownerPasswordInput()).toHaveValue("");
   });
 });
