@@ -48,7 +48,9 @@ using Microsoft.IdentityModel.Tokens;
 //     checked regardless — a different user) → WRONG-ACCOUNT denial.
 //   - Single-use: the jti is consumed via IStepUpGrantRegistry on the first
 //     successful validation. A second presentation of the same token →
-//     REPLAYED denial, even before its natural expiry.
+//     REPLAYED denial, even before its natural expiry. Consumption is not a
+//     step of its own: it is fused with the logout check below into one atomic
+//     registry call (TryConsumeIfNotLoggedOut) — see the next bullet.
 //   - Revoked by credential rotation: the grant embeds the user's
 //     SecurityStamp at issuance. ASP.NET Identity rotates SecurityStamp on
 //     every password change/reset (ChangePasswordAsync/ResetPasswordAsync),
@@ -85,6 +87,17 @@ using Microsoft.IdentityModel.Tokens;
 //     claims); the standard whole-second nbf/exp are untouched. A missing or
 //     unparseable precise claim FAILS CLOSED into the same denial — it never
 //     falls back to the floored nbf.
+//     ATOMICITY (#336 review, 3rd round): this check and the single-use
+//     consumption above are ONE registry call, not two. As two calls — even
+//     with each individually thread-safe — a logout could complete in the gap
+//     between them, so a validation already past the epoch check went on to
+//     consume its jti and succeed with a grant the logout had just revoked.
+//     The registry is a process-wide singleton, so that gap is a real
+//     in-process race between an ordinary logout and a concurrent privileged
+//     request, and it fails OPEN — the worst direction for this guard. The
+//     combined operation and RecordLogout serialise on one lock; the full
+//     trace, and the rule against re-splitting them, are on
+//     IStepUpGrantRegistry.
 //   - Non-enumerating failure handling: every one of the above rejection
 //     reasons — missing, malformed, expired, replayed, wrong-account/user,
 //     stamp-revoked, logout-revoked — maps to the SAME error
@@ -231,7 +244,30 @@ public sealed class StepUpGrantService(
             ValidateAudience = true,
             ValidAudience = Audience,
             ValidateIssuerSigningKey = true,
-            IssuerSigningKey = new RsaSecurityKey(rsa),
+            // CacheSignatureProviders = false, exactly as IssueAsync does for
+            // the signing side, and for the same reason — found while adding
+            // the atomic-admission test below, but a defect in its own right.
+            // `rsa` is disposed when this method returns, while the DEFAULT
+            // CryptoProviderFactory caches the verifying SignatureProvider
+            // process-wide, keyed on the KEY MATERIAL. Two validations close
+            // enough together therefore hand the second one a cached provider
+            // still holding the FIRST call's now-disposed RSA, and the token
+            // fails with SecurityTokenSignatureKeyNotFoundException — i.e. a
+            // perfectly good grant is refused because an unrelated grant was
+            // validated moments earlier. It fails CLOSED, so it was never a
+            // security hole, but it is a real and timing-dependent denial of
+            // a legitimate step-up; the key is loaded from config on every
+            // call anyway, so there is nothing for the cache to save here.
+            //
+            // It also mattered for the single-use guarantee's test coverage:
+            // a replay's SECOND validation is precisely a back-to-back pair,
+            // so CreateOwner_ReplayedStepUp_SecondUseIs403 could be satisfied
+            // by this spurious signature failure instead of by the registry
+            // actually refusing the jti — green for the wrong reason.
+            IssuerSigningKey = new RsaSecurityKey(rsa)
+            {
+                CryptoProviderFactory = new CryptoProviderFactory { CacheSignatureProviders = false }
+            },
             // Expiry is enforced MANUALLY below against the injected
             // TimeProvider rather than the wall clock — the same convention
             // refresh tokens already use (IdentityProvider.RefreshAsync) — so
@@ -282,11 +318,18 @@ public sealed class StepUpGrantService(
 
         // Tick-precision, NOT jwt.ValidFrom — see the class comment.
         var issuedAt = new DateTimeOffset(ticks, TimeSpan.Zero);
-        if (registry.IsRevokedByLogout(userId, issuedAt))
-            return Result.Failure(DeniedError); // revoked by logout
 
-        if (!registry.TryConsume(jti, expiresAt, now))
-            return Result.Failure(DeniedError); // replayed
+        // ONE registry call, not two — the logout-revocation check and the
+        // single-use consumption are ONE indivisible decision. Splitting them
+        // (as this shipped) lets a concurrent logout land between them and be
+        // missed by a validation already in flight; the full race trace is on
+        // IStepUpGrantRegistry, and the reason it matters is that the calls
+        // this gate protects are exactly the ones that hand out durable account
+        // control. A single bool comes back on purpose: "revoked by logout" and
+        // "replayed" are the same non-enumerating denial, and there is no
+        // reason here to tell them apart.
+        if (!registry.TryConsumeIfNotLoggedOut(userId, jti, issuedAt, expiresAt, now))
+            return Result.Failure(DeniedError); // revoked by logout, or replayed
 
         return Result.Success();
     }

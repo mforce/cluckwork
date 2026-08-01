@@ -649,6 +649,198 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
         Assert.True(registry.IsRevokedByLogout(user!.Id, beforeRevoke));
     }
 
+    // ---------- The admission decision is ONE atomic registry call (#336 review, 3rd round) ----------
+    //
+    // ValidateAsync used to end with TWO separate registry calls:
+    //
+    //     if (registry.IsRevokedByLogout(userId, issuedAt)) return denied;
+    //     if (!registry.TryConsume(jti, expiresAt, now))    return denied;
+    //
+    // Each was individually atomic — a ConcurrentDictionary apiece — but the
+    // PAIR was not, and the registry is a process-wide singleton shared by
+    // every concurrent request. A logout completing in the window between the
+    // two lines is invisible to a validation already past the first one:
+    //
+    //     T1 (validate): IsRevokedByLogout -> false   (no logout recorded yet)
+    //     T2 (logout):   RecordLogout(userId, now)
+    //     T1 (validate): TryConsume(jti, ...) -> true -> Success
+    //
+    // …and the privileged call proceeds on a grant minted BEFORE a logout that
+    // has already completed — creating another Owner, or resetting an Owner's
+    // password. That is exactly the guarantee the logout-revocation bullet in
+    // StepUpGrantService's threat model claims to provide, and it failed OPEN.
+    //
+    // Guarding it with a timing test would be guarding it with luck: the window
+    // is microseconds wide and a stress test that happens not to hit it passes
+    // just as green as a correct implementation. So the guard is STRUCTURAL —
+    // the decision must be reachable in exactly one registry call, which is a
+    // property of the code and not of the scheduler. A spy registry records
+    // every call ValidateAsync makes; if anyone re-splits the decision, the
+    // reintroduced IsRevokedByLogout call shows up here immediately and
+    // deterministically. (The semantics of the combined operation, and the
+    // fact that RecordLogout serialises against it, are pinned separately in
+    // StepUpGrantRegistryTests; that the fused decision still REVOKES over
+    // HTTP — so nobody can satisfy the spy by dropping the logout half — is
+    // already pinned by CreateOwner_StepUpRevokedByLogout_* above.)
+    //
+    // Wrapping a real InMemoryStepUpGrantRegistry rather than faking the
+    // answers, so the accept/replay outcomes asserted below are the production
+    // ones and the test cannot go green against a registry that does nothing.
+    private sealed class RecordingStepUpGrantRegistry : IStepUpGrantRegistry
+    {
+        private readonly InMemoryStepUpGrantRegistry inner = new();
+
+        // Ordered log of every interface member invoked. Not a counter: the
+        // ORDER and the exact membership are both part of what is asserted.
+        public List<string> Calls { get; } = [];
+
+        public bool TryConsumeIfNotLoggedOut(
+            Guid userId, Guid jti, DateTimeOffset issuedAt, DateTimeOffset expiresAt, DateTimeOffset now)
+        {
+            Calls.Add(nameof(TryConsumeIfNotLoggedOut));
+            return inner.TryConsumeIfNotLoggedOut(userId, jti, issuedAt, expiresAt, now);
+        }
+
+        public void RecordLogout(Guid userId, DateTimeOffset at)
+        {
+            Calls.Add(nameof(RecordLogout));
+            inner.RecordLogout(userId, at);
+        }
+
+        public bool IsRevokedByLogout(Guid userId, DateTimeOffset issuedAt)
+        {
+            Calls.Add(nameof(IsRevokedByLogout));
+            return inner.IsRevokedByLogout(userId, issuedAt);
+        }
+    }
+
+    // Builds a StepUpGrantService directly off the real host — the same pattern
+    // as RevokeRefreshTokenAsync_WhenTheBulkUpdateThrows_... above, so every
+    // dependency except the registry is production code (real UserManager, real
+    // JwtOptions/keys, real clock) and only the collaborator under observation
+    // is substituted. Over HTTP the host's own singleton registry would be in
+    // play instead and its calls could not be attributed to one request.
+    //
+    // The caller owns the returned AppDbContext (await using) and the scope.
+    private async Task<(StepUpGrantService StepUp, AppDbContext Db, Guid AccountId, Guid UserId)>
+        DirectStepUpServiceAsync(IServiceScope scope, IStepUpGrantRegistry registry)
+    {
+        var email = $"admin-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+
+        var services = scope.ServiceProvider;
+        var userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
+        var user = await userManager.FindByEmailAsync(email);
+        Assert.NotNull(user);
+
+        var tenant = new TenantContext();
+        tenant.Resolve(accountId);
+        var db = new AppDbContext(
+            new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(factory.ConnectionString).Options,
+            tenant);
+
+        var stepUp = new StepUpGrantService(
+            userManager,
+            db,
+            services.GetRequiredService<IOptions<JwtOptions>>(),
+            services.GetRequiredService<TimeProvider>(),
+            registry);
+
+        return (stepUp, db, accountId, user!.Id);
+    }
+
+    [Fact]
+    public async Task ValidateAsync_MakesTheAdmissionDecisionInOneAtomicRegistryCall()
+    {
+        var spy = new RecordingStepUpGrantRegistry();
+        using var scope = factory.Services.CreateScope();
+        var (stepUp, db, accountId, userId) = await DirectStepUpServiceAsync(scope, spy);
+        await using var _ = db;
+
+        var issued = await stepUp.IssueAsync(accountId, userId, TestHarness.Password);
+        Assert.True(issued.IsSuccess);
+
+        // Issuance is registry-free: a grant is only ever recorded when it is
+        // USED, so an unused grant costs nothing and expiry alone retires it.
+        Assert.Empty(spy.Calls);
+
+        var accepted = await stepUp.ValidateAsync(accountId, userId, issued.Value.Token);
+
+        // Real production outcome, not a stubbed one — the spy delegates.
+        Assert.True(accepted.IsSuccess);
+
+        // THE FINDING'S ASSERTION. The logout epoch is no longer consulted
+        // separately: reading it and consuming the jti are one indivisible
+        // decision, so a concurrent RecordLogout cannot land between them.
+        // Asserted first, and by name, so re-splitting the decision fails here
+        // with the culprit spelled out rather than as a sequence mismatch.
+        Assert.DoesNotContain(nameof(IStepUpGrantRegistry.IsRevokedByLogout), spy.Calls);
+        Assert.Equal(
+            new[] { nameof(IStepUpGrantRegistry.TryConsumeIfNotLoggedOut) },
+            spy.Calls);
+
+        // The DENIAL path takes the same single call — a replay must not start
+        // consulting the epoch separately either. This also asserts the replay
+        // is refused BY THE REGISTRY: the second call reaches it at all (rather
+        // than dying earlier on a spurious signature failure) only because of
+        // the CacheSignatureProviders fix in ValidateAsync — see the comment
+        // there, and RepeatedValidations_... below.
+        var replayed = await stepUp.ValidateAsync(accountId, userId, issued.Value.Token);
+
+        Assert.True(replayed.IsFailure);
+        Assert.DoesNotContain(nameof(IStepUpGrantRegistry.IsRevokedByLogout), spy.Calls);
+        Assert.Equal(
+            new[]
+            {
+                nameof(IStepUpGrantRegistry.TryConsumeIfNotLoggedOut),
+                nameof(IStepUpGrantRegistry.TryConsumeIfNotLoggedOut),
+            },
+            spy.Calls);
+    }
+
+    // A SEPARATE defect, found while writing the test above and fixed in the
+    // same change because it was masking that test's replay assertion.
+    //
+    // ValidateAsync builds its RsaSecurityKey over a `using var rsa` it disposes
+    // on return, while the DEFAULT CryptoProviderFactory caches the verifying
+    // SignatureProvider process-wide, keyed on the KEY MATERIAL — which is
+    // identical on every call, since it is the same configured public key. Two
+    // validations close enough together therefore gave the second one a cached
+    // provider holding the first call's DISPOSED RSA, and it failed with
+    // SecurityTokenSignatureKeyNotFoundException: a perfectly good grant refused
+    // because an unrelated grant happened to be validated moments earlier.
+    // IssueAsync already sets CacheSignatureProviders = false on the SIGNING
+    // side for the same reason; the verifying side did not.
+    //
+    // It fails CLOSED, so it was never a security hole — but it is a real,
+    // timing-dependent denial of a legitimate step-up, and worse for coverage:
+    // CreateOwner_ReplayedStepUp_SecondUseIs403 asserts only a 403, which this
+    // spurious signature failure produces just as readily as the registry's
+    // replay refusal does. The single-use guarantee's end-to-end test could
+    // therefore pass without the single-use guard doing anything.
+    //
+    // TWO DIFFERENT grants, back to back on one service: both must validate.
+    // Distinct grants (not a replay) so the registry cannot be what refuses the
+    // second one, and back-to-back deliberately — that is the window in which
+    // the stale cache entry is still live.
+    [Fact]
+    public async Task RepeatedValidations_OfDistinctGrants_AllSucceed_DespiteTheSharedSigningKey()
+    {
+        using var scope = factory.Services.CreateScope();
+        var (stepUp, db, accountId, userId) =
+            await DirectStepUpServiceAsync(scope, new InMemoryStepUpGrantRegistry());
+        await using var _ = db;
+
+        for (var attempt = 1; attempt <= 3; attempt++)
+        {
+            var issued = await stepUp.IssueAsync(accountId, userId, TestHarness.Password);
+            Assert.True(issued.IsSuccess);
+
+            var validated = await stepUp.ValidateAsync(accountId, userId, issued.Value.Token);
+            Assert.True(validated.IsSuccess, $"grant #{attempt} was refused");
+        }
+    }
+
     // The over-revocation guard. Recording a logout must bound the PAST, never
     // poison the user: a grant minted AFTER the logout is a fresh, deliberate
     // re-authentication and has to work, or a single logout would permanently
