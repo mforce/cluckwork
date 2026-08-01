@@ -5,6 +5,7 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Common;
+using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
@@ -90,6 +91,7 @@ using Microsoft.IdentityModel.Tokens;
 // password-re-confirmation only.
 public sealed class StepUpGrantService(
     UserManager<ApplicationUser> userManager,
+    AppDbContext db,
     IOptions<JwtOptions> jwtOptions,
     TimeProvider timeProvider,
     IStepUpGrantRegistry registry) : IStepUpGrantService
@@ -122,8 +124,27 @@ public sealed class StepUpGrantService(
             return Result.Failure<StepUpGrant>(WrongPasswordError);
         }
 
-        if (!await userManager.CheckPasswordAsync(user, currentPassword))
+        // #128 per-account lockout, same as LoginAsync. This endpoint is a SECOND
+        // password oracle — and the one guarding Owner takeover — so leaving it
+        // out would have left only the per-IP limiter here, which a distributed
+        // attacker rotating source IPs walks straight around. A locked account is
+        // refused with the same error and still pays PBKDF2, so the reply never
+        // reveals that the account is locked rather than the password wrong.
+        if (await userManager.IsLockedOutAsync(user))
+        {
+            userManager.PasswordHasher.VerifyHashedPassword(
+                user, user.PasswordHash ?? TimingEqualization.DummyHash, currentPassword);
             return Result.Failure<StepUpGrant>(WrongPasswordError);
+        }
+
+        if (!await userManager.CheckPasswordAsync(user, currentPassword))
+        {
+            await AccountLockout.RecordFailedAccessAsync(userManager, db, user);
+            return Result.Failure<StepUpGrant>(WrongPasswordError);
+        }
+
+        // Correct password — clear any accumulated failures, as login does.
+        await userManager.ResetAccessFailedCountAsync(user);
 
         var now = timeProvider.GetUtcNow();
         var expires = now.AddMinutes(Math.Max(1, jwtOptions.Value.StepUpGrantMinutes));

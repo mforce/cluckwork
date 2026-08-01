@@ -58,28 +58,10 @@ public sealed class IdentityProvider(
         return Result.Success(jwtTokenService.CreateTokenPair(user, [.. roles], rawToken));
     }
 
-    // AccessFailedAsync persists the increment under the user row's optimistic
-    // concurrency stamp. Parallel failed logins for one account would otherwise
-    // drop the losing writer's increment, letting a distributed burst dodge the
-    // threshold — the exact attack per-account lockout (vs the per-IP limiter)
-    // exists to stop. Retry against a freshly reloaded user until it commits.
-    private async Task RecordFailedAccessAsync(ApplicationUser user)
-    {
-        // Bounded generously: only the concurrency-conflict path retries, and the
-        // per-account contention that produces conflicts is itself capped by the
-        // per-IP rate limiter (#143). The cap prevents an unbounded loop while
-        // still letting every real failure land under normal contention.
-        for (var attempt = 0; attempt < 10; attempt++)
-        {
-            if ((await userManager.AccessFailedAsync(user)).Succeeded)
-                return;
-            // The write lost the concurrency race. FindById would hand back the
-            // same identity-map instance (stale stamp), so refresh the tracked
-            // entity's values from the DB before retrying — `db` is the same
-            // scoped context the UserManager store writes through.
-            await db.Entry(user).ReloadAsync();
-        }
-    }
+    // Shared with /auth/step-up (#308) via AccountLockout — see the note there
+    // on why every password oracle must apply this, not just login.
+    private Task RecordFailedAccessAsync(ApplicationUser user) =>
+        AccountLockout.RecordFailedAccessAsync(userManager, db, user);
 
     public async Task<Result<TokenPair>> RefreshAsync(string refreshToken, CancellationToken ct = default)
     {
@@ -442,13 +424,20 @@ public sealed class IdentityProvider(
         var presentedHash = Hash(refreshToken);
         var now = timeProvider.GetUtcNow();
 
-        // #308 — a real logout must invalidate any outstanding step-up grant
-        // for this user (a grant captured before this logout must not work
-        // after it), so read the owning user id BEFORE the bulk update. A
-        // no-op call (unknown/already-revoked token — logout is best-effort
-        // and always fires, see AuthEndpoints.Logout) records nothing.
+        // #308 — a real logout must invalidate any outstanding step-up grant for
+        // this user (a grant captured before this logout must not work after it),
+        // so read the owning user id BEFORE the bulk update.
+        //
+        // Deliberately NOT filtered on RevokedAt: the cookie may already be stale
+        // because a background refresh rotated it moments earlier, and #336's
+        // review caught that the revoked-only lookup silently skipped recording
+        // the logout in exactly that case — leaving a grant valid for the rest of
+        // its lifetime after the user had logged out. Identifying the user is
+        // what matters here, not whether this particular row is still live. A
+        // genuinely unknown token still records nothing (logout is best-effort
+        // and always fires, see AuthEndpoints.Logout).
         var tokenRow = await db.RefreshTokens
-            .Where(t => t.TokenHash == presentedHash && t.RevokedAt == null)
+            .Where(t => t.TokenHash == presentedHash)
             .Select(t => new { t.UserId })
             .FirstOrDefaultAsync(ct);
 

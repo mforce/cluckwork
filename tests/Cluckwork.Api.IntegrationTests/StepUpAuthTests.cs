@@ -336,4 +336,77 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
     }
+
+    // #336 review — /auth/step-up is a SECOND password-verification oracle, and
+    // the one guarding Owner takeover. It shipped without the #128 per-account
+    // lockout that LoginAsync applies, leaving only the per-IP limiter here —
+    // which a distributed attacker rotating source IPs walks around. Guessing
+    // past the threshold and then presenting the CORRECT password must still be
+    // refused, or the lockout isn't doing anything.
+    //
+    // Worth recording how this got missed: the original mutation pass reverted
+    // 13 existing guards and every one went red. Mutation testing can only
+    // falsify guards that EXIST — it is structurally blind to a guard that was
+    // never written. Hence a positive test, not another mutant.
+    [Fact]
+    public async Task StepUp_LocksTheAccountAfterRepeatedWrongPasswords()
+    {
+        var email = $"admin-{Guid.NewGuid():N}@test.local";
+        await factory.SeedAccountWithUserAsync(email);
+        var admin = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
+
+        // Identity's MaxFailedAccessAttempts is 5; go one past it.
+        for (var attempt = 0; attempt < 6; attempt++)
+        {
+            var wrong = await admin.PostAsJsonAsync(
+                "/api/v1/auth/step-up", new { password = FreshPassword() });
+            Assert.NotEqual(HttpStatusCode.OK, wrong.StatusCode);
+        }
+
+        var correct = await admin.PostAsJsonAsync(
+            "/api/v1/auth/step-up", new { password = TestHarness.Password });
+
+        Assert.NotEqual(HttpStatusCode.OK, correct.StatusCode);
+    }
+
+    // The other half of the boundary: below the threshold the correct password
+    // must still work, or the lockout would be a denial-of-service on the
+    // legitimate operator who simply mistyped once.
+    [Fact]
+    public async Task StepUp_BelowTheLockoutThreshold_StillIssuesAGrant()
+    {
+        var email = $"admin-{Guid.NewGuid():N}@test.local";
+        await factory.SeedAccountWithUserAsync(email);
+        var admin = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
+
+        var wrong = await admin.PostAsJsonAsync(
+            "/api/v1/auth/step-up", new { password = FreshPassword() });
+        Assert.NotEqual(HttpStatusCode.OK, wrong.StatusCode);
+
+        var grant = await StepUpAsync(admin, TestHarness.Password);
+
+        Assert.False(string.IsNullOrWhiteSpace(grant.Token));
+    }
+
+    // …and a success must CLEAR the accumulated failures, so a user who mistypes
+    // a few times over a long session never drifts into a lockout they can't
+    // explain.
+    [Fact]
+    public async Task StepUp_SuccessResetsTheFailureCount()
+    {
+        var email = $"admin-{Guid.NewGuid():N}@test.local";
+        await factory.SeedAccountWithUserAsync(email);
+        var admin = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
+
+        for (var round = 0; round < 3; round++)
+        {
+            // Four failures then a success, three times over. Without the reset
+            // these twelve failures would cross the threshold of 5.
+            for (var attempt = 0; attempt < 4; attempt++)
+                await admin.PostAsJsonAsync("/api/v1/auth/step-up", new { password = FreshPassword() });
+
+            var grant = await StepUpAsync(admin, TestHarness.Password);
+            Assert.False(string.IsNullOrWhiteSpace(grant.Token));
+        }
+    }
 }
