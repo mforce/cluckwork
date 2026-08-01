@@ -89,6 +89,33 @@ describe("HelpPage", () => {
     expect(signIn).toBeInTheDocument();
   });
 
+  it("documents the per-account report throttle a user can actually hit (#311)", () => {
+    // #311 caps concurrently in-flight reports per account, so a real user can
+    // meet a 429 on the Reports screen. Both in-app surfaces must say so — the
+    // Reports section (what to do when it happens) and the glossary (the term
+    // itself) — or the behavior is documented only in the product glossary,
+    // which nobody using the app ever reads.
+    render(<HelpPage />);
+    expect(screen.getByText(/the farm runs only a few reports at a time/i)).toBeInTheDocument();
+    // The reassurance is the load-bearing half: a refused report must not read
+    // as lost work. Dropping it would leave a user re-entering a range they
+    // never lost.
+    expect(screen.getByText(/Nothing was recorded and nothing was lost/i)).toBeInTheDocument();
+    expect(screen.getByRole("rowheader", { name: "Too many reports at once" })).toBeInTheDocument();
+  });
+
+  it("renders the report-throttle bullet through <Trans>, so its <strong> tags are real elements", () => {
+    // The copy leans on <strong> to surface the exact phrase a user sees in
+    // the error ("try again shortly"). A regression from <Trans> back to a
+    // plain {t(...)} call would render "<strong>" as inert literal text — this
+    // asserts a real STRONG element instead, which that regression fails.
+    const { container } = render(<HelpPage />);
+    const strongs = Array.from(container.querySelectorAll("strong")).map((s) => s.textContent);
+    expect(strongs).toContain("If a report is refused");
+    expect(strongs).toContain("try again shortly");
+    expect(screen.queryByText(/<strong>/)).not.toBeInTheDocument();
+  });
+
   it("scroll-spies the contents rail — the section in view is marked current", () => {
     render(<HelpPage />);
     const toc = screen.getByRole("navigation", { name: "Help contents" });
@@ -170,6 +197,14 @@ describe("HelpPage i18n wiring (#182, Task 32)", () => {
     });
   });
 
+  it("reads the report-throttle bullet from the catalog, not a hardcoded literal", () => {
+    withOverride("reportsThrottle", "THROTTLE-MARKER", () => {
+      render(<HelpPage />);
+      expect(screen.getByText("THROTTLE-MARKER")).toBeInTheDocument();
+      expect(screen.queryByText(/the farm runs only a few reports at a time/i)).not.toBeInTheDocument();
+    });
+  });
+
   // The multi-tag <Trans> proof: override a key whose en value carries BOTH
   // a <strong> and an <em> tag (signingInRateLimit) with a marker of the same
   // shape, and assert real STRONG/EM elements come out the other end — not
@@ -236,6 +271,17 @@ describe("HelpPage glossary i18n wiring (#182, Task 33)", () => {
         expect(screen.getByText("FIFO-DEF-MARKER")).toBeInTheDocument();
         expect(screen.queryByRole("rowheader", { name: "FIFO" })).not.toBeInTheDocument();
         expect(screen.queryByText(/first in, first out/i)).not.toBeInTheDocument();
+      });
+    });
+  });
+
+  it("reads the report-throttle glossary row from the catalog, not a hardcoded literal", () => {
+    withOverride("glossaryTooManyReportsTerm", "REPORT-THROTTLE-TERM-MARKER", () => {
+      withOverride("glossaryTooManyReportsDef", "REPORT-THROTTLE-DEF-MARKER", () => {
+        render(<HelpPage />);
+        expect(screen.getByRole("rowheader", { name: "REPORT-THROTTLE-TERM-MARKER" })).toBeInTheDocument();
+        expect(screen.getByText("REPORT-THROTTLE-DEF-MARKER")).toBeInTheDocument();
+        expect(screen.queryByRole("rowheader", { name: "Too many reports at once" })).not.toBeInTheDocument();
       });
     });
   });
