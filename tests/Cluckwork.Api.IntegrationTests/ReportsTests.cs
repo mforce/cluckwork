@@ -193,4 +193,38 @@ public sealed class ReportsTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(HttpStatusCode.Forbidden, (await worker.GetAsync("/api/v1/reports/expenses")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await worker.GetAsync("/api/v1/reports/profit")).StatusCode);
     }
+
+    // #311 — the exact boundary of the 366-day cap: the widest allowed span
+    // succeeds unchanged, one day wider is rejected. RangeGuards_And_RoleSplit
+    // above only proves a WAY-oversized range (400 days) 400s; these two lock
+    // the boundary itself rather than somewhere comfortably past it.
+    [Fact]
+    public async Task Production_MaxAllowedRange_366Days_Succeeds()
+    {
+        var email = $"u-{Guid.NewGuid():N}@test.local";
+        await factory.SeedAccountWithUserAsync(email);
+        var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
+
+        var from = Today.AddDays(-365); // 365 days before `to` — 366 calendar days inclusive.
+        var response = await client.GetAsync(
+            $"/api/v1/reports/production?from={from:yyyy-MM-dd}&to={Today:yyyy-MM-dd}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var report = await response.Content.ReadFromJsonAsync<ProductionDto>();
+        Assert.Equal(366, report!.Days.Count);
+    }
+
+    [Fact]
+    public async Task Production_OneDayOverMaxRange_Returns400()
+    {
+        var email = $"u-{Guid.NewGuid():N}@test.local";
+        await factory.SeedAccountWithUserAsync(email);
+        var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
+
+        var from = Today.AddDays(-366); // one day past the 366-day cap.
+        var response = await client.GetAsync(
+            $"/api/v1/reports/production?from={from:yyyy-MM-dd}&to={Today:yyyy-MM-dd}");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
 }

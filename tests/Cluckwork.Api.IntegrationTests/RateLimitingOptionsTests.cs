@@ -47,4 +47,25 @@ public sealed class RateLimitingOptionsTests
         var networks = options.ParseTrustedProxies();
         Assert.Equal(2, networks.Length);
     }
+
+    // #311
+    [Fact]
+    public void Zero_reports_concurrency_permit_limit_is_rejected()
+    {
+        var options = new RateLimitingOptions
+        {
+            ReportsConcurrency = new RateLimitingOptions.ConcurrencyPolicy { PermitLimit = 0, QueueLimit = 0 }
+        };
+        Assert.Throws<InvalidOperationException>(options.Validate);
+    }
+
+    [Fact]
+    public void Negative_reports_concurrency_queue_limit_is_rejected()
+    {
+        var options = new RateLimitingOptions
+        {
+            ReportsConcurrency = new RateLimitingOptions.ConcurrencyPolicy { PermitLimit = 4, QueueLimit = -1 }
+        };
+        Assert.Throws<InvalidOperationException>(options.Validate);
+    }
 }
