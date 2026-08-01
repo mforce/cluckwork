@@ -558,17 +558,6 @@ stays signed in. Eviction is bounded by the access-token lifetime: an
 already-issued access token keeps working until it expires (~15 min), because
 tokens are stateless and there is no server-side denylist.
 
-**Break-glass reset (#265)** — the recovery path for the one case the two above
-leave uncovered: a **sole Owner** who has lost their password. There is no email
-reset, self-service needs the current password, and an Owner cannot reset their
-own account — so without this the only recourse is direct database surgery. An
-operator with server access runs the offline `recover-admin` command, which
-resets the password to a freshly generated temporary one, **clears any lockout**,
-rotates the security stamp, and revokes every session. It is audited as
-`User.BreakGlassReset` (distinct from `User.PasswordSet`, and recording the
-reason + the host it ran from) so the reset is conspicuous in the audit log. The
-temporary password must be changed on first login.
-
 **First-run admin provisioning (#283)** — how a fresh deploy gets its first
 Owner without ever shipping a repo-known credential. The default account, the
 four assignable roles, and the default egg grades are **static reference
@@ -576,10 +565,12 @@ data**: they ship inside the EF migrations themselves (no runtime seeder, no
 `Seed:*` config — a migrated database already has them). The first admin does
 **not**: an operator runs the offline `bootstrap-admin --email <address>`
 command once, which generates a random password, creates the Owner with it,
-and prints the password to the operator's terminal **once** — never to a log
-or telemetry pipeline. Re-running the command against an already-provisioned
-account is a safe no-op (no second Owner, no password reprinted). This is a
-**separate mechanism** from break-glass recovery below (a pre-auth, one-shot
+and writes the password to **stdout only** — never the application logger or
+the OTLP pipeline. A host's stdout collector (docker logs, journald, a
+platform log pipeline) may still capture it, so that output must be treated
+as sensitive while the password is valid. Re-running the command against an
+already-provisioned account is a safe no-op (no second Owner, no password
+reprinted). This is a **separate mechanism** from break-glass recovery below (a pre-auth, one-shot
 setup secret vs. an offline recovery for a locked-out existing account) and
 from the browser step-up re-confirmation a signed-in Owner uses for sensitive
 actions (#308) — three distinct credential types, audiences, and lifetimes,

@@ -1,5 +1,6 @@
 namespace Cluckwork.Api.Middleware;
 
+using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 
 // #283 — the server-side half of the first-run "you must set a new password"
@@ -43,8 +44,18 @@ public sealed class MustChangePasswordMiddleware(RequestDelegate next)
 
     public async Task InvokeAsync(HttpContext context)
     {
+        // UseExceptionHandler (Program.cs) re-executes this entire downstream
+        // pipeline at /error when an allowed endpoint throws or fails to bind
+        // (e.g. malformed JSON on change-password). That re-execution carries
+        // IExceptionHandlerFeature — the framework's own signal that this is
+        // internal replay, not a fresh request — so it's exempted here rather
+        // than adding "/error" as a third literal to AllowedPaths, which would
+        // drift if the error endpoint's route ever moves. A genuine, non-
+        // re-executed request to any other path is unaffected: the feature is
+        // only present during that replay.
         if (context.User.Identity?.IsAuthenticated == true
             && context.User.FindFirst("must_change_password")?.Value == "true"
+            && context.Features.Get<IExceptionHandlerFeature>() is null
             && !AllowedPaths.Contains(context.Request.Path.Value ?? string.Empty))
         {
             context.Response.StatusCode = StatusCodes.Status403Forbidden;

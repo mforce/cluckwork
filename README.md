@@ -54,7 +54,7 @@ Pass the **verb only** — the image's `ENTRYPOINT` is already
 no CLI verb, so the container would boot the web server instead of provisioning
 anything.
 
-This prints a generated one-time password to your terminal (nowhere else). Sign in with it — the app immediately shows a **Set your password** screen and refuses everything else until you pick your own. Re-running the command against an already-provisioned account is a safe no-op.
+This writes the generated one-time password to **stdout only** — never the application logger or the OTLP pipeline. A host's stdout collector (docker logs, journald, a platform log pipeline) may still capture it, so treat that output as sensitive while the password is valid. Sign in with it — the app immediately shows a **Set your password** screen and refuses everything else until you pick your own. Re-running the command against an already-provisioned account is a safe no-op.
 
 ### Frontend development
 
