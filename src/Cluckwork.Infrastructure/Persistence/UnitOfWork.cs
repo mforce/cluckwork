@@ -15,20 +15,14 @@ public sealed class UnitOfWork(AppDbContext db) : IUnitOfWork
         // second BeginTransactionAsync or committing/rolling back a
         // transaction this call doesn't own.
         //
-        // #269 — for a REAL HTTP write request this is always the joined
-        // case: every feature handler reaches this through a POST/PUT/PATCH/
-        // DELETE endpoint IdempotencyMiddleware already wrapped, so `work`
-        // below runs exactly once. The "owned" (no ambient transaction)
-        // branch only fires for a caller that invokes a handler directly,
-        // outside HTTP (a unit/integration test, or a future non-HTTP
-        // caller) — there, a transient failure reruns `operation` from
-        // scratch against a fresh transaction. That is safe for this
-        // codebase's handlers specifically because they are pure
-        // domain+EF (no non-DB side effects to double), but `operation` is
-        // caller-supplied and this class has no way to enforce that in
-        // general — a future handler with an external side effect inside
-        // `operation` would need its own idempotency guard before relying on
-        // this owned/retried path.
+        // #269 — the delegate shape is what EnableRetryOnFailure forces (a
+        // user-initiated transaction must be opened inside an execution
+        // strategy); it is not a retry. `operation` runs exactly once on
+        // BOTH branches — joined (the normal HTTP write, already inside
+        // IdempotencyMiddleware's transaction) and owned (a caller invoking a
+        // handler directly, outside HTTP). `operation` is caller-supplied and
+        // this class cannot know whether it is replayable, so it never
+        // replays it; see SingleAttemptExecution.
         AmbientTransaction.RunAsync(db.Database, async (scope, token) =>
         {
             var shouldCommit = await operation(token);

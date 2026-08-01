@@ -28,11 +28,21 @@ using Microsoft.EntityFrameworkCore.Storage;
 // just on an actual transient failure. So the "owned" case (no ambient
 // transaction to join — THIS call is the one opening it) can no longer just
 // call BeginTransactionAsync and hand back a scope for the caller to drive
-// at its own pace; it has to run the caller's ENTIRE unit of work through
-// the execution strategy, so a transient failure anywhere inside reruns the
-// whole thing against a fresh transaction. RunAsync below is the one place
-// that decides which case applies; every caller passes its whole
-// transactional unit as `work` rather than holding the scope open itself.
+// at its own pace; it has to run the caller's ENTIRE unit of work inside the
+// execution strategy. RunAsync below is the one place that decides which case
+// applies; every caller passes its whole transactional unit as `work` rather
+// than holding the scope open itself.
+//
+// The owned unit runs through SingleAttemptExecution — inside the strategy,
+// but never replayed. `work` is caller-supplied and routinely NOT replayable:
+// a failed attempt leaves its entities tracked as Added on this same scoped
+// AppDbContext (EF does not detach them, so a retry flushes the failed
+// attempt's rows alongside the fresh ones — duplicate users on the unique
+// email index, duplicate audit rows, a refresh token nobody was ever issued),
+// and for `bootstrap-admin` the unit sits inside a SESSION-scoped
+// pg_advisory_lock that a reconnect drops without the retry reacquiring it or
+// re-checking for an Owner. See SingleAttemptExecution for the full rationale
+// and for what retrying still covers.
 public static class AmbientTransaction
 {
     public static async Task<T> RunAsync<T>(
@@ -43,8 +53,7 @@ public static class AmbientTransaction
         if (database.CurrentTransaction is not null)
             return await work(JoinedTransactionScope.Instance, ct);
 
-        var strategy = database.CreateExecutionStrategy();
-        return await strategy.ExecuteAsync(async () =>
+        return await SingleAttemptExecution.RunAsync(database, async () =>
         {
             var transaction = await database.BeginTransactionAsync(ct);
             await using var scope = new OwnedTransactionScope(transaction);

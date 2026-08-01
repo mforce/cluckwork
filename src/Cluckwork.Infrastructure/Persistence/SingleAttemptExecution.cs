@@ -1,0 +1,78 @@
+namespace Cluckwork.Infrastructure.Persistence;
+
+using System.Runtime.ExceptionServices;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+
+// #269 — the retry BOUNDARY.
+//
+// EnableRetryOnFailure (PostgresDbContextConfigurator) makes EF replay a
+// failed unit of work. EF also refuses to let a user-initiated transaction be
+// opened outside database.CreateExecutionStrategy().ExecuteAsync — because a
+// transaction cannot be RESUMED after a connection loss, only replayed from
+// the start, and EF will not do that behind your back.
+//
+// That guard is right, and it is the whole design constraint here: a
+// transaction that spans work which is NOT replayable cannot be made
+// resilient by retrying it. Two such regions exist in this codebase:
+//
+//   * IdempotencyMiddleware's request-wide transaction, which by design (#307)
+//     covers `next(context)` — the entire downstream HTTP pipeline. Replaying
+//     it re-runs single-use, non-database side effects (the #308 step-up grant
+//     is consumed in memory by CreateUserHandler / SetUserPasswordHandler and
+//     can never be consumed twice) and re-runs a domain state transition
+//     against state a prior attempt may already have committed (the handler
+//     then answers 422 for a request that in fact succeeded).
+//   * An "owned" AmbientTransaction unit (AmbientTransaction.RunAsync), which
+//     can leave the failed attempt's entities tracked as Added on the SAME
+//     scoped AppDbContext — EF does not detach them, and a retry would flush
+//     them alongside the fresh ones — and which, for `bootstrap-admin`, spans
+//     a SESSION-scoped pg_advisory_lock that a reconnect silently drops.
+//
+// So those regions run through the execution strategy (satisfying EF's guard)
+// but EXACTLY ONCE: the operation is never replayed, because the first
+// failure is captured as a value rather than thrown out of ExecuteAsync, and
+// rethrown — with its original stack — once the strategy has returned.
+// Wrapping the exception instead would NOT work: EF's ExecutionStrategy walks
+// the whole InnerException chain when it classifies, so a transient failure
+// stays "retryable" no matter what it is wrapped in.
+//
+// What this gives up, deliberately: a transient failure INSIDE one of those
+// regions surfaces as an error rather than being absorbed. For a write
+// request that is the pre-#269 behaviour, and the codebase already has the
+// right mechanism for it — the client retries with the same Idempotency-Key
+// and #307's claim/lease/publish protocol makes that exactly-once. Everything
+// EF runs as a self-contained unit (every read, and every SaveChanges outside
+// one of these transactions) keeps its automatic retry.
+public static class SingleAttemptExecution
+{
+    public static async Task<T> RunAsync<T>(DatabaseFacade database, Func<Task<T>> work)
+    {
+        var result = default(T)!;
+        ExceptionDispatchInfo? failure = null;
+
+        await database.CreateExecutionStrategy().ExecuteAsync(async () =>
+        {
+            try
+            {
+                result = await work();
+            }
+            catch (Exception ex)
+            {
+                // Captured, not rethrown: the strategy must see this attempt
+                // as terminal, whatever Npgsql would classify the failure as.
+                failure = ExceptionDispatchInfo.Capture(ex);
+            }
+        });
+
+        failure?.Throw();
+        return result;
+    }
+
+    public static Task RunAsync(DatabaseFacade database, Func<Task> work) =>
+        RunAsync(database, async () =>
+        {
+            await work();
+            return true;
+        });
+}

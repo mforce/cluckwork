@@ -35,7 +35,10 @@ public sealed class PostgresDbContextConfigurator : IDbProviderConfigurator
             // IdentityProvider), IdempotencyMiddleware's own request-wide
             // transaction, ExportQueries.BeginConsistentReadAsync, and
             // DemoDataSeeder.CleanupPartialSeedAsync — every one of those was
-            // updated for this (#269).
+            // updated for this (#269). Being inside a strategy is NOT the same
+            // as being retried: all but the last of those run through
+            // SingleAttemptExecution, which executes exactly once because the
+            // work they wrap is not replayable. Read it before widening this.
             npgsql.EnableRetryOnFailure(
                 resilience.MaxRetryCount,
                 TimeSpan.FromSeconds(resilience.MaxRetryDelaySeconds),

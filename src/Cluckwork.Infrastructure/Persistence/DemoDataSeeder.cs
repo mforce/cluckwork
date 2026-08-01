@@ -146,6 +146,11 @@ public sealed class DemoDataSeeder(
             // either way. This is a CLI-only, offline command with no client
             // waiting on a response to disambiguate — there is nothing here
             // for an idempotency key to protect against.
+            //
+            // This is the ONE user-initiated transaction in the codebase that
+            // is genuinely replayable, and so the one place that keeps the
+            // strategy's retry. Everything else goes through
+            // SingleAttemptExecution — see it for why.
             var strategy = db.Database.CreateExecutionStrategy();
             await strategy.ExecuteAsync(async () =>
             {
