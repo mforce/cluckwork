@@ -221,43 +221,34 @@ public sealed class IdempotencyMiddleware(RequestDelegate next, IOptions<Idempot
         // open, retryable failure or not (see PostgresDbContextConfigurator).
         // Since the WHOLE point of this transaction is to cover next(context)
         // too (the handler's own SaveChanges and step 3's PUBLISH have to be
-        // the SAME atomic unit — the #307 comment above), the only
-        // EF-compliant way to keep that design is to run next(context) itself
-        // inside the strategy's retry loop: a transient failure ANYWHERE in
-        // this block reruns the whole thing — Begin, next(context), Publish/
-        // Commit — against a fresh transaction, never a partial replay.
+        // the SAME atomic unit — the #307 comment above), this block has to
+        // sit inside an execution strategy.
         //
-        // That is exactly the "ambiguous commit" scenario #269 calls out, and
-        // it is why this codebase's idempotency protocol is the right tool
-        // for it: our CLAIM (the lease) already succeeded before we get here,
-        // so a retried attempt still owns it and PUBLISH's guarded UPDATE
-        // (`WHERE ... LeaseOwner = ownerToken AND Status = InProgress`) is
-        // the tiebreaker. If nothing from a prior attempt actually committed,
-        // the retry runs normally. If a PRIOR attempt's commit truly landed
-        // and only its acknowledgment was what dropped, the retried attempt's
-        // PUBLISH finds its own row already Completed, `published` comes back
-        // 0, and the steal-loss branch below — built for the "someone else
-        // is now authoritative" case — naturally also covers "I already
-        // succeeded a moment ago": WaitForCompletionAsync finds the row
-        // Completed immediately and replays the SAME response this attempt
-        // would have produced, instead of re-executing the mutation a second
-        // time or surfacing a spurious error.
+        // It runs there EXACTLY ONCE (SingleAttemptExecution). `next(context)`
+        // — the whole downstream pipeline — is not replayable, and no amount
+        // of database-state re-checking makes it so:
         //
-        // Retrying re-invokes next(context) — the WHOLE downstream pipeline —
-        // so per-attempt state has to reset first: the response buffer (a
-        // failed attempt may have written to it) and the request body's read
-        // position (ComputeRequestHashAsync's EnableBuffering() above makes
-        // it seekable; the model binder advances it on every pass).
-        var strategy = db.Database.CreateExecutionStrategy();
+        //   * it consumes single-use, NON-database state: the #308 step-up
+        //     grant is consumed in memory by CreateUserHandler /
+        //     SetUserPasswordHandler, so a second pass over POST /users is
+        //     denied outright;
+        //   * for a state transition (daily-entry submit, order confirm) a
+        //     second pass observes the FIRST pass's committed transition and
+        //     answers 422 — a 4xx saying the request was invalid, for a
+        //     request that in fact succeeded, and one no client will retry.
+        //
+        // What makes a transient mid-request failure recoverable here is not
+        // a server-side replay but the CLIENT retrying with the same
+        // Idempotency-Key — which is precisely the guarantee #307 built. And
+        // for the narrow ambiguous-commit case (Postgres committed, the
+        // acknowledgment is what was lost) the catch below does better than
+        // an error: our own claim is now Completed, so the response this
+        // request published is replayed instead.
         try
         {
-            await strategy.ExecuteAsync(async () =>
+            await SingleAttemptExecution.RunAsync(db.Database, async () =>
             {
-                buffer.SetLength(0);
-                buffer.Position = 0;
                 context.Response.Body = buffer;
-                if (context.Request.Body.CanSeek)
-                    context.Request.Body.Position = 0;
 
                 var transaction = await db.Database.BeginTransactionAsync(context.RequestAborted);
                 // #307 review — RollbackAsync/CommitAsync alone do NOT return the
@@ -310,12 +301,10 @@ public sealed class IdempotencyMiddleware(RequestDelegate next, IOptions<Idempot
                             return;
                         }
 
-                        // Our lease was stolen mid-execution (someone else is now the
-                        // authoritative claimant) OR — #269 — a PRIOR retry of THIS
-                        // same attempt already published (the ambiguous-commit case
-                        // described above). Either way our mutation must NEVER become
-                        // durable a second time — roll back, then converge on
-                        // whatever the authoritative attempt published.
+                        // Our lease was stolen mid-execution: someone else is now the
+                        // authoritative claimant. Our mutation must NEVER become
+                        // durable (it may duplicate whatever they run/ran) —
+                        // roll back, then converge on whatever THEY publish.
                         await transaction.RollbackAsync(CancellationToken.None);
                         // Dispose (release the connection) BEFORE the poll, not after —
                         // see the comment on transactionDisposed above.
@@ -343,24 +332,12 @@ public sealed class IdempotencyMiddleware(RequestDelegate next, IOptions<Idempot
                 }
                 catch
                 {
-                    // Per-attempt cleanup only. The claim/lease must survive a
-                    // retry the strategy is about to make (see the #269
-                    // comment above `strategy`), so releasing it does NOT
-                    // happen here — that happens exactly once, in the outer
-                    // catch below, once retries are exhausted or the failure
-                    // was never transient at all.
+                    // Transaction-scoped cleanup only; the claim is dealt with
+                    // in the outer catch, once the connection is back in the
+                    // pool and a probe read is possible.
                     context.Response.Body = originalBody;
                     try { await transaction.RollbackAsync(CancellationToken.None); }
                     catch { /* connection likely gone; nothing durable to undo */ }
-                    // A failed SaveChangesAsync (e.g. the DbUpdateConcurrencyException a
-                    // parallel-race test drives) leaves its entities tracked as Modified
-                    // — EF does not detach them on failure. A RETRIED attempt reuses this
-                    // SAME scoped AppDbContext (#269), so the tracker must be clean before
-                    // the strategy re-invokes next(context) — otherwise the retry would
-                    // collide with stale tracked entities from the failed attempt. (This
-                    // also still covers the pre-#269 reasoning: UseExceptionHandler's
-                    // "/error" re-execution runs on the same DbContext too.)
-                    db.ChangeTracker.Clear();
                     throw;
                 }
                 finally
@@ -371,15 +348,64 @@ public sealed class IdempotencyMiddleware(RequestDelegate next, IOptions<Idempot
         }
         catch
         {
-            // Reached once retries are exhausted (or the failure was never
-            // transient). Release OUR claim (best-effort) so a corrected
-            // retry from the CLIENT doesn't have to wait out the full lease.
             context.Response.Body = originalBody;
+            // A failed SaveChangesAsync (e.g. the DbUpdateConcurrencyException a
+            // parallel-race test drives) leaves its entities tracked as Modified
+            // — EF does not detach them on failure. UseExceptionHandler is
+            // registered BEFORE this middleware, so it re-executes the WHOLE
+            // downstream pipeline on the SAME scoped AppDbContext. Since #345 that
+            // re-execution no longer re-enters the claim protocol (see the
+            // IExceptionHandlerFeature skip at the top), so nothing here flushes
+            // the tracker any more — but ANY future re-executed middleware or
+            // /error handler that touched this DbContext would otherwise re-flush
+            // the SAME stale entities and re-throw the SAME exception, uncaught,
+            // letting it escape to the client instead of the mapped 409. Keep the
+            // scope's tracker clean before unwinding. (Scoped to ONE request's own
+            // context — never a shared/long-lived one; see SingleAttemptExecution
+            // for why a blanket Clear() is wrong in IdentityProvider.)
+            db.ChangeTracker.Clear();
+
+            // #269 review — the failure may have been a LOST ACKNOWLEDGMENT of a
+            // commit that actually landed (the ambiguous commit). Because the
+            // mutation and the PUBLISH are ONE transaction (#307), the claim's own
+            // status is the authoritative answer to "did my work become durable?":
+            // Completed means it did, and the response this request published is
+            // sitting right there. Replay it rather than reporting a failure for a
+            // request that succeeded — and rather than re-running next(context),
+            // which would re-consume a single-use step-up grant and make a state
+            // transition answer 422. Best-effort: if the connection is genuinely
+            // gone the probe throws and we fall through to the honest error, which
+            // the client then retries with the same key and replays anyway.
+            try
+            {
+                var completed = await ReadCompletedClaimAsync(
+                    db, accountId, endpointHash, keyHash, ownerToken, CancellationToken.None);
+                if (completed is not null)
+                {
+                    await ReplayAsync(context, completed);
+                    return;
+                }
+            }
+            catch { /* probe failed; fall through to the error below */ }
+
+            // Nothing of ours is durable. Release OUR claim (best-effort) so a
+            // corrected retry from the CLIENT doesn't have to wait out the lease.
             try { await ReleaseClaimAsync(db, accountId, endpointHash, keyHash, ownerToken, CancellationToken.None); }
             catch { /* best-effort — an abandoned claim still recovers via lease expiry */ }
             throw;
         }
     }
+
+    // The claim this attempt owns, but only once it has actually been published.
+    // LeaseOwner is this request's own single-use token, so a match cannot be
+    // anyone else's work.
+    private static Task<IdempotencyRecord?> ReadCompletedClaimAsync(
+        AppDbContext db, Guid accountId, string endpointHash, string keyHash, Guid ownerToken,
+        CancellationToken ct) =>
+        db.IdempotencyRecords.AsNoTracking().FirstOrDefaultAsync(r =>
+            r.AccountId == accountId && r.EndpointHash == endpointHash
+            && r.IdempotencyKeyHash == keyHash && r.LeaseOwner == ownerToken
+            && r.Status == IdempotencyStatus.Completed, ct);
 
     private enum ClaimKind { Claimed, HashConflict, Completed, LiveLease, Retry }
 
@@ -445,6 +471,15 @@ public sealed class IdempotencyMiddleware(RequestDelegate next, IOptions<Idempot
         if (existing.RequestHash.Length > 0 && existing.RequestHash != requestHash)
             return new ClaimAttempt(ClaimKind.HashConflict, existing);
         if (existing.Status == IdempotencyStatus.Completed) return new ClaimAttempt(ClaimKind.Completed, existing);
+        // #269 review — the row is OURS. ownerToken is a fresh Guid minted for
+        // this one request, so nothing else can have written it: what happened
+        // is that our own INSERT (or steal UPDATE) above already committed and
+        // its acknowledgment was lost, and EF's retrying execution strategy —
+        // which wraps SaveChanges/ExecuteSql on its own, outside any user
+        // transaction — replayed it into the unique index. We hold the lease;
+        // reporting a competing LiveLease here would make the request poll
+        // itself out to the deadline and 409 without ever invoking the handler.
+        if (existing.LeaseOwner == ownerToken) return new ClaimAttempt(ClaimKind.Claimed);
         return new ClaimAttempt(ClaimKind.LiveLease);
     }
 
