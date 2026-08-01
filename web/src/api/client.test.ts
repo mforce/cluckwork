@@ -602,7 +602,11 @@ describe("auth endpoints", () => {
   // must never expose the token that was already cleared.
   it("reports a server-side revoke failure without leaking the token", async () => {
     const consoleErr = vi.spyOn(console, "error").mockImplementation(() => {});
-    setAccessToken("super-secret-live-token");
+    // Generated, not a literal: nothing secret-shaped belongs in source
+    // (GitGuardian scans test files too), and a unique value makes the
+    // "did not leak" assertion exact rather than coincidental.
+    const token = `tok-${crypto.randomUUID()}`;
+    setAccessToken(token);
     fetchMock.mockRejectedValueOnce(new TypeError("network down"));
 
     await expect(logout()).resolves.toBeUndefined();
@@ -610,7 +614,7 @@ describe("auth endpoints", () => {
     expect(getAccessToken()).toBeNull();
     expect(consoleErr).toHaveBeenCalledTimes(1);
     const logged = consoleErr.mock.calls[0].map((a) => String(a)).join(" ");
-    expect(logged).not.toContain("super-secret-live-token");
+    expect(logged).not.toContain(token);
     consoleErr.mockRestore();
   });
 });
