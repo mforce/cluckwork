@@ -1818,6 +1818,13 @@ export const es = {
       "<strong>Dinero</strong> (admin): resumen de ventas de los pedidos del rango (ingresos / pagado / "
       + "pendiente), gastos por categoría, y <strong>ganancia básica</strong> — ingresos confirmados menos "
       + "gastos registrados, sin costo de bienes vendidos.",
+    reportsThrottle:
+      "<strong>Si se rechaza un informe</strong>: la granja ejecuta solo unos pocos informes a la vez, para "
+      + "que una pantalla ocupada no ralentice la aplicación para los demás. Pedir varios al mismo tiempo — "
+      + "varias personas abriendo Informes a la vez, o reintentos repetidos — puede responder "
+      + "<strong>inténtelo de nuevo en un momento</strong> en lugar de una tabla. No se registró ni se "
+      + "perdió nada: presione <strong>reintentar</strong> en la pantalla de Informes un momento después "
+      + "y se vuelve a ejecutar con las mismas fechas que eligió.",
 
     expensesHeading: "Gastos (admin)",
     expensesRecording:
@@ -2038,6 +2045,15 @@ export const es = {
       + "pregunta antes de cambiar, en lugar de recargar mientras está escribiendo. Presione Recargar "
       + "cuando le convenga, o Más tarde y volverá a preguntar la próxima vez. No se pierde nada por "
       + "dejarlo — la aplicación en ejecución sigue funcionando hasta que acepte.",
+
+    glossaryTooManyReportsTerm: "Demasiados informes a la vez",
+    glossaryTooManyReportsDef:
+      "La granja ejecuta solo unos pocos informes al mismo tiempo, para que una pantalla ocupada no "
+      + "ralentice la aplicación para todos. Por encima de eso, un informe responde pidiendo que lo "
+      + "intente de nuevo en un momento en lugar de esperar en cola. No se registra ni se pierde nada — "
+      + "presione reintentar en la pantalla de Informes un momento después; se vuelve a ejecutar con las "
+      + "mismas fechas que eligió. Cada granja tiene su propio margen, así que los informes de otra granja "
+      + "nunca consumen el suyo.",
 
     glossaryTooManySignInAttemptsTerm: "Demasiados intentos de inicio de sesión",
     glossaryTooManySignInAttemptsDef:

@@ -1888,6 +1888,13 @@ export const tl = {
       "<strong>Pera</strong> (admin): buod ng benta para sa mga order ng range (kita / nabayaran / "
       + "natitira), gastos kada kategorya, at <strong>basic profit</strong> — nakumpirmang kita bawas ang "
       + "nakatalang gastos, walang cost-of-goods.",
+    reportsThrottle:
+      "<strong>Kung tinanggihan ang report</strong>: iilan lang ang report na pinapatakbo ng farm nang "
+      + "sabay, para hindi mapabagal ng isang abalang screen ang app para sa lahat. Ang paghingi ng marami "
+      + "nang sabay — ilang tao na sabay-sabay magbukas ng Reports, o paulit-ulit na pagsubok — ay "
+      + "maaaring sumagot ng <strong>subukan ulit maya-maya</strong> sa halip na talahanayan. Walang "
+      + "naitala at walang nawala: pindutin ang <strong>subukan ulit</strong> sa Reports screen "
+      + "maya-maya at muling tatakbo ito gamit ang parehong mga petsang pinili mo.",
 
     expensesHeading: "Mga Gastos (admin)",
     expensesRecording:
@@ -2114,6 +2121,14 @@ export const tl = {
       + "nagtatanong bago lumipat, sa halip na mag-reload habang nagta-type ka. Pindutin ang I-reload "
       + "kapag maganda ang timing mo, o Mamaya at magtatanong ulit ito sa susunod. Walang mawawala sa "
       + "pag-iwan nito — patuloy na gumagana ang tumatakbong app hanggang tanggapin mo ito.",
+
+    glossaryTooManyReportsTerm: "Masyadong maraming report nang sabay",
+    glossaryTooManyReportsDef:
+      "Iilan lang ang report na pinapatakbo ng farm nang sabay, para hindi mapabagal ng isang abalang "
+      + "screen ang app para sa lahat. Kapag lumampas doon, sasagot ang report na subukan ulit maya-maya "
+      + "sa halip na pumila. Walang naitatala at walang nawawala — pindutin ang subukan ulit sa Reports "
+      + "screen maya-maya; muling tatakbo ito gamit ang parehong mga petsang pinili mo. May sariling "
+      + "alokasyon ang bawat farm, kaya hindi kailanman nauubos ng report ng ibang farm ang sa iyo.",
 
     glossaryTooManySignInAttemptsTerm: "Masyadong maraming pagtatangkang mag-sign in",
     glossaryTooManySignInAttemptsDef:

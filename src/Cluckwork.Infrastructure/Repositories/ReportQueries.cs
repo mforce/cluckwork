@@ -49,7 +49,19 @@ public sealed class ReportQueries(AppDbContext db) : IReportQueries
         // of #92). Start-of-day convention: the day's deaths do not shrink that
         // day's denominator (industry hen-day practice), so a flock's count on
         // D is initial − removals BEFORE D.
+        //
+        // #311: a flock whose lifecycle has fully ended before `from` (either
+        // terminator date < from) contributes 0 to every day in [from, to] —
+        // `ended` below is true for the whole window regardless of the other
+        // terminator — so it's excluded here rather than loaded and walked.
+        // This, together with bounding BirdMovements below by flock + date
+        // instead of loading the account's whole bird-movement ledger, is what
+        // keeps this query's cost tied to the report's range and flock count
+        // rather than to the farm's full history.
         var flocks = await db.Flocks
+            .Where(f => f.PlacementDate <= to
+                     && (f.DepletedOn == null || f.DepletedOn >= from)
+                     && (f.ArchivedOn == null || f.ArchivedOn >= from))
             .Select(f => new
             {
                 f.Id,
@@ -59,20 +71,36 @@ public sealed class ReportQueries(AppDbContext db) : IReportQueries
                 f.ArchivedOn,
             })
             .ToListAsync(ct);
-        var removalsByFlock = (await db.BirdMovements
-            .GroupBy(m => new { m.FlockId, m.Date })
-            .Select(g => new { g.Key.FlockId, g.Key.Date, Quantity = g.Sum(m => (long)m.Quantity) })
-            .ToListAsync(ct))
-            .GroupBy(x => x.FlockId)
-            .ToDictionary(g => g.Key, g => g.OrderBy(x => x.Date).ToList());
+        var flockIds = flocks.Select(f => f.Id).ToList();
+
+        // Opening balance per flock (removals strictly before `from`) — one
+        // SQL-side aggregate per flock, not every historical row.
+        var openingRemovals = flockIds.Count == 0
+            ? new Dictionary<Guid, long>()
+            : await db.BirdMovements
+                .Where(m => flockIds.Contains(m.FlockId) && m.Date < from)
+                .GroupBy(m => m.FlockId)
+                .Select(g => new { FlockId = g.Key, Quantity = g.Sum(m => (long)m.Quantity) })
+                .ToDictionaryAsync(x => x.FlockId, x => x.Quantity, ct);
+
+        // Per-day removals WITHIN the window only — bounded by (days × flocks)
+        // in this report's range, not by the account's all-time movement count.
+        var removalsByFlockDay = flockIds.Count == 0
+            ? new Dictionary<Guid, Dictionary<DateOnly, long>>()
+            : (await db.BirdMovements
+                .Where(m => flockIds.Contains(m.FlockId) && m.Date >= from && m.Date <= to)
+                .GroupBy(m => new { m.FlockId, m.Date })
+                .Select(g => new { g.Key.FlockId, g.Key.Date, Quantity = g.Sum(m => (long)m.Quantity) })
+                .ToListAsync(ct))
+                .GroupBy(x => x.FlockId)
+                .ToDictionary(g => g.Key, g => g.ToDictionary(x => x.Date, x => x.Quantity));
 
         var days = new List<ProductionDay>();
         // Per flock: birds at start of `from` = initial − removals strictly
         // before `from`; then walk, applying each day's removals AFTER counting.
         var flockCounts = flocks.ToDictionary(
             f => f.Id,
-            f => f.InitialCount
-                 - (removalsByFlock.GetValueOrDefault(f.Id)?.Where(r => r.Date < from).Sum(r => r.Quantity) ?? 0L));
+            f => f.InitialCount - openingRemovals.GetValueOrDefault(f.Id));
         for (var d = from; d <= to; d = d.AddDays(1))
         {
             long henDays = 0;
@@ -82,8 +110,7 @@ public sealed class ReportQueries(AppDbContext db) : IReportQueries
                             || (f.ArchivedOn is { } arc && d > arc);
                 if (f.PlacementDate <= d && !ended)
                     henDays += Math.Max(flockCounts[f.Id], 0);
-                var todaysRemovals = removalsByFlock.GetValueOrDefault(f.Id)
-                    ?.Where(r => r.Date == d).Sum(r => r.Quantity) ?? 0L;
+                var todaysRemovals = removalsByFlockDay.GetValueOrDefault(f.Id)?.GetValueOrDefault(d) ?? 0L;
                 flockCounts[f.Id] -= todaysRemovals;
             }
 

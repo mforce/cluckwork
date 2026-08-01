@@ -315,6 +315,9 @@ export function HelpPage() {
         <li>
           <Trans ns="help" i18nKey="reportsMoney" components={{ strong: <strong /> }} />
         </li>
+        <li>
+          <Trans ns="help" i18nKey="reportsThrottle" components={{ strong: <strong /> }} />
+        </li>
       </ul>
 
       <h3 id="expenses">{t("expensesHeading")}</h3>
@@ -469,6 +472,8 @@ export function HelpPage() {
             <td>{t("glossaryNewVersionReadyDef")}</td></tr>
           <tr><th scope="row">{t("glossaryTooManySignInAttemptsTerm")}</th>
             <td>{t("glossaryTooManySignInAttemptsDef")}</td></tr>
+          <tr><th scope="row">{t("glossaryTooManyReportsTerm")}</th>
+            <td>{t("glossaryTooManyReportsDef")}</td></tr>
           <tr><th scope="row">{t("glossarySomethingWentWrongScreenTerm")}</th>
             <td>{t("glossarySomethingWentWrongScreenDef")}</td></tr>
           <tr><th scope="row">{t("glossaryDailyEntryTerm")}</th>

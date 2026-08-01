@@ -2128,6 +2128,12 @@ export const en = {
       "<strong>Money</strong> (admin): sales summary for the range's orders (revenue / paid / outstanding), "
       + "expenses by category, and <strong>basic profit</strong> — confirmed revenue minus recorded expenses, "
       + "no cost-of-goods.",
+    reportsThrottle:
+      "<strong>If a report is refused</strong>: the farm runs only a few reports at a time, so one "
+      + "busy screen cannot slow the app for everyone else. Asking for several at once — a few people "
+      + "opening Reports together, or repeated retries — can come back as <strong>try again shortly</strong> "
+      + "instead of a table. Nothing was recorded and nothing was lost: press <strong>retry</strong> "
+      + "on the Reports screen a moment later and it re-runs with the same dates you picked.",
 
     // Expenses
     expensesHeading: "Expenses (admin)",
@@ -2355,6 +2361,14 @@ export const en = {
       "Sign-in is rate limited to slow password guessing: too many attempts from one place in a few "
       + "minutes are refused with this message until a short cool-off passes. It never affects an already "
       + "signed-in session.",
+
+    glossaryTooManyReportsTerm: "Too many reports at once",
+    glossaryTooManyReportsDef:
+      "The farm runs only a few reports at the same time, so one busy screen cannot slow the app for "
+      + "everyone. Over that, a report comes back asking you to try again shortly instead of waiting in "
+      + "line. Nothing is recorded or lost — press retry on the Reports screen a moment later; it "
+      + "re-runs with the same dates you picked. Each farm has its own allowance, so "
+      + "another farm's reports never use up yours.",
 
     glossarySomethingWentWrongScreenTerm: "\"Something went wrong\" screen",
     glossarySomethingWentWrongScreenDef:

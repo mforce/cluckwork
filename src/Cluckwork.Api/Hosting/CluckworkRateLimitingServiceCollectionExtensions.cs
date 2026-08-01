@@ -53,6 +53,12 @@ internal static class CluckworkRateLimitingServiceCollectionExtensions
                 rateLimiting.ClientErrors);
         });
 
+        // #311 — account-scoped, not IP-scoped, so it lives outside the
+        // AddRateLimiter() policy set above (see ReportConcurrencyLimiter for why).
+        // A factory registration (not an instance) so the container disposes it
+        // on shutdown.
+        services.AddSingleton(_ => new ReportConcurrencyLimiter(rateLimiting));
+
         return new CluckworkRateLimitingRegistration(
             rateLimiting,
             trustedProxies);
