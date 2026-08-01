@@ -28,14 +28,17 @@ internal static class CluckworkTelemetryServiceCollectionExtensions
         // goes permanently quiet (third bug of this family: options.Logger, then
         // DiagnosticContext, now the bridge itself).
         // #273 — redact credentials/tokens/cookies/connection strings/emails
-        // BEFORE any sink sees the event. Wired here, not per-sink, so it
-        // covers every WriteTo target this host has (console today) and any
-        // future one added purely via config/ReadFrom.Services — a sink can
-        // never opt out of it by construction.
-        services.AddSerilog((registeredServices, cfg) => cfg
-            .ReadFrom.Configuration(configuration)
-            .ReadFrom.Services(registeredServices)
-            .Enrich.With(new SensitiveDataRedactionEnricher()), preserveStaticLogger: true);
+        // BEFORE any sink sees the event, covering both the event's PROPERTIES
+        // (an enricher) and its EXCEPTION (a sink wrapper — an enricher
+        // structurally cannot reach LogEvent.Exception). RedactingLoggerPipeline
+        // owns the whole construction, including `ReadFrom.Configuration` /
+        // `ReadFrom.Services`, because the guarantee it provides is that every
+        // sink from either source sits behind the wrapper; read its class
+        // comment before changing how the logger is built here.
+        services.AddSerilog(
+            (registeredServices, cfg) =>
+                RedactingLoggerPipeline.Configure(cfg, configuration, registeredServices),
+            preserveStaticLogger: true);
 
         // Bind IDiagnosticContext property creation to THIS host's logger. The
         // default falls back to the process-global static Log.Logger at Set() time.
