@@ -821,6 +821,12 @@ describe("session generation (#310)", () => {
 
     expect(getAccessToken()).toBeNull(); // must stay logged out
     expect(onTokens).not.toHaveBeenCalled(); // the stale completion must not fire tokensChanged
+    // #310 review — clearing the in-memory token is only half of it. That
+    // response carried a rotated refresh cookie, which the browser applied
+    // before any of our code ran, so the server session must be revoked too:
+    // one revoke for the logout itself, a second for the cookie the discarded
+    // refresh issued. Without it a reload walks straight back in.
+    expect(callsTo(fetchMock, "/auth/logout")).toHaveLength(2);
   });
 
   it("commits an explicit login normally when nothing else races it (control)", async () => {
@@ -944,5 +950,32 @@ describe("session generation (#310)", () => {
 
     expect(getAccessToken()).toBeNull();
     expect(onTokens).not.toHaveBeenCalled();
+    // The late login's Set-Cookie already reached the browser; revoke it, or a
+    // reload restores the session the user just ended.
+    expect(callsTo(fetchMock, "/auth/logout")).toHaveLength(2);
+  });
+
+  // #310 review — the revoke is scoped to "the session is gone". When a newer
+  // LOGIN supersedes an older flight, the cookie in the browser belongs to that
+  // live login; revoking it would sign the user out of the thing they just did.
+  it("does not revoke the cookie when a newer login superseded the flight", async () => {
+    clearAccessToken();
+    const refreshGate = deferred<Response>();
+    fetchMock.mockImplementation((url: string) => {
+      if (url.endsWith("/auth/refresh")) return refreshGate.promise;
+      if (url.endsWith("/auth/login")) return Promise.resolve(accessResponse("newLoginToken"));
+      if (url.endsWith("/auth/logout")) return Promise.resolve(new Response(null, { status: 204 }));
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    const restoring = restoreSession();
+    await drain();
+
+    await login({ email: "a@b.co", password: "pw" }); // supersedes the parked refresh
+    refreshGate.resolve(accessResponse("stale-refresh-token"));
+    await restoring;
+
+    expect(getAccessToken()).toBe("newLoginToken"); // the live login survives
+    expect(callsTo(fetchMock, "/auth/logout")).toHaveLength(0); // and is NOT revoked
   });
 });

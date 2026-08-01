@@ -133,6 +133,28 @@ class StaleSessionError extends Error {
   }
 }
 
+// #310 review — discarding the JS result is NOT enough for a request that also
+// rotates the refresh cookie (/auth/login and /auth/refresh both do). The
+// browser applies Set-Cookie the moment the response arrives, before any of our
+// code runs, so a login that lands after logout leaves a VALID HttpOnly refresh
+// cookie behind: the next reload authenticates straight through
+// restoreSession() and the session the user ended comes back.
+//
+// So when a cookie-setting response is discarded, ask the server to revoke what
+// it just issued. Only when the session is actually gone (no access token): if a
+// newer LOGIN superseded this flight, the cookie now belongs to that live
+// session and revoking it would sign the user out of the thing they just did.
+async function revokeSupersededCookie(): Promise<void> {
+  if (getAccessToken()) return; // superseded by a newer login, not by a logout
+  try {
+    await raw<void>("/auth/logout", { method: "POST", headers: { [CSRF_HEADER]: "1" } });
+  } catch (err) {
+    // Best-effort, like logout's own revoke: report it rather than swallow, but
+    // never surface it to the caller whose result was already discarded.
+    console.error("discarded response: revoking its refresh cookie failed", err);
+  }
+}
+
 export async function login(body: LoginRequest): Promise<void> {
   // #310 — bump first: login is a NEWER session than anything already in
   // flight (a bootstrap refresh, say), so its resolution must be the one that
@@ -145,8 +167,12 @@ export async function login(body: LoginRequest): Promise<void> {
     body: JSON.stringify(body),
   });
   // Superseded while in flight (e.g. a logout landed before this resolved) —
-  // do not resurrect a session the user already ended.
-  if (sessionGeneration !== generation) throw new StaleSessionError();
+  // do not resurrect a session the user already ended. The response already
+  // set a refresh cookie, so revoke it too, not just the in-memory token.
+  if (sessionGeneration !== generation) {
+    await revokeSupersededCookie();
+    throw new StaleSessionError();
+  }
   setAccessToken(res.accessToken);
   onTokensChanged?.();
 }
@@ -172,7 +198,12 @@ export async function changePassword(
   // over the cleared session.
   const generation = sessionGeneration;
   const res = await apiPost<AccessTokenResponse>("/auth/change-password", body);
-  if (sessionGeneration !== generation) throw new StaleSessionError();
+  // This response rotates the refresh cookie too, so a discarded one needs that
+  // cookie revoked, not merely the in-memory token dropped.
+  if (sessionGeneration !== generation) {
+    await revokeSupersededCookie();
+    throw new StaleSessionError();
+  }
   setAccessToken(res.accessToken);
   onTokensChanged?.();
 }
@@ -271,8 +302,13 @@ async function refreshTokens(): Promise<string> {
     }),
   )
     .then(
-      (res) => {
-        if (sessionGeneration !== generation) throw new StaleSessionError();
+      async (res) => {
+        // A SUCCESSFUL refresh rotated the cookie before we got here, so a
+        // discarded one leaves live credentials in the browser — revoke them.
+        if (sessionGeneration !== generation) {
+          await revokeSupersededCookie();
+          throw new StaleSessionError();
+        }
         setAccessToken(res.accessToken);
         onTokensChanged?.();
         return res.accessToken;
@@ -280,7 +316,8 @@ async function refreshTokens(): Promise<string> {
       (err: unknown) => {
         // A late FAILURE from an obsolete generation is discarded the same as
         // a late success: the real error (e.g. a genuinely revoked refresh
-        // token) might otherwise tear down a newer, still-valid session.
+        // token) might otherwise tear down a newer, still-valid session. No
+        // revoke here — a failed refresh issued no cookie to revoke.
         throw sessionGeneration !== generation ? new StaleSessionError() : err;
       },
     )
