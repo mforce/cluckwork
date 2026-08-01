@@ -43,8 +43,14 @@ using Microsoft.EntityFrameworkCore.Storage;
 // pg_advisory_lock that a reconnect drops — but note this scope is NOT where
 // that is handled: FirstRunAdminService wraps its whole lock/check/create
 // region itself, because the reads OUTSIDE this transaction were the ones
-// being retried. See SingleAttemptExecution for the full rationale and for
-// what retrying still covers.
+// being retried. It is also the caller of RunAsync for the create (#350 review
+// round 3), so that it can re-prove advisory-lock ownership as the first
+// statement INSIDE the transaction and have IdentityProvider.CreateUserAsync
+// JOIN it via the ambient path below rather than open its own — a check
+// sitting before this call still runs before the transaction exists, which is
+// early enough for a replaced connection to slip between the two. See
+// SingleAttemptExecution for the full rationale and for what retrying still
+// covers.
 public static class AmbientTransaction
 {
     public static async Task<T> RunAsync<T>(

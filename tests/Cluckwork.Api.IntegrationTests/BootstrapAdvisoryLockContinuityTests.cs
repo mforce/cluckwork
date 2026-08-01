@@ -33,6 +33,14 @@ using Npgsql;
 // what a managed-Postgres failover does and genuinely releases the advisory
 // lock. Lock ownership is then asserted directly against pg_locks rather than
 // inferred. What each test does and does not prove is stated on the test.
+//
+// Round 3 (codex 3696801535, P1) added BootstrapLockLostAfterTheProofTests for
+// the window round 2's own fix left open: the proof RETURNS before the create
+// transaction exists, so a connection replaced in between put the INSERT on a
+// backend that never took the lock. That one injects at TransactionStarting —
+// the last idle instant in the window — because a raw backend kill there does
+// not reproduce it (Npgsql keeps reporting Open until a command fails, so EF
+// throws instead of reopening). See the test's own PROVES / DOES NOT PROVE.
 public sealed class BootstrapLockContinuityFactory : CluckworkWebApplicationFactory
 {
     public BootstrapLockContinuityInterceptor Interceptor { get; }
@@ -53,11 +61,15 @@ public sealed class BootstrapLockContinuityFactory : CluckworkWebApplicationFact
 
 // Fault injection for the bootstrap critical section. Everything it does is
 // keyed off command text, so it is inert for every other test in the suite.
-public sealed class BootstrapLockContinuityInterceptor(Func<string> connectionString) : DbCommandInterceptor
+public sealed class BootstrapLockContinuityInterceptor(Func<string> connectionString)
+    : DbCommandInterceptor, IDbTransactionInterceptor
 {
     // "pg_advisory_unlock" does NOT contain "pg_advisory_lock", so this matches
     // the acquire and never the release.
     private const string AcquireLockSql = "pg_advisory_lock";
+    // FirstRunAdminService.HoldsProvisioningLockAsync is the only statement in
+    // the codebase that asks pg_locks about its own backend.
+    private const string OwnershipProofSql = "pg_backend_pid()";
     private const string UsersTable = "\"AspNetUsers\"";
     private const string CreateUserSql = "INSERT INTO \"AspNetUsers\"";
 
@@ -76,6 +88,14 @@ public sealed class BootstrapLockContinuityInterceptor(Func<string> connectionSt
     // this invocation loses its connection — the lock IS held, just not by us.
     public volatile bool HandLockToAnotherSessionAfterAcquiringIt;
 
+    // Round 3 (codex 3696801535) — release the lock at the LAST idle instant
+    // before the create transaction is established, i.e. squarely inside the
+    // window between the pre-create ownership proof and the write. That window
+    // is where a connection replaced by EF leaves the INSERT running on a
+    // backend which never acquired the lock; releasing it here reproduces the
+    // one thing the guard can observe — the writing backend holds nothing.
+    public volatile bool ReleaseLockWhenTheCreateTransactionStarts;
+
     private NpgsqlConnection? _handOff;
 
     private int _faultInjected;
@@ -83,9 +103,23 @@ public sealed class BootstrapLockContinuityInterceptor(Func<string> connectionSt
     private int _userTableCommandsAfterFault;
     private int _createAttempts;
     private int _lockHeldAtCreate = -1;
+    private int _stateAtCreateTransactionStart = -1;
+    private int _proofQueries;
 
     // Backend pid actually terminated (0 = the kill never happened).
     public int KilledPid => Volatile.Read(ref _killedPid);
+
+    // Npgsql's FullState on the pinned connection at the instant the create
+    // transaction was starting. A plain `Open` is what proves the round-3 fault
+    // landed in the intended window: the ownership proof's reader is fully
+    // consumed (no `Fetching` bit) and no transaction exists yet. -1 = the
+    // fault never ran.
+    public System.Data.ConnectionState StateAtCreateTransactionStart =>
+        (System.Data.ConnectionState)Volatile.Read(ref _stateAtCreateTransactionStart);
+
+    // How many times HoldsProvisioningLockAsync ran. One = the pre-create proof
+    // only; two = a second proof also ran after the create transaction opened.
+    public int ProofQueries => Volatile.Read(ref _proofQueries);
 
     // Commands touching AspNetUsers that EF issued AFTER the fault. Non-zero
     // means the region carried on past the connection loss — i.e. onto a
@@ -106,6 +140,9 @@ public sealed class BootstrapLockContinuityInterceptor(Func<string> connectionSt
     private async Task OnExecutingAsync(DbCommand command)
     {
         var text = command.CommandText;
+
+        if (text.Contains(OwnershipProofSql, StringComparison.Ordinal))
+            Interlocked.Increment(ref _proofQueries);
 
         if (Volatile.Read(ref _faultInjected) == 1 &&
             text.Contains(UsersTable, StringComparison.Ordinal))
@@ -193,6 +230,26 @@ public sealed class BootstrapLockContinuityInterceptor(Func<string> connectionSt
             "AND classid = 283 AND objid = 1 AND pid = $1 AND granted", probe);
         held.Parameters.AddWithValue(pid);
         return (long)(await held.ExecuteScalarAsync())! > 0;
+    }
+
+    // The create transaction is about to be established. EF has finished the
+    // ownership proof and released the reader, so the pinned connection is idle
+    // here and Npgsql has not yet been handed a transaction — the one hook that
+    // lands in the round-3 window without racing anything.
+    public async ValueTask<InterceptionResult<DbTransaction>> TransactionStartingAsync(
+        DbConnection connection, TransactionStartingEventData eventData,
+        InterceptionResult<DbTransaction> result, CancellationToken cancellationToken = default)
+    {
+        if (ReleaseLockWhenTheCreateTransactionStarts &&
+            Interlocked.CompareExchange(ref _faultInjected, 1, 0) == 0)
+        {
+            var pinned = (NpgsqlConnection)connection;
+            Volatile.Write(ref _stateAtCreateTransactionStart, (int)pinned.FullState);
+            await using var release = new NpgsqlCommand("SELECT pg_advisory_unlock_all()", pinned);
+            await release.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        return result;
     }
 
     public override async ValueTask<InterceptionResult<int>> NonQueryExecutingAsync(
@@ -390,6 +447,101 @@ public sealed class BootstrapLockHeldByAnotherSessionTests
         {
             await _factory.Interceptor.ReleaseHandOffAsync();
         }
+    }
+}
+
+public sealed class BootstrapLockLostAfterTheProofTests
+    : IClassFixture<BootstrapLockContinuityFactory>
+{
+    private readonly BootstrapLockContinuityFactory _factory;
+
+    public BootstrapLockLostAfterTheProofTests(BootstrapLockContinuityFactory factory)
+    {
+        _factory = factory;
+        _ = _factory.Services;
+    }
+
+    // #269 review round 3 (codex 3696801535, P1) — the window BETWEEN the
+    // ownership proof and the write.
+    //
+    // Round 2's proof answers about the instant it runs, and then RETURNS.
+    // Everything that actually writes happens afterwards: tenant resolution,
+    // password generation, and the create transaction being established. A
+    // connection EF finds no longer usable in that gap is replaced silently —
+    // RelationalConnection reopens it before doing anything else, no exception
+    // thrown, no retry to intercept — so the INSERT ran on a backend that never
+    // acquired the advisory lock while round 2's `true` described a backend
+    // that no longer existed. That is a second farm Owner, which nothing in the
+    // app can undo.
+    //
+    // The fault is injected at TransactionStarting on the create transaction:
+    // the last instant inside that window at which the pinned connection is
+    // idle (proof reader consumed, no transaction yet — asserted below via
+    // Npgsql's FullState), and the lock is released there.
+    //
+    // PROVES: when the backend that is about to write does not hold the
+    // advisory lock — the state the finding's connection replacement produces —
+    // provisioning refuses. No create is attempted, no AspNetUsers command runs
+    // after the fault, the default account still has no user, and the command
+    // fails (exit 1). It also pins the MECHANISM that makes that true, so the
+    // test cannot pass for an unrelated reason: a SECOND ownership proof runs
+    // (ProofQueries == 2), i.e. one inside the create transaction, on the same
+    // backend that would have run the INSERT.
+    //
+    // Fails on the pre-fix tree exactly as the finding describes: creates = 1,
+    // LockHeldByCreateBackend = false, one Owner in the account, success
+    // returned.
+    //
+    // DOES NOT PROVE: that a connection loss in this window is what released
+    // the lock. Releasing it on the same session is a stand-in — deliberately,
+    // and for the same reason BootstrapLockLostBeforeCreateTests uses one: a
+    // raw pg_terminate_backend() here does NOT reproduce the finding, because
+    // Npgsql leaves the connection reporting Open until a command fails on it,
+    // so EF throws at the first in-transaction statement instead of reopening
+    // (verified — that variant fails closed even pre-fix). What the guard can
+    // observe is only ever the lock state, and this reproduces exactly that.
+    //
+    // DOES NOT PROVE: that two concurrent bootstrap-admin invocations cannot
+    // both create an Owner. Nothing in this suite schedules two genuinely
+    // concurrent FirstRunAdminService instances; that gap is still open. What
+    // this pins is the enabling condition — writing while holding nothing.
+    [Fact]
+    public async Task LockLostAfterTheProofButBeforeTheWrite_CreatesNoOwner_BecauseOwnershipIsReProvenInsideTheCreateTransaction()
+    {
+        _factory.Interceptor.ReleaseLockWhenTheCreateTransactionStarts = true;
+        var email = $"lock-after-proof-{Guid.NewGuid():N}@test.local";
+
+        using var scope = _factory.Services.CreateScope();
+        var service = scope.ServiceProvider.GetRequiredService<FirstRunAdminService>();
+
+        var result = await service.ProvisionAsync(email);
+
+        // Snapshot before any verification query of our own reaches AspNetUsers.
+        var createAttempts = _factory.Interceptor.CreateAttempts;
+        var userCommandsAfterFault = _factory.Interceptor.UserTableCommandsAfterFault;
+        var proofQueries = _factory.Interceptor.ProofQueries;
+        var lockHeldAtCreate = _factory.Interceptor.LockHeldByCreateBackend;
+
+        // The fault has to have landed in the window, not mid-statement: a bare
+        // Open means the proof's reader was fully consumed and no transaction
+        // had been established yet.
+        Assert.Equal(System.Data.ConnectionState.Open,
+            _factory.Interceptor.StateAtCreateTransactionStart);
+
+        Assert.True(result.IsFailure,
+            "provisioning must refuse to write once the writing backend no longer holds the lock");
+        Assert.Equal("Bootstrap.LockLost", result.Error.Code);
+        Assert.Equal(0, createAttempts);
+        Assert.Equal(0, userCommandsAfterFault);
+        Assert.Null(lockHeldAtCreate);
+
+        // The mechanism, not just the outcome: ownership is proven again AFTER
+        // the create transaction is established, not only before it.
+        Assert.Equal(2, proofQueries);
+
+        var usersInDefaultAccount = await _factory.WithTenantScopeAsync(SeedDefaults.AccountId,
+            db => db.Users.IgnoreQueryFilters().CountAsync(u => u.AccountId == SeedDefaults.AccountId));
+        Assert.Equal(0, usersInDefaultAccount);
     }
 }
 
