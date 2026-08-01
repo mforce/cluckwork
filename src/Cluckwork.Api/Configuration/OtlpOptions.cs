@@ -13,10 +13,13 @@ using OpenTelemetry.Exporter;
 // message itself. So: userinfo/query/fragment are rejected in EVERY
 // environment (never echoed back in a message — they might carry a secret),
 // and Production additionally requires https. The one documented escape
-// hatch, Otlp:AllowInsecureLoopback, is deliberately narrow: even set, it
-// only permits plaintext to a loopback host, never a remote collector — the
-// same allow-list-not-deny-list, explicit-named-opt-out shape as the
-// Postgres TLS floor (#261/#262).
+// hatch is Otlp:AllowInsecureEndpoint, which mirrors the co-located-stack
+// opt-out the Postgres TLS floor already defines (#261/#262,
+// Database:AllowInsecureConnection): plaintext is acceptable only when the
+// collector is a private peer the traffic never leaves — a loopback collector
+// on a dev box, or the sim harness's otel-collector sidecar on its own compose
+// network (#243). A real deploy never sets it. Same shape either way:
+// allow-list not deny-list, fail closed, one explicitly named opt-out.
 public sealed class OtlpOptions
 {
     public const string SectionName = "Otlp";
@@ -24,7 +27,7 @@ public sealed class OtlpOptions
     public string? Endpoint { get; init; }
     public string? Protocol { get; init; }
     public string? Headers { get; init; }
-    public bool AllowInsecureLoopback { get; init; }
+    public bool AllowInsecureEndpoint { get; init; }
 
     public bool Enabled => !string.IsNullOrWhiteSpace(Endpoint);
 
@@ -79,13 +82,14 @@ public sealed class OtlpOptions
                 "Otlp:Endpoint must not include a fragment.");
 
         if (isProduction && uri.Scheme != Uri.UriSchemeHttps
-            && !(AllowInsecureLoopback && uri.IsLoopback))
+            && !AllowInsecureEndpoint)
             throw new InvalidOperationException(
                 "Production OTLP export requires an https Otlp:Endpoint: plaintext HTTP exposes "
-                + "telemetry and Otlp:Headers credentials in transit. For a local loopback "
-                + "collector during development, set Otlp:AllowInsecureLoopback=true — it only "
-                + "permits plaintext to a loopback host (127.0.0.1/::1/localhost), never a "
-                + "remote endpoint.");
+                + "telemetry and Otlp:Headers credentials in transit. If the collector is a "
+                + "private peer the traffic never leaves — a loopback collector on a dev box, or "
+                + "a sidecar on the same private compose network — set "
+                + "Otlp:AllowInsecureEndpoint=true to acknowledge that; a real deploy never "
+                + "sets it.");
 
         if (ParseProtocol() is not OtlpExportProtocol.HttpProtobuf)
             return uri;

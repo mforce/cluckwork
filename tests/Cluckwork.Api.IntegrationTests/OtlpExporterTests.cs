@@ -236,7 +236,7 @@ public sealed class OtlpEndpointResolutionTests
         var options = new OtlpOptions { Endpoint = "http://collector.test:4318", Protocol = "grpc" };
         var ex = Assert.Throws<InvalidOperationException>(() => options.ResolveTraceEndpoint(isProduction: true));
         Assert.Contains("https", ex.Message, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Otlp:AllowInsecureLoopback", ex.Message);
+        Assert.Contains("Otlp:AllowInsecureEndpoint", ex.Message);
     }
 
     // The documented development escape hatch: a loopback collector may stay
@@ -249,7 +249,7 @@ public sealed class OtlpEndpointResolutionTests
     {
         var options = new OtlpOptions { Endpoint = endpoint, Protocol = "grpc" };
         var ex = Assert.Throws<InvalidOperationException>(() => options.ResolveTraceEndpoint(isProduction: true));
-        Assert.Contains("Otlp:AllowInsecureLoopback", ex.Message);
+        Assert.Contains("Otlp:AllowInsecureEndpoint", ex.Message);
     }
 
     [Theory]
@@ -258,24 +258,42 @@ public sealed class OtlpEndpointResolutionTests
     [InlineData("http://[::1]:4318")]
     public void Plaintext_loopback_endpoint_resolves_in_Production_with_the_opt_out(string endpoint)
     {
-        var options = new OtlpOptions { Endpoint = endpoint, Protocol = "grpc", AllowInsecureLoopback = true };
+        var options = new OtlpOptions { Endpoint = endpoint, Protocol = "grpc", AllowInsecureEndpoint = true };
         var resolved = options.ResolveTraceEndpoint(isProduction: true);
         Assert.Equal(new Uri(endpoint), resolved);
     }
 
-    // "Impossible to hit by accident": the opt-out is scoped to loopback
-    // hosts ONLY. Flipping it does not also open the door for a real remote
-    // collector to go plaintext in Production.
+    // #316 review — the opt-out is NOT loopback-scoped. The sim harness (#243)
+    // runs its serving app in Production against `http://otel-collector:4317`,
+    // a sidecar reached by compose-service name on the stack's own private
+    // network — not loopback, but equally traffic that never leaves the stack.
+    // A loopback-only escape hatch failed that boot outright. This pins the
+    // exact shape the sim uses so the regression can't return silently.
     [Fact]
-    public void AllowInsecureLoopback_does_not_permit_a_plaintext_remote_endpoint_in_Production()
+    public void Plaintext_private_network_sidecar_resolves_in_Production_with_the_opt_out()
     {
         var options = new OtlpOptions
         {
-            Endpoint = "http://collector.test:4318",
+            Endpoint = "http://otel-collector:4317",
             Protocol = "grpc",
-            AllowInsecureLoopback = true
+            AllowInsecureEndpoint = true
         };
-        var ex = Assert.Throws<InvalidOperationException>(() => options.ResolveTraceEndpoint(isProduction: true));
+
+        var resolved = options.ResolveTraceEndpoint(isProduction: true);
+
+        Assert.Equal(new Uri("http://otel-collector:4317"), resolved);
+    }
+
+    // The opt-out is the ONLY thing that permits it: unset, the same sidecar
+    // endpoint still fails closed in Production.
+    [Fact]
+    public void Plaintext_private_network_sidecar_still_fails_without_the_opt_out()
+    {
+        var options = new OtlpOptions { Endpoint = "http://otel-collector:4317", Protocol = "grpc" };
+
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => options.ResolveTraceEndpoint(isProduction: true));
+
         Assert.Contains("https", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 

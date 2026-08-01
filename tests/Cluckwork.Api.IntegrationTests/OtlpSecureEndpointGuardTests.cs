@@ -66,7 +66,7 @@ public sealed class OtlpSecureEndpointGuardTests : IClassFixture<OtlpProductionF
         Assert.NotNull(boot);
         var message = Flatten(boot!);
         Assert.Contains("https", message, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Otlp:AllowInsecureLoopback", message);
+        Assert.Contains("Otlp:AllowInsecureEndpoint", message);
     }
 
     [Fact]
@@ -78,7 +78,7 @@ public sealed class OtlpSecureEndpointGuardTests : IClassFixture<OtlpProductionF
         var boot = Record.Exception(() => badHost.CreateClient());
 
         Assert.NotNull(boot);
-        Assert.Contains("Otlp:AllowInsecureLoopback", Flatten(boot!));
+        Assert.Contains("Otlp:AllowInsecureEndpoint", Flatten(boot!));
     }
 
     [Fact]
@@ -87,7 +87,7 @@ public sealed class OtlpSecureEndpointGuardTests : IClassFixture<OtlpProductionF
         using var goodHost = _factory.WithWebHostBuilder(b =>
         {
             b.UseSetting("Otlp:Endpoint", "http://127.0.0.1:4317");
-            b.UseSetting("Otlp:AllowInsecureLoopback", "true");
+            b.UseSetting("Otlp:AllowInsecureEndpoint", "true");
         });
 
         var boot = Record.Exception(() => goodHost.CreateClient());
@@ -95,16 +95,32 @@ public sealed class OtlpSecureEndpointGuardTests : IClassFixture<OtlpProductionF
         Assert.Null(boot);
     }
 
-    // "Impossible to hit by accident": the loopback opt-out must not also
-    // wave through a real remote endpoint gone plaintext.
+    // #316 review — the opt-out is not loopback-scoped, because the sim harness
+    // (#243) runs Production against a compose-service sidecar
+    // (`http://otel-collector:4317`) that is private to its own network. A
+    // loopback-only hatch failed that boot outright, so this pins the sidecar
+    // shape booting cleanly WITH the acknowledgement.
     [Fact]
-    public void Production_PlaintextRemoteEndpoint_WithOptOutSet_StillFailsBoot()
+    public void Production_PlaintextPrivateSidecar_WithOptOutSet_Boots()
+    {
+        using var simHost = _factory.WithWebHostBuilder(b =>
+        {
+            b.UseSetting("Otlp:Endpoint", "http://otel-collector:4317");
+            b.UseSetting("Otlp:AllowInsecureEndpoint", "true");
+        });
+
+        var boot = Record.Exception(() => simHost.CreateClient());
+
+        Assert.Null(boot);
+    }
+
+    // …and the acknowledgement is the only thing permitting it: the same
+    // sidecar endpoint without the flag still fails the Production boot.
+    [Fact]
+    public void Production_PlaintextPrivateSidecar_WithoutOptOut_FailsBoot()
     {
         using var badHost = _factory.WithWebHostBuilder(b =>
-        {
-            b.UseSetting("Otlp:Endpoint", "http://otlp.example:4318");
-            b.UseSetting("Otlp:AllowInsecureLoopback", "true");
-        });
+            b.UseSetting("Otlp:Endpoint", "http://otel-collector:4317"));
 
         var boot = Record.Exception(() => badHost.CreateClient());
 

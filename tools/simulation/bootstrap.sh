@@ -225,6 +225,12 @@ TRUSTED_PROXY_CIDR=127.0.0.1/32
 # OTLP endpoint. ---
 Otlp__Endpoint=http://otel-collector:4317
 Otlp__Protocol=grpc
+# The serving app runs Production config, which requires an https collector
+# (#316). This stack's collector is a sidecar on the stack's own private
+# compose network, so the traffic never leaves it — acknowledge that plaintext
+# explicitly, exactly as the co-located Postgres does with
+# Database__AllowInsecureConnection. A real deploy sets neither.
+Otlp__AllowInsecureEndpoint=true
 EOF
 chmod 0600 "$ENV_FILE"
 echo "Wrote $(basename "$ENV_FILE")."
