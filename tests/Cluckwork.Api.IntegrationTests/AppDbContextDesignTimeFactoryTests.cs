@@ -173,6 +173,34 @@ public sealed class AppDbContextDesignTimeFactoryTests : IDisposable
         Assert.NotNull(context);
     }
 
+    // #329 review — the TLS floor is reused from the boot path, so its warning text
+    // names Database:AllowInsecureConnection. Design-time tooling never reads that
+    // setting, so printing it verbatim would point an operator at a control that
+    // does nothing for `dotnet ef`. The warning must name the variable that does.
+    [Fact]
+    public void LoopbackPlaintextWarning_NamesTheDesignTimeEnvVar_NotTheBootSetting()
+    {
+        SetConnection("Host=localhost;Database=cluckwork_migrations;Username=u;Password=p");
+        SetLoopbackOptIn("true");
+
+        var originalError = Console.Error;
+        var captured = new StringWriter();
+        Console.SetError(captured);
+        try
+        {
+            using var context = new AppDbContextDesignTimeFactory().CreateDbContext([]);
+            Assert.NotNull(context);
+        }
+        finally
+        {
+            Console.SetError(originalError);
+        }
+
+        var stderr = captured.ToString();
+        Assert.Contains(AppDbContextDesignTimeFactory.AllowInsecureLoopbackEnvVar, stderr);
+        Assert.DoesNotContain("Database:AllowInsecureConnection", stderr);
+    }
+
     [Fact]
     public void LoopbackHost_UriForm_WithOptIn_Succeeds()
     {

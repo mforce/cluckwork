@@ -62,7 +62,16 @@ public sealed class AppDbContextDesignTimeFactory : IDesignTimeDbContextFactory<
             onWarning: warnings.Add);
         foreach (var warning in warnings)
         {
-            Console.Error.WriteLine($"warning: {warning}");
+            // The shared validator names Database:AllowInsecureConnection — the control
+            // that governs a BOOTING host. Design-time tooling never reads it; the
+            // acknowledgement that actually applies here is the env var below. Printing
+            // the borrowed text verbatim would send an operator to a setting that does
+            // nothing for `dotnet ef`, so name the one that does.
+            Console.Error.WriteLine(
+                "warning: " + warning.Replace(
+                    "Database:AllowInsecureConnection",
+                    AllowInsecureLoopbackEnvVar,
+                    StringComparison.Ordinal));
         }
 
         var options = new DbContextOptionsBuilder<AppDbContext>();
