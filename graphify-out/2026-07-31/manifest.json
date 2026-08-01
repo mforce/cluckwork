@@ -55,9 +55,9 @@
     "semantic_hash": "c80d749437c83c280855ac713b51ffb7"
   },
   "src/Cluckwork.Api/Configuration/OtlpOptions.cs": {
-    "mtime": 1785557045.3997545,
-    "ast_hash": "361d9fa337ab6adeb787fd0f4e386e42",
-    "semantic_hash": ""
+    "mtime": 1785045483.7961595,
+    "ast_hash": "4662f17d3cc56eb5b8318ca628b938ce",
+    "semantic_hash": "4662f17d3cc56eb5b8318ca628b938ce"
   },
   "src/Cluckwork.Api/Endpoints/Accounts/AccountEndpoints.cs": {
     "mtime": 1785045483.7961595,
@@ -80,8 +80,8 @@
     "semantic_hash": "186ad6609d2d3f27dc41ca73da5a189e"
   },
   "src/Cluckwork.Api/Endpoints/Auth/AuthEndpoints.cs": {
-    "mtime": 1785610447.9009974,
-    "ast_hash": "61faab8b04d5a7810f7a59f5b2ed758e",
+    "mtime": 1785527523.9516842,
+    "ast_hash": "a3e0bc8c216a956c07700207a1032e36",
     "semantic_hash": ""
   },
   "src/Cluckwork.Api/Endpoints/Catalog/ProductEndpoints.cs": {
@@ -140,9 +140,9 @@
     "semantic_hash": "425dc2e8415170db3531cefbc3c7f97d"
   },
   "src/Cluckwork.Api/Endpoints/Reports/ReportEndpoints.cs": {
-    "mtime": 1785610447.9009974,
-    "ast_hash": "0831eba82523c0123a776f44cb5cf76d",
-    "semantic_hash": ""
+    "mtime": 1784778499.3528147,
+    "ast_hash": "e62b2300fed7db2c9e1691cc8aa4a5f0",
+    "semantic_hash": "e62b2300fed7db2c9e1691cc8aa4a5f0"
   },
   "src/Cluckwork.Api/Endpoints/Sales/PaymentEndpoints.cs": {
     "mtime": 1785045483.7966912,
@@ -160,8 +160,8 @@
     "semantic_hash": "98145200375e753461893f83d94cdff5"
   },
   "src/Cluckwork.Api/Endpoints/Users/UserEndpoints.cs": {
-    "mtime": 1785610447.9009974,
-    "ast_hash": "b852e751a2788e61a2bcdcb1719e915f",
+    "mtime": 1785526153.3617334,
+    "ast_hash": "6193964ffe240395f105af5af5c2804f",
     "semantic_hash": ""
   },
   "src/Cluckwork.Api/Endpoints/Water/WaterUsageEndpoints.cs": {
@@ -190,8 +190,8 @@
     "semantic_hash": "6b02cf9c129dcdc1956abca7d17dfe8c"
   },
   "src/Cluckwork.Api/Middleware/IdempotencyMiddleware.cs": {
-    "mtime": 1785610447.9009974,
-    "ast_hash": "5a7e723b87326ec663f1a28ff97611b6",
+    "mtime": 1785440708.8896945,
+    "ast_hash": "9b5c03722eec91d1d5968b5908a631a6",
     "semantic_hash": ""
   },
   "src/Cluckwork.Api/Middleware/TenantResolutionMiddleware.cs": {
@@ -200,8 +200,8 @@
     "semantic_hash": "bc16e1985c5ae3397d13110cd8b316a0"
   },
   "src/Cluckwork.Api/Program.cs": {
-    "mtime": 1785610447.9009974,
-    "ast_hash": "c810453c2d8bcb862c9285e558810b8d",
+    "mtime": 1785526963.5577419,
+    "ast_hash": "fda7f5a40f7544a093d23f365abaa114",
     "semantic_hash": ""
   },
   "src/Cluckwork.Api/RateLimiting/RateLimitKey.cs": {
@@ -210,8 +210,8 @@
     "semantic_hash": "d1e2a7d7a359f5d222abaf9873788295"
   },
   "src/Cluckwork.Api/RateLimiting/RateLimitingOptions.cs": {
-    "mtime": 1785610447.9009974,
-    "ast_hash": "7dbe29b635073cf604858ce47fe7c358",
+    "mtime": 1785440708.8898375,
+    "ast_hash": "889e513514811375e2bb5c8a151a6f7c",
     "semantic_hash": ""
   },
   "src/Cluckwork.Api/Security/SecurityHeaders.cs": {
@@ -270,8 +270,8 @@
     "semantic_hash": "d3717c53989558ca18bd82a4ef56bc77"
   },
   "src/Cluckwork.Application/Common/IIdentityProvider.cs": {
-    "mtime": 1785610447.9009974,
-    "ast_hash": "2f7135d4714c7d889fbd46115b54b1ae",
+    "mtime": 1785427464.188614,
+    "ast_hash": "65db1a799c94c4a4fb4ae1dad8771180",
     "semantic_hash": ""
   },
   "src/Cluckwork.Application/Common/IRepository.cs": {
@@ -675,9 +675,9 @@
     "semantic_hash": "2504583a936364bd5c4ef5e07599902c"
   },
   "src/Cluckwork.Application/Features/Inventory/IInventoryItemRepository.cs": {
-    "mtime": 1785553134.4300222,
-    "ast_hash": "eb4ea1ef76987ca51925730637eca3a9",
-    "semantic_hash": ""
+    "mtime": 1784350706.6748025,
+    "ast_hash": "dc2643b24d8909a9f4ea00d89cfc689a",
+    "semantic_hash": "dc2643b24d8909a9f4ea00d89cfc689a"
   },
   "src/Cluckwork.Application/Features/Inventory/IInventoryLotRepository.cs": {
     "mtime": 1784398514.5960486,
@@ -715,9 +715,9 @@
     "semantic_hash": "8f7843919eeae446b457129515ebc2ee"
   },
   "src/Cluckwork.Application/Features/Inventory/RecordFeedUsage/RecordFeedUsageHandler.cs": {
-    "mtime": 1785553134.4300222,
-    "ast_hash": "3c17a3f05d719d32492b3693678b246e",
-    "semantic_hash": ""
+    "mtime": 1785113987.6135828,
+    "ast_hash": "8026b417276bedc7eea12bd1d9e4ed2e",
+    "semantic_hash": "8026b417276bedc7eea12bd1d9e4ed2e"
   },
   "src/Cluckwork.Application/Features/Inventory/RecordFeedUsage/RecordFeedUsageValidator.cs": {
     "mtime": 1785254316.0003264,
@@ -730,9 +730,9 @@
     "semantic_hash": "1b7ea6a78f416401d42e915abe5949ab"
   },
   "src/Cluckwork.Application/Features/Inventory/RecordPurchase/RecordPurchaseHandler.cs": {
-    "mtime": 1785553134.4300222,
-    "ast_hash": "3027be29433b0ff3f96b4b945cf45c61",
-    "semantic_hash": ""
+    "mtime": 1785123576.6356747,
+    "ast_hash": "2e2318db0739947e5be994aae4e4eead",
+    "semantic_hash": "2e2318db0739947e5be994aae4e4eead"
   },
   "src/Cluckwork.Application/Features/Inventory/RecordPurchase/RecordPurchaseValidator.cs": {
     "mtime": 1785254316.0003264,
@@ -765,9 +765,9 @@
     "semantic_hash": "445a36b2c53209ed7129fc434e7544b9"
   },
   "src/Cluckwork.Application/Features/Inventory/UpdateInventoryItem/UpdateInventoryItemHandler.cs": {
-    "mtime": 1785553134.4300222,
-    "ast_hash": "507c365e5625802983524889e64e89a0",
-    "semantic_hash": ""
+    "mtime": 1785123576.6356747,
+    "ast_hash": "07ccd78abc590c2a09da6e10d0b52903",
+    "semantic_hash": "07ccd78abc590c2a09da6e10d0b52903"
   },
   "src/Cluckwork.Application/Features/Inventory/UpdateInventoryItem/UpdateInventoryItemValidator.cs": {
     "mtime": 1785254316.0010095,
@@ -850,9 +850,9 @@
     "semantic_hash": "c5c7ea7b852afb2c442dcd6f1aac50af"
   },
   "src/Cluckwork.Application/Features/Sales/ISalesOrderRepository.cs": {
-    "mtime": 1785553134.4300222,
-    "ast_hash": "ed3b501bddfbaf73d9a641c8391a1da5",
-    "semantic_hash": ""
+    "mtime": 1784347474.2710385,
+    "ast_hash": "d9a6e93409c7577ca85a849cd2ec1430",
+    "semantic_hash": "d9a6e93409c7577ca85a849cd2ec1430"
   },
   "src/Cluckwork.Application/Features/Sales/RecordPayment/RecordPaymentCommand.cs": {
     "mtime": 1784502455.9125502,
@@ -860,9 +860,9 @@
     "semantic_hash": "7ced6bd212aec2e8a816b7c1016df75d"
   },
   "src/Cluckwork.Application/Features/Sales/RecordPayment/RecordPaymentHandler.cs": {
-    "mtime": 1785553134.4300222,
-    "ast_hash": "d264b9fd7ed4fb6f3b68402d14a2e88a",
-    "semantic_hash": ""
+    "mtime": 1785113987.6143892,
+    "ast_hash": "01d651619c08a5c607c895ae253842ab",
+    "semantic_hash": "01d651619c08a5c607c895ae253842ab"
   },
   "src/Cluckwork.Application/Features/Sales/RecordPayment/RecordPaymentValidator.cs": {
     "mtime": 1785254316.0010095,
@@ -910,9 +910,9 @@
     "semantic_hash": "803959fc6b592d341afa679b9be5c7d7"
   },
   "src/Cluckwork.Application/Features/Sales/VoidSale/VoidSaleHandler.cs": {
-    "mtime": 1785553134.4300222,
-    "ast_hash": "a7723e36ca03b8d73df19ead314e8afb",
-    "semantic_hash": ""
+    "mtime": 1785113987.615389,
+    "ast_hash": "60c3bf9331af9c41ee71fa8105a1b9cc",
+    "semantic_hash": "60c3bf9331af9c41ee71fa8105a1b9cc"
   },
   "src/Cluckwork.Application/Features/Sales/VoidSale/VoidSaleValidator.cs": {
     "mtime": 1785254316.0010095,
@@ -935,22 +935,22 @@
     "semantic_hash": "76ca5feab08c30e226efa601a7e08300"
   },
   "src/Cluckwork.Application/Features/Users/ChangeOwnPassword/ChangeOwnPasswordValidator.cs": {
-    "mtime": 1785550355.9883184,
+    "mtime": 1785523655.3038127,
     "ast_hash": "8c5c8d73863882cbd9ff5e92029194f3",
     "semantic_hash": ""
   },
   "src/Cluckwork.Application/Features/Users/CreateUser/CreateUserCommand.cs": {
-    "mtime": 1785610447.9009974,
-    "ast_hash": "286bc4ce2eea2ac218e8cba1f5f9e03a",
-    "semantic_hash": ""
+    "mtime": 1784860042.2416618,
+    "ast_hash": "f6c280af107218bf05d9bf6e3026f05e",
+    "semantic_hash": "f6c280af107218bf05d9bf6e3026f05e"
   },
   "src/Cluckwork.Application/Features/Users/CreateUser/CreateUserHandler.cs": {
-    "mtime": 1785610447.9009974,
-    "ast_hash": "52f5b2a4b68cdae8c0bfac5aa81ef87b",
-    "semantic_hash": ""
+    "mtime": 1784860042.2416618,
+    "ast_hash": "0df24e9c77a39dba367a7e695bf17d09",
+    "semantic_hash": "0df24e9c77a39dba367a7e695bf17d09"
   },
   "src/Cluckwork.Application/Features/Users/CreateUser/CreateUserValidator.cs": {
-    "mtime": 1785550355.9883184,
+    "mtime": 1785523661.7214155,
     "ast_hash": "5fa488f89f1eb5ef2c5d6017ffefbede",
     "semantic_hash": ""
   },
@@ -960,7 +960,7 @@
     "semantic_hash": "f6e8e4d9a299d01fe7c71e7d7d303b93"
   },
   "src/Cluckwork.Application/Features/Users/PasswordRules.cs": {
-    "mtime": 1785550355.9883184,
+    "mtime": 1785523646.2807631,
     "ast_hash": "998cb079a7086c55c25db94d2140bd6a",
     "semantic_hash": ""
   },
@@ -980,17 +980,17 @@
     "semantic_hash": "fc4a29d1e3adea5a05726598c14ecaee"
   },
   "src/Cluckwork.Application/Features/Users/SetUserPassword/SetUserPasswordCommand.cs": {
-    "mtime": 1785610447.9009974,
-    "ast_hash": "84503285d17071c1f5457ba7725deaae",
-    "semantic_hash": ""
+    "mtime": 1784864424.4555247,
+    "ast_hash": "f5e1d55961a8b886772b38a079ef76fc",
+    "semantic_hash": "f5e1d55961a8b886772b38a079ef76fc"
   },
   "src/Cluckwork.Application/Features/Users/SetUserPassword/SetUserPasswordHandler.cs": {
-    "mtime": 1785610447.9009974,
-    "ast_hash": "3dde636dcfc61448178c08be82d3419d",
-    "semantic_hash": ""
+    "mtime": 1784864424.4555411,
+    "ast_hash": "3ad293c9d159bc540757970e148b7e96",
+    "semantic_hash": "3ad293c9d159bc540757970e148b7e96"
   },
   "src/Cluckwork.Application/Features/Users/SetUserPassword/SetUserPasswordValidator.cs": {
-    "mtime": 1785550355.9883184,
+    "mtime": 1785523668.8327756,
     "ast_hash": "4f21dbf40986854176a4c6633686dac3",
     "semantic_hash": ""
   },
@@ -1235,9 +1235,9 @@
     "semantic_hash": "01033a859e5ba10466cfd2ca340186ef"
   },
   "src/Cluckwork.Infrastructure/Identity/ApplicationUser.cs": {
-    "mtime": 1785610447.9009974,
-    "ast_hash": "e59af37ae84f67464237d72fce4aba0a",
-    "semantic_hash": ""
+    "mtime": 1785045483.7971597,
+    "ast_hash": "0f21a0ae0c9fe254f923dc0ca23b798c",
+    "semantic_hash": "0f21a0ae0c9fe254f923dc0ca23b798c"
   },
   "src/Cluckwork.Infrastructure/Identity/CurrentUserContext.cs": {
     "mtime": 1784590965.968938,
@@ -1245,19 +1245,19 @@
     "semantic_hash": "4b9c71d03c48ab1dd0af64d5c9fc0f26"
   },
   "src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs": {
-    "mtime": 1785610447.9009974,
-    "ast_hash": "86ba3d988b5e50b8cde4aeb13626004f",
+    "mtime": 1785427464.1886904,
+    "ast_hash": "21080f5109d37a548d3d93109912b6d7",
     "semantic_hash": ""
   },
   "src/Cluckwork.Infrastructure/Identity/JwtOptions.cs": {
-    "mtime": 1785610447.9109087,
-    "ast_hash": "8b78238e0c53b5fe72800b04bdbda7d2",
-    "semantic_hash": ""
+    "mtime": 1784855572.1303678,
+    "ast_hash": "00f2b8a2dd4d02dd087c1faffe1b13b6",
+    "semantic_hash": "00f2b8a2dd4d02dd087c1faffe1b13b6"
   },
   "src/Cluckwork.Infrastructure/Identity/JwtTokenService.cs": {
-    "mtime": 1785610447.912301,
-    "ast_hash": "a005a49130f18a9f3dfc5a7dcaf16552",
-    "semantic_hash": ""
+    "mtime": 1784430772.3932803,
+    "ast_hash": "343e8147dd198223fb9c876d81e9d24f",
+    "semantic_hash": "343e8147dd198223fb9c876d81e9d24f"
   },
   "src/Cluckwork.Infrastructure/Identity/PemKey.cs": {
     "mtime": 1784092461.288404,
@@ -1265,8 +1265,13 @@
     "semantic_hash": "da74bae60144a86733dc119902eee5d5"
   },
   "src/Cluckwork.Infrastructure/Identity/RefreshToken.cs": {
-    "mtime": 1785565217.9998887,
-    "ast_hash": "97f997d0b16977c8ece89a5ab53fdf1e",
+    "mtime": 1784855572.1303678,
+    "ast_hash": "1d2a9846e9d29314d45bef406421b100",
+    "semantic_hash": "1d2a9846e9d29314d45bef406421b100"
+  },
+  "src/Cluckwork.Infrastructure/Identity/SeedOptions.cs": {
+    "mtime": 1785427464.188717,
+    "ast_hash": "2bd1ab4045df3eed9939902adc46c341",
     "semantic_hash": ""
   },
   "src/Cluckwork.Infrastructure/Jobs/DailyEntryLockSweep.cs": {
@@ -1275,9 +1280,9 @@
     "semantic_hash": "954d0c0814e55a1f5e0c4a5cec4932e6"
   },
   "src/Cluckwork.Infrastructure/Jobs/DurableJobWorker.cs": {
-    "mtime": 1785565217.9999368,
-    "ast_hash": "5c3cc0bd78d9659d093ee71123536609",
-    "semantic_hash": ""
+    "mtime": 1784481022.0757215,
+    "ast_hash": "5adc1f92c3dad15c45de7ae7bfe02b43",
+    "semantic_hash": "5adc1f92c3dad15c45de7ae7bfe02b43"
   },
   "src/Cluckwork.Infrastructure/Jobs/DurableJobWorkerHeartbeat.cs": {
     "mtime": 1784432941.5287979,
@@ -1290,14 +1295,14 @@
     "semantic_hash": ""
   },
   "src/Cluckwork.Infrastructure/Persistence/AppDbContextDesignTimeFactory.cs": {
-    "mtime": 1785557045.3998942,
-    "ast_hash": "d3749c11b9f358a73efaab849ad4dae3",
+    "mtime": 1785440708.8898675,
+    "ast_hash": "23461ff6b97e7b8b70c62be184a38aef",
     "semantic_hash": ""
   },
   "src/Cluckwork.Infrastructure/Persistence/Configurations/AccountConfiguration.cs": {
-    "mtime": 1785610447.9124048,
-    "ast_hash": "358f530543eff582c712555f729c7eb5",
-    "semantic_hash": ""
+    "mtime": 1785034503.749482,
+    "ast_hash": "fb376479a3601b2750eda7ed23dd12a1",
+    "semantic_hash": "fb376479a3601b2750eda7ed23dd12a1"
   },
   "src/Cluckwork.Infrastructure/Persistence/Configurations/ApplicationUserConfiguration.cs": {
     "mtime": 1785045483.7971597,
@@ -1310,14 +1315,14 @@
     "semantic_hash": "1ff54c228b8c6e8148e4cf0648f4309b"
   },
   "src/Cluckwork.Infrastructure/Persistence/Configurations/CatalogConfiguration.cs": {
-    "mtime": 1785610447.9124048,
-    "ast_hash": "1be834377602d4e98f137593d153811e",
-    "semantic_hash": ""
+    "mtime": 1784518384.0156224,
+    "ast_hash": "dd50661dece209ee005786271a065149",
+    "semantic_hash": "dd50661dece209ee005786271a065149"
   },
   "src/Cluckwork.Infrastructure/Persistence/Configurations/DailyEntryConfiguration.cs": {
-    "mtime": 1785610447.9124048,
-    "ast_hash": "dbf3ca782990fe83887a320ba166efdd",
-    "semantic_hash": ""
+    "mtime": 1784520294.5590816,
+    "ast_hash": "45bc1a5d819400402e94f8599563aae1",
+    "semantic_hash": "45bc1a5d819400402e94f8599563aae1"
   },
   "src/Cluckwork.Infrastructure/Persistence/Configurations/EggInventoryMovementConfiguration.cs": {
     "mtime": 1784523771.7927787,
@@ -1364,15 +1369,20 @@
     "ast_hash": "3bad3ca3d3448f274df4bc98a72f6964",
     "semantic_hash": "3bad3ca3d3448f274df4bc98a72f6964"
   },
+  "src/Cluckwork.Infrastructure/Persistence/DatabaseSeeder.cs": {
+    "mtime": 1785429601.1876874,
+    "ast_hash": "68df3478b137a70ef73d53bc031857cb",
+    "semantic_hash": ""
+  },
   "src/Cluckwork.Infrastructure/Persistence/DemoDataSeeder.cs": {
-    "mtime": 1785610447.9124048,
-    "ast_hash": "fbabbba6d215857a565f698d1b4a0447",
+    "mtime": 1785394695.2562196,
+    "ast_hash": "22c2b226b2a0c53c30d420cda3349f83",
     "semantic_hash": ""
   },
   "src/Cluckwork.Infrastructure/Persistence/IdempotencyRecord.cs": {
-    "mtime": 1785565217.9999368,
-    "ast_hash": "ac4e26d6e2fc67c50e4421db54f01fe6",
-    "semantic_hash": ""
+    "mtime": 1783757314.9779792,
+    "ast_hash": "c09b04413920a87e248776693d18a604",
+    "semantic_hash": "c09b04413920a87e248776693d18a604"
   },
   "src/Cluckwork.Infrastructure/Persistence/Interceptors/TenantStampInterceptor.cs": {
     "mtime": 1783757314.9779792,
@@ -1680,8 +1690,8 @@
     "semantic_hash": "e6e38cd9fe9abe739558ed775c69c965"
   },
   "src/Cluckwork.Infrastructure/Persistence/Migrations/AppDbContextModelSnapshot.cs": {
-    "mtime": 1785610447.9124048,
-    "ast_hash": "6f79c629fe027a4c91269cfb31ac40df",
+    "mtime": 1785394695.256518,
+    "ast_hash": "2576bd9ec689bba7e3db60b8264b6973",
     "semantic_hash": ""
   },
   "src/Cluckwork.Infrastructure/Persistence/TenantContext.cs": {
@@ -1690,9 +1700,9 @@
     "semantic_hash": "24e4401d3dce3d7393c99c1488e86076"
   },
   "src/Cluckwork.Infrastructure/Persistence/UnitOfWork.cs": {
-    "mtime": 1785565218.0000541,
-    "ast_hash": "1c801db4a5093d9efc070d1306f04ff1",
-    "semantic_hash": ""
+    "mtime": 1784783933.9763181,
+    "ast_hash": "1c72d593abf02d7f273f269e07e19887",
+    "semantic_hash": "1c72d593abf02d7f273f269e07e19887"
   },
   "src/Cluckwork.Infrastructure/Providers/IDbProviderConfigurator.cs": {
     "mtime": 1783757314.9781244,
@@ -1785,9 +1795,9 @@
     "semantic_hash": "f8cf55e8ce7f2f4dd1b51f7abfe461ba"
   },
   "src/Cluckwork.Infrastructure/Repositories/InventoryItemRepository.cs": {
-    "mtime": 1785553134.4300222,
-    "ast_hash": "7ba76ec89cd558828e3d72036efcc8e3",
-    "semantic_hash": ""
+    "mtime": 1784350706.6750748,
+    "ast_hash": "098fc1624486e4ebdc4ae669ee93e3f9",
+    "semantic_hash": "098fc1624486e4ebdc4ae669ee93e3f9"
   },
   "src/Cluckwork.Infrastructure/Repositories/InventoryLotRepository.cs": {
     "mtime": 1784398514.5961564,
@@ -1805,9 +1815,9 @@
     "semantic_hash": "7cb6828cb958b9351412b1fd05b6344a"
   },
   "src/Cluckwork.Infrastructure/Repositories/ReportQueries.cs": {
-    "mtime": 1785610447.9124048,
-    "ast_hash": "a3700950f001312474259fff055194cb",
-    "semantic_hash": ""
+    "mtime": 1784504024.3579543,
+    "ast_hash": "65a022e1e225cfd78e3378611d89732c",
+    "semantic_hash": "65a022e1e225cfd78e3378611d89732c"
   },
   "src/Cluckwork.Infrastructure/Repositories/SalesOrderAllocationRepository.cs": {
     "mtime": 1784347474.2714732,
@@ -1815,9 +1825,9 @@
     "semantic_hash": "d4997588f8d2c99651c58c3a3662b33a"
   },
   "src/Cluckwork.Infrastructure/Repositories/SalesOrderRepository.cs": {
-    "mtime": 1785553134.4300222,
-    "ast_hash": "87fddfd0d463b0468a25eda1ef8f4ed1",
-    "semantic_hash": ""
+    "mtime": 1784347474.2714732,
+    "ast_hash": "d7bf25af58db922a815bab1099da7d2e",
+    "semantic_hash": "d7bf25af58db922a815bab1099da7d2e"
   },
   "src/Cluckwork.Infrastructure/Repositories/UserRoleAssignmentRepository.cs": {
     "mtime": 1784590965.968938,
@@ -1845,9 +1855,9 @@
     "semantic_hash": "d7bb9d82e1f39fdec55ca88103adf106"
   },
   "tests/Cluckwork.Api.IntegrationTests/AdminGatingTests.cs": {
-    "mtime": 1785610447.9124048,
-    "ast_hash": "b03711371b1e89b4f5514b804eab9b1c",
-    "semantic_hash": ""
+    "mtime": 1784864424.4556804,
+    "ast_hash": "52be5e664f90ad4d72b52068ed1630dd",
+    "semantic_hash": "52be5e664f90ad4d72b52068ed1630dd"
   },
   "tests/Cluckwork.Api.IntegrationTests/AuditTests.cs": {
     "mtime": 1784520561.894838,
@@ -1855,14 +1865,14 @@
     "semantic_hash": "b08bb91b42a211551975d2a54cce8850"
   },
   "tests/Cluckwork.Api.IntegrationTests/AuthCookieContractTests.cs": {
-    "mtime": 1785550355.9890115,
+    "mtime": 1785527004.7873905,
     "ast_hash": "76bd66155e4ade19a2f3fe5c102fcecc",
     "semantic_hash": ""
   },
   "tests/Cluckwork.Api.IntegrationTests/BaselineSeedCurrencyTests.cs": {
-    "mtime": 1785610447.9124048,
-    "ast_hash": "322dfeb9c14c579262306f6500ec2ce0",
-    "semantic_hash": ""
+    "mtime": 1785208510.772723,
+    "ast_hash": "26c0c52a0afaee18d8f723582de04fe3",
+    "semantic_hash": "26c0c52a0afaee18d8f723582de04fe3"
   },
   "tests/Cluckwork.Api.IntegrationTests/BirdMovementTests.cs": {
     "mtime": 1784775886.869277,
@@ -1885,9 +1895,9 @@
     "semantic_hash": "f15a48aabc3b5a91ebb1b669d470bcb8"
   },
   "tests/Cluckwork.Api.IntegrationTests/CurrencyLockRaceTests.cs": {
-    "mtime": 1785553134.4300222,
-    "ast_hash": "4300a35f01941c3999806aef5f5c37bd",
-    "semantic_hash": ""
+    "mtime": 1785123576.6356747,
+    "ast_hash": "9f9aed9603f03bf0924c118546871054",
+    "semantic_hash": "9f9aed9603f03bf0924c118546871054"
   },
   "tests/Cluckwork.Api.IntegrationTests/CurrencyLockSerializationTests.cs": {
     "mtime": 1785034503.7498512,
@@ -1910,8 +1920,8 @@
     "semantic_hash": "8d9c1d84f0d020155b572fe0efd495ce"
   },
   "tests/Cluckwork.Api.IntegrationTests/DemoSeedTests.cs": {
-    "mtime": 1785610447.9129086,
-    "ast_hash": "dac1780a9d1e9805874402330b15ce3f",
+    "mtime": 1785394695.2569818,
+    "ast_hash": "c167507dff15da2a86da259de7c2eaaf",
     "semantic_hash": ""
   },
   "tests/Cluckwork.Api.IntegrationTests/DurableJobWorkerResilienceTests.cs": {
@@ -1975,9 +1985,9 @@
     "semantic_hash": "0b6aaa0f36913c2ce3937c4f5e2868ae"
   },
   "tests/Cluckwork.Api.IntegrationTests/FarmLogoTests.cs": {
-    "mtime": 1785557045.4000504,
-    "ast_hash": "c6bbb4b672173389ae8fcbd2ea0b07fa",
-    "semantic_hash": ""
+    "mtime": 1784852648.6710873,
+    "ast_hash": "b8ba5474d8882ced07324b831ab27e91",
+    "semantic_hash": "b8ba5474d8882ced07324b831ab27e91"
   },
   "tests/Cluckwork.Api.IntegrationTests/FarmSettingsTests.cs": {
     "mtime": 1785034503.750123,
@@ -2015,13 +2025,13 @@
     "semantic_hash": ""
   },
   "tests/Cluckwork.Api.IntegrationTests/IdempotencyUserScopeTests.cs": {
-    "mtime": 1785565218.0000541,
-    "ast_hash": "35b14e5b3ce5105dc8b54e1943d91fc7",
-    "semantic_hash": ""
+    "mtime": 1785045483.7971597,
+    "ast_hash": "a2664d8acfe01339e5f5462196b9e22f",
+    "semantic_hash": "a2664d8acfe01339e5f5462196b9e22f"
   },
   "tests/Cluckwork.Api.IntegrationTests/Infrastructure/CluckworkWebApplicationFactory.cs": {
-    "mtime": 1785553134.4300222,
-    "ast_hash": "73a49f1fa5bf28e75f8af5360245d432",
+    "mtime": 1785522151.15524,
+    "ast_hash": "a9a3ee5f391a07f46895695d0d43355c",
     "semantic_hash": ""
   },
   "tests/Cluckwork.Api.IntegrationTests/Infrastructure/FakeRemoteIpStartupFilter.cs": {
@@ -2035,9 +2045,9 @@
     "semantic_hash": "9963f12f1a715e030a6c8c753875dbea"
   },
   "tests/Cluckwork.Api.IntegrationTests/Infrastructure/TestHarness.cs": {
-    "mtime": 1785610447.9139411,
-    "ast_hash": "b607ccbcfb8200325772c5e5fd796b61",
-    "semantic_hash": ""
+    "mtime": 1784864424.4557354,
+    "ast_hash": "a8bc0d45ff6fb891c0ce9e5e99d12762",
+    "semantic_hash": "a8bc0d45ff6fb891c0ce9e5e99d12762"
   },
   "tests/Cluckwork.Api.IntegrationTests/InventoryTests.cs": {
     "mtime": 1784350706.6750748,
@@ -2050,9 +2060,9 @@
     "semantic_hash": "92824b1df38add45817be6aea76cca3e"
   },
   "tests/Cluckwork.Api.IntegrationTests/OtlpExporterTests.cs": {
-    "mtime": 1785557045.4001148,
-    "ast_hash": "e7deee10ccf46f462c3d97aef31af967",
-    "semantic_hash": ""
+    "mtime": 1785045483.7975326,
+    "ast_hash": "4f917dbfdecc80a0aeaa70ca92a4b811",
+    "semantic_hash": "4f917dbfdecc80a0aeaa70ca92a4b811"
   },
   "tests/Cluckwork.Api.IntegrationTests/PaymentsTests.cs": {
     "mtime": 1784520561.8950272,
@@ -2065,12 +2075,12 @@
     "semantic_hash": "3952ebed99d6fef41ab226b5ecb5fcb3"
   },
   "tests/Cluckwork.Api.IntegrationTests/RateLimitingOptionsTests.cs": {
-    "mtime": 1785610447.9139411,
-    "ast_hash": "dbfca8071f9fefa3de063ed70c36ef4a",
-    "semantic_hash": ""
+    "mtime": 1784768769.5915585,
+    "ast_hash": "208ccb0a1446d69781bc4af37233b7a0",
+    "semantic_hash": "208ccb0a1446d69781bc4af37233b7a0"
   },
   "tests/Cluckwork.Api.IntegrationTests/RateLimitingTests.cs": {
-    "mtime": 1785550355.9892263,
+    "mtime": 1785526896.3440247,
     "ast_hash": "6ec553113e095efdad062ccafcded49c",
     "semantic_hash": ""
   },
@@ -2085,9 +2095,9 @@
     "semantic_hash": "259aee6c089b4c0c18329975904e208b"
   },
   "tests/Cluckwork.Api.IntegrationTests/ReportsTests.cs": {
-    "mtime": 1785610447.9139411,
-    "ast_hash": "bd4aba413e09ea9be0edbdabcd6ea882",
-    "semantic_hash": ""
+    "mtime": 1784520561.8950272,
+    "ast_hash": "58056ebda8152e80cf85b7323167a6b3",
+    "semantic_hash": "58056ebda8152e80cf85b7323167a6b3"
   },
   "tests/Cluckwork.Api.IntegrationTests/RequestLoggingTests.cs": {
     "mtime": 1785035226.4097853,
@@ -2105,18 +2115,18 @@
     "semantic_hash": "8b8fd6672a4572096b272a302af4c166"
   },
   "tests/Cluckwork.Api.IntegrationTests/SecurityHeadersTests.cs": {
-    "mtime": 1785610447.9139411,
-    "ast_hash": "fdaf08809749cf67871dc7b967c17960",
-    "semantic_hash": ""
+    "mtime": 1785034503.750227,
+    "ast_hash": "f16b2b1b7794b140ce93122ea810c4f8",
+    "semantic_hash": "f16b2b1b7794b140ce93122ea810c4f8"
   },
   "tests/Cluckwork.Api.IntegrationTests/SeedAndFlockTests.cs": {
-    "mtime": 1785610447.9139411,
-    "ast_hash": "76a54d668539677dc4cb1026f9413819",
-    "semantic_hash": ""
+    "mtime": 1784174388.4094005,
+    "ast_hash": "a9e84fae51ec13925d752ea35de9a3fe",
+    "semantic_hash": "a9e84fae51ec13925d752ea35de9a3fe"
   },
   "tests/Cluckwork.Api.IntegrationTests/StaticAssetCachingTests.cs": {
-    "mtime": 1785557045.4001148,
-    "ast_hash": "d0892a6edb07b8f1e812378c8ed474f3",
+    "mtime": 1785451847.902739,
+    "ast_hash": "2c61bb12506d6383e64a185cebe3883b",
     "semantic_hash": ""
   },
   "tests/Cluckwork.Api.IntegrationTests/SubmitDailyEntryTests.cs": {
@@ -2295,19 +2305,19 @@
     "semantic_hash": "8d5dd0b4988a0fef86c76948d2e4a01b"
   },
   "web/src/api/client.test.ts": {
-    "mtime": 1785610447.9152253,
-    "ast_hash": "bca0fabb3b4d2363d8382b4190da38d7",
-    "semantic_hash": ""
+    "mtime": 1785113987.6167603,
+    "ast_hash": "c6c3573a8d95387e64d887f3222eefcc",
+    "semantic_hash": "c6c3573a8d95387e64d887f3222eefcc"
   },
   "web/src/api/client.ts": {
-    "mtime": 1785610447.9153123,
-    "ast_hash": "575cba4c49513b288ebeea2acdf719c4",
-    "semantic_hash": ""
+    "mtime": 1785113987.6168513,
+    "ast_hash": "e69c3cdddc939520b9b7e7de530dbb6d",
+    "semantic_hash": "e69c3cdddc939520b9b7e7de530dbb6d"
   },
   "web/src/api/cluckwork.ts": {
-    "mtime": 1785610447.9153738,
-    "ast_hash": "569e4fb85799e40212b5d753f4f4c5f0",
-    "semantic_hash": ""
+    "mtime": 1785113987.616953,
+    "ast_hash": "a3bdcf8bb9c83974327d01abdcf10cac",
+    "semantic_hash": "a3bdcf8bb9c83974327d01abdcf10cac"
   },
   "web/src/api/errorReport.test.ts": {
     "mtime": 1785113987.6169977,
@@ -2335,9 +2345,9 @@
     "semantic_hash": "53eb06be40f899af7e9daae3b6fa8ae2"
   },
   "web/src/auth/AuthContext.lifecycle.test.tsx": {
-    "mtime": 1785610447.9154398,
-    "ast_hash": "540909bc540a878a044e2949e812f38e",
-    "semantic_hash": ""
+    "mtime": 1785034503.7514338,
+    "ast_hash": "37b3eebe73686d170f0342cc172caacc",
+    "semantic_hash": "37b3eebe73686d170f0342cc172caacc"
   },
   "web/src/auth/AuthContext.test.tsx": {
     "mtime": 1784795673.5694387,
@@ -2345,19 +2355,19 @@
     "semantic_hash": "51a09b3782103bbcc6bee3327f608467"
   },
   "web/src/auth/AuthContext.tsx": {
-    "mtime": 1785610447.9154398,
-    "ast_hash": "251d6c90c76d24067939073117a5f145",
-    "semantic_hash": ""
+    "mtime": 1785034503.7514338,
+    "ast_hash": "fa342e9eb960d9a0366bfefde0415424",
+    "semantic_hash": "fa342e9eb960d9a0366bfefde0415424"
   },
   "web/src/auth/claims.test.ts": {
-    "mtime": 1785610447.9154398,
-    "ast_hash": "19869e6062d159ff0503cf83878374a8",
-    "semantic_hash": ""
+    "mtime": 1784795673.5694873,
+    "ast_hash": "9627f0173d2b54750f8c6e8bea725507",
+    "semantic_hash": "9627f0173d2b54750f8c6e8bea725507"
   },
   "web/src/auth/claims.ts": {
-    "mtime": 1785610447.9154398,
-    "ast_hash": "095060468f0f14fab3af5af9b198f3ef",
-    "semantic_hash": ""
+    "mtime": 1784795673.5694873,
+    "ast_hash": "b06775aabaeeeeaf1e64b868cf46b265",
+    "semantic_hash": "b06775aabaeeeeaf1e64b868cf46b265"
   },
   "web/src/auth/tokenStore.test.ts": {
     "mtime": 1784795673.5694873,
@@ -2515,8 +2525,8 @@
     "semantic_hash": "7e9601e4b12e9a43b2fcbf5d687fd96d"
   },
   "web/src/i18n/en.ts": {
-    "mtime": 1785610447.915814,
-    "ast_hash": "7dbf41950643ee3a02701c27804f3baa",
+    "mtime": 1785526352.9018178,
+    "ast_hash": "18155528664ea9214e8bff52beef787c",
     "semantic_hash": ""
   },
   "web/src/i18n/enums.test.ts": {
@@ -2530,8 +2540,8 @@
     "semantic_hash": ""
   },
   "web/src/i18n/es.ts": {
-    "mtime": 1785610447.916049,
-    "ast_hash": "2a1ff7bec3af4385b60f51215bfb9d93",
+    "mtime": 1785526358.4933076,
+    "ast_hash": "c7bf3bfcec73929b14a3bdf7653f50f8",
     "semantic_hash": ""
   },
   "web/src/i18n/formattingIndependence.test.ts": {
@@ -2565,8 +2575,8 @@
     "semantic_hash": "44bfd74f0356d27be48aaf2adf4d4389"
   },
   "web/src/i18n/tl.ts": {
-    "mtime": 1785610447.9162774,
-    "ast_hash": "c6d601fd108cb840ae0356b46689c926",
+    "mtime": 1785526363.5016222,
+    "ast_hash": "89de129af2b6f3fc2c2c1e63192c2d9d",
     "semantic_hash": ""
   },
   "web/src/i18n/translations-status.ts": {
@@ -2670,7 +2680,7 @@
     "semantic_hash": "158052ad7ad16d575de38b94eae77e7d"
   },
   "web/src/routes/AccountPage.tsx": {
-    "mtime": 1785550355.9911866,
+    "mtime": 1785526335.7667325,
     "ast_hash": "1c93f06530d5ef58e87c5d99a0ab4c57",
     "semantic_hash": ""
   },
@@ -2765,14 +2775,14 @@
     "semantic_hash": "83c1e58142ea99149986f884f0159f98"
   },
   "web/src/routes/HelpPage.test.tsx": {
-    "mtime": 1785610447.9163532,
-    "ast_hash": "eb7b763a8e1f33202316294fb630afbf",
-    "semantic_hash": ""
+    "mtime": 1785223361.3080275,
+    "ast_hash": "f83286b9cadb54710f885c106a1d1f19",
+    "semantic_hash": "f83286b9cadb54710f885c106a1d1f19"
   },
   "web/src/routes/HelpPage.tsx": {
-    "mtime": 1785610447.9164097,
-    "ast_hash": "c9b417a15eed8b0fb3fc928951c2d8cc",
-    "semantic_hash": ""
+    "mtime": 1785254321.4778435,
+    "ast_hash": "13f53e29c22d111f814707801f3f3ac4",
+    "semantic_hash": "13f53e29c22d111f814707801f3f3ac4"
   },
   "web/src/routes/HistoryPage.test.tsx": {
     "mtime": 1785254321.4778974,
@@ -2795,12 +2805,12 @@
     "semantic_hash": "4ebffd82ef7baf1a91162765d7e1a5ca"
   },
   "web/src/routes/Login.test.tsx": {
-    "mtime": 1785550355.991292,
+    "mtime": 1785526373.5029182,
     "ast_hash": "682ea7f4d60fd6d9529bc3ebaf2e3c59",
     "semantic_hash": ""
   },
   "web/src/routes/Login.tsx": {
-    "mtime": 1785550355.9914274,
+    "mtime": 1785526328.7416973,
     "ast_hash": "605ed35fb27209a342df59483dc181ed",
     "semantic_hash": ""
   },
@@ -2815,24 +2825,24 @@
     "semantic_hash": "d5884b9ff85505c5bf566bb7242c2ab5"
   },
   "web/src/routes/ProtectedRoute.test.tsx": {
-    "mtime": 1785610447.9164097,
-    "ast_hash": "555719977ce50441a419c525900b2637",
-    "semantic_hash": ""
+    "mtime": 1785034503.7524765,
+    "ast_hash": "2730fe5940897dcaa9319ebcc109b31a",
+    "semantic_hash": "2730fe5940897dcaa9319ebcc109b31a"
   },
   "web/src/routes/ProtectedRoute.tsx": {
-    "mtime": 1785610447.9164097,
-    "ast_hash": "179dfd7b88fe29d9113572f5efbb0d1c",
-    "semantic_hash": ""
+    "mtime": 1785034503.7524765,
+    "ast_hash": "e4aae974866647f17cc3d224dde138b7",
+    "semantic_hash": "e4aae974866647f17cc3d224dde138b7"
   },
   "web/src/routes/ReportsPage.test.tsx": {
-    "mtime": 1785610447.916544,
-    "ast_hash": "d37b2868e96df3289d37864f0e3cdd7e",
-    "semantic_hash": ""
+    "mtime": 1785212137.737678,
+    "ast_hash": "0c0f590b00d8e4b84cc2bcd7ec7488ee",
+    "semantic_hash": "0c0f590b00d8e4b84cc2bcd7ec7488ee"
   },
   "web/src/routes/ReportsPage.tsx": {
-    "mtime": 1785610447.916544,
-    "ast_hash": "4e06661733b19b3e04e9c6a042c9df86",
-    "semantic_hash": ""
+    "mtime": 1785212137.7377284,
+    "ast_hash": "ba2b05d14a5ddec09b9264a65fa25854",
+    "semantic_hash": "ba2b05d14a5ddec09b9264a65fa25854"
   },
   "web/src/routes/SalesPage.test.tsx": {
     "mtime": 1785254321.4781823,
@@ -2870,13 +2880,13 @@
     "semantic_hash": "003331f02a6737884e34b70c45c6ced6"
   },
   "web/src/routes/UsersPage.test.tsx": {
-    "mtime": 1785610447.9167373,
-    "ast_hash": "249cc6109efb1aa13ebe42736587a533",
-    "semantic_hash": ""
+    "mtime": 1785223361.3090773,
+    "ast_hash": "17a9d73ebcd790fb5ee3de7d6f1c9d67",
+    "semantic_hash": "17a9d73ebcd790fb5ee3de7d6f1c9d67"
   },
   "web/src/routes/UsersPage.tsx": {
-    "mtime": 1785610447.9167879,
-    "ast_hash": "58efaaf6118fbb99e10dcf547a928286",
+    "mtime": 1785526347.29979,
+    "ast_hash": "21ac6eefe1821ef9ff93c2b61ff1c350",
     "semantic_hash": ""
   },
   "web/src/routes/WaterPage.test.tsx": {
@@ -2985,8 +2995,8 @@
     "semantic_hash": "3def9f69d7036b34da869b5d3279f65d"
   },
   "web/vite.config.ts": {
-    "mtime": 1785610447.9168665,
-    "ast_hash": "ca8730b56f9f42e629f0c822520bf1b3",
+    "mtime": 1785448398.9666615,
+    "ast_hash": "2ccf15303bfb263e6e08584d69d7b10d",
     "semantic_hash": ""
   },
   ".claude/skills/verify/SKILL.md": {
@@ -3000,8 +3010,8 @@
     "semantic_hash": ""
   },
   ".github/workflows/ci.yml": {
-    "mtime": 1785550175.1489098,
-    "ast_hash": "3420986bcc9be7b8402e64cd5f4166b4",
+    "mtime": 1785522426.578485,
+    "ast_hash": "adb8443692aa97a8aae0c28b2922b581",
     "semantic_hash": ""
   },
   ".github/workflows/codeql.yml": {
@@ -3025,28 +3035,28 @@
     "semantic_hash": ""
   },
   "AGENTS.md": {
-    "mtime": 1785610447.900554,
-    "ast_hash": "5515805abe692c55503a6d5d0cfc25f7",
+    "mtime": 1785452528.7424011,
+    "ast_hash": "50b3d74d02e619f938b973949b8ec364",
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1785610447.9006093,
-    "ast_hash": "dd2b3d6d39d77d6364e5481c9c3489a0",
+    "mtime": 1785448398.9463925,
+    "ast_hash": "20ac1419ee7ac106757ead6684aee7c9",
     "semantic_hash": ""
   },
   "deploy/README.md": {
-    "mtime": 1785557045.3996398,
-    "ast_hash": "fe6050f0239b6c8bdbb0ede531f0f856",
+    "mtime": 1785451847.8878696,
+    "ast_hash": "92c2029bbbf4c2b1cfa03e7a63d05fe5",
     "semantic_hash": ""
   },
   "deploy/docker-compose.dev.yml": {
-    "mtime": 1785550175.1577628,
-    "ast_hash": "0b1ad8afdf43ad14c7fb2df019aeeb03",
-    "semantic_hash": ""
+    "mtime": 1784098845.9046383,
+    "ast_hash": "5da844577a3611bd7e1a2552f1e4639e",
+    "semantic_hash": "5da844577a3611bd7e1a2552f1e4639e"
   },
   "deploy/docker-compose.yml": {
-    "mtime": 1785550175.158888,
-    "ast_hash": "dbe10edbfaa3e6d24d6127e22ba4bd6c",
+    "mtime": 1785451847.887896,
+    "ast_hash": "69abcfa62e957c110bfeca0365b5e7d6",
     "semantic_hash": ""
   },
   "deploy/traefik/README.md": {
@@ -3080,8 +3090,8 @@
     "semantic_hash": "1141b245608710b1d7d5109fa38c4a57"
   },
   "specs/product/GLOSSARY.md": {
-    "mtime": 1785610447.9008012,
-    "ast_hash": "549042277beac81f31559ed7d23f7a57",
+    "mtime": 1785427464.188454,
+    "ast_hash": "0fb6f73dcd859431673693f4c4a2ce97",
     "semantic_hash": ""
   },
   "specs/product/README.md": {
@@ -3390,8 +3400,8 @@
     "semantic_hash": ""
   },
   "src/Cluckwork.Infrastructure/Identity/SimulationOptions.cs": {
-    "mtime": 1785610447.912301,
-    "ast_hash": "9c4b9bdabb8718c7ae7f01834ae486f7",
+    "mtime": 1785394695.2559757,
+    "ast_hash": "61d43b7f0bf99fc533b8b007492ee5f0",
     "semantic_hash": ""
   },
   "src/Cluckwork.Infrastructure/Persistence/Migrations/20260730053303_AddSimulationSeedState.Designer.cs": {
@@ -3410,8 +3420,8 @@
     "semantic_hash": ""
   },
   "src/Cluckwork.Infrastructure/Persistence/SimulationDataSeeder.cs": {
-    "mtime": 1785610447.9124048,
-    "ast_hash": "00efff18eeb5ea7120f3aba1885e217e",
+    "mtime": 1785394695.2566738,
+    "ast_hash": "7a20c13e3c731ce5d3468e432f6cea05",
     "semantic_hash": ""
   },
   "src/Cluckwork.Infrastructure/Persistence/SimulationSeedState.cs": {
@@ -3425,13 +3435,13 @@
     "semantic_hash": ""
   },
   "tests/Cluckwork.Api.IntegrationTests/SeedCommandTests.cs": {
-    "mtime": 1785610447.9139411,
-    "ast_hash": "fe0407851fa4b8b9265f75b879b5fd82",
+    "mtime": 1785440708.8901384,
+    "ast_hash": "6e5cba698b9f017e3d4b65efbf066778",
     "semantic_hash": ""
   },
   "tests/Cluckwork.Api.IntegrationTests/SimulationCrossDayRerunTests.cs": {
-    "mtime": 1785610447.9139411,
-    "ast_hash": "1e4edb76902b046e6aad8e05dd695fcc",
+    "mtime": 1785394695.2573256,
+    "ast_hash": "4be3bcd4a4448e9c9241cc6fdfc2289d",
     "semantic_hash": ""
   },
   "tests/Cluckwork.Api.IntegrationTests/SimulationOptionsBindingTests.cs": {
@@ -3440,18 +3450,18 @@
     "semantic_hash": ""
   },
   "tests/Cluckwork.Api.IntegrationTests/SimulationSeedCommandTests.cs": {
-    "mtime": 1785610447.9139411,
-    "ast_hash": "8272dc1517826dac4ecd424dcfe59a45",
+    "mtime": 1785440708.8901706,
+    "ast_hash": "9ca9cf36eb51e2f97094575679b06581",
     "semantic_hash": ""
   },
   "tests/Cluckwork.Api.IntegrationTests/SimulationSeederTests.cs": {
-    "mtime": 1785610447.9139411,
-    "ast_hash": "b5b657ec0071b3b2c4a256e404ff7b7a",
+    "mtime": 1785394695.25782,
+    "ast_hash": "562fc2e60dcdd23d17f1f5dde8c6be84",
     "semantic_hash": ""
   },
   "tools/simulation/bootstrap.sh": {
-    "mtime": 1785610447.9139411,
-    "ast_hash": "73645a67d9010343f65bfd3f4a172ae1",
+    "mtime": 1785394695.2582884,
+    "ast_hash": "ff9bb3fb36e6306c36ade5094ce2c841",
     "semantic_hash": ""
   },
   "tools/simulation/k6/auth-smoke.js": {
@@ -3520,8 +3530,8 @@
     "semantic_hash": ""
   },
   "tools/simulation/reset.sh": {
-    "mtime": 1785610447.9139411,
-    "ast_hash": "0389aaf5ac9eecbf94cf26757d1ab234",
+    "mtime": 1785440708.89038,
+    "ast_hash": "44194714d3e5715aba73609dcb8e5712",
     "semantic_hash": ""
   },
   "tools/simulation/run-baseline.sh": {
@@ -3530,13 +3540,13 @@
     "semantic_hash": ""
   },
   "tools/simulation/README.md": {
-    "mtime": 1785610447.9139411,
-    "ast_hash": "ac161ac48962fc08b558811de5fb4127",
+    "mtime": 1785440708.8902607,
+    "ast_hash": "5dfb862030275b753cbd36fc1fa516f5",
     "semantic_hash": ""
   },
   "tools/simulation/docker-compose.sim.yml": {
-    "mtime": 1785610447.9139411,
-    "ast_hash": "d6d5cdc47d54aa727e1adeba0944e8ad",
+    "mtime": 1785440708.890289,
+    "ast_hash": "318d02f9f18e95cd86aa9a21bc1df575",
     "semantic_hash": ""
   },
   "tools/simulation/findings/TEMPLATE.md": {
@@ -3550,8 +3560,8 @@
     "semantic_hash": ""
   },
   "src/Cluckwork.Api/Cli/CliDispatcher.cs": {
-    "mtime": 1785610447.900877,
-    "ast_hash": "ad1f4948cbf768cfe13cd3047b0d83e8",
+    "mtime": 1785449121.3445935,
+    "ast_hash": "12a0c5cb54de347557cfabbc134008a4",
     "semantic_hash": ""
   },
   "src/Cluckwork.Api/Cli/ICliCommand.cs": {
@@ -3600,13 +3610,13 @@
     "semantic_hash": ""
   },
   "tests/Cluckwork.Api.IntegrationTests/AdminRecoveryServiceTests.cs": {
-    "mtime": 1785610447.9124048,
-    "ast_hash": "68bf5d53d513a6f542679b98fd111801",
+    "mtime": 1785427464.188814,
+    "ast_hash": "effc543e0fff18b30502de0687875055",
     "semantic_hash": ""
   },
   "tests/Cluckwork.Api.IntegrationTests/CliDispatcherTests.cs": {
-    "mtime": 1785610447.9129086,
-    "ast_hash": "25e4b4eb97bbcd461e603e46612d5499",
+    "mtime": 1785449124.0431623,
+    "ast_hash": "c9e96fbf1f8f5d62c9b521bd7a28b1eb",
     "semantic_hash": ""
   },
   "tests/Cluckwork.Api.IntegrationTests/ConnectionTlsFloorWiringTests.cs": {
@@ -3615,13 +3625,13 @@
     "semantic_hash": ""
   },
   "tests/Cluckwork.Api.IntegrationTests/MigrateCommandTests.cs": {
-    "mtime": 1785550175.1589441,
-    "ast_hash": "352fdda441e0d2eb1bda39aabe7c86f1",
+    "mtime": 1785440708.8900485,
+    "ast_hash": "236b308ae6a5c7a4118ded1c895a1a3e",
     "semantic_hash": ""
   },
   "tests/Cluckwork.Api.IntegrationTests/MigrateOnStartupDisabledTests.cs": {
-    "mtime": 1785610447.9139411,
-    "ast_hash": "a82c1971ac91a4c420db0dda8e346556",
+    "mtime": 1785429601.1883976,
+    "ast_hash": "acf378352d04533b2d3f6bc58a9faceb",
     "semantic_hash": ""
   },
   "tests/Cluckwork.Api.IntegrationTests/PostgresConnectionStringTests.cs": {
@@ -3630,8 +3640,13 @@
     "semantic_hash": ""
   },
   "tests/Cluckwork.Api.IntegrationTests/RecoverAdminCommandTests.cs": {
-    "mtime": 1785557045.4001148,
-    "ast_hash": "ee41a084d00b0eee584b3f16e223f4f2",
+    "mtime": 1785440708.8901024,
+    "ast_hash": "647adf257f6208fd79eaff75b6623b29",
+    "semantic_hash": ""
+  },
+  "tests/Cluckwork.Api.IntegrationTests/SeedTimeZoneTests.cs": {
+    "mtime": 1785427464.1888504,
+    "ast_hash": "1515ae4ffefd2218e4f78bdf44458966",
     "semantic_hash": ""
   },
   "tests/Cluckwork.Api.IntegrationTests/TemporaryPasswordTests.cs": {
@@ -3655,8 +3670,8 @@
     "semantic_hash": ""
   },
   "src/Cluckwork.Api/Hosting/CluckworkFeatureServiceCollectionExtensions.cs": {
-    "mtime": 1785610447.9009974,
-    "ast_hash": "cd6b9fa4f2f8c850b8259708c2b6a9ca",
+    "mtime": 1785523733.4652128,
+    "ast_hash": "27adb6a8ea230be8f732744274f945fc",
     "semantic_hash": ""
   },
   "src/Cluckwork.Api/Hosting/CluckworkHealthServiceCollectionExtensions.cs": {
@@ -3665,23 +3680,23 @@
     "semantic_hash": ""
   },
   "src/Cluckwork.Api/Hosting/CluckworkIdentityServiceCollectionExtensions.cs": {
-    "mtime": 1785610447.9009974,
-    "ast_hash": "c1f8a032cbd8a6f3323c6ef93d2b4beb",
+    "mtime": 1785451847.9025056,
+    "ast_hash": "d604e8e491a78401bbf6f1b069dbc558",
     "semantic_hash": ""
   },
   "src/Cluckwork.Api/Hosting/CluckworkPersistenceServiceCollectionExtensions.cs": {
-    "mtime": 1785610447.9009974,
-    "ast_hash": "a04d813317ce9f159cee879f87adc44b",
+    "mtime": 1785451847.9025328,
+    "ast_hash": "abcf3b4e47b67e53c7f7e718c9fe3755",
     "semantic_hash": ""
   },
   "src/Cluckwork.Api/Hosting/CluckworkRateLimitingServiceCollectionExtensions.cs": {
-    "mtime": 1785610447.9009974,
-    "ast_hash": "fdeebc33e61278325751dbdf796f90fa",
+    "mtime": 1785451847.9025471,
+    "ast_hash": "72066a82d194210b48cd6860ac2709d7",
     "semantic_hash": ""
   },
   "src/Cluckwork.Api/Hosting/CluckworkTelemetryServiceCollectionExtensions.cs": {
-    "mtime": 1785557045.3997545,
-    "ast_hash": "6f5c79d7ffa98726720d2e820acc90e3",
+    "mtime": 1785451847.9025626,
+    "ast_hash": "10a1e03419bdc57c310f9aaf4cafe218",
     "semantic_hash": ""
   },
   "src/Cluckwork.Api/Hosting/CluckworkEdgeSecurityServiceCollectionExtensions.cs": {
@@ -3690,8 +3705,8 @@
     "semantic_hash": ""
   },
   "src/Cluckwork.Api/Hosting/CluckworkJobServiceCollectionExtensions.cs": {
-    "mtime": 1785565217.9995663,
-    "ast_hash": "a658799121d85ac5fa3c0b9fe02bac05",
+    "mtime": 1785451847.9025176,
+    "ast_hash": "5319e964bd1dfb44c4e59c31bf3cdb88",
     "semantic_hash": ""
   },
   "src/Cluckwork.Api/Cli/HealthCheckCliCommand.cs": {
@@ -3705,258 +3720,28 @@
     "semantic_hash": ""
   },
   "src/Cluckwork.Api/Endpoints/Auth/LoginRequestValidator.cs": {
-    "mtime": 1785550355.9869766,
+    "mtime": 1785526165.9778087,
     "ast_hash": "8e6a739b7b35a6646e593d55e4143741",
     "semantic_hash": ""
   },
   "src/Cluckwork.Api/Hosting/RequestBodyLimit.cs": {
-    "mtime": 1785550355.9882236,
+    "mtime": 1785526876.2745929,
     "ast_hash": "ed41b460012f7db90e80034f0a9ae2d0",
     "semantic_hash": ""
   },
   "tests/Cluckwork.Api.IntegrationTests/AuthBodyLimitTests.cs": {
-    "mtime": 1785550355.9888437,
+    "mtime": 1785526826.8690362,
     "ast_hash": "c36caaaca871d11367084f5f0961dad9",
     "semantic_hash": ""
   },
   "tests/Cluckwork.Api.IntegrationTests/LoginRequestValidatorTests.cs": {
-    "mtime": 1785550355.9890115,
+    "mtime": 1785526256.6623216,
     "ast_hash": "e46d711f73b5b5025a77a551a6217fd3",
     "semantic_hash": ""
   },
   "tests/Cluckwork.Application.Tests/Validation/PasswordMaxLengthValidatorTests.cs": {
-    "mtime": 1785550355.9892263,
+    "mtime": 1785526245.3792603,
     "ast_hash": "36b18da27285377123fce1b9d7425994",
-    "semantic_hash": ""
-  },
-  "src/Cluckwork.Api/Hosting/DefaultResponseCaching.cs": {
-    "mtime": 1785557045.3997545,
-    "ast_hash": "3a887b7b78d8aa898fc403b8dd92b66a",
-    "semantic_hash": ""
-  },
-  "src/Cluckwork.Api/Middleware/IdempotencyOptions.cs": {
-    "mtime": 1785565217.999646,
-    "ast_hash": "a297c451bbf9dd2271bec671c5534019",
-    "semantic_hash": ""
-  },
-  "src/Cluckwork.Infrastructure/Jobs/RefreshTokenPurgeSweep.cs": {
-    "mtime": 1785565217.9999368,
-    "ast_hash": "ceb51081df887b6b46b99ed78fed96af",
-    "semantic_hash": ""
-  },
-  "src/Cluckwork.Infrastructure/Persistence/AmbientTransaction.cs": {
-    "mtime": 1785565217.9999368,
-    "ast_hash": "3e4958c5abae8dea76966795df282fd0",
-    "semantic_hash": ""
-  },
-  "src/Cluckwork.Infrastructure/Persistence/Migrations/20260801043601_AddRefreshTokenExpiresAtIndex.Designer.cs": {
-    "mtime": 1785565218.0000541,
-    "ast_hash": "158c553d9ffed0a1dcf70e2ed686eeed",
-    "semantic_hash": ""
-  },
-  "src/Cluckwork.Infrastructure/Persistence/Migrations/20260801043601_AddRefreshTokenExpiresAtIndex.cs": {
-    "mtime": 1785565218.0000541,
-    "ast_hash": "ee4df9293205cd3a5b5b1e18aba54086",
-    "semantic_hash": ""
-  },
-  "src/Cluckwork.Infrastructure/Persistence/Migrations/20260801044729_AtomicIdempotencyClaims.Designer.cs": {
-    "mtime": 1785565218.0000541,
-    "ast_hash": "8be07d0552bc62ba0f0d58c06332792a",
-    "semantic_hash": ""
-  },
-  "src/Cluckwork.Infrastructure/Persistence/Migrations/20260801044729_AtomicIdempotencyClaims.cs": {
-    "mtime": 1785565218.0000541,
-    "ast_hash": "68e8484115923fb0369b687fa990b13e",
-    "semantic_hash": ""
-  },
-  "tests/Cluckwork.Api.IntegrationTests/AllowedHostsGuardTests.cs": {
-    "mtime": 1785550175.1589441,
-    "ast_hash": "7163fa2edf7353a53999899b82fa75cc",
-    "semantic_hash": ""
-  },
-  "tests/Cluckwork.Api.IntegrationTests/AppDbContextDesignTimeFactoryTests.cs": {
-    "mtime": 1785557045.3998942,
-    "ast_hash": "97fc6c3d69f8e29fa68c8fbf5b5e9060",
-    "semantic_hash": ""
-  },
-  "tests/Cluckwork.Api.IntegrationTests/AtomicIdempotencyProtocolTests.cs": {
-    "mtime": 1785565218.0000541,
-    "ast_hash": "089bb3b78252dd61aff9367432a1fd25",
-    "semantic_hash": ""
-  },
-  "tests/Cluckwork.Api.IntegrationTests/KestrelResponseWriteTests.cs": {
-    "mtime": 1785610447.9139411,
-    "ast_hash": "c149ac24c21352a61fe3079caa1ac462",
-    "semantic_hash": ""
-  },
-  "tests/Cluckwork.Api.IntegrationTests/LegacyIdempotencyRowMigrationTests.cs": {
-    "mtime": 1785610447.9139411,
-    "ast_hash": "50b25877aa64e9fb857b0f6728819a6c",
-    "semantic_hash": ""
-  },
-  "tests/Cluckwork.Api.IntegrationTests/MultiInstanceIdempotencyTests.cs": {
-    "mtime": 1785610447.9139411,
-    "ast_hash": "1c6c055cfe7531c45eb6f293d677298a",
-    "semantic_hash": ""
-  },
-  "tests/Cluckwork.Api.IntegrationTests/OtlpSecureEndpointGuardTests.cs": {
-    "mtime": 1785557045.4001148,
-    "ast_hash": "d87e1ff1267dad5ccc14b0aaade8b058",
-    "semantic_hash": ""
-  },
-  "tests/Cluckwork.Api.IntegrationTests/RefreshTokenPurgeSweepTests.cs": {
-    "mtime": 1785565218.0000541,
-    "ast_hash": "cee47efc5790b7dea15ca8301ed45ee5",
-    "semantic_hash": ""
-  },
-  "tests/Cluckwork.Api.IntegrationTests/ResponseCacheControlTests.cs": {
-    "mtime": 1785557045.4001148,
-    "ast_hash": "8b025baaf81f1870f65ae88fa9026768",
-    "semantic_hash": ""
-  },
-  "tests/Cluckwork.Api.IntegrationTests/StealLossConnectionReleaseTests.cs": {
-    "mtime": 1785565218.0000541,
-    "ast_hash": "672725c2c7e58e14e8e25ef85926a323",
-    "semantic_hash": ""
-  },
-  "tests/Cluckwork.Api.IntegrationTests/TenantScopedLockTests.cs": {
-    "mtime": 1785553134.4300222,
-    "ast_hash": "f90efeb4d101d8c7823c631991f7a5ab",
-    "semantic_hash": ""
-  },
-  "src/Cluckwork.Api/Cli/BootstrapAdminCliCommand.cs": {
-    "mtime": 1785610447.900877,
-    "ast_hash": "ce658baa029baa1383887231cf06cf04",
-    "semantic_hash": ""
-  },
-  "src/Cluckwork.Api/Endpoints/Auth/StepUpRequestValidator.cs": {
-    "mtime": 1785610447.9009974,
-    "ast_hash": "c3a180ccaf5f334bffc4df8221006522",
-    "semantic_hash": ""
-  },
-  "src/Cluckwork.Api/Endpoints/Reports/ReportConcurrencyLimitFilter.cs": {
-    "mtime": 1785610447.9009974,
-    "ast_hash": "919d5698fb39ea7a63d985ee6506f729",
-    "semantic_hash": ""
-  },
-  "src/Cluckwork.Api/Middleware/MustChangePasswordMiddleware.cs": {
-    "mtime": 1785610447.9009974,
-    "ast_hash": "a2019020e31e98072107be984df05286",
-    "semantic_hash": ""
-  },
-  "src/Cluckwork.Api/RateLimiting/ReportConcurrencyLimiter.cs": {
-    "mtime": 1785610447.9009974,
-    "ast_hash": "545f081bfa7853d8fd4161e67dfb03cb",
-    "semantic_hash": ""
-  },
-  "src/Cluckwork.Application/Common/IStepUpGrantService.cs": {
-    "mtime": 1785610447.9009974,
-    "ast_hash": "9ee54d02ef982b47176de2405752e2b0",
-    "semantic_hash": ""
-  },
-  "src/Cluckwork.Infrastructure/Identity/AccountLockout.cs": {
-    "mtime": 1785610447.9009974,
-    "ast_hash": "85d68731cf1eb626b4bd6addc06cbfad",
-    "semantic_hash": ""
-  },
-  "src/Cluckwork.Infrastructure/Identity/FirstRunAdminService.cs": {
-    "mtime": 1785610447.9009974,
-    "ast_hash": "920ed3c73d20daf3a87344174625709c",
-    "semantic_hash": ""
-  },
-  "src/Cluckwork.Infrastructure/Identity/IStepUpGrantRegistry.cs": {
-    "mtime": 1785610447.9009974,
-    "ast_hash": "8bdc7d127196aa6080cda66cb55c57f1",
-    "semantic_hash": ""
-  },
-  "src/Cluckwork.Infrastructure/Identity/InMemoryStepUpGrantRegistry.cs": {
-    "mtime": 1785610447.9009974,
-    "ast_hash": "77438a4a658861d187643180e9dcdd3c",
-    "semantic_hash": ""
-  },
-  "src/Cluckwork.Infrastructure/Identity/StepUpGrantService.cs": {
-    "mtime": 1785610447.9124048,
-    "ast_hash": "9077599b094f0d7aa063f3a38c9fce71",
-    "semantic_hash": ""
-  },
-  "src/Cluckwork.Infrastructure/Identity/TimingEqualization.cs": {
-    "mtime": 1785610447.9124048,
-    "ast_hash": "05611e5e97658642feda8b7d524afbeb",
-    "semantic_hash": ""
-  },
-  "src/Cluckwork.Infrastructure/Persistence/Migrations/20260801054132_AddBaseReferenceDataAndMustChangePassword.Designer.cs": {
-    "mtime": 1785610447.9124048,
-    "ast_hash": "4567643138a36868ddb117226e2f5fc9",
-    "semantic_hash": ""
-  },
-  "src/Cluckwork.Infrastructure/Persistence/Migrations/20260801054132_AddBaseReferenceDataAndMustChangePassword.cs": {
-    "mtime": 1785610447.9124048,
-    "ast_hash": "1eddad850ba686083c9c8147f0669c67",
-    "semantic_hash": ""
-  },
-  "tests/Cluckwork.Api.IntegrationTests/BootstrapAdminCommandTests.cs": {
-    "mtime": 1785610447.9124048,
-    "ast_hash": "4ee5380425bada09159e06b5480236d5",
-    "semantic_hash": ""
-  },
-  "tests/Cluckwork.Api.IntegrationTests/ExceptionHandlerReExecutionTests.cs": {
-    "mtime": 1785610447.9129086,
-    "ast_hash": "089d270ebbcf0f6d44cf71bb6dab9886",
-    "semantic_hash": ""
-  },
-  "tests/Cluckwork.Api.IntegrationTests/FirstRunAdminUnlockCleanupTests.cs": {
-    "mtime": 1785610447.9129086,
-    "ast_hash": "e3d97c6bd56960486cfbdc3dced7b1f1",
-    "semantic_hash": ""
-  },
-  "tests/Cluckwork.Api.IntegrationTests/MigrationSecurityReviewTests.cs": {
-    "mtime": 1785610447.9139411,
-    "ast_hash": "cc7da0a1a82576609147e9ca864e9640",
-    "semantic_hash": ""
-  },
-  "tests/Cluckwork.Api.IntegrationTests/MigrationUpgradePathTests.cs": {
-    "mtime": 1785610447.9139411,
-    "ast_hash": "394e8d43f78aed15fe463d3ae223e5d4",
-    "semantic_hash": ""
-  },
-  "tests/Cluckwork.Api.IntegrationTests/MustChangePasswordGateTests.cs": {
-    "mtime": 1785610447.9139411,
-    "ast_hash": "e7dd882c51728e6a8918f5248312164d",
-    "semantic_hash": ""
-  },
-  "tests/Cluckwork.Api.IntegrationTests/ReportConcurrencyLimiterTests.cs": {
-    "mtime": 1785610447.9139411,
-    "ast_hash": "a0334b67922d24dee8bf70a65926a8eb",
-    "semantic_hash": ""
-  },
-  "tests/Cluckwork.Api.IntegrationTests/ReportQueryBoundingTests.cs": {
-    "mtime": 1785610447.9139411,
-    "ast_hash": "58c7bd2a37ae1a2112b9767f3cc1f97a",
-    "semantic_hash": ""
-  },
-  "tests/Cluckwork.Api.IntegrationTests/ReportsConcurrencyLimitTests.cs": {
-    "mtime": 1785610447.9139411,
-    "ast_hash": "4f80acce4de8dc1ad9a91bec31ee9569",
-    "semantic_hash": ""
-  },
-  "tests/Cluckwork.Api.IntegrationTests/StepUpAuthTests.cs": {
-    "mtime": 1785610447.9139411,
-    "ast_hash": "d56be4aa42853e154548b210e69ef896",
-    "semantic_hash": ""
-  },
-  "tests/Cluckwork.Api.IntegrationTests/StepUpGrantRegistryTests.cs": {
-    "mtime": 1785610447.9139411,
-    "ast_hash": "c8f7d99d51b21304468ea5256d7ace8a",
-    "semantic_hash": ""
-  },
-  "web/src/routes/SetPasswordPage.test.tsx": {
-    "mtime": 1785610447.916544,
-    "ast_hash": "f176a9a819143c1567de7630cad2ca5c",
-    "semantic_hash": ""
-  },
-  "web/src/routes/SetPasswordPage.tsx": {
-    "mtime": 1785610447.916544,
-    "ast_hash": "00084e8cb480dd5aa5c2481b568fd154",
     "semantic_hash": ""
   }
 }
