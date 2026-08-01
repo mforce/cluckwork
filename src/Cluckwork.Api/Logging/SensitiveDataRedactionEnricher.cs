@@ -1,15 +1,15 @@
 namespace Cluckwork.Api.Logging;
 
+using System.Text;
 using System.Text.RegularExpressions;
 using Serilog.Core;
 using Serilog.Events;
 
 // #273 — redact credentials, tokens, cookies, connection strings, and emails
-// BEFORE any log line leaves the process, regardless of sink: this enricher is
-// wired into the Serilog pipeline itself (CluckworkTelemetryServiceCollectionExtensions
-// .Enrich.With(...)), so it applies to every event on every sink this host has —
-// console today, and any future log-aggregation sink joins the same pipeline via
-// ReadFrom.Services rather than needing its own copy of this logic.
+// BEFORE any log line leaves the process, regardless of sink: RedactingLoggerPipeline
+// wires this enricher in front of every sink this host has — console today, and any
+// future log-aggregation sink, whether it arrives through `Serilog:WriteTo` or
+// through ReadFrom.Services, rather than needing its own copy of this logic.
 //
 // Applied to EVERY log event on the host, not just the auth/security events in
 // Cluckwork.Application.Common.SecurityEvents — that is deliberate. The concrete
@@ -26,15 +26,24 @@ using Serilog.Events;
 //    credentials) and matches are replaced in place — this is what protects
 //    free text, where the field name gives no hint.
 //
-// Best-effort, NOT a guarantee for every possible PII shape: regex cannot
-// reliably find an arbitrary street address, and a value baked directly into a
-// message via C# string interpolation (rather than a Serilog/ILogger template
-// hole) has no PROPERTY for this enricher to touch — Serilog exposes no API to
-// rewrite a LogEvent's already-rendered template text. That residual gap is why
-// structured logging (named template holes, never raw interpolation of a
-// sensitive value into the message string) stays the primary control; see
-// docs/security/log-redaction-policy.md for the full policy and the field
-// contract each stable security event carries.
+// An enricher only ever sees PROPERTIES. Two things are therefore out of its
+// reach, and are handled (or explicitly not handled) elsewhere:
+//
+//  - LogEvent.Exception — get-only, rendered by Serilog separately from the
+//    properties, and not replaceable by any enricher or filter. Covered by
+//    ExceptionRedactingSink, which runs RedactText over an exception's rendered
+//    text and substitutes the event; RedactingLoggerPipeline is what guarantees
+//    that wrapper sits in front of every sink.
+//  - A value baked into the message via C# string INTERPOLATION rather than a
+//    template hole. That leaves no property to touch and Serilog exposes no API
+//    to rewrite already-rendered template text, so it remains a genuine residual
+//    gap — which is why structured logging (named template holes, never raw
+//    interpolation of a sensitive value) stays the primary control.
+//
+// Content matching is also best-effort by nature: regex cannot reliably find an
+// arbitrary street address. See docs/security/log-redaction-policy.md for the
+// full policy, the exact coverage boundary, and the field contract each stable
+// security event carries.
 public sealed class SensitiveDataRedactionEnricher : ILogEventEnricher
 {
     private const string Redacted = "[REDACTED]";
@@ -76,21 +85,31 @@ public sealed class SensitiveDataRedactionEnricher : ILogEventEnricher
         @"\bBearer\s+[A-Za-z0-9\-_.=]+",
         RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
 
-    // key=value credential pairs inside an ADO.NET-style connection string
-    // (Password=..., Pwd=...). ADO.NET connection strings legitimately QUOTE a
-    // value that itself contains a semicolon or space
-    // (Password="p;a s s"/Pwd='p;a s s') — the bare-value alternative
-    // ([^;"'\s]+) stops at the first quote character, so a quoted value used
-    // to fail this pattern entirely and reach the sink unredacted. The two
-    // quoted alternatives match the ENTIRE quoted span (open quote to the
-    // matching close quote, embedded `;` included) so it is dropped alongside
-    // the bare form. Each alternative is a single unbounded quantifier over a
-    // disjoint, non-backtracking character class — no alternative is nested
-    // inside another's quantifier — which keeps this linear-time even against
-    // the caller-controlled free text this enricher runs on (the anonymous
-    // /client-errors endpoint, #217).
-    private static readonly Regex ConnectionStringCredentialPattern = new(
-        @"\b(password|pwd)\s*=\s*(?:""[^""]*""|'[^']*'|[^;""'\s]+)",
+    // The KEY half of an ADO.NET-style connection-string credential pair
+    // (Password=..., Pwd=...). Only the key — where the VALUE ends is decided
+    // by RedactConnectionStringCredentials below, in code, not by this regex.
+    //
+    // #273 codex review (round 2, P1a) — round 1 widened a single regex to
+    // `(?:"[^"]*"|'[^']*'|[^;"'\s]+)` so a QUOTED value (a real shape: ADO.NET
+    // requires quoting a value containing `;` or a space) stopped leaking. That
+    // fix was itself incomplete: ADO.NET escapes a quote INSIDE a quoted value
+    // by DOUBLING it, and `[^"]*` terminates on the first quote of that pair —
+    // so `Password="alpha""omega;tail"` redacted only `"alpha"` and emitted
+    // `"omega;tail"`, i.e. the rest of the credential, in cleartext.
+    //
+    // Deliberately NOT solved by a cleverer regex. The canonical doubled-quote
+    // idioms — `(?:[^"]|"")*` and its unrolled form `[^"]*(?:""[^"]*)*` — put a
+    // quantifier inside a quantifier, and while both happen to be unambiguous,
+    // reasoning about their backtracking is exactly the kind of judgement call
+    // that must not sit on the path of caller-controlled free text from the
+    // ANONYMOUS /client-errors endpoint (#217): a wrong call there is a CPU DoS,
+    // not a cosmetic bug. Scanning the value in code is provably linear (one
+    // forward pass, a cursor that never moves backwards) and additionally lets
+    // the scanner FAIL CLOSED on a malformed input a regex would simply not
+    // match — an unterminated quoted value redacts to end-of-string rather than
+    // leaking its tail.
+    private static readonly Regex ConnectionStringCredentialKeyPattern = new(
+        @"\b(password|pwd)\s*=\s*",
         RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
 
     // Userinfo credentials in a libpq/generic URI (scheme://user:pass@host).
@@ -154,6 +173,15 @@ public sealed class SensitiveDataRedactionEnricher : ILogEventEnricher
         }
     }
 
+    // The same content-pattern pass the enricher applies to every string-valued
+    // property, exposed for the ONE thing an ILogEventEnricher structurally
+    // cannot reach: LogEvent.Exception (get-only, and Serilog renders it
+    // separately from the properties). ExceptionRedactingSink runs an
+    // exception's rendered text through this before any sink sees the event —
+    // see that class and docs/security/log-redaction-policy.md for the coverage
+    // boundary.
+    public static string RedactText(string value) => RedactContent(value);
+
     // Order matters where patterns could overlap: Bearer runs before the bare
     // JWT pattern so a "Bearer <jwt>" header value is consumed as one match —
     // the later JWT pass then has nothing left inside it to double-redact.
@@ -165,9 +193,74 @@ public sealed class SensitiveDataRedactionEnricher : ILogEventEnricher
         result = UriCredentialPattern.Replace(
             result,
             m => m.Value[..(m.Value.IndexOf("://", StringComparison.Ordinal) + 3)] + Redacted + "@");
-        result = ConnectionStringCredentialPattern.Replace(result, m => $"{m.Groups[1].Value}={Redacted}");
+        result = RedactConnectionStringCredentials(result);
         result = EmailPattern.Replace(result, Redacted);
         result = PhonePattern.Replace(result, Redacted);
         return result;
+    }
+
+    // Single forward pass: find the next `password=` / `pwd=` key, emit the text
+    // before it, emit `<key>=[REDACTED]`, then skip the whole value using
+    // ADO.NET's own quoting rules (EndOfCredentialValue) and resume the search
+    // from there. The cursor only ever moves forwards and every character is
+    // examined at most twice, so this is O(n) in the input length no matter how
+    // hostile the input — the property the previous all-regex version could not
+    // be given without nesting quantifiers.
+    private static string RedactConnectionStringCredentials(string value)
+    {
+        var match = ConnectionStringCredentialKeyPattern.Match(value);
+        if (!match.Success) return value;
+
+        var builder = new StringBuilder(value.Length);
+        var cursor = 0;
+        while (match.Success)
+        {
+            builder.Append(value, cursor, match.Index - cursor);
+            builder.Append(match.Groups[1].Value).Append('=').Append(Redacted);
+            cursor = EndOfCredentialValue(value, match.Index + match.Length);
+            if (cursor >= value.Length) break;
+            match = ConnectionStringCredentialKeyPattern.Match(value, cursor);
+        }
+
+        builder.Append(value, cursor, value.Length - cursor);
+        return builder.ToString();
+    }
+
+    // Index just past the credential value starting at `start`, per ADO.NET
+    // connection-string quoting:
+    //  - a value opening with " or ' runs to the matching close quote, and a
+    //    DOUBLED quote inside it is a literal quote, NOT the terminator (the
+    //    round-1 regex's blind spot);
+    //  - an unterminated quoted value consumes the rest of the string — fail
+    //    CLOSED, since over-redacting a malformed dump beats emitting the tail
+    //    of a credential;
+    //  - a bare value ends at the first `;`, quote, or whitespace, exactly as
+    //    the previous bare-value character class did.
+    private static int EndOfCredentialValue(string value, int start)
+    {
+        if (start >= value.Length) return start;
+
+        var quote = value[start];
+        if (quote is not ('"' or '\''))
+        {
+            var bare = start;
+            while (bare < value.Length
+                   && value[bare] != ';'
+                   && value[bare] != '"'
+                   && value[bare] != '\''
+                   && !char.IsWhiteSpace(value[bare]))
+                bare++;
+            return bare;
+        }
+
+        var quoted = start + 1;
+        while (quoted < value.Length)
+        {
+            if (value[quoted] != quote) { quoted++; continue; }
+            if (quoted + 1 < value.Length && value[quoted + 1] == quote) { quoted += 2; continue; }
+            return quoted + 1;
+        }
+
+        return value.Length;
     }
 }

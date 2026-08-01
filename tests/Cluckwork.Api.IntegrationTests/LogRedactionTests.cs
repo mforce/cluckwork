@@ -210,6 +210,63 @@ public sealed class LogRedactionTests
         Assert.Contains(ns, rendered);
     }
 
+    // #273 codex review (round 2, P1a) — the regression in round 1's OWN fix.
+    // ADO.NET escapes a quote inside a quoted value by DOUBLING it, and round
+    // 1's `"[^"]*"` alternative terminates on the first quote of that pair, so
+    // `Password="alpha""omega;tail"` was redacted only as far as `"alpha"` and
+    // emitted `"omega;tail"` — the rest of the credential — in cleartext.
+    // Asserts the WHOLE value is gone with nothing trailing, for both quote
+    // styles and both key spellings.
+    [Theory]
+    [InlineData("Host=db;Password=\"{0}\";", '"')]
+    [InlineData("Host=db;Password='{0}';", '\'')]
+    [InlineData("Host=db;Pwd=\"{0}\";", '"')]
+    [InlineData("Host=db;Pwd='{0}';", '\'')]
+    public void A_doubled_quote_inside_a_quoted_credential_does_not_end_the_redaction(
+        string template, char quote)
+    {
+        var (logger, events) = BuildLogger();
+        // The doubled quote is the escape ADO.NET uses for a literal quote
+        // INSIDE the value; the `;` after it is what leaked in round 1.
+        var head = $"alpha-{Guid.NewGuid():N}";
+        var tail = $"omega;tail-{Guid.NewGuid():N}";
+        var secret = $"{head}{quote}{quote}{tail}";
+
+        logger.Information("Config dump: {Message}", string.Format(template, secret));
+
+        var e = Assert.Single(events);
+        // Asserted on the property value itself, not RenderMessage(), so the
+        // "nothing trails the redaction" check isn't confused by the quotes
+        // Serilog puts around a rendered string scalar.
+        var message = ScalarOf(e, "Message");
+        Assert.NotNull(message);
+        Assert.DoesNotContain(head, message);
+        Assert.DoesNotContain(tail, message);   // the leak: everything after the doubled quote
+        Assert.DoesNotContain("omega", message);
+        Assert.StartsWith("Host=db;", message, StringComparison.Ordinal);
+        // Nothing of the credential span survives: what follows the redaction
+        // marker is the closing `;` of the connection string, not a quote.
+        Assert.EndsWith("=[REDACTED];", message, StringComparison.Ordinal);
+    }
+
+    // #273 codex review (round 2, P1a) — an UNTERMINATED quoted value (a
+    // truncated dump, or caller-controlled free text engineered to look like
+    // one) must fail CLOSED: redact to end of string rather than let the regex
+    // simply not match and pass the tail through.
+    [Fact]
+    public void An_unterminated_quoted_credential_is_redacted_to_the_end_of_the_string()
+    {
+        var (logger, events) = BuildLogger();
+        var secret = $"truncated-{Guid.NewGuid():N}";
+
+        logger.Information("Config dump: {Message}", $"Host=db;Password=\"{secret}");
+
+        var e = Assert.Single(events);
+        var rendered = e.RenderMessage();
+        Assert.DoesNotContain(secret, rendered);
+        Assert.Contains("Host=db", rendered);
+    }
+
     [Fact]
     public void Libpq_uri_credentials_embedded_in_free_text_are_redacted()
     {
