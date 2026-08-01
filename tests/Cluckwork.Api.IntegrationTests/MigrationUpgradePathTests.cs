@@ -173,6 +173,95 @@ public sealed class MigrationUpgradePathTests
         }
     }
 
+    // PR #339 review (round 2) — the resurrection bug the WHOLE-SET grade gate
+    // exists to prevent, and a regression in our OWN previous fix.
+    //
+    // The egg grade catalog is USER-MANAGED: `PUT /api/v1/egg-grades/{id}`
+    // (EggGrade.Update) renames a grade. A farm that renamed the seeded
+    // "Small" to "Pullet" still has that row — under a name the previous
+    // per-name guard (`WHERE NOT EXISTS (... lower("Name") = 'small')`) could
+    // not see. It therefore inserted a brand-new active, saleable "Small"
+    // beside "Pullet": silently resurrecting a default the farm deliberately
+    // renamed away, and changing what capture and order dropdowns offer.
+    //
+    // Note this fixture would PASS against the buggy per-name guard for the
+    // nine grades it did not rename — the rename is the whole point, so the
+    // assertions below target the renamed one specifically rather than only
+    // counting rows.
+    [Fact]
+    public async Task UpgradingAFarmThatRenamedASeededGrade_DoesNotResurrectTheOldDefault()
+    {
+        await using var postgres = new PostgreSqlBuilder(PostgresImage).Build();
+        await postgres.StartAsync();
+        await using var db = BuildContext(postgres.GetConnectionString());
+        var migrator = db.GetService<IMigrator>();
+
+        await migrator.MigrateAsync(ResolvePreviousMigrationId(db));
+
+        db.Accounts.Add(Account.Create(SeedDefaults.AccountId, "Default Farm", "UTC", "USD"));
+        await db.SaveChangesAsync();
+
+        // The old seeder's ten defaults, random ids, exactly as before.
+        var gradeSpecs = new (string Name, EggGradeType Type, int SortOrder, bool Saleable)[]
+        {
+            ("Small", EggGradeType.Size, 0, true),
+            ("Medium", EggGradeType.Size, 1, true),
+            ("Large", EggGradeType.Size, 2, true),
+            ("Jumbo", EggGradeType.Size, 3, true),
+            ("Seconds", EggGradeType.Quality, 4, true),
+            ("Cracked", EggGradeType.Quality, 5, false),
+            ("Dirty", EggGradeType.Quality, 6, false),
+            ("Soft Shell", EggGradeType.Quality, 7, false),
+            ("Discarded", EggGradeType.Custom, 8, false),
+            ("Internal Use", EggGradeType.Custom, 9, false),
+        };
+        var seeded = new List<EggGrade>();
+        foreach (var (name, type, sortOrder, saleable) in gradeSpecs)
+        {
+            var grade = EggGrade.Create(
+                Guid.NewGuid(), SeedDefaults.AccountId, SeedDefaults.FarmId, name, type, sortOrder, saleable);
+            db.EggGrades.Add(grade);
+            seeded.Add(grade);
+        }
+        await db.SaveChangesAsync();
+
+        // The farm renames "Small" to "Pullet" — through the SAME domain
+        // method the PUT endpoint calls, not a hand-written UPDATE, so this
+        // is the real user-facing operation.
+        const string RenamedTo = "Pullet";
+        var renamed = seeded.Single(g => g.Name == "Small");
+        var renamedId = renamed.Id;
+        Assert.True(renamed.Update(RenamedTo, renamed.SortOrder, renamed.IsSaleable).IsSuccess);
+        await db.SaveChangesAsync();
+
+        // Apply the migration under test.
+        var upgrade = await Record.ExceptionAsync(() => migrator.MigrateAsync());
+        Assert.Null(upgrade);
+
+        var grades = await db.EggGrades.IgnoreQueryFilters()
+            .Where(g => g.AccountId == SeedDefaults.AccountId && g.FarmId == SeedDefaults.FarmId)
+            .ToListAsync();
+
+        // Still ten — an eleventh row would be the resurrected default.
+        Assert.Equal(10, grades.Count);
+
+        // The load-bearing assertion: no "Small" came back. Case-insensitive,
+        // because the guard that failed was itself a lower() comparison.
+        Assert.DoesNotContain(grades,
+            g => string.Equals(g.Name, "Small", StringComparison.OrdinalIgnoreCase));
+
+        // And the farm's rename survived untouched, under its ORIGINAL id —
+        // FKs (DailyEntryGrades, EggLots, ProductEggGradeMappings) point here.
+        var pullet = Assert.Single(grades, g => g.Name == RenamedTo);
+        Assert.Equal(renamedId, pullet.Id);
+
+        // Every other pre-existing row kept its random id too: the whole-set
+        // guard must leave the catalog completely alone, not just avoid the
+        // one duplicate.
+        foreach (var original in seeded.Where(g => g.Id != renamedId))
+            Assert.Contains(grades, g => g.Id == original.Id && g.Name == original.Name);
+    }
+
     // The companion positive case the reviewer asked for: a database that
     // NEVER ran the old seeder (a real fresh deploy, or any CI/test database
     // spun up after #283) still ends up with exactly one of each row — the

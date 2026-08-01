@@ -45,8 +45,14 @@ The app comes up on **http://localhost:8080**. Base data (the default account, r
 
 ```bash
 docker compose -f deploy/docker-compose.yml run --rm app \
-  dotnet Cluckwork.Api.dll bootstrap-admin --email admin@example.com
+  bootstrap-admin --email admin@example.com
 ```
+
+Pass the **verb only** — the image's `ENTRYPOINT` is already
+`dotnet Cluckwork.Api.dll`, and `docker compose run` *appends* to it. Repeating
+`dotnet Cluckwork.Api.dll` here would make `args[0]` be `dotnet`, which matches
+no CLI verb, so the container would boot the web server instead of provisioning
+anything.
 
 This prints a generated one-time password to your terminal (nowhere else). Sign in with it — the app immediately shows a **Set your password** screen and refuses everything else until you pick your own. Re-running the command against an already-provisioned account is a safe no-op.
 

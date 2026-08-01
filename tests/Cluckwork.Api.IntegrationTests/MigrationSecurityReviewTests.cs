@@ -155,10 +155,32 @@ public sealed class MigrationSecurityReviewTests
         int CountInserts(string table) =>
             sqlOps.Count(op => op.Sql.Contains($"INSERT INTO \"{table}\"", StringComparison.Ordinal));
 
+        // Statement counts. The PER-KEY batches are one statement per row.
+        // EggGrades is deliberately ONE statement covering all ten rows,
+        // because its guard is WHOLE-SET ("does this account have any grade at
+        // all") rather than per-name (PR #339 review round 2): a farm that
+        // renamed the seeded "Small" to "Pullet" is invisible to a per-name
+        // guard, which would then resurrect an active, saleable "Small"
+        // beside it. A whole-set guard is only expressible as a single
+        // INSERT ... SELECT over a VALUES list with one constant predicate.
         Assert.Equal(1, CountInserts("Accounts"));
         Assert.Equal(4, CountInserts("AspNetRoles"));
-        Assert.Equal(10, CountInserts("EggGrades"));
+        Assert.Equal(1, CountInserts("EggGrades"));
         Assert.Equal(6, CountInserts("EggUnitConversions"));
+
+        // That single grades statement still carries all ten rows — counted
+        // by their fixed id literals, so a dropped VALUES tuple is caught
+        // here rather than silently shipping a nine-grade catalog.
+        var gradeSql = sqlOps.Single(
+            op => op.Sql.Contains("INSERT INTO \"EggGrades\"", StringComparison.Ordinal)).Sql;
+        Assert.Equal(10, Regex.Matches(gradeSql, "'0000000e-0000-0000-0000-0000000000[0-9]{2}'").Count);
+
+        // And its guard is genuinely whole-set: the subquery must not look at
+        // "Name" at all. A per-name guard necessarily compares it — this is
+        // the cheap, Docker-free sentinel for the resurrection regression
+        // that MigrationUpgradePathTests proves behaviourally.
+        var gradeGuard = gradeSql[gradeSql.IndexOf("WHERE NOT EXISTS", StringComparison.Ordinal)..];
+        Assert.DoesNotContain("\"Name\"", gradeGuard, StringComparison.Ordinal);
 
         // Every one of those inserts is a WHERE NOT EXISTS guard — the
         // idempotency this migration exists to have (PR #339): a bare
@@ -168,7 +190,7 @@ public sealed class MigrationSecurityReviewTests
 
         // Nothing else — the whole point of "static reference data, no
         // runtime seeder" is that this migration's raw SQL touches exactly
-        // these four tables, 21 rows total (1 + 4 + 10 + 6).
-        Assert.Equal(21, sqlOps.Count);
+        // these four tables: 12 statements carrying 21 rows (1 + 4 + 10 + 6).
+        Assert.Equal(12, sqlOps.Count);
     }
 }
