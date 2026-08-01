@@ -225,11 +225,21 @@ public sealed class SecurityEventLoggingTests(SecurityEventLoggingFactory factor
     {
         public volatile bool Armed;
 
+        // #273 codex review (round 2, P2c) — the revocation's PREREQUISITE read
+        // (the owner lookup RevokeRefreshTokenAsync performs before the bulk
+        // update) is a separate failure mode from the update itself, and needs
+        // its own injection point: a SELECT against refresh_tokens rather than
+        // an UPDATE.
+        public volatile bool FailReadsInstead;
+
         private void MaybeFail(DbCommand command)
         {
-            if (Armed
-                && command.CommandText.Contains("UPDATE", StringComparison.OrdinalIgnoreCase)
-                && command.CommandText.Contains("refresh_tokens", StringComparison.OrdinalIgnoreCase))
+            if (!Armed
+                || !command.CommandText.Contains("refresh_tokens", StringComparison.OrdinalIgnoreCase))
+                return;
+
+            var statement = FailReadsInstead ? "SELECT" : "UPDATE";
+            if (command.CommandText.Contains(statement, StringComparison.OrdinalIgnoreCase))
                 throw new InvalidOperationException("Simulated refresh-token revoke failure (test fault injection).");
         }
 
@@ -381,6 +391,88 @@ public sealed class SecurityEventLoggingTests(SecurityEventLoggingFactory factor
         var failed = Assert.Single(EventsFor(SecurityEvents.RefreshRevocationFailed));
         Assert.Equal(user!.Id.ToString(), ScalarOf(failed, "UserId"));
     }
+
+    // #273 codex review (round 2, P2c) — logout's owner LOOKUP sat outside the
+    // failure boundary: RevokeRefreshTokenAsync read the token's owner before
+    // entering the wrapped revoke, so a read failure meant the revoke never ran
+    // AND Auth.RefreshRevocationFailed was never emitted — the revocation
+    // silently failed with nothing for a deployment to alert on. Fault-injects
+    // the SELECT rather than the UPDATE, which is the whole point: the UPDATE
+    // path was already covered.
+    [Fact]
+    public async Task Logout_whose_owner_lookup_throws_emits_RevocationFailed()
+    {
+        factory.Sink.Events.Clear();
+        var email = await SeedUserAsync();
+
+        using var scope = factory.Services.CreateScope();
+        var tokens = await factory.LoginAsync(email);
+
+        var interceptor = new ThrowingRefreshTokenUpdateInterceptor { FailReadsInstead = true };
+        await using var db = InterceptedDbContext(interceptor);
+        var provider = IdentityProviderOn(db, scope.ServiceProvider);
+
+        interceptor.Armed = true;
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => provider.RevokeRefreshTokenAsync(Uri.UnescapeDataString(tokens.RefreshToken)));
+        interceptor.Armed = false;
+
+        Assert.Single(EventsFor(SecurityEvents.RefreshRevocationFailed));
+    }
+
+    // The other half of the same fix: extending the boundary backwards over the
+    // lookup must not make a failing UPDATE emit the event TWICE (once from the
+    // widened boundary, once from the per-statement wrapper the code used to
+    // have). Exactly one line per failed logout, whichever statement failed.
+    [Fact]
+    public async Task Logout_whose_bulk_update_throws_emits_RevocationFailed_exactly_once()
+    {
+        factory.Sink.Events.Clear();
+        var email = await SeedUserAsync();
+
+        using var scope = factory.Services.CreateScope();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var userId = (await users.FindByEmailAsync(email))!.Id;
+        var tokens = await factory.LoginAsync(email);
+
+        var interceptor = new ThrowingRefreshTokenUpdateInterceptor();
+        await using var db = InterceptedDbContext(interceptor);
+        var provider = IdentityProviderOn(db, scope.ServiceProvider);
+
+        interceptor.Armed = true;
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => provider.RevokeRefreshTokenAsync(Uri.UnescapeDataString(tokens.RefreshToken)));
+        interceptor.Armed = false;
+
+        var failed = Assert.Single(EventsFor(SecurityEvents.RefreshRevocationFailed));
+        // The lookup succeeded here, so the owner IS known — the widened
+        // boundary must not have cost the event its correlation field.
+        Assert.Equal(userId.ToString(), ScalarOf(failed, "UserId"));
+    }
+
+    // Direct construction (bypassing HTTP/DI for the DbContext only) so the
+    // interceptor attaches to the EXACT context the call under test uses —
+    // mirrors StepUpAuthTests' proven pattern; every other dependency comes off
+    // the real host so login/token plumbing stays production code.
+    private AppDbContext InterceptedDbContext(DbCommandInterceptor interceptor) =>
+        new(new DbContextOptionsBuilder<AppDbContext>()
+                .UseNpgsql(factory.ConnectionString)
+                .AddInterceptors(interceptor)
+                .Options,
+            new TenantContext());
+
+    private static IdentityProvider IdentityProviderOn(AppDbContext db, IServiceProvider services) =>
+        new(services.GetRequiredService<UserManager<ApplicationUser>>(),
+            services.GetRequiredService<RoleManager<ApplicationRole>>(),
+            services.GetRequiredService<IJwtTokenService>(),
+            db,
+            services.GetRequiredService<IOptions<JwtOptions>>(),
+            services.GetRequiredService<TimeProvider>(),
+            services.GetRequiredService<IAuditWriter>(),
+            services.GetRequiredService<IStepUpGrantRegistry>(),
+            services.GetRequiredService<IHttpContextAccessor>(),
+            services.GetRequiredService<AuthSecurityEventLogger>(),
+            services.GetRequiredService<ILogger<IdentityProvider>>());
 }
 
 [CollectionDefinition(Name)]
