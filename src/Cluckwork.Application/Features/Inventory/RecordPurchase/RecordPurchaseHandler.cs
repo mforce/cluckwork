@@ -26,7 +26,7 @@ public sealed class RecordPurchaseHandler(
 
         await unitOfWork.ExecuteInTransactionAsync(async transactionCt =>
         {
-            var item = await items.GetByIdLockedAsync(command.InventoryItemId, transactionCt);
+            var item = await items.GetByIdLockedAsync(accountId, command.InventoryItemId, transactionCt);
             if (item is null || item.AccountId != accountId)
             {
                 outcome = Result.Failure<Guid>(Error.NotFound(nameof(InventoryItem), command.InventoryItemId));

@@ -20,7 +20,7 @@ public sealed class UpdateInventoryItemHandler(
         // longer slip a lot in between the HasLots check and the unit change.
         await unitOfWork.ExecuteInTransactionAsync(async transactionCt =>
         {
-            var item = await items.GetByIdLockedAsync(command.InventoryItemId, transactionCt);
+            var item = await items.GetByIdLockedAsync(accountId, command.InventoryItemId, transactionCt);
             if (item is null || item.AccountId != accountId)
             {
                 // Foreign-tenant items read as missing (locked read bypasses

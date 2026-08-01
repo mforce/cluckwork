@@ -25,7 +25,7 @@ public sealed class RecordPaymentHandler(
 
         await unitOfWork.ExecuteInTransactionAsync(async transactionCt =>
         {
-            var order = await salesOrders.GetByIdLockedAsync(command.SalesOrderId, transactionCt);
+            var order = await salesOrders.GetByIdLockedAsync(accountId, command.SalesOrderId, transactionCt);
             if (order is null)
             {
                 outcome = Result.Failure<Guid>(Error.NotFound(nameof(SalesOrder), command.SalesOrderId));

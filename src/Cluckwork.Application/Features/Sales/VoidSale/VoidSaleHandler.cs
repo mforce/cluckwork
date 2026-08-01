@@ -38,7 +38,7 @@ public sealed class VoidSaleHandler(
             // Locked + re-read INSIDE the transaction: a parallel void blocks
             // here until the winner commits, then deterministically fails the
             // status check instead of racing the Version token.
-            var order = await salesOrders.GetByIdLockedAsync(command.SalesOrderId, transactionCt);
+            var order = await salesOrders.GetByIdLockedAsync(accountId, command.SalesOrderId, transactionCt);
             if (order is null)
             {
                 outcome = Result.Failure<VoidSaleResponse>(

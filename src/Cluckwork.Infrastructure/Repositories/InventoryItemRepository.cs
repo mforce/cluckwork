@@ -32,11 +32,13 @@ public sealed class InventoryItemRepository(AppDbContext db) : IInventoryItemRep
     public Task<bool> HasLotsAsync(Guid itemId, CancellationToken ct = default) =>
         db.InventoryLots.AnyAsync(l => l.InventoryItemId == itemId, ct);
 
-    // FOR UPDATE + fresh load, inside an open transaction. Tenant scoping is
-    // the caller's job (handlers check AccountId), like the other locked reads.
-    public Task<InventoryItem?> GetByIdLockedAsync(Guid id, CancellationToken ct = default) =>
+    // FOR UPDATE + fresh load, inside an open transaction. AccountId is IN
+    // the predicate (#313): a foreign-tenant id matches no row here, so
+    // FOR UPDATE is never attempted against it. The caller's post-load
+    // AccountId check stays in place as defense in depth.
+    public Task<InventoryItem?> GetByIdLockedAsync(Guid accountId, Guid id, CancellationToken ct = default) =>
         db.InventoryItems.FromSqlInterpolated($"""
-            SELECT * FROM "InventoryItems" WHERE "Id" = {id} FOR UPDATE
+            SELECT * FROM "InventoryItems" WHERE "Id" = {id} AND "AccountId" = {accountId} FOR UPDATE
             """)
             .IgnoreQueryFilters()
             .FirstOrDefaultAsync(ct);

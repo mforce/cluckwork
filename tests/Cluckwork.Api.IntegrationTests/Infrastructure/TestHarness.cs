@@ -9,6 +9,7 @@ using Cluckwork.Domain.Sales;
 using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -357,6 +358,58 @@ internal static class TestHarness
         this CluckworkWebApplicationFactory factory, string email, string password) =>
         factory.CreateClient(Cookieless).PostAsJsonAsync(
             "/api/v1/auth/login", new { email, password });
+
+    // --- Row-lock observation (#162, #313) ---
+    //
+    // Whether a competing request PARKED on a row lock is an observable fact,
+    // not a timing guess: a row-lock wait registers the holder's backend in
+    // pg_blocking_pids. Two opposite guarantees are asserted through these —
+    // #162 wants the competitor to block (the protocol serialized the sides),
+    // #313 wants it never to (a foreign tenant's row is filtered out before
+    // FOR UPDATE is attempted) — so the probe lives here rather than being
+    // copied per test class, where a later fix to one copy would silently
+    // leave the other behind.
+
+    private static readonly TimeSpan LockWaitDeadline = TimeSpan.FromSeconds(15);
+
+    public static Task<int> BackendPidAsync(this AppDbContext db) =>
+        db.Database.SqlQuery<int>($"""SELECT pg_backend_pid() AS "Value" """).SingleAsync();
+
+    // True while ANY backend sits blocked on a lock held by holderPid. Keying
+    // on the holder's pid (rather than grepping query text, where a
+    // parameterized account id never appears) keeps this immune to other test
+    // classes touching the same tables on their own rows. It does not identify
+    // WHICH backend is blocked, so a caller that needs "this specific request
+    // blocked" must be the only one contending with holderPid — true today
+    // because the holder's lock is on a row the calling test just seeded.
+    public static async Task<bool> AnyoneBlockedBehindAsync(
+        this CluckworkWebApplicationFactory factory, int holderPid)
+    {
+        var blocked = false;
+        await factory.WithTenantScopeAsync(Guid.NewGuid(), async db =>
+        {
+            blocked = (await db.Database.SqlQuery<long>($"""
+                SELECT count(*) AS "Value" FROM pg_stat_activity
+                WHERE pg_blocking_pids(pid) @> ARRAY[{holderPid}]
+                """).SingleAsync()) > 0;
+        });
+        return blocked;
+    }
+
+    // Polls until the competing task either finishes without contending
+    // (false) or provably parks behind the holder's lock (true).
+    public static async Task<bool> WaitUntilDoneOrBlockedAsync(
+        this CluckworkWebApplicationFactory factory, Task competing, int holderPid)
+    {
+        var stopAt = DateTime.UtcNow + LockWaitDeadline;
+        while (DateTime.UtcNow < stopAt)
+        {
+            if (competing.IsCompleted) return false;
+            if (await factory.AnyoneBlockedBehindAsync(holderPid)) return true;
+            await Task.Delay(50);
+        }
+        throw new TimeoutException("Neither completion nor a lock wait was observed.");
+    }
 }
 
 public sealed record TokenPairDto(string AccessToken, string RefreshToken, DateTimeOffset AccessTokenExpiry);
