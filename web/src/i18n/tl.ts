@@ -2114,6 +2114,14 @@ export const tl = {
       + "hanggang lumipas ang maikling paghihintay. Hindi nito naaapektuhan ang session na naka-sign in "
       + "na.",
 
+    // #308 (machine-drafted, pending native review)
+    glossaryStepUpAuthTerm: "Karagdagang pagpapatunay (step-up)",
+    glossaryStepUpAuthDef:
+      "Isang karagdagang tsek bukod sa pagiging naka-sign in: bago gumawa ng isa pang Owner o mag-reset ng "
+      + "password ng umiiral na Owner, hinihiling ng Users screen na muling ilagay ang kasalukuyan mong "
+      + "password mismo sa dialog. Kinukumpirma nito na ikaw talaga bago bigyan ng ganoong kalaking access "
+      + "— walang ibang aksyon sa screen na iyon ang muling nagtatanong.",
+
     glossarySomethingWentWrongScreenTerm: "Screen na \"Something went wrong\"",
     glossarySomethingWentWrongScreenDef:
       "Ipinapakita ito ng isang screen kapag may error, sa halip na maging blangko. Ligtas ang naka-save "

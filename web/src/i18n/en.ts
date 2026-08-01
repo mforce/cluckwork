@@ -2347,6 +2347,14 @@ export const en = {
       + "minutes are refused with this message until a short cool-off passes. It never affects an already "
       + "signed-in session.",
 
+    // #308
+    glossaryStepUpAuthTerm: "Step-up authentication",
+    glossaryStepUpAuthDef:
+      "An extra check on top of being signed in: before creating another Owner or resetting an existing "
+      + "Owner's password, the Users screen asks you to re-enter your current password right there in the "
+      + "dialog. It confirms it's really you before handing out that much access — every other action on "
+      + "that screen does not ask again.",
+
     glossarySomethingWentWrongScreenTerm: "\"Something went wrong\" screen",
     glossarySomethingWentWrongScreenDef:
       "What a screen shows when it hits an error, instead of going blank. Saved data is safe — anything "

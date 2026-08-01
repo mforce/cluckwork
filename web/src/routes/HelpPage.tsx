@@ -469,6 +469,8 @@ export function HelpPage() {
             <td>{t("glossaryNewVersionReadyDef")}</td></tr>
           <tr><th scope="row">{t("glossaryTooManySignInAttemptsTerm")}</th>
             <td>{t("glossaryTooManySignInAttemptsDef")}</td></tr>
+          <tr><th scope="row">{t("glossaryStepUpAuthTerm")}</th>
+            <td>{t("glossaryStepUpAuthDef")}</td></tr>
           <tr><th scope="row">{t("glossarySomethingWentWrongScreenTerm")}</th>
             <td>{t("glossarySomethingWentWrongScreenDef")}</td></tr>
           <tr><th scope="row">{t("glossaryDailyEntryTerm")}</th>

@@ -2037,6 +2037,14 @@ export const es = {
       + "demasiados intentos desde un mismo lugar en pocos minutos se rechazan con este mensaje hasta que "
       + "pasa un breve período de espera. Nunca afecta a una sesión que ya inició.",
 
+    // #308 (machine-drafted, pending native review)
+    glossaryStepUpAuthTerm: "Autenticación reforzada (step-up)",
+    glossaryStepUpAuthDef:
+      "Una comprobación adicional además de haber iniciado sesión: antes de crear otro propietario o "
+      + "restablecer la contraseña de un propietario existente, la pantalla Usuarios le pide volver a "
+      + "ingresar su contraseña actual directamente en el diálogo. Esto confirma que realmente es usted "
+      + "antes de otorgar tanto acceso — ninguna otra acción en esa pantalla vuelve a preguntar.",
+
     glossarySomethingWentWrongScreenTerm: "Pantalla \"Algo salió mal\"",
     glossarySomethingWentWrongScreenDef:
       "Lo que muestra una pantalla cuando encuentra un error, en lugar de quedar en blanco. Los datos "
