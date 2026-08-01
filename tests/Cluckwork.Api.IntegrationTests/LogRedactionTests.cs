@@ -145,6 +145,71 @@ public sealed class LogRedactionTests
         Assert.Contains("Host=db", rendered); // non-secret parts of the string are untouched
     }
 
+    // #273 codex review (P1a) — a QUOTED connection-string credential used to
+    // fail the pattern entirely (the bare-value alternative stops at the
+    // first quote character) and reach the sink whole. ADO.NET connection
+    // strings legitimately quote a value containing a space or a semicolon,
+    // so this is a real shape, not a contrived one. Covers double- and
+    // single-quoted forms, an embedded `;` inside the quotes, and `Pwd=` as
+    // well as `Password=`.
+    [Theory]
+    [InlineData("Host=db;Password=\"{0}\";")]
+    [InlineData("Host=db;Password='{0}';")]
+    [InlineData("Host=db;Pwd=\"{0}\";")]
+    public void A_quoted_connection_string_password_containing_a_semicolon_is_fully_redacted(string template)
+    {
+        var (logger, events) = BuildLogger();
+        // The quoted content itself contains a space and a semicolon — exactly
+        // the shape that requires quoting in a real connection string, and the
+        // shape the bare-value pattern alone cannot terminate on.
+        var secret = $"se mi;colon-{Guid.NewGuid():N}";
+
+        logger.Information("Config dump: {Message}", string.Format(template, secret));
+
+        var e = Assert.Single(events);
+        var rendered = e.RenderMessage();
+        Assert.DoesNotContain(secret, rendered);
+        Assert.DoesNotContain(";colon", rendered); // the embedded `;` must not leak either
+        Assert.Contains("Host=db", rendered);
+        Assert.Contains("[REDACTED]", rendered);
+    }
+
+    // #273 codex review (P1a) — the bare (unquoted) form must still work exactly
+    // as before; this pins the pre-existing behavior alongside the new quoted
+    // coverage above so a future edit can't fix one shape by breaking the other.
+    [Fact]
+    public void A_bare_unquoted_connection_string_password_is_still_fully_redacted()
+    {
+        var (logger, events) = BuildLogger();
+        var secret = $"plainsecret-{Guid.NewGuid():N}";
+
+        logger.Information("Config dump: {Message}", $"Host=db;Password={secret};Pooling=true");
+
+        var e = Assert.Single(events);
+        var rendered = e.RenderMessage();
+        Assert.DoesNotContain(secret, rendered);
+        Assert.Contains("Host=db", rendered);
+        Assert.Contains("Pooling=true", rendered); // text after the credential survives
+    }
+
+    // #273 codex review (P1a) — false-positive guard for the widened pattern: a
+    // GUID and a dotted namespace never contain a "password=" / "pwd=" prefix,
+    // so the new quoted alternatives must not touch them either.
+    [Fact]
+    public void A_guid_and_a_dotted_namespace_are_untouched_by_the_widened_connection_string_pattern()
+    {
+        var (logger, events) = BuildLogger();
+        var id = Guid.NewGuid();
+        const string ns = "DailyEntries.SubmitDailyEntry.SubmitDailyEntryHandler";
+
+        logger.Information("Handler {Message} for account {AccountId}", ns, id);
+
+        var e = Assert.Single(events);
+        Assert.Equal(id.ToString(), ScalarOf(e, "AccountId"));
+        var rendered = e.RenderMessage();
+        Assert.Contains(ns, rendered);
+    }
+
     [Fact]
     public void Libpq_uri_credentials_embedded_in_free_text_are_redacted()
     {

@@ -77,9 +77,20 @@ public sealed class SensitiveDataRedactionEnricher : ILogEventEnricher
         RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
 
     // key=value credential pairs inside an ADO.NET-style connection string
-    // (Password=..., Pwd=...).
+    // (Password=..., Pwd=...). ADO.NET connection strings legitimately QUOTE a
+    // value that itself contains a semicolon or space
+    // (Password="p;a s s"/Pwd='p;a s s') — the bare-value alternative
+    // ([^;"'\s]+) stops at the first quote character, so a quoted value used
+    // to fail this pattern entirely and reach the sink unredacted. The two
+    // quoted alternatives match the ENTIRE quoted span (open quote to the
+    // matching close quote, embedded `;` included) so it is dropped alongside
+    // the bare form. Each alternative is a single unbounded quantifier over a
+    // disjoint, non-backtracking character class — no alternative is nested
+    // inside another's quantifier — which keeps this linear-time even against
+    // the caller-controlled free text this enricher runs on (the anonymous
+    // /client-errors endpoint, #217).
     private static readonly Regex ConnectionStringCredentialPattern = new(
-        @"\b(password|pwd)\s*=\s*[^;""'\s]+",
+        @"\b(password|pwd)\s*=\s*(?:""[^""]*""|'[^']*'|[^;""'\s]+)",
         RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
 
     // Userinfo credentials in a libpq/generic URI (scheme://user:pass@host).
