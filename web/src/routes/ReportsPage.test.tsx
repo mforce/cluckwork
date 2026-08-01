@@ -144,6 +144,28 @@ describe("ReportsPage production section (renders for every role)", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("not allowed here");
   });
 
+  // #311/PR #335 review: a browser reload resets `from`/`to` to the default
+  // 7-day window (ReportsPage.tsx state init), so the help copy's promise
+  // that "the dates stay in the boxes" only holds for an IN-PLACE retry, not
+  // a reload. This proves that retry control exists and actually leaves
+  // `from`/`to` untouched while re-issuing the same request.
+  it("re-issues the production report with the SAME range when retry is clicked after a failure, and clears the error on success", async () => {
+    mockGetProductionReport.mockRejectedValueOnce(new Error("boom"));
+    renderWithProviders(<ReportsPage />, { token: NON_ADMIN });
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("boom");
+    const [firstFrom, firstTo] = mockGetProductionReport.mock.calls[0]!;
+
+    mockGetProductionReport.mockResolvedValueOnce(PRODUCTION);
+    fireEvent.click(within(alert).getByRole("button", { name: "retry" }));
+
+    await waitFor(() => expect(mockGetProductionReport).toHaveBeenCalledTimes(2));
+    expect(mockGetProductionReport.mock.calls[1]).toEqual([firstFrom, firstTo]);
+    await screen.findByRole("row", { name: /2026-07-19/ });
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
   it("re-fetches the production report for a newly picked From/To range", async () => {
     renderWithProviders(<ReportsPage />, { token: NON_ADMIN });
     await screen.findByRole("row", { name: /2026-07-19/ });
@@ -386,5 +408,22 @@ describe("ReportsPage i18n wiring (#182, Task 28)", () => {
       expect(await screen.findByText("FOOTNOTE-MARKER")).toBeInTheDocument();
       expect(screen.queryByText(/no cost-of-goods/)).not.toBeInTheDocument();
     });
+  });
+
+  // The retry button reuses common:retry (the same key/pattern as
+  // DailyEntryPage's prefill-failed banner) rather than a reports-local
+  // literal or duplicate key — swap the COMMON catalog, not the reports one.
+  it("reads the error retry button from the common catalog, not a hardcoded literal", async () => {
+    const original = i18n.getResource("en", "common", "retry") as string;
+    i18n.addResource("en", "common", "retry", "RETRY-MARKER");
+    try {
+      mockGetProductionReport.mockRejectedValueOnce(new Error("boom"));
+      renderWithProviders(<ReportsPage />, { token: NON_ADMIN });
+      const alert = await screen.findByRole("alert");
+      expect(within(alert).getByRole("button", { name: "RETRY-MARKER" })).toBeInTheDocument();
+      expect(within(alert).queryByRole("button", { name: "retry" })).not.toBeInTheDocument();
+    } finally {
+      i18n.addResource("en", "common", "retry", original);
+    }
   });
 });

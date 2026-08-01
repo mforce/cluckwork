@@ -299,6 +299,19 @@ average of daily percentages).
 counts): eggs, losses, sellable, deaths, hen-day %, period totals, grade
 breakdown. Open to workers — it is their own recorded work.
 
+**Report query bounding + concurrency limit (#311)** — every report (production,
+sales, expenses, profit) is bounded to a validated range (default the last 7
+days, capped at 366 — see Production report above) and its aggregation runs in
+SQL rather than loading the account's full history into memory, so cost tracks
+the requested range and flock count, not the farm's lifetime of data. On top of
+that, concurrently in-flight report requests are capped **per account** (a
+small default, e.g. 4 at once): a request over the cap gets HTTP 429 with a
+`Retry-After` header instead of queueing or running unbounded — a documented,
+retryable "try again shortly," never a silent hang or a degraded shared
+service. One account's usage never affects another's — each account has its
+own bucket, mirroring the per-IP auth rate limiting (#143) above but keyed by
+account instead of client address, since a report is behind auth.
+
 **Profit, basic (#91)** — confirmed order revenue − recorded expenses for
 the range, both operands shown. Deliberately no COGS or inventory
 valuation; those belong to a later accounting slice. Admin-only, as are

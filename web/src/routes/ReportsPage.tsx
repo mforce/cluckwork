@@ -87,7 +87,20 @@ export function ReportsPage() {
         </label>
       </div>
 
-      {error && <p className="error" role="alert">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}{" "}
+          {/* A 429 from the report throttle (#311) is retryable, but a browser
+              reload resets `from`/`to` to the default 7-day window instead of
+              rerunning the chosen range — so offer an in-place retry that
+              reruns load() with state untouched (review of #311/PR #335),
+              same common:retry link pattern DailyEntryPage's prefill-failed
+              banner uses. */}
+          <button type="button" className="link" onClick={() => void load()}>
+            {tc("retry")}
+          </button>
+        </p>
+      )}
       {loading && <p className="muted">{tc("loading")}</p>}
 
       {production && (

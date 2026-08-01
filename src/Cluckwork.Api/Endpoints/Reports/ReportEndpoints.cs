@@ -15,6 +15,9 @@ public static class ReportEndpoints
 
     public static RouteGroupBuilder MapReportEndpoints(this RouteGroupBuilder group)
     {
+        // #311 — caps concurrently in-flight report queries per account.
+        group.AddEndpointFilter<ReportConcurrencyLimitFilter>();
+
         group.MapGet("/production", Production)
             .WithName("ProductionReport")
             .WithSummary("Per-day production across the range: eggs, losses, sellable, deaths, hen-day % (spec §19.3), plus period totals and grade breakdown.");
