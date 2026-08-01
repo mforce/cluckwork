@@ -164,6 +164,21 @@ public sealed class IdempotencyMiddleware(RequestDelegate next, IOptions<Idempot
         await using var buffer = new MemoryStream();
         context.Response.Body = buffer;
         var transaction = await db.Database.BeginTransactionAsync(context.RequestAborted);
+        // #307 review — RollbackAsync/CommitAsync alone do NOT return the
+        // underlying connection to the ADO.NET pool; only DisposeAsync does. The
+        // steal-loss branch below needs to release the connection BEFORE it starts
+        // polling (which can run for up to Idempotency:MaxWaitSeconds), so
+        // disposal happens explicitly there too — this guard makes calling it from
+        // both that branch AND the unconditional `finally` safe (idempotent)
+        // without relying on IDbContextTransaction's own dispose being a no-op the
+        // second time.
+        var transactionDisposed = false;
+        async Task DisposeTransactionOnceAsync()
+        {
+            if (transactionDisposed) return;
+            transactionDisposed = true;
+            await transaction.DisposeAsync();
+        }
         try
         {
             await next(context);
@@ -206,6 +221,9 @@ public sealed class IdempotencyMiddleware(RequestDelegate next, IOptions<Idempot
                 // durable (it may duplicate whatever they run/ran) —
                 // roll back, then converge on whatever THEY publish.
                 await transaction.RollbackAsync(CancellationToken.None);
+                // Dispose (release the connection) BEFORE the poll, not after —
+                // see the comment on transactionDisposed above.
+                await DisposeTransactionOnceAsync();
                 var winner = await WaitForCompletionAsync(
                     db, accountId, endpointHash, keyHash, waitDeadline, context.RequestAborted);
                 if (winner is not null)
@@ -252,7 +270,7 @@ public sealed class IdempotencyMiddleware(RequestDelegate next, IOptions<Idempot
         }
         finally
         {
-            await transaction.DisposeAsync();
+            await DisposeTransactionOnceAsync();
         }
     }
 
@@ -308,7 +326,17 @@ public sealed class IdempotencyMiddleware(RequestDelegate next, IOptions<Idempot
             r.AccountId == accountId && r.EndpointHash == endpointHash && r.IdempotencyKeyHash == keyHash, ct);
 
         if (existing is null) return new ClaimAttempt(ClaimKind.Retry);
-        if (existing.RequestHash != requestHash) return new ClaimAttempt(ClaimKind.HashConflict, existing);
+        // An empty RequestHash means "unknown" — the row was backfilled by the
+        // AtomicIdempotencyClaims migration from a row written under the pre-#307
+        // schema, which never recorded a hash at all. No REAL request hash is ever
+        // the empty string (sha256 of even a zero-byte body is a 64-char hex
+        // string), so "" is an unambiguous, collision-free sentinel: treat it as
+        // matching so a legacy completed row still replays instead of 409ing
+        // forever, rather than trying to reconstruct a hash nothing recorded. This
+        // shim's reason to exist goes away once #245's InitialCreate squash retires
+        // every pre-#307 row.
+        if (existing.RequestHash.Length > 0 && existing.RequestHash != requestHash)
+            return new ClaimAttempt(ClaimKind.HashConflict, existing);
         if (existing.Status == IdempotencyStatus.Completed) return new ClaimAttempt(ClaimKind.Completed, existing);
         return new ClaimAttempt(ClaimKind.LiveLease);
     }
@@ -325,8 +353,10 @@ public sealed class IdempotencyMiddleware(RequestDelegate next, IOptions<Idempot
               AND "Status" = {(int)IdempotencyStatus.InProgress}
             """, ct);
 
-    // Polls (bounded by deadline) for the row to reach Completed — used both
-    // while waiting out a live competitor and after losing a publish race.
+    // Polls (bounded by deadline) for the row to reach Completed — used only
+    // after THIS caller already lost its own publish race (see the steal-loss
+    // branch above): it is purely watching for the authoritative attempt to
+    // finish, never trying to reclaim the key itself.
     private static async Task<IdempotencyRecord?> WaitForCompletionAsync(
         AppDbContext db, Guid accountId, string endpointHash, string keyHash,
         DateTimeOffset deadline, CancellationToken ct)
@@ -336,6 +366,14 @@ public sealed class IdempotencyMiddleware(RequestDelegate next, IOptions<Idempot
             var existing = await db.IdempotencyRecords.AsNoTracking().FirstOrDefaultAsync(r =>
                 r.AccountId == accountId && r.EndpointHash == endpointHash && r.IdempotencyKeyHash == keyHash, ct);
             if (existing is { Status: IdempotencyStatus.Completed }) return existing;
+            // #307 review — the row can vanish out from under a waiter: the
+            // authoritative claimant we're watching may itself fail (a non-2xx
+            // response releases its claim via ReleaseClaimAsync). Nobody is
+            // going to complete a claim that no longer exists, and reclaiming
+            // it is not this function's job (that's the outer claim loop's
+            // Retry handling) — so give up immediately instead of polling out
+            // the rest of the bounded wait for nothing.
+            if (existing is null) return null;
             if (DateTimeOffset.UtcNow >= deadline) return null;
             await Task.Delay(PollInterval, ct);
         }
