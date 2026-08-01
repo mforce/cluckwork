@@ -574,6 +574,49 @@ describe("auth endpoints", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect((fetchMock.mock.calls[0] as Call)[0]).toBe("/api/v1/auth/logout");
   });
+
+  // #310 — local invalidation must win immediately, independent of the network.
+  it("clears in-memory auth state synchronously, before the server call settles", async () => {
+    const gate = deferred<Response>();
+    fetchMock.mockReturnValueOnce(gate.promise); // server call hangs
+    setAccessToken("live-token");
+
+    const done = logout();
+    await Promise.resolve(); // let logout()'s synchronous prefix run; network still pending
+    expect(getAccessToken()).toBeNull();
+
+    gate.resolve(new Response(null, { status: 204 }));
+    await done;
+  });
+
+  // #310 — a full network rejection (not just a non-2xx response) must behave
+  // the same as the existing 500 case above: local state wins regardless.
+  it("clears the local token even when the server call rejects outright (network error)", async () => {
+    setAccessToken("live-token");
+    fetchMock.mockRejectedValueOnce(new TypeError("network down"));
+    await expect(logout()).resolves.toBeUndefined();
+    expect(getAccessToken()).toBeNull();
+  });
+
+  // #310 — the revoke failure must be observable (not silently swallowed) but
+  // must never expose the token that was already cleared.
+  it("reports a server-side revoke failure without leaking the token", async () => {
+    const consoleErr = vi.spyOn(console, "error").mockImplementation(() => {});
+    // Generated, not a literal: nothing secret-shaped belongs in source
+    // (GitGuardian scans test files too), and a unique value makes the
+    // "did not leak" assertion exact rather than coincidental.
+    const token = `tok-${crypto.randomUUID()}`;
+    setAccessToken(token);
+    fetchMock.mockRejectedValueOnce(new TypeError("network down"));
+
+    await expect(logout()).resolves.toBeUndefined();
+
+    expect(getAccessToken()).toBeNull();
+    expect(consoleErr).toHaveBeenCalledTimes(1);
+    const logged = consoleErr.mock.calls[0].map((a) => String(a)).join(" ");
+    expect(logged).not.toContain(token);
+    consoleErr.mockRestore();
+  });
 });
 
 describe("changePassword (#165)", () => {
@@ -741,5 +784,308 @@ describe("cross-tab refresh coordination (#169)", () => {
     expect(a).toEqual({ ok: true });
     expect(callsTo(fetchMock, "/auth/refresh")).toHaveLength(1); // still refreshes, just uncoordinated
     expect(getAccessToken()).toBe("at2");
+  });
+});
+
+// #310 — login, bootstrap refresh, explicit refresh, and logout are one browser
+// session state machine. A stale completion (one whose generation was superseded
+// by a later login or an earlier logout) may never commit tokens or state.
+describe("session generation (#310)", () => {
+  it("commits a bootstrap refresh normally when nothing else races it (control)", async () => {
+    clearAccessToken();
+    fetchMock.mockResolvedValueOnce(accessResponse("bootedToken"));
+
+    await expect(restoreSession()).resolves.toBe(true);
+
+    expect(getAccessToken()).toBe("bootedToken");
+    expect(onTokens).toHaveBeenCalledTimes(1);
+  });
+
+  it("discards a bootstrap refresh that resolves after logout — the session does not resurrect", async () => {
+    clearAccessToken();
+    const refreshGate = deferred<Response>();
+    fetchMock.mockImplementation((url: string) => {
+      if (url.endsWith("/auth/refresh")) return refreshGate.promise;
+      if (url.endsWith("/auth/logout")) return Promise.resolve(new Response(null, { status: 204 }));
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    const restoring = restoreSession(); // bootstrap refresh in flight, held open
+    await drain();
+    expect(callsTo(fetchMock, "/auth/refresh")).toHaveLength(1);
+
+    await logout(); // user logs out while the bootstrap refresh is still pending
+
+    refreshGate.resolve(accessResponse("resurrected-token")); // the stale refresh finally answers
+    await expect(restoring).resolves.toBe(false); // discarded — never reports a restored session
+
+    expect(getAccessToken()).toBeNull(); // must stay logged out
+    expect(onTokens).not.toHaveBeenCalled(); // the stale completion must not fire tokensChanged
+    // #310 review — clearing the in-memory token is only half of it. That
+    // response carried a rotated refresh cookie, which the browser applied
+    // before any of our code ran, so the server session must be revoked too:
+    // one revoke for the logout itself, a second for the cookie the discarded
+    // refresh issued. Without it a reload walks straight back in.
+    expect(callsTo(fetchMock, "/auth/logout")).toHaveLength(2);
+  });
+
+  it("commits an explicit login normally when nothing else races it (control)", async () => {
+    clearAccessToken();
+    fetchMock.mockResolvedValueOnce(accessResponse("loggedInToken"));
+
+    await login({ email: "a@b.co", password: "pw" });
+
+    expect(getAccessToken()).toBe("loggedInToken");
+    expect(onTokens).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not let a late bootstrap refresh overwrite a newer explicit login", async () => {
+    clearAccessToken();
+    const refreshGate = deferred<Response>();
+    fetchMock.mockImplementation((url: string) => {
+      if (url.endsWith("/auth/refresh")) return refreshGate.promise;
+      if (url.endsWith("/auth/login")) return Promise.resolve(accessResponse("newLoginToken"));
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    const restoring = restoreSession(); // older bootstrap refresh in flight
+    await drain();
+
+    await login({ email: "a@b.co", password: "pw" }); // a newer, explicit login completes first
+    expect(getAccessToken()).toBe("newLoginToken");
+    expect(onTokens).toHaveBeenCalledTimes(1);
+
+    refreshGate.resolve(accessResponse("staleBootstrapToken")); // the old refresh answers late
+    await expect(restoring).resolves.toBe(false); // discarded, not adopted
+
+    expect(getAccessToken()).toBe("newLoginToken"); // untouched by the stale refresh
+    expect(onTokens).toHaveBeenCalledTimes(1); // still just the login's single notification
+  });
+
+  it("a late-FAILING obsolete refresh does not clear or corrupt a newer session", async () => {
+    // Distinct from the success case above: here the stale refresh's own network
+    // call fails (refresh token revoked) — the failure path must be gated too, or
+    // it would clearAccessToken()/onUnauthenticated() and boot the fresh login.
+    clearAccessToken();
+    const refreshGate = deferred<Response>();
+    fetchMock.mockImplementation((url: string) => {
+      if (url.endsWith("/auth/refresh")) return refreshGate.promise;
+      if (url.endsWith("/auth/login")) return Promise.resolve(accessResponse("freshLoginToken"));
+      if (url.endsWith("/stock")) return Promise.resolve(jsonResponse({ ok: true }));
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    // apiGet with no in-memory token forces currentAccessToken() to park on a
+    // silent refresh — the same refresh a bootstrap would trigger.
+    const fetching = apiGet<{ ok: boolean }>("/stock").catch((e: unknown) => e);
+    await drain();
+
+    await login({ email: "a@b.co", password: "pw" }); // supersedes the still-parked refresh
+    expect(getAccessToken()).toBe("freshLoginToken");
+
+    refreshGate.resolve(jsonResponse({ title: "refresh token revoked" }, 401)); // stale refresh FAILS late
+    const settled = await fetching;
+
+    expect(getAccessToken()).toBe("freshLoginToken"); // untouched by the stale failure
+    expect(onUnauth).not.toHaveBeenCalled(); // must not tear down the fresh session
+    // #310 review — the parked request itself must not surface the internal
+    // discard marker. The login committed a valid token, so the request the
+    // user is actually waiting on proceeds on it rather than failing with
+    // "Discarded: superseded by…", which every screen would render verbatim.
+    expect(settled).toEqual({ ok: true });
+  });
+
+  // #310 review — changePassword is a token-store writer too, and logout is
+  // reachable from every screen, so it needs the same generation guard as
+  // login/refresh; without it the response writes a fresh token back over a
+  // session the user already ended.
+  it("discards a change-password response that resolves after logout (#310)", async () => {
+    const changeGate = deferred<Response>();
+    setAccessToken(`tok-${crypto.randomUUID()}`);
+    fetchMock.mockImplementation((url: string) => {
+      if (url.endsWith("/auth/change-password")) return changeGate.promise;
+      if (url.endsWith("/auth/logout")) return Promise.resolve(jsonResponse({}, 204));
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    const changing = changePassword({ currentPassword: "a", newPassword: "b" })
+      .catch((e: unknown) => e);
+    await drain();
+
+    await logout();
+    expect(getAccessToken()).toBeNull();
+
+    changeGate.resolve(jsonResponse({ accessToken: "resurrected" }));
+    await changing;
+
+    expect(getAccessToken()).toBeNull(); // the ended session stays ended
+  });
+
+  it("commits a change-password response normally when nothing races it (control)", async () => {
+    setAccessToken(`tok-${crypto.randomUUID()}`);
+    fetchMock.mockResolvedValueOnce(accessResponse("at-after-change"));
+
+    await changePassword({ currentPassword: "a", newPassword: "b" });
+
+    expect(getAccessToken()).toBe("at-after-change");
+  });
+
+  it("discards a login that resolves after a concurrent logout — does not resurrect authentication", async () => {
+    clearAccessToken();
+    const loginGate = deferred<Response>();
+    fetchMock.mockImplementation((url: string) => {
+      if (url.endsWith("/auth/login")) return loginGate.promise;
+      if (url.endsWith("/auth/logout")) return Promise.resolve(new Response(null, { status: 204 }));
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    const loggingIn = login({ email: "a@b.co", password: "pw" }).catch((e: unknown) => e);
+    await drain();
+
+    await logout(); // fires while the login request is still in flight
+
+    loginGate.resolve(accessResponse("late-login-token"));
+    const result = await loggingIn;
+    expect(result).toBeInstanceOf(Error); // discarded, surfaced as a rejection — not silently accepted
+
+    expect(getAccessToken()).toBeNull();
+    expect(onTokens).not.toHaveBeenCalled();
+    // The late login's Set-Cookie already reached the browser; revoke it, or a
+    // reload restores the session the user just ended.
+    expect(callsTo(fetchMock, "/auth/logout")).toHaveLength(2);
+  });
+
+  // #310 review — a request parked on a refresh that a LOGOUT discarded must
+  // surface a normal 401, not the internal StaleSessionError whose message
+  // every screen would render verbatim. (The newer-login counterpart, where the
+  // request proceeds on the fresh token, is asserted above.)
+  it("surfaces a plain 401 — not the discard marker — when logout ended the session", async () => {
+    clearAccessToken();
+    const refreshGate = deferred<Response>();
+    fetchMock.mockImplementation((url: string) => {
+      if (url.endsWith("/auth/refresh")) return refreshGate.promise;
+      if (url.endsWith("/auth/logout")) return Promise.resolve(new Response(null, { status: 204 }));
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    const fetching = apiGet("/stock").catch((e: unknown) => e);
+    await drain();
+
+    await logout();
+    refreshGate.resolve(accessResponse("discarded-token"));
+
+    const settled = await fetching;
+    expect(settled).toBeInstanceOf(ApiError);
+    expect(settled).toMatchObject({ status: 401 });
+  });
+
+  // The two outcomes again for apiFetch's 401-RETRY branch specifically. The
+  // test above enters through currentAccessToken (empty token store); this one
+  // starts authenticated, 401s, and is superseded mid-retry — a separate branch.
+  it("retries a request on the newer login's token when the retry refresh is superseded", async () => {
+    const refreshGate = deferred<Response>();
+    fetchMock.mockImplementation((url: string) => {
+      if (url.endsWith("/stock") && getAccessToken() === "newLoginToken")
+        return Promise.resolve(jsonResponse({ value: 7 }));
+      if (url.endsWith("/stock")) return Promise.resolve(jsonResponse({ title: "expired" }, 401));
+      if (url.endsWith("/auth/refresh")) return refreshGate.promise;
+      if (url.endsWith("/auth/login")) return Promise.resolve(accessResponse("newLoginToken"));
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    const fetching = apiGet<{ value: number }>("/stock");
+    await drain();
+
+    await login({ email: "a@b.co", password: "pw" });
+    refreshGate.resolve(accessResponse("stale-token"));
+
+    expect(await fetching).toEqual({ value: 7 });
+  });
+
+  it("surfaces the original 401 when logout supersedes a retry refresh", async () => {
+    const refreshGate = deferred<Response>();
+    fetchMock.mockImplementation((url: string) => {
+      if (url.endsWith("/stock")) return Promise.resolve(jsonResponse({ title: "expired" }, 401));
+      if (url.endsWith("/auth/refresh")) return refreshGate.promise;
+      if (url.endsWith("/auth/logout")) return Promise.resolve(new Response(null, { status: 204 }));
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    const fetching = apiGet("/stock").catch((e: unknown) => e);
+    await drain();
+
+    await logout();
+    refreshGate.resolve(accessResponse("discarded-token"));
+
+    const settled = await fetching;
+    expect(settled).toBeInstanceOf(ApiError);
+    expect(settled).toMatchObject({ status: 401 });
+  });
+
+  // The same two outcomes for the blob path, whose 401-retry is a separate
+  // branch from apiFetch's.
+  it("retries a download on the newer login's token when a refresh is superseded", async () => {
+    const refreshGate = deferred<Response>();
+    fetchMock.mockImplementation((url: string) => {
+      if (url.endsWith("/export/all") && getAccessToken() === "newLoginToken")
+        return Promise.resolve(new Response("data", { status: 200 }));
+      if (url.endsWith("/export/all")) return Promise.resolve(jsonResponse({ title: "expired" }, 401));
+      if (url.endsWith("/auth/refresh")) return refreshGate.promise;
+      if (url.endsWith("/auth/login")) return Promise.resolve(accessResponse("newLoginToken"));
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    const downloading = apiGetBlob("/export/all");
+    await drain();
+
+    await login({ email: "a@b.co", password: "pw" }); // supersedes the parked refresh
+    refreshGate.resolve(accessResponse("stale-token"));
+
+    const { blob } = await downloading;
+    expect(blob.size).toBe(4); // "data" — served on the live login's token
+  });
+
+  it("surfaces the original 401 on a download when logout ended the session", async () => {
+    const refreshGate = deferred<Response>();
+    fetchMock.mockImplementation((url: string) => {
+      if (url.endsWith("/export/all")) return Promise.resolve(jsonResponse({ title: "expired" }, 401));
+      if (url.endsWith("/auth/refresh")) return refreshGate.promise;
+      if (url.endsWith("/auth/logout")) return Promise.resolve(new Response(null, { status: 204 }));
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    const downloading = apiGetBlob("/export/all").catch((e: unknown) => e);
+    await drain();
+
+    await logout();
+    refreshGate.resolve(accessResponse("discarded-token"));
+
+    const settled = await downloading;
+    expect(settled).toBeInstanceOf(ApiError);
+    expect(settled).toMatchObject({ status: 401 });
+  });
+
+  // #310 review — the revoke is scoped to "the session is gone". When a newer
+  // LOGIN supersedes an older flight, the cookie in the browser belongs to that
+  // live login; revoking it would sign the user out of the thing they just did.
+  it("does not revoke the cookie when a newer login superseded the flight", async () => {
+    clearAccessToken();
+    const refreshGate = deferred<Response>();
+    fetchMock.mockImplementation((url: string) => {
+      if (url.endsWith("/auth/refresh")) return refreshGate.promise;
+      if (url.endsWith("/auth/login")) return Promise.resolve(accessResponse("newLoginToken"));
+      if (url.endsWith("/auth/logout")) return Promise.resolve(new Response(null, { status: 204 }));
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    const restoring = restoreSession();
+    await drain();
+
+    await login({ email: "a@b.co", password: "pw" }); // supersedes the parked refresh
+    refreshGate.resolve(accessResponse("stale-refresh-token"));
+    await restoring;
+
+    expect(getAccessToken()).toBe("newLoginToken"); // the live login survives
+    expect(callsTo(fetchMock, "/auth/logout")).toHaveLength(0); // and is NOT revoked
   });
 });
