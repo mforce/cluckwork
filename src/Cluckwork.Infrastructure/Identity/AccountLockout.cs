@@ -30,21 +30,38 @@ internal static class AccountLockout
     // every real failure land under normal contention.
     //
     // #273 — returns whether THIS call is the one that crossed the lockout
-    // threshold (the account was NOT locked before it, and IS immediately
-    // after). Callers use that to fire the Auth.AccountLockedOut security event
-    // exactly once per lockout episode, not on every subsequent failed attempt
-    // against an already-locked account. Every caller here already checked
-    // IsLockedOutAsync before reaching this method (LoginAsync, StepUpGrantService
-    // .IssueAsync — both return early on an already-locked account), so the
-    // account is guaranteed unlocked on entry; a post-call true is therefore a
-    // genuine transition, not a re-observation.
+    // threshold (the account was NOT locked immediately before its successful
+    // write, and IS immediately after). Callers use that to fire the
+    // Auth.AccountLockedOut security event exactly once per lockout episode,
+    // not on every subsequent failed attempt against an already-locked
+    // account.
+    //
+    // #273 codex review (P2d) — "unlocked on entry" (every caller here already
+    // checks IsLockedOutAsync before calling this method) is true only for the
+    // FIRST attempt, not for one reached after a reload. Two concurrent
+    // failures one attempt below the threshold can both pass that precheck.
+    // The winner's AccessFailedAsync commits and locks the account; the
+    // loser's write then loses the concurrency race, reloads, and — on retry —
+    // sees the ALREADY-locked row the winner just committed. That retry's own
+    // AccessFailedAsync call typically succeeds (it's just an ordinary
+    // increment on the now-current row), so reporting "succeeded ->
+    // IsLockedOutAsync" unconditionally made the LOSER report a transition it
+    // never caused too, double-firing AccountLockedOut for one lockout
+    // episode. Snapshotting "was this row already locked" immediately before
+    // each attempt's write (not just once at method entry) is what lets a
+    // losing writer recognize a lockout it merely observed on reload, rather
+    // than caused.
     public static async Task<bool> RecordFailedAccessAsync(
         UserManager<ApplicationUser> userManager, AppDbContext db, ApplicationUser user)
     {
         for (var attempt = 0; attempt < 10; attempt++)
         {
+            // Snapshot taken fresh on EVERY attempt (including retries after a
+            // reload) — see the P2d note above for why entry-time alone is not
+            // enough.
+            var wasLockedOut = await userManager.IsLockedOutAsync(user);
             if ((await userManager.AccessFailedAsync(user)).Succeeded)
-                return await userManager.IsLockedOutAsync(user);
+                return !wasLockedOut && await userManager.IsLockedOutAsync(user);
             // The write lost the concurrency race. FindById would hand back the
             // same identity-map instance (stale stamp), so refresh the tracked
             // entity's values from the DB before retrying — `db` is the same
