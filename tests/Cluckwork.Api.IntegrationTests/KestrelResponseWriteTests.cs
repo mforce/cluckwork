@@ -92,36 +92,53 @@ public sealed class KestrelResponseWriteTests(KestrelBackedFactory factory)
             ? scalar.Value?.ToString()
             : null;
 
+    // The sink is shared by the whole fixture, and several requests in these
+    // tests hit the SAME path (the first PUT and its replay; the create POST
+    // and its replay). Take this mark BEFORE the requests under assertion so
+    // the completion lines that belong to them can be told apart from every
+    // earlier request's — including earlier tests'. ConcurrentQueue enumerates
+    // in enqueue order, so a count is a usable cursor.
+    private int MarkLog() => factory.Sink.Events.Count;
+
     // The response is committed before the throw, so the client's 204 arrives
-    // while the server is still unwinding. Wait for the request's own
-    // completion line rather than racing it — it is emitted exactly once per
-    // request, on both the clean and the throwing path.
-    private async Task<LogEvent> CompletionForAsync(string path)
+    // while the server is still unwinding. Wait for the completion lines rather
+    // than racing them — one is emitted per request, on both the clean and the
+    // throwing path.
+    private async Task<IReadOnlyList<LogEvent>> CompletionsForAsync(string path, int mark, int expected)
     {
         var deadline = DateTimeOffset.UtcNow.AddSeconds(10);
         while (true)
         {
-            var match = factory.Sink.Events.FirstOrDefault(e =>
+            var matches = factory.Sink.Events.Skip(mark).Where(e =>
                 ScalarOf(e, "SourceContext") == RequestLoggerContext
-                && ScalarOf(e, "RequestPath") == path);
-            if (match is not null) return match;
-            Assert.True(DateTimeOffset.UtcNow < deadline, $"No request-completion log for {path}");
+                && ScalarOf(e, "RequestPath") == path).ToList();
+            if (matches.Count >= expected) return matches;
+            Assert.True(DateTimeOffset.UtcNow < deadline,
+                $"Expected {expected} request-completion logs for {path}, saw {matches.Count}");
             await Task.Delay(50);
         }
     }
 
-    // Asserts the server handled the request cleanly: the completion line
-    // carries no exception and did not escalate to Error. With the #340 bug
-    // present this line reads
+    // Asserts the server handled the requests cleanly: EVERY completion line
+    // since the mark carries no exception and did not escalate to Error. With
+    // the #340 bug present the line reads
     //   Error … InvalidOperationException: Writing to the response body is
     //   invalid for responses with status code 204
     // while the client still sees its 204.
-    private async Task AssertServerSideCleanAsync(string path)
+    //
+    // `expected` is asserted rather than inferred: checking only the FIRST
+    // match would let a regression confined to ReplayAsync pass on the strength
+    // of the preceding publish request's clean line (Codex, #341 round 1).
+    private async Task AssertServerSideCleanAsync(string path, int mark, int expected)
     {
-        var completion = await CompletionForAsync(path);
-        Assert.Null(completion.Exception);
-        Assert.True(completion.Level < LogEventLevel.Error,
-            $"{path} completed at {completion.Level}: {completion.Exception}");
+        var completions = await CompletionsForAsync(path, mark, expected);
+        Assert.Equal(expected, completions.Count);
+        foreach (var completion in completions)
+        {
+            Assert.Null(completion.Exception);
+            Assert.True(completion.Level < LogEventLevel.Error,
+                $"{path} completed at {completion.Level}: {completion.Exception}");
+        }
     }
 
     // The regression itself.
@@ -131,6 +148,7 @@ public sealed class KestrelResponseWriteTests(KestrelBackedFactory factory)
         var client = await SetupClientAsync();
         var id = await CreateGradeAsync(client);
         var path = $"/api/v1/egg-grades/{id}";
+        var mark = MarkLog();
 
         var update = await client.PutWithKeyAsync(
             path, Guid.NewGuid().ToString(),
@@ -138,7 +156,7 @@ public sealed class KestrelResponseWriteTests(KestrelBackedFactory factory)
 
         Assert.Equal(HttpStatusCode.NoContent, update.StatusCode);
         Assert.Equal(string.Empty, await update.Content.ReadAsStringAsync());
-        await AssertServerSideCleanAsync(path);
+        await AssertServerSideCleanAsync(path, mark, expected: 1);
     }
 
     // The REPLAY path (IdempotencyMiddleware.ReplayAsync) writes the cached
@@ -152,6 +170,7 @@ public sealed class KestrelResponseWriteTests(KestrelBackedFactory factory)
         var path = $"/api/v1/egg-grades/{id}";
         var key = Guid.NewGuid().ToString();
         var body = new { name = "Replayed", sortOrder = 3, isSaleable = true };
+        var mark = MarkLog();
 
         Assert.Equal(HttpStatusCode.NoContent, (await client.PutWithKeyAsync(path, key, body)).StatusCode);
 
@@ -159,7 +178,9 @@ public sealed class KestrelResponseWriteTests(KestrelBackedFactory factory)
         var replay = await client.PutWithKeyAsync(path, key, body);
         Assert.Equal(HttpStatusCode.NoContent, replay.StatusCode);
         Assert.Equal(string.Empty, await replay.Content.ReadAsStringAsync());
-        await AssertServerSideCleanAsync(path);
+        // Both the publish and the replay line, so a ReplayAsync-only
+        // regression cannot hide behind the publish request's clean line.
+        await AssertServerSideCleanAsync(path, mark, expected: 2);
     }
 
     // Counterweight: a fix that simply stopped echoing the buffered body would
@@ -171,6 +192,9 @@ public sealed class KestrelResponseWriteTests(KestrelBackedFactory factory)
         var client = await SetupClientAsync();
         var key = Guid.NewGuid().ToString();
         var payload = new { name = $"B-{Guid.NewGuid():N}"[..12], gradeType = "custom", sortOrder = 2, isSaleable = true };
+        // /api/v1/egg-grades is hit by every test's CreateGradeAsync, so the
+        // mark is what makes these two completion lines this test's own.
+        var mark = MarkLog();
 
         var create = await client.PostWithKeyAsync("/api/v1/egg-grades", key, payload);
         Assert.Equal(HttpStatusCode.Created, create.StatusCode);
@@ -181,6 +205,6 @@ public sealed class KestrelResponseWriteTests(KestrelBackedFactory factory)
         var replay = await client.PostWithKeyAsync("/api/v1/egg-grades", key, payload);
         Assert.Equal(HttpStatusCode.Created, replay.StatusCode);
         Assert.Equal(created.Id, (await replay.Content.ReadFromJsonAsync<IdDto>())!.Id);
-        await AssertServerSideCleanAsync("/api/v1/egg-grades");
+        await AssertServerSideCleanAsync("/api/v1/egg-grades", mark, expected: 2);
     }
 }
