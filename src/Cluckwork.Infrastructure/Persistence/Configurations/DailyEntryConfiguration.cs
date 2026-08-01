@@ -1,6 +1,5 @@
 namespace Cluckwork.Infrastructure.Persistence.Configurations;
 
-using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Eggs;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -76,22 +75,6 @@ public sealed class DailyEntryGradeConfiguration : IEntityTypeConfiguration<Dail
 
 public sealed class EggGradeConfiguration : IEntityTypeConfiguration<EggGrade>
 {
-    // #283 Part 1 — fixed ids for the 10 default grades, same fixed-GUID
-    // convention as SeedDefaults (…001, …002, …). Stable across regenerations:
-    // a `dotnet ef migrations add` re-run after a rebase must keep producing
-    // the SAME InsertData values, or the model snapshot would drift on every
-    // regeneration for no reason.
-    private static readonly Guid SmallId = new("0000000e-0000-0000-0000-000000000001");
-    private static readonly Guid MediumId = new("0000000e-0000-0000-0000-000000000002");
-    private static readonly Guid LargeId = new("0000000e-0000-0000-0000-000000000003");
-    private static readonly Guid JumboId = new("0000000e-0000-0000-0000-000000000004");
-    private static readonly Guid SecondsId = new("0000000e-0000-0000-0000-000000000005");
-    private static readonly Guid CrackedId = new("0000000e-0000-0000-0000-000000000006");
-    private static readonly Guid DirtyId = new("0000000e-0000-0000-0000-000000000007");
-    private static readonly Guid SoftShellId = new("0000000e-0000-0000-0000-000000000008");
-    private static readonly Guid DiscardedId = new("0000000e-0000-0000-0000-000000000009");
-    private static readonly Guid InternalUseId = new("0000000e-0000-0000-0000-000000000010");
-
     public void Configure(EntityTypeBuilder<EggGrade> builder)
     {
         builder.HasKey(g => g.Id);
@@ -111,38 +94,14 @@ public sealed class EggGradeConfiguration : IEntityTypeConfiguration<EggGrade>
         // NameExistsAsync for a friendly 409; the index is the real guarantee.
 
         // #283 Part 1 — spec §9.1's default grades are static reference data,
-        // baked into the migration via HasData exactly like the default
-        // account above: deterministic, multi-instance-safe, no runtime
-        // seeder. Same names/types/saleability/order the old DatabaseSeeder
-        // wrote via EggGrade.Create; HasData can't call the domain factory
-        // (private constructor, and it also throws — inappropriate for
-        // static data whose shape is already known-valid), so the rows are
-        // spelled out directly. Saleable grades are what daily-entry grade
-        // lines may reference; the non-saleable buckets exist for future use.
-        builder.HasData(
-            GradeRow(SmallId, "Small", EggGradeType.Size, 0, isSaleable: true),
-            GradeRow(MediumId, "Medium", EggGradeType.Size, 1, isSaleable: true),
-            GradeRow(LargeId, "Large", EggGradeType.Size, 2, isSaleable: true),
-            GradeRow(JumboId, "Jumbo", EggGradeType.Size, 3, isSaleable: true),
-            GradeRow(SecondsId, "Seconds", EggGradeType.Quality, 4, isSaleable: true),
-            GradeRow(CrackedId, "Cracked", EggGradeType.Quality, 5, isSaleable: false),
-            GradeRow(DirtyId, "Dirty", EggGradeType.Quality, 6, isSaleable: false),
-            GradeRow(SoftShellId, "Soft Shell", EggGradeType.Quality, 7, isSaleable: false),
-            GradeRow(DiscardedId, "Discarded", EggGradeType.Custom, 8, isSaleable: false),
-            GradeRow(InternalUseId, "Internal Use", EggGradeType.Custom, 9, isSaleable: false));
+        // seeded via idempotent raw SQL in the
+        // AddBaseReferenceDataAndMustChangePassword migration, NOT via EF's
+        // HasData(): every real deployment already ran the old runtime
+        // DatabaseSeeder at least once, which minted these 10 rows with
+        // RANDOM ids (EggGrade.Create(Guid.NewGuid(), ...)) — HasData's
+        // InsertData is keyed by PRIMARY KEY, so it cannot detect "this row
+        // already exists under a different id" and collides on the real
+        // unique constraint (AccountId, FarmId, lower(Name)) instead. See the
+        // migration file (PR #339 review).
     }
-
-    private static object GradeRow(
-        Guid id, string name, EggGradeType gradeType, int sortOrder, bool isSaleable) => new
-        {
-            Id = id,
-            AccountId = SeedDefaults.AccountId,
-            FarmId = SeedDefaults.FarmId,
-            Name = name,
-            GradeType = gradeType,
-            SortOrder = sortOrder,
-            IsSaleable = isSaleable,
-            Active = true,
-            Version = 0,
-        };
 }

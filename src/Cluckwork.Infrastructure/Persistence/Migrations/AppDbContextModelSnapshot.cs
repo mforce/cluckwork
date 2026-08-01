@@ -90,23 +90,6 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Accounts");
-
-                    b.HasData(
-                        new
-                        {
-                            Id = new Guid("0000000a-0000-0000-0000-000000000001"),
-                            AccountId = new Guid("0000000a-0000-0000-0000-000000000001"),
-                            Brand = "aubergine",
-                            DefaultCurrencyCode = "USD",
-                            DefaultCurrencyMinorUnit = 2,
-                            DefaultCurrencySymbol = "$",
-                            IsActive = true,
-                            Locale = "en-US",
-                            Name = "Default Farm",
-                            TimeZoneId = "UTC",
-                            UnitSystem = "Metric",
-                            Version = 0
-                        });
                 });
 
             modelBuilder.Entity("Cluckwork.Domain.Accounts.FarmLogo", b =>
@@ -272,62 +255,6 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("EggUnitConversions");
-
-                    b.HasData(
-                        new
-                        {
-                            Id = new Guid("00000010-0000-0000-0000-000000000001"),
-                            AccountId = new Guid("0000000a-0000-0000-0000-000000000001"),
-                            Active = true,
-                            EggsPerUnit = 1,
-                            UnitCode = "Individual",
-                            Version = 0
-                        },
-                        new
-                        {
-                            Id = new Guid("00000010-0000-0000-0000-000000000002"),
-                            AccountId = new Guid("0000000a-0000-0000-0000-000000000001"),
-                            Active = true,
-                            EggsPerUnit = 12,
-                            UnitCode = "Dozen",
-                            Version = 0
-                        },
-                        new
-                        {
-                            Id = new Guid("00000010-0000-0000-0000-000000000003"),
-                            AccountId = new Guid("0000000a-0000-0000-0000-000000000001"),
-                            Active = true,
-                            EggsPerUnit = 30,
-                            UnitCode = "Flat",
-                            Version = 0
-                        },
-                        new
-                        {
-                            Id = new Guid("00000010-0000-0000-0000-000000000004"),
-                            AccountId = new Guid("0000000a-0000-0000-0000-000000000001"),
-                            Active = true,
-                            EggsPerUnit = 30,
-                            UnitCode = "Tray",
-                            Version = 0
-                        },
-                        new
-                        {
-                            Id = new Guid("00000010-0000-0000-0000-000000000005"),
-                            AccountId = new Guid("0000000a-0000-0000-0000-000000000001"),
-                            Active = true,
-                            EggsPerUnit = 12,
-                            UnitCode = "Carton",
-                            Version = 0
-                        },
-                        new
-                        {
-                            Id = new Guid("00000010-0000-0000-0000-000000000006"),
-                            AccountId = new Guid("0000000a-0000-0000-0000-000000000001"),
-                            Active = true,
-                            EggsPerUnit = 360,
-                            UnitCode = "Case",
-                            Version = 0
-                        });
                 });
 
             modelBuilder.Entity("Cluckwork.Domain.Catalog.Product", b =>
@@ -546,128 +473,6 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("EggGrades");
-
-                    b.HasData(
-                        new
-                        {
-                            Id = new Guid("0000000e-0000-0000-0000-000000000001"),
-                            AccountId = new Guid("0000000a-0000-0000-0000-000000000001"),
-                            Active = true,
-                            FarmId = new Guid("0000000f-0000-0000-0000-000000000001"),
-                            GradeType = "Size",
-                            IsSaleable = true,
-                            Name = "Small",
-                            SortOrder = 0,
-                            Version = 0
-                        },
-                        new
-                        {
-                            Id = new Guid("0000000e-0000-0000-0000-000000000002"),
-                            AccountId = new Guid("0000000a-0000-0000-0000-000000000001"),
-                            Active = true,
-                            FarmId = new Guid("0000000f-0000-0000-0000-000000000001"),
-                            GradeType = "Size",
-                            IsSaleable = true,
-                            Name = "Medium",
-                            SortOrder = 1,
-                            Version = 0
-                        },
-                        new
-                        {
-                            Id = new Guid("0000000e-0000-0000-0000-000000000003"),
-                            AccountId = new Guid("0000000a-0000-0000-0000-000000000001"),
-                            Active = true,
-                            FarmId = new Guid("0000000f-0000-0000-0000-000000000001"),
-                            GradeType = "Size",
-                            IsSaleable = true,
-                            Name = "Large",
-                            SortOrder = 2,
-                            Version = 0
-                        },
-                        new
-                        {
-                            Id = new Guid("0000000e-0000-0000-0000-000000000004"),
-                            AccountId = new Guid("0000000a-0000-0000-0000-000000000001"),
-                            Active = true,
-                            FarmId = new Guid("0000000f-0000-0000-0000-000000000001"),
-                            GradeType = "Size",
-                            IsSaleable = true,
-                            Name = "Jumbo",
-                            SortOrder = 3,
-                            Version = 0
-                        },
-                        new
-                        {
-                            Id = new Guid("0000000e-0000-0000-0000-000000000005"),
-                            AccountId = new Guid("0000000a-0000-0000-0000-000000000001"),
-                            Active = true,
-                            FarmId = new Guid("0000000f-0000-0000-0000-000000000001"),
-                            GradeType = "Quality",
-                            IsSaleable = true,
-                            Name = "Seconds",
-                            SortOrder = 4,
-                            Version = 0
-                        },
-                        new
-                        {
-                            Id = new Guid("0000000e-0000-0000-0000-000000000006"),
-                            AccountId = new Guid("0000000a-0000-0000-0000-000000000001"),
-                            Active = true,
-                            FarmId = new Guid("0000000f-0000-0000-0000-000000000001"),
-                            GradeType = "Quality",
-                            IsSaleable = false,
-                            Name = "Cracked",
-                            SortOrder = 5,
-                            Version = 0
-                        },
-                        new
-                        {
-                            Id = new Guid("0000000e-0000-0000-0000-000000000007"),
-                            AccountId = new Guid("0000000a-0000-0000-0000-000000000001"),
-                            Active = true,
-                            FarmId = new Guid("0000000f-0000-0000-0000-000000000001"),
-                            GradeType = "Quality",
-                            IsSaleable = false,
-                            Name = "Dirty",
-                            SortOrder = 6,
-                            Version = 0
-                        },
-                        new
-                        {
-                            Id = new Guid("0000000e-0000-0000-0000-000000000008"),
-                            AccountId = new Guid("0000000a-0000-0000-0000-000000000001"),
-                            Active = true,
-                            FarmId = new Guid("0000000f-0000-0000-0000-000000000001"),
-                            GradeType = "Quality",
-                            IsSaleable = false,
-                            Name = "Soft Shell",
-                            SortOrder = 7,
-                            Version = 0
-                        },
-                        new
-                        {
-                            Id = new Guid("0000000e-0000-0000-0000-000000000009"),
-                            AccountId = new Guid("0000000a-0000-0000-0000-000000000001"),
-                            Active = true,
-                            FarmId = new Guid("0000000f-0000-0000-0000-000000000001"),
-                            GradeType = "Custom",
-                            IsSaleable = false,
-                            Name = "Discarded",
-                            SortOrder = 8,
-                            Version = 0
-                        },
-                        new
-                        {
-                            Id = new Guid("0000000e-0000-0000-0000-000000000010"),
-                            AccountId = new Guid("0000000a-0000-0000-0000-000000000001"),
-                            Active = true,
-                            FarmId = new Guid("0000000f-0000-0000-0000-000000000001"),
-                            GradeType = "Custom",
-                            IsSaleable = false,
-                            Name = "Internal Use",
-                            SortOrder = 9,
-                            Version = 0
-                        });
                 });
 
             modelBuilder.Entity("Cluckwork.Domain.Eggs.EggInventoryMovement", b =>
@@ -1451,36 +1256,6 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("RoleNameIndex");
 
                     b.ToTable("AspNetRoles", (string)null);
-
-                    b.HasData(
-                        new
-                        {
-                            Id = new Guid("0000000c-0000-0000-0000-000000000001"),
-                            ConcurrencyStamp = "0000000c-0000-0000-0000-000000000001",
-                            Name = "Admin",
-                            NormalizedName = "ADMIN"
-                        },
-                        new
-                        {
-                            Id = new Guid("0000000c-0000-0000-0000-000000000002"),
-                            ConcurrencyStamp = "0000000c-0000-0000-0000-000000000002",
-                            Name = "Manager",
-                            NormalizedName = "MANAGER"
-                        },
-                        new
-                        {
-                            Id = new Guid("0000000c-0000-0000-0000-000000000003"),
-                            ConcurrencyStamp = "0000000c-0000-0000-0000-000000000003",
-                            Name = "Sales",
-                            NormalizedName = "SALES"
-                        },
-                        new
-                        {
-                            Id = new Guid("0000000c-0000-0000-0000-000000000004"),
-                            ConcurrencyStamp = "0000000c-0000-0000-0000-000000000004",
-                            Name = "ReadOnly",
-                            NormalizedName = "READONLY"
-                        });
                 });
 
             modelBuilder.Entity("Cluckwork.Infrastructure.Identity.ApplicationUser", b =>

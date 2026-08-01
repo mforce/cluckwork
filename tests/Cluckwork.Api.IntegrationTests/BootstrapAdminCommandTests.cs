@@ -137,4 +137,69 @@ public sealed class BootstrapAdminCommandTests : IClassFixture<CluckworkWebAppli
         Assert.True(0 == exitCode, $"expected exit 0, got {exitCode}. stdout={stdout} stderr={stderr}");
         Assert.Contains("Temporary password:", stdout);
     }
+
+    // PR #339 review — the check-then-act race: two `bootstrap-admin`
+    // invocations starting at once could both observe "no Owner yet" before
+    // either commits and each mint a distinct Owner. Real, separate OS
+    // processes (real separate Postgres connections) against the SAME fresh
+    // database, launched together — the only way to exercise the actual
+    // race a single-process in-memory test can't reproduce. Own throwaway
+    // database: this must not share _factory's container, whose other tests
+    // assert an exact Owner count.
+    [Fact]
+    public async Task ConcurrentInvocations_OnlyOneCreatesAnOwner_TheOtherIsACleanNoOp()
+    {
+        await using var freshDb = new Testcontainers.PostgreSql.PostgreSqlBuilder(
+            "postgres:18.4-trixie@sha256:3a82e1f56c8f0f5616a11103ac3d47e632c3938698946a7ad26da0df1334744a").Build();
+        await freshDb.StartAsync();
+        var connectionString = freshDb.GetConnectionString();
+
+        // Migrate ONCE, sequentially, before racing — the realistic scenario
+        // (the dedicated `migrate` pre-deploy job, #263, already ran; two
+        // operators/scripts then race `bootstrap-admin` itself). Concurrent
+        // EF migration application against a never-migrated schema is a
+        // separate, pre-existing concern this test isn't about — every real
+        // deploy flow never runs bootstrap-admin concurrently with migrate.
+        {
+            var migrateOptions = new Microsoft.EntityFrameworkCore.DbContextOptionsBuilder<AppDbContext>();
+            new Cluckwork.Infrastructure.Providers.Postgres.PostgresDbContextConfigurator()
+                .Configure(migrateOptions, connectionString);
+            await using var migrateDb = new AppDbContext(migrateOptions.Options, new TenantContext());
+            await migrateDb.Database.MigrateAsync();
+        }
+
+        var emailA = $"bootstrap-race-a-{Guid.NewGuid():N}@test.local";
+        var emailB = $"bootstrap-race-b-{Guid.NewGuid():N}@test.local";
+
+        // Started together (not awaited one at a time) so both subprocesses'
+        // ProvisionAsync calls are genuinely in flight at once, both racing
+        // to acquire the pg_advisory_lock.
+        var taskA = RunBootstrapCommandAsync(emailA, connectionString: connectionString);
+        var taskB = RunBootstrapCommandAsync(emailB, connectionString: connectionString);
+        var results = await Task.WhenAll(taskA, taskB);
+
+        foreach (var (exitCode, stdout, stderr) in results)
+            Assert.True(0 == exitCode, $"expected exit 0, got {exitCode}. stdout={stdout} stderr={stderr}");
+
+        // Exactly one of the two actually created an Owner (printed a
+        // secret); the other found one already there and no-opped. Never
+        // both, never neither.
+        var createdCount = results.Count(r => r.Stdout.Contains("Temporary password:"));
+        var alreadyProvisionedCount = results.Count(
+            r => r.Stdout.Contains("already provisioned", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(1, createdCount);
+        Assert.Equal(1, alreadyProvisionedCount);
+
+        // And the database itself agrees: exactly one Owner, under exactly
+        // one of the two emails — never both, never a third.
+        var options = new Microsoft.EntityFrameworkCore.DbContextOptionsBuilder<AppDbContext>();
+        new Cluckwork.Infrastructure.Providers.Postgres.PostgresDbContextConfigurator()
+            .Configure(options, connectionString);
+        await using var db = new AppDbContext(options.Options, new TenantContext());
+        var owners = await db.Users.IgnoreQueryFilters()
+            .Where(u => u.AccountId == SeedDefaults.AccountId)
+            .ToListAsync();
+        var owner = Assert.Single(owners);
+        Assert.Contains(owner.Email, new[] { emailA, emailB });
+    }
 }
