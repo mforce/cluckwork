@@ -1603,9 +1603,10 @@ export const es = {
       + "<strong>lotes</strong> de un trabajador para gestionar su acceso — el libro mayor permanece donde "
       + "está y el formulario viene a usted.",
     dialogsCancel:
-      "<strong>Cancelar</strong>, Escape, o un clic fuera cierra la ventana emergente y no cambia nada. Si "
-      + "un guardado falla, la ventana permanece abierta con sus valores y el motivo, para que pueda "
-      + "corregirlo e intentarlo de nuevo — reintentar es seguro, nunca registra lo mismo dos veces.",
+      "<strong>Cancelar</strong>, Escape, o un clic fuera cierra la ventana emergente, no registra nada y "
+      + "borra lo que escribió — al volver a abrirla empieza con un formulario en blanco. Si un guardado "
+      + "falla, la ventana permanece abierta con sus valores y el motivo, para que pueda corregirlo e "
+      + "intentarlo de nuevo — reintentar es seguro, nunca registra lo mismo dos veces.",
     dialogsInlineForms:
       "Las pantallas cuyo único trabajo es la captura mantienen su formulario en la página: <strong>Entrada "
       + "diaria</strong>, <strong>Agua</strong>, registrar un gasto, y agregar líneas a un pedido en "

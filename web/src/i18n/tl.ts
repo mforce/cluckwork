@@ -1666,10 +1666,11 @@ export const tl = {
       + "kawan</strong> ng isang manggagawa para pamahalaan ang access niya — nananatili sa lugar nito ang "
       + "talaan at ang form na ang lalapit sa iyo.",
     dialogsCancel:
-      "Ang <strong>Kanselahin</strong>, Escape, o pag-click sa labas ay nagsasara ng popup at walang "
-      + "binabago. Kung nabigo ang pag-save, mananatiling bukas ang popup na kasama ang mga value at ang "
-      + "dahilan mo, para maayos mo ito at subukan ulit — ligtas ang muling pagsubok, hindi ito kailanman "
-      + "nagtatala ng parehong bagay nang dalawang beses.",
+      "Ang <strong>Kanselahin</strong>, Escape, o pag-click sa labas ay nagsasara ng popup, walang "
+      + "itinatala, at binubura ang na-type mo — kapag binuksan mong muli, blangko na ang form. Kung "
+      + "nabigo ang pag-save, mananatiling bukas ang popup na kasama ang mga value at ang dahilan mo, "
+      + "para maayos mo ito at subukan ulit — ligtas ang muling pagsubok, hindi ito kailanman nagtatala "
+      + "ng parehong bagay nang dalawang beses.",
     dialogsInlineForms:
       "Ang mga screen na ang buong trabaho ay pagtatala ay pinapanatili ang form sa page mismo: "
       + "<strong>Araw-araw na Tala</strong>, <strong>Tubig</strong>, pagtatala ng gastos, at pagdagdag ng "
