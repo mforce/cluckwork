@@ -72,6 +72,10 @@ internal static class CluckworkIdentityServiceCollectionExtensions
             Microsoft.AspNetCore.Authorization.IAuthorizationMiddlewareResultHandler,
             ForbiddenProblemResultHandler>();
 
+        // #273 codex review (P1b) — shared LoginFailed/AccountLockedOut emitter
+        // for every password oracle (LoginAsync AND StepUpGrantService.IssueAsync).
+        // Scoped like the two services that consume it below.
+        services.AddScoped<AuthSecurityEventLogger>();
         services.AddScoped<IIdentityProvider, IdentityProvider>();
         // Break-glass recovery must remain available in Production.
         services.AddScoped<AdminRecoveryService>();

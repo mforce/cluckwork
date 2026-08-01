@@ -138,7 +138,8 @@ public sealed class StepUpGrantService(
     AppDbContext db,
     IOptions<JwtOptions> jwtOptions,
     TimeProvider timeProvider,
-    IStepUpGrantRegistry registry) : IStepUpGrantService
+    IStepUpGrantRegistry registry,
+    AuthSecurityEventLogger securityEvents) : IStepUpGrantService
 {
     // Never sourced from config — see the threat-model note above.
     internal const string Audience = "cluckwork-step-up";
@@ -171,6 +172,11 @@ public sealed class StepUpGrantService(
             // missing/foreign user isn't measurably faster than a real check.
             userManager.PasswordHasher.VerifyHashedPassword(
                 new ApplicationUser(), TimingEqualization.DummyHash, currentPassword);
+            // #273 codex review (P1b) — this is a SECOND password oracle
+            // (LoginAsync being the first); SecurityEvents.LoginFailed's own
+            // doc already says it fires on /auth/login OR /auth/step-up, on
+            // all three unsuccessful branches, with the identical field set.
+            securityEvents.LoginFailed();
             return Result.Failure<StepUpGrant>(WrongPasswordError);
         }
 
@@ -184,12 +190,25 @@ public sealed class StepUpGrantService(
         {
             userManager.PasswordHasher.VerifyHashedPassword(
                 user, user.PasswordHash ?? TimingEqualization.DummyHash, currentPassword);
+            // #273 codex review (P1b) — same as LoginAsync's already-locked
+            // branch: re-fires LoginFailed, never AccountLockedOut again (that
+            // fired once, at the transition).
+            securityEvents.LoginFailed();
             return Result.Failure<StepUpGrant>(WrongPasswordError);
         }
 
         if (!await userManager.CheckPasswordAsync(user, currentPassword))
         {
-            await AccountLockout.RecordFailedAccessAsync(userManager, db, user);
+            // #273 codex review (P1b) — the bool this returns was previously
+            // discarded, so a failed step-up attempt never fired LoginFailed
+            // and a threshold-crossing one never fired AccountLockedOut: a
+            // failed /auth/step-up — a privileged password oracle — was
+            // invisible to security telemetry. Same shape as LoginAsync's
+            // wrong-password branch.
+            var justLockedOut = await AccountLockout.RecordFailedAccessAsync(userManager, db, user);
+            securityEvents.LoginFailed();
+            if (justLockedOut)
+                securityEvents.AccountLockedOut(user.Id);
             return Result.Failure<StepUpGrant>(WrongPasswordError);
         }
 

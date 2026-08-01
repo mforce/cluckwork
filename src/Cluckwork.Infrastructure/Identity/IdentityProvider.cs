@@ -20,6 +20,7 @@ public sealed class IdentityProvider(
     Cluckwork.Application.Common.IAuditWriter audit,
     IStepUpGrantRegistry stepUpGrants,
     IHttpContextAccessor httpContextAccessor,
+    AuthSecurityEventLogger securityEvents,
     ILogger<IdentityProvider> logger) : IIdentityProvider
 {
     public async Task<Result<TokenPair>> LoginAsync(string email, string password, CancellationToken ct = default)
@@ -30,7 +31,7 @@ public sealed class IdentityProvider(
             // Always pay the PBKDF2 cost so that "user not found" and "wrong password"
             // are indistinguishable by timing.
             userManager.PasswordHasher.VerifyHashedPassword(new ApplicationUser(), TimingEqualization.DummyHash, password);
-            LogLoginFailed();
+            securityEvents.LoginFailed();
             return Result.Failure<TokenPair>(Error.Validation("Identity.InvalidCredentials", "Invalid email or password."));
         }
 
@@ -46,7 +47,7 @@ public sealed class IdentityProvider(
             // #273 — same LoginFailed shape as the "user not found" branch above:
             // an attempt against an ALREADY-locked account re-fires LoginFailed but
             // never AccountLockedOut again — that fired once, at the transition.
-            LogLoginFailed();
+            securityEvents.LoginFailed();
             return Result.Failure<TokenPair>(Error.Validation("Identity.InvalidCredentials", "Invalid email or password."));
         }
 
@@ -60,10 +61,9 @@ public sealed class IdentityProvider(
             // user on, because it only ever fires here — never on the
             // "user not found" branch — so its mere presence can't be used to
             // tell a nonexistent email apart from a wrong password.
-            LogLoginFailed();
+            securityEvents.LoginFailed();
             if (justLockedOut)
-                logger.LogWarning("{SecurityEvent} user={UserId} client={ClientIp}",
-                    SecurityEvents.AccountLockedOut, user.Id, ClientIp);
+                securityEvents.AccountLockedOut(user.Id);
             return Result.Failure<TokenPair>(Error.Validation("Identity.InvalidCredentials", "Invalid email or password."));
         }
 
@@ -90,9 +90,6 @@ public sealed class IdentityProvider(
     // just see null -> "unknown", not throw).
     private string ClientIp =>
         httpContextAccessor.HttpContext?.Connection.RemoteIpAddress?.ToString() ?? "unknown";
-
-    private void LogLoginFailed() =>
-        logger.LogWarning("{SecurityEvent} client={ClientIp}", SecurityEvents.LoginFailed, ClientIp);
 
     public async Task<Result<TokenPair>> RefreshAsync(string refreshToken, CancellationToken ct = default)
     {

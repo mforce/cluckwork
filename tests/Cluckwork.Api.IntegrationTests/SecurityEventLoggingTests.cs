@@ -130,6 +130,58 @@ public sealed class SecurityEventLoggingTests(SecurityEventLoggingFactory factor
         Assert.Equal(LockoutMaxFailedAttempts, loginFailedEvents.Count);
     }
 
+    // ---------- Auth.LoginFailed / Auth.AccountLockedOut via /auth/step-up ----------
+    // #273 codex review (P1b) — StepUpGrantService.IssueAsync is a SECOND
+    // password oracle (#308's Owner-takeover re-confirmation) and previously
+    // emitted neither event at all: it returned from every unsuccessful
+    // branch directly and discarded RecordFailedAccessAsync's transition
+    // bool. Mirrors the two LoginAsync tests above exactly, just against
+    // /auth/step-up instead of /auth/login.
+
+    [Fact]
+    public async Task Failed_step_up_emits_LoginFailed_with_the_identical_shape_as_a_failed_login()
+    {
+        factory.Sink.Events.Clear();
+        var email = await SeedUserAsync();
+        var admin = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
+
+        var response = await admin.PostAsJsonAsync("/api/v1/auth/step-up", new { password = "WrongPassw0rd!x" });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var events = EventsFor(SecurityEvents.LoginFailed);
+        var e = Assert.Single(events);
+        // Same non-enumerating shape as a failed /auth/login: no user id, no
+        // email — see SecurityEvents.LoginFailed.
+        Assert.False(e.Properties.ContainsKey("UserId"));
+        Assert.False(e.Properties.ContainsKey("Email"));
+        Assert.NotNull(ScalarOf(e, "ClientIp"));
+    }
+
+    [Fact]
+    public async Task Step_up_attempts_crossing_the_lockout_threshold_emit_AccountLockedOut_exactly_once()
+    {
+        factory.Sink.Events.Clear();
+        var email = await SeedUserAsync();
+
+        using var scope = factory.Services.CreateScope();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var userId = (await users.FindByEmailAsync(email))!.Id;
+
+        var admin = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
+
+        for (var i = 0; i < LockoutMaxFailedAttempts; i++)
+            await admin.PostAsJsonAsync("/api/v1/auth/step-up", new { password = "WrongPassw0rd!x" });
+
+        var lockedOutEvents = EventsFor(SecurityEvents.AccountLockedOut);
+        var loginFailedEvents = EventsFor(SecurityEvents.LoginFailed);
+
+        var locked = Assert.Single(lockedOutEvents);
+        Assert.Equal(userId.ToString(), ScalarOf(locked, "UserId"));
+        // Every attempt (including the one that also locked the account) is a
+        // LoginFailed; only the last one ALSO gets AccountLockedOut.
+        Assert.Equal(LockoutMaxFailedAttempts, loginFailedEvents.Count);
+    }
+
     // ---------- Auth.RefreshTokenReplayDetected ----------
 
     [Fact]
@@ -228,6 +280,7 @@ public sealed class SecurityEventLoggingTests(SecurityEventLoggingFactory factor
             services.GetRequiredService<IAuditWriter>(),
             services.GetRequiredService<IStepUpGrantRegistry>(),
             services.GetRequiredService<IHttpContextAccessor>(),
+            services.GetRequiredService<AuthSecurityEventLogger>(),
             services.GetRequiredService<ILogger<IdentityProvider>>());
 
         var rawRefreshToken = Uri.UnescapeDataString(tokens.RefreshToken);
