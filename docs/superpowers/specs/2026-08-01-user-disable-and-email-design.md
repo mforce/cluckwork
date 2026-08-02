@@ -3,10 +3,10 @@
 **Date:** 2026-08-01
 **Phase:** 1.1 (epic #14)
 **Status:** design, awaiting implementation plan
-**Revision:** fourth draft. Each round of review has found the previous round's
-enforcement mechanism incomplete; the corrections are recorded at the end, in
-*What the first/second/third draft got wrong*. Read all three before treating
-any of this as a small delta — the corrections are the substance.
+**Revision:** fifth draft. Every round of review so far has found a real defect
+in the previous round's fix. The corrections are recorded at the end, in
+*What the first/second/third/fourth draft got wrong* — read them before treating
+any of this as a small delta. The corrections are the substance.
 
 ## Problem
 
@@ -79,8 +79,11 @@ stamped into every access token as a claim, compared against the database on
 every authenticated request. A mismatch is a 401.
 
 ```csharp
-public int CredentialEpoch { get; set; }   // starts at 0, only ever increments
+public int CredentialEpoch { get; set; } = 1;   // starts at 1, only ever increments
 ```
+
+It starts at `1`, not `0`, and `0` is permanently retired — see *Storage* for why
+that one-off matters more than it looks.
 
 Bumping it is the single act that means "every credential minted before now is
 dead." Disable bumps it. Email change bumps it. Password reset bumps it (all
@@ -267,25 +270,54 @@ refresh tokens is not enough on its own* above. Every mint site stamps it:
 `LoginAsync`, `RefreshAsync`'s rotation, and `ChangeOwnPasswordAsync`'s
 re-issue.
 
-One migration: three columns on `AspNetUsers` and one on `refresh_tokens`, both
-epochs non-nullable with default `0`.
+One migration: three columns on `AspNetUsers` and one on `refresh_tokens`.
 
-**The cutover revokes every existing refresh token.** Backfilling users and
-tokens both to `0` would preserve live sessions — and that is the defect, not a
-feature. The pre-epoch codebase already has the revoke-vs-refresh race described
-above, so at migration time an attacker-held child token may already be sitting
-`RevokedAt == null` after some earlier password reset. Certifying every legacy
-token as current-epoch would bless exactly that row, and it would stay usable
-until some unrelated future bump. The migration cannot tell which legacy tokens
-predate their user's last credential change, so it cannot be selective — the only
-clean boundary is to invalidate all of them.
+**Epoch `0` is permanently retired.** It is the value a row receives when it is
+written by something that does not know the column exists, and it must never
+equal a live user's epoch. So:
 
-The cost is one forced re-login for everyone at deploy. For a farm's worth of
-users that is trivially cheap, and it is the single moment where the new
-mechanism can be given a trustworthy starting state.
+- `AspNetUsers.CredentialEpoch` — non-nullable, **default `1`**, and the C#
+  property initializes to `1`. Existing users are backfilled to `1`.
+- `refresh_tokens.IssuedEpoch` — non-nullable, **default `0`**, with no C#
+  initializer worth trusting: every mint site stamps it explicitly from the
+  user's current epoch. The default exists only to catch writers that don't.
 
-This is the one data statement in the migration (`UPDATE refresh_tokens SET
-"RevokedAt" = now() WHERE "RevokedAt" IS NULL`) — no INSERTs, so
+Since epochs only ever increment from `1`, a token carrying `0` can never match
+any user and is rejected inert, forever.
+
+That asymmetry is doing two jobs.
+
+**One: it makes the cutover actually bite.** Revoking legacy tokens is not
+sufficient on its own. If users and legacy tokens both sat at `0`, then after the
+victim logs in again their *new* token is also `0` — so a stolen legacy token
+**passes** the epoch comparison, falls into the revoked-token replay branch, and
+burns down the fresh family. The denial of service the check placement above
+exists to prevent, reintroduced by the cutover itself. Users at `1` and legacy
+tokens at `0` is what separates them.
+
+**Two: it survives a rolling deploy.** Production runs `migrate` as a separate
+job *before* the new serving process (#263), so an old binary can still be
+serving while the columns exist. It knows nothing about `IssuedEpoch`, so its
+`INSERT`s take the database default `0` — which is exactly the value no user will
+ever carry. Tokens minted in that window are inert the moment the new binary
+takes over. Their holders get logged out; nobody gets a credential the new
+mechanism cannot see. There is no window in which an old writer can mint
+something the new binary honours.
+
+**The migration still revokes every existing refresh token** (`UPDATE
+refresh_tokens SET "RevokedAt" = now() WHERE "RevokedAt" IS NULL`), even though
+the epoch separation already makes them inert. This is deliberate
+defence-in-depth, and the direction matters: if the epoch comparison ever
+regresses, revoked-and-retired legacy tokens degrade to a denial of service,
+whereas active-and-retired ones would degrade to *access*. Given a choice of
+failure modes, take the one that locks people out rather than the one that lets
+them in.
+
+The cost of the whole cutover is one forced re-login for everyone at deploy. For
+a farm's worth of users that is trivially cheap, and it is the single moment
+where the mechanism can be given a trustworthy starting state.
+
+That `UPDATE` is the migration's only data statement — no INSERTs, so
 `MigrationSecurityReviewTests`' shape assertions are unaffected, but its count
 pins need updating alongside.
 
@@ -474,10 +506,17 @@ these bugs present:
 - **Genuine same-epoch reuse still burns the family.** The counterpart, so the
   fix above cannot be implemented by simply weakening #176's theft detection.
 
-**Cutover** — a refresh token that was active before the migration is rejected
-after it, and the user is forced to log in again. Asserted against a database
-seeded pre-migration, since the whole point is a boundary the migration draws
-across data it did not create.
+**Cutover** — asserted against a database seeded pre-migration, since the whole
+point is a boundary the migration draws across data it did not create:
+
+- A refresh token active before the migration is rejected after it, and the user
+  is forced to log in again.
+- **After that user logs in again, the stolen legacy token still cannot burn
+  their new family.** The test that fails if legacy tokens and users share an
+  epoch — revocation alone passes the first assertion and fails this one.
+- A row inserted with the column default `0` — standing in for an old binary
+  still serving during a rolling deploy — is rejected by the new binary, and
+  rejected *inert*.
 
 **Middleware ordering** — asserted explicitly, since the guarantee is positional
 and a silent reorder fails open.
@@ -575,3 +614,25 @@ Recorded so the same reasoning is not re-derived later.
     ever loading the user*. When adding a guard, enumerate every entry point to
     the guarded state first, then place the guard above all of them — do not
     place it next to the code that prompted the guard.
+
+## What the fourth draft got wrong
+
+13. **The cutover revoked legacy tokens but left them at the same epoch as their
+    users.** Revocation is not differentiation. After the victim logs in again
+    their new token is also epoch `0`, so a stolen legacy token *passes* the
+    comparison, enters the replay branch, and burns the fresh family — the same
+    denial of service, reintroduced by the fix for the previous one.
+
+    Users now start at `1` and `0` is permanently retired. That also closes a
+    rolling-deploy window the draft never considered: `migrate` runs before the
+    new serving process (#263), so an old binary can still be inserting refresh
+    tokens whose unknown column takes the database default — and `0` is precisely
+    the value no user will ever carry, so those rows are inert by construction
+    rather than by timing.
+
+    Worth stating as its own rule, because it is a different mistake from items
+    10–12: **a boundary needs a value, not just an event.** "Revoke everything at
+    the cutover" is an event, and an event does not survive a writer that is
+    still running or a row written after it. Reserving a sentinel the new world
+    can never produce is what makes the boundary hold without depending on when
+    anything happened.
