@@ -214,6 +214,9 @@ Two steps, answering two different questions — *which* image, and whether it i
 really ours:
 
 ```bash
+# 0. gh needs registry credentials for an oci:// subject
+echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$USER" --password-stdin
+
 # 1. Obtain the digest (machine-readable; no prose to parse)
 gh release download v0.4.0 -p image.json -R mforce/cluckwork
 REF=$(jq -r .reference image.json)
@@ -233,9 +236,15 @@ workflow here that can mint an attestation would satisfy the check.
 Step 2 is the one that matters, and step 1 cannot substitute for it. Knowing a
 digest tells you *what* you are deploying but nothing about *where it came from*
 — if someone pushed those bytes by hand, the digest is still a perfectly valid,
-perfectly immutable digest. The attestation is signed by the workflow run that
-built the image, so it fails for anything not produced by CI. The realistic risk
-is a leaked token, not a malicious maintainer.
+perfectly immutable digest. The attestation is a signed claim by this repo's CI
+workflow that it produced those bytes, so anything pushed by hand has no such
+claim and fails the check. The realistic risk is a leaked token, not a malicious
+maintainer.
+
+Note what it proves precisely: that the named workflow *attested* this digest —
+not, independently, that it built it. Attestations are claims made by an actor,
+so their strength rests on that actor being trustworthy, which is why
+`--signer-workflow` (bind the identity to one workflow) is not optional here.
 
 The digest also appears at the bottom of the release notes, for humans.
 Deployment configuration itself lives in the separate deploy repo, not here.

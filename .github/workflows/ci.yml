@@ -597,7 +597,20 @@ jobs:
       #     --repo <owner>/<repo> \
       #     --signer-workflow <owner>/<repo>/.github/workflows/ci.yml \
       #     --bundle-from-oci
-      # succeeds only for bytes this workflow actually produced.
+      # succeeds only for bytes this workflow signed a provenance claim over.
+      # Say it that precisely: an attestation is a CLAIM BY AN ACTOR, so it
+      # proves the named workflow attested this digest — not, independently,
+      # that it built it. The strength rests on that actor, which is why
+      # `--signer-workflow` is part of the documented command and not optional.
+      #
+      # Repair caveat: on a `workflow_dispatch` this job builds `inputs.sha`,
+      # but GITHUB_SHA is the tip of the dispatched REF, and the provenance
+      # predicate is built from the OIDC token's ref/sha. So a repaired image's
+      # attestation names the branch tip as its source commit, not the commit
+      # actually built. The digest binding is still correct — which is what
+      # promotion and deploy check — but do not read the provenance's source
+      # commit as authoritative for a dispatched rebuild. `image.json.commit`
+      # is the commit the release was cut from.
       #
       # Both flags are load-bearing and neither is the default:
       #   --bundle-from-oci   without it `gh` fetches the bundle from the GITHUB

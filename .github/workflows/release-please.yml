@@ -361,6 +361,31 @@ jobs:
           fi
           echo "Released commit was published as $digest"
 
+          # VERIFY PROVENANCE BEFORE RETAGGING. The artifact above proves CI's
+          # gates passed for these bytes, but only for the run that uploaded it —
+          # and this lookup takes the first unexpired artifact of that NAME,
+          # repo-wide. So an artifact from an earlier run of the same commit
+          # satisfies it, including one written before attestation existed at
+          # all. "The attest step runs before the upload" is therefore fail-closed
+          # only within a single run; it is not a property of promotion.
+          #
+          # Checking the attestation here closes that: promotion refuses unless
+          # the bytes it is about to name carry provenance from THIS repo's CI
+          # workflow, whatever produced the artifact.
+          #
+          # `--bundle-from-oci` deliberately: it reads the registry copy rather
+          # than the GitHub API, so this also proves the referrer the deploy side
+          # depends on actually exists — on every release, rather than being
+          # discovered missing by whoever deploys. The GHCR login above is what
+          # satisfies the registry auth an `oci://` subject requires.
+          if ! gh attestation verify "oci://$image@$digest" \
+            --repo "$GITHUB_REPOSITORY" \
+            --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/ci.yml" \
+            --bundle-from-oci; then
+            echo "::error::no valid CI provenance for $image@$digest — refusing to promote bytes whose origin cannot be established"
+            exit 1
+          fi
+
           # Server-side retag: adds a name to an EXISTING manifest. Nothing is
           # pulled and nothing is rebuilt.
           #
@@ -455,8 +480,19 @@ jobs:
           # says which digest we published, it does not prove those bytes are
           # CI's. The attestation written by ci.yml (#354) is what proves that,
           # and the two compose: read the digest here, verify it there.
-          printf '{\n  "image": "%s",\n  "digest": "%s",\n  "reference": "%s@%s",\n  "tag": "%s",\n  "commit": "%s",\n  "repository": "%s"\n}\n' \
-            "$IMAGE" "$DIGEST" "$IMAGE" "$DIGEST" "$TAG" "$RELEASE_SHA" "$GITHUB_REPOSITORY" \
+          # `jq -n --arg`, not printf: printf does no JSON escaping, and TAG is
+          # the one field here not constrained to a safe shape (IMAGE, DIGEST and
+          # RELEASE_SHA are all pattern-checked upstream). A tag containing a
+          # quote is a valid git ref, so a printf-built asset is only well-formed
+          # by luck. jq escapes, and this is the file another repo parses.
+          jq -n \
+            --arg image "$IMAGE" \
+            --arg digest "$DIGEST" \
+            --arg tag "$TAG" \
+            --arg commit "$RELEASE_SHA" \
+            --arg repository "$GITHUB_REPOSITORY" \
+            '{image: $image, digest: $digest, reference: ($image + "@" + $digest),
+              tag: $tag, commit: $commit, repository: $repository}' \
             > "$RUNNER_TEMP/image.json"
 
           # Attached BEFORE publishing, so there is never a moment where the
