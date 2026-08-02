@@ -3,9 +3,10 @@
 **Date:** 2026-08-01
 **Phase:** 1.1 (epic #14)
 **Status:** design, awaiting implementation plan
-**Revision:** second draft, after an adversarial review of the first. The
-changes are substantive and are recorded in *What the first draft got wrong* at
-the end — read that before treating any of this as a small delta.
+**Revision:** third draft. Each round of review found the previous round's
+enforcement mechanism incomplete; the corrections are recorded at the end, in
+*What the first draft got wrong* and *What the second draft got wrong*. Read
+both before treating any of this as a small delta.
 
 ## Problem
 
@@ -92,8 +93,10 @@ This subsumes the disabled check rather than sitting beside it: the middleware
 compares one claim to one column, and `DisabledAt` goes back to being what it
 should be — the record of a state, not the enforcement mechanism.
 
-`RefreshAsync` re-checks both the disabled state and the epoch. That closes the
-issuance race below.
+The epoch has to be bound to **every** credential the system will later accept,
+not only the access token. The refresh token gets its own stamped copy, checked
+before rotation — see the next section for why leaving it off defeats the whole
+mechanism.
 
 ### Why not a cache
 
@@ -112,10 +115,25 @@ revoke commit, and insert its new active child *after* — a live refresh token
 the disable never saw. For an email change that child works immediately; for a
 disable it lies dormant and works the moment someone re-enables.
 
-The epoch closes this: the child was minted under the old epoch, so `RefreshAsync`
-refuses it, and any access token it could have produced fails the per-request
-check. Bulk revocation stays — it is still the right thing to do — but it is no
-longer what the guarantee rests on.
+**The epoch closes this only if the refresh token carries its own issuance
+epoch.** Putting `CredentialEpoch` on the user alone is not enough, and the
+second draft got this wrong: the child's *access* token would indeed be rejected
+(minted under the old epoch), but the child *refresh* token is a durable row with
+`RevokedAt == null`, and presenting it makes `RefreshAsync` read the user's
+**current** epoch and mint a perfectly valid current-epoch pair. For an email
+change that works immediately; for a disable the child lies dormant and works the
+moment someone re-enables — the exact resurrection the epoch exists to prevent,
+re-entered through the refresh door.
+
+So `RefreshToken` carries `IssuedEpoch`, stamped at mint time, and `RefreshAsync`
+refuses any token whose `IssuedEpoch` differs from the user's current
+`CredentialEpoch` **before** rotating. A bump therefore kills the whole family by
+construction, whether or not the bulk revoke happened to win the race.
+
+Bulk revocation stays — it is still the right thing to do, and it closes the
+window promptly — but it is no longer what the guarantee rests on. That matters
+because `RevokeAllActiveForUserAsync` is a bulk `ExecuteUpdate` over rows that
+are unrevoked *at that instant*; it cannot see a row that does not exist yet.
 
 ### The last-active-Owner guard needs an account-wide lock
 
@@ -235,8 +253,22 @@ a row does not break a foreign key.) A plain `Guid?` does permit a cross-account
 value; the writer is always the acting Owner in the same account, and the column
 is never read for authorization.
 
-One migration: three columns, `CredentialEpoch` non-nullable with default `0`,
-no data statements. `MigrationSecurityReviewTests` stays green.
+`RefreshToken` gains the matching half:
+
+```csharp
+public int IssuedEpoch { get; set; }   // the user's CredentialEpoch when this token was minted
+```
+
+Without it the epoch is defeated through the refresh door — see *Revoking
+refresh tokens is not enough on its own* above. Every mint site stamps it:
+`LoginAsync`, `RefreshAsync`'s rotation, and `ChangeOwnPasswordAsync`'s
+re-issue.
+
+One migration: three columns on `AspNetUsers` and one on `refresh_tokens`, both
+epochs non-nullable with default `0`, no data statements. Default `0` is correct
+for the backfill in both directions: every existing user starts at epoch `0`, and
+every existing refresh token was minted under it, so no live session is evicted
+by the deploy. `MigrationSecurityReviewTests` stays green.
 
 ### 2. Application layer
 
@@ -335,8 +367,13 @@ disabled" from "your credentials were rotated."
 `LoginAsync` refuses a disabled user with the *same* generic
 `Identity.InvalidCredentials` as a wrong password, still paying the PBKDF2 cost —
 the reply must never reveal account state, the reasoning the lockout branch
-already documents. `RefreshAsync` refuses a disabled user **and** any token
-minted under a superseded epoch.
+already documents.
+
+`RefreshAsync` refuses a disabled user, **and refuses any token whose
+`IssuedEpoch` differs from the user's current `CredentialEpoch`** — checked
+before the rotation, so a superseded token is never consumed and never mints a
+child. That check, not the bulk revocation, is what makes a bump terminate the
+whole token family.
 
 ### 5. SPA
 
@@ -385,8 +422,13 @@ self-email-change, both toggle directions, email normalization, conflict.
 these bugs present:
 
 - Two Owners disabling each other concurrently must not reach zero active Owners.
-- A refresh in flight across a disable must not leave a usable child token.
-- A refresh in flight across an email change must not leave a usable child token.
+- A refresh in flight across a disable must not leave a usable child token —
+  asserted **by presenting the child**, not by checking that the access token it
+  minted is rejected. The weaker assertion passes with the defect present.
+- The same child must still be unusable **after the user is re-enabled**. This is
+  the one that fails if `IssuedEpoch` is left off the refresh token.
+- A refresh in flight across an email change must not leave a usable child token,
+  asserted the same way.
 - A step-up issuance racing a disable must not produce a usable grant.
 
 **Middleware ordering** — asserted explicitly, since the guarantee is positional
@@ -439,3 +481,21 @@ Recorded so the same reasoning is not re-derived later.
    out with a typo, against a `recover-admin` that looks its target up by email.
 9. **The `DisabledBy` FK omission was justified with a false claim** about
    foreign keys being invalidated by a disabled referent.
+
+## What the second draft got wrong
+
+10. **The epoch was put on the user only.** That rejects the *access* token a
+    racing refresh mints, and stops there — the *child refresh token* is a
+    durable row the bulk revoke never saw, and presenting it makes
+    `RefreshAsync` read the user's current epoch and mint a valid current-epoch
+    pair. Immediately after an email change; after re-enabling, for a disable.
+    The fix is `RefreshToken.IssuedEpoch`, compared before rotation.
+
+    The general lesson, and the reason this survived a rewrite that was
+    *specifically about* this failure mode: a revocation epoch has to be bound to
+    **every credential the system will later accept**, not just the one whose
+    weakness prompted it. The second draft found the access token had no binding
+    and fixed exactly that, while the refresh token — the credential whose entire
+    job is to outlive the access token — kept none. Any future credential type
+    (a step-up grant made durable per #338, an API key, a device token) must be
+    stamped at mint and checked at use, or it reopens the same door.
