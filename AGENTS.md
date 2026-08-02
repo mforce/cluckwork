@@ -188,7 +188,9 @@ nothing to forget and nothing for concurrent PRs to conflict over.
 The tag is per *release*, not strictly per merge: when merges land faster than a run
 completes, the superseded run skips and the next one publishes an image that already
 contains the skipped commit's changes. No change ever goes unreleased; it may just
-ship under the following version rather than one of its own.
+ship under the following version rather than one of its own. A superseded run shows
+up either green with a "release skipped" notice or, if a third merge evicted it from
+the concurrency queue, as **Cancelled** — neither means the release path is broken.
 
 - **The bump comes from PR labels**, not the commit subject: `release:major` → 2.0.0,
   `release:minor` → 1.3.0, **no label → patch**. An inferred bump is silently wrong on

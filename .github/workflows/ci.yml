@@ -453,6 +453,9 @@ jobs:
     concurrency:
       group: release-main
       cancel-in-progress: false
+    # All three are EMPTY on a superseded run: the publish step is skipped, the
+    # job still succeeds, and there is deliberately nothing to report. A consumer
+    # must read an empty digest as "this run released nothing", not as a failure.
     outputs:
       version: ${{ steps.publish.outputs.version }}
       digest: ${{ steps.publish.outputs.digest }}
@@ -591,11 +594,15 @@ jobs:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: echo "$GHCR_TOKEN" | docker login ghcr.io -u x-access-token --password-stdin
 
-      # Push BEFORE tagging. If the tag push then fails, the recovery is a
+      # Push BEFORE git-tagging. If the tag push then fails, the recovery is a
       # re-run: no tag exists, so the same version is recomputed and the same
       # bytes are re-pushed (a no-op in the registry) before tagging is retried.
       # Tagging first and failing to push would leave a version pointing at
       # nothing.
+      #
+      # That ordering has a cost the registry check below pays for: between the
+      # image push and the git tag push there is a window where a version is
+      # published but unrecorded, and nothing in git can see it.
       - name: Publish the image
         id: publish
         if: steps.guard.outputs.proceed == 'true'
@@ -607,22 +614,47 @@ jobs:
           # GHCR rejects uppercase; the owner/repo casing is not ours to assume.
           image="ghcr.io/${GITHUB_REPOSITORY,,}"
 
-          docker tag cluckwork-api:ci "$image:$VERSION"
+          # The commit tag goes FIRST, and it is the safe one to push blind: it
+          # is unique per commit, so it can only ever be rewritten by a re-run of
+          # this same commit, with these same bytes.
           docker tag cluckwork-api:ci "$image:sha-$SHA"
-          docker push "$image:$VERSION"
-          # Same bytes, so this uploads nothing — it only adds a second name,
-          # letting the deploy side resolve a build by commit as well as version.
           docker push "$image:sha-$SHA"
 
           # The MANIFEST digest — what `image@sha256:...` resolves to — exists
           # only once the image is in a registry; before the push RepoDigests is
           # empty. (The local image Id is a different hash: the config blob.)
-          digest="$(docker image inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' "$image:$VERSION" \
-            | grep -oE 'sha256:[0-9a-f]{64}' | head -1)"
+          #
+          # `|| true` inside the substitution: a non-matching grep exits 1, and
+          # under `pipefail` that status would kill the script at the assignment,
+          # before the -z branch below could report anything useful.
+          digest="$(docker image inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' "$image:sha-$SHA" \
+            | grep -oE 'sha256:[0-9a-f]{64}' | head -1 || true)"
           if [ -z "$digest" ]; then
             echo "::error::no manifest digest after push — refusing to report an unpinnable release"
             exit 1
           fi
+
+          # Only NOW is the version tag safe to move, and only after asking the
+          # registry itself. Neither `git tag --list` nor `git ls-remote` can see
+          # this hazard: if an earlier run pushed :$VERSION and then died before
+          # pushing its git tag, no tag exists anywhere, so the calculator
+          # happily reissues that version — and a blind push would overwrite a
+          # published image with different bytes.
+          #
+          # Same digest means this is a re-run of that same commit, which is the
+          # documented recovery path and must stay a no-op rather than a failure.
+          existing="$(docker buildx imagetools inspect "$image:$VERSION" \
+            --format '{{.Manifest.Digest}}' 2>/dev/null || true)"
+          if [ -n "$existing" ] && [ "$existing" != "$digest" ]; then
+            echo "::error::$image:$VERSION is already published as $existing — refusing to move it onto $digest"
+            exit 1
+          fi
+
+          docker tag cluckwork-api:ci "$image:$VERSION"
+          # Same bytes as the commit tag above, so this uploads nothing; it only
+          # adds a second name, letting the deploy side resolve a build by
+          # version as well as by commit.
+          docker push "$image:$VERSION"
 
           printf 'version=%s\n' "$VERSION" >> "$GITHUB_OUTPUT"
           printf 'image=%s\n' "$image" >> "$GITHUB_OUTPUT"
