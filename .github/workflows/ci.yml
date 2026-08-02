@@ -83,6 +83,12 @@ jobs:
       - name: Test the lockfix classifier
         run: node --test ../.github/scripts/lockfix.test.mjs
 
+      # #351 — the release job below issues a version tag from this script's
+      # answer. A wrong answer re-tags a version an already-published image sits
+      # on, so its self-tests gate the run like the other two.
+      - name: Test the release-version calculator
+        run: node --test ../.github/scripts/next-version.test.mjs
+
       - name: Install dependencies
         run: npm ci
 
@@ -375,3 +381,221 @@ jobs:
         run: |
           docker rm -f ci-app ci-db >/dev/null 2>&1 || true
           docker network rm cluckwork-ci >/dev/null 2>&1 || true
+
+      # #351 — hand the VERIFIED image to the release job. Jobs run on separate
+      # runners with separate Docker daemons, and `needs:` passes only strings,
+      # so the image built above dies with this runner unless it is carried
+      # across explicitly.
+      #
+      # Deliberately NOT a rebuild in the release job: a second `docker build`
+      # produces different bytes (fresh restore timestamps, layer metadata) and
+      # therefore a different digest, so what got published would be an image
+      # this job's Trivy scan and boot smoke test never examined. #351 exists
+      # precisely to make the tested artifact the deployed one.
+      #
+      # Only on a merge into main, so PR runs pay none of this.
+      - name: Export the verified image for publishing
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: docker save cluckwork-api:ci | gzip > image.tar.gz
+
+      - name: Upload the verified image
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-image
+          path: image.tar.gz
+          # Already gzipped — re-zipping it would burn a minute for nothing.
+          compression-level: 0
+          # Purely an intra-run handoff; the registry is the durable copy.
+          retention-days: 1
+
+  # #351 — publish the image this run verified, and stamp the merge with a
+  # version tag. Gated on build-and-test, web AND image, so a red run cannot
+  # produce a deployable artifact: those three jobs run in parallel, and only a
+  # job that `needs:` all of them knows they all passed.
+  #
+  # The deploy side (cluckwork-deploy#6) consumes the DIGEST emitted below, not
+  # a moving tag, so a deploy can never resolve to bytes CI did not gate.
+  release:
+    name: Publish image and tag release
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [build-and-test, web, image]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      # Job-level permissions REPLACE the workflow-level `contents: read`.
+      contents: write # create and push the version tag
+      packages: write # push the image to GHCR
+    # Serialise releases. Two merges landing together would otherwise read the
+    # same tag list and compute the same next version; the loser's `git tag`
+    # would then fail mid-run, after its image was already pushed. Queue instead
+    # of cancelling — a cancelled release leaves main un-tagged.
+    concurrency:
+      group: release-main
+      cancel-in-progress: false
+    outputs:
+      version: ${{ steps.publish.outputs.version }}
+      digest: ${{ steps.publish.outputs.digest }}
+      image: ${{ steps.publish.outputs.image }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          # Full history + tags: the version calculator counts up from the
+          # highest EXISTING release tag, so a shallow clone with no tags would
+          # restart the sequence at v0.1.0 and try to re-cut a published version.
+          fetch-depth: 0
+
+      # Two merges landing close together produce two overlapping CI runs. The
+      # concurrency group serialises the release job but does NOT order it by
+      # commit: if the OLDER run reaches the group second, it would issue the
+      # HIGHER version for the EARLIER code, so version order would no longer
+      # match history order.
+      #
+      # So only the current tip of main gets released. A superseded commit skips
+      # quietly (not a failure — it was overtaken, nothing is wrong), and the
+      # newer run publishes an image that already contains its changes.
+      - name: Release only the current tip of main
+        id: guard
+        env:
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          git fetch --quiet origin main
+          tip="$(git rev-parse origin/main)"
+          if [ "$tip" = "$SHA" ]; then
+            echo "proceed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Release skipped::$SHA was superseded by $tip; the newer run publishes it."
+            echo "Superseded by $tip — skipping release." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Download the verified image
+        if: steps.guard.outputs.proceed == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: runtime-image
+
+      - name: Load the verified image
+        if: steps.guard.outputs.proceed == 'true'
+        run: |
+          set -euo pipefail
+          gunzip -c image.tar.gz | docker load
+          docker image inspect cluckwork-api:ci >/dev/null
+
+      # Read the bump from the merged PR's LABELS (#351). A label is a
+      # deliberate act with a safe default (no label -> patch), unlike a bump
+      # inferred from the commit subject, which is silently wrong on a typo'd
+      # prefix.
+      #
+      # Resolved through the API rather than the event payload because a push to
+      # main carries no PR object. A direct push with no PR behind it yields an
+      # empty list, which is a patch — the correct conservative answer.
+      #
+      # The label text never reaches a `run:` script through `${{ }}`; it goes
+      # into an env var and then to the calculator as an argv value, so a label
+      # containing shell metacharacters cannot become code.
+      - name: Resolve the merged PR's release labels
+        id: labels
+        if: steps.guard.outputs.proceed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          labels="$(gh api "repos/$REPO/commits/$SHA/pulls" \
+            --jq '[.[].labels[].name] | join(",")' || true)"
+          echo "Labels on the PR(s) behind $SHA: ${labels:-(none)}"
+          printf 'labels=%s\n' "$labels" >> "$GITHUB_OUTPUT"
+
+      - name: Compute the next version
+        id: version
+        if: steps.guard.outputs.proceed == 'true'
+        env:
+          LABELS: ${{ steps.labels.outputs.labels }}
+        run: |
+          set -euo pipefail
+          version="$(git tag --list 'v*' | node .github/scripts/next-version.mjs --labels "$LABELS")"
+          echo "Next version: $version"
+          printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
+
+      # A plain `docker login` rather than docker/login-action: the action is
+      # third-party and would need a commit-SHA pin (AGENTS.md), and this is two
+      # lines of shell with no third-party code in the credential path at all.
+      - name: Log in to GHCR
+        if: steps.guard.outputs.proceed == 'true'
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "$GHCR_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      # Push BEFORE tagging. If the tag push then fails, the recovery is a
+      # re-run: no tag exists, so the same version is recomputed and the same
+      # bytes are re-pushed (a no-op in the registry) before tagging is retried.
+      # Tagging first and failing to push would leave a version pointing at
+      # nothing.
+      - name: Publish the image
+        id: publish
+        if: steps.guard.outputs.proceed == 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          # GHCR rejects uppercase; the owner/repo casing is not ours to assume.
+          image="ghcr.io/${GITHUB_REPOSITORY,,}"
+
+          docker tag cluckwork-api:ci "$image:$VERSION"
+          docker tag cluckwork-api:ci "$image:sha-$SHA"
+          docker push "$image:$VERSION"
+          # Same bytes, so this uploads nothing — it only adds a second name,
+          # letting the deploy side resolve a build by commit as well as version.
+          docker push "$image:sha-$SHA"
+
+          # The MANIFEST digest — what `image@sha256:...` resolves to — exists
+          # only once the image is in a registry; before the push RepoDigests is
+          # empty. (The local image Id is a different hash: the config blob.)
+          digest="$(docker image inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' "$image:$VERSION" \
+            | grep -oE 'sha256:[0-9a-f]{64}' | head -1)"
+          if [ -z "$digest" ]; then
+            echo "::error::no manifest digest after push — refusing to report an unpinnable release"
+            exit 1
+          fi
+
+          printf 'version=%s\n' "$VERSION" >> "$GITHUB_OUTPUT"
+          printf 'image=%s\n' "$image" >> "$GITHUB_OUTPUT"
+          printf 'digest=%s\n' "$digest" >> "$GITHUB_OUTPUT"
+
+      # Last, so a failure above never leaves a version tag pointing at an image
+      # that was not published. `git tag` refuses to overwrite an existing tag,
+      # which is the backstop if two releases ever escape the concurrency group.
+      - name: Tag the release
+        if: steps.guard.outputs.proceed == 'true'
+        env:
+          VERSION: ${{ steps.publish.outputs.version }}
+          DIGEST: ${{ steps.publish.outputs.digest }}
+          IMAGE: ${{ steps.publish.outputs.image }}
+        run: |
+          set -euo pipefail
+          git config user.name  'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git tag -a "$VERSION" -m "Release $VERSION"$'\n\n'"$IMAGE@$DIGEST"
+          git push origin "refs/tags/$VERSION"
+
+      - name: Summarise the release
+        if: steps.guard.outputs.proceed == 'true'
+        env:
+          VERSION: ${{ steps.publish.outputs.version }}
+          DIGEST: ${{ steps.publish.outputs.digest }}
+          IMAGE: ${{ steps.publish.outputs.image }}
+        run: |
+          {
+            echo "### Released \`$VERSION\`"
+            echo
+            echo "Deploy by digest — a moving tag is not a deployable identity:"
+            echo
+            echo '```'
+            echo "$IMAGE@$DIGEST"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

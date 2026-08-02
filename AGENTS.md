@@ -178,9 +178,47 @@ risk). Currently SHA-pinned: `actions/create-github-app-token`,
 `aquasecurity/trivy-action`, and
 `advanced-security/component-detection-dependency-submission-action`.
 
+## Releases and image publishing (#351)
+
+**Every merge into main cuts a release.** The `release` job in `ci.yml` publishes the
+container image and pushes a version tag. There is no manual release step, and no
+version file anyone has to remember to bump — the **git tag is the version**, so
+nothing to forget and nothing for concurrent PRs to conflict over.
+
+- **The bump comes from PR labels**, not the commit subject: `release:major` → 2.0.0,
+  `release:minor` → 1.3.0, **no label → patch**. An inferred bump is silently wrong on
+  a typo'd prefix; a label is a deliberate act with a safe default, so most PRs need
+  nothing. Both labels present → major (an over-bump costs a number; an under-bump
+  lies to everything pinning a range). The arithmetic lives in
+  `.github/scripts/next-version.mjs`, self-tested with `node --test` like the other
+  two CI scripts, and the first release ever cut is `v0.1.0`.
+- **The published image is the image CI verified — byte for byte.** The `image` job
+  exports it (`docker save`) as a workflow artifact and `release` loads it back.
+  **Never "simplify" this into a rebuild in the release job**: a second `docker build`
+  yields different bytes and a different digest, so the artifact that shipped would be
+  one the Trivy scan and boot smoke test never examined. That is the entire point
+  of #351. The export only runs on a merge into main, so PR runs are unaffected.
+- **Publish is gated on the full suite.** `release` declares `needs: [build-and-test,
+  web, image]`; those three run in parallel, so only a job downstream of all of them
+  knows the run was green. PRs never publish.
+- **Deploy by digest, never by tag.** The job emits `ghcr.io/<owner>/<repo>@sha256:…`
+  as a job output and in the run summary; the deploy repo pins that. Tags
+  (`:v1.2.3`, `:sha-<commit>`) are for humans and can move.
+- **Ordering guarantees.** The job is serialised by a `concurrency` group, and it
+  releases **only the current tip of main** — a run overtaken by a newer merge skips
+  quietly, so version order always matches history order. Image push happens before
+  tagging, so a failure never leaves a version pointing at nothing; re-running
+  recomputes the same version and re-pushes identical bytes.
+- Registry auth is a plain `docker login` with `GITHUB_TOKEN`, not `docker/login-action`
+  — two lines of shell, and no third-party code in the credential path.
+- Package visibility and whatever credential the host pulls with are **deploy-side**
+  concerns (cluckwork-deploy#6), not this repo's.
+
 ## Git / PR workflow
 
 - `origin` = GitHub (`github.com/mforce/cluckwork`); `gitea` = backup mirror. Use `gh` for PRs.
+- **Label a PR `release:minor` / `release:major`** when its merge should bump more than a
+  patch — see the release section above. Unlabelled is a patch, which is usually right.
 - **`main` is protected** — branch, push, open a PR; don't commit to `main`.
 - Branch names: `feat/…`, `chore/…`, `spec/…`. PRs squash-merge.
 - Only commit/push when the human asks.
