@@ -437,7 +437,10 @@ jobs:
             echo 'Verify the bytes came from this repo'"'"'s CI before deploying:'
             echo
             echo '```'
-            echo "gh attestation verify oci://$IMAGE@$DIGEST --repo $GITHUB_REPOSITORY"
+            echo "gh attestation verify oci://$IMAGE@$DIGEST \\"
+            echo "  --repo $GITHUB_REPOSITORY \\"
+            echo "  --signer-workflow $GITHUB_REPOSITORY/.github/workflows/ci.yml \\"
+            echo '  --bundle-from-oci'
             echo '```'
           } >> "$trimmed"
           notes="$trimmed"

@@ -219,8 +219,16 @@ gh release download v0.4.0 -p image.json -R mforce/cluckwork
 REF=$(jq -r .reference image.json)
 
 # 2. Verify those bytes came from this repo's CI
-gh attestation verify "oci://$REF" --repo mforce/cluckwork
+gh attestation verify "oci://$REF" \
+  --repo mforce/cluckwork \
+  --signer-workflow mforce/cluckwork/.github/workflows/ci.yml \
+  --bundle-from-oci
 ```
+
+Both flags matter, and neither is the default. Without `--bundle-from-oci`, `gh`
+fetches the attestation from the GitHub API rather than the registry. Without
+`--signer-workflow`, the identity is only bound to the *repository*, so any
+workflow here that can mint an attestation would satisfy the check.
 
 Step 2 is the one that matters. Resolving a tag gives you immutability but not
 **provenance**: if a tag were re-pointed, `docker pull` would faithfully pin the

@@ -287,9 +287,25 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
     prose, and do not have it resolve a tag.**
   - **Verify:** `ci.yml`'s publish job writes a **build-provenance attestation**
     (#354) against the pushed digest, stored as an OCI referrer beside the image
-    (`push-to-registry: true`), so the deploy side runs
-    `gh attestation verify oci://<image>@<digest> --repo <owner>/<repo>` against
-    the registry it already pulls from, with no token for this repo.
+    (`push-to-registry: true`). The deploy side runs:
+
+    ```bash
+    gh attestation verify oci://<image>@<digest> \
+      --repo <owner>/<repo> \
+      --signer-workflow <owner>/<repo>/.github/workflows/ci.yml \
+      --bundle-from-oci
+    ```
+
+    **Both flags are load-bearing and neither is the default** — this is the
+    easiest thing to get wrong here, and the first draft got it wrong.
+    `--bundle-from-oci` is what makes `gh` read the registry copy; without it the
+    bundle is fetched from the **GitHub API**, so `push-to-registry` goes unused
+    and the "no GitHub access needed" property is lost. `--signer-workflow` binds
+    the identity to the *workflow*; with `--repo` alone, **any** workflow in this
+    repo holding `attestations: write` satisfies the check — which matters
+    precisely because the threat model is a leaked token. Note the consumer still
+    authenticates to the **registry** for an `oci://` subject; the saving is no
+    GitHub API access to this repo, not no credentials at all.
 
   Resolving a tag buys immutability, **not provenance** — a re-pointed tag
   resolves faithfully to the wrong bytes, and a check that validates digest

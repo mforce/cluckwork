@@ -594,12 +594,25 @@ jobs:
       #
       # A provenance attestation is checkable without trusting us:
       #   gh attestation verify oci://ghcr.io/<owner>/<repo>@sha256:… \
-      #     --repo <owner>/<repo>
+      #     --repo <owner>/<repo> \
+      #     --signer-workflow <owner>/<repo>/.github/workflows/ci.yml \
+      #     --bundle-from-oci
       # succeeds only for bytes this workflow actually produced.
       #
-      # `push-to-registry: true` stores it as an OCI referrer beside the image,
-      # so the deploy side verifies against the registry it already pulls from
-      # and needs no token for this repo.
+      # Both flags are load-bearing and neither is the default:
+      #   --bundle-from-oci   without it `gh` fetches the bundle from the GITHUB
+      #                       API, not the registry — so the registry copy this
+      #                       step pushes would go unused.
+      #   --signer-workflow   without it the identity is bound to the REPO, so
+      #                       any workflow here holding `attestations: write`
+      #                       satisfies the check. Since the threat model is a
+      #                       leaked token, pin the workflow, not just the repo.
+      #
+      # `push-to-registry: true` stores the attestation as an OCI referrer
+      # beside the image, which is what makes `--bundle-from-oci` possible at
+      # all. Note the consumer still authenticates to the REGISTRY for an
+      # `oci://` subject — the saving is that it needs no GitHub API access to
+      # this repo, not that it needs no credentials.
       #
       # Placed BEFORE the digest artifact deliberately. The artifact is what
       # promotion accepts as proof the gates passed, so a failed attestation
