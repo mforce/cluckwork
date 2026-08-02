@@ -262,6 +262,15 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
   notes as the thing to deploy. **Do not "simplify" the promote step back into a
   registry tag lookup.** (The remaining gap — nothing cryptographically binds the
   artifact to the workflow — is #354.)
+- **Adding a CI job that should gate a release? Add it to `publish.needs`.** The
+  digest artifact is what promotion accepts as proof, and it proves exactly what
+  `publish.needs` in `ci.yml` covers — no more. A job outside that list can be
+  **red while publish still records a digest**, and promotion will then certify
+  bytes that failed it. Nothing enforces the list: `needs` is hand-kept, and a new
+  job defaults to *not* gating, which is the dangerous default. This is not
+  hypothetical — the `sim-harness` job (#370/#371), the first release-relevant job
+  added after this design landed, was not in the list and was caught only in
+  review. Treat "is it in `publish.needs`?" as part of adding any gating job.
 - **Watch the version on the release PR, not just the changelog.** A
   `Release-As: X.Y.Z` footer on any commit reaching main overrides the computed
   version, and squash-merge can be configured to put a PR *body* into the commit

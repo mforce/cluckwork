@@ -296,7 +296,18 @@ jobs:
           #
           # The artifact only exists if the publish job ran, and publish requires
           # build-and-test, web and image to have succeeded — so its existence is
-          # itself the proof that the gates passed for these bytes.
+          # itself the proof that those gates passed for these bytes.
+          #
+          # INVARIANT, and it is load-bearing: this artifact means exactly what
+          # `publish.needs` in ci.yml covers, and nothing more. A CI job that is
+          # meant to gate a release MUST be added to that `needs` list, or it can
+          # be red while publish still records a digest and promotion still
+          # certifies the bytes. Nothing enforces this — `needs` is a hand-kept
+          # list, and a new job defaults to NOT being a gate, which is the
+          # dangerous direction. It has already happened once: the sim-harness
+          # job added in #370/#371 was not in the list (caught in review), so
+          # treat "did you add it to publish.needs?" as part of adding any
+          # release-gating job.
           #
           # The wait is budgeted well past CI's own worst case: `build-and-test`
           # and `image` each allow 20 minutes and `publish` (which waits on them)
