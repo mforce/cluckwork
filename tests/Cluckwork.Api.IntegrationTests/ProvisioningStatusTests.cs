@@ -5,7 +5,9 @@ using System.Net.Http.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Infrastructure.Identity;
+using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 // #283 follow-up — GET /api/v1/auth/provisioning, the first-run hint the SPA
@@ -91,6 +93,18 @@ public sealed class ProvisioningStatusTests(CluckworkWebApplicationFactory facto
 
         Assert.True(await GetProvisionedAsync(client),
             "once the default account has an Owner the hint must stop showing");
+
+        // The other half of the latch contract, and it has to live HERE rather
+        // than in OnceLatched_... below: that test latches by hand, so it proves
+        // a latched service short-circuits but says nothing about the service
+        // ever SETTING the latch. Deleting `if (provisioned) latch.Latch();`
+        // leaves it perfectly green. This assertion is what fails.
+        //
+        // Read from the running host's own singleton, so it describes the
+        // request that just went over HTTP — not a latch this test constructed.
+        Assert.True(
+            factory.Services.GetRequiredService<FirstRunProvisioningLatch>().IsProvisioned,
+            "a `true` observation must latch, or every later request re-queries the database");
     }
 
     // Anonymous by necessity — the only caller is a visitor with no account.
@@ -128,6 +142,44 @@ public sealed class ProvisioningStatusTests(CluckworkWebApplicationFactory facto
         Assert.NotNull(cacheControl);
         Assert.True(cacheControl!.NoStore, "must not be stored by any cache");
         Assert.True(cacheControl.Private, "must never be held by a shared cache");
+    }
+
+    // PR #359 review — the latch's whole job is to stop touching the database
+    // once an Owner exists, and NOTHING above tested that: deleting
+    // `if (provisioned) latch.Latch();` outright leaves every other test in this
+    // file green, because the raw query keeps returning the right answer on
+    // every call. The answer being correct is not the property; not asking is.
+    //
+    // Proven both ways against a context aimed at a port nothing listens on, so
+    // "did it query?" is directly observable rather than inferred:
+    //   * cold latch  -> must reach the database, so it must THROW
+    //   * latched     -> must answer from memory, so it must NOT throw
+    // A one-sided version (only the second half) would pass just as happily
+    // against a service that never queries at all.
+    [Fact]
+    public async Task OnceLatched_AnswersWithoutTouchingTheDatabase()
+    {
+        var unreachable = new DbContextOptionsBuilder<AppDbContext>()
+            .UseNpgsql("Host=127.0.0.1;Port=1;Database=none;Username=none;Password=none;Timeout=1")
+            .Options;
+        await using var unusableDb = new AppDbContext(unreachable, new TenantContext());
+
+        using var scope = factory.Services.CreateScope();
+        var normalizer = scope.ServiceProvider.GetRequiredService<ILookupNormalizer>();
+
+        // A FRESH latch, deliberately not the host's singleton — latching that
+        // one would leak "provisioned" into the other tests in this class, and
+        // xUnit does not order methods.
+        var latch = new FirstRunProvisioningLatch();
+
+        await Assert.ThrowsAnyAsync<Exception>(
+            () => new FirstRunStatusService(unusableDb, normalizer, latch).IsProvisionedAsync());
+
+        latch.Latch();
+
+        Assert.True(
+            await new FirstRunStatusService(unusableDb, normalizer, latch).IsProvisionedAsync(),
+            "a latched instance must answer from memory, never from the database");
     }
 
     // Existence only. If this ever grows an email or a count, an un-provisioned

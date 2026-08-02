@@ -45,11 +45,13 @@ export const en = {
     // but no credential ever does, so a fresh install reaches a form that
     // cannot succeed; this names the command that fixes it.
     noAdminYet:
-      "No administrator yet. This instance has no accounts — create the first "
-      + "one from the server:",
+      "No administrator yet. This farm has no accounts, so nobody can sign in "
+      + "until the first one is created.",
+    // No command here on purpose — see the comment in Login.tsx. Whoever set the
+    // server up runs a one-time setup step; the README carries the exact steps.
     noAdminYetHint:
-      "The command prints a one-time password. Sign in with it and you'll be "
-      + "asked to choose your own.",
+      "Ask whoever set up this server to create the first administrator. The "
+      + "setup steps are in the project README.",
     // #283 — the first-run "set your password" screen (SetPasswordPage),
     // shown instead of the app shell whenever the signed-in user's token
     // carries must_change_password. Reuses /auth/change-password: the
@@ -1898,7 +1900,9 @@ export const en = {
       "<strong>First sign-in on a brand-new farm.</strong> There is no default password — an operator runs a "
       + "one-time setup command that prints a temporary one. Sign in with it and you'll immediately land on a "
       + "<strong>Set your password</strong> screen instead of the normal app; nothing else works until you pick "
-      + "your own password there. This is separate from an ordinary <em>Change password</em>.",
+      + "your own password there. This is separate from an ordinary <em>Change password</em>. Until that setup "
+      + "step has been run, the sign-in screen says so and points you at whoever administers the server, so a "
+      + "brand-new farm never presents a form that cannot work.",
     // #308 — step-up re-confirmation for the two sensitive user-administration
     // actions. Deliberately does NOT mention "grant"/"token" — that's internal
     // mechanism, not user-facing language.

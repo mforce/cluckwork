@@ -214,9 +214,23 @@ describe("Login — first-run setup hint", () => {
     // Pinned to the catalog, not the literal, like the labels test above.
     expect(await screen.findByText(i18n.t("auth:noAdminYet"))).toBeInTheDocument();
     expect(screen.getByText(i18n.t("auth:noAdminYetHint"))).toBeInTheDocument();
-    // The command itself is the payload of the hint and is deliberately NOT
-    // translated — an operator has to type it verbatim.
-    expect(screen.getByText("bootstrap-admin --email you@example.com")).toBeInTheDocument();
+  });
+
+  // The notice deliberately publishes NO command and no deployment detail: an
+  // earlier version printed the setup invocation and was wrong twice (a form
+  // that was not runnable, then two forms because the app cannot know how it
+  // was deployed), and a login screen reachable by anyone is the wrong place to
+  // describe how the server is run. Asserted rather than left to the copy,
+  // because this is the kind of thing a well-meaning later edit re-adds.
+  it("names no command and leaks no deployment detail", async () => {
+    mockProvisioningStatus.mockResolvedValue(false);
+    renderWithProviders(tree(), { route: "/login", token: null });
+
+    const notice = (await screen.findByText(i18n.t("auth:noAdminYet"))).closest(".auth-setup");
+    expect(notice).not.toBeNull();
+
+    expect(notice!.querySelector("code")).toBeNull();
+    expect(notice!.textContent).not.toMatch(/docker|dotnet|bootstrap-admin|--email/i);
   });
 
   it("shows nothing once an admin exists", async () => {
@@ -247,9 +261,10 @@ describe("Login — first-run setup hint", () => {
     mockProvisioningStatus.mockResolvedValue(false);
     renderWithProviders(tree(), { route: "/login", token: null });
 
-    // Located via its text, then checked for the role — the app shell renders
-    // its own live region, so findByRole("status") alone matches that empty one
-    // and passes while asserting nothing about this hint.
+    // Located via its text, then checked for the role. Querying by role alone
+    // is ambiguous here: BusyButton renders its own sr-only `role="status"`
+    // span, so more than one status element is in the tree. Walking ancestors
+    // from the hint's own text is what ties the assertion to THIS element.
     const hint = await screen.findByText(i18n.t("auth:noAdminYet"));
     expect(hint.closest("[role='status']")).not.toBeNull();
   });

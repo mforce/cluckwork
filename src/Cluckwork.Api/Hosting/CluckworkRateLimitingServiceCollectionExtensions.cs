@@ -51,6 +51,10 @@ internal static class CluckworkRateLimitingServiceCollectionExtensions
                 limiter,
                 RateLimitingOptions.ClientErrorsPolicyName,
                 rateLimiting.ClientErrors);
+            AddFixedWindowByClientIp(
+                limiter,
+                RateLimitingOptions.ProvisioningPolicyName,
+                rateLimiting.Provisioning);
         });
 
         // #311 — account-scoped, not IP-scoped, so it lives outside the

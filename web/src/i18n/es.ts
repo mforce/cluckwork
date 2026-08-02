@@ -39,11 +39,11 @@ export const es = {
     // machine-drafted (#182) — pending native review.
     credentialsTooLong: "Eso es demasiado largo — revise su correo electrónico y contraseña.",
     noAdminYet:
-      "Todavía no hay administrador. Esta instancia no tiene cuentas — cree la "
-      + "primera desde el servidor:",
+      "Todavía no hay administrador. Esta granja no tiene cuentas, así que "
+      + "nadie puede iniciar sesión hasta que se cree la primera.",
     noAdminYetHint:
-      "El comando muestra una contraseña de un solo uso. Inicie sesión con ella "
-      + "y se le pedirá que elija la suya.",
+      "Pida a quien configuró este servidor que cree el primer administrador. "
+      + "Los pasos de configuración están en el README del proyecto.",
     // machine-drafted (#283) — pending native review.
     setPasswordHeading: "Establezca su contraseña",
     setPasswordHint:
@@ -1569,7 +1569,9 @@ export const es = {
       + "un operador ejecuta un comando de configuración único que imprime una contraseña temporal. Inicie "
       + "sesión con ella y llegará de inmediato a una pantalla de <strong>Establecer su contraseña</strong> en "
       + "lugar de la aplicación normal; nada más funciona hasta que elija su propia contraseña allí. Esto es "
-      + "distinto de un <em>Cambio de contraseña</em> ordinario.",
+      + "distinto de un <em>Cambio de contraseña</em> ordinario. Hasta que se realice ese paso de "
+      + "configuración, la pantalla de inicio de sesión lo indica y le remite a quien administra el servidor, "
+      + "para que una granja nueva nunca presente un formulario que no pueda funcionar.",
     // #308 (machine-drafted, pending native review)
     signingInStepUp:
       "Dos acciones en la pantalla <strong>Usuarios</strong> le piden <strong>volver a ingresar su contraseña "

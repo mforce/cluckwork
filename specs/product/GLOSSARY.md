@@ -615,8 +615,11 @@ as sensitive while the password is valid. Re-running the command against an
 already-provisioned account is a safe no-op (no second Owner, no password
 reprinted). Because a migrated-but-unprovisioned instance therefore presents a
 sign-in form that cannot succeed, the **login screen says so**: while the
-default account has no Owner it shows a short setup notice naming the command
-to run, and it disappears for good once the first Owner exists. That notice is
+default account has no Owner it shows a short notice explaining that no account
+exists yet and pointing at whoever administers the server, and it disappears for
+good once the first Owner exists. The notice deliberately publishes **no command
+and no deployment detail** — a page reachable by anyone is the wrong place to
+describe how the server is run, and the setup steps belong in the README. That notice is
 driven by an anonymous status check that reports **existence only** — a single
 boolean, never an address or a count — so it can tell an operator what to do
 without telling anyone else anything they could use. This is a **separate mechanism** from break-glass recovery below (a pre-auth, one-shot

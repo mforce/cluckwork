@@ -35,11 +35,6 @@ function messageFor(err: unknown): string {
   return i18n.t("auth:apiDown");
 }
 
-// The operator-facing form (the container image's ENTRYPOINT already supplies
-// `dotnet Cluckwork.Api.dll`, so the verb is passed on its own — README's
-// "Run the whole app (Docker)" section). Never translated.
-const BOOTSTRAP_COMMAND = "bootstrap-admin --email you@example.com";
-
 export function Login() {
   const { t } = useTranslation("auth");
   const { login, isAuthenticated, isLoading } = useAuth();
@@ -105,11 +100,14 @@ export function Login() {
         <h1>{t("title")}</h1>
         {needsSetup && (
           <div className="auth-setup" role="status">
+            {/* No command is shown, deliberately. Earlier drafts printed the
+                setup invocation here and it was wrong twice over: the bare verb
+                was not runnable at all, and the corrected version had to show
+                two forms because the app cannot know how it was deployed. A
+                login screen is also the wrong place to publish deployment shape
+                to anonymous visitors. State the situation and point at the
+                person who can fix it; the exact steps live in the README. */}
             <p>{t("noAdminYet")}</p>
-            {/* The command is the whole point of the hint, so it is selectable
-                text in a <code>, not baked into a translated sentence — it must
-                never be localised, and an operator must be able to copy it. */}
-            <code>{BOOTSTRAP_COMMAND}</code>
             <p>{t("noAdminYetHint")}</p>
           </div>
         )}

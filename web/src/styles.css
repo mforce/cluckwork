@@ -1523,25 +1523,8 @@ label.check {
   margin: 0;
 }
 
-/* The command is the payload of the hint. Full ink (not muted) so it reads as
-   the thing to act on, and `user-select: all` so one click takes the whole
-   command — a soft wrap copies without inserting a newline, so what lands on
-   the clipboard is still one runnable line. It DOES wrap at this card width
-   (380px), which is preferred to a horizontal scroller: the whole command stays
-   visible. overflow-x is the backstop for the case wrapping cannot help, an
-   unbreakable token longer than the card. */
-.auth .auth-setup code {
-  display: block;
-  overflow-x: auto;
-  overflow-wrap: anywhere;
-  padding: 0.5rem 0.6rem;
-  border: 1px solid var(--hairline);
-  border-radius: 6px;
-  background: var(--surface);
-  color: var(--ink);
-  font-size: 0.85rem;
-  user-select: all;
-}
+/* No `code` rule here on purpose — the notice publishes no command. See the
+   comment in Login.tsx. */
 
 /* ---------------------------------------------------- Help (docs layout) */
 .help-head {

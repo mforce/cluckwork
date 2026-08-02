@@ -44,11 +44,11 @@ export const tl = {
     // machine-drafted (#182) — pending native review.
     credentialsTooLong: "Sobrang haba niyan — tingnan ang iyong email at password.",
     noAdminYet:
-      "Wala pang administrator. Walang account ang instance na ito — gawin ang "
-      + "una mula sa server:",
+      "Wala pang administrator. Walang account ang farm na ito, kaya walang "
+      + "makakapag-sign in hangga't hindi nagagawa ang una.",
     noAdminYetHint:
-      "Nagpi-print ang command ng isang beses na password. Mag-sign in gamit "
-      + "ito at hihilingin sa iyong pumili ng sarili mong password.",
+      "Hilingin sa kung sino ang nag-set up ng server na ito na gawin ang unang "
+      + "administrator. Nasa README ng proyekto ang mga hakbang sa setup.",
     // machine-drafted (#283) — pending native review.
     setPasswordHeading: "Itakda ang iyong password",
     setPasswordHint:
@@ -1629,7 +1629,9 @@ export const tl = {
       + "nagpapatakbo ang isang operator ng isang beses na setup command na naglilimbag ng pansamantalang "
       + "password. Mag-sign in gamit ito at diretso kang mapupunta sa isang screen ng <strong>Itakda ang iyong "
       + "password</strong> sa halip na ang normal na app; wala pang gumagana hangga't hindi ka pumipili ng "
-      + "sarili mong password doon. Iba ito sa karaniwang <em>Pagbabago ng password</em>.",
+      + "sarili mong password doon. Iba ito sa karaniwang <em>Pagbabago ng password</em>. Hangga't hindi pa "
+      + "naisasagawa ang hakbang na iyon sa setup, sinasabi ito ng sign-in screen at itinuturo ka nito sa kung "
+      + "sino ang nangangasiwa ng server, kaya hindi kailanman nagpapakita ang bagong farm ng form na hindi gagana.",
     // #308 (machine-drafted, pending native review)
     signingInStepUp:
       "May dalawang aksyon sa <strong>Users</strong> screen na humihiling sa iyong <strong>muling ilagay ang "
