@@ -165,8 +165,8 @@ public static class AuthEndpoints
             //    no access, it is already inferable by anyone who can reach the
             //    form on a fresh install, and unlike the status endpoint this
             //    replaced it reaches only someone who actually attempted to sign
-            //    in. The cost of withholding it is an operator stranded at a form
-            //    that cannot work.
+            //    in. The cost of withholding it is an operator stranded at a
+            //    form no credential of theirs can satisfy.
             //  * Only someone actually attempting to sign in learns it — unlike
             //    a status endpoint, which answers anyone who asks without them
             //    trying.

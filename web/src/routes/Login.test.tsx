@@ -212,8 +212,11 @@ describe("Login — first-run setup notice", () => {
 
     expect(await screen.findByText(i18n.t("auth:noAdminYet"))).toBeInTheDocument();
     expect(screen.getByText(i18n.t("auth:noAdminYetHint"))).toBeInTheDocument();
-    // "Invalid email or password" would be actively misleading here — nothing
-    // was wrong with what was typed.
+    // "Invalid email or password" is the wrong thing to show the operator this
+    // exists for: holding no credentials at all, they are told about a typing
+    // mistake they did not make. (Not "nothing was wrong with what was typed" —
+    // a seeded non-Owner CAN reach this notice by genuinely mistyping their own
+    // password, which the case below pins.)
     expect(screen.queryByText(i18n.t("auth:invalidCredentials"))).not.toBeInTheDocument();
   });
 

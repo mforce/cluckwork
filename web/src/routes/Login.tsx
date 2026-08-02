@@ -71,8 +71,9 @@ export function Login() {
   const { busy, run } = usePendingAction();
 
   // #283 follow-up — a freshly migrated instance has base reference data but no
-  // users, because no credential is ever migration-baked, so this form cannot
-  // succeed and used to say nothing about why.
+  // administrator, because no credential is ever migration-baked, so there is
+  // nobody for the operator to sign in as and the form used to say nothing
+  // about why.
   //
   // Learned from the sign-in ATTEMPT, not from a status call on mount. An
   // earlier version polled a dedicated endpoint here; that answered anyone who
