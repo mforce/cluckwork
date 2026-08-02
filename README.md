@@ -183,15 +183,24 @@ rebuilt, so the bytes carrying `v0.4.0` are provably the bytes that passed CI.
 
 Your **PR title** — it becomes the commit subject when the PR is squashed:
 
-| PR title starts with | Effect on `v0.4.0` |
-|---|---|
-| `feat!:` or a `BREAKING CHANGE` footer | `v1.0.0` |
-| `feat:` | `v0.5.0` |
-| anything else (`fix:`, `perf:`, `chore:`, `docs:`, `ci:` …) | `v0.4.1` |
+While the version is **below 1.0.0**, everything is deliberately damped one level —
+the project is pre-1.0 and shouldn't burn major digits on Phase 1.x churn:
 
-Only `feat` and breaking changes raise more than the patch digit — everything else,
-including `chore:` and `docs:`, contributes a patch bump. `chore`/`ci`/`test`/`style`
-are hidden from the changelog *text*, but they still move the number.
+| PR title starts with | Effect on `v0.3.2` |
+|---|---|
+| `feat!:` or a `BREAKING CHANGE` footer | `v0.4.0` |
+| `feat:` | `v0.3.3` |
+| anything else (`fix:`, `perf:`, `chore:`, `docs:`, `ci:` …) | `v0.3.3` |
+
+So below 1.0.0 only a **breaking change** moves the minor digit; everything else,
+features included, is a patch. `chore`/`ci`/`test`/`style` are hidden from the
+changelog *text*, but they still move the number.
+
+**Once the version reaches 1.0.0 this changes**, and it changes silently — the two
+`*-pre-major` settings in `release-please-config.json` stop applying, so `feat:`
+starts bumping the minor digit and a breaking change bumps the major. Getting to
+1.0.0 is therefore a deliberate act: bump it with a `Release-As: 1.0.0` footer when
+you mean it, not by accident.
 
 That is not as noisy as it sounds, because the bump lands in the **pending release
 PR**, not in a release. Several chore merges accumulate into one proposed patch, and

@@ -243,10 +243,27 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
      repoint it — and when the release records a real commit, that commit is
      authoritative: a supplied sha may only agree with it, never override it.
 - **The bump comes from conventional commits**, so PR titles are load-bearing —
-  squash-merge puts the title on main as the commit subject. `feat!:`/`BREAKING
-  CHANGE` → major, `feat:` → minor, **everything else → patch**. Note that
-  `hidden: true` in `changelog-sections` only suppresses a type in the changelog
-  *text*; it does **not** make it unreleasable. `DefaultVersioningStrategy`
+  squash-merge puts the title on main as the commit subject. The mapping is
+  **damped while below 1.0.0**, via two settings in `release-please-config.json`:
+  `bump-minor-pre-major` ("breaking changes only bump minor if version < 1.0.0")
+  and `bump-patch-for-minor-pre-major` ("feature changes only bump patch if
+  version < 1.0.0"). So today `feat!:`/`BREAKING CHANGE` → **minor**, and
+  `feat:` along with **everything else** → **patch**.
+
+  **Both are required and they are not interchangeable.** Without them,
+  release-please's default for a `0.x` version promotes the first `feat` straight
+  to **1.0.0** — that is what it proposed on the first real run (PR #372,
+  `chore(main): release 1.0.0`) before the settings were added. `bump-minor-pre-major`
+  alone still lets a `feat` take the minor digit; the second setting is what keeps
+  features on patch.
+
+  **This mapping changes silently at 1.0.0**, when both settings stop applying and
+  the conventional defaults resume (`feat:` → minor, breaking → major). Reaching
+  1.0.0 should therefore be deliberate — a `Release-As: 1.0.0` footer when you mean
+  it — not a side effect.
+
+  Note that `hidden: true` in `changelog-sections` only suppresses a type in the
+  changelog *text*; it does **not** make it unreleasable. `DefaultVersioningStrategy`
   returns `PatchVersionUpdate()` for any commit set with no feat/breaking, and the
   only early exit is "zero conventional commits" — so a `chore:`-only merge does
   bump the patch digit. It lands in the pending release PR rather than in a
