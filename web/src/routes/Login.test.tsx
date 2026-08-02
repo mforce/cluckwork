@@ -198,11 +198,11 @@ describe("Login", () => {
 // a status call on mount: the server reports "the default account has no
 // Owner" on the 401 it already returns.
 describe("Login — first-run setup notice", () => {
-  const noAccounts = () =>
-    new ApiError(401, "Auth.NoAccountsProvisioned", "This farm has no administrator account yet.");
+  const noOwner = () =>
+    new ApiError(401, "Auth.NoOwnerProvisioned", "This farm has no administrator account yet.");
 
   it("shows the notice, and suppresses the generic denial, when the server reports no Owner", async () => {
-    mockApiLogin.mockRejectedValue(noAccounts());
+    mockApiLogin.mockRejectedValue(noOwner());
     renderWithProviders(tree(), { route: "/login", token: null });
 
     fillCredentials("owner@farm.co", "pw");
@@ -237,14 +237,14 @@ describe("Login — first-run setup notice", () => {
   });
 
   // The status half of the guard, which nothing else covers (PR #363 review).
-  // isNoAccountsProvisioned checks BOTH the title and a 401; every other
+  // isNoOwnerProvisioned checks BOTH the title and a 401; every other
   // "no notice" case above varies the title, so deleting `&& err.status === 401`
   // left the whole suite green. A future non-401 response reusing the title —
   // a 500 from an error handler that echoes it, say — would then render a
   // first-run notice on a healthy, provisioned instance.
   it("ignores the code on a non-401 response", async () => {
     mockApiLogin.mockRejectedValue(
-      new ApiError(500, "Auth.NoAccountsProvisioned", "Internal Server Error"));
+      new ApiError(500, "Auth.NoOwnerProvisioned", "Internal Server Error"));
     renderWithProviders(tree(), { route: "/login", token: null });
 
     fillCredentials("owner@farm.co", "pw");
@@ -275,7 +275,7 @@ describe("Login — first-run setup notice", () => {
   // describe how the server is run. Asserted rather than left to the copy,
   // because this is the kind of thing a well-meaning later edit re-adds.
   it("names no command and leaks no deployment detail", async () => {
-    mockApiLogin.mockRejectedValue(noAccounts());
+    mockApiLogin.mockRejectedValue(noOwner());
     renderWithProviders(tree(), { route: "/login", token: null });
 
     fillCredentials("owner@farm.co", "pw");
@@ -292,7 +292,7 @@ describe("Login — first-run setup notice", () => {
   // The notice is an aside, not an alert: role="status" is polite, so a screen
   // reader finishes the current utterance instead of interrupting.
   it("announces the notice politely", async () => {
-    mockApiLogin.mockRejectedValue(noAccounts());
+    mockApiLogin.mockRejectedValue(noOwner());
     renderWithProviders(tree(), { route: "/login", token: null });
 
     fillCredentials("owner@farm.co", "pw");

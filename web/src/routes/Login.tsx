@@ -14,9 +14,9 @@ interface LocationState {
 }
 
 // #283 follow-up — the error code a failed sign-in carries when the default
-// account has no Owner. Mirrors AuthEndpoints.NoAccountsProvisionedCode; it
+// account has no Owner. Mirrors AuthEndpoints.NoOwnerProvisionedCode; it
 // rides the ProblemDetails `title`, which parseError puts on ApiError.title.
-const NO_ACCOUNTS_PROVISIONED = "Auth.NoAccountsProvisioned";
+const NO_OWNER_PROVISIONED = "Auth.NoOwnerProvisioned";
 
 // Matched on the code, never on the message: the copy is translated and the
 // server's English detail is not what identifies the case.
@@ -24,10 +24,10 @@ const NO_ACCOUNTS_PROVISIONED = "Auth.NoAccountsProvisioned";
 // The status is checked too. This is a 401 like any other sign-in failure, and
 // pinning that keeps the branch from firing on some future non-401 response
 // that happens to reuse the title.
-function isNoAccountsProvisioned(err: unknown): boolean {
+function isNoOwnerProvisioned(err: unknown): boolean {
   return err instanceof ApiError
     && err.status === 401
-    && err.title === NO_ACCOUNTS_PROVISIONED;
+    && err.title === NO_OWNER_PROVISIONED;
 }
 
 // MODULE-LEVEL — called from onSubmit's catch handler, not from render, so the
@@ -70,8 +70,8 @@ export function Login() {
   const [error, setError] = useState<string | null>(null);
   const { busy, run } = usePendingAction();
 
-  // #283 follow-up — a freshly migrated instance has base reference data but no
-  // administrator, because no credential is ever migration-baked, so there is
+  // #283 follow-up — a freshly migrated default account has base reference data
+  // but no Owner, because no credential is ever migration-baked, so there is
   // nobody for the operator to sign in as and the form used to say nothing
   // about why.
   //
@@ -105,9 +105,9 @@ export function Login() {
         // exists (PR #363 review). They see this notice too; it is still true
         // that there is no administrator, which is why the copy says exactly
         // that and no more.
-        const noAccounts = isNoAccountsProvisioned(err);
-        setNeedsSetup(noAccounts);
-        setError(noAccounts ? null : messageFor(err));
+        const noOwner = isNoOwnerProvisioned(err);
+        setNeedsSetup(noOwner);
+        setError(noOwner ? null : messageFor(err));
       }
     });
   }

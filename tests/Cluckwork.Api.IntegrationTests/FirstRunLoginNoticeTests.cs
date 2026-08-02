@@ -86,7 +86,7 @@ public sealed class FirstRunLoginNoticeTests(CluckworkWebApplicationFactory fact
         // 1. Freshly migrated: base reference data exists, no user does.
         var beforeProvisioning = await AttemptLoginAsync(client, "nobody@test.local", "whatever");
         Assert.Equal(HttpStatusCode.Unauthorized, beforeProvisioning.Status);
-        Assert.Equal(AuthEndpoints.NoAccountsProvisionedCode, beforeProvisioning.Title);
+        Assert.Equal(AuthEndpoints.NoOwnerProvisionedCode, beforeProvisioning.Title);
 
         // 2. An Owner under a DIFFERENT account is not this account's Owner, so
         //    the default account is still un-provisioned. Pins the AccountId
@@ -95,7 +95,7 @@ public sealed class FirstRunLoginNoticeTests(CluckworkWebApplicationFactory fact
             Guid.NewGuid(), $"other-account-owner-{Guid.NewGuid():N}@test.local");
 
         var crossAccount = await AttemptLoginAsync(client, "nobody@test.local", "whatever");
-        Assert.Equal(AuthEndpoints.NoAccountsProvisionedCode, crossAccount.Title);
+        Assert.Equal(AuthEndpoints.NoOwnerProvisionedCode, crossAccount.Title);
 
         // 2b. A NON-OWNER user in the default account does not count either, and
         //     this is the state the copy had to be reworded for (#363 review):
@@ -127,7 +127,7 @@ public sealed class FirstRunLoginNoticeTests(CluckworkWebApplicationFactory fact
 
         var nonOwnerWrongPassword = await AttemptLoginAsync(
             client, nonOwnerEmail, "definitely-not-the-password");
-        Assert.Equal(AuthEndpoints.NoAccountsProvisionedCode, nonOwnerWrongPassword.Title);
+        Assert.Equal(AuthEndpoints.NoOwnerProvisionedCode, nonOwnerWrongPassword.Title);
 
         // 3. The real thing — from here the response must be indistinguishable
         //    from any other wrong-credential attempt.
@@ -136,7 +136,7 @@ public sealed class FirstRunLoginNoticeTests(CluckworkWebApplicationFactory fact
 
         var unknownAddress = await AttemptLoginAsync(client, "nobody@test.local", "whatever");
         Assert.Equal(HttpStatusCode.Unauthorized, unknownAddress.Status);
-        Assert.NotEqual(AuthEndpoints.NoAccountsProvisionedCode, unknownAddress.Title);
+        Assert.NotEqual(AuthEndpoints.NoOwnerProvisionedCode, unknownAddress.Title);
 
         // A wrong password for a user that genuinely EXISTS must answer
         // identically to the unknown address above — this feature must not have
@@ -186,7 +186,7 @@ public sealed class FirstRunLoginNoticeTests(CluckworkWebApplicationFactory fact
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadAsStringAsync();
-        Assert.DoesNotContain(AuthEndpoints.NoAccountsProvisionedCode, body, StringComparison.Ordinal);
+        Assert.DoesNotContain(AuthEndpoints.NoOwnerProvisionedCode, body, StringComparison.Ordinal);
     }
 
     // The endpoint the earlier design added is gone. Asserted rather than

@@ -118,7 +118,7 @@ public static class AuthEndpoints
     // of showing the generic denial. Rides the ProblemDetails `title`, like
     // every other login error code. Scoped to that account, not to the instance
     // — see the Login handler for what that does and does not claim.
-    public const string NoAccountsProvisionedCode = "Auth.NoAccountsProvisioned";
+    public const string NoOwnerProvisionedCode = "Auth.NoOwnerProvisioned";
 
     // In every environment but Development the browser reaches the app over HTTPS
     // (TLS terminates at the proxy), so the auth cookie must be Secure regardless
@@ -199,7 +199,7 @@ public static class AuthEndpoints
                     "This farm has no administrator account yet — first-time setup has not been "
                     + "completed. Whoever set up this server must create the first administrator.",
                     statusCode: 401,
-                    title: NoAccountsProvisionedCode);
+                    title: NoOwnerProvisionedCode);
 
             return Results.Problem(result.Error.Description, statusCode: 401, title: result.Error.Code);
         }
