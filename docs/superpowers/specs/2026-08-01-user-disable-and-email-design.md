@@ -3,10 +3,10 @@
 **Date:** 2026-08-01
 **Phase:** 1.1 (epic #14)
 **Status:** design, awaiting implementation plan
-**Revision:** third draft. Each round of review found the previous round's
+**Revision:** fourth draft. Each round of review has found the previous round's
 enforcement mechanism incomplete; the corrections are recorded at the end, in
-*What the first draft got wrong* and *What the second draft got wrong*. Read
-both before treating any of this as a small delta.
+*What the first/second/third draft got wrong*. Read all three before treating
+any of this as a small delta — the corrections are the substance.
 
 ## Problem
 
@@ -265,10 +265,26 @@ refresh tokens is not enough on its own* above. Every mint site stamps it:
 re-issue.
 
 One migration: three columns on `AspNetUsers` and one on `refresh_tokens`, both
-epochs non-nullable with default `0`, no data statements. Default `0` is correct
-for the backfill in both directions: every existing user starts at epoch `0`, and
-every existing refresh token was minted under it, so no live session is evicted
-by the deploy. `MigrationSecurityReviewTests` stays green.
+epochs non-nullable with default `0`.
+
+**The cutover revokes every existing refresh token.** Backfilling users and
+tokens both to `0` would preserve live sessions — and that is the defect, not a
+feature. The pre-epoch codebase already has the revoke-vs-refresh race described
+above, so at migration time an attacker-held child token may already be sitting
+`RevokedAt == null` after some earlier password reset. Certifying every legacy
+token as current-epoch would bless exactly that row, and it would stay usable
+until some unrelated future bump. The migration cannot tell which legacy tokens
+predate their user's last credential change, so it cannot be selective — the only
+clean boundary is to invalidate all of them.
+
+The cost is one forced re-login for everyone at deploy. For a farm's worth of
+users that is trivially cheap, and it is the single moment where the new
+mechanism can be given a trustworthy starting state.
+
+This is the one data statement in the migration (`UPDATE refresh_tokens SET
+"RevokedAt" = now() WHERE "RevokedAt" IS NULL`) — no INSERTs, so
+`MigrationSecurityReviewTests`' shape assertions are unaffected, but its count
+pins need updating alongside.
 
 ### 2. Application layer
 
@@ -370,10 +386,26 @@ the reply must never reveal account state, the reasoning the lockout branch
 already documents.
 
 `RefreshAsync` refuses a disabled user, **and refuses any token whose
-`IssuedEpoch` differs from the user's current `CredentialEpoch`** — checked
-before the rotation, so a superseded token is never consumed and never mints a
-child. That check, not the bulk revocation, is what makes a bump terminate the
-whole token family.
+`IssuedEpoch` differs from the user's current `CredentialEpoch`**. That check,
+not the bulk revocation, is what makes a bump terminate the whole token family.
+
+**Where the check goes is load-bearing, and "before the rotation" is too late.**
+The current flow looks up the token, and *if it is already revoked* runs the #176
+grace/replay branch — which, when grace does not apply, calls
+`RevokeAllActiveForUserAsync` and returns. That happens **before**
+`FindByIdAsync` loads the user, so an epoch check placed anywhere near the
+rotation never runs on this path. The consequence is not a bypass but a
+denial of service: an attacker holding a superseded pre-bump token waits for the
+legitimate user to log in again, presents the dead token, and burns down the
+victim's brand-new current-epoch family. Repeatably.
+
+So the order is: resolve the token, **load the user and compare epochs**, and
+only then enter the grace/replay branch. An epoch mismatch fails closed *and
+inert* — the generic `Identity.InvalidRefreshToken`, with **no** family
+revocation, because a superseded token is evidence about a session that is
+already dead and says nothing about the live one. Family revocation is preserved
+for its real purpose: genuine same-epoch reuse, which is still the theft signal
+#176 exists to catch.
 
 ### 5. SPA
 
@@ -430,6 +462,19 @@ these bugs present:
 - A refresh in flight across an email change must not leave a usable child token,
   asserted the same way.
 - A step-up issuance racing a disable must not produce a usable grant.
+- **A superseded token must not burn down the current family.** Bump the epoch,
+  let the user log in again, then present the old pre-bump token: the new session
+  keeps working. This is the test that fails if the epoch comparison sits
+  anywhere after the grace/replay branch — and it fails as a denial of service,
+  not as an access grant, so it will not show up in any "can the attacker get
+  in?" test.
+- **Genuine same-epoch reuse still burns the family.** The counterpart, so the
+  fix above cannot be implemented by simply weakening #176's theft detection.
+
+**Cutover** — a refresh token that was active before the migration is rejected
+after it, and the user is forced to log in again. Asserted against a database
+seeded pre-migration, since the whole point is a boundary the migration draws
+across data it did not create.
 
 **Middleware ordering** — asserted explicitly, since the guarantee is positional
 and a silent reorder fails open.
@@ -499,3 +544,30 @@ Recorded so the same reasoning is not re-derived later.
     job is to outlive the access token — kept none. Any future credential type
     (a step-up grant made durable per #338, an API key, a device token) must be
     stamped at mint and checked at use, or it reopens the same door.
+
+## What the third draft got wrong
+
+11. **The cutover was designed to preserve live sessions**, and that was stated
+    as a virtue ("evicts no live session"). It is the defect. The pre-epoch code
+    already has the revoke-vs-refresh race, so a legacy token sitting
+    `RevokedAt == null` may already be an attacker's orphan; backfilling every
+    token and user to `0` certifies it as current. The migration cannot tell
+    which legacy tokens predate their user's last credential change, so the only
+    clean boundary is to revoke all of them and accept one forced re-login.
+
+12. **The epoch comparison was placed "before the rotation," which is too late.**
+    A revoked token reaches #176's grace/replay branch — and
+    `RevokeAllActiveForUserAsync` — before `FindByIdAsync` loads the user, so the
+    check never runs on that path. An attacker holding a superseded token can
+    therefore burn down the victim's new current-epoch family after they log back
+    in. The comparison moves ahead of the grace branch, and a mismatch fails
+    inert rather than revoking anything.
+
+    Both of these share a shape worth naming, because it is the third time it has
+    appeared in this document: **a check is only as good as the earliest path
+    that can reach the thing it protects.** Draft two bound the epoch to the
+    access token and missed the refresh token; draft three bound it to the
+    refresh token and missed the branch that acts on a refresh token *without
+    ever loading the user*. When adding a guard, enumerate every entry point to
+    the guarded state first, then place the guard above all of them — do not
+    place it next to the code that prompted the guard.
