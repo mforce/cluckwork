@@ -223,10 +223,43 @@ Also fixed this round:
 Verified: typecheck clean, two consecutive full runs 28 passed / 1 skipped,
 mutation baseline GREEN → 9 real + 1 false kill, 0 survived → restore GREEN.
 
-## Exact next step
+## Round 4 — and where the loop was stopped
 
-**Round 4.** Round 3 found real defects in round 3's own fixes, so the loop has
-not converged.
+Three legs again (codex + two Claude reviewers; **pi never ran this session**).
+Every finding was against round 3's fixes. All were applied.
+
+The one worth reading: **round 3's correction to `client.ts` was itself the more
+dangerous error.** Round 3 fixed a comment that overclaimed a guarantee by
+swinging to the opposite — implying the abort was merely an optimisation, as it
+genuinely is in `logout()`. It is not, on the login path:
+`revokeSupersededCookie()` returns early when an access token exists, so **logout
+has a durable backstop and login has none**. A refresh already in flight when
+`login()` starts carries the pre-login cookie and rotates the previous user's
+chain; the generation check discards the JS result while the durable cookie
+belongs to the previous user. So the lock-queued case is an *uncovered hazard*,
+not a missed optimisation, and the comment now says so.
+
+Also: the "cannot be expressed with this instrument at all" claim was overstated
+and its prescribed remedy was the option least likely to work. Confirmed in
+`playwright-core@1.62.1` rather than inferred — `continue()` strips the Cookie
+header and `allHeaders()` reports the pause-time snapshot, so the limitation is
+real but scoped to `route.continue()` under Chromium routing. `route.fulfill()`
+*does* write `Set-Cookie` into the jar, so a viable path exists and is now
+recorded. Three stale claims were corrected **at the source** rather than
+contradicted later in the same file — layering a retraction on a false statement
+leaves the false statement for whoever reads only the first one. And i18n's
+non-vacuity silently depended on the sim farm's locale being `en-US`; that is now
+a runtime guard, not a comment.
+
+**The loop was stopped here deliberately, at the owner's direction — not because
+a round came back quiet.** The honest signal for stopping is that the findings
+changed character: rounds 1–3 found behavioural defects (vacuous assertions, a
+credential leak, a mutation harness misreporting its own score, a false coverage
+claim), while round 4 found only inaccurate prose. That is what convergence looks
+like here, but it is not the literal stopping rule, so it is recorded as a
+judgement call rather than a finish.
+
+## If this is picked up again
 
 Open, and carried rather than dropped:
 
