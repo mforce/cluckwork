@@ -16,11 +16,26 @@
 //
 // ================== HOW THE RACE IS MADE DETERMINISTIC ==================
 //
-// `page.route` holds the refresh request open for a fixed window, so "in flight"
-// is a state the spec controls rather than one it hopes to hit. The alternative,
-// firing both actions and hoping the interleaving lands, is a spec that passes
-// most of the time for the wrong reason — and this is precisely the class of bug
-// where "passed 9 times out of 10" means "did not test it 9 times out of 10".
+// `page.route` holds the refresh request open, so "in flight" is a state the
+// spec controls rather than one it hopes to hit. The alternative — firing both
+// actions and hoping the interleaving lands — is a spec that passes most of the
+// time for the wrong reason, and this is precisely the class of bug where
+// "passed 9 times out of 10" means "did not test it 9 times out of 10".
+//
+// **THE HOLD IS RELEASED BY AN EVENT, NOT BY A TIMER, AND THAT DISTINCTION IS
+// THE WHOLE GUARANTEE.** An earlier version held for a fixed `HOLD_MS` measured
+// from INTERCEPTION. But the thing the held response must outlive is the
+// logout/login response, which is issued later and takes an unrelated amount of
+// time — so the timer controlled the wrong interval. Measured against a build
+// with the client-side fix removed, the superseded refresh completed `200` and
+// applied its `Set-Cookie` BEFORE the login's, meaning the login's cookie was
+// written last and won: the hazard never occurred and the spec passed with the
+// bug fully present (PR #390 review round 3). Both races now release the hold
+// only once the superseding response has actually landed, which makes the
+// dangerous ordering the only one either test can produce.
+//
+// `HOLD_MS` survives only as a post-release SETTLE window — time for the freed
+// response to arrive and be acted on. It no longer orders anything.
 
 import { expect, test } from "../src/fixtures";
 import { castMember, owner } from "../src/cast";
@@ -37,9 +52,16 @@ test.describe("#310 session races", () => {
   }) => {
     await signIn(owner());
 
-    // Hold every refresh open for HOLD_MS.
+    // Hold every refresh open until the LOGOUT response has landed — see the
+    // header note. A fixed timer here let the refresh finish first, in which
+    // case logout revokes an already-rotated token and the test passes without
+    // ever producing the late-response ordering it is named for.
+    let releaseHeldRefresh!: () => void;
+    const logoutHasLanded = new Promise<void>((resolve) => {
+      releaseHeldRefresh = resolve;
+    });
     await page.route("**/api/v1/auth/refresh", async (route) => {
-      await new Promise((r) => setTimeout(r, HOLD_MS));
+      await logoutHasLanded;
       await route.continue();
     });
 
@@ -65,11 +87,19 @@ test.describe("#310 session races", () => {
     // still outstanding.
     await page.waitForRequest((r) => r.url().includes("/api/v1/auth/refresh"));
 
-    // The user signs out mid-flight.
+    // The user signs out mid-flight. Wait for the logout RESPONSE specifically —
+    // that is the event whose Set-Cookie the held refresh must be made to
+    // outlive.
+    const logoutLanded = page.waitForResponse(
+      (r) => r.url().includes("/api/v1/auth/logout") && r.request().method() === "POST",
+    );
     await nav.signOut.click();
+    await logoutLanded;
     await expect(page).toHaveURL(/\/login/);
 
-    // Now let the held refresh land, and then some.
+    // Only now release the held refresh, so its response is genuinely the LATE
+    // one, and give it a settle window to arrive and be acted on.
+    releaseHeldRefresh();
     await page.waitForTimeout(HOLD_MS + 2_000);
 
     // THE GUARANTEE, in three independent forms — because "we are on /login" on
@@ -109,8 +139,14 @@ test.describe("#310 session races", () => {
     // would genuinely succeed. A race against a doomed request proves nothing.
     await signIn(owner());
 
+    // Held until the LOGIN response has landed — see the header note. This is
+    // the ordering the guarantee is about, and a fixed timer did not produce it.
+    let releaseHeldRefresh!: () => void;
+    const loginHasLanded = new Promise<void>((resolve) => {
+      releaseHeldRefresh = resolve;
+    });
     await page.route("**/api/v1/auth/refresh", async (route) => {
-      await new Promise((r) => setTimeout(r, HOLD_MS));
+      await loginHasLanded;
       await route.continue();
     });
 
@@ -127,12 +163,18 @@ test.describe("#310 session races", () => {
     const sales = castMember("Sales");
     await page.getByLabel(tEn("auth:email")).fill(sales.email);
     await page.getByLabel(tEn("auth:password")).fill(sales.password);
+    const loginLanded = page.waitForResponse(
+      (r) => r.url().includes("/api/v1/auth/login") && r.request().method() === "POST",
+    );
     await page.getByRole("button", { name: tEn("auth:signIn") }).click();
+    await loginLanded;
 
     await expect(page.getByRole("navigation", { name: tEn("nav:primaryNavAriaLabel") }))
       .toBeVisible();
 
-    // Let the superseded bootstrap refresh land on top of the new session.
+    // Only now let the superseded bootstrap refresh land — ON TOP of the new
+    // session's cookie, which is the ordering that can actually do damage.
+    releaseHeldRefresh();
     await page.waitForTimeout(HOLD_MS + 2_000);
 
     // THE GUARANTEE: this is the Sales session, and the Owner's has not been
