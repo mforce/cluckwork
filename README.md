@@ -182,8 +182,12 @@ booted. Deployment configuration itself lives in the separate deploy repo, not h
   bot-created PRs. It only touches the changelog and version files.
 - **A release that can't find its image never goes public.** It stays a draft, and
   GitHub doesn't create the tag for a draft — so you get no version pointing at a
-  missing image. Fix the cause, then re-run the **Release** workflow manually
-  (Actions → Release → *Run workflow*) with the tag to finish the job.
+  missing image. To finish it: Actions → **Release** → *Run workflow*, with the tag.
+- **If a commit was never built at all**, run Actions → **CI** → *Run workflow* with
+  that commit's sha first, then the Release step above. This happens when a commit
+  message contains `[skip ci]` (GitHub matches it anywhere in the message, so it can
+  arrive via a changelog entry) — no run is created, so there is nothing to re-run.
+  The dispatch only accepts commits already on `main`.
 
 ## Architecture
 

@@ -208,11 +208,19 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
   is the last step. Draft is safe for release-please's own bookkeeping because
   manifest mode reads the current version from `.release-please-manifest.json`, a
   committed file, not from tags.
-- **Repair path:** if promotion fails after the draft exists, re-running the push
-  event will not help — release-please reports `release_created: false` for an
-  already-created release, so promotion would be skipped forever. Use the
-  `workflow_dispatch` on the Release workflow with the tag (and the exact commit
-  sha if the release's `target_commitish` is a branch name rather than a commit).
+- **Repair path, in two parts.** Re-running the push event never helps —
+  release-please reports `release_created: false` for an already-created release,
+  so promotion would be skipped forever.
+  1. *If the commit has no image at all* — a `[skip ci]` anywhere in a commit
+     message suppresses the push run entirely, and GitHub matches those keywords
+     **anywhere** in the message, so one can reach the squashed release commit via
+     a changelog entry. There is then no run to re-run. Dispatch **CI** with the
+     exact sha; it rebuilds through the same gates and publishes. It refuses any
+     commit that is not already an ancestor of `main`, so it cannot be used to
+     publish arbitrary branch content.
+  2. Then dispatch **Release** with the tag (and the exact sha if the release's
+     `target_commitish` is a branch name rather than a commit) to promote and
+     publish the draft.
 - **The bump comes from conventional commits**, so PR titles are load-bearing —
   squash-merge puts the title on main as the commit subject. `feat!:`/`BREAKING
   CHANGE` → major, `feat:` → minor, **everything else → patch**. Note that

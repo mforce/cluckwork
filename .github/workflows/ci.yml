@@ -7,6 +7,23 @@ on:
   pull_request:
     branches:
       - main
+  # Repair path (#351). A commit whose message contains `[skip ci]` — which
+  # GitHub matches ANYWHERE in the message, and which reaches the squashed
+  # release commit if any changelog entry happens to contain it — triggers no
+  # push run at all. There is then no CI run for that commit and no image, so a
+  # release drafted at it can never be promoted, and re-running is impossible
+  # because no run exists to re-run.
+  #
+  # This rebuilds and publishes for one explicit commit, through the same gates.
+  # It is deliberately NOT a general "publish anything" button: the commit must
+  # already be an ancestor of main (checked below), so it can only ever republish
+  # history that was already merged.
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: "Commit on main to build and publish, e.g. to repair a release whose CI run was skipped"
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -20,6 +37,10 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
+        with:
+          # On a repair dispatch, gate the commit that was asked for. Empty on
+          # push/PR, which actions/checkout treats as "use the default ref".
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.sha || '' }}
 
       - name: Setup .NET SDK
         uses: actions/setup-dotnet@v6
@@ -64,6 +85,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.sha || '' }}
 
       - name: Setup Node
         uses: actions/setup-node@v7
@@ -204,6 +227,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.sha || '' }}
 
       # Build the exact image the container ships: the multi-stage Dockerfile
       # compiles the SPA, publishes the API, and runs as the non-root `app` user
@@ -392,7 +417,9 @@ jobs:
       # Only on a merge into main, so PR runs pay none of this.
       - name: Export the verified image for publishing
         id: export
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: |
+          (github.event_name == 'push' && github.ref == 'refs/heads/main')
+          || github.event_name == 'workflow_dispatch'
         run: |
           set -euo pipefail
           docker save cluckwork-api:ci | gzip > image.tar.gz
@@ -400,7 +427,9 @@ jobs:
             "$(docker image inspect -f '{{.Id}}' cluckwork-api:ci)" >> "$GITHUB_OUTPUT"
 
       - name: Upload the verified image
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: |
+          (github.event_name == 'push' && github.ref == 'refs/heads/main')
+          || github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
         with:
           name: runtime-image
@@ -426,7 +455,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: [build-and-test, web, image]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: |
+      (github.event_name == 'push' && github.ref == 'refs/heads/main')
+      || github.event_name == 'workflow_dispatch'
     permissions:
       # Job-level permissions REPLACE the workflow-level `contents: read`.
       contents: read
@@ -435,6 +466,39 @@ jobs:
       image: ${{ steps.publish.outputs.image }}
       digest: ${{ steps.publish.outputs.digest }}
     steps:
+      # A dispatch names its own commit; a push is its own. Either way the
+      # commit must ALREADY be on main's history — the compare API answers
+      # `identical` or `behind` only when the head is an ancestor of the base.
+      # Without that, this job would publish arbitrary branch content under a
+      # `:sha-` name that the release workflow is willing to promote.
+      - name: Resolve and authorise the commit to publish
+        id: target
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_SHA: ${{ inputs.sha }}
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            sha="$INPUT_SHA"
+          else
+            sha="$GITHUB_SHA"
+          fi
+
+          if ! printf '%s' "$sha" | grep -qE '^[0-9a-f]{40}$'; then
+            echo "::error::'${sha:-(empty)}' is not a full commit sha"
+            exit 1
+          fi
+
+          status="$(gh api "repos/$GITHUB_REPOSITORY/compare/main...$sha" --jq '.status')"
+          case "$status" in
+            identical|behind) ;;
+            *)
+              echo "::error::$sha is not an ancestor of main (compare status: $status) — refusing to publish it"
+              exit 1 ;;
+          esac
+
+          printf 'sha=%s\n' "$sha" >> "$GITHUB_OUTPUT"
+
       - name: Download the verified image
         uses: actions/download-artifact@v4
         with:
@@ -468,7 +532,7 @@ jobs:
       - name: Publish the commit image
         id: publish
         env:
-          SHA: ${{ github.sha }}
+          SHA: ${{ steps.target.outputs.sha }}
         run: |
           set -euo pipefail
           # GHCR rejects uppercase; the owner/repo casing is not ours to assume.
@@ -520,10 +584,15 @@ jobs:
       # The release workflow reads this to learn which digest CI actually
       # published for this commit, instead of trusting whatever the registry tag
       # resolves to at promotion time.
+      # Named by COMMIT, not just "published-digest". The release workflow finds
+      # this through the repo-wide artifacts API (`?name=…`), which needs no
+      # knowledge of the run — and a run dispatched to repair a commit reports
+      # `head_sha` as the branch tip, not the commit it built, so a lookup keyed
+      # on the run would miss exactly the case the repair path exists for.
       - name: Record the published digest
         uses: actions/upload-artifact@v4
         with:
-          name: published-digest
+          name: published-digest-${{ steps.target.outputs.sha }}
           path: published-digest.txt
           retention-days: 90
 

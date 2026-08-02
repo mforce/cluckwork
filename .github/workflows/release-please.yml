@@ -162,30 +162,45 @@ jobs:
           # run's artifact closes the window entirely: it is bound to the run
           # that built and scanned those bytes.
           #
-          # The release is tagged at the release PR's merge commit, and that
-          # merge is itself a push to main — so CI is still running here. Wait
-          # for it to finish successfully.
-          # Budgeted well past CI's own worst case: `build-and-test` and `image`
-          # each allow 20 minutes and `publish` (which waits on them) another 15,
-          # so a legitimately slow run can take ~35 before its digest exists.
-          # A poll shorter than that would report failure for a run that was
-          # about to succeed, and send someone to the repair path for nothing.
+          # Found by ARTIFACT NAME rather than by run, so a run dispatched to
+          # repair this commit is found too — a dispatched run reports the branch
+          # tip as its `head_sha`, not the commit it built.
+          #
+          # The artifact only exists if the publish job ran, and publish requires
+          # build-and-test, web and image to have succeeded — so its existence is
+          # itself the proof that the gates passed for these bytes.
+          #
+          # The wait is budgeted well past CI's own worst case: `build-and-test`
+          # and `image` each allow 20 minutes and `publish` (which waits on them)
+          # another 15, so a legitimately slow run can take ~35 minutes to record
+          # a digest. A shorter poll would declare failure for a run that was
+          # about to succeed and send someone to the repair path for nothing.
+          artifact="published-digest-$RELEASE_SHA"
           run_id=""
           for attempt in $(seq 1 80); do
-            run_id="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$RELEASE_SHA&per_page=100" \
-              --jq '[.workflow_runs[] | select(.name == "CI" and .conclusion == "success")] | first | .id // empty')"
+            run_id="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=$artifact&per_page=100" \
+              --jq '[.artifacts[] | select(.expired == false)] | first | .workflow_run.id // empty')"
             [ -n "$run_id" ] && break
-            echo "Waiting for a successful CI run for $RELEASE_SHA (attempt $attempt/80)…"
+            echo "Waiting for CI to record a digest for $RELEASE_SHA (attempt $attempt/80)…"
             sleep 30
           done
 
           if [ -z "$run_id" ]; then
-            echo "::error::no successful CI run for $RELEASE_SHA — refusing to promote a version with nothing verified behind it"
+            echo "::error::no CI-recorded digest for $RELEASE_SHA — refusing to promote a version with nothing verified behind it."
+            echo "::error::If that commit's CI run was skipped (a '[skip ci]' anywhere in its message does this), dispatch the CI workflow for the exact sha first."
             exit 1
           fi
-          echo "CI run $run_id verified $RELEASE_SHA"
 
-          gh run download "$run_id" --name published-digest --dir "$RUNNER_TEMP/digest"
+          # Confirm the artifact came from THIS repo's CI workflow, not from some
+          # other workflow that happened to upload the same name.
+          run_workflow="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id" --jq '.name')"
+          if [ "$run_workflow" != "CI" ]; then
+            echo "::error::$artifact came from workflow '$run_workflow', not CI — refusing it"
+            exit 1
+          fi
+          echo "CI run $run_id recorded a digest for $RELEASE_SHA"
+
+          gh run download "$run_id" --name "$artifact" --dir "$RUNNER_TEMP/digest"
           digest="$(tr -d '\r\n' < "$RUNNER_TEMP/digest/published-digest.txt")"
 
           # Validate the shape before it reaches a registry reference and the
