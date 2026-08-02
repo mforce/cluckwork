@@ -237,6 +237,14 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
      exact sha; it rebuilds through the same gates and publishes. It refuses any
      commit that is not already an ancestor of `main`, so it cannot be used to
      publish arbitrary branch content.
+
+     **Dispatch it from `main`** (the default ref selector; `gh workflow run`
+     without `--ref`). The *sha input* names the commit to build, but the *ref*
+     you dispatch from decides which `ci.yml` definition runs — and promotion
+     verifies the attestation with `--source-ref refs/heads/main`. Dispatched
+     from a branch, the rebuild succeeds and publishes, then refuses to promote,
+     and the only clue is the error at promote time. That strictness is the
+     point (see the provenance bullet below); just don't trip over it mid-incident.
   2. Then dispatch **Release** with the tag (and the exact sha if the release's
      `target_commitish` is a branch name rather than a commit) to promote and
      publish the draft. It refuses a tag whose release is **already published** —
@@ -281,7 +289,7 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
   does not imply the other.
   - **Obtain:** every release carries an **`image.json` asset**
     (`gh release download <tag> -p image.json -R <owner>/<repo>`) with `image`,
-    `digest`, `reference`, `tag`, `commit`. A release asset, not a workflow
+    `digest`, `reference`, `tag`, `commit`, `repository`. A release asset, not a workflow
     artifact — it never expires and needs no `actions:read` on this repo. The
     digest is also in the notes for humans. **Do not make the deploy side parse
     prose, and do not have it resolve a tag.**
@@ -290,7 +298,8 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
     (`push-to-registry: true`). The deploy side runs:
 
     ```bash
-    docker login ghcr.io -u x-access-token --password-stdin   # oci:// needs it
+    # oci:// needs registry credentials; GHCR ignores the username
+    echo "$GITHUB_TOKEN" | docker login ghcr.io -u x-access-token --password-stdin
     gh attestation verify oci://<image>@<digest> \
       --repo <owner>/<repo> \
       --signer-workflow <owner>/<repo>/.github/workflows/ci.yml \

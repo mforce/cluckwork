@@ -622,7 +622,7 @@ jobs:
       # and dispatched from there from producing a promotable attestation, since
       # `--signer-workflow` pins only the path.
       #
-      # Both flags are load-bearing and neither is the default:
+      # All three flags are load-bearing and none is the default:
       #   --bundle-from-oci   without it `gh` fetches the bundle from the GITHUB
       #                       API, not the registry — so the registry copy this
       #                       step pushes would go unused.
@@ -630,6 +630,9 @@ jobs:
       #                       any workflow here holding `attestations: write`
       #                       satisfies the check. Since the threat model is a
       #                       leaked token, pin the workflow, not just the repo.
+      #   --source-ref        without it the identity is not bound to a REF, and
+      #                       `--signer-workflow` pins only the path — see the
+      #                       branch-dispatch note below.
       #
       # `push-to-registry: true` stores the attestation as an OCI referrer
       # beside the image, which is what makes `--bundle-from-oci` possible at

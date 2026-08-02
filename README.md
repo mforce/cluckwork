@@ -274,7 +274,11 @@ Deployment configuration itself lives in the separate deploy repo, not here.
   that commit's sha first, then the Release step above. This happens when a commit
   message contains `[skip ci]` (GitHub matches it anywhere in the message, so it can
   arrive via a changelog entry) — no run is created, so there is nothing to re-run.
-  The dispatch only accepts commits already on `main`.
+  The dispatch only accepts commits already on `main`, and **must itself be run
+  from `main`** (the default branch in the *Run workflow* dropdown). The sha you
+  type names the commit to build; the branch you dispatch from decides which
+  workflow definition runs, and a release will only promote an image built by the
+  definition on `main`.
 
 ## Architecture
 
