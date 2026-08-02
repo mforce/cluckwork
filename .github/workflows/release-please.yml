@@ -477,9 +477,12 @@ jobs:
           #   gh release download <tag> -p image.json -R <owner>/<repo>
           #
           # This removes the transcription step, not the trust question — it
-          # says which digest we published, it does not prove those bytes are
-          # CI's. The attestation written by ci.yml (#354) is what proves that,
-          # and the two compose: read the digest here, verify it there.
+          # says which digest we published, it does not establish where those
+          # bytes came from. The attestation written by ci.yml (#354) is what
+          # carries that, and the two compose: read the digest here, verify it
+          # there. Stated that way on purpose — the attestation is a signed
+          # CLAIM by this repo's CI workflow, so verification shows that
+          # workflow attested the digest, not independently that it built it.
           # `jq -n --arg`, not printf: printf does no JSON escaping, and TAG is
           # the one field here not constrained to a safe shape (IMAGE, DIGEST and
           # RELEASE_SHA are all pattern-checked upstream). A tag containing a

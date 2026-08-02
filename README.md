@@ -214,8 +214,9 @@ Two steps, answering two different questions — *which* image, and whether it i
 really ours:
 
 ```bash
-# 0. gh needs registry credentials for an oci:// subject
-echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$USER" --password-stdin
+# 0. gh needs registry credentials for an oci:// subject.
+#    GHCR authenticates the token; the username is ignored, so any value works.
+echo "$GITHUB_TOKEN" | docker login ghcr.io -u x-access-token --password-stdin
 
 # 1. Obtain the digest (machine-readable; no prose to parse)
 gh release download v0.4.0 -p image.json -R mforce/cluckwork
