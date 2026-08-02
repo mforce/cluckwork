@@ -109,6 +109,66 @@ dotnet test Cluckwork.sln    # integration tests spin up Postgres via Docker
 Optional: `git config core.hooksPath .githooks` enables a fast pre-commit hook
 (unit tests for staged .NET changes, typecheck for staged `web/` changes).
 
+## Releases & container images
+
+**Merging a PR into `main` publishes a release.** There is no manual release step
+and no version file to bump — the git tag *is* the version.
+
+When CI goes green on `main`, the same container image that was just built,
+vulnerability-scanned and boot-tested is pushed to the registry and the merge
+commit is tagged:
+
+```
+ghcr.io/mforce/cluckwork:v0.4.0          # the version
+ghcr.io/mforce/cluckwork:sha-<commit>    # the same image, by commit
+ghcr.io/mforce/cluckwork@sha256:…        # the digest — what you deploy
+```
+
+Pull requests publish nothing; the release job reports `skipping` on a PR.
+
+### Choosing the version
+
+The bump comes from **labels on the PR**, so it is a deliberate choice with a safe
+default:
+
+| PR label | `v0.4.0` becomes |
+|---|---|
+| *(none — the usual case)* | `v0.4.1` |
+| `release:minor` | `v0.5.0` |
+| `release:major` | `v1.0.0` |
+
+Nothing to do for an ordinary change. Label the PR before merging when it deserves
+more than a patch. Labels are collected from **every merge since the last release**,
+so a `release:major` still counts even if a later merge overtook it before its
+release finished.
+
+### Deploying
+
+**Deploy by digest, never by tag.** Tags can be moved; a digest cannot. The digest
+is printed in the workflow run's summary (Actions → the `main` run → *Publish image
+and tag release*), and the annotated git tag carries it too:
+
+```bash
+git show v0.4.0 | grep ghcr.io
+```
+
+That digest is the only identifier that provably refers to the bytes CI scanned and
+booted. The deploy configuration itself lives in the separate deployment repo, not
+here.
+
+### When a release doesn't happen
+
+- **"Release skipped — superseded"** — a newer merge landed while this one was
+  building. Expected, not a failure: the newer release contains this commit's
+  changes too. Only the current tip of `main` is released, so version order always
+  matches history order.
+- **A cancelled release job** — same cause; a third merge evicted it from the queue.
+- **A failed release** — the job refuses to guess rather than publish something
+  wrong. It will not overwrite an already-published version, and it fails closed if
+  it cannot reach the registry or determine what is already there. Re-running is
+  safe: a release that published its image but not its tag is detected and
+  completed rather than rebuilt over.
+
 ## Architecture
 
 Multi-tenant from the root so the system scales past a single farm:
