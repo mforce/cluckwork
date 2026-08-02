@@ -304,10 +304,8 @@ jobs:
           # be red while publish still records a digest and promotion still
           # certifies the bytes. Nothing enforces this — `needs` is a hand-kept
           # list, and a new job defaults to NOT being a gate, which is the
-          # dangerous direction. It has already happened once: the sim-harness
-          # job added in #370/#371 was not in the list (caught in review), so
-          # treat "did you add it to publish.needs?" as part of adding any
-          # release-gating job.
+          # dangerous direction. So treat "did you add it to publish.needs?" as
+          # part of adding any release-gating job.
           #
           # The wait is budgeted well past CI's own worst case: `build-and-test`
           # and `image` each allow 20 minutes and `publish` (which waits on them)
