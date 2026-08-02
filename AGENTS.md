@@ -290,33 +290,52 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
     (`push-to-registry: true`). The deploy side runs:
 
     ```bash
+    docker login ghcr.io -u x-access-token --password-stdin   # oci:// needs it
     gh attestation verify oci://<image>@<digest> \
       --repo <owner>/<repo> \
       --signer-workflow <owner>/<repo>/.github/workflows/ci.yml \
+      --source-ref refs/heads/main \
       --bundle-from-oci
     ```
 
-    **Both flags are load-bearing and neither is the default** — this is the
-    easiest thing to get wrong here, and the first draft got it wrong.
-    `--bundle-from-oci` is what makes `gh` read the registry copy; without it the
-    bundle is fetched from the **GitHub API**, so `push-to-registry` goes unused
-    and the "no GitHub access needed" property is lost. `--signer-workflow` binds
-    the identity to the *workflow*; with `--repo` alone, **any** workflow in this
-    repo holding `attestations: write` satisfies the check — which matters
-    precisely because the threat model is a leaked token. Note the consumer still
-    authenticates to the **registry** for an `oci://` subject; the saving is no
-    GitHub API access to this repo, not no credentials at all.
+    **All three flags are load-bearing and none is the default** — this is the
+    easiest thing to get wrong here, and successive drafts got each of them
+    wrong in turn.
+    - `--bundle-from-oci` makes `gh` read the registry copy; without it the
+      bundle is fetched from the **GitHub API**, so `push-to-registry` goes
+      unused and the "no GitHub access needed" property is lost.
+    - `--signer-workflow` binds the identity to the *workflow*; with `--repo`
+      alone, **any** workflow here holding `attestations: write` satisfies the
+      check.
+    - `--source-ref` binds it to the *ref*, and this is the subtle one:
+      `--signer-workflow` pins the workflow's **path**, and `workflow_dispatch`
+      runs the workflow **definition** from whatever ref is selected. So without
+      it, anyone able to push a branch could edit `ci.yml` there, dispatch it,
+      publish and attest arbitrary bytes, and still match a path-only check.
+
+    Consequence worth knowing: **a CI repair dispatch must run from `main`.**
+    Dispatched from a branch it produces an image that will not promote, on
+    purpose. Note also the consumer still authenticates to the **registry** for
+    an `oci://` subject; the saving is no GitHub API access to this repo, not no
+    credentials at all.
 
   **Holding a digest is not the same as knowing where it came from.** A digest
   identifies bytes exactly and cannot be moved — but bytes pushed by hand have a
   perfectly valid digest too, and a gate that checks digest *syntax* accepts
   them. Only the attestation distinguishes CI's bytes from anything pushed with
   `packages: write` (realistically a leaked token). That is why obtaining and
-  verifying are listed as two steps and not one. The
-  attestation step is deliberately placed **before** the digest artifact upload,
-  so a failed attestation means no artifact and therefore no release, rather than
-  a published version whose provenance quietly never got written. Do not make it
-  `continue-on-error`: an attestation nobody can rely on is worse than none.
+  verifying are listed as two steps and not one.
+
+  **Where the fail-closed actually comes from.** `ci.yml` attests *before*
+  uploading the digest artifact, so a failed attestation leaves no artifact —
+  but that is a **within-a-run** property only, and it is easy to overclaim (this
+  PR did). Promotion finds the artifact by **name**, repo-wide, taking the first
+  unexpired match, so an artifact from an earlier run of the same commit would
+  still satisfy it. What makes it fail closed at *release* level is that
+  `release-please.yml` **verifies the attestation before it retags**. Keep both;
+  never let the ordering stand in for the check. And do not make either
+  `continue-on-error` — an attestation nobody can rely on is worse than none,
+  because it reads as coverage.
 - **Promotion reads the digest from CI's own run artifact, never by resolving
   `:sha-<commit>`.** That tag is mutable by anyone holding `packages: write`, and
   the merge commit is public seconds after merge while CI needs minutes to push —

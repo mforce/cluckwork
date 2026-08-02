@@ -226,13 +226,17 @@ REF=$(jq -r .reference image.json)
 gh attestation verify "oci://$REF" \
   --repo mforce/cluckwork \
   --signer-workflow mforce/cluckwork/.github/workflows/ci.yml \
+  --source-ref refs/heads/main \
   --bundle-from-oci
 ```
 
-Both flags matter, and neither is the default. Without `--bundle-from-oci`, `gh`
-fetches the attestation from the GitHub API rather than the registry. Without
-`--signer-workflow`, the identity is only bound to the *repository*, so any
-workflow here that can mint an attestation would satisfy the check.
+All three flags matter, and none is the default. Without `--bundle-from-oci`,
+`gh` fetches the attestation from the GitHub API rather than the registry.
+Without `--signer-workflow`, the identity is bound only to the *repository*, so
+any workflow here that can mint an attestation would satisfy the check. Without
+`--source-ref`, it isn't bound to a *branch* — and since `workflow_dispatch` runs
+a workflow's definition from whichever ref you pick, a modified `ci.yml` on a
+branch would otherwise still match.
 
 Step 2 is the one that matters, and step 1 cannot substitute for it. Knowing a
 digest tells you *what* you are deploying but nothing about *where it came from*

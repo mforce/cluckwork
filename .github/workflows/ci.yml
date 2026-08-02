@@ -596,6 +596,7 @@ jobs:
       #   gh attestation verify oci://ghcr.io/<owner>/<repo>@sha256:… \
       #     --repo <owner>/<repo> \
       #     --signer-workflow <owner>/<repo>/.github/workflows/ci.yml \
+      #     --source-ref refs/heads/main \
       #     --bundle-from-oci
       # succeeds only for bytes this workflow signed a provenance claim over.
       # Say it that precisely: an attestation is a CLAIM BY AN ACTOR, so it
@@ -609,8 +610,17 @@ jobs:
       # attestation names the branch tip as its source commit, not the commit
       # actually built. The digest binding is still correct — which is what
       # promotion and deploy check — but do not read the provenance's source
-      # commit as authoritative for a dispatched rebuild. `image.json.commit`
-      # is the commit the release was cut from.
+      # commit as authoritative for a dispatched rebuild. `image.json.commit` is
+      # the commit PROMOTION SELECTED — which is the release's own
+      # `target_commitish` when that records a real sha, and an
+      # operator-supplied one when it records a branch name (release-please.yml
+      # says outright that it cannot be cross-checked in that case). Do not read
+      # it as "the commit the release was cut from" without that distinction.
+      #
+      # Both flags in the command above matter for this job too:
+      # `--source-ref refs/heads/main` is what stops a ci.yml edited on a branch
+      # and dispatched from there from producing a promotable attestation, since
+      # `--signer-workflow` pins only the path.
       #
       # Both flags are load-bearing and neither is the default:
       #   --bundle-from-oci   without it `gh` fetches the bundle from the GITHUB
@@ -627,12 +637,17 @@ jobs:
       # `oci://` subject — the saving is that it needs no GitHub API access to
       # this repo, not that it needs no credentials.
       #
-      # Placed BEFORE the digest artifact deliberately. The artifact is what
-      # promotion accepts as proof the gates passed, so a failed attestation
-      # must mean no artifact and therefore no release — not a published version
-      # whose provenance silently did not get written. This is also why it is
-      # not `continue-on-error`: an attestation nobody checks is worse than
-      # none, because it looks like coverage.
+      # Placed BEFORE the digest artifact deliberately, so a failed attestation
+      # in THIS run leaves no artifact behind. Be precise about how far that
+      # goes: it is a within-a-run property only. Promotion looks the artifact
+      # up by NAME, repo-wide, and takes the first unexpired match, so an
+      # artifact from an earlier run of the same commit would still satisfy it.
+      # Release-level fail-closed comes from `release-please.yml` VERIFYING the
+      # attestation before it retags — not from this ordering. Both are wanted;
+      # do not let the ordering stand in for the check.
+      #
+      # Also why this is not `continue-on-error`: an attestation nobody checks
+      # is worse than none, because it looks like coverage.
       #
       # `actions/*`, so a major-version tag is fine under the repo's pinning
       # rule (third-party actions still need a commit SHA).

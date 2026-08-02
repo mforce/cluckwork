@@ -378,11 +378,25 @@ jobs:
           # depends on actually exists — on every release, rather than being
           # discovered missing by whoever deploys. The GHCR login above is what
           # satisfies the registry auth an `oci://` subject requires.
+          # `--source-ref` is not optional either, and it is the least obvious
+          # of the three. `--signer-workflow` pins the workflow's PATH, not the
+          # ref it ran from — and `workflow_dispatch` runs the workflow
+          # DEFINITION from whichever ref is chosen. So without this, someone
+          # who can push a branch could edit ci.yml there, dispatch it, publish
+          # and attest arbitrary bytes, and the attestation would still satisfy
+          # a path-only check. Pinning refs/heads/main means only the definition
+          # that is actually on main can produce a promotable attestation.
+          #
+          # Consequence for the repair path: a CI repair dispatch must be run
+          # from main (the default). Dispatching it from a branch produces an
+          # image that will not promote — deliberately.
           if ! gh attestation verify "oci://$image@$digest" \
             --repo "$GITHUB_REPOSITORY" \
             --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/ci.yml" \
+            --source-ref refs/heads/main \
             --bundle-from-oci; then
             echo "::error::no valid CI provenance for $image@$digest — refusing to promote bytes whose origin cannot be established"
+            echo "::error::(if this was a CI repair dispatch, it must be run from main — a branch-run definition is not promotable)"
             exit 1
           fi
 
@@ -462,9 +476,12 @@ jobs:
             echo 'Verify the bytes came from this repo'"'"'s CI before deploying:'
             echo
             echo '```'
+            echo '# requires a prior `docker login ghcr.io` — an oci:// subject'
+            echo '# needs registry credentials. Full recipe: README, "Deploying".'
             echo "gh attestation verify oci://$IMAGE@$DIGEST \\"
             echo "  --repo $GITHUB_REPOSITORY \\"
             echo "  --signer-workflow $GITHUB_REPOSITORY/.github/workflows/ci.yml \\"
+            echo '  --source-ref refs/heads/main \'
             echo '  --bundle-from-oci'
             echo '```'
           } >> "$trimmed"
