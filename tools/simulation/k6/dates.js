@@ -1,11 +1,19 @@
 // tools/simulation/k6/dates.js — date helpers for the #243 harness.
 //
 // DELIBERATELY k6-FREE: this module imports nothing from `k6/*`, so it can be
-// loaded by plain Node and unit-tested (`dates.test.mjs`, run by CI via
-// `node --test`, the same pattern .github/scripts/*.test.mjs already uses).
-// Every function takes an injectable `now` for exactly that reason — a date
-// helper whose only clock is the wall clock can only be tested at whatever
-// time CI happens to run, which is precisely how the bug below survived.
+// loaded by plain Node and unit-tested (`dates.test.mjs`).
+//
+// WHERE THAT TEST ACTUALLY RUNS — nowhere automated. This harness is
+// deliberately not in CI (dev tooling), so the test runs only when
+// `verify-harness.sh` invokes it, which `reset.sh` does before it wipes the
+// volume, and when a human runs either by hand. Do NOT treat these helpers as
+// covered by a pipeline: nothing will tell you when they break. (An earlier
+// revision of this comment claimed "run by CI", which was true for exactly one
+// commit before the CI job was dropped — PR #371 review.)
+//
+// Every function takes an injectable `now` — a date helper whose only clock is
+// the wall clock can only be tested at whatever time it happens to run, which
+// is precisely how the bug below survived.
 //
 // WHY THIS FILE EXISTS AT ALL — the bug it is the fix for:
 //

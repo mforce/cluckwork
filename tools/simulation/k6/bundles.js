@@ -87,8 +87,9 @@ function tagsFor(persona, flow, endpoint) {
 // --- dates -------------------------------------------------------------
 //
 // Moved to ./dates.js so they can be unit-tested without k6 (that file has no
-// `k6/*` import, and dates.test.mjs runs under `node --test` in CI). Re-exported
-// here so the personas' existing imports keep working.
+// `k6/*` import). dates.test.mjs runs under `node --test` from
+// verify-harness.sh — NOT in CI, which this harness deliberately stays out of.
+// Re-exported here so the personas' existing imports keep working.
 import { today, daysAgo, reportRangeStart, reportRangeEnd } from './dates.js';
 
 export { today, daysAgo };

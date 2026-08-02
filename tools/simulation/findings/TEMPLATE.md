@@ -101,9 +101,12 @@ production-equivalent. All isolated to `tools/simulation/.env.sim`; see
 6. **`Database__MigrateOnStartup=true`** — the sim stack migrates on boot
    instead of via a separate release step. **Invalidates:** anything about
    migration-time behavior under a separate/gated migration step.
-7. **No traefik / TLS front door**, `AllowedHosts=*`, loopback-only port
-   publish. **Invalidates:** anything about TLS-termination overhead or
-   traefik routing.
+7. **No traefik / TLS front door**, a placeholder `AllowedHosts`
+   (`cluckwork-sim.local` — concrete, never `*`: #319 fails a Production
+   boot on a wildcard, and this stack runs Production config), loopback-only
+   port publish. Reachable on `127.0.0.1` because loopback is force-added to
+   the host-filter list. **Invalidates:** anything about TLS-termination
+   overhead or traefik routing.
 
 ---
 
