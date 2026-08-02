@@ -51,13 +51,19 @@
 // **They no longer exercise `sessionGeneration`, and the file header above says
 // they are its regression layer. Read this before trusting that.**
 //
-// `login()` and `logout()` both now ABORT the in-flight refresh. So on the path
-// these tests drive, the superseded response is never delivered at all, and the
-// generation check that discards a late completion never runs. Deleting
-// `sessionGeneration` outright while keeping the two aborts would leave both
-// tests green — the abort's rejection surfaces as `AbortError`, which
-// `isTransientRefreshFailure` already treats as transient (PR #390 review
-// round 3).
+// `logout()` ABORTS the in-flight refresh, so on the logout path the superseded
+// response is never delivered at all and the generation check that discards a
+// late completion never runs there. Deleting `sessionGeneration` outright would
+// still leave the logout test green — the abort's rejection surfaces as
+// `AbortError`, which `isTransientRefreshFailure` already treats as transient
+// (PR #390 review round 3).
+//
+// The login path has no such abort. One was added during this PR and then
+// REVERTED (PR #390 review round 4): it introduced a spurious 401 for any
+// request parked on the refresh when the login began, proven by a unit test
+// whose fetch mock actually honours `AbortSignal`. The hazard it aimed at — a
+// superseded refresh landing its `Set-Cookie` on top of a newer login's — is
+// real and is now tracked as its own #310 follow-up rather than carried here.
 //
 // **AND THE LATE-`Set-Cookie` RACE CANNOT BE EXPRESSED WITH THIS INSTRUMENT AT
 // ALL.** This was chased to the bottom rather than assumed, and the answer is a
@@ -110,13 +116,12 @@
 // shape. Costed but not built here; recorded so the next attempt starts from a
 // path that has a reason to succeed rather than from the one that does not.
 //
-// CONSEQUENCE, stated plainly: `login()`'s `abortInFlightRefresh()` has NO
-// end-to-end coverage here, and this spec cannot be used as evidence for it.
-// Its only coverage is `web/src/api/client.test.ts` — and that test currently
-// passes partly because its fetch mock ignores `AbortSignal`, so it does not
-// exercise the rejection path either. Closing this properly needs a driver that
-// can pin a request's cookie header (CDP `Fetch.continueRequest` with explicit
-// headers, or a server-side proxy), not another spec edit.
+// CONSEQUENCE, stated plainly: the late-`Set-Cookie` hazard on the LOGIN path
+// has no coverage anywhere — not here, and not in `client.test.ts`. A fix for it
+// was written and reverted during this PR because it caused a regression of its
+// own. Both the hazard and the reproduction live in the #310 follow-up issue.
+// This spec asserts the OUTCOME of the race (which session the user lands in,
+// and that a reload agrees); it is not evidence about the cookie mechanism.
 //
 // What these two tests DO cover, and what the killed `logout-not-honoured`
 // mutant stands behind: the session the user ends up in after the race, and that
@@ -265,21 +270,24 @@ test.describe("#310 session races", () => {
     // in a `finally`. Both halves are load-bearing, and each fixes a separate
     // defect found in round 3's own first attempt:
     //
-    //   * BEFORE the nav assertion. The first version released three lines
-    //     later, after asserting the shell had rendered. On a build with the
-    //     client-side abort REMOVED — the exact mutant this spec exists to
-    //     catch — the held bootstrap refresh does not settle in time, so
-    //     AuthContext's `isLoading` is still set, `Login.tsx` has not navigated,
-    //     and the nav assertion fails on its timeout with the release still
-    //     unreached. (Precisely: the refresh DOES eventually self-abort on
-    //     `REFRESH_TIMEOUT_MS = 15_000`, but the `expect` timeout is 10s, so the
-    //     assertion loses the race. An earlier version of this comment said
-    //     `isLoading` "never clears", which is wrong and is the kind of detail
-    //     that gets re-derived incorrectly — PR #390 review round 4.) The
-    //     mutant died at the wrong assertion and the late-`Set-Cookie` ordering
-    //     was never produced at all. A red for the wrong reason is exactly what
-    //     the mutation harness is built to refuse, and it went unnoticed because
-    //     "the mutant failed" was read as "the guarantee is covered".
+    //   * BEFORE the nav assertion, and this is REQUIRED, not a preference.
+    //     Nothing on the login path cancels the held bootstrap refresh, so while
+    //     it is held AuthContext's `isLoading` stays set and `Login.tsx` never
+    //     navigates — the nav simply is not there to assert on. Releasing here
+    //     is what lets the shell render at all.
+    //
+    //     (Precisely, on the timing: the refresh does eventually self-abort on
+    //     `REFRESH_TIMEOUT_MS = 15_000`, so `isLoading` is not stuck forever —
+    //     but the `expect` timeout is 10s, so the assertion loses that race. An
+    //     earlier comment here said `isLoading` "never clears", which is wrong
+    //     and is the kind of detail that gets re-derived incorrectly.)
+    //
+    //     The first version released three lines later, after asserting the
+    //     shell had rendered. Against a build carrying the since-reverted login
+    //     abort, that ordering made a mutant die on the nav timeout rather than
+    //     on the guarantee, and "the mutant failed" was read as "the guarantee
+    //     is covered" — a red for the wrong reason, which is exactly what the
+    //     mutation harness exists to refuse (PR #390 review rounds 3 and 4).
     //   * In a `finally`. The route handler awaits this promise and nothing else
     //     resolves it, so an assertion throwing before the release strands the
     //     interception and buries the real error under a timeout.

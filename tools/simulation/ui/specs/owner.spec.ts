@@ -137,15 +137,38 @@ test.describe("Owner", () => {
         + "from a working one — this spec cannot prove anything against this fixture",
     ).toBeGreaterThan(1);
 
-    // options[0] is `audit:allActionsOption` (value ""), so [1] is a real action.
-    const options = await filter.locator("option").all();
-    const firstAction = await options[1]!.getAttribute("value");
-    const firstActionLabel = (await options[1]!.innerText()).trim();
+    // TARGET AN ACTION THAT IS ACTUALLY ON SCREEN — not `options[1]`.
+    //
+    // The dropdown lists every action the server's enum allows, INCLUDING ones
+    // the log holds no rows for. `options[1]` is therefore whichever action
+    // happens to sort first, which on a mature log always has rows and on a
+    // freshly-seeded one need not. That is the whole bug: this spec passed in
+    // isolation and passed on a re-run, but failed on a full run against a
+    // fixture straight out of `reset.sh`, because by then earlier specs had put
+    // rows behind the action it guessed. It read as flakiness and was fixture
+    // state (PR #390 review round 4).
+    //
+    // `distinctActions` was already computed from the rows on screen — round 2
+    // described deriving the target from it and then still selected `options[1]`.
+    // Using it closes the gap: an action visible in `before` provably has rows,
+    // so an empty result after filtering is a real defect rather than a fixture
+    // artefact.
+    const firstActionLabel = [...distinctActions][0]!;
+    const targetOption = filter.locator("option").filter({ hasText: firstActionLabel }).first();
+    const firstAction = await targetOption.getAttribute("value");
+    expect(
+      firstAction,
+      `the audit table shows action "${firstActionLabel}" but the filter offers no option for it`,
+    ).toBeTruthy();
     await filter.selectOption(firstAction!);
     await expect(page.getByRole("alert")).toBeHidden();
 
     const after = await actionCells.allInnerTexts();
-    expect(after.length, `filtering to "${firstAction}" emptied the table`).toBeGreaterThan(0);
+    expect(
+      after.length,
+      `filtering to "${firstActionLabel}" emptied the table, but that action was on screen `
+        + `before the filter was applied`,
+    ).toBeGreaterThan(0);
 
     // THE ASSERTION, and deliberately NOT a count comparison.
     //
