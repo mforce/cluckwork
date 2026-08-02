@@ -151,5 +151,12 @@ test.describe("#310 session races", () => {
     // are proving "the Sales session won" rather than "the sidebar is empty".
     await expect(nav.link("nav:sales")).toBeVisible();
     await expect(nav.link("nav:customers")).toBeVisible();
+
+    // The browser applies Set-Cookie before client code can reject a stale
+    // response. Reload to prove the durable cookie also belongs to Sales, not
+    // merely the in-memory access token used by the assertions above.
+    await page.reload();
+    await expect(nav.link("nav:sales")).toBeVisible();
+    await expect(nav.link("nav:audit")).toBeHidden();
   });
 });

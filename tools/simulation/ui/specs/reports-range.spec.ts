@@ -51,9 +51,11 @@ test.describe("#311 report range", () => {
     const timings: Array<{ path: string; status: number; ms: number }> = [];
     page.on("response", (res) => {
       if (!REPORT_PATH.test(res.url())) return;
+      const url = new URL(res.url());
+      if (url.searchParams.get("from") !== from || url.searchParams.get("to") !== to) return;
       const t = res.request().timing();
       timings.push({
-        path: new URL(res.url()).pathname,
+        path: url.pathname,
         status: res.status(),
         ms: Math.round(t.responseEnd),
       });
