@@ -135,9 +135,49 @@ fix are the most likely to be real.
 - The fixes were distributed across the stack by **merge, not rebase** — the
   branches were already pushed and rebasing them would need a force-push.
 
+## Round 2 — ran, and it mattered
+
+Full four-way again on the fix diff. **Every finding that mattered was against
+round 1's own fixes.**
+
+- **A new high the first round could not have seen:** the Playwright HTML report
+  is credential-bearing *by construction* — Playwright embeds a base64 copy of the
+  run in `index.html` and renders step titles containing literal fill values, so a
+  sign-in step reads `Fill "<the password>"`. Round 1's "strip the trace zips" was
+  a fix that looked complete and was not. CI no longer uploads the report.
+- **The strip step failed open** (`|| true`, upload runs `if: always()`) — a
+  mechanism with no enforcement. Now a real gate.
+- **The mutation harness was wrong twice, in opposite directions.** The round-1
+  grep matched `expect(` anywhere in the log, including the code frame Playwright
+  prints around *every* failure — a reviewer reproduced a `TypeError` reporting as
+  `KILLED`. Anchoring it then demoted three genuine kills to `INCONCLUSIVE`,
+  because Playwright prints the matcher inline after `Error: ` when no custom
+  message is given. **The harness caught the second one on itself.**
+- **`nav-role-gate-bypassed` is a false kill** — the forged token is rejected by
+  the server, so sign-in fails before the nav assertion runs. Nav gates are now
+  recorded as unmutated. Second withdrawal of that claim; the generalisable reason
+  is in the file.
+- The audit-filter assertion is on its **third** revision (vacuous `<=` →
+  intermittent count → ordering-coupled option pick + mid-refetch read → derived
+  target + polled settle).
+
+Final state, verified: smoke 28 passed / 1 skipped, canary 4 passed, typecheck
+clean, mutation baseline GREEN → **10 killed / 0 survived** → restore GREEN.
+
 ## Exact next step
 
-Run review round 2 — the full four-way, on the fix diff
-(`git diff 500e37b..HEAD`), telling reviewers these commits are fixes for named
-findings so they check the fix rather than re-litigating the original. Then work
-the seven open codex findings, starting with the two `session-races` ones.
+**Round 3.** The loop stops when a round finds nothing new, and round 2 found
+plenty — including two defects in round 1's fixes. It was not run only because
+this session ran out of room, not because the loop converged.
+
+Carry into it, all posted on the PRs:
+
+1. The four trace blobs remain reachable via ancestor `076bf3c`. Purging needs a
+   force-push — owner's call. Credentials are rotated and verified dead, so the
+   exposure is inert.
+2. Seven round-1 findings still open: `session-races` ×2, `reports-range`
+   timings, `i18n` durable preference, `run-baseline` stale-vitals stamping,
+   `run-canary` k6 liveness, `logout-not-honoured` mutant mismapping.
+3. Round-2 leftovers: `run-baseline.sh` does not warn on a partial canary
+   directory; the findings-doc note still claims the bounds "can only
+   over-report".
