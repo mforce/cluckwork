@@ -48,11 +48,35 @@ public sealed class IdentityProvider(
         }
 
         // Correct password — clear any accumulated failures (no-op DB-wise if zero).
-        await userManager.ResetAccessFailedCountAsync(user);
+        await ResetFailedAccessCountAsync(user, ct);
 
         var (rawToken, tokenHash) = GenerateRefreshToken();
-        db.RefreshTokens.Add(NewToken(user, tokenHash));
-        await db.SaveChangesAsync(ct);
+        var minted = NewToken(user, tokenHash);
+        db.RefreshTokens.Add(minted);
+        try
+        {
+            await db.SaveChangesAsync(ct);
+        }
+        catch (Exception)
+        {
+            // #269 — the same ambiguous commit RefreshAsync documents at length,
+            // one step earlier in the session's life. Login is anonymous, so
+            // IdempotencyMiddleware's tenant gate skips it and this INSERT is a
+            // self-contained unit the execution strategy replays. Id and TokenHash
+            // are both fixed before the first attempt (a retry does not regenerate
+            // them), so a replay after the commit landed re-inserts the SAME row,
+            // hits the unique TokenHash index, and turns a successful login into a
+            // 409 "Data conflict" — measured pre-fix, together with a live refresh
+            // token that was handed to nobody.
+            //
+            // Milder than the refresh case (the caller can just log in again, and
+            // gets a clean session when they do) but the same defect, and the same
+            // answer: if the token this attempt minted is in the database, the
+            // login succeeded — deliver it. If it is not, nothing of ours is
+            // durable and the real error stands.
+            if (!await MintedTokenIsDurableAsync(tokenHash)) throw;
+            DetachCommitted(minted);
+        }
 
         var roles = await userManager.GetRolesAsync(user);
         return Result.Success(jwtTokenService.CreateTokenPair(user, [.. roles], rawToken));
@@ -62,6 +86,9 @@ public sealed class IdentityProvider(
     // on why every password oracle must apply this, not just login.
     private Task RecordFailedAccessAsync(ApplicationUser user) =>
         AccountLockout.RecordFailedAccessAsync(userManager, db, user);
+
+    private Task ResetFailedAccessCountAsync(ApplicationUser user, CancellationToken ct) =>
+        AccountLockout.ResetFailedAccessCountAsync(userManager, db, user, ct);
 
     public async Task<Result<TokenPair>> RefreshAsync(string refreshToken, CancellationToken ct = default)
     {
@@ -113,17 +140,76 @@ public sealed class IdentityProvider(
         stored.ReplacedByTokenHash = newHash;
         stored.RevokedByGrace = viaGrace;
         stored.ConcurrencyStamp = Guid.NewGuid().ToString(); // rotate the CAS token (#176)
-        db.RefreshTokens.Add(NewToken(user, newHash));
+        var minted = NewToken(user, newHash);
+        db.RefreshTokens.Add(minted);
         try
         {
             await db.SaveChangesAsync(ct);
         }
-        catch (DbUpdateConcurrencyException)
+        catch (Exception ex)
         {
-            // #176 — another request consumed this exact token first (concurrent
-            // presentation of the same token). The winner already minted the one
-            // live child; fail this one closed rather than fork a second session.
-            return Result.Failure<TokenPair>(Error.Validation("Identity.InvalidRefreshToken", "Refresh token is invalid."));
+            // #269 review (#350, codex round 5) — the rotation is a compare-and-
+            // swap on a SINGLE-USE record: it rewrites ConcurrencyStamp so a
+            // competing consumer of the same token matches no row. Refresh is
+            // anonymous, so IdempotencyMiddleware's tenant gate skips it and this
+            // save is a self-contained unit the execution strategy REPLAYS.
+            //
+            // On the ambiguous commit — Postgres committed the rotation and only
+            // the acknowledgment was lost — the replay re-issues the batch against
+            // state its own first attempt already moved: the UPDATE carries the
+            // superseded stamp, and the INSERT carries a TokenHash now in the
+            // unique index. Whichever of the two the server rejects first, the
+            // failure lands here describing a request that in fact SUCCEEDED, and
+            // it is NOT recoverable by trying again: the rotation is durable, so
+            // the caller's cookie holds a REVOKED token, and the child that
+            // replaced it is live but was delivered to nobody. Measured pre-fix:
+            // 409 "Data conflict" (the duplicate INSERT surfaces first, so the
+            // #176 branch below was never even reached), one live orphan token,
+            // no Set-Cookie. The user is signed out by the very resilience
+            // feature meant to absorb the blip.
+            //
+            // WHY THE PROBE RATHER THAN SingleAttemptExecution. The branch's rule
+            // is that a unit is unreplayable when the REPLAY IS OBSERVABLE. Here
+            // it is not: EF wraps the two statements in one transaction, so a
+            // replay after the commit lands writes nothing at all and a replay
+            // after a rolled-back attempt simply succeeds. The defect is not the
+            // replay — it is this catch MISREADING what the replay's failure
+            // means. So fix the reading and keep the retry: refusing to replay was
+            // measured to turn the ordinary fail-BEFORE blip (which EF absorbs
+            // today, 200 OK) into a 409, i.e. it would trade one signed-out user
+            // for another. Contrast AccountLockout, where the replay really is
+            // observable — a second durable increment — and single-attempt is the
+            // only answer.
+            //
+            // Order matters: ask the DATABASE first, classify second. Which
+            // exception EF raises depends on statement ordering inside the batch,
+            // so a branch keyed on the exception type would be reading a coin
+            // flip; whether our own token is durable is a fact.
+            if (await MintedTokenIsDurableAsync(newHash))
+            {
+                // This attempt's rotation is durable, so deliver the token it
+                // minted. Same move IdempotencyMiddleware already makes on its own
+                // failure path ("the claim's own status is the authoritative
+                // answer to 'did my work become durable?'"), keyed here on
+                // evidence nobody else could have produced.
+                DetachCommitted(minted, stored);
+            }
+            else if (ex is DbUpdateConcurrencyException)
+            {
+                // #176 — another request consumed this exact token first
+                // (concurrent presentation of the same token). The winner already
+                // minted the one live child; fail this one closed rather than fork
+                // a second session. Reaching here means the probe found NO token
+                // of ours, i.e. our transaction committed nothing — so this is a
+                // genuine race, never our own replay wearing its costume.
+                return Result.Failure<TokenPair>(Error.Validation("Identity.InvalidRefreshToken", "Refresh token is invalid."));
+            }
+            else
+            {
+                // Nothing of ours is durable and this is not a CAS loss: report the
+                // real failure. Fails CLOSED — a session is never invented here.
+                throw;
+            }
         }
 
         // Roles re-read on every refresh so a demotion takes effect within one
@@ -572,6 +658,46 @@ public sealed class IdentityProvider(
         await db.RefreshTokens
             .Where(t => t.UserId == userId && t.RevokedAt == null)
             .ExecuteUpdateAsync(s => s.SetProperty(t => t.RevokedAt, now), ct);
+    }
+
+    // #269 — "did the save I just attempted actually commit?", answered by the
+    // one piece of evidence that cannot belong to anybody else: the hash of a
+    // 256-bit value THIS attempt generated moments ago and has not yet handed to
+    // a single caller. No other request, and no competing consumer of the same
+    // refresh token, can have written this row — they mint their own random
+    // token. So its presence is proof the attempt's transaction became durable,
+    // and its absence is proof nothing of ours did (EF's save is one transaction:
+    // the rotation UPDATE and the INSERT land together or not at all).
+    //
+    // Fails CLOSED by construction: the caller rethrows unless this returns true,
+    // so a probe that cannot reach the database reports the original error and
+    // the client retries — never a session invented from a failed read.
+    private Task<bool> MintedTokenIsDurableAsync(string mintedHash) =>
+        // AnyAsync compiles to SELECT EXISTS (...) — a scalar. It therefore reads
+        // the DATABASE and can never be answered from the change tracker's own
+        // still-Added copy of the very row it is asking about, which a
+        // FirstOrDefaultAsync could be via identity resolution.
+        //
+        // CancellationToken.None deliberately: a client that has already
+        // disconnected must not leave a live token stranded, and this call is
+        // what decides whether one was minted. Same reasoning as
+        // IdempotencyMiddleware's post-failure claim probe.
+        db.RefreshTokens.AnyAsync(t => t.TokenHash == mintedHash, CancellationToken.None);
+
+    // The save threw, so EF still tracks these as Added/Modified even though the
+    // database has already accepted them. Detach exactly the entities this call
+    // touched, so any later SaveChanges cannot re-flush an already-durable row
+    // (a duplicate key or a phantom concurrency conflict, attributed to us).
+    //
+    // Per-entity, never db.ChangeTracker.Clear(): on the owned/CLI path this same
+    // AppDbContext can be shared by a longer-lived caller holding its own pending
+    // writes, and clearing drops them silently (the regression that broke
+    // SimulationDataSeeder — see SingleAttemptExecution). This is the same
+    // surgical detach IdempotencyMiddleware.TryClaimOrInspectAsync uses.
+    private void DetachCommitted(params object[] entities)
+    {
+        foreach (var entity in entities)
+            db.Entry(entity).State = EntityState.Detached;
     }
 
     // 256-bit random token; only the SHA-256 hash is persisted.

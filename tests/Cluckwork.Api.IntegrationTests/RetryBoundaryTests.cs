@@ -296,6 +296,254 @@ public sealed class RetryBoundaryTests : IClassFixture<RetryBoundaryFactory>, ID
         Assert.Equal(2, await FailedAccessCountAsync(accountId, email));
     }
 
+    // --- codex 3696925253 (P2), and the round-5 sweep it opened ---
+    //
+    // THE SHAPE, stated once for the four tests below: an automatic replay
+    // sitting above a STATEFUL DETECTOR. Refresh-token rotation is a
+    // compare-and-swap on a single-use record — it rewrites ConcurrencyStamp
+    // precisely so a competing consumer matches no row (#176). Refresh is
+    // anonymous, so IdempotencyMiddleware's tenant gate skips it and the save is
+    // a self-contained unit the execution strategy replays. On the ambiguous
+    // commit the replay re-issues the batch against state its own first attempt
+    // already moved, and the resulting failure describes a request that in fact
+    // SUCCEEDED.
+    //
+    // Unlike a wrong Idempotency-Key or a double failed-access increment, this
+    // one is not recoverable by trying again: the rotation is durable, so the
+    // caller's cookie now holds a REVOKED token and the child that replaced it
+    // is live but was delivered to nobody.
+    //
+    // PROVES: with the commit acknowledgment lost on that exact save, refresh
+    // returns 200 with the rotated cookie, exactly one live token remains, and
+    // that cookie actually works. Pre-fix, measured: 409 "Data conflict", NO
+    // Set-Cookie at all, and one live orphan token.
+    // DOES NOT PROVE: that a real network-level ack loss is byte-for-byte this
+    // interceptor's throw. What it pins is that Postgres COMMITted (asserted via
+    // CommitFault.Commits) and the failure was raised afterwards.
+    //
+    // NOTE ON THE INSTRUMENT: TransientCommandFaultInterceptor(afterExecution:
+    // true) — the tool the AccessFailedAsync test above uses — CANNOT reproduce
+    // this, and using it would have given a green test for the wrong reason
+    // (measured: 200 OK, defect absent). That save is ONE statement, so there is
+    // no transaction and the after-execution hook really is the ambiguous
+    // commit; this one is TWO (UPDATE + INSERT), so EF opens an auto
+    // transaction and a fault from that hook fires INSIDE it and rolls back —
+    // a fail-BEFORE. Only TransientCommitFaultInterceptor, which throws from
+    // EF's post-COMMIT notification, produces a durable-but-unacknowledged
+    // rotation. The next test pins the fail-BEFORE side deliberately.
+    [Fact]
+    public async Task LostCommitAcknowledgmentOnARefreshRotation_DeliversTheTokenItMinted_NotAnErrorForARequestThatSucceeded()
+    {
+        var email = $"retry-boundary-{Guid.NewGuid():N}@test.local";
+        var accountId = await _factory.SeedAccountWithUserAsync(email);
+        var tokens = await _factory.LoginAsync(email);
+        var client = _factory.CreateClient(Cookieless);
+
+        _factory.CommitFault.ArmOnce();
+        var response = await client.PostRefreshAsync(tokens.RefreshToken);
+        _factory.CommitFault.Disarm();
+
+        // The rotation really did commit — without this the test could pass
+        // having never exercised the ambiguous commit at all.
+        Assert.True(_factory.CommitFault.Commits >= 1);
+
+        // The load-bearing assertion: the request succeeded, so say so.
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var rotated = TestHarness.ExtractRefreshCookie(response);
+        Assert.NotEqual(string.Empty, rotated);
+
+        // The token was not merely reported — it is the live one, and usable.
+        // This is what "the child was never delivered" cost the user.
+        var next = await client.PostRefreshAsync(rotated);
+        Assert.Equal(HttpStatusCode.OK, next.StatusCode);
+
+        // And the rotation happened exactly once: one live tip, never a fork.
+        Assert.Equal(1, await LiveTokenCountAsync(accountId));
+    }
+
+    // The other side of the same boundary, and the reason this fix is a PROBE
+    // rather than SingleAttemptExecution.
+    //
+    // A transient failure that rolls back commits nothing, and EF's retry
+    // absorbs it — that is exactly what #269 is for. Refusing to replay would
+    // have turned this ordinary blip into a 409 (measured: it did, while I was
+    // holding the other fix), trading one signed-out user for another. The
+    // branch's rule is that a unit is unreplayable when the REPLAY IS
+    // OBSERVABLE; here it is not, because EF wraps both statements in one
+    // transaction. The defect was the catch MISREADING the replay's failure, so
+    // that is what got fixed.
+    //
+    // PROVES: a fail-BEFORE on the rotation is still absorbed — 200, a working
+    // cookie, one live tip — and the command genuinely executed more than once.
+    // DOES NOT PROVE: anything about the ambiguous commit (the test above).
+    [Fact]
+    public async Task ATransientFailureBeforeTheRotationCommits_IsStillAbsorbedByTheRetry()
+    {
+        var email = $"retry-boundary-{Guid.NewGuid():N}@test.local";
+        var accountId = await _factory.SeedAccountWithUserAsync(email);
+        var tokens = await _factory.LoginAsync(email);
+        var client = _factory.CreateClient(Cookieless);
+
+        _factory.CommandFault.Arm("UPDATE refresh_tokens", afterExecution: true);
+        var response = await client.PostRefreshAsync(tokens.RefreshToken);
+        _factory.CommandFault.Disarm();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        // Executed twice: the failed attempt and the strategy's replay. Without
+        // this the test would pass on a run where no fault ever fired.
+        Assert.Equal(2, _factory.CommandFault.Matches);
+        Assert.NotEqual(string.Empty, TestHarness.ExtractRefreshCookie(response));
+        Assert.Equal(1, await LiveTokenCountAsync(accountId));
+    }
+
+    // The discrimination the probe must NOT cost: #176 theft/fork protection.
+    //
+    // Two presentations of the SAME token where both read it active before
+    // either writes is a genuine compare-and-swap loss, and the loser MUST fail
+    // closed — a second live child would fork the session, which is the one
+    // thing #176 exists to prevent. The probe is keyed on the hash of a token
+    // the losing attempt generated itself and never committed, so it can never
+    // mistake somebody else's successful rotation for its own.
+    //
+    // Deterministic rather than raced: the loser's scope reads the row into its
+    // change tracker FIRST, so when RefreshAsync re-queries it, EF's identity
+    // resolution hands back that still-active tracked instance (stale stamp,
+    // RevokedAt null) even though the winner has since rotated the row. That is
+    // precisely the state a true overlap produces.
+    //
+    // PROVES: after the fix a genuine CAS loss still returns
+    // Identity.InvalidRefreshToken and mints nothing.
+    // DOES NOT PROVE: the concurrent scheduling itself
+    // (RefreshTokenFlowTests.Refresh_ConcurrentPresentationsOfSameToken_
+    // NeverForkIntoTwoSessions covers that end-to-end); this pins the mechanism.
+    [Fact]
+    public async Task AGenuineCompetingConsumerOfTheSameRefreshToken_StillFailsClosed_AndForksNoSession()
+    {
+        var email = $"retry-boundary-{Guid.NewGuid():N}@test.local";
+        var accountId = await _factory.SeedAccountWithUserAsync(email);
+        var tokens = await _factory.LoginAsync(email);
+
+        using var loser = _factory.Services.CreateScope();
+        loser.ServiceProvider.GetRequiredService<TenantContext>().Resolve(accountId);
+        var loserDb = loser.ServiceProvider.GetRequiredService<AppDbContext>();
+        // Pin the pre-rotation row in the loser's change tracker. Located by
+        // account rather than by token hash: the cookie value is URL-encoded on
+        // the wire, so re-deriving the stored hash from it here would be a second
+        // encoding contract for a test to get wrong. Login leaves exactly one
+        // live token for a fresh account.
+        Assert.NotNull(await loserDb.RefreshTokens.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(t => t.AccountId == accountId && t.RevokedAt == null));
+
+        // The winner rotates it out from under the loser.
+        var winner = await _factory.CreateClient(Cookieless).PostRefreshAsync(tokens.RefreshToken);
+        Assert.Equal(HttpStatusCode.OK, winner.StatusCode);
+
+        // Uri.UnescapeDataString because this call bypasses HTTP: the cookie
+        // value on the wire is percent-encoded and Kestrel decodes it before
+        // AuthEndpoints sees it, so passing the raw header value straight to the
+        // service would hash to nothing, return InvalidRefreshToken from the
+        // "token not found" branch, and make this test pass without ever
+        // reaching the compare-and-swap it exists to guard. (It did exactly that
+        // until a mutation check caught it.)
+        var result = await loser.ServiceProvider
+            .GetRequiredService<IIdentityProvider>()
+            .RefreshAsync(Uri.UnescapeDataString(tokens.RefreshToken));
+
+        // Fails CLOSED — never a success synthesised by the probe.
+        Assert.True(result.IsFailure);
+        Assert.Equal("Identity.InvalidRefreshToken", result.Error.Code);
+        // Exactly one live tip: the winner's child. No fork.
+        Assert.Equal(1, await LiveTokenCountAsync(accountId));
+    }
+
+    // The same hazard one step earlier in a session's life, found by the
+    // round-5 sweep rather than reported: login is anonymous too, so its
+    // refresh-token INSERT is replayed the same way. Id and TokenHash are fixed
+    // before the first attempt, so the replay re-inserts the SAME row and hits
+    // the unique TokenHash index.
+    //
+    // Milder than the refresh case — the caller can just log in again — but the
+    // same defect. Measured pre-fix: 409 "Data conflict" on a CORRECT password,
+    // plus a live refresh token that was handed to nobody.
+    //
+    // PROVES: one login, one session, delivered. Here the single-statement save
+    // means TransientCommandFaultInterceptor(afterExecution: true) IS the
+    // ambiguous commit (no auto transaction to roll back), and Matches == 2
+    // shows the replay genuinely happened.
+    [Fact]
+    public async Task LostAcknowledgmentOnLoginsTokenInsert_IssuesTheSessionItAlreadyMinted()
+    {
+        var email = $"retry-boundary-{Guid.NewGuid():N}@test.local";
+        var accountId = await _factory.SeedAccountWithUserAsync(email);
+
+        _factory.CommandFault.Arm("INSERT INTO refresh_tokens", afterExecution: true);
+        var response = await _factory.CreateClient(Cookieless).PostAsJsonAsync(
+            "/api/v1/auth/login", new { email, password = TestHarness.Password });
+        _factory.CommandFault.Disarm();
+
+        Assert.Equal(2, _factory.CommandFault.Matches);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        // The session is real: the delivered cookie refreshes.
+        var delivered = TestHarness.ExtractRefreshCookie(response);
+        Assert.NotEqual(string.Empty, delivered);
+        Assert.Equal(HttpStatusCode.OK,
+            (await _factory.CreateClient(Cookieless).PostRefreshAsync(delivered)).StatusCode);
+
+        // One login, one token — not an orphan alongside a delivered one.
+        Assert.Equal(1, await LiveTokenCountAsync(accountId));
+    }
+
+    // The third site the sweep turned up, and the one that shows a replay can
+    // damage a LATER statement rather than its own.
+    //
+    // Clearing AccessFailedCount after a correct password goes through Identity,
+    // which swallows a concurrency loss into IdentityResult.Failed instead of
+    // throwing — and the call site discarded that result. The replay's 0-row
+    // UPDATE therefore left `user` tracked as Modified under a superseded
+    // ConcurrencyStamp, and the refresh-token INSERT that shares the DbContext
+    // re-flushed it. Measured pre-fix: a CORRECT password answered 409
+    // "Concurrency conflict" and issued NO token, even though the reset itself
+    // had committed.
+    //
+    // PROVES: one wrong password then the right one logs in, with the counter
+    // cleared and a usable session, across a lost acknowledgment on the reset.
+    // DOES NOT PROVE: that the counter would survive a genuine parallel writer
+    // here — that is the reload path, covered for the increment side by
+    // AGenuineConcurrencyConflict_OnTheFailedAccessUpdate_IsStillReloadedAndRetried.
+    [Fact]
+    public async Task LostAcknowledgmentOnTheFailedAccessCountReset_StillLogsTheUserIn()
+    {
+        var email = $"retry-boundary-{Guid.NewGuid():N}@test.local";
+        var accountId = await _factory.SeedAccountWithUserAsync(email);
+
+        // One wrong password, so the reset below is not a no-op: Identity
+        // short-circuits ResetAccessFailedCountAsync when the count is already 0.
+        await _factory.CreateClient(Cookieless).PostAsJsonAsync(
+            "/api/v1/auth/login", new { email, password = FreshPassword() });
+        Assert.Equal(1, await FailedAccessCountAsync(accountId, email));
+
+        _factory.CommandFault.Arm("UPDATE \"AspNetUsers\"", afterExecution: true);
+        var response = await _factory.CreateClient(Cookieless).PostAsJsonAsync(
+            "/api/v1/auth/login", new { email, password = TestHarness.Password });
+        _factory.CommandFault.Disarm();
+
+        Assert.True(_factory.CommandFault.Matches >= 1);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.NotEqual(string.Empty, TestHarness.ExtractRefreshCookie(response));
+        // The reset did land, and the login that followed it was not collateral.
+        Assert.Equal(0, await FailedAccessCountAsync(accountId, email));
+        Assert.Equal(1, await LiveTokenCountAsync(accountId));
+    }
+
+    private static readonly Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions
+        Cookieless = new() { HandleCookies = false };
+
+    private Task<int> LiveTokenCountAsync(Guid accountId) =>
+        _factory.WithTenantScopeAsync(accountId, db => db.RefreshTokens
+            .IgnoreQueryFilters()
+            .CountAsync(t => t.AccountId == accountId && t.RevokedAt == null));
+
     private Task<int> FailedAccessCountAsync(Guid accountId, string email) =>
         _factory.WithTenantScopeAsync(accountId, db => db.Users
             .IgnoreQueryFilters()
