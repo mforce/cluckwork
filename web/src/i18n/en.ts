@@ -1901,8 +1901,8 @@ export const en = {
       + "one-time setup command that prints a temporary one. Sign in with it and you'll immediately land on a "
       + "<strong>Set your password</strong> screen instead of the normal app; nothing else works until you pick "
       + "your own password there. This is separate from an ordinary <em>Change password</em>. Until that setup "
-      + "step has been run, the sign-in screen says so and points you at whoever administers the server, so a "
-      + "brand-new farm never presents a form that cannot work.",
+      + "step has been run, trying to sign in tells you so and points you at whoever administers the server, "
+      + "rather than claiming your details were wrong.",
     // #308 — step-up re-confirmation for the two sensitive user-administration
     // actions. Deliberately does NOT mention "grant"/"token" — that's internal
     // mechanism, not user-facing language.

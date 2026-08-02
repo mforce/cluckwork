@@ -4,7 +4,7 @@ import { Routes, Route } from "react-router";
 import { Login } from "./Login";
 import { ProtectedRoute } from "./ProtectedRoute";
 import { renderWithProviders } from "../test/renderWithProviders";
-import { login as apiLogin, ApiError, getProvisioningStatus } from "../api/client";
+import { login as apiLogin, ApiError } from "../api/client";
 import { setStoredToken } from "../test/jwt";
 import i18n from "../i18n";
 
@@ -18,12 +18,10 @@ vi.mock("../api/client", async (importOriginal) => {
     logout: vi.fn(),
     setOnTokensChanged: vi.fn(),
     setOnUnauthenticated: vi.fn(),
-    getProvisioningStatus: vi.fn(),
   };
 });
 
 const mockApiLogin = vi.mocked(apiLogin);
-const mockProvisioningStatus = vi.mocked(getProvisioningStatus);
 
 // /dashboard is behind the real ProtectedRoute, so navigation there only
 // succeeds if login actually established authenticated state — a bare public
@@ -46,14 +44,7 @@ function fillCredentials(email: string, password: string) {
 
 // resetAllMocks (not clearAllMocks) so a per-test implementation never leaks
 // into the next case.
-beforeEach(() => {
-  vi.resetAllMocks();
-  // Default every case to a provisioned instance — the state all the sign-in
-  // tests below assume. resetAllMocks strips implementations, and an unstubbed
-  // mock returns undefined, which Login would then call .then() on; the
-  // first-run cases override this explicitly.
-  mockProvisioningStatus.mockResolvedValue(true);
-});
+beforeEach(() => vi.resetAllMocks());
 
 describe("Login", () => {
   it("renders its labels from the auth i18n catalog (#182)", async () => {
@@ -203,17 +194,54 @@ describe("Login", () => {
   });
 });
 
-// #283 follow-up — the first-run hint. A freshly migrated instance has base
-// reference data but no users, so the form cannot succeed; without this the
-// operator gets a credential prompt and no explanation.
-describe("Login — first-run setup hint", () => {
-  it("shows the hint, and the command to run, when the API reports no admin yet", async () => {
-    mockProvisioningStatus.mockResolvedValue(false);
+// #283 follow-up — the first-run notice. Driven by the SIGN-IN ATTEMPT, not by
+// a status call on mount: the server reports "this instance has no
+// administrator" on the 401 it already returns.
+describe("Login — first-run setup notice", () => {
+  const noAccounts = () =>
+    new ApiError(401, "Auth.NoAccountsProvisioned", "This farm has no administrator account yet.");
+
+  it("shows the notice, and suppresses the generic denial, when the server reports no accounts", async () => {
+    mockApiLogin.mockRejectedValue(noAccounts());
     renderWithProviders(tree(), { route: "/login", token: null });
 
-    // Pinned to the catalog, not the literal, like the labels test above.
+    fillCredentials("owner@farm.co", "pw");
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    });
+
     expect(await screen.findByText(i18n.t("auth:noAdminYet"))).toBeInTheDocument();
     expect(screen.getByText(i18n.t("auth:noAdminYetHint"))).toBeInTheDocument();
+    // "Invalid email or password" would be actively misleading here — nothing
+    // was wrong with what was typed.
+    expect(screen.queryByText(i18n.t("auth:invalidCredentials"))).not.toBeInTheDocument();
+  });
+
+  // The other side of the same boundary. Without this, a build that showed the
+  // notice for EVERY 401 would pass the test above — and would tell a user who
+  // simply mistyped their password that the farm has no accounts.
+  it("shows the ordinary invalid-credentials message on a normal 401, with no notice", async () => {
+    mockApiLogin.mockRejectedValue(new ApiError(401, "Auth.InvalidCredentials", "bad creds"));
+    renderWithProviders(tree(), { route: "/login", token: null });
+
+    fillCredentials("owner@farm.co", "wrong");
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    });
+
+    expect(await screen.findByText(i18n.t("auth:invalidCredentials"))).toBeInTheDocument();
+    expect(screen.queryByText(i18n.t("auth:noAdminYet"))).not.toBeInTheDocument();
+  });
+
+  // Nothing is asked of the server on mount any more, so nothing may be shown
+  // before someone actually tries. This is what pins the mechanism change: a
+  // reintroduced page-load poll would surface the notice here.
+  it("shows nothing before a sign-in has been attempted", async () => {
+    renderWithProviders(tree(), { route: "/login", token: null });
+
+    expect(await screen.findByRole("button", { name: "Sign in" })).toBeInTheDocument();
+    expect(screen.queryByText(i18n.t("auth:noAdminYet"))).not.toBeInTheDocument();
+    expect(mockApiLogin).not.toHaveBeenCalled();
   });
 
   // The notice deliberately publishes NO command and no deployment detail: an
@@ -223,70 +251,35 @@ describe("Login — first-run setup hint", () => {
   // describe how the server is run. Asserted rather than left to the copy,
   // because this is the kind of thing a well-meaning later edit re-adds.
   it("names no command and leaks no deployment detail", async () => {
-    mockProvisioningStatus.mockResolvedValue(false);
+    mockApiLogin.mockRejectedValue(noAccounts());
     renderWithProviders(tree(), { route: "/login", token: null });
-
-    const notice = (await screen.findByText(i18n.t("auth:noAdminYet"))).closest(".auth-setup");
-    expect(notice).not.toBeNull();
-
-    expect(notice!.querySelector("code")).toBeNull();
-    expect(notice!.textContent).not.toMatch(/docker|dotnet|bootstrap-admin|--email/i);
-  });
-
-  it("shows nothing once an admin exists", async () => {
-    mockProvisioningStatus.mockResolvedValue(true);
-    renderWithProviders(tree(), { route: "/login", token: null });
-
-    // Wait for the form so the mount effect has certainly settled — otherwise
-    // this would pass simply by asserting before the answer arrived.
-    expect(await screen.findByRole("button", { name: "Sign in" })).toBeInTheDocument();
-    expect(screen.queryByText(i18n.t("auth:noAdminYet"))).not.toBeInTheDocument();
-  });
-
-  // The failure direction matters more than the happy path: `false` is a
-  // meaningful answer, so anything that collapses an unreachable API into it
-  // would tell an operator to bootstrap an instance that is already running.
-  it("shows nothing when the status call fails, rather than assuming un-provisioned", async () => {
-    mockProvisioningStatus.mockRejectedValue(new TypeError("Failed to fetch"));
-    renderWithProviders(tree(), { route: "/login", token: null });
-
-    expect(await screen.findByRole("button", { name: "Sign in" })).toBeInTheDocument();
-    expect(screen.queryByText(i18n.t("auth:noAdminYet"))).not.toBeInTheDocument();
-  });
-
-  // The hint is an aside, not an alert: role="status" is polite, so a screen
-  // reader finishes the current utterance instead of interrupting, and someone
-  // who already has credentials is never pulled away from the form.
-  it("announces the hint politely", async () => {
-    mockProvisioningStatus.mockResolvedValue(false);
-    renderWithProviders(tree(), { route: "/login", token: null });
-
-    // Located via its text, then checked for the role. Querying by role alone
-    // is ambiguous here: BusyButton renders its own sr-only `role="status"`
-    // span, so more than one status element is in the tree. Walking ancestors
-    // from the hint's own text is what ties the assertion to THIS element.
-    const hint = await screen.findByText(i18n.t("auth:noAdminYet"));
-    expect(hint.closest("[role='status']")).not.toBeNull();
-  });
-
-  it("never blocks sign-in while the status call is still in flight", async () => {
-    // Never resolves — an instance whose status call hangs must still present a
-    // fully usable form, since the hint is strictly supplementary.
-    mockProvisioningStatus.mockReturnValue(new Promise<boolean>(() => {}));
-    mockApiLogin.mockImplementation(async () => {
-      setStoredToken({ sub: "u1", role: "Sales" });
-    });
-    renderWithProviders(tree(), { route: "/dashboard", token: null });
-
-    // Await the redirect to the form first — ProtectedRoute renders nothing
-    // while the load-time session restore is still settling.
-    expect(await screen.findByRole("button", { name: "Sign in" })).toBeInTheDocument();
 
     fillCredentials("owner@farm.co", "pw");
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
     });
 
-    expect(await screen.findByText("dashboard (protected)")).toBeInTheDocument();
+    const notice = (await screen.findByText(i18n.t("auth:noAdminYet"))).closest(".auth-setup");
+    expect(notice).not.toBeNull();
+    expect(notice!.querySelector("code")).toBeNull();
+    expect(notice!.textContent).not.toMatch(/docker|dotnet|bootstrap-admin|--email/i);
+  });
+
+  // The notice is an aside, not an alert: role="status" is polite, so a screen
+  // reader finishes the current utterance instead of interrupting.
+  it("announces the notice politely", async () => {
+    mockApiLogin.mockRejectedValue(noAccounts());
+    renderWithProviders(tree(), { route: "/login", token: null });
+
+    fillCredentials("owner@farm.co", "pw");
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    });
+
+    // Located via its text, then checked for the role. Querying by role alone
+    // is ambiguous here: BusyButton renders its own sr-only `role="status"`
+    // span, so more than one status element is in the tree.
+    const notice = await screen.findByText(i18n.t("auth:noAdminYet"));
+    expect(notice.closest("[role='status']")).not.toBeNull();
   });
 });

@@ -1630,8 +1630,8 @@ export const tl = {
       + "password. Mag-sign in gamit ito at diretso kang mapupunta sa isang screen ng <strong>Itakda ang iyong "
       + "password</strong> sa halip na ang normal na app; wala pang gumagana hangga't hindi ka pumipili ng "
       + "sarili mong password doon. Iba ito sa karaniwang <em>Pagbabago ng password</em>. Hangga't hindi pa "
-      + "naisasagawa ang hakbang na iyon sa setup, sinasabi ito ng sign-in screen at itinuturo ka nito sa kung "
-      + "sino ang nangangasiwa ng server, kaya hindi kailanman nagpapakita ang bagong farm ng form na hindi gagana.",
+      + "naisasagawa ang hakbang na iyon sa setup, sinasabi ito sa iyo kapag sinubukan mong mag-sign in at "
+      + "itinuturo ka sa kung sino ang nangangasiwa ng server, sa halip na sabihing mali ang iyong mga detalye.",
     // #308 (machine-drafted, pending native review)
     signingInStepUp:
       "May dalawang aksyon sa <strong>Users</strong> screen na humihiling sa iyong <strong>muling ilagay ang "

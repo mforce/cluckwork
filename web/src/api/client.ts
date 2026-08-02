@@ -383,27 +383,6 @@ export async function restoreSession(): Promise<boolean> {
   }
 }
 
-// #283 follow-up — has this instance had its first admin provisioned yet? A
-// freshly migrated deployment has base reference data but no users, so the
-// login form cannot succeed and, without this, says nothing about why.
-//
-// Uses raw() rather than apiGet(): this is an ANONYMOUS call made from the
-// login screen, and apiFetch's transparent refresh-and-retry has no business
-// running for a caller who by definition has no session. Routing it through
-// apiFetch would also risk tripping the onUnauthenticated teardown on a
-// failure that means nothing more than "the API is not up yet".
-//
-// Failures propagate deliberately, and are NOT swallowed into `false` here:
-// false is a meaningful answer ("no admin yet — show the hint"), so collapsing
-// an unreachable or older API into it would tell an operator to run
-// bootstrap-admin on an instance that may well be fully provisioned. The
-// caller's default is to show nothing, and only an explicit `provisioned:
-// false` moves it off that.
-export async function getProvisioningStatus(): Promise<boolean> {
-  const res = await raw<{ provisioned: boolean }>("/auth/provisioning", { method: "GET" });
-  return res.provisioned;
-}
-
 // --- Authenticated request with one transparent refresh-and-retry ---------
 
 export function apiGet<T>(path: string): Promise<T> {

@@ -614,15 +614,20 @@ platform log pipeline) may still capture it, so that output must be treated
 as sensitive while the password is valid. Re-running the command against an
 already-provisioned account is a safe no-op (no second Owner, no password
 reprinted). Because a migrated-but-unprovisioned instance therefore presents a
-sign-in form that cannot succeed, the **login screen says so**: while the
-default account has no Owner it shows a short notice explaining that no account
-exists yet and pointing at whoever administers the server, and it disappears for
-good once the first Owner exists. The notice deliberately publishes **no command
-and no deployment detail** — a page reachable by anyone is the wrong place to
-describe how the server is run, and the setup steps belong in the README. That notice is
-driven by an anonymous status check that reports **existence only** — a single
-boolean, never an address or a count — so it can tell an operator what to do
-without telling anyone else anything they could use. This is a **separate mechanism** from break-glass recovery below (a pre-auth, one-shot
+sign-in form that cannot succeed, the **login screen says so**: attempting to
+sign in while the default account has no Owner answers with a short notice
+explaining that no account exists yet and pointing at whoever administers the
+server, instead of the usual "invalid email or password" — which would be
+actively misleading, since nothing was wrong with what was typed. It disappears
+for good once the first Owner exists. The notice deliberately publishes **no
+command and no deployment detail** — a page reachable by anyone is the wrong
+place to describe how the server is run, and the setup steps belong in the
+README. It is reported on the **failed sign-in itself**, not by a status check
+the page polls: only someone actually attempting to sign in is told anything,
+the condition is a property of the whole instance rather than of the address
+that was typed, and it can only hold while **no** credential exists to protect.
+The moment one Owner exists, the response is byte-identical to the ordinary
+non-enumerating denial. This is a **separate mechanism** from break-glass recovery below (a pre-auth, one-shot
 setup secret vs. an offline recovery for a locked-out existing account) and
 from the browser step-up re-confirmation a signed-in Owner uses for sensitive
 actions (#308) — three distinct credential types, audiences, and lifetimes,

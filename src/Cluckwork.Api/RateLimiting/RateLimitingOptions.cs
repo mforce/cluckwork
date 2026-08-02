@@ -17,21 +17,10 @@ public sealed class RateLimitingOptions
     // LOG, not a credential — enough for a genuinely crashing screen to get its
     // story out, too little to flood the log from one address.
     public const string ClientErrorsPolicyName = "client-errors";
-    // #283 follow-up: the anonymous first-run status check behind the login
-    // screen's setup hint. It gets its OWN budget rather than sharing login's
-    // (PR #359 review): sharing that per-IP bucket would let cheap GETs exhaust
-    // the budget protecting password attempts, turning a hint into a login DoS.
-    // But "no limiter" was the wrong conclusion from that — until the first
-    // Owner exists the in-process latch is cold, so every anonymous request
-    // reaches the users/roles query, and that is exactly the window an operator
-    // needs the database in to provision. Cheap read, so the budget is generous
-    // next to login's; it exists to cap a flood, not to ration ordinary use.
-    public const string ProvisioningPolicyName = "auth-provisioning";
 
     public FixedWindow Login { get; init; } = new() { PermitLimit = 10, WindowSeconds = 900 };
     public FixedWindow Refresh { get; init; } = new() { PermitLimit = 60, WindowSeconds = 900 };
     public FixedWindow ClientErrors { get; init; } = new() { PermitLimit = 10, WindowSeconds = 300 };
-    public FixedWindow Provisioning { get; init; } = new() { PermitLimit = 30, WindowSeconds = 60 };
     // Small on purpose: a report query is a bounded-range aggregate (#311), not
     // a hot path — a genuine user rarely has more than one or two in flight at
     // once (e.g. a dashboard firing production+sales+expenses+profit together).
@@ -80,7 +69,6 @@ public sealed class RateLimitingOptions
         ValidateWindow(nameof(Login), Login);
         ValidateWindow(nameof(Refresh), Refresh);
         ValidateWindow(nameof(ClientErrors), ClientErrors);
-        ValidateWindow(nameof(Provisioning), Provisioning);
         ValidateConcurrency(nameof(ReportsConcurrency), ReportsConcurrency);
         ParseTrustedProxies(); // throws FormatException on a bad CIDR
     }

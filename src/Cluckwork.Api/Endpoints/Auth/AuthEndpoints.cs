@@ -110,43 +110,14 @@ public static class AuthEndpoints
             .WithName("StepUp")
             .WithSummary("Re-confirm the current password; returns a short-lived step-up grant.");
 
-        // #283 follow-up — first-run discoverability. A freshly migrated
-        // instance has base reference data but no users (no credential is ever
-        // migration-baked), so without this the operator meets a login form
-        // that cannot succeed and says nothing about why. Returns one bool so
-        // the SPA can name the command to run.
-        //
-        // Anonymous by necessity — the only caller is a visitor who by
-        // definition has no account yet.
-        //
-        // Its OWN rate-limit policy, not login's and not none (PR #359 review).
-        // Sharing login's per-IP bucket would let cheap unauthenticated GETs
-        // exhaust the budget that exists to protect password attempts (#143) —
-        // a hint that becomes a login DoS. The first draft concluded "no
-        // limiter" from that, which was a false choice: FirstRunProvisioningLatch
-        // only starts short-circuiting once an Owner EXISTS, so during the
-        // entire pre-provisioning window every anonymous request reaches the
-        // users/roles query, and there is no global limiter behind it. That
-        // window is exactly when the operator needs the database responsive
-        // enough to provision. A separate, generous budget caps a flood without
-        // touching the credential path's.
-        //
-        // Cache-Control needs no wiring here: #312's UseDefaultResponseCaching
-        // applies `private, no-store` to every non-/health response, which is
-        // required — a cached `false` would outlive provisioning and keep
-        // telling an operational instance to run bootstrap-admin.
-        group.MapGet("/provisioning", Provisioning)
-            .AllowAnonymous()
-            .RequireRateLimiting(RateLimitingOptions.ProvisioningPolicyName)
-            .WithName("ProvisioningStatus")
-            .WithSummary("Whether the default account has an Owner yet (first-run setup hint).");
-
         return group;
     }
 
-    private static async Task<IResult> Provisioning(
-        FirstRunStatusService status, CancellationToken ct) =>
-        Results.Ok(new ProvisioningStatusResponse(await status.IsProvisionedAsync(ct)));
+    // #283 follow-up (#361) — the error code a failed sign-in carries when this
+    // instance has no administrator at all, so the SPA can explain the dead end
+    // instead of showing the generic denial. Rides the ProblemDetails `title`,
+    // like every other login error code.
+    public const string NoAccountsProvisionedCode = "Auth.NoAccountsProvisioned";
 
     // In every environment but Development the browser reaches the app over HTTPS
     // (TLS terminates at the proxy), so the auth cookie must be Secure regardless
@@ -155,7 +126,8 @@ public static class AuthEndpoints
 
     private static async Task<IResult> Login(
         LoginRequest request, IIdentityProvider identity, IValidator<LoginRequest> validator,
-        HttpResponse response, IOptions<JwtOptions> jwt, IWebHostEnvironment env, CancellationToken ct)
+        HttpResponse response, IOptions<JwtOptions> jwt, IWebHostEnvironment env,
+        FirstRunStatusService firstRun, CancellationToken ct)
     {
         // #309 — reject an OVERSIZED email/password (400) before the hasher. An
         // empty/short credential is NOT rejected here: it still flows to
@@ -166,7 +138,41 @@ public static class AuthEndpoints
 
         var result = await identity.LoginAsync(request.Email, request.Password, ct);
         if (!result.IsSuccess)
+        {
+            // #283 follow-up (#361) — first-run discoverability, reported HERE
+            // rather than from an endpoint the login screen polls. A freshly
+            // migrated instance has base reference data but no users, because no
+            // credential is ever migration-baked, so this form cannot succeed
+            // and used to say nothing about why.
+            //
+            // Deliberately on the FAILURE path only, and only when there is no
+            // administrator at all:
+            //
+            //  * It cannot enumerate anything. The condition is a property of
+            //    the whole instance, never of the address that was typed, and it
+            //    can only hold while NO credential exists to protect. The moment
+            //    one Owner exists this branch is unreachable and the response is
+            //    byte-identical to the generic denial it has always been.
+            //  * Only someone actually attempting to sign in learns it — unlike
+            //    a status endpoint, which answers anyone who asks without them
+            //    trying.
+            //  * The cost rides on a request that is already rate limited (#143)
+            //    and already ran a PBKDF2 verify, so one indexed EXISTS is
+            //    noise; and past first provisioning FirstRunProvisioningLatch
+            //    makes it a memory read, so the steady state adds no query at
+            //    all.
+            //
+            // A successful sign-in never reaches this, which is what keeps the
+            // check off the hot path.
+            if (!await firstRun.IsProvisionedAsync(ct))
+                return Results.Problem(
+                    "This farm has no administrator account yet, so no sign-in can succeed. "
+                    + "Whoever set up this server must create the first one.",
+                    statusCode: 401,
+                    title: NoAccountsProvisionedCode);
+
             return Results.Problem(result.Error.Description, statusCode: 401, title: result.Error.Code);
+        }
 
         AuthCookies.SetRefreshCookie(response, result.Value.RefreshToken, jwt.Value.RefreshTokenDays, CookieSecure(env));
         return Results.Ok(new AccessTokenResponse(result.Value.AccessToken, result.Value.AccessTokenExpiry));
@@ -361,8 +367,3 @@ public sealed record AccessTokenResponse(string AccessToken, DateTimeOffset Acce
 public sealed record StepUpRequest(string Password);
 
 public sealed record StepUpResponse(string Token, DateTimeOffset ExpiresAt);
-
-// #283 follow-up. Existence only — deliberately not an email, a user count, or
-// anything else that would make an un-provisioned instance more useful to an
-// anonymous caller than a provisioned one.
-public sealed record ProvisioningStatusResponse(bool Provisioned);

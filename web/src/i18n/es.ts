@@ -1570,8 +1570,8 @@ export const es = {
       + "sesión con ella y llegará de inmediato a una pantalla de <strong>Establecer su contraseña</strong> en "
       + "lugar de la aplicación normal; nada más funciona hasta que elija su propia contraseña allí. Esto es "
       + "distinto de un <em>Cambio de contraseña</em> ordinario. Hasta que se realice ese paso de "
-      + "configuración, la pantalla de inicio de sesión lo indica y le remite a quien administra el servidor, "
-      + "para que una granja nueva nunca presente un formulario que no pueda funcionar.",
+      + "configuración, al intentar iniciar sesión se le indica esto y se le remite a quien administra el "
+      + "servidor, en lugar de afirmar que sus datos eran incorrectos.",
     // #308 (machine-drafted, pending native review)
     signingInStepUp:
       "Dos acciones en la pantalla <strong>Usuarios</strong> le piden <strong>volver a ingresar su contraseña "

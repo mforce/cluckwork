@@ -3,7 +3,7 @@ import type { FormEvent } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../auth/useAuth";
-import { ApiError, getProvisioningStatus } from "../api/client";
+import { ApiError } from "../api/client";
 import { BusyButton } from "../components/BusyButton";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { usePendingAction } from "../components/usePendingAction";
@@ -11,6 +11,23 @@ import i18n from "../i18n";
 
 interface LocationState {
   from?: { pathname: string };
+}
+
+// #283 follow-up — the error code a failed sign-in carries when the instance
+// has no administrator at all. Mirrors AuthEndpoints.NoAccountsProvisionedCode;
+// it rides the ProblemDetails `title`, which parseError puts on ApiError.title.
+const NO_ACCOUNTS_PROVISIONED = "Auth.NoAccountsProvisioned";
+
+// Matched on the code, never on the message: the copy is translated and the
+// server's English detail is not what identifies the case.
+//
+// The status is checked too. This is a 401 like any other sign-in failure, and
+// pinning that keeps the branch from firing on some future non-401 response
+// that happens to reuse the title.
+function isNoAccountsProvisioned(err: unknown): boolean {
+  return err instanceof ApiError
+    && err.status === 401
+    && err.title === NO_ACCOUNTS_PROVISIONED;
 }
 
 // MODULE-LEVEL — called from onSubmit's catch handler, not from render, so the
@@ -54,29 +71,16 @@ export function Login() {
   const { busy, run } = usePendingAction();
 
   // #283 follow-up — a freshly migrated instance has base reference data but no
-  // users (no credential is ever migration-baked), so this form cannot succeed
-  // and previously gave the operator nothing to go on. Ask once, on mount.
+  // users, because no credential is ever migration-baked, so this form cannot
+  // succeed and used to say nothing about why.
   //
-  // Defaults to false and only an explicit `provisioned: false` flips it, so an
-  // unreachable or older API renders the ordinary form rather than a hint that
-  // might be wrong. Deliberately no retry and no spinner: this is an aside, and
-  // it must never delay or interfere with someone who already has credentials.
+  // Learned from the sign-in ATTEMPT, not from a status call on mount. An
+  // earlier version polled a dedicated endpoint here; that answered anyone who
+  // asked, and reached the database on every anonymous page load throughout the
+  // window before setup. The server now reports it on the failure it already
+  // returns, so nothing extra is requested and nobody who is not actually
+  // trying to sign in is told anything.
   const [needsSetup, setNeedsSetup] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    getProvisioningStatus()
-      .then((provisioned) => {
-        if (!cancelled) setNeedsSetup(!provisioned);
-      })
-      .catch(() => {
-        // Unreachable API — say nothing. The sign-in attempt itself surfaces
-        // that case with a real message (auth:apiDown).
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -88,7 +92,13 @@ export function Login() {
         await login(email, password);
         navigate(from, { replace: true });
       } catch (err) {
-        setError(messageFor(err));
+        // The server distinguishes "this instance has no administrator at all"
+        // from an ordinary wrong credential. Show the setup notice for the
+        // first and suppress the generic denial, which would be actively
+        // misleading — nothing was wrong with what was typed.
+        const noAccounts = isNoAccountsProvisioned(err);
+        setNeedsSetup(noAccounts);
+        setError(noAccounts ? null : messageFor(err));
       }
     });
   }
