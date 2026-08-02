@@ -3,10 +3,10 @@
 **Date:** 2026-08-01
 **Phase:** 1.1 (epic #14)
 **Status:** design, awaiting implementation plan
-**Revision:** ninth draft, and the last unless something material appears. Every
-round has found a real defect in the previous one's fix; the corrections are
-recorded at the end in the *What the Nth draft got wrong* sections, and are the
-substance. See *Where this stops being about the design* for why it ends here.
+**Revision:** tenth draft. Every round of review has found a real defect in the
+previous one's fix — including after this document was declared frozen once.
+The corrections are recorded at the end in the *What the Nth draft got wrong*
+sections, and are the substance.
 
 ## Problem
 
@@ -518,6 +518,20 @@ already dead and says nothing about the live one. Family revocation is preserved
 for its real purpose: genuine same-epoch reuse, which is still the theft signal
 #176 exists to catch.
 
+**And the revocation itself must be scoped to the epoch that was checked.**
+Passing the comparison is not enough, because the comparison is a point-in-time
+read and `RevokeAllActiveForUserAsync` is user-wide. A request can read
+`IssuedEpoch = E` against `CredentialEpoch = E`, pass — and then, before it
+reaches the revocation, a disable/email/password change commits `E+1` and the
+user logs in fresh at `E+1`. The stale request then burns a family minted after
+the credentials it was checked against were rotated. Same denial of service as
+before, now entered by *passing* the check rather than skipping it.
+
+The replay revocation is therefore predicated on `IssuedEpoch = stored.IssuedEpoch`,
+not on `UserId` alone. That is also the semantically correct thing independent of
+the race: theft detection should burn the compromised family, not one issued
+after the compromise was already answered by a rotation.
+
 ### 4a. Rolling deploys: the check has to exist everywhere before the mutations do
 
 The retired-`0` sentinel makes rows *written* by an old binary inert. It does
@@ -647,6 +661,12 @@ these bugs present:
   anywhere after the grace/replay branch — and it fails as a denial of service,
   not as an access grant, so it will not show up in any "can the attacker get
   in?" test.
+- **The same, but racing** — and this one has to be barrier-controlled, because
+  the sequential version above passes with the defect present. Present a revoked
+  epoch-`E` token, pause the request *after* the epoch comparison succeeds, bump
+  the epoch and log the user in fresh at `E+1`, then release. The `E+1` family
+  must survive. This is what fails if the replay revocation is scoped to
+  `UserId` rather than to the epoch that was actually checked.
 - **Genuine same-epoch reuse still burns the family.** The counterpart, so the
   fix above cannot be implemented by simply weakening #176's theft detection.
 
@@ -698,11 +718,21 @@ Three PRs, not two, and the first two are **separate deploys** — see *Rolling
 deploys* above for why the ordering is a correctness constraint rather than a
 preference.
 
-1. **The credential epoch, inert** (new issue). `CredentialEpoch`,
-   `IssuedEpoch`, the migration and cutover, the claim, the middleware,
-   `RefreshAsync`'s comparison, and the SPA plumbing that carries a 401's reason
-   through auth teardown. Makes no new promise: the only epoch bumps are the
-   password-reset paths that already revoke refresh tokens today.
+1. **The credential epoch and every reader** (#364). `CredentialEpoch`,
+   `IssuedEpoch`, **`DisabledAt` / `DisabledBy`**, the additive migration, the
+   claim, the middleware, `RefreshAsync`'s epoch comparison and epoch-scoped
+   replay revocation, and the SPA plumbing that carries a 401's reason through
+   auth teardown.
+
+   **Including all three disabled-state readers** — `LoginAsync`, `RefreshAsync`,
+   and `StepUpGrantService.IssueAsync` refuse a disabled user as of this deploy,
+   with the column written by nothing yet. This is not optional detail: if the
+   readers slip to (2), a replica part-way through (2)'s rollout mints a
+   current-epoch credential for a user another replica just disabled, and every
+   updated replica honours it. See *Rolling deploys*.
+
+   Makes no new promise: the only epoch bumps are the password-reset paths that
+   already revoke refresh tokens today, and nothing can set `DisabledAt` yet.
 2. **#356 — disable / enable a user.** The mutations, the account lock, the
    guards, the `recover-admin` changes, the SPA toggle and confirm. Must not be
    exposed until every pre-(1) process is drained.
@@ -928,20 +958,51 @@ Recorded so the same reasoning is not re-derived later.
     predicate (`IssuedEpoch = 0 AND RevokedAt IS NULL`) plus repeat-safety,
     because operators retry one-off verbs.
 
+## What the ninth draft got wrong
+
+20. **The replay revocation was scoped to the user, not to the epoch that was
+    checked.** Placing the epoch comparison ahead of the grace branch (item 12)
+    fixed the case where the check never ran. It did not fix the case where the
+    check *runs and passes*, and the world moves underneath it: read
+    `IssuedEpoch = E` against `CredentialEpoch = E`, pass, and before the request
+    reaches `RevokeAllActiveForUserAsync` a bump commits `E+1` and a fresh login
+    mints an `E+1` family — which the stale request then burns. The same denial
+    of service, entered by passing the check rather than skipping it.
+
+    Revocation is now predicated on `IssuedEpoch = stored.IssuedEpoch`, which is
+    also the semantically right answer regardless of the race: theft detection
+    should burn the compromised family, not one issued after the compromise was
+    already answered.
+
+    The rule: **a check and the action it authorizes must be scoped to the same
+    thing.** Moving a guard earlier makes it *run*; it does not make what follows
+    obey it. If the guard reads one row and the action writes a set, the set has
+    to be narrowed to what the guard actually vouched for.
+
+21. **The Delivery checklist contradicted the rollout requirement.** Item 18
+    moved the disabled-state readers into deploy A in the *Rolling deploys*
+    section, but the canonical delivery breakdown still listed only the epoch
+    fields, middleware, and refresh comparison — so an implementer scoping work
+    from the checklist would rebuild exactly the hole item 18 closed. A document
+    that states a constraint in one section and contradicts it in the section
+    people actually work from has not fixed anything.
+
 ## Where this stops being about the design
 
 Rounds 1–4 found defects in the mechanism: it did not do what it claimed.
 Rounds 5–8 found defects in the **deploy boundary**: the mechanism was right, but
-the old world had not gone away. Round 8 is the first where most findings are
-ordinary operational hygiene — a lock timeout, a verb's predicate, a rollout
-order — rather than anything that would make the shipped feature wrong.
+the old world had not gone away. Round 9 found one more of each — a real race in
+the mechanism (item 20) and an internal contradiction (item 21) — after this
+document had already been declared frozen once. That call was premature, and the
+correction is recorded rather than quietly amended.
 
-The core design has not been challenged since round 3. The epoch, its binding to
-both credential types, the check's position ahead of the grace branch, the
-account-row lock, the four-column email write, and the guards have all survived
-untouched. That is the signal to stop iterating this document.
+What has genuinely stabilized is the *shape*: the epoch, its binding to both
+credential types, the account-row lock, the four-column email write, and the
+guards have survived untouched since round 3. What keeps producing findings is
+the seam between the mechanism and everything around it — old replicas, later
+requests, other sections of this document.
 
-What remains genuinely open is **deployment procedure** — drains, staging order,
-lock timeouts, rollback steps. Per this repo's host-agnostic boundary that
+What remains open beyond that is **deployment procedure** — drains, staging
+order, lock timeouts, rollback steps. Per this repo's host-agnostic boundary that
 belongs in the deployment/ops repo as procedure, not here as prose. This spec
 states the requirements; it should not grow into a runbook.
