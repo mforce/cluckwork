@@ -230,26 +230,19 @@ gh attestation verify "oci://$REF" \
   --bundle-from-oci
 ```
 
-All three flags matter, and none is the default. Without `--bundle-from-oci`,
-`gh` fetches the attestation from the GitHub API rather than the registry.
-Without `--signer-workflow`, the identity is bound only to the *repository*, so
-any workflow here that can mint an attestation would satisfy the check. Without
-`--source-ref`, it isn't bound to a *branch* — and since `workflow_dispatch` runs
-a workflow's definition from whichever ref you pick, a modified `ci.yml` on a
-branch would otherwise still match.
+All three flags matter and none is the default — each narrows *whose* claim is
+accepted (the registry copy, one workflow, one branch). Copy the command as-is.
 
 Step 2 is the one that matters, and step 1 cannot substitute for it. Knowing a
 digest tells you *what* you are deploying but nothing about *where it came from*
 — if someone pushed those bytes by hand, the digest is still a perfectly valid,
 perfectly immutable digest. The attestation is a signed claim by this repo's CI
-workflow that it produced those bytes, so anything pushed by hand has no such
-claim and fails the check. The realistic risk is a leaked token, not a malicious
-maintainer.
+workflow, so anything pushed by hand has no such claim and fails the check.
 
-Note what it proves precisely: that the named workflow *attested* this digest —
-not, independently, that it built it. Attestations are claims made by an actor,
-so their strength rests on that actor being trustworthy, which is why
-`--signer-workflow` (bind the identity to one workflow) is not optional here.
+That closes the case it was built for: a credential that can push to the
+registry. It does not cover someone who can push a branch to this repo — see
+the deploy bullet in [`AGENTS.md`](AGENTS.md) for the exact boundary and why
+each flag is required.
 
 The digest also appears at the bottom of the release notes, for humans.
 Deployment configuration itself lives in the separate deploy repo, not here.

@@ -307,9 +307,9 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
       --bundle-from-oci
     ```
 
-    **All three flags are load-bearing and none is the default** — this is the
-    easiest thing to get wrong here, and successive drafts got each of them
-    wrong in turn.
+    **All three flags are load-bearing and none is the default**, and each is
+    easy to drop without noticing anything break — a missing one weakens the
+    check silently rather than failing it.
     - `--bundle-from-oci` makes `gh` read the registry copy; without it the
       bundle is fetched from the **GitHub API**, so `push-to-registry` goes
       unused and the "no GitHub access needed" property is lost.
@@ -337,8 +337,8 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
 
   **Where the fail-closed actually comes from.** `ci.yml` attests *before*
   uploading the digest artifact, so a failed attestation leaves no artifact —
-  but that is a **within-a-run** property only, and it is easy to overclaim (this
-  PR did). Promotion finds the artifact by **name**, repo-wide, taking the first
+  but that is a **within-a-run** property only, and it is easy to overclaim.
+  Promotion finds the artifact by **name**, repo-wide, taking the first
   unexpired match, so an artifact from an earlier run of the same commit would
   still satisfy it. What makes it fail closed at *release* level is that
   `release-please.yml` **verifies the attestation before it retags**. Keep both;

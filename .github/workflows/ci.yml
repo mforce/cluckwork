@@ -664,8 +664,8 @@ jobs:
       # Also why this is not `continue-on-error`: an attestation nobody checks
       # is worse than none, because it looks like coverage.
       #
-      # `actions/*`, so a major-version tag is fine under the repo's pinning
-      # rule (third-party actions still need a commit SHA).
+      # This action is `actions/*`, so a major-version tag is fine under the
+      # repo's pinning rule (third-party actions still need a commit SHA).
       - name: Attest the published image's build provenance
         uses: actions/attest-build-provenance@v4
         with:
