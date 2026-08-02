@@ -28,6 +28,21 @@
 # This script reports that as a FAILURE, loudly, and exits non-zero. Do not
 # "fix" it by deleting the mutant.
 #
+# ================== A RED IS NOT ALWAYS A PROOF ==================
+#
+# One mutant is KNOWN to go red for a reason unrelated to the guarantee it names.
+# `nav-role-gate-bypassed` forges the role claim, and the SERVER rejects the
+# forged token, so the spec dies inside `signIn` before it ever looks at a nav
+# link. src/mutants.ts has said so since PR #390 review round 2 — but this script
+# still counted it in the headline, so the run printed "10 killed" while only 9
+# of those kills proved anything. A score that overstates itself is exactly the
+# failure this whole harness exists to prevent, so the false kill is now named
+# in the output and subtracted from the real count (PR #390 review round 3).
+#
+# Adding to FALSE_KILLS is a confession, not a silencer: it keeps the mutant
+# running and still fails the run if it SURVIVES. It only stops its red from
+# being counted as evidence.
+#
 # Usage:  bash tools/simulation/ui/mutation-check.sh [mutant-name ...]
 #         (no arguments = every mutant)
 
@@ -66,6 +81,11 @@ declare -A GREP_FOR=(
   [export-returns-nothing]="export downloads a real file"
 )
 
+# Mutants whose RED is known not to prove the guarantee they name. See the header.
+declare -A FALSE_KILLS=(
+  [nav-role-gate-bypassed]="the server rejects the forged token, so sign-in fails before the nav assertion runs"
+)
+
 MUTANTS=("$@")
 if [ ${#MUTANTS[@]} -eq 0 ]; then
   MUTANTS=(audit-gate-removed users-gate-removed flock-scope-removed
@@ -95,7 +115,7 @@ rule
 echo "PHASE 2/3 — MUTANTS (each must turn its spec RED)"
 rule
 
-killed=(); survived=()
+killed=(); survived=(); false_killed=()
 for name in "${MUTANTS[@]}"; do
   spec="${SPEC_FOR[$name]:-}"
   pattern="${GREP_FOR[$name]:-}"
@@ -158,8 +178,14 @@ for name in "${MUTANTS[@]}"; do
       echo "     INCONCLUSIVE — the run errored without a test failure (see $log)"
       survived+=("$name (no test failure)")
     elif grep -qE "^[[:space:]]*(Error: )?expect\((received|locator)\)" "$log"; then
-      echo "     KILLED — an assertion failed, as it should."
-      killed+=("$name")
+      if [ -n "${FALSE_KILLS[$name]:-}" ]; then
+        echo "     KILLED, BUT FALSE — ${FALSE_KILLS[$name]}."
+        echo "                   Counted separately; it is NOT evidence for that guarantee."
+        false_killed+=("$name")
+      else
+        echo "     KILLED — an assertion failed, as it should."
+        killed+=("$name")
+      fi
     else
       echo "     INCONCLUSIVE — the spec failed, but NOT on an assertion (crash/timeout). See $log"
       survived+=("$name (crashed, not asserted)")
@@ -182,10 +208,17 @@ echo "RESTORE: $restore"
 rule
 echo "RESULT"
 rule
-echo "  baseline : GREEN"
-echo "  killed   : ${#killed[@]}  ${killed[*]:-}"
-echo "  survived : ${#survived[@]}  ${survived[*]:-}"
-echo "  restore  : $restore"
+echo "  baseline    : GREEN"
+echo "  killed      : ${#killed[@]}  ${killed[*]:-}"
+if [ ${#false_killed[@]} -ne 0 ]; then
+  echo "  FALSE kills : ${#false_killed[@]}  ${false_killed[*]}"
+  echo "                red, but for the wrong reason — NOT counted as coverage."
+  for name in "${false_killed[@]}"; do
+    echo "                  - $name: ${FALSE_KILLS[$name]}"
+  done
+fi
+echo "  survived    : ${#survived[@]}  ${survived[*]:-}"
+echo "  restore     : $restore"
 
 if [ ${#survived[@]} -ne 0 ] || [ "$restore" != "GREEN" ]; then
   echo
@@ -194,4 +227,9 @@ if [ ${#survived[@]} -ne 0 ] || [ "$restore" != "GREEN" ]; then
   exit 1
 fi
 echo
-echo "All mutants killed, baseline and restore both green."
+if [ ${#false_killed[@]} -ne 0 ]; then
+  echo "No survivors; baseline and restore both green — but ${#false_killed[@]} of the reds above is a"
+  echo "FALSE kill and proves nothing. Real coverage is ${#killed[@]} guarantee(s), not $(( ${#killed[@]} + ${#false_killed[@]} ))."
+else
+  echo "All mutants killed, baseline and restore both green."
+fi
