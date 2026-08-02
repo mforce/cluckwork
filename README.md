@@ -183,8 +183,9 @@ booted. Deployment configuration itself lives in the separate deploy repo, not h
   The default token can't open a PR at all unless the repo turns on a setting
   that lifts that restriction for *every* workflow — so instead, opening PRs
   stays behind a credential a job has to ask for by name. And PRs opened by the
-  default token get no CI run at all, which would leave the one commit that cuts
-  a version unchecked.
+  default token get no CI run, so you'd only see a problem after merging rather
+  than before. (The released image is verified either way: promotion refuses to
+  run unless CI recorded a digest for that commit.)
 - **A release that can't find its image never goes public.** It stays a draft, and
   GitHub doesn't create the tag for a draft — so you get no version pointing at a
   missing image. To finish it: Actions → **Release** → *Run workflow*, with the tag.

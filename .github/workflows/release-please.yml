@@ -122,9 +122,21 @@ jobs:
       #      permission, before the day required reviews are switched on.
       #   2. GitHub does not trigger workflows for anything GITHUB_TOKEN pushes
       #      or opens (recursion prevention), so a GITHUB_TOKEN release PR would
-      #      carry NO checks — and that PR is the commit that cuts a version. An
-      #      App identity is not subject to that suppression, so the release PR
-      #      is built, tested and scanned like any other.
+      #      carry no `pull_request` checks. An App identity is not subject to
+      #      that suppression, so the release PR is built, tested and scanned
+      #      like any other.
+      #      Do NOT inflate this into "the version commit would ship
+      #      unverified" — it would not, and the gate that prevents it is
+      #      elsewhere in this design. Merging the release PR is a human action,
+      #      so it produces an ordinary `push` to main, which runs CI in full;
+      #      and `promote` below refuses to run without
+      #      `published-digest-$RELEASE_SHA`, which `publish` records only after
+      #      build-and-test, web and image have all passed. Release
+      #      verification rests on that artifact gate, not on PR checks. What
+      #      this reason actually buys is (a) seeing red BEFORE the merge
+      #      instead of after, and (b) not deadlocking the release the day
+      #      required status checks are enabled on main — a checkless PR could
+      #      never satisfy them.
       #
       # Downscoped per-permission: the same App backs the lockfix workflow, and
       # `permission-*` caps this token at release-please's needs regardless of

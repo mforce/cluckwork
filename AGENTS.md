@@ -325,10 +325,20 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
      why that capability belongs behind a secret rather than behind a declared
      permission any workflow can ask for.
   2. GitHub does not trigger workflows for anything `GITHUB_TOKEN` opens or
-     pushes (recursion prevention), so a `GITHUB_TOKEN` release PR carries **no
-     checks** — on the one commit that cuts a version. An App identity is exempt
-     from that suppression, so the release PR is built, tested and scanned like
-     any other, and required checks on `main` would not deadlock it.
+     pushes (recursion prevention), so a `GITHUB_TOKEN` release PR carries no
+     `pull_request` checks. An App identity is exempt, so the release PR is
+     built, tested and scanned like any other.
+
+     **Do not inflate this into "the version commit would ship unverified".** It
+     would not, and the gate that prevents it is elsewhere in this design:
+     merging the release PR is a *human* action, so it produces an ordinary
+     `push` to `main` that runs CI in full, and `promote` refuses to run without
+     `published-digest-<sha>`, which `publish` records only after
+     `build-and-test`, `web` and `image` have all passed. **Release verification
+     rests on that artifact gate, not on PR checks.** What this reason buys is
+     narrower and still worth having: seeing red *before* the merge rather than
+     after, and not deadlocking releases the day required status checks are
+     enabled on `main` — a checkless PR could never satisfy them.
 
   The token is **downscoped per permission** (`permission-contents`,
   `permission-pull-requests`, `permission-issues`) rather than taking whatever the
