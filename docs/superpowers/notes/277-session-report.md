@@ -164,20 +164,83 @@ round 1's own fixes.**
 Final state, verified: smoke 28 passed / 1 skipped, canary 4 passed, typecheck
 clean, mutation baseline GREEN → **10 killed / 0 survived** → restore GREEN.
 
+## Round 3 — and a result of mine that had to be withdrawn
+
+Three legs: codex, `feature-dev:code-reviewer`, `caveman:cavecrew-reviewer`.
+**pi did not run** (local vllm down) and the PR comment says so rather than
+implying a full round.
+
+Codex answered round 2 by **writing code instead of reviewing**. Nobody asked it
+to. The cause was mine: every comment ended with a "Still open" checklist, which
+the connector reads as a work queue. Comments are now explicitly review-only and
+open items live here instead. Its output was kept, at the owner's direction, and
+reviewed like any other contribution — which is how the next item surfaced.
+
+**The retraction.** Mid-round I reported that the corrected `session-races` spec
+killed the `client.ts` mutant and that the fix was proven load-bearing. It was
+not, in two successive ways:
+
+1. `releaseHeldRefresh()` sat AFTER the nav assertion. On a build without the
+   abort, nothing settles the held refresh, `isLoading` never clears, and the
+   spec died on the nav timeout with the release unreached. **A red for the wrong
+   reason, read as coverage.**
+2. Moving the release earlier made the mutant SURVIVE — and the reason is the
+   instrument. `route.continue()` re-issues the request and the browser
+   re-attaches the cookie jar **as at send time**; `allHeaders()` keeps reporting
+   the creation-time snapshot, which is exactly why this was convincing for three
+   rounds. Measured on the bug-present build: the header read as the Owner cookie
+   at both intercept and continue, while the response rotated the **Sales** chain
+   and the reload restored Sales.
+
+So the late-`Set-Cookie` race **cannot be expressed with route interception at
+all**. Three placements were tried; none can work. Recorded in the spec header
+with the evidence, plus an instruction not to move it again.
+
+**Consequence:** `login()`'s `abortInFlightRefresh()` has **no end-to-end
+coverage**. Its only coverage is `client.test.ts`, which passes partly because
+its fetch mock ignores `AbortSignal`.
+
+Also fixed this round:
+
+- **PR #390 still shipped the `.gitignore` that caused the credential leak.**
+  Round 1's globbed patterns reached #391 and #392 only. Fixed at the root of the
+  stack so it propagates by merge.
+- Both races release in a `finally` — a throwing assertion stranded the
+  interception and buried the real error under a timeout.
+- The specs no longer exercise `sessionGeneration` at all; with the abort in both
+  `login()` and `logout()`, deleting the counter leaves them green. The file
+  called itself that counter's regression layer.
+- **i18n's reload assertion was vacuous** — `i18n/index.ts` seeds from a
+  localStorage hint synchronously, so `<html lang>` was right before any network
+  call. The hint is now cleared first.
+- `client.ts`'s comment claimed a guarantee it cannot deliver (the abort is a
+  no-op for a refresh queued behind another tab's Web Lock). Qualified.
+- The mutation harness counted a known false kill in its headline: runs reported
+  `10 killed` when **9** proved anything.
+- The canary completeness check was a second copy of the screen list; the
+  manifest now travels in the sample data.
+
+Verified: typecheck clean, two consecutive full runs 28 passed / 1 skipped,
+mutation baseline GREEN → 9 real + 1 false kill, 0 survived → restore GREEN.
+
 ## Exact next step
 
-**Round 3.** The loop stops when a round finds nothing new, and round 2 found
-plenty — including two defects in round 1's fixes. It was not run only because
-this session ran out of room, not because the loop converged.
+**Round 4.** Round 3 found real defects in round 3's own fixes, so the loop has
+not converged.
 
-Carry into it, all posted on the PRs:
+Open, and carried rather than dropped:
 
-1. The four trace blobs remain reachable via ancestor `076bf3c`. Purging needs a
-   force-push — owner's call. Credentials are rotated and verified dead, so the
-   exposure is inert.
-2. Seven round-1 findings still open: `session-races` ×2, `reports-range`
-   timings, `i18n` durable preference, `run-baseline` stale-vitals stamping,
-   `run-canary` k6 liveness, `logout-not-honoured` mutant mismapping.
-3. Round-2 leftovers: `run-baseline.sh` does not warn on a partial canary
-   directory; the findings-doc note still claims the bounds "can only
-   over-report".
+1. **`client.ts` is now weaker than when it was kept.** It has no E2E coverage,
+   its unit test does not exercise the abort's rejection path, and an
+   aborted-but-server-committed rotation can revoke every session for that user
+   if the login then fails. Reverting it to its own #310 issue is defensible.
+2. **The audit spec fails on the first run after a fresh reseed** and passes
+   after. Fixture-order dependence, not flakiness — it needs rows earlier specs
+   create. Fourth revision of that one assertion; stopped rather than guess at a
+   fifth.
+3. The four trace blobs remain reachable via ancestor `076bf3c`. Purging needs a
+   force-push — owner's call. Credentials rotated and verified dead.
+4. Never exercised: `run-canary.sh --with-load` against a real k6 baseline, and
+   the CI workflow's first dispatch.
+5. A daily entry dated before its flock's placement date is accepted (`201`).
+   Owner ruled this **intended**; not filed.
