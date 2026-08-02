@@ -36,36 +36,64 @@ runs:
     # --profile '*' is LOAD-BEARING. `traefik` sits behind `profiles: ["prod"]`,
     # and a render without it omits the service silently — the enumeration then
     # succeeds over a smaller set, leaving that pin unscanned while reporting
-    # green. Verified: it exits 0 listing Postgres alone. The script counts
-    # `image:` in the SOURCE and fails on the mismatch, so this is guarded rather
-    # than merely commented, but do not drop the flag.
+    # green. Verified: it exits 0 listing Postgres alone. The script cross-checks
+    # it (every DECLARED profile must be carried by some rendered service), so
+    # this is guarded rather than merely commented, but do not drop the flag.
     #
-    # Every compose file in deploy/ is rendered — the glob, not a hand-kept list,
-    # so a third file added later is covered without anyone remembering to come
-    # back here.
+    # DISCOVERY is by content, not by filename (PR #379 review). An earlier
+    # version globbed `deploy/docker-compose*.yml`, which silently covers nothing
+    # named `compose.yml`, `stack.yml` or `docker-compose.foo.yaml` — a new file
+    # could introduce an unpinned image and CI would stay green. Anything under
+    # deploy/ that declares a top-level `services:` key is a compose file and is
+    # rendered; a candidate that then fails to render is a hard error, never a
+    # skip.
     - name: Render the compose files
       shell: bash
       run: |
         set -euo pipefail
         mkdir -p /tmp/compose-render
-        pairs=()
-        for src in deploy/docker-compose*.yml; do
-          out="/tmp/compose-render/$(basename "$src").json"
-          docker compose --profile '*' -f "$src" config --format json > "$out"
-          # `source=rendered`: the source path labels any finding (so a failure
-          # says deploy/docker-compose.yml:traefik, not a temp file) and is what
-          # the render is checked against for silently dropped services.
-          pairs+=("$src=$out")
-        done
-        printf '%s\n' "${pairs[@]}" > /tmp/compose-render/pairs.txt
+        bundles=()
+        while IFS= read -r src; do
+          grep -qE '^services:' "$src" || continue
+          out="/tmp/compose-render/$(printf '%s' "$src" | tr '/' '_').json"
+
+          # Both halves come from compose, so neither is a hand-read of YAML.
+          # `config --profiles` reports every profile the file DECLARES,
+          # independently of which are enabled — that is what makes it able to
+          # detect its own omission.
+          docker compose --profile '*' -f "$src" config --format json > "$out.config"
+          docker compose -f "$src" config --profiles > "$out.profiles"
+
+          SRC="$src" node -e '
+            const fs = require("fs");
+            const out = process.argv[1];
+            const profiles = fs.readFileSync(out + ".profiles", "utf8")
+              .split("\n").map((s) => s.trim()).filter(Boolean);
+            fs.writeFileSync(out, JSON.stringify({
+              source: process.env.SRC,
+              declaredProfiles: profiles,
+              config: JSON.parse(fs.readFileSync(out + ".config", "utf8")),
+            }));
+          ' "$out"
+          bundles+=("$out")
+        done < <(find deploy -maxdepth 1 -type f \( -name '*.yml' -o -name '*.yaml' \) | sort)
+
+        if [[ ${#bundles[@]} -eq 0 ]]; then
+          echo "::error::no compose files found under deploy/. Either the layout moved or this" >&2
+          echo "discovery is now covering nothing while reporting success — fix it, do not delete it." >&2
+          exit 1
+        fi
+        printf '%s\n' "${bundles[@]}" > /tmp/compose-render/bundles.txt
+        echo "Compose files discovered:"
+        sed 's/^/  /' /tmp/compose-render/bundles.txt
 
     - name: Enumerate and verify the pins
       id: pins
       shell: bash
       run: |
         set -euo pipefail
-        mapfile -t pairs < /tmp/compose-render/pairs.txt
-        matrix="$(node .github/scripts/compose-images.mjs --format matrix "${pairs[@]}")"
+        mapfile -t bundles < /tmp/compose-render/bundles.txt
+        matrix="$(node .github/scripts/compose-images.mjs --format matrix "${bundles[@]}")"
         printf 'matrix=%s\n' "$matrix" >> "$GITHUB_OUTPUT"
         printf 'Third-party images to scan:\n%s\n' \
           "$(printf '%s' "$matrix" | node -e '

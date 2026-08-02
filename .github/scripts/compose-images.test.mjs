@@ -12,9 +12,8 @@ import {
   collectThirdPartyImages,
   assertAllPinnedByDigest,
   assertNonEmpty,
-  assertRenderIsComplete,
-  countRawImageDeclarations,
-  countRenderedImageDeclarations,
+  assertProfilesFullyRendered,
+  parseBundle,
   formatMatrix,
   run,
 } from "./compose-images.mjs";
@@ -208,150 +207,116 @@ test("a compose document of only built services yields nothing and therefore thr
   assert.throws(() => assertNonEmpty(images), /no third-party images found/);
 });
 
-// --- the render-completeness cross-check ---------------------------------
+// --- the render-completeness check ---------------------------------------
 //
-// This is the section that exists because the check WITHOUT it was verified to
-// pass while missing a service: rendering deploy/docker-compose.yml with no
-// `--profile '*'` drops the profile-gated traefik and exits 0 on Postgres alone.
+// This section exists because the check WITHOUT it was verified to pass while
+// missing a service: rendering deploy/docker-compose.yml with no `--profile '*'`
+// drops the profile-gated traefik and exits 0 on Postgres alone.
+//
+// It replaced a COUNT comparison between source text and render, which PR #379
+// review showed was unsound. The last test here is that exact scenario.
 
-test("counts image: declarations and ignores commented-out ones", () => {
-  const raw = [
-    "services:",
-    "  app:",
-    "    build:",
-    "      context: ..",
-    "  db:",
-    "    image: postgres:18@sha256:abc",
-    "  traefik:",
-    "    profiles: [prod]",
-    "    # image: traefik:v3.5   <- the old pin, left as a note",
-    "    image: traefik:v3.7.10@sha256:def",
-  ].join("\n");
-  assert.equal(countRawImageDeclarations(raw), 2);
+const bundle = (source, declaredProfiles, services) => ({ source, declaredProfiles, config: { services } });
+
+test("no declared profiles means nothing to verify", () => {
+  assert.doesNotThrow(() =>
+    assertProfilesFullyRendered([bundle("dev.yml", [], { db: { image: "postgres:18" } })]),
+  );
 });
 
-test("a top-level (unindented) image: key is not counted as a service image", () => {
-  assert.equal(countRawImageDeclarations("image: not-a-service\n"), 0);
+test("a declared profile carried by a rendered service passes", () => {
+  assert.doesNotThrow(() =>
+    assertProfilesFullyRendered([
+      bundle("prod.yml", ["prod"], {
+        db: { image: "postgres:18" },
+        traefik: { image: "traefik:v3.7.10", profiles: ["prod"] },
+      }),
+    ]),
+  );
 });
 
-test("an image: key with no value is not counted", () => {
-  assert.equal(countRawImageDeclarations("  image:\n"), 0);
+test("a declared profile no rendered service carries is refused", () => {
+  // The real failure: `--profile '*'` omitted, so traefik is simply gone.
+  assert.throws(
+    () => assertProfilesFullyRendered([bundle("prod.yml", ["prod"], { db: { image: "postgres:18" } })]),
+    /prod\.yml: declares profile\(s\) "prod" that no rendered service carries[\s\S]*--profile/,
+  );
 });
 
-test("the rendered count includes a build service that also names an image", () => {
-  // It is a DECLARATION, so it must be counted, even though it is excluded from
-  // scanning. Counting only scan targets would make the two sides incomparable.
-  const n = countRenderedImageDeclarations([
-    doc({
-      app: { build: { context: ".." }, image: "cluckwork-api:local" },
-      db: { image: `postgres:18.4-trixie@${PG_DIGEST}` },
-      migrate: { build: { context: ".." } },
-    }),
-  ]);
-  assert.equal(n, 2);
-});
-
-test("matching counts pass", () => {
-  assert.doesNotThrow(() => assertRenderIsComplete(2, 2));
-});
-
-test("a render short of the source is rejected and names the profile cause", () => {
-  assert.throws(() => assertRenderIsComplete(2, 1), /1 service\(s\) were dropped[\s\S]*--profile/);
-});
-
-test("a render LONGER than the source is also rejected", () => {
-  // Means the cross-check is pointed at the wrong files, so its guarantee is
-  // void in the other direction. Silently accepting it would let a genuinely
-  // dropped service hide behind an uncounted extra one.
-  assert.throws(() => assertRenderIsComplete(1, 2), /reading the wrong files/);
-});
-
-test("a rendered file named without its source is refused", () => {
-  // The pairing is what makes the completeness check unforgettable. An
-  // unpaired path would run the weaker check silently, so it is refused.
+test("every missing profile is named, across every file", () => {
   assert.throws(
     () =>
-      run(["c.json"], files({
-        "c.json": JSON.stringify({ services: { db: { image: `postgres:18@${PG_DIGEST}` } } }),
-      })),
-    /expected <source-compose\.yml>=<rendered\.json>, got "c\.json"/,
+      assertProfilesFullyRendered([
+        bundle("a.yml", ["prod", "debug"], { db: { image: "postgres:18" } }),
+        bundle("b.yml", ["extras"], { db: { image: "postgres:18" } }),
+      ]),
+    /a\.yml[\s\S]*"prod", "debug"[\s\S]*b\.yml[\s\S]*"extras"/,
   );
 });
 
-test("a malformed pair is refused rather than half-interpreted", () => {
-  for (const arg of ["=c.json", "raw.yml=", "="]) {
-    assert.throws(
-      () => run([arg], files({})),
-      /expected <source-compose\.yml>=<rendered\.json>/,
-      `expected ${JSON.stringify(arg)} to be refused`,
-    );
-  }
+test("a service listing several profiles satisfies all of them", () => {
+  // Compose includes a service when ANY of its profiles is enabled, and the
+  // render still reports the whole list — so enabling one must not fail the rest.
+  assert.doesNotThrow(() =>
+    assertProfilesFullyRendered([
+      bundle("c.yml", ["prod", "edge"], { traefik: { image: "traefik:v3", profiles: ["prod", "edge"] } }),
+    ]),
+  );
 });
 
-test("a rendered path containing '=' still pairs on the FIRST separator", () => {
-  const out = run(["raw.yml=/tmp/a=b.json"], files({
-    "raw.yml": `services:\n  db:\n    image: postgres:18@${PG_DIGEST}\n`,
-    "/tmp/a=b.json": JSON.stringify({ services: { db: { image: `postgres:18@${PG_DIGEST}` } } }),
-  }));
-  assert.equal(out, `postgres:18@${PG_DIGEST}`);
-});
-
-test("findings are labelled by SOURCE path, not by the rendered temp file", () => {
-  // The whole reason for the pairing: a failing scan must tell a reader where
-  // to go and edit, which is never /tmp/resolved-....json.
-  const images = collectThirdPartyImages([
-    { path: "deploy/docker-compose.yml", config: { services: { traefik: { image: "traefik:v3.5" } } } },
-  ]);
-  assert.deepEqual(images[0].usedBy, ["deploy/docker-compose.yml:traefik"]);
-});
-
-test("MUTATION: the dropped profile-gated service is caught end-to-end", () => {
-  // The source declares both images; the render (no --profile '*') carries only
-  // Postgres. Before the cross-check existed this exact input exited 0.
-  const rawYaml = [
-    "services:",
-    "  db:",
-    `    image: postgres:18.4-trixie@${PG_DIGEST}`,
-    "  traefik:",
-    "    profiles: [prod]",
-    `    image: traefik:v3.7.10@${DIGEST}`,
-  ].join("\n");
-  const rendered = JSON.stringify({
-    services: { db: { image: `postgres:18.4-trixie@${PG_DIGEST}` } },
-  });
-
+test("REGRESSION: a drop-and-add that a COUNT check would have missed", () => {
+  // Codex's scenario on PR #379. The old guard compared how many `image:`
+  // declarations the source text had against how many the render had. An
+  // inline mapping (`db: {image: …}`) was invisible to the source-side regex,
+  // so its undercount CANCELLED a genuinely dropped profile-gated service and
+  // the counts agreed. Counting cannot distinguish "one dropped" from "one
+  // dropped and one gained"; profile coverage does not count at all.
   assert.throws(
     () =>
-      run(["raw.yml=c.json"], files({ "raw.yml": rawYaml, "c.json": rendered })),
-    /1 service\(s\) were dropped/,
+      assertProfilesFullyRendered([
+        bundle("prod.yml", ["prod"], { db: { image: "postgres:18" }, extra: { image: "redis:7" } }),
+      ]),
+    /declares profile\(s\) "prod" that no rendered service carries/,
   );
-
-  // ...and the SAME source with a complete render passes, so the test above is
-  // failing for the omission and not for some unrelated defect in the fixture.
-  const complete = JSON.stringify({
-    services: {
-      db: { image: `postgres:18.4-trixie@${PG_DIGEST}` },
-      traefik: { image: `traefik:v3.7.10@${DIGEST}` },
-    },
-  });
-  const out = run(
-    ["raw.yml=c.json"],
-    files({ "raw.yml": rawYaml, "c.json": complete }),
-  );
-  assert.equal(out.split("\n").length, 2);
 });
 
-test("the cross-check sums across several raw files", () => {
-  const out = run(
-    ["a.yml=a.json", "b.yml=b.json"],
-    files({
-      "a.yml": `services:\n  db:\n    image: postgres:18@${PG_DIGEST}\n`,
-      "b.yml": `services:\n  db:\n    image: postgres:18@${PG_DIGEST}\n`,
-      "a.json": JSON.stringify({ services: { db: { image: `postgres:18@${PG_DIGEST}` } } }),
-      "b.json": JSON.stringify({ services: { db: { image: `postgres:18@${PG_DIGEST}` } } }),
-    }),
+// --- bundle shape fails closed -------------------------------------------
+
+test("a bundle missing declaredProfiles is refused, not defaulted to empty", () => {
+  // Defaulting would silently turn the profile check into a no-op that still
+  // reports success — the exact class of false green this file guards against.
+  assert.throws(
+    () => parseBundle("b.json", JSON.stringify({ source: "a.yml", config: { services: {} } })),
+    /has no "declaredProfiles" array[\s\S]*an absent one is not an empty one/,
   );
-  assert.equal(out, `postgres:18@${PG_DIGEST}`); // deduped for scanning, both counted
+});
+
+test("a bundle missing source or config is refused", () => {
+  assert.throws(
+    () => parseBundle("b.json", JSON.stringify({ declaredProfiles: [], config: {} })),
+    /has no "source" compose-file path/,
+  );
+  assert.throws(
+    () => parseBundle("b.json", JSON.stringify({ source: "a.yml", declaredProfiles: [] })),
+    /has no "config" object/,
+  );
+});
+
+test("declaredProfiles with a non-string entry is refused", () => {
+  assert.throws(
+    () =>
+      parseBundle("b.json", JSON.stringify({ source: "a.yml", declaredProfiles: [1], config: {} })),
+    /contains a non-string entry/,
+  );
+});
+
+test("a non-object bundle is refused", () => {
+  assert.throws(() => parseBundle("b.json", "[]"), /bundle is not an object/);
+  assert.throws(() => parseBundle("b.json", "null"), /bundle is not an object/);
+});
+
+test("parseBundle names the file that was not JSON", () => {
+  assert.throws(() => parseBundle("b.json", "services:\n"), /b\.json: not valid JSON/);
 });
 
 // --- matrix output -------------------------------------------------------
@@ -383,23 +348,22 @@ const files = (map) => ({
   },
 });
 
+const bundleFile = (source, declaredProfiles, services) =>
+  JSON.stringify({ source, declaredProfiles, config: { services } });
+
 test("run() lists refs one per line", () => {
-  const out = run(["raw.yml=c.json"], files({
-    "raw.yml": `services:\n  app:\n    build: {}\n  traefik:\n    image: traefik:v3.7.10@${DIGEST}\n`,
-    "c.json": JSON.stringify({
-      services: { app: { build: {} }, traefik: { image: `traefik:v3.7.10@${DIGEST}` } },
+  const out = run(["b.json"], files({
+    "b.json": bundleFile("deploy/docker-compose.yml", [], {
+      app: { build: {} },
+      traefik: { image: `traefik:v3.7.10@${DIGEST}` },
     }),
   }));
   assert.equal(out, `traefik:v3.7.10@${DIGEST}`);
 });
 
-test("run() reads several documents and dedupes", () => {
-  const raw = `services:\n  db:\n    image: postgres:18.4-trixie@${PG_DIGEST}\n`;
-  const body = JSON.stringify({ services: { db: { image: `postgres:18.4-trixie@${PG_DIGEST}` } } });
-  const out = run(
-    ["a.yml=a.json", "b.yml=b.json"],
-    files({ "a.yml": raw, "b.yml": raw, "a.json": body, "b.json": body }),
-  );
+test("run() reads several bundles and dedupes", () => {
+  const body = bundleFile("x.yml", [], { db: { image: `postgres:18.4-trixie@${PG_DIGEST}` } });
+  const out = run(["a.json", "b.json"], files({ "a.json": body, "b.json": body }));
   assert.equal(out.split("\n").length, 1);
 });
 
@@ -408,44 +372,56 @@ test("run() with no paths explains itself", () => {
 });
 
 test("run() rejects an unknown option rather than treating it as a path", () => {
-  assert.throws(() => run(["--json", "c.json"], files({})), /unknown option "--json"/);
+  assert.throws(() => run(["--json", "b.json"], files({})), /unknown option "--json"/);
 });
 
 test("run() rejects an unknown --format", () => {
-  assert.throws(() => run(["--format", "yaml", "c.json"], files({})), /unknown --format "yaml"/);
+  assert.throws(() => run(["--format", "yaml", "b.json"], files({})), /unknown --format "yaml"/);
 });
 
 test("run() names the file it could not read", () => {
-  assert.throws(
-    () => run(["raw.yml=missing.json"], files({ "raw.yml": "" })),
-    /missing\.json: cannot read/,
-  );
-});
-
-test("run() names the unreadable SOURCE file too", () => {
-  assert.throws(
-    () => run(["gone.yml=c.json"], files({ "c.json": "{}" })),
-    /gone\.yml: cannot read/,
-  );
+  assert.throws(() => run(["missing.json"], files({})), /missing\.json: cannot read/);
 });
 
 test("run() names the file that was not JSON", () => {
   assert.throws(
-    () => run(["raw.yml=c.json"], files({
-      "raw.yml": "",
-      "c.json": "services:\n  db:\n",
-    })),
-    /c\.json: not valid JSON/,
+    () => run(["b.json"], files({ "b.json": "services:\n  db:\n" })),
+    /b\.json: not valid JSON/,
   );
 });
 
 test("run() fails on a mutable pin end-to-end", () => {
   assert.throws(
     () =>
-      run(["raw.yml=c.json"], files({
-        "raw.yml": "services:\n  traefik:\n    image: traefik:v3.5\n",
-        "c.json": JSON.stringify({ services: { traefik: { image: "traefik:v3.5" } } }),
+      run(["b.json"], files({
+        "b.json": bundleFile("deploy/docker-compose.yml", [], { traefik: { image: "traefik:v3.5" } }),
       })),
-    /not pinned to an immutable digest/,
+    /not pinned to an immutable digest[\s\S]*deploy\/docker-compose\.yml:traefik/,
+  );
+});
+
+test("run() refuses a render that dropped profile-gated services, end-to-end", () => {
+  assert.throws(
+    () =>
+      run(["b.json"], files({
+        "b.json": bundleFile("deploy/docker-compose.yml", ["prod"], {
+          db: { image: `postgres:18.4-trixie@${PG_DIGEST}` },
+        }),
+      })),
+    /declares profile\(s\) "prod" that no rendered service carries/,
+  );
+});
+
+test("run() labels findings by the SOURCE compose file, not the bundle path", () => {
+  // The whole reason the source travels in the bundle: a failing scan must tell
+  // a reader where to go and edit, which is never /tmp/....json.
+  assert.throws(
+    () =>
+      run(["/tmp/render/xyz.json"], files({
+        "/tmp/render/xyz.json": bundleFile("deploy/docker-compose.yml", [], {
+          traefik: { image: "traefik:v3.5" },
+        }),
+      })),
+    /deploy\/docker-compose\.yml:traefik/,
   );
 });

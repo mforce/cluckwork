@@ -26,18 +26,29 @@
 // the flag prints Postgres alone and succeeds, with Traefik unscanned. It is the
 // same false green the whole issue is about, one layer up.
 //
-// `assertNonEmpty` cannot catch it — the set is not empty, just short. So every
-// input is given as `<source>=<rendered>`: the `image:` declarations in the
-// SOURCE are counted, and the render must account for every one of them. The
-// resolved JSON stays authoritative for what each image IS; the source is
-// consulted only for how many there should be, which is the one question a
-// dropped service changes and a render cannot answer about itself. Pairing them
-// in a single argument means the check cannot be omitted by forgetting a flag.
+// `assertNonEmpty` cannot catch it — the set is not empty, just short. So each
+// input bundles the render with the source's DECLARED PROFILE LIST, and
+// `assertProfilesFullyRendered` requires every declared profile to be
+// represented by at least one rendered service. Omit the flag and `prod` is
+// declared while no rendered service carries it, so the render is refused.
+//
+// That check is exact, and deliberately replaces an earlier one that compared
+// `image:` COUNTS between the source text and the render (PR #379 review). Two
+// defects, one fatal: a count cannot distinguish "one service dropped" from
+// "one dropped and one gained", and the line regex that produced the source
+// count missed an inline mapping (`db: {image: postgres:…}`), so an undercount
+// on one side could CANCEL a dropped service on the other and the guard would
+// pass. The lesson is the same one this file already states about YAML: do not
+// hand-parse a format when the tool that owns it will answer the question.
+// `docker compose config --profiles` reports every profile declared in a file
+// regardless of which are enabled, so both sides now come from compose.
+//
+// Input is one JSON bundle per compose file:
+//   { "source": "deploy/docker-compose.yml", "declaredProfiles": ["prod"],
+//     "config": <docker compose config --format json output> }
 //
 // Usage:
-//   docker compose --profile '*' -f deploy/docker-compose.yml config --format json > c.json
-//   node .github/scripts/compose-images.mjs deploy/docker-compose.yml=c.json
-//   node .github/scripts/compose-images.mjs --format matrix a.yml=a.json b.yml=b.json
+//   node .github/scripts/compose-images.mjs [--format list|matrix] <bundle.json>...
 //
 // Exit 0 with the images on stdout, or exit 1 with the reason on stderr.
 
@@ -108,21 +119,6 @@ export function collectThirdPartyImages(documents) {
     .sort((a, b) => a.ref.localeCompare(b.ref));
 }
 
-/**
- * Services carrying an `image` key across the resolved documents — build-only
- * services excluded, build-with-image services INCLUDED. This is the render's
- * side of the cross-check, so it must count declarations, not scan targets.
- */
-export function countRenderedImageDeclarations(documents) {
-  let n = 0;
-  for (const { config } of documents) {
-    for (const spec of Object.values(config?.services ?? {})) {
-      if (spec && typeof spec === 'object' && String(spec.image ?? '').trim() !== '') n++;
-    }
-  }
-  return n;
-}
-
 /** Every ref must be tag + immutable digest. Reports ALL offenders, not the first. */
 export function assertAllPinnedByDigest(images) {
   const bad = images.filter((i) => !PINNED_REF.test(i.ref));
@@ -159,41 +155,43 @@ export function assertNonEmpty(images) {
 }
 
 /**
- * `image:` declarations in a RAW compose file.
+ * Every profile the source DECLARES must be represented in the render.
  *
- * Deliberately the crudest possible read of the source — this is a counting
- * cross-check, not a parser, and it must not grow into one. Requiring `image:`
- * to sit at the start of an indented line skips `# image:` in a comment and
- * anything nested inside a value.
+ * `docker compose config --profiles` lists the profiles a file declares
+ * regardless of which are enabled, and the resolved document records each
+ * service's own `profiles`. So a profile that is declared but carried by no
+ * rendered service means services behind it were filtered out — which is
+ * exactly the "render silently dropped `traefik`" failure, detected without
+ * reading a byte of YAML ourselves.
+ *
+ * Sound in both directions that matter: a service listing several profiles is
+ * included when ANY of them is enabled, and it still reports all of them, so
+ * enabling one does not falsely fail the others.
  */
-export function countRawImageDeclarations(text) {
-  return text.split(/\r?\n/).filter((line) => /^\s+image:\s*\S/.test(line)).length;
-}
+export function assertProfilesFullyRendered(bundles) {
+  const problems = [];
 
-/**
- * Every `image:` in the source must be accounted for in the render.
- *
- * Compose emits `image` exactly where it is declared — it does NOT synthesise
- * one for a build-only service — so the two counts are directly comparable.
- * `rendered` therefore counts services carrying an image INCLUDING build ones,
- * which are excluded from scanning but still declared in the file.
- */
-export function assertRenderIsComplete(rawCount, renderedCount) {
-  if (rawCount === renderedCount) return;
-  if (renderedCount < rawCount) {
-    throw new Error(
-      `the resolved compose document declares ${renderedCount} image(s) but the source ` +
-        `file(s) declare ${rawCount} — ${rawCount - renderedCount} service(s) were dropped ` +
-        "by the render. The usual cause is a missing --profile '*': a service behind " +
-        '`profiles:` is omitted silently, and its pin would go unscanned while this ' +
-        'check reported success.',
-    );
+  for (const { source, declaredProfiles, config } of bundles) {
+    const rendered = new Set();
+    for (const spec of Object.values(config?.services ?? {})) {
+      for (const p of (spec && typeof spec === 'object' && spec.profiles) || []) {
+        rendered.add(String(p));
+      }
+    }
+    const missing = declaredProfiles.filter((p) => !rendered.has(p));
+    if (missing.length > 0) {
+      problems.push(
+        `${source}: declares profile(s) ${missing.map((p) => `"${p}"`).join(', ')} that no ` +
+          'rendered service carries, so services behind them were filtered out of the render',
+      );
+    }
   }
+
+  if (problems.length === 0) return;
   throw new Error(
-    `the resolved compose document declares ${renderedCount} image(s) but the source ` +
-      `file(s) declare only ${rawCount} — the cross-check is reading the wrong files, ` +
-      'or an override adds services the counted sources do not. Pass every raw compose ' +
-      'file that contributed to the render via --cross-check.',
+    `${problems.join('\n  ')}\n` +
+      "Render with --profile '*'. A profile-gated service is omitted SILENTLY, and its " +
+      'pin would go unscanned while this check reported success.',
   );
 }
 
@@ -209,8 +207,50 @@ export function formatMatrix(images) {
   );
 }
 
+/**
+ * Validate one bundle's shape before trusting anything in it.
+ *
+ * Strict, because every field is load-bearing: `source` labels findings,
+ * `declaredProfiles` is half of the completeness check, and `config` is the
+ * scan set. A missing or wrong-typed field must refuse, never default — a
+ * `declaredProfiles` that quietly became `[]` turns the profile check into a
+ * no-op that still reports success.
+ */
+export function parseBundle(path, raw) {
+  let bundle;
+  try {
+    bundle = JSON.parse(raw);
+  } catch (cause) {
+    throw new Error(`${path}: not valid JSON (${cause.message})`);
+  }
+  if (bundle === null || typeof bundle !== 'object' || Array.isArray(bundle)) {
+    throw new Error(`${path}: bundle is not an object`);
+  }
+  if (typeof bundle.source !== 'string' || bundle.source.trim() === '') {
+    throw new Error(`${path}: bundle has no "source" compose-file path`);
+  }
+  if (!Array.isArray(bundle.declaredProfiles)) {
+    throw new Error(
+      `${path}: bundle has no "declaredProfiles" array. It comes from ` +
+        '`docker compose config --profiles` and is what detects a render that ' +
+        'silently dropped profile-gated services — an absent one is not an empty one.',
+    );
+  }
+  if (bundle.declaredProfiles.some((p) => typeof p !== 'string')) {
+    throw new Error(`${path}: "declaredProfiles" contains a non-string entry`);
+  }
+  if (bundle.config === null || typeof bundle.config !== 'object') {
+    throw new Error(`${path}: bundle has no "config" object`);
+  }
+  return {
+    source: bundle.source,
+    declaredProfiles: bundle.declaredProfiles,
+    config: bundle.config,
+  };
+}
+
 export function run(argv, { readFile }) {
-  const pairs = [];
+  const paths = [];
   let format = 'list';
 
   for (let i = 0; i < argv.length; i++) {
@@ -223,54 +263,30 @@ export function run(argv, { readFile }) {
     } else if (arg.startsWith('--')) {
       throw new Error(`unknown option "${arg}"`);
     } else {
-      // Each input is `<source compose file>=<its rendered JSON>`.
-      //
-      // One argument rather than two lists, for two reasons. The source path
-      // becomes the LABEL a failing scan prints as "pinned at", so a reader is
-      // told `deploy/docker-compose.yml:traefik` instead of the temp file the
-      // render happened to land in. And the completeness cross-check can no
-      // longer be forgotten: there is no way to name a rendered document
-      // without also naming the source it must account for.
-      const split = arg.indexOf('=');
-      if (split <= 0 || split === arg.length - 1) {
-        throw new Error(
-          `expected <source-compose.yml>=<rendered.json>, got "${arg}". Naming the ` +
-            'source is not optional: it labels the finding and it is what the ' +
-            'render is checked against for silently dropped services.',
-        );
-      }
-      pairs.push({ source: arg.slice(0, split), rendered: arg.slice(split + 1) });
+      paths.push(arg);
     }
   }
 
-  if (pairs.length === 0) {
-    throw new Error(
-      'usage: compose-images.mjs [--format list|matrix] ' +
-        '<source-compose.yml>=<rendered.json>...',
-    );
+  if (paths.length === 0) {
+    throw new Error('usage: compose-images.mjs [--format list|matrix] <bundle.json>...');
   }
 
-  const read = (path) => {
+  const bundles = paths.map((path) => {
+    let raw;
     try {
-      return readFile(path);
+      raw = readFile(path);
     } catch (cause) {
       throw new Error(`${path}: cannot read (${cause.message})`);
     }
-  };
-
-  const documents = pairs.map(({ source, rendered }) => {
-    const raw = read(rendered);
-    try {
-      // Labelled by SOURCE, not by the rendered temp file.
-      return { path: source, config: JSON.parse(raw) };
-    } catch (cause) {
-      throw new Error(`${rendered}: not valid JSON (${cause.message})`);
-    }
+    return parseBundle(path, raw);
   });
 
-  const rawCount = pairs.reduce((n, p) => n + countRawImageDeclarations(read(p.source)), 0);
-  assertRenderIsComplete(rawCount, countRenderedImageDeclarations(documents));
+  assertProfilesFullyRendered(bundles);
 
+  // Labelled by the SOURCE compose file, so a failing scan tells a reader
+  // `deploy/docker-compose.yml:traefik` rather than the temp file the render
+  // happened to land in.
+  const documents = bundles.map((b) => ({ path: b.source, config: b.config }));
   const images = collectThirdPartyImages(documents);
   assertNonEmpty(images);
   assertAllPinnedByDigest(images);
