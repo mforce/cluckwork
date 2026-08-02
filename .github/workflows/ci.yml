@@ -611,11 +611,13 @@ jobs:
       # actually built. The digest binding is still correct — which is what
       # promotion and deploy check — but do not read the provenance's source
       # commit as authoritative for a dispatched rebuild. `image.json.commit` is
-      # the commit PROMOTION SELECTED — which is the release's own
-      # `target_commitish` when that records a real sha, and an
-      # operator-supplied one when it records a branch name (release-please.yml
-      # says outright that it cannot be cross-checked in that case). Do not read
-      # it as "the commit the release was cut from" without that distinction.
+      # the commit PROMOTION SELECTED. Usually that is the release's own
+      # `target_commitish`; when that records a branch name instead of a sha,
+      # promotion falls back to a supplied one — release-please's own output on
+      # a normal push, an operator's input only on a manual release repair, and
+      # release-please.yml says outright it cannot be cross-checked either way.
+      # Do not read it as "the commit the release was cut from" without that
+      # distinction.
       #
       # This is also why the verify command pins `--source-ref refs/heads/main`:
       # `--signer-workflow` pins only the workflow's PATH, so without the ref a
@@ -649,6 +651,15 @@ jobs:
       # Release-level fail-closed comes from `release-please.yml` VERIFYING the
       # attestation before it retags — not from this ordering. Both are wanted;
       # do not let the ordering stand in for the check.
+      #
+      # And be clear what that is fail-closed AGAINST: a credential that can
+      # push to GHCR, which cannot mint a valid attestation. It is NOT closed
+      # against someone who can push a branch — `workflow_dispatch` runs a
+      # workflow's definition from the selected ref, so a branch copy of
+      # release-please.yml with the verify deleted would run with that job's
+      # `contents: write` + `packages: write`. No check written inside a
+      # branch-editable workflow can close that; the controls are repo-level
+      # (who may push branches, who may run workflows, branch protection).
       #
       # Also why this is not `continue-on-error`: an attestation nobody checks
       # is worse than none, because it looks like coverage.

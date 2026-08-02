@@ -345,6 +345,18 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
   never let the ordering stand in for the check. And do not make either
   `continue-on-error` — an attestation nobody can rely on is worse than none,
   because it reads as coverage.
+
+  **Say what that is fail-closed against, because it is not everything.** It
+  defends the threat this was built for — a credential that can push to GHCR
+  (`packages: write`), which cannot produce a valid attestation. It does **not**
+  defend against someone who can push a **branch**: `workflow_dispatch` runs a
+  workflow's definition from the selected ref, so a branch copy of
+  `release-please.yml` with the verify step deleted would run with that job's
+  `contents: write` + `packages: write` and publish whatever it liked. No check
+  written *inside* a branch-editable workflow can close that — the attacker
+  edits the check. The controls are repo-level: who may push branches, who may
+  run workflows, and branch protection on `main`. Treat "verified provenance" as
+  a statement about registry credentials, not about repo write access.
 - **Promotion reads the digest from CI's own run artifact, never by resolving
   `:sha-<commit>`.** That tag is mutable by anyone holding `packages: write`, and
   the merge commit is public seconds after merge while CI needs minutes to push —
