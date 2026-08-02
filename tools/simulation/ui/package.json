@@ -1,0 +1,19 @@
+{
+  "name": "cluckwork-sim-ui",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Playwright E2E suite (#277/#385) driving the real SPA against the #243 simulation fixture. Deliberately a separate npm project from web/ — see README.md.",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:ui": "playwright test --ui",
+    "report": "playwright show-report",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.1",
+    "@types/node": "^26.1.2",
+    "typescript": "^7.0.2"
+  }
+}

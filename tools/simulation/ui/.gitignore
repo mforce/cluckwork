@@ -1,0 +1,9 @@
+# Playwright per-run output. The HTML report and traces are debugging
+# artifacts for one run against a throwaway fixture — never source.
+test-results/
+playwright-report/
+blob-report/
+.last-run.json
+
+# Screenshots/videos the canary (#386) writes outside the report dir.
+artifacts/
