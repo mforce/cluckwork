@@ -230,12 +230,12 @@ fetches the attestation from the GitHub API rather than the registry. Without
 `--signer-workflow`, the identity is only bound to the *repository*, so any
 workflow here that can mint an attestation would satisfy the check.
 
-Step 2 is the one that matters. Resolving a tag gives you immutability but not
-**provenance**: if a tag were re-pointed, `docker pull` would faithfully pin the
-new target, and a check that only validates digest *syntax* would accept it. The
-attestation is signed by the workflow run that built the image, so it fails for
-anything pushed by hand — the realistic risk being a leaked token rather than a
-malicious maintainer.
+Step 2 is the one that matters, and step 1 cannot substitute for it. Knowing a
+digest tells you *what* you are deploying but nothing about *where it came from*
+— if someone pushed those bytes by hand, the digest is still a perfectly valid,
+perfectly immutable digest. The attestation is signed by the workflow run that
+built the image, so it fails for anything not produced by CI. The realistic risk
+is a leaked token, not a malicious maintainer.
 
 The digest also appears at the bottom of the release notes, for humans.
 Deployment configuration itself lives in the separate deploy repo, not here.

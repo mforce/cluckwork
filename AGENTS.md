@@ -307,10 +307,12 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
     authenticates to the **registry** for an `oci://` subject; the saving is no
     GitHub API access to this repo, not no credentials at all.
 
-  Resolving a tag buys immutability, **not provenance** — a re-pointed tag
-  resolves faithfully to the wrong bytes, and a check that validates digest
-  *syntax* accepts them. Only the attestation distinguishes CI's bytes from
-  anything pushed with `packages: write` (realistically a leaked token). The
+  **Holding a digest is not the same as knowing where it came from.** A digest
+  identifies bytes exactly and cannot be moved — but bytes pushed by hand have a
+  perfectly valid digest too, and a gate that checks digest *syntax* accepts
+  them. Only the attestation distinguishes CI's bytes from anything pushed with
+  `packages: write` (realistically a leaked token). That is why obtaining and
+  verifying are listed as two steps and not one. The
   attestation step is deliberately placed **before** the digest artifact upload,
   so a failed attestation means no artifact and therefore no release, rather than
   a published version whose provenance quietly never got written. Do not make it
