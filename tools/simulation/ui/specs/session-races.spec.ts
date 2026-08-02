@@ -1,10 +1,15 @@
 // #310 acceptance — the two session-generation races, driven in a real browser.
 //
-// #310 is CLOSED; this is the end-to-end regression layer for it, not the fix.
-// The fix is `sessionGeneration` in `web/src/api/client.ts`: a module-level
-// counter that `login()` and `logout()` bump, captured before each await and
-// re-checked on settlement, so a superseded completion is discarded
-// (`StaleSessionError`) instead of committing tokens.
+// #310 is CLOSED. These two tests assert the OUTCOME of its races in a real
+// browser — which session the user ends up in, and that a reload agrees — not
+// the mechanism. The mechanism is `sessionGeneration` in
+// `web/src/api/client.ts`: a module-level counter that `login()` and `logout()`
+// bump, captured before each await and re-checked on settlement, so a superseded
+// completion is discarded (`StaleSessionError`) instead of committing tokens.
+//
+// **These tests no longer exercise that counter at all**, and this file used to
+// claim it was its end-to-end regression layer. See "WHAT THESE TESTS NOW COVER"
+// below for what changed and what still stands behind them.
 //
 // ================== WHY A BROWSER IS THE RIGHT INSTRUMENT ==================
 //
@@ -31,8 +36,12 @@
 // applied its `Set-Cookie` BEFORE the login's, meaning the login's cookie was
 // written last and won: the hazard never occurred and the spec passed with the
 // bug fully present (PR #390 review round 3). Both races now release the hold
-// only once the superseding response has actually landed, which makes the
-// dangerous ordering the only one either test can produce.
+// only once the superseding response has actually landed.
+//
+// **That fixes the RELEASE ORDER, and it does not make the cookie hazard
+// reproducible — do not read the paragraph above as claiming it does.** The
+// section below explains why no release placement can, and it supersedes this
+// one wherever they appear to disagree.
 //
 // `HOLD_MS` survives only as a post-release SETTLE window — time for the freed
 // response to arrive and be acted on.
@@ -69,10 +78,37 @@
 //   [p] statuses = login:200, refresh:200
 //   [p] after reload: nav:audit count=0, nav:sales count=1   # Sales won
 //
-// So the held refresh always presents whatever cookie is current, and a stale
-// cookie can never land late. Three placements of the release were tried; none
-// changes this, because the defect is in what the instrument can express. Do not
-// "fix" this spec by moving the release again.
+// So a request held and then `route.continue()`d always presents whatever cookie
+// is current. Three placements of the release were tried; none changes this. Do
+// not "fix" this spec by moving the release again.
+//
+// The mechanism, confirmed in `playwright-core@1.62.1` rather than inferred
+// (PR #390 review round 4): `continue()` STRIPS any Cookie header —
+// `headers: overrides.headers && removeCookieHeader(overrides.headers)` — and
+// `types.d.ts` documents `Cookie` as a forbidden override that "will be
+// ignored", pointing at `browserContext.addCookies` instead. Chromium then
+// recomputes the header from the store when the request starts. `allHeaders()`
+// keeps reporting the pause-time snapshot because it resolves from
+// `setRawRequestHeaders(requestPausedEvent.request.headers)`, captured at
+// request start. Hence the convincing-but-wrong reading.
+//
+// **SCOPE, stated precisely: this is a property of `route.continue()` under
+// Playwright's CHROMIUM routing — not of Playwright generally, and not a proof
+// that the race is untestable.** An earlier version of this comment said the
+// race "cannot be expressed with this instrument at all". That was overstated,
+// and the remedy it recommended (raw CDP `Fetch.continueRequest` with explicit
+// headers) is the option LEAST likely to work, since it bypasses Playwright's
+// stripping but not Chromium's own recomputation.
+//
+// The approach that should work, for whoever closes this: `route.fulfill()`
+// DOES write `Set-Cookie` into the jar (Playwright splits multi-value
+// `set-cookie` specifically for `Fetch.fulfillRequest`; Chromium only). So read
+// the pre-login cookie via `context.cookies()` — this spec already does that —
+// replay `/auth/refresh` out-of-band from a `request.newContext({ storageState })`
+// seeded with it, and `fulfill({ response })` the held request with the result.
+// `src/mutants.ts` already uses that `route.fetch()` + `fulfill({ response })`
+// shape. Costed but not built here; recorded so the next attempt starts from a
+// path that has a reason to succeed rather than from the one that does not.
 //
 // CONSEQUENCE, stated plainly: `login()`'s `abortInFlightRefresh()` has NO
 // end-to-end coverage here, and this spec cannot be used as evidence for it.
@@ -84,13 +120,17 @@
 //
 // What these two tests DO cover, and what the killed `logout-not-honoured`
 // mutant stands behind: the session the user ends up in after the race, and that
-// a reload agrees with it. That is the outcome a farmer would notice. It no longer orders anything.
+// a reload agrees with it. That is the outcome a farmer would notice.
 
 import { expect, test } from "../src/fixtures";
 import { castMember, owner } from "../src/cast";
 import { tEn } from "../src/i18n";
 
-/** How long a held refresh stays in flight. Long enough to act inside, short enough to run. */
+/**
+ * Post-release SETTLE window — time for the freed refresh to arrive and be acted
+ * on. It does NOT order anything and no longer governs how long a request is
+ * held: the hold is released by an event (see the header).
+ */
 const HOLD_MS = 3_000;
 
 test.describe("#310 session races", () => {
@@ -228,9 +268,14 @@ test.describe("#310 session races", () => {
     //   * BEFORE the nav assertion. The first version released three lines
     //     later, after asserting the shell had rendered. On a build with the
     //     client-side abort REMOVED — the exact mutant this spec exists to
-    //     catch — nothing settles the held bootstrap refresh, so AuthContext's
-    //     `isLoading` never clears, `Login.tsx` never navigates, and the nav
-    //     assertion fails on its timeout with the release still unreached. The
+    //     catch — the held bootstrap refresh does not settle in time, so
+    //     AuthContext's `isLoading` is still set, `Login.tsx` has not navigated,
+    //     and the nav assertion fails on its timeout with the release still
+    //     unreached. (Precisely: the refresh DOES eventually self-abort on
+    //     `REFRESH_TIMEOUT_MS = 15_000`, but the `expect` timeout is 10s, so the
+    //     assertion loses the race. An earlier version of this comment said
+    //     `isLoading` "never clears", which is wrong and is the kind of detail
+    //     that gets re-derived incorrectly — PR #390 review round 4.) The
     //     mutant died at the wrong assertion and the late-`Set-Cookie` ordering
     //     was never produced at all. A red for the wrong reason is exactly what
     //     the mutation harness is built to refuse, and it went unnoticed because

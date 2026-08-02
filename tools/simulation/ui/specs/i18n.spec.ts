@@ -66,7 +66,11 @@ test.describe("i18n", () => {
   });
 
   for (const lang of ["es", "tl"] as const satisfies readonly Language[]) {
-    test(`switching to ${lang} renders that language across the shell`, async ({ page, signIn }) => {
+    test(`switching to ${lang} renders that language across the shell`, async ({
+      page,
+      signIn,
+      farm,
+    }) => {
       // The guard. A key whose translation equals English cannot distinguish
       // "the language switched" from "nothing happened".
       for (const key of WITNESS_KEYS) {
@@ -129,6 +133,18 @@ test.describe("i18n", () => {
       // HttpOnly cookie, so neither is in localStorage to lose.
       await page.evaluate(() => window.localStorage.clear());
       await page.reload();
+
+      // GUARD, not a comment, because this assertion's non-vacuity depends on a
+      // fixture value that lives in another repo's seed data. `resolveLanguage`
+      // falls back to the FARM LOCALE's subtag before English, so if the sim
+      // account's locale ever became `es-*`, the `es` case would resolve to
+      // Spanish with nothing persisted and go silently vacuous again — the exact
+      // failure this change fixed, one layer down (PR #390 review round 4).
+      expect(
+        farm.locale.slice(0, 2),
+        `the fixture's farm locale is "${farm.locale}", so an unpersisted "${lang}" preference `
+          + `would fall back to ${lang} anyway and this assertion would prove nothing`,
+      ).not.toBe(lang);
 
       // Now both of these are load-bearing. The nav link is the stronger of the
       // two: SessionContext gates the shell until it has applied the language
