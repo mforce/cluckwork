@@ -40,10 +40,11 @@ export const en = {
     // #309 — the request body exceeded the server's byte cap (413), which in
     // practice means an implausibly long email/password.
     credentialsTooLong: "That's too long — check your email and password.",
-    // #283 follow-up — shown on the login form when the API reports that the
-    // default account still has no Owner. Base data ships in the migrations
-    // but no credential ever does, so a fresh install reaches a form that
-    // cannot succeed; this names the command that fixes it.
+    // #283 follow-up — shown on the login form when a FAILED sign-in reports
+    // that the default account still has no Owner. Base data ships in the
+    // migrations but no credential ever does, so a fresh install has nobody for
+    // the operator to sign in as. Deliberately names no command — see the
+    // comment in Login.tsx.
     // Says ADMINISTRATOR, never "no accounts" (PR #363 review): the condition
     // is specifically that no Owner exists, and a non-Owner user can exist
     // without one and sign in perfectly well — so the broader claim would be

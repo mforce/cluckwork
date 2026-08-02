@@ -141,9 +141,10 @@ public static class AuthEndpoints
         {
             // #283 follow-up (#361) — first-run discoverability, reported HERE
             // rather than from an endpoint the login screen polls. A freshly
-            // migrated instance has base reference data but no users, because no
-            // credential is ever migration-baked, so this form cannot succeed
-            // and used to say nothing about why.
+            // migrated instance has base reference data but no administrator,
+            // because no credential is ever migration-baked, so there is nobody
+            // for the operator to sign in as and the form used to say nothing
+            // about why.
             //
             // Deliberately on the FAILURE path only, and only when there is no
             // administrator at all:

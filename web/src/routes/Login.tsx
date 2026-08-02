@@ -92,10 +92,18 @@ export function Login() {
         await login(email, password);
         navigate(from, { replace: true });
       } catch (err) {
-        // The server distinguishes "this instance has no administrator at all"
-        // from an ordinary wrong credential. Show the setup notice for the
-        // first and suppress the generic denial, which would be actively
-        // misleading — nothing was wrong with what was typed.
+        // The server distinguishes "this instance has no administrator" from an
+        // ordinary wrong credential. Show the setup notice for the first and
+        // suppress the generic denial: for the operator this exists to help,
+        // who holds no credentials at all yet, "invalid email or password"
+        // describes a problem with their typing that they do not have.
+        //
+        // Not the same as "nothing was wrong with what was typed" — an earlier
+        // version of this comment said that, and it is false when a seeded
+        // non-Owner user simply mistypes their own password before an Owner
+        // exists (PR #363 review). They see this notice too; it is still true
+        // that there is no administrator, which is why the copy says exactly
+        // that and no more.
         const noAccounts = isNoAccountsProvisioned(err);
         setNeedsSetup(noAccounts);
         setError(noAccounts ? null : messageFor(err));

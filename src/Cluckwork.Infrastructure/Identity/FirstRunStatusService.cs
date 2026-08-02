@@ -7,23 +7,44 @@ using Microsoft.EntityFrameworkCore;
 
 // #283 follow-up — first-run DISCOVERABILITY. The provisioning mechanism itself
 // (FirstRunAdminService, the `bootstrap-admin` verb) is unchanged; the gap this
-// closes is that a freshly migrated instance presents a login form with no
-// accounts and no way to learn that, so the operator's first experience is a
-// credential prompt that can only ever fail. This answers one question —
-// "does the default account have an Owner yet?" — so the SPA can show the
-// operator what to run instead of a dead end.
+// closes is that a freshly migrated instance has no administrator to sign in as
+// and no way for the operator to learn that, so their first experience is a
+// credential prompt they cannot satisfy. This answers exactly one question —
+// "does the default account have an Owner yet?" — which AuthEndpoints consults
+// on a FAILED sign-in so the reply can name the situation instead of blaming
+// the credentials.
+//
+// Read on the login failure path, never from an endpoint of its own. An earlier
+// revision exposed it as an anonymous GET the login page polled on mount; that
+// answered anyone who asked and reached the database on every anonymous page
+// load throughout the window before setup (PR #359 review).
 //
 // Deliberately NOT a credential path of any kind: it reads existence, never
 // identity. No email, no user count, no role list — a bool and nothing else, so
-// there is no version of this response that helps someone log in.
+// there is no version of this answer that helps someone log in.
 //
-// Information disclosure, considered and accepted: an anonymous caller learns
-// whether an instance is un-provisioned. That state is already inferable (the
-// instance answers no valid credential), it is unreachable-by-design after the
-// operator's first run (the value latches, see below), and it exposes no secret
-// — there is no default credential in this app to go try. The alternative,
-// leaving the operator to read the README, is what actually happened and cost a
-// debugging session.
+// Information disclosure, considered and accepted. Say it precisely, because
+// two review rounds were spent on comments that claimed more than this delivers
+// (PR #363, rounds 2 and 3):
+//
+//   * It does not ENUMERATE. The answer depends on the instance and never on
+//     any submitted address, so no sign-in attempt reveals anything about any
+//     particular account.
+//   * It DOES disclose one global fact to an anonymous caller who attempts a
+//     sign-in: this instance has no administrator. Note what that does NOT
+//     mean — the predicate is the absence of an OWNER, so this can be true
+//     while ordinary non-Owner accounts exist, hold valid credentials and sign
+//     in perfectly well (the seeders create exactly such users, and
+//     FirstRunLoginNoticeTests pins the case). Earlier wording here claimed the
+//     state was harmless because "the instance answers no valid credential";
+//     that is false in precisely that state.
+//
+// Accepted anyway: the fact is not itself a credential and grants no access; on
+// a genuinely fresh install — no users at all — it is already inferable by
+// anyone who can reach the form; it stops being reachable once the first Owner
+// exists (the value latches, see below); and there is no default credential in
+// this app to go try. The alternative, leaving the operator to find the README,
+// is what actually happened and cost a debugging session.
 public sealed class FirstRunStatusService(
     AppDbContext db,
     ILookupNormalizer normalizer,
