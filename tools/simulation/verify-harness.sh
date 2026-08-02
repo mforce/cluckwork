@@ -15,7 +15,9 @@
 # 2026-08 it could not boot merged main at all (#370). Four breakages had piled
 # up, three of them because an app-side Production boot guard landed and the
 # harness config was never updated to satisfy it. Nothing reported that,
-# because the only thing that runs the harness is a person typing reset.sh.
+# because every path into this harness is human-started: reset.sh directly, or
+# run-baseline.sh, which calls reset.sh once per rep. No schedule, no pipeline.
+# (Both therefore run this check, since reset.sh invokes it.)
 #
 # ================== READ THIS BEFORE ADDING A CHECK ==================
 #

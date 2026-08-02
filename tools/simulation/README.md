@@ -45,7 +45,10 @@ bash tools/simulation/verify-harness.sh # ~0.1s self-check; reset.sh runs it for
 **Nothing automated runs this harness.** It is deliberately not in CI — it is
 dev tooling, and a GitHub job on every push is out of proportion to five
 seconds of work. The consequence is the thing to internalise: **when you break
-it, nothing tells you.** It is exercised only when a human types `reset.sh`.
+it, nothing tells you.** Every path in is human-started — `reset.sh` directly,
+or `run-baseline.sh`, which invokes `reset.sh` once per rep. No schedule, no
+hook, no pipeline. (Both paths do get the `verify-harness.sh` self-check, since
+`reset.sh` runs it — so a baseline run fails fast on config drift too.)
 
 That is not hypothetical. By 2026-08 this harness could not boot `main` at
 all — four breakages had piled up, **three of them app-side Production boot
