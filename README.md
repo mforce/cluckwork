@@ -214,8 +214,9 @@ Two steps, answering two different questions — *which* image, and whether it i
 really ours:
 
 ```bash
-# 0. gh needs registry credentials for an oci:// subject.
-#    GHCR authenticates the token; the username is ignored, so any value works.
+# 0. gh needs registry credentials for an oci:// subject. The token needs
+#    read access to the package (`read:packages` on a PAT); GHCR authenticates
+#    the token and ignores the username, so any username value works.
 echo "$GITHUB_TOKEN" | docker login ghcr.io -u x-access-token --password-stdin
 
 # 1. Obtain the digest (machine-readable; no prose to parse)
@@ -246,6 +247,12 @@ each flag is required.
 
 The digest also appears at the bottom of the release notes, for humans.
 Deployment configuration itself lives in the separate deploy repo, not here.
+
+**Releases cut before this landed support neither step.** Their images were
+published before attestation existed, so step 1 404s and step 2 finds nothing to
+verify — the digest in the release notes is all there is, and it carries no
+proof of origin. This applies to `v0.0.1` only; every release from the next one
+on has both.
 
 ### Notes
 
