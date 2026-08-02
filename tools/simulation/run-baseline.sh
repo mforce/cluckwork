@@ -914,22 +914,28 @@ dirty_note = (
 # the real browser, and nothing here can improve on that. Two of the columns are
 # deliberately named as UPPER BOUNDS rather than as CLS and INP; see
 # tools/simulation/ui/src/vitals.ts for why that distinction is kept.
-CANARY_VITALS_PATH = REPO_ROOT / "tools" / "simulation" / "out" / "canary-vitals.json"
+# ONE FILE PER SCREEN, not one shared file. At CANARY_BROWSERS=2 the canary runs
+# in two worker PROCESSES; a single shared output path was last-writer-wins and
+# silently dropped half the samples (PR #391 review). Reading the directory also
+# means a partial run renders the screens it did capture instead of nothing.
+CANARY_VITALS_DIR = REPO_ROOT / "tools" / "simulation" / "out" / "canary-vitals"
 
 def _render_browser_vitals() -> str:
-    if not CANARY_VITALS_PATH.exists():
+    files = sorted(CANARY_VITALS_DIR.glob("*.json")) if CANARY_VITALS_DIR.is_dir() else []
+    if not files:
         return (
             "_No browser canary was run for this baseline. Run "
             "`bash tools/simulation/ui/run-canary.sh` alongside a baseline to populate this "
             "section (#386)._"
         )
-    try:
-        data = json.loads(CANARY_VITALS_PATH.read_text())
-        samples = data.get("samples", [])
-    except (OSError, ValueError) as exc:
-        return f"_Canary vitals present but unreadable ({exc})._"
+    samples, unreadable = [], []
+    for f in files:
+        try:
+            samples.append(json.loads(f.read_text()))
+        except (OSError, ValueError) as exc:
+            unreadable.append(f"{f.name} ({exc})")
     if not samples:
-        return "_The browser canary produced no samples._"
+        return f"_Canary vitals present but unreadable: {', '.join(unreadable)}._"
 
     def cell(v):
         return "—" if v is None else str(v)
@@ -952,6 +958,10 @@ def _render_browser_vitals() -> str:
         )
         for s_ in samples
     ]
+    skipped = (
+        f"\n\n_Note: {len(unreadable)} canary sample file(s) could not be read: "
+        f"{', '.join(unreadable)}._" if unreadable else ""
+    )
     note = (
         "\n\n**CLS and the interaction figure are UPPER BOUNDS, not the standard metrics.** "
         "CLS here is the sum of all non-input layout shifts rather than the largest session "
@@ -960,7 +970,7 @@ def _render_browser_vitals() -> str:
         "that screen has no control the canary presses, so nothing was measured — not that it "
         "was instantaneous."
     )
-    return header + "\n" + "\n".join(rows) + note
+    return header + "\n" + "\n".join(rows) + note + skipped
 
 browser_vitals_table = _render_browser_vitals()
 

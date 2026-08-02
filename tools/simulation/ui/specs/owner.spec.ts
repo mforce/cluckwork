@@ -48,18 +48,30 @@ test.describe("Owner", () => {
     const todayTable = page
       .getByRole("table")
       .filter({ has: page.getByRole("columnheader", { name: tEn("dashboard:flockHeader") }) });
-    // 2 flocks in the fixture + 1 header row. Asserting ">= 1 body row" rather
-    // than an exact count: the seeder's flock count is configurable
-    // (Simulation__Flocks), and pinning it here would make a fixture retune look
-    // like a UI regression.
-    await expect(todayTable.getByRole("row")).not.toHaveCount(0);
+    // `tbody tr`, NOT getByRole("row") — the role selector counts the HEADER row
+    // too, so `not.toHaveCount(0)` was satisfied by a table with nothing in it
+    // (PR #390 review). Deleting every rendered body row while keeping the
+    // headers left this green, which is the exact failure this spec exists to
+    // catch. Asserting ">= 1 body row" rather than an exact count is still
+    // deliberate: the seeder's flock count is configurable (Simulation__Flocks),
+    // and pinning it would make a fixture retune look like a UI regression.
+    await expect(todayTable.locator("tbody tr")).not.toHaveCount(0);
     await expect(page.getByText(tEn("dashboard:noFlocksMessage"))).toBeHidden();
 
     const stockTable = page
       .getByRole("table")
       .filter({ has: page.getByRole("columnheader", { name: tEn("dashboard:gradeHeader") }) });
-    await expect(stockTable.getByRole("row")).not.toHaveCount(0);
+    await expect(stockTable.locator("tbody tr")).not.toHaveCount(0);
     await expect(page.getByText(tEn("dashboard:noStockMessage"))).toBeHidden();
+
+    // The test's name promises sales data, so it has to actually look at it.
+    // Without this, deleting the Sales panel outright left the spec green — it
+    // asserted production and stock and called that "and sales" (PR #390 review).
+    const salesTable = page
+      .getByRole("table")
+      .filter({ has: page.getByRole("columnheader", { name: tEn("dashboard:refHeader") }) });
+    await expect(salesTable.locator("tbody tr")).not.toHaveCount(0);
+    await expect(page.getByText(tEn("dashboard:noOrdersMessage"))).toBeHidden();
   });
 
   test("reports renders the default 7-day window with the admin-only money section", async ({
@@ -81,7 +93,8 @@ test.describe("Owner", () => {
       .getByRole("table")
       .filter({ has: page.getByRole("columnheader", { name: tEn("reports:dateHeader") }) });
     await expect(production).toBeVisible();
-    await expect(production.getByRole("row")).not.toHaveCount(0);
+    // tbody, not getByRole("row") — see the dashboard test above.
+    await expect(production.locator("tbody tr")).not.toHaveCount(0);
 
     // Admin-only (isAdmin && sales && expenses && profit all present). Its
     // absence for this persona would mean either the gate is wrong or the money
@@ -98,26 +111,58 @@ test.describe("Owner", () => {
       .getByRole("table")
       .filter({ has: page.getByRole("columnheader", { name: tEn("audit:whenHeader") }) });
     await expect(table).toBeVisible();
-    const allRows = await table.getByRole("row").count();
-    expect(allRows, "the audit log is empty — the fixture wrote no auditable events").toBeGreaterThan(1);
+    const allRows = await table.locator("tbody tr").count();
+    expect(allRows, "the audit log is empty — the fixture wrote no auditable events").toBeGreaterThan(0);
     await expect(page.getByText(tEn("audit:emptyMessage"))).toBeHidden();
 
-    // Filtering is the screen's one interaction. Picking a specific action and
-    // asserting the table still resolves (rows, or the empty message — both are
-    // valid results for a filter) proves the control is wired; asserting the
-    // filter merely EXISTS would not.
+    // Filtering is the screen's one interaction, and the assertion has to be
+    // about WHAT CAME BACK, not how much of it.
+    //
+    // An earlier version asserted `filteredRows <= allRows`. That cannot fail:
+    // a filter the server ignores entirely returns every row, and
+    // `allRows <= allRows` is true. Deleting the `action` handling server-side
+    // would have left it green (PR #390 review).
+    //
+    // So: pick a real action and assert that EVERY remaining row is that action.
+    // That is the guarantee the control claims, and a no-op filter fails it as
+    // soon as the log holds more than one kind of event — which the assertion
+    // below on `distinctActions` proves it does, rather than assuming it.
     const filter = page.getByLabel(tEn("audit:actionFilterLabel"));
-    const options = await filter.locator("option").all();
-    // options[0] is `audit:allActionsOption` (value ""), so [1] is a real action.
-    const firstAction = await options[1]!.getAttribute("value");
-    await filter.selectOption(firstAction!);
-
-    await expect(page.getByRole("alert")).toBeHidden();
-    const filteredRows = await table.getByRole("row").count();
+    const actionCells = table.locator("tbody tr td:nth-child(3)");
+    const before = await actionCells.allInnerTexts();
+    const distinctActions = new Set(before.map((a) => a.trim()));
     expect(
-      filteredRows <= allRows,
-      `filtering to "${firstAction}" returned MORE rows (${filteredRows}) than unfiltered (${allRows})`,
-    ).toBe(true);
+      distinctActions.size,
+      "the audit log holds only one kind of action, so a no-op filter would be indistinguishable "
+        + "from a working one — this spec cannot prove anything against this fixture",
+    ).toBeGreaterThan(1);
+
+    // options[0] is `audit:allActionsOption` (value ""), so [1] is a real action.
+    const options = await filter.locator("option").all();
+    const firstAction = await options[1]!.getAttribute("value");
+    const firstActionLabel = (await options[1]!.innerText()).trim();
+    await filter.selectOption(firstAction!);
+    await expect(page.getByRole("alert")).toBeHidden();
+
+    const after = await actionCells.allInnerTexts();
+    expect(after.length, `filtering to "${firstAction}" emptied the table`).toBeGreaterThan(0);
+
+    // THE ASSERTION, and deliberately NOT a count comparison.
+    //
+    // A first attempt also required `after.length < before.length`. It passed
+    // alone and failed intermittently in a full run — the worst kind of green.
+    // Two reasons, both structural: the audit list PAGINATES (a filtered result
+    // can still fill the page, so the count need not drop), and the other specs
+    // in this suite WRITE, so the log grows underneath this one while it runs.
+    //
+    // "Every visible row is the action I selected" is the guarantee the control
+    // actually makes, and it is independent of both page size and log growth. A
+    // no-op filter still fails it — which the `distinctActions` precondition
+    // above proves, by establishing the unfiltered page holds more than one kind.
+    expect(
+      [...new Set(after.map((a) => a.trim()))].filter((a) => a !== firstActionLabel),
+      `rows that are NOT "${firstActionLabel}" survived the filter — it is not being applied`,
+    ).toEqual([]);
   });
 
   test("export downloads a real file", async ({ page, nav }) => {

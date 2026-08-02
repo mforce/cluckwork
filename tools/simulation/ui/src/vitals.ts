@@ -6,14 +6,20 @@
 // This uses `PerformanceObserver` directly. That keeps the canary dependency-free,
 // and it is honest about the consequence, which is real:
 //
-//   * **LCP** — exact. The last `largest-contentful-paint` entry before the page
-//     is backgrounded is the metric, and that is what is reported.
+//   * **LCP** — the last `largest-contentful-paint` entry OBSERVED WHEN THE
+//     SAMPLE IS TAKEN. Not the finalised metric: real LCP is fixed at the first
+//     user interaction or page hide, and this reads before either, so a later
+//     larger paint would not be counted. In practice the read happens after the
+//     screen's data is on the glass, which is past the candidate that matters —
+//     but it is a provisional observation, not "exact" (PR #390 review corrected
+//     that word).
 //   * **CLS** — an APPROXIMATION. The real metric is the largest *session
 //     window* (a 5s/1s-gap sliding window) of layout shifts. What is computed
-//     here is the SUM of all shifts with `hadRecentInput === false`, which is an
-//     upper bound: it can only over-report, never under-report. Fine for "did
-//     the page get worse under load", wrong for quoting against Google's
-//     thresholds.
+//     here is the SUM of all shifts with `hadRecentInput === false` seen up to
+//     the moment of the read. Larger than the session-window metric for the same
+//     shifts, and bounded by when the sample is taken rather than by page hide.
+//     Fine for "did the page get worse under load", wrong for quoting against
+//     Google's thresholds.
 //   * **INP** — NOT INP. The reported number is the LONGEST single interaction's
 //     duration. Real INP is roughly the 98th percentile of interaction latencies,
 //     which needs the interaction grouping `web-vitals` implements. The longest
@@ -22,7 +28,10 @@
 //
 // Calling the approximations by their real names matters more than having a
 // tidier table. A number labelled INP that is not INP will be compared against
-// the 200ms threshold by somebody, eventually.
+// the 200ms threshold by somebody, eventually. The same applies to the word
+// "exact": every figure here is an observation taken at a point in the page's
+// life, and `web-vitals` with proper finalisation is the upgrade path if these
+// ever need to be quoted as the standard metrics rather than compared run to run.
 //
 // The rest (TTFB, FCP, DOM-content-loaded, load) come from the Navigation Timing
 // and Paint Timing entries and are exact.

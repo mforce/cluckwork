@@ -42,7 +42,11 @@ on:
         type: boolean
         default: false
       canary:
-        description: "Also run the canary probe (quiet baseline, no k6)"
+        # QUIET baseline only. The under-load probe needs k6, which needs the
+        # pinned nix-shell this runner does not have — so `run-canary.sh
+        # --with-load` is deliberately NOT what this input runs. Naming the mode
+        # in the label so nobody dispatches this expecting the load measurement.
+        description: "Also run the canary probe — QUIET baseline only, not the under-load run"
         type: boolean
         default: false
 
@@ -107,9 +111,27 @@ jobs:
           CLUCKWORK_E2E_BUNDLED_BROWSER: "1"
         run: npm run canary
 
-      # Always, including on failure — the report and traces ARE the diagnosis
-      # for a red E2E run, and a run whose evidence was discarded because the
-      # suite failed is a run nobody can act on.
+      # STRIP THE TRACES BEFORE THEY BECOME AN ARTIFACT.
+      #
+      # A Playwright trace records full request and response bodies, so it
+      # contains the password the sign-in form was filled with, every bearer
+      # header, and the refresh cookie. Committing those to git was this PR
+      # stack's blocker finding; uploading them to a retained CI artifact is the
+      # same leak through a different door, and the credentials are real for as
+      # long as that run's stack exists.
+      #
+      # The rest of the report — the HTML summary, screenshots, error context —
+      # is what actually diagnoses a red run, and none of it carries a secret.
+      - name: Strip credential-bearing traces from the report
+        if: always()
+        run: |
+          # Trace archives live in <report>/data/*.zip and test-results/**/trace.zip.
+          find tools/simulation/ui -type f -name '*.zip' -delete || true
+          echo "remaining zips (expect none):"
+          find tools/simulation/ui -type f -name '*.zip' -print || true
+
+      # Always, including on failure — a run whose evidence was discarded because
+      # the suite failed is a run nobody can act on.
       - name: Upload the Playwright report
         if: always()
         uses: actions/upload-artifact@v4
@@ -119,7 +141,7 @@ jobs:
             tools/simulation/ui/playwright-report/
             tools/simulation/ui/playwright-report-canary/
             tools/simulation/ui/test-results/
-          retention-days: 14
+          retention-days: 7
           if-no-files-found: ignore
 
       - name: Stack logs on failure

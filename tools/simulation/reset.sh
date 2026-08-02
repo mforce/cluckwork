@@ -139,7 +139,14 @@ echo "-- bootstrap-admin (one-shot, first-run Owner) --"
 SEED_ADMIN_EMAIL="$(read_env_value SIM_ADMIN_EMAIL)"
 SEED_ADMIN_PASSWORD="$(read_env_value SIM_ADMIN_PASSWORD)"
 BOOTSTRAP_OUTPUT="$(compose run --rm app bootstrap-admin --email "$SEED_ADMIN_EMAIL")"
-echo "$BOOTSTRAP_OUTPUT"
+# REDACTED on the way to the terminal. bootstrap-admin prints
+# "Temporary password: <value>" on stdout by design (#283 — stdout only, never
+# the logger), and this script needs that value; it does NOT need to re-print it.
+# Echoing it raw put a live credential into every CI log of the E2E workflow,
+# unmasked and retained (PR #392 review). The value is still captured below and
+# rotated off seconds later — but a log is forever and a rotation is not
+# retroactive.
+printf '%s\n' "$BOOTSTRAP_OUTPUT" | sed 's/^Temporary password: .*/Temporary password: <redacted>/'
 TEMP_PASSWORD="$(printf '%s\n' "$BOOTSTRAP_OUTPUT" | sed -n 's/^Temporary password: //p')"
 if [[ -z "$TEMP_PASSWORD" ]]; then
   echo "FAILED: could not find a 'Temporary password: ' line in bootstrap-admin's output." >&2

@@ -56,6 +56,7 @@ const SCREENS = [
     // rather than inventing an interaction (a theme toggle, say) that no farmer
     // performs on this screen and whose latency would mean nothing.
     interact: null,
+    yieldsEventTiming: false,
   },
   {
     name: "stock",
@@ -71,6 +72,7 @@ const SCREENS = [
       await page.getByRole("button", { name: tEn("stock:lotsButton") }).first().click();
       await expect(page.getByRole("heading", { name: tEn("stock:lotsHeading") }).first()).toBeVisible();
     },
+    yieldsEventTiming: true,
   },
   {
     name: "reports",
@@ -95,6 +97,14 @@ const SCREENS = [
       await from.fill(daysBefore(today, 30));
       await expect(page.getByRole("alert")).toBeHidden();
     },
+    // MEASURED, and it does not: a `<input type="date">` produces no Event
+    // Timing entry for a programmatic click+fill, so this screen's interaction
+    // latency is reported as null. The interaction is kept anyway — widening the
+    // range is the expensive query on this screen and it is exactly what should
+    // be exercised under load — but the spec does not pretend the interaction
+    // metric covers it. Found by the instrument-validation assertion below,
+    // which is the point of having one.
+    yieldsEventTiming: false,
   },
   {
     name: "history",
@@ -107,15 +117,15 @@ const SCREENS = [
     // Filtering to one flock — a re-query plus a re-render.
     interact: async (page: CanaryPage) => {
       const flock = page.getByLabel(tEn("history:flockLabel"));
-      // Same reason as the reports field: `selectOption()` on its own emits no
-      // Event Timing entry. Opening the control first is what a user does.
+      // Clicking the control first is both what a user does and what produces an
+      // Event Timing entry — `selectOption()` alone emits none.
       await flock.click();
       await selectOptionContaining(flock, "Sim House A");
     },
+    yieldsEventTiming: true,
   },
 ] as const;
 
-const samples: ScreenSample[] = [];
 
 test.describe("canary", () => {
   for (const screen of SCREENS) {
@@ -134,7 +144,17 @@ test.describe("canary", () => {
       // "Usable" is the screen's own data being on the glass — not `load`, which
       // fires while the tables are still fetching. Under load this is the gap
       // that actually widens, and the one a farmer would describe as "slow".
-      await expect(screen.ready(page)).toBeVisible();
+      const ready = screen.ready(page);
+      await expect(ready).toBeVisible();
+      // POPULATED, not merely present. A table rendered with headers and no rows
+      // is exactly what a degraded backend produces, and "the header exists" was
+      // green for it (PR #391 review). Reports has no empty-state message at all,
+      // so for that screen this is the ONLY thing standing between a valid-but-
+      // empty report and a passing canary.
+      await expect(
+        ready.locator("tbody tr"),
+        `${screen.name} rendered its table with no rows against a populated fixture`,
+      ).not.toHaveCount(0);
       const usableInMs = Date.now() - startedAt;
 
       // THE CORRECTNESS ASSERTIONS — as strict under load as off it.
@@ -162,13 +182,45 @@ test.describe("canary", () => {
       if (screen.interact) await screen.interact(page, farm.timeZoneId);
 
       const vitals = await readVitals(page);
+
+      // THE INSTRUMENT MUST HAVE WORKED. Vitals were previously only recorded,
+      // never checked — so deleting every PerformanceObserver would have yielded
+      // a table of nulls and a green Core-Web-Vitals canary (PR #391 review).
+      // Navigation and paint timings are always available in Chromium, so their
+      // absence means collection itself is broken, not that the page was fast.
+      expect(vitals.ttfbMs, `${screen.name}: no navigation timing was collected`).not.toBeNull();
+      expect(vitals.fcpMs, `${screen.name}: no paint timing was collected`).not.toBeNull();
+      expect(vitals.lcpMs, `${screen.name}: no LCP entry was collected`).not.toBeNull();
+      // Only where the interaction is known to PRODUCE an Event Timing entry.
+      // Not every real interaction does — see the reports screen — and asserting
+      // it there would force either a fake interaction or a deleted check. The
+      // flag makes which screens are measurable an explicit, reviewable fact
+      // rather than something inferred from a null in the output.
+      if (screen.yieldsEventTiming) {
+        expect(
+          vitals.interactionCount,
+          `${screen.name}: an interaction that should register did not — the Event Timing `
+            + `observer is not working`,
+        ).toBeGreaterThan(0);
+      }
+
       const sample: ScreenSample = {
         screen: screen.name,
         underLoad: UNDER_LOAD,
         usableInMs,
         ...vitals,
       };
-      samples.push(sample);
+
+      // Written per-screen, NOT accumulated into a module-level array flushed by
+      // one afterAll. With CANARY_BROWSERS=2 — the mode this config exists for —
+      // Playwright runs the tests in TWO worker PROCESSES. Each would get its own
+      // copy of that array and its own afterAll, and both would write the same
+      // path: last writer wins, silently discarding the other worker's screens,
+      // with no error and exit 0 (PR #391 review, found by two reviewers).
+      //
+      // One file per screen has no such race — each test owns its own filename —
+      // and run-baseline.sh reads the directory.
+      await writeSample(sample);
 
       // Both halves of the owner's "where do the numbers go" decision: the raw
       // artifact rides in the Playwright report...
@@ -185,20 +237,30 @@ test.describe("canary", () => {
     });
   }
 
-  // ...and the summary is written where run-canary.sh can fold it into the #243
-  // findings doc, so browser experience and server percentiles from the SAME run
-  // sit next to each other. That adjacency is the entire reason to run them
-  // concurrently; two separate documents would leave the correlation to a reader
-  // who does not have both open.
-  test.afterAll(async () => {
-    const { writeFile, mkdir } = await import("node:fs/promises");
-    const { fileURLToPath } = await import("node:url");
-    const outDir = fileURLToPath(new URL("../../out", import.meta.url));
-    await mkdir(outDir, { recursive: true });
-    await writeFile(
-      `${outDir}/canary-vitals.json`,
-      JSON.stringify({ underLoad: UNDER_LOAD, samples }, null, 2),
-      "utf8",
-    );
-  });
 });
+
+/**
+ * Persist one screen's sample where run-baseline.sh can fold it into the #243
+ * findings doc, so browser experience and server percentiles from the SAME run
+ * sit next to each other. That adjacency is the entire reason to run them
+ * concurrently; two separate documents leave the correlation to a reader who
+ * does not have both open.
+ *
+ * The directory is cleared by run-canary.sh before a run, not here — a test
+ * clearing shared output would race the other worker in exactly the way this
+ * per-file scheme exists to avoid.
+ *
+ * `sample` already carries `underLoad`, so it is not re-added here; spreading it
+ * alongside a second copy silently let one overwrite the other.
+ */
+async function writeSample(sample: ScreenSample): Promise<void> {
+  const { writeFile, mkdir } = await import("node:fs/promises");
+  const { fileURLToPath } = await import("node:url");
+  const outDir = fileURLToPath(new URL("../../out/canary-vitals", import.meta.url));
+  await mkdir(outDir, { recursive: true });
+  await writeFile(
+    `${outDir}/${sample.screen}.json`,
+    JSON.stringify(sample, null, 2),
+    "utf8",
+  );
+}

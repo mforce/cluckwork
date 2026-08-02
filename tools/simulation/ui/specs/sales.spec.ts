@@ -11,6 +11,16 @@
 // a misleading report. So: one test, with the intermediate assertions in place
 // as it goes, and a failure names the step it reached.
 //
+// ================== WHAT EACH RUN CONSUMES ==================
+//
+// Confirming the order ALLOCATES stock FIFO, so every run permanently draws 10
+// units of the seeded product out of the fixture and nothing puts them back.
+// That is fine for a throwaway fixture and for the dozens of runs a working
+// session involves — the seed carries 528 egg lots — but it is not free, and
+// unlike manager.spec.ts's flock growth it is a DECREASING resource. If this
+// ever starts failing at "add line" or "confirm" after many un-reset runs, the
+// cause is an exhausted grade, not a regression: run `reset.sh`.
+//
 // It creates its own customer rather than reusing a seeded one. The alternative
 // — picking `Sim Customer 1` — makes the run depend on the fixture's customer
 // having no confirmed order already carrying an outstanding balance, which is

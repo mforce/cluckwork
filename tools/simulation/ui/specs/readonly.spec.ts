@@ -72,6 +72,16 @@ test.describe("ReadOnly", () => {
     ["/users", "users:heading"],
   ] as const) {
     test(`is refused server-side on a direct link to ${route}`, async ({ page }) => {
+      // Capture the API refusal itself. A visible error paragraph plus an absent
+      // table is necessary but not sufficient: a 500, a malformed body, or the
+      // API being down would satisfy both while saying nothing about
+      // AUTHORIZATION, which is the guarantee this test is named for
+      // (PR #390 review).
+      const refusals: number[] = [];
+      page.on("response", (res) => {
+        if (/\/api\/v1\/(audit|users)/.test(res.url())) refusals.push(res.status());
+      });
+
       await page.goto(route);
 
       // The screen itself renders — that is the documented design, not a bug —
@@ -98,6 +108,14 @@ test.describe("ReadOnly", () => {
         page.getByRole("table"),
         `${route} rendered a data table for a ReadOnly user`,
       ).toHaveCount(0);
+
+      // And the refusal was an authorization refusal.
+      expect(refusals.length, `${route} made no API call at all`).toBeGreaterThan(0);
+      expect(
+        refusals,
+        `${route} was refused with ${refusals.join(", ")} rather than 403 — the screen is empty `
+          + `for some reason other than the authorization gate`,
+      ).toContain(403);
     });
   }
 });
