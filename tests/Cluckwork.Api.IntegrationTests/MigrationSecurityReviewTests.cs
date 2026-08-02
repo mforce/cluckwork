@@ -9,8 +9,8 @@ using Microsoft.EntityFrameworkCore.Migrations.Operations;
 // migration may EVER embed a credential (or anything credential-shaped). Part
 // 1 moves roles/egg grades/the default account/default packed-unit
 // conversions into the schema via idempotent raw SQL (migrationBuilder.Sql —
-// NOT HasData/InsertData, see AddBaseReferenceDataAndMustChangePassword's own
-// header comment for why); this is what proves that move never smuggled a
+// NOT HasData/InsertData, see the InitialCreate migration's own header
+// comment for why); this is what proves that move never smuggled a
 // user row (and therefore a password hash) in with it — now, or in any
 // migration added later, in EITHER form (EF's generated InsertData, or raw
 // SQL). No Docker/Postgres needed: Migration.UpOperations is computed purely
@@ -141,16 +141,24 @@ public sealed class MigrationSecurityReviewTests
 
     private static string Truncate(string s) => s.Length <= 80 ? s : s[..80] + "…";
 
-    // The positive assertion mirroring the negative ones above: this
-    // migration DOES seed the static reference data Part 1 promises — as
+    // The positive assertion mirroring the negative ones above: the schema
+    // DOES seed the static reference data #283 Part 1 promises — as
     // idempotent raw SQL, one INSERT per row, each column-value list free of
     // anything credential-shaped — and nothing more than that data.
+    //
+    // #245 — this used to target AddBaseReferenceDataAndMustChangePassword by
+    // name. That migration is gone (squashed); its raw SQL was carried by
+    // hand into InitialCreate, which is precisely the step where a statement
+    // could have been dropped on the floor, so the assertions matter MORE
+    // after the squash, not less. Resolved by SqlOperation content rather
+    // than by migration name so a future migration can't quietly move them.
     [Fact]
-    public void AddBaseReferenceDataMigration_SeedsExactlyTheStaticReferenceRows()
+    public void InitialCreateMigration_SeedsExactlyTheStaticReferenceRows()
     {
-        var migration = AllMigrations()
-            .Single(m => m.GetType().Name == "AddBaseReferenceDataAndMustChangePassword");
-        var sqlOps = migration.UpOperations.OfType<SqlOperation>().ToList();
+        // Every INSERT the migration history performs, wherever it lives.
+        var sqlOps = AllSqlOperations()
+            .Where(op => op.Sql.Contains("INSERT INTO", StringComparison.Ordinal))
+            .ToList();
 
         int CountInserts(string table) =>
             sqlOps.Count(op => op.Sql.Contains($"INSERT INTO \"{table}\"", StringComparison.Ordinal));
@@ -178,19 +186,46 @@ public sealed class MigrationSecurityReviewTests
         // And its guard is genuinely whole-set: the subquery must not look at
         // "Name" at all. A per-name guard necessarily compares it — this is
         // the cheap, Docker-free sentinel for the resurrection regression
-        // that MigrationUpgradePathTests proves behaviourally.
+        // (the behavioural fixtures that proved it lived in
+        // MigrationUpgradePathTests's upgrade-from-an-old-seeder cases, which
+        // the #245 squash retired along with the history they upgraded from).
         var gradeGuard = gradeSql[gradeSql.IndexOf("WHERE NOT EXISTS", StringComparison.Ordinal)..];
         Assert.DoesNotContain("\"Name\"", gradeGuard, StringComparison.Ordinal);
 
-        // Every one of those inserts is a WHERE NOT EXISTS guard — the
-        // idempotency this migration exists to have (PR #339): a bare
-        // unconditional INSERT here would be exactly the "cannot upgrade an
-        // existing database" regression that review caught.
+        // Every one of those inserts is a WHERE NOT EXISTS guard — kept
+        // through the squash (PR #339): a bare unconditional INSERT would
+        // re-introduce the "cannot re-run against a populated database"
+        // regression that review caught.
         Assert.All(sqlOps, op => Assert.Contains("WHERE NOT EXISTS", op.Sql, StringComparison.Ordinal));
 
         // Nothing else — the whole point of "static reference data, no
-        // runtime seeder" is that this migration's raw SQL touches exactly
-        // these four tables: 12 statements carrying 21 rows (1 + 4 + 10 + 6).
+        // runtime seeder" is that the migrations' raw SQL inserts touch
+        // exactly these four tables: 12 statements carrying 21 rows
+        // (1 + 4 + 10 + 6).
         Assert.Equal(12, sqlOps.Count);
+    }
+
+    // #245 — the four case-insensitive-uniqueness indexes are expression
+    // (functional) indexes, which the EF model CANNOT express: they only
+    // exist as raw SQL. Regenerating InitialCreate from the model therefore
+    // drops them silently — losing four unique constraints and letting a farm
+    // create "Layer Mash" beside "layer mash". They were caught here by
+    // diffing pg_dump before/after the squash; this is the cheap, Docker-free
+    // sentinel that keeps them from being lost the next time the migration
+    // set is regenerated.
+    [Theory]
+    [InlineData("IX_EggGrades_AccountId_FarmId_LowerName", "\"EggGrades\" (\"AccountId\", \"FarmId\", lower(\"Name\"))")]
+    [InlineData("IX_ExpenseCategories_NameCi", "\"ExpenseCategories\" (\"AccountId\", \"FarmId\", lower(\"Name\"))")]
+    [InlineData("UX_InventoryItems_Account_Farm_LowerName", "\"InventoryItems\" (\"AccountId\", \"FarmId\", lower(\"Name\"))")]
+    [InlineData("IX_Products_AccountId_LowerName", "\"Products\" (\"AccountId\", lower(\"Name\"))")]
+    public void Migrations_StillCreateTheExpressionUniqueIndexes(string indexName, string targetClause)
+    {
+        var create = AllSqlOperations()
+            .Select(op => op.Sql)
+            .Where(sql => sql.Contains($"CREATE UNIQUE INDEX \"{indexName}\"", StringComparison.Ordinal))
+            .ToList();
+
+        var sql = Assert.Single(create);
+        Assert.Contains(targetClause, sql, StringComparison.Ordinal);
     }
 }
