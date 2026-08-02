@@ -6,6 +6,7 @@ using Cluckwork.Domain.Eggs;
 using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;
 using Cluckwork.Infrastructure.Persistence.Interceptors;
+using Cluckwork.Infrastructure.Providers;
 using Cluckwork.Infrastructure.Providers.Postgres;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -39,7 +40,7 @@ public sealed class MigrationUpgradePathTests
     private static AppDbContext BuildContext(string connectionString)
     {
         var options = new DbContextOptionsBuilder<AppDbContext>();
-        new PostgresDbContextConfigurator().Configure(options, connectionString);
+        new PostgresDbContextConfigurator().Configure(options, connectionString, new DatabaseResilienceOptions());
         options.AddInterceptors(new TenantStampInterceptor(new TenantContext()));
         return new AppDbContext(options.Options, new TenantContext());
     }

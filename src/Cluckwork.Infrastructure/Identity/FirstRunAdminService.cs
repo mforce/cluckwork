@@ -32,14 +32,63 @@ using Microsoft.Extensions.Logging;
 // break the "exactly one first-run admin" premise. The whole
 // check-and-create critical section below runs under a Postgres
 // SESSION-scoped advisory lock (pg_advisory_lock/_unlock, not
-// pg_advisory_xact_lock): CreateUserAsync opens its OWN transaction, and EF
-// Core does not support beginning a transaction while one is already active
-// on the same context, so a transaction-scoped lock can't wrap both this
-// method's read AND that nested transaction — a session lock, held for as
-// long as this method keeps the connection explicitly open (OpenConnectionAsync's
-// ref-count), spans both cleanly. A concurrent second invocation blocks on
+// pg_advisory_xact_lock): the critical section is READS first and only then a
+// transactional create, and a transaction-scoped lock cannot start before the
+// transaction does — so it would leave the reads it exists to protect
+// unguarded. A session lock, held for as long as this method keeps the
+// connection explicitly open (OpenConnectionAsync's ref-count), spans the
+// reads and the create alike. (Layer 3 below now opens that create transaction
+// here rather than inside CreateUserAsync, which JOINS it; that does not
+// change this reasoning — the reads still precede any transaction.) A concurrent second invocation blocks on
 // the lock until the first commits, then observes the just-created Owner and
 // takes the idempotent AlreadyProvisioned() branch — never a duplicate.
+//
+// PR #350 review round 2 (codex 3696740950) — that guarantee only holds while
+// the lock is actually on the connection doing the work, and #269's
+// EnableRetryOnFailure quietly broke it: the Owner/conflict READS are ordinary
+// EF units of work, so a transient failure made the execution strategy retry
+// them, and a retry RECONNECTS. The session-scoped lock lives on the physical
+// connection, so the reconnect released it; the method then walked into
+// CreateUserAsync holding nothing, and two invocations with different emails
+// could each observe "no Owner" and each mint one. Verified against a real
+// Postgres: pg_terminate_backend() on the pinned session right after the lock
+// was taken, and provisioning still completed — an Owner created while
+// pg_locks showed the lock held by nobody. Three layers close it, and all
+// fail CLOSED (a failed bootstrap-admin is re-runnable and idempotent; a
+// second farm Owner is not undoable):
+//
+//   1. The whole lock -> check -> create region runs as ONE non-replayed
+//      attempt (SingleAttemptExecution). Inside an execution strategy every
+//      nested EF operation is suspended, so no read can be retried onto a
+//      fresh connection behind our back — a transient failure mid-region
+//      surfaces as an error instead. Chosen over "reacquire the lock and
+//      re-run the checks after a reconnect" because that is an implicit loop
+//      whose correctness is hard to prove, and it would have to interleave
+//      with CreateUserAsync's own transaction; this is a straight line.
+//   2. Before the create, lock ownership is PROVEN rather than assumed:
+//      pg_locks is asked whether THIS backend still holds it. That covers the
+//      residual case layer 1 cannot — EF replaces a connection it finds no
+//      longer usable at the start of an operation, no exception and no retry
+//      involved — and it makes "held across every read" checkable instead of
+//      merely argued.
+//   3. PR #350 review round 3 (codex 3696801535) — layer 2 alone still did not
+//      cover the WRITE. It returns, and the create transaction is established
+//      only afterwards; a connection replaced in that gap leaves the INSERT
+//      running on a backend that never took the lock, with layer 2's `true`
+//      describing a backend that no longer exists. Verified against a real
+//      Postgres: release the lock at the instant the create transaction starts
+//      and provisioning completed anyway, minting an Owner from a backend
+//      pg_locks showed holding nothing. So this service now OWNS the create
+//      transaction and re-proves ownership as the FIRST statement inside it —
+//      the same backend that runs the INSERT, by construction — and from that
+//      point on a connection loss aborts the transaction instead of
+//      reconnecting invisibly. Layer 2 is kept in front of it: one cheap round
+//      trip that refuses early, before a password is even generated.
+//
+// The comment layer 2 shipped with claimed that holding the lock at the proof
+// "means holding it continuously since the acquire". That was true of the
+// instant the query ran and false of the create that followed; a comment that
+// overstates a guarantee is how the gap survived two rounds of review.
 public sealed class FirstRunAdminService(
     AppDbContext db,
     TenantContext tenant,
@@ -85,38 +134,49 @@ public sealed class FirstRunAdminService(
         await db.Database.OpenConnectionAsync(ct);
         try
         {
-            await db.Database.ExecuteSqlInterpolatedAsync(
-                $"SELECT pg_advisory_lock({AdvisoryLockClassId}, {AdvisoryLockObjectId})", ct);
-            try
+            // ONE attempt for the entire lock -> check -> create region (see the
+            // class comment). Being inside an execution strategy suspends
+            // retries for every EF operation nested below, which is exactly the
+            // point: a read that reconnects mid-region would leave the advisory
+            // lock behind on a dead connection. Acquiring the lock is inside
+            // the region too — a transient blip there fails the command rather
+            // than silently re-acquiring on a connection the checks below might
+            // not end up on.
+            return await SingleAttemptExecution.RunAsync(db.Database, async () =>
             {
-                return await ProvisionUnderLockAsync(accountId, email.Trim(), ct);
-            }
-            finally
-            {
-                // Always attempt the unlock, even on a cancelled/failed
-                // provision — CancellationToken.None so a caller's
-                // cancellation can't also skip releasing the lock and strand
-                // every subsequent invocation behind it for the rest of the
-                // session's lifetime.
-                //
-                // Best-effort only (PR #339 review): the lock is
-                // SESSION-scoped on THIS pinned connection, so losing the
-                // connection or session releases it automatically — the
-                // explicit unlock is cleanup, not a correctness requirement.
-                // An exception here (e.g. the connection drops right after
-                // ProvisionUnderLockAsync's commit) must never replace a
-                // successful Result: the one-time generated password lives
-                // nowhere else, and a retry would just observe the
-                // already-created Owner and no-op, stranding the operator
-                // behind break-glass recovery. Swallowed and logged instead
-                // of rethrown; a genuine ProvisionUnderLockAsync failure is
-                // unaffected — it already returned/threw before this runs.
-                await TryCleanupAsync(
-                    () => db.Database.ExecuteSqlInterpolatedAsync(
-                        $"SELECT pg_advisory_unlock({AdvisoryLockClassId}, {AdvisoryLockObjectId})",
-                        CancellationToken.None),
-                    "advisory unlock");
-            }
+                await db.Database.ExecuteSqlInterpolatedAsync(
+                    $"SELECT pg_advisory_lock({AdvisoryLockClassId}, {AdvisoryLockObjectId})", ct);
+                try
+                {
+                    return await ProvisionUnderLockAsync(accountId, email.Trim(), ct);
+                }
+                finally
+                {
+                    // Always attempt the unlock, even on a cancelled/failed
+                    // provision — CancellationToken.None so a caller's
+                    // cancellation can't also skip releasing the lock and strand
+                    // every subsequent invocation behind it for the rest of the
+                    // session's lifetime.
+                    //
+                    // Best-effort only (PR #339 review): the lock is
+                    // SESSION-scoped on THIS pinned connection, so losing the
+                    // connection or session releases it automatically — the
+                    // explicit unlock is cleanup, not a correctness requirement.
+                    // An exception here (e.g. the connection drops right after
+                    // ProvisionUnderLockAsync's commit) must never replace a
+                    // successful Result: the one-time generated password lives
+                    // nowhere else, and a retry would just observe the
+                    // already-created Owner and no-op, stranding the operator
+                    // behind break-glass recovery. Swallowed and logged instead
+                    // of rethrown; a genuine ProvisionUnderLockAsync failure is
+                    // unaffected — it already returned/threw before this runs.
+                    await TryCleanupAsync(
+                        () => db.Database.ExecuteSqlInterpolatedAsync(
+                            $"SELECT pg_advisory_unlock({AdvisoryLockClassId}, {AdvisoryLockObjectId})",
+                            CancellationToken.None),
+                        "advisory unlock");
+                }
+            });
         }
         finally
         {
@@ -178,20 +238,120 @@ public sealed class FirstRunAdminService(
                       "no Owner role. Assign the Admin role via the Users page, or choose a different --email."
                     : $"A user with email '{email}' already exists under a different account."));
 
+        // Gate A (PR #350 review round 2, codex 3696740950). Everything above is
+        // a READ, and the only thing that makes those reads safe is the advisory
+        // lock being on the connection that ran them. Prove it rather than
+        // assume it: a `true` here means THIS backend held the lock at the
+        // instant this statement ran, so the two reads above can be trusted.
+        //
+        // Note precisely what this does and does NOT establish. It is an
+        // observation about one instant, not a continuity guarantee: it says
+        // nothing about the connection state at the moment of the write, which
+        // is why gate B below exists. Kept anyway — it is one cheap round trip,
+        // it turns the common case into a clean refusal before a password is
+        // even generated, and defence in depth is the right posture when the
+        // failure mode is an extra farm Owner.
+        //
+        // Fail CLOSED. A refused bootstrap-admin costs the operator a re-run,
+        // and a re-run is idempotent — it either no-ops on an Owner that now
+        // exists or provisions cleanly. Proceeding unguarded costs a second
+        // farm Owner with its own password, which nothing in the app can undo.
+        if (!await HoldsProvisioningLockAsync(ct))
+            return LockLost();
+
         // Handlers/audit need the tenant, which is unresolved outside an HTTP
         // request — resolve it to the default account for this scope (mirrors
         // AdminRecoveryService and the demo/simulation seeders).
         tenant.Resolve(accountId);
 
         var password = TemporaryPassword.Generate();
-        var created = await identity.CreateUserAsync(
-            accountId, email, password, Roles.Owner,
-            name: "Administrator", mustChangePassword: true, ct: ct);
-        if (created.IsFailure)
-            return Result.Failure<FirstRunAdminOutcome>(created.Error);
 
-        return Result.Success(FirstRunAdminOutcome.Provisioned(email, accountId, password));
+        // Gate B (PR #350 review round 3, codex 3696801535) — the one that
+        // actually covers the write.
+        //
+        // Gate A returns, and only THEN does the create transaction get
+        // established. In that gap EF may find the pinned connection no longer
+        // usable and silently replace it — RelationalConnection reopens a
+        // connection that is not Open before it does anything else, with no
+        // exception thrown and no retry to intercept — so gate A's answer can
+        // be about a backend that no longer exists while the INSERT runs on a
+        // fresh one that never acquired the lock. Round 2's comment claimed
+        // "holding it now means holding it continuously since the acquire";
+        // that was true of the instant the query ran and false of the create
+        // that followed it, and the overstatement is why the gap survived.
+        //
+        // So THIS service owns the transaction (AmbientTransaction.RunAsync's
+        // owned path) and re-proves ownership as the first statement inside it.
+        // Two properties follow, and only the pair is sufficient:
+        //
+        //   * the proof now runs on the very backend that will run the INSERT,
+        //     because both are statements in one transaction; and
+        //   * once a transaction is open, a connection loss can no longer be
+        //     invisible — EF cannot swap the connection without abandoning the
+        //     transaction, so the loss surfaces as a hard failure instead of a
+        //     silent reconnect, and nothing is committed.
+        //
+        // IdentityProvider.CreateUserAsync then JOINS this transaction instead
+        // of opening its own (AmbientTransaction's ambient path, exactly as it
+        // does under IdempotencyMiddleware's request-wide transaction #307), so
+        // its user row, role assignment and audit row commit or roll back with
+        // the proof. Deliberately not pushed into CreateUserAsync itself: it is
+        // shared with the Users page and the seeders, and a bootstrap-only
+        // advisory-lock check has no business running for them.
+        return await AmbientTransaction.RunAsync(db.Database, async (transaction, token) =>
+        {
+            if (!await HoldsProvisioningLockAsync(token))
+            {
+                await transaction.RollbackAsync(token);
+                return LockLost();
+            }
+
+            var created = await identity.CreateUserAsync(
+                accountId, email, password, Roles.Owner,
+                name: "Administrator", mustChangePassword: true, ct: token);
+            if (created.IsFailure)
+            {
+                // Explicit, because CreateUserAsync merely joined this
+                // transaction — its own scope commits and rolls back nothing,
+                // so a partially applied create (user inserted, role assignment
+                // rejected) would otherwise ride out on our commit.
+                await transaction.RollbackAsync(token);
+                return Result.Failure<FirstRunAdminOutcome>(created.Error);
+            }
+
+            await transaction.CommitAsync(token);
+            return Result.Success(FirstRunAdminOutcome.Provisioned(email, accountId, password));
+        }, ct);
     }
+
+    private static Result<FirstRunAdminOutcome> LockLost() =>
+        Result.Failure<FirstRunAdminOutcome>(Error.Conflict(
+            "Bootstrap.LockLost",
+            "The first-run provisioning advisory lock is no longer held by this database session, " +
+            "so the 'no Owner yet' check above cannot be trusted (the connection was most likely " +
+            "replaced mid-run). Refusing to create an Owner unguarded — re-run bootstrap-admin; " +
+            "it is idempotent and creates nothing if an Owner now exists."));
+
+    // Does THIS backend currently hold the provisioning advisory lock? Asked of
+    // pg_locks rather than tracked in a field, because the thing that can go
+    // wrong is precisely the connection being swapped underneath us — only
+    // Postgres knows. `pid = pg_backend_pid()` is evaluated server-side in the
+    // same statement, so the answer is about whatever session EF just used, and
+    // a concurrent invocation holding the lock can never be mistaken for us.
+    // objsubid = 2 is the two-int pg_advisory_lock(int, int) keyspace (the
+    // single-bigint overload records objsubid = 1).
+    private Task<bool> HoldsProvisioningLockAsync(CancellationToken ct) =>
+        db.Database.SqlQuery<bool>(
+            $"""
+             SELECT EXISTS (
+                 SELECT 1 FROM pg_locks
+                 WHERE locktype = 'advisory'
+                   AND classid = {AdvisoryLockClassId}::oid
+                   AND objid = {AdvisoryLockObjectId}::oid
+                   AND objsubid = 2
+                   AND pid = pg_backend_pid()
+                   AND granted) AS "Value"
+             """).SingleAsync(ct);
 }
 
 public sealed record FirstRunAdminOutcome(

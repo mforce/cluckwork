@@ -69,10 +69,18 @@ public sealed class CurrencyLockRaceTests(CluckworkWebApplicationFactory factory
 
         // A = a money write mid-flight: shared lock taken, first expense
         // inserted, transaction still open — exactly the shape every stamping
-        // handler has after this slice.
-        using var scopeA = factory.Services.CreateScope();
-        scopeA.ServiceProvider.GetRequiredService<TenantContext>().Resolve(accountId);
-        var dbA = scopeA.ServiceProvider.GetRequiredService<AppDbContext>();
+        // handler has after this slice. Built directly, not via
+        // factory.Services (#269: that DbContext now carries
+        // EnableRetryOnFailure, incompatible with this test's need for
+        // precise, hand-held control of a transaction across several
+        // separate steps raced against a real handler) — same pattern
+        // ReportQueryBoundingTests/StepUpAuthTests use for exactly this
+        // reason.
+        var tenantA = new TenantContext();
+        tenantA.Resolve(accountId);
+        await using var dbA = new AppDbContext(
+            new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(factory.ConnectionString).Options,
+            tenantA);
         await using var transactionA = await dbA.Database.BeginTransactionAsync();
         await dbA.Database.ExecuteSqlInterpolatedAsync(
             $"""SELECT 1 FROM "Accounts" WHERE "Id" = {accountId} FOR SHARE""");
@@ -136,10 +144,13 @@ public sealed class CurrencyLockRaceTests(CluckworkWebApplicationFactory factory
         await factory.WithTenantScopeAsync(accountId,
             async db => snapshot = await db.Accounts.AsNoTracking().SingleAsync());
 
-        // The fence: parks both parties without changing anything.
-        using var scopeA = factory.Services.CreateScope();
-        scopeA.ServiceProvider.GetRequiredService<TenantContext>().Resolve(accountId);
-        var dbA = scopeA.ServiceProvider.GetRequiredService<AppDbContext>();
+        // The fence: parks both parties without changing anything. Built
+        // directly, not via factory.Services — see the #269 comment above.
+        var tenantA = new TenantContext();
+        tenantA.Resolve(accountId);
+        await using var dbA = new AppDbContext(
+            new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(factory.ConnectionString).Options,
+            tenantA);
         await using var transactionA = await dbA.Database.BeginTransactionAsync();
         await dbA.Database.ExecuteSqlInterpolatedAsync(
             $"""SELECT 1 FROM "Accounts" WHERE "Id" = {accountId} FOR UPDATE""");
@@ -202,10 +213,13 @@ public sealed class CurrencyLockRaceTests(CluckworkWebApplicationFactory factory
         var seeded = await SeedForAsync(handlerKey, accountId);
 
         // A = the currency change mid-flight: exclusive lock held, new
-        // currency written, transaction still open.
-        using var scopeA = factory.Services.CreateScope();
-        scopeA.ServiceProvider.GetRequiredService<TenantContext>().Resolve(accountId);
-        var dbA = scopeA.ServiceProvider.GetRequiredService<AppDbContext>();
+        // currency written, transaction still open. Built directly, not via
+        // factory.Services — see the #269 comment above.
+        var tenantA = new TenantContext();
+        tenantA.Resolve(accountId);
+        await using var dbA = new AppDbContext(
+            new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(factory.ConnectionString).Options,
+            tenantA);
         await using var transactionA = await dbA.Database.BeginTransactionAsync();
         await dbA.Database.ExecuteSqlInterpolatedAsync(
             $"""SELECT 1 FROM "Accounts" WHERE "Id" = {accountId} FOR UPDATE""");

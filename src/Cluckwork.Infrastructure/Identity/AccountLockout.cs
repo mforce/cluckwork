@@ -28,12 +28,36 @@ internal static class AccountLockout
     // per-account contention that produces conflicts is itself capped by the
     // per-IP rate limiter. The cap prevents an unbounded loop while still letting
     // every real failure land under normal contention.
+    //
+    // #269 review (#350, codex round 4) — each save runs through
+    // SingleAttemptExecution, and that is what makes "Succeeded == false" MEAN
+    // a parallel writer. Neither password oracle is inside a user-initiated
+    // transaction (login is anonymous, so IdempotencyMiddleware's tenant gate
+    // skips it; /auth/step-up is on its ResponseNotCacheable list), so under
+    // EnableRetryOnFailure this save is a self-contained unit the execution
+    // strategy will REPLAY. On the ambiguous commit — Postgres committed the
+    // increment, the acknowledgment was lost — the replay re-issues the UPDATE
+    // with the stale ConcurrencyStamp, matches 0 rows, and is reported as a
+    // concurrency failure. The loop below cannot tell that apart from a real
+    // conflict, so it would reload the ALREADY-incremented user and increment
+    // it AGAIN: one wrong password costing two failed accesses, locking the
+    // account at roughly half the configured threshold. (The same "one wrong
+    // password, two increments" consequence shipped once already on a
+    // different path in #336 — treat premature lockout as an availability
+    // defect, not a cosmetic one.)
+    //
+    // Only the SAVE is wrapped. The reload is an ordinary read, replayable and
+    // side-effect-free, so it keeps its automatic retry. A transient failure
+    // inside the save now surfaces rather than being absorbed — deliberate,
+    // and the pre-#269 behaviour; the remedy is the client trying again.
     public static async Task RecordFailedAccessAsync(
         UserManager<ApplicationUser> userManager, AppDbContext db, ApplicationUser user)
     {
         for (var attempt = 0; attempt < 10; attempt++)
         {
-            if ((await userManager.AccessFailedAsync(user)).Succeeded)
+            var result = await SingleAttemptExecution.RunAsync(
+                db.Database, () => userManager.AccessFailedAsync(user));
+            if (result.Succeeded)
                 return;
             // The write lost the concurrency race. FindById would hand back the
             // same identity-map instance (stale stamp), so refresh the tracked
@@ -41,5 +65,51 @@ internal static class AccountLockout
             // scoped context the UserManager store writes through.
             await db.Entry(user).ReloadAsync();
         }
+    }
+
+    // The counterpart, and it lives here for the same reason RecordFailedAccess
+    // does: BOTH password oracles clear the counter after a correct password
+    // (LoginAsync and StepUpGrantService.IssueAsync), so a second copy is a
+    // second thing to forget to update.
+    //
+    // #269 review (#350, codex round 5 sweep) — clearing the counter is a
+    // convenience, NOT a security control: leaving it set only means the next
+    // wrong password counts from a higher base, i.e. it errs TOWARD the #128
+    // lockout, never away from it. So it must never be able to fail a request
+    // that has already proven the credential — and before this it could.
+    //
+    // Identity's UserStore.UpdateAsync swallows a concurrency loss into
+    // IdentityResult.Failed rather than throwing, and both call sites discarded
+    // that result. Two different things produce it, and BOTH leave `user` tracked
+    // as Modified carrying original values the row no longer has:
+    //
+    //   * a genuine parallel writer, and
+    //   * this save's own REPLAY. It sits outside any user-initiated transaction
+    //     (login is anonymous, so IdempotencyMiddleware's tenant gate skips it;
+    //     /auth/step-up is on ResponseNotCacheable), so under EnableRetryOnFailure
+    //     the execution strategy replays it. On the ambiguous commit the replay
+    //     re-issues the UPDATE under the now superseded ConcurrencyStamp and
+    //     matches 0 rows — the identical misread RecordFailedAccessAsync
+    //     documents above.
+    //
+    // LoginAsync's refresh-token INSERT shares this DbContext, so its SaveChanges
+    // then re-flushed the poisoned entity and threw. Measured pre-fix: a CORRECT
+    // password answered 409 "Concurrency conflict" and issued no token at all,
+    // even though the reset itself had committed.
+    //
+    // ReloadAsync refreshes original AND current values from the row — the same
+    // surgical move the reload loop above makes, and deliberately not a blanket
+    // db.ChangeTracker.Clear(), which would drop a longer-lived caller's pending
+    // writes on a shared context (see SingleAttemptExecution). Note the fix is to
+    // READ the result, not to stop the retry: the retry is what absorbs the
+    // ordinary blip, and the parallel-writer case it also covers was never a
+    // retry problem at all.
+    public static async Task ResetFailedAccessCountAsync(
+        UserManager<ApplicationUser> userManager, AppDbContext db, ApplicationUser user,
+        CancellationToken ct = default)
+    {
+        var reset = await userManager.ResetAccessFailedCountAsync(user);
+        if (!reset.Succeeded)
+            await db.Entry(user).ReloadAsync(ct);
     }
 }
