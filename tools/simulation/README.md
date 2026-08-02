@@ -36,7 +36,52 @@ demo` (#280) for the dev/demo profile.
 bash tools/simulation/bootstrap.sh   # generate .env.sim + .sim-cast.json (idempotent)
 bash tools/simulation/reset.sh       # wipe + rebuild + base-seed + `seed --profile simulation` + verify
 bash tools/simulation/run-baseline.sh   # N reps of the k6 baseline -> findings doc
+
+bash tools/simulation/verify-harness.sh # ~0.1s self-check; reset.sh runs it for you
 ```
+
+## KEEPING THIS HARNESS ALIVE (read before changing a boot guard) — #370
+
+**Nothing automated runs this harness.** It is deliberately not in CI — it is
+dev tooling, and a GitHub job on every push is out of proportion to five
+seconds of work. The consequence is the thing to internalise: **when you break
+it, nothing tells you.** Every path in is human-started — `reset.sh` directly,
+or `run-baseline.sh`, which invokes `reset.sh` once per rep. No schedule, no
+hook, no pipeline. (Both paths do get the `verify-harness.sh` self-check, since
+`reset.sh` runs it — so a baseline run fails fast on config drift too.)
+
+That is not hypothetical. By 2026-08 this harness could not boot `main` at
+all — four breakages had piled up, **three of them app-side Production boot
+guards that landed while the harness config stayed put**:
+
+| Landed | Broke the harness because |
+| --- | --- |
+| #319 `AllowedHosts` | a wildcard now **fails the boot**; the stack did not start |
+| #261/#262 TLS floor | unset `sslmode` means Npgsql `Prefer` — the rejected case |
+| #316 OTLP | a blank `Otlp__AllowInsecureEndpoint` fails to bind to `Boolean` |
+
+The `app` container here runs **Production config on purpose** (that is the
+point — prod-config fidelity), so **every** such guard applies to it.
+
+**So: if your PR adds or changes a boot guard, or adds/renames/retires a config
+key, update `bootstrap.sh` + `docker-compose.sim.yml` in the same PR**, and add
+an assertion to `verify-harness.sh`. `reset.sh` runs that self-check *before*
+the destructive `down -v`, so a config defect costs 0.1s instead of a wiped
+volume, an image rebuild, and a five-minute wait to fail at `/health/ready` —
+which is exactly how these were actually found.
+
+Satisfy a guard **properly**, never by switching it off: a concrete
+`AllowedHosts` (not `*`), and the *documented* plaintext opt-outs for this
+stack's co-located sidecar — the same ones `deploy/docker-compose.yml` uses.
+
+**One trap worth knowing.** `.env.sim` is git-ignored, so it outlives the
+schema that generated it. The one found in 2026-08 was pre-#283: it still
+carried retired `Seed__Admin*`/`Seed__Demo` keys **and lacked** the
+`SIM_ADMIN_*` that `reset.sh` now needs. When a key changes, regenerate rather
+than hand-patch: `bash tools/simulation/bootstrap.sh --force` (new secrets are
+free — `reset.sh` wipes the database anyway). `verify-harness.sh` fails on
+those retired keys by name so a stale file says so instead of failing obscurely
+mid-boot.
 
 `reset.sh` leaves the app reachable at `http://127.0.0.1:8081/`. Log in with
 any credential from `tools/simulation/.sim-cast.json` (the Owner, or any of
@@ -102,7 +147,7 @@ reading or changing it:
 | `Simulation__CredentialOutputPath` | `/app/sim-cast/manifest.json` | Mounted to the host at `tools/simulation/out/manifest.json` via the `app` service's `./out:/app/sim-cast` volume. |
 | `RateLimiting__Login__PermitLimit` / `…Refresh…` / `…ClientErrors…` | `1000000` (windows unchanged) | All three per-IP buckets raised — see deviation list below. |
 | `Otlp__Endpoint` / `Otlp__Protocol` | `http://otel-collector:4317` / `grpc` | See "Monitoring" and deviation list below. |
-| `AllowedHosts` | `*` | No traefik/public hostname in front of the sim stack (loopback only). |
+| `AllowedHosts` | `cluckwork-sim.local` | A concrete placeholder host, **not** `*`. There is no traefik/public hostname in front of the sim stack, but the serving container runs Production config and #319 **fails that boot** on a missing, blank, or wildcard value — a `*` here does not merely weaken Host filtering, it stops the stack booting. Loopback is force-added by `AddCluckworkEdgeSecurity` whenever the list is not wildcard, so k6 and the browser still reach the app on `http://127.0.0.1:8081/`. |
 | `POSTGRES_DB` / `POSTGRES_USER` / `POSTGRES_PASSWORD` | `cluckwork_sim` / `cluckwork_sim` / generated | Isolated database, isolated named volume (`cluckwork-sim-postgres`, namespaced by the compose project to `cluckwork-sim_cluckwork-sim-postgres`) — never the real dev DB. |
 | App port | `127.0.0.1:8081` | Different from the real dev stack's `127.0.0.1:8080` (`deploy/docker-compose.yml`), so both can run at once without colliding. |
 | `db` port | *(not published)* | `reset.sh`'s `pg_stat_statements` preflight runs in-container (`docker compose exec db psql`), never over a host connection — one less thing to collide with a real local Postgres. |
@@ -135,11 +180,14 @@ non-Production environment" below.
    below. Never a developer's real deploy/.env collector endpoint.
    **Invalidates:** nothing — this is strictly additive observability, not a
    config deviation with a throughput/latency implication.
-4. **No traefik / TLS front door**, `AllowedHosts=*`, loopback-only
-   port publish. The real stack fronts the app with traefik + TLS
-   (`deploy/docker-compose.yml`'s `prod` profile); this stack is reached
-   directly on `http://127.0.0.1:8081/`. **Invalidates:** anything about
-   TLS-termination overhead or traefik routing.
+4. **No traefik / TLS front door**, a placeholder `AllowedHosts`
+   (`cluckwork-sim.local` — concrete, never `*`, since #319 fails a
+   Production boot on a wildcard), loopback-only port publish. The real stack
+   fronts the app with traefik + TLS (`deploy/docker-compose.yml`'s `prod`
+   profile); this stack is reached directly on `http://127.0.0.1:8081/`,
+   which works because loopback is force-added to the host-filter list.
+   **Invalidates:** anything about TLS-termination overhead or traefik
+   routing.
 
 Every consumer of this harness's output (k6 results, findings docs, #277's
 Playwright suite) must carry this list forward rather than presenting

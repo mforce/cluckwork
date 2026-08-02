@@ -85,18 +85,14 @@ function tagsFor(persona, flow, endpoint) {
 }
 
 // --- dates -------------------------------------------------------------
+//
+// Moved to ./dates.js so they can be unit-tested without k6 (that file has no
+// `k6/*` import). dates.test.mjs runs under `node --test` from
+// verify-harness.sh — NOT in CI, which this harness deliberately stays out of.
+// Re-exported here so the personas' existing imports keep working.
+import { today, daysAgo, reportRangeStart, reportRangeEnd } from './dates.js';
 
-function isoDate(d) {
-  return d.toISOString().slice(0, 10);
-}
-export function today() {
-  return isoDate(new Date());
-}
-export function daysAgo(n) {
-  const d = new Date();
-  d.setUTCDate(d.getUTCDate() - n);
-  return isoDate(d);
-}
+export { today, daysAgo };
 
 // --- think time ----------------------------------------------------------
 
@@ -214,8 +210,15 @@ export function dashboard(session, persona) {
 // --- reports (ReportsPage.tsx: production always, money AdminOnly) -----
 
 export function reports(session, persona) {
-  const from = daysAgo(6);
-  const to = today();
+  // Both ends come from dates.js, which carries the full rationale and is
+  // unit-tested (dates.test.mjs) for the one property that matters here: the
+  // range must never END on a date the farm has not reached yet, or all four
+  // endpoints below 400 with Report.FutureRange. That failed live at 03:47 UTC
+  // against the seeded America/Chicago farm — 12.4% of capacity requests, the
+  // run's thresholds crossed — while both runs recorded in findings/, launched
+  // during UTC daytime, had passed.
+  const from = reportRangeStart();
+  const to = reportRangeEnd();
   authedGet(
     session,
     `/api/v1/reports/production?from=${from}&to=${to}`,

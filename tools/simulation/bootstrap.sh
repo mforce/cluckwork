@@ -162,9 +162,11 @@ cat >"$ENV_FILE" <<EOF
 #   - Otlp__Endpoint points at the sim-only otel-collector service (#243
 #     Task 8, tools/simulation/otel/collector.yaml) — never a developer's
 #     real deploy/.env collector endpoint.
-#   - AllowedHosts is "*" (no traefik/public hostname in front of the sim
-#     stack; CLUCKWORK_HOST/TRUSTED_PROXY_CIDR below are kept only for
-#     interpolation-var parity with deploy/.env.example).
+#   - AllowedHosts is a concrete placeholder host (cluckwork-sim.local), not
+#     "*": there is no traefik/public hostname in front of the sim stack, but
+#     the serving container runs Production config and #319 fails that boot on
+#     a missing/blank/wildcard value. Loopback is force-added by
+#     AddCluckworkEdgeSecurity, so the stack stays reachable on 127.0.0.1.
 
 # --- Sim compose project safety (see reset.sh) ------------------------------
 COMPOSE_PROJECT_NAME=cluckwork-sim
@@ -188,7 +190,11 @@ Jwt__PrivateKeyPem="${JWT_PRIVATE_PEM}"
 # --- First-run admin (#283) — SCRIPT-LEVEL values, not app config (no
 # double-underscore key, so docker-compose's env-file parser does NOT expose
 # these to the app as ASP.NET config; the app never reads a "seed" credential
-# from anywhere). reset.sh reads these back to call `bootstrap-admin`, then
+# from anywhere). reset.sh reads these back to call bootstrap-admin, then
+# (NOTE: no backticks and no dollar-parens anywhere in this heredoc — it is
+# UNQUOTED, so such a phrase is COMMAND SUBSTITUTION, not prose. The word
+# bootstrap-admin was backticked here and actually tried to EXECUTE, printing
+# "command not found" on every bootstrap run and emitting a mangled comment.)
 # rotates the printed one-time password to SIM_ADMIN_PASSWORD via the real
 # login+change-password API — every other script/persona in this harness
 # keeps a stable, known Owner credential exactly as before #283. ---
@@ -217,10 +223,22 @@ RateLimiting__Refresh__WindowSeconds=900
 RateLimiting__ClientErrors__PermitLimit=1000000
 RateLimiting__ClientErrors__WindowSeconds=300
 
-# --- Host/proxy interpolation vars (parity with deploy/.env.example; the
-# sim stack has no traefik profile, so these are not used to gate requests —
-# AllowedHosts below is a plain "*") ---
-AllowedHosts=*
+# --- Host/proxy interpolation vars (parity with deploy/.env.example) ---
+#
+# AllowedHosts is a CONCRETE host, not "*". The serving container runs
+# Production config, and #319 fails a Production boot when AllowedHosts is
+# missing, blank, or wildcard — so a "*" here does not merely weaken Host
+# filtering, it stops the stack from booting at all. Loopback
+# (localhost/127.0.0.1/[::1]) is force-added by AddCluckworkEdgeSecurity
+# whenever the list is not wildcard, so k6 and the browser still reach the
+# app on http://127.0.0.1:8081/ without listing it here.
+#
+# Written as a LITERAL, deliberately: this heredoc is unquoted (line 154), so
+# a \${CLUCKWORK_HOST} here would expand at generation time against the
+# generating shell — where it is unset — and emit a BLANK AllowedHosts, which
+# fails the #319 guard exactly as the wildcard does. Keep the two in sync by
+# hand; they are two lines apart.
+AllowedHosts=cluckwork-sim.local
 CLUCKWORK_HOST=cluckwork-sim.local
 TRUSTED_PROXY_CIDR=127.0.0.1/32
 
