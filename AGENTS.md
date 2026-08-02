@@ -363,10 +363,21 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
     can push bytes and even hand them a version tag, and the deploy side still
     refuses them.
 
-  Net: the internal gate is a convenience that fails closed for a leaked
-  registry credential; the external one is what actually survives repo write.
-  That is the argument for the deploy side verifying rather than trusting a
-  digest we handed it — and for `--source-ref` being non-optional there.
+  Net, stated at exactly the strength the argument supports: the internal gate
+  fails closed for a leaked **registry** credential. The external gate also
+  survives a **branch push** — someone who can push a branch but not change
+  `main`. **Neither survives a merge to `main`.** Once a backdoored `ci.yml` is
+  the definition on `main`, its attestation is genuinely valid — right signer
+  workflow, right source ref — because `--source-ref` records *which ref built
+  this*, not *whether that ref's content is trustworthy*. This repo allows a
+  self-merge (`main` requires a PR but **zero** approving reviews), so that path
+  is open today and no flag on the verify command closes it; review of changes to
+  `main` is the only control that does.
+
+  This paragraph is the **canonical** statement of the boundary. `README.md` and
+  the `ci.yml` comment point here deliberately rather than restating it —
+  successive corrections to this claim have repeatedly updated one copy and left
+  the others contradicting it.
 - **Promotion reads the digest from CI's own run artifact, never by resolving
   `:sha-<commit>`.** That tag is mutable by anyone holding `packages: write`, and
   the merge commit is public seconds after merge while CI needs minutes to push —

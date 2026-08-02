@@ -652,14 +652,16 @@ jobs:
       # attestation before it retags — not from this ordering. Both are wanted;
       # do not let the ordering stand in for the check.
       #
-      # And be clear what that is fail-closed AGAINST: a credential that can
-      # push to GHCR, which cannot mint a valid attestation. It is NOT closed
-      # against someone who can push a branch — `workflow_dispatch` runs a
-      # workflow's definition from the selected ref, so a branch copy of
-      # release-please.yml with the verify deleted would run with that job's
-      # `contents: write` + `packages: write`. No check written inside a
-      # branch-editable workflow can close that; the controls are repo-level
-      # (who may push branches, who may run workflows, branch protection).
+      # And be clear what that is fail-closed AGAINST. Short version: a
+      # credential that can push to GHCR cannot mint a valid attestation, so
+      # this closes that. Promotion's own check is weaker than the deploy
+      # side's, because promotion runs inside a workflow a branch writer can
+      # edit. And NEITHER survives a change merged to `main`.
+      #
+      # AGENTS.md's "Deploy by digest" bullet is the canonical statement of that
+      # boundary — go there rather than re-deriving it here. This claim has been
+      # corrected several times and every copy of it drifted; there is one copy
+      # on purpose.
       #
       # Also why this is not `continue-on-error`: an attestation nobody checks
       # is worse than none, because it looks like coverage.

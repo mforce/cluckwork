@@ -240,10 +240,11 @@ digest tells you *what* you are deploying but nothing about *where it came from*
 perfectly immutable digest. The attestation is a signed claim by this repo's CI
 workflow, so anything pushed by hand has no such claim and fails the check.
 
-That closes the case it was built for: a credential that can push to the
-registry. It does not cover someone who can push a branch to this repo — see
-the deploy bullet in [`AGENTS.md`](AGENTS.md) for the exact boundary and why
-each flag is required.
+That covers a credential that can push to the registry, and also someone who can
+push a *branch* here — a branch-built image's provenance names that branch, and
+the command above rejects it. It does **not** cover a change merged to `main`.
+The deploy bullet in [`AGENTS.md`](AGENTS.md) is the canonical statement of that
+boundary, and of why each flag is required.
 
 The digest also appears at the bottom of the release notes, for humans.
 Deployment configuration itself lives in the separate deploy repo, not here.
