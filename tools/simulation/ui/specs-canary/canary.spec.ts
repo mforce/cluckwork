@@ -206,6 +206,10 @@ test.describe("canary", () => {
 
       const sample: ScreenSample = {
         screen: screen.name,
+        // The completeness manifest, written into EVERY file rather than kept as
+        // a constant in run-baseline.sh. Derived from SCREENS, so it cannot drift
+        // from what this run actually intended to sample (PR #392 review round 3).
+        expectedScreens: SCREENS.map(({ name }) => name),
         underLoad: UNDER_LOAD,
         usableInMs,
         ...vitals,
