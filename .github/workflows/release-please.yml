@@ -119,19 +119,55 @@ jobs:
           set -euo pipefail
           if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
             tag="$INPUT_TAG"
-            sha="$INPUT_SHA"
-            if [ -z "$sha" ]; then
-              sha="$(gh release view "$tag" --json targetCommitish --jq '.targetCommitish')"
-            fi
+            supplied="$INPUT_SHA"
           else
             tag="$PUSH_TAG"
-            sha="$PUSH_SHA"
+            supplied="$PUSH_SHA"
           fi
 
           if [ -z "$tag" ]; then
             echo "::error::no release tag to promote"
             exit 1
           fi
+
+          # The release must still be a DRAFT. Promotion retags `:$tag` and
+          # rewrites the release notes, so running it against an already
+          # published version would repoint a live release at other bytes —
+          # precisely what this design exists to prevent. A dispatch aimed at
+          # the wrong tag stops here rather than at the registry.
+          #
+          # This also fails loudly if `"draft": true` is ever dropped from
+          # release-please-config.json, because the draft-until-promoted
+          # property is load-bearing rather than cosmetic.
+          info="$(gh release view "$tag" --json isDraft,targetCommitish \
+            --jq '[.isDraft, .targetCommitish] | @tsv')"
+          is_draft="$(printf '%s' "$info" | cut -f1)"
+          target="$(printf '%s' "$info" | cut -f2)"
+
+          if [ "$is_draft" != "true" ]; then
+            echo "::error::release $tag is already published — refusing to repoint a live version"
+            exit 1
+          fi
+
+          # Bind the commit to the draft rather than trusting what was typed.
+          # When the release records a real commit, that is authoritative and a
+          # supplied sha may only agree with it — so a valid-but-wrong sha is
+          # rejected instead of silently promoting an unrelated commit.
+          if printf '%s' "$target" | grep -qE '^[0-9a-f]{40}$'; then
+            if [ -n "$supplied" ] && [ "$supplied" != "$target" ]; then
+              echo "::error::$tag was cut at $target, not $supplied — refusing to promote a different commit"
+              exit 1
+            fi
+            sha="$target"
+          else
+            # `target_commitish` can be a BRANCH name, which would resolve to
+            # whatever main points at now rather than what the release was cut
+            # from. Nothing then binds the commit to the draft, so require it to
+            # be stated explicitly and say so.
+            sha="$supplied"
+            echo "::warning::$tag records '$target' rather than a commit; promoting the supplied $sha, which cannot be cross-checked against the draft."
+          fi
+
           if ! printf '%s' "$sha" | grep -qE '^[0-9a-f]{40}$'; then
             echo "::error::'${sha:-(empty)}' is not a commit sha — pass the exact commit with the 'sha' input"
             exit 1

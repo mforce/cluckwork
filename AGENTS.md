@@ -220,7 +220,10 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
      publish arbitrary branch content.
   2. Then dispatch **Release** with the tag (and the exact sha if the release's
      `target_commitish` is a branch name rather than a commit) to promote and
-     publish the draft.
+     publish the draft. It refuses a tag whose release is **already published** —
+     promotion retags and rewrites notes, so aiming it at a live version would
+     repoint it — and when the release records a real commit, that commit is
+     authoritative: a supplied sha may only agree with it, never override it.
 - **The bump comes from conventional commits**, so PR titles are load-bearing —
   squash-merge puts the title on main as the commit subject. `feat!:`/`BREAKING
   CHANGE` → major, `feat:` → minor, **everything else → patch**. Note that
