@@ -29,6 +29,13 @@ updates:
     groups:
       github-actions:
         patterns: ["*"]
+        # release-please-action holds `contents: write` + `pull-requests: write`
+        # and ships a bundled `dist/`. A SHA pin only protects you up to the
+        # moment someone rubber-stamps the bump that moves it — and a bundled
+        # dist rolled into a routine grouped PR is the exact shape of the 2025-03
+        # tj-actions incident. Keep it out of the group so its bumps arrive
+        # standalone and get read on their own.
+        exclude-patterns: ["googleapis/release-please-action"]
 
   - package-ecosystem: "npm"
     directory: "/web"

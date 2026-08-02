@@ -7,6 +7,23 @@ on:
   pull_request:
     branches:
       - main
+  # Repair path (#351). A commit whose message contains `[skip ci]` — which
+  # GitHub matches ANYWHERE in the message, and which reaches the squashed
+  # release commit if any changelog entry happens to contain it — triggers no
+  # push run at all. There is then no CI run for that commit and no image, so a
+  # release drafted at it can never be promoted, and re-running is impossible
+  # because no run exists to re-run.
+  #
+  # This rebuilds and publishes for one explicit commit, through the same gates.
+  # It is deliberately NOT a general "publish anything" button: the commit must
+  # already be an ancestor of main (checked below), so it can only ever republish
+  # history that was already merged.
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: "Commit on main to build and publish, e.g. to repair a release whose CI run was skipped"
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -20,6 +37,10 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
+        with:
+          # On a repair dispatch, gate the commit that was asked for. Empty on
+          # push/PR, which actions/checkout treats as "use the default ref".
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.sha || '' }}
 
       - name: Setup .NET SDK
         uses: actions/setup-dotnet@v6
@@ -64,6 +85,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.sha || '' }}
 
       - name: Setup Node
         uses: actions/setup-node@v7
@@ -197,9 +220,15 @@ jobs:
     name: Image build + Trivy scan
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    outputs:
+      # Local image Id of the scanned image, so the publish job can verify the
+      # artifact handoff carried exactly these bytes (#351).
+      image_id: ${{ steps.export.outputs.image_id }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.sha || '' }}
 
       # Build the exact image the container ships: the multi-stage Dockerfile
       # compiles the SPA, publishes the API, and runs as the non-root `app` user
@@ -375,3 +404,200 @@ jobs:
         run: |
           docker rm -f ci-app ci-db >/dev/null 2>&1 || true
           docker network rm cluckwork-ci >/dev/null 2>&1 || true
+
+      # #351 — hand the VERIFIED image to the publish job. Jobs run on separate
+      # runners with separate Docker daemons, and `needs:` passes only strings,
+      # so the image built above dies with this runner unless carried across.
+      #
+      # Deliberately NOT a rebuild in the publish job: a second `docker build`
+      # produces different bytes (fresh restore timestamps, layer metadata) and
+      # therefore a different digest, so what got published would be an image
+      # this job's Trivy scan and boot smoke test never examined.
+      #
+      # Only on a merge into main, so PR runs pay none of this.
+      - name: Export the verified image for publishing
+        id: export
+        if: |
+          (github.event_name == 'push' && github.ref == 'refs/heads/main')
+          || github.event_name == 'workflow_dispatch'
+        run: |
+          set -euo pipefail
+          docker save cluckwork-api:ci | gzip > image.tar.gz
+          printf 'image_id=%s\n' \
+            "$(docker image inspect -f '{{.Id}}' cluckwork-api:ci)" >> "$GITHUB_OUTPUT"
+
+      - name: Upload the verified image
+        if: |
+          (github.event_name == 'push' && github.ref == 'refs/heads/main')
+          || github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-image
+          path: image.tar.gz
+          # Already gzipped — re-zipping it would burn a minute for nothing.
+          compression-level: 0
+          # Purely an intra-run handoff; the registry is the durable copy.
+          retention-days: 1
+
+  # #351 — publish the image this run verified, named by COMMIT.
+  #
+  # No version is decided here, and no git tag is cut. That is the release
+  # workflow's job, and it happens later, behind a human merging the release PR.
+  # This job's only claim is "the image for commit X is these exact bytes, and
+  # they passed every gate" — which makes it idempotent per commit, free of
+  # ordering hazards, and impossible to race: two merges publish two different
+  # names.
+  #
+  # Gated on build-and-test, web AND image: those run in parallel, so only a job
+  # downstream of all three knows the run was green.
+  publish:
+    name: Publish the commit image
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [build-and-test, web, image]
+    if: |
+      (github.event_name == 'push' && github.ref == 'refs/heads/main')
+      || github.event_name == 'workflow_dispatch'
+    permissions:
+      # Job-level permissions REPLACE the workflow-level `contents: read`.
+      contents: read
+      packages: write # push the image to GHCR
+    outputs:
+      image: ${{ steps.publish.outputs.image }}
+      digest: ${{ steps.publish.outputs.digest }}
+    steps:
+      # A dispatch names its own commit; a push is its own. Either way the
+      # commit must ALREADY be on main's history — the compare API answers
+      # `identical` or `behind` only when the head is an ancestor of the base.
+      # Without that, this job would publish arbitrary branch content under a
+      # `:sha-` name that the release workflow is willing to promote.
+      - name: Resolve and authorise the commit to publish
+        id: target
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_SHA: ${{ inputs.sha }}
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            sha="$INPUT_SHA"
+          else
+            sha="$GITHUB_SHA"
+          fi
+
+          if ! printf '%s' "$sha" | grep -qE '^[0-9a-f]{40}$'; then
+            echo "::error::'${sha:-(empty)}' is not a full commit sha"
+            exit 1
+          fi
+
+          status="$(gh api "repos/$GITHUB_REPOSITORY/compare/main...$sha" --jq '.status')"
+          case "$status" in
+            identical|behind) ;;
+            *)
+              echo "::error::$sha is not an ancestor of main (compare status: $status) — refusing to publish it"
+              exit 1 ;;
+          esac
+
+          printf 'sha=%s\n' "$sha" >> "$GITHUB_OUTPUT"
+
+      - name: Download the verified image
+        uses: actions/download-artifact@v4
+        with:
+          name: runtime-image
+
+      # Assert the loaded bytes are the SCANNED bytes, by local image Id.
+      # Artifact substitution is not reachable today (artifacts are run-scoped,
+      # only one step uploads that name, `overwrite` is unset) — but the whole
+      # promise here is "what shipped is what CI gated", and a promise resting on
+      # an argument rather than a check is the one that quietly stops being true.
+      - name: Load and verify the image
+        env:
+          EXPECTED_ID: ${{ needs.image.outputs.image_id }}
+        run: |
+          set -euo pipefail
+          gunzip -c image.tar.gz | docker load
+          loaded="$(docker image inspect -f '{{.Id}}' cluckwork-api:ci)"
+          if [ -z "$EXPECTED_ID" ] || [ "$loaded" != "$EXPECTED_ID" ]; then
+            echo "::error::loaded image ${loaded} is not the scanned image ${EXPECTED_ID:-(unset)}"
+            exit 1
+          fi
+
+      # `x-access-token` rather than `${{ github.actor }}`: GHCR authenticates
+      # the token, not the username, so interpolating run-triggered metadata into
+      # the step handling the registry credential buys nothing.
+      - name: Log in to GHCR
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "$GHCR_TOKEN" | docker login ghcr.io -u x-access-token --password-stdin
+
+      - name: Publish the commit image
+        id: publish
+        env:
+          SHA: ${{ steps.target.outputs.sha }}
+        run: |
+          set -euo pipefail
+          # GHCR rejects uppercase; the owner/repo casing is not ours to assume.
+          image="ghcr.io/${GITHUB_REPOSITORY,,}"
+
+          # Named by commit, so this can only ever be rewritten by a re-run of
+          # this same commit — with bytes that passed the same gates. There is
+          # no version tag to collide over and nothing to overwrite.
+          docker tag cluckwork-api:ci "$image:sha-$SHA"
+          docker push "$image:sha-$SHA"
+
+          # The MANIFEST digest — what `image@sha256:...` resolves to — exists
+          # only once the image is in a registry; before the push RepoDigests is
+          # empty. (The local image Id is a different hash: the config blob.)
+          #
+          # `|| true` inside the substitution: a non-matching grep exits 1, and
+          # under `pipefail` that status would kill the script at the assignment,
+          # before the -z branch below could report anything useful.
+          # Filter to THIS repository's entry rather than taking the first line:
+          # RepoDigests holds one entry per repository the image has been pushed
+          # to, so a bare `head -1` would be picking arbitrarily if that ever
+          # became more than one.
+          digest="$(docker image inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' "$image:sha-$SHA" \
+            | grep -F "$image@" | grep -oE 'sha256:[0-9a-f]{64}' | head -1 || true)"
+          if [ -z "$digest" ]; then
+            echo "::error::no manifest digest after push — refusing to report an unpinnable image"
+            exit 1
+          fi
+
+          printf 'image=%s\n' "$image" >> "$GITHUB_OUTPUT"
+          printf 'digest=%s\n' "$digest" >> "$GITHUB_OUTPUT"
+
+          # Also recorded as an artifact of THIS run, which is what the release
+          # workflow promotes from. A registry tag is mutable by anyone holding
+          # `packages: write`; an artifact is bound to the run that produced it,
+          # so promotion cannot be fed a digest this job did not publish.
+          printf '%s\n' "$digest" > published-digest.txt
+
+          {
+            echo "### Published \`sha-$SHA\`"
+            echo
+            echo "Not yet a release — merge the release PR to promote a version."
+            echo
+            echo '```'
+            echo "$image@$digest"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # The release workflow reads this to learn which digest CI actually
+      # published for this commit, instead of trusting whatever the registry tag
+      # resolves to at promotion time.
+      # Named by COMMIT, not just "published-digest". The release workflow finds
+      # this through the repo-wide artifacts API (`?name=…`), which needs no
+      # knowledge of the run — and a run dispatched to repair a commit reports
+      # `head_sha` as the branch tip, not the commit it built, so a lookup keyed
+      # on the run would miss exactly the case the repair path exists for.
+      - name: Record the published digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: published-digest-${{ steps.target.outputs.sha }}
+          path: published-digest.txt
+          retention-days: 90
+
+      # Drop the registry credential rather than leaving it readable in
+      # ~/.docker/config.json for whatever runs next.
+      - name: Log out of GHCR
+        if: always()
+        run: docker logout ghcr.io >/dev/null 2>&1 || true

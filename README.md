@@ -109,6 +109,86 @@ dotnet test Cluckwork.sln    # integration tests spin up Postgres via Docker
 Optional: `git config core.hooksPath .githooks` enables a fast pre-commit hook
 (unit tests for staged .NET changes, typecheck for staged `web/` changes).
 
+## Releases & container images
+
+Releasing has two stages: **CI publishes an image for every merge; you decide when
+those become a version.**
+
+### 1. Merging a PR into `main`
+
+CI builds the image, scans it for vulnerabilities, boots it against a throwaway
+database — and if all of that passes, publishes it under the commit it came from:
+
+```
+ghcr.io/mforce/cluckwork:sha-<commit>
+```
+
+That image is deployable immediately. It just doesn't have a version yet.
+
+Meanwhile a bot keeps a **"Release vX.Y.Z" pull request** up to date, accumulating a
+`CHANGELOG.md` from the commits since the last release and working out the next
+version number.
+
+### 2. Merging the Release PR
+
+That's the release. It drafts a GitHub release with the changelog, **promotes** the
+already-published image to a version, and — only once that succeeds — publishes the
+release and creates the tag:
+
+```
+ghcr.io/mforce/cluckwork:v0.4.0          # same image, now with a version
+ghcr.io/mforce/cluckwork@sha256:…        # the digest — what you deploy
+```
+
+Promotion adds a name to an image that already exists in the registry. Nothing is
+rebuilt, so the bytes carrying `v0.4.0` are provably the bytes that passed CI.
+
+### What decides the version
+
+Your **PR title** — it becomes the commit subject when the PR is squashed:
+
+| PR title starts with | Effect on `v0.4.0` |
+|---|---|
+| `feat!:` or a `BREAKING CHANGE` footer | `v1.0.0` |
+| `feat:` | `v0.5.0` |
+| anything else (`fix:`, `perf:`, `chore:`, `docs:`, `ci:` …) | `v0.4.1` |
+
+Only `feat` and breaking changes raise more than the patch digit — everything else,
+including `chore:` and `docs:`, contributes a patch bump. `chore`/`ci`/`test`/`style`
+are hidden from the changelog *text*, but they still move the number.
+
+That is not as noisy as it sounds, because the bump lands in the **pending release
+PR**, not in a release. Several chore merges accumulate into one proposed patch, and
+nothing is released until you merge that PR.
+
+### Deploying
+
+**Deploy by digest, never by tag.** Tags can be moved; a digest cannot. Every
+release's notes end with the exact reference:
+
+```bash
+gh release view v0.4.0        # the digest is at the bottom of the notes
+```
+
+That digest is the only identifier that provably refers to the bytes CI scanned and
+booted. Deployment configuration itself lives in the separate deploy repo, not here.
+
+### Notes
+
+- **Pull requests publish nothing.** The publish job only runs on `main`.
+- **No version files to edit.** `version.txt` and `.release-please-manifest.json` are
+  machine-maintained — editing them by hand desynchronises the bot from reality.
+- **The Release PR has no CI checks**, because GitHub doesn't run workflows for
+  bot-created PRs. It only touches the changelog and version files.
+- **A release that can't find its image never goes public.** It stays a draft, and
+  GitHub doesn't create the tag for a draft — so you get no version pointing at a
+  missing image. To finish it: Actions → **Release** → *Run workflow*, with the tag.
+- **If a commit was never built at all**, run Actions → **CI** → *Run workflow* with
+  that commit's sha first, then the Release step above. This happens when a commit
+  message contains `[skip ci]` (GitHub matches it anywhere in the message, so it can
+  arrive via a changelog entry) — no run is created, so there is nothing to re-run.
+  The dispatch only accepts commits already on `main`.
+
 ## Architecture
 
 Multi-tenant from the root so the system scales past a single farm:

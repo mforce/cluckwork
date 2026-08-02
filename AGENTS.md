@@ -181,11 +181,93 @@ risk). Currently SHA-pinned: `actions/create-github-app-token`,
 `aquasecurity/trivy-action`, and
 `advanced-security/component-detection-dependency-submission-action`.
 
+## Releases and image publishing (#351)
+
+Two stages, deliberately separate: **CI publishes, the release PR versions.**
+
+1. **Every merge into main** → the `publish` job in `ci.yml` pushes the image that
+   run just built, Trivy-scanned and boot-tested, named by commit:
+   `ghcr.io/<owner>/<repo>:sha-<commit>`. No version, no git tag. Idempotent per
+   commit, so there is no ordering hazard and nothing to race — two merges publish
+   two different names.
+2. **Merging the "Release vX.Y.Z" PR** (maintained by release-please) → a **draft**
+   release with a generated `CHANGELOG.md`; the already-published image for that
+   commit is **promoted** to `:vX.Y.Z`; and only then is the release published.
+
+- **Promotion is a server-side retag of an existing digest** (`docker buildx
+  imagetools create`), never a rebuild. **Do not "simplify" it into a build step**:
+  a second `docker build` yields different bytes and a different digest, so the
+  image carrying a version would be one no scan or smoke test ever examined. That
+  is the whole point of #351. **`--prefer-index=false` is load-bearing** — that flag
+  defaults to *true*, and with a single source the default wraps the manifest in a
+  new image index with a **different top-level digest**, which silently defeats the
+  guarantee. Do not drop it.
+- **The release stays a draft until its image is promoted**, and GitHub withholds
+  the git tag for a draft. So a failed promotion leaves no tag and no public
+  release, instead of a version pointing at nothing. Publishing (`--draft=false`)
+  is the last step. Draft is safe for release-please's own bookkeeping because
+  manifest mode reads the current version from `.release-please-manifest.json`, a
+  committed file, not from tags.
+- **Repair path, in two parts.** Re-running the push event never helps —
+  release-please reports `release_created: false` for an already-created release,
+  so promotion would be skipped forever.
+  1. *If the commit has no image at all* — a `[skip ci]` anywhere in a commit
+     message suppresses the push run entirely, and GitHub matches those keywords
+     **anywhere** in the message, so one can reach the squashed release commit via
+     a changelog entry. There is then no run to re-run. Dispatch **CI** with the
+     exact sha; it rebuilds through the same gates and publishes. It refuses any
+     commit that is not already an ancestor of `main`, so it cannot be used to
+     publish arbitrary branch content.
+  2. Then dispatch **Release** with the tag (and the exact sha if the release's
+     `target_commitish` is a branch name rather than a commit) to promote and
+     publish the draft. It refuses a tag whose release is **already published** —
+     promotion retags and rewrites notes, so aiming it at a live version would
+     repoint it — and when the release records a real commit, that commit is
+     authoritative: a supplied sha may only agree with it, never override it.
+- **The bump comes from conventional commits**, so PR titles are load-bearing —
+  squash-merge puts the title on main as the commit subject. `feat!:`/`BREAKING
+  CHANGE` → major, `feat:` → minor, **everything else → patch**. Note that
+  `hidden: true` in `changelog-sections` only suppresses a type in the changelog
+  *text*; it does **not** make it unreleasable. `DefaultVersioningStrategy`
+  returns `PatchVersionUpdate()` for any commit set with no feat/breaking, and the
+  only early exit is "zero conventional commits" — so a `chore:`-only merge does
+  bump the patch digit. It lands in the pending release PR rather than in a
+  release, so it costs a number, not a deploy.
+- **Deploy by digest, never by tag.** Every release's notes carry
+  `ghcr.io/<owner>/<repo>@sha256:…`; the deploy repo pins that. `:vX.Y.Z` and
+  `:sha-<commit>` are names, and names can move.
+- **Promotion reads the digest from CI's own run artifact, never by resolving
+  `:sha-<commit>`.** That tag is mutable by anyone holding `packages: write`, and
+  the merge commit is public seconds after merge while CI needs minutes to push —
+  so resolving the tag would accept the first manifest to appear under that name,
+  and a forged push in that window would be promoted and written into the release
+  notes as the thing to deploy. **Do not "simplify" the promote step back into a
+  registry tag lookup.** (The remaining gap — nothing cryptographically binds the
+  artifact to the workflow — is #354.)
+- **Watch the version on the release PR, not just the changelog.** A
+  `Release-As: X.Y.Z` footer on any commit reaching main overrides the computed
+  version, and squash-merge can be configured to put a PR *body* into the commit
+  body — so a contributor can force a version jump from a PR description. The
+  human merging the release PR is the control; its title states the version.
+- **Config lives in three files**, all machine-maintained — `release-please-config.json`,
+  `.release-please-manifest.json`, and `version.txt`. **Never hand-edit the manifest
+  or `version.txt`**; release-please owns them and a manual edit desynchronises the
+  version it believes from the tags that exist.
+- The release PR is opened by `GITHUB_TOKEN`, so **it gets no CI run** (GitHub does
+  not trigger workflows from that token). Harmless here — it only touches the
+  changelog, manifest and version file, and `main` has no required checks. If
+  required checks are ever added, the release PR needs a GitHub App token instead.
+- Package visibility and the host's pull credential are **deploy-side** concerns
+  (cluckwork-deploy#6), not this repo's.
+
 ## Git / PR workflow
 
 - `origin` = GitHub (`github.com/mforce/cluckwork`); `gitea` = backup mirror. Use `gh` for PRs.
 - **`main` is protected** — branch, push, open a PR; don't commit to `main`.
 - Branch names: `feat/…`, `chore/…`, `spec/…`. PRs squash-merge.
+- **The PR title is the release note.** It becomes the squashed commit subject, which
+  is what release-please parses for both the changelog and the version bump — so a
+  typo'd or non-conventional prefix silently costs a bump. See the release section above.
 - Only commit/push when the human asks.
 - **Keep phase epics in sync**: when filing a slice issue, add it to the phase epic's checklist (epic #14 = Phase 1.1, #15 = Phase 1.5) with its issue number; when its PR merges, check it off. Milestone assignment alone is not enough — the epics are how work is navigated.
 - **Keep documentation in sync** (owner directive, 2026-07-17): every PR that adds or changes user-visible behavior updates, in the same PR: (1) `specs/product/GLOSSARY.md` when a concept appears or changes meaning, and (2) the SPA Help page + in-app glossary (once #71 lands). Treat a missing doc update like a missing test — reviewers should flag it.
