@@ -3,10 +3,10 @@
 **Date:** 2026-08-01
 **Phase:** 1.1 (epic #14)
 **Status:** design, awaiting implementation plan
-**Revision:** fifth draft. Every round of review so far has found a real defect
+**Revision:** sixth draft. Every round of review so far has found a real defect
 in the previous round's fix. The corrections are recorded at the end, in
-*What the first/second/third/fourth draft got wrong* — read them before treating
-any of this as a small delta. The corrections are the substance.
+*What the first/second/third/fourth/fifth draft got wrong* — read them before
+treating any of this as a small delta. The corrections are the substance.
 
 ## Problem
 
@@ -411,6 +411,22 @@ It must:
   `MustChangePasswordMiddleware` does;
 - leave `auth/logout` reachable, so a dead session can clear its own cookie.
 
+**An absent or unparsable epoch claim is a mismatch, not an exemption.** This is
+the one place the middleware can fail open, and the codebase's own conventions
+lead straight into it: `must_change_password` is *omitted* from the token when
+false, so "this claim isn't here, therefore it doesn't apply" is the idiom a
+reader already has in hand. Applied to the epoch it is a hole — every access
+token minted before the deploy carries no epoch claim and stays cryptographically
+valid for up to ~15 minutes, so treating absence as "not applicable" would let
+the entire pre-cutover fleet keep authorizing requests straight through the
+boundary the migration just drew.
+
+The rule that makes this uniform rather than a special case: **a missing or
+malformed claim parses to `0`**, and `0` is the retired sentinel no user can ever
+carry (see *Storage*). So it flows through the ordinary comparison and 401s, with
+no separate branch to forget. Same treatment for a claim that is present but not
+an integer.
+
 It answers 401 with a distinct `Auth.CredentialsSuperseded` title, and disable
 additionally surfaces `Auth.AccountDisabled`, so the SPA can tell "you were
 disabled" from "your credentials were rotated."
@@ -517,6 +533,14 @@ point is a boundary the migration draws across data it did not create:
 - A row inserted with the column default `0` — standing in for an old binary
   still serving during a rolling deploy — is rejected by the new binary, and
   rejected *inert*.
+- **An access token minted before the cutover is refused after it.** Every
+  pre-deploy access token carries no epoch claim and stays cryptographically
+  valid for its remaining lifetime, so this is the case that catches a middleware
+  which treats an absent claim as "not applicable." Assert a *pre-migration*
+  token making an ordinary authenticated request post-cutover and getting 401.
+- A token whose epoch claim is present but malformed (non-integer, empty) is
+  refused the same way. Pinned separately, because "absent" and "unparsable"
+  are two different code paths and only one of them is obvious.
 
 **Middleware ordering** — asserted explicitly, since the guarantee is positional
 and a silent reorder fails open.
@@ -636,3 +660,29 @@ Recorded so the same reasoning is not re-derived later.
     still running or a row written after it. Reserving a sentinel the new world
     can never produce is what makes the boundary hold without depending on when
     anything happened.
+
+## What the fifth draft got wrong
+
+14. **The cutover covered refresh tokens and forgot access tokens.** Every access
+    token minted before the deploy carries no epoch claim and stays
+    cryptographically valid for its remaining ~15 minutes. If the middleware
+    reads an absent claim as "not applicable," the whole pre-cutover fleet
+    authorizes straight through the boundary the migration just drew.
+
+    Absent or unparsable now parses to `0` — the retired sentinel — so it fails
+    through the ordinary comparison with no special branch.
+
+    The reason this was easy to miss is worth recording: the codebase's own
+    convention pulls the other way. `must_change_password` is omitted from the
+    token when false, so "claim absent ⇒ doesn't apply" is an idiom already in
+    the reader's hand, and it is correct *there*. **A convention that is right
+    for a feature flag is a vulnerability for a revocation check.** An omitted
+    optional flag means "no", but an omitted mandatory one has to mean "refuse" —
+    and nothing in the shape of the code distinguishes them.
+
+    This is also the fourth consecutive round where the defect lived in the gap
+    between "the new mechanism works" and "the old world is actually gone."
+    Items 11, 13, and 14 are all migration-boundary failures, in three different
+    credential types. A design that introduces a per-request check has to
+    enumerate **every credential already in flight** on the day it ships, not
+    just the ones it mints afterwards.
