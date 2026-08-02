@@ -916,9 +916,11 @@ dirty_note = (
 # tools/simulation/ui/src/vitals.ts for why that distinction is kept.
 # ONE FILE PER SCREEN, not one shared file. At CANARY_BROWSERS=2 the canary runs
 # in two worker PROCESSES; a single shared output path was last-writer-wins and
-# silently dropped half the samples (PR #391 review). Reading the directory also
-# means a partial run renders the screens it did capture instead of nothing.
+# silently dropped half the samples (PR #391 review). A partial run still renders
+# the samples it captured, but is called out as incomplete rather than looking
+# like a smaller successful canary.
 CANARY_VITALS_DIR = REPO_ROOT / "tools" / "simulation" / "out" / "canary-vitals"
+EXPECTED_CANARY_SCREENS = {"dashboard", "stock", "reports", "history"}
 
 def _render_browser_vitals() -> str:
     files = sorted(CANARY_VITALS_DIR.glob("*.json")) if CANARY_VITALS_DIR.is_dir() else []
@@ -958,19 +960,40 @@ def _render_browser_vitals() -> str:
         )
         for s_ in samples
     ]
-    skipped = (
-        f"\n\n_Note: {len(unreadable)} canary sample file(s) could not be read: "
-        f"{', '.join(unreadable)}._" if unreadable else ""
-    )
+    observed_screens = {str(sample.get("screen")) for sample in samples}
+    missing_screens = sorted(EXPECTED_CANARY_SCREENS - observed_screens)
+    unexpected_screens = sorted(observed_screens - EXPECTED_CANARY_SCREENS)
+    warnings = []
+    if missing_screens:
+        warnings.append(
+            "**WARNING: this is a partial canary run. Missing expected screen(s): "
+            + ", ".join(f"`{screen}`" for screen in missing_screens)
+            + ". Do not compare this table as a complete run.**"
+        )
+    if unexpected_screens:
+        warnings.append(
+            "**WARNING: unrecognised canary screen(s) were present: "
+            + ", ".join(f"`{screen}`" for screen in unexpected_screens)
+            + ". Update the renderer's expected-screen manifest if these are intentional.**"
+        )
+    if unreadable:
+        warnings.append(
+            f"**WARNING: {len(unreadable)} canary sample file(s) could not be read: "
+            f"{', '.join(unreadable)}.**"
+        )
+    warning_note = "\n\n" + "\n\n".join(warnings) if warnings else ""
     note = (
-        "\n\n**CLS and the interaction figure are UPPER BOUNDS, not the standard metrics.** "
+        "\n\n**CLS and the interaction figure are UPPER-BOUND PROXIES, not the standard metrics.** "
         "CLS here is the sum of all non-input layout shifts rather than the largest session "
         "window; the interaction figure is the single longest interaction rather than INP's "
-        "~98th percentile. Both can only over-report. A `—` in the interaction column means "
+        "~98th percentile. They are upper-bound calculations over the entries the observer "
+        "delivered, not guaranteed bounds on the standard metrics: observer coverage and the "
+        "different aggregation rules can also make them under-report. A `—` in the interaction "
+        "column means "
         "that screen has no control the canary presses, so nothing was measured — not that it "
         "was instantaneous."
     )
-    return header + "\n" + "\n".join(rows) + note + skipped
+    return header + "\n" + "\n".join(rows) + warning_note + note
 
 browser_vitals_table = _render_browser_vitals()
 

@@ -165,6 +165,11 @@ export async function login(body: LoginRequest): Promise<void> {
   // flight (a bootstrap refresh, say), so its resolution must be the one that
   // wins, and any earlier flight must see its captured generation go stale.
   const generation = ++sessionGeneration;
+  // A bootstrap refresh can rotate the shared HttpOnly cookie even though its
+  // JavaScript result is rejected by the generation check below. Cancel it
+  // before starting the explicit login so its late Set-Cookie cannot overwrite
+  // the cookie belonging to the session the user deliberately chose.
+  abortInFlightRefresh?.();
   // The server sets the HttpOnly refresh cookie; the body returns only the
   // access token, which lives in memory for this tab's lifetime.
   const res = await raw<AccessTokenResponse>("/auth/login", {
