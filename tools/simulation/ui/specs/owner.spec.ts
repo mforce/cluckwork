@@ -129,63 +129,58 @@ test.describe("Owner", () => {
     // below on `distinctActions` proves it does, rather than assuming it.
     const filter = page.getByLabel(tEn("audit:actionFilterLabel"));
     const actionCells = table.locator("tbody tr td:nth-child(3)");
-    const before = await actionCells.allInnerTexts();
-    const distinctActions = new Set(before.map((a) => a.trim()));
+    const before = (await actionCells.allInnerTexts()).map((a) => a.trim());
+
+    // Count what is actually on screen and filter to one of THOSE actions.
+    //
+    // An earlier version took `options[1]` — the first entry in the filter's own
+    // dropdown. That worked only because `manager.spec.ts` sorts before this file
+    // and performs exactly one adjust per run, so the action happened to exist:
+    // an unstated ordering coupling between two spec files (PR #390 review round
+    // 2). Deriving the target from the rows in front of us has no such
+    // dependency, and it cannot pick an action with zero rows.
+    const counts = new Map<string, number>();
+    for (const action of before) counts.set(action, (counts.get(action) ?? 0) + 1);
     expect(
-      distinctActions.size,
-      "the audit log holds only one kind of action, so a no-op filter would be indistinguishable "
+      counts.size,
+      "the audit log shows only one kind of action, so a no-op filter would be indistinguishable "
         + "from a working one — this spec cannot prove anything against this fixture",
     ).toBeGreaterThan(1);
 
-    // TARGET AN ACTION THAT IS ACTUALLY ON SCREEN — not `options[1]`.
+    // The rarest visible action: the strictest subset available, so a no-op
+    // filter is maximally obvious.
+    const chosenLabel = [...counts.entries()].sort((a, b) => a[1] - b[1])[0]![0];
+    const option = filter.locator("option").filter({ hasText: chosenLabel }).first();
+    const chosenValue = await option.getAttribute("value");
+    expect(chosenValue, `no filter option matches the rendered label "${chosenLabel}"`).toBeTruthy();
+    await filter.selectOption(chosenValue!);
+
+    // POLL, do not snapshot. `allInnerTexts()` does not auto-retry, and
+    // AuditPage.load() clears `events` to null (unmounting the tbody entirely)
+    // before the filtered page arrives — so reading once, immediately, can catch
+    // the empty transient. The previous version's "wait" was
+    // `expect(getByRole("alert")).toBeHidden()`, which is vacuous here: this
+    // screen renders no alert on the success path, so the locator matches nothing
+    // and resolves on its first poll. That reintroduced exactly the intermittency
+    // the count-free rewrite was meant to remove, on a different axis
+    // (PR #390 review round 2).
     //
-    // The dropdown lists every action the server's enum allows, INCLUDING ones
-    // the log holds no rows for. `options[1]` is therefore whichever action
-    // happens to sort first, which on a mature log always has rows and on a
-    // freshly-seeded one need not. That is the whole bug: this spec passed in
-    // isolation and passed on a re-run, but failed on a full run against a
-    // fixture straight out of `reset.sh`, because by then earlier specs had put
-    // rows behind the action it guessed. It read as flakiness and was fixture
-    // state (PR #390 review round 4).
-    //
-    // `distinctActions` was already computed from the rows on screen — round 2
-    // described deriving the target from it and then still selected `options[1]`.
-    // Using it closes the gap: an action visible in `before` provably has rows,
-    // so an empty result after filtering is a real defect rather than a fixture
-    // artefact.
-    const firstActionLabel = [...distinctActions][0]!;
-    const targetOption = filter.locator("option").filter({ hasText: firstActionLabel }).first();
-    const firstAction = await targetOption.getAttribute("value");
-    expect(
-      firstAction,
-      `the audit table shows action "${firstActionLabel}" but the filter offers no option for it`,
-    ).toBeTruthy();
-    await filter.selectOption(firstAction!);
+    // A no-op filter never reaches "settled", so this still fails closed.
+    await expect
+      .poll(
+        async () => {
+          const rows = (await actionCells.allInnerTexts()).map((a) => a.trim());
+          if (rows.length === 0) return "still-loading";
+          return rows.every((a) => a === chosenLabel) ? "settled" : "mixed";
+        },
+        {
+          message:
+            `rows that are NOT "${chosenLabel}" survived the filter — it is not being applied`,
+        },
+      )
+      .toBe("settled");
+
     await expect(page.getByRole("alert")).toBeHidden();
-
-    const after = await actionCells.allInnerTexts();
-    expect(
-      after.length,
-      `filtering to "${firstActionLabel}" emptied the table, but that action was on screen `
-        + `before the filter was applied`,
-    ).toBeGreaterThan(0);
-
-    // THE ASSERTION, and deliberately NOT a count comparison.
-    //
-    // A first attempt also required `after.length < before.length`. It passed
-    // alone and failed intermittently in a full run — the worst kind of green.
-    // Two reasons, both structural: the audit list PAGINATES (a filtered result
-    // can still fill the page, so the count need not drop), and the other specs
-    // in this suite WRITE, so the log grows underneath this one while it runs.
-    //
-    // "Every visible row is the action I selected" is the guarantee the control
-    // actually makes, and it is independent of both page size and log growth. A
-    // no-op filter still fails it — which the `distinctActions` precondition
-    // above proves, by establishing the unfiltered page holds more than one kind.
-    expect(
-      [...new Set(after.map((a) => a.trim()))].filter((a) => a !== firstActionLabel),
-      `rows that are NOT "${firstActionLabel}" survived the filter — it is not being applied`,
-    ).toEqual([]);
   });
 
   test("export downloads a real file", async ({ page, nav }) => {
