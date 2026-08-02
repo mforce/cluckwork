@@ -48,11 +48,35 @@ public sealed class IdentityProvider(
         }
 
         // Correct password — clear any accumulated failures (no-op DB-wise if zero).
-        await userManager.ResetAccessFailedCountAsync(user);
+        await ResetFailedAccessCountAsync(user, ct);
 
         var (rawToken, tokenHash) = GenerateRefreshToken();
-        db.RefreshTokens.Add(NewToken(user, tokenHash));
-        await db.SaveChangesAsync(ct);
+        var minted = NewToken(user, tokenHash);
+        db.RefreshTokens.Add(minted);
+        try
+        {
+            await db.SaveChangesAsync(ct);
+        }
+        catch (Exception)
+        {
+            // #269 — the same ambiguous commit RefreshAsync documents at length,
+            // one step earlier in the session's life. Login is anonymous, so
+            // IdempotencyMiddleware's tenant gate skips it and this INSERT is a
+            // self-contained unit the execution strategy replays. Id and TokenHash
+            // are both fixed before the first attempt (a retry does not regenerate
+            // them), so a replay after the commit landed re-inserts the SAME row,
+            // hits the unique TokenHash index, and turns a successful login into a
+            // 409 "Data conflict" — measured pre-fix, together with a live refresh
+            // token that was handed to nobody.
+            //
+            // Milder than the refresh case (the caller can just log in again, and
+            // gets a clean session when they do) but the same defect, and the same
+            // answer: if the token this attempt minted is in the database, the
+            // login succeeded — deliver it. If it is not, nothing of ours is
+            // durable and the real error stands.
+            if (!await MintedTokenIsDurableAsync(tokenHash)) throw;
+            DetachCommitted(minted);
+        }
 
         var roles = await userManager.GetRolesAsync(user);
         return Result.Success(jwtTokenService.CreateTokenPair(user, [.. roles], rawToken));
@@ -62,6 +86,9 @@ public sealed class IdentityProvider(
     // on why every password oracle must apply this, not just login.
     private Task RecordFailedAccessAsync(ApplicationUser user) =>
         AccountLockout.RecordFailedAccessAsync(userManager, db, user);
+
+    private Task ResetFailedAccessCountAsync(ApplicationUser user, CancellationToken ct) =>
+        AccountLockout.ResetFailedAccessCountAsync(userManager, db, user, ct);
 
     public async Task<Result<TokenPair>> RefreshAsync(string refreshToken, CancellationToken ct = default)
     {
@@ -113,17 +140,76 @@ public sealed class IdentityProvider(
         stored.ReplacedByTokenHash = newHash;
         stored.RevokedByGrace = viaGrace;
         stored.ConcurrencyStamp = Guid.NewGuid().ToString(); // rotate the CAS token (#176)
-        db.RefreshTokens.Add(NewToken(user, newHash));
+        var minted = NewToken(user, newHash);
+        db.RefreshTokens.Add(minted);
         try
         {
             await db.SaveChangesAsync(ct);
         }
-        catch (DbUpdateConcurrencyException)
+        catch (Exception ex)
         {
-            // #176 — another request consumed this exact token first (concurrent
-            // presentation of the same token). The winner already minted the one
-            // live child; fail this one closed rather than fork a second session.
-            return Result.Failure<TokenPair>(Error.Validation("Identity.InvalidRefreshToken", "Refresh token is invalid."));
+            // #269 review (#350, codex round 5) — the rotation is a compare-and-
+            // swap on a SINGLE-USE record: it rewrites ConcurrencyStamp so a
+            // competing consumer of the same token matches no row. Refresh is
+            // anonymous, so IdempotencyMiddleware's tenant gate skips it and this
+            // save is a self-contained unit the execution strategy REPLAYS.
+            //
+            // On the ambiguous commit — Postgres committed the rotation and only
+            // the acknowledgment was lost — the replay re-issues the batch against
+            // state its own first attempt already moved: the UPDATE carries the
+            // superseded stamp, and the INSERT carries a TokenHash now in the
+            // unique index. Whichever of the two the server rejects first, the
+            // failure lands here describing a request that in fact SUCCEEDED, and
+            // it is NOT recoverable by trying again: the rotation is durable, so
+            // the caller's cookie holds a REVOKED token, and the child that
+            // replaced it is live but was delivered to nobody. Measured pre-fix:
+            // 409 "Data conflict" (the duplicate INSERT surfaces first, so the
+            // #176 branch below was never even reached), one live orphan token,
+            // no Set-Cookie. The user is signed out by the very resilience
+            // feature meant to absorb the blip.
+            //
+            // WHY THE PROBE RATHER THAN SingleAttemptExecution. The branch's rule
+            // is that a unit is unreplayable when the REPLAY IS OBSERVABLE. Here
+            // it is not: EF wraps the two statements in one transaction, so a
+            // replay after the commit lands writes nothing at all and a replay
+            // after a rolled-back attempt simply succeeds. The defect is not the
+            // replay — it is this catch MISREADING what the replay's failure
+            // means. So fix the reading and keep the retry: refusing to replay was
+            // measured to turn the ordinary fail-BEFORE blip (which EF absorbs
+            // today, 200 OK) into a 409, i.e. it would trade one signed-out user
+            // for another. Contrast AccountLockout, where the replay really is
+            // observable — a second durable increment — and single-attempt is the
+            // only answer.
+            //
+            // Order matters: ask the DATABASE first, classify second. Which
+            // exception EF raises depends on statement ordering inside the batch,
+            // so a branch keyed on the exception type would be reading a coin
+            // flip; whether our own token is durable is a fact.
+            if (await MintedTokenIsDurableAsync(newHash))
+            {
+                // This attempt's rotation is durable, so deliver the token it
+                // minted. Same move IdempotencyMiddleware already makes on its own
+                // failure path ("the claim's own status is the authoritative
+                // answer to 'did my work become durable?'"), keyed here on
+                // evidence nobody else could have produced.
+                DetachCommitted(minted, stored);
+            }
+            else if (ex is DbUpdateConcurrencyException)
+            {
+                // #176 — another request consumed this exact token first
+                // (concurrent presentation of the same token). The winner already
+                // minted the one live child; fail this one closed rather than fork
+                // a second session. Reaching here means the probe found NO token
+                // of ours, i.e. our transaction committed nothing — so this is a
+                // genuine race, never our own replay wearing its costume.
+                return Result.Failure<TokenPair>(Error.Validation("Identity.InvalidRefreshToken", "Refresh token is invalid."));
+            }
+            else
+            {
+                // Nothing of ours is durable and this is not a CAS loss: report the
+                // real failure. Fails CLOSED — a session is never invented here.
+                throw;
+            }
         }
 
         // Roles re-read on every refresh so a demotion takes effect within one
@@ -132,60 +218,75 @@ public sealed class IdentityProvider(
         return Result.Success(jwtTokenService.CreateTokenPair(user, [.. roles], rawToken));
     }
 
-    public async Task<Result<Guid>> CreateUserAsync(
+    public Task<Result<Guid>> CreateUserAsync(
         Guid accountId, string email, string password, string? role,
-        string? name = null, bool mustChangePassword = false, CancellationToken ct = default)
-    {
+        string? name = null, bool mustChangePassword = false, CancellationToken ct = default) =>
         // One transaction around create + role assignment: a failed admin
         // creation must not survive as a usable role-less worker account
         // (codex review of PR #78). Disposal without commit rolls back.
         // #307 — joins IdempotencyMiddleware's ambient request transaction
         // when one is open, instead of nesting a second one.
-        await using var transaction = await AmbientTransaction.BeginAsync(db.Database, ct);
-
-        var user = new ApplicationUser
+        //
+        // #269 — the delegate shape (rather than a scope the caller drives)
+        // is what EnableRetryOnFailure forces: a user-initiated transaction
+        // has to be opened inside an execution strategy. It is NOT retried —
+        // AmbientTransaction's owned path runs it exactly once. Retrying it
+        // would be actively wrong: a failed userManager.CreateAsync leaves
+        // its ApplicationUser tracked as Added (EF does not detach it, and
+        // minting a fresh Guid for the retry does not either), so a second
+        // attempt flushes BOTH users into the unique email index and reports
+        // a duplicate-key failure in place of the connection failure that
+        // actually happened (#269 review). A blanket db.ChangeTracker.Clear()
+        // is NOT the alternative — on the CLI/owned path this same
+        // AppDbContext can be shared by a longer-lived caller (e.g.
+        // SimulationDataSeeder) holding its own entities tracked across
+        // several handler calls, and clearing silently drops that caller's
+        // pending SaveChanges.
+        AmbientTransaction.RunAsync(db.Database, async (transaction, token) =>
         {
-            Id = Guid.NewGuid(),
-            UserName = email,
-            Email = email,
-            EmailConfirmed = true,
-            AccountId = accountId,
-            DisplayName = name, // #163 — optional display name at creation
-            MustChangePassword = mustChangePassword // #283 — true only for bootstrap-admin's Owner
-        };
-
-        var created = await userManager.CreateAsync(user, password);
-        if (!created.Succeeded)
-            return Result.Failure<Guid>(await CreateFailureAsync(created, email, accountId));
-
-        if (role is not null)
-        {
-            if (!Cluckwork.Domain.Accounts.Roles.Assignable.Contains(role))
-                return Result.Failure<Guid>(Error.Validation(
-                    "Users.UnknownRole", $"'{role}' is not an assignable role."));
-
-            if (!await roleManager.RoleExistsAsync(role))
+            var user = new ApplicationUser
             {
-                var roleCreated = await roleManager.CreateAsync(
-                    new ApplicationRole { Id = Guid.NewGuid(), Name = role });
-                if (!roleCreated.Succeeded)
-                    return Result.Failure<Guid>(Error.Validation("Users.CreateFailed", Describe(roleCreated)));
+                Id = Guid.NewGuid(),
+                UserName = email,
+                Email = email,
+                EmailConfirmed = true,
+                AccountId = accountId,
+                DisplayName = name, // #163 — optional display name at creation
+                MustChangePassword = mustChangePassword // #283 — true only for bootstrap-admin's Owner
+            };
+
+            var created = await userManager.CreateAsync(user, password);
+            if (!created.Succeeded)
+                return Result.Failure<Guid>(await CreateFailureAsync(created, email, accountId));
+
+            if (role is not null)
+            {
+                if (!Cluckwork.Domain.Accounts.Roles.Assignable.Contains(role))
+                    return Result.Failure<Guid>(Error.Validation(
+                        "Users.UnknownRole", $"'{role}' is not an assignable role."));
+
+                if (!await roleManager.RoleExistsAsync(role))
+                {
+                    var roleCreated = await roleManager.CreateAsync(
+                        new ApplicationRole { Id = Guid.NewGuid(), Name = role });
+                    if (!roleCreated.Succeeded)
+                        return Result.Failure<Guid>(Error.Validation("Users.CreateFailed", Describe(roleCreated)));
+                }
+
+                var addedToRole = await userManager.AddToRoleAsync(user, role);
+                if (!addedToRole.Succeeded)
+                    return Result.Failure<Guid>(Error.Validation("Users.CreateFailed", Describe(addedToRole)));
             }
 
-            var addedToRole = await userManager.AddToRoleAsync(user, role);
-            if (!addedToRole.Succeeded)
-                return Result.Failure<Guid>(Error.Validation("Users.CreateFailed", Describe(addedToRole)));
-        }
+            // Same transaction as the creation (#93): the event needs its own
+            // SaveChanges because UserManager flushed its writes already.
+            await audit.WriteAsync("User.Create", "User", user.Id,
+                reason: null, details: new { email, role = role ?? "Worker" }, ct: token);
+            await db.SaveChangesAsync(token);
 
-        // Same transaction as the creation (#93): the event needs its own
-        // SaveChanges because UserManager flushed its writes already.
-        await audit.WriteAsync("User.Create", "User", user.Id,
-            reason: null, details: new { email, role = role ?? "Worker" }, ct: ct);
-        await db.SaveChangesAsync(ct);
-
-        await transaction.CommitAsync(ct);
-        return Result.Success(user.Id);
-    }
+            await transaction.CommitAsync(token);
+            return Result.Success(user.Id);
+        }, ct);
 
     public async Task<Result> UpdateUserAsync(
         Guid accountId, Guid userId, string? name, CancellationToken ct = default)
@@ -260,43 +361,53 @@ public sealed class IdentityProvider(
     // audit row, all in a single transaction so the password change and the
     // session revocation land together or not at all (#165 review). An already-
     // issued access token stays valid until it expires (~15 min) — no denylist.
-    private async Task<Result> ResetPasswordAndRevokeAsync(
+    private Task<Result> ResetPasswordAndRevokeAsync(
         ApplicationUser user, string newPassword, string auditAction, string? reason,
         object? details, CancellationToken ct)
     {
         // #307 — joins IdempotencyMiddleware's ambient request transaction
         // when one is open, instead of nesting a second one.
-        await using var transaction = await AmbientTransaction.BeginAsync(db.Database, ct);
+        //
+        // #269 — the delegate shape is EnableRetryOnFailure's requirement (a
+        // user-initiated transaction must be opened inside an execution
+        // strategy), not a retry: AmbientTransaction's owned path — the one
+        // `recover-admin` takes, having no ambient transaction — runs this
+        // exactly once. Replaying it would flush the failed attempt's still-
+        // Added audit row and refresh token a second time (EF does not detach
+        // them), leaving a duplicate audit entry and an active token that was
+        // never issued to anyone (#269 review).
+        return AmbientTransaction.RunAsync(db.Database, async (transaction, token) =>
+        {
+            // Reset via a generated token — Identity's supported way to set a password
+            // without the current one.
+            var resetToken = await userManager.GeneratePasswordResetTokenAsync(user);
+            var reset = await userManager.ResetPasswordAsync(user, resetToken, newPassword);
+            if (!reset.Succeeded)
+                return Result.Failure(Error.Validation("Users.PasswordRejected", Describe(reset)));
 
-        // Reset via a generated token — Identity's supported way to set a password
-        // without the current one.
-        var resetToken = await userManager.GeneratePasswordResetTokenAsync(user);
-        var reset = await userManager.ResetPasswordAsync(user, resetToken, newPassword);
-        if (!reset.Succeeded)
-            return Result.Failure(Error.Validation("Users.PasswordRejected", Describe(reset)));
+            // #283 — any successful password reset clears a pending first-run gate.
+            // Covers an Owner using SetUserPassword or an offline break-glass reset
+            // on a user who never got around to their forced first-run change; the
+            // user obviously already has a working password at that point, so
+            // there is nothing left to force. `user` is the same DbContext-tracked
+            // instance db.SaveChangesAsync persists below — no separate save needed.
+            user.MustChangePassword = false;
 
-        // #283 — any successful password reset clears a pending first-run gate.
-        // Covers an Owner using SetUserPassword or an offline break-glass reset
-        // on a user who never got around to their forced first-run change; the
-        // user obviously already has a working password at that point, so
-        // there is nothing left to force. `user` is the same DbContext-tracked
-        // instance db.SaveChangesAsync persists below — no separate save needed.
-        user.MustChangePassword = false;
+            // Clear any active lockout / failed-attempt count (#265 review). Without
+            // this, the exact case break-glass exists for — a user locked out by
+            // repeated failed logins — would get a fresh password that LoginAsync
+            // still refuses until the lockout window expires (it checks
+            // IsLockedOutAsync before the password), defeating the recovery.
+            await userManager.ResetAccessFailedCountAsync(user);
+            await userManager.SetLockoutEndDateAsync(user, null);
 
-        // Clear any active lockout / failed-attempt count (#265 review). Without
-        // this, the exact case break-glass exists for — a user locked out by
-        // repeated failed logins — would get a fresh password that LoginAsync
-        // still refuses until the lockout window expires (it checks
-        // IsLockedOutAsync before the password), defeating the recovery.
-        await userManager.ResetAccessFailedCountAsync(user);
-        await userManager.SetLockoutEndDateAsync(user, null);
-
-        await RevokeAllActiveForUserAsync(user.Id, timeProvider.GetUtcNow(), ct);
-        await audit.WriteAsync(auditAction, "User", user.Id,
-            reason: reason, details: details, ct: ct);
-        await db.SaveChangesAsync(ct);
-        await transaction.CommitAsync(ct);
-        return Result.Success();
+            await RevokeAllActiveForUserAsync(user.Id, timeProvider.GetUtcNow(), token);
+            await audit.WriteAsync(auditAction, "User", user.Id,
+                reason: reason, details: details, ct: token);
+            await db.SaveChangesAsync(token);
+            await transaction.CommitAsync(token);
+            return Result.Success();
+        }, ct);
     }
 
     public async Task<Result<TokenPair>> ChangeOwnPasswordAsync(
@@ -312,43 +423,54 @@ public sealed class IdentityProvider(
         // the caller out of everything while reporting an error (#165 review).
         // #307 — joins IdempotencyMiddleware's ambient request transaction
         // when one is open, instead of nesting a second one.
-        await using var transaction = await AmbientTransaction.BeginAsync(db.Database, ct);
-
-        // ChangePasswordAsync verifies the current password AND applies the policy.
-        var changed = await userManager.ChangePasswordAsync(user, currentPassword, newPassword);
-        if (!changed.Succeeded)
+        //
+        // #269 — this endpoint is EXEMPT from idempotency wrapping
+        // (IdempotencyMiddleware.ResponseNotCacheable — a password change is
+        // self-invalidating, so replay was never useful here), so every real
+        // call takes AmbientTransaction's "owned" path. That path runs this
+        // exactly once; the delegate shape is EnableRetryOnFailure's
+        // requirement, not a retry. A replay here would both re-add the
+        // refresh token the failed attempt already tracked as Added and
+        // re-verify `currentPassword` against a hash a prior attempt may
+        // already have changed (see SingleAttemptExecution).
+        return await AmbientTransaction.RunAsync(db.Database, async (transaction, token) =>
         {
-            // Distinguish "your current password is wrong" from "the new one is
-            // too weak" — the user needs to know which to fix. Neither leaks
-            // anything: the caller is already authenticated as this user.
-            var wrongCurrent = changed.Errors.Any(e => e.Code == "PasswordMismatch");
-            return Result.Failure<TokenPair>(wrongCurrent
-                ? Error.Validation("Users.CurrentPasswordIncorrect", "Current password is incorrect.")
-                : Error.Validation("Users.PasswordRejected", Describe(changed)));
-        }
+            // ChangePasswordAsync verifies the current password AND applies the policy.
+            var changed = await userManager.ChangePasswordAsync(user, currentPassword, newPassword);
+            if (!changed.Succeeded)
+            {
+                // Distinguish "your current password is wrong" from "the new one is
+                // too weak" — the user needs to know which to fix. Neither leaks
+                // anything: the caller is already authenticated as this user.
+                var wrongCurrent = changed.Errors.Any(e => e.Code == "PasswordMismatch");
+                return Result.Failure<TokenPair>(wrongCurrent
+                    ? Error.Validation("Users.CurrentPasswordIncorrect", "Current password is incorrect.")
+                    : Error.Validation("Users.PasswordRejected", Describe(changed)));
+            }
 
-        // #283 — this is the SPA's first-login "set your password" screen's
-        // actual mechanism (it reuses this endpoint: the operator already
-        // knows the generated first-run password as their "current" one).
-        // Clearing the flag here is what lets the fresh token pair below omit
-        // the must_change_password claim, un-gating the rest of the app.
-        if (user.MustChangePassword)
-            user.MustChangePassword = false;
+            // #283 — this is the SPA's first-login "set your password" screen's
+            // actual mechanism (it reuses this endpoint: the operator already
+            // knows the generated first-run password as their "current" one).
+            // Clearing the flag here is what lets the fresh token pair below omit
+            // the must_change_password claim, un-gating the rest of the app.
+            if (user.MustChangePassword)
+                user.MustChangePassword = false;
 
-        // Every session dies (other devices are signed out), then this caller gets
-        // a fresh pair so the device that made the change stays signed in.
-        var now = timeProvider.GetUtcNow();
-        await RevokeAllActiveForUserAsync(user.Id, now, ct);
+            // Every session dies (other devices are signed out), then this caller gets
+            // a fresh pair so the device that made the change stays signed in.
+            var now = timeProvider.GetUtcNow();
+            await RevokeAllActiveForUserAsync(user.Id, now, token);
 
-        var (rawToken, tokenHash) = GenerateRefreshToken();
-        db.RefreshTokens.Add(NewToken(user, tokenHash));
-        await audit.WriteAsync("User.PasswordChanged", "User", user.Id,
-            reason: null, details: null, ct: ct);
-        await db.SaveChangesAsync(ct);
-        await transaction.CommitAsync(ct);
+            var (rawToken, tokenHash) = GenerateRefreshToken();
+            db.RefreshTokens.Add(NewToken(user, tokenHash));
+            await audit.WriteAsync("User.PasswordChanged", "User", user.Id,
+                reason: null, details: null, ct: token);
+            await db.SaveChangesAsync(token);
+            await transaction.CommitAsync(token);
 
-        var roles = await userManager.GetRolesAsync(user);
-        return Result.Success(jwtTokenService.CreateTokenPair(user, [.. roles], rawToken));
+            var roles = await userManager.GetRolesAsync(user);
+            return Result.Success(jwtTokenService.CreateTokenPair(user, [.. roles], rawToken));
+        }, ct);
     }
 
     // Identity's duplicate-email wording is only surfaced when the email
@@ -536,6 +658,46 @@ public sealed class IdentityProvider(
         await db.RefreshTokens
             .Where(t => t.UserId == userId && t.RevokedAt == null)
             .ExecuteUpdateAsync(s => s.SetProperty(t => t.RevokedAt, now), ct);
+    }
+
+    // #269 — "did the save I just attempted actually commit?", answered by the
+    // one piece of evidence that cannot belong to anybody else: the hash of a
+    // 256-bit value THIS attempt generated moments ago and has not yet handed to
+    // a single caller. No other request, and no competing consumer of the same
+    // refresh token, can have written this row — they mint their own random
+    // token. So its presence is proof the attempt's transaction became durable,
+    // and its absence is proof nothing of ours did (EF's save is one transaction:
+    // the rotation UPDATE and the INSERT land together or not at all).
+    //
+    // Fails CLOSED by construction: the caller rethrows unless this returns true,
+    // so a probe that cannot reach the database reports the original error and
+    // the client retries — never a session invented from a failed read.
+    private Task<bool> MintedTokenIsDurableAsync(string mintedHash) =>
+        // AnyAsync compiles to SELECT EXISTS (...) — a scalar. It therefore reads
+        // the DATABASE and can never be answered from the change tracker's own
+        // still-Added copy of the very row it is asking about, which a
+        // FirstOrDefaultAsync could be via identity resolution.
+        //
+        // CancellationToken.None deliberately: a client that has already
+        // disconnected must not leave a live token stranded, and this call is
+        // what decides whether one was minted. Same reasoning as
+        // IdempotencyMiddleware's post-failure claim probe.
+        db.RefreshTokens.AnyAsync(t => t.TokenHash == mintedHash, CancellationToken.None);
+
+    // The save threw, so EF still tracks these as Added/Modified even though the
+    // database has already accepted them. Detach exactly the entities this call
+    // touched, so any later SaveChanges cannot re-flush an already-durable row
+    // (a duplicate key or a phantom concurrency conflict, attributed to us).
+    //
+    // Per-entity, never db.ChangeTracker.Clear(): on the owned/CLI path this same
+    // AppDbContext can be shared by a longer-lived caller holding its own pending
+    // writes, and clearing drops them silently (the regression that broke
+    // SimulationDataSeeder — see SingleAttemptExecution). This is the same
+    // surgical detach IdempotencyMiddleware.TryClaimOrInspectAsync uses.
+    private void DetachCommitted(params object[] entities)
+    {
+        foreach (var entity in entities)
+            db.Entry(entity).State = EntityState.Detached;
     }
 
     // 256-bit random token; only the SHA-256 hash is persisted.

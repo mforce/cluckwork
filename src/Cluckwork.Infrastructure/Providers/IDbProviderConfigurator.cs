@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 // Selected at startup from "Database:Provider" config key.
 public interface IDbProviderConfigurator
 {
-    void Configure(DbContextOptionsBuilder builder, string connectionString);
+    void Configure(
+        DbContextOptionsBuilder builder, string connectionString, DatabaseResilienceOptions resilience);
     string MigrationsAssembly { get; }
 }
