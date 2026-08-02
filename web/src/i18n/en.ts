@@ -40,6 +40,23 @@ export const en = {
     // #309 — the request body exceeded the server's byte cap (413), which in
     // practice means an implausibly long email/password.
     credentialsTooLong: "That's too long — check your email and password.",
+    // #283 follow-up — shown on the login form when a FAILED sign-in reports
+    // that the default account still has no Owner. Base data ships in the
+    // migrations but no credential ever does, so a fresh install has nobody for
+    // the operator to sign in as. Deliberately names no command — see the
+    // comment in Login.tsx.
+    // Says ADMINISTRATOR, never "no accounts" (PR #363 review): the condition
+    // is specifically that the DEFAULT ACCOUNT has no Owner, and a non-Owner
+    // user can exist without one and sign in perfectly well — so the broader
+    // claim would be false in a reachable state.
+    noAdminYet:
+      "No administrator yet. This farm hasn't finished first-time setup, so "
+      + "there's no administrator account to sign in with.",
+    // No command here on purpose — see the comment in Login.tsx. Whoever set the
+    // server up runs a one-time setup step; the README carries the exact steps.
+    noAdminYetHint:
+      "Ask whoever set up this server to create the first administrator. The "
+      + "setup steps are in the project README.",
     // #283 — the first-run "set your password" screen (SetPasswordPage),
     // shown instead of the app shell whenever the signed-in user's token
     // carries must_change_password. Reuses /auth/change-password: the
@@ -1888,7 +1905,9 @@ export const en = {
       "<strong>First sign-in on a brand-new farm.</strong> There is no default password — an operator runs a "
       + "one-time setup command that prints a temporary one. Sign in with it and you'll immediately land on a "
       + "<strong>Set your password</strong> screen instead of the normal app; nothing else works until you pick "
-      + "your own password there. This is separate from an ordinary <em>Change password</em>.",
+      + "your own password there. This is separate from an ordinary <em>Change password</em>. Until that setup "
+      + "step has been run, trying to sign in tells you so and points you at whoever administers the server, "
+      + "rather than claiming your details were wrong.",
     // #308 — step-up re-confirmation for the two sensitive user-administration
     // actions. Deliberately does NOT mention "grant"/"token" — that's internal
     // mechanism, not user-facing language.

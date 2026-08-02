@@ -73,6 +73,42 @@ docker compose -f deploy/docker-compose.dev.yml up -d   # Postgres on :5432
 dotnet run --project src/Cluckwork.Api
 ```
 
+A fresh database has no admin user here either — base data is migration-baked,
+credentials never are. Provision one against the dev database the same way:
+
+```bash
+ASPNETCORE_ENVIRONMENT=Development \
+  dotnet run --project src/Cluckwork.Api -- bootstrap-admin --email admin@cluckwork.local
+```
+
+Note the `--` separator: it stops `dotnet run` from consuming the arguments and
+passes them to the app. (The Docker form above omits it because the image's
+`ENTRYPOINT` already supplies the binary.) Everything else matches the Docker
+path — the generated password goes to stdout only, and the app forces you to
+replace it at first sign-in. Until you run this, the login page says so.
+
+`ASPNETCORE_ENVIRONMENT` matters: unset means Production, which fails the boot
+against a plaintext local Postgres (the #261/#262 TLS floor).
+
+**Resetting the dev database.** Always wipe through Compose:
+
+```bash
+docker compose -f deploy/docker-compose.dev.yml down -v
+docker compose -f deploy/docker-compose.dev.yml up -d
+```
+
+Do **not** `docker volume rm` a volume name from memory. The live volume is
+`cluckwork-dev_cluckwork-dev-pg18`, and an older `…-pg` volume may still be
+lying around from before the Postgres 18 bump — removing that one succeeds,
+prints the name back, and leaves the real database untouched, so a wipe can
+look like it worked when nothing happened.
+
+You need a wipe (not a migration) if boot fails with
+`42P07: relation "Accounts" already exists`. That means the database still
+carries the pre-squash migration history: the 34 migrations were replaced by a
+single `InitialCreate`, which EF then sees as pending and tries to apply over
+tables that already exist. Such a database cannot migrate forward — recreate it.
+
 ### Backup &amp; restore (self-hosted)
 
 Two complementary layers (spec §17.5):

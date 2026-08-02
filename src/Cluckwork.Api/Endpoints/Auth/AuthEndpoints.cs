@@ -113,6 +113,13 @@ public static class AuthEndpoints
         return group;
     }
 
+    // #283 follow-up (#361) — the error code a failed sign-in carries when the
+    // DEFAULT ACCOUNT has no Owner, so the SPA can explain the dead end instead
+    // of showing the generic denial. Rides the ProblemDetails `title`, like
+    // every other login error code. Scoped to that account, not to the instance
+    // — see the Login handler for what that does and does not claim.
+    public const string NoOwnerProvisionedCode = "Auth.NoOwnerProvisioned";
+
     // In every environment but Development the browser reaches the app over HTTPS
     // (TLS terminates at the proxy), so the auth cookie must be Secure regardless
     // of the internal proxy→app hop scheme.
@@ -120,7 +127,8 @@ public static class AuthEndpoints
 
     private static async Task<IResult> Login(
         LoginRequest request, IIdentityProvider identity, IValidator<LoginRequest> validator,
-        HttpResponse response, IOptions<JwtOptions> jwt, IWebHostEnvironment env, CancellationToken ct)
+        HttpResponse response, IOptions<JwtOptions> jwt, IWebHostEnvironment env,
+        FirstRunStatusService firstRun, CancellationToken ct)
     {
         // #309 — reject an OVERSIZED email/password (400) before the hasher. An
         // empty/short credential is NOT rejected here: it still flows to
@@ -131,7 +139,70 @@ public static class AuthEndpoints
 
         var result = await identity.LoginAsync(request.Email, request.Password, ct);
         if (!result.IsSuccess)
+        {
+            // #283 follow-up (#361) — first-run discoverability, reported HERE
+            // rather than from an endpoint the login screen polls. A freshly
+            // migrated instance has base reference data but no administrator,
+            // because no credential is ever migration-baked, so there is nobody
+            // for the operator to sign in as and the form used to say nothing
+            // about why.
+            //
+            // Deliberately on the FAILURE path only, and only while the DEFAULT
+            // ACCOUNT has no Owner — that account and no other, which is the
+            // scope every sentence below is held to:
+            //
+            //  * It cannot ENUMERATE. The condition is a property of the default
+            //    account and never of the address that was typed, so no attempt
+            //    reveals anything about any particular account. Once the default
+            //    account has an Owner this branch is unreachable and the response
+            //    is byte-identical to the generic denial it has always been.
+            //    Scoped to the default account, NOT to "any Owner anywhere": an
+            //    Owner under a different account leaves this reachable, which
+            //    FirstRunLoginNoticeTests sets up and asserts deliberately (it
+            //    pins the AccountId predicate), so the wider claim would have
+            //    been false in a state this suite already exercises — round 5
+            //    caught it there.
+            //  * It DOES disclose one fact to an anonymous caller who attempts a
+            //    sign-in: the default account has no Owner. Stated plainly
+            //    because an earlier version of this comment claimed the
+            //    condition "can only hold while no credential exists to protect",
+            //    which is false (PR #363 review round 2) — the predicate is the
+            //    absence of an OWNER, and the seeders create Workers/Managers
+            //    without one, so real protected credentials can exist while this
+            //    fires. Accepted: the fact is not itself a credential and grants
+            //    no access, it is already inferable by anyone who can reach the
+            //    form on a fresh install, and unlike the status endpoint this
+            //    replaced it reaches only someone who actually attempted to sign
+            //    in. The cost of withholding it is an operator stranded at a
+            //    form no credential of theirs can satisfy.
+            //  * Only someone actually attempting to sign in learns it — unlike
+            //    a status endpoint, which answers anyone who asks without them
+            //    trying.
+            //  * The cost rides on a request that is already rate limited (#143)
+            //    and already ran a PBKDF2 verify, so one indexed EXISTS is
+            //    noise; and past first provisioning FirstRunProvisioningLatch
+            //    makes it a memory read, so the steady state adds no query at
+            //    all.
+            //
+            // A successful sign-in never reaches this, which is what keeps the
+            // check off the hot path.
+            if (!await firstRun.IsProvisionedAsync(ct))
+                // Says ADMINISTRATOR, not "no accounts" and not "no sign-in can
+                // succeed" (PR #363 review). The predicate is specifically "the
+                // default account has no Owner", which is #283's provisioning
+                // invariant — and a non-Owner user can exist without one (the
+                // seeders create them, and this suite's own
+                // ASuccessfulSignIn_NeverReportsIt sets up exactly that state).
+                // Such a user signs in perfectly well, so the broader claim
+                // would be false in a reachable state.
+                return Results.Problem(
+                    "This farm has no administrator account yet — first-time setup has not been "
+                    + "completed. Whoever set up this server must create the first administrator.",
+                    statusCode: 401,
+                    title: NoOwnerProvisionedCode);
+
             return Results.Problem(result.Error.Description, statusCode: 401, title: result.Error.Code);
+        }
 
         AuthCookies.SetRefreshCookie(response, result.Value.RefreshToken, jwt.Value.RefreshTokenDays, CookieSecure(env));
         return Results.Ok(new AccessTokenResponse(result.Value.AccessToken, result.Value.AccessTokenExpiry));

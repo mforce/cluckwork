@@ -13,6 +13,23 @@ interface LocationState {
   from?: { pathname: string };
 }
 
+// #283 follow-up — the error code a failed sign-in carries when the default
+// account has no Owner. Mirrors AuthEndpoints.NoOwnerProvisionedCode; it
+// rides the ProblemDetails `title`, which parseError puts on ApiError.title.
+const NO_OWNER_PROVISIONED = "Auth.NoOwnerProvisioned";
+
+// Matched on the code, never on the message: the copy is translated and the
+// server's English detail is not what identifies the case.
+//
+// The status is checked too. This is a 401 like any other sign-in failure, and
+// pinning that keeps the branch from firing on some future non-401 response
+// that happens to reuse the title.
+function isNoOwnerProvisioned(err: unknown): boolean {
+  return err instanceof ApiError
+    && err.status === 401
+    && err.title === NO_OWNER_PROVISIONED;
+}
+
 // MODULE-LEVEL — called from onSubmit's catch handler, not from render, so the
 // useTranslation hook is not in scope here. The imperative i18n singleton
 // (already initialised, already holding the resolved language) is the correct
@@ -53,6 +70,19 @@ export function Login() {
   const [error, setError] = useState<string | null>(null);
   const { busy, run } = usePendingAction();
 
+  // #283 follow-up — a freshly migrated default account has base reference data
+  // but no Owner, because no credential is ever migration-baked, so there is
+  // nobody for the operator to sign in as and the form used to say nothing
+  // about why.
+  //
+  // Learned from the sign-in ATTEMPT, not from a status call on mount. An
+  // earlier version polled a dedicated endpoint here; that answered anyone who
+  // asked, and reached the database on every anonymous page load throughout the
+  // window before setup. The server now reports it on the failure it already
+  // returns, so nothing extra is requested and nobody who is not actually
+  // trying to sign in is told anything.
+  const [needsSetup, setNeedsSetup] = useState(false);
+
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     // The hook's ref skips a same-tick re-submit; setError stays inside the
@@ -63,7 +93,21 @@ export function Login() {
         await login(email, password);
         navigate(from, { replace: true });
       } catch (err) {
-        setError(messageFor(err));
+        // The server distinguishes "the default account has no Owner" from an
+        // ordinary wrong credential. Show the setup notice for the first and
+        // suppress the generic denial: for the operator this exists to help,
+        // who holds no credentials at all yet, "invalid email or password"
+        // describes a problem with their typing that they do not have.
+        //
+        // Not the same as "nothing was wrong with what was typed" — an earlier
+        // version of this comment said that, and it is false when a seeded
+        // non-Owner user simply mistypes their own password before an Owner
+        // exists (PR #363 review). They see this notice too; it is still true
+        // that there is no administrator, which is why the copy says exactly
+        // that and no more.
+        const noOwner = isNoOwnerProvisioned(err);
+        setNeedsSetup(noOwner);
+        setError(noOwner ? null : messageFor(err));
       }
     });
   }
@@ -73,6 +117,19 @@ export function Login() {
       <ThemeToggle className="auth-theme" showLabel={false} iconSize={18} />
       <form className="card" onSubmit={onSubmit}>
         <h1>{t("title")}</h1>
+        {needsSetup && (
+          <div className="auth-setup" role="status">
+            {/* No command is shown, deliberately. Earlier drafts printed the
+                setup invocation here and it was wrong twice over: the bare verb
+                was not runnable at all, and the corrected version had to show
+                two forms because the app cannot know how it was deployed. A
+                login screen is also the wrong place to publish deployment shape
+                to anonymous visitors. State the situation and point at the
+                person who can fix it; the exact steps live in the README. */}
+            <p>{t("noAdminYet")}</p>
+            <p>{t("noAdminYetHint")}</p>
+          </div>
+        )}
         <label>
           {t("email")}
           <input

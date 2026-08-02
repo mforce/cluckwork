@@ -38,6 +38,13 @@ export const es = {
     apiDown: "No se pudo iniciar sesión. ¿Está la API en ejecución?",
     // machine-drafted (#182) — pending native review.
     credentialsTooLong: "Eso es demasiado largo — revise su correo electrónico y contraseña.",
+    noAdminYet:
+      "Todavía no hay administrador. Esta granja no ha completado la "
+      + "configuración inicial, así que no hay una cuenta de administrador con "
+      + "la que iniciar sesión.",
+    noAdminYetHint:
+      "Pida a quien configuró este servidor que cree el primer administrador. "
+      + "Los pasos de configuración están en el README del proyecto.",
     // machine-drafted (#283) — pending native review.
     setPasswordHeading: "Establezca su contraseña",
     setPasswordHint:
@@ -1563,7 +1570,9 @@ export const es = {
       + "un operador ejecuta un comando de configuración único que imprime una contraseña temporal. Inicie "
       + "sesión con ella y llegará de inmediato a una pantalla de <strong>Establecer su contraseña</strong> en "
       + "lugar de la aplicación normal; nada más funciona hasta que elija su propia contraseña allí. Esto es "
-      + "distinto de un <em>Cambio de contraseña</em> ordinario.",
+      + "distinto de un <em>Cambio de contraseña</em> ordinario. Hasta que se realice ese paso de "
+      + "configuración, al intentar iniciar sesión se le indica esto y se le remite a quien administra el "
+      + "servidor, en lugar de afirmar que sus datos eran incorrectos.",
     // #308 (machine-drafted, pending native review)
     signingInStepUp:
       "Dos acciones en la pantalla <strong>Usuarios</strong> le piden <strong>volver a ingresar su contraseña "
