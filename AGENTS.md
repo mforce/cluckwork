@@ -181,11 +181,52 @@ risk). Currently SHA-pinned: `actions/create-github-app-token`,
 `aquasecurity/trivy-action`, and
 `advanced-security/component-detection-dependency-submission-action`.
 
+## Releases and image publishing (#351)
+
+Two stages, deliberately separate: **CI publishes, the release PR versions.**
+
+1. **Every merge into main** → the `publish` job in `ci.yml` pushes the image that
+   run just built, Trivy-scanned and boot-tested, named by commit:
+   `ghcr.io/<owner>/<repo>:sha-<commit>`. No version, no git tag. Idempotent per
+   commit, so there is no ordering hazard and nothing to race — two merges publish
+   two different names.
+2. **Merging the "Release vX.Y.Z" PR** (maintained by release-please) → a tag, a
+   GitHub release with a generated `CHANGELOG.md`, and the already-published image
+   for that commit is **promoted** to `:vX.Y.Z`.
+
+- **Promotion is a server-side retag of an existing digest** (`docker buildx
+  imagetools create`), never a rebuild. **Do not "simplify" it into a build step**:
+  a second `docker build` yields different bytes and a different digest, so the
+  image carrying a version would be one no scan or smoke test ever examined. That
+  is the whole point of #351.
+- **The bump comes from conventional commits**, so PR titles are load-bearing —
+  squash-merge puts the title on main as the commit subject. `feat:` → minor,
+  `fix:`/`perf:` → patch, `feat!:`/`BREAKING CHANGE` → major. **`chore:`, `docs:`,
+  `test:`, `ci:` and `style:` are not releasable** — a merge of only those updates
+  no release PR and cuts no version. That is intended: it keeps the version number
+  meaning something.
+- **Deploy by digest, never by tag.** Every release's notes carry
+  `ghcr.io/<owner>/<repo>@sha256:…`; the deploy repo pins that. `:vX.Y.Z` and
+  `:sha-<commit>` are names, and names can move.
+- **Config lives in three files**, all machine-maintained — `release-please-config.json`,
+  `.release-please-manifest.json`, and `version.txt`. **Never hand-edit the manifest
+  or `version.txt`**; release-please owns them and a manual edit desynchronises the
+  version it believes from the tags that exist.
+- The release PR is opened by `GITHUB_TOKEN`, so **it gets no CI run** (GitHub does
+  not trigger workflows from that token). Harmless here — it only touches the
+  changelog, manifest and version file, and `main` has no required checks. If
+  required checks are ever added, the release PR needs a GitHub App token instead.
+- Package visibility and the host's pull credential are **deploy-side** concerns
+  (cluckwork-deploy#6), not this repo's.
+
 ## Git / PR workflow
 
 - `origin` = GitHub (`github.com/mforce/cluckwork`); `gitea` = backup mirror. Use `gh` for PRs.
 - **`main` is protected** — branch, push, open a PR; don't commit to `main`.
 - Branch names: `feat/…`, `chore/…`, `spec/…`. PRs squash-merge.
+- **The PR title is the release note.** It becomes the squashed commit subject, which
+  is what release-please parses for both the changelog and the version bump — so a
+  typo'd or non-conventional prefix silently costs a bump. See the release section above.
 - Only commit/push when the human asks.
 - **Keep phase epics in sync**: when filing a slice issue, add it to the phase epic's checklist (epic #14 = Phase 1.1, #15 = Phase 1.5) with its issue number; when its PR merges, check it off. Milestone assignment alone is not enough — the epics are how work is navigated.
 - **Keep documentation in sync** (owner directive, 2026-07-17): every PR that adds or changes user-visible behavior updates, in the same PR: (1) `specs/product/GLOSSARY.md` when a concept appears or changes meaning, and (2) the SPA Help page + in-app glossary (once #71 lands). Treat a missing doc update like a missing test — reviewers should flag it.

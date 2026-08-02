@@ -1,0 +1,157 @@
+# #351 — the release half of the pipeline.
+#
+# CI publishes an image for EVERY merge into main, named by commit
+# (`:sha-<commit>`). Nothing there decides a version. This workflow decides
+# versions, and it does so through a human gate:
+#
+#   merge a PR     -> release-please updates a "Release vX.Y.Z" PR, accumulating
+#                     a CHANGELOG from conventional commits
+#   merge that PR  -> a tag + GitHub release are created, and the image already
+#                     published for that commit is PROMOTED to `:vX.Y.Z`
+#
+# Promotion is a server-side retag of an existing DIGEST — not a rebuild. The
+# bytes carrying a version are therefore, by construction, bytes CI already
+# built, Trivy-scanned and boot-tested. A rebuild here would produce a different
+# digest and break exactly the guarantee #351 exists to provide.
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+# One release conversation at a time. Two overlapping runs would otherwise race
+# to groom the same release PR.
+concurrency:
+  group: release-please
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    name: Maintain the release PR
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write # create the tag and the GitHub release
+      pull-requests: write # open and groom the release PR
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+      sha: ${{ steps.release.outputs.sha }}
+    steps:
+      # Third-party action: pinned to the immutable commit, not the re-pointable
+      # tag (AGENTS.md). Dependabot's github-actions ecosystem reads the trailing
+      # comment and bumps both.
+      - name: Run release-please
+        id: release
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  # Only when the release PR was just merged — i.e. a tag and release now exist.
+  promote:
+    name: Promote the released image
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: write # append the digest to the release notes
+      packages: write # add the version tag in the registry
+    steps:
+      - name: Log in to GHCR
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "$GHCR_TOKEN" | docker login ghcr.io -u x-access-token --password-stdin
+
+      - name: Promote the commit image to the version tag
+        id: promote
+        env:
+          TAG: ${{ needs.release-please.outputs.tag_name }}
+          RELEASE_SHA: ${{ needs.release-please.outputs.sha }}
+        run: |
+          set -euo pipefail
+          image="ghcr.io/${GITHUB_REPOSITORY,,}"
+
+          # The release is tagged at the release PR's merge commit, and that
+          # merge is itself a push to main — so CI is building and publishing
+          # `:sha-$RELEASE_SHA` in PARALLEL with this workflow. Wait for it.
+          #
+          # Retrying here does not weaken anything: "not published yet" and
+          # "registry unreachable" are BOTH failures for promotion, so there is
+          # no fail-open direction to get wrong. Either the image shows up or
+          # this job fails and no version tag is created.
+          digest=""
+          for attempt in $(seq 1 40); do
+            if digest="$(docker buildx imagetools inspect "$image:sha-$RELEASE_SHA" \
+                          --format '{{.Manifest.Digest}}' 2>/dev/null)" && [ -n "$digest" ]; then
+              break
+            fi
+            digest=""
+            echo "Waiting for CI to publish $image:sha-$RELEASE_SHA (attempt $attempt/40)…"
+            sleep 30
+          done
+
+          if [ -z "$digest" ]; then
+            echo "::error::no image published for $RELEASE_SHA — refusing to promote a version with nothing behind it"
+            exit 1
+          fi
+          echo "Released commit resolves to $digest"
+
+          # Server-side retag: adds a name to an EXISTING manifest. Nothing is
+          # pulled, nothing is rebuilt, and the digest cannot change.
+          docker buildx imagetools create --tag "$image:$TAG" "$image@$digest"
+
+          # Confirm the new tag really resolves to the digest we promoted,
+          # rather than trusting the create call's exit code alone.
+          after="$(docker buildx imagetools inspect "$image:$TAG" --format '{{.Manifest.Digest}}')"
+          if [ "$after" != "$digest" ]; then
+            echo "::error::$image:$TAG resolves to $after, not the promoted $digest"
+            exit 1
+          fi
+
+          printf 'image=%s\n' "$image" >> "$GITHUB_OUTPUT"
+          printf 'digest=%s\n' "$digest" >> "$GITHUB_OUTPUT"
+
+      # The release notes are where a human goes to answer "what do I deploy for
+      # this version". Put the digest there rather than only in a run log that
+      # ages out.
+      - name: Record the digest on the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.release-please.outputs.tag_name }}
+          IMAGE: ${{ steps.promote.outputs.image }}
+          DIGEST: ${{ steps.promote.outputs.digest }}
+        run: |
+          set -euo pipefail
+          notes="$(mktemp)"
+          gh release view "$TAG" --json body --jq '.body' > "$notes"
+          {
+            echo
+            echo '---'
+            echo
+            echo '### Container image'
+            echo
+            echo 'Deploy by digest — a tag can be moved, a digest cannot:'
+            echo
+            echo '```'
+            echo "$IMAGE@$DIGEST"
+            echo '```'
+          } >> "$notes"
+          gh release edit "$TAG" --notes-file "$notes"
+
+          {
+            echo "### Promoted \`$TAG\`"
+            echo
+            echo '```'
+            echo "$IMAGE@$DIGEST"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Log out of GHCR
+        if: always()
+        run: docker logout ghcr.io >/dev/null 2>&1 || true
