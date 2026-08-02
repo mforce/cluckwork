@@ -242,6 +242,27 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
      promotion retags and rewrites notes, so aiming it at a live version would
      repoint it — and when the release records a real commit, that commit is
      authoritative: a supplied sha may only agree with it, never override it.
+- **A stuck draft also spawns a duplicate release PR — don't merge it.**
+  release-please locates the previous release by its **git tag**, and GitHub
+  withholds tags for drafts. So while a draft sits unpromoted, release-please
+  cannot see it, falls back to `bootstrap-sha`, and opens a *second* release PR
+  re-listing commits the draft already covers — with a higher version, because the
+  version itself comes from the committed manifest. Normally this window is
+  seconds; it only becomes visible when promotion fails.
+
+  Observed on the first real release: v0.0.1 was drafted, promotion failed, and
+  PR #377 appeared proposing 0.0.2 with the *same* three commits as 0.0.1.
+  Merging it would have burned a version on nothing. **Fix the promotion, publish
+  the draft, then close the duplicate** — once the tag exists the next run
+  proposes only genuinely new commits (verified: the regenerated PR listed one).
+- **The `promote` job has no checkout, so `gh` needs `GH_REPO`.** It only calls
+  APIs and retags a manifest server-side, and a checkout would be pure cost — but
+  `gh` infers its target repository from the git remote, and without one every
+  bare `gh release` / `gh run` call dies with `fatal: not a git repository` before
+  reaching its own logic. `gh api "repos/$GITHUB_REPOSITORY/..."` calls name the
+  repo in the path and are unaffected, which is exactly why this shipped: it is
+  invisible in the YAML and only fails at runtime. Any `gh` subcommand added to
+  that job depends on the job-level `GH_REPO`.
 - **The bump comes from conventional commits**, so PR titles are load-bearing —
   squash-merge puts the title on main as the commit subject. The mapping is
   **damped while below 1.0.0**, via two settings in `release-please-config.json`:
