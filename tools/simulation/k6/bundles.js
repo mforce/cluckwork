@@ -85,18 +85,13 @@ function tagsFor(persona, flow, endpoint) {
 }
 
 // --- dates -------------------------------------------------------------
+//
+// Moved to ./dates.js so they can be unit-tested without k6 (that file has no
+// `k6/*` import, and dates.test.mjs runs under `node --test` in CI). Re-exported
+// here so the personas' existing imports keep working.
+import { today, daysAgo, reportRangeStart, reportRangeEnd } from './dates.js';
 
-function isoDate(d) {
-  return d.toISOString().slice(0, 10);
-}
-export function today() {
-  return isoDate(new Date());
-}
-export function daysAgo(n) {
-  const d = new Date();
-  d.setUTCDate(d.getUTCDate() - n);
-  return isoDate(d);
-}
+export { today, daysAgo };
 
 // --- think time ----------------------------------------------------------
 
@@ -214,23 +209,15 @@ export function dashboard(session, persona) {
 // --- reports (ReportsPage.tsx: production always, money AdminOnly) -----
 
 export function reports(session, persona) {
-  // UTC "yesterday" as the range END, for the same reason the daily-entry
-  // WRITE uses it (see file header): the seeded farm timezone is behind UTC,
-  // so for the hours between 00:00 UTC and midnight farm-local a UTC "today"
-  // is still in the FUTURE for the farm, and every one of the four report
-  // endpoints below rejects it with 400 Report.FutureRange.
-  //
-  // This was a real, time-of-day-dependent failure, not a theoretical one: a
-  // run at 03:47 UTC (22:47 America/Chicago the previous day) failed 12.4% of
-  // capacity requests and crossed the run's thresholds, while the two runs
-  // recorded in findings/ — both launched during UTC daytime, when the two
-  // dates agree — had passed. A load harness that silently breaks for a few
-  // hours a day is worse than one that never worked, so the window is closed
-  // here rather than documented as a caveat.
-  //
-  // The window stays 7 days [from, to] so the scan volume is unchanged.
-  const from = daysAgo(7);
-  const to = daysAgo(1);
+  // Both ends come from dates.js, which carries the full rationale and is
+  // unit-tested (dates.test.mjs) for the one property that matters here: the
+  // range must never END on a date the farm has not reached yet, or all four
+  // endpoints below 400 with Report.FutureRange. That failed live at 03:47 UTC
+  // against the seeded America/Chicago farm — 12.4% of capacity requests, the
+  // run's thresholds crossed — while both runs recorded in findings/, launched
+  // during UTC daytime, had passed.
+  const from = reportRangeStart();
+  const to = reportRangeEnd();
   authedGet(
     session,
     `/api/v1/reports/production?from=${from}&to=${to}`,
