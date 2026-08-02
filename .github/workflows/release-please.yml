@@ -188,6 +188,19 @@ jobs:
       contents: write # publish the release and append the digest to its notes
       packages: write # add the version tag in the registry
       actions: read # read the digest CI recorded for the released commit
+    # This job deliberately does NOT check out the repo — it only calls APIs and
+    # retags a manifest server-side, so a checkout would be pure cost. But `gh`
+    # infers which repository to act on from the git remote, and with no
+    # checkout there is none: every bare `gh release` / `gh run` call dies with
+    #   failed to run git: fatal: not a git repository
+    # before it reaches its own logic. GH_REPO supplies that out of band.
+    #
+    # The `gh api "repos/$GITHUB_REPOSITORY/..."` calls below name the repo in
+    # the path and were never affected, which is exactly why this went unnoticed
+    # through review — the failure is invisible in the YAML and only appears at
+    # runtime. Any new `gh` subcommand added here relies on this being set.
+    env:
+      GH_REPO: ${{ github.repository }}
     steps:
       - name: Log in to GHCR
         env:
