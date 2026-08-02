@@ -3,10 +3,10 @@
 **Date:** 2026-08-01
 **Phase:** 1.1 (epic #14)
 **Status:** design, awaiting implementation plan
-**Revision:** eighth draft. Every round of review so far has found a real defect
-in the previous round's fix. The corrections are recorded at the end, in
-the *What the Nth draft got wrong* sections — read them before treating any of
-this as a small delta. The corrections are the substance.
+**Revision:** ninth draft, and the last unless something material appears. Every
+round has found a real defect in the previous one's fix; the corrections are
+recorded at the end in the *What the Nth draft got wrong* sections, and are the
+substance. See *Where this stops being about the design* for why it ends here.
 
 ## Problem
 
@@ -327,6 +327,20 @@ no `INSERT`. An old replica sees a database byte-identical in every column it
 reads, and behaves exactly as it does today. A new replica gets full enforcement
 immediately. There is no state in between.
 
+**Additive is not the same as free.** Constant defaults avoid a heap rewrite on
+the Postgres version this targets, but each `ALTER TABLE … ADD COLUMN` still
+takes an `ACCESS EXCLUSIVE` lock. If a still-serving old process holds a long
+transaction touching `refresh_tokens`, the migrate job waits — and its *queued*
+exclusive request blocks every login and refresh behind it. `DatabaseReadyHealthCheck`
+does not help: it gates the replacement process, not the old fleet still taking
+traffic. A metadata-only migration would become an authentication outage.
+
+So the migration sets a short **`lock_timeout`** and fails fast rather than
+queueing, leaving the operator to retry. A failed migrate job is a deploy that
+did not start; an unbounded lock wait is a deploy that took auth down. `refresh_tokens`
+is the table that grows (#259, #270 exist because of it), so this is the one
+most likely to be busy.
+
 Nothing is lost, because **the revocation was never what drew the boundary** —
 the epoch separation is. Legacy tokens carry `IssuedEpoch = 0`, users carry `1`,
 and the new binary rejects the mismatch inert. Revoking them was belt-and-braces
@@ -338,6 +352,14 @@ drained, a one-off `revoke-legacy-tokens` CLI verb (same run-then-exit shape as
 and the direction of the defence is the one worth having: if the epoch comparison
 ever regresses, revoked-and-retired tokens degrade to a denial of service,
 whereas active-and-retired ones would degrade to *access*.
+
+Its predicate is exactly `IssuedEpoch = 0 AND RevokedAt IS NULL`, and it is
+**repeat-safe**: a second run updates zero rows, preserving the timestamps the
+first one wrote. An implementation that stamps every epoch-`0` row on each
+invocation would rewrite history and regenerate table-wide WAL every time an
+operator retried — and operators retry one-off verbs, which is why `seed` and
+`bootstrap-admin` are both idempotent. Pinned by a test asserting the second run
+changes nothing.
 
 `MigrationSecurityReviewTests` is unaffected either way — no INSERTs, and now no
 data statements at all.
@@ -514,18 +536,41 @@ the replica that never learned to enforce.
 
 **So the feature ships in two deploys, and the ordering is a hard constraint:**
 
-1. **Deploy A — the mechanism, additive.** `CredentialEpoch`, `IssuedEpoch`, an
-   **additive-only** migration, `JwtTokenService` stamping the claim, the
-   middleware, and `RefreshAsync`'s comparison. No disable, no enable, no email
-   change, and — critically — **no row mutations**: an old replica sees a
-   database byte-identical in every column it reads and behaves exactly as it
-   does today, while a new replica enforces fully. See *Storage* for why the
-   cutover revocation cannot live here.
+The split is **every reader in A, only mutations and UI in B**. That is a
+stronger rule than "the mechanism in A", and the difference is load-bearing:
+
+1. **Deploy A — the mechanism and every reader, additive.** `CredentialEpoch`,
+   `IssuedEpoch`, an **additive-only** migration, `JwtTokenService` stamping the
+   claim, `CredentialEpochMiddleware`, `RefreshAsync`'s epoch comparison — **and
+   every disabled-state check**: `LoginAsync`, `RefreshAsync`, and
+   `StepUpGrantService.IssueAsync` all refuse a disabled user as of A. The
+   `DisabledAt` column ships here too, unused by any mutation.
+
+   Putting the disabled *readers* in B would leave a hole during B's own gradual
+   rollout: a disabled user's login or refresh landing on an A-only replica would
+   mint a **current-epoch** token, which every B replica then honours — the
+   suspension bypassed by a credential minted after it. Readers must precede the
+   writers that give them something to read.
+
+   **No row mutations** — an old replica sees a database byte-identical in every
+   column it reads and behaves exactly as it does today, while a new replica
+   enforces fully. See *Storage* for why the cutover revocation cannot live here.
+
 2. **Drain.** Every pre-A process gone.
-3. **Deploy B — the mutations.** `POST /disable`, `POST /enable`, `PUT /email`,
-   and the SPA. By the time an epoch bump can be triggered by a *new* operation,
-   every serving replica enforces the check. The optional
-   `revoke-legacy-tokens` verb can also run from here on.
+
+3. **Deploy B — the mutations and the UI.** `POST /disable`, `POST /enable`,
+   `PUT /email`, and the SPA. By the time an epoch bump can be triggered by a
+   *new* operation, or a user can be disabled at all, every serving replica both
+   enforces the check and reads the flag.
+
+   **The API must be staged across the whole fleet before the SPA is exposed.**
+   B rolls gradually too, so a browser that loads the new SPA from a B replica
+   can have `/disable` routed to an A replica that has no such route —
+   intermittent 404s on the new administrative actions. Either stage the API
+   first and release the SPA last, or drain A→B before clients receive the new
+   UI. Same class of problem as the A→B boundary, one deploy later.
+
+   The optional `revoke-legacy-tokens` verb can run from here on.
 
 The drain is the deployment repo's job, not this one's — what belongs here is the
 **requirement**: deploy B must not be exposed until no process from before deploy
@@ -858,3 +903,45 @@ Recorded so the same reasoning is not re-derived later.
     "X can never happen" needs the rollback path checked before it is written
     down, because rollback is the one deploy nobody rehearses and everybody
     eventually performs.
+
+## What the eighth draft got wrong
+
+18. **The disabled-state readers were left in deploy B.** During B's own gradual
+    rollout a disabled user's login or refresh can land on an A-only replica,
+    which mints a **current-epoch** token that every B replica then honours — the
+    suspension bypassed by a credential issued after it. The split is therefore
+    *every reader in A, only mutations and UI in B*: `LoginAsync`,
+    `RefreshAsync`, and `StepUpGrantService.IssueAsync` all refuse a disabled
+    user as of A, with `DisabledAt` shipping unused.
+
+    Stated generally, and this is the last variant of the rule the previous
+    rounds kept circling: **readers ship before writers, always.** A reader
+    deployed early is inert; a writer deployed early is a hole. The same logic
+    applies one deploy later to B itself — the API must be staged fleet-wide
+    before the SPA is exposed, or a browser served the new UI by a B replica gets
+    404s from an A replica that has no such route.
+
+19. **Operational hygiene the design waved at rather than specified:** the
+    additive migration still takes an `ACCESS EXCLUSIVE` lock and needs a
+    `lock_timeout`, so a busy `refresh_tokens` cannot turn a metadata-only change
+    into an authentication outage; and `revoke-legacy-tokens` needs a pinned
+    predicate (`IssuedEpoch = 0 AND RevokedAt IS NULL`) plus repeat-safety,
+    because operators retry one-off verbs.
+
+## Where this stops being about the design
+
+Rounds 1–4 found defects in the mechanism: it did not do what it claimed.
+Rounds 5–8 found defects in the **deploy boundary**: the mechanism was right, but
+the old world had not gone away. Round 8 is the first where most findings are
+ordinary operational hygiene — a lock timeout, a verb's predicate, a rollout
+order — rather than anything that would make the shipped feature wrong.
+
+The core design has not been challenged since round 3. The epoch, its binding to
+both credential types, the check's position ahead of the grace branch, the
+account-row lock, the four-column email write, and the guards have all survived
+untouched. That is the signal to stop iterating this document.
+
+What remains genuinely open is **deployment procedure** — drains, staging order,
+lock timeouts, rollback steps. Per this repo's host-agnostic boundary that
+belongs in the deployment/ops repo as procedure, not here as prose. This spec
+states the requirements; it should not grow into a runbook.
