@@ -48,6 +48,9 @@ declare -A SPEC_FOR=(
   [report-range-bound-removed]="specs/reports-range.spec.ts"
   [refresh-always-fails]="specs/session-refresh.spec.ts"
   [logout-not-honoured]="specs/session-races.spec.ts"
+  [nav-role-gate-bypassed]="specs/readonly.spec.ts"
+  [payment-never-settles]="specs/sales.spec.ts"
+  [export-returns-nothing]="specs/owner.spec.ts"
 )
 
 declare -A GREP_FOR=(
@@ -58,13 +61,17 @@ declare -A GREP_FOR=(
   [report-range-bound-removed]="refuses one day beyond"
   [refresh-always-fails]="forces a 401"
   [logout-not-honoured]="logout during an in-flight refresh"
+  [nav-role-gate-bypassed]="is not offered the destinations"
+  [payment-never-settles]="takes an order from new customer"
+  [export-returns-nothing]="export downloads a real file"
 )
 
 MUTANTS=("$@")
 if [ ${#MUTANTS[@]} -eq 0 ]; then
   MUTANTS=(audit-gate-removed users-gate-removed flock-scope-removed
            stock-summary-broken report-range-bound-removed
-           refresh-always-fails logout-not-honoured)
+           refresh-always-fails logout-not-honoured
+           nav-role-gate-bypassed payment-never-settles export-returns-nothing)
 fi
 
 rule() { printf '\n%s\n' "────────────────────────────────────────────────────────────────────────"; }
@@ -104,16 +111,31 @@ for name in "${MUTANTS[@]}"; do
     echo "     SURVIVED — the spec still passed with this guarantee broken."
     survived+=("$name")
   else
-    # Distinguish "the assertion caught it" from "the run fell over". A mutant
-    # that crashes the runner is not a kill: it proves the harness broke, not
-    # that the spec noticed. Playwright prints a failed-test count on a real
-    # assertion failure and does not when it dies during setup.
-    if grep -qE "^ *[0-9]+ failed" "/tmp/mutant-$name.log"; then
-      echo "     KILLED — the spec failed, as it should."
+    # Distinguish "an ASSERTION caught it" from "the run fell over".
+    #
+    # A mutant that merely crashes the spec is NOT a kill — it proves the harness
+    # broke, not that the spec noticed the regression. An earlier version only
+    # grepped for Playwright's "N failed" line and claimed in a comment that this
+    # excluded crashes. It does not: an uncaught TypeError in a spec body reports
+    # as "1 failed" exactly like a failed expectation, so a crash was recorded as
+    # KILLED (PR #390 review).
+    #
+    # The real distinction is in the failure BODY. Playwright prints an
+    # expect()/matcher frame for a failed assertion and a bare exception
+    # (TypeError, "Test timeout of", strict-mode violation) for everything else.
+    # Require BOTH a failed count and assertion-shaped output; anything else is
+    # INCONCLUSIVE and counted with the survivors, because an unproven kill must
+    # never read as a proven one.
+    log="/tmp/mutant-$name.log"
+    if ! grep -qE "^ *[0-9]+ failed" "$log"; then
+      echo "     INCONCLUSIVE — the run errored without a test failure (see $log)"
+      survived+=("$name (no test failure)")
+    elif grep -qE "expect\\(|toBeVisible|toBeHidden|toHaveCount|toHaveURL|toHaveValue|toBeGreaterThan|toBeLessThan|toEqual|toContainText" "$log"; then
+      echo "     KILLED — an assertion failed, as it should."
       killed+=("$name")
     else
-      echo "     INCONCLUSIVE — the run errored without a test failure (see /tmp/mutant-$name.log)"
-      survived+=("$name (inconclusive)")
+      echo "     INCONCLUSIVE — the spec failed, but NOT on an assertion (crash/timeout). See $log"
+      survived+=("$name (crashed, not asserted)")
     fi
   fi
 done
