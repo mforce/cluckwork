@@ -129,33 +129,79 @@ test.describe("PWA shell", () => {
     // and the vite config records that the naive `/^\/api\//` version was a real
     // bug — it missed a bare `/api`, a query-only `/api?x=1`, and (since ASP.NET
     // routing is case-insensitive) `/API/v1/...`, all of which were then handed a
-    // cached index.html. The health case is called out there as "verified — it
-    // was". So each of those shapes is probed, from a CONTROLLED page.
+    // cached index.html. The health case is called out there as "verified — it was".
+    //
+    // THESE MUST BE NAVIGATIONS, NOT `fetch()`. An earlier version of this spec
+    // used `page.evaluate(fetch)`, which proved nothing: `navigateFallback` only
+    // applies to requests whose mode is `navigate`, so an ordinary fetch bypasses
+    // the fallback whether or not the denylist exists. Deleting the denylist
+    // entirely left that version green (PR #390 review). `page.goto()` issues a
+    // real navigation, which is the only request type the rule governs.
     const probes = ["/health/live", "/api/v1/me", "/API/v1/me", "/api"];
 
     for (const path of probes) {
-      const result = await page.evaluate(async (url) => {
-        const res = await fetch(url);
-        return { status: res.status, contentType: res.headers.get("content-type") };
-      }, `${BASE_URL}${path}`);
+      // A navigation to a non-2xx JSON endpoint makes Chromium raise
+      // ERR_HTTP_RESPONSE_CODE_FAILURE rather than resolving — and that throw is
+      // itself the proof this spec wants: the browser got the SERVER's error, not
+      // a cached 200 HTML shell. If the denylist were removed, the SW would
+      // answer these navigations from the precache and `goto` would resolve
+      // happily with `text/html`.
+      let response: Awaited<ReturnType<typeof page.goto>> | null = null;
+      let navigationError: string | null = null;
+      try {
+        response = await page.goto(`${BASE_URL}${path}`, { waitUntil: "commit" });
+      } catch (err) {
+        navigationError = (err as Error).message;
+      }
 
-      // The failure mode being caught is a 200 text/html — the SPA shell served
-      // in place of the real response. Asserting a specific status per path would
-      // couple this spec to auth details it is not about; asserting "not the
-      // shell" is precisely the guarantee.
+      if (navigationError) {
+        expect(
+          navigationError,
+          `${path} failed to navigate for an unexpected reason`,
+          // `chrome-error://chromewebdata` is Chromium's own error document,
+          // which a bare `/api` (404 problem+json) produces. Included because it
+          // means the same thing as the ERR_ codes and cannot be confused with
+          // success: the browser rendered ITS error page, so the service worker
+          // definitively did not hand this navigation the cached SPA shell.
+        ).toMatch(
+          /ERR_HTTP_RESPONSE_CODE_FAILURE|ERR_ABORTED|ERR_INVALID_RESPONSE|chrome-error:\/\/chromewebdata/,
+        );
+        // Settle on a real page before the next probe. A navigation that ended
+        // in Chromium's error document leaves the tab mid-flight, and the very
+        // next `goto` reports "interrupted by another navigation" — a harness
+        // artefact that reads exactly like a product failure.
+        // Settle on a REAL quiescence signal, not a lifecycle event. Neither
+        // `commit` nor `domcontentloaded` was enough: the SPA boots and then
+        // routes client-side, so a fresh navigation was still starting when the
+        // next probe began and interrupted it. Waiting for the login form to be
+        // on screen means React has finished routing and nothing further is
+        // pending.
+        await page.goto(`${BASE_URL}/login`, { waitUntil: "domcontentloaded" }).catch(() => {});
+        await page
+          .getByRole("button", { name: tEn("auth:signIn") })
+          .waitFor({ state: "visible", timeout: 15_000 })
+          .catch(() => {});
+        continue;
+      }
+
+      expect(response, `${path} produced no response at all`).not.toBeNull();
+      const contentType = response!.headers()["content-type"] ?? "";
       expect(
-        result.contentType ?? "",
+        contentType,
         `${path} was answered with HTML — the navigation fallback is serving the cached shell `
           + `for a namespace that must always reach the network`,
       ).not.toContain("text/html");
+
+      const body = await response!.text().catch(() => "");
+      expect(body.slice(0, 400), `${path} returned the SPA document body`)
+        .not.toContain('<div id="root"');
     }
 
-    // Control: the health endpoint really did reach the server and answer.
-    const health = await page.evaluate(async (url) => {
-      const res = await fetch(url);
-      return { status: res.status, body: (await res.text()).slice(0, 32) };
-    }, `${BASE_URL}/health/live`);
-    expect(health.status).toBe(200);
-    expect(health.body).toContain("Healthy");
+    // Control: the health endpoint really did reach the server and answer, so the
+    // loop above is proving "not the shell" rather than "nothing works".
+    const health = await page.goto(`${BASE_URL}/health/live`, { waitUntil: "commit" });
+    expect(health!.status()).toBe(200);
+    expect(health!.headers()["content-type"] ?? "").not.toContain("text/html");
+    expect(await health!.text()).toContain("Healthy");
   });
 });

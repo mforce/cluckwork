@@ -26,9 +26,28 @@
 // "somebody removed the authorization policy" looks like from the browser.
 //
 // The limit, stated plainly rather than glossed: this cannot mutate CLIENT-side
-// logic. A regression purely inside the SPA — a role gate deleted from nav.tsx,
-// say — is not reachable this way, so the nav-gate assertions are covered by
-// spec-level vacuity mutants (see MUTANTS below) rather than behavioural ones.
+// logic directly. A regression purely inside the SPA — a role gate deleted from
+// `nav.tsx`, say — is not reachable by rewriting a server response.
+//
+// An earlier version of this comment claimed the nav-gate assertions were
+// "covered by spec-level vacuity mutants" instead. **That was false** — no such
+// mutant existed, and three specs' role-gate assertions had no mutation coverage
+// of any kind while a reader was told otherwise (PR #390 review, found
+// independently by three reviewers). The lesson is the repo's own: a comment
+// claiming more than the code delivers is a defect, and this one was actively
+// hiding the gap it described.
+//
+// `nav-role-gate-bypassed` below now closes most of it, by a route that IS
+// available: the SPA derives its role by base64-decoding the JWT payload WITHOUT
+// verifying the signature (`web/src/auth/claims.ts` — display-only, deliberately),
+// so rewriting the `role` claim in the login response changes what the nav
+// renders. That is not literally "delete the gate", but it is observationally the
+// same thing: the assertion must fail when the role the gate reads no longer
+// matches the persona.
+//
+// STILL UNCOVERED, and named rather than left silent:
+//   * the in-memory-token guarantee (#145) — a purely client-side property;
+//   * the PWA specs — see 277-decisions.md on why `sw.js` cannot be mutated here.
 //
 // ================== SAFETY ==================
 //
@@ -133,6 +152,82 @@ export const MUTANTS: Record<string, Mutant> = {
           status: 200,
           contentType: "application/json",
           body: JSON.stringify({ rows: [], gradeTotals: [], totals: {} }),
+        });
+      });
+    },
+  },
+
+  // --- role gates ----------------------------------------------------------
+  "nav-role-gate-bypassed": {
+    breaks: "the role the nav gate reads, so a ReadOnly session renders admin destinations",
+    caughtBy: "readonly.spec.ts — is not offered the destinations it cannot use",
+    apply: async (page) => {
+      // BOTH login AND refresh. Forging only the login response does not work,
+      // and finding out why is the useful part: the SPA's bootstrap issues a
+      // refresh straight after signing in, and the genuine token that comes back
+      // REPLACES the forged one before the nav ever renders. The first version of
+      // this mutant did exactly that and survived — which looked like a spec
+      // defect and was really an incomplete mutant (PR #390 review, caught by the
+      // harness's own survivor report rather than by reading it).
+      const forgeRole = async (route: Parameters<Parameters<typeof page.route>[1]>[0]) => {
+        const response = await route.fetch();
+        if (!response.ok()) return route.fulfill({ response });
+        const body = await response.json().catch(() => null);
+        if (!body?.accessToken) return route.fulfill({ response });
+        // Re-stamp the role claim as Admin. The SPA never verifies the signature
+        // (claims.ts decodes for display only), so the nav believes it — exactly
+        // the state a deleted role gate would produce.
+        const [header, payload, signature] = String(body.accessToken).split(".");
+        const claims = JSON.parse(Buffer.from(payload!, "base64url").toString());
+        claims.role = "Admin";
+        const forged = Buffer.from(JSON.stringify(claims)).toString("base64url");
+        await route.fulfill({
+          status: response.status(),
+          contentType: "application/json",
+          body: JSON.stringify({ ...body, accessToken: [header, forged, signature].join(".") }),
+        });
+      };
+      await page.route("**/api/v1/auth/login", forgeRole);
+      await page.route("**/api/v1/auth/refresh", forgeRole);
+    },
+  },
+
+  // --- multi-step business flows -------------------------------------------
+  "payment-never-settles": {
+    breaks: "payment application, so a fully-paid order still reports an outstanding balance",
+    caughtBy: "sales.spec.ts — takes an order from new customer through to a recorded payment",
+    apply: async (page) => {
+      await page.route("**/api/v1/sales/**", async (route) => {
+        const response = await route.fetch();
+        const ct = response.headers()["content-type"] ?? "";
+        if (!response.ok() || !ct.includes("json")) return route.fulfill({ response });
+        const body = await response.json().catch(() => null);
+        if (!body || typeof body !== "object") return route.fulfill({ response });
+        // Leave a balance outstanding no matter what was paid. The spec's real
+        // assertion — the "record payment" affordance being withdrawn — must fail.
+        if ("outstandingMinorUnits" in body) {
+          await route.fulfill({
+            status: response.status(),
+            contentType: "application/json",
+            body: JSON.stringify({ ...body, outstandingMinorUnits: 1 }),
+          });
+          return;
+        }
+        await route.fulfill({ response });
+      });
+    },
+  },
+
+  "export-returns-nothing": {
+    breaks: "the export body, so the download arrives empty",
+    caughtBy: "owner.spec.ts — export downloads a real file",
+    apply: async (page) => {
+      await page.route("**/api/v1/export/**", async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/octet-stream",
+          headers: { "content-disposition": 'attachment; filename="empty.zip"' },
+          body: "",
         });
       });
     },

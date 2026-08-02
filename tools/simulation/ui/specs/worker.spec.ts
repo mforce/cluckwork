@@ -23,6 +23,17 @@
 // If #388 lands read scoping, add the read assertions here — do not replace the
 // write ones, which will still be the enforcement that matters.
 
+// RE-RUNNABILITY, since this spec writes and does NOT mint its own flock the way
+// manager.spec.ts does. `RecordDailyEntry` is an UPSERT on
+// (account, farm, house, flock, date) — a second POST for the same natural key
+// updates the existing Draft rather than conflicting — so re-running against a
+// dirty fixture is safe by the handler's own semantics, not by luck. It stops
+// being safe only if a previous run left that day SUBMITTED, which nothing here
+// does: this spec saves a draft and never submits. (Raised in the #390 review as
+// a suspected re-run hazard; checked against the handler and by repeated
+// consecutive runs, and it holds — but it was undocumented, which is the real
+// defect being fixed here.)
+
 import { expect, test } from "../src/fixtures";
 import { restrictedWorker, unrestrictedWorker } from "../src/cast";
 import { farmToday } from "../src/farm";

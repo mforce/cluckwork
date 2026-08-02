@@ -25,10 +25,15 @@
 // scheduling, so a silent k6 upgrade would invalidate a guarantee with nothing
 // noticing. Nothing here rests on Chromium's version that way: these are
 // functional assertions about what a user can see and do, and a browser upgrade
-// that changes those is a finding, not noise. The canary's Core Web Vitals
-// (#386) are the one place where a version change WOULD move numbers, which is
-// why the canary records the browser version alongside them rather than
-// pretending the number is version-free.
+// that changes those is a finding, not noise.
+//
+// The canary's Core Web Vitals (#386) are the one place where a version change
+// WOULD move numbers. An earlier version of this comment claimed the canary
+// "records the browser version alongside them" — it did not, and no sample
+// carried it (PR #390 review). `describeBrowser()` prints the PATH at run start,
+// which identifies the binary but not its version, so a comparison across two
+// runs on the same box cannot tell a Chromium upgrade from a real regression.
+// Stated as the open gap it is rather than left as a false reassurance.
 
 import { existsSync, accessSync, constants } from "node:fs";
 
