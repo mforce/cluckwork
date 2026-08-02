@@ -95,8 +95,8 @@ should be — the record of a state, not the enforcement mechanism.
 
 The epoch has to be bound to **every** credential the system will later accept,
 not only the access token. The refresh token gets its own stamped copy, checked
-before rotation — see the next section for why leaving it off defeats the whole
-mechanism.
+ahead of the grace/replay branch — see the next section for why leaving it off
+defeats the whole mechanism.
 
 ### Why not a cache
 
@@ -127,8 +127,11 @@ re-entered through the refresh door.
 
 So `RefreshToken` carries `IssuedEpoch`, stamped at mint time, and `RefreshAsync`
 refuses any token whose `IssuedEpoch` differs from the user's current
-`CredentialEpoch` **before** rotating. A bump therefore kills the whole family by
-construction, whether or not the bulk revoke happened to win the race.
+`CredentialEpoch`. A bump therefore kills the whole family by construction,
+whether or not the bulk revoke happened to win the race.
+
+That comparison sits **ahead of the #176 grace/replay branch**, not merely ahead
+of the rotation — see *Enforcement* for why the difference is the whole finding.
 
 Bulk revocation stays — it is still the right thing to do, and it closes the
 window promptly — but it is no longer what the guarantee rests on. That matters
