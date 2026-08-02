@@ -139,6 +139,21 @@ test.describe("PWA shell", () => {
     // real navigation, which is the only request type the rule governs.
     const probes = ["/health/live", "/api/v1/me", "/API/v1/me", "/api"];
 
+    // Record what the SERVER actually answered for each probe. A navigation
+    // error alone is not proof: `chrome-error://chromewebdata` is Chromium's own
+    // error document and it appears for a refused connection too, so a stack
+    // that was simply DOWN would have read as a green denylist guarantee
+    // (PR #390 review round 2). Requiring a real response with a non-HTML
+    // content-type distinguishes "the server refused this" from "nothing
+    // answered".
+    const serverAnswers = new Map<string, string>();
+    page.on("response", (res) => {
+      const url = new URL(res.url());
+      if (url.origin === new URL(BASE_URL).origin) {
+        serverAnswers.set(url.pathname, res.headers()["content-type"] ?? "");
+      }
+    });
+
     for (const path of probes) {
       // A navigation to a non-2xx JSON endpoint makes Chromium raise
       // ERR_HTTP_RESPONSE_CODE_FAILURE rather than resolving — and that throw is
@@ -158,14 +173,23 @@ test.describe("PWA shell", () => {
         expect(
           navigationError,
           `${path} failed to navigate for an unexpected reason`,
-          // `chrome-error://chromewebdata` is Chromium's own error document,
-          // which a bare `/api` (404 problem+json) produces. Included because it
-          // means the same thing as the ERR_ codes and cannot be confused with
-          // success: the browser rendered ITS error page, so the service worker
-          // definitively did not hand this navigation the cached SPA shell.
-        ).toMatch(
-          /ERR_HTTP_RESPONSE_CODE_FAILURE|ERR_ABORTED|ERR_INVALID_RESPONSE|chrome-error:\/\/chromewebdata/,
-        );
+          // ERR_ABORTED is deliberately NOT accepted: it is also the signature
+          // of the "interrupted by another navigation" harness race that the
+          // settle step below exists to prevent, so accepting it would let a
+          // slow CI run mask a genuinely broken denylist (PR #390 review
+          // round 2). If it ever appears, that is a harness fault to fix, not a
+          // result to pass.
+        ).toMatch(/ERR_HTTP_RESPONSE_CODE_FAILURE|ERR_INVALID_RESPONSE|chrome-error:\/\/chromewebdata/);
+
+        // ...and the server genuinely answered, with something that is not the
+        // shell. Without this, a down backend passes.
+        const answered = serverAnswers.get(new URL(`${BASE_URL}${path}`).pathname);
+        expect(
+          answered,
+          `${path} produced a navigation error but no server response — the stack may be down, `
+            + `which is not evidence about the denylist`,
+        ).toBeDefined();
+        expect(answered ?? "", `${path} was answered with HTML`).not.toContain("text/html");
         // Settle on a real page before the next probe. A navigation that ended
         // in Chromium's error document leaves the tab mid-flight, and the very
         // next `goto` reports "interrupted by another navigation" — a harness
