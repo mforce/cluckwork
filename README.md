@@ -220,7 +220,7 @@ really ours:
 echo "$GITHUB_TOKEN" | docker login ghcr.io -u x-access-token --password-stdin
 
 # 1. Obtain the digest (machine-readable; no prose to parse)
-gh release download v0.4.0 -p image.json -R mforce/cluckwork
+gh release download vX.Y.Z -p image.json -R mforce/cluckwork
 REF=$(jq -r .reference image.json)
 
 # 2. Verify those bytes came from this repo's CI
@@ -241,21 +241,28 @@ perfectly immutable digest. The attestation is a signed claim by this repo's CI
 workflow, so anything pushed by hand has no such claim and fails the check.
 
 That covers a credential that can push to the registry, and stops a branch
-writer getting *their own* bytes deployed. Two things it does not do: it says
-nothing about a change merged to `main`, and it proves **origin, not currency** —
-it answers "did CI on `main` build these bytes", not "are these the bytes this
-release promoted". So also check that `:vX.Y.Z` resolves to the digest
-`image.json` names:
+writer getting *their own* bytes deployed. It proves **origin, not currency**,
+though — "did CI on `main` build these bytes", not "are these the bytes this
+release promoted" — so also confirm the tag still agrees with what you verified:
 
 ```bash
-# 3. Confirm the release's tag still points at the digest image.json names
-TAGGED=$(docker buildx imagetools inspect ghcr.io/mforce/cluckwork:v0.4.0 \
+# 3. Confirm the release's tag still resolves to the digest you just verified.
+#    Compare against $REF, NOT against `jq -r .digest`: `image`, `digest` and
+#    `reference` are independent fields of one attacker-writable file, so a
+#    rewritten asset can point `.reference` at an old digest while leaving
+#    `.digest` matching the tag — and a check reading `.digest` would pass while
+#    you deploy the old one. $REF is what step 2 verified and what you deploy.
+TAGGED=$(docker buildx imagetools inspect ghcr.io/mforce/cluckwork:vX.Y.Z \
   --format '{{json .Manifest.Digest}}' | tr -d '"')
-[ "$TAGGED" = "$(jq -r .digest image.json)" ] || exit 1
+[ "$TAGGED" = "${REF##*@}" ] || exit 1
 ```
 
-The deploy bullet in [`AGENTS.md`](AGENTS.md) is the canonical statement of that
-boundary, and of why each flag is required.
+Step 3 catches an asset rewritten on its own. It does **not** catch someone who
+can also push to the registry and move the tag to match, and it says nothing
+about a change merged to `main`. **Read the deploy bullet in
+[`AGENTS.md`](AGENTS.md) before relying on any of this** — it is the canonical
+statement of what each step does and does not prove, and of why each flag is
+required.
 
 The digest also appears at the bottom of the release notes, for humans.
 Deployment configuration itself lives in the separate deploy repo, not here.

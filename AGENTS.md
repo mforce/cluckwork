@@ -364,23 +364,42 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
 
     But it proves **origin, not currency**, and that gap is reachable: the
     verify command answers "did this repo's CI on `main` build these bytes",
-    **not** "are these the bytes this release promoted". A branch writer holds
-    `contents: write` through a dispatched copy of `release-please.yml`, so they
-    can overwrite a published release's `image.json` with an **older, genuinely
+    **not** "are these the bytes this release promoted". Anyone able to rewrite
+    a published release's `image.json` can point it at an **older, genuinely
     attested** digest. The deploy side reads `.reference` from that file,
     verifies it, and it passes — a **downgrade**, using bytes that really were
-    CI's. Nothing in the attestation binds a digest to a release.
+    CI's. Nothing in an attestation binds a digest to a release.
 
-    Closing that is the deploy side's job, and it is one comparison: check that
-    `:vX.Y.Z` in the registry resolves to the digest `image.json` names, and
-    refuse if they differ. Promotion sets that tag from the verified digest, so
-    agreement means the asset was not swapped afterwards.
+    A tag/digest comparison narrows that and is worth doing: check that
+    `:vX.Y.Z` in the registry resolves to the digest **you verified**, and refuse
+    if they differ. Compare against the digest in `reference` — the one the
+    `oci://` subject named — and **never** against the asset's separate `digest`
+    field. CI writes `reference` as `image + "@" + digest`, but nothing forces a
+    *rewritten* asset to keep them equal: an attacker sets `reference` to an old
+    attested digest and leaves `digest` matching the current tag, and a check
+    reading `digest` compares the current digest to itself, passes, and deploys
+    the old one. **Be precise about who that stops.** It defeats an
+    attacker who can rewrite the release asset *and nothing else* — a leaked
+    `contents: write` credential. It does **not** defeat the branch-dispatch
+    actor above, who holds `contents: write` **and `packages: write`** (both are
+    on the `promote` job, and a dispatched copy declares its own permissions).
+    That actor moves the tag onto the older digest with the same
+    `imagetools create` promotion itself uses, and the two then agree. Moving a
+    tag is an ordinary registry operation — this bullet's own heading says so.
+
+    So that actor is bounded by repo-level controls, exactly as promotion's
+    check is: who may push branches, and who may run workflows. The registry
+    half is separately closable with **immutable tags for `v*`** on the package —
+    #354's third acceptance criterion, deliberately not in this PR because it is
+    a registry setting rather than code.
 
   Net, stated at exactly the strength the argument supports: the internal gate
   fails closed for a leaked **registry** credential. The external gate also
-  stops a **branch push** substituting its own bytes — though not a branch
-  writer swapping in *other* attested bytes, which needs the tag/digest
-  comparison above. **Neither survives a merge to `main`.** Once a backdoored `ci.yml` is
+  stops a **branch push** substituting its own bytes. Neither stops a branch
+  writer swapping in *other* attested bytes — the tag/digest comparison above
+  raises the cost, but that actor holds registry write too, so nothing in this
+  repo closes it; branch/dispatch permissions and immutable tags do.
+  **And neither survives a merge to `main`.** Once a backdoored `ci.yml` is
   the definition on `main`, its attestation is genuinely valid — right signer
   workflow, right source ref — because `--source-ref` records *which ref built
   this*, not *whether that ref's content is trustworthy*. This repo allows a
