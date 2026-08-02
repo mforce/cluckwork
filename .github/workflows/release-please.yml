@@ -58,8 +58,11 @@ jobs:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    # GITHUB_TOKEN does no work here — every write goes through the App token
-    # minted below — so it keeps read only.
+    # Scoped to THIS job only: every write it performs goes through the App
+    # token minted below, so its GITHUB_TOKEN keeps read. The `promote` job
+    # below still needs a write-capable GITHUB_TOKEN (it publishes the release
+    # and retags the image) and is unaffected — it holds no `pull-requests`
+    # scope, so nothing there can open or approve a PR.
     permissions:
       contents: read
     outputs:
@@ -69,12 +72,28 @@ jobs:
     steps:
       # An App token, not GITHUB_TOKEN, for two independent reasons:
       #
-      #   1. GITHUB_TOKEN cannot open a pull request unless the repo-wide
+      #   1. GITHUB_TOKEN cannot open a pull request at all unless the repo-wide
       #      "Allow GitHub Actions to create and approve pull requests" setting
-      #      is on — and that setting also lets any workflow APPROVE a PR, which
-      #      would let automation satisfy branch protection on main. The App
-      #      grant is scoped to what release-please actually needs, so the
-      #      blanket setting stays off.
+      #      is on. That setting governs GITHUB_TOKEN *only* — it does not
+      #      constrain an App installation token, which is exactly why this
+      #      works. So the choice is not "capability vs. no capability", it is
+      #      WHICH credential holds PR-write and how widely:
+      #        setting ON -> every workflow's GITHUB_TOKEN can create AND
+      #          approve PRs, including workflows added later and
+      #          `pull_request`-triggered jobs that run contributor-influenced
+      #          code.
+      #        App token  -> the capability exists in ONE job, which runs only
+      #          on push to main and hands the token to exactly one SHA-pinned
+      #          action.
+      #      The controls are that scope reduction and the pin, NOT the
+      #      setting's off-state. Be precise about this: the token below CAN
+      #      approve a pull request. "Pull requests: write" is indivisible —
+      #      opening a PR and approving one are the same scope — so nothing but
+      #      the pinned action's own behaviour stops it. Today that is inert,
+      #      because `main` requires zero approving reviews and no status
+      #      checks, so there is nothing for a rogue approval to satisfy. The
+      #      point is to avoid handing that capability to every workflow before
+      #      the day required reviews are switched on.
       #   2. GitHub does not trigger workflows for anything GITHUB_TOKEN pushes
       #      or opens (recursion prevention), so a GITHUB_TOKEN release PR would
       #      carry NO checks — and that PR is the commit that cuts a version. An

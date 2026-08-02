@@ -265,10 +265,23 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
      *"Allow GitHub Actions to create and approve pull requests"* setting is on.
      That is how this first shipped, and the first real run failed with
      `GitHub Actions is not permitted to create or approve pull requests` after
-     release-please had already pushed its branch. The setting is not a narrow
-     fix: it also lets **any** workflow holding `pull-requests: write` *approve* a
-     PR, which is a review that branch protection on `main` would accept. The App
-     grant is scoped instead, so that setting stays **off**.
+     release-please had already pushed its branch.
+
+     **Do not describe the off setting as the safeguard** — that setting governs
+     `GITHUB_TOKEN` *only*, and does not constrain an App installation token,
+     which is the whole reason this fix works. The trade is about **blast
+     radius**, not capability: turning the setting on gives create-and-approve to
+     **every** workflow's `GITHUB_TOKEN` (including ones added later, and
+     `pull_request` jobs running contributor-influenced code), whereas the App
+     token confines it to one job that runs only on push to `main` and hands the
+     token to a single SHA-pinned action. `Pull requests: write` is indivisible —
+     opening and approving a PR are the same scope — so **the release token can
+     approve a PR**, and only the pinned action's behaviour stops it. That is
+     currently inert: `main` requires **zero** approving reviews and has **no**
+     required status checks (verified against the live repo, 2026-08-02), so
+     there is nothing for a rogue approval to satisfy. It stops being inert the
+     day required reviews are enabled, which is the reason not to hand the same
+     capability to every workflow in the meantime.
   2. GitHub does not trigger workflows for anything `GITHUB_TOKEN` opens or
      pushes (recursion prevention), so a `GITHUB_TOKEN` release PR carries **no
      checks** — on the one commit that cuts a version. An App identity is exempt
@@ -284,7 +297,9 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
   PR/issue grants added here would ride along into the token held by the job that
   pushes to a Dependabot branch. **Any new consumer of this App must downscope the
   same way** — the installation's permissions are a ceiling, not the intended
-  grant.
+  grant. Note the failure mode: omitting `permission-*` entirely does not mint a
+  *narrow* token, it mints the **union of everything the App holds**, silently and
+  with no warning. Nothing enforces the cap today, which is #368.
 
   Setup: the App needs **Contents: RW, Pull requests: RW, Issues: RW**, and the
   repo needs `LOCKFIX_APP_ID` / `LOCKFIX_APP_PRIVATE_KEY` (already present for
