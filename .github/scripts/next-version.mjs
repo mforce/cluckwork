@@ -17,7 +17,7 @@
 // exists. The whole tag list is the only safe input.
 //
 // Usage:
-//   git tag --list 'v*' | node .github/scripts/next-version.mjs --labels "release:minor,bug"
+//   git tag --list 'v*' | node .github/scripts/next-version.mjs --labels-file labels.txt
 //
 // Prints the next version (`v1.4.0`) to stdout and exits 0. A refusal — an
 // unreadable label argument — exits non-zero with a message on stderr and
@@ -33,6 +33,7 @@
 // `git tag` refuses to overwrite an existing tag, so the loser fails the run
 // rather than moving a version an already-published image sits on.
 
+import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 // The first version ever cut, used only when no release tag exists yet. Pre-1.0
@@ -127,19 +128,48 @@ export function nextVersion({ tags = [], labels = [] } = {}) {
 }
 
 /**
- * Labels from the CLI: a single comma-separated `--labels` value. Empty and
- * absent both mean "no labels", which is the ordinary patch path.
+ * Labels from a file, ONE PER LINE.
+ *
+ * A line is a whole label, never split further. Label names may contain commas
+ * — GitHub allows it — so any delimiter-in-a-string encoding is lossy in the
+ * dangerous direction: a single label literally named `bug,release:major` would
+ * arrive as two, and a major bump would fire without anyone ever having applied
+ * `release:major`. A line-per-label file has no such boundary to destroy.
+ */
+export function parseLabelLines(text) {
+  return String(text)
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+}
+
+/**
+ * CLI arguments.
+ *
+ * `--labels-file` points at that file; absent means "no labels", the ordinary
+ * patch path.
+ *
+ * `--print-latest` switches to reporting the HIGHEST existing release tag
+ * instead of the next one (empty output when there is none). The workflow needs
+ * that to know which commits have not been released yet, so it can gather the
+ * bump labels of every one of them — and it must use this same comparison, not
+ * a second implementation that could disagree about v0.9.0 vs v0.10.0.
  */
 export function parseArgs(argv) {
-  const labels = [];
+  let labelsFile = null;
+  let printLatest = false;
   for (let i = 0; i < argv.length; i++) {
-    if (argv[i] !== "--labels") continue;
+    if (argv[i] === "--print-latest") {
+      printLatest = true;
+      continue;
+    }
+    if (argv[i] !== "--labels-file") continue;
     const value = argv[i + 1];
-    if (value === undefined) throw new Error("--labels requires a value");
-    labels.push(...value.split(",").map((l) => l.trim()).filter(Boolean));
+    if (value === undefined) throw new Error("--labels-file requires a value");
+    labelsFile = value;
     i++;
   }
-  return { labels };
+  return { labelsFile, printLatest };
 }
 
 async function readStdin() {
@@ -150,11 +180,19 @@ async function readStdin() {
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   try {
-    const { labels } = parseArgs(process.argv.slice(2));
+    const { labelsFile, printLatest } = parseArgs(process.argv.slice(2));
+    const labels =
+      labelsFile === null ? [] : parseLabelLines(readFileSync(labelsFile, "utf8"));
     const tags = (await readStdin()).split("\n").map((t) => t.trim()).filter(Boolean);
-    const { version, bump, previous } = nextVersion({ tags, labels });
-    process.stderr.write(`bump=${bump} previous=${previous ?? "(none)"}\n`);
-    process.stdout.write(version);
+
+    if (printLatest) {
+      const latest = latestVersion(tags);
+      process.stdout.write(latest === null ? "" : formatVersion(latest));
+    } else {
+      const { version, bump, previous } = nextVersion({ tags, labels });
+      process.stderr.write(`bump=${bump} previous=${previous ?? "(none)"}\n`);
+      process.stdout.write(version);
+    }
   } catch (err) {
     process.stderr.write(`next-version: ${err.message}\n`);
     process.exit(1);

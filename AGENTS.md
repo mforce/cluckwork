@@ -196,7 +196,10 @@ the concurrency queue, as **Cancelled** — neither means the release path is br
   `release:minor` → 1.3.0, **no label → patch**. An inferred bump is silently wrong on
   a typo'd prefix; a label is a deliberate act with a safe default, so most PRs need
   nothing. Both labels present → major (an over-bump costs a number; an under-bump
-  lies to everything pinning a range). The arithmetic lives in
+  lies to everything pinning a range). Labels are collected from **every merge since
+  the last release tag**, not just the one being released — otherwise a
+  `release:major` merge that got overtaken before its own run finished would have its
+  bump silently dropped by the next, unlabelled merge. The arithmetic lives in
   `.github/scripts/next-version.mjs`, self-tested with `node --test` like the other
   two CI scripts, and the first release ever cut is `v0.1.0`.
 - **The published image is the image CI verified — byte for byte.** The `image` job

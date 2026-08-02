@@ -19,6 +19,7 @@ import {
   latestVersion,
   nextVersion,
   parseArgs,
+  parseLabelLines,
   parseVersion,
 } from "./next-version.mjs";
 
@@ -149,12 +150,44 @@ test("the issued version is strictly greater than every existing release tag", (
   }
 });
 
-test("parseArgs reads a comma-separated --labels value", () => {
-  assert.deepEqual(parseArgs([]), { labels: [] });
-  assert.deepEqual(parseArgs(["--labels", ""]), { labels: [] });
-  assert.deepEqual(parseArgs(["--labels", "release:minor"]), { labels: ["release:minor"] });
-  assert.deepEqual(parseArgs(["--labels", "bug, release:major ,slice"]), {
-    labels: ["bug", "release:major", "slice"],
+test("parseArgs reads --labels-file", () => {
+  assert.deepEqual(parseArgs([]), { labelsFile: null, printLatest: false });
+  assert.deepEqual(parseArgs(["--labels-file", "/tmp/l.txt"]), {
+    labelsFile: "/tmp/l.txt",
+    printLatest: false,
   });
-  assert.throws(() => parseArgs(["--labels"]), /requires a value/);
+  assert.throws(() => parseArgs(["--labels-file"]), /requires a value/);
+});
+
+test("parseArgs recognises --print-latest, alone or beside --labels-file", () => {
+  assert.deepEqual(parseArgs(["--print-latest"]), { labelsFile: null, printLatest: true });
+  assert.deepEqual(parseArgs(["--print-latest", "--labels-file", "/tmp/l.txt"]), {
+    labelsFile: "/tmp/l.txt",
+    printLatest: true,
+  });
+  // `--print-latest` must not be swallowed as the value of a preceding flag.
+  assert.deepEqual(parseArgs(["--labels-file", "/tmp/l.txt", "--print-latest"]), {
+    labelsFile: "/tmp/l.txt",
+    printLatest: true,
+  });
+});
+
+test("parseLabelLines treats each LINE as one whole label", () => {
+  assert.deepEqual(parseLabelLines(""), []);
+  assert.deepEqual(parseLabelLines("\n\n  \n"), []);
+  assert.deepEqual(parseLabelLines("bug\nrelease:minor\n"), ["bug", "release:minor"]);
+  assert.deepEqual(parseLabelLines("bug\r\nrelease:minor\r\n"), ["bug", "release:minor"]);
+  assert.deepEqual(parseLabelLines("  release:major  \n"), ["release:major"]);
+});
+
+test("a comma inside a label name does NOT become two labels", () => {
+  // The reason the comma-joined encoding was removed: GitHub permits a comma in
+  // a label name, so `bug,release:major` as ONE label must not fire a major
+  // bump — nobody applied `release:major`.
+  const labels = parseLabelLines("bug,release:major\n");
+  assert.deepEqual(labels, ["bug,release:major"]);
+  assert.equal(bumpFor(labels), "patch");
+
+  // And the genuine label on its own line still counts.
+  assert.equal(bumpFor(parseLabelLines("bug,release:major\nrelease:major\n")), "major");
 });

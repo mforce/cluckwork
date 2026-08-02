@@ -438,9 +438,12 @@ jobs:
     needs: [build-and-test, web, image]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
-      # Job-level permissions REPLACE the workflow-level `contents: read`.
+      # Job-level permissions REPLACE the workflow-level `contents: read`, and
+      # every scope not named here is `none` — so the PR lookup below needs its
+      # scope spelled out or it 403s at the first release.
       contents: write # create and push the version tag
       packages: write # push the image to GHCR
+      pull-requests: read # read the merged PR's release labels
     # Serialise releases. Two merges landing together would otherwise read the
     # same tag list and compute the same next version; the loser's `git tag`
     # would then fail mid-run, after its image was already pushed.
@@ -478,6 +481,11 @@ jobs:
       # So only the current tip of main gets released. A superseded commit skips
       # quietly (not a failure — it was overtaken, nothing is wrong), and the
       # newer run publishes an image that already contains its changes.
+      #
+      # A commit that ALREADY carries a release tag is also a no-op. Re-running a
+      # release that fully succeeded (or whose trailing summary step failed)
+      # would otherwise see its own tag as the calculator's base and cut a
+      # SECOND version for the same merge.
       - name: Release only the current tip of main
         id: guard
         env:
@@ -486,13 +494,23 @@ jobs:
           set -euo pipefail
           git fetch --quiet origin main
           tip="$(git rev-parse origin/main)"
-          if [ "$tip" = "$SHA" ]; then
-            echo "proceed=true" >> "$GITHUB_OUTPUT"
-          else
+
+          if [ "$tip" != "$SHA" ]; then
             echo "proceed=false" >> "$GITHUB_OUTPUT"
             echo "::notice title=Release skipped::$SHA was superseded by $tip; the newer run publishes it."
             echo "Superseded by $tip — skipping release." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
           fi
+
+          released="$(git tag --list 'v*' --points-at "$SHA" | head -1)"
+          if [ -n "$released" ]; then
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Release skipped::$SHA is already released as $released."
+            echo "Already released as \`$released\` — nothing to do." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          echo "proceed=true" >> "$GITHUB_OUTPUT"
 
       - name: Download the verified image
         if: steps.guard.outputs.proceed == 'true'
@@ -543,7 +561,13 @@ jobs:
       # The label text never reaches a `run:` script through `${{ }}`; it goes
       # into an env var and then to the calculator as an argv value, so a label
       # containing shell metacharacters cannot become code.
-      - name: Resolve the merged PR's release labels
+      # Labels are gathered from EVERY merge since the last release, not just
+      # this commit's. A merge labelled `release:minor` that gets overtaken
+      # before its own release job runs would otherwise have its bump silently
+      # dropped: the newer, unlabelled run publishes the combined changes as a
+      # patch, and the minor bump is lost for good. Whatever has not shipped yet
+      # still gets its say.
+      - name: Resolve release labels for every unreleased merge
         id: labels
         if: steps.guard.outputs.proceed == 'true'
         env:
@@ -552,20 +576,54 @@ jobs:
           SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
-          labels="$(gh api "repos/$REPO/commits/$SHA/pulls" \
-            --jq '[.[] | select(.merged_at != null) | .labels[].name] | join(",")' \
-            | tr -d '\r\n')"
-          echo "Labels on the merged PR behind $SHA: ${labels:-(none)}"
-          printf 'labels=%s\n' "$labels" >> "$GITHUB_OUTPUT"
+
+          # Same comparison the calculator uses, so the two can never disagree
+          # about which tag is highest (v0.9.0 vs v0.10.0).
+          previous="$(git tag --list 'v*' | node .github/scripts/next-version.mjs --print-latest)"
+
+          # ONE LABEL PER LINE, in a file. Not a delimited string: label names
+          # may contain commas, so any join would let a single label called
+          # `bug,release:major` arrive as two and fire a bump nobody asked for.
+          : > "$RUNNER_TEMP/release-labels.txt"
+
+          if [ -z "$previous" ]; then
+            # First release ever: it is v0.1.0 whatever the labels say, and the
+            # range would be the entire history. Don't ask.
+            echo "No previous release tag — first release, labels do not apply."
+            exit 0
+          fi
+
+          commits="$(git rev-list "$previous..$SHA")"
+          count="$(printf '%s' "$commits" | grep -c . || true)"
+          echo "Unreleased merges since $previous: $count"
+
+          # Realistically 1–3 (a range grows only when runs are superseded). A
+          # much larger one means the tag sequence is out of step with history;
+          # say so loudly rather than silently scoring part of the range.
+          if [ "$count" -gt 50 ]; then
+            echo "::warning title=Large unreleased range::$count commits since $previous; scoring the 50 most recent only."
+            commits="$(printf '%s\n' "$commits" | head -50)"
+          fi
+
+          # `--jq` emits one label per line already; `tr -d '\r'` only normalises
+          # line endings, and cannot merge two labels into one.
+          while IFS= read -r commit; do
+            [ -n "$commit" ] || continue
+            gh api "repos/$REPO/commits/$commit/pulls" \
+              --jq '.[] | select(.merged_at != null) | .labels[].name' \
+              | tr -d '\r' >> "$RUNNER_TEMP/release-labels.txt"
+          done <<< "$commits"
+
+          echo "Labels across the unreleased merges:"
+          sed 's/^/  - /' "$RUNNER_TEMP/release-labels.txt" || true
 
       - name: Compute the next version
         id: version
         if: steps.guard.outputs.proceed == 'true'
-        env:
-          LABELS: ${{ steps.labels.outputs.labels }}
         run: |
           set -euo pipefail
-          version="$(git tag --list 'v*' | node .github/scripts/next-version.mjs --labels "$LABELS")"
+          version="$(git tag --list 'v*' \
+            | node .github/scripts/next-version.mjs --labels-file "$RUNNER_TEMP/release-labels.txt")"
           echo "Next version: $version"
 
           # `git tag --list` reads the clone's snapshot, taken at checkout. A tag
@@ -574,10 +632,24 @@ jobs:
           # would refuse — but only AFTER the image push had already moved the
           # registry's `:$version` onto different bytes. Check the remote while
           # refusing is still free.
-          if git ls-remote --exit-code --tags origin "refs/tags/$version" >/dev/null 2>&1; then
-            echo "::error::$version already exists on origin — refusing to overwrite a published version"
-            exit 1
-          fi
+          #
+          # Branch on the EXACT status, never on "non-zero means absent":
+          # ls-remote answers 2 for "no match", but a network or auth failure
+          # exits 128, and lumping those together would fail OPEN — treating an
+          # unreachable remote as proof the tag is free.
+          set +e
+          git ls-remote --exit-code --tags origin "refs/tags/$version" >/dev/null 2>&1
+          lsr=$?
+          set -e
+          case "$lsr" in
+            0)
+              echo "::error::$version already exists on origin — refusing to overwrite a published version"
+              exit 1 ;;
+            2) ;; # definitively absent — the only status that may proceed
+            *)
+              echo "::error::could not check origin for $version (git ls-remote exit $lsr) — refusing to guess"
+              exit 1 ;;
+          esac
 
           printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
 
