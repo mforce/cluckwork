@@ -144,7 +144,7 @@ model.
 
 **One-time setup (required for the push to work):** create a GitHub App with
 Repository → Contents: Read and write, install it on this repo, and add the repo
-Actions secrets `LOCKFIX_APP_ID` and `LOCKFIX_APP_PRIVATE_KEY`. Until both exist
+Actions secrets `LOCKFIX_APP_CLIENT_ID` and `LOCKFIX_APP_PRIVATE_KEY`. Until both exist
 this workflow fails closed (no push) — **and so does the Release workflow (#351),
 which shares the same App**: without them its mint step fails on every push to
 `main`, so no release is cut.
@@ -385,9 +385,17 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
   with no warning. Nothing enforces the cap today, which is #368.
 
   Setup: the App needs **Contents: RW, Pull requests: RW, Issues: RW**, and the
-  repo needs `LOCKFIX_APP_ID` / `LOCKFIX_APP_PRIVATE_KEY` (already present for
+  repo needs `LOCKFIX_APP_CLIENT_ID` / `LOCKFIX_APP_PRIVATE_KEY` (shared with
   lockfix). Fails closed — a missing secret fails the mint step, so no release is
   cut with a fallback token.
+
+  **`client-id`, not `app-id`.** `create-github-app-token` v3 deprecated `app-id`
+  (`deprecationMessage: "Use 'client-id' instead."`), so every run annotated a
+  warning until both mints moved over. They are *different values* for the same
+  App — the App ID is a number, the Client ID a string (`Iv23li…`), both on the
+  App's General page — so this needed a new secret rather than editing the old
+  one. Neither is a credential; only the private key is. Don't "fix" a future
+  deprecation by pointing `client-id` at `LOCKFIX_APP_ID`: the mint fails.
 - Package visibility and the host's pull credential are **deploy-side** concerns
   (cluckwork-deploy#6), not this repo's.
 

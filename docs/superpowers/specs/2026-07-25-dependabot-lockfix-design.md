@@ -78,7 +78,13 @@ closed (no push happens); everything else is testable without it.
 > can no longer mint that token. A permission change also needs the installation owner to
 > **approve** it before an existing installation picks it up. This job still receives a
 > Contents-only token, because its mint pins `permission-contents: write`; see AGENTS.md
-> for what that pin does and does not guarantee. The rest of this document stands.
+> for what that pin does and does not guarantee.
+>
+> The secret named above is also stale: `create-github-app-token` v3 deprecated the
+> `app-id` input in favour of `client-id`, so both mints now read
+> **`LOCKFIX_APP_CLIENT_ID`** (the App's Client ID, a different value from its App ID)
+> rather than `LOCKFIX_APP_ID`. `LOCKFIX_APP_PRIVATE_KEY` is unchanged. The rest of this
+> document stands.
 
 ### Privilege separation: two jobs
 
