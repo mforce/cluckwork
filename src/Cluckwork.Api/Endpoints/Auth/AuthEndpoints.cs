@@ -148,11 +148,24 @@ public static class AuthEndpoints
             // Deliberately on the FAILURE path only, and only when there is no
             // administrator at all:
             //
-            //  * It cannot enumerate anything. The condition is a property of
-            //    the whole instance, never of the address that was typed, and it
-            //    can only hold while NO credential exists to protect. The moment
-            //    one Owner exists this branch is unreachable and the response is
+            //  * It cannot ENUMERATE. The condition is a property of the whole
+            //    instance and never of the address that was typed, so no attempt
+            //    reveals anything about any particular account. The moment one
+            //    Owner exists this branch is unreachable and the response is
             //    byte-identical to the generic denial it has always been.
+            //  * It DOES disclose one global fact to an anonymous caller who
+            //    attempts a sign-in: this instance has no administrator. Stated
+            //    plainly because an earlier version of this comment claimed the
+            //    condition "can only hold while no credential exists to protect",
+            //    which is false (PR #363 review round 2) — the predicate is the
+            //    absence of an OWNER, and the seeders create Workers/Managers
+            //    without one, so real protected credentials can exist while this
+            //    fires. Accepted: the fact is not itself a credential and grants
+            //    no access, it is already inferable by anyone who can reach the
+            //    form on a fresh install, and unlike the status endpoint this
+            //    replaced it reaches only someone who actually attempted to sign
+            //    in. The cost of withholding it is an operator stranded at a form
+            //    that cannot work.
             //  * Only someone actually attempting to sign in learns it — unlike
             //    a status endpoint, which answers anyone who asks without them
             //    trying.

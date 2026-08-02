@@ -623,11 +623,17 @@ for good once the first Owner exists. The notice deliberately publishes **no
 command and no deployment detail** — a page reachable by anyone is the wrong
 place to describe how the server is run, and the setup steps belong in the
 README. It is reported on the **failed sign-in itself**, not by a status check
-the page polls: only someone actually attempting to sign in is told anything,
-the condition is a property of the whole instance rather than of the address
-that was typed, and it can only hold while **no** credential exists to protect.
-The moment one Owner exists, the response is byte-identical to the ordinary
-non-enumerating denial. This is a **separate mechanism** from break-glass recovery below (a pre-auth, one-shot
+the page polls, so only someone actually attempting to sign in is told anything.
+It does not **enumerate**: the condition is a property of the whole instance and
+never of the address that was typed, so no attempt reveals anything about any
+particular account, and the moment one Owner exists the response is
+byte-identical to the ordinary non-enumerating denial. It does **disclose one
+global fact** — that this instance has no administrator — which can be true
+while ordinary non-Owner accounts exist and are protected, since the predicate
+is the absence of an *Owner* and the seeders create Workers and Managers without
+one. Accepted deliberately: the fact is not a credential and grants no access,
+it is already inferable by anyone who can reach the form on a fresh install, and
+the alternative is leaving an operator stranded at a form that cannot work. This is a **separate mechanism** from break-glass recovery below (a pre-auth, one-shot
 setup secret vs. an offline recovery for a locked-out existing account) and
 from the browser step-up re-confirmation a signed-in Owner uses for sensitive
 actions (#308) — three distinct credential types, audiences, and lifetimes,

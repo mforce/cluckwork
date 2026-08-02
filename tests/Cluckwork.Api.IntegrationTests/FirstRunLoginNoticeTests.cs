@@ -90,6 +90,38 @@ public sealed class FirstRunLoginNoticeTests(CluckworkWebApplicationFactory fact
         var crossAccount = await AttemptLoginAsync(client, "nobody@test.local", "whatever");
         Assert.Equal(AuthEndpoints.NoAccountsProvisionedCode, crossAccount.Title);
 
+        // 2b. A NON-OWNER user in the default account does not count either, and
+        //     this is the state the copy had to be reworded for (#363 review):
+        //     the seeders create Workers/Managers without ever running
+        //     bootstrap-admin, and such a user signs in perfectly well (see
+        //     ASuccessfulSignIn_NeverReportsIt). If they mistype their password
+        //     here they are told there is no administrator — which is TRUE, and
+        //     is why the copy says "no administrator account" rather than "no
+        //     accounts" or "no sign-in can succeed".
+        //
+        //     Pinned deliberately: the behaviour reads oddly out of context, so
+        //     it is exactly the kind of thing a later change "corrects" into a
+        //     regression. If this is ever revisited, the fix is the predicate
+        //     (and #283's invariant), not a quiet special case here.
+        var nonOwnerEmail = $"non-owner-{Guid.NewGuid():N}@test.local";
+        using (var scope = factory.Services.CreateScope())
+        {
+            var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var created = await users.CreateAsync(
+                new ApplicationUser
+                {
+                    UserName = nonOwnerEmail,
+                    Email = nonOwnerEmail,
+                    AccountId = SeedDefaults.AccountId,
+                },
+                TemporaryPassword.Generate());
+            Assert.True(created.Succeeded, string.Join("; ", created.Errors.Select(e => e.Description)));
+        }
+
+        var nonOwnerWrongPassword = await AttemptLoginAsync(
+            client, nonOwnerEmail, "definitely-not-the-password");
+        Assert.Equal(AuthEndpoints.NoAccountsProvisionedCode, nonOwnerWrongPassword.Title);
+
         // 3. The real thing — from here the response must be indistinguishable
         //    from any other wrong-credential attempt.
         var ownerEmail = $"default-account-owner-{Guid.NewGuid():N}@test.local";
