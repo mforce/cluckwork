@@ -277,8 +277,9 @@ on has both.
   The dispatch only accepts commits already on `main`, and **must itself be run
   from `main`** (the default branch in the *Run workflow* dropdown). The sha you
   type names the commit to build; the branch you dispatch from decides which
-  workflow definition runs, and a release will only promote an image built by the
-  definition on `main`.
+  workflow definition runs, and an image built from a branch dispatch carries
+  provenance naming that branch — which the release workflow, and any deploy
+  that verifies, both reject.
 
 ## Architecture
 

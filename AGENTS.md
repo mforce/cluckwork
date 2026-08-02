@@ -346,17 +346,27 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
   `continue-on-error` — an attestation nobody can rely on is worse than none,
   because it reads as coverage.
 
-  **Say what that is fail-closed against, because it is not everything.** It
-  defends the threat this was built for — a credential that can push to GHCR
-  (`packages: write`), which cannot produce a valid attestation. It does **not**
-  defend against someone who can push a **branch**: `workflow_dispatch` runs a
-  workflow's definition from the selected ref, so a branch copy of
-  `release-please.yml` with the verify step deleted would run with that job's
-  `contents: write` + `packages: write` and publish whatever it liked. No check
-  written *inside* a branch-editable workflow can close that — the attacker
-  edits the check. The controls are repo-level: who may push branches, who may
-  run workflows, and branch protection on `main`. Treat "verified provenance" as
-  a statement about registry credentials, not about repo write access.
+  **There are two gates, and they do not have the same strength — don't conflate
+  them.**
+
+  - **Promotion's check** (the verify in `release-please.yml`) is *inside a
+    branch-editable workflow*. `workflow_dispatch` runs a workflow's definition
+    from the selected ref, so someone who can push a branch can dispatch a copy
+    with the verify deleted, running with that job's `contents: write` +
+    `packages: write`. No check written inside a branch-editable workflow closes
+    that — the attacker edits the check. The controls there are repo-level: who
+    may push branches, who may run workflows, branch protection on `main`.
+  - **Deploy-side verification** is *not* subject to that, and this is the
+    stronger of the two. It runs outside this repo, against the registry, and a
+    branch-built image carries an attestation naming **that branch** as its
+    source ref — which `--source-ref refs/heads/main` rejects. So a branch writer
+    can push bytes and even hand them a version tag, and the deploy side still
+    refuses them.
+
+  Net: the internal gate is a convenience that fails closed for a leaked
+  registry credential; the external one is what actually survives repo write.
+  That is the argument for the deploy side verifying rather than trusting a
+  digest we handed it — and for `--source-ref` being non-optional there.
 - **Promotion reads the digest from CI's own run artifact, never by resolving
   `:sha-<commit>`.** That tag is mutable by anyone holding `packages: write`, and
   the merge commit is public seconds after merge while CI needs minutes to push —
