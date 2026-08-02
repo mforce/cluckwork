@@ -77,23 +77,32 @@ jobs:
       #      is on. That setting governs GITHUB_TOKEN *only* — it does not
       #      constrain an App installation token, which is exactly why this
       #      works. So the choice is not "capability vs. no capability", it is
-      #      WHICH credential holds PR-write and how widely:
-      #        setting ON -> every workflow's GITHUB_TOKEN can create AND
-      #          approve PRs, including workflows added later and
-      #          `pull_request`-triggered jobs that run contributor-influenced
-      #          code.
-      #        App token  -> the capability exists in ONE job, which runs only
-      #          on push to main and hands the token to exactly one SHA-pinned
-      #          action.
-      #      The controls are that scope reduction and the pin, NOT the
-      #      setting's off-state. Be precise about this: the token below CAN
-      #      approve a pull request. "Pull requests: write" is indivisible —
-      #      opening a PR and approving one are the same scope — so nothing but
-      #      the pinned action's own behaviour stops it. Today that is inert,
-      #      because `main` requires zero approving reviews and no status
-      #      checks, so there is nothing for a rogue approval to satisfy. The
-      #      point is to avoid handing that capability to every workflow before
-      #      the day required reviews are switched on.
+      #      WHICH credential can reach PR-write, and what a job must hold to
+      #      use it:
+      #        setting ON -> the policy gate on GITHUB_TOKEN is removed
+      #          repo-wide. It does not by itself grant anything: a job must
+      #          still declare `pull-requests: write` (the repo default is
+      #          `read`). But from then on any job that declares it — including
+      #          `pull_request`-triggered ones running contributor-influenced
+      #          code — can create and approve PRs with the ambient token, with
+      #          no secret required.
+      #        App token  -> the gate stays on, so no GITHUB_TOKEN anywhere can
+      #          do it, and PR-write is reachable only by a job that explicitly
+      #          references the App private key.
+      #      Do NOT restate that as "the capability lives in one job". The
+      #      private key is a repository secret, and `permission-*` caps the
+      #      token the action returns, not the key: ANY job referencing that
+      #      secret can mint the App's full grant. Two jobs do today (this one
+      #      and dependabot-lockfix's `commit`), and what keeps that safe is
+      #      that neither executes PR-controlled code — not job count.
+      #      Be equally precise about the token below: it CAN approve a pull
+      #      request. "Pull requests: write" is indivisible — opening a PR and
+      #      approving one are the same scope — so nothing but the pinned
+      #      action's behaviour stops it. Inert today, because `main` requires
+      #      zero approving reviews and no status checks, so there is nothing
+      #      for a rogue approval to satisfy. The point is to keep that
+      #      capability behind a secret rather than behind a declared
+      #      permission, before the day required reviews are switched on.
       #   2. GitHub does not trigger workflows for anything GITHUB_TOKEN pushes
       #      or opens (recursion prevention), so a GITHUB_TOKEN release PR would
       #      carry NO checks — and that PR is the commit that cuts a version. An

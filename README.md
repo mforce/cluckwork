@@ -180,10 +180,11 @@ booted. Deployment configuration itself lives in the separate deploy repo, not h
   machine-maintained — editing them by hand desynchronises the bot from reality.
 - **The Release PR is built and tested like any other PR.** It's opened with a
   GitHub App token rather than the default Actions token, which matters twice.
-  The default token can't open a PR unless the repo also lets *every* workflow
-  create and approve PRs — a much wider grant than this needs, so the App token
-  keeps it to one job. And PRs opened by the default token get no CI run at all,
-  which would leave the one commit that cuts a version unchecked.
+  The default token can't open a PR at all unless the repo turns on a setting
+  that lifts that restriction for *every* workflow — so instead, opening PRs
+  stays behind a credential a job has to ask for by name. And PRs opened by the
+  default token get no CI run at all, which would leave the one commit that cuts
+  a version unchecked.
 - **A release that can't find its image never goes public.** It stays a draft, and
   GitHub doesn't create the tag for a draft — so you get no version pointing at a
   missing image. To finish it: Actions → **Release** → *Run workflow*, with the tag.
