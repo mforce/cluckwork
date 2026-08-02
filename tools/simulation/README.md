@@ -36,7 +36,49 @@ demo` (#280) for the dev/demo profile.
 bash tools/simulation/bootstrap.sh   # generate .env.sim + .sim-cast.json (idempotent)
 bash tools/simulation/reset.sh       # wipe + rebuild + base-seed + `seed --profile simulation` + verify
 bash tools/simulation/run-baseline.sh   # N reps of the k6 baseline -> findings doc
+
+bash tools/simulation/verify-harness.sh # ~0.1s self-check; reset.sh runs it for you
 ```
+
+## KEEPING THIS HARNESS ALIVE (read before changing a boot guard) — #370
+
+**Nothing automated runs this harness.** It is deliberately not in CI — it is
+dev tooling, and a GitHub job on every push is out of proportion to five
+seconds of work. The consequence is the thing to internalise: **when you break
+it, nothing tells you.** It is exercised only when a human types `reset.sh`.
+
+That is not hypothetical. By 2026-08 this harness could not boot `main` at
+all — four breakages had piled up, **three of them app-side Production boot
+guards that landed while the harness config stayed put**:
+
+| Landed | Broke the harness because |
+| --- | --- |
+| #319 `AllowedHosts` | a wildcard now **fails the boot**; the stack did not start |
+| #261/#262 TLS floor | unset `sslmode` means Npgsql `Prefer` — the rejected case |
+| #316 OTLP | a blank `Otlp__AllowInsecureEndpoint` fails to bind to `Boolean` |
+
+The `app` container here runs **Production config on purpose** (that is the
+point — prod-config fidelity), so **every** such guard applies to it.
+
+**So: if your PR adds or changes a boot guard, or adds/renames/retires a config
+key, update `bootstrap.sh` + `docker-compose.sim.yml` in the same PR**, and add
+an assertion to `verify-harness.sh`. `reset.sh` runs that self-check *before*
+the destructive `down -v`, so a config defect costs 0.1s instead of a wiped
+volume, an image rebuild, and a five-minute wait to fail at `/health/ready` —
+which is exactly how these were actually found.
+
+Satisfy a guard **properly**, never by switching it off: a concrete
+`AllowedHosts` (not `*`), and the *documented* plaintext opt-outs for this
+stack's co-located sidecar — the same ones `deploy/docker-compose.yml` uses.
+
+**One trap worth knowing.** `.env.sim` is git-ignored, so it outlives the
+schema that generated it. The one found in 2026-08 was pre-#283: it still
+carried retired `Seed__Admin*`/`Seed__Demo` keys **and lacked** the
+`SIM_ADMIN_*` that `reset.sh` now needs. When a key changes, regenerate rather
+than hand-patch: `bash tools/simulation/bootstrap.sh --force` (new secrets are
+free — `reset.sh` wipes the database anyway). `verify-harness.sh` fails on
+those retired keys by name so a stale file says so instead of failing obscurely
+mid-boot.
 
 `reset.sh` leaves the app reachable at `http://127.0.0.1:8081/`. Log in with
 any credential from `tools/simulation/.sim-cast.json` (the Owner, or any of

@@ -76,6 +76,14 @@ read_env_value() {
 
 echo "== Sim reset: project ${COMPOSE_PROJECT_NAME} =="
 
+# Self-check FIRST, before the destructive `down -v` and the image rebuild
+# below (#370). Every one of the four breakages that left this harness unable
+# to boot merged main was a config or logic defect visible without starting
+# anything — so catching them here costs ~0.1s and saves wiping a volume and
+# rebuilding an image only to fail five minutes later at /health/ready, which
+# is exactly how they were actually found.
+bash "${SIM_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}/verify-harness.sh"
+
 echo "-- down -v (cluckwork-sim volumes only) --"
 compose down -v --remove-orphans
 
