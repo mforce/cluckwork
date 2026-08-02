@@ -240,9 +240,20 @@ digest tells you *what* you are deploying but nothing about *where it came from*
 perfectly immutable digest. The attestation is a signed claim by this repo's CI
 workflow, so anything pushed by hand has no such claim and fails the check.
 
-That covers a credential that can push to the registry, and also someone who can
-push a *branch* here — a branch-built image's provenance names that branch, and
-the command above rejects it. It does **not** cover a change merged to `main`.
+That covers a credential that can push to the registry, and stops a branch
+writer getting *their own* bytes deployed. Two things it does not do: it says
+nothing about a change merged to `main`, and it proves **origin, not currency** —
+it answers "did CI on `main` build these bytes", not "are these the bytes this
+release promoted". So also check that `:vX.Y.Z` resolves to the digest
+`image.json` names:
+
+```bash
+# 3. Confirm the release's tag still points at the digest image.json names
+TAGGED=$(docker buildx imagetools inspect ghcr.io/mforce/cluckwork:v0.4.0 \
+  --format '{{json .Manifest.Digest}}' | tr -d '"')
+[ "$TAGGED" = "$(jq -r .digest image.json)" ] || exit 1
+```
+
 The deploy bullet in [`AGENTS.md`](AGENTS.md) is the canonical statement of that
 boundary, and of why each flag is required.
 

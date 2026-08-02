@@ -356,17 +356,31 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
     `packages: write`. No check written inside a branch-editable workflow closes
     that — the attacker edits the check. The controls there are repo-level: who
     may push branches, who may run workflows, branch protection on `main`.
-  - **Deploy-side verification** is *not* subject to that, and this is the
-    stronger of the two. It runs outside this repo, against the registry, and a
+  - **Deploy-side verification** is *not* subject to that, and is the stronger
+    of the two. It runs outside this repo, against the registry, and a
     branch-built image carries an attestation naming **that branch** as its
     source ref — which `--source-ref refs/heads/main` rejects. So a branch writer
-    can push bytes and even hand them a version tag, and the deploy side still
-    refuses them.
+    cannot get *their own bytes* deployed.
+
+    But it proves **origin, not currency**, and that gap is reachable: the
+    verify command answers "did this repo's CI on `main` build these bytes",
+    **not** "are these the bytes this release promoted". A branch writer holds
+    `contents: write` through a dispatched copy of `release-please.yml`, so they
+    can overwrite a published release's `image.json` with an **older, genuinely
+    attested** digest. The deploy side reads `.reference` from that file,
+    verifies it, and it passes — a **downgrade**, using bytes that really were
+    CI's. Nothing in the attestation binds a digest to a release.
+
+    Closing that is the deploy side's job, and it is one comparison: check that
+    `:vX.Y.Z` in the registry resolves to the digest `image.json` names, and
+    refuse if they differ. Promotion sets that tag from the verified digest, so
+    agreement means the asset was not swapped afterwards.
 
   Net, stated at exactly the strength the argument supports: the internal gate
   fails closed for a leaked **registry** credential. The external gate also
-  survives a **branch push** — someone who can push a branch but not change
-  `main`. **Neither survives a merge to `main`.** Once a backdoored `ci.yml` is
+  stops a **branch push** substituting its own bytes — though not a branch
+  writer swapping in *other* attested bytes, which needs the tag/digest
+  comparison above. **Neither survives a merge to `main`.** Once a backdoored `ci.yml` is
   the definition on `main`, its attestation is genuinely valid — right signer
   workflow, right source ref — because `--source-ref` records *which ref built
   this*, not *whether that ref's content is trustworthy*. This repo allows a
