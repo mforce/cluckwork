@@ -462,6 +462,8 @@ jobs:
       # Job-level permissions REPLACE the workflow-level `contents: read`.
       contents: read
       packages: write # push the image to GHCR
+      id-token: write # mint the OIDC token the provenance signer needs (#354)
+      attestations: write # record the attestation against this repo (#354)
     outputs:
       image: ${{ steps.publish.outputs.image }}
       digest: ${{ steps.publish.outputs.digest }}
@@ -580,6 +582,98 @@ jobs:
             echo "$image@$digest"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+      # Cryptographically bind the pushed digest to THIS workflow run (#354).
+      #
+      # Everything else in this pipeline establishes "which digest CI published"
+      # by evidence the deploy side has to trust us about: a run artifact, a
+      # release note. None of it is verifiable by a machine that did not watch
+      # the run. Anyone holding `packages: write` — realistically a compromised
+      # collaborator PAT, not a malicious one — can push arbitrary bytes to this
+      # registry, and nothing downstream could tell those apart from ours.
+      #
+      # A provenance attestation is checkable without trusting us:
+      #   gh attestation verify oci://ghcr.io/<owner>/<repo>@sha256:… \
+      #     --repo <owner>/<repo> \
+      #     --signer-workflow <owner>/<repo>/.github/workflows/ci.yml \
+      #     --source-ref refs/heads/main \
+      #     --bundle-from-oci
+      # succeeds only for bytes this workflow signed a provenance claim over.
+      # Say it that precisely: an attestation is a CLAIM BY AN ACTOR, so it
+      # proves the named workflow attested this digest — not, independently,
+      # that it built it. The strength rests on that actor, which is why
+      # `--signer-workflow` is part of the documented command and not optional.
+      #
+      # Repair caveat: on a `workflow_dispatch` this job builds `inputs.sha`,
+      # but GITHUB_SHA is the tip of the dispatched REF, and the provenance
+      # predicate is built from the OIDC token's ref/sha. So a repaired image's
+      # attestation names the branch tip as its source commit, not the commit
+      # actually built. The digest binding is still correct — which is what
+      # promotion and deploy check — but do not read the provenance's source
+      # commit as authoritative for a dispatched rebuild. `image.json.commit` is
+      # the commit PROMOTION SELECTED. Usually that is the release's own
+      # `target_commitish`; when that records a branch name instead of a sha,
+      # promotion falls back to a supplied one — release-please's own output on
+      # a normal push, an operator's input only on a manual release repair, and
+      # release-please.yml says outright it cannot be cross-checked either way.
+      # Do not read it as "the commit the release was cut from" without that
+      # distinction.
+      #
+      # This is also why the verify command pins `--source-ref refs/heads/main`:
+      # `--signer-workflow` pins only the workflow's PATH, so without the ref a
+      # ci.yml edited on a branch and dispatched from there would still produce
+      # a promotable attestation. A repair dispatch must therefore run FROM
+      # main; the sha input only chooses which commit gets built.
+      #
+      # All three flags are load-bearing and none is the default:
+      #   --bundle-from-oci   without it `gh` fetches the bundle from the GITHUB
+      #                       API, not the registry — so the registry copy this
+      #                       step pushes would go unused.
+      #   --signer-workflow   without it the identity is bound to the REPO, so
+      #                       any workflow here holding `attestations: write`
+      #                       satisfies the check. Since the threat model is a
+      #                       leaked token, pin the workflow, not just the repo.
+      #   --source-ref        without it the identity is not bound to a REF, and
+      #                       `--signer-workflow` pins only the path — see the
+      #                       branch-dispatch note below.
+      #
+      # `push-to-registry: true` stores the attestation as an OCI referrer
+      # beside the image, which is what makes `--bundle-from-oci` possible at
+      # all. Note the consumer still authenticates to the REGISTRY for an
+      # `oci://` subject — the saving is that it needs no GitHub API access to
+      # this repo, not that it needs no credentials.
+      #
+      # Placed BEFORE the digest artifact deliberately, so a failed attestation
+      # in THIS run leaves no artifact behind. Be precise about how far that
+      # goes: it is a within-a-run property only. Promotion looks the artifact
+      # up by NAME, repo-wide, and takes the first unexpired match, so an
+      # artifact from an earlier run of the same commit would still satisfy it.
+      # Release-level fail-closed comes from `release-please.yml` VERIFYING the
+      # attestation before it retags — not from this ordering. Both are wanted;
+      # do not let the ordering stand in for the check.
+      #
+      # And be clear what that is fail-closed AGAINST. Short version: a
+      # credential that can push to GHCR cannot mint a valid attestation, so
+      # this closes that. Promotion's own check is weaker than the deploy
+      # side's, because promotion runs inside a workflow a branch writer can
+      # edit. And NEITHER survives a change merged to `main`.
+      #
+      # AGENTS.md's "Deploy by digest" bullet is the canonical statement of that
+      # boundary — go there rather than re-deriving it here. This claim has been
+      # corrected several times and every copy of it drifted; there is one copy
+      # on purpose.
+      #
+      # Also why this is not `continue-on-error`: an attestation nobody checks
+      # is worse than none, because it looks like coverage.
+      #
+      # This action is `actions/*`, so a major-version tag is fine under the
+      # repo's pinning rule (third-party actions still need a commit SHA).
+      - name: Attest the published image's build provenance
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-name: ${{ steps.publish.outputs.image }}
+          subject-digest: ${{ steps.publish.outputs.digest }}
+          push-to-registry: true
 
       # The release workflow reads this to learn which digest CI actually
       # published for this commit, instead of trusting whatever the registry tag

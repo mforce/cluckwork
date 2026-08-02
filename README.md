@@ -208,15 +208,70 @@ nothing is released until you merge that PR.
 
 ### Deploying
 
-**Deploy by digest, never by tag.** Tags can be moved; a digest cannot. Every
-release's notes end with the exact reference:
+**Deploy by digest, never by tag.** Tags can be moved; a digest cannot.
+
+Two steps, answering two different questions — *which* image, and whether it is
+really ours:
 
 ```bash
-gh release view v0.4.0        # the digest is at the bottom of the notes
+# 0. gh needs registry credentials for an oci:// subject. The token needs
+#    read access to the package (`read:packages` on a PAT); GHCR authenticates
+#    the token and ignores the username, so any username value works.
+echo "$GITHUB_TOKEN" | docker login ghcr.io -u x-access-token --password-stdin
+
+# 1. Obtain the digest (machine-readable; no prose to parse)
+gh release download vX.Y.Z -p image.json -R mforce/cluckwork
+REF=$(jq -r .reference image.json)
+
+# 2. Verify those bytes came from this repo's CI
+gh attestation verify "oci://$REF" \
+  --repo mforce/cluckwork \
+  --signer-workflow mforce/cluckwork/.github/workflows/ci.yml \
+  --source-ref refs/heads/main \
+  --bundle-from-oci
 ```
 
-That digest is the only identifier that provably refers to the bytes CI scanned and
-booted. Deployment configuration itself lives in the separate deploy repo, not here.
+All three flags matter and none is the default — each narrows *whose* claim is
+accepted (the registry copy, one workflow, one branch). Copy the command as-is.
+
+Step 2 is the one that matters, and step 1 cannot substitute for it. Knowing a
+digest tells you *what* you are deploying but nothing about *where it came from*
+— if someone pushed those bytes by hand, the digest is still a perfectly valid,
+perfectly immutable digest. The attestation is a signed claim by this repo's CI
+workflow, so anything pushed by hand has no such claim and fails the check.
+
+That covers a credential that can push to the registry, and stops a branch
+writer getting *their own* bytes deployed. It proves **origin, not currency**,
+though — "did CI on `main` build these bytes", not "are these the bytes this
+release promoted" — so also confirm the tag still agrees with what you verified:
+
+```bash
+# 3. Confirm the release's tag still resolves to the digest you just verified.
+#    Compare against $REF, NOT against `jq -r .digest`: `image`, `digest` and
+#    `reference` are independent fields of one attacker-writable file, so a
+#    rewritten asset can point `.reference` at an old digest while leaving
+#    `.digest` matching the tag — and a check reading `.digest` would pass while
+#    you deploy the old one. $REF is what step 2 verified and what you deploy.
+TAGGED=$(docker buildx imagetools inspect ghcr.io/mforce/cluckwork:vX.Y.Z \
+  --format '{{json .Manifest.Digest}}' | tr -d '"')
+[ "$TAGGED" = "${REF##*@}" ] || exit 1
+```
+
+Step 3 catches an asset rewritten on its own. It does **not** catch someone who
+can also push to the registry and move the tag to match, and it says nothing
+about a change merged to `main`. **Read the deploy bullet in
+[`AGENTS.md`](AGENTS.md) before relying on any of this** — it is the canonical
+statement of what each step does and does not prove, and of why each flag is
+required.
+
+The digest also appears at the bottom of the release notes, for humans.
+Deployment configuration itself lives in the separate deploy repo, not here.
+
+**Releases cut before this landed support neither step.** Their images were
+published before attestation existed, so step 1 404s and step 2 finds nothing to
+verify — the digest in the release notes is all there is, and it carries no
+proof of origin. This applies to `v0.0.1` only; every release from the next one
+on has both.
 
 ### Notes
 
@@ -238,7 +293,12 @@ booted. Deployment configuration itself lives in the separate deploy repo, not h
   that commit's sha first, then the Release step above. This happens when a commit
   message contains `[skip ci]` (GitHub matches it anywhere in the message, so it can
   arrive via a changelog entry) — no run is created, so there is nothing to re-run.
-  The dispatch only accepts commits already on `main`.
+  The dispatch only accepts commits already on `main`, and **must itself be run
+  from `main`** (the default branch in the *Run workflow* dropdown). The sha you
+  type names the commit to build; the branch you dispatch from decides which
+  workflow definition runs, and an image built from a branch dispatch carries
+  provenance naming that branch — which the release workflow, and any deploy
+  that verifies, both reject.
 
 ## Architecture
 
