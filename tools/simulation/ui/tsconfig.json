@@ -1,0 +1,38 @@
+{
+  // Type-checking only (`npm run typecheck`). Playwright transpiles the specs
+  // itself at run time and never reads this file's emit settings.
+  //
+  // `include` reaches into ../../../web/src/i18n on purpose: the specs import the
+  // SPA's English/Spanish/Tagalog catalogs directly (see src/i18n.ts), and those
+  // three files must be type-checked as part of this project or every `t()` key
+  // degrades to `string` and the compile-time key check is lost — which is the
+  // main reason for importing them rather than retyping the strings.
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": ["ES2023", "DOM"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "types": ["node"],
+
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "exactOptionalPropertyTypes": true,
+
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true
+  },
+  "include": [
+    "src/**/*.ts",
+    "specs/**/*.ts",
+    "playwright.config.ts",
+    "../../../web/src/i18n/en.ts",
+    "../../../web/src/i18n/es.ts",
+    "../../../web/src/i18n/tl.ts"
+  ]
+}
