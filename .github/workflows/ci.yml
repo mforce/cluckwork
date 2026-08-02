@@ -487,8 +487,12 @@ jobs:
           # `|| true` inside the substitution: a non-matching grep exits 1, and
           # under `pipefail` that status would kill the script at the assignment,
           # before the -z branch below could report anything useful.
+          # Filter to THIS repository's entry rather than taking the first line:
+          # RepoDigests holds one entry per repository the image has been pushed
+          # to, so a bare `head -1` would be picking arbitrarily if that ever
+          # became more than one.
           digest="$(docker image inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' "$image:sha-$SHA" \
-            | grep -oE 'sha256:[0-9a-f]{64}' | head -1 || true)"
+            | grep -F "$image@" | grep -oE 'sha256:[0-9a-f]{64}' | head -1 || true)"
           if [ -z "$digest" ]; then
             echo "::error::no manifest digest after push — refusing to report an unpinnable image"
             exit 1

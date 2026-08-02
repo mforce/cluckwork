@@ -131,8 +131,9 @@ version number.
 
 ### 2. Merging the Release PR
 
-That's the release. It tags the commit, publishes a GitHub release with the
-changelog, and **promotes** the already-published image to a version:
+That's the release. It drafts a GitHub release with the changelog, **promotes** the
+already-published image to a version, and — only once that succeeds — publishes the
+release and creates the tag:
 
 ```
 ghcr.io/mforce/cluckwork:v0.4.0          # same image, now with a version
@@ -176,8 +177,10 @@ booted. Deployment configuration itself lives in the separate deploy repo, not h
   machine-maintained — editing them by hand desynchronises the bot from reality.
 - **The Release PR has no CI checks**, because GitHub doesn't run workflows for
   bot-created PRs. It only touches the changelog and version files.
-- **A release that can't find its image fails** rather than tagging a version with
-  nothing behind it.
+- **A release that can't find its image never goes public.** It stays a draft, and
+  GitHub doesn't create the tag for a draft — so you get no version pointing at a
+  missing image. Fix the cause, then re-run the **Release** workflow manually
+  (Actions → Release → *Run workflow*) with the tag to finish the job.
 
 ## Architecture
 

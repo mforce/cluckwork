@@ -190,15 +190,29 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
    `ghcr.io/<owner>/<repo>:sha-<commit>`. No version, no git tag. Idempotent per
    commit, so there is no ordering hazard and nothing to race — two merges publish
    two different names.
-2. **Merging the "Release vX.Y.Z" PR** (maintained by release-please) → a tag, a
-   GitHub release with a generated `CHANGELOG.md`, and the already-published image
-   for that commit is **promoted** to `:vX.Y.Z`.
+2. **Merging the "Release vX.Y.Z" PR** (maintained by release-please) → a **draft**
+   release with a generated `CHANGELOG.md`; the already-published image for that
+   commit is **promoted** to `:vX.Y.Z`; and only then is the release published.
 
 - **Promotion is a server-side retag of an existing digest** (`docker buildx
   imagetools create`), never a rebuild. **Do not "simplify" it into a build step**:
   a second `docker build` yields different bytes and a different digest, so the
   image carrying a version would be one no scan or smoke test ever examined. That
-  is the whole point of #351.
+  is the whole point of #351. **`--prefer-index=false` is load-bearing** — that flag
+  defaults to *true*, and with a single source the default wraps the manifest in a
+  new image index with a **different top-level digest**, which silently defeats the
+  guarantee. Do not drop it.
+- **The release stays a draft until its image is promoted**, and GitHub withholds
+  the git tag for a draft. So a failed promotion leaves no tag and no public
+  release, instead of a version pointing at nothing. Publishing (`--draft=false`)
+  is the last step. Draft is safe for release-please's own bookkeeping because
+  manifest mode reads the current version from `.release-please-manifest.json`, a
+  committed file, not from tags.
+- **Repair path:** if promotion fails after the draft exists, re-running the push
+  event will not help — release-please reports `release_created: false` for an
+  already-created release, so promotion would be skipped forever. Use the
+  `workflow_dispatch` on the Release workflow with the tag (and the exact commit
+  sha if the release's `target_commitish` is a branch name rather than a commit).
 - **The bump comes from conventional commits**, so PR titles are load-bearing —
   squash-merge puts the title on main as the commit subject. `feat:` → minor,
   `fix:`/`perf:` → patch, `feat!:`/`BREAKING CHANGE` → major. **`chore:`, `docs:`,

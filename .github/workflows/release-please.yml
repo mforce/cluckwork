@@ -6,19 +6,41 @@
 #
 #   merge a PR     -> release-please updates a "Release vX.Y.Z" PR, accumulating
 #                     a CHANGELOG from conventional commits
-#   merge that PR  -> a tag + GitHub release are created, and the image already
-#                     published for that commit is PROMOTED to `:vX.Y.Z`
+#   merge that PR  -> a DRAFT release is created, the image already published for
+#                     that commit is PROMOTED to `:vX.Y.Z`, and only then is the
+#                     release published
 #
 # Promotion is a server-side retag of an existing DIGEST — not a rebuild. The
 # bytes carrying a version are therefore, by construction, bytes CI already
 # built, Trivy-scanned and boot-tested. A rebuild here would produce a different
 # digest and break exactly the guarantee #351 exists to provide.
+#
+# The release is a DRAFT until promotion succeeds, and GitHub does not create the
+# git tag for a draft. So a run that cannot find a verified image leaves NO tag
+# and NO public release, rather than a version pointing at nothing. Draft is safe
+# for release-please's own bookkeeping because manifest mode reads the current
+# version from `.release-please-manifest.json` — a committed file — not from tags.
 name: Release
 
 on:
   push:
     branches:
       - main
+  # Repair path. If promotion fails after the draft release exists (GHCR
+  # unavailable, CI for that commit still red), a re-run of the push event is no
+  # help: release-please would report `release_created: false` for an already
+  # created release and promotion would be skipped forever. Dispatch by tag
+  # instead — same promotion, same checks, just addressed explicitly.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag to promote and publish, e.g. v0.1.0"
+        required: true
+        type: string
+      sha:
+        description: "Commit to promote the image from (defaults to the release's target commit)"
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -32,6 +54,8 @@ concurrency:
 jobs:
   release-please:
     name: Maintain the release PR
+    # On a dispatch there is nothing to groom — go straight to promotion.
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -52,15 +76,24 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
-  # Only when the release PR was just merged — i.e. a tag and release now exist.
+  # Either the release PR was just merged (a draft release now exists), or someone
+  # dispatched a repair for an existing one. `always()` is required so a skipped
+  # release-please job on a dispatch does not skip this one too.
   promote:
     name: Promote the released image
     needs: release-please
-    if: needs.release-please.outputs.release_created == 'true'
+    if: |
+      always() && (
+        needs.release-please.outputs.release_created == 'true'
+        || github.event_name == 'workflow_dispatch'
+      )
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    # Headroom over the wait loop below (up to 20 min) plus the retag and the
+    # release edit — so a slow-but-successful CI is not killed by the job timeout
+    # just as its image appears.
+    timeout-minutes: 40
     permissions:
-      contents: write # append the digest to the release notes
+      contents: write # publish the release and append the digest to its notes
       packages: write # add the version tag in the registry
     steps:
       - name: Log in to GHCR
@@ -68,11 +101,49 @@ jobs:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: echo "$GHCR_TOKEN" | docker login ghcr.io -u x-access-token --password-stdin
 
+      # A dispatch supplies only the tag, so resolve the commit from the release
+      # itself. `target_commitish` may legitimately be a BRANCH name rather than a
+      # commit — resolving that would promote whatever main happens to point at
+      # now, not what the release was cut from — so require a real 40-hex sha and
+      # fail asking for one explicitly.
+      - name: Resolve the release to promote
+        id: target
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PUSH_TAG: ${{ needs.release-please.outputs.tag_name }}
+          PUSH_SHA: ${{ needs.release-please.outputs.sha }}
+          INPUT_TAG: ${{ inputs.tag }}
+          INPUT_SHA: ${{ inputs.sha }}
+        run: |
+          set -euo pipefail
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+            tag="$INPUT_TAG"
+            sha="$INPUT_SHA"
+            if [ -z "$sha" ]; then
+              sha="$(gh release view "$tag" --json targetCommitish --jq '.targetCommitish')"
+            fi
+          else
+            tag="$PUSH_TAG"
+            sha="$PUSH_SHA"
+          fi
+
+          if [ -z "$tag" ]; then
+            echo "::error::no release tag to promote"
+            exit 1
+          fi
+          if ! printf '%s' "$sha" | grep -qE '^[0-9a-f]{40}$'; then
+            echo "::error::'${sha:-(empty)}' is not a commit sha — pass the exact commit with the 'sha' input"
+            exit 1
+          fi
+
+          printf 'tag=%s\n' "$tag" >> "$GITHUB_OUTPUT"
+          printf 'sha=%s\n' "$sha" >> "$GITHUB_OUTPUT"
+
       - name: Promote the commit image to the version tag
         id: promote
         env:
-          TAG: ${{ needs.release-please.outputs.tag_name }}
-          RELEASE_SHA: ${{ needs.release-please.outputs.sha }}
+          TAG: ${{ steps.target.outputs.tag }}
+          RELEASE_SHA: ${{ steps.target.outputs.sha }}
         run: |
           set -euo pipefail
           image="ghcr.io/${GITHUB_REPOSITORY,,}"
@@ -103,8 +174,18 @@ jobs:
           echo "Released commit resolves to $digest"
 
           # Server-side retag: adds a name to an EXISTING manifest. Nothing is
-          # pulled, nothing is rebuilt, and the digest cannot change.
-          docker buildx imagetools create --tag "$image:$TAG" "$image@$digest"
+          # pulled and nothing is rebuilt.
+          #
+          # `--prefer-index=false` is load-bearing, not a tidy-up. It defaults to
+          # TRUE, and with a single source that is not already a list the default
+          # wraps the manifest in a NEW image index — which has a different
+          # top-level digest. The whole point here is that the version tag
+          # resolves to the digest CI scanned, so the carbon copy is the only
+          # correct behaviour. (`docker buildx imagetools create --help`:
+          # "prefer outputting an image index or manifest list instead of
+          # performing a carbon copy (default true)".)
+          docker buildx imagetools create --prefer-index=false \
+            --tag "$image:$TAG" "$image@$digest"
 
           # Confirm the new tag really resolves to the digest we promoted,
           # rather than trusting the create call's exit code alone.
@@ -117,35 +198,46 @@ jobs:
           printf 'image=%s\n' "$image" >> "$GITHUB_OUTPUT"
           printf 'digest=%s\n' "$digest" >> "$GITHUB_OUTPUT"
 
+      # Last: record the digest and PUBLISH. Until this step the release is a
+      # draft with no git tag, so every failure above leaves nothing public
+      # rather than a version pointing at an image that does not exist.
+      #
       # The release notes are where a human goes to answer "what do I deploy for
-      # this version". Put the digest there rather than only in a run log that
+      # this version", so the digest belongs there and not only in a run log that
       # ages out.
-      - name: Record the digest on the GitHub release
+      - name: Record the digest and publish the release
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ needs.release-please.outputs.tag_name }}
+          TAG: ${{ steps.target.outputs.tag }}
           IMAGE: ${{ steps.promote.outputs.image }}
           DIGEST: ${{ steps.promote.outputs.digest }}
         run: |
           set -euo pipefail
           notes="$(mktemp)"
           gh release view "$TAG" --json body --jq '.body' > "$notes"
-          {
-            echo
-            echo '---'
-            echo
-            echo '### Container image'
-            echo
-            echo 'Deploy by digest — a tag can be moved, a digest cannot:'
-            echo
-            echo '```'
-            echo "$IMAGE@$DIGEST"
-            echo '```'
-          } >> "$notes"
-          gh release edit "$TAG" --notes-file "$notes"
+
+          # Re-running a repair must not staple a second copy of the block on.
+          if ! grep -q "$DIGEST" "$notes"; then
+            {
+              echo
+              echo '---'
+              echo
+              echo '### Container image'
+              echo
+              echo 'Deploy by digest — a tag can be moved, a digest cannot:'
+              echo
+              echo '```'
+              echo "$IMAGE@$DIGEST"
+              echo '```'
+            } >> "$notes"
+          fi
+
+          # `--draft=false` is what creates the git tag: GitHub withholds the tag
+          # until a draft is published.
+          gh release edit "$TAG" --notes-file "$notes" --draft=false
 
           {
-            echo "### Promoted \`$TAG\`"
+            echo "### Released \`$TAG\`"
             echo
             echo '```'
             echo "$IMAGE@$DIGEST"
