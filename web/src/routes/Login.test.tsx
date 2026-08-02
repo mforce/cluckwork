@@ -233,6 +233,27 @@ describe("Login — first-run setup notice", () => {
     expect(screen.queryByText(i18n.t("auth:noAdminYet"))).not.toBeInTheDocument();
   });
 
+  // The status half of the guard, which nothing else covers (PR #363 review).
+  // isNoAccountsProvisioned checks BOTH the title and a 401; every other
+  // "no notice" case above varies the title, so deleting `&& err.status === 401`
+  // left the whole suite green. A future non-401 response reusing the title —
+  // a 500 from an error handler that echoes it, say — would then render a
+  // first-run notice on a healthy, provisioned instance.
+  it("ignores the code on a non-401 response", async () => {
+    mockApiLogin.mockRejectedValue(
+      new ApiError(500, "Auth.NoAccountsProvisioned", "Internal Server Error"));
+    renderWithProviders(tree(), { route: "/login", token: null });
+
+    fillCredentials("owner@farm.co", "pw");
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    });
+
+    // Falls through to the ordinary error path instead.
+    expect(await screen.findByText(/Could not sign in/)).toBeInTheDocument();
+    expect(screen.queryByText(i18n.t("auth:noAdminYet"))).not.toBeInTheDocument();
+  });
+
   // Nothing is asked of the server on mount any more, so nothing may be shown
   // before someone actually tries. This is what pins the mechanism change: a
   // reintroduced page-load poll would surface the notice here.
