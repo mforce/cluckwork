@@ -170,15 +170,32 @@ export async function login(body: LoginRequest): Promise<void> {
   // before starting the explicit login so its late Set-Cookie does not overwrite
   // the cookie belonging to the session the user deliberately chose.
   //
-  // BEST-EFFORT, exactly as in logout() — do not read this as a guarantee.
-  // `abortInFlightRefresh` is assigned inside `attempt()`, i.e. only once the
-  // cross-tab Web Lock has been GRANTED. A refresh still queued behind another
-  // tab's lock has no controller yet, so this is a no-op for it and that refresh
-  // can still fire after the login and land its own Set-Cookie on top. What the
-  // abort narrows is the common single-tab case; what the session's correctness
-  // actually rests on is the generation check on settlement, not on this
-  // (PR #390 review round 3 — the first version of this comment claimed a
-  // guarantee a best-effort cancel cannot deliver).
+  // BEST-EFFORT — but do NOT read that as "dispensable". On this path the abort
+  // is the ONLY thing protecting the durable cookie, and the login/logout
+  // asymmetry is the reason (PR #390 review round 4, correcting round 3's
+  // correction — which had swung from claiming a guarantee to implying the
+  // abort was merely an optimisation, the more dangerous of the two errors).
+  //
+  //   * LOGOUT has a durable backstop. Its superseded response finds no access
+  //     token, so `revokeSupersededCookie` fires and the cookie is genuinely
+  //     revoked server-side. The abort there really is just an optimisation.
+  //   * LOGIN has none. `revokeSupersededCookie` returns early when an access
+  //     token exists, on the stated assumption that "the cookie now belongs to
+  //     that live session" — and that assumption is FALSE for exactly the flight
+  //     this abort exists to kill. A refresh already in flight when `login()`
+  //     starts carries the PRE-login cookie, so the server rotates the previous
+  //     user's chain and the browser stores that rotated token on top of the
+  //     login's own Set-Cookie. The generation check then discards the JS result
+  //     — the in-memory token stays correct — while the DURABLE cookie belongs
+  //     to the previous user, and the next reload restores them.
+  //
+  // So the generation check guards the JS result, not the cookie, and only the
+  // logout path has a second line of defence. `abortInFlightRefresh` is assigned
+  // inside `attempt()`, i.e. only once the cross-tab Web Lock has been GRANTED,
+  // so a refresh still queued behind another tab's lock is unprotected. That is
+  // an UNCOVERED HAZARD, not a missed optimisation — and it is why the "the
+  // abort is only an optimisation" wording further down in logout() must not be
+  // cited as precedent for this call site.
   //
   // It also has a cost, and it is not free in the failure case: if the server
   // already committed the rotation before the abort won, the browser is left
