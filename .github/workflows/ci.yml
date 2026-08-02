@@ -501,6 +501,12 @@ jobs:
           printf 'image=%s\n' "$image" >> "$GITHUB_OUTPUT"
           printf 'digest=%s\n' "$digest" >> "$GITHUB_OUTPUT"
 
+          # Also recorded as an artifact of THIS run, which is what the release
+          # workflow promotes from. A registry tag is mutable by anyone holding
+          # `packages: write`; an artifact is bound to the run that produced it,
+          # so promotion cannot be fed a digest this job did not publish.
+          printf '%s\n' "$digest" > published-digest.txt
+
           {
             echo "### Published \`sha-$SHA\`"
             echo
@@ -510,6 +516,16 @@ jobs:
             echo "$image@$digest"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+      # The release workflow reads this to learn which digest CI actually
+      # published for this commit, instead of trusting whatever the registry tag
+      # resolves to at promotion time.
+      - name: Record the published digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: published-digest
+          path: published-digest.txt
+          retention-days: 90
 
       # Drop the registry credential rather than leaving it readable in
       # ~/.docker/config.json for whatever runs next.

@@ -95,6 +95,7 @@ jobs:
     permissions:
       contents: write # publish the release and append the digest to its notes
       packages: write # add the version tag in the registry
+      actions: read # read the digest CI recorded for the released commit
     steps:
       - name: Log in to GHCR
         env:
@@ -142,36 +143,53 @@ jobs:
       - name: Promote the commit image to the version tag
         id: promote
         env:
+          GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.target.outputs.tag }}
           RELEASE_SHA: ${{ steps.target.outputs.sha }}
         run: |
           set -euo pipefail
           image="ghcr.io/${GITHUB_REPOSITORY,,}"
 
-          # The release is tagged at the release PR's merge commit, and that
-          # merge is itself a push to main — so CI is building and publishing
-          # `:sha-$RELEASE_SHA` in PARALLEL with this workflow. Wait for it.
+          # Take the digest from CI'S OWN RUN, not by resolving `:sha-$RELEASE_SHA`.
           #
-          # Retrying here does not weaken anything: "not published yet" and
-          # "registry unreachable" are BOTH failures for promotion, so there is
-          # no fail-open direction to get wrong. Either the image shows up or
-          # this job fails and no version tag is created.
-          digest=""
+          # That tag is mutable by anyone holding `packages: write`, and the
+          # release PR's merge commit is public seconds after the merge while CI
+          # needs many minutes to build and push. Resolving the tag would mean
+          # accepting the FIRST manifest to appear under that name — so a forged
+          # push placed in that window would be promoted to `:vX.Y.Z` and written
+          # into the release notes as the thing to deploy, and CI's later push
+          # would quietly overwrite the evidence. Reading the digest from the
+          # run's artifact closes the window entirely: it is bound to the run
+          # that built and scanned those bytes.
+          #
+          # The release is tagged at the release PR's merge commit, and that
+          # merge is itself a push to main — so CI is still running here. Wait
+          # for it to finish successfully.
+          run_id=""
           for attempt in $(seq 1 40); do
-            if digest="$(docker buildx imagetools inspect "$image:sha-$RELEASE_SHA" \
-                          --format '{{.Manifest.Digest}}' 2>/dev/null)" && [ -n "$digest" ]; then
-              break
-            fi
-            digest=""
-            echo "Waiting for CI to publish $image:sha-$RELEASE_SHA (attempt $attempt/40)…"
+            run_id="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$RELEASE_SHA&per_page=100" \
+              --jq '[.workflow_runs[] | select(.name == "CI" and .conclusion == "success")] | first | .id // empty')"
+            [ -n "$run_id" ] && break
+            echo "Waiting for a successful CI run for $RELEASE_SHA (attempt $attempt/40)…"
             sleep 30
           done
 
-          if [ -z "$digest" ]; then
-            echo "::error::no image published for $RELEASE_SHA — refusing to promote a version with nothing behind it"
+          if [ -z "$run_id" ]; then
+            echo "::error::no successful CI run for $RELEASE_SHA — refusing to promote a version with nothing verified behind it"
             exit 1
           fi
-          echo "Released commit resolves to $digest"
+          echo "CI run $run_id verified $RELEASE_SHA"
+
+          gh run download "$run_id" --name published-digest --dir "$RUNNER_TEMP/digest"
+          digest="$(tr -d '\r\n' < "$RUNNER_TEMP/digest/published-digest.txt")"
+
+          # Validate the shape before it reaches a registry reference and the
+          # release notes — the same discipline the publish job applies.
+          if ! printf '%s' "$digest" | grep -qE '^sha256:[0-9a-f]{64}$'; then
+            echo "::error::CI run $run_id recorded '${digest:-(empty)}', which is not a manifest digest"
+            exit 1
+          fi
+          echo "Released commit was published as $digest"
 
           # Server-side retag: adds a name to an EXISTING manifest. Nothing is
           # pulled and nothing is rebuilt.
@@ -216,21 +234,24 @@ jobs:
           notes="$(mktemp)"
           gh release view "$TAG" --json body --jq '.body' > "$notes"
 
-          # Re-running a repair must not staple a second copy of the block on.
-          if ! grep -q "$DIGEST" "$notes"; then
-            {
-              echo
-              echo '---'
-              echo
-              echo '### Container image'
-              echo
-              echo 'Deploy by digest — a tag can be moved, a digest cannot:'
-              echo
-              echo '```'
-              echo "$IMAGE@$DIGEST"
-              echo '```'
-            } >> "$notes"
-          fi
+          # REPLACE any existing block rather than appending. A blind append
+          # would leave a repaired release listing two conflicting digests with
+          # no indication which is current — for the one reference the deploy
+          # side is told to trust. Everything from the marker onward is dropped
+          # before the current block is written.
+          trimmed="$(mktemp)"
+          awk '/^### Container image$/ { exit } { print }' "$notes" > "$trimmed"
+          {
+            echo
+            echo '### Container image'
+            echo
+            echo 'Deploy by digest — a tag can be moved, a digest cannot:'
+            echo
+            echo '```'
+            echo "$IMAGE@$DIGEST"
+            echo '```'
+          } >> "$trimmed"
+          notes="$trimmed"
 
           # `--draft=false` is what creates the git tag: GitHub withholds the tag
           # until a draft is published.

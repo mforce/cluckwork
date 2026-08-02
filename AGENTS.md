@@ -222,6 +222,19 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
 - **Deploy by digest, never by tag.** Every release's notes carry
   `ghcr.io/<owner>/<repo>@sha256:…`; the deploy repo pins that. `:vX.Y.Z` and
   `:sha-<commit>` are names, and names can move.
+- **Promotion reads the digest from CI's own run artifact, never by resolving
+  `:sha-<commit>`.** That tag is mutable by anyone holding `packages: write`, and
+  the merge commit is public seconds after merge while CI needs minutes to push —
+  so resolving the tag would accept the first manifest to appear under that name,
+  and a forged push in that window would be promoted and written into the release
+  notes as the thing to deploy. **Do not "simplify" the promote step back into a
+  registry tag lookup.** (The remaining gap — nothing cryptographically binds the
+  artifact to the workflow — is #354.)
+- **Watch the version on the release PR, not just the changelog.** A
+  `Release-As: X.Y.Z` footer on any commit reaching main overrides the computed
+  version, and squash-merge can be configured to put a PR *body* into the commit
+  body — so a contributor can force a version jump from a PR description. The
+  human merging the release PR is the control; its title states the version.
 - **Config lives in three files**, all machine-maintained — `release-please-config.json`,
   `.release-please-manifest.json`, and `version.txt`. **Never hand-edit the manifest
   or `version.txt`**; release-please owns them and a manual edit desynchronises the
