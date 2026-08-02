@@ -208,15 +208,29 @@ nothing is released until you merge that PR.
 
 ### Deploying
 
-**Deploy by digest, never by tag.** Tags can be moved; a digest cannot. Every
-release's notes end with the exact reference:
+**Deploy by digest, never by tag.** Tags can be moved; a digest cannot.
+
+Two steps, answering two different questions — *which* image, and whether it is
+really ours:
 
 ```bash
-gh release view v0.4.0        # the digest is at the bottom of the notes
+# 1. Obtain the digest (machine-readable; no prose to parse)
+gh release download v0.4.0 -p image.json -R mforce/cluckwork
+REF=$(jq -r .reference image.json)
+
+# 2. Verify those bytes came from this repo's CI
+gh attestation verify "oci://$REF" --repo mforce/cluckwork
 ```
 
-That digest is the only identifier that provably refers to the bytes CI scanned and
-booted. Deployment configuration itself lives in the separate deploy repo, not here.
+Step 2 is the one that matters. Resolving a tag gives you immutability but not
+**provenance**: if a tag were re-pointed, `docker pull` would faithfully pin the
+new target, and a check that only validates digest *syntax* would accept it. The
+attestation is signed by the workflow run that built the image, so it fails for
+anything pushed by hand — the realistic risk being a leaked token rather than a
+malicious maintainer.
+
+The digest also appears at the bottom of the release notes, for humans.
+Deployment configuration itself lives in the separate deploy repo, not here.
 
 ### Notes
 

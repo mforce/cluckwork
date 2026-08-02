@@ -408,6 +408,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.target.outputs.tag }}
+          RELEASE_SHA: ${{ steps.target.outputs.sha }}
           IMAGE: ${{ steps.promote.outputs.image }}
           DIGEST: ${{ steps.promote.outputs.digest }}
         run: |
@@ -431,8 +432,35 @@ jobs:
             echo '```'
             echo "$IMAGE@$DIGEST"
             echo '```'
+            echo
+            echo 'Machine-readable: the `image.json` asset on this release.'
+            echo 'Verify the bytes came from this repo'"'"'s CI before deploying:'
+            echo
+            echo '```'
+            echo "gh attestation verify oci://$IMAGE@$DIGEST --repo $GITHUB_REPOSITORY"
+            echo '```'
           } >> "$trimmed"
           notes="$trimmed"
+
+          # The deploy side should not have to parse prose. Attach the same
+          # facts as a release ASSET, which unlike a workflow artifact never
+          # expires, needs no `actions:read` on this repo, and is fetchable at a
+          # stable URL:
+          #   gh release download <tag> -p image.json -R <owner>/<repo>
+          #
+          # This removes the transcription step, not the trust question — it
+          # says which digest we published, it does not prove those bytes are
+          # CI's. The attestation written by ci.yml (#354) is what proves that,
+          # and the two compose: read the digest here, verify it there.
+          printf '{\n  "image": "%s",\n  "digest": "%s",\n  "reference": "%s@%s",\n  "tag": "%s",\n  "commit": "%s",\n  "repository": "%s"\n}\n' \
+            "$IMAGE" "$DIGEST" "$IMAGE" "$DIGEST" "$TAG" "$RELEASE_SHA" "$GITHUB_REPOSITORY" \
+            > "$RUNNER_TEMP/image.json"
+
+          # Attached BEFORE publishing, so there is never a moment where the
+          # release is public but its machine-readable pin is missing.
+          # `--clobber` so a repair dispatch replaces the file instead of
+          # failing on an asset that already exists.
+          gh release upload "$TAG" "$RUNNER_TEMP/image.json" --clobber
 
           # `--draft=false` is what creates the git tag: GitHub withholds the tag
           # until a draft is published.

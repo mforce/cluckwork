@@ -276,17 +276,37 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
   only early exit is "zero conventional commits" — so a `chore:`-only merge does
   bump the patch digit. It lands in the pending release PR rather than in a
   release, so it costs a number, not a deploy.
-- **Deploy by digest, never by tag.** Every release's notes carry
-  `ghcr.io/<owner>/<repo>@sha256:…`; the deploy repo pins that. `:vX.Y.Z` and
-  `:sha-<commit>` are names, and names can move.
+- **Deploy by digest, never by tag**, and treat *obtaining* the digest and
+  *verifying* it as two separate problems — the deploy side needs both, and one
+  does not imply the other.
+  - **Obtain:** every release carries an **`image.json` asset**
+    (`gh release download <tag> -p image.json -R <owner>/<repo>`) with `image`,
+    `digest`, `reference`, `tag`, `commit`. A release asset, not a workflow
+    artifact — it never expires and needs no `actions:read` on this repo. The
+    digest is also in the notes for humans. **Do not make the deploy side parse
+    prose, and do not have it resolve a tag.**
+  - **Verify:** `ci.yml`'s publish job writes a **build-provenance attestation**
+    (#354) against the pushed digest, stored as an OCI referrer beside the image
+    (`push-to-registry: true`), so the deploy side runs
+    `gh attestation verify oci://<image>@<digest> --repo <owner>/<repo>` against
+    the registry it already pulls from, with no token for this repo.
+
+  Resolving a tag buys immutability, **not provenance** — a re-pointed tag
+  resolves faithfully to the wrong bytes, and a check that validates digest
+  *syntax* accepts them. Only the attestation distinguishes CI's bytes from
+  anything pushed with `packages: write` (realistically a leaked token). The
+  attestation step is deliberately placed **before** the digest artifact upload,
+  so a failed attestation means no artifact and therefore no release, rather than
+  a published version whose provenance quietly never got written. Do not make it
+  `continue-on-error`: an attestation nobody can rely on is worse than none.
 - **Promotion reads the digest from CI's own run artifact, never by resolving
   `:sha-<commit>`.** That tag is mutable by anyone holding `packages: write`, and
   the merge commit is public seconds after merge while CI needs minutes to push —
   so resolving the tag would accept the first manifest to appear under that name,
   and a forged push in that window would be promoted and written into the release
   notes as the thing to deploy. **Do not "simplify" the promote step back into a
-  registry tag lookup.** (The remaining gap — nothing cryptographically binds the
-  artifact to the workflow — is #354.)
+  registry tag lookup.** (That closed "there is no digest to deploy"; the
+  provenance half — proving the digest is CI's — is the attestation above, #354.)
 - **Adding a CI job that should gate a release? Add it to `publish.needs`.** The
   digest artifact is what promotion accepts as proof, and it proves exactly what
   `publish.needs` in `ci.yml` covers — no more. A job outside that list can be

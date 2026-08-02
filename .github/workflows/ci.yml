@@ -462,6 +462,8 @@ jobs:
       # Job-level permissions REPLACE the workflow-level `contents: read`.
       contents: read
       packages: write # push the image to GHCR
+      id-token: write # mint the OIDC token the provenance signer needs (#354)
+      attestations: write # record the attestation against this repo (#354)
     outputs:
       image: ${{ steps.publish.outputs.image }}
       digest: ${{ steps.publish.outputs.digest }}
@@ -580,6 +582,40 @@ jobs:
             echo "$image@$digest"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+      # Cryptographically bind the pushed digest to THIS workflow run (#354).
+      #
+      # Everything else in this pipeline establishes "which digest CI published"
+      # by evidence the deploy side has to trust us about: a run artifact, a
+      # release note. None of it is verifiable by a machine that did not watch
+      # the run. Anyone holding `packages: write` — realistically a compromised
+      # collaborator PAT, not a malicious one — can push arbitrary bytes to this
+      # registry, and nothing downstream could tell those apart from ours.
+      #
+      # A provenance attestation is checkable without trusting us:
+      #   gh attestation verify oci://ghcr.io/<owner>/<repo>@sha256:… \
+      #     --repo <owner>/<repo>
+      # succeeds only for bytes this workflow actually produced.
+      #
+      # `push-to-registry: true` stores it as an OCI referrer beside the image,
+      # so the deploy side verifies against the registry it already pulls from
+      # and needs no token for this repo.
+      #
+      # Placed BEFORE the digest artifact deliberately. The artifact is what
+      # promotion accepts as proof the gates passed, so a failed attestation
+      # must mean no artifact and therefore no release — not a published version
+      # whose provenance silently did not get written. This is also why it is
+      # not `continue-on-error`: an attestation nobody checks is worse than
+      # none, because it looks like coverage.
+      #
+      # `actions/*`, so a major-version tag is fine under the repo's pinning
+      # rule (third-party actions still need a commit SHA).
+      - name: Attest the published image's build provenance
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-name: ${{ steps.publish.outputs.image }}
+          subject-digest: ${{ steps.publish.outputs.digest }}
+          push-to-registry: true
 
       # The release workflow reads this to learn which digest CI actually
       # published for this commit, instead of trusting whatever the registry tag
