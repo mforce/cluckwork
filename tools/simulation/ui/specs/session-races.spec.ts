@@ -35,7 +35,56 @@
 // dangerous ordering the only one either test can produce.
 //
 // `HOLD_MS` survives only as a post-release SETTLE window — time for the freed
-// response to arrive and be acted on. It no longer orders anything.
+// response to arrive and be acted on.
+//
+// ================== WHAT THESE TESTS NOW COVER, AND WHAT THEY DO NOT ==========
+//
+// **They no longer exercise `sessionGeneration`, and the file header above says
+// they are its regression layer. Read this before trusting that.**
+//
+// `login()` and `logout()` both now ABORT the in-flight refresh. So on the path
+// these tests drive, the superseded response is never delivered at all, and the
+// generation check that discards a late completion never runs. Deleting
+// `sessionGeneration` outright while keeping the two aborts would leave both
+// tests green — the abort's rejection surfaces as `AbortError`, which
+// `isTransientRefreshFailure` already treats as transient (PR #390 review
+// round 3).
+//
+// **AND THE LATE-`Set-Cookie` RACE CANNOT BE EXPRESSED WITH THIS INSTRUMENT AT
+// ALL.** This was chased to the bottom rather than assumed, and the answer is a
+// property of Playwright, not of the app:
+//
+// `page.route` + a deferred `route.continue()` looks like it holds the OLD
+// session's request open across a login. It does not. The request is re-issued
+// when it is continued, and the browser re-attaches the cookie jar AS IT IS AT
+// SEND TIME. `route.request().allHeaders()` keeps reporting the creation-time
+// snapshot, which is what makes this so convincing from the outside — it printed
+// the Owner cookie at both intercept and continue. But the response rotated the
+// SALES chain, and the reload restored SALES. Measured on a build with the
+// client-side abort REMOVED, i.e. the build where the bug is fully present:
+//
+//   [p] owner cookie              = 1qEdnjMO…(48)
+//   [p] refresh hdr AT CONTINUE   = cluckwor…(61)   # 13 + 48: reads as Owner
+//   [p] cookie after late refresh = SmmDlVsk…(46)   # neither Owner's nor Sales'
+//   [p] statuses = login:200, refresh:200
+//   [p] after reload: nav:audit count=0, nav:sales count=1   # Sales won
+//
+// So the held refresh always presents whatever cookie is current, and a stale
+// cookie can never land late. Three placements of the release were tried; none
+// changes this, because the defect is in what the instrument can express. Do not
+// "fix" this spec by moving the release again.
+//
+// CONSEQUENCE, stated plainly: `login()`'s `abortInFlightRefresh()` has NO
+// end-to-end coverage here, and this spec cannot be used as evidence for it.
+// Its only coverage is `web/src/api/client.test.ts` — and that test currently
+// passes partly because its fetch mock ignores `AbortSignal`, so it does not
+// exercise the rejection path either. Closing this properly needs a driver that
+// can pin a request's cookie header (CDP `Fetch.continueRequest` with explicit
+// headers, or a server-side proxy), not another spec edit.
+//
+// What these two tests DO cover, and what the killed `logout-not-honoured`
+// mutant stands behind: the session the user ends up in after the race, and that
+// a reload agrees with it. That is the outcome a farmer would notice. It no longer orders anything.
 
 import { expect, test } from "../src/fixtures";
 import { castMember, owner } from "../src/cast";
@@ -93,13 +142,19 @@ test.describe("#310 session races", () => {
     const logoutLanded = page.waitForResponse(
       (r) => r.url().includes("/api/v1/auth/logout") && r.request().method() === "POST",
     );
-    await nav.signOut.click();
-    await logoutLanded;
+    // Release in a `finally`, immediately after the logout response — same two
+    // reasons as the login race below: an assertion placed before the release
+    // can strand the interception on failure, and holding past the superseding
+    // response can stop the mutant build from ever reaching the guarantee.
+    try {
+      await nav.signOut.click();
+      await logoutLanded;
+    } finally {
+      releaseHeldRefresh();
+    }
     await expect(page).toHaveURL(/\/login/);
 
-    // Only now release the held refresh, so its response is genuinely the LATE
-    // one, and give it a settle window to arrive and be acted on.
-    releaseHeldRefresh();
+    // Give the freed refresh time to arrive and be acted on.
     await page.waitForTimeout(HOLD_MS + 2_000);
 
     // THE GUARANTEE, in three independent forms — because "we are on /login" on
@@ -166,15 +221,38 @@ test.describe("#310 session races", () => {
     const loginLanded = page.waitForResponse(
       (r) => r.url().includes("/api/v1/auth/login") && r.request().method() === "POST",
     );
-    await page.getByRole("button", { name: tEn("auth:signIn") }).click();
-    await loginLanded;
+    // RELEASE THE INSTANT THE LOGIN RESPONSE LANDS — before any assertion, and
+    // in a `finally`. Both halves are load-bearing, and each fixes a separate
+    // defect found in round 3's own first attempt:
+    //
+    //   * BEFORE the nav assertion. The first version released three lines
+    //     later, after asserting the shell had rendered. On a build with the
+    //     client-side abort REMOVED — the exact mutant this spec exists to
+    //     catch — nothing settles the held bootstrap refresh, so AuthContext's
+    //     `isLoading` never clears, `Login.tsx` never navigates, and the nav
+    //     assertion fails on its timeout with the release still unreached. The
+    //     mutant died at the wrong assertion and the late-`Set-Cookie` ordering
+    //     was never produced at all. A red for the wrong reason is exactly what
+    //     the mutation harness is built to refuse, and it went unnoticed because
+    //     "the mutant failed" was read as "the guarantee is covered".
+    //   * In a `finally`. The route handler awaits this promise and nothing else
+    //     resolves it, so an assertion throwing before the release strands the
+    //     interception and buries the real error under a timeout.
+    //
+    // Releasing here still satisfies the ordering the test is named for: the
+    // login response has landed, so its `Set-Cookie` is already applied, and the
+    // freed refresh can only write on top of it.
+    try {
+      await page.getByRole("button", { name: tEn("auth:signIn") }).click();
+      await loginLanded;
+    } finally {
+      releaseHeldRefresh();
+    }
 
     await expect(page.getByRole("navigation", { name: tEn("nav:primaryNavAriaLabel") }))
       .toBeVisible();
 
-    // Only now let the superseded bootstrap refresh land — ON TOP of the new
-    // session's cookie, which is the ordering that can actually do damage.
-    releaseHeldRefresh();
+    // Give the freed refresh time to arrive and be acted on.
     await page.waitForTimeout(HOLD_MS + 2_000);
 
     // THE GUARANTEE: this is the Sales session, and the Owner's has not been
@@ -194,9 +272,14 @@ test.describe("#310 session races", () => {
     await expect(nav.link("nav:sales")).toBeVisible();
     await expect(nav.link("nav:customers")).toBeVisible();
 
-    // The browser applies Set-Cookie before client code can reject a stale
-    // response. Reload to prove the durable cookie also belongs to Sales, not
-    // merely the in-memory access token used by the assertions above.
+    // Reload to prove the DURABLE cookie also belongs to Sales, not merely the
+    // in-memory access token the assertions above read.
+    //
+    // Worth knowing what this does and does not prove: it is a real check that
+    // the reload restores the Sales session, and it would catch a client that
+    // committed a superseded response's tokens. It is NOT evidence about the
+    // late-`Set-Cookie` race, because — see the header — this harness cannot
+    // make a held request carry a stale cookie.
     await page.reload();
     await expect(nav.link("nav:sales")).toBeVisible();
     await expect(nav.link("nav:audit")).toBeHidden();

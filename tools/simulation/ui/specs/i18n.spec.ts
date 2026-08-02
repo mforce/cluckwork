@@ -112,14 +112,33 @@ test.describe("i18n", () => {
       // place while the visible text changed underneath it.
       await expect(page.locator("html")).toHaveAttribute("lang", lang);
 
-      // A local i18next change is optimistic. Reload so the preference must be
-      // recovered from the server rather than surviving only in component
-      // memory.
+      // DURABILITY — and the device hint has to be cleared first, or this proves
+      // nothing.
+      //
+      // `web/src/i18n/index.ts` writes a localStorage hint on every
+      // `languageChanged` and seeds `i18next.init({ lng })` from it
+      // SYNCHRONOUSLY at module load. So after a plain reload
+      // `document.documentElement.lang` is already correct before any network
+      // call, and asserting it would pass even if `PUT /me/language` had
+      // persisted nothing at all (PR #390 review round 3 — the assertion was
+      // added to prove server persistence and was reading device state).
+      //
+      // Clearing the hint removes that shortcut: the app then opens in its
+      // default language and can only arrive back here via `/me`. Safe to clear
+      // — the access token lives in memory (#145) and the refresh token in an
+      // HttpOnly cookie, so neither is in localStorage to lose.
+      await page.evaluate(() => window.localStorage.clear());
       await page.reload();
-      await expect(page.locator("html")).toHaveAttribute("lang", lang);
+
+      // Now both of these are load-bearing. The nav link is the stronger of the
+      // two: SessionContext gates the shell until it has applied the language
+      // resolved from `/me`, so an unpersisted preference renders English here.
       await expect(
         page.getByRole("link", { name: t(lang, "nav:reports"), exact: true }),
+        `the ${lang} preference did not survive a reload with the device hint cleared — `
+          + `it was never persisted server-side`,
       ).toBeVisible();
+      await expect(page.locator("html")).toHaveAttribute("lang", lang);
 
       // And the screens still WORK in that language — the point of #277's "not
       // broken", as opposed to "translated". A populated data screen renders its

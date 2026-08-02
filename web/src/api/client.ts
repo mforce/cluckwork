@@ -167,8 +167,27 @@ export async function login(body: LoginRequest): Promise<void> {
   const generation = ++sessionGeneration;
   // A bootstrap refresh can rotate the shared HttpOnly cookie even though its
   // JavaScript result is rejected by the generation check below. Cancel it
-  // before starting the explicit login so its late Set-Cookie cannot overwrite
+  // before starting the explicit login so its late Set-Cookie does not overwrite
   // the cookie belonging to the session the user deliberately chose.
+  //
+  // BEST-EFFORT, exactly as in logout() — do not read this as a guarantee.
+  // `abortInFlightRefresh` is assigned inside `attempt()`, i.e. only once the
+  // cross-tab Web Lock has been GRANTED. A refresh still queued behind another
+  // tab's lock has no controller yet, so this is a no-op for it and that refresh
+  // can still fire after the login and land its own Set-Cookie on top. What the
+  // abort narrows is the common single-tab case; what the session's correctness
+  // actually rests on is the generation check on settlement, not on this
+  // (PR #390 review round 3 — the first version of this comment claimed a
+  // guarantee a best-effort cancel cannot deliver).
+  //
+  // It also has a cost, and it is not free in the failure case: if the server
+  // already committed the rotation before the abort won, the browser is left
+  // holding a token the server has consumed. Inside
+  // `RefreshReuseGraceSeconds` the un-delivered replacement is still the live
+  // tip and a retry is graced; past it, presenting the old token is a genuine
+  // reuse and revokes every active session for that user (#169/#176). A login
+  // that then FAILS — a typo, a walk away and back — can therefore cost the
+  // user their other devices. Narrow, but real, and not covered by a test.
   abortInFlightRefresh?.();
   // The server sets the HttpOnly refresh cookie; the body returns only the
   // access token, which lives in memory for this tab's lifetime.
