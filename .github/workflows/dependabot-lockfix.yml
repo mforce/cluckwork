@@ -115,6 +115,23 @@ jobs:
         with:
           app-id: ${{ secrets.LOCKFIX_APP_ID }}
           private-key: ${{ secrets.LOCKFIX_APP_PRIVATE_KEY }}
+          # Cap the token at the one permission this job needs. The same App now
+          # also backs the Release workflow, which needs pull-requests and issues
+          # write — without this cap those would ride along into the TOKEN held
+          # by the job that pushes to a Dependabot branch.
+          #
+          # Be precise about what this does and does not buy. It caps the token
+          # the action RETURNS. It does not cap the PRIVATE KEY on the line
+          # above, which can mint a token carrying the App's full grant. So
+          # widening the App does widen what any job holding this secret could
+          # obtain — the cap makes that a deliberate act rather than the default,
+          # it does not make it impossible. What actually keeps this job narrow
+          # is the surrounding design: it runs no PR-controlled code (see the
+          # header), and the script it does run comes from the default-branch
+          # checkout. Accepted as residual risk rather than split into a second
+          # App; revisit if a consumer ever needs a permission that would be
+          # damaging here.
+          permission-contents: write
 
       - name: Check out the PR head for pushing
         uses: actions/checkout@v7

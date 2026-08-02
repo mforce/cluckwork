@@ -145,7 +145,25 @@ model.
 **One-time setup (required for the push to work):** create a GitHub App with
 Repository → Contents: Read and write, install it on this repo, and add the repo
 Actions secrets `LOCKFIX_APP_ID` and `LOCKFIX_APP_PRIVATE_KEY`. Until both exist
-the workflow fails closed (no push); nothing else breaks.
+this workflow fails closed (no push) — **and so does the Release workflow (#351),
+which shares the same App**: without them its mint step fails on every push to
+`main`, so no release is cut.
+
+The **Release** workflow needs **Pull requests: Read and write** and **Issues:
+Read and write** on top. Changing an App's permissions does **not** apply to an
+existing installation until the installation owner **approves** the request
+(GitHub holds it pending), so adding the permissions in the App settings is only
+half the job — approve it on the repo's installation too, or the mint keeps
+failing with the old grant.
+
+That widens the *installation*; each mint then downscopes with `permission-*`, and
+the lockfix job pins `permission-contents: write` so the extra grants never reach
+the token that pushes to a Dependabot branch. **Keep that pin when adding
+consumers** — and understand its limit: `permission-*` caps the token the action
+returns, not the private key, which can always mint the App's full grant. The cap
+makes a wider token a deliberate act rather than the default; it is not a
+boundary. The lockfix job stays genuinely narrow because it executes no
+PR-controlled code, not because of the cap alone.
 
 **Dependabot** (`.github/dependabot.yml`) covers the other half: the gates
 *enforce* (a vulnerable dep fails the build), Dependabot *proposes* (it opens the
@@ -244,6 +262,13 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
   notes as the thing to deploy. **Do not "simplify" the promote step back into a
   registry tag lookup.** (The remaining gap — nothing cryptographically binds the
   artifact to the workflow — is #354.)
+- **Adding a CI job that should gate a release? Add it to `publish.needs`.** The
+  digest artifact is what promotion accepts as proof, and it proves exactly what
+  `publish.needs` in `ci.yml` covers — no more. A job outside that list can be
+  **red while publish still records a digest**, and promotion will then certify
+  bytes that failed it. Nothing enforces the list: `needs` is hand-kept, and a new
+  job defaults to *not* gating, which is the dangerous default. Treat "is it in
+  `publish.needs`?" as part of adding any gating job.
 - **Watch the version on the release PR, not just the changelog.** A
   `Release-As: X.Y.Z` footer on any commit reaching main overrides the computed
   version, and squash-merge can be configured to put a PR *body* into the commit
@@ -253,10 +278,92 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
   `.release-please-manifest.json`, and `version.txt`. **Never hand-edit the manifest
   or `version.txt`**; release-please owns them and a manual edit desynchronises the
   version it believes from the tags that exist.
-- The release PR is opened by `GITHUB_TOKEN`, so **it gets no CI run** (GitHub does
-  not trigger workflows from that token). Harmless here — it only touches the
-  changelog, manifest and version file, and `main` has no required checks. If
-  required checks are ever added, the release PR needs a GitHub App token instead.
+- **The release PR is opened with a GitHub App token, not `GITHUB_TOKEN`** — and
+  both reasons are load-bearing, so do not "simplify" it back.
+  1. `GITHUB_TOKEN` **cannot open a pull request at all** unless the repo-wide
+     *"Allow GitHub Actions to create and approve pull requests"* setting is on.
+     That is how this first shipped, and the first real run failed with
+     `GitHub Actions is not permitted to create or approve pull requests` after
+     release-please had already pushed its branch.
+
+     **Do not describe the off setting as the safeguard** — that setting governs
+     `GITHUB_TOKEN` *only*, and does not constrain an App installation token,
+     which is the whole reason this fix works. The trade is about **what a job
+     must hold** to reach PR-write, not about capability existing at all:
+
+     - **Setting on** removes a repo-wide *policy gate* on `GITHUB_TOKEN`. It
+       grants nothing by itself — a job must still declare `pull-requests:
+       write`, and the repo default is `read`. From then on any job that
+       declares it can create and approve PRs with the ambient token and **no
+       secret**. Scope that to runs whose `GITHUB_TOKEN` is write-capable at
+       all: pushes, and `pull_request` runs from **same-repository** branches. A
+       **fork** PR (this repo is public and allows forking) or a **Dependabot**
+       PR receives a read-only token whatever the workflow declares, unless the
+       separate fork / Dependabot write-token policies are turned on.
+
+       That carve-out keys on the **event**, not on who triggered it — it covers
+       the *direct* `pull_request` run only. A **`workflow_run`** fired off the
+       back of a fork or Dependabot PR runs from the default branch with a
+       normal writable-per-`permissions` token and full secret access, which is
+       precisely what `dependabot-lockfix.yml` depends on to read the App key
+       (see the design doc). So if that workflow — or any future privileged
+       follow-on — ever declared `pull-requests: write`, turning the checkbox on
+       would make it PR-write-capable with **no** fork/Dependabot policy
+       involved. The exposure is not "any contributor can approve"; it is every
+       job, present and future, that asks for the scope on a write-capable
+       event.
+     - **App token** leaves that gate closed, so no `GITHUB_TOKEN` anywhere can
+       do it, and PR-write is reachable only by a job that explicitly references
+       the App private key.
+
+     **Do not restate this as "the capability lives in one job".** The private
+     key is a *repository secret* and `permission-*` caps the returned token, not
+     the key — so **any** job referencing that secret can mint the App's full
+     grant. Two do today (release-please, and lockfix's `commit`). What makes
+     that safe is that neither executes PR-controlled code; it is not a function
+     of job count.
+
+     `Pull requests: write` is indivisible — opening and approving a PR are the
+     same scope — so **the release token can approve a PR**, and only the pinned
+     action's behaviour stops it. Currently inert: `main` requires **zero**
+     approving reviews and has **no** required status checks (verified against
+     the live repo, 2026-08-02), so there is nothing for a rogue approval to
+     satisfy. It stops being inert the day required reviews are enabled, which is
+     why that capability belongs behind a secret rather than behind a declared
+     permission any workflow can ask for.
+  2. GitHub does not trigger workflows for anything `GITHUB_TOKEN` opens or
+     pushes (recursion prevention), so a `GITHUB_TOKEN` release PR carries no
+     `pull_request` checks. An App identity is exempt, so the release PR is
+     built, tested and scanned like any other.
+
+     **Do not inflate this into "the version commit would ship unverified".** It
+     would not, and the gate that prevents it is elsewhere in this design:
+     merging the release PR is a *human* action, so it produces an ordinary
+     `push` to `main` that runs CI in full, and `promote` refuses to run without
+     `published-digest-<sha>`, which `publish` records only after
+     `build-and-test`, `web` and `image` have all passed. **Release verification
+     rests on that artifact gate, not on PR checks.** What this reason buys is
+     narrower and still worth having: seeing red *before* the merge rather than
+     after, and not deadlocking releases the day required status checks are
+     enabled on `main` — a checkless PR could never satisfy them.
+
+  The token is **downscoped per permission** (`permission-contents`,
+  `permission-pull-requests`, `permission-issues`) rather than taking whatever the
+  installation holds. `issues: write` is not incidental — it is what creates and
+  applies the `autorelease: *` labels release-please uses to recognise its own
+  merged PR. The **same App also backs `dependabot-lockfix.yml`**, so that
+  workflow pins `permission-contents: write` on its own mint: without the cap, the
+  PR/issue grants added here would ride along into the token held by the job that
+  pushes to a Dependabot branch. **Any new consumer of this App must downscope the
+  same way** — the installation's permissions are a ceiling, not the intended
+  grant. Note the failure mode: omitting `permission-*` entirely does not mint a
+  *narrow* token, it mints the **union of everything the App holds**, silently and
+  with no warning. Nothing enforces the cap today, which is #368.
+
+  Setup: the App needs **Contents: RW, Pull requests: RW, Issues: RW**, and the
+  repo needs `LOCKFIX_APP_ID` / `LOCKFIX_APP_PRIVATE_KEY` (already present for
+  lockfix). Fails closed — a missing secret fails the mint step, so no release is
+  cut with a fallback token.
 - Package visibility and the host's pull credential are **deploy-side** concerns
   (cluckwork-deploy#6), not this repo's.
 
