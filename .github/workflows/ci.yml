@@ -106,6 +106,12 @@ jobs:
       - name: Test the lockfix classifier
         run: node --test ../.github/scripts/lockfix.test.mjs
 
+      # #369 — this one decides WHICH images the third-party scan covers, so a
+      # defect in it does not produce a red run, it produces a green one over a
+      # smaller set. Its own tests are the only thing that catches that.
+      - name: Test the third-party image enumerator
+        run: node --test ../.github/scripts/compose-images.test.mjs
+
       - name: Install dependencies
         run: npm ci
 
@@ -438,6 +444,93 @@ jobs:
           compression-level: 0
           # Purely an intra-run handoff; the registry is the durable copy.
           retention-days: 1
+
+  # #369 — the OTHER images this repo pins.
+  #
+  # The `image` job above scans `cluckwork-api:ci`: the application image, and
+  # nothing else. But deploy/docker-compose.yml is the reference stack a
+  # developer runs and — as #369 documents — the file the deploy repo read its
+  # production Traefik version out of, and its third-party pins were covered by
+  # no gate at all. `traefik:v3.5` sat there for eight months resolving to a
+  # build with 57 fixable HIGH/CRITICAL findings, and nothing in this repository
+  # was ever going to say so.
+  #
+  # Split into enumerate-then-scan because a matrix has to be known when its job
+  # starts. The upside is that a newly added service is covered automatically:
+  # nobody has to remember to add a scan step, and the pin gate refuses a
+  # non-digest ref before the scan even runs.
+  image-pins:
+    name: Enumerate third-party image pins
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      matrix: ${{ steps.pins.outputs.matrix }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.sha || '' }}
+
+      - name: Enumerate third-party image pins
+        id: pins
+        uses: ./.github/actions/third-party-image-pins
+
+  third-party-images:
+    name: Trivy scan ${{ matrix.image.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: image-pins
+    strategy:
+      # Scan every image even after one fails — a red run should name ALL the
+      # pins that need bumping, not just the first alphabetically.
+      fail-fast: false
+      matrix:
+        image: ${{ fromJSON(needs.image-pins.outputs.matrix) }}
+    steps:
+      # Same gate shape as the application-image scan above: BLOCKING on a
+      # HIGH/CRITICAL that HAS a fix, `ignore-unfixed: true` so an upstream CVE
+      # with nothing to move to cannot wedge every unrelated PR. The actionable
+      # response here is identical — bump the pinned digest — so the philosophy
+      # carries over unchanged.
+      - name: Scan ${{ matrix.image.ref }}
+        # Supply-chain: pin the immutable commit, not the re-pointable tag. Same
+        # rule and same reasoning as the application-image scan above.
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          # Pulled by digest, so these are provably the bytes the compose file
+          # names — not whatever a tag happens to resolve to at scan time.
+          image-ref: ${{ matrix.image.ref }}
+          scan-type: image
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          # Dated, per-CVE, path-scoped exceptions for findings with no fixed
+          # IMAGE to move to — `ignore-unfixed` only asks whether the PACKAGE has
+          # a fix. Deliberately NOT applied to the application-image scan above:
+          # nothing here can mask a finding in bytes this repo builds. See the
+          # file's own header for the rules.
+          trivyignores: .github/trivyignore.yaml
+          exit-code: "1"
+          format: table
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Where this image is pinned
+        if: failure()
+        # Both values reach the runner through `env:`, never spliced into the
+        # script body. They originate in a compose file from the checked-out
+        # tree, which on a fork pull_request is the contributor's content — a
+        # `${{ }}` expansion inside `run:` would make a crafted service key or
+        # image name execute as shell. (compose-images.mjs additionally refuses a
+        # service name outside compose's own charset, so this is belt and braces.)
+        env:
+          IMAGE_NAME: ${{ matrix.image.name }}
+          PINNED_AT: ${{ matrix.image.usedBy }}
+        run: |
+          echo "::error::$IMAGE_NAME has fixable HIGH/CRITICAL findings."
+          echo "Pinned at: $PINNED_AT"
+          echo "Bump the digest there. Resolve a new one with:"
+          echo "  docker buildx imagetools inspect $IMAGE_NAME"
 
   # #351 — publish the image this run verified, named by COMMIT.
   #

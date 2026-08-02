@@ -107,7 +107,26 @@ services:
     # traefik does not start with a bare `docker compose up`. Enable in prod
     # with `docker compose --profile prod up`.
     profiles: ["prod"]
-    image: traefik:v3.5
+    # #369 — pinned by IMMUTABLE DIGEST, same as `db` above. A tag is a name and
+    # names move; worse, `v3.5` is a *release-branch* tag, so it silently stops
+    # moving once upstream's attention shifts to the next minor. It did: this
+    # read `traefik:v3.5` for eight months, resolving to v3.5.6 (2025-11-07) with
+    # 57 fixable HIGH/CRITICAL findings including a CRITICAL Go stdlib CVE — and
+    # the deploy repo took its production Traefik version from THIS file, so the
+    # rot propagated. A digest cannot rot silently: it either matches what CI
+    # scanned or the pull fails. Dependabot's `docker-compose` ecosystem
+    # (.github/dependabot.yml) opens the bump PR, and the third-party image scan
+    # in ci.yml + image-audit.yml confirms the new digest is clean.
+    #
+    # v3.7 vs v3.5, checked before bumping: `sanitizePath` has defaulted to true
+    # since v3.3.6, and the v3.6.7 `http.encodedCharacters.*` knobs all default
+    # to `true` (permissive) — so v3.7.10's DEFAULT path handling is identical to
+    # v3.5.6's, and this stack's router rule is `Host(...)` only, with no path
+    # matching and no path-rewriting middleware. Nothing here routes on the path,
+    # so there is no traefik/app split view to open. Set the encodedCharacters
+    # options to false only if you add path-based routing in front of a backend
+    # that decodes encoded reserved characters.
+    image: traefik:v3.7.10@sha256:617c253c5d960e257ec153d582cc62f191461baba6863bd6b498ae062d3d5c19
     command:
       - --providers.docker=true
       - --providers.docker.exposedbydefault=false

@@ -96,3 +96,36 @@ updates:
     groups:
       docker-base-images:
         patterns: ["*"]
+
+  # #369 — the OTHER half of the container surface, and the half that had no
+  # coverage at all. The `docker` ecosystem above reads Dockerfiles; it does not
+  # look at compose files, so `deploy/docker-compose.yml` was proposed to by
+  # nobody. Its Postgres pin was a digest and its Traefik pin was `v3.5` — a
+  # release-branch tag upstream had stopped moving — and it sat there for eight
+  # months accumulating 57 fixable HIGH/CRITICAL findings, while the deploy repo
+  # took its production Traefik version out of that same file.
+  #
+  # A digest pin is the right call — it is what makes a pull reproducible and
+  # ties the running bytes to the scanned bytes — but it is inert by
+  # construction: it never floats to a fix. Pinning without a bump proposer just
+  # converts "silently drifts" into "silently rots". This closes the loop:
+  # Dependabot opens the digest bump, and the third-party image scan in ci.yml +
+  # image-audit.yml confirms the new digest is clean.
+  #
+  # Deliberately a SEPARATE ecosystem entry rather than another directory on the
+  # `docker` one above: GitHub treats docker-compose as its own ecosystem, and a
+  # base-image bump (which rebuilds and reships the application) is a different
+  # review from a reference-stack sidecar bump.
+  - package-ecosystem: "docker-compose"
+    directory: "/deploy"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(docker)"
+    groups:
+      # docker-compose.yml and docker-compose.dev.yml pin the SAME Postgres
+      # digest. Ungrouped, that is two PRs which have to land together or leave
+      # the two files disagreeing about which bytes "the dev database" means.
+      deploy-compose-images:
+        patterns: ["*"]

@@ -1,0 +1,210 @@
+name: Scheduled image audit
+
+# #369. ci.yml scans images on `push` and `pull_request`, which answers exactly
+# one question: *were these bytes clean when they were built?* It cannot answer
+# *are these bytes still clean?*, because a newly published advisory arrives
+# with no commit to fire on. Nothing changes, so nothing runs, so nothing looks.
+#
+# That is not a hypothetical gap — it is the mechanism of the bug this workflow
+# comes from. `traefik:v3.5` accumulated 57 fixable HIGH/CRITICAL findings over
+# eight months without a single byte of this repository changing, and the stale
+# version propagated into a production deploy manifest before anyone noticed.
+#
+# Same shape and same reasoning as security-audit.yml, which does this for the
+# NuGet and npm dependency graphs. This does it for container images: the
+# third-party ones pinned in deploy/, and the application image that actually
+# shipped.
+#
+# Mode: BLOCKING (the job fails), so the run goes red and GitHub notifies. It
+# gates nothing by itself — nothing merges on a cron — but a red run is the
+# signal to merge the Dependabot digest bump that is probably already open.
+#
+# DAILY, unlike security-audit.yml's weekly cadence: a base-image CVE is fixed by
+# an upstream rebuild that can land any day, and the deploy repo scans its own
+# running digests daily, so a weekly signal here would routinely be the second
+# place to find out.
+
+on:
+  schedule:
+    # 05:00 UTC daily — ahead of the Monday dependency audit (06:00) and CodeQL
+    # (07:00), so on a Monday the whole security picture lands in one sitting.
+    - cron: "0 5 * * *"
+  workflow_dispatch: # run it by hand when an advisory lands
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # The images this repo pins but does not build.
+  # ---------------------------------------------------------------------------
+  image-pins:
+    name: Enumerate third-party image pins
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      matrix: ${{ steps.pins.outputs.matrix }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Enumerate third-party image pins
+        id: pins
+        uses: ./.github/actions/third-party-image-pins
+
+  third-party-images:
+    name: Trivy scan ${{ matrix.image.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: image-pins
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ${{ fromJSON(needs.image-pins.outputs.matrix) }}
+    steps:
+      - name: Scan ${{ matrix.image.ref }}
+        # Supply-chain: pin the immutable commit, not the re-pointable tag.
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ matrix.image.ref }}
+          scan-type: image
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+          # Consistent with every other gate in this repo: block on what can be
+          # ACTIONED. The action for an image is "bump the pinned digest", so an
+          # advisory with no upstream fix yet is noise on a daily cron.
+          ignore-unfixed: true
+          # Same dated exceptions as ci.yml, so the two gates cannot disagree
+          # about what is muted — the property .github/security-exceptions.json
+          # already holds for the dependency gates.
+          trivyignores: .github/trivyignore.yaml
+          exit-code: "1"
+          format: table
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Where this image is pinned
+        if: failure()
+        # Via env, never spliced into the script: these originate in a compose
+        # file. See the identical step in ci.yml.
+        env:
+          IMAGE_NAME: ${{ matrix.image.name }}
+          PINNED_AT: ${{ matrix.image.usedBy }}
+        run: |
+          echo "::error::$IMAGE_NAME has fixable HIGH/CRITICAL findings."
+          echo "Pinned at: $PINNED_AT"
+          echo "Bump the digest there; Dependabot's docker-compose ecosystem may"
+          echo "already have a PR open. Resolve a digest by hand with:"
+          echo "  docker buildx imagetools inspect $IMAGE_NAME"
+
+  # ---------------------------------------------------------------------------
+  # The application image that actually shipped.
+  # ---------------------------------------------------------------------------
+  #
+  # Deliberately PULLED from GHCR rather than rebuilt. A rebuild would take ~20
+  # minutes and would scan bytes that have never been deployed — a fresh `docker
+  # build` resolves a different base layer and different apt state than the one
+  # in the registry. #351's whole premise is that the published digest is the
+  # artifact; scanning anything else answers a question nobody asked.
+  app-image:
+    name: Trivy scan the published application image
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      # Job-level permissions REPLACE the workflow-level `contents: read`.
+      contents: read
+      packages: read # pull the published image from GHCR
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          # Enough history to walk back past a commit that has no image (see
+          # below). Shallow-by-default would make that walk find nothing.
+          fetch-depth: 50
+
+      # `x-access-token` rather than `${{ github.actor }}`: GHCR authenticates
+      # the token, not the username. Same step as ci.yml's publish job.
+      - name: Log in to GHCR
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "$GHCR_TOKEN" | docker login ghcr.io -u x-access-token --password-stdin
+
+      # Resolve the newest commit on main that HAS a published image, rather
+      # than assuming HEAD does. A `[skip ci]` anywhere in a commit message
+      # suppresses the push run entirely — and AGENTS.md records that this
+      # reaches the squashed release commit via a changelog entry — so HEAD
+      # legitimately has no image sometimes. Failing the audit for that would
+      # cry wolf daily about a release-tooling quirk instead of a CVE.
+      - name: Resolve the newest published commit image
+        id: target
+        run: |
+          set -euo pipefail
+          # GHCR rejects uppercase; the owner/repo casing is not ours to assume.
+          REGISTRY_IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}"
+          found=""
+          for sha in $(git log --format=%H -n 25 HEAD); do
+            if docker manifest inspect "$REGISTRY_IMAGE:sha-$sha" >/dev/null 2>&1; then
+              found="$sha"
+              break
+            fi
+            echo "no image for $sha, walking back"
+          done
+          if [[ -z "$found" ]]; then
+            echo "::error::No published image found for any of the last 25 commits on main."
+            echo "CI publishes ghcr.io/<owner>/<repo>:sha-<commit> on every merge, so this means"
+            echo "publishing has been broken for a while, or the package is not readable by this"
+            echo "token. Re-run CI for a known-good commit via its workflow_dispatch (see AGENTS.md)."
+            exit 1
+          fi
+          # Resolve the digest and scan by DIGEST, not by the tag we just found
+          # it under. `:sha-<commit>` is mutable by anyone holding
+          # `packages: write` — AGENTS.md spells out why the release promotion
+          # step refuses to trust it — and a scan is a claim about specific
+          # bytes. Pinning here means the report names an artifact that cannot
+          # have been swapped between the lookup and the pull.
+          digest="$(docker buildx imagetools inspect --format '{{.Manifest.Digest}}' \
+            "$REGISTRY_IMAGE:sha-$found")"
+          {
+            printf 'ref=%s\n' "$REGISTRY_IMAGE@$digest"
+            printf 'sha=%s\n' "$found"
+            printf 'digest=%s\n' "$digest"
+          } >> "$GITHUB_OUTPUT"
+          echo "Scanning $REGISTRY_IMAGE:sha-$found ($digest)"
+
+      - name: Scan the published application image
+        # Supply-chain: pin the immutable commit, not the re-pointable tag.
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ steps.target.outputs.ref }}
+          scan-type: image
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          format: table
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: What to do about it
+        if: failure()
+        env:
+          TARGET_SHA: ${{ steps.target.outputs.sha }}
+          TARGET_DIGEST: ${{ steps.target.outputs.digest }}
+        run: |
+          echo "::error::The published application image has fixable HIGH/CRITICAL findings."
+          echo "Commit: $TARGET_SHA"
+          echo "Digest: $TARGET_DIGEST"
+          echo
+          echo "These bytes were clean when CI built them; an advisory has been published since."
+          echo "The fix is a rebuild on a patched base: merge the Dependabot digest bump for"
+          echo "src/Cluckwork.Api/Dockerfile (docker ecosystem), which re-runs the CI Trivy gate"
+          echo "and publishes a new commit image. Until then the deployed digest is affected —"
+          echo "note that this scan does NOT tell you what the deploy repo currently runs; it"
+          echo "pins its own digest, which may be older than this one."
+
+      # Drop the registry credential rather than leaving it readable in
+      # ~/.docker/config.json for whatever runs next. `always()` so it happens on
+      # the failing path too — which is the path this job is built to take.
+      - name: Log out of GHCR
+        if: always()
+        run: docker logout ghcr.io >/dev/null 2>&1 || true

@@ -1,0 +1,107 @@
+# Trivy ignore file for the THIRD-PARTY image scan (#369).
+#
+# Same escape hatch, same rules, as .github/security-exceptions.json is for the
+# NuGet/npm gates: an entry mutes one finding until a REQUIRED calendar date,
+# and past that date it blocks again. Reach for it only when there is no fixed
+# version to move to. It is scoped to the third-party image scan in ci.yml and
+# image-audit.yml — the application image's own scan does not read it, so
+# nothing here can ever mask a finding in bytes this repo builds.
+#
+# ================== WHY THIS FILE EXISTS AT ALL ==================
+#
+# `ignore-unfixed: true` asks "does the PACKAGE have a fix?", but the actionable
+# unit for an image pin is the IMAGE. Those come apart when upstream has not yet
+# rebuilt with a patched dependency: Trivy reports the finding as fixable, we
+# have nothing to bump to, and a blocking gate wedges every unrelated PR
+# indefinitely — the exact outcome ci.yml's own Trivy comment says to avoid.
+#
+# The alternative — demoting the whole third-party scan to advisory — was
+# rejected. It would also stop blocking the case this gate exists for: a pin
+# that IS stale and DOES have a fixed image, which is #369 itself (`traefik:v3.5`
+# scanned 57 fixable HIGH/CRITICAL while v3.7.10 scanned 0).
+#
+# An entry expiring is not a failure of this file; it is the file working. On
+# that date the finding blocks again, and the question "has upstream rebuilt
+# yet?" gets asked by CI instead of by nobody.
+
+vulnerabilities:
+  # ---------------------------------------------------------------------------
+  # postgres:18-trixie ships /usr/local/bin/gosu, a Go binary used once at
+  # container start to drop from root to the postgres user. It is statically
+  # linked against Go 1.24.6, so Trivy attributes every Go stdlib advisory since
+  # to it — 15 HIGH/CRITICAL as of 2026-08-02.
+  #
+  # There is nothing to move to. The pinned digest IS the newest published
+  # postgres trixie image (18.4-trixie / 18-trixie, both
+  # sha256:3a82e1f5…, pushed 2026-07-19); upstream has not rebuilt gosu. Verified
+  # by scanning the tag directly, not assumed.
+  #
+  # Scoped to that one path, so this mutes findings in gosu and nowhere else in
+  # the image — a Postgres or OpenSSL advisory in the same image still blocks.
+  # Listed per CVE rather than by wildcard deliberately: a NEW gosu finding is
+  # not covered and will go red, which forces someone to look rather than
+  # inheriting a permanent blanket exemption.
+  #
+  # Exit criteria: upstream rebuilds the image with a current Go toolchain, at
+  # which point Dependabot's docker-compose ecosystem opens the digest bump and
+  # every entry below can be deleted in that PR.
+  - id: CVE-2025-68121
+    paths: ["usr/local/bin/gosu"]
+    statement: "Go stdlib in postgres's gosu helper; no rebuilt upstream image exists. See header."
+    expired_at: 2026-11-01
+  - id: CVE-2025-61726
+    paths: ["usr/local/bin/gosu"]
+    statement: "Go stdlib in postgres's gosu helper; no rebuilt upstream image exists. See header."
+    expired_at: 2026-11-01
+  - id: CVE-2025-61729
+    paths: ["usr/local/bin/gosu"]
+    statement: "Go stdlib in postgres's gosu helper; no rebuilt upstream image exists. See header."
+    expired_at: 2026-11-01
+  - id: CVE-2026-25679
+    paths: ["usr/local/bin/gosu"]
+    statement: "Go stdlib in postgres's gosu helper; no rebuilt upstream image exists. See header."
+    expired_at: 2026-11-01
+  - id: CVE-2026-27145
+    paths: ["usr/local/bin/gosu"]
+    statement: "Go stdlib in postgres's gosu helper; no rebuilt upstream image exists. See header."
+    expired_at: 2026-11-01
+  - id: CVE-2026-32280
+    paths: ["usr/local/bin/gosu"]
+    statement: "Go stdlib in postgres's gosu helper; no rebuilt upstream image exists. See header."
+    expired_at: 2026-11-01
+  - id: CVE-2026-32281
+    paths: ["usr/local/bin/gosu"]
+    statement: "Go stdlib in postgres's gosu helper; no rebuilt upstream image exists. See header."
+    expired_at: 2026-11-01
+  - id: CVE-2026-32283
+    paths: ["usr/local/bin/gosu"]
+    statement: "Go stdlib in postgres's gosu helper; no rebuilt upstream image exists. See header."
+    expired_at: 2026-11-01
+  - id: CVE-2026-33811
+    paths: ["usr/local/bin/gosu"]
+    statement: "Go stdlib in postgres's gosu helper; no rebuilt upstream image exists. See header."
+    expired_at: 2026-11-01
+  - id: CVE-2026-33814
+    paths: ["usr/local/bin/gosu"]
+    statement: "Go stdlib in postgres's gosu helper; no rebuilt upstream image exists. See header."
+    expired_at: 2026-11-01
+  - id: CVE-2026-39820
+    paths: ["usr/local/bin/gosu"]
+    statement: "Go stdlib in postgres's gosu helper; no rebuilt upstream image exists. See header."
+    expired_at: 2026-11-01
+  - id: CVE-2026-39822
+    paths: ["usr/local/bin/gosu"]
+    statement: "Go stdlib in postgres's gosu helper; no rebuilt upstream image exists. See header."
+    expired_at: 2026-11-01
+  - id: CVE-2026-39836
+    paths: ["usr/local/bin/gosu"]
+    statement: "Go stdlib in postgres's gosu helper; no rebuilt upstream image exists. See header."
+    expired_at: 2026-11-01
+  - id: CVE-2026-42499
+    paths: ["usr/local/bin/gosu"]
+    statement: "Go stdlib in postgres's gosu helper; no rebuilt upstream image exists. See header."
+    expired_at: 2026-11-01
+  - id: CVE-2026-42504
+    paths: ["usr/local/bin/gosu"]
+    statement: "Go stdlib in postgres's gosu helper; no rebuilt upstream image exists. See header."
+    expired_at: 2026-11-01

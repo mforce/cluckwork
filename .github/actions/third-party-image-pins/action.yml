@@ -1,0 +1,74 @@
+name: Third-party image pins
+description: >-
+  Enumerate the third-party container images pinned in deploy/, verify every one
+  is pinned to an immutable digest, and emit them as a GitHub Actions matrix.
+
+# #369 — used by BOTH ci.yml (does this PR pin something vulnerable?) and
+# image-audit.yml (are the pins we already merged STILL clean?). Those answer
+# different questions and neither substitutes for the other, but they enumerate
+# the images identically — so the enumeration lives here once. A local composite
+# action carries no supply-chain exposure: it is this repository's own tree,
+# checked out by the caller, not a third-party action that needs a SHA pin.
+
+outputs:
+  matrix:
+    description: JSON array of { ref, name, usedBy } — feed to fromJSON() as a matrix.
+    value: ${{ steps.pins.outputs.matrix }}
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Node
+      uses: actions/setup-node@v7
+      with:
+        node-version: 26
+
+    # `docker compose config` refuses to render when a service's `env_file:` is
+    # missing, and deploy/.env is gitignored (it holds real values). The example
+    # file is the committed stand-in; nothing here reads a VALUE out of it, only
+    # the `image:` keys, which carry no interpolation.
+    - name: Stage the example env so compose can render
+      shell: bash
+      run: |
+        set -euo pipefail
+        cp deploy/.env.example deploy/.env
+
+    # --profile '*' is LOAD-BEARING. `traefik` sits behind `profiles: ["prod"]`,
+    # and a render without it omits the service silently — the enumeration then
+    # succeeds over a smaller set, leaving that pin unscanned while reporting
+    # green. Verified: it exits 0 listing Postgres alone. The script counts
+    # `image:` in the SOURCE and fails on the mismatch, so this is guarded rather
+    # than merely commented, but do not drop the flag.
+    #
+    # Every compose file in deploy/ is rendered — the glob, not a hand-kept list,
+    # so a third file added later is covered without anyone remembering to come
+    # back here.
+    - name: Render the compose files
+      shell: bash
+      run: |
+        set -euo pipefail
+        mkdir -p /tmp/compose-render
+        pairs=()
+        for src in deploy/docker-compose*.yml; do
+          out="/tmp/compose-render/$(basename "$src").json"
+          docker compose --profile '*' -f "$src" config --format json > "$out"
+          # `source=rendered`: the source path labels any finding (so a failure
+          # says deploy/docker-compose.yml:traefik, not a temp file) and is what
+          # the render is checked against for silently dropped services.
+          pairs+=("$src=$out")
+        done
+        printf '%s\n' "${pairs[@]}" > /tmp/compose-render/pairs.txt
+
+    - name: Enumerate and verify the pins
+      id: pins
+      shell: bash
+      run: |
+        set -euo pipefail
+        mapfile -t pairs < /tmp/compose-render/pairs.txt
+        matrix="$(node .github/scripts/compose-images.mjs --format matrix "${pairs[@]}")"
+        printf 'matrix=%s\n' "$matrix" >> "$GITHUB_OUTPUT"
+        printf 'Third-party images to scan:\n%s\n' \
+          "$(printf '%s' "$matrix" | node -e '
+            let s = ""; process.stdin.on("data", d => s += d).on("end", () => {
+              for (const i of JSON.parse(s)) console.log(`  ${i.name}  (${i.usedBy})`);
+            });')"
