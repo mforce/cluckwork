@@ -430,7 +430,7 @@ jobs:
         if: |
           (github.event_name == 'push' && github.ref == 'refs/heads/main')
           || github.event_name == 'workflow_dispatch'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: runtime-image
           path: image.tar.gz
@@ -500,7 +500,7 @@ jobs:
           printf 'sha=%s\n' "$sha" >> "$GITHUB_OUTPUT"
 
       - name: Download the verified image
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: runtime-image
 
@@ -590,7 +590,7 @@ jobs:
       # `head_sha` as the branch tip, not the commit it built, so a lookup keyed
       # on the run would miss exactly the case the repair path exists for.
       - name: Record the published digest
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: published-digest-${{ steps.target.outputs.sha }}
           path: published-digest.txt
