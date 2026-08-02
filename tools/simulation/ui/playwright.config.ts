@@ -71,11 +71,14 @@ export default defineConfig({
       name: "chromium",
       use: {
         ...devices["Desktop Chrome"],
-        // `undefined` = Playwright's own downloaded build, which is what CI
-        // (#387) uses. On NixOS this resolves to the system Chromium instead,
-        // because the downloaded binaries do not launch there at all. See
-        // src/browser.ts for the full reasoning.
-        launchOptions: { executablePath },
+        // OMITTED, not set to `undefined` — Playwright's LaunchOptions declares
+        // `executablePath?: string`, and under `exactOptionalPropertyTypes` an
+        // explicit `undefined` is a type error rather than "use the default".
+        // Omitting the key is what actually means "Playwright's own downloaded
+        // build", which is the path CI (#387) takes. On NixOS the resolver finds
+        // the system Chromium instead, because the downloaded binaries do not
+        // launch there at all. See src/browser.ts for the full reasoning.
+        launchOptions: executablePath ? { executablePath } : {},
       },
     },
   ],

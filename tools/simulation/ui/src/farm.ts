@@ -40,7 +40,12 @@ import { owner } from "./cast";
 
 export interface FarmContext {
   timeZoneId: string;
+  /** ISO 4217 code — what the money field LABELS interpolate ("Unit price ({{code}})"). */
+  currencyCode: string;
+  /** The display symbol — what rendered amounts carry. Not interchangeable with the code. */
   currencySymbol: string;
+  /** Decimal places, so a spec converts minor units without assuming 2. */
+  currencyMinorUnit: number;
   locale: string;
   name: string;
 }
@@ -48,7 +53,9 @@ export interface FarmContext {
 interface AccountResponse {
   name: string;
   timeZoneId: string;
+  currencyCode: string;
   currencySymbol: string;
+  currencyMinorUnit: number;
   locale: string;
 }
 
@@ -64,7 +71,9 @@ export async function farmContext(): Promise<FarmContext> {
   }
   cached = {
     timeZoneId: account.timeZoneId,
+    currencyCode: account.currencyCode,
     currencySymbol: account.currencySymbol,
+    currencyMinorUnit: account.currencyMinorUnit,
     locale: account.locale,
     name: account.name,
   };
