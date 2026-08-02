@@ -87,11 +87,22 @@ jobs:
       #          Scope that claim to runs whose GITHUB_TOKEN is write-capable
       #          in the first place — pushes, and `pull_request` runs from
       #          SAME-REPOSITORY branches. A fork PR (this repo is public and
-      #          allows forking) and a Dependabot-triggered run both get a
-      #          read-only token regardless of the declared permissions, unless
-      #          the separate fork/Dependabot write-token policies are enabled.
-      #          So this is not "any contributor can approve"; it is every
-      #          same-repo job, present and future, that asks for the scope.
+      #          allows forking) or a Dependabot PR gets a read-only token
+      #          regardless of the declared permissions, unless the separate
+      #          fork/Dependabot write-token policies are enabled.
+      #          That carve-out keys on the EVENT, not on who triggered it: it
+      #          covers the direct `pull_request` run only. A `workflow_run`
+      #          fired off the back of a fork or Dependabot PR runs from the
+      #          default branch with a NORMAL writable-per-`permissions` token
+      #          and full secret access — which is exactly what
+      #          dependabot-lockfix.yml relies on to read the App key at all
+      #          (see its header and the design doc). So if that workflow, or
+      #          any future privileged follow-on, ever declared
+      #          `pull-requests: write`, turning the repo checkbox on would
+      #          make it PR-write-capable with no fork/Dependabot policy
+      #          involved. Not "any contributor can approve" — every job,
+      #          present and future, that asks for the scope on a write-capable
+      #          event.
       #        App token  -> the gate stays on, so no GITHUB_TOKEN anywhere can
       #          do it, and PR-write is reachable only by a job that explicitly
       #          references the App private key.

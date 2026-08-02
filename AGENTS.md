@@ -290,12 +290,21 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
        declares it can create and approve PRs with the ambient token and **no
        secret**. Scope that to runs whose `GITHUB_TOKEN` is write-capable at
        all: pushes, and `pull_request` runs from **same-repository** branches. A
-       **fork** PR (this repo is public and allows forking) and a
-       **Dependabot**-triggered run both receive a read-only token whatever the
-       workflow declares, unless the separate fork / Dependabot write-token
-       policies are turned on. So the exposure is not "any contributor can
-       approve" — it is every same-repo job, present and future, that asks for
-       the scope.
+       **fork** PR (this repo is public and allows forking) or a **Dependabot**
+       PR receives a read-only token whatever the workflow declares, unless the
+       separate fork / Dependabot write-token policies are turned on.
+
+       That carve-out keys on the **event**, not on who triggered it — it covers
+       the *direct* `pull_request` run only. A **`workflow_run`** fired off the
+       back of a fork or Dependabot PR runs from the default branch with a
+       normal writable-per-`permissions` token and full secret access, which is
+       precisely what `dependabot-lockfix.yml` depends on to read the App key
+       (see the design doc). So if that workflow — or any future privileged
+       follow-on — ever declared `pull-requests: write`, turning the checkbox on
+       would make it PR-write-capable with **no** fork/Dependabot policy
+       involved. The exposure is not "any contributor can approve"; it is every
+       job, present and future, that asks for the scope on a write-capable
+       event.
      - **App token** leaves that gate closed, so no `GITHUB_TOKEN` anywhere can
        do it, and PR-write is reachable only by a job that explicitly references
        the App private key.
