@@ -1,6 +1,5 @@
 namespace Cluckwork.Infrastructure.Providers.Postgres;
 
-using System.Data.Common;
 using Npgsql;
 
 // Normalizes a Postgres connection string and enforces the production TLS floor.
@@ -9,39 +8,19 @@ using Npgsql;
 //
 // #261 — accepts libpq/managed URI form (postgres://, postgresql://) in addition to
 //        Npgsql key-value; Npgsql's own parser only understands key-value and throws on a
-//        URI. Query params with no Npgsql equivalent (sslcompression, …) are
-//        skipped-with-warning rather than failing the whole connection. BEWARE: a param
-//        being absent from ContainsKey does NOT mean Npgsql lacks an equivalent — it
-//        usually means the equivalent is spelled differently (libpq "keepalives" is
-//        Npgsql "Tcp Keepalive"). Look for the differently-spelled keyword before
-//        concluding a param is unmappable; that assumption is what shipped #332.
+//        URI. Query params with no Npgsql equivalent (channel_binding, target_session_attrs,
+//        gssencmode, …) are skipped-with-warning rather than failing the whole connection.
 // #262 — in Production, enforces the TLS floor as an ALLOW-LIST (fail closed): only
 //        VerifyCA/VerifyFull pass silently and Require passes with a warning; EVERY other
 //        value — Disable/Allow/Prefer AND any undefined SslMode (e.g. (SslMode)99 from a
 //        raw `SSL Mode=99`) — throws, unless Database:AllowInsecureConnection is explicitly
 //        set, in which case it boots with a loud warning. It never auto-injects or upgrades.
-// #332 — disables GSSAPI/Kerberos encryption negotiation unless the operator asked for it.
-//        Npgsql's GssEncryptionMode defaults to Prefer, so every connector probes the GSS
-//        stack before authenticating; on a runtime image without libgssapi-krb5-2 (#267
-//        keeps the image minimal) the .NET native security shim prints two UNSTRUCTURED
-//        lines to stderr — outside Serilog, so they can't be filtered or shipped as
-//        structured events — that read like a connection failure on every deploy.
-//        Verified by loader trace: with GssEncryptionMode=Prefer the process dlopens
-//        libgssapi_krb5.so.2 / libkrb5.so.3 even against a scram-sha-256 server; with
-//        Disable there is zero gssapi/krb5 loader activity and the connection is
-//        otherwise identical. The #262 "never auto-injects" rule above is scoped to
-//        sslmode, which this leaves strictly alone.
 public static class PostgresConnectionString
 {
     // Both spellings are valid libpq URI schemes (PostgreSQL docs §34.1.1.2).
     private static readonly string[] UriSchemes = ["postgres", "postgresql"];
 
     private const int DefaultPort = 5432;
-
-    // Npgsql's canonical spelling. It accepts any casing of this and of the spaceless
-    // "gssencryptionmode"; underscores and the libpq name "gssencmode" are NOT accepted.
-    // CollapseKeyword below covers that set.
-    private const string GssEncryptionModeKeyword = "GSS Encryption Mode";
 
     // libpq/managed URI query params whose Npgsql keyword differs (or which Npgsql only
     // accepts under a spaced name — e.g. "channel_binding" throws, "Channel Binding" works).
@@ -60,12 +39,6 @@ public static class PostgresConnectionString
             ["channel_binding"] = "Channel Binding",
             ["target_session_attrs"] = "Target Session Attributes",
             ["ssl_negotiation"] = "SSL Negotiation",
-            // #332 — Npgsql does NOT recognize the libpq spelling "gssencmode" under any
-            // casing, so without this entry it fell through to the unknown-parameter branch
-            // and was dropped with a warning: an operator could not control GSS negotiation
-            // from a connection URI at all. The libpq values (disable/prefer/require) are
-            // exactly the GssEncryptionMode member names, so no value translation is needed.
-            ["gssencmode"] = GssEncryptionModeKeyword,
         };
 
     /// <summary>
@@ -73,8 +46,7 @@ public static class PostgresConnectionString
     /// Production, enforces the TLS floor. Throws <see cref="InvalidOperationException"/> for
     /// a mode that does not guarantee TLS (unless <paramref name="allowInsecureConnection"/>
     /// is set, which downgrades that to a loud warning); invokes <paramref name="onWarning"/>
-    /// for a Require-only mode and for skipped URI parameters. Also defaults
-    /// GSS encryption negotiation to off when the caller did not specify it (#332).
+    /// for a Require-only mode and for skipped URI parameters.
     /// </summary>
     public static string NormalizeAndValidate(
         string connectionString,
@@ -93,68 +65,8 @@ public static class PostgresConnectionString
             EnforceTlsFloor(normalized, allowInsecureConnection, onWarning);
         }
 
-        // AFTER the floor, so the TLS decision is made against exactly what the operator
-        // supplied. Defense-in-depth rather than load-bearing: EnforceTlsFloor reads only
-        // .SslMode, so appending a different keyword cannot change its verdict today.
-        return ApplyGssEncryptionDefault(normalized);
+        return normalized;
     }
-
-    // #332 — Cluckwork authenticates with a password, never Kerberos, so GSS *encryption*
-    // negotiation is dead weight that only produces pre-logger stderr noise on an image
-    // without libgssapi-krb5-2. Turn it off by default.
-    //
-    // This does NOT weaken anything: GssEncryptionMode governs the optional GSSAPI
-    // transport wrapper, which is orthogonal to SSL Mode (the TLS floor above is
-    // untouched) and to GSS *authentication* (a separate Npgsql code path, reached only
-    // if the server actually issues an AuthenticationGSS challenge).
-    //
-    // Keyed on PRESENCE, not value: 'prefer' is Npgsql's own default, so comparing
-    // against the enum default would silently override an operator who asked for it.
-    // A Kerberos-fronted deployment sets gssencmode explicitly and keeps it.
-    private static string ApplyGssEncryptionDefault(string keyValueConnectionString)
-    {
-        if (SpecifiesGssEncryptionMode(keyValueConnectionString))
-        {
-            return keyValueConnectionString;
-        }
-
-        // Append textually rather than round-tripping through NpgsqlConnectionStringBuilder:
-        // a rebuild would reorder and requote the operator's own string, and would throw on
-        // any keyword this Npgsql version doesn't know. The TrimEnd is COSMETIC — Npgsql
-        // parses "…;;GSS Encryption Mode=Disable" identically — so it is pinned by asserting
-        // the resulting TEXT, not by reparsing it.
-        return string.Concat(
-            keyValueConnectionString.TrimEnd(';', ' '),
-            ";", GssEncryptionModeKeyword, "=", nameof(GssEncryptionMode.Disable));
-    }
-
-    private static bool SpecifiesGssEncryptionMode(string keyValueConnectionString)
-    {
-        // The BASE builder, deliberately: NpgsqlConnectionStringBuilder.ContainsKey reports
-        // true for every keyword it KNOWS (defaults included), so it cannot distinguish
-        // "the operator set this" from "Npgsql has a default for this". DbConnectionStringBuilder
-        // exposes only the keys actually present in the text.
-        var supplied = new DbConnectionStringBuilder { ConnectionString = keyValueConnectionString };
-
-        foreach (string key in supplied.Keys)
-        {
-            if (CollapseKeyword(key).Equals(
-                    CollapseKeyword(GssEncryptionModeKeyword), StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    // Npgsql accepts any casing of "gssencryptionmode" and of "gss encryption mode" (and
-    // has NO registered synonyms for this property), so both must count as operator-supplied.
-    // Collapsing spaces covers that set. It deliberately over-matches a few spellings Npgsql
-    // itself rejects (doubled spaces, tabs): those throw at parse time either way, so
-    // over-matching costs nothing, while under-matching would silently override an operator.
-    private static string CollapseKeyword(string keyword) =>
-        keyword.Replace(" ", string.Empty);
 
     private static bool IsUri(string connectionString) =>
         Uri.TryCreate(connectionString, UriKind.Absolute, out var uri)
@@ -229,12 +141,8 @@ public static class PostgresConnectionString
             }
             else
             {
-                // No Npgsql equivalent under ANY spelling (sslcompression, …). Skip it
-                // rather than fail the whole connection — Npgsql negotiates fine without it.
-                // NOTE: keepalives*/client_encoding also land here today, but only because
-                // they are not in the map yet — Npgsql DOES support them ("Tcp Keepalive",
-                // "Client Encoding"). Reaching this branch is not proof a param is
-                // unsupported; see the header comment.
+                // Genuinely unknown to Npgsql (gssencmode, keepalives*, …). Skip it rather
+                // than fail the whole connection — Npgsql negotiates fine without it.
                 onWarning?.Invoke(
                     $"connection-URI parameter '{key}' has no Npgsql equivalent and was ignored.");
             }
