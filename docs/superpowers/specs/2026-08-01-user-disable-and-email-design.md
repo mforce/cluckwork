@@ -3,10 +3,10 @@
 **Date:** 2026-08-01
 **Phase:** 1.1 (epic #14)
 **Status:** design, awaiting implementation plan
-**Revision:** sixth draft. Every round of review so far has found a real defect
+**Revision:** seventh draft. Every round of review so far has found a real defect
 in the previous round's fix. The corrections are recorded at the end, in
-*What the first/second/third/fourth/fifth draft got wrong* — read them before
-treating any of this as a small delta. The corrections are the substance.
+the *What the Nth draft got wrong* sections — read them before treating any of
+this as a small delta. The corrections are the substance.
 
 ## Problem
 
@@ -458,7 +458,45 @@ already dead and says nothing about the live one. Family revocation is preserved
 for its real purpose: genuine same-epoch reuse, which is still the theft signal
 #176 exists to catch.
 
-### 5. SPA
+### 4a. Rolling deploys: the check has to exist everywhere before the mutations do
+
+The retired-`0` sentinel makes rows *written* by an old binary inert. It does
+nothing about requests *served* by one.
+
+An old replica runs the pre-epoch pipeline: it validates the bearer's signature,
+issuer, audience, and lifetime, and has no `CredentialEpochMiddleware` to
+consult. So during a rolling deploy — new replicas up, old ones still serving —
+an Owner can disable a user on a new replica while the load balancer keeps
+routing that user's pre-deploy access token to an old one, which authorizes it
+happily. The suspension is not immediate; it is immediate *on some fraction of
+the fleet*, which is worse than a documented delay because nothing surfaces it.
+
+This is not fixable by anything the mutation does. The enforcement gap belongs to
+the replica that never learned to enforce.
+
+**So the feature ships in two deploys, and the ordering is a hard constraint:**
+
+1. **Deploy A — the mechanism, inert.** `CredentialEpoch`, `IssuedEpoch`, the
+   migration and cutover, `JwtTokenService` stamping the claim, the middleware,
+   and `RefreshAsync`'s comparison. No disable, no enable, no email change.
+   Nothing here makes a promise the mixed fleet cannot keep: the only epoch bumps
+   are the existing password-reset paths, which already revoke refresh tokens
+   today, so on an old replica the behaviour is exactly what it is now. Deploy A
+   can therefore roll at any pace without a window of false assurance.
+2. **Deploy B — the mutations.** `POST /disable`, `POST /enable`,
+   `PUT /email`, and the SPA. By the time an epoch bump can be triggered by a
+   *new* operation, every serving replica enforces the check.
+
+Between them the old fleet must be fully drained. That drain is the deployment
+repo's job, not this one's — what belongs here is the **requirement**: deploy B
+must not be exposed until no process from before deploy A is still serving. An
+orchestrator that reports "rollout complete" on the basis of new replicas being
+healthy, without confirming old ones are gone, does not satisfy it.
+
+A single-replica install has none of this, and the reference compose stack is
+single-replica. The design cannot lean on that — #338 already contemplates more
+than one — and a constraint that only holds at one replica is the kind that gets
+discovered during the first scale-up.
 
 Disabled users stay listed inline: a "Disabled" badge, a de-emphasized row, and
 the action toggling to "Enable". Hiding people who still own history invites
@@ -559,12 +597,26 @@ to the login screen.
 
 ## Delivery
 
-1. **#356 — disable / enable a user.** Carries the credential epoch, the account
-   lock, the middleware, the `recover-admin` changes, and the SPA plumbing for
-   the 401 reason. Larger than the first draft implied.
-2. **#357 — change a user's email.** Reuses all of it; adds the four-column
+Three PRs, not two, and the first two are **separate deploys** — see *Rolling
+deploys* above for why the ordering is a correctness constraint rather than a
+preference.
+
+1. **The credential epoch, inert** (new issue). `CredentialEpoch`,
+   `IssuedEpoch`, the migration and cutover, the claim, the middleware,
+   `RefreshAsync`'s comparison, and the SPA plumbing that carries a 401's reason
+   through auth teardown. Makes no new promise: the only epoch bumps are the
+   password-reset paths that already revoke refresh tokens today.
+2. **#356 — disable / enable a user.** The mutations, the account lock, the
+   guards, the `recover-admin` changes, the SPA toggle and confirm. Must not be
+   exposed until every pre-(1) process is drained.
+3. **#357 — change a user's email.** Reuses all of it; adds the four-column
    atomic write and the sole-Owner guard. Smaller than the first draft implied —
    the retry work it described does not exist.
+
+The split is not bookkeeping. (1) is where every one of the migration-boundary
+corrections lives, and it is the part that has to be correct on a mixed fleet;
+(2) and (3) are ordinary feature work on top of a mechanism that is already
+everywhere.
 
 Role editing is **#355**. The #308 step-up-coverage gap is filed separately.
 
@@ -686,3 +738,28 @@ Recorded so the same reasoning is not re-derived later.
     credential types. A design that introduces a per-request check has to
     enumerate **every credential already in flight** on the day it ships, not
     just the ones it mints afterwards.
+
+## What the sixth draft got wrong
+
+15. **The rolling-deploy analysis covered rows written by an old binary and not
+    requests served by one.** The retired `0` makes an old writer's tokens inert;
+    it does nothing about an old *replica*, which runs the pre-epoch pipeline and
+    has no middleware to consult. Disable a user on a new replica, and the load
+    balancer can still route their pre-deploy access token to an old one that
+    authorizes it. The suspension is immediate on part of the fleet — worse than
+    a documented delay, because nothing surfaces it.
+
+    The mechanism now ships as its own inert deploy first, and the mutations only
+    after the old fleet is drained.
+
+    The general form, and the one to carry into any future work of this kind:
+    **adding a per-request check is a fleet-wide change, not a code change.**
+    Until the last old process is gone, the guarantee is whatever the *weakest*
+    replica enforces. Any feature whose promise depends on a new gate has to ship
+    behind that gate being universal — which means the gate and the promise
+    cannot be in the same deploy.
+
+    Note the asymmetry with item 13. That one was solved by reserving a value the
+    old world could not produce. This one cannot be, because the old world is not
+    producing anything — it is *failing to check*. A sentinel defends against bad
+    data; only ordering defends against absent enforcement.
