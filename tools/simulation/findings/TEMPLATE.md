@@ -152,6 +152,14 @@ never silently dropped from this report.
 
 {{RESOURCE_UTIL_TABLE}}
 
+### Browser experience (#386 canary)
+
+What a real browser saw while the above was happening. k6 measures the server's
+answer; this measures the farm's screen — and the two only mean something
+together, which is why they share a document.
+
+{{BROWSER_VITALS_TABLE}}
+
 ### 2.7 Database growth (`pg_database_size`, before/after each rep's capacity phase)
 
 `pg_stat_statements` is reset once per rep, **right before `k6 run` starts**

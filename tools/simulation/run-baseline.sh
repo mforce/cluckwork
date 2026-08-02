@@ -901,6 +901,142 @@ dirty_note = (
     "| Working tree | **DIRTY** at run time (`git status --porcelain` non-empty) |" if GIT_DIRTY else ""
 )
 
+# ---- browser vitals (#386 canary) ---------------------------------------------
+#
+# OPTIONAL BY DESIGN. The canary is a separate, human-started run
+# (tools/simulation/ui/run-canary.sh); a baseline taken without it is complete on
+# its own terms. When the canary HAS run, its samples land in
+# tools/simulation/out/canary-vitals.json and get folded in here so the browser
+# experience and the server percentiles from the same window sit in ONE document
+# — which is the entire reason for running them concurrently.
+#
+# Read rather than recomputed: the numbers come from PerformanceObserver inside
+# the real browser, and nothing here can improve on that. Two of the columns are
+# deliberately named as UPPER BOUNDS rather than as CLS and INP; see
+# tools/simulation/ui/src/vitals.ts for why that distinction is kept.
+# ONE FILE PER SCREEN, not one shared file. At CANARY_BROWSERS=2 the canary runs
+# in two worker PROCESSES; a single shared output path was last-writer-wins and
+# silently dropped half the samples (PR #391 review). A partial run still renders
+# the samples it captured, but is called out as incomplete rather than looking
+# like a smaller successful canary.
+#
+# COMPLETENESS COMES FROM THE SAMPLES, NOT FROM A LIST KEPT HERE. An earlier fix
+# hardcoded `{"dashboard", "stock", "reports", "history"}` in this file; that is a
+# second copy of the canary's own SCREENS array with nothing keeping the two in
+# step, and its own "unrecognised screen — update the renderer's manifest"
+# warning was the admission (PR #392 review round 3). Every sample now carries
+# `expectedScreens`, so the check cannot drift from what the run intended.
+CANARY_VITALS_DIR = REPO_ROOT / "tools" / "simulation" / "out" / "canary-vitals"
+
+def _render_browser_vitals() -> str:
+    files = sorted(CANARY_VITALS_DIR.glob("*.json")) if CANARY_VITALS_DIR.is_dir() else []
+    if not files:
+        return (
+            "_No browser canary was run for this baseline. Run "
+            "`bash tools/simulation/ui/run-canary.sh` alongside a baseline to populate this "
+            "section (#386)._"
+        )
+    samples, unreadable = [], []
+    for f in files:
+        try:
+            samples.append(json.loads(f.read_text()))
+        except (OSError, ValueError) as exc:
+            unreadable.append(f"{f.name} ({exc})")
+    if not samples:
+        return f"_Canary vitals present but unreadable: {', '.join(unreadable)}._"
+
+    def cell(v):
+        return "—" if v is None else str(v)
+
+    header = (
+        "| Screen | Under k6 load | TTFB ms | FCP ms | LCP ms | "
+        "CLS (upper bound) | Longest interaction ms | Usable in ms |\n"
+        "| --- | --- | --- | --- | --- | --- | --- | --- |"
+    )
+    rows = [
+        "| {screen} | {load} | {ttfb} | {fcp} | {lcp} | {cls} | {inter} | {usable} |".format(
+            screen=s_.get("screen", "?"),
+            load="yes" if s_.get("underLoad") else "no",
+            ttfb=cell(s_.get("ttfbMs")),
+            fcp=cell(s_.get("fcpMs")),
+            lcp=cell(s_.get("lcpMs")),
+            cls=cell(s_.get("clsUpperBound")),
+            inter=cell(s_.get("longestInteractionMs")),
+            usable=cell(s_.get("usableInMs")),
+        )
+        for s_ in samples
+    ]
+    observed_screens = {str(sample.get("screen")) for sample in samples}
+    # Each sample states the whole manifest its run intended. Distinct manifests
+    # across files mean the directory holds output from more than one canary
+    # BUILD — a stale file surviving a rename, say — which is not a complete run
+    # of either build even when the union happens to look full.
+    manifests = {
+        tuple(sorted(str(s) for s in sample["expectedScreens"]))
+        for sample in samples
+        if isinstance(sample.get("expectedScreens"), list)
+    }
+    legacy = [s for s in samples if not isinstance(s.get("expectedScreens"), list)]
+    declared_screens = {screen for manifest in manifests for screen in manifest}
+    missing_screens = sorted(declared_screens - observed_screens)
+    unexpected_screens = sorted(observed_screens - declared_screens) if declared_screens else []
+
+    warnings = []
+    if not manifests:
+        warnings.append(
+            "**WARNING: these samples predate the completeness manifest, so this table CANNOT "
+            "be shown to be a full canary run — a run that died after two screens is "
+            "indistinguishable from one that only samples two. Re-run the canary before "
+            "treating this as complete.**"
+        )
+    elif legacy:
+        warnings.append(
+            f"**WARNING: {len(legacy)} sample(s) carry no completeness manifest and predate "
+            "the current canary build. The directory is holding stale output; re-run the "
+            "canary rather than reading these rows as one run.**"
+        )
+    if len(manifests) > 1:
+        warnings.append(
+            "**WARNING: the samples disagree about which screens this canary samples: "
+            + "; ".join("/".join(manifest) for manifest in sorted(manifests))
+            + ". The directory mixes output from different builds, so it is not one run.**"
+        )
+    if missing_screens:
+        warnings.append(
+            "**WARNING: this is a partial canary run. No sample was produced for: "
+            + ", ".join(f"`{screen}`" for screen in missing_screens)
+            + ". The rows below are kept as evidence, but do not compare them as a complete run.**"
+        )
+    if unexpected_screens:
+        warnings.append(
+            "**WARNING: sample(s) present for screen(s) no manifest declares: "
+            + ", ".join(f"`{screen}`" for screen in unexpected_screens)
+            + ". Almost certainly a stale file from a previous canary build.**"
+        )
+    if unreadable:
+        warnings.append(
+            f"**WARNING: {len(unreadable)} canary sample file(s) could not be read: "
+            f"{', '.join(unreadable)}.**"
+        )
+    warning_note = "\n\n" + "\n\n".join(warnings) if warnings else ""
+    note = (
+        "\n\n**CLS and the interaction figure are UPPER-BOUND PROXIES, not the standard metrics.** "
+        "CLS here is the sum of all non-input layout shifts rather than the largest session "
+        "window; the interaction figure is the single longest interaction rather than INP's "
+        "~98th percentile. Both aggregations over-report against the entries observed so far — "
+        "but the sample is read mid-page-life, not at page hide, so a shift or an interaction "
+        "occurring after the read is not in that set at all and either figure can land BELOW "
+        "the finalised standard metric. They bound what was observed; observation stops at the "
+        "read. (An earlier version of this note said they 'can only over-report' — wrong, and "
+        "the direction that matters, since it invites reading a green number as a guarantee.) "
+        "A `—` in the interaction column means "
+        "that screen has no control the canary presses, so nothing was measured — not that it "
+        "was instantaneous."
+    )
+    return header + "\n" + "\n".join(rows) + warning_note + note
+
+browser_vitals_table = _render_browser_vitals()
+
 # ---- render -------------------------------------------------------------------
 
 replacements = {
@@ -910,6 +1046,7 @@ replacements = {
     "{{COMMIT_SHA_SHORT}}": COMMIT_SHA_SHORT,
     "{{GIT_BRANCH}}": GIT_BRANCH,
     "{{DIRTY_NOTE}}": dirty_note,
+    "{{BROWSER_VITALS_TABLE}}": browser_vitals_table,
     "{{REPS}}": str(REPS),
     "{{SEED}}": str(seed),
     "{{HISTORY_DAYS}}": str(history_days),
