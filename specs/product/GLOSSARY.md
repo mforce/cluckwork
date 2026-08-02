@@ -620,19 +620,21 @@ default account has no Owner answers with a short notice explaining that no
 server, instead of the usual "invalid email or password". For the operator this
 exists to help — who holds no credentials at all yet — that generic denial
 describes a problem with their typing that they do not have. It disappears
-for good once the first Owner exists. The notice deliberately publishes **no
+for good once the default account has an Owner. The notice deliberately publishes **no
 command and no deployment detail** — a page reachable by anyone is the wrong
 place to describe how the server is run, and the setup steps belong in the
 README. It is reported on the **failed sign-in itself**, not by a status check
 the page polls, so only someone actually attempting to sign in is told anything.
-It does not **enumerate**: the condition is a property of the whole instance and
-never of the address that was typed, so no attempt reveals anything about any
-particular account, and the moment one Owner exists the response is
-byte-identical to the ordinary non-enumerating denial. It does **disclose one
-global fact** — that this instance has no administrator — which can be true
-while ordinary non-Owner accounts exist and are protected, since the predicate
-is the absence of an *Owner* and the seeders create Workers and Managers without
-one. Accepted deliberately: the fact is not a credential and grants no access;
+It does not **enumerate**: the condition is a property of the **default
+account** and never of the address that was typed, so no attempt reveals
+anything about any particular account, and once that account has an Owner the
+response is byte-identical to the ordinary non-enumerating denial. It does
+**disclose one fact** — that the default account has no Owner — and that scope
+is exact in both directions: it can be true while ordinary non-Owner accounts
+exist and are protected (the predicate is the absence of an *Owner*, and the
+seeders create Workers and Managers without one), and it can be true while an
+Owner exists under a *different* account, since the predicate is scoped to the
+default account rather than to any Owner anywhere. Accepted deliberately: the fact is not a credential and grants no access;
 on a genuinely fresh install — no users at all — it is already inferable by
 anyone who can reach the form; and the alternative is leaving an operator
 stranded at a form no credential of theirs can satisfy. This is a **separate mechanism** from break-glass recovery below (a pre-auth, one-shot

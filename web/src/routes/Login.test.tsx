@@ -195,8 +195,8 @@ describe("Login", () => {
 });
 
 // #283 follow-up — the first-run notice. Driven by the SIGN-IN ATTEMPT, not by
-// a status call on mount: the server reports "this instance has no
-// administrator" on the 401 it already returns.
+// a status call on mount: the server reports "the default account has no
+// Owner" on the 401 it already returns.
 describe("Login — first-run setup notice", () => {
   const noAccounts = () =>
     new ApiError(401, "Auth.NoAccountsProvisioned", "This farm has no administrator account yet.");

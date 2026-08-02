@@ -27,23 +27,30 @@ using Microsoft.EntityFrameworkCore;
 // two review rounds were spent on comments that claimed more than this delivers
 // (PR #363, rounds 2 and 3):
 //
-//   * It does not ENUMERATE. The answer depends on the instance and never on
-//     any submitted address, so no sign-in attempt reveals anything about any
-//     particular account.
-//   * It DOES disclose one global fact to an anonymous caller who attempts a
-//     sign-in: this instance has no administrator. Note what that does NOT
-//     mean — the predicate is the absence of an OWNER, so this can be true
-//     while ordinary non-Owner accounts exist, hold valid credentials and sign
-//     in perfectly well (the seeders create exactly such users, and
-//     FirstRunLoginNoticeTests pins the case). Earlier wording here claimed the
-//     state was harmless because "the instance answers no valid credential";
-//     that is false in precisely that state.
+//   * It does not ENUMERATE. The answer depends on the default account and
+//     never on any submitted address, so no sign-in attempt reveals anything
+//     about any particular account.
+//   * It DOES disclose one fact to an anonymous caller who attempts a sign-in:
+//     the DEFAULT ACCOUNT has no Owner. That scope is the whole claim, and it
+//     is narrower than it reads at a glance in two ways this file has now been
+//     wrong about once each:
+//       - the predicate is the absence of an OWNER, so it can be true while
+//         ordinary non-Owner accounts exist, hold valid credentials and sign in
+//         perfectly well (the seeders create exactly such users, and
+//         FirstRunLoginNoticeTests pins the case). Earlier wording claimed the
+//         state was harmless because "the instance answers no valid
+//         credential"; that is false in precisely that state (round 2).
+//       - the predicate is scoped to SeedDefaults.AccountId, so it can be true
+//         while an Owner exists under ANOTHER account. Earlier wording called
+//         this a property of "the whole instance" — false, and pinned false by
+//         the suite's own cross-account case, which creates such an Owner and
+//         asserts the notice still fires (round 5).
 //
 // Accepted anyway: the fact is not itself a credential and grants no access; on
 // a genuinely fresh install — no users at all — it is already inferable by
-// anyone who can reach the form; it stops being reachable once the first Owner
-// exists (the value latches, see below); and there is no default credential in
-// this app to go try. The alternative, leaving the operator to find the README,
+// anyone who can reach the form; it stops being reachable once the default
+// account has an Owner (the value latches, see below); and there is no default
+// credential in this app to go try. The alternative, leaving the operator to find the README,
 // is what actually happened and cost a debugging session.
 public sealed class FirstRunStatusService(
     AppDbContext db,

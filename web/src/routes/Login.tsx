@@ -13,9 +13,9 @@ interface LocationState {
   from?: { pathname: string };
 }
 
-// #283 follow-up — the error code a failed sign-in carries when the instance
-// has no administrator at all. Mirrors AuthEndpoints.NoAccountsProvisionedCode;
-// it rides the ProblemDetails `title`, which parseError puts on ApiError.title.
+// #283 follow-up — the error code a failed sign-in carries when the default
+// account has no Owner. Mirrors AuthEndpoints.NoAccountsProvisionedCode; it
+// rides the ProblemDetails `title`, which parseError puts on ApiError.title.
 const NO_ACCOUNTS_PROVISIONED = "Auth.NoAccountsProvisioned";
 
 // Matched on the code, never on the message: the copy is translated and the
@@ -93,7 +93,7 @@ export function Login() {
         await login(email, password);
         navigate(from, { replace: true });
       } catch (err) {
-        // The server distinguishes "this instance has no administrator" from an
+        // The server distinguishes "the default account has no Owner" from an
         // ordinary wrong credential. Show the setup notice for the first and
         // suppress the generic denial: for the operator this exists to help,
         // who holds no credentials at all yet, "invalid email or password"

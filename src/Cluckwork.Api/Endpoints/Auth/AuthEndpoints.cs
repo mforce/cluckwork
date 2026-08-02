@@ -113,10 +113,11 @@ public static class AuthEndpoints
         return group;
     }
 
-    // #283 follow-up (#361) — the error code a failed sign-in carries when this
-    // instance has no administrator at all, so the SPA can explain the dead end
-    // instead of showing the generic denial. Rides the ProblemDetails `title`,
-    // like every other login error code.
+    // #283 follow-up (#361) — the error code a failed sign-in carries when the
+    // DEFAULT ACCOUNT has no Owner, so the SPA can explain the dead end instead
+    // of showing the generic denial. Rides the ProblemDetails `title`, like
+    // every other login error code. Scoped to that account, not to the instance
+    // — see the Login handler for what that does and does not claim.
     public const string NoAccountsProvisionedCode = "Auth.NoAccountsProvisioned";
 
     // In every environment but Development the browser reaches the app over HTTPS
@@ -146,17 +147,24 @@ public static class AuthEndpoints
             // for the operator to sign in as and the form used to say nothing
             // about why.
             //
-            // Deliberately on the FAILURE path only, and only when there is no
-            // administrator at all:
+            // Deliberately on the FAILURE path only, and only while the DEFAULT
+            // ACCOUNT has no Owner — that account and no other, which is the
+            // scope every sentence below is held to:
             //
-            //  * It cannot ENUMERATE. The condition is a property of the whole
-            //    instance and never of the address that was typed, so no attempt
-            //    reveals anything about any particular account. The moment one
-            //    Owner exists this branch is unreachable and the response is
-            //    byte-identical to the generic denial it has always been.
-            //  * It DOES disclose one global fact to an anonymous caller who
-            //    attempts a sign-in: this instance has no administrator. Stated
-            //    plainly because an earlier version of this comment claimed the
+            //  * It cannot ENUMERATE. The condition is a property of the default
+            //    account and never of the address that was typed, so no attempt
+            //    reveals anything about any particular account. Once the default
+            //    account has an Owner this branch is unreachable and the response
+            //    is byte-identical to the generic denial it has always been.
+            //    Scoped to the default account, NOT to "any Owner anywhere": an
+            //    Owner under a different account leaves this reachable, which
+            //    FirstRunLoginNoticeTests sets up and asserts deliberately (it
+            //    pins the AccountId predicate), so the wider claim would have
+            //    been false in a state this suite already exercises — round 5
+            //    caught it there.
+            //  * It DOES disclose one fact to an anonymous caller who attempts a
+            //    sign-in: the default account has no Owner. Stated plainly
+            //    because an earlier version of this comment claimed the
             //    condition "can only hold while no credential exists to protect",
             //    which is false (PR #363 review round 2) — the predicate is the
             //    absence of an OWNER, and the seeders create Workers/Managers
