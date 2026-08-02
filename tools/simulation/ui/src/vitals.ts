@@ -48,7 +48,7 @@
 import type { Page } from "@playwright/test";
 
 export interface Vitals {
-  /** Largest Contentful Paint, ms. Exact. */
+  /** The largest-contentful-paint candidate observed AT SAMPLE TIME — not the finalised LCP. */
   lcpMs: number | null;
   /** Sum of un-input-caused layout shifts observed by sample time. Bounds those entries, NOT the finalised CLS. */
   clsUpperBound: number | null;
@@ -56,9 +56,9 @@ export interface Vitals {
   longestInteractionMs: number | null;
   /** How many interactions were observed. 0 means `longestInteractionMs` is null because nothing happened. */
   interactionCount: number;
-  /** Time to first byte for the navigation, ms. Exact. */
+  /** Time to first byte for the navigation, ms. From Navigation Timing; exact. */
   ttfbMs: number | null;
-  /** First Contentful Paint, ms. Exact. */
+  /** First Contentful Paint, ms. From Paint Timing; exact. */
   fcpMs: number | null;
   domContentLoadedMs: number | null;
   loadMs: number | null;
