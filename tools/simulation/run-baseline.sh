@@ -901,6 +901,69 @@ dirty_note = (
     "| Working tree | **DIRTY** at run time (`git status --porcelain` non-empty) |" if GIT_DIRTY else ""
 )
 
+# ---- browser vitals (#386 canary) ---------------------------------------------
+#
+# OPTIONAL BY DESIGN. The canary is a separate, human-started run
+# (tools/simulation/ui/run-canary.sh); a baseline taken without it is complete on
+# its own terms. When the canary HAS run, its samples land in
+# tools/simulation/out/canary-vitals.json and get folded in here so the browser
+# experience and the server percentiles from the same window sit in ONE document
+# — which is the entire reason for running them concurrently.
+#
+# Read rather than recomputed: the numbers come from PerformanceObserver inside
+# the real browser, and nothing here can improve on that. Two of the columns are
+# deliberately named as UPPER BOUNDS rather than as CLS and INP; see
+# tools/simulation/ui/src/vitals.ts for why that distinction is kept.
+CANARY_VITALS_PATH = REPO_ROOT / "tools" / "simulation" / "out" / "canary-vitals.json"
+
+def _render_browser_vitals() -> str:
+    if not CANARY_VITALS_PATH.exists():
+        return (
+            "_No browser canary was run for this baseline. Run "
+            "`bash tools/simulation/ui/run-canary.sh` alongside a baseline to populate this "
+            "section (#386)._"
+        )
+    try:
+        data = json.loads(CANARY_VITALS_PATH.read_text())
+        samples = data.get("samples", [])
+    except (OSError, ValueError) as exc:
+        return f"_Canary vitals present but unreadable ({exc})._"
+    if not samples:
+        return "_The browser canary produced no samples._"
+
+    def cell(v):
+        return "—" if v is None else str(v)
+
+    header = (
+        "| Screen | Under k6 load | TTFB ms | FCP ms | LCP ms | "
+        "CLS (upper bound) | Longest interaction ms | Usable in ms |\n"
+        "| --- | --- | --- | --- | --- | --- | --- | --- |"
+    )
+    rows = [
+        "| {screen} | {load} | {ttfb} | {fcp} | {lcp} | {cls} | {inter} | {usable} |".format(
+            screen=s_.get("screen", "?"),
+            load="yes" if s_.get("underLoad") else "no",
+            ttfb=cell(s_.get("ttfbMs")),
+            fcp=cell(s_.get("fcpMs")),
+            lcp=cell(s_.get("lcpMs")),
+            cls=cell(s_.get("clsUpperBound")),
+            inter=cell(s_.get("longestInteractionMs")),
+            usable=cell(s_.get("usableInMs")),
+        )
+        for s_ in samples
+    ]
+    note = (
+        "\n\n**CLS and the interaction figure are UPPER BOUNDS, not the standard metrics.** "
+        "CLS here is the sum of all non-input layout shifts rather than the largest session "
+        "window; the interaction figure is the single longest interaction rather than INP's "
+        "~98th percentile. Both can only over-report. A `—` in the interaction column means "
+        "that screen has no control the canary presses, so nothing was measured — not that it "
+        "was instantaneous."
+    )
+    return header + "\n" + "\n".join(rows) + note
+
+browser_vitals_table = _render_browser_vitals()
+
 # ---- render -------------------------------------------------------------------
 
 replacements = {
@@ -910,6 +973,7 @@ replacements = {
     "{{COMMIT_SHA_SHORT}}": COMMIT_SHA_SHORT,
     "{{GIT_BRANCH}}": GIT_BRANCH,
     "{{DIRTY_NOTE}}": dirty_note,
+    "{{BROWSER_VITALS_TABLE}}": browser_vitals_table,
     "{{REPS}}": str(REPS),
     "{{SEED}}": str(seed),
     "{{HISTORY_DAYS}}": str(history_days),
