@@ -361,6 +361,10 @@ jobs:
           fi
           echo "Released commit was published as $digest"
 
+          # (What this check does and does not defend against is stated once, in
+          # AGENTS.md's "Deploy by digest" bullet. Summarise and point there;
+          # do not grow a fourth parallel derivation of it here.)
+          #
           # VERIFY PROVENANCE BEFORE RETAGGING. The artifact above proves CI's
           # gates passed for these bytes, but only for the run that uploaded it —
           # and this lookup takes the first unexpired artifact of that NAME,

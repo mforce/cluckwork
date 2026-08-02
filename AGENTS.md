@@ -374,10 +374,12 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
   is open today and no flag on the verify command closes it; review of changes to
   `main` is the only control that does.
 
-  This paragraph is the **canonical** statement of the boundary. `README.md` and
-  the `ci.yml` comment point here deliberately rather than restating it —
-  successive corrections to this claim have repeatedly updated one copy and left
-  the others contradicting it.
+  **The paragraph directly above is the canonical statement of the boundary** —
+  the one beginning "Net, stated at exactly the strength". `README.md` and the
+  `ci.yml` comment carry a summary and point here rather than restating it,
+  because successive corrections to this claim repeatedly updated one copy and
+  left the others contradicting it. If you correct it again, correct it there
+  and check the two summaries still agree.
 - **Promotion reads the digest from CI's own run artifact, never by resolving
   `:sha-<commit>`.** That tag is mutable by anyone holding `packages: write`, and
   the merge commit is public seconds after merge while CI needs minutes to push —
