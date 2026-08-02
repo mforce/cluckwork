@@ -145,13 +145,25 @@ model.
 **One-time setup (required for the push to work):** create a GitHub App with
 Repository → Contents: Read and write, install it on this repo, and add the repo
 Actions secrets `LOCKFIX_APP_ID` and `LOCKFIX_APP_PRIVATE_KEY`. Until both exist
-the workflow fails closed (no push); nothing else breaks.
+this workflow fails closed (no push) — **and so does the Release workflow (#351),
+which shares the same App**: without them its mint step fails on every push to
+`main`, so no release is cut.
 
-The **Release** workflow (#351) shares this App and needs **Pull requests: Read and
-write** and **Issues: Read and write** on top. That widens the *installation*, not
-this workflow's token — each mint downscopes with `permission-*`, and this job pins
-`permission-contents: write` so the extra grants never reach the token that pushes
-to a Dependabot branch. Keep that pin when adding consumers.
+The **Release** workflow needs **Pull requests: Read and write** and **Issues:
+Read and write** on top. Changing an App's permissions does **not** apply to an
+existing installation until the installation owner **approves** the request
+(GitHub holds it pending), so adding the permissions in the App settings is only
+half the job — approve it on the repo's installation too, or the mint keeps
+failing with the old grant.
+
+That widens the *installation*; each mint then downscopes with `permission-*`, and
+the lockfix job pins `permission-contents: write` so the extra grants never reach
+the token that pushes to a Dependabot branch. **Keep that pin when adding
+consumers** — and understand its limit: `permission-*` caps the token the action
+returns, not the private key, which can always mint the App's full grant. The cap
+makes a wider token a deliberate act rather than the default; it is not a
+boundary. The lockfix job stays genuinely narrow because it executes no
+PR-controlled code, not because of the cap alone.
 
 **Dependabot** (`.github/dependabot.yml`) covers the other half: the gates
 *enforce* (a vulnerable dep fails the build), Dependabot *proposes* (it opens the
