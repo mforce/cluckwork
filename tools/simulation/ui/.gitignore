@@ -1,18 +1,22 @@
 # Playwright per-run output. The HTML report and traces are debugging
 # artifacts for one run against a throwaway fixture — never source.
 #
-# GLOB, NOT AN EXACT NAME. A trailing-slash pattern is a literal directory name:
-# `playwright-report/` matched the smoke suite's output and never covered the
-# canary's `playwright-report-canary/`. Combined with `git add -A`, that gap put
-# four real Playwright traces into this branch's history carrying 36 plaintext
-# password occurrences, 60 JWTs and 24 refresh-cookie entries. GitGuardian passed
-# the PR — it does not scan inside a zip.
+# GLOB, NOT AN EXACT NAME. `playwright-report/` matched the smoke suite's output
+# and NOTHING ELSE — a trailing-slash pattern is a literal directory name, so it
+# never covered the canary's `playwright-report-canary/`. That gap put four real
+# trace archives into a commit, and a Playwright trace records full request and
+# response bodies: 36 plaintext occurrences of the sim Owner's password, 60 JWTs
+# and 24 refresh-cookie entries went in as plaintext inside a zip, which
+# GitGuardian's scan did not see.
 #
-# The HTML report is credential-bearing BY CONSTRUCTION, not just when a trace
+# The HTML report is credential-bearing BY CONSTRUCTION, not only when a trace
 # rides along: Playwright embeds a base64 copy of the run inside `index.html` and
 # renders step titles containing literal fill values, so a sign-in step reads
 # `Fill "<the password>"`. There is no variant of these directories that is safe
-# to commit, which is why the patterns are deliberately wide.
+# to commit.
+#
+# So: match the family, and treat any new Playwright output directory as covered
+# by default rather than by remembering to add it.
 test-results*/
 playwright-report*/
 blob-report*/
