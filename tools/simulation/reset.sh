@@ -82,7 +82,12 @@ echo "== Sim reset: project ${COMPOSE_PROJECT_NAME} =="
 # anything — so catching them here costs ~0.1s and saves wiping a volume and
 # rebuilding an image only to fail five minutes later at /health/ready, which
 # is exactly how they were actually found.
-bash "${SIM_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}/verify-harness.sh"
+#
+# Resolved from THIS script's own location, never from an ambient SIM_DIR: an
+# exported SIM_DIR pointing at another checkout would verify that harness and
+# then wipe this one (PR #371 review). Same class of ambient-override bug the
+# verifier itself was just fixed for — reintroduced one line into the caller.
+bash "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/verify-harness.sh"
 
 echo "-- down -v (cluckwork-sim volumes only) --"
 compose down -v --remove-orphans

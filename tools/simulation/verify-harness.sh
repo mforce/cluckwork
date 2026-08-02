@@ -47,6 +47,31 @@
 # the RESOLVED compose environment (`docker compose config`, which applies
 # ambient-shell precedence for us) — never the raw file.
 #
+# ================== WHAT THIS IS NOT ==================
+#
+# It is NOT a boot simulator, and must not grow into one. The app raises
+# InvalidOperationException from ~15 sites across 7 files (Program.cs,
+# RateLimitingOptions, OtlpOptions, PostgresConnectionString,
+# DatabaseResilienceOptions, the two Hosting extensions). Mirroring all of them
+# here means reimplementing the app's config validation in Python and keeping
+# two languages in sync forever — a race with no finish line, where every
+# imperfect mirror is itself a potential false green in front of `down -v`.
+#
+# So the scope is deliberately bounded to **known drift**: the specific guards
+# that have ALREADY broken this harness (#319, #261/#262, #316), checked as
+# simple value assertions, plus the generic unresolved-interpolation check
+# which needs no per-guard knowledge and covers everything else by construction.
+#
+# Guards NOT mirrored here, on purpose — a malformed RateLimiting__TrustedProxies
+# CIDR (#260), an unsupported Otlp__Protocol, a bad ConnectionStrings__Default
+# sslmode (#261/#262's parser), and the rest. The APP is the authority on those,
+# and the cost of learning it at boot instead of here is one wasted reset of a
+# database that is throwaway by design — annoying, not lossy. That is a better
+# trade than a second, drifting copy of the rules.
+#
+# When a NEW guard breaks this harness, add it here (that is the AGENTS.md
+# rule). Do not add guards speculatively.
+#
 # Seconds to run. No image build, no stack boot.
 
 set -euo pipefail
@@ -127,11 +152,27 @@ PY
 # only reason it was caught: a mutation run where the BASELINE also fails proves
 # nothing about the mutants.)
 resolved_json="$(mktemp)"
-trap 'rm -f "$resolved_json"' EXIT
+compose_err="$(mktemp)"
+trap 'rm -f "$resolved_json" "$compose_err"' EXIT
 if ! docker compose -p cluckwork-sim --env-file "$ENV_FILE" -f "$COMPOSE_FILE" \
-     config --format json >"$resolved_json" 2>/dev/null; then
+     config --format json >"$resolved_json" 2>"$compose_err"; then
   echo "FAIL: 'docker compose config' failed — the harness config does not parse" >&2
-  docker compose -p cluckwork-sim --env-file "$ENV_FILE" -f "$COMPOSE_FILE" config >/dev/null
+  cat "$compose_err" >&2
+  exit 1
+fi
+
+# EVERY unresolved interpolation is fatal, not just the few named below.
+# Compose substitutes a BLANK for an unset variable and merely WARNS, so a
+# stale .env.sim missing POSTGRES_PASSWORD or Jwt__PrivateKeyPem sails past
+# the value checks and dies after `down -v`. This generic check is what
+# actually caught the original #316 breakage; an earlier revision of this
+# script had it and the rewrite dropped it behind a 2>/dev/null, which is the
+# regression this restores (PR #371 review). It also covers the interpolated
+# keys nothing here validates by name — which is most of them.
+if grep -qi 'variable is not set' "$compose_err"; then
+  echo "FAIL: compose references variables the harness no longer generates —" >&2
+  echo "      regenerate with: bash tools/simulation/bootstrap.sh --force" >&2
+  grep -i 'variable is not set' "$compose_err" | sed 's/^/      /' >&2
   exit 1
 fi
 
@@ -199,9 +240,18 @@ if endpoint is None or not str(endpoint).strip():
 else:
     endpoint = str(endpoint)
     parts = urlsplit(endpoint)
-    if parts.scheme not in ("http", "https") or not parts.netloc:
-        fail.append(f"Otlp__Endpoint={endpoint!r} is not an absolute http(s) URI — "
-                    "OtlpOptions rejects it at Production startup")
+    # hostname/port, not raw netloc: urlsplit happily returns a non-empty
+    # netloc for 'http://:4317' (no host) and 'http://collector:bad'
+    # (non-numeric port), both of which .NET's Uri.TryCreate rejects at
+    # startup — so netloc alone was a false pass (PR #371 review). Reading
+    # .port raises ValueError on a non-numeric one, which is the check.
+    try:
+        bad_authority = not parts.hostname or (parts.port is None and ":" in parts.netloc)
+    except ValueError:
+        bad_authority = True
+    if parts.scheme not in ("http", "https") or bad_authority:
+        fail.append(f"Otlp__Endpoint={endpoint!r} is not an absolute http(s) URI with a "
+                    "valid authority — OtlpOptions rejects it at Production startup")
     elif parts.username or parts.password:
         fail.append("Otlp__Endpoint contains userinfo — OtlpOptions rejects it "
                     "(value not echoed: it may carry a credential)")
