@@ -57,11 +57,18 @@ export const test = base.extend<Fixtures>({
       // THE ASSERTION THAT SIGN-IN WORKED is the app shell appearing — not the
       // URL changing, and not the absence of an error. `isLoading` gates the
       // router until the bootstrap refresh settles, so a URL check can pass
-      // while the screen is still empty. The primary nav only ever renders
-      // inside AppLayout, behind ProtectedRoute + SessionProvider, so its
-      // presence means the whole authenticated path completed.
-      await expect(page.getByRole("navigation", { name: tEn("nav:primaryNavAriaLabel") }))
-        .toBeVisible();
+      // while the screen is still empty. The sidebar only ever renders inside
+      // AppLayout, behind ProtectedRoute + SessionProvider, so its presence
+      // means the whole authenticated path completed.
+      //
+      // Matched on the `complementary` LANDMARK, with no accessible name.
+      // Naming it (`navigation` + `nav:primaryNavAriaLabel`) would tie signing in
+      // to the ENGLISH label — and a user's language is a persisted server-side
+      // preference, so any persona left in es/tl by the i18n spec could no
+      // longer sign in at all. That is not hypothetical; it happened. `main` is
+      // not usable either: the login screen is a `<main>` too, so it cannot tell
+      // the shell from the form it replaced.
+      await expect(page.getByRole("complementary")).toBeVisible();
     });
   },
 
@@ -75,12 +82,22 @@ export function shellNav(page: Page): ShellNav {
   // destinations (CSS hides it above 901px), so an unscoped getByRole("link")
   // matches twice and every click is strict-mode-ambiguous.
   const primary = page.getByRole("navigation", { name: tEn("nav:primaryNavAriaLabel") });
+
+  // Sign out is NOT inside that landmark — AppLayout puts it in the sidebar
+  // FOOT, a sibling of <nav> alongside the theme toggle. Scoping it to `primary`
+  // finds nothing and fails 45 seconds later as "waiting for … Sign out", which
+  // reads like the button having been removed. So it is scoped to the
+  // <aside> (`complementary`) that contains both. That is still narrow enough to
+  // stay unambiguous: BottomNav's own Sign out lives in the More sheet, which is
+  // a dialog portalled to <body> and only exists while open.
+  const sidebar = page.getByRole("complementary");
   return {
     primary,
     link: (labelKey: string) =>
       primary.getByRole("link", { name: tEn(labelKey as `nav:${string}`), exact: true }),
-    signOut: primary.getByRole("button", { name: tEn("nav:signOut") }),
+    signOut: sidebar.getByRole("button", { name: tEn("nav:signOut") }),
   };
 }
 
 export { expect };
+export type { Locator, Page };

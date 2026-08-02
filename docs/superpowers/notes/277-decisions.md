@@ -65,6 +65,25 @@ report.
 
 <!-- ASSUMPTION: <what> — <why> — <how to reverse> -->
 
+**ASSUMPTION: the PWA *update prompt* ships without end-to-end coverage** — the
+rest of #142 is covered (worker installs + takes control, shell survives offline,
+`navigateFallbackDenylist` keeps `/api` and `/health` off the cached shell). To
+render `UpdatePrompt` a byte-different `sw.js` must install and park in
+`waiting`, and Playwright cannot provoke that: `context.route("**/sw.js")`
+intercepts the *initial registration* fetch (verified — one interception, one
+`sw.js` request of `resourceType: "script"`), but after `registration.update()`
+the counter does not move and **no `sw.js` request is visible to the context at
+all**. Tried both directions (serve-mutated-then-real, serve-real-then-mutated);
+`registration.waiting` stayed `null` each time. Not a caching artefact — `/sw.js`
+is served `Cache-Control: no-cache` with an ETag. *Why it is acceptable for now:*
+`web/src/pwa/UpdatePrompt.test.tsx` and `registerServiceWorker.test.ts` cover the
+logic; what is uncovered is the browser genuinely parking a second worker, which
+is the property `registerType: "prompt"` exists to guarantee and the one that
+would break if `skipWaiting` were switched on. *Reverse:* drive it from a second
+served build (two containers on different tags, or a proxy in front of the stack
+that can swap `sw.js` bytes between the install and the update check) — the
+harness would need a real second artifact, not an interception.
+
 **ASSUMPTION: the probe above wrote one Draft daily entry into the fixture**
 (flock `Sim House A`, `2026-04-01`) — establishing where the restriction bites
 needed a real write, and a read could not have answered it. This shifts

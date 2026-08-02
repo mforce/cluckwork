@@ -136,13 +136,18 @@ export function restrictedWorker(): CastMember {
   return castMember("Worker");
 }
 
+/** Every cast member carrying this label, in the seeder's deterministic order. */
+export function castMembers(role: CastRole): CastMember[] {
+  return loadCast().filter((m) => m.role === role);
+}
+
 /**
  * A worker with NO flock restriction — the control case for the #388 write
  * assertion, so "the refusal happened because of the assignment" is a
  * comparison rather than an assumption.
  */
 export function unrestrictedWorker(): CastMember {
-  const workers = loadCast().filter((m) => m.role === "Worker");
+  const workers = castMembers("Worker");
   if (workers.length < 2) {
     throw new Error(
       `The flock-restriction spec needs at least 2 workers (one restricted, one not); `
@@ -150,4 +155,30 @@ export function unrestrictedWorker(): CastMember {
     );
   }
   return workers[1]!;
+}
+
+/**
+ * A persona reserved for the i18n spec, and used by nothing else.
+ *
+ * WHY IT NEEDS ITS OWN. Changing the language is not a client-side toggle:
+ * `LanguageSelector` calls `PUT /me/language`, so the choice is PERSISTED against
+ * that user. A spec that switched `sim-readonly-1` to Spanish would leave every
+ * later run of the ReadOnly persona spec — which asserts English strings — signed
+ * in to a Spanish app. The i18n spec restores English when it finishes, but a
+ * failure part-way through would not, and "one red spec poisons four others on
+ * the next run" is the kind of coupling that makes a suite untrustworthy.
+ *
+ * The cast seeds four ReadOnly members; this takes the last, so growing the
+ * ReadOnly count never silently reassigns it onto one a persona spec is using.
+ */
+export function i18nPersona(): CastMember {
+  const readOnly = castMembers("ReadOnly");
+  if (readOnly.length < 2) {
+    throw new Error(
+      `The i18n spec needs a ReadOnly persona of its own (the cast has ${readOnly.length}), so that `
+        + `persisting a language change cannot affect the personas other specs sign in as. `
+        + `Raise Simulation__ReadOnly in tools/simulation/.env.sim.`,
+    );
+  }
+  return readOnly[readOnly.length - 1]!;
 }
