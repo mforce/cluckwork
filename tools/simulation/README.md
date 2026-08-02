@@ -40,6 +40,19 @@ bash tools/simulation/run-baseline.sh   # N reps of the k6 baseline -> findings 
 bash tools/simulation/verify-harness.sh # ~0.1s self-check; reset.sh runs it for you
 ```
 
+The **browser-side sibling** (#277) shares this fixture — same stack, same
+`.sim-cast.json`, populated screens instead of empty ones:
+
+```bash
+cd tools/simulation/ui && npm test          # Playwright smoke over this fixture
+bash tools/simulation/ui/run-canary.sh --with-load   # Core Web Vitals while k6 loads it
+```
+
+See `tools/simulation/ui/README.md`. Its canary writes
+`out/canary-vitals/<screen>.json`, which `run-baseline.sh` folds into the findings doc's
+"Browser experience" section — so the browser numbers and the server percentiles
+from the same window share one page.
+
 ## KEEPING THIS HARNESS ALIVE (read before changing a boot guard) — #370
 
 **Nothing automated runs this harness.** It is deliberately not in CI — it is

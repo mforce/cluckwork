@@ -1,0 +1,168 @@
+# SPA E2E smoke suite (#277 / #385 / #387).
+#
+# ================== workflow_dispatch ONLY — AND WHY ==================
+#
+# This never runs on a push or a PR, deliberately (owner call). It stands up the
+# whole sim stack — build the image, boot Postgres, migrate, bootstrap an admin,
+# run `seed --profile simulation` — before the first assertion, which is roughly
+# 6-10 billed minutes per run. That is badly out of proportion to a per-push gate
+# for a suite whose job is a pre-release confidence check.
+#
+# It is the same reasoning already written into AGENTS.md and
+# tools/simulation/README.md for the k6 harness, and it applies harder here,
+# because this needs everything that one needs PLUS a browser.
+#
+# THE COST OF THAT CHOICE, STATED SO NOBODY HAS TO REDISCOVER IT: nothing
+# exercises this workflow on its own. It will rot exactly the way the sim harness
+# rotted (#370 — four boot guards landed and it could no longer boot main at all,
+# with nothing reporting it). If you change a boot guard, a config key, or the
+# harness layout, this file is downstream of that change.
+#
+# ================== THE SECOND BROWSER PATH ==================
+#
+# The suite resolves Chromium at run time (tools/simulation/ui/src/browser.ts).
+# On the NixOS dev box it finds a SYSTEM chromium, because Playwright's
+# downloaded binaries do not launch there. A GitHub runner is the mirror image:
+# no system chromium, and `playwright install` is the working path.
+#
+# So there are two live paths, and **this workflow is the only thing that ever
+# exercises the downloaded one.** If it is never dispatched, that path rots
+# silently and the first person to need it (a new contributor on Ubuntu) finds
+# out the hard way. `CLUCKWORK_E2E_BUNDLED_BROWSER=1` below pins it explicitly
+# rather than relying on the absence of a system binary, so the run proves the
+# path on purpose instead of by accident.
+
+name: E2E smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      slow:
+        description: "Also run the real 15-minute token-expiry spec (adds ~16 min)"
+        type: boolean
+        default: false
+      canary:
+        # QUIET baseline only. The under-load probe needs k6, which needs the
+        # pinned nix-shell this runner does not have — so `run-canary.sh
+        # --with-load` is deliberately NOT what this input runs. Naming the mode
+        # in the label so nobody dispatches this expecting the load measurement.
+        description: "Also run the canary probe — QUIET baseline only, not the under-load run"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    name: Playwright smoke over the simulation fixture
+    runs-on: ubuntu-latest
+    # Generous, because a `slow: true` run spends 16 of these minutes asleep on
+    # purpose. Still bounded: a hung stack must not burn an hour.
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: tools/simulation/ui/package-lock.json
+
+      # Generates .env.sim and .sim-cast.json — runtime secrets, git-ignored,
+      # regenerated per run. No credential is ever committed or passed in.
+      - name: Bootstrap the simulation harness config
+        run: bash tools/simulation/bootstrap.sh
+
+      # The self-check reset.sh runs anyway, hoisted so a config drift fails in
+      # ~0.1s here instead of five minutes into an image build (#370).
+      - name: Verify harness config
+        run: bash tools/simulation/verify-harness.sh
+
+      # Builds the image, boots the stack, migrates, bootstrap-admins, seeds the
+      # simulation fixture, and verifies it. This is the expensive step.
+      - name: Reset and seed the simulation stack
+        run: bash tools/simulation/reset.sh
+
+      - name: Install suite dependencies
+        working-directory: tools/simulation/ui
+        # PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD is deliberately NOT set here — unlike
+        # the NixOS dev box, the downloaded browser is the one that works.
+        run: npm ci
+
+      - name: Install Chromium
+        working-directory: tools/simulation/ui
+        run: npx playwright install --with-deps chromium
+
+      - name: Run the smoke suite
+        working-directory: tools/simulation/ui
+        env:
+          # Force the downloaded browser rather than inferring it from the
+          # absence of a system one — see the header.
+          CLUCKWORK_E2E_BUNDLED_BROWSER: "1"
+          CLUCKWORK_E2E_SLOW: ${{ inputs.slow && '1' || '' }}
+        run: npm test
+
+      - name: Run the canary probe
+        if: ${{ inputs.canary }}
+        working-directory: tools/simulation/ui
+        env:
+          CLUCKWORK_E2E_BUNDLED_BROWSER: "1"
+        # `run-canary.sh`, not `npm run canary` — the script owns clearing the
+        # previous run's per-screen vitals. Calling the npm script directly
+        # bypasses that and can mix stale screens into a fresh run's output
+        # (PR #392 review round 2).
+        run: bash run-canary.sh
+
+      # DO NOT UPLOAD THE PLAYWRIGHT HTML REPORT. It is credential-bearing by
+      # construction: Playwright embeds a base64 copy of the run's data inside
+      # `index.html`, and the step titles it renders include the literal fill
+      # values — so a sign-in step reads `Fill "<the password>"`. Deleting the
+      # external trace `.zip`s does NOT remove that (PR #392 review round 2);
+      # the credential simply rides in the HTML instead.
+      #
+      # This PR stack's original blocker was exactly this leak through the git
+      # door. Uploading the report is the same leak through the artifact door,
+      # and "strip the zips" was a fix that looked complete and was not.
+      #
+      # What is uploaded instead: screenshots and videos, which show the SPA's
+      # rendered state (the password field is masked in the DOM) and carry no
+      # request bodies. Everything else a red run needs — which spec failed, on
+      # which assertion, with the error text — is already in the job log via the
+      # `list` reporter, which is retained with the run and costs nothing.
+      - name: Remove credential-bearing report artifacts
+        if: always()
+        run: |
+          set -euo pipefail
+          rm -rf tools/simulation/ui/playwright-report tools/simulation/ui/playwright-report-canary
+          find tools/simulation/ui -type f \( -name '*.zip' -o -name 'error-context*' \) -delete
+
+          # A REAL GATE, not a report. This step previously ended in `|| true`
+          # and merely PRINTED what survived, while the upload below runs
+          # `if: always()` and would have shipped it regardless.
+          remaining="$(find tools/simulation/ui \( -name '*.zip' -o -name 'error-context*' -o -name 'index.html' -path '*report*' \))"
+          if [ -n "$remaining" ]; then
+            echo "::error::credential-bearing files survived stripping:"
+            echo "$remaining"
+            exit 1
+          fi
+          echo "strip verified: no report HTML, trace archives or error-context files remain"
+
+      - name: Upload failure screenshots and video
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-failure-media
+          path: |
+            tools/simulation/ui/test-results/**/*.png
+            tools/simulation/ui/test-results/**/*.webm
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Stack logs on failure
+        if: failure()
+        run: |
+          docker compose -p cluckwork-sim \
+            --env-file tools/simulation/.env.sim \
+            -f tools/simulation/docker-compose.sim.yml logs --tail 200 || true

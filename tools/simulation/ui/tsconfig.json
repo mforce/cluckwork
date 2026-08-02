@@ -30,7 +30,9 @@
   "include": [
     "src/**/*.ts",
     "specs/**/*.ts",
+    "specs-canary/**/*.ts",
     "playwright.config.ts",
+    "playwright.canary.config.ts",
     "../../../web/src/i18n/en.ts",
     "../../../web/src/i18n/es.ts",
     "../../../web/src/i18n/tl.ts"
