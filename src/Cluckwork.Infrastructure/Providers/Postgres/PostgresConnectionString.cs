@@ -9,8 +9,12 @@ using Npgsql;
 //
 // #261 — accepts libpq/managed URI form (postgres://, postgresql://) in addition to
 //        Npgsql key-value; Npgsql's own parser only understands key-value and throws on a
-//        URI. Query params with no Npgsql equivalent (keepalives, sslcompression, …) are
-//        skipped-with-warning rather than failing the whole connection.
+//        URI. Query params with no Npgsql equivalent (sslcompression, …) are
+//        skipped-with-warning rather than failing the whole connection. BEWARE: a param
+//        being absent from ContainsKey does NOT mean Npgsql lacks an equivalent — it
+//        usually means the equivalent is spelled differently (libpq "keepalives" is
+//        Npgsql "Tcp Keepalive"). Look for the differently-spelled keyword before
+//        concluding a param is unmappable; that assumption is what shipped #332.
 // #262 — in Production, enforces the TLS floor as an ALLOW-LIST (fail closed): only
 //        VerifyCA/VerifyFull pass silently and Require passes with a warning; EVERY other
 //        value — Disable/Allow/Prefer AND any undefined SslMode (e.g. (SslMode)99 from a
@@ -21,9 +25,12 @@ using Npgsql;
 //        stack before authenticating; on a runtime image without libgssapi-krb5-2 (#267
 //        keeps the image minimal) the .NET native security shim prints two UNSTRUCTURED
 //        lines to stderr — outside Serilog, so they can't be filtered or shipped as
-//        structured events — that read like a connection failure on every deploy. This is
-//        the ONLY value this class injects; see ApplyGssEncryptionDefault for why that
-//        does not contradict the "never auto-injects" rule above.
+//        structured events — that read like a connection failure on every deploy.
+//        Verified by loader trace: with GssEncryptionMode=Prefer the process dlopens
+//        libgssapi_krb5.so.2 / libkrb5.so.3 even against a scram-sha-256 server; with
+//        Disable there is zero gssapi/krb5 loader activity and the connection is
+//        otherwise identical. The #262 "never auto-injects" rule above is scoped to
+//        sslmode, which this leaves strictly alone.
 public static class PostgresConnectionString
 {
     // Both spellings are valid libpq URI schemes (PostgreSQL docs §34.1.1.2).
@@ -31,9 +38,9 @@ public static class PostgresConnectionString
 
     private const int DefaultPort = 5432;
 
-    // Npgsql's canonical spelling. It matches keywords case- and space-insensitively
-    // ("gssencryptionmode" and "GSS Encryption Mode" are the same key; underscores are
-    // NOT accepted), which is what CollapseKeyword below has to reproduce.
+    // Npgsql's canonical spelling. It accepts any casing of this and of the spaceless
+    // "gssencryptionmode"; underscores and the libpq name "gssencmode" are NOT accepted.
+    // CollapseKeyword below covers that set.
     private const string GssEncryptionModeKeyword = "GSS Encryption Mode";
 
     // libpq/managed URI query params whose Npgsql keyword differs (or which Npgsql only
@@ -87,7 +94,8 @@ public static class PostgresConnectionString
         }
 
         // AFTER the floor, so the TLS decision is made against exactly what the operator
-        // supplied and the appended default can never influence it.
+        // supplied. Defense-in-depth rather than load-bearing: EnforceTlsFloor reads only
+        // .SslMode, so appending a different keyword cannot change its verdict today.
         return ApplyGssEncryptionDefault(normalized);
     }
 
@@ -112,8 +120,9 @@ public static class PostgresConnectionString
 
         // Append textually rather than round-tripping through NpgsqlConnectionStringBuilder:
         // a rebuild would reorder and requote the operator's own string, and would throw on
-        // any keyword this Npgsql version doesn't know. Trim a trailing separator so the
-        // result never carries an empty segment.
+        // any keyword this Npgsql version doesn't know. The TrimEnd is COSMETIC — Npgsql
+        // parses "…;;GSS Encryption Mode=Disable" identically — so it is pinned by asserting
+        // the resulting TEXT, not by reparsing it.
         return string.Concat(
             keyValueConnectionString.TrimEnd(';', ' '),
             ";", GssEncryptionModeKeyword, "=", nameof(GssEncryptionMode.Disable));
@@ -139,8 +148,11 @@ public static class PostgresConnectionString
         return false;
     }
 
-    // Npgsql ignores spaces when matching a keyword, so "gssencryptionmode" and
-    // "GSS Encryption Mode" are the same setting and both must count as operator-supplied.
+    // Npgsql accepts any casing of "gssencryptionmode" and of "gss encryption mode" (and
+    // has NO registered synonyms for this property), so both must count as operator-supplied.
+    // Collapsing spaces covers that set. It deliberately over-matches a few spellings Npgsql
+    // itself rejects (doubled spaces, tabs): those throw at parse time either way, so
+    // over-matching costs nothing, while under-matching would silently override an operator.
     private static string CollapseKeyword(string keyword) =>
         keyword.Replace(" ", string.Empty);
 
@@ -217,8 +229,12 @@ public static class PostgresConnectionString
             }
             else
             {
-                // Genuinely unknown to Npgsql (gssencmode, keepalives*, …). Skip it rather
-                // than fail the whole connection — Npgsql negotiates fine without it.
+                // No Npgsql equivalent under ANY spelling (sslcompression, …). Skip it
+                // rather than fail the whole connection — Npgsql negotiates fine without it.
+                // NOTE: keepalives*/client_encoding also land here today, but only because
+                // they are not in the map yet — Npgsql DOES support them ("Tcp Keepalive",
+                // "Client Encoding"). Reaching this branch is not proof a param is
+                // unsupported; see the header comment.
                 onWarning?.Invoke(
                     $"connection-URI parameter '{key}' has no Npgsql equivalent and was ignored.");
             }

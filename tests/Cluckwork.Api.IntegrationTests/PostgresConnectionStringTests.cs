@@ -123,13 +123,19 @@ public sealed class PostgresConnectionStringTests
         // plus the SCRAM anti-MITM control channel_binding, common libpq params, and one
         // param with no Npgsql equivalent. Npgsql 10.0.3 SUPPORTS channel_binding /
         // target_session_attrs / gssencmode under spaced names, so those must be MAPPED
-        // (not dropped); keepalives has no equivalent -> skipped-with-warning. Must boot,
-        // not throw.
+        // (not dropped); sslcompression has no equivalent under ANY spelling -> skipped-
+        // with-warning. Must boot, not throw.
+        //
+        // sslcompression specifically, NOT keepalives: libpq's keepalives family maps to
+        // Npgsql's "Tcp Keepalive"/"Tcp Keepalive Time"/"Tcp Keepalive Interval", so
+        // asserting it is unmappable would cement the very false-negative this file's
+        // subject (#332) was caused by. Mapping them needs a value translation
+        // (keepalives=1 -> a bool keyword), so it is deliberately a separate change.
         var warnings = new List<string>();
         var b = Normalized(
             "postgresql://user:pass@db.example.com/appdb?sslmode=require&channel_binding=require" +
             "&application_name=cluckwork&connect_timeout=10&target_session_attrs=read-write" +
-            "&keepalives=1",
+            "&sslcompression=0",
             isProduction: true, onWarning: warnings.Add);
 
         Assert.Equal("db.example.com", b.Host);
@@ -138,7 +144,7 @@ public sealed class PostgresConnectionStringTests
         Assert.Equal(10, b.Timeout);                             // connect_timeout   -> "Timeout"
         Assert.Equal("Require", b["Channel Binding"]!.ToString()); // channel_binding -> "Channel Binding" (MAPPED)
         Assert.Contains("Target Session Attributes", b.ConnectionString); // target_session_attrs (MAPPED)
-        var skip = Assert.Single(warnings, w => w.Contains("keepalives"));
+        var skip = Assert.Single(warnings, w => w.Contains("sslcompression"));
         Assert.Contains("ignored", skip);
     }
 
@@ -207,23 +213,62 @@ public sealed class PostgresConnectionStringTests
     }
 
     [Fact]
-    public void GssDefault_OnTrailingSemicolon_ProducesAParsableString()
+    public void Uri_ExplicitPrefer_IsPreserved()
     {
-        // Appending to a string that already ends in ';' must not yield an empty segment.
-        var b = Normalized("Host=h;Username=u;Password=p;");
+        // The URI path reaches the detector differently from key-value: ApplyQueryParameters
+        // assigns into NpgsqlConnectionStringBuilder, so preservation depends on that builder
+        // RE-EMITTING an explicitly-set but default-valued keyword. It does today — and
+        // GssEncryptionMode is the one such property with no [DefaultValue] attribute (SslMode
+        // and ChannelBinding both have one), so a future Npgsql tidy-up there would start
+        // eliding it and silently flip an operator's 'prefer' to Disable. 'require' cannot
+        // catch that; only 'prefer' can.
+        var b = Normalized("postgresql://u:p@h/db?gssencmode=prefer");
 
-        Assert.Equal(GssEncryptionMode.Disable, b.GssEncryptionMode);
-        Assert.Equal("p", b.Password);
+        Assert.Equal(GssEncryptionMode.Prefer, b.GssEncryptionMode);
     }
 
     [Fact]
-    public void GssDefault_DoesNotDisturbAQuotedPassword()
+    public void GssDefault_OnTrailingSemicolon_EmitsNoEmptySegment()
     {
-        // The append is textual, so prove it survives a password carrying the ';' separator.
-        var b = Normalized("Host=h;Username=u;Password=\"pa;ss\"");
+        // Asserts the resulting TEXT, deliberately. Npgsql parses "…p;;GSS Encryption
+        // Mode=Disable" exactly like the single-separator form, so a test that reparses and
+        // checks Password/GssEncryptionMode passes with the TrimEnd deleted — i.e. it pins
+        // nothing. The trim is cosmetic; this is the only assertion that can fail for it.
+        const string cs = "Host=h;Username=u;Password=p;";
 
-        Assert.Equal(GssEncryptionMode.Disable, b.GssEncryptionMode);
-        Assert.Equal("pa;ss", b.Password);
+        var result = PostgresConnectionString.NormalizeAndValidate(cs, isProduction: false);
+
+        Assert.Equal("Host=h;Username=u;Password=p;GSS Encryption Mode=Disable", result);
+        Assert.DoesNotContain(";;", result, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void GssDefault_IsAppended_LeavingAQuotedPasswordByteForByte()
+    {
+        // The append is textual, so pin its POSITION as well as the round-trip. Asserting
+        // only the reparsed Password + mode would also pass if the default were PREPENDED
+        // (verified: Npgsql accepts either order), which would silently rewrite the leading
+        // token of every operator's string.
+        const string cs = "Host=h;Username=u;Password=\"pa;ss\"";
+
+        var result = PostgresConnectionString.NormalizeAndValidate(cs, isProduction: false);
+
+        Assert.Equal(cs + ";GSS Encryption Mode=Disable", result);
+        Assert.Equal("pa;ss", new NpgsqlConnectionStringBuilder(result).Password);
+    }
+
+    [Fact]
+    public void MalformedKeyValue_FailsAtNormalize_NotAtFirstConnect()
+    {
+        // CONTRACT CHANGE (#332): detecting an operator-supplied GSS keyword means parsing
+        // the string, so a malformed one now fails at startup. Production already behaved
+        // this way (the TLS floor parses it); this pins the NON-Production path, which
+        // previously returned the string verbatim and deferred the error to connect time.
+        var ex = Assert.ThrowsAny<ArgumentException>(
+            () => PostgresConnectionString.NormalizeAndValidate(
+                "Host=h;Username=u;Password=\"pa;ss", isProduction: false));
+
+        Assert.Contains("initialization string", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
