@@ -102,7 +102,7 @@ reading or changing it:
 | `Simulation__CredentialOutputPath` | `/app/sim-cast/manifest.json` | Mounted to the host at `tools/simulation/out/manifest.json` via the `app` service's `./out:/app/sim-cast` volume. |
 | `RateLimiting__Login__PermitLimit` / `…Refresh…` / `…ClientErrors…` | `1000000` (windows unchanged) | All three per-IP buckets raised — see deviation list below. |
 | `Otlp__Endpoint` / `Otlp__Protocol` | `http://otel-collector:4317` / `grpc` | See "Monitoring" and deviation list below. |
-| `AllowedHosts` | `*` | No traefik/public hostname in front of the sim stack (loopback only). |
+| `AllowedHosts` | `cluckwork-sim.local` | A concrete placeholder host, **not** `*`. There is no traefik/public hostname in front of the sim stack, but the serving container runs Production config and #319 **fails that boot** on a missing, blank, or wildcard value — a `*` here does not merely weaken Host filtering, it stops the stack booting. Loopback is force-added by `AddCluckworkEdgeSecurity` whenever the list is not wildcard, so k6 and the browser still reach the app on `http://127.0.0.1:8081/`. |
 | `POSTGRES_DB` / `POSTGRES_USER` / `POSTGRES_PASSWORD` | `cluckwork_sim` / `cluckwork_sim` / generated | Isolated database, isolated named volume (`cluckwork-sim-postgres`, namespaced by the compose project to `cluckwork-sim_cluckwork-sim-postgres`) — never the real dev DB. |
 | App port | `127.0.0.1:8081` | Different from the real dev stack's `127.0.0.1:8080` (`deploy/docker-compose.yml`), so both can run at once without colliding. |
 | `db` port | *(not published)* | `reset.sh`'s `pg_stat_statements` preflight runs in-container (`docker compose exec db psql`), never over a host connection — one less thing to collide with a real local Postgres. |
@@ -135,11 +135,14 @@ non-Production environment" below.
    below. Never a developer's real deploy/.env collector endpoint.
    **Invalidates:** nothing — this is strictly additive observability, not a
    config deviation with a throughput/latency implication.
-4. **No traefik / TLS front door**, `AllowedHosts=*`, loopback-only
-   port publish. The real stack fronts the app with traefik + TLS
-   (`deploy/docker-compose.yml`'s `prod` profile); this stack is reached
-   directly on `http://127.0.0.1:8081/`. **Invalidates:** anything about
-   TLS-termination overhead or traefik routing.
+4. **No traefik / TLS front door**, a placeholder `AllowedHosts`
+   (`cluckwork-sim.local` — concrete, never `*`, since #319 fails a
+   Production boot on a wildcard), loopback-only port publish. The real stack
+   fronts the app with traefik + TLS (`deploy/docker-compose.yml`'s `prod`
+   profile); this stack is reached directly on `http://127.0.0.1:8081/`,
+   which works because loopback is force-added to the host-filter list.
+   **Invalidates:** anything about TLS-termination overhead or traefik
+   routing.
 
 Every consumer of this harness's output (k6 results, findings docs, #277's
 Playwright suite) must carry this list forward rather than presenting

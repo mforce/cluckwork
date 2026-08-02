@@ -61,6 +61,17 @@ services:
       Database__Provider: ${Database__Provider}
       Database__MigrateOnStartup: ${Database__MigrateOnStartup}
       ConnectionStrings__Default: Host=db;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+      # #261/#262 — this service runs Production config, where the TLS floor
+      # fails the boot on anything below sslmode=Require (an unset sslmode
+      # means Npgsql's 'Prefer', which is exactly the rejected case). The db
+      # here is a co-located plaintext sidecar on this stack's private
+      # network, so the deviation is acknowledged explicitly, the same way
+      # deploy/docker-compose.yml does it for the local reference stack.
+      # Hardcoded rather than interpolated: it is a property of this stack's
+      # topology, not something an operator should be able to retune from
+      # .env.sim. A real deploy sets neither this nor
+      # Otlp__AllowInsecureEndpoint below.
+      Database__AllowInsecureConnection: "true"
       Jwt__Issuer: ${Jwt__Issuer}
       Jwt__Audience: ${Jwt__Audience}
       Jwt__PublicKeyPem: ${Jwt__PublicKeyPem}
