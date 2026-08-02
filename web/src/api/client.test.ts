@@ -12,6 +12,7 @@ import {
   restoreSession,
   changePassword,
   stepUp,
+  getProvisioningStatus,
   STEP_UP_HEADER,
   ApiError,
   setOnUnauthenticated,
@@ -775,6 +776,50 @@ describe("stepUp (#308)", () => {
     await stepUp("whatever");
     expect(getAccessToken()).toBe("at1"); // unchanged
     expect(onTokens).not.toHaveBeenCalled();
+  });
+});
+
+// #283 follow-up — the anonymous first-run status check behind the login
+// screen's setup hint.
+describe("getProvisioningStatus", () => {
+  it("GETs the anonymous status endpoint and unwraps the flag", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ provisioned: true }));
+
+    expect(await getProvisioningStatus()).toBe(true);
+
+    const call = fetchMock.mock.calls[0] as Call;
+    expect(call[0]).toBe("/api/v1/auth/provisioning");
+    expect(call[1].method).toBe("GET");
+  });
+
+  it("reports an un-provisioned instance", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ provisioned: false }));
+
+    expect(await getProvisioningStatus()).toBe(false);
+  });
+
+  // The important one. A session-less visitor is the ONLY caller, so this must
+  // not ride apiFetch: a 401 there triggers a refresh, a retry, and — when that
+  // fails — the onUnauthenticated teardown. Firing session teardown from the
+  // login screen's own mount is the failure this pins.
+  it("sends no bearer, and never refreshes or tears down the session on a rejection", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ title: "nope" }, 401));
+
+    await expect(getProvisioningStatus()).rejects.toThrow(ApiError);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(callsTo(fetchMock, "/auth/refresh")).toHaveLength(0);
+    expect(authOf(fetchMock.mock.calls[0] as Call)).toBeNull();
+    expect(onUnauth).not.toHaveBeenCalled();
+  });
+
+  // Rejections propagate rather than collapsing to `false`: false is a
+  // meaningful answer ("no admin yet"), so swallowing a network failure into it
+  // would tell an operator to bootstrap an instance that is already running.
+  it("propagates a network failure instead of answering false", async () => {
+    fetchMock.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+
+    await expect(getProvisioningStatus()).rejects.toThrow(TypeError);
   });
 });
 

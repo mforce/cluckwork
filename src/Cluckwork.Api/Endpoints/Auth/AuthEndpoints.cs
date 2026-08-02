@@ -110,8 +110,35 @@ public static class AuthEndpoints
             .WithName("StepUp")
             .WithSummary("Re-confirm the current password; returns a short-lived step-up grant.");
 
+        // #283 follow-up — first-run discoverability. A freshly migrated
+        // instance has base reference data but no users (no credential is ever
+        // migration-baked), so without this the operator meets a login form
+        // that cannot succeed and says nothing about why. Returns one bool so
+        // the SPA can name the command to run.
+        //
+        // Anonymous by necessity — the only caller is a visitor who by
+        // definition has no account yet. Carries NO rate-limit policy on
+        // purpose: sharing the login limiter's per-IP bucket would let cheap
+        // unauthenticated GETs exhaust the budget that exists to protect
+        // password attempts (#143), turning a hint into a login DoS. What
+        // bounds the cost instead is FirstRunProvisioningLatch — after the
+        // first Owner exists this never reaches the database again.
+        //
+        // Cache-Control needs no wiring here: #312's UseDefaultResponseCaching
+        // applies `private, no-store` to every non-/health response, which is
+        // required — a cached `false` would outlive provisioning and keep
+        // telling an operational instance to run bootstrap-admin.
+        group.MapGet("/provisioning", Provisioning)
+            .AllowAnonymous()
+            .WithName("ProvisioningStatus")
+            .WithSummary("Whether the default account has an Owner yet (first-run setup hint).");
+
         return group;
     }
+
+    private static async Task<IResult> Provisioning(
+        FirstRunStatusService status, CancellationToken ct) =>
+        Results.Ok(new ProvisioningStatusResponse(await status.IsProvisionedAsync(ct)));
 
     // In every environment but Development the browser reaches the app over HTTPS
     // (TLS terminates at the proxy), so the auth cookie must be Secure regardless
@@ -326,3 +353,8 @@ public sealed record AccessTokenResponse(string AccessToken, DateTimeOffset Acce
 public sealed record StepUpRequest(string Password);
 
 public sealed record StepUpResponse(string Token, DateTimeOffset ExpiresAt);
+
+// #283 follow-up. Existence only — deliberately not an email, a user count, or
+// anything else that would make an un-provisioned instance more useful to an
+// anonymous caller than a provisioned one.
+public sealed record ProvisioningStatusResponse(bool Provisioned);

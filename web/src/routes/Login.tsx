@@ -3,7 +3,7 @@ import type { FormEvent } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../auth/useAuth";
-import { ApiError } from "../api/client";
+import { ApiError, getProvisioningStatus } from "../api/client";
 import { BusyButton } from "../components/BusyButton";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { usePendingAction } from "../components/usePendingAction";
@@ -35,6 +35,11 @@ function messageFor(err: unknown): string {
   return i18n.t("auth:apiDown");
 }
 
+// The operator-facing form (the container image's ENTRYPOINT already supplies
+// `dotnet Cluckwork.Api.dll`, so the verb is passed on its own — README's
+// "Run the whole app (Docker)" section). Never translated.
+const BOOTSTRAP_COMMAND = "bootstrap-admin --email you@example.com";
+
 export function Login() {
   const { t } = useTranslation("auth");
   const { login, isAuthenticated, isLoading } = useAuth();
@@ -52,6 +57,31 @@ export function Login() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const { busy, run } = usePendingAction();
+
+  // #283 follow-up — a freshly migrated instance has base reference data but no
+  // users (no credential is ever migration-baked), so this form cannot succeed
+  // and previously gave the operator nothing to go on. Ask once, on mount.
+  //
+  // Defaults to false and only an explicit `provisioned: false` flips it, so an
+  // unreachable or older API renders the ordinary form rather than a hint that
+  // might be wrong. Deliberately no retry and no spinner: this is an aside, and
+  // it must never delay or interfere with someone who already has credentials.
+  const [needsSetup, setNeedsSetup] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    getProvisioningStatus()
+      .then((provisioned) => {
+        if (!cancelled) setNeedsSetup(!provisioned);
+      })
+      .catch(() => {
+        // Unreachable API — say nothing. The sign-in attempt itself surfaces
+        // that case with a real message (auth:apiDown).
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -73,6 +103,16 @@ export function Login() {
       <ThemeToggle className="auth-theme" showLabel={false} iconSize={18} />
       <form className="card" onSubmit={onSubmit}>
         <h1>{t("title")}</h1>
+        {needsSetup && (
+          <div className="auth-setup" role="status">
+            <p>{t("noAdminYet")}</p>
+            {/* The command is the whole point of the hint, so it is selectable
+                text in a <code>, not baked into a translated sentence — it must
+                never be localised, and an operator must be able to copy it. */}
+            <code>{BOOTSTRAP_COMMAND}</code>
+            <p>{t("noAdminYetHint")}</p>
+          </div>
+        )}
         <label>
           {t("email")}
           <input

@@ -613,7 +613,13 @@ the OTLP pipeline. A host's stdout collector (docker logs, journald, a
 platform log pipeline) may still capture it, so that output must be treated
 as sensitive while the password is valid. Re-running the command against an
 already-provisioned account is a safe no-op (no second Owner, no password
-reprinted). This is a **separate mechanism** from break-glass recovery below (a pre-auth, one-shot
+reprinted). Because a migrated-but-unprovisioned instance therefore presents a
+sign-in form that cannot succeed, the **login screen says so**: while the
+default account has no Owner it shows a short setup notice naming the command
+to run, and it disappears for good once the first Owner exists. That notice is
+driven by an anonymous status check that reports **existence only** — a single
+boolean, never an address or a count — so it can tell an operator what to do
+without telling anyone else anything they could use. This is a **separate mechanism** from break-glass recovery below (a pre-auth, one-shot
 setup secret vs. an offline recovery for a locked-out existing account) and
 from the browser step-up re-confirmation a signed-in Owner uses for sensitive
 actions (#308) — three distinct credential types, audiences, and lifetimes,

@@ -38,6 +38,12 @@ export const es = {
     apiDown: "No se pudo iniciar sesión. ¿Está la API en ejecución?",
     // machine-drafted (#182) — pending native review.
     credentialsTooLong: "Eso es demasiado largo — revise su correo electrónico y contraseña.",
+    noAdminYet:
+      "Todavía no hay administrador. Esta instancia no tiene cuentas — cree la "
+      + "primera desde el servidor:",
+    noAdminYetHint:
+      "El comando muestra una contraseña de un solo uso. Inicie sesión con ella "
+      + "y se le pedirá que elija la suya.",
     // machine-drafted (#283) — pending native review.
     setPasswordHeading: "Establezca su contraseña",
     setPasswordHint:

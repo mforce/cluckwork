@@ -40,6 +40,16 @@ export const en = {
     // #309 — the request body exceeded the server's byte cap (413), which in
     // practice means an implausibly long email/password.
     credentialsTooLong: "That's too long — check your email and password.",
+    // #283 follow-up — shown on the login form when the API reports that the
+    // default account still has no Owner. Base data ships in the migrations
+    // but no credential ever does, so a fresh install reaches a form that
+    // cannot succeed; this names the command that fixes it.
+    noAdminYet:
+      "No administrator yet. This instance has no accounts — create the first "
+      + "one from the server:",
+    noAdminYetHint:
+      "The command prints a one-time password. Sign in with it and you'll be "
+      + "asked to choose your own.",
     // #283 — the first-run "set your password" screen (SetPasswordPage),
     // shown instead of the app shell whenever the signed-in user's token
     // carries must_change_password. Reuses /auth/change-password: the

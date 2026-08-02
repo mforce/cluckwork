@@ -43,6 +43,12 @@ export const tl = {
     apiDown: "Hindi makapag-sign in. Gumagana ba ang API?",
     // machine-drafted (#182) — pending native review.
     credentialsTooLong: "Sobrang haba niyan — tingnan ang iyong email at password.",
+    noAdminYet:
+      "Wala pang administrator. Walang account ang instance na ito — gawin ang "
+      + "una mula sa server:",
+    noAdminYetHint:
+      "Nagpi-print ang command ng isang beses na password. Mag-sign in gamit "
+      + "ito at hihilingin sa iyong pumili ng sarili mong password.",
     // machine-drafted (#283) — pending native review.
     setPasswordHeading: "Itakda ang iyong password",
     setPasswordHint:
