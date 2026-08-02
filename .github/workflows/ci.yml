@@ -203,6 +203,10 @@ jobs:
     name: Image build + Trivy scan
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    outputs:
+      # Local image Id of the scanned image, for the release job to verify the
+      # artifact handoff against (#351).
+      image_id: ${{ steps.export.outputs.image_id }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -394,9 +398,20 @@ jobs:
       # precisely to make the tested artifact the deployed one.
       #
       # Only on a merge into main, so PR runs pay none of this.
+      #
+      # The image's local Id is recorded as a job output so the release job can
+      # assert the bytes it loads are the bytes scanned HERE. Artifact
+      # substitution is not reachable today (artifacts are run-scoped, only this
+      # step uploads that name, and `overwrite` is unset), but "the handoff was
+      # sound" should be an assertion, not an argument.
       - name: Export the verified image for publishing
+        id: export
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: docker save cluckwork-api:ci | gzip > image.tar.gz
+        run: |
+          set -euo pipefail
+          docker save cluckwork-api:ci | gzip > image.tar.gz
+          printf 'image_id=%s\n' \
+            "$(docker image inspect -f '{{.Id}}' cluckwork-api:ci)" >> "$GITHUB_OUTPUT"
 
       - name: Upload the verified image
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -428,8 +443,13 @@ jobs:
       packages: write # push the image to GHCR
     # Serialise releases. Two merges landing together would otherwise read the
     # same tag list and compute the same next version; the loser's `git tag`
-    # would then fail mid-run, after its image was already pushed. Queue instead
-    # of cancelling — a cancelled release leaves main un-tagged.
+    # would then fail mid-run, after its image was already pushed.
+    #
+    # `cancel-in-progress: false` lets the running release finish rather than
+    # killing it mid-publish. Note GitHub holds only ONE pending entry per
+    # group, so a third concurrent merge cancels the waiting one — that is
+    # safe here, because the tip-of-main guard below would have skipped it
+    # anyway, and the newest run publishes an image containing its changes.
     concurrency:
       group: release-main
       cancel-in-progress: false
@@ -477,12 +497,23 @@ jobs:
         with:
           name: runtime-image
 
-      - name: Load the verified image
+      # Assert the loaded bytes are the SCANNED bytes, by local image Id. The
+      # artifact is run-scoped and only one step writes it, so substitution is
+      # not reachable — but the whole promise of this job is "what shipped is
+      # what CI gated", and a promise that rests on an argument rather than a
+      # check is the one that quietly stops being true.
+      - name: Load and verify the image
         if: steps.guard.outputs.proceed == 'true'
+        env:
+          EXPECTED_ID: ${{ needs.image.outputs.image_id }}
         run: |
           set -euo pipefail
           gunzip -c image.tar.gz | docker load
-          docker image inspect cluckwork-api:ci >/dev/null
+          loaded="$(docker image inspect -f '{{.Id}}' cluckwork-api:ci)"
+          if [ -z "$EXPECTED_ID" ] || [ "$loaded" != "$EXPECTED_ID" ]; then
+            echo "::error::loaded image ${loaded} is not the scanned image ${EXPECTED_ID:-(unset)}"
+            exit 1
+          fi
 
       # Read the bump from the merged PR's LABELS (#351). A label is a
       # deliberate act with a safe default (no label -> patch), unlike a bump
@@ -492,6 +523,19 @@ jobs:
       # Resolved through the API rather than the event payload because a push to
       # main carries no PR object. A direct push with no PR behind it yields an
       # empty list, which is a patch — the correct conservative answer.
+      #
+      # `select(.merged_at != null)`: this endpoint also returns still-OPEN PRs
+      # whose head contains the commit. Anyone can open a fork PR whose head is
+      # main's tip, and a stale open PR that was once labelled `release:major`
+      # would otherwise force a major bump on an unrelated merge. Only the PR
+      # that actually merged gets a say.
+      #
+      # `tr -d '\r\n'`: a newline in a label name would forge extra `key=value`
+      # records in $GITHUB_OUTPUT. Same defence, same reason, as the allowlist
+      # step in the dependency-review job above.
+      #
+      # No `|| true`: an API failure must fail the release loudly, not degrade
+      # into an empty label list that silently issues the wrong bump.
       #
       # The label text never reaches a `run:` script through `${{ }}`; it goes
       # into an env var and then to the calculator as an argv value, so a label
@@ -506,8 +550,9 @@ jobs:
         run: |
           set -euo pipefail
           labels="$(gh api "repos/$REPO/commits/$SHA/pulls" \
-            --jq '[.[].labels[].name] | join(",")' || true)"
-          echo "Labels on the PR(s) behind $SHA: ${labels:-(none)}"
+            --jq '[.[] | select(.merged_at != null) | .labels[].name] | join(",")' \
+            | tr -d '\r\n')"
+          echo "Labels on the merged PR behind $SHA: ${labels:-(none)}"
           printf 'labels=%s\n' "$labels" >> "$GITHUB_OUTPUT"
 
       - name: Compute the next version
@@ -519,16 +564,32 @@ jobs:
           set -euo pipefail
           version="$(git tag --list 'v*' | node .github/scripts/next-version.mjs --labels "$LABELS")"
           echo "Next version: $version"
+
+          # `git tag --list` reads the clone's snapshot, taken at checkout. A tag
+          # pushed out of band since then (a human cutting one by hand) is
+          # invisible, so the calculator would happily reissue it. `git tag`
+          # would refuse — but only AFTER the image push had already moved the
+          # registry's `:$version` onto different bytes. Check the remote while
+          # refusing is still free.
+          if git ls-remote --exit-code --tags origin "refs/tags/$version" >/dev/null 2>&1; then
+            echo "::error::$version already exists on origin — refusing to overwrite a published version"
+            exit 1
+          fi
+
           printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
 
       # A plain `docker login` rather than docker/login-action: the action is
       # third-party and would need a commit-SHA pin (AGENTS.md), and this is two
       # lines of shell with no third-party code in the credential path at all.
+      # `x-access-token` rather than `${{ github.actor }}`: GHCR authenticates the
+      # token, not the username, so interpolating run-triggered metadata into the
+      # step that handles the registry credential buys nothing and puts a shell
+      # sink where one need not exist.
       - name: Log in to GHCR
         if: steps.guard.outputs.proceed == 'true'
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: echo "$GHCR_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+        run: echo "$GHCR_TOKEN" | docker login ghcr.io -u x-access-token --password-stdin
 
       # Push BEFORE tagging. If the tag push then fails, the recovery is a
       # re-run: no tag exists, so the same version is recomputed and the same
@@ -599,3 +660,11 @@ jobs:
             echo "$IMAGE@$DIGEST"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+      # Drop the registry credential rather than leaving it readable in
+      # ~/.docker/config.json for whatever runs next. Nothing untrusted executes
+      # after this point today, so this is hygiene, not a fix — but the cost is
+      # one line and the assumption it rests on is one someone else has to keep.
+      - name: Log out of GHCR
+        if: always()
+        run: docker logout ghcr.io >/dev/null 2>&1 || true

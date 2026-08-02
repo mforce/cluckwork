@@ -180,10 +180,15 @@ risk). Currently SHA-pinned: `actions/create-github-app-token`,
 
 ## Releases and image publishing (#351)
 
-**Every merge into main cuts a release.** The `release` job in `ci.yml` publishes the
+**A merge into main cuts a release.** The `release` job in `ci.yml` publishes the
 container image and pushes a version tag. There is no manual release step, and no
 version file anyone has to remember to bump — the **git tag is the version**, so
 nothing to forget and nothing for concurrent PRs to conflict over.
+
+The tag is per *release*, not strictly per merge: when merges land faster than a run
+completes, the superseded run skips and the next one publishes an image that already
+contains the skipped commit's changes. No change ever goes unreleased; it may just
+ship under the following version rather than one of its own.
 
 - **The bump comes from PR labels**, not the commit subject: `release:major` → 2.0.0,
   `release:minor` → 1.3.0, **no label → patch**. An inferred bump is silently wrong on
