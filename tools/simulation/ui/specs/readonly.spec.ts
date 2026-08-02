@@ -1,0 +1,103 @@
+// ReadOnly persona — read-heavy browsing, and the deep-link refusals.
+//
+// ================== WHY THE 403 IS THE ASSERTION ==================
+//
+// #277 is explicit: there is NO route-level gate in the SPA. `/audit` and
+// `/users` are ordinary routes behind ProtectedRoute like every other, so a
+// ReadOnly user who types the URL DOES reach the screen — and is refused by the
+// server when it fetches. Hiding the nav link is a convenience, not a boundary.
+//
+// So this spec asserts both halves, because they are different guarantees and
+// only one of them is security:
+//
+//   * the link is not offered            — nav.tsx's role gate (cosmetic)
+//   * the deep link is refused anyway    — the server (the actual boundary)
+//
+// Asserting only the first would pass against a build where the server-side
+// policy had been removed entirely, which is precisely the regression worth
+// catching. #127 was that bug: ReadOnly could read customer PII and sales
+// financials because the reads were ungated while the nav pretended otherwise.
+
+import { expect, test } from "../src/fixtures";
+import { castMember } from "../src/cast";
+import { tEn } from "../src/i18n";
+
+test.describe("ReadOnly", () => {
+  test.beforeEach(async ({ signIn }) => {
+    await signIn(castMember("ReadOnly"));
+  });
+
+  test("browses the screens it is allowed, with real data", async ({ page, nav }) => {
+    // Dashboard. The Sales panel is role-gated OUT for ReadOnly (Dashboard.tsx
+    // renders it only when role is neither ReadOnly nor Denied), so its absence
+    // is part of what "correct for this persona" means.
+    await expect(page.getByRole("heading", { name: tEn("dashboard:title") })).toBeVisible();
+    await expect(page.getByRole("link", { name: tEn("dashboard:salesPanelTitle") })).toBeHidden();
+
+    // Stock — allowed, and populated.
+    await nav.link("nav:stock").click();
+    await expect(page.getByRole("heading", { name: tEn("stock:title") })).toBeVisible();
+    await expect(page.getByText(tEn("stock:noStockMessage"))).toBeHidden();
+    await expect(page.getByRole("alert")).toBeHidden();
+
+    // History — allowed for every role.
+    await nav.link("nav:history").click();
+    await expect(page.getByRole("heading", { name: tEn("history:title") })).toBeVisible();
+    await expect(page.getByText(tEn("history:noEntriesMatch"))).toBeHidden();
+    await expect(page.getByRole("alert")).toBeHidden();
+
+    // Reports — allowed, but the money section is admin-only. Its ABSENCE here
+    // is the assertion: ReadOnly seeing farm revenue would be #127 again.
+    await nav.link("nav:reports").click();
+    await expect(page.getByRole("heading", { name: tEn("reports:title") })).toBeVisible();
+    await expect(page.getByRole("heading", { name: tEn("reports:moneyHeading") })).toBeHidden();
+  });
+
+  test("is not offered the destinations it cannot use", async ({ nav }) => {
+    for (const key of ["nav:customers", "nav:sales", "nav:audit", "nav:users", "nav:expenses"]) {
+      await expect(
+        nav.link(key),
+        `the sidebar offered "${tEn(key as `nav:${string}`)}" to a ReadOnly user`,
+      ).toBeHidden();
+    }
+    // The control: destinations it SHOULD have are present, so the assertion
+    // above is proving a role gate rather than an empty/broken sidebar.
+    await expect(nav.link("nav:stock")).toBeVisible();
+    await expect(nav.link("nav:reports")).toBeVisible();
+  });
+
+  // The real boundary. Typing the URL is the attack, so the spec types the URL.
+  for (const [route, headingKey] of [
+    ["/audit", "audit:heading"],
+    ["/users", "users:heading"],
+  ] as const) {
+    test(`is refused server-side on a direct link to ${route}`, async ({ page }) => {
+      await page.goto(route);
+
+      // The screen itself renders — that is the documented design, not a bug —
+      // so the guarantee is that it renders REFUSED and shows no data.
+      await expect(page.getByRole("heading", { name: tEn(headingKey) })).toBeVisible();
+
+      // Matched on the app's own error paragraph rather than on role="alert",
+      // because THE TWO SCREENS DISAGREE and that disagreement is itself a
+      // finding (#389): AuditPage renders `<p className="error" role="alert">`,
+      // while UsersPage's load-failure branch renders a bare
+      // `<p className="error">` with no role — so a screen-reader user is
+      // refused in silence there. Asserting role="alert" here would have made
+      // this spec a de-facto a11y test that fails on one screen for a reason
+      // unrelated to the authorization boundary it is about. Assert the
+      // refusal; #389 owns the announcement.
+      await expect(
+        page.locator("p.error"),
+        `${route} rendered no error for a ReadOnly user — the server-side gate may be gone`,
+      ).toBeVisible();
+
+      // And, the part that actually matters: no rows leaked. An error banner
+      // above a populated table would still be a data breach.
+      await expect(
+        page.getByRole("table"),
+        `${route} rendered a data table for a ReadOnly user`,
+      ).toHaveCount(0);
+    });
+  }
+});
