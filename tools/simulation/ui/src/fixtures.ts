@@ -23,6 +23,7 @@ import { test as base, expect, type Locator, type Page } from "@playwright/test"
 import { type CastMember } from "./cast";
 import { farmContext, type FarmContext } from "./farm";
 import { tEn } from "./i18n";
+import { activeMutant } from "./mutants";
 
 export interface ShellNav {
   /** The desktop sidebar's nav landmark (`aria-label` = nav:primaryNavAriaLabel). */
@@ -37,9 +38,34 @@ export interface Fixtures {
   farm: FarmContext;
   signIn: (member: CastMember) => Promise<void>;
   nav: ShellNav;
+  /** Auto-fixture: installs the mutation harness when CLUCKWORK_E2E_MUTANT is set. Inert otherwise. */
+  mutation: void;
 }
 
 export const test = base.extend<Fixtures>({
+  // Auto so no spec has to opt in — a mutant that only applied to specs which
+  // remembered to ask for it would be a mutation check with holes in exactly the
+  // places nobody thought about.
+  //
+  // Installed BEFORE the spec body runs, so a spec's own `page.route` calls are
+  // registered later and therefore match first (Playwright tries handlers in
+  // reverse registration order). Their `route.fallback()` then reaches the
+  // mutant, which is the layering the specs already assume.
+  mutation: [
+    async ({ page }, use) => {
+      const active = activeMutant();
+      if (active) {
+        await active.mutant.apply(page);
+        test.info().annotations.push({
+          type: "MUTANT",
+          description: `${active.name} — breaks ${active.mutant.breaks}. A PASS here is a SURVIVING MUTANT.`,
+        });
+      }
+      await use();
+    },
+    { auto: true },
+  ],
+
   farm: async ({}, use) => {
     await use(await farmContext());
   },
