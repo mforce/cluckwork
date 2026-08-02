@@ -537,7 +537,8 @@ Recorded so the same reasoning is not re-derived later.
     durable row the bulk revoke never saw, and presenting it makes
     `RefreshAsync` read the user's current epoch and mint a valid current-epoch
     pair. Immediately after an email change; after re-enabling, for a disable.
-    The fix is `RefreshToken.IssuedEpoch`, compared before rotation.
+    The fix is `RefreshToken.IssuedEpoch` — though the third draft then placed
+    that comparison too late in turn; see item 12.
 
     The general lesson, and the reason this survived a rewrite that was
     *specifically about* this failure mode: a revocation epoch has to be bound to
