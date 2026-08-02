@@ -188,6 +188,13 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
+        with:
+          # Same conditional ref as the other gating jobs (build-and-test, web,
+          # image). A repair dispatch (#351) rebuilds and republishes ONE named
+          # commit, so every gate must judge THAT commit — without this, a
+          # repair run would smoke the current branch's harness and then publish
+          # a different commit whose own harness smoke might be red.
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.sha || '' }}
 
       - name: Set up Node
         uses: actions/setup-node@v6
@@ -228,10 +235,31 @@ jobs:
             *"*"*) echo "::error::AllowedHosts contains a wildcard ('$hosts') — #319 fails the Production boot"; exit 1 ;;
           esac
 
-          # #316 — a Production OTLP endpoint must be https OR explicitly
-          # acknowledged as insecure; blank fails to bind as a bool.
-          test -n "$(get Otlp__AllowInsecureEndpoint)" \
-            || { echo "::error::Otlp__AllowInsecureEndpoint is unset — Production boot fails binding '' to Boolean"; exit 1; }
+          # #316 — the ENDPOINT and the FLAG are one guard, so check them as a
+          # pair. OtlpOptions.ResolveSignalEndpoint throws in Production when the
+          # scheme is not https AND AllowInsecureEndpoint is not true; a blank
+          # value additionally fails to bind to Boolean before that. Checking
+          # only presence would pass a plaintext endpoint paired with `false`,
+          # which is a failed boot — the exact shape of bug this whole job
+          # exists to catch, so it must not be one.
+          endpoint="$(get Otlp__Endpoint)"
+          insecure="$(printf '%s' "$(get Otlp__AllowInsecureEndpoint)" \
+            | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
+
+          case "$insecure" in
+            true|false) ;;
+            "") echo "::error::Otlp__AllowInsecureEndpoint is unset — Production boot fails binding '' to Boolean"; exit 1 ;;
+            *)  echo "::error::Otlp__AllowInsecureEndpoint='$insecure' does not bind to Boolean — Production boot fails"; exit 1 ;;
+          esac
+
+          case "$endpoint" in
+            https://*) ;;  # https needs no acknowledgement
+            "") echo "::error::Otlp__Endpoint is unset"; exit 1 ;;
+            *)  [ "$insecure" = "true" ] || {
+                  echo "::error::Otlp__Endpoint '$endpoint' is not https and Otlp__AllowInsecureEndpoint is '$insecure' — #316 fails the Production boot"
+                  exit 1
+                } ;;
+          esac
 
           # #261/#262 — the co-located plaintext Postgres needs the explicit
           # opt-out, or the TLS floor rejects sslmode=Prefer (Npgsql's default).
@@ -565,7 +593,10 @@ jobs:
     name: Publish the commit image
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    needs: [build-and-test, web, image]
+    # sim-harness included deliberately: publish uploads the digest artifact
+    # release-please.yml treats as proof every gate passed, so a gate missing
+    # from this list is a gate a release can be promoted past while it is red.
+    needs: [build-and-test, web, sim-harness, image]
     if: |
       (github.event_name == 'push' && github.ref == 'refs/heads/main')
       || github.event_name == 'workflow_dispatch'
