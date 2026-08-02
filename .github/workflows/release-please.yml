@@ -88,10 +88,10 @@ jobs:
         || github.event_name == 'workflow_dispatch'
       )
     runs-on: ubuntu-latest
-    # Headroom over the wait loop below (up to 20 min) plus the retag and the
+    # Headroom over the wait loop below (up to 40 min) plus the retag and the
     # release edit — so a slow-but-successful CI is not killed by the job timeout
-    # just as its image appears.
-    timeout-minutes: 40
+    # just as its digest appears.
+    timeout-minutes: 50
     permissions:
       contents: write # publish the release and append the digest to its notes
       packages: write # add the version tag in the registry
@@ -165,12 +165,17 @@ jobs:
           # The release is tagged at the release PR's merge commit, and that
           # merge is itself a push to main — so CI is still running here. Wait
           # for it to finish successfully.
+          # Budgeted well past CI's own worst case: `build-and-test` and `image`
+          # each allow 20 minutes and `publish` (which waits on them) another 15,
+          # so a legitimately slow run can take ~35 before its digest exists.
+          # A poll shorter than that would report failure for a run that was
+          # about to succeed, and send someone to the repair path for nothing.
           run_id=""
-          for attempt in $(seq 1 40); do
+          for attempt in $(seq 1 80); do
             run_id="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$RELEASE_SHA&per_page=100" \
               --jq '[.workflow_runs[] | select(.name == "CI" and .conclusion == "success")] | first | .id // empty')"
             [ -n "$run_id" ] && break
-            echo "Waiting for a successful CI run for $RELEASE_SHA (attempt $attempt/40)…"
+            echo "Waiting for a successful CI run for $RELEASE_SHA (attempt $attempt/80)…"
             sleep 30
           done
 
@@ -207,7 +212,18 @@ jobs:
 
           # Confirm the new tag really resolves to the digest we promoted,
           # rather than trusting the create call's exit code alone.
-          after="$(docker buildx imagetools inspect "$image:$TAG" --format '{{.Manifest.Digest}}')"
+          #
+          # `{{json .Manifest.Digest}}`, not `{{.Manifest.Digest}}`: buildx <=
+          # v0.32 decides whether to run the template by testing
+          # `strings.HasPrefix(format, "{{.Manifest")`, which ALSO matches
+          # `{{.Manifest.Digest}}` — so it prints the whole human-readable
+          # manifest dump instead of the field, and that blob lands in the
+          # variable. Verified against buildx v0.31.1, where the plain form
+          # returns the full `Name:/MediaType:/Digest:/Manifests:` listing and
+          # the json form returns the digest alone. Hosted runners ship a fixed
+          # version today, but nothing here pins one.
+          after="$(docker buildx imagetools inspect "$image:$TAG" \
+            --format '{{json .Manifest.Digest}}' | tr -d '"')"
           if [ "$after" != "$digest" ]; then
             echo "::error::$image:$TAG resolves to $after, not the promoted $digest"
             exit 1

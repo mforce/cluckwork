@@ -149,14 +149,17 @@ Your **PR title** — it becomes the commit subject when the PR is squashed:
 
 | PR title starts with | Effect on `v0.4.0` |
 |---|---|
-| `fix:` / `perf:` | `v0.4.1` |
-| `feat:` | `v0.5.0` |
 | `feat!:` or a `BREAKING CHANGE` footer | `v1.0.0` |
-| `chore:` / `docs:` / `test:` / `ci:` | **no release at all** |
+| `feat:` | `v0.5.0` |
+| anything else (`fix:`, `perf:`, `chore:`, `docs:`, `ci:` …) | `v0.4.1` |
 
-That last row is deliberate: a docs-only merge doesn't manufacture a version, so the
-numbers keep meaning something. The image is still published as `:sha-<commit>` and
-is still deployable.
+Only `feat` and breaking changes raise more than the patch digit — everything else,
+including `chore:` and `docs:`, contributes a patch bump. `chore`/`ci`/`test`/`style`
+are hidden from the changelog *text*, but they still move the number.
+
+That is not as noisy as it sounds, because the bump lands in the **pending release
+PR**, not in a release. Several chore merges accumulate into one proposed patch, and
+nothing is released until you merge that PR.
 
 ### Deploying
 

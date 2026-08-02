@@ -214,11 +214,14 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
   `workflow_dispatch` on the Release workflow with the tag (and the exact commit
   sha if the release's `target_commitish` is a branch name rather than a commit).
 - **The bump comes from conventional commits**, so PR titles are load-bearing —
-  squash-merge puts the title on main as the commit subject. `feat:` → minor,
-  `fix:`/`perf:` → patch, `feat!:`/`BREAKING CHANGE` → major. **`chore:`, `docs:`,
-  `test:`, `ci:` and `style:` are not releasable** — a merge of only those updates
-  no release PR and cuts no version. That is intended: it keeps the version number
-  meaning something.
+  squash-merge puts the title on main as the commit subject. `feat!:`/`BREAKING
+  CHANGE` → major, `feat:` → minor, **everything else → patch**. Note that
+  `hidden: true` in `changelog-sections` only suppresses a type in the changelog
+  *text*; it does **not** make it unreleasable. `DefaultVersioningStrategy`
+  returns `PatchVersionUpdate()` for any commit set with no feat/breaking, and the
+  only early exit is "zero conventional commits" — so a `chore:`-only merge does
+  bump the patch digit. It lands in the pending release PR rather than in a
+  release, so it costs a number, not a deploy.
 - **Deploy by digest, never by tag.** Every release's notes carry
   `ghcr.io/<owner>/<repo>@sha256:…`; the deploy repo pins that. `:vX.Y.Z` and
   `:sha-<commit>` are names, and names can move.
