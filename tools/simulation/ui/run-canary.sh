@@ -56,10 +56,6 @@ WITH_LOAD=0
 
 cd "$UI_DIR"
 
-# Clear previous samples so a partial run cannot be silently mixed with an older
-# complete one. Done HERE, once, rather than from a test — a test clearing shared
-# output would race the other worker.
-rm -rf "$SIM_DIR/out/canary-vitals"
 
 if [[ ! -d node_modules ]]; then
   echo "canary: dependencies are not installed."
@@ -68,8 +64,17 @@ if [[ ! -d node_modules ]]; then
   exit 1
 fi
 
+# Clear previous samples ONLY once we are actually about to run. Doing it at the
+# top destroyed a prior good run's data whenever a precondition below failed
+# (missing node_modules, no nix-shell, a k6 version mismatch) — run-baseline.sh
+# then reported "no browser canary was run" for a run that had one
+# (PR #391 review round 2). Done here, once, rather than from a test: a test
+# clearing shared output would race the other worker.
+clear_samples() { rm -rf "$SIM_DIR/out/canary-vitals"; }
+
 if [[ $WITH_LOAD -eq 0 ]]; then
   echo "== canary: QUIET baseline (no k6). This is the number to compare against, not the finding. =="
+  clear_samples
   exec npx playwright test --config playwright.canary.config.ts
 fi
 
@@ -118,6 +123,7 @@ for _ in $(seq "$WARMUP_GRACE_SECONDS"); do
 done
 
 echo "== canary: running browsers against a LOADED backend =="
+clear_samples
 set +e
 CLUCKWORK_E2E_UNDER_LOAD=1 npx playwright test --config playwright.canary.config.ts
 CANARY_STATUS=$?

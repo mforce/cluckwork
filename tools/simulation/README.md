@@ -49,7 +49,7 @@ bash tools/simulation/ui/run-canary.sh --with-load   # Core Web Vitals while k6 
 ```
 
 See `tools/simulation/ui/README.md`. Its canary writes
-`out/canary-vitals.json`, which `run-baseline.sh` folds into the findings doc's
+`out/canary-vitals/<screen>.json`, which `run-baseline.sh` folds into the findings doc's
 "Browser experience" section — so the browser numbers and the server percentiles
 from the same window share one page.
 

@@ -188,9 +188,16 @@ test.describe("canary", () => {
       // a table of nulls and a green Core-Web-Vitals canary (PR #391 review).
       // Navigation and paint timings are always available in Chromium, so their
       // absence means collection itself is broken, not that the page was fast.
+      // Navigation and paint timings are always produced by Chromium for a real
+      // document, so their absence means collection itself is broken.
       expect(vitals.ttfbMs, `${screen.name}: no navigation timing was collected`).not.toBeNull();
       expect(vitals.fcpMs, `${screen.name}: no paint timing was collected`).not.toBeNull();
-      expect(vitals.lcpMs, `${screen.name}: no LCP entry was collected`).not.toBeNull();
+      // LCP is deliberately NOT required. A screen with no large text block or
+      // image has no LCP candidate, and the read is taken before finalisation —
+      // so a null here can be a fact about the page rather than about the
+      // instrument (PR #391 review round 2). Requiring it would fail a
+      // legitimately sparse screen for a reason that has nothing to do with the
+      // observer. The two above already catch a deleted observer.
       // Only where the interaction is known to PRODUCE an Event Timing entry.
       // Not every real interaction does — see the reports screen — and asserting
       // it there would force either a fake interaction or a deleted check. The

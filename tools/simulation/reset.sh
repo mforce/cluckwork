@@ -146,7 +146,10 @@ BOOTSTRAP_OUTPUT="$(compose run --rm app bootstrap-admin --email "$SEED_ADMIN_EM
 # unmasked and retained (PR #392 review). The value is still captured below and
 # rotated off seconds later — but a log is forever and a rotation is not
 # retroactive.
-printf '%s\n' "$BOOTSTRAP_OUTPUT" | sed 's/^Temporary password: .*/Temporary password: <redacted>/'
+# Matched ANYWHERE on the line, not anchored to the start: a log-level prefix or
+# any indentation added to bootstrap-admin's output would slip past `^` and leak
+# the value this redaction exists to hide.
+printf '%s\n' "$BOOTSTRAP_OUTPUT" | sed 's/Temporary password: .*/Temporary password: <redacted>/'
 TEMP_PASSWORD="$(printf '%s\n' "$BOOTSTRAP_OUTPUT" | sed -n 's/^Temporary password: //p')"
 if [[ -z "$TEMP_PASSWORD" ]]; then
   echo "FAILED: could not find a 'Temporary password: ' line in bootstrap-admin's output." >&2

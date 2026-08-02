@@ -37,15 +37,29 @@
 // claiming more than the code delivers is a defect, and this one was actively
 // hiding the gap it described.
 //
-// `nav-role-gate-bypassed` below now closes most of it, by a route that IS
-// available: the SPA derives its role by base64-decoding the JWT payload WITHOUT
-// verifying the signature (`web/src/auth/claims.ts` — display-only, deliberately),
-// so rewriting the `role` claim in the login response changes what the nav
-// renders. That is not literally "delete the gate", but it is observationally the
-// same thing: the assertion must fail when the role the gate reads no longer
-// matches the persona.
+// `nav-role-gate-bypassed` was added to close it, and **it does not**. Read this
+// before trusting the mutation score on the nav gates.
+//
+// The idea was sound on paper: the SPA derives its role by base64-decoding the
+// JWT payload WITHOUT verifying the signature (`web/src/auth/claims.ts` —
+// display-only, deliberately), so rewriting the `role` claim should change what
+// the nav renders. What actually happens is that the forged token is rejected by
+// the SERVER on the next call, the authenticated bootstrap never completes, and
+// the spec dies in `signIn` on `expect(getByRole("complementary"))` — before it
+// ever looks at a nav link.
+//
+// So the mutant IS killed, and the kill proves nothing about the role gate. It
+// is kept because a red is still better than a green here, and removing it would
+// leave the guarantee with no mutant at all — but it is recorded as what it is.
+//
+// This is the SECOND time this particular claim has had to be walked back (the
+// first was a comment describing mutants that did not exist). The pattern worth
+// naming: a client-side gate whose input the server also validates cannot be
+// mutated from the network boundary, because breaking the input breaks the
+// session first. Closing it properly needs a build-time source mutation.
 //
 // STILL UNCOVERED, and named rather than left silent:
+//   * the nav role gates — for the reason above;
 //   * the in-memory-token guarantee (#145) — a purely client-side property;
 //   * the PWA specs — see 277-decisions.md on why `sw.js` cannot be mutated here.
 //
@@ -159,8 +173,11 @@ export const MUTANTS: Record<string, Mutant> = {
 
   // --- role gates ----------------------------------------------------------
   "nav-role-gate-bypassed": {
-    breaks: "the role the nav gate reads, so a ReadOnly session renders admin destinations",
-    caughtBy: "readonly.spec.ts — is not offered the destinations it cannot use",
+    breaks:
+      "the role claim the nav gate reads. NOTE: in practice this breaks the SESSION rather than "
+      + "the gate — the server rejects the forged token and sign-in never completes, so the kill "
+      + "does not prove the nav assertion. See the header.",
+    caughtBy: "readonly.spec.ts — is not offered the destinations it cannot use (kills in signIn)",
     apply: async (page) => {
       // BOTH login AND refresh. Forging only the login response does not work,
       // and finding out why is the useful part: the SPA's bootstrap issues a

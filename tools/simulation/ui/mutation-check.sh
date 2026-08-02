@@ -120,17 +120,44 @@ for name in "${MUTANTS[@]}"; do
     # as "1 failed" exactly like a failed expectation, so a crash was recorded as
     # KILLED (PR #390 review).
     #
-    # The real distinction is in the failure BODY. Playwright prints an
-    # expect()/matcher frame for a failed assertion and a bare exception
-    # (TypeError, "Test timeout of", strict-mode violation) for everything else.
-    # Require BOTH a failed count and assertion-shaped output; anything else is
-    # INCONCLUSIVE and counted with the survivors, because an unproven kill must
-    # never read as a proven one.
+    # The real distinction is Playwright's MATCHER SUMMARY line, which it prints
+    # for an assertion failure and only for an assertion failure:
+    #
+    #     expect(received).toBeGreaterThan(expected)
+    #     expect(locator).toBeVisible() failed
+    #
+    # Two earlier versions of this check were both wrong, and in the same way —
+    # each let a crash read as a proven kill:
+    #   1. grepping only for "N failed": an uncaught TypeError prints that too.
+    #   2. grepping for `expect(` ANYWHERE in the log: Playwright prints a source
+    #      CODE FRAME around every failure, crash included, and these specs call
+    #      `expect` every few lines — so a crash next to an unrelated assertion
+    #      matched. Reproduced by a reviewer with a TypeError two lines after a
+    #      passing `expect(true).toBe(true)`.
+    #
+    # Anchoring at line start separates the two by construction: a code frame is
+    # always prefixed with its line number (`> 89 |`), so it can never match.
+    #
+    # The optional `Error: ` prefix is load-bearing. Playwright prints the matcher
+    # summary on its OWN line when the assertion carried a custom message, and
+    # INLINE after `Error: ` when it did not:
+    #
+    #     Error: my custom message          |    Error: expect(locator).toBeVisible() failed
+    #     expect(received).toBeGreaterThan  |
+    #
+    # A first attempt matched only the first form and demoted three genuine kills
+    # to INCONCLUSIVE — the mirror-image mistake, and one the harness caught on
+    # itself by reporting them as survivors rather than quietly passing.
+    #
+    # Matching the FORM rather than a list of matcher names also fixes the
+    # opposite error the list version had: a genuine kill using a matcher nobody
+    # remembered to add (toThrow, toHaveAttribute, resolves) was silently
+    # demoted to INCONCLUSIVE, quietly deflating the score.
     log="/tmp/mutant-$name.log"
     if ! grep -qE "^ *[0-9]+ failed" "$log"; then
       echo "     INCONCLUSIVE — the run errored without a test failure (see $log)"
       survived+=("$name (no test failure)")
-    elif grep -qE "expect\\(|toBeVisible|toBeHidden|toHaveCount|toHaveURL|toHaveValue|toBeGreaterThan|toBeLessThan|toEqual|toContainText" "$log"; then
+    elif grep -qE "^[[:space:]]*(Error: )?expect\((received|locator)\)" "$log"; then
       echo "     KILLED — an assertion failed, as it should."
       killed+=("$name")
     else

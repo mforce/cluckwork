@@ -109,38 +109,54 @@ jobs:
         working-directory: tools/simulation/ui
         env:
           CLUCKWORK_E2E_BUNDLED_BROWSER: "1"
-        run: npm run canary
+        # `run-canary.sh`, not `npm run canary` — the script owns clearing the
+        # previous run's per-screen vitals. Calling the npm script directly
+        # bypasses that and can mix stale screens into a fresh run's output
+        # (PR #392 review round 2).
+        run: bash run-canary.sh
 
-      # STRIP THE TRACES BEFORE THEY BECOME AN ARTIFACT.
+      # DO NOT UPLOAD THE PLAYWRIGHT HTML REPORT. It is credential-bearing by
+      # construction: Playwright embeds a base64 copy of the run's data inside
+      # `index.html`, and the step titles it renders include the literal fill
+      # values — so a sign-in step reads `Fill "<the password>"`. Deleting the
+      # external trace `.zip`s does NOT remove that (PR #392 review round 2);
+      # the credential simply rides in the HTML instead.
       #
-      # A Playwright trace records full request and response bodies, so it
-      # contains the password the sign-in form was filled with, every bearer
-      # header, and the refresh cookie. Committing those to git was this PR
-      # stack's blocker finding; uploading them to a retained CI artifact is the
-      # same leak through a different door, and the credentials are real for as
-      # long as that run's stack exists.
+      # This PR stack's original blocker was exactly this leak through the git
+      # door. Uploading the report is the same leak through the artifact door,
+      # and "strip the zips" was a fix that looked complete and was not.
       #
-      # The rest of the report — the HTML summary, screenshots, error context —
-      # is what actually diagnoses a red run, and none of it carries a secret.
-      - name: Strip credential-bearing traces from the report
+      # What is uploaded instead: screenshots and videos, which show the SPA's
+      # rendered state (the password field is masked in the DOM) and carry no
+      # request bodies. Everything else a red run needs — which spec failed, on
+      # which assertion, with the error text — is already in the job log via the
+      # `list` reporter, which is retained with the run and costs nothing.
+      - name: Remove credential-bearing report artifacts
         if: always()
         run: |
-          # Trace archives live in <report>/data/*.zip and test-results/**/trace.zip.
-          find tools/simulation/ui -type f -name '*.zip' -delete || true
-          echo "remaining zips (expect none):"
-          find tools/simulation/ui -type f -name '*.zip' -print || true
+          set -euo pipefail
+          rm -rf tools/simulation/ui/playwright-report tools/simulation/ui/playwright-report-canary
+          find tools/simulation/ui -type f \( -name '*.zip' -o -name 'error-context*' \) -delete
 
-      # Always, including on failure — a run whose evidence was discarded because
-      # the suite failed is a run nobody can act on.
-      - name: Upload the Playwright report
+          # A REAL GATE, not a report. This step previously ended in `|| true`
+          # and merely PRINTED what survived, while the upload below runs
+          # `if: always()` and would have shipped it regardless.
+          remaining="$(find tools/simulation/ui \( -name '*.zip' -o -name 'error-context*' -o -name 'index.html' -path '*report*' \))"
+          if [ -n "$remaining" ]; then
+            echo "::error::credential-bearing files survived stripping:"
+            echo "$remaining"
+            exit 1
+          fi
+          echo "strip verified: no report HTML, trace archives or error-context files remain"
+
+      - name: Upload failure screenshots and video
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report
+          name: playwright-failure-media
           path: |
-            tools/simulation/ui/playwright-report/
-            tools/simulation/ui/playwright-report-canary/
-            tools/simulation/ui/test-results/
+            tools/simulation/ui/test-results/**/*.png
+            tools/simulation/ui/test-results/**/*.webm
           retention-days: 7
           if-no-files-found: ignore
 
