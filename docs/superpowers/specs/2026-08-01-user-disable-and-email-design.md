@@ -3,7 +3,7 @@
 **Date:** 2026-08-01
 **Phase:** 1.1 (epic #14)
 **Status:** design, awaiting implementation plan
-**Revision:** seventh draft. Every round of review so far has found a real defect
+**Revision:** eighth draft. Every round of review so far has found a real defect
 in the previous round's fix. The corrections are recorded at the end, in
 the *What the Nth draft got wrong* sections — read them before treating any of
 this as a small delta. The corrections are the substance.
@@ -306,22 +306,58 @@ takes over. Their holders get logged out; nobody gets a credential the new
 mechanism cannot see. There is no window in which an old writer can mint
 something the new binary honours.
 
-**The migration still revokes every existing refresh token** (`UPDATE
-refresh_tokens SET "RevokedAt" = now() WHERE "RevokedAt" IS NULL`), even though
-the epoch separation already makes them inert. This is deliberate
-defence-in-depth, and the direction matters: if the epoch comparison ever
-regresses, revoked-and-retired legacy tokens degrade to a denial of service,
-whereas active-and-retired ones would degrade to *access*. Given a choice of
-failure modes, take the one that locks people out rather than the one that lets
-them in.
+**The migration mutates no rows at all.** An earlier draft had it revoke every
+existing refresh token as defence-in-depth. That is exactly the statement that
+must not run while a pre-epoch replica is still serving, and the reason is worth
+following carefully because it is what makes deploy A genuinely inert:
 
-The cost of the whole cutover is one forced re-login for everyone at deploy. For
-a farm's worth of users that is trivially cheap, and it is the single moment
-where the mechanism can be given a trustworthy starting state.
+The pre-epoch `RefreshAsync` treats a revoked token with no live replacement as a
+**replay**, and answers it by calling `RevokeAllActiveForUserAsync`. So a legacy
+token that the migration marked revoked is, to an old replica, indistinguishable
+from a stolen one. The user re-logs in on a new replica and gets a clean epoch-1
+family; a forgotten tab then refreshes against an *old* replica with its
+cutover-revoked token; the old replay branch fires and burns down the family that
+was just issued. The old tab redirects to login tidily, having destroyed the
+user's live session on the way out.
 
-That `UPDATE` is the migration's only data statement — no INSERTs, so
-`MigrationSecurityReviewTests`' shape assertions are unaffected, but its count
-pins need updating alongside.
+That is a user-visible break caused by the deploy that claimed to cause none.
+
+So the migration is **additive only**: four columns with defaults, no `UPDATE`,
+no `INSERT`. An old replica sees a database byte-identical in every column it
+reads, and behaves exactly as it does today. A new replica gets full enforcement
+immediately. There is no state in between.
+
+Nothing is lost, because **the revocation was never what drew the boundary** —
+the epoch separation is. Legacy tokens carry `IssuedEpoch = 0`, users carry `1`,
+and the new binary rejects the mismatch inert. Revoking them was belt-and-braces
+on top of a mechanism that already held.
+
+The belt-and-braces still has a home, just a later one. Once the pre-A fleet is
+drained, a one-off `revoke-legacy-tokens` CLI verb (same run-then-exit shape as
+`migrate`) performs the `UPDATE`. At that point no reader can misinterpret it,
+and the direction of the defence is the one worth having: if the epoch comparison
+ever regresses, revoked-and-retired tokens degrade to a denial of service,
+whereas active-and-retired ones would degrade to *access*.
+
+`MigrationSecurityReviewTests` is unaffected either way — no INSERTs, and now no
+data statements at all.
+
+#### Rollback fails open unless it is done deliberately
+
+"Epoch `0` is inert forever" holds only while a binary that reads `IssuedEpoch`
+is running. Roll deploy A back and the pre-A binary ignores the column entirely.
+
+The concrete hazard: during the mixed-fleet window an old replica can insert an
+active default-`0` child immediately after a new replica's password reset revoked
+the family — the same refresh race described above. The new binary rejects that
+child on sight. **A rollback resurrects it**, and the password reset that was
+supposed to kill it silently did not.
+
+So rollback is not "redeploy the previous image." The order is: drain every
+deploy-A process, **revoke all active refresh tokens**, then start the pre-A
+fleet. That is one forced re-login, and it is what makes the rollback fail
+closed. It belongs in the runbook, not in an operator's memory — the deployment
+repo owns the procedure, this repo owns the requirement.
 
 ### 2. Application layer
 
@@ -478,22 +514,29 @@ the replica that never learned to enforce.
 
 **So the feature ships in two deploys, and the ordering is a hard constraint:**
 
-1. **Deploy A — the mechanism, inert.** `CredentialEpoch`, `IssuedEpoch`, the
-   migration and cutover, `JwtTokenService` stamping the claim, the middleware,
-   and `RefreshAsync`'s comparison. No disable, no enable, no email change.
-   Nothing here makes a promise the mixed fleet cannot keep: the only epoch bumps
-   are the existing password-reset paths, which already revoke refresh tokens
-   today, so on an old replica the behaviour is exactly what it is now. Deploy A
-   can therefore roll at any pace without a window of false assurance.
-2. **Deploy B — the mutations.** `POST /disable`, `POST /enable`,
-   `PUT /email`, and the SPA. By the time an epoch bump can be triggered by a
-   *new* operation, every serving replica enforces the check.
+1. **Deploy A — the mechanism, additive.** `CredentialEpoch`, `IssuedEpoch`, an
+   **additive-only** migration, `JwtTokenService` stamping the claim, the
+   middleware, and `RefreshAsync`'s comparison. No disable, no enable, no email
+   change, and — critically — **no row mutations**: an old replica sees a
+   database byte-identical in every column it reads and behaves exactly as it
+   does today, while a new replica enforces fully. See *Storage* for why the
+   cutover revocation cannot live here.
+2. **Drain.** Every pre-A process gone.
+3. **Deploy B — the mutations.** `POST /disable`, `POST /enable`, `PUT /email`,
+   and the SPA. By the time an epoch bump can be triggered by a *new* operation,
+   every serving replica enforces the check. The optional
+   `revoke-legacy-tokens` verb can also run from here on.
 
-Between them the old fleet must be fully drained. That drain is the deployment
-repo's job, not this one's — what belongs here is the **requirement**: deploy B
-must not be exposed until no process from before deploy A is still serving. An
-orchestrator that reports "rollout complete" on the basis of new replicas being
-healthy, without confirming old ones are gone, does not satisfy it.
+The drain is the deployment repo's job, not this one's — what belongs here is the
+**requirement**: deploy B must not be exposed until no process from before deploy
+A is still serving. An orchestrator that reports "rollout complete" on the basis
+of new replicas being healthy, without confirming old ones are gone, does not
+satisfy it.
+
+**Rollback has its own order** — drain deploy-A processes, revoke all active
+refresh tokens, *then* start the pre-A fleet — because a pre-A binary ignores
+`IssuedEpoch` and would resurrect any default-`0` token the epoch check had been
+suppressing. Also in *Storage*.
 
 A single-replica install has none of this, and the reference compose stack is
 single-replica. The design cannot lean on that — #338 already contemplates more
@@ -565,11 +608,18 @@ these bugs present:
 **Cutover** — asserted against a database seeded pre-migration, since the whole
 point is a boundary the migration draws across data it did not create:
 
-- A refresh token active before the migration is rejected after it, and the user
-  is forced to log in again.
+- A refresh token active before the migration is rejected by the new binary
+  after it — on the epoch mismatch alone, with the row still `RevokedAt IS NULL`.
 - **After that user logs in again, the stolen legacy token still cannot burn
   their new family.** The test that fails if legacy tokens and users share an
-  epoch — revocation alone passes the first assertion and fails this one.
+  epoch.
+- **The migration mutates no rows.** Asserted directly: every
+  `refresh_tokens.RevokedAt` is unchanged across the migration. This is the test
+  that fails if someone "helpfully" reintroduces the cutover revocation into the
+  migration, which would break old replicas mid-rollout.
+- **Rollback fails closed.** Run the migration, mint a default-`0` child, then
+  simulate the pre-A binary by ignoring `IssuedEpoch` — the child must be
+  unusable, which is only true if the rollback procedure revoked it first.
 - A row inserted with the column default `0` — standing in for an old binary
   still serving during a rolling deploy — is rejected by the new binary, and
   rejected *inert*.
@@ -676,6 +726,10 @@ Recorded so the same reasoning is not re-derived later.
     which legacy tokens predate their user's last credential change, so the only
     clean boundary is to revoke all of them and accept one forced re-login.
 
+    *Superseded in part by items 13 and 16: the boundary is drawn by the epoch
+    separation, not by the revocation, and the revocation cannot run in the
+    migration at all. The diagnosis here was right; the remedy was not.*
+
 12. **The epoch comparison was placed "before the rotation," which is too late.**
     A revoked token reaches #176's grace/replay branch — and
     `RevokeAllActiveForUserAsync` — before `FindByIdAsync` loads the user, so the
@@ -765,3 +819,42 @@ Recorded so the same reasoning is not re-derived later.
     old world could not produce. This one cannot be, because the old world is not
     producing anything — it is *failing to check*. A sentinel defends against bad
     data; only ordering defends against absent enforcement.
+
+## What the seventh draft got wrong
+
+16. **Deploy A was called inert while its migration revoked every refresh
+    token.** Those are contradictory. The pre-epoch `RefreshAsync` reads a
+    revoked token with no live replacement as a *replay* and answers it by
+    revoking the whole family — so a legacy row the migration marked revoked is,
+    to an old replica, indistinguishable from a stolen one. User re-logs in on a
+    new replica, a forgotten tab refreshes against an old one, and the old replay
+    branch burns down the epoch-1 family that was just issued. The deploy that
+    promised to break nothing breaks the session of anyone who left a tab open.
+
+    The migration is now **additive only**. Nothing is lost, because the
+    revocation was never what drew the boundary — the epoch separation is, and
+    legacy tokens are already rejected inert on the mismatch. The
+    defence-in-depth moves to a `revoke-legacy-tokens` verb run after the drain,
+    when no reader can misinterpret it.
+
+    The lesson is narrower than "drain first" and more useful: **a compatibility
+    window is a constraint on writes, not only on reads.** It is not enough that
+    the old binary tolerate the new *schema*; it must also tolerate every *value*
+    the new deploy puts into it. Adding a column is safe. Changing a row an old
+    code path already has opinions about is not, however harmless the change
+    looks in the new code.
+
+17. **"Epoch `0` is inert forever" quietly assumed the new binary is still
+    running.** A rollback to the pre-A image drops the `IssuedEpoch` check
+    entirely, resurrecting any default-`0` token — including a child an old
+    replica inserted right after a new replica's password reset revoked the
+    family. The reset that was supposed to kill it silently did not.
+
+    Rollback therefore has its own ordered procedure: drain deploy-A processes,
+    revoke all active refresh tokens, then start the pre-A fleet.
+
+    Generally: **a security property that holds only while the new code is
+    deployed is not a property, it is a configuration.** Every claim of the form
+    "X can never happen" needs the rollback path checked before it is written
+    down, because rollback is the one deploy nobody rehearses and everybody
+    eventually performs.
