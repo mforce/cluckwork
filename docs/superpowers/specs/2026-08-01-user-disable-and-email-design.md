@@ -21,7 +21,9 @@ be abandoned and a second one created, leaving a phantom user attached to
 whatever history the first one recorded.
 
 Both gaps live on the same screen and share the same machinery, so they are
-designed together and shipped as two PRs.
+designed together — and shipped as three PRs, because the machinery has to be
+deployed and drained before either feature can honestly promise what it promises.
+See *Delivery*.
 
 ## Scope
 
