@@ -975,6 +975,8 @@ describe("session generation (#310)", () => {
     await drain();
 
     await login({ email: "a@b.co", password: "pw" }); // a newer, explicit login completes first
+    const bootstrapSignal = callsTo(fetchMock, "/auth/refresh")[0]?.[1]?.signal as AbortSignal;
+    expect(bootstrapSignal.aborted).toBe(true);
     expect(getAccessToken()).toBe("newLoginToken");
     expect(onTokens).toHaveBeenCalledTimes(1);
 

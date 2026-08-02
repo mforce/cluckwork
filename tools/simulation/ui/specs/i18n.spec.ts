@@ -88,7 +88,12 @@ test.describe("i18n", () => {
       await expect(page.getByRole("link", { name: tEn("nav:reports"), exact: true })).toBeVisible();
 
       // The switch, made the way a user makes it.
+      const persisted = page.waitForResponse((response) =>
+        response.url().includes("/api/v1/me/language")
+          && response.request().method() === "PUT",
+      );
       await selector.selectOption(lang);
+      expect((await persisted).ok(), `the ${lang} preference was not persisted`).toBe(true);
 
       // THE ASSERTION: the destination the user reads in the sidebar is now in
       // the new language. The sidebar is the right place to look because it is
@@ -106,6 +111,15 @@ test.describe("i18n", () => {
       // index.html ships a static "en" that a broken listener would leave in
       // place while the visible text changed underneath it.
       await expect(page.locator("html")).toHaveAttribute("lang", lang);
+
+      // A local i18next change is optimistic. Reload so the preference must be
+      // recovered from the server rather than surviving only in component
+      // memory.
+      await page.reload();
+      await expect(page.locator("html")).toHaveAttribute("lang", lang);
+      await expect(
+        page.getByRole("link", { name: t(lang, "nav:reports"), exact: true }),
+      ).toBeVisible();
 
       // And the screens still WORK in that language — the point of #277's "not
       // broken", as opposed to "translated". A populated data screen renders its
