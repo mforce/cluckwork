@@ -493,6 +493,12 @@ jobs:
         run: |
           set -euo pipefail
           git fetch --quiet origin main
+          # Refresh tags too, and forcefully. Everything downstream — the rerun
+          # check below, the unreleased-commit range, the version calculation —
+          # reads the LOCAL tag list, which is otherwise a snapshot taken at
+          # checkout. A tag pushed since then would be invisible, and the job
+          # would compute a version below the remote maximum.
+          git fetch --quiet --tags --force origin
           tip="$(git rev-parse origin/main)"
 
           if [ "$tip" != "$SHA" ]; then
@@ -502,7 +508,12 @@ jobs:
             exit 0
           fi
 
-          released="$(git tag --list 'v*' --points-at "$SHA" | head -1)"
+          # Through the calculator's STRICT definition, not the `v*` glob: an
+          # auxiliary tag like `v1.0.0-rc1` or `v2-old` is not a release, and
+          # must not convince this guard the commit is already published — that
+          # would suppress the release entirely.
+          released="$(git tag --list 'v*' --points-at "$SHA" \
+            | node .github/scripts/next-version.mjs --print-latest)"
           if [ -n "$released" ]; then
             echo "proceed=false" >> "$GITHUB_OUTPUT"
             echo "::notice title=Release skipped::$SHA is already released as $released."
@@ -598,11 +609,13 @@ jobs:
           echo "Unreleased merges since $previous: $count"
 
           # Realistically 1–3 (a range grows only when runs are superseded). A
-          # much larger one means the tag sequence is out of step with history;
-          # say so loudly rather than silently scoring part of the range.
+          # much larger one means releases have been paused or broken — which is
+          # exactly when an old `release:major` is most likely to be sitting in
+          # the range. So warn, but score ALL of it: truncating here would drop
+          # the oldest merges' labels and under-bump, silently breaking the
+          # guarantee that every unreleased merge contributes.
           if [ "$count" -gt 50 ]; then
-            echo "::warning title=Large unreleased range::$count commits since $previous; scoring the 50 most recent only."
-            commits="$(printf '%s\n' "$commits" | head -50)"
+            echo "::warning title=Large unreleased range::$count commits since $previous; scoring all of them."
           fi
 
           # `--jq` emits one label per line already; `tr -d '\r'` only normalises
@@ -681,6 +694,9 @@ jobs:
         env:
           VERSION: ${{ steps.version.outputs.version }}
           SHA: ${{ github.sha }}
+          # For the registry existence probe below, which asks over HTTP rather
+          # than through a CLI that cannot distinguish absent from broken.
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           # GHCR rejects uppercase; the owner/repo casing is not ours to assume.
@@ -715,12 +731,56 @@ jobs:
           #
           # Same digest means this is a re-run of that same commit, which is the
           # documented recovery path and must stay a no-op rather than a failure.
-          existing="$(docker buildx imagetools inspect "$image:$VERSION" \
-            --format '{{.Manifest.Digest}}' 2>/dev/null || true)"
-          if [ -n "$existing" ] && [ "$existing" != "$digest" ]; then
-            echo "::error::$image:$VERSION is already published as $existing — refusing to move it onto $digest"
+          #
+          # Asked over the registry HTTP API and branched on the STATUS, not via
+          # a CLI whose failure is indistinguishable from "absent". `|| true` on
+          # an inspect command would turn a timeout, a 5xx or a rate limit into
+          # the same empty answer as a genuine 404 — failing OPEN, and
+          # overwriting the very published version this check exists to protect.
+          # Standard registry token exchange, not a base64'd PAT: this is the
+          # documented protocol and it is what yields a clean 404 for a missing
+          # tag. `sed` rather than `jq` keeps the probe free of a tool
+          # dependency. The repository itself is guaranteed to exist by now —
+          # the commit tag was pushed above — so the only question this asks is
+          # whether the VERSION tag is taken.
+          ghcr_bearer="$(curl -sS \
+            -u "x-access-token:$GHCR_TOKEN" \
+            "https://ghcr.io/token?service=ghcr.io&scope=repository:${GITHUB_REPOSITORY,,}:pull" \
+            | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')"
+          if [ -z "$ghcr_bearer" ]; then
+            echo "::error::could not obtain a GHCR pull token — refusing to guess whether $VERSION is taken"
             exit 1
           fi
+
+          headers="$(mktemp)"
+          code="$(curl -sS -o /dev/null -D "$headers" -w '%{http_code}' \
+            -H "Authorization: Bearer $ghcr_bearer" \
+            -H 'Accept: application/vnd.oci.image.index.v1+json' \
+            -H 'Accept: application/vnd.oci.image.manifest.v1+json' \
+            -H 'Accept: application/vnd.docker.distribution.manifest.list.v2+json' \
+            -H 'Accept: application/vnd.docker.distribution.manifest.v2+json' \
+            "https://ghcr.io/v2/${GITHUB_REPOSITORY,,}/manifests/$VERSION")"
+
+          case "$code" in
+            404)
+              ;; # definitively absent — free to publish
+            200)
+              existing="$(grep -i '^docker-content-digest:' "$headers" \
+                | tr -d '\r' | awk '{print $2}' | head -1)"
+              if [ -z "$existing" ]; then
+                echo "::error::$image:$VERSION exists but returned no digest header — refusing to guess"
+                exit 1
+              fi
+              if [ "$existing" != "$digest" ]; then
+                echo "::error::$image:$VERSION is already published as $existing — refusing to move it onto $digest"
+                exit 1
+              fi
+              echo "$image:$VERSION already points at $digest — re-run of the same commit, nothing to move."
+              ;;
+            *)
+              echo "::error::could not determine whether $image:$VERSION exists (HTTP $code) — refusing to guess"
+              exit 1 ;;
+          esac
 
           docker tag cluckwork-api:ci "$image:$VERSION"
           # Same bytes as the commit tag above, so this uploads nothing; it only
