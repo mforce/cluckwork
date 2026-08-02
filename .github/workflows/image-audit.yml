@@ -74,6 +74,10 @@ jobs:
         with:
           image-ref: ${{ matrix.image.ref }}
           scan-type: image
+          # Explicit — the default also runs the secret scanner, which flags
+          # Debian's ssl-cert snakeoil placeholder key in postgres. See the
+          # identical step in ci.yml.
+          scanners: vuln
           vuln-type: os,library
           severity: HIGH,CRITICAL
           # Consistent with every other gate in this repo: block on what can be

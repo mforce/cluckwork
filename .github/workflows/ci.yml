@@ -509,6 +509,15 @@ jobs:
           # names — not whatever a tag happens to resolve to at scan time.
           image-ref: ${{ matrix.image.ref }}
           scan-type: image
+          # EXPLICIT, not left to the default. Trivy's default enables the secret
+          # scanner too, and every Debian-based image ships
+          # /etc/ssl/private/ssl-cert-snakeoil.key — the `ssl-cert` package's
+          # self-signed placeholder, generated at install time and a credential
+          # to nothing. It is reported HIGH, so the default config fails this job
+          # on postgres forever for a non-finding. This is a VULNERABILITY gate;
+          # `vuln-type`, `severity` and `ignore-unfixed` below only describe vuln
+          # scanning, so say so rather than relying on a default that disagrees.
+          scanners: vuln
           vuln-type: os,library
           severity: HIGH,CRITICAL
           ignore-unfixed: true
