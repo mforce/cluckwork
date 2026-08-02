@@ -238,6 +238,14 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
      exact sha; it rebuilds through the same gates and publishes. It refuses any
      commit that is not already an ancestor of `main`, so it cannot be used to
      publish arbitrary branch content.
+
+     **Dispatch it from `main`** (the default ref selector; `gh workflow run`
+     without `--ref`). The *sha input* names the commit to build, but the *ref*
+     you dispatch from decides which `ci.yml` definition runs — and promotion
+     verifies the attestation with `--source-ref refs/heads/main`. Dispatched
+     from a branch, the rebuild succeeds and publishes, then refuses to promote,
+     and the only clue is the error at promote time. That strictness is the
+     point (see the provenance bullet below); just don't trip over it mid-incident.
   2. Then dispatch **Release** with the tag (and the exact sha if the release's
      `target_commitish` is a branch name rather than a commit) to promote and
      publish the draft. It refuses a tag whose release is **already published** —
@@ -277,17 +285,143 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
   only early exit is "zero conventional commits" — so a `chore:`-only merge does
   bump the patch digit. It lands in the pending release PR rather than in a
   release, so it costs a number, not a deploy.
-- **Deploy by digest, never by tag.** Every release's notes carry
-  `ghcr.io/<owner>/<repo>@sha256:…`; the deploy repo pins that. `:vX.Y.Z` and
-  `:sha-<commit>` are names, and names can move.
+- **Deploy by digest, never by tag**, and treat *obtaining* the digest and
+  *verifying* it as two separate problems — the deploy side needs both, and one
+  does not imply the other.
+  - **Obtain:** every release carries an **`image.json` asset**
+    (`gh release download <tag> -p image.json -R <owner>/<repo>`) with `image`,
+    `digest`, `reference`, `tag`, `commit`, `repository`. A release asset, not a workflow
+    artifact — it never expires and needs no `actions:read` on this repo. The
+    digest is also in the notes for humans. **Do not make the deploy side parse
+    prose, and do not have it resolve a tag.**
+  - **Verify:** `ci.yml`'s publish job writes a **build-provenance attestation**
+    (#354) against the pushed digest, stored as an OCI referrer beside the image
+    (`push-to-registry: true`). The deploy side runs:
+
+    ```bash
+    # oci:// needs registry credentials; GHCR ignores the username
+    echo "$GITHUB_TOKEN" | docker login ghcr.io -u x-access-token --password-stdin
+    gh attestation verify oci://<image>@<digest> \
+      --repo <owner>/<repo> \
+      --signer-workflow <owner>/<repo>/.github/workflows/ci.yml \
+      --source-ref refs/heads/main \
+      --bundle-from-oci
+    ```
+
+    **All three flags are load-bearing and none is the default**, and each is
+    easy to drop without noticing anything break — a missing one weakens the
+    check silently rather than failing it.
+    - `--bundle-from-oci` makes `gh` read the registry copy; without it the
+      bundle is fetched from the **GitHub API**, so `push-to-registry` goes
+      unused and the "no GitHub access needed" property is lost.
+    - `--signer-workflow` binds the identity to the *workflow*; with `--repo`
+      alone, **any** workflow here holding `attestations: write` satisfies the
+      check.
+    - `--source-ref` binds it to the *ref*, and this is the subtle one:
+      `--signer-workflow` pins the workflow's **path**, and `workflow_dispatch`
+      runs the workflow **definition** from whatever ref is selected. So without
+      it, anyone able to push a branch could edit `ci.yml` there, dispatch it,
+      publish and attest arbitrary bytes, and still match a path-only check.
+
+    Consequence worth knowing: **a CI repair dispatch must run from `main`.**
+    Dispatched from a branch it produces an image that will not promote, on
+    purpose. Note also the consumer still authenticates to the **registry** for
+    an `oci://` subject; the saving is no GitHub API access to this repo, not no
+    credentials at all.
+
+  **Holding a digest is not the same as knowing where it came from.** A digest
+  identifies bytes exactly and cannot be moved — but bytes pushed by hand have a
+  perfectly valid digest too, and a gate that checks digest *syntax* accepts
+  them. Only the attestation distinguishes CI's bytes from anything pushed with
+  `packages: write` (realistically a leaked token). That is why obtaining and
+  verifying are listed as two steps and not one.
+
+  **Where the fail-closed actually comes from.** `ci.yml` attests *before*
+  uploading the digest artifact, so a failed attestation leaves no artifact —
+  but that is a **within-a-run** property only, and it is easy to overclaim.
+  Promotion finds the artifact by **name**, repo-wide, taking the first
+  unexpired match, so an artifact from an earlier run of the same commit would
+  still satisfy it. What makes it fail closed at *release* level is that
+  `release-please.yml` **verifies the attestation before it retags**. Keep both;
+  never let the ordering stand in for the check. And do not make either
+  `continue-on-error` — an attestation nobody can rely on is worse than none,
+  because it reads as coverage.
+
+  **There are two gates, and they do not have the same strength — don't conflate
+  them.**
+
+  - **Promotion's check** (the verify in `release-please.yml`) is *inside a
+    branch-editable workflow*. `workflow_dispatch` runs a workflow's definition
+    from the selected ref, so someone who can push a branch can dispatch a copy
+    with the verify deleted, running with that job's `contents: write` +
+    `packages: write`. No check written inside a branch-editable workflow closes
+    that — the attacker edits the check. The controls there are repo-level: who
+    may push branches, who may run workflows, branch protection on `main`.
+  - **Deploy-side verification** is *not* subject to that, and is the stronger
+    of the two. It runs outside this repo, against the registry, and a
+    branch-built image carries an attestation naming **that branch** as its
+    source ref — which `--source-ref refs/heads/main` rejects. So a branch writer
+    cannot get *their own bytes* deployed.
+
+    But it proves **origin, not currency**, and that gap is reachable: the
+    verify command answers "did this repo's CI on `main` build these bytes",
+    **not** "are these the bytes this release promoted". Anyone able to rewrite
+    a published release's `image.json` can point it at an **older, genuinely
+    attested** digest. The deploy side reads `.reference` from that file,
+    verifies it, and it passes — a **downgrade**, using bytes that really were
+    CI's. Nothing in an attestation binds a digest to a release.
+
+    A tag/digest comparison narrows that and is worth doing: check that
+    `:vX.Y.Z` in the registry resolves to the digest **you verified**, and refuse
+    if they differ. Compare against the digest in `reference` — the one the
+    `oci://` subject named — and **never** against the asset's separate `digest`
+    field. CI writes `reference` as `image + "@" + digest`, but nothing forces a
+    *rewritten* asset to keep them equal: an attacker sets `reference` to an old
+    attested digest and leaves `digest` matching the current tag, and a check
+    reading `digest` compares the current digest to itself, passes, and deploys
+    the old one. **Be precise about who that stops.** It defeats an
+    attacker who can rewrite the release asset *and nothing else* — a leaked
+    `contents: write` credential. It does **not** defeat the branch-dispatch
+    actor above, who holds `contents: write` **and `packages: write`** (both are
+    on the `promote` job, and a dispatched copy declares its own permissions).
+    That actor moves the tag onto the older digest with the same
+    `imagetools create` promotion itself uses, and the two then agree. Moving a
+    tag is an ordinary registry operation — this bullet's own heading says so.
+
+    So that actor is bounded by repo-level controls, exactly as promotion's
+    check is: who may push branches, and who may run workflows. The registry
+    half is separately closable with **immutable tags for `v*`** on the package —
+    #354's third acceptance criterion, deliberately not in this PR because it is
+    a registry setting rather than code.
+
+  Net, stated at exactly the strength the argument supports: the internal gate
+  fails closed for a leaked **registry** credential. The external gate also
+  stops a **branch push** substituting its own bytes. Neither stops a branch
+  writer swapping in *other* attested bytes — the tag/digest comparison above
+  raises the cost, but that actor holds registry write too, so nothing in this
+  repo closes it; branch/dispatch permissions and immutable tags do.
+  **And neither survives a merge to `main`.** Once a backdoored `ci.yml` is
+  the definition on `main`, its attestation is genuinely valid — right signer
+  workflow, right source ref — because `--source-ref` records *which ref built
+  this*, not *whether that ref's content is trustworthy*. This repo allows a
+  self-merge (`main` requires a PR but **zero** approving reviews), so that path
+  is open today and no flag on the verify command closes it; review of changes to
+  `main` is the only control that does.
+
+  **The paragraph directly above is the canonical statement of the boundary** —
+  the one beginning "Net, stated at exactly the strength". `README.md` and the
+  `ci.yml` comment carry a summary and point here rather than restating it,
+  because successive corrections to this claim repeatedly updated one copy and
+  left the others contradicting it. If you correct it again, correct it there
+  and check the two summaries still agree.
 - **Promotion reads the digest from CI's own run artifact, never by resolving
   `:sha-<commit>`.** That tag is mutable by anyone holding `packages: write`, and
   the merge commit is public seconds after merge while CI needs minutes to push —
   so resolving the tag would accept the first manifest to appear under that name,
   and a forged push in that window would be promoted and written into the release
   notes as the thing to deploy. **Do not "simplify" the promote step back into a
-  registry tag lookup.** (The remaining gap — nothing cryptographically binds the
-  artifact to the workflow — is #354.)
+  registry tag lookup.** (That closed "there is no digest to deploy"; the
+  provenance half — proving the digest is CI's — is the attestation above, #354.)
 - **Adding a CI job that should gate a release? Add it to `publish.needs`.** The
   digest artifact is what promotion accepts as proof, and it proves exactly what
   `publish.needs` in `ci.yml` covers — no more. A job outside that list can be
