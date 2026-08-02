@@ -38,6 +38,8 @@ export const tl = {
     signIn: "Mag-sign in",
     signingIn: "Nagsa-sign in…",
     invalidCredentials: "Mali ang email o password.",
+    credentialsSuperseded: "Nagbago ang iyong mga kredensyal. Mag-sign in muli.",
+    accountDisabled: "Na-disable ang iyong account.",
     tooManyAttempts:
       "Sobra na ang subok sa pag-sign in. Maghintay ng ilang minuto at subukan ulit.",
     apiDown: "Hindi makapag-sign in. Gumagana ba ang API?",
@@ -1640,6 +1642,9 @@ export const tl = {
       + "ng password ng isang umiiral na Owner. Kinukumpirma nito na ikaw talaga bago bigyan ng ganoong "
       + "kalaking access — walang ibang aksyon sa screen na iyon (paggawa ng Worker/Manager/Sales/Read-only "
       + "user, pag-reset ng password nila) ang muling nagtatanong.",
+    signingInCredentialEpoch:
+      "Kapag ni-reset ng administrator ang password, maaaring agad ma-invalid ang kasalukuyan mong sign-in. Kung "
+      + "makakita ka ng mensaheng nagbago ang iyong credentials, mag-sign in muli gamit ang kasalukuyan mong password.",
     interfaceLanguage:
       "<strong>Wika ng interface.</strong> Kahit sino ay puwedeng pumili ng wikang gagamitin sa interface "
       + "mula sa <strong>Account → Mga Kagustuhan</strong> — English, Español, o Tagalog. Isang patuloy na "

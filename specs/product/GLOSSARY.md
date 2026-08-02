@@ -518,6 +518,13 @@ replayed/stale token is still caught and revokes the whole family. Consuming a
 token is an atomic compare-and-swap (a per-token concurrency stamp), so concurrent
 replays can never fork one token into two live sessions.
 
+**Credential epoch (#364)** — a monotonically increasing per-user number carried
+in every access token and stamped onto every refresh token. A request is valid
+only when its epoch matches the current user record, so an administrative
+credential reset can invalidate access tokens immediately without a per-request
+revocation list. The epoch readers ship before the mutations that advance it;
+deploys must drain older replicas before enabling those mutations.
+
 **Version (concurrency token)** — every mutable aggregate carries a `Version`
 that each mutation bumps. Two concurrent edits: first save wins, second gets
 a 409 and retries against fresh state. Append-only aggregates (bird

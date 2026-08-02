@@ -248,6 +248,7 @@ app.UseCluckworkRequestBodyLimit();
 
 app.UseAuthentication();
 app.UseMiddleware<TenantResolutionMiddleware>();
+app.UseMiddleware<CredentialEpochMiddleware>();
 // #283 — the first-run "you must set a new password" gate. BEFORE
 // UseAuthorization (deliberately) so it applies uniformly regardless of which
 // AuthPolicies tier an endpoint carries, and before idempotency so a blocked

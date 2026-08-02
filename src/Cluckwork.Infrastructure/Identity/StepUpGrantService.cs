@@ -193,6 +193,9 @@ public sealed class StepUpGrantService(
             return Result.Failure<StepUpGrant>(WrongPasswordError);
         }
 
+        if (user.DisabledAt is not null)
+            return Result.Failure<StepUpGrant>(WrongPasswordError);
+
         // Correct password — clear any accumulated failures, as login does.
         // Shared with login via AccountLockout (#269 review): a discarded
         // IdentityResult here left `user` tracked with a stale ConcurrencyStamp,

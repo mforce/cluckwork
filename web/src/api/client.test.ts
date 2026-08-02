@@ -127,6 +127,17 @@ describe("apiFetch — no in-memory token", () => {
   });
 });
 
+describe("apiFetch — unrecoverable session reason", () => {
+  it("passes the original protected-request 401 title to auth teardown after refresh fails", async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ title: "Auth.CredentialsSuperseded" }, 401))
+      .mockResolvedValueOnce(jsonResponse({ title: "Identity.InvalidRefreshToken" }, 401));
+
+    await expect(apiGet("/stock")).rejects.toMatchObject({ title: "Auth.CredentialsSuperseded" });
+    expect(onUnauth).toHaveBeenCalledWith("Auth.CredentialsSuperseded");
+  });
+});
+
 // #217 — every request mints a W3C traceparent so a browser action correlates
 // with the API's request log and spans (#214). The client remembers the last
 // trace id so a crash report can join the failed screen's server-side story.

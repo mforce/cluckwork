@@ -23,6 +23,7 @@ interface AuthState {
   // reads this to show the set-password screen instead of the app shell; the
   // API's MustChangePasswordMiddleware is the actual enforcement.
   mustChangePassword: boolean;
+  unauthenticatedReason: string | null;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
 }
@@ -38,6 +39,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAdmin, setIsAdmin] = useState(currentUserIsAdmin);
   const [role, setRole] = useState<Role>(currentUserRole);
   const [mustChangePassword, setMustChangePassword] = useState(currentUserMustChangePassword);
+  const [unauthenticatedReason, setUnauthenticatedReason] = useState<string | null>(null);
 
   // One place that re-derives every claim-decoded field from the current
   // token, called everywhere a token pair changes (login, transparent
@@ -55,9 +57,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // re-derives the role — the server re-reads roles on every refresh, so a
   // demotion reaches the UI within one token lifetime (codex review of PR #78).
   useEffect(() => {
-    setOnUnauthenticated(() => {
+    setOnUnauthenticated((title) => {
       clearAccessToken();
       setIsAuthenticated(false);
+      setUnauthenticatedReason(title ?? null);
     });
     setOnTokensChanged(refreshClaims);
     return () => {
@@ -97,6 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(async (email: string, password: string) => {
     await apiLogin({ email, password });
     setIsAuthenticated(true);
+    setUnauthenticatedReason(null);
     refreshClaims();
   }, [refreshClaims]);
 
@@ -110,11 +114,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsAdmin(false);
     setRole("Worker");
     setMustChangePassword(false);
+    setUnauthenticatedReason(null);
   }, []);
 
   const value = useMemo(
-    () => ({ isAuthenticated, isLoading, isAdmin, role, mustChangePassword, login, logout }),
-    [isAuthenticated, isLoading, isAdmin, role, mustChangePassword, login, logout],
+    () => ({ isAuthenticated, isLoading, isAdmin, role, mustChangePassword, unauthenticatedReason, login, logout }),
+    [isAuthenticated, isLoading, isAdmin, role, mustChangePassword, unauthenticatedReason, login, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

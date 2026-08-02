@@ -20,6 +20,10 @@ public sealed class RefreshToken
     public DateTimeOffset? RevokedAt { get; set; }
     public string? ReplacedByTokenHash { get; set; }
 
+    // #364 — stamped explicitly by every known mint site. The database default
+    // of zero makes an INSERT from a pre-epoch binary permanently unusable.
+    public int IssuedEpoch { get; set; }
+
     // #176 — set when this token was revoked BY a grace-advance (not a normal
     // rotation). Reuse-detection refuses to grace such a token again, so the
     // idempotency grace is bounded to a SINGLE hop off a normal rotation and
@@ -47,6 +51,7 @@ public sealed class RefreshTokenConfiguration : IEntityTypeConfiguration<Refresh
         builder.Property(e => e.TokenHash).HasMaxLength(64).IsRequired();
         builder.Property(e => e.ReplacedByTokenHash).HasMaxLength(64);
         builder.Property(e => e.RevokedByGrace).HasDefaultValue(false);
+        builder.Property(e => e.IssuedEpoch).HasDefaultValue(0);
         builder.HasIndex(e => e.TokenHash).IsUnique();
         builder.HasIndex(e => e.UserId);
         // #270 — covers RefreshTokenPurgeSweep's delete predicate

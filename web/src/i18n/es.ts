@@ -33,6 +33,8 @@ export const es = {
     signIn: "Iniciar sesión",
     signingIn: "Iniciando sesión…",
     invalidCredentials: "Correo electrónico o contraseña inválidos.",
+    credentialsSuperseded: "Sus credenciales cambiaron. Inicie sesión de nuevo.",
+    accountDisabled: "Su cuenta ha sido deshabilitada.",
     tooManyAttempts:
       "Demasiados intentos de inicio de sesión. Espere unos minutos y vuelva a intentarlo.",
     apiDown: "No se pudo iniciar sesión. ¿Está la API en ejecución?",
@@ -1581,6 +1583,9 @@ export const es = {
       + "propietario existente. Esto confirma que realmente es usted antes de otorgar tanto acceso — ninguna "
       + "otra acción en esa pantalla (crear un usuario Worker/Manager/Sales/Read-only, restablecer su "
       + "contraseña) vuelve a preguntar.",
+    signingInCredentialEpoch:
+      "Cuando un administrador restablece una contraseña, su sesión actual puede invalidarse inmediatamente. Si "
+      + "ve un mensaje indicando que sus credenciales cambiaron, inicie sesión de nuevo con su contraseña actual.",
     interfaceLanguage:
       "<strong>Idioma de la interfaz.</strong> Cualquiera puede elegir el idioma en que se muestra la "
       + "interfaz desde <strong>Cuenta → Preferencias</strong> — inglés, español o tagalo. La traducción es "

@@ -260,12 +260,14 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
             Guid.NewGuid().ToString(),
             new { currentPassword = TestHarness.Password, newPassword = FreshPassword() });
         Assert.Equal(HttpStatusCode.OK, changed.StatusCode);
+        var ownerAfterPasswordChange = factory.CreateAuthedClient(
+            (await TestHarness.ReadTokensAsync(changed)).AccessToken);
 
         var newOwnerEmail = $"boss-{Guid.NewGuid():N}@test.local";
-        var response = await CreateUserWithStepUpAsync(owner, newOwnerEmail, "Admin", grant.Token);
+        var response = await CreateUserWithStepUpAsync(ownerAfterPasswordChange, newOwnerEmail, "Admin", grant.Token);
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
-        var users = await owner.GetFromJsonAsync<List<UserRow>>("/api/v1/users");
+        var users = await ownerAfterPasswordChange.GetFromJsonAsync<List<UserRow>>("/api/v1/users");
         Assert.DoesNotContain(users!, u => u.Email == newOwnerEmail);
     }
 

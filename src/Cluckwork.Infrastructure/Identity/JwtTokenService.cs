@@ -33,7 +33,8 @@ public sealed class JwtTokenService(IOptions<JwtOptions> options, TimeProvider t
         {
             new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
             new(JwtRegisteredClaimNames.Email, user.Email ?? string.Empty),
-            new("account_id", user.AccountId.ToString())
+            new("account_id", user.AccountId.ToString()),
+            new("credential_epoch", user.CredentialEpoch.ToString(System.Globalization.CultureInfo.InvariantCulture))
         };
         claims.AddRange(roles.Select(r => new Claim("role", r)));
         // #283 — carried only when true (mirrors the role claims' omit-if-absent

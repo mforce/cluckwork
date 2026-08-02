@@ -10,6 +10,9 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 public sealed class ApplicationUserConfiguration : IEntityTypeConfiguration<ApplicationUser>
 {
     // 16 > the 8-char grammar max: headroom without an unbounded text column.
-    public void Configure(EntityTypeBuilder<ApplicationUser> builder) =>
+    public void Configure(EntityTypeBuilder<ApplicationUser> builder)
+    {
         builder.Property(u => u.Language).HasMaxLength(16);
+        builder.Property(u => u.CredentialEpoch).HasDefaultValue(1);
+    }
 }

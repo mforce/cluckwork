@@ -1178,6 +1178,7 @@ describe("UsersPage step-up authentication (#308)", () => {
           // #283 — an Owner working the Users screen is already past the
           // first-run set-password gate.
           mustChangePassword: false,
+          unauthenticatedReason: null,
           login: vi.fn(), logout: vi.fn(),
         }}
         >

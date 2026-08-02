@@ -29,8 +29,8 @@ export class ApiError extends Error {
 
 // Called when the session is unrecoverable (refresh failed). AuthContext wires
 // this to drop React auth state and bounce to /login.
-let onUnauthenticated: (() => void) | null = null;
-export function setOnUnauthenticated(cb: (() => void) | null): void {
+let onUnauthenticated: ((title?: string) => void) | null = null;
+export function setOnUnauthenticated(cb: ((title?: string) => void) | null): void {
   onUnauthenticated = cb;
 }
 
@@ -473,7 +473,7 @@ export async function apiGetBlob(
       }
       if (isTransientRefreshFailure(refreshErr)) throw refreshErr;
       clearAccessToken();
-      onUnauthenticated?.();
+      onUnauthenticated?.(err.title);
       throw err;
     }
   }
@@ -515,7 +515,7 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
       }
       if (isTransientRefreshFailure(refreshErr)) throw refreshErr;
       clearAccessToken();
-      onUnauthenticated?.();
+      onUnauthenticated?.(err.title);
       throw err;
     }
   }
