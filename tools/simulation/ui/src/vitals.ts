@@ -22,9 +22,18 @@
 //     Google's thresholds.
 //   * **INP** — NOT INP. The reported number is the LONGEST single interaction's
 //     duration. Real INP is roughly the 98th percentile of interaction latencies,
-//     which needs the interaction grouping `web-vitals` implements. The longest
-//     interaction is again an upper bound, so it is labelled
-//     `longestInteractionMs` here and in the findings — never "INP".
+//     which needs the interaction grouping `web-vitals` implements, so it is
+//     labelled `longestInteractionMs` here and in the findings — never "INP".
+//
+// **"UPPER BOUND" IS ONLY TRUE IN ONE DIRECTION, AND THE FINDINGS DOC USED TO
+// CLAIM BOTH.** Against the entries the observer has ALREADY delivered, summing
+// every shift does over-report CLS's session window, and the longest interaction
+// does over-report INP's percentile. But the sample is read mid-life, not at page
+// hide, so a shift or an interaction occurring after the read is not in the set
+// being bounded at all — and either figure can therefore come out BELOW the
+// finalised standard metric. "Can only over-report" was wrong (PR #392 review
+// round 3); the honest statement is that these bound what was observed, and
+// observation stops at the read.
 //
 // Calling the approximations by their real names matters more than having a
 // tidier table. A number labelled INP that is not INP will be compared against
@@ -41,9 +50,9 @@ import type { Page } from "@playwright/test";
 export interface Vitals {
   /** The largest-contentful-paint candidate observed AT SAMPLE TIME — not the finalised LCP. */
   lcpMs: number | null;
-  /** Sum of un-input-caused layout shifts. An UPPER BOUND on CLS, not CLS. */
+  /** Sum of un-input-caused layout shifts observed by sample time. Bounds those entries, NOT the finalised CLS. */
   clsUpperBound: number | null;
-  /** Longest single interaction duration, ms. An UPPER BOUND on INP, not INP. `null` when nothing was interacted with. */
+  /** Longest interaction observed by sample time, ms. Bounds those entries, NOT the finalised INP. `null` when nothing was interacted with. */
   longestInteractionMs: number | null;
   /** How many interactions were observed. 0 means `longestInteractionMs` is null because nothing happened. */
   interactionCount: number;
@@ -148,6 +157,18 @@ export async function readVitals(page: Page): Promise<Vitals> {
 
 export interface ScreenSample extends Vitals {
   screen: string;
+  /**
+   * Every screen THIS canary build intended to sample, written into every file.
+   *
+   * The completeness check lives in the DATA rather than in a list maintained
+   * inside run-baseline.sh (PR #392 review round 3). A renderer-side constant is
+   * a second copy of `SCREENS` that nothing keeps in step: add a screen to the
+   * canary and the renderer calls it "unexpected"; remove one and the renderer
+   * reports a missing screen forever. Carrying the manifest alongside the sample
+   * makes the two impossible to disagree, and lets a stale file from an older
+   * build be recognised as such instead of silently counting as coverage.
+   */
+  expectedScreens: string[];
   /** Wall-clock from navigation start to the screen's own "I am ready" assertion passing. */
   usableInMs: number;
   underLoad: boolean;
