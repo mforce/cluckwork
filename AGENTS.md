@@ -250,12 +250,19 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
   version < 1.0.0"). So today `feat!:`/`BREAKING CHANGE` → **minor**, and
   `feat:` along with **everything else** → **patch**.
 
-  **Both are required and they are not interchangeable.** Without them,
-  release-please's default for a `0.x` version promotes the first `feat` straight
-  to **1.0.0** — that is what it proposed on the first real run (PR #372,
-  `chore(main): release 1.0.0`) before the settings were added. `bump-minor-pre-major`
+  **Both are required and they are not interchangeable.** `bump-minor-pre-major`
   alone still lets a `feat` take the minor digit; the second setting is what keeps
   features on patch.
+
+  **`initial-version` is a third, separate lever, and the two bump settings do not
+  cover it.** The *first* release computes no bump at all — `Strategy.initialReleaseVersion()`
+  returns `Version.parse(this.initialVersion)` or, absent that, a hardcoded
+  `1.0.0`. So a fresh repo proposes **1.0.0** no matter what the pre-major
+  settings say. That is exactly what happened here twice: PR #372 proposed
+  `release 1.0.0`, adding the two bump settings changed nothing, and PR #374
+  proposed `1.0.0` again. `"initial-version": "0.0.1"` is what fixes the first
+  release; the bump settings govern every release after it. Don't diagnose one as
+  the other.
 
   **This mapping changes silently at 1.0.0**, when both settings stop applying and
   the conventional defaults resume (`feat:` → minor, breaking → major). Reaching
