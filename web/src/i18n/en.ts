@@ -46,9 +46,9 @@ export const en = {
     // the operator to sign in as. Deliberately names no command — see the
     // comment in Login.tsx.
     // Says ADMINISTRATOR, never "no accounts" (PR #363 review): the condition
-    // is specifically that no Owner exists, and a non-Owner user can exist
-    // without one and sign in perfectly well — so the broader claim would be
-    // false in a reachable state.
+    // is specifically that the DEFAULT ACCOUNT has no Owner, and a non-Owner
+    // user can exist without one and sign in perfectly well — so the broader
+    // claim would be false in a reachable state.
     noAdminYet:
       "No administrator yet. This farm hasn't finished first-time setup, so "
       + "there's no administrator account to sign in with.",

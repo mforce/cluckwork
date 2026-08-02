@@ -201,7 +201,7 @@ describe("Login — first-run setup notice", () => {
   const noAccounts = () =>
     new ApiError(401, "Auth.NoAccountsProvisioned", "This farm has no administrator account yet.");
 
-  it("shows the notice, and suppresses the generic denial, when the server reports no accounts", async () => {
+  it("shows the notice, and suppresses the generic denial, when the server reports no Owner", async () => {
     mockApiLogin.mockRejectedValue(noAccounts());
     renderWithProviders(tree(), { route: "/login", token: null });
 
@@ -222,7 +222,7 @@ describe("Login — first-run setup notice", () => {
 
   // The other side of the same boundary. Without this, a build that showed the
   // notice for EVERY 401 would pass the test above — and would tell a user who
-  // simply mistyped their password that the farm has no accounts.
+  // simply mistyped their password that the farm has no administrator.
   it("shows the ordinary invalid-credentials message on a normal 401, with no notice", async () => {
     mockApiLogin.mockRejectedValue(new ApiError(401, "Auth.InvalidCredentials", "bad creds"));
     renderWithProviders(tree(), { route: "/login", token: null });

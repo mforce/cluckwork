@@ -68,11 +68,18 @@ public sealed class FirstRunLoginNoticeTests(CluckworkWebApplicationFactory fact
     // The second half is the one that matters most. A build that returned the
     // first-run code for EVERY failed sign-in would pass a test that only
     // checked the un-provisioned case — and would tell a user who simply
-    // mistyped their password that the farm has no accounts. The code must
-    // disappear the moment an Owner exists, leaving the ordinary
+    // mistyped their password that the farm has no administrator. The code must
+    // disappear once the DEFAULT ACCOUNT has an Owner, leaving the ordinary
     // non-enumerating denial byte-for-byte as it was.
+    //
+    // "Default account", not "an Owner anywhere" and not "any account exists":
+    // steps 2 and 2b below create an Owner under a different account and a
+    // non-Owner under this one, and the notice still fires through both. Those
+    // steps exist precisely to pin that scope, so a summary here that claimed
+    // otherwise would be refuted by the body of its own test (PR #363 review
+    // rounds 5 and 6).
     [Fact]
-    public async Task ReportsNoAccounts_UntilAnOwnerExists_ThenTheOrdinaryDenialReturns()
+    public async Task ReportsNoOwner_UntilTheDefaultAccountHasOne_ThenTheOrdinaryDenialReturns()
     {
         var client = factory.CreateClient();
 
@@ -195,9 +202,9 @@ public sealed class FirstRunLoginNoticeTests(CluckworkWebApplicationFactory fact
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
-    // PR #359 review — the latch's job is to stop touching the database once an
-    // Owner exists, and the answer being correct is not that property; not
-    // asking is. Proven both ways against a context aimed at a port nothing
+    // PR #359 review — the latch's job is to stop touching the database once
+    // the default account has an Owner, and the answer being correct is not
+    // that property; not asking is. Proven both ways against a context aimed at a port nothing
     // listens on, so "did it query?" is directly observable:
     //   * cold latch -> must reach the database, so it must THROW
     //   * latched    -> must answer from memory, so it must NOT throw

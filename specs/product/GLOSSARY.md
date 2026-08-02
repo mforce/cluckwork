@@ -613,8 +613,8 @@ the OTLP pipeline. A host's stdout collector (docker logs, journald, a
 platform log pipeline) may still capture it, so that output must be treated
 as sensitive while the password is valid. Re-running the command against an
 already-provisioned account is a safe no-op (no second Owner, no password
-reprinted). Because a migrated-but-unprovisioned instance has **no administrator
-to sign in as**, the **login screen says so**: attempting to sign in while the
+reprinted). Because a migrated-but-unprovisioned **default account** has **no
+administrator to sign in as**, the **login screen says so**: attempting to sign in while the
 default account has no Owner answers with a short notice explaining that no
 **administrator** account exists yet and pointing at whoever administers the
 server, instead of the usual "invalid email or password". For the operator this

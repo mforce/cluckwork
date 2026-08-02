@@ -1500,8 +1500,8 @@ label.check {
   font-size: 1rem;
 }
 
-/* #283 follow-up — first-run setup hint, shown only while the instance has no
-   admin. Deliberately quiet: an inset surface and muted text, no semantic
+/* #283 follow-up — first-run setup hint, shown only while the default account
+   has no Owner. Deliberately quiet: an inset surface and muted text, no semantic
    colour. Nothing is wrong here, and someone who already holds credentials
    should read past it to the form. All three custom properties used here
    (--hairline, --surface-2, --muted) are re-declared in the dark block, so this

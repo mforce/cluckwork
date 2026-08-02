@@ -74,8 +74,9 @@ internal static class CluckworkIdentityServiceCollectionExtensions
         services.AddScoped<FirstRunAdminService>();
         // #283 follow-up — first-run discoverability for the SPA login page.
         // The latch is a SINGLETON (one observation serves every later request
-        // process-wide, so the anonymous endpoint stops touching the database
-        // once an Owner exists); the service is scoped because it resolves
+        // process-wide, so the failed-sign-in path stops touching the database
+        // once the DEFAULT ACCOUNT has an Owner — that account specifically,
+        // never any Owner anywhere); the service is scoped because it resolves
         // AppDbContext.
         services.AddSingleton<FirstRunProvisioningLatch>();
         services.AddScoped<FirstRunStatusService>();

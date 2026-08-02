@@ -7,9 +7,9 @@ using Microsoft.EntityFrameworkCore;
 
 // #283 follow-up — first-run DISCOVERABILITY. The provisioning mechanism itself
 // (FirstRunAdminService, the `bootstrap-admin` verb) is unchanged; the gap this
-// closes is that a freshly migrated instance has no administrator to sign in as
-// and no way for the operator to learn that, so their first experience is a
-// credential prompt they cannot satisfy. This answers exactly one question —
+// closes is that a freshly migrated DEFAULT ACCOUNT has no administrator to
+// sign in as and no way for the operator to learn that, so their first
+// experience is a credential prompt they cannot satisfy. This answers exactly one question —
 // "does the default account have an Owner yet?" — which AuthEndpoints consults
 // on a FAILED sign-in so the reply can name the situation instead of blaming
 // the credentials.
@@ -60,8 +60,11 @@ public sealed class FirstRunStatusService(
     public async Task<bool> IsProvisionedAsync(CancellationToken ct = default)
     {
         // Post-provisioning — the state this instance is in for all but the
-        // first few minutes of its life — this is a memory read, so an
-        // anonymous endpoint can never be used to make the database do work.
+        // first few minutes of its life — this is a memory read, so repeated
+        // failed sign-ins can never be used to make the database do work.
+        // ("An anonymous endpoint" until now: stale since the redesign, which
+        // deleted the status endpoint and moved this onto the login failure
+        // path. PR #363 review round 6.)
         if (latch.IsProvisioned)
             return true;
 
