@@ -487,6 +487,14 @@ jobs:
       matrix:
         image: ${{ fromJSON(needs.image-pins.outputs.matrix) }}
     steps:
+      # Needed only for .github/trivyignore.yaml — the image itself is pulled
+      # from a registry, not built here. Without it the scan step fails on a
+      # missing ignore file, which looks exactly like a real finding.
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.sha || '' }}
+
       # Same gate shape as the application-image scan above: BLOCKING on a
       # HIGH/CRITICAL that HAS a fix, `ignore-unfixed: true` so an upstream CVE
       # with nothing to move to cannot wedge every unrelated PR. The actionable
@@ -515,7 +523,14 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Where this image is pinned
+      # Deliberately does NOT claim "this image has findings". The step above
+      # exits non-zero for a scan failure too — a missing ignore file did exactly
+      # that on this PR's first run, and an earlier version of this message
+      # reported it as CVEs in Traefik, sending a reader to bump a digest that
+      # was already current. Asserting a cause the step never established is the
+      # same defect this whole job exists to catch, so state the fact (the scan
+      # failed), give the context, and let the log above say which.
+      - name: How to act on this failure
         if: failure()
         # Both values reach the runner through `env:`, never spliced into the
         # script body. They originate in a compose file from the checked-out
@@ -527,10 +542,15 @@ jobs:
           IMAGE_NAME: ${{ matrix.image.name }}
           PINNED_AT: ${{ matrix.image.usedBy }}
         run: |
-          echo "::error::$IMAGE_NAME has fixable HIGH/CRITICAL findings."
+          echo "::error::Trivy scan of $IMAGE_NAME failed. See the scan output above for which."
           echo "Pinned at: $PINNED_AT"
-          echo "Bump the digest there. Resolve a new one with:"
+          echo
+          echo "If it reported fixable HIGH/CRITICAL findings: bump the digest there."
           echo "  docker buildx imagetools inspect $IMAGE_NAME"
+          echo "If there is no fixed image to move to, add a dated, path-scoped entry to"
+          echo "  .github/trivyignore.yaml (read its header first — it has rules)."
+          echo "If Trivy itself errored (missing file, registry, vuln DB): that is a"
+          echo "  workflow defect, not a finding. Do not bump anything."
 
   # #351 — publish the image this run verified, named by COMMIT.
   #

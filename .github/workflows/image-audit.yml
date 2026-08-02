@@ -62,6 +62,12 @@ jobs:
       matrix:
         image: ${{ fromJSON(needs.image-pins.outputs.matrix) }}
     steps:
+      # Needed only for .github/trivyignore.yaml — the image is pulled from a
+      # registry, not built here. Without it the scan fails on a missing ignore
+      # file, which is indistinguishable from a real finding.
+      - name: Check out repository
+        uses: actions/checkout@v7
+
       - name: Scan ${{ matrix.image.ref }}
         # Supply-chain: pin the immutable commit, not the re-pointable tag.
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
@@ -83,7 +89,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Where this image is pinned
+      # Does NOT claim the image has findings — the step above also fails on a
+      # Trivy error. See the identical step in ci.yml for why that distinction
+      # is load-bearing.
+      - name: How to act on this failure
         if: failure()
         # Via env, never spliced into the script: these originate in a compose
         # file. See the identical step in ci.yml.
@@ -91,11 +100,14 @@ jobs:
           IMAGE_NAME: ${{ matrix.image.name }}
           PINNED_AT: ${{ matrix.image.usedBy }}
         run: |
-          echo "::error::$IMAGE_NAME has fixable HIGH/CRITICAL findings."
+          echo "::error::Trivy scan of $IMAGE_NAME failed. See the scan output above for which."
           echo "Pinned at: $PINNED_AT"
-          echo "Bump the digest there; Dependabot's docker-compose ecosystem may"
-          echo "already have a PR open. Resolve a digest by hand with:"
+          echo
+          echo "If it reported fixable HIGH/CRITICAL findings: bump the digest there."
+          echo "Dependabot's docker-compose ecosystem may already have a PR open; otherwise"
+          echo "resolve a digest by hand with:"
           echo "  docker buildx imagetools inspect $IMAGE_NAME"
+          echo "If Trivy itself errored: that is a workflow defect, not a finding."
 
   # ---------------------------------------------------------------------------
   # The application image that actually shipped.
