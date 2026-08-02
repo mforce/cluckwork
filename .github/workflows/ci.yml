@@ -617,10 +617,11 @@ jobs:
       # says outright that it cannot be cross-checked in that case). Do not read
       # it as "the commit the release was cut from" without that distinction.
       #
-      # Both flags in the command above matter for this job too:
-      # `--source-ref refs/heads/main` is what stops a ci.yml edited on a branch
-      # and dispatched from there from producing a promotable attestation, since
-      # `--signer-workflow` pins only the path.
+      # This is also why the verify command pins `--source-ref refs/heads/main`:
+      # `--signer-workflow` pins only the workflow's PATH, so without the ref a
+      # ci.yml edited on a branch and dispatched from there would still produce
+      # a promotable attestation. A repair dispatch must therefore run FROM
+      # main; the sha input only chooses which commit gets built.
       #
       # All three flags are load-bearing and none is the default:
       #   --bundle-from-oci   without it `gh` fetches the bundle from the GITHUB
