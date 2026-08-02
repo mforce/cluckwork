@@ -1,8 +1,18 @@
 # Playwright per-run output. The HTML report and traces are debugging
 # artifacts for one run against a throwaway fixture — never source.
-test-results/
-playwright-report/
-blob-report/
+#
+# GLOB, NOT AN EXACT NAME. `playwright-report/` matched the smoke suite's output
+# and NOTHING ELSE — a trailing-slash pattern is a literal directory name, so it
+# never covered the canary's `playwright-report-canary/`. That gap put four real
+# trace archives into a commit, and a Playwright trace records full request and
+# response bodies: the sim Owner's password, 60 JWTs and the refresh cookie all
+# went in as plaintext inside a zip, which GitGuardian's scan did not see.
+#
+# So: match the family, and treat any new Playwright output directory as covered
+# by default rather than by remembering to add it.
+test-results*/
+playwright-report*/
+blob-report*/
 .last-run.json
 
 # Screenshots/videos the canary (#386) writes outside the report dir.
