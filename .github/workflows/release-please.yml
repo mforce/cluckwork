@@ -58,14 +58,48 @@ jobs:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # GITHUB_TOKEN does no work here — every write goes through the App token
+    # minted below — so it keeps read only.
     permissions:
-      contents: write # create the tag and the GitHub release
-      pull-requests: write # open and groom the release PR
+      contents: read
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
       tag_name: ${{ steps.release.outputs.tag_name }}
       sha: ${{ steps.release.outputs.sha }}
     steps:
+      # An App token, not GITHUB_TOKEN, for two independent reasons:
+      #
+      #   1. GITHUB_TOKEN cannot open a pull request unless the repo-wide
+      #      "Allow GitHub Actions to create and approve pull requests" setting
+      #      is on — and that setting also lets any workflow APPROVE a PR, which
+      #      would let automation satisfy branch protection on main. The App
+      #      grant is scoped to what release-please actually needs, so the
+      #      blanket setting stays off.
+      #   2. GitHub does not trigger workflows for anything GITHUB_TOKEN pushes
+      #      or opens (recursion prevention), so a GITHUB_TOKEN release PR would
+      #      carry NO checks — and that PR is the commit that cuts a version. An
+      #      App identity is not subject to that suppression, so the release PR
+      #      is built, tested and scanned like any other.
+      #
+      # Downscoped per-permission: the same App backs the lockfix workflow, and
+      # `permission-*` caps this token at release-please's needs regardless of
+      # what the installation itself holds.
+      #   contents      — commit the changelog/version files, create the release
+      #   pull-requests — open and groom the release PR
+      #   issues        — create and apply the `autorelease: *` labels, which is
+      #                   how release-please recognises its own merged PR
+      #
+      # Fails closed: absent secrets fail this step, so no release is cut.
+      - name: Mint a short-lived GitHub App token
+        id: app
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.LOCKFIX_APP_ID }}
+          private-key: ${{ secrets.LOCKFIX_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+          permission-issues: write
+
       # Third-party action: pinned to the immutable commit, not the re-pointable
       # tag (AGENTS.md). Dependabot's github-actions ecosystem reads the trailing
       # comment and bumps both.
@@ -73,6 +107,7 @@ jobs:
         id: release
         uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
         with:
+          token: ${{ steps.app.outputs.token }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 

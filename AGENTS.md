@@ -147,6 +147,12 @@ Repository → Contents: Read and write, install it on this repo, and add the re
 Actions secrets `LOCKFIX_APP_ID` and `LOCKFIX_APP_PRIVATE_KEY`. Until both exist
 the workflow fails closed (no push); nothing else breaks.
 
+The **Release** workflow (#351) shares this App and needs **Pull requests: Read and
+write** and **Issues: Read and write** on top. That widens the *installation*, not
+this workflow's token — each mint downscopes with `permission-*`, and this job pins
+`permission-contents: write` so the extra grants never reach the token that pushes
+to a Dependabot branch. Keep that pin when adding consumers.
+
 **Dependabot** (`.github/dependabot.yml`) covers the other half: the gates
 *enforce* (a vulnerable dep fails the build), Dependabot *proposes* (it opens the
 bump PR, and — with Dependabot alerts enabled in repo settings — flags a new
@@ -253,10 +259,37 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
   `.release-please-manifest.json`, and `version.txt`. **Never hand-edit the manifest
   or `version.txt`**; release-please owns them and a manual edit desynchronises the
   version it believes from the tags that exist.
-- The release PR is opened by `GITHUB_TOKEN`, so **it gets no CI run** (GitHub does
-  not trigger workflows from that token). Harmless here — it only touches the
-  changelog, manifest and version file, and `main` has no required checks. If
-  required checks are ever added, the release PR needs a GitHub App token instead.
+- **The release PR is opened with a GitHub App token, not `GITHUB_TOKEN`** — and
+  both reasons are load-bearing, so do not "simplify" it back.
+  1. `GITHUB_TOKEN` **cannot open a pull request at all** unless the repo-wide
+     *"Allow GitHub Actions to create and approve pull requests"* setting is on.
+     That is how this first shipped, and the first real run failed with
+     `GitHub Actions is not permitted to create or approve pull requests` after
+     release-please had already pushed its branch. The setting is not a narrow
+     fix: it also lets **any** workflow holding `pull-requests: write` *approve* a
+     PR, which is a review that branch protection on `main` would accept. The App
+     grant is scoped instead, so that setting stays **off**.
+  2. GitHub does not trigger workflows for anything `GITHUB_TOKEN` opens or
+     pushes (recursion prevention), so a `GITHUB_TOKEN` release PR carries **no
+     checks** — on the one commit that cuts a version. An App identity is exempt
+     from that suppression, so the release PR is built, tested and scanned like
+     any other, and required checks on `main` would not deadlock it.
+
+  The token is **downscoped per permission** (`permission-contents`,
+  `permission-pull-requests`, `permission-issues`) rather than taking whatever the
+  installation holds. `issues: write` is not incidental — it is what creates and
+  applies the `autorelease: *` labels release-please uses to recognise its own
+  merged PR. The **same App also backs `dependabot-lockfix.yml`**, so that
+  workflow pins `permission-contents: write` on its own mint: without the cap, the
+  PR/issue grants added here would ride along into the token held by the job that
+  pushes to a Dependabot branch. **Any new consumer of this App must downscope the
+  same way** — the installation's permissions are a ceiling, not the intended
+  grant.
+
+  Setup: the App needs **Contents: RW, Pull requests: RW, Issues: RW**, and the
+  repo needs `LOCKFIX_APP_ID` / `LOCKFIX_APP_PRIVATE_KEY` (already present for
+  lockfix). Fails closed — a missing secret fails the mint step, so no release is
+  cut with a fallback token.
 - Package visibility and the host's pull credential are **deploy-side** concerns
   (cluckwork-deploy#6), not this repo's.
 

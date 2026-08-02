@@ -178,8 +178,11 @@ booted. Deployment configuration itself lives in the separate deploy repo, not h
 - **Pull requests publish nothing.** The publish job only runs on `main`.
 - **No version files to edit.** `version.txt` and `.release-please-manifest.json` are
   machine-maintained — editing them by hand desynchronises the bot from reality.
-- **The Release PR has no CI checks**, because GitHub doesn't run workflows for
-  bot-created PRs. It only touches the changelog and version files.
+- **The Release PR is built and tested like any other PR.** It's opened with a
+  GitHub App token rather than the default Actions token, which matters twice: the
+  default token isn't allowed to open a PR unless the repo also lets workflows
+  *approve* PRs (a right that could satisfy branch protection on `main`), and PRs
+  it opens get no CI run at all — on the one commit that cuts a version.
 - **A release that can't find its image never goes public.** It stays a draft, and
   GitHub doesn't create the tag for a draft — so you get no version pointing at a
   missing image. To finish it: Actions → **Release** → *Run workflow*, with the tag.
