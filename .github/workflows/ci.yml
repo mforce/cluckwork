@@ -679,15 +679,10 @@ jobs:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: echo "$GHCR_TOKEN" | docker login ghcr.io -u x-access-token --password-stdin
 
-      # Push BEFORE git-tagging. If the tag push then fails, the recovery is a
-      # re-run: no tag exists, so the same version is recomputed and the same
-      # bytes are re-pushed (a no-op in the registry) before tagging is retried.
-      # Tagging first and failing to push would leave a version pointing at
-      # nothing.
-      #
-      # That ordering has a cost the registry check below pays for: between the
-      # image push and the git tag push there is a window where a version is
-      # published but unrecorded, and nothing in git can see it.
+      # Push BEFORE git-tagging, so a failed tag push never leaves a version
+      # pointing at nothing. The cost is a window where a version is published
+      # but unrecorded in git — which is what the registry probe below exists to
+      # detect and recover from, since no git-side check can see it.
       - name: Publish the image
         id: publish
         if: steps.guard.outputs.proceed == 'true'
@@ -702,9 +697,89 @@ jobs:
           # GHCR rejects uppercase; the owner/repo casing is not ours to assume.
           image="ghcr.io/${GITHUB_REPOSITORY,,}"
 
-          # The commit tag goes FIRST, and it is the safe one to push blind: it
-          # is unique per commit, so it can only ever be rewritten by a re-run of
-          # this same commit, with these same bytes.
+          # ASK BEFORE PUSHING ANYTHING.
+          #
+          # The dangerous state is "published but untagged": a previous run
+          # pushed :$VERSION and then died before pushing its git tag. No tag
+          # exists anywhere, so the calculator reissues that same version — and
+          # nothing in git can see the conflict.
+          #
+          # Re-running the WHOLE workflow in that state rebuilds the image, and
+          # a rebuild yields different bytes. Pushing anything before probing
+          # would therefore move :sha-$SHA — the commit's own alias — onto those
+          # rebuilt bytes, and only then discover :$VERSION disagrees and abort.
+          # The alias would be mutated and the release still unrecoverable.
+          #
+          # Probing first makes that state RECOVERABLE instead: if the version
+          # and the commit alias are both already published and agree, this run
+          # publishes nothing and simply completes the missing git tag.
+          #
+          # Standard registry token exchange, not a base64'd PAT: it is the
+          # documented protocol and the one that yields a clean 404 for a
+          # missing tag (an unauthenticated probe answers 401, which would read
+          # as an error, not as "absent"). `sed` rather than `jq` keeps the probe
+          # free of a tool dependency.
+          ghcr_bearer="$(curl -sS \
+            -u "x-access-token:$GHCR_TOKEN" \
+            "https://ghcr.io/token?service=ghcr.io&scope=repository:${GITHUB_REPOSITORY,,}:pull" \
+            | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')"
+          if [ -z "$ghcr_bearer" ]; then
+            echo "::error::could not obtain a GHCR pull token — refusing to guess what is published"
+            exit 1
+          fi
+
+          # Prints the manifest digest of a tag, empty when it does not exist,
+          # and FAILS on anything else. Never `|| true`: a timeout, 5xx or rate
+          # limit must not read as "absent" — that failure direction overwrites
+          # the very release this check protects.
+          probe_digest() {
+            local ref="$1" headers code digest
+            headers="$(mktemp)"
+            code="$(curl -sS -o /dev/null -D "$headers" -w '%{http_code}' \
+              -H "Authorization: Bearer $ghcr_bearer" \
+              -H 'Accept: application/vnd.oci.image.index.v1+json' \
+              -H 'Accept: application/vnd.oci.image.manifest.v1+json' \
+              -H 'Accept: application/vnd.docker.distribution.manifest.list.v2+json' \
+              -H 'Accept: application/vnd.docker.distribution.manifest.v2+json' \
+              "https://ghcr.io/v2/${GITHUB_REPOSITORY,,}/manifests/$ref")"
+            case "$code" in
+              404) printf '' ;;
+              200)
+                digest="$(grep -i '^docker-content-digest:' "$headers" \
+                  | tr -d '\r' | awk '{print $2}' | head -1)"
+                if [ -z "$digest" ]; then
+                  echo "::error::$image:$ref exists but returned no digest header — refusing to guess" >&2
+                  return 1
+                fi
+                printf '%s' "$digest" ;;
+              *)
+                echo "::error::could not determine whether $image:$ref exists (HTTP $code) — refusing to guess" >&2
+                return 1 ;;
+            esac
+          }
+
+          published_version="$(probe_digest "$VERSION")"
+          published_commit="$(probe_digest "sha-$SHA")"
+
+          if [ -n "$published_version" ]; then
+            if [ "$published_version" = "$published_commit" ]; then
+              # Published but untagged: an earlier run got this far and died
+              # before its git tag. Adopt what is already there rather than
+              # pushing a rebuild over it — the tag step below finishes the job.
+              digest="$published_version"
+              echo "$image:$VERSION is already published as $digest for this commit — recovering, pushing nothing."
+              printf 'version=%s\n' "$VERSION" >> "$GITHUB_OUTPUT"
+              printf 'image=%s\n' "$image" >> "$GITHUB_OUTPUT"
+              printf 'digest=%s\n' "$digest" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "::error::$image:$VERSION is already published as $published_version, which is not this commit's image ($published_commit) — refusing to move it"
+            exit 1
+          fi
+
+          # Version is free. The commit alias goes first: it is unique per
+          # commit, so the only thing that can rewrite it is a re-run of this
+          # same commit.
           docker tag cluckwork-api:ci "$image:sha-$SHA"
           docker push "$image:sha-$SHA"
 
@@ -722,69 +797,9 @@ jobs:
             exit 1
           fi
 
-          # Only NOW is the version tag safe to move, and only after asking the
-          # registry itself. Neither `git tag --list` nor `git ls-remote` can see
-          # this hazard: if an earlier run pushed :$VERSION and then died before
-          # pushing its git tag, no tag exists anywhere, so the calculator
-          # happily reissues that version — and a blind push would overwrite a
-          # published image with different bytes.
-          #
-          # Same digest means this is a re-run of that same commit, which is the
-          # documented recovery path and must stay a no-op rather than a failure.
-          #
-          # Asked over the registry HTTP API and branched on the STATUS, not via
-          # a CLI whose failure is indistinguishable from "absent". `|| true` on
-          # an inspect command would turn a timeout, a 5xx or a rate limit into
-          # the same empty answer as a genuine 404 — failing OPEN, and
-          # overwriting the very published version this check exists to protect.
-          # Standard registry token exchange, not a base64'd PAT: this is the
-          # documented protocol and it is what yields a clean 404 for a missing
-          # tag. `sed` rather than `jq` keeps the probe free of a tool
-          # dependency. The repository itself is guaranteed to exist by now —
-          # the commit tag was pushed above — so the only question this asks is
-          # whether the VERSION tag is taken.
-          ghcr_bearer="$(curl -sS \
-            -u "x-access-token:$GHCR_TOKEN" \
-            "https://ghcr.io/token?service=ghcr.io&scope=repository:${GITHUB_REPOSITORY,,}:pull" \
-            | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')"
-          if [ -z "$ghcr_bearer" ]; then
-            echo "::error::could not obtain a GHCR pull token — refusing to guess whether $VERSION is taken"
-            exit 1
-          fi
-
-          headers="$(mktemp)"
-          code="$(curl -sS -o /dev/null -D "$headers" -w '%{http_code}' \
-            -H "Authorization: Bearer $ghcr_bearer" \
-            -H 'Accept: application/vnd.oci.image.index.v1+json' \
-            -H 'Accept: application/vnd.oci.image.manifest.v1+json' \
-            -H 'Accept: application/vnd.docker.distribution.manifest.list.v2+json' \
-            -H 'Accept: application/vnd.docker.distribution.manifest.v2+json' \
-            "https://ghcr.io/v2/${GITHUB_REPOSITORY,,}/manifests/$VERSION")"
-
-          case "$code" in
-            404)
-              ;; # definitively absent — free to publish
-            200)
-              existing="$(grep -i '^docker-content-digest:' "$headers" \
-                | tr -d '\r' | awk '{print $2}' | head -1)"
-              if [ -z "$existing" ]; then
-                echo "::error::$image:$VERSION exists but returned no digest header — refusing to guess"
-                exit 1
-              fi
-              if [ "$existing" != "$digest" ]; then
-                echo "::error::$image:$VERSION is already published as $existing — refusing to move it onto $digest"
-                exit 1
-              fi
-              echo "$image:$VERSION already points at $digest — re-run of the same commit, nothing to move."
-              ;;
-            *)
-              echo "::error::could not determine whether $image:$VERSION exists (HTTP $code) — refusing to guess"
-              exit 1 ;;
-          esac
-
           docker tag cluckwork-api:ci "$image:$VERSION"
-          # Same bytes as the commit tag above, so this uploads nothing; it only
-          # adds a second name, letting the deploy side resolve a build by
+          # Same bytes as the commit alias above, so this uploads nothing; it
+          # only adds a second name, letting the deploy side resolve a build by
           # version as well as by commit.
           docker push "$image:$VERSION"
 
