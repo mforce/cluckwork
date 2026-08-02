@@ -286,10 +286,16 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
 
      - **Setting on** removes a repo-wide *policy gate* on `GITHUB_TOKEN`. It
        grants nothing by itself — a job must still declare `pull-requests:
-       write`, and the repo default is `read`. But from then on any job that
-       declares it, including `pull_request`-triggered ones running
-       contributor-influenced code, can create and approve PRs with the ambient
-       token and **no secret**.
+       write`, and the repo default is `read`. From then on any job that
+       declares it can create and approve PRs with the ambient token and **no
+       secret**. Scope that to runs whose `GITHUB_TOKEN` is write-capable at
+       all: pushes, and `pull_request` runs from **same-repository** branches. A
+       **fork** PR (this repo is public and allows forking) and a
+       **Dependabot**-triggered run both receive a read-only token whatever the
+       workflow declares, unless the separate fork / Dependabot write-token
+       policies are turned on. So the exposure is not "any contributor can
+       approve" — it is every same-repo job, present and future, that asks for
+       the scope.
      - **App token** leaves that gate closed, so no `GITHUB_TOKEN` anywhere can
        do it, and PR-write is reachable only by a job that explicitly references
        the App private key.
