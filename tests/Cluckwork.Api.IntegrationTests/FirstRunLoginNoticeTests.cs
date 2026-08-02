@@ -92,19 +92,25 @@ public sealed class FirstRunLoginNoticeTests(CluckworkWebApplicationFactory fact
 
         // 3. The real thing — from here the response must be indistinguishable
         //    from any other wrong-credential attempt.
-        await CreateOwnerInAsync(
-            SeedDefaults.AccountId, $"default-account-owner-{Guid.NewGuid():N}@test.local");
+        var ownerEmail = $"default-account-owner-{Guid.NewGuid():N}@test.local";
+        await CreateOwnerInAsync(SeedDefaults.AccountId, ownerEmail);
 
-        var afterProvisioning = await AttemptLoginAsync(client, "nobody@test.local", "whatever");
-        Assert.Equal(HttpStatusCode.Unauthorized, afterProvisioning.Status);
-        Assert.NotEqual(AuthEndpoints.NoAccountsProvisionedCode, afterProvisioning.Title);
+        var unknownAddress = await AttemptLoginAsync(client, "nobody@test.local", "whatever");
+        Assert.Equal(HttpStatusCode.Unauthorized, unknownAddress.Status);
+        Assert.NotEqual(AuthEndpoints.NoAccountsProvisionedCode, unknownAddress.Title);
 
-        // A wrong password for a user that DOES exist must answer identically to
-        // the unknown address above — the non-enumerating denial is unchanged by
-        // this feature.
-        var knownAddress = await AttemptLoginAsync(
-            client, $"default-account-owner-probe@test.local", "whatever");
-        Assert.Equal(afterProvisioning.Title, knownAddress.Title);
+        // A wrong password for a user that genuinely EXISTS must answer
+        // identically to the unknown address above — this feature must not have
+        // made the denial enumerable.
+        //
+        // Uses the Owner's real, just-created address (PR #363 review). An
+        // earlier version submitted an unrelated literal here, so BOTH sides of
+        // the comparison were unknown-user requests: it asserted that two
+        // identical code paths agree, and would have stayed green even if
+        // known-user failures started returning something distinguishable.
+        var knownAddress = await AttemptLoginAsync(client, ownerEmail, "definitely-not-the-password");
+        Assert.Equal(unknownAddress.Status, knownAddress.Status);
+        Assert.Equal(unknownAddress.Title, knownAddress.Title);
 
         // And the latch must have engaged, or every later failed sign-in
         // re-queries. Read from the running host's own singleton, so it

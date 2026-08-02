@@ -165,9 +165,17 @@ public static class AuthEndpoints
             // A successful sign-in never reaches this, which is what keeps the
             // check off the hot path.
             if (!await firstRun.IsProvisionedAsync(ct))
+                // Says ADMINISTRATOR, not "no accounts" and not "no sign-in can
+                // succeed" (PR #363 review). The predicate is specifically "the
+                // default account has no Owner", which is #283's provisioning
+                // invariant — and a non-Owner user can exist without one (the
+                // seeders create them, and this suite's own
+                // ASuccessfulSignIn_NeverReportsIt sets up exactly that state).
+                // Such a user signs in perfectly well, so the broader claim
+                // would be false in a reachable state.
                 return Results.Problem(
-                    "This farm has no administrator account yet, so no sign-in can succeed. "
-                    + "Whoever set up this server must create the first one.",
+                    "This farm has no administrator account yet — first-time setup has not been "
+                    + "completed. Whoever set up this server must create the first administrator.",
                     statusCode: 401,
                     title: NoAccountsProvisionedCode);
 

@@ -44,9 +44,13 @@ export const en = {
     // default account still has no Owner. Base data ships in the migrations
     // but no credential ever does, so a fresh install reaches a form that
     // cannot succeed; this names the command that fixes it.
+    // Says ADMINISTRATOR, never "no accounts" (PR #363 review): the condition
+    // is specifically that no Owner exists, and a non-Owner user can exist
+    // without one and sign in perfectly well — so the broader claim would be
+    // false in a reachable state.
     noAdminYet:
-      "No administrator yet. This farm has no accounts, so nobody can sign in "
-      + "until the first one is created.",
+      "No administrator yet. This farm hasn't finished first-time setup, so "
+      + "there's no administrator account to sign in with.",
     // No command here on purpose — see the comment in Login.tsx. Whoever set the
     // server up runs a one-time setup step; the README carries the exact steps.
     noAdminYetHint:

@@ -616,8 +616,8 @@ already-provisioned account is a safe no-op (no second Owner, no password
 reprinted). Because a migrated-but-unprovisioned instance therefore presents a
 sign-in form that cannot succeed, the **login screen says so**: attempting to
 sign in while the default account has no Owner answers with a short notice
-explaining that no account exists yet and pointing at whoever administers the
-server, instead of the usual "invalid email or password" — which would be
+explaining that no **administrator** account exists yet and pointing at whoever
+administers the server, instead of the usual "invalid email or password" — which would be
 actively misleading, since nothing was wrong with what was typed. It disappears
 for good once the first Owner exists. The notice deliberately publishes **no
 command and no deployment detail** — a page reachable by anyone is the wrong

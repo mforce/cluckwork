@@ -39,8 +39,9 @@ export const es = {
     // machine-drafted (#182) — pending native review.
     credentialsTooLong: "Eso es demasiado largo — revise su correo electrónico y contraseña.",
     noAdminYet:
-      "Todavía no hay administrador. Esta granja no tiene cuentas, así que "
-      + "nadie puede iniciar sesión hasta que se cree la primera.",
+      "Todavía no hay administrador. Esta granja no ha completado la "
+      + "configuración inicial, así que no hay una cuenta de administrador con "
+      + "la que iniciar sesión.",
     noAdminYetHint:
       "Pida a quien configuró este servidor que cree el primer administrador. "
       + "Los pasos de configuración están en el README del proyecto.",

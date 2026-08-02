@@ -44,8 +44,9 @@ export const tl = {
     // machine-drafted (#182) — pending native review.
     credentialsTooLong: "Sobrang haba niyan — tingnan ang iyong email at password.",
     noAdminYet:
-      "Wala pang administrator. Walang account ang farm na ito, kaya walang "
-      + "makakapag-sign in hangga't hindi nagagawa ang una.",
+      "Wala pang administrator. Hindi pa natatapos ang paunang setup ng farm "
+      + "na ito, kaya wala pang administrator account na maaaring gamitin sa "
+      + "pag-sign in.",
     noAdminYetHint:
       "Hilingin sa kung sino ang nag-set up ng server na ito na gawin ang unang "
       + "administrator. Nasa README ng proyekto ang mga hakbang sa setup.",
