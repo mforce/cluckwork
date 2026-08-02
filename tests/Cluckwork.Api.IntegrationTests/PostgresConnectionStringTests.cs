@@ -122,13 +122,14 @@ public sealed class PostgresConnectionStringTests
         // A managed-Postgres URL shape (RFC 2606 example host — no provider name): sslmode
         // plus the SCRAM anti-MITM control channel_binding, common libpq params, and one
         // param with no Npgsql equivalent. Npgsql 10.0.3 SUPPORTS channel_binding /
-        // target_session_attrs under spaced names, so those must be MAPPED (not dropped);
-        // gssencmode has no equivalent -> skipped-with-warning. Must boot, not throw.
+        // target_session_attrs / gssencmode under spaced names, so those must be MAPPED
+        // (not dropped); keepalives has no equivalent -> skipped-with-warning. Must boot,
+        // not throw.
         var warnings = new List<string>();
         var b = Normalized(
             "postgresql://user:pass@db.example.com/appdb?sslmode=require&channel_binding=require" +
             "&application_name=cluckwork&connect_timeout=10&target_session_attrs=read-write" +
-            "&gssencmode=disable",
+            "&keepalives=1",
             isProduction: true, onWarning: warnings.Add);
 
         Assert.Equal("db.example.com", b.Host);
@@ -137,8 +138,92 @@ public sealed class PostgresConnectionStringTests
         Assert.Equal(10, b.Timeout);                             // connect_timeout   -> "Timeout"
         Assert.Equal("Require", b["Channel Binding"]!.ToString()); // channel_binding -> "Channel Binding" (MAPPED)
         Assert.Contains("Target Session Attributes", b.ConnectionString); // target_session_attrs (MAPPED)
-        var skip = Assert.Single(warnings, w => w.Contains("gssencmode"));
+        var skip = Assert.Single(warnings, w => w.Contains("keepalives"));
         Assert.Contains("ignored", skip);
+    }
+
+    // ---- #332: GSS encryption negotiation -----------------------------------
+    // Npgsql's GssEncryptionMode defaults to Prefer, so every connector probes for
+    // GSSAPI/Kerberos before authenticating. On the hardened runtime image (#267,
+    // no libgssapi-krb5-2) that probe makes the .NET native security shim print two
+    // UNSTRUCTURED lines to stderr — before Serilog exists, so they bypass the log
+    // pipeline entirely and read like a failure during every deploy. Cluckwork never
+    // authenticates via Kerberos, so the negotiation is disabled by default rather
+    // than adding a package to the Trivy-scanned image.
+
+    [Fact]
+    public void Uri_GssEncMode_IsMapped_NotSkippedAsUnknown()
+    {
+        // REGRESSION (#332): 'gssencmode' has no *literal* Npgsql keyword, but it DOES
+        // have an equivalent ("GSS Encryption Mode"). Before the fix it fell into the
+        // unknown-parameter branch and was silently dropped with a warning, so an
+        // operator could not control GSS negotiation from the connection URI at all.
+        var warnings = new List<string>();
+
+        var b = Normalized("postgresql://u:p@h/db?gssencmode=require", onWarning: warnings.Add);
+
+        Assert.Equal(GssEncryptionMode.Require, b.GssEncryptionMode);
+        Assert.DoesNotContain(warnings, w => w.Contains("gssencmode"));
+    }
+
+    [Fact]
+    public void Uri_WithoutGssEncMode_DefaultsToDisable()
+    {
+        var b = Normalized("postgresql://u:p@h/db?sslmode=verify-full", isProduction: true);
+
+        Assert.Equal(GssEncryptionMode.Disable, b.GssEncryptionMode);
+        Assert.Equal(SslMode.VerifyFull, b.SslMode); // the TLS floor is untouched by the default
+    }
+
+    [Fact]
+    public void KeyValue_WithoutGssEncryptionMode_DefaultsToDisable()
+    {
+        var b = Normalized("Host=h;Username=u;Password=p");
+
+        Assert.Equal(GssEncryptionMode.Disable, b.GssEncryptionMode);
+    }
+
+    [Theory]
+    [InlineData("GSS Encryption Mode")]  // canonical Npgsql spelling
+    [InlineData("gssencryptionmode")]    // Npgsql matches case- and space-insensitively
+    public void ExplicitGssEncryptionMode_Prefer_IsPreserved(string keyword)
+    {
+        // The default must key off PRESENCE, not value. 'Prefer' is what Npgsql would
+        // have used anyway, so an implementation that compares against the enum default
+        // (rather than detecting the keyword) silently overrides an operator who asked
+        // for it explicitly — and this is the only case that catches that.
+        var b = Normalized($"Host=h;Username=u;Password=p;{keyword}=prefer");
+
+        Assert.Equal(GssEncryptionMode.Prefer, b.GssEncryptionMode);
+    }
+
+    [Fact]
+    public void ExplicitGssEncryptionMode_Require_IsPreserved()
+    {
+        // A Kerberos-fronted deployment opts back in; the app default never overrides it.
+        var b = Normalized("Host=h;Username=u;Password=p;GSS Encryption Mode=require");
+
+        Assert.Equal(GssEncryptionMode.Require, b.GssEncryptionMode);
+    }
+
+    [Fact]
+    public void GssDefault_OnTrailingSemicolon_ProducesAParsableString()
+    {
+        // Appending to a string that already ends in ';' must not yield an empty segment.
+        var b = Normalized("Host=h;Username=u;Password=p;");
+
+        Assert.Equal(GssEncryptionMode.Disable, b.GssEncryptionMode);
+        Assert.Equal("p", b.Password);
+    }
+
+    [Fact]
+    public void GssDefault_DoesNotDisturbAQuotedPassword()
+    {
+        // The append is textual, so prove it survives a password carrying the ';' separator.
+        var b = Normalized("Host=h;Username=u;Password=\"pa;ss\"");
+
+        Assert.Equal(GssEncryptionMode.Disable, b.GssEncryptionMode);
+        Assert.Equal("pa;ss", b.Password);
     }
 
     [Fact]
@@ -155,14 +240,17 @@ public sealed class PostgresConnectionStringTests
     // ---- #261: key-value passthrough ---------------------------------------
 
     [Fact]
-    public void KeyValue_IsPassedThroughByteForByte()
+    public void KeyValue_OperatorSettingsSurviveVerbatim()
     {
-        // A Testcontainers-style plaintext key-value string must survive untouched.
+        // A Testcontainers-style plaintext key-value string must survive untouched. Since
+        // #332 the ONLY edit is the appended GSS default — the operator's own text is never
+        // reparsed/reordered/requoted, so an exotic value can't be mangled in transit.
         const string kv = "Host=localhost;Port=5432;Database=cluckwork;Username=postgres;Password=postgres";
 
         var result = PostgresConnectionString.NormalizeAndValidate(kv, isProduction: false);
 
-        Assert.Equal(kv, result);
+        Assert.StartsWith(kv, result, StringComparison.Ordinal);
+        Assert.Equal(";GSS Encryption Mode=Disable", result[kv.Length..]);
     }
 
     // ---- #262: production TLS floor (allow-list, fail closed) ---------------
