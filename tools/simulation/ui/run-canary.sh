@@ -32,9 +32,11 @@
 # Both places, deliberately:
 #   * playwright-report-canary/ — traces and per-screen attachments, for
 #     debugging one bad run.
-#   * tools/simulation/out/canary-vitals.json — read by run-baseline.sh and
-#     folded into the findings doc's "Browser experience" section, so the browser
-#     numbers and the server percentiles from the same window share a page.
+#   * tools/simulation/out/canary-vitals/<screen>.json — read by run-baseline.sh
+#     and folded into the findings doc's "Browser experience" section, so the
+#     browser numbers and the server percentiles from the same window share a
+#     page. ONE FILE PER SCREEN, because at CANARY_BROWSERS=2 the tests run in
+#     two worker processes and a single shared file would be last-writer-wins.
 
 set -euo pipefail
 
@@ -53,6 +55,11 @@ WITH_LOAD=0
 [[ "${1:-}" == "--with-load" ]] && WITH_LOAD=1
 
 cd "$UI_DIR"
+
+# Clear previous samples so a partial run cannot be silently mixed with an older
+# complete one. Done HERE, once, rather than from a test — a test clearing shared
+# output would race the other worker.
+rm -rf "$SIM_DIR/out/canary-vitals"
 
 if [[ ! -d node_modules ]]; then
   echo "canary: dependencies are not installed."
@@ -118,7 +125,7 @@ set -e
 
 echo
 echo "== canary: done (playwright exit ${CANARY_STATUS}) =="
-echo "   vitals JSON:      $SIM_DIR/out/canary-vitals.json"
+echo "   vitals JSON:      $SIM_DIR/out/canary-vitals/*.json"
 echo "   playwright report: $UI_DIR/playwright-report-canary/"
 echo "   k6 log:            $K6_LOG"
 echo
