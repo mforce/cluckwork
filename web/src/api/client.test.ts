@@ -920,6 +920,57 @@ describe("cross-tab refresh coordination (#169)", () => {
     expect(sutLockName(locks)).toBe("cluckwork.auth.refresh");
   });
 
+  it("drops a queued password change before any request when logout supersedes it", async () => {
+    const locks = fakeLockManager();
+    vi.stubGlobal("navigator", { locks });
+
+    // Another tab owns the cookie lock, so this tab's password change queues
+    // without starting a request. Logout must make that queued operation inert.
+    const otherTab = deferred<void>();
+    locks.request("cluckwork.auth.refresh", () => otherTab.promise);
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.endsWith("/auth/logout")) return new Response(null, { status: 204 });
+      if (url.endsWith("/auth/refresh")) return accessResponse("post-logout-refresh");
+      if (url.endsWith("/auth/change-password")) return accessResponse("post-logout-change");
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    const changing = changePassword({ currentPassword: "a", newPassword: "b" })
+      .catch((err: unknown) => err);
+    await drain();
+    await logout();
+    otherTab.resolve();
+    await changing;
+
+    expect(getAccessToken()).toBeNull();
+    expect(callsTo(fetchMock, "/auth/refresh")).toHaveLength(0);
+    expect(callsTo(fetchMock, "/auth/change-password")).toHaveLength(0);
+    expect(callsTo(fetchMock, "/auth/logout")).toHaveLength(1);
+  });
+
+  it("drops a queued password change before it can write into a newer login", async () => {
+    const locks = fakeLockManager();
+    vi.stubGlobal("navigator", { locks });
+
+    const otherTab = deferred<void>();
+    locks.request("cluckwork.auth.refresh", () => otherTab.promise);
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.endsWith("/auth/login")) return accessResponse("new-login-token");
+      if (url.endsWith("/auth/change-password")) return accessResponse("stale-change-token");
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    const changing = changePassword({ currentPassword: "a", newPassword: "b" })
+      .catch((err: unknown) => err);
+    await drain();
+    await login({ email: "new@session.test", password: `pw-${crypto.randomUUID()}` });
+    otherTab.resolve();
+    await changing;
+
+    expect(getAccessToken()).toBe("new-login-token");
+    expect(callsTo(fetchMock, "/auth/change-password")).toHaveLength(0);
+  });
+
   it("a lock held under a DIFFERENT name does not block refresh (fake is name-scoped, like the real API)", async () => {
     const locks = fakeLockManager();
     vi.stubGlobal("navigator", { locks });
