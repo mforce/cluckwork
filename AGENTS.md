@@ -269,6 +269,19 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
     should not go red because a release is stuck, but warns and names the draft
     in the step summary.
 
+    **It must probe with the App token, not `GITHUB_TOKEN`.** GitHub lists draft
+    releases only to a caller with **push** access, and the job's own token is
+    `contents: read` — so probing with it returns no drafts at all, the boundary
+    draft looks absent, and the guard passes and grooms against the missing tag.
+    A guard that silently never fires is worse than none (#411 review, third
+    round). That is why the App token is minted *before* the guard and why
+    `permission-contents: write` on it is not only for the changelog commit.
+
+    A missing manifest version **proceeds** rather than skips: there is no
+    previous release to resolve against, so nothing can be got wrong, and it is
+    the state a repo is in before its first release — skipping there would
+    deadlock it, since no grooming means no release PR, ever.
+
   `groom` mints its own App token and **must** keep the `permission-*` downscoping
   — omitting those mints the union of every grant the App holds, silently (see the
   release-PR-token bullet below).

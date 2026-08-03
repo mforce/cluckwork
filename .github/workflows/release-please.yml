@@ -609,6 +609,30 @@ jobs:
     permissions:
       contents: read
     steps:
+      # Minted FIRST, and used by the guard below as well as by release-please.
+      #
+      # The guard needs it: GitHub returns draft releases only to a caller with
+      # PUSH access, and this job's own GITHUB_TOKEN is `contents: read`. Probing
+      # with that token lists no drafts at all, so the boundary draft looks
+      # absent, the guard passes, and it grooms against the missing tag — a guard
+      # that silently never fires, which is worse than no guard (#411 review).
+      #
+      # Downscoped per-permission for the same reason as the cut job above: the
+      # same App backs dependabot-lockfix, and `permission-*` caps THIS token at
+      # what grooming needs regardless of what the installation holds. Omitting
+      # these does not mint a narrow token — it mints the union of every grant
+      # the App has, silently. `contents: write` is what makes it push-access for
+      # the draft listing; it is not there only for the changelog commit.
+      - name: Mint a short-lived GitHub App token
+        id: app
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ secrets.LOCKFIX_APP_CLIENT_ID }}
+          private-key: ${{ secrets.LOCKFIX_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+          permission-issues: write
+
       # The actual guarantee. A DRAFT release was cut but never published, so it
       # has no git tag, so release-please cannot resolve the changelog boundary
       # through it — grooming then restates every earlier release over a correct
@@ -633,7 +657,7 @@ jobs:
       - name: Refuse to groom while the boundary release has no tag
         id: guard
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.app.outputs.token }}
           GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
@@ -642,10 +666,13 @@ jobs:
             -H "Accept: application/vnd.github.raw" --jq '."."' 2>/dev/null || true)
 
           if [ -z "$version" ] || [ "$version" = "null" ]; then
-            # Unreadable manifest is a broken repo state that release-please
-            # itself would fail on. Skip rather than groom blind, and say so.
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "::warning::Release PR not groomed — could not read the current version from .release-please-manifest.json."
+            # No manifest version means no previous release to resolve a
+            # boundary against — there is nothing here to get wrong, and this is
+            # the state a repo is in before its FIRST release. Skipping would
+            # deadlock that repo: grooming never runs, so no release PR is ever
+            # opened. Proceed, and say why.
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::No version in .release-please-manifest.json — grooming without a boundary check (expected before the first release)."
             exit 0
           fi
 
@@ -665,22 +692,6 @@ jobs:
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
-
-      # Downscoped per-permission for the same reason as the cut job above: the
-      # same App backs dependabot-lockfix, and `permission-*` caps THIS token at
-      # what grooming needs regardless of what the installation holds. Omitting
-      # these does not mint a narrow token — it mints the union of every grant
-      # the App has, silently.
-      - name: Mint a short-lived GitHub App token
-        id: app
-        if: steps.guard.outputs.skip != 'true'
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
-        with:
-          client-id: ${{ secrets.LOCKFIX_APP_CLIENT_ID }}
-          private-key: ${{ secrets.LOCKFIX_APP_PRIVATE_KEY }}
-          permission-contents: write
-          permission-pull-requests: write
-          permission-issues: write
 
       - name: Run release-please
         if: steps.guard.outputs.skip != 'true'
