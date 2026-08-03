@@ -69,12 +69,41 @@ fail=0
 # authored text and an ordinary commit was rejected. Measured, not assumed.
 # Only the structural part -- dashes, `>8`, dashes -- is fixed.
 #
-#   scissors, then diff --git   -> git's verbose diff  -> ignored
-#   diff --git, no scissors     -> authored excerpt    -> CHECKED
-#   scissors, no diff --git     -> authored text       -> CHECKED (the repro)
+# ADJACENCY IS REQUIRED, not "scissors ever seen, then some later diff --git".
+# The looser form was a real, worse gap, confirmed by testing: a scissors line
+# followed eventually by ANY line that happens to start with "diff --git " --
+# even an unrelated prose mention -- truncated everything from there on, so a
+# genuine offending line placed after that incidental mention was never read.
+#
+# The fix only requires NO BLANK LINE between the scissors marker and the
+# diff --git line -- not "comment lines only" (that would need knowing the
+# comment prefix, which is exactly the core.commentChar problem above). This
+# matches git's real template (scissors, two comment lines, diff --git, no
+# blank line among them) and closes the incidental-mention gap, since real
+# prose almost always has a blank line before a `diff --git`-shaped mention.
+# It does NOT require the intervening lines to look like comments, so a short
+# authored block imitating git's shape (no blank lines, ending in a line that
+# starts with "diff --git ") still exempts what follows it -- see below.
+#
+# WHAT THIS DOES NOT CLOSE, and cannot close from content alone (#411 review):
+# git strips a `-v`-generated diff UNCONDITIONALLY -- measured true even under
+# `--cleanup=whitespace`, the weakest mode -- so the message a real `-v` commit
+# hands this hook is BYTE-IDENTICAL to one where an author typed the same
+# scissors-plus-diff text on purpose via `-F`/`-m`. No content-only check tells
+# those apart. An author who deliberately reproduces git's shape to smuggle a
+# parser-breaking line past this hook succeeds. Accepted: this is a skippable
+# local hook (`--no-verify` already bypasses it entirely), it exists to catch
+# ACCIDENTAL breakage, and defeating it this way takes exactly the same intent
+# as `--no-verify` -- deliberately produced, not stumbled into.
+#
+#   scissors, then diff --git, no blank line   -> exempted (matches git AND
+#                                                  a short forged imitation)
+#   scissors ... blank line ... diff --git     -> CHECKED (the closed gap)
+#   diff --git, no scissors                    -> authored excerpt -> CHECKED
+#   scissors, no diff --git                     -> authored text   -> CHECKED
 body=$(awk '
-  /^diff --git / && seen_scissors { exit }
-  /^[^[:space:]]+[[:space:]]+-+[[:space:]]+>8[[:space:]]+-+[[:space:]]*$/ { seen_scissors = 1 }
+  scissors_line { if ($0 ~ /^diff --git /) { exit }; if ($0 !~ /^[^[:space:]]/) { scissors_line = 0 }; print; next }
+  /^[^[:space:]]+[[:space:]]+-+[[:space:]]+>8[[:space:]]+-+[[:space:]]*$/ { scissors_line = 1; print; next }
   { print }
 ' "$msg")
 

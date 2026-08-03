@@ -393,11 +393,27 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
   like the undecorated line). What distinguishes git's own section is its
   framing — `commit -v` emits the scissors marker, then its notes, then the diff
   — so the tail is dropped only when `diff --git ` is **preceded by a scissors
-  line**. Match that marker **structurally — dashes, `>8`, dashes — never as a
-  literal `#` string**: the surrounding notes are translated, and
-  `core.commentChar` changes the prefix outright. With `;` configured, a literal
-  `#` match missed git's own marker, so its verbose diff read as authored text
-  and an ordinary commit was rejected. With `squash_merge_commit_message=COMMIT_MESSAGES`
+  line, with no blank line between them**. Match that marker **structurally —
+  dashes, `>8`, dashes — never as a literal `#` string**: the surrounding notes
+  are translated, and `core.commentChar` changes the prefix outright. With `;`
+  configured, a literal `#` match missed git's own marker, so its verbose diff
+  read as authored text and an ordinary commit was rejected.
+
+  **Two of these findings compound to one accepted limit, stated plainly rather
+  than chased further.** "Seen a scissors line, then *eventually* a `diff --git`
+  line" was itself a gap — an unrelated later mention of `diff --git` truncated
+  everything after it, including a genuine offender placed past that mention
+  (#411 review). Tightened to require no blank line in between, which matches
+  git's real template and closes that. But git strips a `-v` diff
+  **unconditionally, regardless of cleanup mode** — measured true even under
+  `--cleanup=whitespace` — so the message a real `-v` commit hands this hook is
+  **byte-identical** to one where an author typed the same scissors-plus-diff
+  shape on purpose. No check over content alone can tell those apart, and this
+  hook does not try further: it is local and `--no-verify`-skippable already,
+  exists to catch **accidental** breakage, and deliberately reproducing git's
+  shape to smuggle a line past it takes the same intent as `--no-verify` — not
+  something to keep patching around. With
+  `squash_merge_commit_message=COMMIT_MESSAGES`
   and `squash_merge_commit_title=COMMIT_OR_PR_TITLE` (and merge/rebase also
   enabled), what release-please parses is:
 
