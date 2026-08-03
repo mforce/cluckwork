@@ -301,6 +301,53 @@ public sealed class RequestLoggingTests(RequestLoggingFactory factory)
         Assert.Equal(LogEventLevel.Information, completion.Level);
         Assert.Null(completion.Exception);
     }
+
+    // #398 review round 3 (Codex) — the unsupported-Content-Type path, raised as
+    // "binding-generated 415s inflate error telemetry". The reasoning was that
+    // ThrowOnBadRequest governs the binder's OWN failures, an unsupported media
+    // type is one of those, so it would throw, BindingFailureResponse would
+    // rethrow it (not a 400), and Serilog would log its hardcoded 500/Error.
+    //
+    // Measured: no 415 is ever generated. A JSON-bound minimal-API endpoint
+    // carries a content-type constraint on the ROUTE, so a form-encoded body
+    // fails to match and is refused with 404 before any binder runs. There is no
+    // exception, so there is nothing for the middleware to rethrow and nothing
+    // for Serilog to mis-classify.
+    //
+    // Pinned anyway, because the guarantee is the one that matters and is easy
+    // to lose: an ordinary client mistake must never reach Error level. If a
+    // future change did start producing a real 415 through the binder, this goes
+    // red rather than silently inflating 5xx alerts.
+    [Fact]
+    public async Task Unsupported_content_type_is_refused_without_error_telemetry()
+    {
+        var client = factory.CreateClient();
+
+        var content = new StringContent(
+            "email=nobody@example.com&password=whatever",
+            System.Text.Encoding.UTF8,
+            "application/x-www-form-urlencoded");
+
+        var response = await client.SendAsync(
+            new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/login") { Content = content });
+
+        // Routing refuses it; the endpoint is never reached.
+        Assert.Equal(System.Net.HttpStatusCode.NotFound, response.StatusCode);
+
+        // The real assertion: whatever status this path produces, no completion
+        // for it is logged at Error, and none carries an exception. Written
+        // against the status rather than pinning 404 twice, so a future change
+        // to 415 keeps proving the telemetry guarantee instead of just failing.
+        var completions = CompletionEventsFor("/api/v1/auth/login")
+            .Where(e => ScalarOf(e, "StatusCode") == ((int)response.StatusCode).ToString())
+            .ToList();
+        Assert.NotEmpty(completions);
+        Assert.All(completions, e =>
+        {
+            Assert.Equal(LogEventLevel.Information, e.Level);
+            Assert.Null(e.Exception);
+        });
+    }
 }
 
 // Own collection (not "integration"): this class uses its own factory/container

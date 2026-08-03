@@ -1,0 +1,82 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TestRun id="23b135f5-7cb8-4f09-9fc3-c5a6fbdd9811" name="@nixos 2026-08-02 19:41:39" xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
+  <Times creation="2026-08-02T19:41:39.1322878-07:00" queuing="2026-08-02T19:41:39.1322878-07:00" start="2026-08-02T19:41:34.3024372-07:00" finish="2026-08-02T19:41:39.1361717-07:00" />
+  <TestSettings name="default" id="54727e89-b0a2-49fb-8645-71e26b46d445">
+    <Deployment runDeploymentRoot="_nixos_2026-08-02_19_41_39" />
+  </TestSettings>
+  <Results>
+    <UnitTestResult executionId="9fa82704-72a5-4f67-b9f5-36aec430fd68" testId="2fe3d6bf-2510-9b80-f81e-47f37d1f87d7" testName="Cluckwork.Api.IntegrationTests.RequestLoggingTests.Unsupported_media_type_logs_one_completion_at_information_with_status_415" computerName="nixos" duration="00:00:00.1805494" startTime="2026-08-02T19:41:38.7450924-07:00" endTime="2026-08-02T19:41:38.9297962-07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Failed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="9fa82704-72a5-4f67-b9f5-36aec430fd68">
+      <Output>
+        <ErrorInfo>
+          <Message>Assert.Equal() Failure: Values differ
+Expected: UnsupportedMediaType
+Actual:   NotFound</Message>
+          <StackTrace>   at Cluckwork.Api.IntegrationTests.RequestLoggingTests.Unsupported_media_type_logs_one_completion_at_information_with_status_415() in /home/mforce/dev/cluckwork/.claude/worktrees/agent-a91a3b121035be3db/tests/Cluckwork.Api.IntegrationTests/RequestLoggingTests.cs:line 329
+--- End of stack trace from previous location ---</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+  </Results>
+  <TestDefinitions>
+    <UnitTest name="Cluckwork.Api.IntegrationTests.RequestLoggingTests.Unsupported_media_type_logs_one_completion_at_information_with_status_415" storage="/home/mforce/dev/cluckwork/.claude/worktrees/agent-a91a3b121035be3db/tests/cluckwork.api.integrationtests/bin/debug/net10.0/cluckwork.api.integrationtests.dll" id="2fe3d6bf-2510-9b80-f81e-47f37d1f87d7">
+      <Execution id="9fa82704-72a5-4f67-b9f5-36aec430fd68" />
+      <TestMethod codeBase="/home/mforce/dev/cluckwork/.claude/worktrees/agent-a91a3b121035be3db/tests/Cluckwork.Api.IntegrationTests/bin/Debug/net10.0/Cluckwork.Api.IntegrationTests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="Cluckwork.Api.IntegrationTests.RequestLoggingTests" name="Unsupported_media_type_logs_one_completion_at_information_with_status_415" />
+    </UnitTest>
+  </TestDefinitions>
+  <TestEntries>
+    <TestEntry testId="2fe3d6bf-2510-9b80-f81e-47f37d1f87d7" executionId="9fa82704-72a5-4f67-b9f5-36aec430fd68" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+  </TestEntries>
+  <TestLists>
+    <TestList name="Results Not in a List" id="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestList name="All Loaded Results" id="19431567-8539-422a-85d7-44ee4e166bda" />
+  </TestLists>
+  <ResultSummary outcome="Failed">
+    <Counters total="1" executed="1" passed="0" failed="1" error="0" timeout="0" aborted="0" inconclusive="0" passedButRunAborted="0" notRunnable="0" notExecuted="0" disconnected="0" warning="0" completed="0" inProgress="0" pending="0" />
+    <Output>
+      <StdOut>[xUnit.net 00:00:00.00] xUnit.net VSTest Adapter v3.1.5+1b188a7b0a (64-bit .NET 10.0.10)
+[xUnit.net 00:00:00.08]   Discovering: Cluckwork.Api.IntegrationTests
+[xUnit.net 00:00:00.14]   Discovered:  Cluckwork.Api.IntegrationTests
+[xUnit.net 00:00:00.15]   Starting:    Cluckwork.Api.IntegrationTests
+[testcontainers.org 00:00:00.08] Connected to Docker:
+  Host: unix:///var/run/docker.sock
+  Server Version: 29.6.1
+  Kernel Version: 6.18.39
+  API Version: 1.55
+  Operating System: NixOS 26.05 (Yarara)
+  Total Memory: 60.39 GB
+[testcontainers.org 00:00:00.21] Docker container dfcdf8470367 created
+[testcontainers.org 00:00:00.24] Start Docker container dfcdf8470367
+[testcontainers.org 00:00:00.33] Wait for Docker container dfcdf8470367 to complete readiness checks
+[testcontainers.org 00:00:01.36] Docker container dfcdf8470367 ready
+[testcontainers.org 00:00:01.48] Docker container bdcaa5b6ecd0 created
+[testcontainers.org 00:00:01.48] Start Docker container bdcaa5b6ecd0
+[testcontainers.org 00:00:01.54] Wait for Docker container bdcaa5b6ecd0 to complete readiness checks
+[testcontainers.org 00:00:01.55] Execute "pg_isready --host localhost --dbname postgres --username postgres" at Docker container bdcaa5b6ecd0
+[testcontainers.org 00:00:02.60] Execute "pg_isready --host localhost --dbname postgres --username postgres" at Docker container bdcaa5b6ecd0
+[testcontainers.org 00:00:02.64] Docker container bdcaa5b6ecd0 ready
+[19:41:37 INF] [:] OTLP export disabled (Otlp:Endpoint not set)
+[19:41:38 ERR] [:] Failed executing DbCommand (11ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+SELECT "MigrationId", "ProductVersion"
+FROM "__EFMigrationsHistory"
+ORDER BY "MigrationId";
+[19:41:38 WRN] [:] The WebRootPath was not found: /home/mforce/dev/cluckwork/.claude/worktrees/agent-a91a3b121035be3db/src/Cluckwork.Api/wwwroot. Static files may be unavailable.
+[19:41:38 WRN] [:] The WebRootPath was not found: /home/mforce/dev/cluckwork/.claude/worktrees/agent-a91a3b121035be3db/src/Cluckwork.Api/wwwroot. Static files may be unavailable.
+[19:41:38 WRN] [e3e8289d0fa83dd18020e3f32e4f8a1b:1ab9e9e55dbeb1b2] Failed to determine the https port for redirect.
+[19:41:38 INF] [e3e8289d0fa83dd18020e3f32e4f8a1b:1ab9e9e55dbeb1b2] HTTP POST /api/v1/auth/login responded 404 in 27.4477 ms
+[xUnit.net 00:00:04.42]       Assert.Equal() Failure: Values differ
+[xUnit.net 00:00:04.42]       Expected: UnsupportedMediaType
+[xUnit.net 00:00:04.42]       Actual:   NotFound
+[xUnit.net 00:00:04.42]       Stack Trace:
+[xUnit.net 00:00:04.42]         /home/mforce/dev/cluckwork/.claude/worktrees/agent-a91a3b121035be3db/tests/Cluckwork.Api.IntegrationTests/RequestLoggingTests.cs(329,0): at Cluckwork.Api.IntegrationTests.RequestLoggingTests.Unsupported_media_type_logs_one_completion_at_information_with_status_415()
+[xUnit.net 00:00:04.42]         --- End of stack trace from previous location ---
+[testcontainers.org 00:00:04.21] Delete Docker container bdcaa5b6ecd0
+[xUnit.net 00:00:04.57]   Finished:    Cluckwork.Api.IntegrationTests
+</StdOut>
+    </Output>
+    <RunInfos>
+      <RunInfo computerName="nixos" outcome="Error" timestamp="2026-08-02T19:41:38.9313951-07:00">
+        <Text>[xUnit.net 00:00:04.42]     Cluckwork.Api.IntegrationTests.RequestLoggingTests.Unsupported_media_type_logs_one_completion_at_information_with_status_415 [FAIL]</Text>
+      </RunInfo>
+    </RunInfos>
+  </ResultSummary>
+</TestRun>
