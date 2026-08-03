@@ -2,6 +2,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, within, act } from "@testing-library/react";
 import { HelpPage } from "./HelpPage";
 import i18n from "../i18n";
+import { en } from "../i18n/en";
+import { es } from "../i18n/es";
+import { tl } from "../i18n/tl";
 
 // Minimal IntersectionObserver stub (jsdom has none): capture the callback so a
 // test can simulate a section scrolling into view.
@@ -89,6 +92,33 @@ describe("HelpPage", () => {
     expect(signIn).toBeInTheDocument();
   });
 
+  it("distinguishes self-change session retention from an admin reset in every catalog", () => {
+    render(<HelpPage />);
+    expect(screen.getByText(/keeps this device signed in/i)).toBeInTheDocument();
+    expect(screen.getByText(/every one of your open sessions ends on its next request/i)).toBeInTheDocument();
+
+    expect(en.help.ownPassword).toMatch(
+      /keeps this device signed in.*every <em>other<\/em> open session.*next request/i,
+    );
+    expect(en.help.ownPassword).toMatch(
+      /admin sets your password.*every one of your open sessions ends on its next request/i,
+    );
+    expect(es.help.ownPassword).toMatch(
+      /mantiene este dispositivo conectado.*cada <em>otra<\/em> sesión abierta.*siguiente solicitud/i,
+    );
+    expect(es.help.ownPassword).toMatch(
+      /administrador le establece la contraseña.*todas sus sesiones abiertas terminan.*siguiente solicitud/i,
+    );
+    expect(tl.help.ownPassword).toMatch(
+      /naka-sign in sa device na ito.*bawat <em>ibang<\/em> bukas na session.*susunod nitong request/i,
+    );
+    expect(tl.help.ownPassword).toMatch(
+      /admin ang magse-set ng password mo.*lahat ng bukas mong session.*susunod nitong request/i,
+    );
+    for (const catalog of [en, es, tl])
+      expect(catalog.help.ownPassword).not.toMatch(/few minutes|unos minutos|ilang minuto/i);
+  });
+
   it("documents the per-account report throttle a user can actually hit (#311)", () => {
     // #311 caps concurrently in-flight reports per account, so a real user can
     // meet a 429 on the Reports screen. Both in-app surfaces must say so — the
@@ -114,6 +144,41 @@ describe("HelpPage", () => {
     expect(strongs).toContain("If a report is refused");
     expect(strongs).toContain("try again shortly");
     expect(screen.queryByText(/<strong>/)).not.toBeInTheDocument();
+  });
+
+  it("explains that grade reconciliation must be exact, not just not-over, on submit and admin adjust (#394)", () => {
+    render(<HelpPage />);
+
+    // dailyEntryPanes: the sellable figure is introduced, then the draft/
+    // official distinction is explicit — a draft may fall short, submitting
+    // may not. The old "can never exceed it" half (over-only) is gone.
+    expect(
+      screen.getByText(/A draft can leave that partly done, or not started at all/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/can never exceed it/i)).not.toBeInTheDocument();
+
+    // dailyEntryGradingDown: the old copy only warned about overshooting
+    // ("You cannot submit while it is over") — a worker must see that being
+    // short is refused exactly the same way, down to reading zero.
+    expect(screen.getByText(/You cannot submit until it reads exactly zero/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/grading a day partway, or not at all, is fine for a draft but not for Submit/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/You cannot submit while it is over/)).not.toBeInTheDocument();
+
+    // mistakesRow8Fix (History → adjust): the corrected grades must reconcile
+    // exactly and Save adjustment is blocked until they do — while the
+    // pre-existing sold-eggs floor and previous-values snapshot still hold.
+    // Scoped to this row's cell: the "must add up to ... exactly" clause is
+    // deliberately echoed in glossaryAdjustEntryDef too (same fact, two
+    // places), which an unscoped getByText would match twice.
+    const adjustFixCell = screen.getByRole("cell", { name: /Save adjustment/ });
+    expect(
+      within(adjustFixCell).getByText(/The corrected grades must add up to the corrected sellable count exactly/),
+    ).toBeInTheDocument();
+    expect(within(adjustFixCell).getByText(/is blocked until they do/)).toBeInTheDocument();
+    expect(within(adjustFixCell).getByText(/shrinking a grade below what was sold is refused/)).toBeInTheDocument();
+    expect(within(adjustFixCell).getByText(/The previous values stay visible on the entry/)).toBeInTheDocument();
   });
 
   it("scroll-spies the contents rail — the section in view is marked current", () => {
@@ -351,5 +416,23 @@ describe("HelpPage glossary i18n wiring (#182, Task 33)", () => {
           .not.toBeInTheDocument();
       },
     );
+  });
+
+  // #398 — the SPA now refuses a fractional sale-line quantity before sending.
+  // The stepper note used to end "Prices and fractional amounts are still
+  // typed", which reads as permission to TYPE a fractional quantity — the exact
+  // thing that is now an error. The assertion has to be about that sentence
+  // saying quantities are whole numbers, not merely that the section renders:
+  // the section rendered perfectly happily with the misleading copy in it.
+  it("tells the reader a sale quantity is a whole number, not that fractional amounts are typeable (#398)", () => {
+    render(<HelpPage />);
+    expect(screen.getByText(/always a/i)).toBeInTheDocument();
+    expect(screen.getByText(/stepped or typed/i)).toBeInTheDocument();
+    expect(screen.getByText(/Decimals belong in prices/i)).toBeInTheDocument();
+    // The retired wording must be gone, not merely joined by the new sentence —
+    // leaving both in place would still tell a worker fractional amounts are
+    // acceptable input for a quantity.
+    expect(screen.queryByText(/Prices and fractional amounts are still typed/i))
+      .not.toBeInTheDocument();
   });
 });

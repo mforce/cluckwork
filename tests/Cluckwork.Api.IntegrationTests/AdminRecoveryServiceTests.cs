@@ -60,6 +60,7 @@ public sealed class AdminRecoveryServiceTests : IClassFixture<BreakGlassRecovery
         Guid adminUserId;
         Guid adminAccountId;
         string originalStamp;
+        int originalCredentialEpoch;
         using (var s = Scope())
         {
             var idp = s.ServiceProvider.GetRequiredService<IIdentityProvider>();
@@ -72,6 +73,7 @@ public sealed class AdminRecoveryServiceTests : IClassFixture<BreakGlassRecovery
             adminUserId = admin.Id;
             adminAccountId = admin.AccountId;
             originalStamp = admin.SecurityStamp!;
+            originalCredentialEpoch = admin.CredentialEpoch;
 
             // Lock the account out — the exact state break-glass must recover from
             // (repeated failed logins → a 15-min lockout). LoginAsync checks
@@ -125,6 +127,7 @@ public sealed class AdminRecoveryServiceTests : IClassFixture<BreakGlassRecovery
             var db = s.ServiceProvider.GetRequiredService<AppDbContext>();
             var admin = await db.Users.SingleAsync(u => u.Id == adminUserId);
             Assert.NotEqual(originalStamp, admin.SecurityStamp);
+            Assert.Equal(originalCredentialEpoch + 1, admin.CredentialEpoch);
 
             // AuditEvent carries the tenant query filter, so IgnoreQueryFilters is
             // required here — this scope never resolved a tenant.

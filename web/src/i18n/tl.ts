@@ -38,6 +38,8 @@ export const tl = {
     signIn: "Mag-sign in",
     signingIn: "Nagsa-sign in…",
     invalidCredentials: "Mali ang email o password.",
+    credentialsSuperseded: "Nagbago ang iyong mga kredensyal. Mag-sign in muli.",
+    accountDisabled: "Na-disable ang iyong account.",
     tooManyAttempts:
       "Sobra na ang subok sa pag-sign in. Maghintay ng ilang minuto at subukan ulit.",
     apiDown: "Hindi makapag-sign in. Gumagana ba ang API?",
@@ -299,6 +301,8 @@ export const tl = {
     atMostDecimals: "Pinakamarami {{count}} decimal para sa currency na ito.",
     enterAmountGreaterThanZero: "Maglagay ng halagang higit sa zero.",
     invalidUnitPrice: "Di-wastong presyo bawat yunit.",
+    // machine-drafted (#182) — pending native review.
+    quantityMustBeWholeNumber: "Dapat buong bilang ang dami.",
     loadSalesDataFailed: "Hindi na-load ang datos ng benta. Gumagana ba ang API?",
     loadOrdersFailed: "Hindi na-load ang mga order.",
     loadPaymentsFailed: "Hindi na-load ang mga bayad ng order na ito.",
@@ -1209,8 +1213,8 @@ export const tl = {
     conflictReloadFailedMessage:
       "Binago ng ibang tao ang entry na ito at hindi na-reload ang "
       + "listahan — i-reload ang page bago subukan ulit.",
-    exceedsSellableMessage:
-      "Hindi puwedeng lumampas ang mga na-grade na dami sa kabuuang itlog na bawas ang basag/marumi/tinapon.",
+    gradesMustReconcileMessage:
+      "Dapat magkapareho ang mga na-grade na dami sa kabuuang itlog na bawas ang basag, marumi, at tinapon.",
     entryAdjustedMessage: "Na-adjust ang entry — na-update ang stock at ang rekord ng manok para tumugma.",
     adjustReloadFailedMessage: "Na-save ang pag-adjust, pero hindi na-reload ang listahan — i-refresh ang page.",
     voidConfirmTitle: "I-void ang entry ng {{date}} para sa {{flock}}?",
@@ -1238,11 +1242,8 @@ export const tl = {
     adjustDialogTitleWithEntry: "I-adjust — {{date}}, {{flock}}",
     previouslyAdjusted:
       "Na-adjust na dati (kabuuan {{total}}, mortalidad {{mortality}} — \"{{reason}}\").",
-    totalEggsLabel: "Kabuuang itlog",
-    crackedLabel: "Basag",
-    dirtyLabel: "Marumi",
-    discardedLabel: "Tinapon",
-    deathsLabel: "Namatay",
+    // Ang dalawang hakbang, mga label ng bilang at ang reconciliation chip ay
+    // galing sa `dailyEntry` namespace (iisang form).
     inactiveGradeSuffix: " (hindi aktibo)",
     reasonLabel: "Dahilan *",
     saveAdjustmentButton: "I-save ang pag-adjust",
@@ -1640,6 +1641,9 @@ export const tl = {
       + "ng password ng isang umiiral na Owner. Kinukumpirma nito na ikaw talaga bago bigyan ng ganoong "
       + "kalaking access — walang ibang aksyon sa screen na iyon (paggawa ng Worker/Manager/Sales/Read-only "
       + "user, pag-reset ng password nila) ang muling nagtatanong.",
+    signingInCredentialEpoch:
+      "Kapag ni-reset ng administrator ang password, maaaring agad ma-invalid ang kasalukuyan mong sign-in. Kung "
+      + "makakita ka ng mensaheng nagbago ang iyong credentials, mag-sign in muli gamit ang kasalukuyan mong password.",
     interfaceLanguage:
       "<strong>Wika ng interface.</strong> Kahit sino ay puwedeng pumili ng wikang gagamitin sa interface "
       + "mula sa <strong>Account → Mga Kagustuhan</strong> — English, Español, o Tagalog. Isang patuloy na "
@@ -1689,10 +1693,10 @@ export const tl = {
     ownPassword:
       "<strong>Ang sarili mong password.</strong> Kahit sino, sa kahit anong tungkulin, ay puwedeng "
       + "magpalit ng sariling password sa screen na <strong>Account</strong> sa pamamagitan ng pag-enter ng "
-      + "kasalukuyan at bagong password (hindi bababa sa 12 karakter). Ang pagpapalit nito — o ang "
-      + "pagseset ng admin nito para sa iyo — ay nagsa-sign out sa account na iyon sa bawat <em>ibang</em> "
-      + "device; mananatiling naka-sign in ang device na pinagpalitan mo. Ang isang bukas nang session sa "
-      + "ibang lugar ay puwedeng magtagal ng ilang minuto bago tumigil sa paggana.",
+      + "kasalukuyan at bagong password (hindi bababa sa 12 karakter). Ang pagpapalit ng sarili mong password "
+      + "ay nagpapanatiling naka-sign in sa device na ito gamit ang bagong credentials at nagpapatigil sa bawat "
+      + "<em>ibang</em> bukas na session sa susunod nitong request. Kung admin ang magse-set ng password mo, "
+      + "titigil ang lahat ng bukas mong session sa susunod nitong request.",
 
     dialogsHeading: "Pagdagdag at pagtatama",
     dialogsPopup:
@@ -1720,7 +1724,8 @@ export const tl = {
       "Ang mga bilang na buong numero — bilang ng itlog, bilang ng ibon, dami ng benta, itlog bawat unit — "
       + "ay may <strong>−</strong> at <strong>+</strong> na button na kasya sa hinlalaki: i-tap para sa isa, "
       + "<strong>pindutin nang matagal</strong> para bumilis. Ang dami ng isang linya ng benta ay hindi "
-      + "bababa sa 1. Ang mga presyo at fractional na halaga ay tina-type pa rin.",
+      + "bababa sa 1 at palaging <strong>buong numero</strong>, gamit man ang button o tina-type. Ang mga "
+      + "desimal ay para sa presyo, na tina-type.",
     dialogsConfirm:
       "<strong>Nagtatanong muna ang mga aksyong hindi na maaaring i-undo.</strong> Ang pagsumite ng isang "
       + "araw, pagkumpirma o pagkansela ng order, pag-ubos o pag-archive ng kawan — sinasabi ng bawat isa "
@@ -1741,11 +1746,13 @@ export const tl = {
       "Piliin ang kawan at petsa sa itaas, pagkatapos ay magtrabaho sa dalawang panel nang magkatabi: "
       + "<strong>1 Bilang ng itlog</strong> (kabuuan, basag, marumi, tinapon, namatay) at <strong>2 "
       + "Pag-grade</strong>. Ang mga bilang ay lumilikha ng isang <strong>naibibentang</strong> figure, at "
-      + "iyon ang numerong dapat abutin ng mga grado — hindi ito puwedeng lampasan kailanman.",
+      + "iyon ang numerong dapat abutin ng mga grado. Puwedeng iwan itong bahagya o hindi man simulan para "
+      + "sa isang draft — para sa Isumite, kailangan itong eksakto.",
     dailyEntryGradingDown:
       "<strong>Bumababa</strong> ang bilang sa pag-grade. Sa tabi ng mga grado ay makikita kung ilang "
       + "naibibentang itlog pa ang kailangan mong ilagay; nagiging berde ito sa sandaling tumugma ang araw "
-      + "at pula kung lumagpas ka. Hindi ka puwedeng magsumite habang lumalagpas ito.",
+      + "at pula kung lumagpas ka. Hindi ka puwedeng magsumite hangga't hindi umaabot sa eksaktong zero — "
+      + "okay lang na bahagya o hindi man i-grade ang araw para sa draft, pero hindi para sa Isumite.",
     dailyEntryButtons:
       "May mga button na <strong>−</strong> at <strong>+</strong> ang bawat bilang. I-tap para sa isa, o "
       + "<strong>i-hold</strong> — bumibilis ito habang tumatagal, kaya ilang daang itlog ay tumatagal lang "
@@ -1877,11 +1884,11 @@ export const tl = {
     salesHeading: "Mga Customer at Benta",
     salesDrafts:
       "Nagsisimula ang mga order bilang <strong>draft</strong>: magdagdag ng linya sa pamamagitan ng "
-      + "pagpili ng <strong>produkto</strong>, isang packed unit (dosena, karton, …), isang dami, at isang "
-      + "presyo kada unit (naka-prefill mula sa default ng produkto) — i-edit nang malaya, o "
-      + "<strong>kanselahin</strong> (mananatili ang draft, read-only). Naaalala ng bawat linya kung ilang "
-      + "itlog ang laman ng unit nito noong idinagdag ito, kaya hindi kailanman binabago ng muling "
-      + "pagtukoy sa isang karton ang mga lumang order.",
+      + "pagpili ng <strong>produkto</strong>, isang packed unit (dosena, karton, …), isang buong bilang "
+      + "na dami, at isang presyo kada unit (naka-prefill mula sa default ng produkto, pinapayagan ang "
+      + "decimal) — i-edit nang malaya, o <strong>kanselahin</strong> (mananatili ang draft, read-only). "
+      + "Naaalala ng bawat linya kung ilang itlog ang laman ng unit nito noong idinagdag ito, kaya hindi "
+      + "kailanman binabago ng muling pagtukoy sa isang karton ang mga lumang order.",
     salesConfirming:
       "Ang <strong>Pagkumpirma</strong> ng isang order ay naglalaan ng aktwal na stock — pinakalumang lote "
       + "muna — at ito ang sandali kung saan lumilipat ang inventory.",
@@ -1937,9 +1944,11 @@ export const tl = {
       + "Ipinapakita ng status column ang buhay ng entry: Draft, Naisumite, Naka-lock (7+ araw na), "
       + "Na-adjust (i-hover para sa dahilan), o Na-void.",
     historyAdminActions:
-      "Nagtatama ang mga admin mula rito: binubuksan ng <strong>i-adjust</strong> ang mga numero ng entry "
-      + "para sa pag-edit (kailangan ng dahilan), ina-undo ng <strong>i-void</strong> ang buong entry. "
-      + "Awtomatikong sumusunod ang stock at ang talaan ng ibon.",
+      "Nagtatama ang mga admin mula rito: muling binubuksan ng <strong>i-adjust</strong> ang entry sa "
+      + "parehong dalawang-hakbang na form ng Daily entry — parehong sellable na bilang, parehong grading "
+      + "chip, parehong shortcut na <strong>ilagay lahat sa…</strong> — na may kailangang dahilan; "
+      + "ina-undo ng <strong>i-void</strong> ang buong entry. Awtomatikong sumusunod ang stock at ang "
+      + "talaan ng ibon.",
     historyDraftEdit:
       "May link na <strong>i-edit</strong> ang mga row na draft (lahat, hindi lang admin) na tumatalon "
       + "pabalik sa screen na Araw-araw na Tala na may kasamang kawan at araw na iyon — doon ine-edit ang "
@@ -2081,9 +2090,12 @@ export const tl = {
     mistakesRow8Mistake: "Maling numero sa isang <em>naisumiteng</em> araw-araw na entry",
     mistakesRow8Fix:
       "History → <strong>i-adjust</strong> (admin) — kabuuan, nawala, mortality, at hati ng grado, may "
-      + "kasamang kinakailangang dahilan. Awtomatikong tumutugma ang stock at ang talaan ng ibon, pero "
-      + "hindi na kailanman puwedeng bawasan ang mga itlog na nabenta na: tinatanggihan ang pagbawas ng "
-      + "isang grado sa ibaba ng nabenta na. Nananatiling nakikita ang mga naunang value sa entry.",
+      + "kasamang kinakailangang dahilan. Dapat eksaktong tumugma ang mga naitamang grado sa naitamang "
+      + "naibibentang bilang, ang parehong panuntunan na ginagamit ng Isumite, at naka-block ang "
+      + "<strong>I-save ang pag-adjust</strong> hangga't hindi pa tumutugma ang mga ito. Awtomatikong "
+      + "tumutugma ang stock at ang talaan ng ibon, pero hindi na kailanman puwedeng bawasan ang mga itlog "
+      + "na nabenta na: tinatanggihan ang pagbawas ng isang grado sa ibaba ng nabenta na. Nananatiling "
+      + "nakikita ang mga naunang value sa entry.",
 
     mistakesRow9Mistake: "Ang buong <em>naisumiteng</em> entry ay mali (maling kawan o araw)",
     mistakesRow9Fix:
@@ -2227,8 +2239,9 @@ export const tl = {
 
     glossarySalesLineTerm: "Linya ng benta",
     glossarySalesLineDef:
-      "Isang produkto sa isang order: dami sa selling unit, may presyo kada unit; ang mga itlog sa likod "
-      + "nito ay dami × ang bilang ng itlog ng unit.",
+      "Isang produkto sa isang order: isang buong bilang na dami sa selling unit, may presyo kada unit "
+      + "(maaaring may decimal ang presyo); ang mga itlog sa likod nito ay dami × ang bilang ng itlog ng "
+      + "unit.",
 
     glossaryConfirmOrderTerm: "Kumpirmahin (order)",
     glossaryConfirmOrderDef:
@@ -2284,8 +2297,11 @@ export const tl = {
 
     glossaryAdjustEntryTerm: "I-adjust (entry)",
     glossaryAdjustEntryDef:
-      "Pagtatama ng admin sa isang naisumiteng entry. Awtomatikong nagtutugma ang stock at ang talaan ng "
-      + "ibon; hindi na magagalaw ang mga naibentang itlog; nananatiling nakikita ang mga naunang value.",
+      "Pagtatama ng admin sa isang naisumiteng entry. Dapat eksaktong tumugma ang mga naitamang grado sa "
+      + "naitamang naibibentang bilang, ang parehong panuntunan na ginagamit ng Isumite — walang draft "
+      + "state ang isang pagsasaayos na maiiwan itong bahagyang na-grade. Awtomatikong nagtutugma ang "
+      + "stock at ang talaan ng ibon; hindi na magagalaw ang mga naibentang itlog; nananatiling nakikita "
+      + "ang mga naunang value.",
 
     glossaryVoidEntryTerm: "I-void (entry)",
     glossaryVoidEntryDef:

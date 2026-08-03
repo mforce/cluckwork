@@ -44,8 +44,9 @@ public interface IIdentityProvider
     // #165 — an Owner sets another user's password without knowing the current
     // one. Account-scoped (foreign id -> NotFound) and it REVOKES every refresh
     // token for the target, so a reset actually evicts whoever held the old
-    // password. Bounded by the access-token lifetime: an already-issued JWT stays
-    // valid until it expires (~15 min) — there is no server-side denylist.
+    // password. Since #364 it also bumps the target's credential epoch in the
+    // same transaction, so an already-issued JWT is rejected on its very next
+    // request — no longer merely bounded by the ~15-min access-token lifetime.
     Task<Result> SetUserPasswordAsync(
         Guid accountId, Guid userId, string newPassword, CancellationToken ct = default);
 

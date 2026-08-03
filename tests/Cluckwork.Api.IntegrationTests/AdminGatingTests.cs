@@ -124,6 +124,7 @@ public sealed class AdminGatingTests(CluckworkWebApplicationFactory factory)
         var productId = await factory.SeedProductAsync(accountId, farmId, grades["Large"], "Large Eggs");
 
         // Entry → submit (creates the day's egg lots).
+        // #394: submit requires exact reconciliation — total matches the grade.
         var entry = await worker.PostWithKeyAsync("/api/v1/daily-entries", Guid.NewGuid().ToString(), new
         {
             farmId,
@@ -135,7 +136,7 @@ public sealed class AdminGatingTests(CluckworkWebApplicationFactory factory)
             dirtyEggs = 0,
             discardedEggs = 0,
             mortalityCount = 0,
-            grades = new[] { new { eggGradeId = grades["Large"], quantity = 90 } }
+            grades = new[] { new { eggGradeId = grades["Large"], quantity = 100 } }
         });
         Assert.Equal(HttpStatusCode.Created, entry.StatusCode);
         var entryId = (await entry.Content.ReadFromJsonAsync<Created>())!.Id;

@@ -11,6 +11,7 @@ using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Options;
 using Microsoft.Net.Http.Headers;
+using Cluckwork.Api.Hosting;
 
 // #123 — the farm logo: upload, serve, remove.
 //
@@ -32,6 +33,10 @@ public static class FarmLogoEndpoints
             .WithSummary("The farm logo image. 404 when none is set; the chrome falls back to app branding.");
 
         group.MapPut("/logo", SetLogo)
+            // #398 — reads the raw body directly, so it declares no typed body
+            // parameter and carries no IAcceptsMetadata. Without this marker a
+            // 400 body failure here would be reported as a query error.
+            .WithMetadata(new ReadsRequestBodyAttribute())
             .RequireAuthorization(AuthPolicies.AdminOnly)
             .WithName("SetFarmLogo")
             .WithSummary(

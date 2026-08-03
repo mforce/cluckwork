@@ -82,10 +82,23 @@ recording it. The two panes reconcile: the **sellable** figure the counts
 produce is the target the grades have to hit, so they are placed where both can
 be read at once.
 
+The **adjust** dialog (#403) presents the same form: the same two numbered panes
+in the same order, the same **Left to grade** chip, the same **steppers**, and
+the same **Put all in…** remainder shortcut. So every term defined below for
+capture means the same thing when correcting a day, and a correction is read the
+way the day was recorded. Only what is genuinely the dialog's own — the reason
+field, and the *previously adjusted* note — is particular to it.
+
+What is literally shared is the reconciliation arithmetic and the chip and
+remainder controls; each screen still renders its own form and owns its own
+state and submission. So the two can drift, and keeping them saying the same
+thing is a review obligation, not something the code enforces.
+
 **Left to grade (#134)** — grading counts **down** to zero rather than reporting
 *graded n of m*. The figure beside the grades is how many sellable eggs are
 still unaccounted for; it turns green when the day adds up exactly and red when
-the grades overshoot the sellable count. Submitting is blocked while it is over.
+the grades overshoot the sellable count. Submitting is blocked unless it reads
+**exactly zero** (#394) — short of sellable is refused just as much as over.
 
 **Entry footer (#134)** — both saves sit in a bar pinned to the bottom of the
 screen, along with save messages: anything below a pinned bar scrolls underneath
@@ -126,12 +139,21 @@ from starting a fresh day. Only locked days carried a signal before.
   older than 7 farm-local days (spec §8.1 default; background sweep).
   Locked ≠ untouchable: admins can still adjust or void.
 - **ManagerAdjusted** — an admin corrected the totals/grades of a
-  submitted or locked entry (reason required). The correction reconciles
-  the entry's egg lots in the same transaction — grown, shrunk, added, or
-  emptied — but **never below what a lot already sold**, and appends a
-  compensating bird movement for any mortality change. The replaced values
-  are kept as an audit snapshot on the entry until the audit log lands.
-  Adjusting again is allowed; each adjust snapshots what it replaced.
+  submitted or locked entry (reason required). The correction is made in
+  the **Daily entry** two-step form itself (#403) — the same panes, chip
+  and remainder shortcut described above — so an admin fixing a day works
+  the way the day was captured, and the reconciliation feedback is the
+  same feedback rather than a second interpretation of it. An adjustment
+  has no draft state of its own, so it is held to the same **exact
+  reconciliation** as submit (#394): the corrected grades must sum to
+  exactly the corrected sellable count, with no partial-save escape
+  hatch. The correction
+  reconciles the entry's egg lots in the same transaction — grown, shrunk,
+  added, or emptied — but **never below what a lot already sold**, and
+  appends a compensating bird movement for any mortality change. The
+  replaced values are kept as an audit snapshot on the entry until the audit
+  log lands. Adjusting again is allowed; each adjust snapshots what it
+  replaced.
 - **Voided** — an admin undid the whole entry (reason required): every lot
   it generated is emptied (refused if any of its eggs were sold), the
   day's mortality is reversed by a compensating movement, and the entry is
@@ -144,7 +166,19 @@ from starting a fresh day. Only locked days carried a signal before.
 
 **Sellable cap** — graded quantities must fit in
 `total − cracked − dirty − discarded`. You cannot grade more eggs than
-survived the day.
+survived the day. This is the only rule a **Draft** enforces — a draft may be
+graded partially, or not at all, and still be saved.
+
+**Grade reconciliation (#394)** — **Submit**, and **saving an adjustment**
+(which has no draft state of its own to leave incomplete), both go further
+than the sellable cap above: the grade lines must sum to *exactly*
+`total − cracked − dirty − discarded`, not merely fit within it. Zero
+sellable eggs validly reconciles to zero grade lines — a day where every
+egg was lost needs no grading to submit. Short of sellable and over
+sellable are refused the same way, at both the domain and the API layer,
+so a direct API caller cannot bypass it any more than the SPA can. This
+closes the gap where an ungraded, no-loss day could submit cleanly and
+silently produce zero stock for real production.
 
 ## Grading & stock
 
@@ -261,11 +295,14 @@ exist in the status enum for later phases; nothing sets them yet, and only
 **Sales line (#99)** — sells a **product** in a packed unit. At line creation
 the line snapshots the product type, the grade the product mapped to, and the
 unit's eggs-per-unit factor (`base_unit_factor`, spec §10.5/§9.7); `quantity`
-is selling units, `quantity_base = quantity × factor` is individual eggs —
-allocation and the stock guard run on `quantity_base`. Re-pointing a
-product's grade or redefining a packed unit only affects future lines, never
-recorded ones. Price is per selling unit, prefilled from the product's
-default and editable per line.
+is selling units and always a whole number — the add/edit-line controls
+reject a fractional value before sending, and a direct API request gets a
+stable validation response rather than a raw JSON-binding error (#398) —
+while `quantity_base = quantity × factor` is individual eggs; allocation and
+the stock guard run on `quantity_base`. Re-pointing a product's grade or
+redefining a packed unit only affects future lines, never recorded ones.
+Price is per selling unit (decimal money, stored as integer minor units),
+prefilled from the product's default and editable per line.
 
 **Void** — undo of a mistaken confirm (requires a reason): the allocated
 quantities return to the *exact* egg lots they were drawn from (recorded at
@@ -501,6 +538,13 @@ replayed/stale token is still caught and revokes the whole family. Consuming a
 token is an atomic compare-and-swap (a per-token concurrency stamp), so concurrent
 replays can never fork one token into two live sessions.
 
+**Credential epoch (#364)** — a monotonically increasing per-user number carried
+in every access token and stamped onto every refresh token. A request is valid
+only when its epoch matches the current user record, so an administrative
+credential reset can invalidate access tokens immediately without a per-request
+revocation list. The epoch readers ship before the mutations that advance it;
+deploys must drain older replicas before enabling those mutations.
+
 **Version (concurrency token)** — every mutable aggregate carries a `Version`
 that each mutation bumps. Two concurrent edits: first save wins, second gets
 a 409 and retries against fresh state. Append-only aggregates (bird
@@ -569,17 +613,19 @@ grant** because the target holds Owner (see below) — resetting any other
 role's password is unchanged and stays ungated.
 Both revoke every refresh token for that user, so other devices are signed out
 — the self-service path hands the device that made the change a fresh pair so it
-stays signed in. Eviction is bounded by the access-token lifetime: an
-already-issued access token keeps working until it expires (~15 min), because
-tokens are stateless and there is no server-side denylist.
+stays signed in. Since #364, both paths also bump the user's **credential
+epoch** (see above) in that same transaction, and every authenticated request
+is checked against it — so an already-issued access token is rejected on its
+very next request, not merely bounded by the ~15-min access-token lifetime.
 
 **Step-up authentication (#308)** — a fresh proof of identity required, on top
 of a normal valid Owner access token, before two specific actions: **creating
 another Owner**, and **resetting an existing Owner's password**. The threat it
-closes: a stolen-but-still-valid Owner access token (good for ~15 min, no
-server-side denylist — see **Password change** above) is otherwise enough on
-its own to mint a second, independent Owner or take over an existing one,
-turning short-lived token theft into durable account control. Every other
+closes: a stolen-but-still-valid Owner access token (good for ~15 min — merely
+holding it bumps no credential epoch, see **Credential epoch** above) is
+otherwise enough on its own to mint a second, independent Owner or take over
+an existing one, turning short-lived token theft into durable account
+control. Every other
 action on the Users screen — creating a Worker/Manager/Sales/Read-only user,
 resetting one of their passwords, editing a display name, flock assignment —
 is **unchanged and ungated**; the point is to gate exactly the two operations

@@ -29,6 +29,10 @@ public sealed class BirdMovementTests(CluckworkWebApplicationFactory factory)
         return (client, accountId, id, flock!);
     }
 
+    // #394: submit requires grades to reconcile exactly to the sellable count.
+    // This file is about the bird ledger, not grading, so every entry here is
+    // a zero-sellable day (discardedEggs matches totalEggs) — zero grade
+    // lines then reconciles trivially, with no grade catalog needed at all.
     private static object EntryBody(FlockDto f, DateOnly date, int mortality) => new
     {
         farmId = f.FarmId,
@@ -38,7 +42,7 @@ public sealed class BirdMovementTests(CluckworkWebApplicationFactory factory)
         totalEggs = 50,
         crackedEggs = 0,
         dirtyEggs = 0,
-        discardedEggs = 0,
+        discardedEggs = 50,
         mortalityCount = mortality,
     };
 

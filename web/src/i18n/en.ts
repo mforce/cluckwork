@@ -34,6 +34,8 @@ export const en = {
     signIn: "Sign in",
     signingIn: "Signing in…",
     invalidCredentials: "Invalid email or password.",
+    credentialsSuperseded: "Your credentials changed. Please sign in again.",
+    accountDisabled: "Your account has been disabled.",
     tooManyAttempts:
       "Too many sign-in attempts. Please wait a few minutes and try again.",
     apiDown: "Could not sign in. Is the API running?",
@@ -314,6 +316,10 @@ export const en = {
     atMostDecimals: "At most {{count}} decimal places for this currency.",
     enterAmountGreaterThanZero: "Enter an amount greater than zero.",
     invalidUnitPrice: "Invalid unit price.",
+    // #398 — sales quantities are whole selling units; the add-line and
+    // edit-line quantity controls reject a fractional value before sending,
+    // rather than letting the server's JSON binding fail.
+    quantityMustBeWholeNumber: "Quantity must be a whole number.",
     loadSalesDataFailed: "Could not load sales data. Is the API up?",
     loadOrdersFailed: "Could not load orders.",
     loadPaymentsFailed: "Could not load this order's payments.",
@@ -1435,8 +1441,11 @@ export const en = {
     conflictReloadFailedMessage:
       "This entry was changed by someone else and the list could not be "
       + "reloaded — reload the page before retrying.",
-    exceedsSellableMessage:
-      "Graded quantities cannot exceed total eggs minus cracked/dirty/discarded.",
+    // #394 — an adjustment has no draft state: grading must reconcile
+    // EXACTLY to the sellable count (short or over both trigger this),
+    // the same rule Daily Entry's submit uses.
+    gradesMustReconcileMessage:
+      "Graded quantities must equal total eggs minus cracked, dirty, and discarded eggs.",
     entryAdjustedMessage: "Entry adjusted — stock and bird ledger updated to match.",
     adjustReloadFailedMessage: "The adjustment saved, but the list failed to reload — refresh the page.",
     // askReason dialog (title / body / confirmLabel). {{date}}/{{flock}} are
@@ -1468,11 +1477,11 @@ export const en = {
     // {{reason}} is the free-form adjustReason DATA.
     previouslyAdjusted:
       "Previously adjusted (was total {{total}}, mortality {{mortality}} — \"{{reason}}\").",
-    totalEggsLabel: "Total eggs",
-    crackedLabel: "Cracked",
-    dirtyLabel: "Dirty",
-    discardedLabel: "Discarded",
-    deathsLabel: "Deaths",
+    // The dialog's two steps, its count labels and its reconciliation chip come
+    // from the `dailyEntry` namespace: the correction form IS that screen's
+    // form, and a second near-duplicate set here is how the two drifted (this
+    // namespace used to say "Deaths" where the capture screen said
+    // "Mortality"). Only what is genuinely this dialog's own stays below.
     // Appended to a grade line's free-form NAME (DATA) for a deactivated
     // grade still on the entry — distinct wording from
     // dailyEntry:deactivatedGradeSuffix (" (deactivated)"), preserved
@@ -1916,6 +1925,9 @@ export const en = {
       + "right there in the dialog: creating another Owner, and resetting an existing Owner's password. This "
       + "confirms it's really you before handing out that much access — every other action on that screen "
       + "(creating a Worker/Manager/Sales/Read-only user, resetting one of their passwords) does not ask again.",
+    signingInCredentialEpoch:
+      "When an administrator resets a password, your existing sign-in can be invalidated immediately. If you "
+      + "see a message that your credentials changed, sign in again with your current password.",
     interfaceLanguage:
       "<strong>Interface language.</strong> Everyone can choose the language the interface is shown in from "
       + "<strong>Account → Preferences</strong> — English, Español, or Tagalog. Translation is a work in "
@@ -1959,9 +1971,9 @@ export const en = {
     ownPassword:
       "<strong>Your own password.</strong> Anyone, in any role, can change their own password on the "
       + "<strong>Account</strong> screen by entering the current one and a new one (at least 12 characters). "
-      + "Changing it — or an admin setting it for you — signs that account out on every <em>other</em> "
-      + "device; the device you changed it on stays signed in. An already-open session elsewhere can linger "
-      + "for a few minutes before it stops working.",
+      + "Changing your own password keeps this device signed in with fresh credentials and ends every "
+      + "<em>other</em> open session on its next request. If an admin sets your password instead, every one "
+      + "of your open sessions ends on its next request.",
 
     // Adding & correcting
     dialogsHeading: "Adding & correcting",
@@ -1987,7 +1999,8 @@ export const en = {
     dialogsSteppers:
       "Whole-number counts — egg counts, bird counts, sale quantities, eggs per unit — have thumb-sized "
       + "<strong>−</strong> and <strong>+</strong> buttons: tap for one, <strong>hold</strong> to speed up. "
-      + "A sale line's quantity never steps below 1. Prices and fractional amounts are still typed.",
+      + "A sale line's quantity never steps below 1, and it is always a <strong>whole number</strong> — "
+      + "stepped or typed. Decimals belong in prices, which are typed.",
     dialogsConfirm:
       "<strong>Actions that cannot be undone ask first.</strong> Submitting a day, confirming or cancelling "
       + "an order, depleting or archiving a flock — each one says what is about to happen and waits. The "
@@ -2006,12 +2019,12 @@ export const en = {
     dailyEntryPanes:
       "Pick the flock and date at the top, then work through two panes side by side: <strong>1 Egg "
       + "counts</strong> (total, cracked, dirty, discarded, deaths) and <strong>2 Grading</strong>. The counts "
-      + "produce a <strong>sellable</strong> figure, and that is the number the grades have to add up to — "
-      + "they can never exceed it.",
+      + "produce a <strong>sellable</strong> figure, and that is the number the grades have to add up to. A "
+      + "draft can leave that partly done, or not started at all — submitting needs it exact.",
     dailyEntryGradingDown:
       "Grading counts <strong>down</strong>. Beside the grades is how many sellable eggs you still have to "
-      + "place; it turns green the moment the day adds up and red if you go over. You cannot submit while it "
-      + "is over.",
+      + "place; it turns green the moment the day adds up and red if you go over. You cannot submit until it "
+      + "reads exactly zero — grading a day partway, or not at all, is fine for a draft but not for Submit.",
     dailyEntryButtons:
       "Every count has <strong>−</strong> and <strong>+</strong> buttons. Tap for one, or <strong>hold</strong> "
       + "— it speeds up as you go, so a few hundred eggs takes about a second. Easier than a keypad with "
@@ -2133,9 +2146,10 @@ export const en = {
     salesHeading: "Customers & sales",
     salesDrafts:
       "Orders start as <strong>drafts</strong>: add lines by picking a <strong>product</strong>, a packed "
-      + "unit (dozen, carton, …), a quantity, and a price per unit (prefilled from the product's default) — "
-      + "edit freely, or <strong>cancel</strong> (the draft is kept, read-only). Each line remembers how many "
-      + "eggs its unit held when it was added, so redefining a carton later never changes old orders.",
+      + "unit (dozen, carton, …), a whole-number quantity, and a price per unit (prefilled from the "
+      + "product's default, decimals allowed) — edit freely, or <strong>cancel</strong> (the draft is kept, "
+      + "read-only). Each line remembers how many eggs its unit held when it was added, so redefining a "
+      + "carton later never changes old orders.",
     salesConfirming:
       "<strong>Confirming</strong> an order allocates real stock — oldest lots first — and is the point "
       + "where inventory changes hands.",
@@ -2190,9 +2204,10 @@ export const en = {
       + "the entry's life: Draft, Submitted, Locked (7+ days old), Adjusted (hover for the reason), or "
       + "Voided.",
     historyAdminActions:
-      "Admins correct from here: <strong>adjust</strong> opens the entry's numbers for editing (reason "
-      + "required), <strong>void</strong> undoes the whole entry. Stock and the bird ledger follow "
-      + "automatically.",
+      "Admins correct from here: <strong>adjust</strong> reopens the entry in the same two-step form as "
+      + "Daily entry — same sellable count, same grading chip, same <strong>put all in…</strong> shortcut "
+      + "— with a reason required; <strong>void</strong> undoes the whole entry. Stock and the bird ledger "
+      + "follow automatically.",
     historyDraftEdit:
       "Draft rows have an <strong>edit</strong> link (everyone, not just admins) that jumps back to the "
       + "Daily entry screen with that flock and day loaded — drafts are edited there, not adjusted.",
@@ -2330,9 +2345,10 @@ export const en = {
     mistakesRow8Mistake: "Wrong numbers in a <em>submitted</em> daily entry",
     mistakesRow8Fix:
       "History → <strong>adjust</strong> (admin) — totals, losses, mortality, and grade split, with a "
-      + "required reason. Stock and the bird ledger update to match automatically, but eggs already sold can "
-      + "never be un-counted: shrinking a grade below what was sold is refused. The previous values stay "
-      + "visible on the entry.",
+      + "required reason. The corrected grades must add up to the corrected sellable count exactly, the same "
+      + "rule Submit uses, and <strong>Save adjustment</strong> is blocked until they do. Stock and the bird "
+      + "ledger update to match automatically, but eggs already sold can never be un-counted: shrinking a "
+      + "grade below what was sold is refused. The previous values stay visible on the entry.",
 
     mistakesRow9Mistake: "Entire <em>submitted</em> entry is wrong (wrong flock or day)",
     mistakesRow9Fix:
@@ -2465,8 +2481,8 @@ export const en = {
 
     glossarySalesLineTerm: "Sales line",
     glossarySalesLineDef:
-      "One product on an order: quantity in selling units, priced per unit; the eggs behind it are "
-      + "quantity × the unit's egg count.",
+      "One product on an order: a whole-number quantity in selling units, priced per unit (the price may "
+      + "have decimals); the eggs behind it are quantity × the unit's egg count.",
 
     glossaryConfirmOrderTerm: "Confirm (order)",
     glossaryConfirmOrderDef: "Turns a draft order into a real sale and allocates stock. Undone only by voiding.",
@@ -2511,8 +2527,9 @@ export const en = {
 
     glossaryAdjustEntryTerm: "Adjust (entry)",
     glossaryAdjustEntryDef:
-      "Admin correction of a submitted entry. Stock and bird ledger reconcile automatically; sold eggs are "
-      + "untouchable; previous values stay visible.",
+      "Admin correction of a submitted entry. The corrected grades must add up to the corrected sellable count "
+      + "exactly, the same rule Submit uses — an adjustment has no draft state to leave partly graded. Stock "
+      + "and bird ledger reconcile automatically; sold eggs are untouchable; previous values stay visible.",
 
     glossaryVoidEntryTerm: "Void (entry)",
     glossaryVoidEntryDef:

@@ -35,11 +35,31 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
     //     — the snapshot has never recorded them — so EF always wrote those
     //     columns explicitly and never relied on them. They are not
     //     reproduced here; the only DB-level defaults that remain are the
-    //     ones the model actually declares (refresh_tokens."RevokedByGrace").
+    //     ones the model actually declares (refresh_tokens."RevokedByGrace",
+    //     and — folded in afterward, see the #364 note below —
+    //     AspNetUsers."CredentialEpoch" and refresh_tokens."IssuedEpoch").
     // Everything else — every table, column type/nullability/length, PK, FK
     // with its delete behaviour, unique and non-unique index (including the
     // four lower(Name) expression indexes hand-carried below), and the
     // Version concurrency tokens — is byte-identical.
+    //
+    // #364 — ADDENDUM, folded in the same way and for the same reason before
+    // this repo was ever deployed. Credential-epoch revocation added four
+    // columns (AspNetUsers.CredentialEpoch/DisabledAt/DisabledBy,
+    // refresh_tokens.IssuedEpoch). A virgin database was still the only
+    // starting state that existed anywhere, so these were hand-folded
+    // directly into this migration rather than shipped as a second one —
+    // the #245 reasoning applies again verbatim: no `__EFMigrationsHistory`
+    // anywhere needs baselining, so there was never anything to "add a
+    // migration" on top of. The original #364 patch also carried an
+    // `UPDATE refresh_tokens SET "RevokedAt" = now() WHERE "RevokedAt" IS
+    // NULL` cutover backfill (plus a `SET LOCAL lock_timeout` to bound the
+    // ADD COLUMN lock); both were dropped in the fold — the backfill always
+    // touches zero rows here, precisely the dead-backfill anti-pattern #245
+    // squashed away, and the lock guard exists only to protect a rolling
+    // upgrade over pre-existing traffic that likewise cannot exist yet.
+    // MigrationSecurityReviewTests pins that this directory still holds
+    // exactly one migration.
     public partial class InitialCreate : Migration
     {
         /// <inheritdoc />
@@ -106,7 +126,16 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                     TwoFactorEnabled = table.Column<bool>(type: "boolean", nullable: false),
                     LockoutEnd = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
                     LockoutEnabled = table.Column<bool>(type: "boolean", nullable: false),
-                    AccessFailedCount = table.Column<int>(type: "integer", nullable: false)
+                    AccessFailedCount = table.Column<int>(type: "integer", nullable: false),
+                    // #364 — credential-epoch revocation. CredentialEpoch starts at 1 and
+                    // RefreshToken.IssuedEpoch (below) starts at 0, so a missing/malformed
+                    // credential_epoch claim (which CredentialEpochMiddleware maps to 0)
+                    // can never equal a live user's epoch. Load-bearing: do not change
+                    // either default. DisabledAt/DisabledBy are schema-only here — no
+                    // mutation sets them yet.
+                    CredentialEpoch = table.Column<int>(type: "integer", nullable: false, defaultValue: 1),
+                    DisabledAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
+                    DisabledBy = table.Column<Guid>(type: "uuid", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -370,7 +399,12 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                     RevokedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
                     ReplacedByTokenHash = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: true),
                     RevokedByGrace = table.Column<bool>(type: "boolean", nullable: false, defaultValue: false),
-                    ConcurrencyStamp = table.Column<string>(type: "character varying(36)", maxLength: 36, nullable: false)
+                    ConcurrencyStamp = table.Column<string>(type: "character varying(36)", maxLength: 36, nullable: false),
+                    // #364 — see the matching comment on AspNetUsers.CredentialEpoch above.
+                    // Every known mint site stamps this explicitly to the user's current
+                    // epoch; the 0 default is a defense-in-depth backstop for a writer
+                    // that doesn't, and 0 is permanently invalid (no user is ever epoch 0).
+                    IssuedEpoch = table.Column<int>(type: "integer", nullable: false, defaultValue: 0)
                 },
                 constraints: table =>
                 {

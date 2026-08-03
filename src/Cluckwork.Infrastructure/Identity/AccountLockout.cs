@@ -76,8 +76,24 @@ internal static class AccountLockout
     public static async Task<bool> RecordFailedAccessAsync(
         UserManager<ApplicationUser> userManager, AppDbContext db, ApplicationUser user)
     {
+        // Bind this durable failure to the credential state whose password was
+        // actually rejected. A concurrent disable or password reset supersedes
+        // that proof; after a concurrency reload, never charge the stale guess
+        // to the newer state (or leave a disabled account locked on re-enable).
+        var attemptedCredentialEpoch = user.CredentialEpoch;
         for (var attempt = 0; attempt < 10; attempt++)
         {
+            // Merge note (#364's boundary meets #273's transition detection):
+            // both apply, and the only thing to DECIDE is what the boundary
+            // returns now that this method reports a bool. `false` is the
+            // answer — it stops precisely because no failure was charged to
+            // this credential, so there is no lockout TRANSITION to report.
+            // Returning true would fire Auth.AccountLockedOut for an attempt
+            // that was deliberately not recorded, against the very credential
+            // the guard exists to protect.
+            if (user.DisabledAt is not null || user.CredentialEpoch != attemptedCredentialEpoch)
+                return false;
+
             // Snapshot taken fresh on EVERY attempt (including retries after a
             // reload) — see the P2d note above for why entry-time alone is not
             // enough.

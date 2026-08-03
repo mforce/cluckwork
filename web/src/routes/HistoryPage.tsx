@@ -10,10 +10,12 @@ import { ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
+import { GradingChip, TakeRemainderButton, remainderDropProps } from "../components/GradingChip";
 import { NumberField } from "../components/NumberField";
 import { useConfirm } from "../components/useConfirm";
 import { usePendingAction } from "../components/usePendingAction";
 import { StatusBadge } from "../components/StatusBadge";
+import { armedState, gradingState } from "../lib/grading";
 import { newId } from "../lib/ids";
 import i18n from "../i18n";
 
@@ -36,6 +38,10 @@ function errText(err: unknown): string {
 export function HistoryPage() {
   const { t } = useTranslation("history");
   const { t: tc } = useTranslation("common");
+  // The adjust dialog IS the Daily entry form (same two steps, same
+  // reconciliation), so it speaks that screen's copy rather than a second
+  // near-duplicate set of count labels and chip wording in this namespace.
+  const { t: te } = useTranslation("dailyEntry");
   const { isAdmin } = useAuth();
   const { askReason, confirmDialog } = useConfirm();
   const [entries, setEntries] = useState<DailyEntry[] | null>(null);
@@ -65,6 +71,9 @@ export function HistoryPage() {
   const [mortality, setMortality] = useState(0);
   const [reason, setReason] = useState("");
   const [lineQty, setLineQty] = useState<Record<string, number>>({});
+  // F134's remainder gesture, mirrored here: hand everything still unaccounted
+  // for to one grade. A recount is lopsided the same way a capture is.
+  const [assigning, setAssigning] = useState(false);
 
   // F131: the correction form is a dialog — it takes focus itself, so the
   // scroll-and-focus dance the old above-the-table panel needed is gone
@@ -127,6 +136,9 @@ export function HistoryPage() {
     setMortality(e.mortalityCount);
     setReason("");
     setLineQty(Object.fromEntries(e.grades.map((g) => [g.eggGradeId, g.quantity])));
+    // A different entry (or the server's newer copy after a 409) is a different
+    // day: staying armed over it would be a gesture the user never aimed there.
+    setAssigning(false);
   }
 
   // The entry's own lines (possibly deactivated grades — still correctable)
@@ -134,6 +146,37 @@ export function HistoryPage() {
   function panelGrades(e: DailyEntry): EggGrade[] {
     const onEntry = new Set(e.grades.map((g) => g.eggGradeId));
     return grades.filter((g) => onEntry.has(g.id) || (g.active && g.isSaleable));
+  }
+
+  // #394: an adjustment has no draft state of its own — it replaces the
+  // entry's official numbers outright, so it is held to the same exact
+  // reconciliation Daily Entry's submit uses. Both screens read that rule out
+  // of lib/grading, so the Save button's disabled state, the readouts in the
+  // dialog and the submit-time guard below can never disagree.
+  const gradesSum = Object.values(lineQty).reduce((sum, q) => sum + (q || 0), 0);
+  const grading = gradingState({ totalEggs: total, cracked, dirty, discarded, gradesSum });
+  const { sellable, remaining, lossesExceedTotal } = grading;
+  const gradesReconciled = grading.reconciled;
+  const canAssign = remaining > 0;
+  // DERIVED, not the raw flag: there is nothing left to hand out the instant
+  // the day reconciles, and that can happen by typing a grade rather than by
+  // using the gesture — which self-disarms. Reading `assigning` directly left
+  // the rows armed (and Save enabled) for the render between that keystroke
+  // and the effect below, so "armed" and "saveable" overlapped by one frame
+  // instead of being mutually exclusive. Derived, they cannot (codex round 2).
+  // The derivation itself lives in lib/grading, where it is asserted directly.
+  const armed = armedState(assigning, canAssign);
+  // The effect still clears the stale flag, so typing back DOWN to a remainder
+  // does not silently re-arm rows the user disarmed by walking away from it.
+  useEffect(() => {
+    if (!canAssign && assigning) setAssigning(false);
+  }, [canAssign, assigning]);
+
+  // Hand the whole remainder to one grade line.
+  function assignRest(gradeId: string) {
+    if (remaining <= 0) return;
+    setLineQty((prev) => ({ ...prev, [gradeId]: (prev[gradeId] ?? 0) + remaining }));
+    setAssigning(false);
   }
 
   // Key lifecycle differs from the create screens (codex review of PR #81):
@@ -182,12 +225,13 @@ export function HistoryPage() {
     const lines = Object.entries(lineQty)
       .filter(([, q]) => q > 0)
       .map(([eggGradeId, quantity]) => ({ eggGradeId, quantity }));
-    // Mirror the server's sellable-cap rule for an instant message; the
-    // API remains the authority. Validated before the flight opens: a
-    // rejected form never reads as busy.
-    const sellable = total - cracked - dirty - discarded;
-    if (lines.reduce((sum, l) => sum + l.quantity, 0) > sellable) {
-      setError(i18n.t("history:exceedsSellableMessage"));
+    // Mirror the server's exact-reconciliation rule (#394) for an instant
+    // message; the API remains the authority. The Save button is already
+    // disabled while this is false (see gradesReconciled above), so this is
+    // defense in depth rather than the primary gate. Validated before the
+    // flight opens: a rejected form never reads as busy.
+    if (!gradesReconciled) {
+      setError(i18n.t("history:gradesMustReconcileMessage"));
       return;
     }
     await run(scope, async () => {
@@ -313,6 +357,9 @@ export function HistoryPage() {
           ? t("adjustDialogTitleWithEntry", { date: adjusting.date, flock: flockName(adjusting.flockId) })
           : t("adjustDialogTitle")}
         onClose={() => setAdjusting(null)}
+        // Two panes side by side need the room; on a phone the dialog is a
+        // full-width sheet and they stack, exactly as the capture screen does.
+        wide
         // A 409 swaps the server's newer entry into the open dialog; the record
         // identity changing pulls focus back to the first field, so the form is
         // not silently replaced under the user's cursor.
@@ -332,50 +379,108 @@ export function HistoryPage() {
                 })}
               </p>
             )}
-            <form className="form-grid" onSubmit={onAdjustSubmit}>
-            {/* #250: same steppers as the daily-entry screen this correction
-                form mirrors. Sibling label, not wrapping — a <label> may not
-                contain interactive content other than its own control, and the
-                stepper carries two buttons. */}
-            <div className="numfield-field">
-              <label htmlFor={idFor("total")}>{t("totalEggsLabel")}</label>
-              <NumberField id={idFor("total")} label={t("totalEggsLabel").toLowerCase()}
-                value={total} onChange={setTotal} />
+            {/* The same two steps as the Daily entry screen, in the same order,
+                reconciling the same way — a correction replaces the day's
+                official numbers, so reading it should not be a different job
+                from recording them. #250's steppers throughout. */}
+            <form className="entry-form" onSubmit={onAdjustSubmit}>
+            <div className="entry-cols">
+              <section className="entry-step">
+                {/* The word boundaries live in the h3's own text nodes, not at
+                    the edges of the sr-only span: accessible-name computation
+                    trims each nested element's contribution. */}
+                <h3><span className="step-n">{te("stepLabel", { n: 1 })}</span> <span className="sr-only">{te("stepOfTotal")}</span> {te("eggCountsHeading")}</h3>
+                <div className="entry-pane">
+                  <div className="entry-rows">
+                    {/* Sibling label, not wrapping — a <label> may not contain
+                        interactive content other than its own control, and the
+                        stepper carries two buttons. */}
+                    <div className="entry-row">
+                      <label htmlFor={idFor("total")}>{te("totalEggsLabel")}</label>
+                      <NumberField id={idFor("total")} label={te("totalEggsLabel").toLowerCase()}
+                        value={total} onChange={setTotal} />
+                    </div>
+                    <div className="entry-row">
+                      <label htmlFor={idFor("cracked")}>{te("crackedLabel")}</label>
+                      <NumberField id={idFor("cracked")} label={te("crackedLabel").toLowerCase()}
+                        value={cracked} onChange={setCracked} />
+                    </div>
+                    <div className="entry-row">
+                      <label htmlFor={idFor("dirty")}>{te("dirtyLabel")}</label>
+                      <NumberField id={idFor("dirty")} label={te("dirtyLabel").toLowerCase()}
+                        value={dirty} onChange={setDirty} />
+                    </div>
+                    <div className="entry-row">
+                      <label htmlFor={idFor("discarded")}>{te("discardedLabel")}</label>
+                      <NumberField id={idFor("discarded")} label={te("discardedLabel").toLowerCase()}
+                        value={discarded} onChange={setDiscarded} />
+                    </div>
+                    <div className="entry-row">
+                      <label htmlFor={idFor("mortality")}>{te("mortalityLabel")}</label>
+                      <NumberField id={idFor("mortality")} label={te("mortalityLabel").toLowerCase()}
+                        value={mortality} onChange={setMortality} />
+                    </div>
+                  </div>
+
+                  {lossesExceedTotal ? (
+                    <p className="entry-readout error">
+                      {te("countsExceedTotalMessage", { losses: grading.losses, total })}
+                    </p>
+                  ) : (
+                    /* Shown as a value, not buried in a sentence — it is the
+                       target the grading pane has to hit. */
+                    <p className="entry-readout">
+                      <span className="k">{te("sellableLabel")}<br />{te("sellableFormula", { total, cracked, dirty, discarded })}</span>
+                      <span className="v">{sellable}</span>
+                    </p>
+                  )}
+                </div>
+              </section>
+
+              <section className="entry-step">
+                <h3><span className="step-n">{te("stepLabel", { n: 2 })}</span> <span className="sr-only">{te("stepOfTotal")}</span> {te("gradingHeading")}</h3>
+                <div className="entry-pane">
+                  <div className="entry-rows">
+                    {panelGrades(adjusting).map((g) => (
+                      <div key={g.id} className={`entry-row${armed ? " taking" : ""}`}
+                        {...remainderDropProps(armed, () => assignRest(g.id))}>
+                        <label htmlFor={idFor(`grade-${g.id}`)}>{g.name}{g.active ? "" : t("inactiveGradeSuffix")}</label>
+                        <NumberField id={idFor(`grade-${g.id}`)} label={g.name.toLowerCase()}
+                          value={lineQty[g.id] ?? 0}
+                          // Same ceiling as the capture screen: the + button
+                          // (and its hold-to-repeat) stops at what is actually
+                          // unaccounted for, so the guided control cannot build
+                          // an over-graded day. Typing is deliberately still
+                          // uncapped — see NumberField. Without this the two
+                          // screens behaved differently in the hand while the
+                          // Help text claimed they were the same form.
+                          max={(lineQty[g.id] ?? 0) + Math.max(0, remaining)}
+                          onChange={(next) => setLineQty((prev) => ({
+                            ...prev,
+                            // A grade lives in a record, so its updater is adapted
+                            // here — still the functional form, which
+                            // hold-to-repeat depends on.
+                            [g.id]: typeof next === "function" ? next(prev[g.id] ?? 0) : next,
+                          }))} />
+                        {armed && (
+                          <TakeRemainderButton remaining={remaining} grade={g.name}
+                            onTake={() => assignRest(g.id)} />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* The same chip the capture screen uses — here it is also
+                      exactly what the Save button is gated on (#394). */}
+                  <GradingChip tone={grading.tone} count={grading.count}
+                    says={te(grading.saysKey)}
+                    canAssign={canAssign} remaining={remaining}
+                    assigning={armed} onAssigningChange={setAssigning} />
+                </div>
+              </section>
             </div>
-            <div className="numfield-field">
-              <label htmlFor={idFor("cracked")}>{t("crackedLabel")}</label>
-              <NumberField id={idFor("cracked")} label={t("crackedLabel").toLowerCase()}
-                value={cracked} onChange={setCracked} />
-            </div>
-            <div className="numfield-field">
-              <label htmlFor={idFor("dirty")}>{t("dirtyLabel")}</label>
-              <NumberField id={idFor("dirty")} label={t("dirtyLabel").toLowerCase()}
-                value={dirty} onChange={setDirty} />
-            </div>
-            <div className="numfield-field">
-              <label htmlFor={idFor("discarded")}>{t("discardedLabel")}</label>
-              <NumberField id={idFor("discarded")} label={t("discardedLabel").toLowerCase()}
-                value={discarded} onChange={setDiscarded} />
-            </div>
-            <div className="numfield-field">
-              <label htmlFor={idFor("deaths")}>{t("deathsLabel")}</label>
-              <NumberField id={idFor("deaths")} label={t("deathsLabel").toLowerCase()}
-                value={mortality} onChange={setMortality} />
-            </div>
-            {panelGrades(adjusting).map((g) => (
-              <div key={g.id} className="numfield-field">
-                <label htmlFor={idFor(`grade-${g.id}`)}>{g.name}{g.active ? "" : t("inactiveGradeSuffix")}</label>
-                <NumberField id={idFor(`grade-${g.id}`)} label={g.name.toLowerCase()}
-                  value={lineQty[g.id] ?? 0}
-                  onChange={(next) => setLineQty((prev) => ({
-                    ...prev,
-                    // A grade lives in a record, so its updater is adapted here —
-                    // still the functional form, which hold-to-repeat depends on.
-                    [g.id]: typeof next === "function" ? next(prev[g.id] ?? 0) : next,
-                  }))} />
-              </div>
-            ))}
-            <label>{t("reasonLabel")}
+
+            <label className="entry-reason">{t("reasonLabel")}
               <input value={reason} maxLength={500} required
                 onChange={(e) => setReason(e.target.value)} />
             </label>
@@ -383,8 +488,11 @@ export function HistoryPage() {
             {error && <p className="error" role="alert">{error}</p>}
             <div className="dialog-foot">
               <button type="button" className="link" onClick={() => setAdjusting(null)}>{tc("cancel")}</button>
+              {/* #394: an adjustment has no draft state — Save stays disabled
+                  until grading reconciles exactly, the same rule Daily
+                  Entry's submit uses. */}
               <BusyButton type="submit" busy={isPending(`adjust:${adjusting.id}`)}
-                disabled={busy || !reason.trim()}>{t("saveAdjustmentButton")}</BusyButton>
+                disabled={busy || !reason.trim() || !gradesReconciled}>{t("saveAdjustmentButton")}</BusyButton>
             </div>
             </form>
           </>

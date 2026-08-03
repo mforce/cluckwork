@@ -266,28 +266,4 @@ public sealed class AuthBodyLimitTests(AuthBodyLimitFactory factory)
         return (Str("title"), Str("detail"), Int("status"));
     }
 
-    // A read stream that can't report its own Length (CanSeek = false), so it
-    // pairs with an explicit/lying Content-Length override (see
-    // LyingLengthRequest) to simulate an undeclared-length body under TestServer.
-    private sealed class NonSeekableStream(byte[] data) : Stream
-    {
-        private int _pos;
-        public override int Read(byte[] buffer, int offset, int count)
-        {
-            var n = Math.Min(count, data.Length - _pos);
-            if (n <= 0) return 0;
-            Array.Copy(data, _pos, buffer, offset, n);
-            _pos += n;
-            return n;
-        }
-        public override bool CanRead => true;
-        public override bool CanSeek => false;
-        public override bool CanWrite => false;
-        public override long Length => throw new NotSupportedException();
-        public override long Position { get => _pos; set => throw new NotSupportedException(); }
-        public override void Flush() { }
-        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
-        public override void SetLength(long value) => throw new NotSupportedException();
-        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
-    }
 }

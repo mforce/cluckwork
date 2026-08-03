@@ -185,6 +185,107 @@ public sealed class CustomerAndOrderTests(CluckworkWebApplicationFactory factory
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
+    // #398 — a fractional quantity (e.g. 2.5) used to fail deep inside
+    // minimal-API JSON binding, before AddOrderItemValidator or the handler
+    // ever ran, and Program.cs's /error handler echoed the raw
+    // BadHttpRequestException.Message straight back: `Failed to read
+    // parameter "AddOrderItemRequest request" from the request body as
+    // JSON.` This pins the safe replacement — the same ValidationProblem
+    // `errors` shape every other 400 in this app uses, with none of the
+    // parameter/type internals in the body.
+    [Fact]
+    public async Task AddItem_FractionalQuantity_StableProblemDetails_NotBindingExceptionText()
+    {
+        var (client, _, _, _, products) = await SetupAsync("Large");
+        var customerId = await CreatedId(await client.PostWithKeyAsync(
+            "/api/v1/customers", Guid.NewGuid().ToString(), new { name = "C", phone = "1" }));
+        var orderId = await CreatedId(await client.PostWithKeyAsync(
+            "/api/v1/sales", Guid.NewGuid().ToString(),
+            new { customerId, orderDate = DateOnly.FromDateTime(DateTime.UtcNow.Date) }));
+
+        var response = await client.PostWithKeyAsync(
+            $"/api/v1/sales/{orderId}/items", Guid.NewGuid().ToString(),
+            new { productId = products["Large"], quantity = 2.5m, unitPriceMinorUnits = 100 });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+        var body = await response.Content.ReadAsStringAsync();
+        // The old leak: the raw parameter-binding exception text must be gone.
+        Assert.DoesNotContain("Failed to read parameter", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("AddOrderItemRequest", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("FormatException", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("Utf8JsonReader", body, StringComparison.Ordinal);
+        // Same shape as every other 400 in this app: a ValidationProblem errors dict.
+        using var doc = System.Text.Json.JsonDocument.Parse(body);
+        Assert.Equal(400, doc.RootElement.GetProperty("status").GetInt32());
+        Assert.Equal(System.Text.Json.JsonValueKind.Object, doc.RootElement.GetProperty("errors").ValueKind);
+    }
+
+    // The control: without this, the fractional-quantity test above proves
+    // nothing — a change that broke ordinary integer-quantity/decimal-priced
+    // adds entirely would look identical from that test's point of view alone.
+    [Fact]
+    public async Task AddItem_IntegerQuantityAndDecimalUnitPrice_StillWorks()
+    {
+        var (client, _, _, _, products) = await SetupAsync("Large");
+        var customerId = await CreatedId(await client.PostWithKeyAsync(
+            "/api/v1/customers", Guid.NewGuid().ToString(), new { name = "C", phone = "1" }));
+        var orderId = await CreatedId(await client.PostWithKeyAsync(
+            "/api/v1/sales", Guid.NewGuid().ToString(),
+            new { customerId, orderDate = DateOnly.FromDateTime(DateTime.UtcNow.Date) }));
+
+        // $2.50/unit (decimal money, carried on the wire as minor units per
+        // the app's existing decimal-to-minor-units convention) × 7 whole units.
+        var response = await client.PostWithKeyAsync(
+            $"/api/v1/sales/{orderId}/items", Guid.NewGuid().ToString(),
+            new { productId = products["Large"], quantity = 7, unitPriceMinorUnits = 250 });
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+
+        var order = await client.GetFromJsonAsync<OrderDto>($"/api/v1/sales/{orderId}");
+        var item = Assert.Single(order!.Items);
+        Assert.Equal(7, item.Quantity);
+        Assert.Equal(250, item.UnitPriceMinorUnits);
+        Assert.Equal(1750, order.TotalMinorUnits);
+    }
+
+    // Same JSON-binding defect class, the OTHER request DTO
+    // (UpdateOrderItemRequest — the edit-line endpoint): proves the /error
+    // fix isn't accidentally tied to one specific parameter type name.
+    [Fact]
+    public async Task UpdateItem_FractionalQuantity_StableProblemDetails_NotBindingExceptionText()
+    {
+        var (client, _, _, _, products) = await SetupAsync("Large");
+        var customerId = await CreatedId(await client.PostWithKeyAsync(
+            "/api/v1/customers", Guid.NewGuid().ToString(), new { name = "C", phone = "1" }));
+        var orderId = await CreatedId(await client.PostWithKeyAsync(
+            "/api/v1/sales", Guid.NewGuid().ToString(),
+            new { customerId, orderDate = DateOnly.FromDateTime(DateTime.UtcNow.Date) }));
+        var added = await client.PostWithKeyAsync(
+            $"/api/v1/sales/{orderId}/items", Guid.NewGuid().ToString(),
+            new { productId = products["Large"], quantity = 3, unitPriceMinorUnits = 100 });
+        var itemId = (await added.Content.ReadFromJsonAsync<ItemCreatedDto>())!.ItemId;
+
+        var response = await client.PutWithKeyAsync(
+            $"/api/v1/sales/{orderId}/items/{itemId}", Guid.NewGuid().ToString(),
+            new { quantity = 1.5m, unitPriceMinorUnits = 100 });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        // Content-Type + a parseable ValidationProblem body — not just "no
+        // leak", which an EMPTY body would also trivially satisfy. Outside
+        // Development, ASP.NET Core's own binding failure sets StatusCode
+        // directly with NO body at all unless RouteHandlerOptions.
+        // ThrowOnBadRequest is forced true (Program.cs, #398) so this
+        // reaches /error in the first place — a weaker check here would stay
+        // green even with that registration missing.
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.DoesNotContain("Failed to read parameter", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("UpdateOrderItemRequest", body, StringComparison.Ordinal);
+        using var doc = System.Text.Json.JsonDocument.Parse(body);
+        Assert.Equal(400, doc.RootElement.GetProperty("status").GetInt32());
+        Assert.Equal(System.Text.Json.JsonValueKind.Object, doc.RootElement.GetProperty("errors").ValueKind);
+    }
+
     [Fact]
     public async Task CancelDraft_Succeeds_CancelConfirmed_409()
     {
@@ -291,11 +392,13 @@ public sealed class CustomerAndOrderTests(CluckworkWebApplicationFactory factory
         var today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
 
         // 1. record + submit production
+        // #394: submit requires exact reconciliation — 918 total − 10 cracked −
+        // 5 dirty − 3 discarded = 900 sellable, matching the two grade lines.
         var entryId = await CreatedId(await client.PostWithKeyAsync(
             "/api/v1/daily-entries", Guid.NewGuid().ToString(), new
             {
                 farmId, houseId = Guid.NewGuid(), flockId, date = today,
-                totalEggs = 1000, crackedEggs = 10, dirtyEggs = 5, discardedEggs = 3, mortalityCount = 0,
+                totalEggs = 918, crackedEggs = 10, dirtyEggs = 5, discardedEggs = 3, mortalityCount = 0,
                 grades = new[]
                 {
                     new { eggGradeId = grades["Large"], quantity = 600 },

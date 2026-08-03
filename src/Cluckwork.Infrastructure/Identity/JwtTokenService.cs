@@ -33,7 +33,8 @@ public sealed class JwtTokenService(IOptions<JwtOptions> options, TimeProvider t
         {
             new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
             new(JwtRegisteredClaimNames.Email, user.Email ?? string.Empty),
-            new("account_id", user.AccountId.ToString())
+            new("account_id", user.AccountId.ToString()),
+            new("credential_epoch", user.CredentialEpoch.ToString(System.Globalization.CultureInfo.InvariantCulture))
         };
         claims.AddRange(roles.Select(r => new Claim("role", r)));
         // #283 — carried only when true (mirrors the role claims' omit-if-absent
@@ -41,11 +42,12 @@ public sealed class JwtTokenService(IOptions<JwtOptions> options, TimeProvider t
         // endpoint but auth/change-password + auth/logout until the first-run
         // admin (or anyone else whose password was force-reset) sets their own
         // password; claims.ts decodes the same claim to show the SPA's
-        // first-login screen instead of the normal app shell. A short (~15 min)
-        // access-token lifetime bounds how long a token minted BEFORE a
-        // password change stays valid — ChangeOwnPasswordAsync also revokes
-        // every refresh token, so the old access token's window is the only
-        // survivor, same as every other credential rotation in this app.
+        // first-login screen instead of the normal app shell. Since #364, the
+        // password change that clears this flag also bumps CredentialEpoch, so
+        // a token minted BEFORE it — carrying this claim or not — is rejected
+        // by CredentialEpochMiddleware on its very next request; the ~15-min
+        // access-token lifetime is now only a defense-in-depth ceiling, not
+        // what actually bounds the old token's window.
         if (user.MustChangePassword)
             claims.Add(new Claim("must_change_password", "true"));
 

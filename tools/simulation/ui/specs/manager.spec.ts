@@ -61,6 +61,10 @@ test.describe("Manager", () => {
     await selectOptionContaining(page.getByLabel(tEn("dailyEntry:flockLabel")), flockName);
     await page.getByLabel(tEn("dailyEntry:totalEggsLabel"), { exact: true }).fill("40");
     await page.getByLabel(tEn("dailyEntry:crackedLabel"), { exact: true }).fill("1");
+    // #394: submit is refused unless grading exactly reconciles sellable eggs
+    // (40 total − 1 cracked = 39) — "Large" is a base default grade, present
+    // on every install regardless of seed profile, so it's always offered here.
+    await page.getByLabel("Large", { exact: true }).fill("39");
 
     await page.getByRole("button", { name: tEn("dailyEntry:submitButton") }).click();
     // Submitting is confirmed, not immediate. Stopping at the first click would
@@ -96,7 +100,12 @@ test.describe("Manager", () => {
     const adjustDialog = page
       .getByRole("dialog")
       .filter({ has: page.getByLabel(tEn("history:reasonLabel")) });
-    await adjustDialog.getByLabel(tEn("history:totalEggsLabel"), { exact: true }).fill("38");
+    // The dialog now mirrors the Daily entry form field for field, so its count
+    // labels come from THAT screen's namespace (`dailyEntry`), not `history`.
+    await adjustDialog.getByLabel(tEn("dailyEntry:totalEggsLabel"), { exact: true }).fill("38");
+    // #394: an adjustment has no draft state — Save stays disabled unless
+    // grading reconciles exactly. Cracked carries over at 1, so 38 − 1 = 37.
+    await adjustDialog.getByLabel("Large", { exact: true }).fill("37");
     await adjustDialog.getByLabel(tEn("history:reasonLabel")).fill("E2E recount");
     await adjustDialog.getByRole("button", { name: tEn("history:saveAdjustmentButton") }).click();
 

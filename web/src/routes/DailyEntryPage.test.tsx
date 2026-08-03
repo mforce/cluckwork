@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { render, screen, within, fireEvent, waitFor, act } from "@testing-library/react";
 import { DailyEntryPage } from "./DailyEntryPage";
 import {
@@ -72,21 +74,38 @@ async function renderReady() {
 }
 
 describe("DailyEntryPage accuracy gating", () => {
-  it("reports graded-of-sellable (muted) and allows submit when within sellable", async () => {
+  // #394: grading must reconcile EXACTLY to sellable before submit — "within
+  // sellable" (the old gate) is no longer enough. This used to be the case
+  // that shipped the bug: a partially-graded day submitted cleanly and
+  // silently produced fewer egg lots than eggs actually collected.
+  it("blocks submit for a partially graded day, even though graded is within sellable (#394)", async () => {
     await renderReady();
     setNum("Total eggs", 100);
     setNum("Cracked", 2);
     setNum("Dirty", 3);
     setNum("Discarded", 5); // losses 10 → sellable 90 (all three counted)
     setNum("Grade A", 60);
-    setNum("Grade B", 25); // graded 85 ≤ 90
+    setNum("Grade B", 25); // graded 85, short of 90 — no longer enough to submit
 
     expect(sellableReadout()).toHaveTextContent("90");
     // 90 sellable − 85 graded: the number the counter is working towards.
     expect(remainingChip()).toHaveTextContent("5 left to grade");
     expect(remainingChip()).not.toHaveClass("over");
     expect(remainingChip()).not.toHaveClass("done");
-    expect(submitBtn()).toBeEnabled();
+    expect(submitBtn()).toBeDisabled();
+    expect(saveDraftBtn()).toBeEnabled(); // a draft stays flexible, even partly graded
+  });
+
+  // The bug exactly as reported (#394): no losses, no grading at all — the
+  // day used to submit cleanly and generate zero egg lots for real production.
+  it("blocks submit for a fully ungraded day, even with no losses at all (#394)", async () => {
+    await renderReady();
+    setNum("Total eggs", 200); // sellable 200, nothing graded
+
+    expect(sellableReadout()).toHaveTextContent("200");
+    expect(remainingChip()).toHaveTextContent("200 left to grade");
+    expect(submitBtn()).toBeDisabled();
+    expect(saveDraftBtn()).toBeEnabled();
   });
 
   it("blocks submit (but not draft) and styles the message error when graded exceeds sellable", async () => {
@@ -104,7 +123,7 @@ describe("DailyEntryPage accuracy gating", () => {
     expect(saveDraftBtn()).toBeEnabled(); // an over-graded draft is allowed
   });
 
-  it("allows submit at the exact boundary graded === sellable (the gate is >, not >=)", async () => {
+  it("allows submit at the exact boundary graded === sellable (#394: the gate is ===, nothing short or over)", async () => {
     await renderReady();
     setNum("Total eggs", 100);
     setNum("Cracked", 2);
@@ -289,6 +308,8 @@ describe("DailyEntryPage submit confirmation", () => {
     await renderReady();
     fireEvent.change(screen.getByLabelText("Flock"), { target: { value: "f1" } });
     setNum("Total eggs", 10);
+    // #394: submit needs grading to reconcile exactly — 10 sellable, 10 graded.
+    setNum("Grade A", 10);
     await waitFor(() => expect(submitBtn()).toBeEnabled());
   }
 
@@ -577,6 +598,128 @@ describe("DailyEntryPage assign the remainder", () => {
     expect(screen.queryByRole("button", { name: /Put all \d+ remaining in/ })).toBeNull();
     expect(screen.queryByRole("button", { name: /Choose a grade/ })).toBeNull();
   });
+
+  // The test above cannot tell WHICH mechanism disarmed: `fireEvent` wraps its
+  // dispatch in act(), which flushes the passive effect before the assertion
+  // runs, so it passes whether the render reads the derived `armed` flag or the
+  // raw state. Dispatching raw skips that flush and sees the frame the user's
+  // next click would land in — the one the bug lived in (#403 round 3).
+  it("drops the row targets in the same render as the reconciliation", async () => {
+    await readyWithRemainder();
+    fireEvent.click(arm());
+
+    const input = screen.getByLabelText("Grade B") as HTMLInputElement;
+    // React tracks the value on the node, so assigning `.value` reads as a
+    // no-op change; go through the prototype setter React patched.
+    const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+    setValue.call(input, "60"); // 30 + 60 === sellable 90
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+
+    expect(screen.queryAllByRole("button", { name: /Put all \d+ remaining in/ })).toHaveLength(0);
+    expect(document.querySelector(".entry-row.taking")).toBeNull();
+  });
+
+  // Same frame, different trigger, and the one the effect cannot cover at all:
+  // the guard that would disqualify the gesture (`prefillPending`) is itself
+  // set in an effect, so BOTH sides of the check were a render late. Changing
+  // the day now disarms in the same event as the change.
+  it("drops the row targets in the same render as a change of day", async () => {
+    await readyWithRemainder();
+    fireEvent.click(arm());
+    expect(screen.getByRole("button", { name: "Put all 60 remaining in Grade A" })).toBeInTheDocument();
+
+    const picker = screen.getByLabelText("Date") as HTMLInputElement;
+    const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+    setValue.call(picker, "2026-01-02");
+    picker.dispatchEvent(new Event("input", { bubbles: true }));
+
+    // No row may still offer the PREVIOUS day's remainder over the new one.
+    expect(screen.queryAllByRole("button", { name: /Put all \d+ remaining in/ })).toHaveLength(0);
+    expect(document.querySelector(".entry-row.taking")).toBeNull();
+  });
+
+  // The flock picker's own frame, not just the date's. Without it the flock
+  // path's only defence was the source-text check, and a reviewer showed that
+  // check can be walked around — one runtime test per picker, so neither rests
+  // on the other (#403 round 5).
+  it("drops the row targets in the same render as a change of flock", async () => {
+    mockListFlocks.mockResolvedValue([FLOCK, { ...FLOCK, id: "f2", name: "Second Coop" }]);
+    await readyWithRemainder();
+    fireEvent.click(arm());
+    expect(screen.getByRole("button", { name: "Put all 60 remaining in Grade A" })).toBeInTheDocument();
+
+    const picker = screen.getByLabelText("Flock") as HTMLSelectElement;
+    const setValue = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value")!.set!;
+    setValue.call(picker, "f2");
+    picker.dispatchEvent(new Event("change", { bubbles: true }));
+
+    expect(screen.queryAllByRole("button", { name: /Put all \d+ remaining in/ })).toHaveLength(0);
+    expect(document.querySelector(".entry-row.taking")).toBeNull();
+  });
+
+  // The same switch reached through the other door. Creating a flock changes
+  // the captured day too, and nothing prevents opening that dialog while armed
+  // — so the fix has to live on every path that moves the target, not just the
+  // two pickers (#403 round 4).
+  it("drops the row targets when a newly created flock becomes the target", async () => {
+    mockCreateFlock.mockResolvedValue({ id: "f2" });
+    await readyWithRemainder();
+    fireEvent.click(arm());
+    expect(screen.getByRole("button", { name: "Put all 60 remaining in Grade A" })).toBeInTheDocument();
+
+    mockListFlocks.mockResolvedValue([FLOCK, { ...FLOCK, id: "f2", name: "Rhode Reds" }]);
+    fireEvent.click(screen.getByRole("button", { name: "+ new flock" }));
+    const dlg = screen.getByRole("dialog");
+    fireEvent.change(within(dlg).getByLabelText("Name"), { target: { value: "Rhode Reds" } });
+    fireEvent.change(within(dlg).getByLabelText("Breed"), { target: { value: "RIR" } });
+    await act(async () => {
+      fireEvent.click(within(dlg).getByRole("button", { name: "Create flock" }));
+    });
+
+    expect(screen.getByLabelText("Flock")).toHaveValue("f2");
+    expect(screen.queryAllByRole("button", { name: /Put all \d+ remaining in/ })).toHaveLength(0);
+  });
+
+  // Scope, because the test above cannot carry this on its own: the create
+  // resolves through awaits, so settling it flushes the effects too, and the
+  // assertion passes whether the disarm was synchronous or a render late
+  // (measured — it survives removing `retarget` from that path). The frame is
+  // observable for the two pickers and pinned there; for this path the
+  // guarantee is structural instead, and this is what enforces it.
+  it("routes every change of flock or date through the disarming helper", () => {
+    const source = readFileSync(resolve(process.cwd(), "src/routes/DailyEntryPage.tsx"), "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/\/\/[^\n]*/g, "");
+
+    // The setters are pinned to these names FIRST. Without this the check
+    // greps for a literal that a rename makes disappear: a reviewer renamed
+    // the state setter and called it raw, reintroducing the bug with this test
+    // still green. Renaming is now the thing that fails, and the failure says
+    // to update this list.
+    expect(source, "flock setter name").toMatch(/const \[flockId, setFlockId\] = useState/);
+    expect(source, "date setter name").toMatch(/const \[date, setDate\] = useState/);
+
+    // Every call site, in or out of an effect. The mount path cannot be armed
+    // yet, but it is routed anyway so the rule has no exceptions to remember.
+    for (const setter of ["setFlockId", "setDate"]) {
+      const calls = [...source.matchAll(new RegExp(`${setter}\\(`, "g"))];
+      expect(calls.length, `${setter} call sites`).toBeGreaterThan(0);
+      for (const call of calls) {
+        const before = source.slice(Math.max(0, call.index - 40), call.index);
+        expect(before, `${setter} at index ${call.index} must be inside retarget(...)`)
+          .toMatch(/retarget\(\(\) =>\s*$/);
+      }
+    }
+
+    // An alias would still let a raw call through under another name, so the
+    // setters may not be re-bound at all. (A wrapper whose BODY calls the
+    // setter is caught by the loop above; this closes the rename-at-source
+    // spelling the loop cannot see.)
+    for (const setter of ["setFlockId", "setDate"]) {
+      expect(source, `${setter} must not be aliased`)
+        .not.toMatch(new RegExp(`=\\s*${setter}\\s*[;,\\n]`));
+    }
+  });
 });
 
 // F134: the + refuses to build an over-graded day. Typing still can, because a
@@ -717,6 +860,8 @@ describe("DailyEntryPage i18n wiring (#182, Task 11)", () => {
         await renderReady();
         fireEvent.change(screen.getByLabelText("Flock"), { target: { value: "f1" } });
         setNum("Total eggs", 10);
+        // #394: submit needs grading to reconcile exactly — 10 sellable, 10 graded.
+        setNum("Grade A", 10);
         await waitFor(() => expect(submitBtn()).toBeEnabled());
 
         await act(async () => { fireEvent.click(submitBtn()); });

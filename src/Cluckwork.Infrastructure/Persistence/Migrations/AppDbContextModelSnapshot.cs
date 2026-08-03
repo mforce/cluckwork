@@ -1274,6 +1274,17 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                         .IsConcurrencyToken()
                         .HasColumnType("text");
 
+                    b.Property<int>("CredentialEpoch")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1);
+
+                    b.Property<DateTimeOffset?>("DisabledAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("DisabledBy")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("DisplayName")
                         .HasColumnType("text");
 
@@ -1356,6 +1367,11 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
 
                     b.Property<DateTimeOffset>("ExpiresAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("IssuedEpoch")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
 
                     b.Property<string>("ReplacedByTokenHash")
                         .HasMaxLength(64)

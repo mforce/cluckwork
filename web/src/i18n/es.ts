@@ -33,6 +33,8 @@ export const es = {
     signIn: "Iniciar sesión",
     signingIn: "Iniciando sesión…",
     invalidCredentials: "Correo electrónico o contraseña inválidos.",
+    credentialsSuperseded: "Sus credenciales cambiaron. Inicie sesión de nuevo.",
+    accountDisabled: "Su cuenta ha sido deshabilitada.",
     tooManyAttempts:
       "Demasiados intentos de inicio de sesión. Espere unos minutos y vuelva a intentarlo.",
     apiDown: "No se pudo iniciar sesión. ¿Está la API en ejecución?",
@@ -287,6 +289,8 @@ export const es = {
     atMostDecimals: "Como máximo {{count}} decimales para esta moneda.",
     enterAmountGreaterThanZero: "Ingrese un monto mayor que cero.",
     invalidUnitPrice: "Precio unitario inválido.",
+    // machine-drafted (#182) — pending native review.
+    quantityMustBeWholeNumber: "La cantidad debe ser un número entero.",
     loadSalesDataFailed: "No se pudieron cargar los datos de ventas. ¿Está la API activa?",
     loadOrdersFailed: "No se pudieron cargar los pedidos.",
     loadPaymentsFailed: "No se pudieron cargar los pagos de este pedido.",
@@ -1170,8 +1174,9 @@ export const es = {
     conflictReloadFailedMessage:
       "Esta entrada fue cambiada por otra persona y la lista no se pudo "
       + "volver a cargar — vuelva a cargar la página antes de reintentarlo.",
-    exceedsSellableMessage:
-      "Las cantidades clasificadas no pueden superar el total de huevos menos los agrietados/sucios/descartados.",
+    gradesMustReconcileMessage:
+      "Las cantidades clasificadas deben ser iguales al total de huevos menos los agrietados, sucios y "
+      + "descartados.",
     entryAdjustedMessage: "Entrada ajustada — las existencias y el registro de aves se actualizaron para coincidir.",
     adjustReloadFailedMessage: "El ajuste se guardó, pero la lista no se pudo volver a cargar — actualice la página.",
     voidConfirmTitle: "¿Anular la entrada del {{date}} para {{flock}}?",
@@ -1200,11 +1205,8 @@ export const es = {
     adjustDialogTitleWithEntry: "Ajustar — {{date}}, {{flock}}",
     previouslyAdjusted:
       "Ajustado anteriormente (total {{total}}, mortalidad {{mortality}} — \"{{reason}}\").",
-    totalEggsLabel: "Total de huevos",
-    crackedLabel: "Agrietados",
-    dirtyLabel: "Sucios",
-    discardedLabel: "Descartados",
-    deathsLabel: "Muertes",
+    // Los dos pasos, las etiquetas de conteo y el chip de conciliación vienen
+    // del espacio `dailyEntry` (mismo formulario).
     inactiveGradeSuffix: " (inactivo)",
     reasonLabel: "Motivo *",
     saveAdjustmentButton: "Guardar ajuste",
@@ -1580,6 +1582,9 @@ export const es = {
       + "propietario existente. Esto confirma que realmente es usted antes de otorgar tanto acceso — ninguna "
       + "otra acción en esa pantalla (crear un usuario Worker/Manager/Sales/Read-only, restablecer su "
       + "contraseña) vuelve a preguntar.",
+    signingInCredentialEpoch:
+      "Cuando un administrador restablece una contraseña, su sesión actual puede invalidarse inmediatamente. Si "
+      + "ve un mensaje indicando que sus credenciales cambiaron, inicie sesión de nuevo con su contraseña actual.",
     interfaceLanguage:
       "<strong>Idioma de la interfaz.</strong> Cualquiera puede elegir el idioma en que se muestra la "
       + "interfaz desde <strong>Cuenta → Preferencias</strong> — inglés, español o tagalo. La traducción es "
@@ -1626,10 +1631,9 @@ export const es = {
     ownPassword:
       "<strong>Su propia contraseña.</strong> Cualquiera, en cualquier rol, puede cambiar su propia "
       + "contraseña en la pantalla <strong>Cuenta</strong> ingresando la actual y una nueva (al menos 12 "
-      + "caracteres). Cambiarla — o que un administrador se la establezca — cierra la sesión de esa cuenta "
-      + "en cada <em>otro</em> dispositivo; el dispositivo en el que la cambió permanece con la sesión "
-      + "iniciada. Una sesión ya abierta en otro lugar puede seguir activa unos minutos antes de dejar de "
-      + "funcionar.",
+      + "caracteres). Cambiar su propia contraseña mantiene este dispositivo conectado con credenciales "
+      + "nuevas y termina cada <em>otra</em> sesión abierta en su siguiente solicitud. Si un administrador le "
+      + "establece la contraseña, todas sus sesiones abiertas terminan en su siguiente solicitud.",
 
     dialogsHeading: "Agregar y corregir",
     dialogsPopup:
@@ -1656,7 +1660,8 @@ export const es = {
       "Los conteos de números enteros — conteos de huevos, conteos de aves, cantidades de venta, huevos por "
       + "unidad — tienen botones <strong>−</strong> y <strong>+</strong> del tamaño del pulgar: toque para "
       + "uno, <strong>mantenga presionado</strong> para acelerar. La cantidad de una línea de venta nunca "
-      + "baja de 1. Los precios y montos fraccionarios se siguen escribiendo.",
+      + "baja de 1 y siempre es un <strong>número entero</strong>, ya sea con los botones o escrita. Los "
+      + "decimales van en los precios, que se escriben.",
     dialogsConfirm:
       "<strong>Las acciones que no se pueden deshacer preguntan primero.</strong> Enviar un día, confirmar "
       + "o cancelar un pedido, agotar o archivar un lote — cada una indica lo que está por suceder y "
@@ -1676,11 +1681,13 @@ export const es = {
       "Elija el lote y la fecha en la parte superior, luego trabaje en dos paneles uno al lado del otro: "
       + "<strong>1 Conteo de huevos</strong> (total, rotos, sucios, descartados, muertes) y <strong>2 "
       + "Clasificación</strong>. Los conteos producen una cifra <strong>vendible</strong>, y ese es el "
-      + "número al que deben sumar los grados — nunca pueden superarlo.",
+      + "número al que deben sumar los grados. Un borrador puede quedar parcialmente clasificado, o sin "
+      + "clasificar — para enviar, debe cuadrar exactamente.",
     dailyEntryGradingDown:
       "La clasificación cuenta <strong>hacia abajo</strong>. Junto a los grados se muestra cuántos huevos "
       + "vendibles le quedan por ubicar; se pone verde en cuanto el día cuadra y rojo si se excede. No "
-      + "puede enviar mientras esté excedido.",
+      + "puede enviar hasta que llegue exactamente a cero — clasificar el día a medias, o no clasificarlo, "
+      + "está bien para un borrador, pero no para enviar.",
     dailyEntryButtons:
       "Cada conteo tiene botones <strong>−</strong> y <strong>+</strong>. Toque para uno, o <strong>mantenga "
       + "presionado</strong> — se acelera a medida que avanza, así que unos cientos de huevos toman "
@@ -1807,11 +1814,11 @@ export const es = {
     salesHeading: "Clientes y ventas",
     salesDrafts:
       "Los pedidos comienzan como <strong>borradores</strong>: agregue líneas eligiendo un "
-      + "<strong>producto</strong>, una unidad empacada (docena, cartón, …), una cantidad, y un precio por "
-      + "unidad (precargado desde el valor predeterminado del producto) — edite libremente, o "
-      + "<strong>cancele</strong> (el borrador se conserva, de solo lectura). Cada línea recuerda cuántos "
-      + "huevos contenía su unidad cuando se agregó, así que redefinir un cartón más tarde nunca cambia "
-      + "pedidos antiguos.",
+      + "<strong>producto</strong>, una unidad empacada (docena, cartón, …), una cantidad entera, y un "
+      + "precio por unidad (precargado desde el valor predeterminado del producto, se permiten decimales) — "
+      + "edite libremente, o <strong>cancele</strong> (el borrador se conserva, de solo lectura). Cada línea "
+      + "recuerda cuántos huevos contenía su unidad cuando se agregó, así que redefinir un cartón más tarde "
+      + "nunca cambia pedidos antiguos.",
     salesConfirming:
       "<strong>Confirmar</strong> un pedido asigna existencias reales — los lotes más antiguos primero — y "
       + "es el punto donde el inventario cambia de manos.",
@@ -1867,9 +1874,10 @@ export const es = {
       + "de fechas. La columna de estado muestra la vida de la entrada: Borrador, Enviada, Bloqueada (7+ "
       + "días), Ajustada (pase el cursor para ver el motivo), o Anulada.",
     historyAdminActions:
-      "Los administradores corrigen desde aquí: <strong>ajustar</strong> abre los números de la entrada "
-      + "para edición (motivo requerido), <strong>anular</strong> deshace toda la entrada. Las existencias "
-      + "y el libro mayor de aves se actualizan automáticamente.",
+      "Los administradores corrigen desde aquí: <strong>ajustar</strong> reabre la entrada en el mismo "
+      + "formulario de dos pasos que Entrada diaria — mismo conteo vendible, misma ficha de clasificación, "
+      + "mismo atajo <strong>poner todo en…</strong> — con motivo requerido; <strong>anular</strong> "
+      + "deshace toda la entrada. Las existencias y el libro mayor de aves se actualizan automáticamente.",
     historyDraftEdit:
       "Las filas en borrador tienen un enlace <strong>editar</strong> (todos, no solo administradores) que "
       + "salta de vuelta a la pantalla de Entrada diaria con ese lote y día cargados — los borradores se "
@@ -2009,9 +2017,11 @@ export const es = {
     mistakesRow8Mistake: "Números incorrectos en una entrada diaria <em>enviada</em>",
     mistakesRow8Fix:
       "Historial → <strong>ajustar</strong> (admin) — totales, pérdidas, mortalidad y desglose por grado, "
-      + "con un motivo requerido. Las existencias y el libro mayor de aves se actualizan para coincidir "
-      + "automáticamente, pero los huevos ya vendidos nunca se pueden descontar: reducir un grado por "
-      + "debajo de lo vendido se rechaza. Los valores anteriores permanecen visibles en la entrada.",
+      + "con un motivo requerido. Los grados corregidos deben sumar exactamente la cantidad vendible "
+      + "corregida, la misma regla que usa Enviar, y <strong>Guardar ajuste</strong> se bloquea hasta que "
+      + "coincidan. Las existencias y el libro mayor de aves se actualizan para coincidir automáticamente, "
+      + "pero los huevos ya vendidos nunca se pueden descontar: reducir un grado por debajo de lo vendido se "
+      + "rechaza. Los valores anteriores permanecen visibles en la entrada.",
 
     mistakesRow9Mistake: "Toda la entrada <em>enviada</em> está equivocada (lote o día incorrecto)",
     mistakesRow9Fix:
@@ -2153,8 +2163,9 @@ export const es = {
 
     glossarySalesLineTerm: "Línea de venta",
     glossarySalesLineDef:
-      "Un producto en un pedido: cantidad en unidades de venta, con precio por unidad; los huevos detrás "
-      + "de ella son la cantidad × el conteo de huevos de la unidad.",
+      "Un producto en un pedido: una cantidad entera en unidades de venta, con precio por unidad (el "
+      + "precio puede tener decimales); los huevos detrás de ella son la cantidad × el conteo de huevos de "
+      + "la unidad.",
 
     glossaryConfirmOrderTerm: "Confirmar (pedido)",
     glossaryConfirmOrderDef:
@@ -2208,8 +2219,10 @@ export const es = {
 
     glossaryAdjustEntryTerm: "Ajustar (entrada)",
     glossaryAdjustEntryDef:
-      "Corrección de admin sobre una entrada enviada. Las existencias y el libro mayor de aves se "
-      + "concilian automáticamente; los huevos vendidos son intocables; los valores anteriores permanecen "
+      "Corrección de admin sobre una entrada enviada. Los grados corregidos deben sumar exactamente la "
+      + "cantidad vendible corregida, la misma regla que usa Enviar — un ajuste no tiene estado de borrador "
+      + "para dejarlo parcialmente clasificado. Las existencias y el libro mayor de aves se concilian "
+      + "automáticamente; los huevos vendidos son intocables; los valores anteriores permanecen "
       + "visibles.",
 
     glossaryVoidEntryTerm: "Anular (entrada)",

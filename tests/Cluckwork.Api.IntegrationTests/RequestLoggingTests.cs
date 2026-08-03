@@ -3,11 +3,32 @@ namespace Cluckwork.Api.IntegrationTests;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+using Cluckwork.Application.Features.Users.ChangeOwnPassword;
+using FluentValidation;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Serilog.Core;
 using Serilog.Events;
+
+// #398 review (Codex) — a genuine unhandled fault for
+// Unhandled_exception_logs_one_completion_for_the_real_path_only below. That
+// test used to provoke malformed JSON at /api/v1/auth/login, but that request
+// no longer reaches this middleware as an exception at all: BindingFailureResponse
+// (Hosting/BindingFailureResponse.cs) catches it before Serilog ever sees it
+// (see Binding_failure_logs_one_completion_at_information_with_status_400
+// instead). This class needs its own genuine, non-binding fault to keep
+// proving the Error/500 guarantee. Mirrors ExceptionHandlerReExecutionTests.cs's
+// validator-replacement pattern: the throw originates INSIDE the endpoint —
+// downstream of IdempotencyMiddleware, exactly where a real handler fault
+// would — rather than from binding.
+internal sealed class ThrowingChangeOwnPasswordValidatorForRequestLogging
+    : AbstractValidator<ChangeOwnPasswordCommand>
+{
+    public ThrowingChangeOwnPasswordValidatorForRequestLogging() =>
+        RuleFor(c => c.NewPassword).Custom((_, _) =>
+            throw new InvalidOperationException("unhandled-exception probe"));
+}
 
 // #214 — every request emits one structured completion log (method, path,
 // status, elapsed) carrying the request's TraceId, so a single id joins the
@@ -25,10 +46,11 @@ public sealed class RequestLoggingFactory : CluckworkWebApplicationFactory
             // Program.cs pulls DI-registered sinks into the logger via
             // ReadFrom.Services; this hands the test a live tap on every event.
             services.AddSingleton<ILogEventSink>(Sink);
-            // Outside Development, minimal-API binding failures return 400
-            // without throwing; the exception-path test needs the real throw.
-            services.Configure<Microsoft.AspNetCore.Routing.RouteHandlerOptions>(
-                o => o.ThrowOnBadRequest = true);
+            // #398 — RouteHandlerOptions.ThrowOnBadRequest=true (so a binding
+            // failure really throws, which the binding-failure test below
+            // needs) is now Program.cs's own global registration, not a
+            // per-factory override — every environment behaves the same way.
+            services.AddScoped<IValidator<ChangeOwnPasswordCommand>, ThrowingChangeOwnPasswordValidatorForRequestLogging>();
         });
     }
 
@@ -53,6 +75,25 @@ public sealed class RequestLoggingTests(RequestLoggingFactory factory)
         e.Properties.TryGetValue(name, out var value) && value is ScalarValue scalar
             ? scalar.Value?.ToString()
             : null;
+
+    // #398 review round 6 (Codex) — correlate a completion to THIS request,
+    // not merely to its path and status.
+    //
+    // The sink is class-scoped and never reset, and several tests here POST to
+    // /api/v1/auth/login and produce a 400. A path+status filter therefore
+    // depends on execution order, which xUnit does not guarantee — so a
+    // correct application could fail the suite purely because two tests ran in
+    // the other order. Stamping a fresh traceparent and matching on TraceId
+    // removes the coupling entirely rather than papering over it with a count.
+    private static ActivityTraceId StampTrace(HttpRequestMessage request)
+    {
+        var traceId = ActivityTraceId.CreateRandom();
+        request.Headers.Add("traceparent", $"00-{traceId}-{ActivitySpanId.CreateRandom()}-01");
+        return traceId;
+    }
+
+    private LogEvent CompletionFor(string path, ActivityTraceId traceId) =>
+        Assert.Single(CompletionEventsFor(path), e => e.TraceId == traceId);
 
     [Fact]
     public async Task Request_emits_one_completion_log_with_method_path_status_elapsed_and_traceid()
@@ -119,23 +160,96 @@ public sealed class RequestLoggingTests(RequestLoggingFactory factory)
 
     // An unhandled exception re-executes the pipeline at /error; without
     // demotion that produced TWO completion lines per failed request (codex +
-    // agent review of PR #226). The malformed-JSON body is the one guaranteed
-    // in-repo trigger: minimal-API binding throws BadHttpRequestException.
+    // agent review of PR #226). Malformed JSON used to be the guaranteed
+    // in-repo trigger (minimal-API binding throws BadHttpRequestException),
+    // but #398 review (Codex) gave THAT specific exception its own middleware
+    // (BindingFailureResponse) that catches it before Serilog ever sees it —
+    // see Binding_failure_logs_one_completion_at_information_with_status_400
+    // for that case. This test now needs a genuine, non-binding fault instead
+    // (ThrowingChangeOwnPasswordValidatorForRequestLogging, registered above)
+    // to keep proving the guarantee for a REAL unhandled exception.
     [Fact]
     public async Task Unhandled_exception_logs_one_completion_for_the_real_path_only()
     {
+        var email = $"reqlog-fault-{Guid.NewGuid():N}@test.local";
+        await factory.SeedAccountWithUserAsync(email);
+        var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
+
+        var response = await client.PostAsJsonAsync("/api/v1/auth/change-password", new
+        {
+            currentPassword = TestHarness.Password,
+            newPassword = $"{Guid.NewGuid():N}aA1!"
+        });
+
+        Assert.Equal(System.Net.HttpStatusCode.InternalServerError, response.StatusCode);
+        // The exception-pass completion (Serilog logs these with StatusCode 500
+        // + the exception attached) — filtered by status so other tests'
+        // traffic on this path can't interfere.
+        var completion = Assert.Single(CompletionEventsFor("/api/v1/auth/change-password"),
+            e => ScalarOf(e, "StatusCode") == "500");
+        Assert.Equal(LogEventLevel.Error, completion.Level);
+        Assert.Empty(CompletionEventsFor("/error"));
+    }
+
+    // #398 review (Codex) — the regression this branch fixes, and the
+    // client-visible half of that same fix, pinned together from ONE request.
+    // Filtered by StatusCode, like Unhandled_exception_logs_... above: other
+    // tests' factory.LoginForAccessTokenAsync setup calls ALSO hit
+    // /api/v1/auth/login on the same shared, never-reset factory.Sink — those
+    // always succeed (200), so filtering this request's own 400 out keeps
+    // this test's assertion independent of what else in the class ran first.
+    //
+    // The regression: a JSON-binding failure (RouteHandlerOptions.
+    // ThrowOnBadRequest, forced true in every environment) is a
+    // BadHttpRequestException that, unhandled, propagates through
+    // UseSerilogRequestLogging on its way to being correctly mapped to a 400
+    // at /error. Serilog.AspNetCore hardcodes StatusCode 500 at Error for ANY
+    // exception that passes through it, so the client's correct 400 was
+    // being mis-logged as a server fault — inflating 5xx/error telemetry and
+    // risking false alerts. BindingFailureResponse
+    // (Hosting/BindingFailureResponse.cs) now answers the request itself,
+    // one layer inside Serilog, so Serilog only ever sees a normal 400
+    // completion — and moving WHERE the response is written must not change
+    // WHAT is written, so this also pins the exact ValidationProblem shape
+    // ValidationResponse.BindingFailureProblem() produces (the single
+    // factory both BindingFailureResponse and the /error backstop in
+    // Program.cs call, so they cannot drift apart).
+    [Fact]
+    public async Task Binding_failure_logs_one_completion_at_information_with_status_400()
+    {
         var client = factory.CreateClient();
         var malformed = new StringContent("{not json", System.Text.Encoding.UTF8, "application/json");
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/login") { Content = malformed };
+        var traceId = StampTrace(request);
 
-        var response = await client.PostAsync("/api/v1/auth/login", malformed);
+        var response = await client.SendAsync(request);
 
         Assert.Equal(System.Net.HttpStatusCode.BadRequest, response.StatusCode);
-        // The exception-pass completion (Serilog logs these with StatusCode 500
-        // + the exception attached) — filtered by status so the healthy logins
-        // other tests perform can't interfere.
-        Assert.Single(CompletionEventsFor("/api/v1/auth/login"),
-            e => ScalarOf(e, "StatusCode") == "500");
+
+        // (1) Exactly one completion for THIS request, at Information,
+        // StatusCode 400 — not 500, not Error — and no exception-handler
+        // re-execution at /error (the failure never propagated that far up
+        // the pipeline). Matched by TraceId, not path+status: another test in
+        // this class also produces a 400 on this path (#398 review round 6).
+        var completion = CompletionFor("/api/v1/auth/login", traceId);
+        Assert.Equal("400", ScalarOf(completion, "StatusCode"));
+        Assert.Equal(LogEventLevel.Information, completion.Level);
         Assert.Empty(CompletionEventsFor("/error"));
+
+        // (3) The client-visible body is still the ValidationProblem shape
+        // #398 introduced, not a bare 400 and not the framework's raw
+        // binding-exception text.
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.DoesNotContain("Failed to read parameter", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("Utf8JsonReader", body, StringComparison.Ordinal);
+        using var doc = System.Text.Json.JsonDocument.Parse(body);
+        Assert.Equal(400, doc.RootElement.GetProperty("status").GetInt32());
+        var bodyErrors = doc.RootElement.GetProperty("errors").GetProperty("body");
+        Assert.Equal(System.Text.Json.JsonValueKind.Array, bodyErrors.ValueKind);
+        Assert.Equal(
+            "The request body has an invalid or incorrectly formatted value.",
+            bodyErrors[0].GetString());
     }
 
     // Spec §10: account_id on every log scope. The tenant middleware feeds the
@@ -153,6 +267,194 @@ public sealed class RequestLoggingTests(RequestLoggingFactory factory)
         response.EnsureSuccessStatusCode();
         var completion = Assert.Single(CompletionEventsFor("/api/v1/customers"));
         Assert.Equal(accountId.ToString(), ScalarOf(completion, "AccountId"));
+    }
+
+    // #398 review round 2 (Codex) — the STREAMED 413, which is a different path
+    // from the 400 above and was not covered by anything.
+    //
+    // RequestBodyLimit's recovery for this case is a post-`next()` STATUS CHECK,
+    // not a catch: it relies on minimal-API's generated binder catching
+    // ByteCappedRequestStream's 413 itself, setting Response.StatusCode = 413,
+    // and returning WITHOUT rethrowing. Forcing ThrowOnBadRequest=true globally
+    // (#398) is exactly the kind of change that could invalidate that premise —
+    // if the binder rethrew instead, `next()` would throw, the recovery would
+    // never run, BindingFailureResponse would rethrow it (413 != 400), and
+    // Serilog would log the hardcoded 500/Error this PR exists to eliminate.
+    //
+    // AuthBodyLimitTests pins the RESPONSE shape for this path and still passes,
+    // but a response assertion cannot see a mis-logged completion — the original
+    // #398 defect was invisible to every response-level test in the suite. So
+    // assert the telemetry directly: one completion, Information, 413.
+    [Fact]
+    public async Task Streamed_413_logs_one_completion_at_information_with_status_413()
+    {
+        var client = factory.CreateClient();
+
+        // Declares 10 bytes, actually sends ~8 KB: the cap is breached mid-read,
+        // inside the generated binder, rather than by the declared-length
+        // short-circuit that never reaches binding at all.
+        //
+        // NonSeekableStream, shared with AuthBodyLimitTests, NOT a MemoryStream
+        // (#398 review round 2, Codex): both paths answer 413, so a test that
+        // drifted onto the declared-length short-circuit would still pass while
+        // proving nothing about the streamed one. Matching the transport shape
+        // AuthBodyLimitTests already uses for this path keeps that honest by
+        // construction rather than by argument.
+        var payload = System.Text.Encoding.UTF8.GetBytes(
+            $"{{\"email\":\"nobody@example.com\",\"password\":\"{new string('a', 8192)}\"}}");
+        var content = new StreamContent(new NonSeekableStream(payload));
+        content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
+        content.Headers.ContentLength = 10;
+
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/login") { Content = content };
+        var traceId = StampTrace(request);
+
+        var response = await client.SendAsync(request);
+
+        Assert.Equal(System.Net.HttpStatusCode.RequestEntityTooLarge, response.StatusCode);
+
+        // Filter by status rather than Assert.Single on the path: the sink is
+        // class-scoped and never reset, and several other tests here reach
+        // /api/v1/auth/login through the login helper, so a bare Single() fails
+        // on their traffic rather than on this guarantee. Exactly one 413
+        // completion is still the assertion — a re-executed /error would add a
+        // second, and a mis-logged 500 would leave zero.
+        var completion = CompletionFor("/api/v1/auth/login", traceId);
+        Assert.Equal("413", ScalarOf(completion, "StatusCode"));
+        Assert.Equal(LogEventLevel.Information, completion.Level);
+        Assert.Null(completion.Exception);
+    }
+
+    // #398 review round 4 (Codex) — ThrowOnBadRequest is global, so it also makes
+    // a failed TYPED QUERY PARAMETER throw a 400 BadHttpRequestException. That
+    // reaches BindingFailureResponse exactly like a JSON-body failure does, and
+    // the first version of this PR rendered every one of them as
+    // ["body"] = ["The request body has an invalid or incorrectly formatted
+    // value."] — telling the caller of a bodyless GET that its body was wrong.
+    //
+    // The fix keys off whether the request HAS a body at all, not off the
+    // exception's message text: minimal-API's binding messages are framework
+    // internals that differ per binding source and can change between versions,
+    // so matching on them would be a silent trap on the next upgrade.
+    [Fact]
+    public async Task Query_binding_failure_does_not_blame_the_request_body()
+    {
+        var email = $"reqlog-query-{Guid.NewGuid():N}@test.local";
+        await factory.SeedAccountWithUserAsync(email);
+        var token = await factory.LoginForAccessTokenAsync(email);
+        var client = factory.CreateAuthedClient(token);
+
+        var request = new HttpRequestMessage(
+            HttpMethod.Get, "/api/v1/reports/production?from=not-a-date");
+        var traceId = StampTrace(request);
+
+        var response = await client.SendAsync(request);
+
+        Assert.Equal(System.Net.HttpStatusCode.BadRequest, response.StatusCode);
+        var payload = await response.Content.ReadAsStringAsync();
+
+        // A GET carries no body, so blaming one is simply false.
+        Assert.DoesNotContain("\"body\"", payload);
+        Assert.Contains("\"query\"", payload);
+
+        // #398 review round 6 (Codex) — incidental payload bytes on a
+        // query-only route must not flip the verdict. This endpoint accepts no
+        // body, so its own contract decides; before the fix the byte checks
+        // were OR-ed in and a non-empty body here reported `body`.
+        var withBody = new HttpRequestMessage(
+            HttpMethod.Get, "/api/v1/reports/production?from=not-a-date")
+        {
+            Content = new StringContent(
+                "{}", System.Text.Encoding.UTF8, "application/json"),
+        };
+        var strayBody = await client.SendAsync(withBody);
+        Assert.Equal(System.Net.HttpStatusCode.BadRequest, strayBody.StatusCode);
+        var strayPayload = await strayBody.Content.ReadAsStringAsync();
+        Assert.DoesNotContain("\"body\"", strayPayload);
+        Assert.Contains("\"query\"", strayPayload);
+
+        // And it must still be an ordinary client error in telemetry, not a 500.
+        var completion = CompletionFor("/api/v1/reports/production", traceId);
+        Assert.Equal("400", ScalarOf(completion, "StatusCode"));
+        Assert.Equal(LogEventLevel.Information, completion.Level);
+        Assert.Null(completion.Exception);
+    }
+
+    // #398 review round 5 (Codex) — the inverse of the round-4 case, and a
+    // defect the round-4 fix introduced. A caller that omits a REQUIRED JSON
+    // body entirely also fails binding, and carries no payload bytes — so a
+    // "does the request have bytes?" test reports it as a query failure, which
+    // is exactly as wrong as blaming the body was.
+    //
+    // The signal has to be the ENDPOINT's contract (does it accept a body?),
+    // not the request's byte count.
+    [Fact]
+    public async Task Missing_required_body_is_reported_as_a_body_failure_not_a_query_one()
+    {
+        var client = factory.CreateClient();
+
+        // Declares JSON but sends nothing. A POST with NO Content-Type at all
+        // does not reach binding — the JSON-bound endpoint constrains content
+        // type on the route, so it 404s exactly like the unsupported-type case
+        // below. Declaring the type is what gets the request as far as the
+        // binder, where the required body is then found to be absent.
+        var content = new StringContent(
+            string.Empty, System.Text.Encoding.UTF8, "application/json");
+        var response = await client.SendAsync(
+            new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/login") { Content = content });
+
+        Assert.Equal(System.Net.HttpStatusCode.BadRequest, response.StatusCode);
+        var payload = await response.Content.ReadAsStringAsync();
+
+        Assert.Contains("\"body\"", payload);
+        Assert.DoesNotContain("\"query\"", payload);
+    }
+
+    // #398 review round 3 (Codex) — the unsupported-Content-Type path, raised as
+    // "binding-generated 415s inflate error telemetry". The reasoning was that
+    // ThrowOnBadRequest governs the binder's OWN failures, an unsupported media
+    // type is one of those, so it would throw, BindingFailureResponse would
+    // rethrow it (not a 400), and Serilog would log its hardcoded 500/Error.
+    //
+    // Measured: no 415 is ever generated. A JSON-bound minimal-API endpoint
+    // carries a content-type constraint on the ROUTE, so a form-encoded body
+    // fails to match and is refused with 404 before any binder runs. There is no
+    // exception, so there is nothing for the middleware to rethrow and nothing
+    // for Serilog to mis-classify.
+    //
+    // Pinned anyway, because the guarantee is the one that matters and is easy
+    // to lose: an ordinary client mistake must never reach Error level. If a
+    // future change did start producing a real 415 through the binder, this goes
+    // red rather than silently inflating 5xx alerts.
+    [Fact]
+    public async Task Unsupported_content_type_is_refused_without_error_telemetry()
+    {
+        var client = factory.CreateClient();
+
+        var content = new StringContent(
+            "email=nobody@example.com&password=whatever",
+            System.Text.Encoding.UTF8,
+            "application/x-www-form-urlencoded");
+
+        var response = await client.SendAsync(
+            new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/login") { Content = content });
+
+        // Routing refuses it; the endpoint is never reached.
+        Assert.Equal(System.Net.HttpStatusCode.NotFound, response.StatusCode);
+
+        // The real assertion: whatever status this path produces, no completion
+        // for it is logged at Error, and none carries an exception. Written
+        // against the status rather than pinning 404 twice, so a future change
+        // to 415 keeps proving the telemetry guarantee instead of just failing.
+        var completions = CompletionEventsFor("/api/v1/auth/login")
+            .Where(e => ScalarOf(e, "StatusCode") == ((int)response.StatusCode).ToString())
+            .ToList();
+        Assert.NotEmpty(completions);
+        Assert.All(completions, e =>
+        {
+            Assert.Equal(LogEventLevel.Information, e.Level);
+            Assert.Null(e.Exception);
+        });
     }
 }
 

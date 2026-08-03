@@ -87,6 +87,7 @@ public sealed class RetryBoundaryTests : IClassFixture<RetryBoundaryFactory>, ID
         var flockId = await _factory.SeedFlockAsync(accountId, farmId);
         var client = _factory.CreateAuthedClient(await _factory.LoginForAccessTokenAsync(email));
 
+        // #394: submit requires exact reconciliation — total matches the grade.
         var recorded = await client.PostWithKeyAsync(
             "/api/v1/daily-entries", Guid.NewGuid().ToString(),
             new
@@ -95,7 +96,7 @@ public sealed class RetryBoundaryTests : IClassFixture<RetryBoundaryFactory>, ID
                 houseId = Guid.NewGuid(),
                 flockId,
                 date = DateOnly.FromDateTime(DateTime.UtcNow.Date),
-                totalEggs = 1000,
+                totalEggs = 600,
                 crackedEggs = 0,
                 dirtyEggs = 0,
                 discardedEggs = 0,
@@ -294,6 +295,41 @@ public sealed class RetryBoundaryTests : IClassFixture<RetryBoundaryFactory>, ID
         // Two distinct failed attempts, two increments: the loser reloaded and
         // retried rather than silently dropping its increment.
         Assert.Equal(2, await FailedAccessCountAsync(accountId, email));
+    }
+
+    // A disable racing a wrong-password attempt also invalidates the tracked
+    // ConcurrencyStamp. Unlike another wrong-password writer, however, the
+    // freshly reloaded row is no longer eligible for lockout accounting: guesses
+    // made while an account is disabled must not leave it locked when an Owner
+    // later re-enables it. The retry loop therefore stops when reload observes
+    // DisabledAt instead of applying the stale attempt to the newer state.
+    [Fact]
+    public async Task ConcurrentDisable_StopsTheFailedAccessRetry_WithoutMutatingLockoutState()
+    {
+        var email = $"retry-boundary-{Guid.NewGuid():N}@test.local";
+        var accountId = await _factory.SeedAccountWithUserAsync(email);
+
+        using var failingAttempt = _factory.Services.CreateScope();
+        using var disabler = _factory.Services.CreateScope();
+        var failingUsers = failingAttempt.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var disablingUsers = disabler.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+
+        // The failed attempt reads first. Disabling through a different context
+        // then supersedes its ConcurrencyStamp before AccessFailedAsync saves.
+        var staleUser = await failingUsers.FindByEmailAsync(email);
+        var userToDisable = await disablingUsers.FindByEmailAsync(email);
+        Assert.NotNull(staleUser);
+        Assert.NotNull(userToDisable);
+
+        userToDisable.DisabledAt = DateTimeOffset.UtcNow;
+        Assert.True((await disablingUsers.UpdateAsync(userToDisable)).Succeeded);
+
+        await AccountLockout.RecordFailedAccessAsync(
+            failingUsers,
+            failingAttempt.ServiceProvider.GetRequiredService<AppDbContext>(),
+            staleUser);
+
+        Assert.Equal(0, await FailedAccessCountAsync(accountId, email));
     }
 
     // --- codex 3696925253 (P2), and the round-5 sweep it opened ---

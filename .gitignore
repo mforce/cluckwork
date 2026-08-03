@@ -33,3 +33,9 @@ node_modules/
 *.key
 *.p12
 *.pfx
+
+# Generated test-run reports. `dotnet test --logger trx` writes these under a
+# TestResults/ folder next to the project; nothing in the repo consumes them,
+# and they embed the developer's machine name and absolute home path.
+TestResults/
+*.trx

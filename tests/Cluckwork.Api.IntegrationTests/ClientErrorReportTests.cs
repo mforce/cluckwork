@@ -171,10 +171,16 @@ public sealed class ClientErrorReportTests(ClientErrorReportFactory factory)
     [Fact]
     public async Task Rendered_fields_are_stripped_of_control_characters_against_log_forging()
     {
-        // The console sink renders {Message}/{Route} into a plain-text line;
-        // CR/LF (or ANSI escapes) from this ANONYMOUS source would let one
-        // report forge additional log lines. Stacks stay verbatim — they live
-        // in structured properties the console template never renders.
+        // A plain-text sink renders {Message}/{Route} into a line; CR/LF (or
+        // ANSI escapes) from this ANONYMOUS source would let one report forge
+        // additional log lines. Stacks stay verbatim, since a stack without
+        // newlines is useless.
+        //
+        // Post-#404 that plain-text sink is Development's; Production formats
+        // as compact JSON, where the writer escapes control characters and no
+        // value can forge a record. The stripping is unconditional anyway — the
+        // sink format is a configuration choice this endpoint cannot see — so
+        // this test holds for both.
         var client = ClientFrom("203.0.113.110");
         var marker = $"crash-{Guid.NewGuid():N}";
 

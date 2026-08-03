@@ -17,6 +17,8 @@ interface LocationState {
 // account has no Owner. Mirrors AuthEndpoints.NoOwnerProvisionedCode; it
 // rides the ProblemDetails `title`, which parseError puts on ApiError.title.
 const NO_OWNER_PROVISIONED = "Auth.NoOwnerProvisioned";
+const CREDENTIALS_SUPERSEDED = "Auth.CredentialsSuperseded";
+const ACCOUNT_DISABLED = "Auth.AccountDisabled";
 
 // Matched on the code, never on the message: the copy is translated and the
 // server's English detail is not what identifies the case.
@@ -54,7 +56,7 @@ function messageFor(err: unknown): string {
 
 export function Login() {
   const { t } = useTranslation("auth");
-  const { login, isAuthenticated, isLoading } = useAuth();
+  const { login, isAuthenticated, isLoading, unauthenticatedReason } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const from = (location.state as LocationState | null)?.from?.pathname ?? "/";
@@ -69,6 +71,13 @@ export function Login() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const { busy, run } = usePendingAction();
+
+  useEffect(() => {
+    if (unauthenticatedReason === CREDENTIALS_SUPERSEDED)
+      setError(t("credentialsSuperseded"));
+    else if (unauthenticatedReason === ACCOUNT_DISABLED)
+      setError(t("accountDisabled"));
+  }, [t, unauthenticatedReason]);
 
   // #283 follow-up — a freshly migrated default account has base reference data
   // but no Owner, because no credential is ever migration-baked, so there is

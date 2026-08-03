@@ -96,15 +96,17 @@ public sealed class DailyEntryAdjustTests(CluckworkWebApplicationFactory factory
     public async Task Adjust_ReconcilesLots_GrowShrinkAddRemove_AndSnapshots()
     {
         var (client, accountId, farmId, flockId, grades) = await SetupAsync("Large", "Medium", "Small");
-        var entryId = await RecordAndSubmitAsync(client, farmId, flockId, Today, 1000, 0,
+        // #394: submit requires exact reconciliation — 600 + 300 = 900 sellable.
+        var entryId = await RecordAndSubmitAsync(client, farmId, flockId, Today, 900, 0,
             (grades["Large"], 600), (grades["Medium"], 300));
 
-        // Large shrinks, Medium is removed, Small is new.
+        // Large shrinks, Medium is removed, Small is new. Total drops to 700 to
+        // match the new grade sum (500 + 200) — adjust must reconcile too.
         var current = await GetEntryAsync(client, entryId);
         var adjust = await AdjustAsync(client, entryId, new
         {
             version = current.Version,
-            totalEggs = 900,
+            totalEggs = 700,
             crackedEggs = 0,
             dirtyEggs = 0,
             discardedEggs = 0,
@@ -132,7 +134,7 @@ public sealed class DailyEntryAdjustTests(CluckworkWebApplicationFactory factory
         Assert.Equal("recount after grading error", after.AdjustReason);
         Assert.Equal(result.Version, after.Version);
         // The audit snapshot carries the replaced values.
-        Assert.Equal(1000, after.AdjustedFrom!.Value.GetProperty("totalEggs").GetInt32());
+        Assert.Equal(900, after.AdjustedFrom!.Value.GetProperty("totalEggs").GetInt32());
     }
 
     [Fact]
@@ -169,22 +171,58 @@ public sealed class DailyEntryAdjustTests(CluckworkWebApplicationFactory factory
         Assert.Equal(50, lot.QuantityAvailable);
     }
 
+    // #394 — an adjustment has no draft state of its own to leave partly
+    // graded: it is held to the same exact reconciliation as submit, and a
+    // direct API caller cannot bypass that by sending too few graded eggs.
+    [Fact]
+    public async Task Adjust_GradesDoNotReconcile_Is422_AndNothingChanges()
+    {
+        var (client, accountId, farmId, flockId, grades) = await SetupAsync("Large");
+        var entryId = await RecordAndSubmitAsync(client, farmId, flockId, Today, 100, 0,
+            (grades["Large"], 100));
+
+        var current = await GetEntryAsync(client, entryId);
+        var adjust = await AdjustAsync(client, entryId, new
+        {
+            version = current.Version,
+            totalEggs = 150,
+            crackedEggs = 0,
+            dirtyEggs = 0,
+            discardedEggs = 0,
+            mortalityCount = 0,
+            reason = "found more eggs",
+            grades = new[] { new { eggGradeId = grades["Large"], quantity = 120 } } // short of 150
+        });
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, adjust.StatusCode);
+        Assert.Contains("DailyEntry.GradesNotReconciled", await adjust.Content.ReadAsStringAsync());
+
+        // Transaction rolled back: entry and its lot are untouched.
+        var after = await GetEntryAsync(client, entryId);
+        Assert.Equal("Submitted", after.Status);
+        Assert.Equal(current.Version, after.Version);
+        Assert.Equal(100, after.TotalEggs);
+        var lot = await factory.WithTenantScopeAsync(accountId, db =>
+            db.EggLots.SingleAsync(l => l.FlockId == flockId && l.ProductionDate == Today));
+        Assert.Equal(100, lot.QuantityProduced);
+    }
+
     [Fact]
     public async Task Adjust_MortalityChanges_AppendCompensatingMovements()
     {
         var (client, accountId, farmId, flockId, grades) = await SetupAsync("Large");
-        var entryId = await RecordAndSubmitAsync(client, farmId, flockId, Today, 100, 2,
+        // #394: submit requires exact reconciliation — total matches the grade.
+        var entryId = await RecordAndSubmitAsync(client, farmId, flockId, Today, 90, 2,
             (grades["Large"], 90));
 
         async Task<int> CurrentBirdsAsync() =>
             (await client.GetFromJsonAsync<FlockDto>($"/api/v1/flocks/{flockId}"))!.CurrentBirds;
         Assert.Equal(98, await CurrentBirdsAsync());
 
-        // 2 → 5: +3 Mortality row.
+        // 2 → 5: +3 Mortality row. Total (and the carried-over grade) unchanged.
         var v1 = (await GetEntryAsync(client, entryId)).Version;
         var up = await AdjustAsync(client, entryId, new
         {
-            version = v1, totalEggs = 100, crackedEggs = 0, dirtyEggs = 0, discardedEggs = 0,
+            version = v1, totalEggs = 90, crackedEggs = 0, dirtyEggs = 0, discardedEggs = 0,
             mortalityCount = 5, reason = "missed three dead birds"
         });
         Assert.Equal(HttpStatusCode.OK, up.StatusCode);
@@ -194,7 +232,7 @@ public sealed class DailyEntryAdjustTests(CluckworkWebApplicationFactory factory
         var v2 = (await GetEntryAsync(client, entryId)).Version;
         var down = await AdjustAsync(client, entryId, new
         {
-            version = v2, totalEggs = 100, crackedEggs = 0, dirtyEggs = 0, discardedEggs = 0,
+            version = v2, totalEggs = 90, crackedEggs = 0, dirtyEggs = 0, discardedEggs = 0,
             mortalityCount = 2, reason = "they were only stunned"
         });
         Assert.Equal(HttpStatusCode.OK, down.StatusCode);
@@ -211,7 +249,8 @@ public sealed class DailyEntryAdjustTests(CluckworkWebApplicationFactory factory
     public async Task Void_Unsold_EmptiesLots_ReversesMortality_PreservesEntry()
     {
         var (client, accountId, farmId, flockId, grades) = await SetupAsync("Large");
-        var entryId = await RecordAndSubmitAsync(client, farmId, flockId, Today, 100, 2,
+        // #394: submit requires exact reconciliation — total matches the grade.
+        var entryId = await RecordAndSubmitAsync(client, farmId, flockId, Today, 90, 2,
             (grades["Large"], 90));
 
         var current = await GetEntryAsync(client, entryId);
@@ -281,7 +320,8 @@ public sealed class DailyEntryAdjustTests(CluckworkWebApplicationFactory factory
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         }
 
-        var (_, firstId) = await RecordAsync(100, 90);
+        // #394: submit requires exact reconciliation — total matches the grade.
+        var (_, firstId) = await RecordAsync(100, 100);
         var submit = await client.PostWithKeyAsync(
             $"/api/v1/daily-entries/{firstId}/submit", Guid.NewGuid().ToString());
         Assert.Equal(HttpStatusCode.OK, submit.StatusCode);
@@ -293,7 +333,9 @@ public sealed class DailyEntryAdjustTests(CluckworkWebApplicationFactory factory
         await VoidAsync(firstId, "wrong numbers, starting over");
 
         // Voided → the key is vacant: a fresh entry, not an edit of the old one.
-        var (reStatus, secondId) = await RecordAsync(60, 50);
+        // #394: submit requires exact reconciliation — total matches the grade
+        // (this entry is submitted below, unlike the "blocked"/"third" ones).
+        var (reStatus, secondId) = await RecordAsync(60, 60);
         Assert.Equal(HttpStatusCode.Created, reStatus);
         Assert.NotEqual(firstId, secondId);
 
@@ -352,15 +394,17 @@ public sealed class DailyEntryAdjustTests(CluckworkWebApplicationFactory factory
     public async Task ParallelAdjusts_SameBaseVersion_ExactlyOneWins()
     {
         var (client, accountId, farmId, flockId, grades) = await SetupAsync("Large");
+        // #394: submit requires exact reconciliation — total matches the grade.
         var entryId = await RecordAndSubmitAsync(client, farmId, flockId, Today, 100, 0,
-            (grades["Large"], 90));
+            (grades["Large"], 100));
         var baseVersion = (await GetEntryAsync(client, entryId)).Version;
 
+        // Each racer's grade must reconcile against its own total too.
         object Body(int total, string reason) => new
         {
             version = baseVersion, totalEggs = total, crackedEggs = 0, dirtyEggs = 0,
             discardedEggs = 0, mortalityCount = 0, reason,
-            grades = new[] { new { eggGradeId = grades["Large"], quantity = total - 10 } }
+            grades = new[] { new { eggGradeId = grades["Large"], quantity = total } }
         };
         var responses = await Task.WhenAll(
             AdjustAsync(client, entryId, Body(80, "first")),
@@ -375,8 +419,8 @@ public sealed class DailyEntryAdjustTests(CluckworkWebApplicationFactory factory
         var lot = await factory.WithTenantScopeAsync(accountId, db =>
             db.EggLots.SingleAsync(l => l.FlockId == flockId && l.ProductionDate == Today));
         Assert.True(
-            (after.TotalEggs == 80 && lot.QuantityProduced == 70)
-            || (after.TotalEggs == 60 && lot.QuantityProduced == 50),
+            (after.TotalEggs == 80 && lot.QuantityProduced == 80)
+            || (after.TotalEggs == 60 && lot.QuantityProduced == 60),
             $"blended write: entry {after.TotalEggs}, lot {lot.QuantityProduced}");
     }
 
@@ -387,8 +431,9 @@ public sealed class DailyEntryAdjustTests(CluckworkWebApplicationFactory factory
     public async Task ParallelAdjustAndVoid_SameBaseVersion_ExactlyOneWins()
     {
         var (client, accountId, farmId, flockId, grades) = await SetupAsync("Large");
+        // #394: submit requires exact reconciliation — total matches the grade.
         var entryId = await RecordAndSubmitAsync(client, farmId, flockId, Today, 100, 2,
-            (grades["Large"], 90));
+            (grades["Large"], 100));
         var baseVersion = (await GetEntryAsync(client, entryId)).Version;
 
         var voidRequest = new HttpRequestMessage(
@@ -401,7 +446,7 @@ public sealed class DailyEntryAdjustTests(CluckworkWebApplicationFactory factory
             {
                 version = baseVersion, totalEggs = 80, crackedEggs = 0, dirtyEggs = 0,
                 discardedEggs = 0, mortalityCount = 2, reason = "adjust race",
-                grades = new[] { new { eggGradeId = grades["Large"], quantity = 70 } }
+                grades = new[] { new { eggGradeId = grades["Large"], quantity = 80 } }
             }),
             client.SendAsync(voidRequest));
 
@@ -413,7 +458,7 @@ public sealed class DailyEntryAdjustTests(CluckworkWebApplicationFactory factory
         var lot = await factory.WithTenantScopeAsync(accountId, db =>
             db.EggLots.SingleAsync(l => l.DailyEntryId == entryId));
         Assert.True(
-            (after.Status == "ManagerAdjusted" && lot.QuantityProduced == 70)
+            (after.Status == "ManagerAdjusted" && lot.QuantityProduced == 80)
             || (after.Status == "Voided" && lot.QuantityProduced == 0),
             $"blended outcome: {after.Status} / lot {lot.QuantityProduced}");
     }
@@ -444,15 +489,21 @@ public sealed class DailyEntryAdjustTests(CluckworkWebApplicationFactory factory
         Assert.Equal(HttpStatusCode.UnprocessableEntity, voidDraft.StatusCode);
 
         // Stale base version → deterministic 409.
+        // #394: submit requires exact reconciliation — total matches the grade.
         var entryId = await RecordAndSubmitAsync(client, farmId, flockId, Today.AddDays(-1), 100, 0,
-            (grades["Large"], 50));
+            (grades["Large"], 100));
         var version = (await GetEntryAsync(client, entryId)).Version;
+        // Grades omitted -> keeps the carried-over [Large:100], so the total
+        // here must stay 100 to reconcile.
         var first = await AdjustAsync(client, entryId, new
         {
-            version, totalEggs = 90, crackedEggs = 0, dirtyEggs = 0, discardedEggs = 0,
+            version, totalEggs = 100, crackedEggs = 0, dirtyEggs = 0, discardedEggs = 0,
             mortalityCount = 0, reason = "first"
         });
         Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+        // "stale" and "blank" below never reach grade validation — the stale
+        // base version 409s, and the blank reason 400s, both before it — so
+        // their totals need not reconcile against anything.
         var stale = await AdjustAsync(client, entryId, new
         {
             version, totalEggs = 80, crackedEggs = 0, dirtyEggs = 0, discardedEggs = 0,
@@ -477,35 +528,37 @@ public sealed class DailyEntryAdjustTests(CluckworkWebApplicationFactory factory
     public async Task Adjust_SiblingEntry_SameFlockAndDate_IsUntouched()
     {
         var (client, accountId, farmId, flockId, grades) = await SetupAsync("Large");
+        // #394: submit requires exact reconciliation — each total matches its grade.
         var entryA = await RecordAndSubmitAsync(client, farmId, flockId, Today, 100, 0,
-            (grades["Large"], 90));
+            (grades["Large"], 100));
         var entryB = await RecordAndSubmitAsync(client, farmId, flockId, Today, 200, 0,
-            (grades["Large"], 150)); // different house — RecordAndSubmit invents one per call
+            (grades["Large"], 200)); // different house — RecordAndSubmit invents one per call
 
         var current = await GetEntryAsync(client, entryA);
         var adjust = await AdjustAsync(client, entryA, new
         {
             version = current.Version, totalEggs = 80, crackedEggs = 0, dirtyEggs = 0,
             discardedEggs = 0, mortalityCount = 0, reason = "shrink A only",
-            grades = new[] { new { eggGradeId = grades["Large"], quantity = 70 } }
+            grades = new[] { new { eggGradeId = grades["Large"], quantity = 80 } }
         });
         Assert.Equal(HttpStatusCode.OK, adjust.StatusCode);
 
         var lots = await factory.WithTenantScopeAsync(accountId, db =>
             db.EggLots.Where(l => l.FlockId == flockId && l.ProductionDate == Today).ToListAsync());
-        Assert.Equal(70, lots.Single(l => l.DailyEntryId == entryA).QuantityProduced);
-        Assert.Equal(150, lots.Single(l => l.DailyEntryId == entryB).QuantityProduced);
+        Assert.Equal(80, lots.Single(l => l.DailyEntryId == entryA).QuantityProduced);
+        Assert.Equal(200, lots.Single(l => l.DailyEntryId == entryB).QuantityProduced);
     }
 
     [Fact]
     public async Task LockSweep_LocksOldSubmittedEntries_LeavesRecent_AdjustStillWorks()
     {
         var (client, _, farmId, flockId, grades) = await SetupAsync("Large");
+        // #394: submit requires exact reconciliation — each total matches its grade.
         var oldEntry = await RecordAndSubmitAsync(
             client, farmId, flockId, Today.AddDays(-(DailyEntryLockSweep.LockAfterDays + 1)),
-            100, 0, (grades["Large"], 50));
+            100, 0, (grades["Large"], 100));
         var recentEntry = await RecordAndSubmitAsync(
-            client, farmId, flockId, Today, 100, 0, (grades["Large"], 50));
+            client, farmId, flockId, Today, 100, 0, (grades["Large"], 100));
 
         await factory.Services.GetRequiredService<DailyEntryLockSweep>()
             .RunAsync(CancellationToken.None);
@@ -520,7 +573,7 @@ public sealed class DailyEntryAdjustTests(CluckworkWebApplicationFactory factory
         {
             version = locked.Version, totalEggs = 90, crackedEggs = 0, dirtyEggs = 0,
             discardedEggs = 0, mortalityCount = 0, reason = "late correction",
-            grades = new[] { new { eggGradeId = grades["Large"], quantity = 40 } }
+            grades = new[] { new { eggGradeId = grades["Large"], quantity = 90 } }
         });
         Assert.Equal(HttpStatusCode.OK, adjust.StatusCode);
         Assert.Equal("ManagerAdjusted", (await GetEntryAsync(client, oldEntry)).Status);
