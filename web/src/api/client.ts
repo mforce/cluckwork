@@ -406,6 +406,27 @@ async function executeRefresh(generation: number, signal?: AbortSignal): Promise
   }
 }
 
+async function executeHeldRefresh(
+  generation: number,
+  parentSignal: AbortSignal,
+): Promise<string> {
+  // The parent password-change operation is deliberately unbounded because it
+  // cannot be replayed safely after an ambiguous commit. Refresh remains
+  // replayable, though, and must not hold the shared cookie lock forever. Give
+  // only this nested request a timeout while forwarding explicit logout's abort.
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  if (parentSignal.aborted) abort();
+  else parentSignal.addEventListener("abort", abort, { once: true });
+  const timer = setTimeout(abort, REFRESH_TIMEOUT_MS);
+  try {
+    return await executeRefresh(generation, controller.signal);
+  } finally {
+    clearTimeout(timer);
+    parentSignal.removeEventListener("abort", abort);
+  }
+}
+
 async function refreshTokens(heldLock?: HeldAuthCookieLock): Promise<string> {
   // changePassword owns the shared cookie lock while apiFetch performs its
   // normal 401 refresh-and-retry. Web Locks are not reentrant, so execute that
@@ -413,7 +434,7 @@ async function refreshTokens(heldLock?: HeldAuthCookieLock): Promise<string> {
   // the generation that entered the queue: resnapshotting here could attach a
   // stale password-change operation to a logout/new-login generation.
   if (heldLock)
-    return executeRefresh(heldLock.generation, heldLock.signal);
+    return executeHeldRefresh(heldLock.generation, heldLock.signal);
 
   if (refreshInFlight) return refreshInFlight;
 

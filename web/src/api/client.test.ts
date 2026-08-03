@@ -1057,6 +1057,50 @@ describe("cross-tab refresh coordination (#169)", () => {
     }
   });
 
+  it("still times out a refresh nested inside the unbounded password-change lock", async () => {
+    vi.useFakeTimers();
+    try {
+      let refreshSignal: AbortSignal | undefined;
+      let rejectRefresh!: (reason: unknown) => void;
+      let refreshCalls = 0;
+      fetchMock.mockImplementation(async (url: string, init: RequestInit) => {
+        if (url.endsWith("/auth/refresh")) {
+          refreshCalls += 1;
+          if (refreshCalls > 1) return accessResponse("recovered-token");
+          refreshSignal = init.signal ?? undefined;
+          return new Promise<Response>((_resolve, reject) => {
+            rejectRefresh = reject;
+            refreshSignal?.addEventListener("abort", () =>
+              reject(new DOMException("timed out", "AbortError")),
+            );
+          });
+        }
+        if (url.endsWith("/auth/change-password")) return accessResponse("must-not-send");
+        throw new Error(`unexpected fetch: ${url}`);
+      });
+
+      clearAccessToken();
+      const changing = changePassword({ currentPassword: "a", newPassword: "b" })
+        .catch((err: unknown) => err);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(callsTo(fetchMock, "/auth/refresh")).toHaveLength(1);
+
+      await vi.advanceTimersByTimeAsync(20_000);
+      const wasAborted = refreshSignal?.aborted;
+      // Cleanup for the red implementation, whose missing timeout leaves the
+      // promise pending. This is a no-op after the fixed abort already rejected.
+      rejectRefresh(new DOMException("test cleanup", "AbortError"));
+      await changing;
+
+      expect(wasAborted).toBe(true);
+      expect(callsTo(fetchMock, "/auth/change-password")).toHaveLength(0);
+      // The failed operation released both the local queue and Web Lock.
+      await expect(restoreSession()).resolves.toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("still aborts an in-flight password change when the user explicitly logs out", async () => {
     const changeStarted = deferred<void>();
     let changeSignal: AbortSignal | undefined;
