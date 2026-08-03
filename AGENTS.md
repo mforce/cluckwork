@@ -252,15 +252,22 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
 
   - `always() && !cancelled()` — `promote` is **skipped** on an ordinary push, and
     a skipped dependency would otherwise skip grooming on every non-release merge.
-  - **The guarantee is a probe for an untagged draft, not an inference from job
-    results. Do not "simplify" it back to a `needs` predicate.**
+  - **The guarantee is a probe for the boundary release, not an inference from
+    job results. Do not "simplify" it back to a `needs` predicate.**
     `needs.promote.result != 'failure'` looks sufficient and covers only the run
     that failed: on the *next* push the cut job succeeds with
     `release_created: false`, so `promote` is *skipped*, the predicate passes, and
     the still-untagged draft produces the duplicate one run later (#411 review).
-    The predicate is kept only as a cheap fence. The probe **skips rather than
-    fails** — an unrelated merge should not go red because a release is stuck —
-    but warns and names the draft in the step summary.
+    The predicate is kept only as a cheap fence.
+
+    The probe is **scoped to `v<version from .release-please-manifest.json>`** —
+    the one release release-please will try to resolve — and asks only whether
+    *that* release is still an unpublished draft. Blocking on **any** draft was
+    the first version and is wrong in the other direction: a hand-made draft
+    under an unrelated tag would wedge grooming shut forever (#411 review,
+    second round). It **skips rather than fails**, since an unrelated merge
+    should not go red because a release is stuck, but warns and names the draft
+    in the step summary.
 
   `groom` mints its own App token and **must** keep the `permission-*` downscoping
   — omitting those mints the union of every grant the App holds, silently (see the

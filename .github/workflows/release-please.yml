@@ -609,40 +609,58 @@ jobs:
     permissions:
       contents: read
     steps:
-      # The actual guarantee. A DRAFT release is one that was cut but never
-      # published, so it has no git tag, so release-please cannot resolve the
-      # changelog boundary through it — grooming now would restate every earlier
-      # release's entries over a correct PR.
+      # The actual guarantee. A DRAFT release was cut but never published, so it
+      # has no git tag, so release-please cannot resolve the changelog boundary
+      # through it — grooming then restates every earlier release over a correct
+      # PR. Probing for that is what makes this correct in EVERY run, not just
+      # the one where `promote` failed; see the comment above the job.
       #
-      # Probing for the draft is what makes this correct in every run, not just
-      # the one where `promote` failed. See the comment above the job.
+      # Scoped to the ONE release that can be the boundary, not to any draft in
+      # the repo. release-please reads the current version from the committed
+      # manifest, so `v<manifest version>` is exactly the release it will try to
+      # resolve — this asks whether that specific release is still an unpublished
+      # draft. A hand-made draft under some other tag (`preview-notes`, a
+      # backport note) is none of our business and must not wedge grooming shut
+      # forever; the first version of this guard blocked on any draft at all and
+      # would have (#411 review).
       #
-      # No checkout here, so `gh` has no git remote to infer the repository
-      # from: GH_REPO supplies it out of band, exactly as the promote job does.
-      # `--paginate` because a repo accumulates releases and a draft older than
-      # the first page still has no tag.
-      - name: Refuse to groom while a cut release has no tag
+      # No checkout here, so `gh` has no git remote to infer the repository from:
+      # GH_REPO supplies it out of band, exactly as the promote job does. The tag
+      # goes through the environment into `$ENV.TAG` rather than being
+      # interpolated into the jq program. `--paginate` because the boundary
+      # release may be older than the first page, and `paste` rather than `head`
+      # because a closed pipe under `pipefail` would fail the step.
+      - name: Refuse to groom while the boundary release has no tag
         id: guard
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          drafts=$(gh api --paginate "repos/$GH_REPO/releases" \
-            --jq '.[] | select(.draft) | .tag_name' | paste -sd' ' -)
-          if [ -n "$drafts" ]; then
+
+          version=$(gh api "repos/$GH_REPO/contents/.release-please-manifest.json" \
+            -H "Accept: application/vnd.github.raw" --jq '."."' 2>/dev/null || true)
+
+          if [ -z "$version" ] || [ "$version" = "null" ]; then
+            # Unreadable manifest is a broken repo state that release-please
+            # itself would fail on. Skip rather than groom blind, and say so.
             echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "::warning::Release PR not groomed — unpublished draft release(s) with no git tag: ${drafts}. Promote them (Release workflow, dispatch by tag) and the next push will groom correctly."
+            echo "::warning::Release PR not groomed — could not read the current version from .release-please-manifest.json."
+            exit 0
+          fi
+
+          blocked=$(TAG="v$version" gh api --paginate "repos/$GH_REPO/releases" \
+            --jq '.[] | select(.draft and .tag_name == $ENV.TAG) | .tag_name' | paste -sd' ' -)
+
+          if [ -n "$blocked" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "::warning::Release PR not groomed — ${blocked} is still an unpublished draft, so it has no git tag and release-please cannot resolve the changelog boundary. Promote it (Release workflow, dispatch by tag) and the next push will groom correctly."
             {
               echo "### Release PR not groomed"
               echo
-              echo "Unpublished draft release(s) with no git tag:"
+              echo "\`${blocked}\` was cut but never published, so it has no git tag."
               echo
-              echo '```'
-              echo "$drafts"
-              echo '```'
-              echo
-              echo "release-please cannot resolve the changelog boundary without a tag, so grooming now would restate every earlier release's entries. Promote the draft, then any push grooms correctly."
+              echo "release-please resolves the changelog boundary through that tag; without it, grooming would restate every earlier release's entries over a correct PR. Promote the draft, then any push grooms correctly."
             } >> "$GITHUB_STEP_SUMMARY"
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
