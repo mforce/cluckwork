@@ -277,6 +277,24 @@ describe("Dialog i18n wiring (#182, Task 8)", () => {
     }
   }
 
+  // The `wide` variant is CSS-only, and jsdom computes no layout — so what is
+  // asserted is the hook the stylesheet keys on. Its two halves are pinned
+  // separately: the class here, the ≤900px reset in styles.dialog.test.ts
+  // (a media query adds no specificity, so the sheet does NOT undo this
+  // modifier on its own).
+  it("marks a wide dialog with the modifier class, and a default one without it", () => {
+    const { rerender } = render(
+      <Dialog open title="Adjust" onClose={() => {}}><Body /></Dialog>,
+    );
+    expect(screen.getByRole("dialog")).not.toHaveClass("wide");
+
+    rerender(<Dialog open wide title="Adjust" onClose={() => {}}><Body /></Dialog>);
+    const panel = screen.getByRole("dialog");
+    expect(panel).toHaveClass("wide");
+    // Still the base class — the modifier adds to it, never replaces it.
+    expect(panel).toHaveClass("dialog");
+  });
+
   it("reads the close button's accessible name from the catalog, not a hardcoded literal", async () => {
     const user = userEvent.setup();
     await withCommonOverride("close", "CLOSE-MARKER", async () => {

@@ -509,8 +509,9 @@ input.cell {
 /* A dialog whose body is a two-pane layout (History's adjust form mirrors Daily
    entry's side-by-side steps). At 30rem the two panes fold into one column even
    on a desktop with room for both, which is the whole thing the layout exists
-   to avoid. The ≤900px sheet rule below resets max-width anyway, so this is
-   desktop-only by construction. */
+   to avoid. It is NOT self-limiting to desktop: a media query adds no
+   specificity, so this two-class selector outranks the ≤900px `.dialog` sheet
+   reset and the modifier must be undone explicitly down there (it is). */
 .dialog.wide {
   max-width: 52rem;
 }
@@ -1869,6 +1870,15 @@ label.check {
     border-radius: var(--r-card) var(--r-card) 0 0;
     border-bottom: none;
     animation-name: dialog-sheet;
+  }
+
+  /* The sheet is full-width for the wide variant too. Its own rule is
+     `.dialog.wide` (0,2,0) and the reset above is `.dialog` (0,1,0) — a media
+     query contributes nothing to specificity, so without this the 52rem cap
+     survives here and a landscape phone between 832px and 900px gets
+     bottom-sheet chrome with backdrop showing down one side. */
+  .dialog.wide {
+    max-width: none;
   }
 
   @keyframes dialog-sheet {

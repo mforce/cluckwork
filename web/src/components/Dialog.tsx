@@ -58,8 +58,10 @@ interface DialogProps {
    * Widens the panel past the default single-column form width. For a dialog
    * whose content is itself a two-pane layout — History's adjust form mirrors
    * Daily entry's side-by-side steps — the narrow panel would fold the two
-   * panes into one column on a desktop that has room for both. Ignored on
-   * phones, where the panel is already a full-width sheet.
+   * panes into one column on a desktop that has room for both. Undone at
+   * ≤900px, where the panel is a full-width sheet: by an explicit
+   * `.dialog.wide` rule inside that media query, NOT by the sheet's own
+   * `.dialog` reset, which this modifier outranks.
    */
   wide?: boolean;
   children: ReactNode;

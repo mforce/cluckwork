@@ -271,6 +271,51 @@ describe("HistoryPage adjust — mirrored daily-entry layout", () => {
     expect(chip()).toHaveTextContent("the day adds up");
   });
 
+  // The chip's drag payload and the row's drop handler are one contract: the
+  // row accepts a drop ONLY for our private type, so a file or a bit of text
+  // dragged in from elsewhere can never assign the day.
+  it("assigns the remainder on a drop carrying our own payload, and ignores any other", async () => {
+    mockListDailyEntries.mockResolvedValue([SUBMITTED]);
+    await openAdjustPanel();
+
+    fireEvent.click(within(dialog()).getByRole("button", { name: /remaining 30/ }));
+    const gradeBRow = screen.getByRole("spinbutton", { name: "Grade B" }).closest(".entry-row")!;
+
+    // A foreign drag (plain text — what dropping a link or a selection looks
+    // like) must leave the line untouched.
+    fireEvent.drop(gradeBRow, { dataTransfer: { types: ["text/plain"] } });
+    expect(screen.getByRole("spinbutton", { name: "Grade B" })).toHaveValue(20);
+
+    fireEvent.drop(gradeBRow, {
+      dataTransfer: { types: ["application/x-cluckwork-remainder", "text/plain"] },
+    });
+    expect(screen.getByRole("spinbutton", { name: "Grade B" })).toHaveValue(50);
+  });
+
+  // A review round asked for "armed, then 409, is it disarmed?" — that state is
+  // unreachable, and the reason is worth pinning rather than testing around:
+  // arming needs a remainder, saving needs none, and the disarm effect closes
+  // the gap between them. So no save (409 or otherwise) can ever settle while
+  // the gesture is armed, and startAdjust's own reset covers the paths that
+  // remain (opening another entry — tested below — and the 409 rebind, which
+  // goes through the same function).
+  it("can never be armed and saveable at the same time", async () => {
+    mockListDailyEntries.mockResolvedValue([SUBMITTED]);
+    await openAdjustPanel();
+    fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: "recount" } });
+
+    // Armed: there is a remainder, so Save is necessarily refused.
+    fireEvent.click(within(dialog()).getByRole("button", { name: /remaining 30/ }));
+    expect(screen.getByRole("button", { name: "Save adjustment" })).toBeDisabled();
+
+    // Placing that remainder is what enables Save — and the same edit takes the
+    // gesture away, rather than leaving it armed over a settled day.
+    fireEvent.click(within(dialog()).getByRole("button", { name: /Put all 30 remaining in Grade A/ }));
+    expect(screen.getByRole("button", { name: "Save adjustment" })).toBeEnabled();
+    expect(within(dialog()).queryByRole("button", { name: /Put all/ })).not.toBeInTheDocument();
+    expect(within(dialog()).queryByRole("button", { name: /remaining/ })).not.toBeInTheDocument();
+  });
+
   it("offers nothing to hand out once the day already reconciles", async () => {
     mockListDailyEntries.mockResolvedValue([
       { ...SUBMITTED, grades: [{ eggGradeId: "gr1", quantity: 90 }] },
