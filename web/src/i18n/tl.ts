@@ -43,6 +43,13 @@ export const tl = {
     apiDown: "Hindi makapag-sign in. Gumagana ba ang API?",
     // machine-drafted (#182) — pending native review.
     credentialsTooLong: "Sobrang haba niyan — tingnan ang iyong email at password.",
+    noAdminYet:
+      "Wala pang administrator. Hindi pa natatapos ang paunang setup ng farm "
+      + "na ito, kaya wala pang administrator account na maaaring gamitin sa "
+      + "pag-sign in.",
+    noAdminYetHint:
+      "Hilingin sa kung sino ang nag-set up ng server na ito na gawin ang unang "
+      + "administrator. Nasa README ng proyekto ang mga hakbang sa setup.",
     // machine-drafted (#283) — pending native review.
     setPasswordHeading: "Itakda ang iyong password",
     setPasswordHint:
@@ -1623,7 +1630,9 @@ export const tl = {
       + "nagpapatakbo ang isang operator ng isang beses na setup command na naglilimbag ng pansamantalang "
       + "password. Mag-sign in gamit ito at diretso kang mapupunta sa isang screen ng <strong>Itakda ang iyong "
       + "password</strong> sa halip na ang normal na app; wala pang gumagana hangga't hindi ka pumipili ng "
-      + "sarili mong password doon. Iba ito sa karaniwang <em>Pagbabago ng password</em>.",
+      + "sarili mong password doon. Iba ito sa karaniwang <em>Pagbabago ng password</em>. Hangga't hindi pa "
+      + "naisasagawa ang hakbang na iyon sa setup, sinasabi ito sa iyo kapag sinubukan mong mag-sign in at "
+      + "itinuturo ka sa kung sino ang nangangasiwa ng server, sa halip na sabihing mali ang iyong mga detalye.",
     // #308 (machine-drafted, pending native review)
     signingInStepUp:
       "May dalawang aksyon sa <strong>Users</strong> screen na humihiling sa iyong <strong>muling ilagay ang "

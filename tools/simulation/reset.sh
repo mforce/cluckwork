@@ -76,6 +76,19 @@ read_env_value() {
 
 echo "== Sim reset: project ${COMPOSE_PROJECT_NAME} =="
 
+# Self-check FIRST, before the destructive `down -v` and the image rebuild
+# below (#370). Every one of the four breakages that left this harness unable
+# to boot merged main was a config or logic defect visible without starting
+# anything — so catching them here costs ~0.1s and saves wiping a volume and
+# rebuilding an image only to fail five minutes later at /health/ready, which
+# is exactly how they were actually found.
+#
+# Resolved from THIS script's own location, never from an ambient SIM_DIR: an
+# exported SIM_DIR pointing at another checkout would verify that harness and
+# then wipe this one (PR #371 review). Same class of ambient-override bug the
+# verifier itself was just fixed for — reintroduced one line into the caller.
+bash "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/verify-harness.sh"
+
 echo "-- down -v (cluckwork-sim volumes only) --"
 compose down -v --remove-orphans
 
@@ -126,7 +139,17 @@ echo "-- bootstrap-admin (one-shot, first-run Owner) --"
 SEED_ADMIN_EMAIL="$(read_env_value SIM_ADMIN_EMAIL)"
 SEED_ADMIN_PASSWORD="$(read_env_value SIM_ADMIN_PASSWORD)"
 BOOTSTRAP_OUTPUT="$(compose run --rm app bootstrap-admin --email "$SEED_ADMIN_EMAIL")"
-echo "$BOOTSTRAP_OUTPUT"
+# REDACTED on the way to the terminal. bootstrap-admin prints
+# "Temporary password: <value>" on stdout by design (#283 — stdout only, never
+# the logger), and this script needs that value; it does NOT need to re-print it.
+# Echoing it raw put a live credential into every CI log of the E2E workflow,
+# unmasked and retained (PR #392 review). The value is still captured below and
+# rotated off seconds later — but a log is forever and a rotation is not
+# retroactive.
+# Matched ANYWHERE on the line, not anchored to the start: a log-level prefix or
+# any indentation added to bootstrap-admin's output would slip past `^` and leak
+# the value this redaction exists to hide.
+printf '%s\n' "$BOOTSTRAP_OUTPUT" | sed 's/Temporary password: .*/Temporary password: <redacted>/'
 TEMP_PASSWORD="$(printf '%s\n' "$BOOTSTRAP_OUTPUT" | sed -n 's/^Temporary password: //p')"
 if [[ -z "$TEMP_PASSWORD" ]]; then
   echo "FAILED: could not find a 'Temporary password: ' line in bootstrap-admin's output." >&2

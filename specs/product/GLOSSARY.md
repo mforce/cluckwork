@@ -613,7 +613,31 @@ the OTLP pipeline. A host's stdout collector (docker logs, journald, a
 platform log pipeline) may still capture it, so that output must be treated
 as sensitive while the password is valid. Re-running the command against an
 already-provisioned account is a safe no-op (no second Owner, no password
-reprinted). This is a **separate mechanism** from break-glass recovery below (a pre-auth, one-shot
+reprinted). Because a migrated-but-unprovisioned **default account** has **no
+administrator to sign in as**, the **login screen says so**: attempting to sign in while the
+default account has no Owner answers with a short notice explaining that no
+**administrator** account exists yet and pointing at whoever administers the
+server, instead of the usual "invalid email or password". For the operator this
+exists to help — who holds no credentials at all yet — that generic denial
+describes a problem with their typing that they do not have. It disappears
+for good once the default account has an Owner. The notice deliberately publishes **no
+command and no deployment detail** — a page reachable by anyone is the wrong
+place to describe how the server is run, and the setup steps belong in the
+README. It is reported on the **failed sign-in itself**, not by a status check
+the page polls, so only someone actually attempting to sign in is told anything.
+It does not **enumerate**: the condition is a property of the **default
+account** and never of the address that was typed, so no attempt reveals
+anything about any particular account, and once that account has an Owner the
+response is byte-identical to the ordinary non-enumerating denial. It does
+**disclose one fact** — that the default account has no Owner — and that scope
+is exact in both directions: it can be true while ordinary non-Owner accounts
+exist and are protected (the predicate is the absence of an *Owner*, and the
+seeders create Workers and Managers without one), and it can be true while an
+Owner exists under a *different* account, since the predicate is scoped to the
+default account rather than to any Owner anywhere. Accepted deliberately: the fact is not a credential and grants no access;
+on a genuinely fresh install — no users at all — it is already inferable by
+anyone who can reach the form; and the alternative is leaving an operator
+stranded at a form no credential of theirs can satisfy. This is a **separate mechanism** from break-glass recovery below (a pre-auth, one-shot
 setup secret vs. an offline recovery for a locked-out existing account) and
 from the browser step-up re-confirmation a signed-in Owner uses for sensitive
 actions (#308) — three distinct credential types, audiences, and lifetimes,

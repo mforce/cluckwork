@@ -90,18 +90,19 @@ public sealed class EggGradeConfiguration : IEntityTypeConfiguration<EggGrade>
 
         // Name uniqueness is case-insensitive per farm — enforced by a raw
         // lower(Name) expression index (EF can't model it); see the
-        // AddEggGradeManagement migration. Handlers pre-check via
+        // InitialCreate migration (#245 squashed the AddEggGradeManagement one
+        // that introduced it). Handlers pre-check via
         // NameExistsAsync for a friendly 409; the index is the real guarantee.
 
         // #283 Part 1 — spec §9.1's default grades are static reference data,
-        // seeded via idempotent raw SQL in the
-        // AddBaseReferenceDataAndMustChangePassword migration, NOT via EF's
-        // HasData(): every real deployment already ran the old runtime
-        // DatabaseSeeder at least once, which minted these 10 rows with
-        // RANDOM ids (EggGrade.Create(Guid.NewGuid(), ...)) — HasData's
-        // InsertData is keyed by PRIMARY KEY, so it cannot detect "this row
-        // already exists under a different id" and collides on the real
-        // unique constraint (AccountId, FarmId, lower(Name)) instead. See the
-        // migration file (PR #339 review).
+        // seeded via idempotent raw SQL in the InitialCreate migration
+        // (originally #283's AddBaseReferenceDataAndMustChangePassword,
+        // carried by hand through #245's squash), NOT via EF's HasData():
+        // HasData would put these 10 rows in the MODEL, and the grade catalog
+        // is user-managed (PUT /api/v1/egg-grades/{id} renames one), so a
+        // later model-diff would rename a farm's grade back or delete it. The
+        // migration's guard is WHOLE-SET — "does this account have any grade
+        // at all" — precisely so a renamed default is never resurrected; see
+        // the migration file (PR #339 review).
     }
 }

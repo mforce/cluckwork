@@ -213,7 +213,10 @@ public sealed class StepUpGrantService(
         }
 
         // Correct password — clear any accumulated failures, as login does.
-        await userManager.ResetAccessFailedCountAsync(user);
+        // Shared with login via AccountLockout (#269 review): a discarded
+        // IdentityResult here left `user` tracked with a stale ConcurrencyStamp,
+        // which any later save on this scoped DbContext would re-flush and throw.
+        await AccountLockout.ResetFailedAccessCountAsync(userManager, db, user, ct);
 
         var now = timeProvider.GetUtcNow();
         var expires = now.AddMinutes(Math.Max(1, jwtOptions.Value.StepUpGrantMinutes));

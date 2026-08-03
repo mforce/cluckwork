@@ -1500,6 +1500,32 @@ label.check {
   font-size: 1rem;
 }
 
+/* #283 follow-up — first-run setup hint, shown only while the default account
+   has no Owner. Deliberately quiet: an inset surface and muted text, no semantic
+   colour. Nothing is wrong here, and someone who already holds credentials
+   should read past it to the form. All three custom properties used here
+   (--hairline, --surface-2, --muted) are re-declared in the dark block, so this
+   themes with the rest of the app rather than pinning light values. */
+.auth .auth-setup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  margin: 0 0 0.5rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.auth .auth-setup p {
+  margin: 0;
+}
+
+/* No `code` rule here on purpose — the notice publishes no command. See the
+   comment in Login.tsx. */
+
 /* ---------------------------------------------------- Help (docs layout) */
 .help-head {
   margin-bottom: 1.75rem;

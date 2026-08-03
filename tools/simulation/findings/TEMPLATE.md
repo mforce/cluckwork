@@ -101,9 +101,12 @@ production-equivalent. All isolated to `tools/simulation/.env.sim`; see
 6. **`Database__MigrateOnStartup=true`** — the sim stack migrates on boot
    instead of via a separate release step. **Invalidates:** anything about
    migration-time behavior under a separate/gated migration step.
-7. **No traefik / TLS front door**, `AllowedHosts=*`, loopback-only port
-   publish. **Invalidates:** anything about TLS-termination overhead or
-   traefik routing.
+7. **No traefik / TLS front door**, a placeholder `AllowedHosts`
+   (`cluckwork-sim.local` — concrete, never `*`: #319 fails a Production
+   boot on a wildcard, and this stack runs Production config), loopback-only
+   port publish. Reachable on `127.0.0.1` because loopback is force-added to
+   the host-filter list. **Invalidates:** anything about TLS-termination
+   overhead or traefik routing.
 
 ---
 
@@ -148,6 +151,14 @@ never silently dropped from this report.
 ### 2.6 Resource utilization trend (`docker stats`, app/db/otel-collector)
 
 {{RESOURCE_UTIL_TABLE}}
+
+### Browser experience (#386 canary)
+
+What a real browser saw while the above was happening. k6 measures the server's
+answer; this measures the farm's screen — and the two only mean something
+together, which is why they share a document.
+
+{{BROWSER_VITALS_TABLE}}
 
 ### 2.7 Database growth (`pg_database_size`, before/after each rep's capacity phase)
 

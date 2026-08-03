@@ -75,7 +75,7 @@ jobs:
           --configfile .github/nuget.lockfix.config
 
       - name: Upload the regenerated lock files
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: lockfiles
           if-no-files-found: error
@@ -111,10 +111,27 @@ jobs:
 
       - name: Mint a short-lived GitHub App token
         id: app
-        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2.2.2
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
-          app-id: ${{ secrets.LOCKFIX_APP_ID }}
+          client-id: ${{ secrets.LOCKFIX_APP_CLIENT_ID }}
           private-key: ${{ secrets.LOCKFIX_APP_PRIVATE_KEY }}
+          # Cap the token at the one permission this job needs. The same App now
+          # also backs the Release workflow, which needs pull-requests and issues
+          # write — without this cap those would ride along into the TOKEN held
+          # by the job that pushes to a Dependabot branch.
+          #
+          # Be precise about what this does and does not buy. It caps the token
+          # the action RETURNS. It does not cap the PRIVATE KEY on the line
+          # above, which can mint a token carrying the App's full grant. So
+          # widening the App does widen what any job holding this secret could
+          # obtain — the cap makes that a deliberate act rather than the default,
+          # it does not make it impossible. What actually keeps this job narrow
+          # is the surrounding design: it runs no PR-controlled code (see the
+          # header), and the script it does run comes from the default-branch
+          # checkout. Accepted as residual risk rather than split into a second
+          # App; revisit if a consumer ever needs a permission that would be
+          # damaging here.
+          permission-contents: write
 
       - name: Check out the PR head for pushing
         uses: actions/checkout@v7
@@ -127,7 +144,7 @@ jobs:
           path: pr
 
       - name: Download the regenerated lock files
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: lockfiles
           path: ${{ runner.temp }}/locks

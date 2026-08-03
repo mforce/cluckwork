@@ -107,7 +107,35 @@ services:
     # traefik does not start with a bare `docker compose up`. Enable in prod
     # with `docker compose --profile prod up`.
     profiles: ["prod"]
-    image: traefik:v3.5
+    # #369 — pinned by IMMUTABLE DIGEST, same as `db` above, and bumped v3.5 →
+    # v3.7.10. `v3.5` was a *release-branch* tag, which upstream silently stops
+    # moving once attention shifts to the next minor: it resolved to v3.5.6
+    # (2025-11-07) and scanned 57 fixable HIGH/CRITICAL, including a CRITICAL Go
+    # stdlib CVE. v3.7.10 scans 0. That mattered beyond this file — the deploy
+    # repo read its production Traefik version out of it.
+    #
+    # The tag is not the identity, and that is not theoretical: while this change
+    # was being written, `v3.7.10` was re-pushed (2026-08-02 05:10 UTC) and the
+    # SAME version string began resolving to different bytes. Both builds scan
+    # clean; the digest below is the later one. Pinning the tag alone would have
+    # silently swapped the image under a "no-op" edit.
+    #
+    # NOTE: a digest never floats, so it cannot drift — but it also cannot heal.
+    # Nothing in this repo proposes a bump for it (Dependabot's `docker`
+    # ecosystem reads Dockerfiles, not compose files) and nothing scans it, so
+    # re-check this pin by hand when touching the deploy stack:
+    #   docker buildx imagetools inspect traefik:v3.7
+    #   trivy image --severity HIGH,CRITICAL --ignore-unfixed traefik:v3.7
+    #
+    # v3.7 vs v3.5, checked before bumping: `sanitizePath` has defaulted to true
+    # since v3.3.6, and the v3.6.7 `http.encodedCharacters.*` knobs all default
+    # to `true` (permissive) — so v3.7.10's DEFAULT path handling is identical to
+    # v3.5.6's, and this stack's router rule is `Host(...)` only, with no path
+    # matching and no path-rewriting middleware. Nothing here routes on the path,
+    # so there is no traefik/app split view to open. Set the encodedCharacters
+    # options to false only if you add path-based routing in front of a backend
+    # that decodes encoded reserved characters.
+    image: traefik:v3.7.10@sha256:9c3b91d5fb7770853ca5c1124a23c34bf2d9b47ffaebeab2614cbaf410dcb2ac
     command:
       - --providers.docker=true
       - --providers.docker.exposedbydefault=false

@@ -213,92 +213,142 @@ public sealed class IdempotencyMiddleware(RequestDelegate next, IOptions<Idempot
         // (step 3) are one atomic unit. ---
         var originalBody = context.Response.Body;
         await using var buffer = new MemoryStream();
-        context.Response.Body = buffer;
-        var transaction = await db.Database.BeginTransactionAsync(context.RequestAborted);
-        // #307 review — RollbackAsync/CommitAsync alone do NOT return the
-        // underlying connection to the ADO.NET pool; only DisposeAsync does. The
-        // steal-loss branch below needs to release the connection BEFORE it starts
-        // polling (which can run for up to Idempotency:MaxWaitSeconds), so
-        // disposal happens explicitly there too — this guard makes calling it from
-        // both that branch AND the unconditional `finally` safe (idempotent)
-        // without relying on IDbContextTransaction's own dispose being a no-op the
-        // second time.
-        var transactionDisposed = false;
-        async Task DisposeTransactionOnceAsync()
-        {
-            if (transactionDisposed) return;
-            transactionDisposed = true;
-            await transaction.DisposeAsync();
-        }
+
+        // #269 — EnableRetryOnFailure forbids a manually-begun transaction
+        // from being touched outside its own database.CreateExecutionStrategy()
+        // .ExecuteAsync — EF throws InvalidOperationException the instant
+        // anything else runs against this DbContext while the transaction is
+        // open, retryable failure or not (see PostgresDbContextConfigurator).
+        // Since the WHOLE point of this transaction is to cover next(context)
+        // too (the handler's own SaveChanges and step 3's PUBLISH have to be
+        // the SAME atomic unit — the #307 comment above), this block has to
+        // sit inside an execution strategy.
+        //
+        // It runs there EXACTLY ONCE (SingleAttemptExecution). `next(context)`
+        // — the whole downstream pipeline — is not replayable, and no amount
+        // of database-state re-checking makes it so:
+        //
+        //   * it consumes single-use, NON-database state: the #308 step-up
+        //     grant is consumed in memory by CreateUserHandler /
+        //     SetUserPasswordHandler, so a second pass over POST /users is
+        //     denied outright;
+        //   * for a state transition (daily-entry submit, order confirm) a
+        //     second pass observes the FIRST pass's committed transition and
+        //     answers 422 — a 4xx saying the request was invalid, for a
+        //     request that in fact succeeded, and one no client will retry.
+        //
+        // What makes a transient mid-request failure recoverable here is not
+        // a server-side replay but the CLIENT retrying with the same
+        // Idempotency-Key — which is precisely the guarantee #307 built. And
+        // for the narrow ambiguous-commit case (Postgres committed, the
+        // acknowledgment is what was lost) the catch below does better than
+        // an error: our own claim is now Completed, so the response this
+        // request published is replayed instead.
         try
         {
-            await next(context);
-
-            buffer.Position = 0;
-            var body = await new StreamReader(buffer).ReadToEndAsync(context.RequestAborted);
-            var statusCode = context.Response.StatusCode;
-            var contentType = context.Response.ContentType;
-            context.Response.Body = originalBody;
-
-            if (statusCode is >= 200 and < 300)
+            await SingleAttemptExecution.RunAsync(db.Database, async () =>
             {
-                // --- 3. PUBLISH, guarded by our attempt's token. ---
-                var published = await db.Database.ExecuteSqlInterpolatedAsync($"""
-                    UPDATE idempotency_records SET
-                        "Status" = {(int)IdempotencyStatus.Completed},
-                        "StatusCode" = {statusCode},
-                        "ContentType" = {contentType},
-                        "ResponseBody" = {body},
-                        "CompletedAt" = {DateTimeOffset.UtcNow}
-                    WHERE "AccountId" = {accountId} AND "EndpointHash" = {endpointHash}
-                      AND "IdempotencyKeyHash" = {keyHash} AND "LeaseOwner" = {ownerToken}
-                      AND "Status" = {(int)IdempotencyStatus.InProgress}
-                    """, CancellationToken.None);
+                context.Response.Body = buffer;
 
-                if (published == 1)
+                var transaction = await db.Database.BeginTransactionAsync(context.RequestAborted);
+                // #307 review — RollbackAsync/CommitAsync alone do NOT return the
+                // underlying connection to the ADO.NET pool; only DisposeAsync does. The
+                // steal-loss branch below needs to release the connection BEFORE it starts
+                // polling (which can run for up to Idempotency:MaxWaitSeconds), so
+                // disposal happens explicitly there too — this guard makes calling it from
+                // both that branch AND the unconditional `finally` safe (idempotent)
+                // without relying on IDbContextTransaction's own dispose being a no-op the
+                // second time.
+                var transactionDisposed = false;
+                async Task DisposeTransactionOnceAsync()
                 {
-                    // Persist even if the client disconnects after the handler
-                    // committed its side effects — otherwise a retry with the
-                    // same key could execute the operation again.
-                    await transaction.CommitAsync(CancellationToken.None);
+                    if (transactionDisposed) return;
+                    transactionDisposed = true;
+                    await transaction.DisposeAsync();
+                }
+                try
+                {
+                    await next(context);
+
+                    buffer.Position = 0;
+                    var body = await new StreamReader(buffer).ReadToEndAsync(context.RequestAborted);
+                    var statusCode = context.Response.StatusCode;
+                    var contentType = context.Response.ContentType;
+                    context.Response.Body = originalBody;
+
+                    if (statusCode is >= 200 and < 300)
+                    {
+                        // --- 3. PUBLISH, guarded by our attempt's token. ---
+                        var published = await db.Database.ExecuteSqlInterpolatedAsync($"""
+                            UPDATE idempotency_records SET
+                                "Status" = {(int)IdempotencyStatus.Completed},
+                                "StatusCode" = {statusCode},
+                                "ContentType" = {contentType},
+                                "ResponseBody" = {body},
+                                "CompletedAt" = {DateTimeOffset.UtcNow}
+                            WHERE "AccountId" = {accountId} AND "EndpointHash" = {endpointHash}
+                              AND "IdempotencyKeyHash" = {keyHash} AND "LeaseOwner" = {ownerToken}
+                              AND "Status" = {(int)IdempotencyStatus.InProgress}
+                            """, CancellationToken.None);
+
+                        if (published == 1)
+                        {
+                            // Persist even if the client disconnects after the handler
+                            // committed its side effects — otherwise a retry with the
+                            // same key could execute the operation again.
+                            await transaction.CommitAsync(CancellationToken.None);
+                            await EmitAsync(context, statusCode, contentType, body);
+                            return;
+                        }
+
+                        // Our lease was stolen mid-execution: someone else is now the
+                        // authoritative claimant. Our mutation must NEVER become
+                        // durable (it may duplicate whatever they run/ran) —
+                        // roll back, then converge on whatever THEY publish.
+                        await transaction.RollbackAsync(CancellationToken.None);
+                        // Dispose (release the connection) BEFORE the poll, not after —
+                        // see the comment on transactionDisposed above.
+                        await DisposeTransactionOnceAsync();
+                        var winner = await WaitForCompletionAsync(
+                            db, accountId, endpointHash, keyHash, waitDeadline, context.RequestAborted);
+                        if (winner is not null)
+                        {
+                            await ReplayAsync(context, winner);
+                            return;
+                        }
+
+                        await WriteProblemAsync(context, StatusCodes.Status409Conflict,
+                            "https://cluckwork.local/problems/idempotency-in-progress",
+                            "A request with this Idempotency-Key is still being processed. Retry shortly.");
+                        return;
+                    }
+
+                    // Non-2xx: nothing is cached (matches the pre-#307 contract), and
+                    // the claim is released immediately so a corrected retry with the
+                    // same key does not have to wait out the lease.
+                    await transaction.RollbackAsync(CancellationToken.None);
+                    await ReleaseClaimAsync(db, accountId, endpointHash, keyHash, ownerToken, CancellationToken.None);
                     await EmitAsync(context, statusCode, contentType, body);
-                    return;
                 }
-
-                // Our lease was stolen mid-execution: someone else is now the
-                // authoritative claimant. Our mutation must NEVER become
-                // durable (it may duplicate whatever they run/ran) —
-                // roll back, then converge on whatever THEY publish.
-                await transaction.RollbackAsync(CancellationToken.None);
-                // Dispose (release the connection) BEFORE the poll, not after —
-                // see the comment on transactionDisposed above.
-                await DisposeTransactionOnceAsync();
-                var winner = await WaitForCompletionAsync(
-                    db, accountId, endpointHash, keyHash, waitDeadline, context.RequestAborted);
-                if (winner is not null)
+                catch
                 {
-                    await ReplayAsync(context, winner);
-                    return;
+                    // Transaction-scoped cleanup only; the claim is dealt with
+                    // in the outer catch, once the connection is back in the
+                    // pool and a probe read is possible.
+                    context.Response.Body = originalBody;
+                    try { await transaction.RollbackAsync(CancellationToken.None); }
+                    catch { /* connection likely gone; nothing durable to undo */ }
+                    throw;
                 }
-
-                await WriteProblemAsync(context, StatusCodes.Status409Conflict,
-                    "https://cluckwork.local/problems/idempotency-in-progress",
-                    "A request with this Idempotency-Key is still being processed. Retry shortly.");
-                return;
-            }
-
-            // Non-2xx: nothing is cached (matches the pre-#307 contract), and
-            // the claim is released immediately so a corrected retry with the
-            // same key does not have to wait out the lease.
-            await transaction.RollbackAsync(CancellationToken.None);
-            await ReleaseClaimAsync(db, accountId, endpointHash, keyHash, ownerToken, CancellationToken.None);
-            await EmitAsync(context, statusCode, contentType, body);
+                finally
+                {
+                    await DisposeTransactionOnceAsync();
+                }
+            });
         }
         catch
         {
             context.Response.Body = originalBody;
-            try { await transaction.RollbackAsync(CancellationToken.None); }
-            catch { /* connection likely gone; nothing durable to undo */ }
             // A failed SaveChangesAsync (e.g. the DbUpdateConcurrencyException a
             // parallel-race test drives) leaves its entities tracked as Modified
             // — EF does not detach them on failure. UseExceptionHandler is
@@ -310,17 +360,52 @@ public sealed class IdempotencyMiddleware(RequestDelegate next, IOptions<Idempot
             // /error handler that touched this DbContext would otherwise re-flush
             // the SAME stale entities and re-throw the SAME exception, uncaught,
             // letting it escape to the client instead of the mapped 409. Keep the
-            // scope's tracker clean before unwinding.
+            // scope's tracker clean before unwinding. (Scoped to ONE request's own
+            // context — never a shared/long-lived one; see SingleAttemptExecution
+            // for why a blanket Clear() is wrong in IdentityProvider.)
             db.ChangeTracker.Clear();
+
+            // #269 review — the failure may have been a LOST ACKNOWLEDGMENT of a
+            // commit that actually landed (the ambiguous commit). Because the
+            // mutation and the PUBLISH are ONE transaction (#307), the claim's own
+            // status is the authoritative answer to "did my work become durable?":
+            // Completed means it did, and the response this request published is
+            // sitting right there. Replay it rather than reporting a failure for a
+            // request that succeeded — and rather than re-running next(context),
+            // which would re-consume a single-use step-up grant and make a state
+            // transition answer 422. Best-effort: if the connection is genuinely
+            // gone the probe throws and we fall through to the honest error, which
+            // the client then retries with the same key and replays anyway.
+            try
+            {
+                var completed = await ReadCompletedClaimAsync(
+                    db, accountId, endpointHash, keyHash, ownerToken, CancellationToken.None);
+                if (completed is not null)
+                {
+                    await ReplayAsync(context, completed);
+                    return;
+                }
+            }
+            catch { /* probe failed; fall through to the error below */ }
+
+            // Nothing of ours is durable. Release OUR claim (best-effort) so a
+            // corrected retry from the CLIENT doesn't have to wait out the lease.
             try { await ReleaseClaimAsync(db, accountId, endpointHash, keyHash, ownerToken, CancellationToken.None); }
             catch { /* best-effort — an abandoned claim still recovers via lease expiry */ }
             throw;
         }
-        finally
-        {
-            await DisposeTransactionOnceAsync();
-        }
     }
+
+    // The claim this attempt owns, but only once it has actually been published.
+    // LeaseOwner is this request's own single-use token, so a match cannot be
+    // anyone else's work.
+    private static Task<IdempotencyRecord?> ReadCompletedClaimAsync(
+        AppDbContext db, Guid accountId, string endpointHash, string keyHash, Guid ownerToken,
+        CancellationToken ct) =>
+        db.IdempotencyRecords.AsNoTracking().FirstOrDefaultAsync(r =>
+            r.AccountId == accountId && r.EndpointHash == endpointHash
+            && r.IdempotencyKeyHash == keyHash && r.LeaseOwner == ownerToken
+            && r.Status == IdempotencyStatus.Completed, ct);
 
     private enum ClaimKind { Claimed, HashConflict, Completed, LiveLease, Retry }
 
@@ -375,17 +460,30 @@ public sealed class IdempotencyMiddleware(RequestDelegate next, IOptions<Idempot
 
         if (existing is null) return new ClaimAttempt(ClaimKind.Retry);
         // An empty RequestHash means "unknown" — the row was backfilled by the
-        // AtomicIdempotencyClaims migration from a row written under the pre-#307
-        // schema, which never recorded a hash at all. No REAL request hash is ever
-        // the empty string (sha256 of even a zero-byte body is a 64-char hex
+        // pre-#245 AtomicIdempotencyClaims migration from a row written under the
+        // pre-#307 schema, which never recorded a hash at all. No REAL request hash
+        // is ever the empty string (sha256 of even a zero-byte body is a 64-char hex
         // string), so "" is an unambiguous, collision-free sentinel: treat it as
         // matching so a legacy completed row still replays instead of 409ing
-        // forever, rather than trying to reconstruct a hash nothing recorded. This
-        // shim's reason to exist goes away once #245's InitialCreate squash retires
-        // every pre-#307 row.
+        // forever, rather than trying to reconstruct a hash nothing recorded.
+        //
+        // #245 — the squash HAS now retired every pre-#307 row (that migration is
+        // gone, and every database carrying such rows was dropped and recreated),
+        // so this branch is unreachable in practice. Left in place deliberately as
+        // an inert guard rather than removed in the squash commit, which changes no
+        // behaviour; deleting it is a separate, reviewable change.
         if (existing.RequestHash.Length > 0 && existing.RequestHash != requestHash)
             return new ClaimAttempt(ClaimKind.HashConflict, existing);
         if (existing.Status == IdempotencyStatus.Completed) return new ClaimAttempt(ClaimKind.Completed, existing);
+        // #269 review — the row is OURS. ownerToken is a fresh Guid minted for
+        // this one request, so nothing else can have written it: what happened
+        // is that our own INSERT (or steal UPDATE) above already committed and
+        // its acknowledgment was lost, and EF's retrying execution strategy —
+        // which wraps SaveChanges/ExecuteSql on its own, outside any user
+        // transaction — replayed it into the unique index. We hold the lease;
+        // reporting a competing LiveLease here would make the request poll
+        // itself out to the deadline and 409 without ever invoking the handler.
+        if (existing.LeaseOwner == ownerToken) return new ClaimAttempt(ClaimKind.Claimed);
         return new ClaimAttempt(ClaimKind.LiveLease);
     }
 

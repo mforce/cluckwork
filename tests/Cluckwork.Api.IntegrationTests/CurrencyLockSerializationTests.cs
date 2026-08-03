@@ -6,7 +6,6 @@ using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Expenses;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 
 // #123 / #159 review — why UpdateFarmSettingsHandler does NOT use SERIALIZABLE
 // to close §4.6's read-then-write window.
@@ -70,32 +69,51 @@ public sealed class CurrencyLockSerializationTests(CluckworkWebApplicationFactor
     {
         var accountId = await SeedFarmAsync();
 
-        using var scopeA = factory.Services.CreateScope();
-        scopeA.ServiceProvider.GetRequiredService<TenantContext>().Resolve(accountId);
-        var dbA = scopeA.ServiceProvider.GetRequiredService<AppDbContext>();
+        // Built directly, not via factory.Services (#269: that DbContext now
+        // carries EnableRetryOnFailure, which forbids a manually-begun
+        // transaction unless driven through
+        // database.CreateExecutionStrategy().ExecuteAsync — incompatible
+        // with this test's need for precise, hand-held control of A's
+        // transaction across several separate, sequential steps interleaved
+        // with B's own writer) — same pattern ReportQueryBoundingTests/
+        // StepUpAuthTests use for exactly this reason.
+        var tenantA = new TenantContext();
+        tenantA.Resolve(accountId);
+        await using var dbA = new AppDbContext(
+            new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(factory.ConnectionString).Options,
+            tenantA);
 
         await using var transactionA = await dbA.Database.BeginTransactionAsync(isolationLevel);
         Assert.False(await ProbeAsync(dbA), "the farm must start with no money rows for the race to mean anything");
 
         // B commits entirely inside A's window, reading the account's currency
-        // first exactly as every money-writing handler does.
-        await factory.WithTenantScopeAsync(accountId, async db =>
+        // first exactly as every money-writing handler does. Not
+        // factory.WithTenantScopeAsync when writerIsTransactional — same #269
+        // reasoning as dbA above, since it too opens its own manual
+        // transaction (transactionB).
+        if (writerIsTransactional)
         {
-            if (writerIsTransactional)
+            var tenantB = new TenantContext();
+            tenantB.Resolve(accountId);
+            await using var db = new AppDbContext(
+                new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(factory.ConnectionString).Options,
+                tenantB);
+            await using var transactionB = await db.Database.BeginTransactionAsync();
+            await db.Accounts.AsNoTracking().SingleAsync();
+            await InsertAnExpenseAsync(db, accountId);
+            await transactionB.CommitAsync();
+        }
+        else
+        {
+            // The read and the insert are separate autocommit statements —
+            // CreateExpenseHandler's shape. No manual transaction here, so
+            // the ordinary retry-enabled factory context is fine.
+            await factory.WithTenantScopeAsync(accountId, async db =>
             {
-                await using var transactionB = await db.Database.BeginTransactionAsync();
                 await db.Accounts.AsNoTracking().SingleAsync();
                 await InsertAnExpenseAsync(db, accountId);
-                await transactionB.CommitAsync();
-            }
-            else
-            {
-                // The read and the insert are separate autocommit statements —
-                // CreateExpenseHandler's shape.
-                await db.Accounts.AsNoTracking().SingleAsync();
-                await InsertAnExpenseAsync(db, accountId);
-            }
-        });
+            });
+        }
 
         try
         {
@@ -144,9 +162,13 @@ public sealed class CurrencyLockSerializationTests(CluckworkWebApplicationFactor
     {
         var accountId = await SeedFarmAsync();
 
-        using var scope = factory.Services.CreateScope();
-        scope.ServiceProvider.GetRequiredService<TenantContext>().Resolve(accountId);
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        // Built directly, not via factory.Services — see the #269 comment on
+        // RaceAsync above.
+        var tenant = new TenantContext();
+        tenant.Resolve(accountId);
+        await using var db = new AppDbContext(
+            new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(factory.ConnectionString).Options,
+            tenant);
 
         await using var transaction = await db.Database.BeginTransactionAsync();
         Assert.False(await ProbeAsync(db));

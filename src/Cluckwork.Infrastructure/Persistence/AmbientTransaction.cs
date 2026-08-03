@@ -1,5 +1,6 @@
 namespace Cluckwork.Infrastructure.Persistence;
 
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage;
 
@@ -19,16 +20,53 @@ using Microsoft.EntityFrameworkCore.Storage;
 // the idempotency middleware wraps (unit tests calling a handler directly, a
 // CLI command, a read), Database.CurrentTransaction is null and this behaves
 // exactly like a plain BeginTransactionAsync.
+//
+// #269 — EnableRetryOnFailure adds a second constraint on top of the one
+// above: a transaction opened OUTSIDE database.CreateExecutionStrategy()
+// .ExecuteAsync makes EF throw InvalidOperationException the moment
+// anything else touches the DbContext while it's open — unconditionally, not
+// just on an actual transient failure. So the "owned" case (no ambient
+// transaction to join — THIS call is the one opening it) can no longer just
+// call BeginTransactionAsync and hand back a scope for the caller to drive
+// at its own pace; it has to run the caller's ENTIRE unit of work inside the
+// execution strategy. RunAsync below is the one place that decides which case
+// applies; every caller passes its whole transactional unit as `work` rather
+// than holding the scope open itself.
+//
+// The owned unit runs through SingleAttemptExecution — inside the strategy,
+// but never replayed. `work` is caller-supplied and routinely NOT replayable:
+// a failed attempt leaves its entities tracked as Added on this same scoped
+// AppDbContext (EF does not detach them, so a retry flushes the failed
+// attempt's rows alongside the fresh ones — duplicate users on the unique
+// email index, duplicate audit rows, a refresh token nobody was ever issued).
+// For `bootstrap-admin` the unit additionally sits inside a SESSION-scoped
+// pg_advisory_lock that a reconnect drops — but note this scope is NOT where
+// that is handled: FirstRunAdminService wraps its whole lock/check/create
+// region itself, because the reads OUTSIDE this transaction were the ones
+// being retried. It is also the caller of RunAsync for the create (#350 review
+// round 3), so that it can re-prove advisory-lock ownership as the first
+// statement INSIDE the transaction and have IdentityProvider.CreateUserAsync
+// JOIN it via the ambient path below rather than open its own — a check
+// sitting before this call still runs before the transaction exists, which is
+// early enough for a replaced connection to slip between the two. See
+// SingleAttemptExecution for the full rationale and for what retrying still
+// covers.
 public static class AmbientTransaction
 {
-    public static async Task<IAmbientTransactionScope> BeginAsync(
-        DatabaseFacade database, CancellationToken ct = default)
+    public static async Task<T> RunAsync<T>(
+        DatabaseFacade database,
+        Func<IAmbientTransactionScope, CancellationToken, Task<T>> work,
+        CancellationToken ct = default)
     {
         if (database.CurrentTransaction is not null)
-            return JoinedTransactionScope.Instance;
+            return await work(JoinedTransactionScope.Instance, ct);
 
-        var transaction = await database.BeginTransactionAsync(ct);
-        return new OwnedTransactionScope(transaction);
+        return await SingleAttemptExecution.RunAsync(database, async () =>
+        {
+            var transaction = await database.BeginTransactionAsync(ct);
+            await using var scope = new OwnedTransactionScope(transaction);
+            return await work(scope, ct);
+        });
     }
 }
 

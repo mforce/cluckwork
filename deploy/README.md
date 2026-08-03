@@ -44,11 +44,37 @@ path, wait-for-CI gate, and post-deploy smoke test live in the deployment repo.
   Many managed-Postgres platforms emit this form; it is translated to key-value
   before use (host — IPv6 `[::1]` kept bracketed, port — default `5432` if omitted,
   URL-decoded password, database from the path, `sslmode`/cert query params mapped,
-  and legacy `ssl=true` → `sslmode=Require`). A libpq param with no Npgsql equivalent
-  (`channel_binding`, `target_session_attrs`, `gssencmode`, …) is **ignored with a
-  warning** rather than failing the connection, so managed URLs (e.g. one carrying
-  `channel_binding=require`) work. Both `postgres://` and `postgresql://` schemes are
-  accepted.
+  and legacy `ssl=true` → `sslmode=Require`). Params Npgsql supports only under a
+  different spelling (`channel_binding`, `target_session_attrs`, `gssencmode`, …) are
+  **mapped**, so managed URLs (e.g. one carrying `channel_binding=require`) work; a param
+  with genuinely no Npgsql equivalent (`sslcompression`, …) is **ignored with a warning**
+  rather than failing the connection. Both `postgres://` and `postgresql://` schemes are
+  accepted. Not yet mapped, so currently ignored-with-warning: the `keepalives*` family
+  (Npgsql spells these `Tcp Keepalive` / `Tcp Keepalive Time` / `Tcp Keepalive Interval`)
+  and `client_encoding` — set them in key-value form if you need them.
+
+**GSS/Kerberos negotiation is off by default (#332).** Npgsql's `GssEncryptionMode`
+defaults to `Prefer`, so every connector probes the GSSAPI stack before authenticating.
+The runtime image deliberately carries no `libgssapi-krb5-2` (#267 keeps it minimal and
+Trivy-scanned), so that probe made .NET's native security shim print two **unstructured**
+lines to stderr — emitted before Serilog exists, so they cannot be filtered or shipped as
+structured events — on every connecting process, reading like a failure during deploys:
+
+```
+Cannot load library libgssapi_krb5.so.2
+Error: libgssapi_krb5.so.2: cannot open shared object file: No such file or directory
+```
+
+Cluckwork authenticates with a password, so the app now appends
+`GSS Encryption Mode=Disable` **unless you set it yourself** (via `gssencmode=…` in a URI
+or `GSS Encryption Mode=…` in key-value form) — a Kerberos-fronted deployment opts back in
+and keeps its value. This is orthogonal to `sslmode`: the TLS floor below is unaffected.
+
+Confirmed by loader trace (`LD_DEBUG=libs`, scram-sha-256 server): `Prefer` loads
+`libgssapi_krb5.so.2`, `libkrb5.so.3` and `libkrb5support.so.0` even though the server
+never offers GSS; `Disable` produces zero gssapi/krb5 loader activity and connects
+identically. On an image that *has* the libraries the load is silent — the two error lines
+above are what the same attempt looks like where the libraries are absent.
 
 **TLS is required in Production (#262).** When the app runs as Production
 (`ASPNETCORE_ENVIRONMENT` unset → Production), it inspects `sslmode` once **at boot**

@@ -193,3 +193,117 @@ describe("Login", () => {
     expect(await screen.findByRole("button", { name: "Sign in" })).toBeEnabled();
   });
 });
+
+// #283 follow-up — the first-run notice. Driven by the SIGN-IN ATTEMPT, not by
+// a status call on mount: the server reports "the default account has no
+// Owner" on the 401 it already returns.
+describe("Login — first-run setup notice", () => {
+  const noOwner = () =>
+    new ApiError(401, "Auth.NoOwnerProvisioned", "This farm has no administrator account yet.");
+
+  it("shows the notice, and suppresses the generic denial, when the server reports no Owner", async () => {
+    mockApiLogin.mockRejectedValue(noOwner());
+    renderWithProviders(tree(), { route: "/login", token: null });
+
+    fillCredentials("owner@farm.co", "pw");
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    });
+
+    expect(await screen.findByText(i18n.t("auth:noAdminYet"))).toBeInTheDocument();
+    expect(screen.getByText(i18n.t("auth:noAdminYetHint"))).toBeInTheDocument();
+    // "Invalid email or password" is the wrong thing to show the operator this
+    // exists for: holding no credentials at all, they are told about a typing
+    // mistake they did not make. (Not "nothing was wrong with what was typed" —
+    // a seeded non-Owner CAN reach this notice by genuinely mistyping their own
+    // password, which the case below pins.)
+    expect(screen.queryByText(i18n.t("auth:invalidCredentials"))).not.toBeInTheDocument();
+  });
+
+  // The other side of the same boundary. Without this, a build that showed the
+  // notice for EVERY 401 would pass the test above — and would tell a user who
+  // simply mistyped their password that the farm has no administrator.
+  it("shows the ordinary invalid-credentials message on a normal 401, with no notice", async () => {
+    mockApiLogin.mockRejectedValue(new ApiError(401, "Auth.InvalidCredentials", "bad creds"));
+    renderWithProviders(tree(), { route: "/login", token: null });
+
+    fillCredentials("owner@farm.co", "wrong");
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    });
+
+    expect(await screen.findByText(i18n.t("auth:invalidCredentials"))).toBeInTheDocument();
+    expect(screen.queryByText(i18n.t("auth:noAdminYet"))).not.toBeInTheDocument();
+  });
+
+  // The status half of the guard, which nothing else covers (PR #363 review).
+  // isNoOwnerProvisioned checks BOTH the title and a 401; every other
+  // "no notice" case above varies the title, so deleting `&& err.status === 401`
+  // left the whole suite green. A future non-401 response reusing the title —
+  // a 500 from an error handler that echoes it, say — would then render a
+  // first-run notice on a healthy, provisioned instance.
+  it("ignores the code on a non-401 response", async () => {
+    mockApiLogin.mockRejectedValue(
+      new ApiError(500, "Auth.NoOwnerProvisioned", "Internal Server Error"));
+    renderWithProviders(tree(), { route: "/login", token: null });
+
+    fillCredentials("owner@farm.co", "pw");
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    });
+
+    // Falls through to the ordinary error path instead.
+    expect(await screen.findByText(/Could not sign in/)).toBeInTheDocument();
+    expect(screen.queryByText(i18n.t("auth:noAdminYet"))).not.toBeInTheDocument();
+  });
+
+  // Nothing is asked of the server on mount any more, so nothing may be shown
+  // before someone actually tries. This is what pins the mechanism change: a
+  // reintroduced page-load poll would surface the notice here.
+  it("shows nothing before a sign-in has been attempted", async () => {
+    renderWithProviders(tree(), { route: "/login", token: null });
+
+    expect(await screen.findByRole("button", { name: "Sign in" })).toBeInTheDocument();
+    expect(screen.queryByText(i18n.t("auth:noAdminYet"))).not.toBeInTheDocument();
+    expect(mockApiLogin).not.toHaveBeenCalled();
+  });
+
+  // The notice deliberately publishes NO command and no deployment detail: an
+  // earlier version printed the setup invocation and was wrong twice (a form
+  // that was not runnable, then two forms because the app cannot know how it
+  // was deployed), and a login screen reachable by anyone is the wrong place to
+  // describe how the server is run. Asserted rather than left to the copy,
+  // because this is the kind of thing a well-meaning later edit re-adds.
+  it("names no command and leaks no deployment detail", async () => {
+    mockApiLogin.mockRejectedValue(noOwner());
+    renderWithProviders(tree(), { route: "/login", token: null });
+
+    fillCredentials("owner@farm.co", "pw");
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    });
+
+    const notice = (await screen.findByText(i18n.t("auth:noAdminYet"))).closest(".auth-setup");
+    expect(notice).not.toBeNull();
+    expect(notice!.querySelector("code")).toBeNull();
+    expect(notice!.textContent).not.toMatch(/docker|dotnet|bootstrap-admin|--email/i);
+  });
+
+  // The notice is an aside, not an alert: role="status" is polite, so a screen
+  // reader finishes the current utterance instead of interrupting.
+  it("announces the notice politely", async () => {
+    mockApiLogin.mockRejectedValue(noOwner());
+    renderWithProviders(tree(), { route: "/login", token: null });
+
+    fillCredentials("owner@farm.co", "pw");
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    });
+
+    // Located via its text, then checked for the role. Querying by role alone
+    // is ambiguous here: BusyButton renders its own sr-only `role="status"`
+    // span, so more than one status element is in the tree.
+    const notice = await screen.findByText(i18n.t("auth:noAdminYet"));
+    expect(notice.closest("[role='status']")).not.toBeNull();
+  });
+});
