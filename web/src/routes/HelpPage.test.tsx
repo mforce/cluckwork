@@ -116,6 +116,41 @@ describe("HelpPage", () => {
     expect(screen.queryByText(/<strong>/)).not.toBeInTheDocument();
   });
 
+  it("explains that grade reconciliation must be exact, not just not-over, on submit and admin adjust (#394)", () => {
+    render(<HelpPage />);
+
+    // dailyEntryPanes: the sellable figure is introduced, then the draft/
+    // official distinction is explicit — a draft may fall short, submitting
+    // may not. The old "can never exceed it" half (over-only) is gone.
+    expect(
+      screen.getByText(/A draft can leave that partly done, or not started at all/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/can never exceed it/i)).not.toBeInTheDocument();
+
+    // dailyEntryGradingDown: the old copy only warned about overshooting
+    // ("You cannot submit while it is over") — a worker must see that being
+    // short is refused exactly the same way, down to reading zero.
+    expect(screen.getByText(/You cannot submit until it reads exactly zero/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/grading a day partway, or not at all, is fine for a draft but not for Submit/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/You cannot submit while it is over/)).not.toBeInTheDocument();
+
+    // mistakesRow8Fix (History → adjust): the corrected grades must reconcile
+    // exactly and Save adjustment is blocked until they do — while the
+    // pre-existing sold-eggs floor and previous-values snapshot still hold.
+    // Scoped to this row's cell: the "must add up to ... exactly" clause is
+    // deliberately echoed in glossaryAdjustEntryDef too (same fact, two
+    // places), which an unscoped getByText would match twice.
+    const adjustFixCell = screen.getByRole("cell", { name: /Save adjustment/ });
+    expect(
+      within(adjustFixCell).getByText(/The corrected grades must add up to the corrected sellable count exactly/),
+    ).toBeInTheDocument();
+    expect(within(adjustFixCell).getByText(/is blocked until they do/)).toBeInTheDocument();
+    expect(within(adjustFixCell).getByText(/shrinking a grade below what was sold is refused/)).toBeInTheDocument();
+    expect(within(adjustFixCell).getByText(/The previous values stay visible on the entry/)).toBeInTheDocument();
+  });
+
   it("scroll-spies the contents rail — the section in view is marked current", () => {
     render(<HelpPage />);
     const toc = screen.getByRole("navigation", { name: "Help contents" });

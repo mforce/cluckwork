@@ -1677,7 +1677,8 @@ export const es = {
       "Elija el lote y la fecha en la parte superior, luego trabaje en dos paneles uno al lado del otro: "
       + "<strong>1 Conteo de huevos</strong> (total, rotos, sucios, descartados, muertes) y <strong>2 "
       + "Clasificación</strong>. Los conteos producen una cifra <strong>vendible</strong>, y ese es el "
-      + "número al que deben sumar los grados — nunca pueden superarlo.",
+      + "número al que deben sumar los grados. Un borrador puede quedar parcialmente clasificado, o sin "
+      + "clasificar — para enviar, debe cuadrar exactamente.",
     dailyEntryGradingDown:
       "La clasificación cuenta <strong>hacia abajo</strong>. Junto a los grados se muestra cuántos huevos "
       + "vendibles le quedan por ubicar; se pone verde en cuanto el día cuadra y rojo si se excede. No "
@@ -2011,9 +2012,11 @@ export const es = {
     mistakesRow8Mistake: "Números incorrectos en una entrada diaria <em>enviada</em>",
     mistakesRow8Fix:
       "Historial → <strong>ajustar</strong> (admin) — totales, pérdidas, mortalidad y desglose por grado, "
-      + "con un motivo requerido. Las existencias y el libro mayor de aves se actualizan para coincidir "
-      + "automáticamente, pero los huevos ya vendidos nunca se pueden descontar: reducir un grado por "
-      + "debajo de lo vendido se rechaza. Los valores anteriores permanecen visibles en la entrada.",
+      + "con un motivo requerido. Los grados corregidos deben sumar exactamente la cantidad vendible "
+      + "corregida, la misma regla que usa Enviar, y <strong>Guardar ajuste</strong> se bloquea hasta que "
+      + "coincidan. Las existencias y el libro mayor de aves se actualizan para coincidir automáticamente, "
+      + "pero los huevos ya vendidos nunca se pueden descontar: reducir un grado por debajo de lo vendido se "
+      + "rechaza. Los valores anteriores permanecen visibles en la entrada.",
 
     mistakesRow9Mistake: "Toda la entrada <em>enviada</em> está equivocada (lote o día incorrecto)",
     mistakesRow9Fix:

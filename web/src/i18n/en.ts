@@ -2009,8 +2009,8 @@ export const en = {
     dailyEntryPanes:
       "Pick the flock and date at the top, then work through two panes side by side: <strong>1 Egg "
       + "counts</strong> (total, cracked, dirty, discarded, deaths) and <strong>2 Grading</strong>. The counts "
-      + "produce a <strong>sellable</strong> figure, and that is the number the grades have to add up to — "
-      + "they can never exceed it.",
+      + "produce a <strong>sellable</strong> figure, and that is the number the grades have to add up to. A "
+      + "draft can leave that partly done, or not started at all — submitting needs it exact.",
     dailyEntryGradingDown:
       "Grading counts <strong>down</strong>. Beside the grades is how many sellable eggs you still have to "
       + "place; it turns green the moment the day adds up and red if you go over. You cannot submit until it "
@@ -2333,9 +2333,10 @@ export const en = {
     mistakesRow8Mistake: "Wrong numbers in a <em>submitted</em> daily entry",
     mistakesRow8Fix:
       "History → <strong>adjust</strong> (admin) — totals, losses, mortality, and grade split, with a "
-      + "required reason. Stock and the bird ledger update to match automatically, but eggs already sold can "
-      + "never be un-counted: shrinking a grade below what was sold is refused. The previous values stay "
-      + "visible on the entry.",
+      + "required reason. The corrected grades must add up to the corrected sellable count exactly, the same "
+      + "rule Submit uses, and <strong>Save adjustment</strong> is blocked until they do. Stock and the bird "
+      + "ledger update to match automatically, but eggs already sold can never be un-counted: shrinking a "
+      + "grade below what was sold is refused. The previous values stay visible on the entry.",
 
     mistakesRow9Mistake: "Entire <em>submitted</em> entry is wrong (wrong flock or day)",
     mistakesRow9Fix:
