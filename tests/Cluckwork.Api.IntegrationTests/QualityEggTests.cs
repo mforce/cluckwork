@@ -140,6 +140,124 @@ public sealed class QualityEggTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(before, await StateOf(accountId, entryId));
     }
 
+    // ---- resolution and lot creation -----------------------------------
+
+    private async Task<Guid> SubmitAsync(HttpClient client, Guid farmId, Guid flockId, Guid manualGradeId)
+    {
+        var entryId = (await (await client.PostWithKeyAsync(
+            "/api/v1/daily-entries", Guid.NewGuid().ToString(),
+            Body(farmId, flockId, [new { eggGradeId = manualGradeId, quantity = 600 }])))
+            .Content.ReadFromJsonAsync<RecordedDto>())!.Id;
+
+        var submit = await client.PostWithKeyAsync(
+            $"/api/v1/daily-entries/{entryId}/submit", Guid.NewGuid().ToString());
+        Assert.Equal(HttpStatusCode.OK, submit.StatusCode);
+        return entryId;
+    }
+
+    [Fact]
+    public async Task Submitting_turns_a_saleable_condition_counter_into_its_own_lot()
+    {
+        var (client, accountId, farmId, flockId, manual, crackedId, dirtyId) = await SetupAsync();
+
+        var entryId = await SubmitAsync(client, farmId, flockId, manual["Large"]);
+
+        await factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            var entry = await db.DailyEntries.IgnoreQueryFilters().SingleAsync(e => e.Id == entryId);
+            Assert.Equal(crackedId, entry.CrackedGradeId);
+            Assert.Equal(dirtyId, entry.DirtyGradeId);
+
+            var lots = await db.EggLots.IgnoreQueryFilters()
+                .Where(l => l.DailyEntryId == entryId).ToListAsync();
+
+            // 600 manual + 10 cracked + 5 dirty. Discarded is never stock.
+            Assert.Equal(3, lots.Count);
+            Assert.Equal(10, Assert.Single(lots, l => l.EggGradeId == crackedId).QuantityProduced);
+            Assert.Equal(5, Assert.Single(lots, l => l.EggGradeId == dirtyId).QuantityProduced);
+        });
+    }
+
+    [Fact]
+    public async Task A_non_saleable_condition_stays_a_loss()
+    {
+        var (client, accountId, farmId, flockId, manual, crackedId, _) =
+            await SetupAsync(crackedSaleable: false);
+
+        var entryId = await SubmitAsync(client, farmId, flockId, manual["Large"]);
+
+        await factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            var entry = await db.DailyEntries.IgnoreQueryFilters().SingleAsync(e => e.Id == entryId);
+            Assert.Null(entry.CrackedGradeId);
+            Assert.Empty(await db.EggLots.IgnoreQueryFilters()
+                .Where(l => l.DailyEntryId == entryId && l.EggGradeId == crackedId).ToListAsync());
+        });
+    }
+
+    // The case a saleability-only rule gets wrong. EggGrade.Deactivate() leaves
+    // IsSaleable set, so "inactive but saleable" is an ordinary reachable state
+    // — reached by an owner retiring a condition grade without first clearing
+    // its saleability. Resolving on IsSaleable alone would mint stock under a
+    // grade the farm has already removed from capture.
+    [Fact]
+    public async Task An_inactive_but_saleable_condition_grade_resolves_to_nothing()
+    {
+        var (client, accountId, farmId, flockId, manual, crackedId, _) =
+            await SetupAsync(crackedSaleable: true, crackedActive: false);
+
+        var entryId = await SubmitAsync(client, farmId, flockId, manual["Large"]);
+
+        await factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            var grade = await db.EggGrades.IgnoreQueryFilters().SingleAsync(g => g.Id == crackedId);
+            Assert.False(grade.Active);
+            Assert.True(grade.IsSaleable, "the fixture must keep the trap: inactive yet still saleable");
+
+            var entry = await db.DailyEntries.IgnoreQueryFilters().SingleAsync(e => e.Id == entryId);
+            Assert.Null(entry.CrackedGradeId);
+            Assert.Empty(await db.EggLots.IgnoreQueryFilters()
+                .Where(l => l.DailyEntryId == entryId && l.EggGradeId == crackedId).ToListAsync());
+        });
+    }
+
+    // A zero counter still RESOLVES — the snapshot records that the farm was
+    // selling cracked eggs that day — but mints no lot, because EggLot.Create
+    // rejects a zero quantity. Snapshot and lot are separate decisions and this
+    // is the case that proves it.
+    [Fact]
+    public async Task A_zero_counter_is_snapshotted_but_creates_no_lot()
+    {
+        var (client, accountId, farmId, flockId, manual, crackedId, _) = await SetupAsync();
+
+        var entryId = (await (await client.PostWithKeyAsync(
+            "/api/v1/daily-entries", Guid.NewGuid().ToString(),
+            new
+            {
+                farmId,
+                houseId = Guid.NewGuid(),
+                flockId,
+                date = DateOnly.FromDateTime(DateTime.UtcNow.Date),
+                totalEggs = 608,
+                crackedEggs = 0,
+                dirtyEggs = 5,
+                discardedEggs = 3,
+                mortalityCount = 0,
+                grades = new[] { new { eggGradeId = manual["Large"], quantity = 600 } }
+            })).Content.ReadFromJsonAsync<RecordedDto>())!.Id;
+
+        Assert.Equal(HttpStatusCode.OK, (await client.PostWithKeyAsync(
+            $"/api/v1/daily-entries/{entryId}/submit", Guid.NewGuid().ToString())).StatusCode);
+
+        await factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            var entry = await db.DailyEntries.IgnoreQueryFilters().SingleAsync(e => e.Id == entryId);
+            Assert.Equal(crackedId, entry.CrackedGradeId);
+            Assert.Empty(await db.EggLots.IgnoreQueryFilters()
+                .Where(l => l.DailyEntryId == entryId && l.EggGradeId == crackedId).ToListAsync());
+        });
+    }
+
     private async Task<(string Status, int Version, int Lots)> StateOf(Guid accountId, Guid entryId)
     {
         (string, int, int) state = default;
