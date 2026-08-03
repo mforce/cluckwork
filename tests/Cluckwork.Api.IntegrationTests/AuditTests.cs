@@ -35,10 +35,11 @@ public sealed class AuditTests(CluckworkWebApplicationFactory factory)
     {
         var (client, email, _, farmId, flockId, gradeId) = await SetupAsync();
 
+        // #394: submit requires exact reconciliation — total matches the grade.
         var record = await client.PostWithKeyAsync("/api/v1/daily-entries", Guid.NewGuid().ToString(), new
         {
             farmId, houseId = Guid.NewGuid(), flockId, date = Today,
-            totalEggs = 100, crackedEggs = 0, dirtyEggs = 0, discardedEggs = 0,
+            totalEggs = 90, crackedEggs = 0, dirtyEggs = 0, discardedEggs = 0,
             mortalityCount = 0,
             grades = new[] { new { eggGradeId = gradeId, quantity = 90 } }
         });
@@ -118,11 +119,12 @@ public sealed class AuditTests(CluckworkWebApplicationFactory factory)
     {
         var (clientA, _, _, farmA, flockA, gradeA) = await SetupAsync();
 
-        // Tenant A produces an audited action.
+        // Tenant A produces an audited action. #394: both submit and adjust
+        // require exact reconciliation — total matches the grade throughout.
         var record = await clientA.PostWithKeyAsync("/api/v1/daily-entries", Guid.NewGuid().ToString(), new
         {
             farmId = farmA, houseId = Guid.NewGuid(), flockId = flockA, date = Today,
-            totalEggs = 50, crackedEggs = 0, dirtyEggs = 0, discardedEggs = 0,
+            totalEggs = 40, crackedEggs = 0, dirtyEggs = 0, discardedEggs = 0,
             mortalityCount = 0,
             grades = new[] { new { eggGradeId = gradeA, quantity = 40 } }
         });
@@ -131,7 +133,7 @@ public sealed class AuditTests(CluckworkWebApplicationFactory factory)
         var version = (await clientA.GetFromJsonAsync<EntryDto>($"/api/v1/daily-entries/{entryId}"))!.Version;
         await clientA.PostWithKeyAsync($"/api/v1/daily-entries/{entryId}/adjust", Guid.NewGuid().ToString(), new
         {
-            version, totalEggs = 45, crackedEggs = 0, dirtyEggs = 0,
+            version, totalEggs = 40, crackedEggs = 0, dirtyEggs = 0,
             discardedEggs = 0, mortalityCount = 0, reason = "tenant A only"
         });
         Assert.Single((await clientA.GetFromJsonAsync<List<AuditRow>>($"/api/v1/audit?entityId={entryId}"))!);
@@ -201,10 +203,11 @@ public sealed class AuditTests(CluckworkWebApplicationFactory factory)
         var (client, _, accountId, farmId, flockId, gradeId) = await SetupAsync();
         var productId = await factory.SeedProductAsync(accountId, farmId, gradeId);
 
+        // #394: submit requires exact reconciliation — total matches the grade.
         var record = await client.PostWithKeyAsync("/api/v1/daily-entries", Guid.NewGuid().ToString(), new
         {
             farmId, houseId = Guid.NewGuid(), flockId, date = Today,
-            totalEggs = 100, crackedEggs = 0, dirtyEggs = 0, discardedEggs = 0,
+            totalEggs = 90, crackedEggs = 0, dirtyEggs = 0, discardedEggs = 0,
             mortalityCount = 0,
             grades = new[] { new { eggGradeId = gradeId, quantity = 90 } }
         });

@@ -1209,8 +1209,8 @@ export const tl = {
     conflictReloadFailedMessage:
       "Binago ng ibang tao ang entry na ito at hindi na-reload ang "
       + "listahan — i-reload ang page bago subukan ulit.",
-    exceedsSellableMessage:
-      "Hindi puwedeng lumampas ang mga na-grade na dami sa kabuuang itlog na bawas ang basag/marumi/tinapon.",
+    gradesMustReconcileMessage:
+      "Dapat magkapareho ang mga na-grade na dami sa kabuuang itlog na bawas ang basag, marumi, at tinapon.",
     entryAdjustedMessage: "Na-adjust ang entry — na-update ang stock at ang rekord ng manok para tumugma.",
     adjustReloadFailedMessage: "Na-save ang pag-adjust, pero hindi na-reload ang listahan — i-refresh ang page.",
     voidConfirmTitle: "I-void ang entry ng {{date}} para sa {{flock}}?",
@@ -1741,11 +1741,13 @@ export const tl = {
       "Piliin ang kawan at petsa sa itaas, pagkatapos ay magtrabaho sa dalawang panel nang magkatabi: "
       + "<strong>1 Bilang ng itlog</strong> (kabuuan, basag, marumi, tinapon, namatay) at <strong>2 "
       + "Pag-grade</strong>. Ang mga bilang ay lumilikha ng isang <strong>naibibentang</strong> figure, at "
-      + "iyon ang numerong dapat abutin ng mga grado — hindi ito puwedeng lampasan kailanman.",
+      + "iyon ang numerong dapat abutin ng mga grado. Puwedeng iwan itong bahagya o hindi man simulan para "
+      + "sa isang draft — para sa Isumite, kailangan itong eksakto.",
     dailyEntryGradingDown:
       "<strong>Bumababa</strong> ang bilang sa pag-grade. Sa tabi ng mga grado ay makikita kung ilang "
       + "naibibentang itlog pa ang kailangan mong ilagay; nagiging berde ito sa sandaling tumugma ang araw "
-      + "at pula kung lumagpas ka. Hindi ka puwedeng magsumite habang lumalagpas ito.",
+      + "at pula kung lumagpas ka. Hindi ka puwedeng magsumite hangga't hindi umaabot sa eksaktong zero — "
+      + "okay lang na bahagya o hindi man i-grade ang araw para sa draft, pero hindi para sa Isumite.",
     dailyEntryButtons:
       "May mga button na <strong>−</strong> at <strong>+</strong> ang bawat bilang. I-tap para sa isa, o "
       + "<strong>i-hold</strong> — bumibilis ito habang tumatagal, kaya ilang daang itlog ay tumatagal lang "
@@ -2081,9 +2083,12 @@ export const tl = {
     mistakesRow8Mistake: "Maling numero sa isang <em>naisumiteng</em> araw-araw na entry",
     mistakesRow8Fix:
       "History → <strong>i-adjust</strong> (admin) — kabuuan, nawala, mortality, at hati ng grado, may "
-      + "kasamang kinakailangang dahilan. Awtomatikong tumutugma ang stock at ang talaan ng ibon, pero "
-      + "hindi na kailanman puwedeng bawasan ang mga itlog na nabenta na: tinatanggihan ang pagbawas ng "
-      + "isang grado sa ibaba ng nabenta na. Nananatiling nakikita ang mga naunang value sa entry.",
+      + "kasamang kinakailangang dahilan. Dapat eksaktong tumugma ang mga naitamang grado sa naitamang "
+      + "naibibentang bilang, ang parehong panuntunan na ginagamit ng Isumite, at naka-block ang "
+      + "<strong>I-save ang pag-adjust</strong> hangga't hindi pa tumutugma ang mga ito. Awtomatikong "
+      + "tumutugma ang stock at ang talaan ng ibon, pero hindi na kailanman puwedeng bawasan ang mga itlog "
+      + "na nabenta na: tinatanggihan ang pagbawas ng isang grado sa ibaba ng nabenta na. Nananatiling "
+      + "nakikita ang mga naunang value sa entry.",
 
     mistakesRow9Mistake: "Ang buong <em>naisumiteng</em> entry ay mali (maling kawan o araw)",
     mistakesRow9Fix:
@@ -2284,8 +2289,11 @@ export const tl = {
 
     glossaryAdjustEntryTerm: "I-adjust (entry)",
     glossaryAdjustEntryDef:
-      "Pagtatama ng admin sa isang naisumiteng entry. Awtomatikong nagtutugma ang stock at ang talaan ng "
-      + "ibon; hindi na magagalaw ang mga naibentang itlog; nananatiling nakikita ang mga naunang value.",
+      "Pagtatama ng admin sa isang naisumiteng entry. Dapat eksaktong tumugma ang mga naitamang grado sa "
+      + "naitamang naibibentang bilang, ang parehong panuntunan na ginagamit ng Isumite — walang draft "
+      + "state ang isang pagsasaayos na maiiwan itong bahagyang na-grade. Awtomatikong nagtutugma ang "
+      + "stock at ang talaan ng ibon; hindi na magagalaw ang mga naibentang itlog; nananatiling nakikita "
+      + "ang mga naunang value.",
 
     glossaryVoidEntryTerm: "I-void (entry)",
     glossaryVoidEntryDef:

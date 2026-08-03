@@ -1435,8 +1435,11 @@ export const en = {
     conflictReloadFailedMessage:
       "This entry was changed by someone else and the list could not be "
       + "reloaded — reload the page before retrying.",
-    exceedsSellableMessage:
-      "Graded quantities cannot exceed total eggs minus cracked/dirty/discarded.",
+    // #394 — an adjustment has no draft state: grading must reconcile
+    // EXACTLY to the sellable count (short or over both trigger this),
+    // the same rule Daily Entry's submit uses.
+    gradesMustReconcileMessage:
+      "Graded quantities must equal total eggs minus cracked, dirty, and discarded eggs.",
     entryAdjustedMessage: "Entry adjusted — stock and bird ledger updated to match.",
     adjustReloadFailedMessage: "The adjustment saved, but the list failed to reload — refresh the page.",
     // askReason dialog (title / body / confirmLabel). {{date}}/{{flock}} are
@@ -2006,12 +2009,12 @@ export const en = {
     dailyEntryPanes:
       "Pick the flock and date at the top, then work through two panes side by side: <strong>1 Egg "
       + "counts</strong> (total, cracked, dirty, discarded, deaths) and <strong>2 Grading</strong>. The counts "
-      + "produce a <strong>sellable</strong> figure, and that is the number the grades have to add up to — "
-      + "they can never exceed it.",
+      + "produce a <strong>sellable</strong> figure, and that is the number the grades have to add up to. A "
+      + "draft can leave that partly done, or not started at all — submitting needs it exact.",
     dailyEntryGradingDown:
       "Grading counts <strong>down</strong>. Beside the grades is how many sellable eggs you still have to "
-      + "place; it turns green the moment the day adds up and red if you go over. You cannot submit while it "
-      + "is over.",
+      + "place; it turns green the moment the day adds up and red if you go over. You cannot submit until it "
+      + "reads exactly zero — grading a day partway, or not at all, is fine for a draft but not for Submit.",
     dailyEntryButtons:
       "Every count has <strong>−</strong> and <strong>+</strong> buttons. Tap for one, or <strong>hold</strong> "
       + "— it speeds up as you go, so a few hundred eggs takes about a second. Easier than a keypad with "
@@ -2330,9 +2333,10 @@ export const en = {
     mistakesRow8Mistake: "Wrong numbers in a <em>submitted</em> daily entry",
     mistakesRow8Fix:
       "History → <strong>adjust</strong> (admin) — totals, losses, mortality, and grade split, with a "
-      + "required reason. Stock and the bird ledger update to match automatically, but eggs already sold can "
-      + "never be un-counted: shrinking a grade below what was sold is refused. The previous values stay "
-      + "visible on the entry.",
+      + "required reason. The corrected grades must add up to the corrected sellable count exactly, the same "
+      + "rule Submit uses, and <strong>Save adjustment</strong> is blocked until they do. Stock and the bird "
+      + "ledger update to match automatically, but eggs already sold can never be un-counted: shrinking a "
+      + "grade below what was sold is refused. The previous values stay visible on the entry.",
 
     mistakesRow9Mistake: "Entire <em>submitted</em> entry is wrong (wrong flock or day)",
     mistakesRow9Fix:
@@ -2511,8 +2515,9 @@ export const en = {
 
     glossaryAdjustEntryTerm: "Adjust (entry)",
     glossaryAdjustEntryDef:
-      "Admin correction of a submitted entry. Stock and bird ledger reconcile automatically; sold eggs are "
-      + "untouchable; previous values stay visible.",
+      "Admin correction of a submitted entry. The corrected grades must add up to the corrected sellable count "
+      + "exactly, the same rule Submit uses — an adjustment has no draft state to leave partly graded. Stock "
+      + "and bird ledger reconcile automatically; sold eggs are untouchable; previous values stay visible.",
 
     glossaryVoidEntryTerm: "Void (entry)",
     glossaryVoidEntryDef:

@@ -91,17 +91,24 @@ public sealed class ReadEndpointTests(CluckworkWebApplicationFactory factory)
         var flockId = await factory.SeedFlockAsync(accountId, farmId);
         var today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
 
-        // Two submitted entries -> lots: Large 600 + 400, Medium 300.
-        foreach (var (date, gradeQty) in new (DateOnly, object[])[]
+        // Two submitted entries -> lots: Large 600 + 400, Medium 300. #394:
+        // submit requires exact reconciliation, so each entry here is built
+        // with zero losses and a total matching its own grade sum, rather
+        // than through EntryBody's fixed (and here irrelevant) 1000/10/5/3.
+        foreach (var (date, total, gradeQty) in new (DateOnly, int, object[])[]
         {
-            (today.AddDays(-1), [new { eggGradeId = grades["Large"], quantity = 600 },
+            (today.AddDays(-1), 900, [new { eggGradeId = grades["Large"], quantity = 600 },
                                  new { eggGradeId = grades["Medium"], quantity = 300 }]),
-            (today, [new { eggGradeId = grades["Large"], quantity = 400 }]),
+            (today, 400, [new { eggGradeId = grades["Large"], quantity = 400 }]),
         })
         {
             var create = await client.PostWithKeyAsync(
-                "/api/v1/daily-entries", Guid.NewGuid().ToString(),
-                EntryBody(farmId, flockId, date, gradeQty));
+                "/api/v1/daily-entries", Guid.NewGuid().ToString(), new
+                {
+                    farmId, houseId = Guid.NewGuid(), flockId, date,
+                    totalEggs = total, crackedEggs = 0, dirtyEggs = 0, discardedEggs = 0,
+                    mortalityCount = 0, grades = gradeQty
+                });
             var id = (await create.Content.ReadFromJsonAsync<IdDto>())!.Id;
             await client.PostWithKeyAsync($"/api/v1/daily-entries/{id}/submit", Guid.NewGuid().ToString());
         }

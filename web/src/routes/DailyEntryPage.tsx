@@ -612,8 +612,12 @@ export function DailyEntryPage() {
             <BusyButton busy={isPending("save")}
               disabled={busy || !flockId || lossesExceedTotal || entryLocked || prefillFailed || prefillPending}
               onClick={() => onSave(false)}>{t("saveDraftButton")}</BusyButton>
+            {/* #394: submit requires grading to reconcile EXACTLY — the same
+                "done" state the chip and footer already show, so the gate can
+                never say one thing and disable another. A draft may stay
+                partially (or entirely un-)graded; only submit is gated. */}
             <BusyButton busy={isPending("submit")}
-              disabled={busy || !flockId || lossesExceedTotal || gradesSum > sellable || entryLocked || prefillFailed || prefillPending}
+              disabled={busy || !flockId || grading.tone !== "done" || entryLocked || prefillFailed || prefillPending}
               onClick={() => onSave(true)}>
               {t("submitButton")}
             </BusyButton>

@@ -1170,8 +1170,9 @@ export const es = {
     conflictReloadFailedMessage:
       "Esta entrada fue cambiada por otra persona y la lista no se pudo "
       + "volver a cargar — vuelva a cargar la página antes de reintentarlo.",
-    exceedsSellableMessage:
-      "Las cantidades clasificadas no pueden superar el total de huevos menos los agrietados/sucios/descartados.",
+    gradesMustReconcileMessage:
+      "Las cantidades clasificadas deben ser iguales al total de huevos menos los agrietados, sucios y "
+      + "descartados.",
     entryAdjustedMessage: "Entrada ajustada — las existencias y el registro de aves se actualizaron para coincidir.",
     adjustReloadFailedMessage: "El ajuste se guardó, pero la lista no se pudo volver a cargar — actualice la página.",
     voidConfirmTitle: "¿Anular la entrada del {{date}} para {{flock}}?",
@@ -1676,11 +1677,13 @@ export const es = {
       "Elija el lote y la fecha en la parte superior, luego trabaje en dos paneles uno al lado del otro: "
       + "<strong>1 Conteo de huevos</strong> (total, rotos, sucios, descartados, muertes) y <strong>2 "
       + "Clasificación</strong>. Los conteos producen una cifra <strong>vendible</strong>, y ese es el "
-      + "número al que deben sumar los grados — nunca pueden superarlo.",
+      + "número al que deben sumar los grados. Un borrador puede quedar parcialmente clasificado, o sin "
+      + "clasificar — para enviar, debe cuadrar exactamente.",
     dailyEntryGradingDown:
       "La clasificación cuenta <strong>hacia abajo</strong>. Junto a los grados se muestra cuántos huevos "
       + "vendibles le quedan por ubicar; se pone verde en cuanto el día cuadra y rojo si se excede. No "
-      + "puede enviar mientras esté excedido.",
+      + "puede enviar hasta que llegue exactamente a cero — clasificar el día a medias, o no clasificarlo, "
+      + "está bien para un borrador, pero no para enviar.",
     dailyEntryButtons:
       "Cada conteo tiene botones <strong>−</strong> y <strong>+</strong>. Toque para uno, o <strong>mantenga "
       + "presionado</strong> — se acelera a medida que avanza, así que unos cientos de huevos toman "
@@ -2009,9 +2012,11 @@ export const es = {
     mistakesRow8Mistake: "Números incorrectos en una entrada diaria <em>enviada</em>",
     mistakesRow8Fix:
       "Historial → <strong>ajustar</strong> (admin) — totales, pérdidas, mortalidad y desglose por grado, "
-      + "con un motivo requerido. Las existencias y el libro mayor de aves se actualizan para coincidir "
-      + "automáticamente, pero los huevos ya vendidos nunca se pueden descontar: reducir un grado por "
-      + "debajo de lo vendido se rechaza. Los valores anteriores permanecen visibles en la entrada.",
+      + "con un motivo requerido. Los grados corregidos deben sumar exactamente la cantidad vendible "
+      + "corregida, la misma regla que usa Enviar, y <strong>Guardar ajuste</strong> se bloquea hasta que "
+      + "coincidan. Las existencias y el libro mayor de aves se actualizan para coincidir automáticamente, "
+      + "pero los huevos ya vendidos nunca se pueden descontar: reducir un grado por debajo de lo vendido se "
+      + "rechaza. Los valores anteriores permanecen visibles en la entrada.",
 
     mistakesRow9Mistake: "Toda la entrada <em>enviada</em> está equivocada (lote o día incorrecto)",
     mistakesRow9Fix:
@@ -2208,8 +2213,10 @@ export const es = {
 
     glossaryAdjustEntryTerm: "Ajustar (entrada)",
     glossaryAdjustEntryDef:
-      "Corrección de admin sobre una entrada enviada. Las existencias y el libro mayor de aves se "
-      + "concilian automáticamente; los huevos vendidos son intocables; los valores anteriores permanecen "
+      "Corrección de admin sobre una entrada enviada. Los grados corregidos deben sumar exactamente la "
+      + "cantidad vendible corregida, la misma regla que usa Enviar — un ajuste no tiene estado de borrador "
+      + "para dejarlo parcialmente clasificado. Las existencias y el libro mayor de aves se concilian "
+      + "automáticamente; los huevos vendidos son intocables; los valores anteriores permanecen "
       + "visibles.",
 
     glossaryVoidEntryTerm: "Anular (entrada)",

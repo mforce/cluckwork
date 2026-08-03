@@ -11,14 +11,20 @@ public sealed class SubmitDailyEntryTests(CluckworkWebApplicationFactory factory
 {
     private sealed record RecordedDto(Guid Id);
     private sealed record SubmitDto(Guid Id, string Status, List<Guid> EggLotIds);
+    private sealed record EntryStatusDto(Guid Id, string Status);
 
-    private static object Body(Guid farmId, Guid flockId, object[] grades) => new
+    // total defaults to reconcile exactly against the single-grade-600 shape
+    // most callers below use (600 sellable + 10 cracked + 5 dirty + 3
+    // discarded = 618); #394 requires submit's grades to sum to EXACTLY
+    // total-cracked-dirty-discarded, so a caller with a different grade sum
+    // (e.g. two lines) must pass its own matching total.
+    private static object Body(Guid farmId, Guid flockId, object[] grades, int total = 618) => new
     {
         farmId,
         houseId = Guid.NewGuid(),
         flockId,
         date = DateOnly.FromDateTime(DateTime.UtcNow.Date),
-        totalEggs = 1000,
+        totalEggs = total,
         crackedEggs = 10,
         dirtyEggs = 5,
         discardedEggs = 3,
@@ -50,11 +56,12 @@ public sealed class SubmitDailyEntryTests(CluckworkWebApplicationFactory factory
     public async Task Submit_GeneratesOneLotPerGradeLine()
     {
         var (client, accountId, farmId, flockId, grades) = await SetupAsync("Large", "Medium");
+        // 600 + 300 = 900 sellable; total must match (900 + 10 + 5 + 3 = 918).
         var entryId = await RecordAsync(client, Body(farmId, flockId,
         [
             new { eggGradeId = grades["Large"], quantity = 600 },
             new { eggGradeId = grades["Medium"], quantity = 300 }
-        ]));
+        ], total: 918));
 
         var response = await client.PostWithKeyAsync(
             $"/api/v1/daily-entries/{entryId}/submit", Guid.NewGuid().ToString());
@@ -131,8 +138,12 @@ public sealed class SubmitDailyEntryTests(CluckworkWebApplicationFactory factory
         Assert.Equal(HttpStatusCode.UnprocessableEntity, reRecord.StatusCode);
     }
 
+    // #394 — the bug as reported: an ungraded, no-loss entry used to submit
+    // cleanly and silently produce zero stock for real production. A direct
+    // API caller (no grades field at all) cannot submit a non-zero-sellable
+    // entry any more than the SPA can.
     [Fact]
-    public async Task Submit_WithoutGrades_Succeeds_NoLots()
+    public async Task Submit_NoGrades_NonZeroSellable_Fails_NoLotsCreated()
     {
         var (client, accountId, farmId, flockId, _) = await SetupAsync("Large");
         var entryId = await RecordAsync(client, new
@@ -147,9 +158,86 @@ public sealed class SubmitDailyEntryTests(CluckworkWebApplicationFactory factory
         var response = await client.PostWithKeyAsync(
             $"/api/v1/daily-entries/{entryId}/submit", Guid.NewGuid().ToString());
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+        Assert.Contains("DailyEntry.GradesNotReconciled", await response.Content.ReadAsStringAsync());
         var lotCount = await factory.WithTenantScopeAsync(accountId, db => db.EggLots.CountAsync());
         Assert.Equal(0, lotCount);
+        var entry = await client.GetFromJsonAsync<EntryStatusDto>($"/api/v1/daily-entries/{entryId}");
+        Assert.Equal("Draft", entry!.Status); // refusal leaves the entry untouched
+    }
+
+    // A caller cannot dodge the rule by grading SOME of the day either — a
+    // direct API caller who grades less than sellable is refused exactly like
+    // one who grades nothing.
+    [Fact]
+    public async Task Submit_PartialGrades_Fails_NoLotsCreated()
+    {
+        var (client, accountId, farmId, flockId, grades) = await SetupAsync("Large");
+        // Body's fixed losses (10 cracked + 5 dirty + 3 discarded = 18) plus a
+        // 500 target sellable = 518 total; only 300 of that 500 is graded.
+        var entryId = await RecordAsync(client, Body(farmId, flockId,
+            [new { eggGradeId = grades["Large"], quantity = 300 }], total: 518));
+
+        var response = await client.PostWithKeyAsync(
+            $"/api/v1/daily-entries/{entryId}/submit", Guid.NewGuid().ToString());
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+        var lotCount = await factory.WithTenantScopeAsync(accountId, db => db.EggLots.CountAsync());
+        Assert.Equal(0, lotCount);
+    }
+
+    // The fourth case named in the issue: every egg accounted for as a loss,
+    // so zero sellable eggs validly reconciles to zero grade lines — submit
+    // succeeds and (correctly) creates no lots.
+    [Fact]
+    public async Task Submit_ZeroSellableDay_NoGrades_Succeeds_NoLots()
+    {
+        var (client, accountId, farmId, flockId, _) = await SetupAsync("Large");
+        var entryId = await RecordAsync(client, new
+        {
+            farmId,
+            houseId = Guid.NewGuid(),
+            flockId,
+            date = DateOnly.FromDateTime(DateTime.UtcNow.Date),
+            totalEggs = 50, crackedEggs = 20, dirtyEggs = 20, discardedEggs = 10, mortalityCount = 0,
+        });
+
+        var response = await client.PostWithKeyAsync(
+            $"/api/v1/daily-entries/{entryId}/submit", Guid.NewGuid().ToString());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var submitted = await response.Content.ReadFromJsonAsync<SubmitDto>();
+        Assert.Equal("Submitted", submitted!.Status);
+        Assert.Empty(submitted.EggLotIds);
+        var lotCount = await factory.WithTenantScopeAsync(accountId, db => db.EggLots.CountAsync());
+        Assert.Equal(0, lotCount);
+    }
+
+    // The control: a DRAFT save with no or partial grades still succeeds —
+    // proves the invariant gates SUBMIT, not RECORD/save.
+    [Fact]
+    public async Task Record_NoOrPartialGrades_AsDraft_StillSucceeds()
+    {
+        var (client, _, farmId, flockId, grades) = await SetupAsync("Large");
+
+        var noGrades = await client.PostWithKeyAsync(
+            "/api/v1/daily-entries", Guid.NewGuid().ToString(), new
+            {
+                farmId, houseId = Guid.NewGuid(), flockId,
+                date = DateOnly.FromDateTime(DateTime.UtcNow.Date),
+                totalEggs = 500, crackedEggs = 0, dirtyEggs = 0, discardedEggs = 0, mortalityCount = 0,
+            });
+        Assert.Equal(HttpStatusCode.Created, noGrades.StatusCode);
+
+        var partialGrades = await client.PostWithKeyAsync(
+            "/api/v1/daily-entries", Guid.NewGuid().ToString(), new
+            {
+                farmId, houseId = Guid.NewGuid(), flockId,
+                date = DateOnly.FromDateTime(DateTime.UtcNow.Date).AddDays(-1),
+                totalEggs = 500, crackedEggs = 0, dirtyEggs = 0, discardedEggs = 0, mortalityCount = 0,
+                grades = new[] { new { eggGradeId = grades["Large"], quantity = 300 } }
+            });
+        Assert.Equal(HttpStatusCode.Created, partialGrades.StatusCode);
     }
 
     [Fact]
