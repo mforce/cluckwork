@@ -936,8 +936,12 @@ dirty   = populated from the Dirty counter
 ```
 
 There is at most one Cracked and one Dirty kind per farm. The manual Grading
-pane excludes both condition grades, so a condition egg cannot be entered a
-second time as a manual grade.
+pane excludes both condition grades, and the record and adjust handlers reject
+a manual line naming either — so a condition egg cannot be entered a second
+time as a manual grade, whether through the app or a direct API call. The
+server check is what makes that true: manual lines are otherwise accepted on
+saleability alone, and a condition grade named manually would produce a second
+lot for the same grade alongside its counter-backed one.
 
 ## 9.2 Daily production by grade
 

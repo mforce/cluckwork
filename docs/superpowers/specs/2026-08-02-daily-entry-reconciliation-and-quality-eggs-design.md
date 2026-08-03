@@ -44,7 +44,17 @@ rewrite how a past entry reads.
 
 ## Write path
 
-The manual Grading pane excludes the two configured quality-condition grades.
+The manual Grading pane excludes the two configured quality-condition grades,
+and the **record and adjust handlers refuse a manual line naming either of
+them**. The pane is an affordance; the handler check is the guarantee, and
+both are required. Manual-line eligibility is gated on `IsSaleable` alone with
+no kind restriction, and this feature makes Cracked and Dirty saleable by
+default — so with UI-only exclusion a direct or stale API client could name a
+Cracked id as a manual line, pass the exact-total check (it is only a sum),
+and produce **two lots for one grade**: the manual line's and the
+counter-backed one. That double-counts the day's stock and breaks the
+one-lot-per-grade assumption reconciliation depends on.
+
 Its target is always `total - cracked - dirty - discarded`. On submit, the
 domain verifies that exact total, then creates one lot per manual grade line
 plus one lot for each quality snapshot whose counter is positive that day. A

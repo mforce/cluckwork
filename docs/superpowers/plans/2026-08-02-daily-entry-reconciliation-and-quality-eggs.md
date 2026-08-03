@@ -40,12 +40,13 @@ PR #395.
 ### Task 2: Enforce exact reconciliation and atomically produce quality lots
 
 **Files:**
-- Modify: `DailyEntry`, `SubmitDailyEntryHandler`, `AdjustDailyEntryHandler`, grade repositories/commands as required
-- Test: Domain, submit, adjustment, stock, report, and concurrency integration tests
+- Modify: `DailyEntry`, `RecordDailyEntryHandler`, `SubmitDailyEntryHandler`, `AdjustDailyEntryHandler`, grade repositories/commands as required
+- Test: Domain, record, submit, adjustment, stock, report, and concurrency integration tests
 
 - [ ] Write failing domain/API tests for ungraded and partially graded official entries, zero remainder, each saleable quality counter, each non-saleable quality counter, a zero-count day for an otherwise-saleable quality counter (snapshot recorded, no lot — `EggLot.Create` rejects zero), and an adjustment that preserves its original snapshot.
+- [ ] Write failing API tests submitting a **condition-kind grade id as a manual line** — on both record and adjust — and assert it is refused. Excluding condition grades from the manual pane is a UI affordance, not the enforcement: `RecordDailyEntryHandler` gates manual-line eligibility on `IsSaleable` **alone**, with no `GradeType`/kind restriction, and this feature makes Cracked and Dirty saleable by default. So a direct or stale API client can name a Cracked id as a manual line, the exact-total check passes (it is only a sum), and submission then creates **both** that manual lot and the counter-backed quality lot for the same grade — double-counting the day's stock and breaking the one-lot-per-grade assumption reconciliation depends on. The rejection belongs at the handler/aggregate boundary where the UI cannot be bypassed.
 - [ ] Run them red; assert status/version/lots remain unchanged on refusal.
-- [ ] Implement `manualGrades == total - cracked - dirty - discarded` at the aggregate boundary, resolve snapshots only on first official submission, and create/reconcile quality lots — skipping lot creation for a zero counter while still recording its snapshot — in the existing transactions.
+- [ ] Implement `manualGrades == total - cracked - dirty - discarded` at the aggregate boundary, reject any manual line naming a condition-kind grade, resolve snapshots only on first official submission, and create/reconcile quality lots — skipping lot creation for a zero counter while still recording its snapshot — in the existing transactions.
 - [ ] Update report and stock projections to count only snapshot-backed quality stock as marketable; verify no historical row changes its meaning.
 - [ ] Run targeted integration suites plus parallel submit/adjust tests.
 
