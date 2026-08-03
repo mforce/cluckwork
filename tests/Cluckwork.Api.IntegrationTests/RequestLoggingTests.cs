@@ -76,6 +76,25 @@ public sealed class RequestLoggingTests(RequestLoggingFactory factory)
             ? scalar.Value?.ToString()
             : null;
 
+    // #398 review round 6 (Codex) — correlate a completion to THIS request,
+    // not merely to its path and status.
+    //
+    // The sink is class-scoped and never reset, and several tests here POST to
+    // /api/v1/auth/login and produce a 400. A path+status filter therefore
+    // depends on execution order, which xUnit does not guarantee — so a
+    // correct application could fail the suite purely because two tests ran in
+    // the other order. Stamping a fresh traceparent and matching on TraceId
+    // removes the coupling entirely rather than papering over it with a count.
+    private static ActivityTraceId StampTrace(HttpRequestMessage request)
+    {
+        var traceId = ActivityTraceId.CreateRandom();
+        request.Headers.Add("traceparent", $"00-{traceId}-{ActivitySpanId.CreateRandom()}-01");
+        return traceId;
+    }
+
+    private LogEvent CompletionFor(string path, ActivityTraceId traceId) =>
+        Assert.Single(CompletionEventsFor(path), e => e.TraceId == traceId);
+
     [Fact]
     public async Task Request_emits_one_completion_log_with_method_path_status_elapsed_and_traceid()
     {
@@ -200,17 +219,20 @@ public sealed class RequestLoggingTests(RequestLoggingFactory factory)
     {
         var client = factory.CreateClient();
         var malformed = new StringContent("{not json", System.Text.Encoding.UTF8, "application/json");
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/login") { Content = malformed };
+        var traceId = StampTrace(request);
 
-        var response = await client.PostAsync("/api/v1/auth/login", malformed);
+        var response = await client.SendAsync(request);
 
         Assert.Equal(System.Net.HttpStatusCode.BadRequest, response.StatusCode);
 
         // (1) Exactly one completion for THIS request, at Information,
         // StatusCode 400 — not 500, not Error — and no exception-handler
         // re-execution at /error (the failure never propagated that far up
-        // the pipeline).
-        var completion = Assert.Single(CompletionEventsFor("/api/v1/auth/login"),
-            e => ScalarOf(e, "StatusCode") == "400");
+        // the pipeline). Matched by TraceId, not path+status: another test in
+        // this class also produces a 400 on this path (#398 review round 6).
+        var completion = CompletionFor("/api/v1/auth/login", traceId);
+        Assert.Equal("400", ScalarOf(completion, "StatusCode"));
         Assert.Equal(LogEventLevel.Information, completion.Level);
         Assert.Empty(CompletionEventsFor("/error"));
 
@@ -284,8 +306,10 @@ public sealed class RequestLoggingTests(RequestLoggingFactory factory)
         content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
         content.Headers.ContentLength = 10;
 
-        var response = await client.SendAsync(
-            new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/login") { Content = content });
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/login") { Content = content };
+        var traceId = StampTrace(request);
+
+        var response = await client.SendAsync(request);
 
         Assert.Equal(System.Net.HttpStatusCode.RequestEntityTooLarge, response.StatusCode);
 
@@ -295,9 +319,8 @@ public sealed class RequestLoggingTests(RequestLoggingFactory factory)
         // on their traffic rather than on this guarantee. Exactly one 413
         // completion is still the assertion — a re-executed /error would add a
         // second, and a mis-logged 500 would leave zero.
-        var completion = Assert.Single(
-            CompletionEventsFor("/api/v1/auth/login"),
-            e => ScalarOf(e, "StatusCode") == "413");
+        var completion = CompletionFor("/api/v1/auth/login", traceId);
+        Assert.Equal("413", ScalarOf(completion, "StatusCode"));
         Assert.Equal(LogEventLevel.Information, completion.Level);
         Assert.Null(completion.Exception);
     }
@@ -321,7 +344,11 @@ public sealed class RequestLoggingTests(RequestLoggingFactory factory)
         var token = await factory.LoginForAccessTokenAsync(email);
         var client = factory.CreateAuthedClient(token);
 
-        var response = await client.GetAsync("/api/v1/reports/production?from=not-a-date");
+        var request = new HttpRequestMessage(
+            HttpMethod.Get, "/api/v1/reports/production?from=not-a-date");
+        var traceId = StampTrace(request);
+
+        var response = await client.SendAsync(request);
 
         Assert.Equal(System.Net.HttpStatusCode.BadRequest, response.StatusCode);
         var payload = await response.Content.ReadAsStringAsync();
@@ -330,10 +357,25 @@ public sealed class RequestLoggingTests(RequestLoggingFactory factory)
         Assert.DoesNotContain("\"body\"", payload);
         Assert.Contains("\"query\"", payload);
 
+        // #398 review round 6 (Codex) — incidental payload bytes on a
+        // query-only route must not flip the verdict. This endpoint accepts no
+        // body, so its own contract decides; before the fix the byte checks
+        // were OR-ed in and a non-empty body here reported `body`.
+        var withBody = new HttpRequestMessage(
+            HttpMethod.Get, "/api/v1/reports/production?from=not-a-date")
+        {
+            Content = new StringContent(
+                "{}", System.Text.Encoding.UTF8, "application/json"),
+        };
+        var strayBody = await client.SendAsync(withBody);
+        Assert.Equal(System.Net.HttpStatusCode.BadRequest, strayBody.StatusCode);
+        var strayPayload = await strayBody.Content.ReadAsStringAsync();
+        Assert.DoesNotContain("\"body\"", strayPayload);
+        Assert.Contains("\"query\"", strayPayload);
+
         // And it must still be an ordinary client error in telemetry, not a 500.
-        var completion = Assert.Single(
-            CompletionEventsFor("/api/v1/reports/production"),
-            e => ScalarOf(e, "StatusCode") == "400");
+        var completion = CompletionFor("/api/v1/reports/production", traceId);
+        Assert.Equal("400", ScalarOf(completion, "StatusCode"));
         Assert.Equal(LogEventLevel.Information, completion.Level);
         Assert.Null(completion.Exception);
     }

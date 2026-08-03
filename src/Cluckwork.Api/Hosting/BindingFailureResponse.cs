@@ -85,8 +85,27 @@ public static class BindingFailureResponse
     // Shared by the middleware above and Program.cs's `/error` backstop, so the
     // two can never disagree about which key a binding failure is reported
     // under — the same reason the response shape itself is a single factory.
-    public static bool ConcernsRequestBody(HttpContext context) =>
-        context.GetEndpoint()?.Metadata.GetMetadata<IAcceptsMetadata>()?.RequestType is not null
-        || context.Request.ContentLength > 0
-        || context.Request.Headers.TransferEncoding.Count > 0;
+    //
+    // #398 review round 6 (Codex) — the byte checks are a fallback for "no
+    // endpoint was matched", and must therefore be BRANCHED, not OR-ed. Or-ing
+    // them let incidental payload bytes on a query-only route report `body`:
+    // a GET to /api/v1/reports/production?from=not-a-date carrying a non-empty
+    // body has ContentLength > 0, so the expression returned true even though
+    // that endpoint accepts no body at all. The comment claimed "fallback"
+    // while the code applied the checks unconditionally — the code is now what
+    // the comment says.
+    //
+    // When an endpoint IS matched, its own contract is authoritative and
+    // nothing about the request can override it.
+    public static bool ConcernsRequestBody(HttpContext context)
+    {
+        var endpoint = context.GetEndpoint();
+        if (endpoint is not null)
+            return endpoint.Metadata.GetMetadata<IAcceptsMetadata>()?.RequestType is not null;
+
+        // No endpoint (404, or a failure before routing resolved one): fall
+        // back to whether the request carried a payload at all.
+        return context.Request.ContentLength > 0
+            || context.Request.Headers.TransferEncoding.Count > 0;
+    }
 }
