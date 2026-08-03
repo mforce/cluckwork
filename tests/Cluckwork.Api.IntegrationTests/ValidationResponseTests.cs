@@ -3,6 +3,7 @@ namespace Cluckwork.Api.IntegrationTests;
 using Cluckwork.Api.Hosting;
 using Cluckwork.Api.Validation;
 using FluentValidation.Results;
+using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Metadata;
 
@@ -108,6 +109,23 @@ public sealed class ConcernsRequestBodyTests
     public void Manually_read_body_endpoint_is_a_body_failure() =>
         Assert.True(BindingFailureResponse.ConcernsRequestBody(
             Context(EndpointWith(new ReadsRequestBodyAttribute()))));
+
+    // Round 8: the `/error` backstop runs INSIDE exception-handler re-execution,
+    // which routes again — so the current endpoint there is `/error`, which
+    // declares no body. The original endpoint (the one the failure is actually
+    // about) survives on IExceptionHandlerFeature and must win.
+    [Fact]
+    public void During_error_reexecution_the_original_endpoint_wins()
+    {
+        var context = Context(EndpointWith()); // as re-execution leaves it: `/error`
+        context.Features.Set<IExceptionHandlerFeature>(new ExceptionHandlerFeature
+        {
+            Error = new BadHttpRequestException("bad", 400),
+            Endpoint = EndpointWith(new AcceptsMetadata(["application/json"], typeof(object))),
+        });
+
+        Assert.True(BindingFailureResponse.ConcernsRequestBody(context));
+    }
 
     // Only with NO matched endpoint does the byte fallback apply.
     [Fact]

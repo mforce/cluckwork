@@ -1,6 +1,7 @@
 namespace Cluckwork.Api.Hosting;
 
 using Cluckwork.Api.Validation;
+using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http.Metadata;
 
 // #398 review (Codex) — RouteHandlerOptions.ThrowOnBadRequest is forced true
@@ -113,7 +114,20 @@ public static class BindingFailureResponse
     // nothing about the request can override it.
     public static bool ConcernsRequestBody(HttpContext context)
     {
-        var endpoint = context.GetEndpoint();
+        // #398 review round 8 (found by BodyReadingEndpointTests, not by report)
+        // — the `/error` backstop calls this from INSIDE exception-handler
+        // re-execution, and that re-execution clears the endpoint and routes
+        // again, so context.GetEndpoint() there is the `/error` endpoint itself.
+        // `/error` declares no body and carries no marker, so once round 6 made a
+        // matched endpoint authoritative, the backstop answered `query` for
+        // EVERY failure it handled, including a malformed JSON body.
+        //
+        // IExceptionHandlerFeature.Endpoint is the framework's own record of
+        // what was matched before the throw — the original contract, which is
+        // the one this question is about. Outside re-execution the feature is
+        // absent and the current endpoint is already the right one.
+        var endpoint = context.Features.Get<IExceptionHandlerFeature>()?.Endpoint
+            ?? context.GetEndpoint();
         if (endpoint is not null)
             // IAcceptsMetadata covers endpoints with a declared typed body.
             // ReadsRequestBodyAttribute covers the ones that read it manually
