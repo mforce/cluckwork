@@ -3,6 +3,7 @@ namespace Cluckwork.Api.IntegrationTests;
 using System.Reflection;
 using System.Text.Json;
 using Microsoft.Extensions.Configuration;
+using Serilog;
 using Serilog.Events;
 using Serilog.Formatting;
 using Serilog.Parsing;
@@ -90,25 +91,104 @@ public sealed class ProductionLogFormatTests
     // A second sink entry under a different key would not collide — it would
     // duplicate, logging every event twice. Cheap to assert, and the shape is
     // an easy mistake when adding the OTLP log sink later.
+    //
+    // The Name assertion is not decoration: counting alone would stay green if
+    // an environment file replaced the console entry with some other sink, so
+    // the count and the identity have to be pinned together.
     [Theory]
     [InlineData(null)]
     [InlineData("Development")]
     [InlineData("Production")]
-    public void Exactly_one_sink_is_configured(string? environment)
+    public void Exactly_one_console_sink_is_configured(string? environment)
     {
         var config = LoadMergedConfiguration(environment);
 
-        var sinks = config.GetSection("Serilog:WriteTo").GetChildren().ToArray();
-        Assert.Single(sinks);
+        var sink = Assert.Single(config.GetSection("Serilog:WriteTo").GetChildren());
+        Assert.Equal("Console", sink["Name"]);
     }
 
     // Guards the assembly-qualified type name in appsettings.Production.json —
     // a typo, or losing the direct PackageReference, makes this unresolvable
-    // long before anyone notices Production logs look wrong.
+    // long before anyone notices Production logs look wrong. Resolved from the
+    // value the config file actually carries, not from this file's constant,
+    // so the test cannot agree with itself while disagreeing with Production.
     [Fact]
     public void The_named_formatter_type_resolves()
     {
-        Assert.NotNull(Type.GetType(CompactFormatter, throwOnError: false));
+        var configured = LoadMergedConfiguration("Production")[$"{ConsoleSink}:Args:formatter"];
+
+        Assert.NotNull(configured);
+        Assert.NotNull(Type.GetType(configured, throwOnError: false));
+    }
+
+    // THE test, and the one the assertions above cannot stand in for. Everything
+    // else here reads config leaves or drives the formatter directly; the
+    // behaviour this change exists to control — Serilog.Settings.Configuration
+    // choosing between the outputTemplate and formatter overloads — happens
+    // inside ReadFrom.Configuration, which none of them execute. A binder
+    // regression (a Serilog upgrade changing overload selection, an argument
+    // name drifting) would leave the real Console sink on prose while every
+    // other test in this file stayed green.
+    //
+    // Console.Out is process-global and this suite runs classes in parallel
+    // with others that boot real hosts and log continuously, so the captured
+    // buffer is expected to contain foreign lines. Filtering on a per-run
+    // marker property makes the assertion immune to that instead of pretending
+    // it cannot happen — and finding exactly one marked line simultaneously
+    // proves a single sink is bound, since a duplicate would emit two.
+    [Fact]
+    public void Production_configuration_binds_a_console_sink_that_emits_compact_json()
+    {
+        var marker = Guid.NewGuid().ToString("N");
+
+        var line = Assert.Single(EmitThroughConfiguredLogger("Production", marker));
+        using var parsed = JsonDocument.Parse(line);
+
+        Assert.Equal(marker, parsed.RootElement.GetProperty("Marker").GetString());
+        Assert.True(parsed.RootElement.TryGetProperty("@t", out _));
+    }
+
+    // The other side of the same binder. Without this, moving the human
+    // template into the base file would satisfy every Production assertion
+    // here and quietly change what a developer sees on every `dotnet run`.
+    [Fact]
+    public void Development_configuration_binds_a_console_sink_that_emits_the_human_template()
+    {
+        var marker = Guid.NewGuid().ToString("N");
+
+        var line = Assert.Single(EmitThroughConfiguredLogger("Development", marker));
+
+        Assert.StartsWith("[", line, StringComparison.Ordinal);
+        Assert.Contains($"probe {marker}", line, StringComparison.Ordinal);
+        // ThrowsAny, not Throws: JsonDocument.Parse raises the internal
+        // JsonReaderException, and xunit's Throws<T> demands an exact match.
+        Assert.ThrowsAny<JsonException>(() => JsonDocument.Parse(line));
+    }
+
+    // Builds the logger the way Program.cs does (ReadFrom.Configuration over
+    // the merged environment config) and returns only the lines carrying this
+    // run's marker.
+    private static string[] EmitThroughConfiguredLogger(string environment, string marker)
+    {
+        var config = LoadMergedConfiguration(environment);
+        var original = Console.Out;
+        using var captured = new StringWriter();
+
+        try
+        {
+            Console.SetOut(captured);
+            using var logger = new LoggerConfiguration().ReadFrom.Configuration(config).CreateLogger();
+            logger.Information("probe {Marker}", marker);
+        }
+        finally
+        {
+            Console.SetOut(original);
+        }
+
+        return captured.ToString()
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Where(l => l.Contains(marker, StringComparison.Ordinal))
+            .ToArray();
     }
 
     [Fact]
