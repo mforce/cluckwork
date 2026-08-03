@@ -3,11 +3,32 @@ namespace Cluckwork.Api.IntegrationTests;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+using Cluckwork.Application.Features.Users.ChangeOwnPassword;
+using FluentValidation;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Serilog.Core;
 using Serilog.Events;
+
+// #398 review (Codex) — a genuine unhandled fault for
+// Unhandled_exception_logs_one_completion_for_the_real_path_only below. That
+// test used to provoke malformed JSON at /api/v1/auth/login, but that request
+// no longer reaches this middleware as an exception at all: BindingFailureResponse
+// (Hosting/BindingFailureResponse.cs) catches it before Serilog ever sees it
+// (see Binding_failure_logs_one_completion_at_information_with_status_400
+// instead). This class needs its own genuine, non-binding fault to keep
+// proving the Error/500 guarantee. Mirrors ExceptionHandlerReExecutionTests.cs's
+// validator-replacement pattern: the throw originates INSIDE the endpoint —
+// downstream of IdempotencyMiddleware, exactly where a real handler fault
+// would — rather than from binding.
+internal sealed class ThrowingChangeOwnPasswordValidatorForRequestLogging
+    : AbstractValidator<ChangeOwnPasswordCommand>
+{
+    public ThrowingChangeOwnPasswordValidatorForRequestLogging() =>
+        RuleFor(c => c.NewPassword).Custom((_, _) =>
+            throw new InvalidOperationException("unhandled-exception probe"));
+}
 
 // #214 — every request emits one structured completion log (method, path,
 // status, elapsed) carrying the request's TraceId, so a single id joins the
@@ -26,9 +47,10 @@ public sealed class RequestLoggingFactory : CluckworkWebApplicationFactory
             // ReadFrom.Services; this hands the test a live tap on every event.
             services.AddSingleton<ILogEventSink>(Sink);
             // #398 — RouteHandlerOptions.ThrowOnBadRequest=true (so a binding
-            // failure really throws, which the exception-path test below
+            // failure really throws, which the binding-failure test below
             // needs) is now Program.cs's own global registration, not a
             // per-factory override — every environment behaves the same way.
+            services.AddScoped<IValidator<ChangeOwnPasswordCommand>, ThrowingChangeOwnPasswordValidatorForRequestLogging>();
         });
     }
 
@@ -119,10 +141,62 @@ public sealed class RequestLoggingTests(RequestLoggingFactory factory)
 
     // An unhandled exception re-executes the pipeline at /error; without
     // demotion that produced TWO completion lines per failed request (codex +
-    // agent review of PR #226). The malformed-JSON body is the one guaranteed
-    // in-repo trigger: minimal-API binding throws BadHttpRequestException.
+    // agent review of PR #226). Malformed JSON used to be the guaranteed
+    // in-repo trigger (minimal-API binding throws BadHttpRequestException),
+    // but #398 review (Codex) gave THAT specific exception its own middleware
+    // (BindingFailureResponse) that catches it before Serilog ever sees it —
+    // see Binding_failure_logs_one_completion_at_information_with_status_400
+    // for that case. This test now needs a genuine, non-binding fault instead
+    // (ThrowingChangeOwnPasswordValidatorForRequestLogging, registered above)
+    // to keep proving the guarantee for a REAL unhandled exception.
     [Fact]
     public async Task Unhandled_exception_logs_one_completion_for_the_real_path_only()
+    {
+        var email = $"reqlog-fault-{Guid.NewGuid():N}@test.local";
+        await factory.SeedAccountWithUserAsync(email);
+        var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
+
+        var response = await client.PostAsJsonAsync("/api/v1/auth/change-password", new
+        {
+            currentPassword = TestHarness.Password,
+            newPassword = $"{Guid.NewGuid():N}aA1!"
+        });
+
+        Assert.Equal(System.Net.HttpStatusCode.InternalServerError, response.StatusCode);
+        // The exception-pass completion (Serilog logs these with StatusCode 500
+        // + the exception attached) — filtered by status so other tests'
+        // traffic on this path can't interfere.
+        var completion = Assert.Single(CompletionEventsFor("/api/v1/auth/change-password"),
+            e => ScalarOf(e, "StatusCode") == "500");
+        Assert.Equal(LogEventLevel.Error, completion.Level);
+        Assert.Empty(CompletionEventsFor("/error"));
+    }
+
+    // #398 review (Codex) — the regression this branch fixes, and the
+    // client-visible half of that same fix, pinned together from ONE request.
+    // Filtered by StatusCode, like Unhandled_exception_logs_... above: other
+    // tests' factory.LoginForAccessTokenAsync setup calls ALSO hit
+    // /api/v1/auth/login on the same shared, never-reset factory.Sink — those
+    // always succeed (200), so filtering this request's own 400 out keeps
+    // this test's assertion independent of what else in the class ran first.
+    //
+    // The regression: a JSON-binding failure (RouteHandlerOptions.
+    // ThrowOnBadRequest, forced true in every environment) is a
+    // BadHttpRequestException that, unhandled, propagates through
+    // UseSerilogRequestLogging on its way to being correctly mapped to a 400
+    // at /error. Serilog.AspNetCore hardcodes StatusCode 500 at Error for ANY
+    // exception that passes through it, so the client's correct 400 was
+    // being mis-logged as a server fault — inflating 5xx/error telemetry and
+    // risking false alerts. BindingFailureResponse
+    // (Hosting/BindingFailureResponse.cs) now answers the request itself,
+    // one layer inside Serilog, so Serilog only ever sees a normal 400
+    // completion — and moving WHERE the response is written must not change
+    // WHAT is written, so this also pins the exact ValidationProblem shape
+    // ValidationResponse.BindingFailureProblem() produces (the single
+    // factory both BindingFailureResponse and the /error backstop in
+    // Program.cs call, so they cannot drift apart).
+    [Fact]
+    public async Task Binding_failure_logs_one_completion_at_information_with_status_400()
     {
         var client = factory.CreateClient();
         var malformed = new StringContent("{not json", System.Text.Encoding.UTF8, "application/json");
@@ -130,12 +204,30 @@ public sealed class RequestLoggingTests(RequestLoggingFactory factory)
         var response = await client.PostAsync("/api/v1/auth/login", malformed);
 
         Assert.Equal(System.Net.HttpStatusCode.BadRequest, response.StatusCode);
-        // The exception-pass completion (Serilog logs these with StatusCode 500
-        // + the exception attached) — filtered by status so the healthy logins
-        // other tests perform can't interfere.
-        Assert.Single(CompletionEventsFor("/api/v1/auth/login"),
-            e => ScalarOf(e, "StatusCode") == "500");
+
+        // (1) Exactly one completion for THIS request, at Information,
+        // StatusCode 400 — not 500, not Error — and no exception-handler
+        // re-execution at /error (the failure never propagated that far up
+        // the pipeline).
+        var completion = Assert.Single(CompletionEventsFor("/api/v1/auth/login"),
+            e => ScalarOf(e, "StatusCode") == "400");
+        Assert.Equal(LogEventLevel.Information, completion.Level);
         Assert.Empty(CompletionEventsFor("/error"));
+
+        // (3) The client-visible body is still the ValidationProblem shape
+        // #398 introduced, not a bare 400 and not the framework's raw
+        // binding-exception text.
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.DoesNotContain("Failed to read parameter", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("Utf8JsonReader", body, StringComparison.Ordinal);
+        using var doc = System.Text.Json.JsonDocument.Parse(body);
+        Assert.Equal(400, doc.RootElement.GetProperty("status").GetInt32());
+        var bodyErrors = doc.RootElement.GetProperty("errors").GetProperty("body");
+        Assert.Equal(System.Text.Json.JsonValueKind.Array, bodyErrors.ValueKind);
+        Assert.Equal(
+            "The request body has an invalid or incorrectly formatted value.",
+            bodyErrors[0].GetString());
     }
 
     // Spec §10: account_id on every log scope. The tenant middleware feeds the

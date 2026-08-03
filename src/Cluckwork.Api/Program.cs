@@ -233,6 +233,17 @@ app.UseSerilogRequestLogging(options =>
     // suite runs many) reassigns and disposes — completions would silently go
     // to another host's pipeline.
     options.Logger = app.Services.GetRequiredService<Serilog.ILogger>();
+    // No dedicated BadHttpRequestException arm here (#398 review, Codex): a
+    // 400 binding failure is now caught by UseCluckworkBindingFailureResponse
+    // immediately below, which does NOT rethrow, so by the time a completion
+    // reaches this callback it is either (a) an ordinary sub-500 response
+    // with `exception` null — falls through to Information via the existing
+    // status-code check, no special-casing needed — or (b) a genuine
+    // unhandled exception (anything that middleware didn't catch, including
+    // a non-400 BadHttpRequestException like the #309 413/415 cases), which
+    // correctly stays Error. Adding an arm for the exception TYPE here would
+    // be dead code: nothing reaching this point is a 400
+    // BadHttpRequestException anymore.
     options.GetLevel = (httpContext, _, exception) =>
         // Health first — a FAILING probe (503 during a DB outage) must not
         // escalate to Error while orchestrators poll every few seconds. The
@@ -246,6 +257,13 @@ app.UseSerilogRequestLogging(options =>
                 ? Serilog.Events.LogEventLevel.Error
                 : Serilog.Events.LogEventLevel.Information;
 });
+
+// #398 review (Codex) — must be registered IMMEDIATELY after
+// UseSerilogRequestLogging (i.e. INSIDE it), so a JSON-binding failure is
+// caught and answered here, before Serilog's own exception handling ever
+// sees it. Full reasoning in Hosting/BindingFailureResponse.cs. Does not
+// change the relative order of anything already below it.
+app.UseCluckworkBindingFailureResponse();
 
 // Endpoint rate-limit policies (#143) — no global limiter, only routes that
 // opt in via RequireRateLimiting are affected.
@@ -427,8 +445,19 @@ app.Map("/error", (HttpContext context) =>
         // THIS specific case — always StatusCode 400 by construction, the
         // same default every JSON-binding BadHttpRequestException carries —
         // through the SAME ValidationProblem shape every other 400 in this
-        // app uses (ValidationResponse.Problem), instead of echoing the
-        // exception text.
+        // app uses (ValidationResponse.BindingFailureProblem), instead of
+        // echoing the exception text.
+        //
+        // #398 review (Codex) — this branch is now a BACKSTOP, not the
+        // primary path: UseCluckworkBindingFailureResponse
+        // (Hosting/BindingFailureResponse.cs) intercepts the overwhelming
+        // majority of these before they ever reach here, specifically so
+        // Serilog's request-logging middleware (which sits between it and
+        // here) never sees the exception and mis-logs the completion as a
+        // 500 at Error for what the client correctly receives as a 400. This
+        // mapping stays — unreachable only in the ordinary case — for any
+        // binding failure that somehow bypasses that middleware (e.g. the
+        // response had already started).
         //
         // A NON-400 BadHttpRequestException (413 from the #309 request-body
         // cap, 415 from an unrecognised Content-Type, …) falls through to the
@@ -438,10 +467,7 @@ app.Map("/error", (HttpContext context) =>
         // instead of being short-circuited there — don't fold that case into
         // the 400-only ValidationProblem mapping above.
         BadHttpRequestException { StatusCode: StatusCodes.Status400BadRequest } =>
-            ValidationResponse.Problem(new Dictionary<string, string[]>
-            {
-                ["body"] = ["The request body has an invalid or incorrectly formatted value."],
-            }),
+            ValidationResponse.BindingFailureProblem(),
         BadHttpRequestException bad => Results.Problem(
             detail: bad.Message,
             statusCode: bad.StatusCode,
