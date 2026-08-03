@@ -34,6 +34,8 @@ export const en = {
     signIn: "Sign in",
     signingIn: "Signing in…",
     invalidCredentials: "Invalid email or password.",
+    credentialsSuperseded: "Your credentials changed. Please sign in again.",
+    accountDisabled: "Your account has been disabled.",
     tooManyAttempts:
       "Too many sign-in attempts. Please wait a few minutes and try again.",
     apiDown: "Could not sign in. Is the API running?",
@@ -1919,6 +1921,9 @@ export const en = {
       + "right there in the dialog: creating another Owner, and resetting an existing Owner's password. This "
       + "confirms it's really you before handing out that much access — every other action on that screen "
       + "(creating a Worker/Manager/Sales/Read-only user, resetting one of their passwords) does not ask again.",
+    signingInCredentialEpoch:
+      "When an administrator resets a password, your existing sign-in can be invalidated immediately. If you "
+      + "see a message that your credentials changed, sign in again with your current password.",
     interfaceLanguage:
       "<strong>Interface language.</strong> Everyone can choose the language the interface is shown in from "
       + "<strong>Account → Preferences</strong> — English, Español, or Tagalog. Translation is a work in "
@@ -1962,9 +1967,9 @@ export const en = {
     ownPassword:
       "<strong>Your own password.</strong> Anyone, in any role, can change their own password on the "
       + "<strong>Account</strong> screen by entering the current one and a new one (at least 12 characters). "
-      + "Changing it — or an admin setting it for you — signs that account out on every <em>other</em> "
-      + "device; the device you changed it on stays signed in. An already-open session elsewhere can linger "
-      + "for a few minutes before it stops working.",
+      + "Changing your own password keeps this device signed in with fresh credentials and ends every "
+      + "<em>other</em> open session on its next request. If an admin sets your password instead, every one "
+      + "of your open sessions ends on its next request.",
 
     // Adding & correcting
     dialogsHeading: "Adding & correcting",

@@ -20,4 +20,14 @@ public sealed class ApplicationUser : IdentityUser<Guid>
     // successful password reset (self-service change, an Owner's SetUserPassword,
     // or break-glass recovery) clears it — see IdentityProvider.
     public bool MustChangePassword { get; set; }
+
+    // #364 — every access and refresh credential is bound to this monotonic
+    // version. Zero is permanently retired so data written by a pre-epoch binary
+    // can never match a live user.
+    public int CredentialEpoch { get; set; } = 1;
+
+    // #364 ships the readers but no mutation endpoint; #356 will supply the
+    // audited administration workflow that sets these fields.
+    public DateTimeOffset? DisabledAt { get; set; }
+    public Guid? DisabledBy { get; set; }
 }

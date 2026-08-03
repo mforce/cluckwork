@@ -174,6 +174,16 @@ public sealed class StepUpGrantService(
             return Result.Failure<StepUpGrant>(WrongPasswordError);
         }
 
+        if (user.DisabledAt is not null)
+        {
+            // Match login's disabled-account path: pay exactly one real hash
+            // cost for either password, but never let guesses mutate durable
+            // failed-access/lockout state while the account is disabled.
+            userManager.PasswordHasher.VerifyHashedPassword(
+                user, user.PasswordHash ?? TimingEqualization.DummyHash, currentPassword);
+            return Result.Failure<StepUpGrant>(WrongPasswordError);
+        }
+
         // #128 per-account lockout, same as LoginAsync. This endpoint is a SECOND
         // password oracle — and the one guarding Owner takeover — so leaving it
         // out would have left only the per-IP limiter here, which a distributed
@@ -193,11 +203,24 @@ public sealed class StepUpGrantService(
             return Result.Failure<StepUpGrant>(WrongPasswordError);
         }
 
+        // ResetFailedAccessCountAsync can reload a concurrently reset/disabled
+        // row after an optimistic-concurrency loss. Preserve the exact
+        // credential proof we just accepted so the old password cannot issue a
+        // grant stamped with credentials that superseded it.
+        var verifiedCredentialEpoch = user.CredentialEpoch;
+        var verifiedSecurityStamp = user.SecurityStamp;
+
         // Correct password — clear any accumulated failures, as login does.
         // Shared with login via AccountLockout (#269 review): a discarded
         // IdentityResult here left `user` tracked with a stale ConcurrencyStamp,
         // which any later save on this scoped DbContext would re-flush and throw.
         await AccountLockout.ResetFailedAccessCountAsync(userManager, db, user, ct);
+        if (user.DisabledAt is not null
+            || user.CredentialEpoch != verifiedCredentialEpoch
+            || !string.Equals(user.SecurityStamp, verifiedSecurityStamp, StringComparison.Ordinal))
+        {
+            return Result.Failure<StepUpGrant>(WrongPasswordError);
+        }
 
         var now = timeProvider.GetUtcNow();
         var expires = now.AddMinutes(Math.Max(1, jwtOptions.Value.StepUpGrantMinutes));

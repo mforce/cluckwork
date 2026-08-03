@@ -518,6 +518,13 @@ replayed/stale token is still caught and revokes the whole family. Consuming a
 token is an atomic compare-and-swap (a per-token concurrency stamp), so concurrent
 replays can never fork one token into two live sessions.
 
+**Credential epoch (#364)** — a monotonically increasing per-user number carried
+in every access token and stamped onto every refresh token. A request is valid
+only when its epoch matches the current user record, so an administrative
+credential reset can invalidate access tokens immediately without a per-request
+revocation list. The epoch readers ship before the mutations that advance it;
+deploys must drain older replicas before enabling those mutations.
+
 **Version (concurrency token)** — every mutable aggregate carries a `Version`
 that each mutation bumps. Two concurrent edits: first save wins, second gets
 a 409 and retries against fresh state. Append-only aggregates (bird
@@ -586,17 +593,19 @@ grant** because the target holds Owner (see below) — resetting any other
 role's password is unchanged and stays ungated.
 Both revoke every refresh token for that user, so other devices are signed out
 — the self-service path hands the device that made the change a fresh pair so it
-stays signed in. Eviction is bounded by the access-token lifetime: an
-already-issued access token keeps working until it expires (~15 min), because
-tokens are stateless and there is no server-side denylist.
+stays signed in. Since #364, both paths also bump the user's **credential
+epoch** (see above) in that same transaction, and every authenticated request
+is checked against it — so an already-issued access token is rejected on its
+very next request, not merely bounded by the ~15-min access-token lifetime.
 
 **Step-up authentication (#308)** — a fresh proof of identity required, on top
 of a normal valid Owner access token, before two specific actions: **creating
 another Owner**, and **resetting an existing Owner's password**. The threat it
-closes: a stolen-but-still-valid Owner access token (good for ~15 min, no
-server-side denylist — see **Password change** above) is otherwise enough on
-its own to mint a second, independent Owner or take over an existing one,
-turning short-lived token theft into durable account control. Every other
+closes: a stolen-but-still-valid Owner access token (good for ~15 min — merely
+holding it bumps no credential epoch, see **Credential epoch** above) is
+otherwise enough on its own to mint a second, independent Owner or take over
+an existing one, turning short-lived token theft into durable account
+control. Every other
 action on the Users screen — creating a Worker/Manager/Sales/Read-only user,
 resetting one of their passwords, editing a display name, flock assignment —
 is **unchanged and ungated**; the point is to gate exactly the two operations

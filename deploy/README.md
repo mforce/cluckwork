@@ -5,6 +5,22 @@ serves both the JSON API (`/api/*`) and the built React SPA (from `wwwroot`) on
 one domain. There is no separate frontend host — no CORS, no version skew
 between an app bundle and its API.
 
+## Credential-epoch rollout (#364)
+
+Deploy the credential-epoch release everywhere before enabling the later
+user-administration mutations that increment the epoch. Do not expose those
+mutations until every pre-epoch process has drained: an older process cannot
+validate the epoch claim and could otherwise accept an access token that a new
+process has invalidated. Because this release is folded into the pre-production
+`InitialCreate` migration, there are no deployed legacy rows to cut over.
+
+Rollback is deliberately ordered too. Drain every process running this
+credential-epoch release, revoke **all active refresh tokens**, and only then
+start a pre-epoch image. A pre-epoch binary ignores `IssuedEpoch`; starting it
+before that revocation can resurrect an epoch-0 child written during a mixed
+fleet window. Treat rollback as one forced re-login, not as a plain image
+downgrade.
+
 - `docker-compose.yml` — the production stack (app + Postgres), fronted by
   Traefik for TLS. See the root [README](../README.md) for the full run/backup
   walkthrough.

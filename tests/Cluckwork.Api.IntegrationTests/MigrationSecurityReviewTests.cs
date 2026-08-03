@@ -70,6 +70,23 @@ public sealed class MigrationSecurityReviewTests
     // shape a migrationBuilder.Sql(...) credential would actually take.
     private static readonly Regex SqlStringLiteral = new(@"'([^']*)'", RegexOptions.Compiled);
 
+    // #245's whole contract is "exactly one migration, InitialCreate" — the
+    // application has never been deployed, so a virgin database is the only
+    // starting state that exists anywhere, and there is therefore never a
+    // reason to add a second migration file instead of hand-folding a change
+    // into InitialCreate (see that migration's own header comment, most
+    // recently its #364 addendum). This is the automated fence: a PR that
+    // adds e.g. "AddFoo.cs" beside InitialCreate.cs now fails here instead of
+    // only getting flagged in review — which is exactly what happened to the
+    // migration this test itself replaces (PR #399 shipped a second
+    // migration; this guard did not yet exist to catch it).
+    [Fact]
+    public void ExactlyOneMigrationExists_AndItIsInitialCreate()
+    {
+        var migration = Assert.Single(AllMigrations());
+        Assert.Equal("InitialCreate", migration.GetType().Name);
+    }
+
     [Fact]
     public void NoMigration_EverInsertsIntoTheUsersTable()
     {

@@ -38,6 +38,8 @@ export const tl = {
     signIn: "Mag-sign in",
     signingIn: "Nagsa-sign in…",
     invalidCredentials: "Mali ang email o password.",
+    credentialsSuperseded: "Nagbago ang iyong mga kredensyal. Mag-sign in muli.",
+    accountDisabled: "Na-disable ang iyong account.",
     tooManyAttempts:
       "Sobra na ang subok sa pag-sign in. Maghintay ng ilang minuto at subukan ulit.",
     apiDown: "Hindi makapag-sign in. Gumagana ba ang API?",
@@ -1640,6 +1642,9 @@ export const tl = {
       + "ng password ng isang umiiral na Owner. Kinukumpirma nito na ikaw talaga bago bigyan ng ganoong "
       + "kalaking access — walang ibang aksyon sa screen na iyon (paggawa ng Worker/Manager/Sales/Read-only "
       + "user, pag-reset ng password nila) ang muling nagtatanong.",
+    signingInCredentialEpoch:
+      "Kapag ni-reset ng administrator ang password, maaaring agad ma-invalid ang kasalukuyan mong sign-in. Kung "
+      + "makakita ka ng mensaheng nagbago ang iyong credentials, mag-sign in muli gamit ang kasalukuyan mong password.",
     interfaceLanguage:
       "<strong>Wika ng interface.</strong> Kahit sino ay puwedeng pumili ng wikang gagamitin sa interface "
       + "mula sa <strong>Account → Mga Kagustuhan</strong> — English, Español, o Tagalog. Isang patuloy na "
@@ -1689,10 +1694,10 @@ export const tl = {
     ownPassword:
       "<strong>Ang sarili mong password.</strong> Kahit sino, sa kahit anong tungkulin, ay puwedeng "
       + "magpalit ng sariling password sa screen na <strong>Account</strong> sa pamamagitan ng pag-enter ng "
-      + "kasalukuyan at bagong password (hindi bababa sa 12 karakter). Ang pagpapalit nito — o ang "
-      + "pagseset ng admin nito para sa iyo — ay nagsa-sign out sa account na iyon sa bawat <em>ibang</em> "
-      + "device; mananatiling naka-sign in ang device na pinagpalitan mo. Ang isang bukas nang session sa "
-      + "ibang lugar ay puwedeng magtagal ng ilang minuto bago tumigil sa paggana.",
+      + "kasalukuyan at bagong password (hindi bababa sa 12 karakter). Ang pagpapalit ng sarili mong password "
+      + "ay nagpapanatiling naka-sign in sa device na ito gamit ang bagong credentials at nagpapatigil sa bawat "
+      + "<em>ibang</em> bukas na session sa susunod nitong request. Kung admin ang magse-set ng password mo, "
+      + "titigil ang lahat ng bukas mong session sa susunod nitong request.",
 
     dialogsHeading: "Pagdagdag at pagtatama",
     dialogsPopup:

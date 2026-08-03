@@ -29,8 +29,8 @@ export class ApiError extends Error {
 
 // Called when the session is unrecoverable (refresh failed). AuthContext wires
 // this to drop React auth state and bounce to /login.
-let onUnauthenticated: (() => void) | null = null;
-export function setOnUnauthenticated(cb: (() => void) | null): void {
+let onUnauthenticated: ((title?: string) => void) | null = null;
+export function setOnUnauthenticated(cb: ((title?: string) => void) | null): void {
   onUnauthenticated = cb;
 }
 
@@ -202,7 +202,28 @@ export async function changePassword(
   // before it lands would otherwise have the response write a fresh token back
   // over the cleared session.
   const generation = sessionGeneration;
-  const res = await apiPost<AccessTokenResponse>("/auth/change-password", body);
+  // Refresh and password-change both replace the one per-origin HttpOnly
+  // cookie. Keep the password change inside the same cross-tab lock as refresh,
+  // or an already-started old-epoch refresh can answer last and overwrite the
+  // E+1 cookie this request just issued. Passing the held lock context lets
+  // apiFetch do its normal 401 refresh-and-retry inside this lock without
+  // trying to acquire the non-reentrant Web Lock a second time.
+  const res = await withAuthCookieLock((signal) => {
+    // The operation may have waited behind another tab's refresh. Logout or a
+    // newer login that happened while queued wins before this request sends a
+    // byte; never let the stale password form act on the superseding session.
+    if (sessionGeneration !== generation) throw new StaleSessionError();
+    return apiFetch<AccessTokenResponse>(
+      "/auth/change-password",
+      {
+        method: "POST",
+        headers: { "Idempotency-Key": newId() },
+        body: JSON.stringify(body),
+        signal,
+      },
+      { generation, signal },
+    );
+  });
   // This response rotates the refresh cookie too, so a discarded one needs that
   // cookie revoked, not merely the in-memory token dropped.
   if (sessionGeneration !== generation) {
@@ -246,7 +267,7 @@ export async function logout(): Promise<void> {
   // instead of only being
   // discarded on arrival by the generation check in refreshTokens().
   sessionGeneration++;
-  abortInFlightRefresh?.();
+  abortInFlightAuthCookieOperation?.();
   // #336 — capture BEFORE clearing: this tab's access token names the user who
   // actually clicked logout, and the clear below is deliberately synchronous.
   // Read it after and we would always send nothing.
@@ -281,7 +302,8 @@ export async function logout(): Promise<void> {
   }
 }
 
-// #169 — serialise refresh across tabs. The refresh token lives only in the
+// #169/#364 — serialise refresh and self-password-change across tabs. The
+// refresh token lives only in the
 // shared HttpOnly cookie (#145), so two tabs refreshing at once each present the
 // SAME cookie value; the second hits an already-rotated token, the server reads
 // that as a replay and revokes the whole family — logging BOTH tabs out. The Web
@@ -296,7 +318,7 @@ export async function logout(): Promise<void> {
 // receiving the rotated cookie, the lock auto-releases while the cookie is still
 // the old value, so the next tab can still trip reuse-detection. Narrow, but a
 // full fix needs an idempotent server refresh — tracked in #176.
-const REFRESH_LOCK = "cluckwork.auth.refresh";
+const AUTH_COOKIE_LOCK = "cluckwork.auth.refresh";
 
 // Cap how long one tab may hold the cross-tab lock. fetch() has no default
 // timeout, so a hung /auth/refresh would otherwise keep the lock — and every
@@ -304,23 +326,46 @@ const REFRESH_LOCK = "cluckwork.auth.refresh";
 // which releases the lock; the aborting tab recovers on its next request.
 const REFRESH_TIMEOUT_MS = 15_000;
 
-// #310 — the abort handle of whichever refresh attempt is currently running
-// (if any), so logout() can cancel it outright rather than only waiting for
-// the generation check below to discard its result on arrival.
-let abortInFlightRefresh: (() => void) | null = null;
+// #310/#364 — the abort handle of whichever cookie-mutating auth operation is
+// currently running (if any), so logout() can cancel it outright rather than
+// only waiting for the generation check below to discard its result on arrival.
+let abortInFlightAuthCookieOperation: (() => void) | null = null;
 
-function withRefreshLock<T>(run: (signal: AbortSignal) => Promise<T>): Promise<T> {
+// Web Locks coordinate tabs, while this queue provides the same ordering within
+// one tab and on browsers where navigator.locks is unavailable. Rejections are
+// absorbed only by the tail so one failed auth write never poisons later work;
+// each caller still receives its own original result.
+let authCookieTail: Promise<void> = Promise.resolve();
+
+function withAuthCookieLock<T>(
+  run: (signal: AbortSignal) => Promise<T>,
+  timeoutMs?: number,
+): Promise<T> {
   const attempt = () => {
     const controller = new AbortController();
-    abortInFlightRefresh = () => controller.abort();
-    const timer = setTimeout(() => controller.abort(), REFRESH_TIMEOUT_MS);
+    const abort = () => controller.abort();
+    abortInFlightAuthCookieOperation = abort;
+    // Refresh is replayable and must not starve every tab indefinitely. A
+    // password change is not: aborting after the server commits can strand the
+    // browser with neither the old credential nor the fresh response, so that
+    // caller deliberately supplies no timeout. Explicit logout still aborts it
+    // through abortInFlightAuthCookieOperation above.
+    const timer = timeoutMs === undefined ? undefined : setTimeout(abort, timeoutMs);
     return run(controller.signal).finally(() => {
-      clearTimeout(timer);
-      abortInFlightRefresh = null;
+      if (timer !== undefined) clearTimeout(timer);
+      if (abortInFlightAuthCookieOperation === abort)
+        abortInFlightAuthCookieOperation = null;
     });
   };
-  const locks: LockManager | undefined = globalThis.navigator?.locks;
-  return locks ? (locks.request(REFRESH_LOCK, attempt) as Promise<T>) : attempt();
+  const queued = authCookieTail.then(() => {
+    const locks: LockManager | undefined = globalThis.navigator?.locks;
+    return locks ? (locks.request(AUTH_COOKIE_LOCK, attempt) as Promise<T>) : attempt();
+  });
+  authCookieTail = queued.then(
+    () => undefined,
+    () => undefined,
+  );
+  return queued;
 }
 
 // Single-flight refresh: concurrent 401s (and the load-time bootstrap) share one
@@ -329,7 +374,68 @@ function withRefreshLock<T>(run: (signal: AbortSignal) => Promise<T>): Promise<T
 // serialises whatever refresh each tab still needs against the other tabs.
 let refreshInFlight: Promise<string> | null = null;
 
-async function refreshTokens(): Promise<string> {
+type HeldAuthCookieLock = Readonly<{
+  generation: number;
+  signal: AbortSignal;
+}>;
+
+async function executeRefresh(generation: number, signal?: AbortSignal): Promise<string> {
+  try {
+    const res = await raw<AccessTokenResponse>("/auth/refresh", {
+      method: "POST",
+      headers: { [CSRF_HEADER]: "1" },
+      signal,
+    });
+
+    // A SUCCESSFUL refresh rotated the cookie before we got here, so a
+    // discarded one leaves live credentials in the browser — revoke them.
+    if (sessionGeneration !== generation) {
+      await revokeSupersededCookie();
+      throw new StaleSessionError();
+    }
+    setAccessToken(res.accessToken);
+    onTokensChanged?.();
+    return res.accessToken;
+  } catch (err) {
+    // A late FAILURE from an obsolete generation is discarded the same as a
+    // late success: the real error (e.g. a genuinely revoked refresh token)
+    // might otherwise tear down a newer, still-valid session. No revoke here —
+    // a failed refresh issued no cookie to revoke.
+    if (err instanceof StaleSessionError) throw err;
+    throw sessionGeneration !== generation ? new StaleSessionError() : err;
+  }
+}
+
+async function executeHeldRefresh(
+  generation: number,
+  parentSignal: AbortSignal,
+): Promise<string> {
+  // The parent password-change operation is deliberately unbounded because it
+  // cannot be replayed safely after an ambiguous commit. Refresh remains
+  // replayable, though, and must not hold the shared cookie lock forever. Give
+  // only this nested request a timeout while forwarding explicit logout's abort.
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  if (parentSignal.aborted) abort();
+  else parentSignal.addEventListener("abort", abort, { once: true });
+  const timer = setTimeout(abort, REFRESH_TIMEOUT_MS);
+  try {
+    return await executeRefresh(generation, controller.signal);
+  } finally {
+    clearTimeout(timer);
+    parentSignal.removeEventListener("abort", abort);
+  }
+}
+
+async function refreshTokens(heldLock?: HeldAuthCookieLock): Promise<string> {
+  // changePassword owns the shared cookie lock while apiFetch performs its
+  // normal 401 refresh-and-retry. Web Locks are not reentrant, so execute that
+  // nested refresh directly under the lock already held by the caller. Keep
+  // the generation that entered the queue: resnapshotting here could attach a
+  // stale password-change operation to a logout/new-login generation.
+  if (heldLock)
+    return executeHeldRefresh(heldLock.generation, heldLock.signal);
+
   if (refreshInFlight) return refreshInFlight;
 
   // #310 — captured once, at the START of this flight. Checked again at
@@ -337,33 +443,10 @@ async function refreshTokens(): Promise<string> {
   // network call is in the air discards its outcome instead of committing it.
   const generation = sessionGeneration;
 
-  refreshInFlight = withRefreshLock((signal) =>
-    raw<AccessTokenResponse>("/auth/refresh", {
-      method: "POST",
-      headers: { [CSRF_HEADER]: "1" },
-      signal,
-    }),
+  refreshInFlight = withAuthCookieLock(
+    (signal) => executeRefresh(generation, signal),
+    REFRESH_TIMEOUT_MS,
   )
-    .then(
-      async (res) => {
-        // A SUCCESSFUL refresh rotated the cookie before we got here, so a
-        // discarded one leaves live credentials in the browser — revoke them.
-        if (sessionGeneration !== generation) {
-          await revokeSupersededCookie();
-          throw new StaleSessionError();
-        }
-        setAccessToken(res.accessToken);
-        onTokensChanged?.();
-        return res.accessToken;
-      },
-      (err: unknown) => {
-        // A late FAILURE from an obsolete generation is discarded the same as
-        // a late success: the real error (e.g. a genuinely revoked refresh
-        // token) might otherwise tear down a newer, still-valid session. No
-        // revoke here — a failed refresh issued no cookie to revoke.
-        throw sessionGeneration !== generation ? new StaleSessionError() : err;
-      },
-    )
     .finally(() => {
       refreshInFlight = null;
     });
@@ -378,7 +461,14 @@ export async function restoreSession(): Promise<boolean> {
   try {
     await refreshTokens();
     return true;
-  } catch {
+  } catch (err) {
+    // The normal no-cookie case remains a quiet false result in the UI because
+    // Login only renders the two credential-revocation titles. Preserve a
+    // server-provided 401 title nevertheless: if the refresh endpoint can
+    // classify a superseded/disabled session, load-time bootstrap must not be
+    // the one teardown path that discards that reason.
+    if (err instanceof ApiError && err.status === 401)
+      onUnauthenticated?.(err.title);
     return false;
   }
 }
@@ -473,7 +563,7 @@ export async function apiGetBlob(
       }
       if (isTransientRefreshFailure(refreshErr)) throw refreshErr;
       clearAccessToken();
-      onUnauthenticated?.();
+      onUnauthenticated?.(err.title);
       throw err;
     }
   }
@@ -495,27 +585,44 @@ async function rawBlob(
   };
 }
 
-export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const token = await currentAccessToken();
+export async function apiFetch<T>(
+  path: string,
+  init: RequestInit = {},
+  heldAuthCookieLock?: HeldAuthCookieLock,
+): Promise<T> {
+  const token = await currentAccessToken(heldAuthCookieLock);
+  // currentAccessToken may itself await a cookie refresh. A newer login can
+  // supersede the non-replayable password form during that await; never let the
+  // stale form borrow the newer session's bearer for its first request.
+  if (heldAuthCookieLock && sessionGeneration !== heldAuthCookieLock.generation)
+    throw new StaleSessionError();
   try {
     return await raw<T>(path, init, token);
   } catch (err) {
     if (!(err instanceof ApiError) || err.status !== 401) throw err;
+    // A held context identifies the non-replayable password form. Generic API
+    // requests may continue on a newer login after supersession; this one must
+    // not refresh that newer cookie or resend the old password body against it.
+    if (heldAuthCookieLock && sessionGeneration !== heldAuthCookieLock.generation)
+      throw new StaleSessionError();
     try {
-      const refreshed = await refreshTokens();
+      const refreshed = await refreshTokens(heldAuthCookieLock);
+      if (heldAuthCookieLock && sessionGeneration !== heldAuthCookieLock.generation)
+        throw new StaleSessionError();
       return await raw<T>(path, init, refreshed);
     } catch (refreshErr) {
       // #310 review — superseded mid-retry: retry once on the newer login's
       // token, or surface the ORIGINAL 401 if a logout ended the session.
       // Never let the internal marker reach the caller.
       if (refreshErr instanceof StaleSessionError) {
+        if (heldAuthCookieLock) throw refreshErr;
         const fresh = getAccessToken();
         if (fresh) return await raw<T>(path, init, fresh);
         throw err;
       }
       if (isTransientRefreshFailure(refreshErr)) throw refreshErr;
       clearAccessToken();
-      onUnauthenticated?.();
+      onUnauthenticated?.(err.title);
       throw err;
     }
   }
@@ -524,18 +631,20 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
 // The in-memory access token, or one obtained via a silent refresh when memory
 // is empty (e.g. a request racing the load-time bootstrap). Throws + signals
 // unauthenticated if no session can be established.
-async function currentAccessToken(): Promise<string> {
+async function currentAccessToken(
+  heldAuthCookieLock?: HeldAuthCookieLock,
+): Promise<string> {
   const token = getAccessToken();
   if (token) return token;
   try {
-    return await refreshTokens();
+    return await refreshTokens(heldAuthCookieLock);
   } catch (err) {
     // #310 — a stale (obsolete-generation) failure belongs to an already-
     // superseded session: a newer login already committed its own token, or a
     // logout already tore everything down. Either way, this failure must not
     // touch the CURRENT session — no clearing, no onUnauthenticated navigate.
     if (err instanceof StaleSessionError) return supersededToken();
-    onUnauthenticated?.();
+    onUnauthenticated?.(err instanceof ApiError ? err.title : undefined);
     throw new ApiError(401, "NoSession", "Not authenticated.");
   }
 }

@@ -252,20 +252,26 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
 
         var grant = await StepUpAsync(owner, TestHarness.Password);
 
-        // Rotates the SecurityStamp. The caller's (old) access token stays
-        // valid regardless (no server-side denylist — the realistic "stolen
-        // token" shape this guard exists for), but the grant embeds the
-        // stamp as it was AT ISSUANCE.
+        // Rotates the SecurityStamp. JWT validation never checks SecurityStamp
+        // (it isn't embedded in the access token), so the token used for THIS
+        // call keeps authenticating it regardless — the realistic "stolen
+        // token" shape this guard exists for. Since #364 this same
+        // change-password call also bumps CredentialEpoch, so a captured OLD
+        // token would fail CredentialEpochMiddleware on its next request
+        // either way; the grant is what closes the narrower gap before that,
+        // since it separately embeds and checks the stamp AT ISSUANCE.
         var changed = await owner.PostWithKeyAsync("/api/v1/auth/change-password",
             Guid.NewGuid().ToString(),
             new { currentPassword = TestHarness.Password, newPassword = FreshPassword() });
         Assert.Equal(HttpStatusCode.OK, changed.StatusCode);
+        var ownerAfterPasswordChange = factory.CreateAuthedClient(
+            (await TestHarness.ReadTokensAsync(changed)).AccessToken);
 
         var newOwnerEmail = $"boss-{Guid.NewGuid():N}@test.local";
-        var response = await CreateUserWithStepUpAsync(owner, newOwnerEmail, "Admin", grant.Token);
+        var response = await CreateUserWithStepUpAsync(ownerAfterPasswordChange, newOwnerEmail, "Admin", grant.Token);
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
-        var users = await owner.GetFromJsonAsync<List<UserRow>>("/api/v1/users");
+        var users = await ownerAfterPasswordChange.GetFromJsonAsync<List<UserRow>>("/api/v1/users");
         Assert.DoesNotContain(users!, u => u.Email == newOwnerEmail);
     }
 
@@ -747,6 +753,26 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
             registry);
 
         return (stepUp, db, accountId, user!.Id);
+    }
+
+    [Fact]
+    public async Task IssueAsync_DirectlyRefusesADisabledUser()
+    {
+        using var scope = factory.Services.CreateScope();
+        var (stepUp, db, accountId, userId) = await DirectStepUpServiceAsync(
+            scope, new InMemoryStepUpGrantRegistry());
+        await using var _ = db;
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var user = await userManager.FindByIdAsync(userId.ToString());
+        Assert.NotNull(user);
+        user.DisabledAt = DateTimeOffset.UtcNow;
+        var disabled = await userManager.UpdateAsync(user);
+        Assert.True(disabled.Succeeded);
+
+        var result = await stepUp.IssueAsync(accountId, userId, TestHarness.Password);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal("Users.CurrentPasswordIncorrect", result.Error.Code);
     }
 
     [Fact]

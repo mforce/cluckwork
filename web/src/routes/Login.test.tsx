@@ -4,7 +4,7 @@ import { Routes, Route } from "react-router";
 import { Login } from "./Login";
 import { ProtectedRoute } from "./ProtectedRoute";
 import { renderWithProviders } from "../test/renderWithProviders";
-import { login as apiLogin, ApiError } from "../api/client";
+import { login as apiLogin, ApiError, setOnUnauthenticated } from "../api/client";
 import { setStoredToken } from "../test/jwt";
 import i18n from "../i18n";
 
@@ -22,6 +22,7 @@ vi.mock("../api/client", async (importOriginal) => {
 });
 
 const mockApiLogin = vi.mocked(apiLogin);
+const mockSetOnUnauthenticated = vi.mocked(setOnUnauthenticated);
 
 // /dashboard is behind the real ProtectedRoute, so navigation there only
 // succeeds if login actually established authenticated state — a bare public
@@ -106,6 +107,19 @@ describe("Login", () => {
 
     expect(await screen.findByText("Invalid email or password.")).toBeInTheDocument();
     expect(screen.queryByText("dashboard (protected)")).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ["Auth.CredentialsSuperseded", i18n.t("auth:credentialsSuperseded")],
+    ["Auth.AccountDisabled", i18n.t("auth:accountDisabled")],
+  ])("surfaces a protected-request %s reason on the login page", async (title, message) => {
+    renderWithProviders(tree(), { route: "/dashboard", token: { sub: "u1", role: "Sales" } });
+    expect(await screen.findByText("dashboard (protected)")).toBeInTheDocument();
+
+    const callback = mockSetOnUnauthenticated.mock.calls[0][0];
+    await act(async () => callback?.(title));
+
+    expect(await screen.findByText(message)).toBeInTheDocument();
   });
 
   it("shows a rate-limit message on a 429 and stays on /login", async () => {

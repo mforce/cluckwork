@@ -29,6 +29,20 @@ public sealed class IdentityProvider(
             return Result.Failure<TokenPair>(Error.Validation("Identity.InvalidCredentials", "Invalid email or password."));
         }
 
+        if (user.DisabledAt is not null)
+        {
+            // Pay the same password-hash cost for a correct or incorrect
+            // password, but never feed a disabled account into Identity's
+            // failed-access counter. Otherwise password validity is observable
+            // through both timing and durable lockout state, and an account can
+            // emerge from a later re-enable already locked by guesses made while
+            // it was disabled.
+            userManager.PasswordHasher.VerifyHashedPassword(
+                user, user.PasswordHash ?? TimingEqualization.DummyHash, password);
+            return Result.Failure<TokenPair>(Error.Validation(
+                "Identity.InvalidCredentials", "Invalid email or password."));
+        }
+
         // Account lockout (#128): once failures reach the configured threshold the
         // account is locked for a cool-off window. A locked account is refused with
         // the SAME generic error (and PBKDF2 is still paid) as a wrong password, so
@@ -47,8 +61,22 @@ public sealed class IdentityProvider(
             return Result.Failure<TokenPair>(Error.Validation("Identity.InvalidCredentials", "Invalid email or password."));
         }
 
+        // Bind the successful proof to the credential values that were actually
+        // verified. ResetFailedAccessCountAsync may lose optimistic concurrency
+        // to a password reset/disable and reload that newer row into `user`; the
+        // old password must never mint tokens carrying the superseding epoch.
+        var verifiedCredentialEpoch = user.CredentialEpoch;
+        var verifiedSecurityStamp = user.SecurityStamp;
+
         // Correct password — clear any accumulated failures (no-op DB-wise if zero).
         await ResetFailedAccessCountAsync(user, ct);
+        if (user.DisabledAt is not null
+            || user.CredentialEpoch != verifiedCredentialEpoch
+            || !string.Equals(user.SecurityStamp, verifiedSecurityStamp, StringComparison.Ordinal))
+        {
+            return Result.Failure<TokenPair>(Error.Validation(
+                "Identity.InvalidCredentials", "Invalid email or password."));
+        }
 
         var (rawToken, tokenHash) = GenerateRefreshToken();
         var minted = NewToken(user, tokenHash);
@@ -99,6 +127,13 @@ public sealed class IdentityProvider(
         if (stored is null)
             return Result.Failure<TokenPair>(Error.Validation("Identity.InvalidRefreshToken", "Refresh token is invalid."));
 
+        // This MUST precede the #176 grace/replay branch. A retired token is
+        // not evidence about the current family, so it fails inert rather than
+        // letting replay detection revoke a later epoch's credentials.
+        var user = await userManager.FindByIdAsync(stored.UserId.ToString());
+        if (user is null || user.DisabledAt is not null || stored.IssuedEpoch != user.CredentialEpoch)
+            return Result.Failure<TokenPair>(Error.Validation("Identity.InvalidRefreshToken", "Refresh token is invalid."));
+
         // Presenting an already-rotated/revoked token normally means it was replayed —
         // treat as a possible theft and revoke every active token for the user.
         var viaGrace = false;
@@ -113,10 +148,21 @@ public sealed class IdentityProvider(
             // delivered, so this does not fork the chain. Anything else — a stale
             // token, an expired grace, or a replacement already gone — is a genuine
             // replay and still burns the family down.
-            var graced = await TryGraceReplacementAsync(stored, now, ct);
+            var (graced, crossEpochReplacement) =
+                await InspectGraceReplacementAsync(stored, now, ct);
+            if (crossEpochReplacement)
+            {
+                // A mixed-version replica linked this current-epoch token to a
+                // child whose default epoch is permanently retired. That child
+                // is not evidence of theft in the current family: fail inertly,
+                // or repeated presentation of the parent could keep revoking
+                // unrelated sessions minted after the new version took over.
+                return Result.Failure<TokenPair>(Error.Validation(
+                    "Identity.InvalidRefreshToken", "Refresh token is invalid."));
+            }
             if (graced is null)
             {
-                await RevokeAllActiveForUserAsync(stored.UserId, now, ct);
+                await RevokeAllActiveForUserAsync(stored.UserId, stored.IssuedEpoch, now, ct);
                 return Result.Failure<TokenPair>(Error.Validation("Identity.InvalidRefreshToken", "Refresh token is invalid."));
             }
             stored = graced;
@@ -125,10 +171,6 @@ public sealed class IdentityProvider(
 
         if (stored.ExpiresAt <= now)
             return Result.Failure<TokenPair>(Error.Validation("Identity.ExpiredRefreshToken", "Refresh token has expired."));
-
-        var user = await userManager.FindByIdAsync(stored.UserId.ToString());
-        if (user is null)
-            return Result.Failure<TokenPair>(Error.Validation("Identity.InvalidRefreshToken", "Refresh token is invalid."));
 
         // Rotate: revoke the presented token and issue a fresh one. Marking the
         // revocation as grace-sourced (#176) bounds the grace to a single hop: the
@@ -359,8 +401,11 @@ public sealed class IdentityProvider(
     // without the current one — which applies the full policy and rotates the
     // SecurityStamp — clear any lockout, evict every live session, and append one
     // audit row, all in a single transaction so the password change and the
-    // session revocation land together or not at all (#165 review). An already-
-    // issued access token stays valid until it expires (~15 min) — no denylist.
+    // session revocation land together or not at all (#165 review). Since #364
+    // it also bumps CredentialEpoch in that same transaction (below), so an
+    // already-issued access token is rejected by CredentialEpochMiddleware on
+    // its very next request — no longer merely bounded by the ~15-min
+    // access-token lifetime.
     private Task<Result> ResetPasswordAndRevokeAsync(
         ApplicationUser user, string newPassword, string auditAction, string? reason,
         object? details, CancellationToken ct)
@@ -392,6 +437,7 @@ public sealed class IdentityProvider(
             // there is nothing left to force. `user` is the same DbContext-tracked
             // instance db.SaveChangesAsync persists below — no separate save needed.
             user.MustChangePassword = false;
+            user.CredentialEpoch++;
 
             // Clear any active lockout / failed-attempt count (#265 review). Without
             // this, the exact case break-glass exists for — a user locked out by
@@ -455,6 +501,7 @@ public sealed class IdentityProvider(
             // the must_change_password claim, un-gating the rest of the app.
             if (user.MustChangePassword)
                 user.MustChangePassword = false;
+            user.CredentialEpoch++;
 
             // Every session dies (other devices are signed out), then this caller gets
             // a fresh pair so the device that made the change stays signed in.
@@ -624,39 +671,55 @@ public sealed class IdentityProvider(
             UserId = user.Id,
             AccountId = user.AccountId,
             TokenHash = tokenHash,
+            IssuedEpoch = user.CredentialEpoch,
             CreatedAt = now,
             ExpiresAt = now.AddDays(jwtOptions.Value.RefreshTokenDays)
         };
     }
 
-    // #176 — returns the live replacement to rotate when `revoked` is a benign
-    // grace retry (rotated within the grace window and its replacement is still
-    // active), or null when it is a genuine replay that must revoke the family.
-    private async Task<RefreshToken?> TryGraceReplacementAsync(
+    // #176/#364 — identifies three distinct states for a revoked token:
+    // a live same-epoch grace replacement, a genuine same-epoch replay, or a
+    // linked child written with a retired epoch by an old replica. The last one
+    // must fail inertly even outside the grace window; it is mixed-version
+    // evidence, not evidence that the current-epoch family was stolen.
+    private async Task<(RefreshToken? Replacement, bool CrossEpochReplacement)>
+        InspectGraceReplacementAsync(
         RefreshToken revoked, DateTimeOffset now, CancellationToken ct)
     {
+        if (revoked.ReplacedByTokenHash is null || revoked.RevokedAt is null)
+            return (null, false);
+
+        var replacement = await db.RefreshTokens.FirstOrDefaultAsync(t =>
+            t.TokenHash == revoked.ReplacedByTokenHash
+            && t.UserId == revoked.UserId
+            && t.AccountId == revoked.AccountId, ct);
+        if (replacement is not null && replacement.IssuedEpoch != revoked.IssuedEpoch)
+            return (null, true);
+
         var graceSeconds = jwtOptions.Value.RefreshReuseGraceSeconds;
-        var elapsed = now - (revoked.RevokedAt ?? now);
-        if (graceSeconds <= 0                       // grace disabled → strict replay
-            || revoked.RevokedByGrace               // already a grace hop → don't chain (one-hop bound)
-            || revoked.ReplacedByTokenHash is null
-            || revoked.RevokedAt is null
+        var elapsed = now - revoked.RevokedAt.Value;
+        if (graceSeconds <= 0                        // grace disabled → strict replay
+            || revoked.RevokedByGrace                // already a grace hop → don't chain (one-hop bound)
             || elapsed < TimeSpan.Zero               // clock-skew guard: a future RevokedAt must not widen the window
             || elapsed > TimeSpan.FromSeconds(graceSeconds))
-            return null;
+            return (null, false);
 
-        var replacement = await db.RefreshTokens
-            .FirstOrDefaultAsync(t => t.TokenHash == revoked.ReplacedByTokenHash, ct);
-        return replacement is not null && replacement.IsActive(now) ? replacement : null;
+        return (replacement is not null && replacement.IsActive(now) ? replacement : null, false);
     }
 
-    private async Task RevokeAllActiveForUserAsync(Guid userId, DateTimeOffset now, CancellationToken ct)
+    private async Task RevokeAllActiveForUserAsync(
+        Guid userId, DateTimeOffset now, CancellationToken ct) =>
+        await RevokeAllActiveForUserAsync(userId, issuedEpoch: null, now, ct);
+
+    private async Task RevokeAllActiveForUserAsync(
+        Guid userId, int? issuedEpoch, DateTimeOffset now, CancellationToken ct)
     {
         // Bulk update rather than tracked read-modify-save: it never trips the
         // #176 xmin concurrency token (so it is safe to call from the rotation
         // fail path) and revokes the whole family in one statement.
         await db.RefreshTokens
-            .Where(t => t.UserId == userId && t.RevokedAt == null)
+            .Where(t => t.UserId == userId && t.RevokedAt == null
+                && (!issuedEpoch.HasValue || t.IssuedEpoch == issuedEpoch.Value))
             .ExecuteUpdateAsync(s => s.SetProperty(t => t.RevokedAt, now), ct);
     }
 

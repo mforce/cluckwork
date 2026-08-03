@@ -53,8 +53,16 @@ internal static class AccountLockout
     public static async Task RecordFailedAccessAsync(
         UserManager<ApplicationUser> userManager, AppDbContext db, ApplicationUser user)
     {
+        // Bind this durable failure to the credential state whose password was
+        // actually rejected. A concurrent disable or password reset supersedes
+        // that proof; after a concurrency reload, never charge the stale guess
+        // to the newer state (or leave a disabled account locked on re-enable).
+        var attemptedCredentialEpoch = user.CredentialEpoch;
         for (var attempt = 0; attempt < 10; attempt++)
         {
+            if (user.DisabledAt is not null || user.CredentialEpoch != attemptedCredentialEpoch)
+                return;
+
             var result = await SingleAttemptExecution.RunAsync(
                 db.Database, () => userManager.AccessFailedAsync(user));
             if (result.Succeeded)

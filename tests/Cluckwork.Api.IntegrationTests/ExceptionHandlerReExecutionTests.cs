@@ -22,9 +22,13 @@ using Microsoft.Extensions.DependencyInjection;
 // request under this TestServer, so a suite built on them flakes.
 internal sealed class ThrowingChangeOwnPasswordValidator : AbstractValidator<ChangeOwnPasswordCommand>
 {
-    public ThrowingChangeOwnPasswordValidator() =>
-        RuleFor(c => c.NewPassword).Custom((_, _) =>
-            throw new InvalidOperationException("change-password fault"));
+    public ThrowingChangeOwnPasswordValidator(AppDbContext db) =>
+        RuleFor(c => c.NewPassword).CustomAsync(async (_, _, ct) =>
+        {
+            await db.Users.ExecuteUpdateAsync(setters => setters
+                .SetProperty(user => user.CredentialEpoch, user => user.CredentialEpoch + 1), ct);
+            throw new InvalidOperationException("change-password fault");
+        });
 }
 
 internal sealed class ThrowingCreateExpenseValidator : AbstractValidator<CreateExpenseCommand>
@@ -143,6 +147,7 @@ public sealed class ExceptionHandlerReExecutionTests(ExceptionReExecutionFactory
         Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
         Assert.Contains(ProblemDetails500, body, StringComparison.Ordinal);
         Assert.DoesNotContain("idempotency-key-required", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("Auth.CredentialsSuperseded", body, StringComparison.Ordinal);
     }
 
     // (b) CHARACTERIZATION, not a mutant-killer: a plain idempotency-TRACKED

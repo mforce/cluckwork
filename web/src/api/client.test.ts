@@ -116,6 +116,30 @@ describe("apiFetch — no in-memory token", () => {
     expect(callsTo(fetchMock, "/stock")).toHaveLength(0);
   });
 
+  it("preserves a credential-revocation reason from a failed silent refresh", async () => {
+    clearAccessToken();
+    fetchMock.mockResolvedValueOnce(jsonResponse({
+      title: "Auth.CredentialsSuperseded",
+      detail: "Your credentials changed.",
+    }, 401));
+
+    await expect(apiGet("/stock")).rejects.toMatchObject({ status: 401 });
+
+    expect(onUnauth).toHaveBeenCalledWith("Auth.CredentialsSuperseded");
+  });
+
+  it("preserves a credential-revocation reason during load-time session restore", async () => {
+    clearAccessToken();
+    fetchMock.mockResolvedValueOnce(jsonResponse({
+      title: "Auth.AccountDisabled",
+      detail: "Your account has been disabled.",
+    }, 401));
+
+    await expect(restoreSession()).resolves.toBe(false);
+
+    expect(onUnauth).toHaveBeenCalledWith("Auth.AccountDisabled");
+  });
+
   it("uses the refreshed token when the silent refresh succeeds", async () => {
     clearAccessToken();
     fetchMock
@@ -124,6 +148,17 @@ describe("apiFetch — no in-memory token", () => {
     const body = await apiGet<{ ok: boolean }>("/stock");
     expect(body).toEqual({ ok: true });
     expect(authOf(callsTo(fetchMock, "/stock")[0])).toBe("Bearer at2");
+  });
+});
+
+describe("apiFetch — unrecoverable session reason", () => {
+  it("passes the original protected-request 401 title to auth teardown after refresh fails", async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ title: "Auth.CredentialsSuperseded" }, 401))
+      .mockResolvedValueOnce(jsonResponse({ title: "Identity.InvalidRefreshToken" }, 401));
+
+    await expect(apiGet("/stock")).rejects.toMatchObject({ title: "Auth.CredentialsSuperseded" });
+    expect(onUnauth).toHaveBeenCalledWith("Auth.CredentialsSuperseded");
   });
 });
 
@@ -704,6 +739,24 @@ describe("changePassword (#165)", () => {
     await expect(changePassword({ currentPassword: "x", newPassword: "y" })).rejects.toThrow(ApiError);
     expect(getAccessToken()).toBe("at1"); // unchanged
   });
+
+  it("refreshes and retries inside the cookie lock when the access token expired", async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ title: "Unauthorized" }, 401))
+      .mockResolvedValueOnce(accessResponse("refreshed-access"))
+      .mockResolvedValueOnce(accessResponse("password-change-access"));
+
+    await changePassword({ currentPassword: "a", newPassword: "b" });
+
+    const changes = callsTo(fetchMock, "/auth/change-password");
+    expect(changes).toHaveLength(2);
+    expect(callsTo(fetchMock, "/auth/refresh")).toHaveLength(1);
+    // The one logical write keeps its idempotency key across the auth retry.
+    expect(headerOf(changes[1], "Idempotency-Key"))
+      .toBe(headerOf(changes[0], "Idempotency-Key"));
+    expect(authOf(changes[1])).toBe("Bearer refreshed-access");
+    expect(getAccessToken()).toBe("password-change-access");
+  });
 });
 
 // #308 — step-up grant issuance. Consumed by UsersPage.tsx immediately before
@@ -830,6 +883,249 @@ describe("cross-tab refresh coordination (#169)", () => {
     // coordination. (Asserted on the code's own call, not the setup call above.)
     expect(sutLockName(locks)).toBe("cluckwork.auth.refresh");
     expect(getAccessToken()).toBe("at2");
+  });
+
+  it("serializes password change after an in-flight refresh so stale credentials cannot win last", async () => {
+    const locks = fakeLockManager();
+    vi.stubGlobal("navigator", { locks });
+
+    const refreshGate = deferred<Response>();
+    const changeGate = deferred<Response>();
+    fetchMock.mockImplementation((url: string) => {
+      if (url.endsWith("/auth/refresh")) return refreshGate.promise;
+      if (url.endsWith("/auth/change-password")) return changeGate.promise;
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    // The refresh proves the old credential epoch, then remains in flight. A
+    // password change that overtakes it can commit E+1 first, only for the late
+    // refresh response to overwrite both browser credentials with retired E.
+    const refreshing = restoreSession();
+    await drain();
+    const changing = changePassword({ currentPassword: "a", newPassword: "b" });
+    await drain();
+
+    // Resolve in the dangerous order. Before serialization, change-password
+    // commits first and the stale refresh wins last. With the shared lock, the
+    // already-resolved password response is not requested until refresh exits.
+    changeGate.resolve(accessResponse("password-change-token"));
+    await drain();
+    refreshGate.resolve(accessResponse("stale-refresh-token"));
+
+    await expect(refreshing).resolves.toBe(true);
+    await expect(changing).resolves.toBeUndefined();
+    expect(getAccessToken()).toBe("password-change-token");
+    expect(callsTo(fetchMock, "/auth/refresh")).toHaveLength(1);
+    expect(callsTo(fetchMock, "/auth/change-password")).toHaveLength(1);
+    expect(sutLockName(locks)).toBe("cluckwork.auth.refresh");
+  });
+
+  it("drops a queued password change before any request when logout supersedes it", async () => {
+    const locks = fakeLockManager();
+    vi.stubGlobal("navigator", { locks });
+
+    // Another tab owns the cookie lock, so this tab's password change queues
+    // without starting a request. Logout must make that queued operation inert.
+    const otherTab = deferred<void>();
+    locks.request("cluckwork.auth.refresh", () => otherTab.promise);
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.endsWith("/auth/logout")) return new Response(null, { status: 204 });
+      if (url.endsWith("/auth/refresh")) return accessResponse("post-logout-refresh");
+      if (url.endsWith("/auth/change-password")) return accessResponse("post-logout-change");
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    const changing = changePassword({ currentPassword: "a", newPassword: "b" })
+      .catch((err: unknown) => err);
+    await drain();
+    await logout();
+    otherTab.resolve();
+    await changing;
+
+    expect(getAccessToken()).toBeNull();
+    expect(callsTo(fetchMock, "/auth/refresh")).toHaveLength(0);
+    expect(callsTo(fetchMock, "/auth/change-password")).toHaveLength(0);
+    expect(callsTo(fetchMock, "/auth/logout")).toHaveLength(1);
+  });
+
+  it("drops a queued password change before it can write into a newer login", async () => {
+    const locks = fakeLockManager();
+    vi.stubGlobal("navigator", { locks });
+
+    const otherTab = deferred<void>();
+    locks.request("cluckwork.auth.refresh", () => otherTab.promise);
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.endsWith("/auth/login")) return accessResponse("new-login-token");
+      if (url.endsWith("/auth/change-password")) return accessResponse("stale-change-token");
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    const changing = changePassword({ currentPassword: "a", newPassword: "b" })
+      .catch((err: unknown) => err);
+    await drain();
+    await login({ email: "new@session.test", password: `pw-${crypto.randomUUID()}` });
+    otherTab.resolve();
+    await changing;
+
+    expect(getAccessToken()).toBe("new-login-token");
+    expect(callsTo(fetchMock, "/auth/change-password")).toHaveLength(0);
+  });
+
+  it("drops a password change whose initial refresh is superseded by a newer login", async () => {
+    const refreshGate = deferred<Response>();
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.endsWith("/auth/refresh")) return refreshGate.promise;
+      if (url.endsWith("/auth/login")) return accessResponse("new-login-token");
+      if (url.endsWith("/auth/change-password")) return accessResponse("stale-change-token");
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    clearAccessToken();
+    const changing = changePassword({ currentPassword: "a", newPassword: "b" })
+      .catch((err: unknown) => err);
+    await drain();
+
+    // The form is already inside the cookie lock, obtaining an access token.
+    // A newer login must prevent that old form from borrowing the new bearer
+    // when the now-stale refresh finishes.
+    await login({ email: "new@session.test", password: `pw-${crypto.randomUUID()}` });
+    refreshGate.resolve(accessResponse("stale-refresh-token"));
+    await changing;
+
+    expect(getAccessToken()).toBe("new-login-token");
+    expect(callsTo(fetchMock, "/auth/refresh")).toHaveLength(1);
+    expect(callsTo(fetchMock, "/auth/change-password")).toHaveLength(0);
+  });
+
+  it("never retries an in-flight password change against a newer login", async () => {
+    const firstChange = deferred<Response>();
+    let changeCalls = 0;
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.endsWith("/auth/change-password")) {
+        changeCalls += 1;
+        if (changeCalls === 1) return firstChange.promise;
+        return accessResponse("stale-form-retry-token");
+      }
+      if (url.endsWith("/auth/login")) return accessResponse("new-login-token");
+      if (url.endsWith("/auth/refresh")) return accessResponse("new-login-refreshed");
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    const changing = changePassword({ currentPassword: "a", newPassword: "b" })
+      .catch((err: unknown) => err);
+    await drain();
+
+    // Supersede the form while its first request is already on the wire, then
+    // make that old request answer 401. Generic apiFetch behavior would refresh
+    // the newer session and resend the old form body against it.
+    await login({ email: "new@session.test", password: `pw-${crypto.randomUUID()}` });
+    firstChange.resolve(jsonResponse({ title: "Unauthorized" }, 401));
+    await changing;
+
+    expect(getAccessToken()).toBe("new-login-token");
+    expect(callsTo(fetchMock, "/auth/change-password")).toHaveLength(1);
+    expect(callsTo(fetchMock, "/auth/refresh")).toHaveLength(0);
+  });
+
+  it("does not apply the refresh timeout to a non-replayable password change", async () => {
+    vi.useFakeTimers();
+    try {
+      let changeSignal: AbortSignal | undefined;
+      const changeGate = deferred<Response>();
+      fetchMock.mockImplementation(async (url: string, init: RequestInit) => {
+        if (url.endsWith("/auth/change-password")) {
+          changeSignal = init.signal ?? undefined;
+          return changeGate.promise;
+        }
+        throw new Error(`unexpected fetch: ${url}`);
+      });
+
+      const changing = changePassword({ currentPassword: "a", newPassword: "b" });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(callsTo(fetchMock, "/auth/change-password")).toHaveLength(1);
+
+      // A slow committed response cannot be retried with the old password. The
+      // 15-second refresh timeout therefore must not abort this mutation.
+      await vi.advanceTimersByTimeAsync(20_000);
+      const wasAborted = changeSignal?.aborted;
+
+      changeGate.resolve(accessResponse("password-change-token"));
+      await changing.catch(() => undefined);
+      expect(wasAborted).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("still times out a refresh nested inside the unbounded password-change lock", async () => {
+    vi.useFakeTimers();
+    try {
+      let refreshSignal: AbortSignal | undefined;
+      let rejectRefresh!: (reason: unknown) => void;
+      let refreshCalls = 0;
+      fetchMock.mockImplementation(async (url: string, init: RequestInit) => {
+        if (url.endsWith("/auth/refresh")) {
+          refreshCalls += 1;
+          if (refreshCalls > 1) return accessResponse("recovered-token");
+          refreshSignal = init.signal ?? undefined;
+          return new Promise<Response>((_resolve, reject) => {
+            rejectRefresh = reject;
+            refreshSignal?.addEventListener("abort", () =>
+              reject(new DOMException("timed out", "AbortError")),
+            );
+          });
+        }
+        if (url.endsWith("/auth/change-password")) return accessResponse("must-not-send");
+        throw new Error(`unexpected fetch: ${url}`);
+      });
+
+      clearAccessToken();
+      const changing = changePassword({ currentPassword: "a", newPassword: "b" })
+        .catch((err: unknown) => err);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(callsTo(fetchMock, "/auth/refresh")).toHaveLength(1);
+
+      await vi.advanceTimersByTimeAsync(20_000);
+      const wasAborted = refreshSignal?.aborted;
+      // Cleanup for the red implementation, whose missing timeout leaves the
+      // promise pending. This is a no-op after the fixed abort already rejected.
+      rejectRefresh(new DOMException("test cleanup", "AbortError"));
+      await changing;
+
+      expect(wasAborted).toBe(true);
+      expect(callsTo(fetchMock, "/auth/change-password")).toHaveLength(0);
+      // The failed operation released both the local queue and Web Lock.
+      await expect(restoreSession()).resolves.toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("still aborts an in-flight password change when the user explicitly logs out", async () => {
+    const changeStarted = deferred<void>();
+    let changeSignal: AbortSignal | undefined;
+    fetchMock.mockImplementation(async (url: string, init: RequestInit) => {
+      if (url.endsWith("/auth/change-password")) {
+        changeSignal = init.signal ?? undefined;
+        changeStarted.resolve();
+        return new Promise<Response>((_resolve, reject) =>
+          changeSignal?.addEventListener("abort", () =>
+            reject(new DOMException("logged out", "AbortError")),
+          ),
+        );
+      }
+      if (url.endsWith("/auth/logout")) return new Response(null, { status: 204 });
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    const changing = changePassword({ currentPassword: "a", newPassword: "b" })
+      .catch((err: unknown) => err);
+    await changeStarted.promise;
+    await logout();
+
+    expect(changeSignal?.aborted).toBe(true);
+    expect(await changing).toMatchObject({ name: "AbortError" });
+    expect(getAccessToken()).toBeNull();
   });
 
   it("a lock held under a DIFFERENT name does not block refresh (fake is name-scoped, like the real API)", async () => {

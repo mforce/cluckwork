@@ -35,6 +35,7 @@
 // defect being fixed here.)
 
 import { expect, test } from "../src/fixtures";
+import type { Page } from "@playwright/test";
 import { restrictedWorker, unrestrictedWorker } from "../src/cast";
 import { farmToday } from "../src/farm";
 import { tEn } from "../src/i18n";
@@ -44,6 +45,12 @@ import { selectOptionContaining } from "../src/dom";
 const ASSIGNED_FLOCK = "Sim House A";
 /** The flock it deliberately leaves unassigned, so the narrowing is genuine. */
 const UNASSIGNED_FLOCK = "Sim House B";
+const GRADES = ["Small", "Medium", "Large", "Jumbo", "Seconds"];
+
+async function clearSeededGrades(page: Page) {
+  for (const grade of GRADES)
+    await page.getByLabel(grade, { exact: true }).fill("0");
+}
 
 test.describe("Worker", () => {
   test("records a daily entry by grade on an assigned flock", async ({ page, signIn, farm }) => {
@@ -63,6 +70,8 @@ test.describe("Worker", () => {
     await page.getByLabel(tEn("dailyEntry:totalEggsLabel"), { exact: true }).fill("120");
     await page.getByLabel(tEn("dailyEntry:crackedLabel"), { exact: true }).fill("2");
     await page.getByLabel(tEn("dailyEntry:mortalityLabel"), { exact: true }).fill("1");
+    await clearSeededGrades(page);
+    await page.getByLabel("Small", { exact: true }).fill("114");
 
     await page.getByRole("button", { name: tEn("dailyEntry:saveDraftButton") }).click();
 
@@ -90,6 +99,7 @@ test.describe("Worker", () => {
     // this selectOption is what will start failing, which is the right place to
     // notice.
     await page.getByLabel(tEn("dailyEntry:totalEggsLabel"), { exact: true }).fill("120");
+    await clearSeededGrades(page);
     await page.getByRole("button", { name: tEn("dailyEntry:saveDraftButton") }).click();
 
     // The refusal text comes from the SERVER's ProblemDetails detail, which is
@@ -118,6 +128,7 @@ test.describe("Worker", () => {
     await page.getByLabel(tEn("dailyEntry:dateLabel")).fill(today);
     await selectOptionContaining(page.getByLabel(tEn("dailyEntry:flockLabel")), UNASSIGNED_FLOCK);
     await page.getByLabel(tEn("dailyEntry:totalEggsLabel"), { exact: true }).fill("130");
+    await clearSeededGrades(page);
     await page.getByRole("button", { name: tEn("dailyEntry:saveDraftButton") }).click();
 
     await expect(page.getByText(/not assigned to this flock/i)).toBeHidden();

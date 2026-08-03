@@ -3,6 +3,7 @@ namespace Cluckwork.Api.IntegrationTests;
 using System.Net;
 using System.Net.Http.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+using Microsoft.EntityFrameworkCore;
 
 // #165 — password management. Two halves with different rules: an Owner sets
 // another user's password without the current one, and any signed-in user
@@ -63,6 +64,8 @@ public sealed class UserPasswordTests(CluckworkWebApplicationFactory factory)
     {
         var (admin, accountId) = await AdminAsync();
         var (email, id) = await SeedWorkerAsync(admin, accountId);
+        var epochBeforeReset = await factory.WithTenantScopeAsync(accountId, async db =>
+            await db.Users.Where(user => user.Id == id).Select(user => user.CredentialEpoch).SingleAsync());
 
         // The worker is signed in BEFORE the reset — this is the session a reset
         // has to evict (otherwise a compromised session survives the reset).
@@ -78,6 +81,8 @@ public sealed class UserPasswordTests(CluckworkWebApplicationFactory factory)
         var reset = await admin.PutWithKeyAsync($"/api/v1/users/{id}/password",
             Guid.NewGuid().ToString(), new { newPassword = FreshPassword() });
         Assert.Equal(HttpStatusCode.NoContent, reset.StatusCode);
+        Assert.Equal(epochBeforeReset + 1, await factory.WithTenantScopeAsync(accountId, async db =>
+            await db.Users.Where(user => user.Id == id).Select(user => user.CredentialEpoch).SingleAsync()));
 
         // The worker's CURRENT token is dead: no new access tokens for the old holder.
         Assert.Equal(HttpStatusCode.Unauthorized,
@@ -125,10 +130,13 @@ public sealed class UserPasswordTests(CluckworkWebApplicationFactory factory)
         // The rotated cookie really is on the response (a cached replay would omit it).
         Assert.Contains(first.Headers.GetValues("Set-Cookie"),
             c => c.StartsWith("cluckwork_rt=", StringComparison.Ordinal));
+        var rotated = await TestHarness.ReadTokensAsync(first);
 
-        // Repeating the identical request is NOT served from cache — it re-executes
-        // and now fails, because the current password has changed.
-        var repeat = await client.PostAsJsonAsync("/api/v1/auth/change-password",
+        // Use the newly issued access token: the original one is deliberately
+        // retired by the credential epoch. This still proves the response was
+        // not cached — the handler re-executes and the old current password fails.
+        var repeat = await factory.CreateAuthedClient(rotated.AccessToken)
+            .PostAsJsonAsync("/api/v1/auth/change-password",
             new { currentPassword = TestHarness.Password, newPassword });
         Assert.Equal(HttpStatusCode.BadRequest, repeat.StatusCode);
     }
