@@ -271,9 +271,16 @@ public sealed class RequestLoggingTests(RequestLoggingFactory factory)
         // Declares 10 bytes, actually sends ~8 KB: the cap is breached mid-read,
         // inside the generated binder, rather than by the declared-length
         // short-circuit that never reaches binding at all.
+        //
+        // NonSeekableStream, shared with AuthBodyLimitTests, NOT a MemoryStream
+        // (#398 review round 2, Codex): both paths answer 413, so a test that
+        // drifted onto the declared-length short-circuit would still pass while
+        // proving nothing about the streamed one. Matching the transport shape
+        // AuthBodyLimitTests already uses for this path keeps that honest by
+        // construction rather than by argument.
         var payload = System.Text.Encoding.UTF8.GetBytes(
             $"{{\"email\":\"nobody@example.com\",\"password\":\"{new string('a', 8192)}\"}}");
-        var content = new StreamContent(new MemoryStream(payload));
+        var content = new StreamContent(new NonSeekableStream(payload));
         content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
         content.Headers.ContentLength = 10;
 
