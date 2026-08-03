@@ -535,7 +535,7 @@ async function currentAccessToken(): Promise<string> {
     // logout already tore everything down. Either way, this failure must not
     // touch the CURRENT session — no clearing, no onUnauthenticated navigate.
     if (err instanceof StaleSessionError) return supersededToken();
-    onUnauthenticated?.();
+    onUnauthenticated?.(err instanceof ApiError ? err.title : undefined);
     throw new ApiError(401, "NoSession", "Not authenticated.");
   }
 }

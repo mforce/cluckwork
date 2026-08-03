@@ -48,15 +48,28 @@ public sealed class EpochReplayBarrierInterceptor : DbCommandInterceptor
         DbCommand command, CommandEventData eventData, InterceptionResult<int> result,
         CancellationToken cancellationToken = default)
     {
-        if (command.CommandText.Contains("UPDATE refresh_tokens", StringComparison.OrdinalIgnoreCase)
-            && command.CommandText.Contains("RevokedAt", StringComparison.Ordinal)
-            && Interlocked.CompareExchange(ref _armed, 0, 1) == 1)
-        {
-            _reached.TrySetResult();
-            await _release.Task.WaitAsync(cancellationToken);
-        }
+        await WaitIfArmedAsync(command, cancellationToken);
 
         return result;
+    }
+
+    public override async ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+        DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result,
+        CancellationToken cancellationToken = default)
+    {
+        await WaitIfArmedAsync(command, cancellationToken);
+        return result;
+    }
+
+    private async Task WaitIfArmedAsync(DbCommand command, CancellationToken cancellationToken)
+    {
+        if (!command.CommandText.Contains("UPDATE refresh_tokens", StringComparison.OrdinalIgnoreCase)
+            || !command.CommandText.Contains("RevokedAt", StringComparison.Ordinal)
+            || Interlocked.CompareExchange(ref _armed, 0, 1) != 1)
+            return;
+
+        _reached.TrySetResult();
+        await _release.Task.WaitAsync(cancellationToken);
     }
 
     private static TaskCompletionSource NewSignal() =>
@@ -66,6 +79,40 @@ public sealed class EpochReplayBarrierInterceptor : DbCommandInterceptor
 public sealed class CredentialEpochRaceTests(CredentialEpochRaceFactory factory)
     : IClassFixture<CredentialEpochRaceFactory>
 {
+    [Fact]
+    public async Task ActiveRefreshThatPassedTheOldEpochCheck_MintsAChildRejectedAfterTheBump()
+    {
+        var email = $"epoch-race-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var active = await factory.LoginAsync(email);
+
+        factory.Barrier.Arm();
+        var rotationTask = factory.CreateClient().PostRefreshAsync(active.RefreshToken);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await factory.Barrier.WaitUntilReachedAsync(timeout.Token);
+
+        try
+        {
+            await factory.WithTenantScopeAsync(accountId, async db =>
+            {
+                var user = await db.Users.SingleAsync(candidate => candidate.Email == email);
+                user.CredentialEpoch++;
+                await db.SaveChangesAsync();
+            });
+        }
+        finally
+        {
+            factory.Barrier.Release();
+        }
+
+        var rotation = await rotationTask;
+        rotation.EnsureSuccessStatusCode();
+        var child = await TestHarness.ReadTokensAsync(rotation);
+
+        Assert.Equal(HttpStatusCode.Unauthorized,
+            (await factory.CreateClient().PostRefreshAsync(child.RefreshToken)).StatusCode);
+    }
+
     [Fact]
     public async Task ReplayThatPassedTheOldEpochCheck_CannotRevokeTheFreshEpochFamily()
     {

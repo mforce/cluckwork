@@ -1,10 +1,10 @@
 # Credential Epoch Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **Status:** Implemented by PR #399. This is the implementation record, not a pending runbook. The application had never been deployed, so the schema changes were folded into the repository's sole `InitialCreate` migration as required by `AGENTS.md`; do not create a second credential-epoch migration or a legacy-data backfill.
 
 **Goal:** Add Deploy A's credential-epoch reader, immediate password-reset revocation, and client sign-out reason plumbing without exposing the future user-disable/email-change mutations.
 
-**Architecture:** `ApplicationUser.CredentialEpoch` and `RefreshToken.IssuedEpoch` bind all accepted credentials to a monotonic user value. JWT and refresh validation enforce the binding; a middleware database projection enforces access-token binding before authorization. Password-reset paths increment the epoch in the transaction that already revokes refresh tokens. The user-directed migration revokes active legacy refresh tokens at cutover, as explicitly confirmed for this not-yet-deployed application.
+**Architecture:** `ApplicationUser.CredentialEpoch` and `RefreshToken.IssuedEpoch` bind all accepted credentials to a monotonic user value. JWT and refresh validation enforce the binding; a middleware database projection enforces access-token binding before authorization. Password-reset paths increment the epoch in the transaction that already revokes refresh tokens. The credential columns and defaults live directly in `InitialCreate`; a virgin database therefore has no pre-epoch credentials to revoke at cutover.
 
 **Tech Stack:** .NET 10, ASP.NET Core minimal APIs/middleware, EF Core/Postgres, ASP.NET Identity, xUnit/Testcontainers, React 19, Vite/Vitest, Playwright, k6.
 
@@ -28,7 +28,7 @@
 - Modify: `src/Cluckwork.Infrastructure/Identity/RefreshToken.cs`
 - Modify: `src/Cluckwork.Infrastructure/Identity/JwtTokenService.cs`
 - Modify: `src/Cluckwork.Infrastructure/Persistence/Configurations/ApplicationUserConfiguration.cs`
-- Create: `src/Cluckwork.Infrastructure/Persistence/Migrations/*_CredentialEpoch.cs`
+- Modify: `src/Cluckwork.Infrastructure/Persistence/Migrations/20260801190854_InitialCreate.cs`
 - Modify: `src/Cluckwork.Infrastructure/Persistence/Migrations/AppDbContextModelSnapshot.cs`
 - Test: `tests/Cluckwork.Api.IntegrationTests/CredentialEpochTests.cs`
 
@@ -37,7 +37,7 @@
 
 - [ ] **Step 1: Write failing integration tests** for a valid current-epoch JWT and a token minted from every login/change-password/refresh path carrying the matching epoch. Name each test for the removed claim/property/mint assignment that must make it fail.
 - [ ] **Step 2: Run the focused tests** and confirm failure because the claim and columns do not exist.
-- [ ] **Step 3: Implement the minimal model/configuration/JWT/mint assignments**, then generate the migration and hand-edit it only as required for the confirmed cutover revocation and lock timeout.
+- [ ] **Step 3: Implement the minimal model/configuration/JWT/mint assignments** and fold the columns/defaults into `InitialCreate`, preserving its hand-written indexes and reference-data SQL. Do not generate a second migration.
 - [ ] **Step 4: Run focused tests** and confirm green.
 
 ### Task 2: Credential epoch enforcement and reset bumps
@@ -58,7 +58,7 @@
 - [ ] **Step 3: Add the middleware and reset epoch mutation** in their existing transactions; place refresh checking before grace/replay and scope replay family invalidation by issued epoch.
 - [ ] **Step 4: Run focused tests** and confirm green.
 
-### Task 3: Cutover and concurrency contracts
+### Task 3: Virgin-schema and concurrency contracts
 
 **Files:**
 - Modify: `tests/Cluckwork.Api.IntegrationTests/CredentialEpochTests.cs`
@@ -67,11 +67,11 @@
 
 **Interfaces:**
 - Consumes runtime epoch enforcement and migration artifacts.
-- Produces coverage for legacy `IssuedEpoch=0`, migration-time legacy revocation, race-safe child rejection, no cross-epoch replay revocation, and preserved same-epoch theft detection.
+- Produces coverage for retired `IssuedEpoch=0` rows, virgin-schema defaults, race-safe child rejection, no cross-epoch replay revocation, and preserved same-epoch theft detection.
 
-- [ ] **Step 1: Write failing database-backed tests** that seed pre-migration-shaped legacy rows and use barriers around refresh/reset interleavings; assert child refresh usability by presenting it.
+- [ ] **Step 1: Write failing database-backed tests** that insert retired-epoch rows directly and use barriers around refresh/reset interleavings; assert each child token's usability or rejection by presenting it.
 - [ ] **Step 2: Run the focused tests** and confirm they fail under the pre-epoch or incorrectly ordered/scoped implementations.
-- [ ] **Step 3: Add only the synchronization test hooks already established by the integration harness, and complete the production query predicates required by these observable contracts.**
+- [ ] **Step 3: Add only the synchronization test hooks established by the integration harness, complete the production query predicates required by these observable contracts, and keep `MigrationSecurityReviewTests`' exactly-one-migration fence intact.**
 - [ ] **Step 4: Run focused tests and mutation checks** (remove/check-bypass mutations locally) and restore production code after each confirmed red result.
 
 ### Task 4: SPA teardown reason and documentation
@@ -104,4 +104,4 @@
 
 - [ ] **Step 1: Inspect the direct refresh/401/cookie assertions and adjust only behavior made intentionally different by the issue.**
 - [ ] **Step 2: Run every required command exactly as requested:** `dotnet build Cluckwork.sln`, `dotnet test Cluckwork.sln`, `cd web && npm run typecheck && npm test`, `bash tools/simulation/reset.sh`, and `cd tools/simulation/ui && npm test && npm run mutation`.
-- [ ] **Step 3: Review `git diff --check`, inspect the diff against the issue checklist, commit the complete scoped change, push `feat/364-credential-epoch`, and open the PR.**
+- [ ] **Step 3: Review `git diff --check` and inspect the diff against the issue checklist before handing the implementation off for publication.**

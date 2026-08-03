@@ -6,10 +6,12 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+using Cluckwork.Application.Common;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Infrastructure.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 
 [Collection(IntegrationCollection.Name)]
@@ -119,13 +121,21 @@ public sealed class CredentialEpochTests(CluckworkWebApplicationFactory factory)
         var email = $"epoch-{Guid.NewGuid():N}@test.local";
         var accountId = await factory.SeedAccountWithUserAsync(email);
         var presented = await factory.LoginAsync(email);
+        var presentedRowId = await factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            var userId = await db.Users.Where(user => user.Email == email)
+                .Select(user => user.Id).SingleAsync();
+            return await db.RefreshTokens.Where(token => token.UserId == userId)
+                .Select(token => token.Id).SingleAsync();
+        });
+        var currentEpochSibling = await factory.LoginAsync(email);
         var replacementRaw = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
         var replacementHash = HashToken(replacementRaw);
 
         await factory.WithTenantScopeAsync(accountId, async db =>
         {
             var user = await db.Users.SingleAsync(candidate => candidate.Email == email);
-            var presentedRow = await db.RefreshTokens.SingleAsync(token => token.UserId == user.Id);
+            var presentedRow = await db.RefreshTokens.SingleAsync(token => token.Id == presentedRowId);
             var now = DateTimeOffset.UtcNow;
 
             presentedRow.RevokedAt = now;
@@ -152,6 +162,8 @@ public sealed class CredentialEpochTests(CluckworkWebApplicationFactory factory)
             .Select(token => token.RevokedAt)
             .SingleAsync());
         Assert.Null(revokedAt);
+        Assert.Equal(HttpStatusCode.OK,
+            (await factory.CreateClient().PostRefreshAsync(currentEpochSibling.RefreshToken)).StatusCode);
     }
 
     [Fact]
@@ -176,6 +188,31 @@ public sealed class CredentialEpochTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(HttpStatusCode.Unauthorized, stepUp.StatusCode);
         Assert.Equal("Auth.AccountDisabled", (await stepUp.Content
             .ReadFromJsonAsync<ProblemDetails>())!.Title);
+    }
+
+    [Fact]
+    public async Task DisabledLogin_IsIndistinguishableFromAWrongPassword()
+    {
+        var disabledEmail = $"epoch-{Guid.NewGuid():N}@test.local";
+        var disabledAccountId = await factory.SeedAccountWithUserAsync(disabledEmail);
+        await factory.WithTenantScopeAsync(disabledAccountId, async db =>
+        {
+            var user = await db.Users.SingleAsync(candidate => candidate.Email == disabledEmail);
+            user.DisabledAt = DateTimeOffset.UtcNow;
+            await db.SaveChangesAsync();
+        });
+        var enabledEmail = $"epoch-{Guid.NewGuid():N}@test.local";
+        await factory.SeedAccountWithUserAsync(enabledEmail);
+
+        using var scope = factory.Services.CreateScope();
+        var identity = scope.ServiceProvider.GetRequiredService<IIdentityProvider>();
+        var disabled = await identity.LoginAsync(disabledEmail, TestHarness.Password);
+        var wrongPassword = await identity.LoginAsync(enabledEmail, CreatePassword());
+
+        Assert.True(disabled.IsFailure);
+        Assert.True(wrongPassword.IsFailure);
+        Assert.Equal(wrongPassword.Error.Code, disabled.Error.Code);
+        Assert.Equal(wrongPassword.Error.Description, disabled.Error.Description);
     }
 
     [Fact]
@@ -220,6 +257,32 @@ public sealed class CredentialEpochTests(CluckworkWebApplicationFactory factory)
         var problem = (await response.Content.ReadFromJsonAsync<ProblemDetails>())!;
         Assert.Equal("Auth.CredentialsSuperseded", problem.Title);
         Assert.DoesNotContain("Idempotency-Key", problem.Detail ?? string.Empty, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task SupersededPendingUser_IsRejectedBeforeTheMustChangePasswordGate()
+    {
+        var accountId = Guid.NewGuid();
+        var email = $"epoch-{Guid.NewGuid():N}@test.local";
+        await factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            db.Accounts.Add(Account.Create(accountId, "Epoch Gate Farm", "UTC", "USD"));
+            await db.SaveChangesAsync();
+        });
+        await factory.SeedUserPendingPasswordChangeAsync(accountId, email);
+        var accessToken = await factory.LoginForAccessTokenAsync(email);
+        await factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            var user = await db.Users.SingleAsync(candidate => candidate.Email == email);
+            user.CredentialEpoch++;
+            await db.SaveChangesAsync();
+        });
+
+        var response = await factory.CreateAuthedClient(accessToken).GetAsync("/api/v1/flocks");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal("Auth.CredentialsSuperseded", (await response.Content
+            .ReadFromJsonAsync<ProblemDetails>())!.Title);
     }
 
     [Fact]

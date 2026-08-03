@@ -123,7 +123,18 @@ public sealed class IdentityProvider(
             // delivered, so this does not fork the chain. Anything else — a stale
             // token, an expired grace, or a replacement already gone — is a genuine
             // replay and still burns the family down.
-            var graced = await TryGraceReplacementAsync(stored, now, ct);
+            var (graced, crossEpochReplacement) =
+                await InspectGraceReplacementAsync(stored, now, ct);
+            if (crossEpochReplacement)
+            {
+                // A mixed-version replica linked this current-epoch token to a
+                // child whose default epoch is permanently retired. That child
+                // is not evidence of theft in the current family: fail inertly,
+                // or repeated presentation of the parent could keep revoking
+                // unrelated sessions minted after the new version took over.
+                return Result.Failure<TokenPair>(Error.Validation(
+                    "Identity.InvalidRefreshToken", "Refresh token is invalid."));
+            }
             if (graced is null)
             {
                 await RevokeAllActiveForUserAsync(stored.UserId, stored.IssuedEpoch, now, ct);
@@ -641,28 +652,34 @@ public sealed class IdentityProvider(
         };
     }
 
-    // #176 — returns the live replacement to rotate when `revoked` is a benign
-    // grace retry (rotated within the grace window and its replacement is still
-    // active), or null when it is a genuine replay that must revoke the family.
-    private async Task<RefreshToken?> TryGraceReplacementAsync(
+    // #176/#364 — identifies three distinct states for a revoked token:
+    // a live same-epoch grace replacement, a genuine same-epoch replay, or a
+    // linked child written with a retired epoch by an old replica. The last one
+    // must fail inertly even outside the grace window; it is mixed-version
+    // evidence, not evidence that the current-epoch family was stolen.
+    private async Task<(RefreshToken? Replacement, bool CrossEpochReplacement)>
+        InspectGraceReplacementAsync(
         RefreshToken revoked, DateTimeOffset now, CancellationToken ct)
     {
-        var graceSeconds = jwtOptions.Value.RefreshReuseGraceSeconds;
-        var elapsed = now - (revoked.RevokedAt ?? now);
-        if (graceSeconds <= 0                       // grace disabled → strict replay
-            || revoked.RevokedByGrace               // already a grace hop → don't chain (one-hop bound)
-            || revoked.ReplacedByTokenHash is null
-            || revoked.RevokedAt is null
-            || elapsed < TimeSpan.Zero               // clock-skew guard: a future RevokedAt must not widen the window
-            || elapsed > TimeSpan.FromSeconds(graceSeconds))
-            return null;
+        if (revoked.ReplacedByTokenHash is null || revoked.RevokedAt is null)
+            return (null, false);
 
         var replacement = await db.RefreshTokens.FirstOrDefaultAsync(t =>
             t.TokenHash == revoked.ReplacedByTokenHash
             && t.UserId == revoked.UserId
-            && t.AccountId == revoked.AccountId
-            && t.IssuedEpoch == revoked.IssuedEpoch, ct);
-        return replacement is not null && replacement.IsActive(now) ? replacement : null;
+            && t.AccountId == revoked.AccountId, ct);
+        if (replacement is not null && replacement.IssuedEpoch != revoked.IssuedEpoch)
+            return (null, true);
+
+        var graceSeconds = jwtOptions.Value.RefreshReuseGraceSeconds;
+        var elapsed = now - revoked.RevokedAt.Value;
+        if (graceSeconds <= 0                        // grace disabled → strict replay
+            || revoked.RevokedByGrace                // already a grace hop → don't chain (one-hop bound)
+            || elapsed < TimeSpan.Zero               // clock-skew guard: a future RevokedAt must not widen the window
+            || elapsed > TimeSpan.FromSeconds(graceSeconds))
+            return (null, false);
+
+        return (replacement is not null && replacement.IsActive(now) ? replacement : null, false);
     }
 
     private async Task RevokeAllActiveForUserAsync(

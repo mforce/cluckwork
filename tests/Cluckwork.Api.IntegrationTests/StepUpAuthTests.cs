@@ -756,6 +756,26 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
     }
 
     [Fact]
+    public async Task IssueAsync_DirectlyRefusesADisabledUser()
+    {
+        using var scope = factory.Services.CreateScope();
+        var (stepUp, db, accountId, userId) = await DirectStepUpServiceAsync(
+            scope, new InMemoryStepUpGrantRegistry());
+        await using var _ = db;
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var user = await userManager.FindByIdAsync(userId.ToString());
+        Assert.NotNull(user);
+        user.DisabledAt = DateTimeOffset.UtcNow;
+        var disabled = await userManager.UpdateAsync(user);
+        Assert.True(disabled.Succeeded);
+
+        var result = await stepUp.IssueAsync(accountId, userId, TestHarness.Password);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal("Users.CurrentPasswordIncorrect", result.Error.Code);
+    }
+
+    [Fact]
     public async Task ValidateAsync_MakesTheAdmissionDecisionInOneAtomicRegistryCall()
     {
         var spy = new RecordingStepUpGrantRegistry();

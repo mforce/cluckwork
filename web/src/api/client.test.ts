@@ -116,6 +116,18 @@ describe("apiFetch — no in-memory token", () => {
     expect(callsTo(fetchMock, "/stock")).toHaveLength(0);
   });
 
+  it("preserves a credential-revocation reason from a failed silent refresh", async () => {
+    clearAccessToken();
+    fetchMock.mockResolvedValueOnce(jsonResponse({
+      title: "Auth.CredentialsSuperseded",
+      detail: "Your credentials changed.",
+    }, 401));
+
+    await expect(apiGet("/stock")).rejects.toMatchObject({ status: 401 });
+
+    expect(onUnauth).toHaveBeenCalledWith("Auth.CredentialsSuperseded");
+  });
+
   it("uses the refreshed token when the silent refresh succeeds", async () => {
     clearAccessToken();
     fetchMock
