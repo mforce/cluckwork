@@ -168,6 +168,46 @@ public sealed class CredentialEpochTests(CluckworkWebApplicationFactory factory)
     }
 
     [Fact]
+    public async Task RetiredEpochRefresh_IsRejectedInertly()
+    {
+        var email = $"epoch-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var currentEpochSibling = await factory.LoginAsync(email);
+        var retiredRaw = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
+        var retiredHash = HashToken(retiredRaw);
+
+        await factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            var user = await db.Users.SingleAsync(candidate => candidate.Email == email);
+            var now = DateTimeOffset.UtcNow;
+            db.RefreshTokens.Add(new RefreshToken
+            {
+                Id = Guid.NewGuid(),
+                UserId = user.Id,
+                AccountId = accountId,
+                TokenHash = retiredHash,
+                // Deliberately omit IssuedEpoch: the database default must
+                // produce permanently retired epoch zero.
+                CreatedAt = now,
+                ExpiresAt = now.AddDays(1),
+            });
+            await db.SaveChangesAsync();
+        });
+
+        var response = await factory.CreateClient().PostRefreshAsync(retiredRaw);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        var retired = await factory.WithTenantScopeAsync(accountId, async db => await db.RefreshTokens
+            .Where(token => token.TokenHash == retiredHash)
+            .Select(token => new { token.IssuedEpoch, token.RevokedAt })
+            .SingleAsync());
+        Assert.Equal(0, retired.IssuedEpoch);
+        Assert.Null(retired.RevokedAt);
+        Assert.Equal(HttpStatusCode.OK,
+            (await factory.CreateClient().PostRefreshAsync(currentEpochSibling.RefreshToken)).StatusCode);
+    }
+
+    [Fact]
     public async Task DisabledUser_CannotLoginRefreshOrObtainAStepUpGrant()
     {
         var email = $"epoch-{Guid.NewGuid():N}@test.local";
@@ -192,7 +232,7 @@ public sealed class CredentialEpochTests(CluckworkWebApplicationFactory factory)
     }
 
     [Fact]
-    public async Task DisabledLogin_IsIndistinguishableFromAWrongPassword()
+    public async Task DisabledLogin_DoesNotRevealPasswordValidityOrMutateLockoutState()
     {
         var disabledEmail = $"epoch-{Guid.NewGuid():N}@test.local";
         var disabledAccountId = await factory.SeedAccountWithUserAsync(disabledEmail);
@@ -207,13 +247,21 @@ public sealed class CredentialEpochTests(CluckworkWebApplicationFactory factory)
 
         using var scope = factory.Services.CreateScope();
         var identity = scope.ServiceProvider.GetRequiredService<IIdentityProvider>();
-        var disabled = await identity.LoginAsync(disabledEmail, TestHarness.Password);
-        var wrongPassword = await identity.LoginAsync(enabledEmail, CreatePassword());
+        var disabledWrong = await identity.LoginAsync(disabledEmail, CreatePassword());
+        var disabledCorrect = await identity.LoginAsync(disabledEmail, TestHarness.Password);
+        var enabledWrong = await identity.LoginAsync(enabledEmail, CreatePassword());
 
-        Assert.True(disabled.IsFailure);
-        Assert.True(wrongPassword.IsFailure);
-        Assert.Equal(wrongPassword.Error.Code, disabled.Error.Code);
-        Assert.Equal(wrongPassword.Error.Description, disabled.Error.Description);
+        Assert.True(disabledWrong.IsFailure);
+        Assert.True(disabledCorrect.IsFailure);
+        Assert.True(enabledWrong.IsFailure);
+        Assert.Equal(enabledWrong.Error, disabledWrong.Error);
+        Assert.Equal(enabledWrong.Error, disabledCorrect.Error);
+        var lockoutState = await factory.WithTenantScopeAsync(disabledAccountId, async db => await db.Users
+            .Where(user => user.Email == disabledEmail)
+            .Select(user => new { user.AccessFailedCount, user.LockoutEnd })
+            .SingleAsync());
+        Assert.Equal(0, lockoutState.AccessFailedCount);
+        Assert.Null(lockoutState.LockoutEnd);
     }
 
     [Fact]

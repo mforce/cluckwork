@@ -1694,10 +1694,9 @@ export const tl = {
     ownPassword:
       "<strong>Ang sarili mong password.</strong> Kahit sino, sa kahit anong tungkulin, ay puwedeng "
       + "magpalit ng sariling password sa screen na <strong>Account</strong> sa pamamagitan ng pag-enter ng "
-      + "kasalukuyan at bagong password (hindi bababa sa 12 karakter). Ang pagpapalit nito — o ang "
-      + "pagseset ng admin nito para sa iyo — ay nagsa-sign out sa account na iyon sa bawat <em>ibang</em> "
-      + "device; mananatiling naka-sign in ang device na pinagpalitan mo. Ang isang bukas nang session sa "
-      + "ibang lugar ay puwedeng magtagal ng ilang minuto bago tumigil sa paggana.",
+      + "kasalukuyan at bagong password (hindi bababa sa 12 karakter). Ang pagpapalit ng sarili mong password "
+      + "ay nagpapanatiling naka-sign in sa device na ito gamit ang bagong credentials. Kapag pinalitan ito — "
+      + "ikaw man o admin — bawat <em>ibang</em> bukas na session ay titigil sa susunod nitong request.",
 
     dialogsHeading: "Pagdagdag at pagtatama",
     dialogsPopup:

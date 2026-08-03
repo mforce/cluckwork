@@ -139,8 +139,8 @@ public sealed class MustChangePasswordGateTests(CluckworkWebApplicationFactory f
         });
         await factory.SeedUserPendingPasswordChangeAsync(secondAccountId, secondEmail);
         var secondTokens = await factory.LoginAsync(secondEmail);
-        var anonClient = factory.CreateClient();
-        var logoutResponse = await anonClient.PostLogoutAsync(secondTokens.RefreshToken);
+        var logoutResponse = await factory.CreateClient().PostLogoutAsync(
+            secondTokens.RefreshToken, accessToken: secondTokens.AccessToken);
         Assert.Equal(HttpStatusCode.NoContent, logoutResponse.StatusCode);
     }
 

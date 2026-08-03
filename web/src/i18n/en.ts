@@ -1967,9 +1967,8 @@ export const en = {
     ownPassword:
       "<strong>Your own password.</strong> Anyone, in any role, can change their own password on the "
       + "<strong>Account</strong> screen by entering the current one and a new one (at least 12 characters). "
-      + "Changing it — or an admin setting it for you — signs that account out on every <em>other</em> "
-      + "device; the device you changed it on stays signed in. An already-open session elsewhere can linger "
-      + "for a few minutes before it stops working.",
+      + "Changing your own password keeps this device signed in with fresh credentials. Changing it — or an "
+      + "admin setting it for you — ends every <em>other</em> open session: it stops on its next request.",
 
     // Adding & correcting
     dialogsHeading: "Adding & correcting",

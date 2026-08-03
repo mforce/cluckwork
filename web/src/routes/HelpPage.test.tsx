@@ -2,6 +2,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, within, act } from "@testing-library/react";
 import { HelpPage } from "./HelpPage";
 import i18n from "../i18n";
+import { en } from "../i18n/en";
+import { es } from "../i18n/es";
+import { tl } from "../i18n/tl";
 
 // Minimal IntersectionObserver stub (jsdom has none): capture the callback so a
 // test can simulate a section scrolling into view.
@@ -87,6 +90,19 @@ describe("HelpPage", () => {
     // #169 — the session survives the app being open in several tabs at once.
     expect(screen.getByText(/several tabs/i)).toBeInTheDocument();
     expect(signIn).toBeInTheDocument();
+  });
+
+  it("documents that password resets end other sessions on their next request in every catalog", () => {
+    render(<HelpPage />);
+    expect(screen.getByText(/stops on its next request/i)).toBeInTheDocument();
+
+    expect(en.help.ownPassword).toMatch(/stops on its next request/i);
+    expect(es.help.ownPassword).toMatch(
+      /termina todas las <em>demás<\/em> sesiones abiertas en su siguiente solicitud/i,
+    );
+    expect(tl.help.ownPassword).toMatch(/titigil sa susunod nitong request/i);
+    for (const catalog of [en, es, tl])
+      expect(catalog.help.ownPassword).not.toMatch(/few minutes|unos minutos|ilang minuto/i);
   });
 
   it("documents the per-account report throttle a user can actually hit (#311)", () => {

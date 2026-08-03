@@ -33,12 +33,32 @@ public sealed class CredentialEpochMiddlewareOrderTests
         }
 
         var securitySlice = program[first..(last + expectedOrder[^1].Length)];
-        var actualOrder = securitySlice.Split('\n')
-            .Select(line => line.Trim())
-            .Where(line => line.StartsWith("app.Use", StringComparison.Ordinal))
-            .ToArray();
+        var actualOrder = ExecutableStatements(securitySlice);
         Assert.Equal(expectedOrder, actualOrder);
     }
+
+    [Fact]
+    public void FenceIncludesAnyInterveningExecutableRegistration()
+    {
+        const string source = """
+            app.UseAuthentication();
+            // A comment is harmless.
+            app.MapWhen(_ => true, branch => branch.Run(_ => Task.CompletedTask));
+            app.UseAuthorization();
+            """;
+
+        Assert.Equal(
+        [
+            "app.UseAuthentication();",
+            "app.MapWhen(_ => true, branch => branch.Run(_ => Task.CompletedTask));",
+            "app.UseAuthorization();",
+        ], ExecutableStatements(source));
+    }
+
+    private static string[] ExecutableStatements(string source) => source.Split('\n')
+        .Select(line => line.Trim())
+        .Where(line => line.Length > 0 && !line.StartsWith("//", StringComparison.Ordinal))
+        .ToArray();
 
     private static int CountOccurrences(string source, string value)
     {

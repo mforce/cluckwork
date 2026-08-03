@@ -1632,10 +1632,9 @@ export const es = {
     ownPassword:
       "<strong>Su propia contraseña.</strong> Cualquiera, en cualquier rol, puede cambiar su propia "
       + "contraseña en la pantalla <strong>Cuenta</strong> ingresando la actual y una nueva (al menos 12 "
-      + "caracteres). Cambiarla — o que un administrador se la establezca — cierra la sesión de esa cuenta "
-      + "en cada <em>otro</em> dispositivo; el dispositivo en el que la cambió permanece con la sesión "
-      + "iniciada. Una sesión ya abierta en otro lugar puede seguir activa unos minutos antes de dejar de "
-      + "funcionar.",
+      + "caracteres). Cambiar su propia contraseña mantiene este dispositivo conectado con credenciales "
+      + "nuevas. Cambiarla — o que un administrador se la establezca — termina todas las <em>demás</em> sesiones "
+      + "abiertas en su siguiente solicitud.",
 
     dialogsHeading: "Agregar y corregir",
     dialogsPopup:

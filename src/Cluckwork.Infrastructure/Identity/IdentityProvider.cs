@@ -29,6 +29,20 @@ public sealed class IdentityProvider(
             return Result.Failure<TokenPair>(Error.Validation("Identity.InvalidCredentials", "Invalid email or password."));
         }
 
+        if (user.DisabledAt is not null)
+        {
+            // Pay the same password-hash cost for a correct or incorrect
+            // password, but never feed a disabled account into Identity's
+            // failed-access counter. Otherwise password validity is observable
+            // through both timing and durable lockout state, and an account can
+            // emerge from a later re-enable already locked by guesses made while
+            // it was disabled.
+            userManager.PasswordHasher.VerifyHashedPassword(
+                user, user.PasswordHash ?? TimingEqualization.DummyHash, password);
+            return Result.Failure<TokenPair>(Error.Validation(
+                "Identity.InvalidCredentials", "Invalid email or password."));
+        }
+
         // Account lockout (#128): once failures reach the configured threshold the
         // account is locked for a cool-off window. A locked account is refused with
         // the SAME generic error (and PBKDF2 is still paid) as a wrong password, so
@@ -46,9 +60,6 @@ public sealed class IdentityProvider(
             await RecordFailedAccessAsync(user);
             return Result.Failure<TokenPair>(Error.Validation("Identity.InvalidCredentials", "Invalid email or password."));
         }
-
-        if (user.DisabledAt is not null)
-            return Result.Failure<TokenPair>(Error.Validation("Identity.InvalidCredentials", "Invalid email or password."));
 
         // Correct password — clear any accumulated failures (no-op DB-wise if zero).
         await ResetFailedAccessCountAsync(user, ct);
