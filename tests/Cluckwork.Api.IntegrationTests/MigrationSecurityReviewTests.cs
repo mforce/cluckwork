@@ -161,7 +161,7 @@ public sealed class MigrationSecurityReviewTests
     // deployed database.
     private const int InitialCreateOperationCount = 114;
     private const string InitialCreateOperationDigest =
-        "543baa99852c47a2e9ea857c2c0591d58002eea508025012d8667f7dfa7e0f61";
+        "320493300753dc57278ec990ff678e8fd7fed1a82ac438ea8563acda65756efc";
 
     [Fact]
     public void InitialCreate_OperationsAreFrozen()
@@ -238,9 +238,6 @@ public sealed class MigrationSecurityReviewTests
 
         if (depth >= MaxDescribeDepth) return $"<depth:{value.GetType().Name}>";
 
-        // Annotations carry schema meaning (Npgsql's ValueGenerationStrategy,
-        // for one), so they are described rather than skipped — sorted by name,
-        // because IAnnotatable does not promise an order.
         if (value is IAnnotation annotation)
             return $"@{annotation.Name}={DescribeValue(annotation.Value, depth + 1)}";
 
@@ -253,13 +250,34 @@ public sealed class MigrationSecurityReviewTests
             return $"[{string.Join(',', items)}]";
         }
 
+        // #407 codex review round 3 (P1) — annotations are reached through
+        // GetAnnotations(), a METHOD, so a walk over public non-indexed
+        // PROPERTIES never sees them. The previous version had an IAnnotation
+        // branch and a comment claiming annotations were covered; the branch was
+        // unreachable and the comment was simply false. Proven, not argued:
+        // with that version in place, flipping InitialCreate's
+        // Npgsql:ValueGenerationStrategy from IdentityByDefaultColumn to
+        // IdentityAlwaysColumn — a material identity-generation change — left
+        // the freeze test GREEN.
+        //
+        // Enumerated explicitly and FIRST, so every annotatable in the graph
+        // (the operation itself, and each AddColumnOperation nested in a
+        // CreateTable) contributes. Sorted by name: IReadOnlyAnnotatable
+        // promises no order, and an unsorted digest would churn between runs.
+        var annotations = value is IReadOnlyAnnotatable annotatable
+            ? annotatable.GetAnnotations()
+                .OrderBy(a => a.Name, StringComparer.Ordinal)
+                .Select(a => $"@{a.Name}={DescribeValue(a.Value, depth + 1)}")
+                .ToList()
+            : [];
+
         var members = value.GetType()
             .GetProperties(BindingFlags.Public | BindingFlags.Instance)
             .Where(p => p.CanRead && p.GetIndexParameters().Length == 0)
             .OrderBy(p => p.Name, StringComparer.Ordinal)
             .Select(p => $"{p.Name}={DescribeValue(SafeGet(p, value), depth + 1)}");
 
-        return string.Join(';', members);
+        return string.Join(';', annotations.Concat(members));
     }
 
     private static object? SafeGet(PropertyInfo property, object target)
