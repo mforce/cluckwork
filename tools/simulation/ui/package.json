@@ -9,7 +9,10 @@
     "test:headed": "playwright test --headed",
     "test:ui": "playwright test --ui",
     "report": "playwright show-report",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "canary": "playwright test --config playwright.canary.config.ts",
+    "canary:report": "playwright show-report playwright-report-canary",
+    "mutation": "bash mutation-check.sh"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",
