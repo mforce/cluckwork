@@ -70,22 +70,59 @@ public sealed class MigrationSecurityReviewTests
     // shape a migrationBuilder.Sql(...) credential would actually take.
     private static readonly Regex SqlStringLiteral = new(@"'([^']*)'", RegexOptions.Compiled);
 
-    // #245's whole contract is "exactly one migration, InitialCreate" — the
-    // application has never been deployed, so a virgin database is the only
-    // starting state that exists anywhere, and there is therefore never a
-    // reason to add a second migration file instead of hand-folding a change
-    // into InitialCreate (see that migration's own header comment, most
-    // recently its #364 addendum). This is the automated fence: a PR that
-    // adds e.g. "AddFoo.cs" beside InitialCreate.cs now fails here instead of
-    // only getting flagged in review — which is exactly what happened to the
-    // migration this test itself replaces (PR #399 shipped a second
-    // migration; this guard did not yet exist to catch it).
+    // #407 CUTOVER — this fence used to assert `Assert.Single(AllMigrations())`.
+    //
+    // #245's contract was "exactly one migration, InitialCreate", valid only
+    // while the application had never been deployed: a virgin database was the
+    // only starting state anywhere, so hand-folding a schema change into
+    // InitialCreate rewrote a file no deployed database had applied yet. PR
+    // #407 is the LAST change permitted to do that. From the commit that
+    // merges it, a real database exists that has already applied
+    // InitialCreate, and EF will never re-run it — so a hand-folded column is
+    // a column that silently does not exist in production. (That failure mode
+    // is not hypothetical: it is exactly what #399's amendment did to the dev
+    // database, surfacing as a broken login rather than as a migration error.)
+    //
+    // What replaces it is NOT "no fence". Two things must still hold, and both
+    // are cheap to break by accident:
+    //
+    //   1. InitialCreate stays FIRST and keeps its recorded id. Regenerating
+    //      it (a fresh `dotnet ef migrations add InitialCreate`) mints a NEW
+    //      timestamp, which reorders it behind migrations that depend on it
+    //      and makes __EFMigrationsHistory disagree with the assembly on every
+    //      deployed database. Pinning the id is what makes that a red test
+    //      rather than a failed deploy.
+    //   2. Ordering is asserted on the MIGRATION ID, never on list position.
+    //      AllMigrations() is built from Assembly.GetTypes(), whose order is
+    //      explicitly unspecified — a positional check would pass or fail on
+    //      reflection ordering, which is the definition of a flaky guard.
+    //
+    // Everything else in this file deliberately scans EVERY migration
+    // (AllInsertDataOperations/AllSqlOperations already fan out across the
+    // whole history), so the credential and reference-data guarantees below
+    // extend to post-cutover migrations for free — they were written that way
+    // from the start, and that is what makes relaxing this one test safe.
+    private const string InitialCreateMigrationId = "20260801190854_InitialCreate";
+
     [Fact]
-    public void ExactlyOneMigrationExists_AndItIsInitialCreate()
+    public void InitialCreate_IsStillTheFirstMigration_AndKeepsItsRecordedId()
     {
-        var migration = Assert.Single(AllMigrations());
-        Assert.Equal("InitialCreate", migration.GetType().Name);
+        var ordered = AllMigrations()
+            .Select(m => (Migration: m, Id: MigrationIdOf(m)))
+            .OrderBy(x => x.Id, StringComparer.Ordinal)
+            .ToList();
+
+        Assert.NotEmpty(ordered);
+        Assert.Equal("InitialCreate", ordered[0].Migration.GetType().Name);
+        Assert.Equal(InitialCreateMigrationId, ordered[0].Id);
     }
+
+    private static string MigrationIdOf(Migration migration) =>
+        migration.GetType()
+            .GetCustomAttributes(typeof(MigrationAttribute), inherit: false)
+            .Cast<MigrationAttribute>()
+            .Single()
+            .Id;
 
     [Fact]
     public void NoMigration_EverInsertsIntoTheUsersTable()
