@@ -124,6 +124,91 @@ public sealed class MigrationSecurityReviewTests
             .Single()
             .Id;
 
+    // #407 codex review (P1) — pinning InitialCreate's NAME and ID is not the
+    // same as freezing it, and the gap is exactly the regression the cutover
+    // exists to prevent. A later PR that edits InitialCreate.cs to add a column
+    // (instead of adding a second migration) changes neither the class name nor
+    // the MigrationAttribute, so the identity test above stays green; the other
+    // tests in this file only look at credential-shaped inserts, the
+    // reference-data SQL, and the four expression indexes. An ordinary
+    // AddColumn/CreateTable edit was invisible to all of them. A database that
+    // already recorded this ID skips the edit, and the app then runs against a
+    // schema element that does not exist.
+    //
+    // So the operations themselves are fingerprinted. Any added, removed, or
+    // retyped column/table/index/raw-SQL statement changes the digest below and
+    // fails here, naming the fix.
+    //
+    // Deliberately a STRUCTURAL description, not a serialization of EF's
+    // operation objects: the latter would break on an EF version bump that
+    // touched an internal property nobody edited, training people to re-baseline
+    // the constant on sight — which is how a fence like this dies. Describe()
+    // reads only the properties that define what the migration DOES.
+    //
+    // Its `_` fallback collapses unusual operation types to their type name, so
+    // two different DropColumns would describe identically. That is covered by
+    // pinning the COUNT alongside the digest: an added or removed operation
+    // moves the count even when its description is coarse. Stated plainly
+    // because it is a real limit, not a claim of totality.
+    //
+    // Legitimately changing InitialCreate should now be impossible. If this
+    // fails, the fix is almost always "add a migration instead" — re-baselining
+    // the constant is the wrong move unless the change genuinely predates any
+    // deployed database.
+    private const int InitialCreateOperationCount = 114;
+    private const string InitialCreateOperationDigest =
+        "511b60a66c85566967c54556a58fead9b2798728a1d4f42164db9607d83c11c1";
+
+    [Fact]
+    public void InitialCreate_OperationsAreFrozen()
+    {
+        var initialCreate = AllMigrations()
+            .Single(m => m.GetType().Name == "InitialCreate");
+
+        var descriptions = initialCreate.UpOperations.Select(Describe).ToList();
+        var digest = Sha256Hex(string.Join("\n", descriptions));
+
+        Assert.True(
+            InitialCreateOperationCount == descriptions.Count
+                && string.Equals(InitialCreateOperationDigest, digest, StringComparison.Ordinal),
+            $"""
+             InitialCreate's operations changed (count {descriptions.Count}, digest {digest}).
+
+             Since PR #407 this migration is FROZEN: a database that already applied
+             it will never re-run it, so a column folded in here silently does not
+             exist in production and surfaces as broken behaviour, not as an error.
+
+             Add a new migration instead:
+               dotnet ef migrations add <Name> -p src/Cluckwork.Infrastructure -s src/Cluckwork.Api
+
+             Only re-baseline the two constants above if this change genuinely
+             predates every database that has applied {InitialCreateMigrationId}.
+             """);
+    }
+
+    // Only the properties that define what an operation DOES — see the note on
+    // InitialCreateOperationDigest for why this is not a serialization.
+    private static string Describe(MigrationOperation operation) => operation switch
+    {
+        CreateTableOperation t =>
+            $"CreateTable({t.Name}:{string.Join('|', t.Columns.Select(c => $"{c.Name}:{c.ColumnType}:{c.IsNullable}"))})",
+        AddColumnOperation c => $"AddColumn({c.Table}.{c.Name}:{c.ColumnType}:{c.IsNullable})",
+        DropColumnOperation c => $"DropColumn({c.Table}.{c.Name})",
+        CreateIndexOperation i =>
+            $"CreateIndex({i.Table}.{i.Name}:{string.Join('|', i.Columns)}:unique={i.IsUnique}:filter={i.Filter})",
+        AddForeignKeyOperation f => $"AddForeignKey({f.Table}.{f.Name}->{f.PrincipalTable})",
+        AddPrimaryKeyOperation p => $"AddPrimaryKey({p.Table}.{p.Name})",
+        AddUniqueConstraintOperation u => $"AddUniqueConstraint({u.Table}.{u.Name})",
+        AlterColumnOperation a => $"AlterColumn({a.Table}.{a.Name}:{a.ColumnType}:{a.IsNullable})",
+        SqlOperation s => $"Sql({Sha256Hex(s.Sql)})",
+        _ => operation.GetType().Name,
+    };
+
+    private static string Sha256Hex(string value) =>
+        Convert.ToHexString(
+                System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(value)))
+            .ToLowerInvariant();
+
     [Fact]
     public void NoMigration_EverInsertsIntoTheUsersTable()
     {
