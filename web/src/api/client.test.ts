@@ -1027,6 +1027,63 @@ describe("cross-tab refresh coordination (#169)", () => {
     expect(callsTo(fetchMock, "/auth/refresh")).toHaveLength(0);
   });
 
+  it("does not apply the refresh timeout to a non-replayable password change", async () => {
+    vi.useFakeTimers();
+    try {
+      let changeSignal: AbortSignal | undefined;
+      const changeGate = deferred<Response>();
+      fetchMock.mockImplementation(async (url: string, init: RequestInit) => {
+        if (url.endsWith("/auth/change-password")) {
+          changeSignal = init.signal ?? undefined;
+          return changeGate.promise;
+        }
+        throw new Error(`unexpected fetch: ${url}`);
+      });
+
+      const changing = changePassword({ currentPassword: "a", newPassword: "b" });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(callsTo(fetchMock, "/auth/change-password")).toHaveLength(1);
+
+      // A slow committed response cannot be retried with the old password. The
+      // 15-second refresh timeout therefore must not abort this mutation.
+      await vi.advanceTimersByTimeAsync(20_000);
+      const wasAborted = changeSignal?.aborted;
+
+      changeGate.resolve(accessResponse("password-change-token"));
+      await changing.catch(() => undefined);
+      expect(wasAborted).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("still aborts an in-flight password change when the user explicitly logs out", async () => {
+    const changeStarted = deferred<void>();
+    let changeSignal: AbortSignal | undefined;
+    fetchMock.mockImplementation(async (url: string, init: RequestInit) => {
+      if (url.endsWith("/auth/change-password")) {
+        changeSignal = init.signal ?? undefined;
+        changeStarted.resolve();
+        return new Promise<Response>((_resolve, reject) =>
+          changeSignal?.addEventListener("abort", () =>
+            reject(new DOMException("logged out", "AbortError")),
+          ),
+        );
+      }
+      if (url.endsWith("/auth/logout")) return new Response(null, { status: 204 });
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    const changing = changePassword({ currentPassword: "a", newPassword: "b" })
+      .catch((err: unknown) => err);
+    await changeStarted.promise;
+    await logout();
+
+    expect(changeSignal?.aborted).toBe(true);
+    expect(await changing).toMatchObject({ name: "AbortError" });
+    expect(getAccessToken()).toBeNull();
+  });
+
   it("a lock held under a DIFFERENT name does not block refresh (fake is name-scoped, like the real API)", async () => {
     const locks = fakeLockManager();
     vi.stubGlobal("navigator", { locks });

@@ -267,7 +267,7 @@ export async function logout(): Promise<void> {
   // instead of only being
   // discarded on arrival by the generation check in refreshTokens().
   sessionGeneration++;
-  abortInFlightRefresh?.();
+  abortInFlightAuthCookieOperation?.();
   // #336 — capture BEFORE clearing: this tab's access token names the user who
   // actually clicked logout, and the clear below is deliberately synchronous.
   // Read it after and we would always send nothing.
@@ -326,10 +326,10 @@ const AUTH_COOKIE_LOCK = "cluckwork.auth.refresh";
 // which releases the lock; the aborting tab recovers on its next request.
 const REFRESH_TIMEOUT_MS = 15_000;
 
-// #310 — the abort handle of whichever refresh attempt is currently running
-// (if any), so logout() can cancel it outright rather than only waiting for
-// the generation check below to discard its result on arrival.
-let abortInFlightRefresh: (() => void) | null = null;
+// #310/#364 — the abort handle of whichever cookie-mutating auth operation is
+// currently running (if any), so logout() can cancel it outright rather than
+// only waiting for the generation check below to discard its result on arrival.
+let abortInFlightAuthCookieOperation: (() => void) | null = null;
 
 // Web Locks coordinate tabs, while this queue provides the same ordering within
 // one tab and on browsers where navigator.locks is unavailable. Rejections are
@@ -337,14 +337,24 @@ let abortInFlightRefresh: (() => void) | null = null;
 // each caller still receives its own original result.
 let authCookieTail: Promise<void> = Promise.resolve();
 
-function withAuthCookieLock<T>(run: (signal: AbortSignal) => Promise<T>): Promise<T> {
+function withAuthCookieLock<T>(
+  run: (signal: AbortSignal) => Promise<T>,
+  timeoutMs?: number,
+): Promise<T> {
   const attempt = () => {
     const controller = new AbortController();
-    abortInFlightRefresh = () => controller.abort();
-    const timer = setTimeout(() => controller.abort(), REFRESH_TIMEOUT_MS);
+    const abort = () => controller.abort();
+    abortInFlightAuthCookieOperation = abort;
+    // Refresh is replayable and must not starve every tab indefinitely. A
+    // password change is not: aborting after the server commits can strand the
+    // browser with neither the old credential nor the fresh response, so that
+    // caller deliberately supplies no timeout. Explicit logout still aborts it
+    // through abortInFlightAuthCookieOperation above.
+    const timer = timeoutMs === undefined ? undefined : setTimeout(abort, timeoutMs);
     return run(controller.signal).finally(() => {
-      clearTimeout(timer);
-      abortInFlightRefresh = null;
+      if (timer !== undefined) clearTimeout(timer);
+      if (abortInFlightAuthCookieOperation === abort)
+        abortInFlightAuthCookieOperation = null;
     });
   };
   const queued = authCookieTail.then(() => {
@@ -412,7 +422,10 @@ async function refreshTokens(heldLock?: HeldAuthCookieLock): Promise<string> {
   // network call is in the air discards its outcome instead of committing it.
   const generation = sessionGeneration;
 
-  refreshInFlight = withAuthCookieLock((signal) => executeRefresh(generation, signal))
+  refreshInFlight = withAuthCookieLock(
+    (signal) => executeRefresh(generation, signal),
+    REFRESH_TIMEOUT_MS,
+  )
     .finally(() => {
       refreshInFlight = null;
     });
