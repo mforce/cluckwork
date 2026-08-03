@@ -1658,7 +1658,8 @@ export const es = {
       "Los conteos de números enteros — conteos de huevos, conteos de aves, cantidades de venta, huevos por "
       + "unidad — tienen botones <strong>−</strong> y <strong>+</strong> del tamaño del pulgar: toque para "
       + "uno, <strong>mantenga presionado</strong> para acelerar. La cantidad de una línea de venta nunca "
-      + "baja de 1. Los precios y montos fraccionarios se siguen escribiendo.",
+      + "baja de 1 y siempre es un <strong>número entero</strong>, ya sea con los botones o escrita. Los "
+      + "decimales van en los precios, que se escriben.",
     dialogsConfirm:
       "<strong>Las acciones que no se pueden deshacer preguntan primero.</strong> Enviar un día, confirmar "
       + "o cancelar un pedido, agotar o archivar un lote — cada una indica lo que está por suceder y "

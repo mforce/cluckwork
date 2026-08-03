@@ -1991,7 +1991,8 @@ export const en = {
     dialogsSteppers:
       "Whole-number counts — egg counts, bird counts, sale quantities, eggs per unit — have thumb-sized "
       + "<strong>−</strong> and <strong>+</strong> buttons: tap for one, <strong>hold</strong> to speed up. "
-      + "A sale line's quantity never steps below 1. Prices and fractional amounts are still typed.",
+      + "A sale line's quantity never steps below 1, and it is always a <strong>whole number</strong> — "
+      + "stepped or typed. Decimals belong in prices, which are typed.",
     dialogsConfirm:
       "<strong>Actions that cannot be undone ask first.</strong> Submitting a day, confirming or cancelling "
       + "an order, depleting or archiving a flock — each one says what is about to happen and waits. The "

@@ -1722,7 +1722,8 @@ export const tl = {
       "Ang mga bilang na buong numero — bilang ng itlog, bilang ng ibon, dami ng benta, itlog bawat unit — "
       + "ay may <strong>−</strong> at <strong>+</strong> na button na kasya sa hinlalaki: i-tap para sa isa, "
       + "<strong>pindutin nang matagal</strong> para bumilis. Ang dami ng isang linya ng benta ay hindi "
-      + "bababa sa 1. Ang mga presyo at fractional na halaga ay tina-type pa rin.",
+      + "bababa sa 1 at palaging <strong>buong numero</strong>, gamit man ang button o tina-type. Ang mga "
+      + "desimal ay para sa presyo, na tina-type.",
     dialogsConfirm:
       "<strong>Nagtatanong muna ang mga aksyong hindi na maaaring i-undo.</strong> Ang pagsumite ng isang "
       + "araw, pagkumpirma o pagkansela ng order, pag-ubos o pag-archive ng kawan — sinasabi ng bawat isa "
