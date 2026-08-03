@@ -557,6 +557,11 @@ export async function apiFetch<T>(
   heldAuthCookieLock?: HeldAuthCookieLock,
 ): Promise<T> {
   const token = await currentAccessToken(heldAuthCookieLock);
+  // currentAccessToken may itself await a cookie refresh. A newer login can
+  // supersede the non-replayable password form during that await; never let the
+  // stale form borrow the newer session's bearer for its first request.
+  if (heldAuthCookieLock && sessionGeneration !== heldAuthCookieLock.generation)
+    throw new StaleSessionError();
   try {
     return await raw<T>(path, init, token);
   } catch (err) {

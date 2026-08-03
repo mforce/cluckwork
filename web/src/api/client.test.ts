@@ -971,6 +971,32 @@ describe("cross-tab refresh coordination (#169)", () => {
     expect(callsTo(fetchMock, "/auth/change-password")).toHaveLength(0);
   });
 
+  it("drops a password change whose initial refresh is superseded by a newer login", async () => {
+    const refreshGate = deferred<Response>();
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.endsWith("/auth/refresh")) return refreshGate.promise;
+      if (url.endsWith("/auth/login")) return accessResponse("new-login-token");
+      if (url.endsWith("/auth/change-password")) return accessResponse("stale-change-token");
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    clearAccessToken();
+    const changing = changePassword({ currentPassword: "a", newPassword: "b" })
+      .catch((err: unknown) => err);
+    await drain();
+
+    // The form is already inside the cookie lock, obtaining an access token.
+    // A newer login must prevent that old form from borrowing the new bearer
+    // when the now-stale refresh finishes.
+    await login({ email: "new@session.test", password: `pw-${crypto.randomUUID()}` });
+    refreshGate.resolve(accessResponse("stale-refresh-token"));
+    await changing;
+
+    expect(getAccessToken()).toBe("new-login-token");
+    expect(callsTo(fetchMock, "/auth/refresh")).toHaveLength(1);
+    expect(callsTo(fetchMock, "/auth/change-password")).toHaveLength(0);
+  });
+
   it("never retries an in-flight password change against a newer login", async () => {
     const firstChange = deferred<Response>();
     let changeCalls = 0;
