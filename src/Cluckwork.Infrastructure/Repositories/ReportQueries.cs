@@ -25,6 +25,14 @@ public sealed class ReportQueries(AppDbContext db) : IReportQueries
                 Cracked = g.Sum(e => e.CrackedEggs),
                 Dirty = g.Sum(e => e.DirtyEggs),
                 Discarded = g.Sum(e => e.DiscardedEggs),
+                // #396 — only the conditions this entry actually RESOLVED to a
+                // grade. A null snapshot means those eggs were a loss on that
+                // day, and summing the raw counters instead would invent stock
+                // the farm never had — most visibly for entries recorded before
+                // this feature, whose conditions were never saleable at all.
+                FromCounts = g.Sum(e =>
+                    (e.CrackedGradeId != null ? e.CrackedEggs : 0)
+                    + (e.DirtyGradeId != null ? e.DirtyEggs : 0)),
                 Deaths = g.Sum(e => e.MortalityCount),
             })
             .ToDictionaryAsync(x => x.Date, ct);
@@ -119,7 +127,7 @@ public sealed class ReportQueries(AppDbContext db) : IReportQueries
             var sellable = total - (row?.Cracked ?? 0) - (row?.Dirty ?? 0) - (row?.Discarded ?? 0);
             days.Add(new ProductionDay(
                 d, total, row?.Cracked ?? 0, row?.Dirty ?? 0, row?.Discarded ?? 0,
-                sellable, row?.Deaths ?? 0, henDays,
+                sellable, row?.FromCounts ?? 0, row?.Deaths ?? 0, henDays,
                 henDays > 0 ? Math.Round(total * 100m / henDays, 1) : null));
             if (d == DateOnly.MaxValue) break; // AddDays would overflow
         }
@@ -130,6 +138,7 @@ public sealed class ReportQueries(AppDbContext db) : IReportQueries
             days,
             totalEggs,
             days.Sum(x => x.Sellable),
+            days.Sum(x => x.FromCounts),
             days.Sum(x => x.Deaths),
             totalHenDays,
             totalHenDays > 0 ? Math.Round(totalEggs * 100m / totalHenDays, 1) : null,
