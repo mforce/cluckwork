@@ -1,5 +1,6 @@
 namespace Cluckwork.Api.IntegrationTests;
 
+using System.Diagnostics;
 using System.Reflection;
 using System.Text.Json;
 using Microsoft.Extensions.Configuration;
@@ -9,8 +10,15 @@ using Serilog.Formatting;
 using Serilog.Parsing;
 
 // #404 — Production emits compact JSON to stdout so a log collector can index
-// TraceId/AccountId/status instead of grepping prose. Development keeps the
-// human template.
+// structured fields instead of grepping prose. Development keeps the human
+// template.
+//
+// Field names are NOT the same across the two, which is a trap for anyone
+// writing a collector query: ambient Activity context reaches Serilog as the
+// LogEvent.TraceId/SpanId fields, which CompactJsonFormatter writes as
+// `@tr`/`@sp`, while Development's outputTemplate renders the same values under
+// `{TraceId}`/`{SpanId}`. Ordinary properties (AccountId, StatusCode) keep
+// their names in both. See The_bound_production_formatter_emits_trace_context_as_at_tr.
 //
 // The invariant these tests exist to protect is NOT "a formatter is configured"
 // but "the base layer contributes no outputTemplate for Production to collide
@@ -19,21 +27,21 @@ using Serilog.Parsing;
 // sink, the binder silently selects the outputTemplate overload and IGNORES the
 // formatter. No exception, no dropped sink — Production just keeps logging
 // prose while the config file claims otherwise. That is why
-// Production_console_sink_contributes_no_output_template below is the
-// load-bearing test, and why the base appsettings.json Console entry carries no
-// Args at all.
-//
-// Deliberately NOT asserted by capturing Console.Out: the sink writes to
-// process-global stdout, and this suite runs test classes in parallel with
-// others that boot real hosts and log continuously, so a captured buffer would
-// be polluted by unrelated output. These assertions cover the two things a
-// regression would actually break — what the merged config says, and what the
-// named formatter emits.
+// Production_console_sink_contributes_no_output_template below is load-bearing,
+// why the base appsettings.json Console entry carries no Args at all, and why
+// Production_configuration_binds_the_compact_json_formatter drives the binder
+// rather than trusting the config leaves to imply its result.
 public sealed class ProductionLogFormatTests
 {
     private const string ConsoleSink = "Serilog:WriteTo:console";
     private const string CompactFormatter =
         "Serilog.Formatting.Compact.CompactJsonFormatter, Serilog.Formatting.Compact";
+    private const string CompactFormatterTypeName =
+        "Serilog.Formatting.Compact.CompactJsonFormatter";
+
+    // The sink graph is a handful of wrappers deep; this only bounds the walk
+    // against a cycle the visited-set somehow misses.
+    private const int MaxSinkGraphDepth = 8;
 
     [Fact]
     public void Production_console_sink_selects_the_compact_json_formatter()
@@ -107,11 +115,17 @@ public sealed class ProductionLogFormatTests
         Assert.Equal("Console", sink["Name"]);
     }
 
-    // Guards the assembly-qualified type name in appsettings.Production.json —
-    // a typo, or losing the direct PackageReference, makes this unresolvable
-    // long before anyone notices Production logs look wrong. Resolved from the
-    // value the config file actually carries, not from this file's constant,
-    // so the test cannot agree with itself while disagreeing with Production.
+    // Guards the assembly-qualified type name in appsettings.Production.json: a
+    // typo there makes this unresolvable long before anyone notices Production
+    // logs look wrong. Resolved from the value the config file actually
+    // carries, not from this file's constant, so the test cannot agree with
+    // itself while disagreeing with Production.
+    //
+    // It does NOT guard the direct PackageReference, and must not be read as
+    // doing so — Serilog.Formatting.Compact was already transitive via
+    // Serilog.AspNetCore, so deleting the direct reference leaves the assembly
+    // in the graph and every test here green. The reference is a deliberate,
+    // untested choice: it states the dependency this config file relies on.
     [Fact]
     public void The_named_formatter_type_resolves()
     {
@@ -121,74 +135,106 @@ public sealed class ProductionLogFormatTests
         Assert.NotNull(Type.GetType(configured, throwOnError: false));
     }
 
-    // THE test, and the one the assertions above cannot stand in for. Everything
-    // else here reads config leaves or drives the formatter directly; the
-    // behaviour this change exists to control — Serilog.Settings.Configuration
+    // THE tests, and the ones the assertions above cannot stand in for.
+    // Everything else here reads config leaves or drives a formatter directly;
+    // the behaviour this change exists to control — Serilog.Settings.Configuration
     // choosing between the outputTemplate and formatter overloads — happens
     // inside ReadFrom.Configuration, which none of them execute. A binder
     // regression (a Serilog upgrade changing overload selection, an argument
     // name drifting) would leave the real Console sink on prose while every
     // other test in this file stayed green.
     //
-    // Console.Out is process-global and this suite runs classes in parallel
-    // with others that boot real hosts and log continuously, so the captured
-    // buffer is expected to contain foreign lines. Filtering on a per-run
-    // marker property makes the assertion immune to that instead of pretending
-    // it cannot happen — and finding exactly one marked line simultaneously
-    // proves a single sink is bound, since a duplicate would emit two.
+    // Deliberately NOT done by capturing Console.Out. Console.SetOut is
+    // process-global, xunit parallelises test classes by default (there is no
+    // xunit.runner.json here), and the CluckworkWebApplicationFactory classes
+    // log continuously from their own ConsoleSink instances — which hold a
+    // DIFFERENT _syncRoot, so nothing serialises their writes against the
+    // probe's. The interleaving is therefore SUB-LINE: a foreign event can
+    // splice bytes into the middle of the probe's own line, which no
+    // line-level marker filter can undo. Reaching the bound formatter by
+    // reflection asks the same question deterministically. Version-brittle by
+    // construction, but it fails loudly and in CI rather than one run in fifty.
     [Fact]
-    public void Production_configuration_binds_a_console_sink_that_emits_compact_json()
+    public void Production_configuration_binds_the_compact_json_formatter()
     {
-        var marker = Guid.NewGuid().ToString("N");
-
-        var line = Assert.Single(EmitThroughConfiguredLogger("Production", marker));
-        using var parsed = JsonDocument.Parse(line);
-
-        Assert.Equal(marker, parsed.RootElement.GetProperty("Marker").GetString());
-        Assert.True(parsed.RootElement.TryGetProperty("@t", out _));
+        Assert.Equal(
+            [CompactFormatterTypeName],
+            BoundFormatterNames("Production"));
     }
 
-    // The other side of the same binder. Without this, moving the human
-    // template into the base file would satisfy every Production assertion
-    // here and quietly change what a developer sees on every `dotnet run`.
-    [Fact]
-    public void Development_configuration_binds_a_console_sink_that_emits_the_human_template()
+    // The other side of the same binder. Without it, moving the human template
+    // into the base file would satisfy every Production assertion here and
+    // quietly change what a developer sees on every `dotnet run`.
+    [Theory]
+    [InlineData(null)]
+    [InlineData("Development")]
+    public void Non_production_configurations_bind_a_template_renderer(string? environment)
     {
-        var marker = Guid.NewGuid().ToString("N");
-
-        var line = Assert.Single(EmitThroughConfiguredLogger("Development", marker));
-
-        Assert.StartsWith("[", line, StringComparison.Ordinal);
-        Assert.Contains($"probe {marker}", line, StringComparison.Ordinal);
-        // ThrowsAny, not Throws: JsonDocument.Parse raises the internal
-        // JsonReaderException, and xunit's Throws<T> demands an exact match.
-        Assert.ThrowsAny<JsonException>(() => JsonDocument.Parse(line));
+        Assert.DoesNotContain(CompactFormatterTypeName, BoundFormatterNames(environment));
     }
+
+    // The correlation guarantee, pinned against a REAL trace-carrying event
+    // rather than a property this fixture named "TraceId" itself. Those are
+    // different fields and only one of them is what a request produces:
+    // Serilog surfaces ambient Activity context through LogEvent.TraceId, and
+    // CompactJsonFormatter writes it as `@tr`/`@sp` — NOT as `TraceId`, which
+    // is what Development's outputTemplate renders it under. A collector query
+    // written against the wrong one silently matches nothing, so the name is
+    // asserted here and stated in AGENTS.md.
+    [Fact]
+    public void The_bound_production_formatter_emits_trace_context_as_at_tr()
+    {
+        var traceId = ActivityTraceId.CreateRandom();
+        var spanId = ActivitySpanId.CreateRandom();
+        var formatter = Assert.IsType<ITextFormatter>(BoundFormatters("Production").Single(), exactMatch: false);
+        using var output = new StringWriter();
+
+        formatter.Format(SampleEvent(LogEventLevel.Information, traceId, spanId), output);
+
+        using var parsed = JsonDocument.Parse(output.ToString());
+        Assert.Equal(traceId.ToHexString(), parsed.RootElement.GetProperty("@tr").GetString());
+        Assert.Equal(spanId.ToHexString(), parsed.RootElement.GetProperty("@sp").GetString());
+    }
+
+    private static string[] BoundFormatterNames(string? environment) =>
+        [.. BoundFormatters(environment).Select(f => f.GetType().FullName!).Distinct()];
 
     // Builds the logger the way Program.cs does (ReadFrom.Configuration over
-    // the merged environment config) and returns only the lines carrying this
-    // run's marker.
-    private static string[] EmitThroughConfiguredLogger(string environment, string marker)
+    // the merged environment config), then walks the constructed sink graph for
+    // whatever ITextFormatter the binder actually wired in. The walk is generic
+    // rather than reaching for a named private field, so a Serilog refactor
+    // that renames internals does not silently stop finding anything — an empty
+    // result fails the assertions above.
+    private static ITextFormatter[] BoundFormatters(string? environment)
     {
-        var config = LoadMergedConfiguration(environment);
-        var original = Console.Out;
-        using var captured = new StringWriter();
+        using var logger = new LoggerConfiguration()
+            .ReadFrom.Configuration(LoadMergedConfiguration(environment))
+            .CreateLogger();
 
-        try
-        {
-            Console.SetOut(captured);
-            using var logger = new LoggerConfiguration().ReadFrom.Configuration(config).CreateLogger();
-            logger.Information("probe {Marker}", marker);
-        }
-        finally
-        {
-            Console.SetOut(original);
-        }
+        var seen = new HashSet<object>(ReferenceEqualityComparer.Instance);
+        var found = new List<ITextFormatter>();
+        Walk(logger, 0);
+        return [.. found];
 
-        return captured.ToString()
-            .Split('\n', StringSplitOptions.RemoveEmptyEntries)
-            .Where(l => l.Contains(marker, StringComparison.Ordinal))
-            .ToArray();
+        void Walk(object? node, int depth)
+        {
+            if (node is null || depth > MaxSinkGraphDepth || !seen.Add(node))
+                return;
+
+            if (node is ITextFormatter formatter)
+                found.Add(formatter);
+
+            if (node is System.Collections.IEnumerable sequence and not string)
+                foreach (var item in sequence)
+                    Walk(item, depth + 1);
+
+            foreach (var field in node.GetType().GetFields(
+                         BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public))
+            {
+                if (!field.FieldType.IsPrimitive && field.FieldType != typeof(string))
+                    Walk(field.GetValue(node), depth + 1);
+            }
+        }
     }
 
     [Fact]
@@ -205,7 +251,7 @@ public sealed class ProductionLogFormatTests
 
         Assert.True(parsed.RootElement.TryGetProperty("@t", out _));
         Assert.True(parsed.RootElement.TryGetProperty("@mt", out _));
-        Assert.Equal("trace-abc", parsed.RootElement.GetProperty("TraceId").GetString());
+        Assert.Equal("marker-abc", parsed.RootElement.GetProperty("Marker").GetString());
     }
 
     // Compact JSON omits @l for Information (it is the default), so the level
@@ -244,12 +290,17 @@ public sealed class ProductionLogFormatTests
             culture: null)!;
     }
 
-    private static LogEvent SampleEvent(LogEventLevel level) => new(
+    private static LogEvent SampleEvent(
+        LogEventLevel level,
+        ActivityTraceId? traceId = null,
+        ActivitySpanId? spanId = null) => new(
         DateTimeOffset.UnixEpoch,
         level,
         exception: null,
-        new MessageTemplateParser().Parse("probe {TraceId}"),
-        [new LogEventProperty("TraceId", new ScalarValue("trace-abc"))]);
+        new MessageTemplateParser().Parse("probe {Marker}"),
+        [new LogEventProperty("Marker", new ScalarValue("marker-abc"))],
+        traceId ?? default,
+        spanId ?? default);
 
     // Mirrors what WebApplicationBuilder does: the base file, then the
     // environment overlay. Reads the real shipped files so a config regression

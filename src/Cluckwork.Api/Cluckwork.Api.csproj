@@ -23,9 +23,10 @@
     <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" Version="1.*" />
     <PackageReference Include="Serilog.AspNetCore" Version="10.*" />
     <!-- #404 — appsettings.Production.json names CompactJsonFormatter by
-         assembly-qualified type. Transitive via Serilog.AspNetCore today, but a
-         config-referenced type needs a direct reference so a future dependency
-         reshuffle can't silently take the Production log format with it. -->
+         assembly-qualified type. Transitive via Serilog.AspNetCore today; this
+         states the dependency the config file relies on rather than inheriting
+         it silently. Note no test can enforce this: the assembly stays in the
+         graph transitively, so removing this line leaves the suite green. -->
     <PackageReference Include="Serilog.Formatting.Compact" Version="3.*" />
     <PackageReference Include="FluentValidation" Version="12.*" />
     <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.*" />
