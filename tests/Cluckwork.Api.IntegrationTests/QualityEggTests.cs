@@ -258,6 +258,140 @@ public sealed class QualityEggTests(CluckworkWebApplicationFactory factory)
         });
     }
 
+    // ---- adjustment reconciles the quality lots too ---------------------
+    //
+    // The manual lines and the condition counters produce the same KIND of
+    // thing — a lot linked to this entry — so an adjustment has to reconcile
+    // both. Getting this wrong is not a missing feature but active damage: the
+    // reconciler drives every linked lot toward a target, and a condition lot
+    // absent from the target set is driven to ZERO, silently destroying stock
+    // the farm holds.
+
+    private async Task<int> CrackedLotQuantity(Guid accountId, Guid entryId, Guid crackedId)
+    {
+        var quantity = -1;
+        await factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            var lot = await db.EggLots.IgnoreQueryFilters()
+                .SingleOrDefaultAsync(l => l.DailyEntryId == entryId && l.EggGradeId == crackedId);
+            quantity = lot?.QuantityProduced ?? 0;
+        });
+        return quantity;
+    }
+
+    private Task<HttpResponseMessage> AdjustAsync(
+        HttpClient client, Guid entryId, int version, int cracked, int total) =>
+        client.PostWithKeyAsync(
+            $"/api/v1/daily-entries/{entryId}/adjust", Guid.NewGuid().ToString(),
+            new
+            {
+                version,
+                totalEggs = total,
+                crackedEggs = cracked,
+                dirtyEggs = 5,
+                discardedEggs = 3,
+                mortalityCount = 0,
+                reason = "recount",
+                grades = new[] { new { eggGradeId = ManualGradeId, quantity = 600 } }
+            });
+
+    private Guid ManualGradeId;
+
+    [Fact]
+    public async Task Adjusting_a_condition_counter_upward_grows_its_lot()
+    {
+        var (client, accountId, farmId, flockId, manual, crackedId, _) = await SetupAsync();
+        ManualGradeId = manual["Large"];
+
+        var entryId = await SubmitAsync(client, farmId, flockId, ManualGradeId);
+        Assert.Equal(10, await CrackedLotQuantity(accountId, entryId, crackedId));
+
+        var version = (await StateOf(accountId, entryId)).Version;
+        var response = await AdjustAsync(client, entryId, version, cracked: 20, total: 628);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(20, await CrackedLotQuantity(accountId, entryId, crackedId));
+    }
+
+    [Fact]
+    public async Task Adjusting_a_condition_counter_to_zero_empties_its_lot()
+    {
+        var (client, accountId, farmId, flockId, manual, crackedId, _) = await SetupAsync();
+        ManualGradeId = manual["Large"];
+
+        var entryId = await SubmitAsync(client, farmId, flockId, ManualGradeId);
+        var version = (await StateOf(accountId, entryId)).Version;
+
+        var response = await AdjustAsync(client, entryId, version, cracked: 0, total: 608);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(0, await CrackedLotQuantity(accountId, entryId, crackedId));
+    }
+
+    [Fact]
+    public async Task Adjusting_leaves_the_manual_lot_alone_while_the_counter_changes()
+    {
+        // The other half: reconciling the condition lots must not disturb the
+        // manual ones. A fix that simply overwrote the target set would pass
+        // the two tests above and empty every manual lot.
+        var (client, accountId, farmId, flockId, manual, crackedId, _) = await SetupAsync();
+        ManualGradeId = manual["Large"];
+
+        var entryId = await SubmitAsync(client, farmId, flockId, ManualGradeId);
+        var version = (await StateOf(accountId, entryId)).Version;
+
+        Assert.Equal(HttpStatusCode.OK,
+            (await AdjustAsync(client, entryId, version, cracked: 20, total: 628)).StatusCode);
+
+        await factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            var manualLot = await db.EggLots.IgnoreQueryFilters()
+                .SingleAsync(l => l.DailyEntryId == entryId && l.EggGradeId == ManualGradeId);
+            Assert.Equal(600, manualLot.QuantityProduced);
+        });
+        Assert.Equal(20, await CrackedLotQuantity(accountId, entryId, crackedId));
+    }
+
+    // A day with no cracked eggs is an ordinary good day, and it has a snapshot
+    // but NO lot. Adjusting such an entry puts a target of zero in front of the
+    // new-lot loop with no lot to match it — and EggLot.Create rejects a zero
+    // quantity, so without the skip the adjustment throws instead of applying.
+    //
+    // Written because the mutation check caught the guard surviving: every other
+    // test here submits a positive counter, so the zero-with-no-lot path was
+    // never exercised and the guard was, at that point, an untested claim.
+    [Fact]
+    public async Task Adjusting_a_day_that_never_had_cracked_eggs_still_succeeds()
+    {
+        var (client, accountId, farmId, flockId, manual, crackedId, _) = await SetupAsync();
+        ManualGradeId = manual["Large"];
+
+        var entryId = (await (await client.PostWithKeyAsync(
+            "/api/v1/daily-entries", Guid.NewGuid().ToString(),
+            new
+            {
+                farmId,
+                houseId = Guid.NewGuid(),
+                flockId,
+                date = DateOnly.FromDateTime(DateTime.UtcNow.Date),
+                totalEggs = 608,
+                crackedEggs = 0,
+                dirtyEggs = 5,
+                discardedEggs = 3,
+                mortalityCount = 0,
+                grades = new[] { new { eggGradeId = ManualGradeId, quantity = 600 } }
+            })).Content.ReadFromJsonAsync<RecordedDto>())!.Id;
+
+        Assert.Equal(HttpStatusCode.OK, (await client.PostWithKeyAsync(
+            $"/api/v1/daily-entries/{entryId}/submit", Guid.NewGuid().ToString())).StatusCode);
+
+        var version = (await StateOf(accountId, entryId)).Version;
+        var response = await AdjustAsync(client, entryId, version, cracked: 0, total: 608);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(0, await CrackedLotQuantity(accountId, entryId, crackedId));
+    }
+
     private async Task<(string Status, int Version, int Lots)> StateOf(Guid accountId, Guid entryId)
     {
         (string, int, int) state = default;
