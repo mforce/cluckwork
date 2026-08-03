@@ -365,8 +365,11 @@ public sealed class IdentityProvider(
     // without the current one — which applies the full policy and rotates the
     // SecurityStamp — clear any lockout, evict every live session, and append one
     // audit row, all in a single transaction so the password change and the
-    // session revocation land together or not at all (#165 review). An already-
-    // issued access token stays valid until it expires (~15 min) — no denylist.
+    // session revocation land together or not at all (#165 review). Since #364
+    // it also bumps CredentialEpoch in that same transaction (below), so an
+    // already-issued access token is rejected by CredentialEpochMiddleware on
+    // its very next request — no longer merely bounded by the ~15-min
+    // access-token lifetime.
     private Task<Result> ResetPasswordAndRevokeAsync(
         ApplicationUser user, string newPassword, string auditAction, string? reason,
         object? details, CancellationToken ct)
@@ -654,8 +657,11 @@ public sealed class IdentityProvider(
             || elapsed > TimeSpan.FromSeconds(graceSeconds))
             return null;
 
-        var replacement = await db.RefreshTokens
-            .FirstOrDefaultAsync(t => t.TokenHash == revoked.ReplacedByTokenHash, ct);
+        var replacement = await db.RefreshTokens.FirstOrDefaultAsync(t =>
+            t.TokenHash == revoked.ReplacedByTokenHash
+            && t.UserId == revoked.UserId
+            && t.AccountId == revoked.AccountId
+            && t.IssuedEpoch == revoked.IssuedEpoch, ct);
         return replacement is not null && replacement.IsActive(now) ? replacement : null;
     }
 

@@ -252,10 +252,14 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
 
         var grant = await StepUpAsync(owner, TestHarness.Password);
 
-        // Rotates the SecurityStamp. The caller's (old) access token stays
-        // valid regardless (no server-side denylist — the realistic "stolen
-        // token" shape this guard exists for), but the grant embeds the
-        // stamp as it was AT ISSUANCE.
+        // Rotates the SecurityStamp. JWT validation never checks SecurityStamp
+        // (it isn't embedded in the access token), so the token used for THIS
+        // call keeps authenticating it regardless — the realistic "stolen
+        // token" shape this guard exists for. Since #364 this same
+        // change-password call also bumps CredentialEpoch, so a captured OLD
+        // token would fail CredentialEpochMiddleware on its next request
+        // either way; the grant is what closes the narrower gap before that,
+        // since it separately embeds and checks the stamp AT ISSUANCE.
         var changed = await owner.PostWithKeyAsync("/api/v1/auth/change-password",
             Guid.NewGuid().ToString(),
             new { currentPassword = TestHarness.Password, newPassword = FreshPassword() });

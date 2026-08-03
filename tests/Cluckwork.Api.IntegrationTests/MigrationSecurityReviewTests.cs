@@ -57,12 +57,6 @@ public sealed class MigrationSecurityReviewTests
     private static IEnumerable<SqlOperation> AllSqlOperations() =>
         AllMigrations().SelectMany(m => m.UpOperations).OfType<SqlOperation>();
 
-    private static Migration InitialCreateMigration() =>
-        AllMigrations().Single(m => m.GetType().Name == "InitialCreate");
-
-    private static IEnumerable<SqlOperation> InitialCreateSqlOperations() =>
-        InitialCreateMigration().UpOperations.OfType<SqlOperation>();
-
     // True for a string that LOOKS like an Identity PBKDF2 hash — the
     // V3 marker prefix, or (independently) just plain long+base64-shaped,
     // since a future format change might drop the marker but a hash is
@@ -75,6 +69,23 @@ public sealed class MigrationSecurityReviewTests
     // Every single-quoted SQL string literal in a raw INSERT/UPDATE — the
     // shape a migrationBuilder.Sql(...) credential would actually take.
     private static readonly Regex SqlStringLiteral = new(@"'([^']*)'", RegexOptions.Compiled);
+
+    // #245's whole contract is "exactly one migration, InitialCreate" — the
+    // application has never been deployed, so a virgin database is the only
+    // starting state that exists anywhere, and there is therefore never a
+    // reason to add a second migration file instead of hand-folding a change
+    // into InitialCreate (see that migration's own header comment, most
+    // recently its #364 addendum). This is the automated fence: a PR that
+    // adds e.g. "AddFoo.cs" beside InitialCreate.cs now fails here instead of
+    // only getting flagged in review — which is exactly what happened to the
+    // migration this test itself replaces (PR #399 shipped a second
+    // migration; this guard did not yet exist to catch it).
+    [Fact]
+    public void ExactlyOneMigrationExists_AndItIsInitialCreate()
+    {
+        var migration = Assert.Single(AllMigrations());
+        Assert.Equal("InitialCreate", migration.GetType().Name);
+    }
 
     [Fact]
     public void NoMigration_EverInsertsIntoTheUsersTable()
@@ -162,7 +173,7 @@ public sealed class MigrationSecurityReviewTests
     public void InitialCreateMigration_SeedsExactlyTheStaticReferenceRows()
     {
         // Every INSERT the migration history performs, wherever it lives.
-        var sqlOps = InitialCreateSqlOperations()
+        var sqlOps = AllSqlOperations()
             .Where(op => op.Sql.Contains("INSERT INTO", StringComparison.Ordinal))
             .ToList();
 
@@ -226,31 +237,12 @@ public sealed class MigrationSecurityReviewTests
     [InlineData("IX_Products_AccountId_LowerName", "\"Products\" (\"AccountId\", lower(\"Name\"))")]
     public void Migrations_StillCreateTheExpressionUniqueIndexes(string indexName, string targetClause)
     {
-        var create = InitialCreateSqlOperations()
+        var create = AllSqlOperations()
             .Select(op => op.Sql)
             .Where(sql => sql.Contains($"CREATE UNIQUE INDEX \"{indexName}\"", StringComparison.Ordinal))
             .ToList();
 
         var sql = Assert.Single(create);
         Assert.Contains(targetClause, sql, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void CredentialEpochMigration_SafelyRetiresLegacyRefreshSessions()
-    {
-        var migration = AllMigrations().Single(m => m.GetType().Name == "CredentialEpoch");
-        var columns = migration.UpOperations.OfType<AddColumnOperation>().ToList();
-
-        Assert.Contains(columns, column => column.Table == "AspNetUsers"
-            && column.Name == "CredentialEpoch" && Equals(column.DefaultValue, 1));
-        Assert.Contains(columns, column => column.Table == "refresh_tokens"
-            && column.Name == "IssuedEpoch" && Equals(column.DefaultValue, 0));
-        Assert.Contains(columns, column => column.Table == "AspNetUsers" && column.Name == "DisabledAt");
-        Assert.Contains(columns, column => column.Table == "AspNetUsers" && column.Name == "DisabledBy");
-
-        var sql = migration.UpOperations.OfType<SqlOperation>().Select(operation => operation.Sql).ToList();
-        Assert.Contains(sql, statement => statement.Contains("lock_timeout", StringComparison.Ordinal));
-        Assert.Contains(sql, statement => statement.Contains("UPDATE refresh_tokens", StringComparison.Ordinal)
-            && statement.Contains("WHERE \"RevokedAt\" IS NULL", StringComparison.Ordinal));
     }
 }
