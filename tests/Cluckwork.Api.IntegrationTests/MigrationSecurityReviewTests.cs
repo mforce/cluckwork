@@ -161,7 +161,44 @@ public sealed class MigrationSecurityReviewTests
     // deployed database.
     private const int InitialCreateOperationCount = 114;
     private const string InitialCreateOperationDigest =
-        "320493300753dc57278ec990ff678e8fd7fed1a82ac438ea8563acda65756efc";
+        "240b373e763e15b0c73e400bc8ef69b1d80b4548efb9f29439938facd2ae305a";
+
+    // #407 CI failure — the digest above is only meaningful if it depends on the
+    // MIGRATION and nothing else. The first version depended on the machine: it
+    // recursed into ColumnOperation.ClrType (a System.Type) and out through
+    // Assembly.Location, embedding an absolute path to System.Private.CoreLib.dll.
+    // It passed here and failed in CI, which is the worst possible shape for a
+    // fence — the pinned constant becomes a local artefact and the natural
+    // "fix" is to re-baseline it until CI agrees, at which point it guards
+    // nothing.
+    //
+    // Running it three times on ONE machine is what I checked, and it proved
+    // exactly nothing about this: same-run determinism is not portability. This
+    // test is the check that was missing — it asserts the described text carries
+    // no environment at all, so the failure cannot come back silently the next
+    // time the walk reaches a new property.
+    [Fact]
+    public void InitialCreate_Description_ContainsNoEnvironmentSpecificData()
+    {
+        var initialCreate = AllMigrations().Single(m => m.GetType().Name == "InitialCreate");
+        var text = string.Join("\n", initialCreate.UpOperations.Select(Describe));
+
+        // A schema description has no business naming an assembly file, and no
+        // business containing the runtime's or the test binary's own directory.
+        Assert.DoesNotContain(".dll", text, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(AppContext.BaseDirectory, text, StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            Path.GetDirectoryName(typeof(object).Assembly.Location) ?? " <none>",
+            text,
+            StringComparison.Ordinal);
+
+        // Size is the cheap canary for the same defect: the machine-dependent
+        // version ballooned to ~168 MB by cycling Type -> Assembly -> Module ->
+        // Type. A real description of this migration is a few hundred KB at most.
+        Assert.True(text.Length < 2_000_000,
+            $"The operation description is {text.Length:N0} chars — the walk is almost certainly "
+            + "recursing into reflection metadata rather than schema. See the Type leaf case in DescribeValue.");
+    }
 
     [Fact]
     public void InitialCreate_OperationsAreFrozen()
@@ -234,6 +271,24 @@ public sealed class MigrationSecurityReviewTests
                 return Convert.ToString(value, CultureInfo.InvariantCulture) ?? "?";
             case Enum e:
                 return $"{e.GetType().Name}.{e}";
+
+            // A System.Type is a LEAF here, described by its full name only.
+            //
+            // #407 CI failure — without this the walk recurses into Type's own
+            // reflection surface (ColumnOperation.ClrType is a Type) and reaches
+            // Assembly.Location / Module.FullyQualifiedName / CodeBase, which are
+            // ABSOLUTE PATHS to System.Private.CoreLib.dll. The digest then
+            // encodes where the .NET runtime happens to live, so it differed
+            // between this dev box (a /nix/store path) and the CI runner and the
+            // test failed there while passing locally. It also made the described
+            // text ~168 MB, since Type -> Assembly -> Module -> Type cycles back
+            // through the whole reflection graph until MaxDescribeDepth cuts it.
+            //
+            // FullName is the schema-relevant part and nothing else about a Type
+            // is: a column's CLR type matters, the file its metadata lives in
+            // does not.
+            case Type type:
+                return $"Type({type.FullName})";
         }
 
         if (depth >= MaxDescribeDepth) return $"<depth:{value.GetType().Name}>";
