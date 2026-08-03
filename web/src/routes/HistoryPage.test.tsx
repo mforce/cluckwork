@@ -396,6 +396,38 @@ describe("HistoryPage adjust — mirrored daily-entry layout", () => {
     expect(screen.getByRole("spinbutton", { name: "Grade A" })).toHaveValue(95);
   });
 
+  // A 409 replaces every number in the form with the winner's, because keeping
+  // this admin's typed figures could silently clobber a grade line the other
+  // one just added. The REASON is the one thing that survives — it is this
+  // admin's own justification, and retyping it is pure friction. The behaviour
+  // predates this PR; nothing asserted it (pi review of #403).
+  it("keeps the typed reason, and only the reason, across a 409 rebind", async () => {
+    const WINNER: DailyEntry = {
+      ...SUBMITTED, version: 2, totalEggs: 120,
+      grades: [{ eggGradeId: "gr1", quantity: 55 }, { eggGradeId: "gr2", quantity: 55 }],
+    };
+    mockListDailyEntries.mockResolvedValue([SUBMITTED]);
+    mockAdjustDailyEntry.mockRejectedValue(new ApiError(409, "Conflict", "conflict"));
+    mockGetDailyEntry.mockResolvedValue(WINNER);
+    await openAdjustPanel();
+
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Grade A" }), { target: { value: "45" } });
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Grade B" }), { target: { value: "45" } });
+    fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: "recount after spillage" } });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Save adjustment" }));
+    });
+
+    expect(await screen.findByText(/re-apply your correction/)).toBeInTheDocument();
+    // Mine, kept.
+    expect(screen.getByLabelText(/Reason/)).toHaveValue("recount after spillage");
+    // Theirs, everywhere else — not the 45/45 this admin typed.
+    expect(screen.getByRole("spinbutton", { name: "Total eggs" })).toHaveValue(120);
+    expect(screen.getByRole("spinbutton", { name: "Grade A" })).toHaveValue(55);
+    expect(screen.getByRole("spinbutton", { name: "Grade B" })).toHaveValue(55);
+  });
+
   it("offers nothing to hand out once the day already reconciles", async () => {
     mockListDailyEntries.mockResolvedValue([
       { ...SUBMITTED, grades: [{ eggGradeId: "gr1", quantity: 90 }] },
