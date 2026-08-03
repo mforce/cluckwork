@@ -225,6 +225,49 @@ describe("SalesPage quantity steppers (#250)", () => {
   });
 });
 
+// #398 — a fractional quantity (e.g. 2.5) used to reach the server and fail
+// during minimal-API JSON binding (Quantity is an int), surfacing the raw
+// internal "Failed to read parameter ..." message. These pin the CLIENT-side
+// half of the fix: reject before any network call, with a localized message.
+// NumberField's typed input isn't step-constrained (no wrapping <form>, per
+// the "Deliberately NOT a <form>" comment in SalesPage.tsx), so typing "2.5"
+// really does land a fractional value in `qty`/`editQty` here, same as #250's
+// steppers tests above prove integer steps land cleanly.
+describe("SalesPage quantity must be a whole number (#398)", () => {
+  it("rejects a fractional add-line quantity before sending, with a localized message", async () => {
+    await renderReady();
+    await createDraft(draftEmpty(2, "USD"));
+
+    const qty = screen.getByRole("spinbutton", { name: "Quantity" });
+    fireEvent.change(qty, { target: { value: "2.5" } });
+    expect(qty).toHaveValue(2.5);
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Add line" }));
+    });
+
+    expect(mockAddOrderItem).not.toHaveBeenCalled();
+    expect(await screen.findByText(i18n.t("sales:quantityMustBeWholeNumber"))).toBeInTheDocument();
+  });
+
+  it("rejects a fractional inline-edit quantity before sending, with a localized message", async () => {
+    const row = await openOrder(DRAFT_TWO, /Grade A Dozen/);
+    fireEvent.click(within(row).getByRole("button", { name: "edit" }));
+    const editRow = screen.getByRole("row", { name: /Grade A Dozen/ });
+
+    const qty = within(editRow).getByRole("spinbutton", { name: "Edit quantity" });
+    fireEvent.change(qty, { target: { value: "1.5" } });
+    expect(qty).toHaveValue(1.5);
+
+    await act(async () => {
+      fireEvent.click(within(editRow).getByRole("button", { name: "save" }));
+    });
+
+    expect(mockUpdateOrderItem).not.toHaveBeenCalled();
+    expect(await screen.findByText(i18n.t("sales:quantityMustBeWholeNumber"))).toBeInTheDocument();
+  });
+});
+
 describe("SalesPage line display", () => {
   it("shows per-line base eggs and money, with the order total distinct from any single line", async () => {
     const rowA = await openOrder(DRAFT_TWO, /Grade A Dozen/);

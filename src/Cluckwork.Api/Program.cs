@@ -21,6 +21,7 @@ using Cluckwork.Api.Endpoints.Water;
 using Cluckwork.Api.Hosting;
 using Cluckwork.Api.Middleware;
 using Cluckwork.Api.Security;
+using Cluckwork.Api.Validation;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics;
@@ -58,6 +59,23 @@ builder.Services.AddCluckworkFeatures(builder.Configuration);
 // #307 — lease duration / max-wait bounds for the idempotency claim protocol.
 builder.Services.Configure<IdempotencyOptions>(
     builder.Configuration.GetSection(IdempotencyOptions.SectionName));
+
+// #398 — ASP.NET Core's minimal-API parameter binding defaults
+// RouteHandlerOptions.ThrowOnBadRequest to true only in Development; outside
+// it (Testing, Production — everywhere this app actually runs client
+// traffic) a binding failure (malformed JSON, a fractional quantity into an
+// `int`, an unparseable date/guid, …) is swallowed INSIDE the framework's
+// generated code: it sets Response.StatusCode itself and returns WITHOUT
+// throwing, so UseExceptionHandler's `/error` mapping below never runs at
+// all — the client gets a bare 400 with an EMPTY body, not even a generic
+// ProblemDetails. Force the throw in every environment so this app's own
+// `/error` handler is always the thing shaping the response, instead of that
+// environment-conditional framework default. (Only ONE test factory —
+// RequestLoggingFactory — used to carry its own copy of this override, added
+// because ITS test specifically needed the real throw; this registration
+// supersedes it globally, so that copy was removed.)
+builder.Services.Configure<Microsoft.AspNetCore.Routing.RouteHandlerOptions>(
+    o => o.ThrowOnBadRequest = true);
 
 // --- OpenAPI ---
 builder.Services.AddOpenApi();
@@ -396,9 +414,34 @@ app.Map("/error", (HttpContext context) =>
     var exception = context.Features.Get<IExceptionHandlerFeature>()?.Error;
     return exception switch
     {
-        // Minimal-API body binding failures (malformed JSON, unparseable
-        // dates/guids) throw this with a 400 — without the mapping the
-        // exception handler swallowed it into a 500.
+        // #398 — a JSON-binding failure (a fractional quantity into an `int`
+        // field, an unparseable date/guid, malformed JSON syntax, …) throws
+        // this deep inside minimal-API's generated body-reader, BEFORE any
+        // FluentValidation validator or handler runs. bad.Message names the
+        // exact parameter/type it failed to bind (e.g. "Failed to read
+        // parameter \"AddOrderItemRequest request\" from the request body as
+        // JSON.") and its InnerException carries the raw System.Text.Json /
+        // FormatException detail — both are framework internals, never meant
+        // for an end user, and echoing them (as this branch used to) leaked
+        // parameter/type names straight into the SPA's error banner. Route
+        // THIS specific case — always StatusCode 400 by construction, the
+        // same default every JSON-binding BadHttpRequestException carries —
+        // through the SAME ValidationProblem shape every other 400 in this
+        // app uses (ValidationResponse.Problem), instead of echoing the
+        // exception text.
+        //
+        // A NON-400 BadHttpRequestException (413 from the #309 request-body
+        // cap, 415 from an unrecognised Content-Type, …) falls through to the
+        // unchanged branch below: RequestBodyLimit.cs's WriteBodyTooLargeAsync
+        // depends on THIS handler staying byte-identical to its own 413 shape
+        // for the (rare, non-JSON-bound-endpoint) case that reaches /error
+        // instead of being short-circuited there — don't fold that case into
+        // the 400-only ValidationProblem mapping above.
+        BadHttpRequestException { StatusCode: StatusCodes.Status400BadRequest } =>
+            ValidationResponse.Problem(new Dictionary<string, string[]>
+            {
+                ["body"] = ["The request body has an invalid or incorrectly formatted value."],
+            }),
         BadHttpRequestException bad => Results.Problem(
             detail: bad.Message,
             statusCode: bad.StatusCode,

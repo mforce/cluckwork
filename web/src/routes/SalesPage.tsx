@@ -250,6 +250,12 @@ export function SalesPage() {
 
   const onAddItem = () => run("add-item", async () => {
     if (!active) return;
+    // #398 — sales quantities are whole selling units; reject a fractional
+    // value BEFORE sending rather than letting the server's JSON binding
+    // fail with an internal parameter-binding message. NumberField's typed
+    // input isn't step-constrained (no wrapping <form> — see the comment
+    // below), so `qty` can legitimately hold e.g. 2.5 here.
+    if (!Number.isInteger(qty)) throw new Error(i18n.t("sales:quantityMustBeWholeNumber"));
     // Empty price → omit it: the server falls back to the product's default.
     let minorUnits: number | undefined;
     if (price.trim() !== "") {
@@ -266,6 +272,8 @@ export function SalesPage() {
 
   const onUpdateItem = (itemId: string) => run(`update-item:${itemId}`, async () => {
     if (!active) return;
+    // #398 — same whole-number guard as the add-line control, above.
+    if (!Number.isInteger(editQty)) throw new Error(i18n.t("sales:quantityMustBeWholeNumber"));
     const minorUnits = parseMoneyToMinorUnits(editPrice, active.currencyMinorUnit);
     if (!Number.isFinite(minorUnits) || minorUnits < 0) throw new Error(i18n.t("sales:invalidUnitPrice"));
     const scope = `update-item:${itemId}`;

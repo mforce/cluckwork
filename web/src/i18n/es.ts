@@ -287,6 +287,8 @@ export const es = {
     atMostDecimals: "Como máximo {{count}} decimales para esta moneda.",
     enterAmountGreaterThanZero: "Ingrese un monto mayor que cero.",
     invalidUnitPrice: "Precio unitario inválido.",
+    // machine-drafted (#182) — pending native review.
+    quantityMustBeWholeNumber: "La cantidad debe ser un número entero.",
     loadSalesDataFailed: "No se pudieron cargar los datos de ventas. ¿Está la API activa?",
     loadOrdersFailed: "No se pudieron cargar los pedidos.",
     loadPaymentsFailed: "No se pudieron cargar los pagos de este pedido.",
@@ -1807,11 +1809,11 @@ export const es = {
     salesHeading: "Clientes y ventas",
     salesDrafts:
       "Los pedidos comienzan como <strong>borradores</strong>: agregue líneas eligiendo un "
-      + "<strong>producto</strong>, una unidad empacada (docena, cartón, …), una cantidad, y un precio por "
-      + "unidad (precargado desde el valor predeterminado del producto) — edite libremente, o "
-      + "<strong>cancele</strong> (el borrador se conserva, de solo lectura). Cada línea recuerda cuántos "
-      + "huevos contenía su unidad cuando se agregó, así que redefinir un cartón más tarde nunca cambia "
-      + "pedidos antiguos.",
+      + "<strong>producto</strong>, una unidad empacada (docena, cartón, …), una cantidad entera, y un "
+      + "precio por unidad (precargado desde el valor predeterminado del producto, se permiten decimales) — "
+      + "edite libremente, o <strong>cancele</strong> (el borrador se conserva, de solo lectura). Cada línea "
+      + "recuerda cuántos huevos contenía su unidad cuando se agregó, así que redefinir un cartón más tarde "
+      + "nunca cambia pedidos antiguos.",
     salesConfirming:
       "<strong>Confirmar</strong> un pedido asigna existencias reales — los lotes más antiguos primero — y "
       + "es el punto donde el inventario cambia de manos.",
@@ -2153,8 +2155,9 @@ export const es = {
 
     glossarySalesLineTerm: "Línea de venta",
     glossarySalesLineDef:
-      "Un producto en un pedido: cantidad en unidades de venta, con precio por unidad; los huevos detrás "
-      + "de ella son la cantidad × el conteo de huevos de la unidad.",
+      "Un producto en un pedido: una cantidad entera en unidades de venta, con precio por unidad (el "
+      + "precio puede tener decimales); los huevos detrás de ella son la cantidad × el conteo de huevos de "
+      + "la unidad.",
 
     glossaryConfirmOrderTerm: "Confirmar (pedido)",
     glossaryConfirmOrderDef:

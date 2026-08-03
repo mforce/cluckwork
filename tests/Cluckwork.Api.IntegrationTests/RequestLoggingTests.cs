@@ -25,10 +25,10 @@ public sealed class RequestLoggingFactory : CluckworkWebApplicationFactory
             // Program.cs pulls DI-registered sinks into the logger via
             // ReadFrom.Services; this hands the test a live tap on every event.
             services.AddSingleton<ILogEventSink>(Sink);
-            // Outside Development, minimal-API binding failures return 400
-            // without throwing; the exception-path test needs the real throw.
-            services.Configure<Microsoft.AspNetCore.Routing.RouteHandlerOptions>(
-                o => o.ThrowOnBadRequest = true);
+            // #398 — RouteHandlerOptions.ThrowOnBadRequest=true (so a binding
+            // failure really throws, which the exception-path test below
+            // needs) is now Program.cs's own global registration, not a
+            // per-factory override — every environment behaves the same way.
         });
     }
 
