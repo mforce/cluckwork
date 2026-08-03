@@ -23,6 +23,21 @@ public sealed class DailyEntry : AggregateRoot<Guid>
     // Sellable production by grade (Phase 1: eggs are graded at collection).
     public IReadOnlyList<DailyEntryGrade> Grades => _grades.AsReadOnly();
 
+    // #396 — which grade this day's Cracked and Dirty counters resolved to, or
+    // null when that condition was a loss. Written ONCE, at the first official
+    // transition, and never re-resolved: the entry is the historical record of
+    // what the farm's configuration meant ON THAT DAY. Re-resolving on a later
+    // adjustment would let a saleability or Active change silently restate a
+    // past day — banking eggs recorded as a loss, or dropping stock the farm
+    // already holds and may have sold.
+    //
+    // The domain does not resolve these itself (it has no grade catalog); the
+    // handler passes what it resolved, having required both Active and
+    // IsSaleable. Null therefore means "resolved to nothing", a durable fact,
+    // not "not yet known".
+    public Guid? CrackedGradeId { get; private set; }
+    public Guid? DirtyGradeId { get; private set; }
+
     // Audit trail until the audit-log slice lands (#69): the last adjust's
     // reason + the values it replaced (JSON snapshot), the void reason, and
     // when the auto-lock job locked the entry.
@@ -81,7 +96,11 @@ public sealed class DailyEntry : AggregateRoot<Guid>
         return Result.Success();
     }
 
-    public Result Submit()
+    // #396 — crackedGradeId/dirtyGradeId are the grades the CALLER resolved for
+    // this day's condition counters, each already required to be both Active
+    // and IsSaleable, or null when that condition is a loss. They are snapshot
+    // here and never resolved again (see the fields).
+    public Result Submit(Guid? crackedGradeId = null, Guid? dirtyGradeId = null)
     {
         if (Status != DailyEntryStatus.Draft)
             return Result.Failure(Error.Domain(
@@ -97,6 +116,10 @@ public sealed class DailyEntry : AggregateRoot<Guid>
             TotalEggs, CrackedEggs, DirtyEggs, DiscardedEggs, CurrentGradeQuantities(),
             requireExactReconciliation: true);
         if (gradeResult.IsFailure) return gradeResult;
+
+        // The single resolution point for the life of the entry.
+        CrackedGradeId = crackedGradeId;
+        DirtyGradeId = dirtyGradeId;
 
         Status = DailyEntryStatus.Submitted;
         // Version is a concurrency token, not auto-incremented by EF: without this
