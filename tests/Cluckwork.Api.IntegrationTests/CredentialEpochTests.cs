@@ -5,6 +5,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
+using Cluckwork.Api.Endpoints.Auth;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Accounts;
@@ -257,6 +258,27 @@ public sealed class CredentialEpochTests(CluckworkWebApplicationFactory factory)
         var problem = (await response.Content.ReadFromJsonAsync<ProblemDetails>())!;
         Assert.Equal("Auth.CredentialsSuperseded", problem.Title);
         Assert.DoesNotContain("Idempotency-Key", problem.Detail ?? string.Empty, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task SupersededBearer_CanReachTheTrailingSlashLogoutRoute()
+    {
+        var email = $"epoch-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var tokens = await factory.LoginAsync(email);
+        await factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            var user = await db.Users.SingleAsync(candidate => candidate.Email == email);
+            user.CredentialEpoch++;
+            await db.SaveChangesAsync();
+        });
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/logout/");
+        request.Headers.Add(AuthCookies.CsrfHeaderName, "1");
+        request.Headers.Add("Cookie", $"{AuthCookies.RefreshCookieName}={tokens.RefreshToken}");
+
+        var response = await factory.CreateAuthedClient(tokens.AccessToken).SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
     }
 
     [Fact]

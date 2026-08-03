@@ -128,6 +128,18 @@ describe("apiFetch — no in-memory token", () => {
     expect(onUnauth).toHaveBeenCalledWith("Auth.CredentialsSuperseded");
   });
 
+  it("preserves a credential-revocation reason during load-time session restore", async () => {
+    clearAccessToken();
+    fetchMock.mockResolvedValueOnce(jsonResponse({
+      title: "Auth.AccountDisabled",
+      detail: "Your account has been disabled.",
+    }, 401));
+
+    await expect(restoreSession()).resolves.toBe(false);
+
+    expect(onUnauth).toHaveBeenCalledWith("Auth.AccountDisabled");
+  });
+
   it("uses the refreshed token when the silent refresh succeeds", async () => {
     clearAccessToken();
     fetchMock

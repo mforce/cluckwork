@@ -2,6 +2,7 @@ namespace Cluckwork.Api.IntegrationTests;
 
 using System.Net;
 using System.Net.Http.Headers;
+using Cluckwork.Api.Endpoints.Auth;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Accounts;
@@ -141,6 +142,28 @@ public sealed class MustChangePasswordGateTests(CluckworkWebApplicationFactory f
         var anonClient = factory.CreateClient();
         var logoutResponse = await anonClient.PostLogoutAsync(secondTokens.RefreshToken);
         Assert.Equal(HttpStatusCode.NoContent, logoutResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task PendingUser_CanReachTheTrailingSlashLogoutRoute()
+    {
+        var accountId = Guid.NewGuid();
+        var email = $"pending-{Guid.NewGuid():N}@test.local";
+        await factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            db.Accounts.Add(Account.Create(accountId, "Gate Farm", "UTC", "USD"));
+            await db.SaveChangesAsync();
+        });
+        await factory.SeedUserPendingPasswordChangeAsync(accountId, email);
+        var tokens = await factory.LoginAsync(email);
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/logout/");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokens.AccessToken);
+        request.Headers.Add(AuthCookies.CsrfHeaderName, "1");
+        request.Headers.Add("Cookie", $"{AuthCookies.RefreshCookieName}={tokens.RefreshToken}");
+
+        var response = await factory.CreateClient().SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
     }
 
     [Fact]

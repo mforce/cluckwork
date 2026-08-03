@@ -378,7 +378,14 @@ export async function restoreSession(): Promise<boolean> {
   try {
     await refreshTokens();
     return true;
-  } catch {
+  } catch (err) {
+    // The normal no-cookie case remains a quiet false result in the UI because
+    // Login only renders the two credential-revocation titles. Preserve a
+    // server-provided 401 title nevertheless: if the refresh endpoint can
+    // classify a superseded/disabled session, load-time bootstrap must not be
+    // the one teardown path that discards that reason.
+    if (err instanceof ApiError && err.status === 401)
+      onUnauthenticated?.(err.title);
     return false;
   }
 }

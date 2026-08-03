@@ -18,7 +18,7 @@ public sealed class CredentialEpochMiddleware(RequestDelegate next)
     {
         if (context.User.Identity?.IsAuthenticated == true
             && context.Features.Get<IExceptionHandlerFeature>() is null
-            && context.Request.Path != LogoutPath)
+            && !IsLogoutPath(context.Request.Path))
         {
             var userIdClaim = context.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
             var accountIdClaim = context.User.FindFirst("account_id")?.Value;
@@ -57,4 +57,10 @@ public sealed class CredentialEpochMiddleware(RequestDelegate next)
 
         await next(context);
     }
+
+    // Endpoint routing accepts the conventional trailing-slash form too. Keep
+    // both spellings reachable for a superseded bearer, without widening the
+    // exemption to descendants such as /auth/logout/anything.
+    private static bool IsLogoutPath(PathString path) =>
+        path == LogoutPath || path == $"{LogoutPath}/";
 }
