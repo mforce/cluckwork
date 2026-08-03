@@ -1695,8 +1695,9 @@ export const tl = {
       "<strong>Ang sarili mong password.</strong> Kahit sino, sa kahit anong tungkulin, ay puwedeng "
       + "magpalit ng sariling password sa screen na <strong>Account</strong> sa pamamagitan ng pag-enter ng "
       + "kasalukuyan at bagong password (hindi bababa sa 12 karakter). Ang pagpapalit ng sarili mong password "
-      + "ay nagpapanatiling naka-sign in sa device na ito gamit ang bagong credentials. Kapag pinalitan ito — "
-      + "ikaw man o admin — bawat <em>ibang</em> bukas na session ay titigil sa susunod nitong request.",
+      + "ay nagpapanatiling naka-sign in sa device na ito gamit ang bagong credentials at nagpapatigil sa bawat "
+      + "<em>ibang</em> bukas na session sa susunod nitong request. Kung admin ang magse-set ng password mo, "
+      + "titigil ang lahat ng bukas mong session sa susunod nitong request.",
 
     dialogsHeading: "Pagdagdag at pagtatama",
     dialogsPopup:

@@ -92,15 +92,29 @@ describe("HelpPage", () => {
     expect(signIn).toBeInTheDocument();
   });
 
-  it("documents that password resets end other sessions on their next request in every catalog", () => {
+  it("distinguishes self-change session retention from an admin reset in every catalog", () => {
     render(<HelpPage />);
-    expect(screen.getByText(/stops on its next request/i)).toBeInTheDocument();
+    expect(screen.getByText(/keeps this device signed in/i)).toBeInTheDocument();
+    expect(screen.getByText(/every one of your open sessions ends on its next request/i)).toBeInTheDocument();
 
-    expect(en.help.ownPassword).toMatch(/stops on its next request/i);
-    expect(es.help.ownPassword).toMatch(
-      /termina todas las <em>demás<\/em> sesiones abiertas en su siguiente solicitud/i,
+    expect(en.help.ownPassword).toMatch(
+      /keeps this device signed in.*every <em>other<\/em> open session.*next request/i,
     );
-    expect(tl.help.ownPassword).toMatch(/titigil sa susunod nitong request/i);
+    expect(en.help.ownPassword).toMatch(
+      /admin sets your password.*every one of your open sessions ends on its next request/i,
+    );
+    expect(es.help.ownPassword).toMatch(
+      /mantiene este dispositivo conectado.*cada <em>otra<\/em> sesión abierta.*siguiente solicitud/i,
+    );
+    expect(es.help.ownPassword).toMatch(
+      /administrador le establece la contraseña.*todas sus sesiones abiertas terminan.*siguiente solicitud/i,
+    );
+    expect(tl.help.ownPassword).toMatch(
+      /naka-sign in sa device na ito.*bawat <em>ibang<\/em> bukas na session.*susunod nitong request/i,
+    );
+    expect(tl.help.ownPassword).toMatch(
+      /admin ang magse-set ng password mo.*lahat ng bukas mong session.*susunod nitong request/i,
+    );
     for (const catalog of [en, es, tl])
       expect(catalog.help.ownPassword).not.toMatch(/few minutes|unos minutos|ilang minuto/i);
   });

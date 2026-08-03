@@ -1633,8 +1633,8 @@ export const es = {
       "<strong>Su propia contraseña.</strong> Cualquiera, en cualquier rol, puede cambiar su propia "
       + "contraseña en la pantalla <strong>Cuenta</strong> ingresando la actual y una nueva (al menos 12 "
       + "caracteres). Cambiar su propia contraseña mantiene este dispositivo conectado con credenciales "
-      + "nuevas. Cambiarla — o que un administrador se la establezca — termina todas las <em>demás</em> sesiones "
-      + "abiertas en su siguiente solicitud.",
+      + "nuevas y termina cada <em>otra</em> sesión abierta en su siguiente solicitud. Si un administrador le "
+      + "establece la contraseña, todas sus sesiones abiertas terminan en su siguiente solicitud.",
 
     dialogsHeading: "Agregar y corregir",
     dialogsPopup:

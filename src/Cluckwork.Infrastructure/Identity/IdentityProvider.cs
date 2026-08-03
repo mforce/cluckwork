@@ -61,8 +61,22 @@ public sealed class IdentityProvider(
             return Result.Failure<TokenPair>(Error.Validation("Identity.InvalidCredentials", "Invalid email or password."));
         }
 
+        // Bind the successful proof to the credential values that were actually
+        // verified. ResetFailedAccessCountAsync may lose optimistic concurrency
+        // to a password reset/disable and reload that newer row into `user`; the
+        // old password must never mint tokens carrying the superseding epoch.
+        var verifiedCredentialEpoch = user.CredentialEpoch;
+        var verifiedSecurityStamp = user.SecurityStamp;
+
         // Correct password — clear any accumulated failures (no-op DB-wise if zero).
         await ResetFailedAccessCountAsync(user, ct);
+        if (user.DisabledAt is not null
+            || user.CredentialEpoch != verifiedCredentialEpoch
+            || !string.Equals(user.SecurityStamp, verifiedSecurityStamp, StringComparison.Ordinal))
+        {
+            return Result.Failure<TokenPair>(Error.Validation(
+                "Identity.InvalidCredentials", "Invalid email or password."));
+        }
 
         var (rawToken, tokenHash) = GenerateRefreshToken();
         var minted = NewToken(user, tokenHash);
