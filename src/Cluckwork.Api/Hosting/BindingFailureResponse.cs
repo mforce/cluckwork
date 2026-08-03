@@ -55,7 +55,17 @@ public static class BindingFailureResponse
                 if (ex.StatusCode != StatusCodes.Status400BadRequest || context.Response.HasStarted)
                     throw;
 
-                await ValidationResponse.BindingFailureProblem().ExecuteAsync(context);
+                // #398 review round 4 (Codex) — a failed TYPED QUERY PARAMETER
+                // throws this same 400, so blaming the body unconditionally lies
+                // to the caller of a bodyless GET. Decide from the request, not
+                // from ex.Message: the binding messages are framework internals
+                // that differ per binding source and can change between
+                // versions. A request with no body cannot have had a body
+                // binding failure, which is the case that was certainly wrong.
+                var hasBody = context.Request.ContentLength > 0
+                    || context.Request.Headers.TransferEncoding.Count > 0;
+
+                await ValidationResponse.BindingFailureProblem(hasBody).ExecuteAsync(context);
             }
         });
 }

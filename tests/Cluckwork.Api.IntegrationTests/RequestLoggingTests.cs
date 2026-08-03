@@ -302,6 +302,42 @@ public sealed class RequestLoggingTests(RequestLoggingFactory factory)
         Assert.Null(completion.Exception);
     }
 
+    // #398 review round 4 (Codex) — ThrowOnBadRequest is global, so it also makes
+    // a failed TYPED QUERY PARAMETER throw a 400 BadHttpRequestException. That
+    // reaches BindingFailureResponse exactly like a JSON-body failure does, and
+    // the first version of this PR rendered every one of them as
+    // ["body"] = ["The request body has an invalid or incorrectly formatted
+    // value."] — telling the caller of a bodyless GET that its body was wrong.
+    //
+    // The fix keys off whether the request HAS a body at all, not off the
+    // exception's message text: minimal-API's binding messages are framework
+    // internals that differ per binding source and can change between versions,
+    // so matching on them would be a silent trap on the next upgrade.
+    [Fact]
+    public async Task Query_binding_failure_does_not_blame_the_request_body()
+    {
+        var email = $"reqlog-query-{Guid.NewGuid():N}@test.local";
+        await factory.SeedAccountWithUserAsync(email);
+        var token = await factory.LoginForAccessTokenAsync(email);
+        var client = factory.CreateAuthedClient(token);
+
+        var response = await client.GetAsync("/api/v1/reports/production?from=not-a-date");
+
+        Assert.Equal(System.Net.HttpStatusCode.BadRequest, response.StatusCode);
+        var payload = await response.Content.ReadAsStringAsync();
+
+        // A GET carries no body, so blaming one is simply false.
+        Assert.DoesNotContain("\"body\"", payload);
+        Assert.Contains("\"query\"", payload);
+
+        // And it must still be an ordinary client error in telemetry, not a 500.
+        var completion = Assert.Single(
+            CompletionEventsFor("/api/v1/reports/production"),
+            e => ScalarOf(e, "StatusCode") == "400");
+        Assert.Equal(LogEventLevel.Information, completion.Level);
+        Assert.Null(completion.Exception);
+    }
+
     // #398 review round 3 (Codex) — the unsupported-Content-Type path, raised as
     // "binding-generated 415s inflate error telemetry". The reasoning was that
     // ThrowOnBadRequest governs the binder's OWN failures, an unsupported media
