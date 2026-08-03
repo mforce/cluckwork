@@ -232,8 +232,15 @@ export function DailyEntryPage() {
   // that are about to be replaced, and handing those to a grade would assign
   // a figure belonging to the previous day.
   const canAssign = remaining > 0 && !entryLocked && !prefillPending && !prefillFailed;
-  // Nothing left to place (or the day just locked) — leave the mode rather than
-  // stranding rows showing a "+0 here" button.
+  // DERIVED, not the raw flag (codex round 2 of #403, found on History's mirror
+  // of this pane and applied here too): the day can reconcile — or lock, or
+  // start a prefill — by something other than the gesture itself, and the
+  // effect below only catches up on the NEXT render. Between the two, reading
+  // `assigning` directly left rows armed with nothing to place, and on the
+  // capture screen it also meant a "+0 here" button over a locked day.
+  const armed = assigning && canAssign;
+  // The effect still clears the stale flag, so becoming assignable again does
+  // not silently re-arm rows the user is no longer aiming at.
   useEffect(() => {
     if (!canAssign && assigning) setAssigning(false);
   }, [canAssign, assigning]);
@@ -503,16 +510,16 @@ export function DailyEntryPage() {
             <div className="entry-rows">
               {visibleGrades.map((g) => (
                 <div
-                  className={`entry-row${assigning ? " taking" : ""}`}
+                  className={`entry-row${armed ? " taking" : ""}`}
                   key={g.id}
-                  {...remainderDropProps(assigning, () => assignRest(g.id))}
+                  {...remainderDropProps(armed, () => assignRest(g.id))}
                 >
                   <label htmlFor={idFor(g.id)}>{g.name}{g.active ? "" : t("deactivatedGradeSuffix")}</label>
                   <NumberField id={idFor(g.id)} label={g.name.toLowerCase()}
                     value={gradeQty[g.id] ?? 0} onChange={setGrade(g.id)}
                     max={(gradeQty[g.id] ?? 0) + Math.max(0, remaining)}
                     disabled={entryLocked} />
-                  {assigning && (
+                  {armed && (
                     <TakeRemainderButton remaining={remaining} grade={g.name}
                       onTake={() => assignRest(g.id)} />
                   )}
@@ -524,7 +531,7 @@ export function DailyEntryPage() {
                 the day adds up — see GradingChip for its live-region shape. */}
             <GradingChip tone={grading.tone} count={grading.count} says={grading.says}
               canAssign={canAssign} remaining={remaining}
-              assigning={assigning} onAssigningChange={setAssigning} />
+              assigning={armed} onAssigningChange={setAssigning} />
           </div>
         </section>
       </div>

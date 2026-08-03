@@ -157,9 +157,16 @@ export function HistoryPage() {
   const grading = gradingState({ totalEggs: total, cracked, dirty, discarded, gradesSum });
   const { sellable, remaining, lossesExceedTotal } = grading;
   const gradesReconciled = grading.reconciled;
-  // Nothing left to place — leave the mode rather than stranding rows showing a
-  // "+0 here" button.
   const canAssign = remaining > 0;
+  // DERIVED, not the raw flag: there is nothing left to hand out the instant
+  // the day reconciles, and that can happen by typing a grade rather than by
+  // using the gesture — which self-disarms. Reading `assigning` directly left
+  // the rows armed (and Save enabled) for the render between that keystroke
+  // and the effect below, so "armed" and "saveable" overlapped by one frame
+  // instead of being mutually exclusive. Derived, they cannot (codex round 2).
+  const armed = assigning && canAssign;
+  // The effect still clears the stale flag, so typing back DOWN to a remainder
+  // does not silently re-arm rows the user disarmed by walking away from it.
   useEffect(() => {
     if (!canAssign && assigning) setAssigning(false);
   }, [canAssign, assigning]);
@@ -434,8 +441,8 @@ export function HistoryPage() {
                 <div className="entry-pane">
                   <div className="entry-rows">
                     {panelGrades(adjusting).map((g) => (
-                      <div key={g.id} className={`entry-row${assigning ? " taking" : ""}`}
-                        {...remainderDropProps(assigning, () => assignRest(g.id))}>
+                      <div key={g.id} className={`entry-row${armed ? " taking" : ""}`}
+                        {...remainderDropProps(armed, () => assignRest(g.id))}>
                         <label htmlFor={idFor(`grade-${g.id}`)}>{g.name}{g.active ? "" : t("inactiveGradeSuffix")}</label>
                         <NumberField id={idFor(`grade-${g.id}`)} label={g.name.toLowerCase()}
                           value={lineQty[g.id] ?? 0}
@@ -446,7 +453,7 @@ export function HistoryPage() {
                             // hold-to-repeat depends on.
                             [g.id]: typeof next === "function" ? next(prev[g.id] ?? 0) : next,
                           }))} />
-                        {assigning && (
+                        {armed && (
                           <TakeRemainderButton remaining={remaining} grade={g.name}
                             onTake={() => assignRest(g.id)} />
                         )}
@@ -459,7 +466,7 @@ export function HistoryPage() {
                   <GradingChip tone={grading.tone} count={grading.count}
                     says={te(grading.saysKey)}
                     canAssign={canAssign} remaining={remaining}
-                    assigning={assigning} onAssigningChange={setAssigning} />
+                    assigning={armed} onAssigningChange={setAssigning} />
                 </div>
               </section>
             </div>

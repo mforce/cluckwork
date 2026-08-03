@@ -16,7 +16,16 @@ import { resolve } from "node:path";
 // block that needs it.
 // Resolved from the project root, not `import.meta.url` — under jsdom that is
 // an http:// URL and readFileSync refuses it.
-const css = readFileSync(resolve(process.cwd(), "src/styles.css"), "utf8");
+//
+// COMMENTS ARE STRIPPED FIRST, and that is load-bearing rather than tidiness:
+// this stylesheet documents its own selectors in prose, so a comment is the one
+// place a decoy `.dialog.wide { … }` can sit. Reviewed against text that keeps
+// them, a comment carrying the right declaration made a genuinely broken rule
+// below it pass all three assertions. Comment braces would also unbalance the
+// block scanner. (Strings can hold braces too, but this stylesheet has none
+// containing one — `content:` is unused here.)
+const css = readFileSync(resolve(process.cwd(), "src/styles.css"), "utf8")
+  .replace(/\/\*[\s\S]*?\*\//g, "");
 
 // Balanced block starting at `from`'s first "{".
 function blockAt(from: number): { text: string; end: number } {
@@ -54,9 +63,15 @@ function desktopCss(): string {
   return out;
 }
 
-const ruleFor = (block: string, selector: string) => {
-  const at = block.indexOf(`${selector} {`);
-  return at === -1 ? null : block.slice(at, block.indexOf("}", at));
+// Whitespace-tolerant: `.dialog.wide {`, `.dialog.wide{` and a brace on the
+// next line are the same rule, and a matcher that only knew the first spelling
+// would fail on a correct stylesheet after a reformat. Anchored at a boundary
+// so `.dialog` cannot match inside `.dialog.wide`.
+const ruleFor = (block: string, selector: string): string | null => {
+  const pattern = new RegExp(
+    `(^|[\\s}])${selector.replace(/[.]/g, "\\.")}\\s*\\{([^}]*)\\}`,
+  );
+  return pattern.exec(block)?.[2] ?? null;
 };
 
 describe("dialog width rules", () => {

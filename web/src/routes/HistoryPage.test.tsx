@@ -292,14 +292,19 @@ describe("HistoryPage adjust — mirrored daily-entry layout", () => {
     expect(screen.getByRole("spinbutton", { name: "Grade B" })).toHaveValue(50);
   });
 
-  // A review round asked for "armed, then 409, is it disarmed?" — that state is
-  // unreachable, and the reason is worth pinning rather than testing around:
-  // arming needs a remainder, saving needs none, and the disarm effect closes
-  // the gap between them. So no save (409 or otherwise) can ever settle while
-  // the gesture is armed, and startAdjust's own reset covers the paths that
-  // remain (opening another entry — tested below — and the 409 rebind, which
-  // goes through the same function).
-  it("can never be armed and saveable at the same time", async () => {
+  // Armed and saveable are mutually exclusive — arming needs a remainder, Save
+  // needs none. Both routes to zero are covered, because they are not the same
+  // mechanism: the gesture disarms itself, while a TYPED reconciliation is
+  // caught only by `armed` being derived (`assigning && canAssign`). Before
+  // that derivation the typed route left the rows armed with Save enabled for
+  // the render before the effect ran — which is what made the earlier
+  // "unreachable" claim false (codex round 2).
+  it.each([
+    ["the take-remainder control", () =>
+      fireEvent.click(within(dialog()).getByRole("button", { name: /Put all 30 remaining in Grade A/ }))],
+    ["typing the last grade", () =>
+      fireEvent.change(screen.getByRole("spinbutton", { name: "Grade A" }), { target: { value: "70" } })],
+  ])("is never armed and saveable at once — reconciled via %s", async (_label, reconcile) => {
     mockListDailyEntries.mockResolvedValue([SUBMITTED]);
     await openAdjustPanel();
     fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: "recount" } });
@@ -308,12 +313,59 @@ describe("HistoryPage adjust — mirrored daily-entry layout", () => {
     fireEvent.click(within(dialog()).getByRole("button", { name: /remaining 30/ }));
     expect(screen.getByRole("button", { name: "Save adjustment" })).toBeDisabled();
 
-    // Placing that remainder is what enables Save — and the same edit takes the
-    // gesture away, rather than leaving it armed over a settled day.
-    fireEvent.click(within(dialog()).getByRole("button", { name: /Put all 30 remaining in Grade A/ }));
+    reconcile();
+
     expect(screen.getByRole("button", { name: "Save adjustment" })).toBeEnabled();
     expect(within(dialog()).queryByRole("button", { name: /Put all/ })).not.toBeInTheDocument();
     expect(within(dialog()).queryByRole("button", { name: /remaining/ })).not.toBeInTheDocument();
+    // The rows stop being drop targets in the same breath, not a frame later.
+    expect(dialog().querySelector(".entry-row.taking")).toBeNull();
+  });
+
+  // The frame the two tests above CANNOT see, and the one the bug lived in.
+  // `fireEvent` wraps every dispatch in act(), which flushes passive effects
+  // before the assertions run — so with the disarm effect doing the work, both
+  // spellings look identical from a normal test. Dispatching the input event
+  // raw skips that flush: React still re-renders the discrete event
+  // synchronously, but the effect has not run yet, which is exactly the state a
+  // user's next click would land in. Derived `armed` is 0 take-buttons here;
+  // reading `assigning` directly renders 2 (measured both ways).
+  it("drops the row targets in the same render as the reconciliation, not on the effect", async () => {
+    mockListDailyEntries.mockResolvedValue([SUBMITTED]);
+    await openAdjustPanel();
+    fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: "recount" } });
+    fireEvent.click(within(dialog()).getByRole("button", { name: /remaining 30/ }));
+
+    const input = screen.getByRole("spinbutton", { name: "Grade A" }) as HTMLInputElement;
+    // React tracks the input's value on the node, so setting `.value` directly
+    // is ignored as a no-op change; go through the prototype setter it patched.
+    const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+    setValue.call(input, "70"); // 70 + 20 === sellable 90
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+
+    expect(screen.queryAllByRole("button", { name: /Put all/ })).toHaveLength(0);
+    expect(dialog().querySelector(".entry-row.taking")).toBeNull();
+    // …and Save is live in that same frame, which is what makes an armed save
+    // reachable at all if the two states are allowed to overlap.
+    expect(screen.getByRole("button", { name: "Save adjustment" })).toBeEnabled();
+  });
+
+  // The derived flag alone would let a typed correction RE-arm rows the user
+  // never re-armed: `assigning` stays true in state, so dropping back below
+  // sellable would light them up again. The effect is what clears it, and this
+  // is the only test that fails if it is deleted.
+  it("does not silently re-arm when a correction opens a remainder again", async () => {
+    mockListDailyEntries.mockResolvedValue([SUBMITTED]);
+    await openAdjustPanel();
+
+    fireEvent.click(within(dialog()).getByRole("button", { name: /remaining 30/ }));
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Grade A" }), { target: { value: "70" } });
+    // Back under sellable — a remainder exists again, but the gesture was let
+    // go, so the rows must stay quiet until it is armed deliberately.
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Grade A" }), { target: { value: "50" } });
+
+    expect(within(dialog()).getByRole("button", { name: /remaining 20/ })).toBeInTheDocument();
+    expect(within(dialog()).queryByRole("button", { name: /Put all/ })).not.toBeInTheDocument();
   });
 
   it("offers nothing to hand out once the day already reconciles", async () => {
