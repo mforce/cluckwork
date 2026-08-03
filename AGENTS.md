@@ -257,13 +257,28 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
   `release-please` job runs with **`skip-github-pull-request: true`** (cut only),
   and a **`groom`** job with `needs: [release-please, promote]` and
   **`skip-github-release: true`** maintains the next PR *after* `promote` has
-  published the release and created its tag. Two guards on `groom`'s condition are
-  load-bearing and neither is the obvious default: `always() && !cancelled()`,
-  because `promote` is **skipped** on an ordinary push and a skipped dependency
-  would otherwise skip grooming for every non-release merge; and
-  `needs.promote.result != 'failure'`, because a *failed* promotion leaves no tag,
-  so grooming would overwrite a correct PR with the duplicated one — leaving it
-  untouched is the fail-closed choice.
+  published the release and created its tag.
+
+  `always() && !cancelled()` on `groom` is required and is not the obvious
+  default: `promote` is **skipped** on an ordinary push, and a skipped dependency
+  would otherwise skip grooming for every non-release merge.
+
+  **The guarantee is a probe for an untagged draft, not an inference from job
+  results — do not "simplify" it back to a `needs` predicate.** The tempting
+  version, `needs.promote.result != 'failure'`, looks like it closes the hole and
+  covers only the run in which promotion failed. On the **next** ordinary push the
+  cut job succeeds with `release_created: false`, so `promote` is **skipped**
+  rather than failed, the predicate passes, grooming runs — and the earlier draft
+  still has no tag, so the duplicated changelog is written over a correct PR one
+  run later. (Found by review on #411, against the first version of this fix.) So
+  `groom`'s first step asks GitHub directly whether any **draft** release exists
+  and skips if so; the `needs` predicate is kept only as a cheap fence that avoids
+  starting a runner in the obvious case.
+
+  That probe **skips rather than fails** — an unrelated merge should not go red
+  because a release is stuck — but it is loud about it: a `::warning::` annotation
+  and a step-summary block naming the draft tag. A stuck release is visible
+  without turning every subsequent merge red.
 
   `groom` mints its own App token and **must** keep the `permission-*` downscoping
   — omitting those does not mint a narrow token, it mints the union of every grant

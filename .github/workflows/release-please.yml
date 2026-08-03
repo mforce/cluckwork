@@ -577,6 +577,24 @@ jobs:
   # exists, so grooming now would write exactly the wrong PR over a correct one.
   # Leaving the existing PR untouched is the fail-closed choice — the repair
   # dispatch, then any later push, grooms it correctly.
+  #
+  # BUT `needs.promote.result != 'failure'` IS NOT SUFFICIENT ON ITS OWN, and it
+  # is worth being exact about why, because the predicate looks like it closes
+  # the hole and does not. It only covers the run in which promotion failed. On
+  # the NEXT ordinary push the cut job succeeds with `release_created: false`, so
+  # `promote` is SKIPPED rather than failed — the predicate passes, grooming
+  # runs, and the earlier draft STILL has no tag. Same duplicated changelog,
+  # written over a correct PR, one run later.
+  #
+  # So the load-bearing check is a probe of the actual condition — "does an
+  # unpublished draft release exist?" — not an inference from this run's job
+  # results. The predicate stays as a cheap first fence that avoids starting a
+  # runner at all in the obvious case.
+  #
+  # The probe SKIPS rather than fails: an unrelated merge should not go red
+  # because a release is stuck. It is loud instead — a `::warning::` annotation
+  # plus a step-summary line naming the draft — so a stuck release is visible
+  # without turning every subsequent merge red.
   groom:
     name: Maintain the release PR
     needs: [release-please, promote]
@@ -591,6 +609,45 @@ jobs:
     permissions:
       contents: read
     steps:
+      # The actual guarantee. A DRAFT release is one that was cut but never
+      # published, so it has no git tag, so release-please cannot resolve the
+      # changelog boundary through it — grooming now would restate every earlier
+      # release's entries over a correct PR.
+      #
+      # Probing for the draft is what makes this correct in every run, not just
+      # the one where `promote` failed. See the comment above the job.
+      #
+      # No checkout here, so `gh` has no git remote to infer the repository
+      # from: GH_REPO supplies it out of band, exactly as the promote job does.
+      # `--paginate` because a repo accumulates releases and a draft older than
+      # the first page still has no tag.
+      - name: Refuse to groom while a cut release has no tag
+        id: guard
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          drafts=$(gh api --paginate "repos/$GH_REPO/releases" \
+            --jq '.[] | select(.draft) | .tag_name' | paste -sd' ' -)
+          if [ -n "$drafts" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "::warning::Release PR not groomed — unpublished draft release(s) with no git tag: ${drafts}. Promote them (Release workflow, dispatch by tag) and the next push will groom correctly."
+            {
+              echo "### Release PR not groomed"
+              echo
+              echo "Unpublished draft release(s) with no git tag:"
+              echo
+              echo '```'
+              echo "$drafts"
+              echo '```'
+              echo
+              echo "release-please cannot resolve the changelog boundary without a tag, so grooming now would restate every earlier release's entries. Promote the draft, then any push grooms correctly."
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
       # Downscoped per-permission for the same reason as the cut job above: the
       # same App backs dependabot-lockfix, and `permission-*` caps THIS token at
       # what grooming needs regardless of what the installation holds. Omitting
@@ -598,6 +655,7 @@ jobs:
       # the App has, silently.
       - name: Mint a short-lived GitHub App token
         id: app
+        if: steps.guard.outputs.skip != 'true'
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
           client-id: ${{ secrets.LOCKFIX_APP_CLIENT_ID }}
@@ -607,6 +665,7 @@ jobs:
           permission-issues: write
 
       - name: Run release-please
+        if: steps.guard.outputs.skip != 'true'
         uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
         with:
           token: ${{ steps.app.outputs.token }}
