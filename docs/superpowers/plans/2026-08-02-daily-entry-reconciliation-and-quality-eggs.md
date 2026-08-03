@@ -16,7 +16,7 @@ PR #395.
 - Preserve `DailyEntry.Version++` on every mutation and add parallel-race coverage for new aggregate mutation paths.
 - Drafts accept incomplete manual grade lines; submit and adjustment require exact reconciliation.
 - `Discarded` stays non-saleable; Cracked and Dirty are saleable only through their snapshotted configured grade.
-- Never modify user-mutated grade saleability in a follow-on migration; hand-edit `InitialCreate` base SQL for fresh defaults and migrate existing farms' identities only.
+- **Add no second migration.** `Persistence/Migrations/` holds exactly one, `InitialCreate` (#245), and this application has never been deployed — a virgin database is the only starting state anywhere. Hand-carry the columns, the partial unique index, and the seed changes into `InitialCreate` itself, and hand-edit rather than regenerate: it carries four un-regenerable `lower("Name")` expression indexes and 21 rows of `WHERE NOT EXISTS`-guarded reference data that `dotnet ef migrations add` would silently drop. There is correspondingly **no existing farm whose saleability could be modified**, so the "leave existing farms untouched" half of this constraint describes data that cannot exist — dropping it avoids shipping the dead-backfill pattern the #245 squash was performed to remove.
 - Update every non-CI writer and fixture per PR #395, including simulation manifest verification.
 - Update `HelpPage.tsx` and `specs/product/GLOSSARY.md` with the behavior change.
 
@@ -26,14 +26,14 @@ PR #395.
 
 **Files:**
 - Modify: `src/Cluckwork.Domain/Eggs/EggGrade.cs`, `src/Cluckwork.Domain/Eggs/DailyEntry.cs`
-- Modify: EF configurations, the hand-maintained `InitialCreate`, and a new follow-on migration under `src/Cluckwork.Infrastructure/Persistence/Migrations/`
+- Modify: EF configurations and the hand-maintained `InitialCreate` (hand-edited, never regenerated) — **no second migration**, see Global Constraints
 - Modify: base-reference seed SQL and migration security/base-data tests
 - Modify: `src/Cluckwork.Infrastructure/Repositories/ExportQueries.cs` — add the two quality snapshot ids to the `daily-entries` projection and `DailyEntryKind` to the `egg-grades` projection, so a full account export can still reconstruct which grade a condition counter represented
 - Test: Egg-grade and DailyEntry domain tests; migration tests; `ExportTests.cs` regression coverage for both changed projections
 
 - [ ] Write failing tests for immutable `DailyEntryKind`, one Cracked/Dirty grade per farm, null/non-null quality snapshots on official entries, and an account export missing both additions.
 - [ ] Run the focused tests and verify the model cannot yet distinguish a renamed Cracked/Dirty grade from any other quality grade, and that a full account export cannot yet reconstruct which grade a condition counter represented.
-- [ ] Add the enum, partial uniqueness constraint, official-entry snapshots, a carefully hand-edited `InitialCreate` seed for fresh databases, and a follow-on migration that leaves existing farms' saleability untouched.
+- [ ] Add the enum, partial uniqueness constraint, and official-entry snapshots, carried into `InitialCreate` by hand — columns, index, and the seed defaults together. Confirm afterwards that the four `lower("Name")` expression indexes and all 21 guarded reference-data rows survive, and that `MigrationSecurityReviewTests` and `BaseReferenceDataMigrationTests` still pass; treat a failure there as having destroyed something, not as a test to adjust.
 - [ ] Add the quality snapshot ids to the `daily-entries` export projection and `DailyEntryKind` to the `egg-grades` export projection.
 - [ ] Verify new-base defaults are saleable, existing official records remain non-reclassified, migration security tests still pass, and both export regression tests are green.
 
@@ -43,10 +43,10 @@ PR #395.
 - Modify: `DailyEntry`, `RecordDailyEntryHandler`, `SubmitDailyEntryHandler`, `AdjustDailyEntryHandler`, grade repositories/commands as required
 - Test: Domain, record, submit, adjustment, stock, report, and concurrency integration tests
 
-- [ ] Write failing domain/API tests for ungraded and partially graded official entries, zero remainder, each saleable quality counter, each non-saleable quality counter, a zero-count day for an otherwise-saleable quality counter (snapshot recorded, no lot — `EggLot.Create` rejects zero), and an adjustment that preserves its original snapshot.
+- [ ] Write failing domain/API tests for ungraded and partially graded official entries, zero remainder, each saleable quality counter, each non-saleable quality counter, an **inactive-but-saleable** condition grade (must snapshot null — `EggGrade.Deactivate()` leaves `IsSaleable` set, so this is the case a saleability-only rule wrongly accepts), a zero-count day for an otherwise-saleable quality counter (snapshot recorded, no lot — `EggLot.Create` rejects zero), and an adjustment that preserves its original snapshot.
 - [ ] Write failing API tests submitting a **condition-kind grade id as a manual line** — on both record and adjust — and assert it is refused. Excluding condition grades from the manual pane is a UI affordance, not the enforcement: `RecordDailyEntryHandler` gates manual-line eligibility on `IsSaleable` **alone**, with no `GradeType`/kind restriction, and this feature makes Cracked and Dirty saleable by default. So a direct or stale API client can name a Cracked id as a manual line, the exact-total check passes (it is only a sum), and submission then creates **both** that manual lot and the counter-backed quality lot for the same grade — double-counting the day's stock and breaking the one-lot-per-grade assumption reconciliation depends on. The rejection belongs at the handler/aggregate boundary where the UI cannot be bypassed.
 - [ ] Run them red; assert status/version/lots remain unchanged on refusal.
-- [ ] Implement `manualGrades == total - cracked - dirty - discarded` at the aggregate boundary, reject any manual line naming a condition-kind grade, resolve snapshots only on first official submission, and create/reconcile quality lots — skipping lot creation for a zero counter while still recording its snapshot — in the existing transactions.
+- [ ] Implement `manualGrades == total - cracked - dirty - discarded` at the aggregate boundary, reject any manual line naming a condition-kind grade, resolve snapshots only on first official submission and only for a grade that is both `Active` and `IsSaleable`, and create/reconcile quality lots — skipping lot creation for a zero counter while still recording its snapshot — in the existing transactions.
 - [ ] Update report and stock projections to count only snapshot-backed quality stock as marketable; verify no historical row changes its meaning.
 - [ ] Run targeted integration suites plus parallel submit/adjust tests.
 

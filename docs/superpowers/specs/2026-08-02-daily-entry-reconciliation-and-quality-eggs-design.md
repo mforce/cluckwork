@@ -30,7 +30,20 @@ its meaning. The default Cracked and Dirty grades receive their matching kinds
 and are saleable in fresh base data.
 
 `DailyEntry` snapshots `CrackedQualityGradeId` and `DirtyQualityGradeId` when
-it first becomes official. A null snapshot records a non-saleable condition.
+it first becomes official. Resolution requires the condition grade to be
+**both `Active` and `IsSaleable`**; anything else snapshots null. Both
+conditions are load-bearing, and saleability alone is not sufficient:
+`EggGrade.Deactivate()` flips `Active` and deliberately leaves `IsSaleable`
+untouched, so an inactive-but-saleable grade is an ordinary reachable state
+whenever an owner deactivates a condition grade without first clearing its
+saleability. Resolving on saleability alone would then snapshot a grade the
+egg-grade endpoints have removed from capture and mint new lots under it.
+A null snapshot therefore records "this condition was not stock that day",
+whether because it was non-saleable or because it was deactivated.
+
+Cover the inactive-but-saleable submission explicitly — it is the case a
+saleability-only rule passes and this rule refuses.
+
 The snapshot—not the current grade setting—governs later reporting, adjustment,
 and lot reconciliation. Existing official entries initialise both snapshots as
 null.
