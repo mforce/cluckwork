@@ -393,8 +393,11 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
   like the undecorated line). What distinguishes git's own section is its
   framing — `commit -v` emits the scissors marker, then its notes, then the diff
   — so the tail is dropped only when `diff --git ` is **preceded by a scissors
-  line**. That marker is a fixed ASCII constant, not a translated string, so it
-  holds in any locale. With `squash_merge_commit_message=COMMIT_MESSAGES`
+  line**. Match that marker **structurally — dashes, `>8`, dashes — never as a
+  literal `#` string**: the surrounding notes are translated, and
+  `core.commentChar` changes the prefix outright. With `;` configured, a literal
+  `#` match missed git's own marker, so its verbose diff read as authored text
+  and an ordinary commit was rejected. With `squash_merge_commit_message=COMMIT_MESSAGES`
   and `squash_merge_commit_title=COMMIT_OR_PR_TITLE` (and merge/rebase also
   enabled), what release-please parses is:
 

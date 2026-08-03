@@ -63,12 +63,18 @@ fail=0
 # is a fixed ASCII constant, not a translated string, so this survives a
 # non-English locale.
 #
+# The marker is matched WITHOUT hardcoding '#': `core.commentChar` (and
+# `core.commentString` on newer git) changes the prefix, and with `;` set the
+# literal '#' match missed git's own marker, so its verbose diff was treated as
+# authored text and an ordinary commit was rejected. Measured, not assumed.
+# Only the structural part -- dashes, `>8`, dashes -- is fixed.
+#
 #   scissors, then diff --git   -> git's verbose diff  -> ignored
 #   diff --git, no scissors     -> authored excerpt    -> CHECKED
 #   scissors, no diff --git     -> authored text       -> CHECKED (the repro)
 body=$(awk '
   /^diff --git / && seen_scissors { exit }
-  /^# ------------------------ >8 ------------------------$/ { seen_scissors = 1 }
+  /^[^[:space:]]+[[:space:]]+-+[[:space:]]+>8[[:space:]]+-+[[:space:]]*$/ { seen_scissors = 1 }
   { print }
 ' "$msg")
 
