@@ -243,10 +243,30 @@ nothing is released until you merge that PR.
 
 ### Writing a commit message
 
-release-please parses the whole message, body included, and the squash body is
-every branch commit message concatenated. One unparseable line drops the **entire
-commit** from the changelog — no entry, no version bump, green run. Two commits
-have already been lost this way.
+**Subject:** `type(scope): summary`, lowercase type, no space before the colon.
+The scope is free-form — the area touched. Real examples from this repo:
+
+| type | changelog section | example |
+|---|---|---|
+| `feat` | Features | `feat(eggs): make cracked and dirty eggs sellable stock via condition grades` |
+| `fix` | Bug fixes | `fix(sales): reject fractional order-line quantities` |
+| `perf` | Performance | `perf(reports): stream the CSV export instead of buffering it` |
+| `refactor` | Refactoring | `refactor(api): extract service registration from Program` |
+| `docs` | Documentation | `docs(agents): record the guard-writing rules #407 paid five rounds for` |
+| `ci` | *hidden* | `ci(e2e): workflow_dispatch job for the Playwright smoke suite` |
+| `test` | *hidden* | `test(e2e): Playwright smoke suite for the SPA over the #243 sim fixture` |
+| `build` | *hidden* | `build(deps): bump Npgsql to 10.0.2` |
+| `chore` | *hidden* | `chore(web): drop the unused date-fns dependency` |
+| `style` | *hidden* | `style(web): apply Prettier to the untouched settings screens` |
+
+Add `!` for a breaking change — `feat(api)!: drop the v0 endpoints` — or a
+`BREAKING CHANGE:` footer. *Hidden* types stay out of the changelog text but
+**still bump the patch digit** (see above); they cost a number, not a deploy.
+
+**Body:** release-please parses the whole message, body included, and the squash
+body is every branch commit message concatenated. One unparseable line drops the
+**entire commit** from the changelog — no entry, no version bump, green run. Two
+commits have already been lost this way.
 
 **Never start a line with `something(` that has another `(` inside it.** Ordinary
 code prose, and backticks do not protect it:
