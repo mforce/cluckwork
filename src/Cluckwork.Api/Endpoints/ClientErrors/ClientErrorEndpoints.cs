@@ -99,8 +99,17 @@ public static class ClientErrorEndpoints
 
         // Template carries the operator-facing line; the bulky fields ride as
         // structured properties via the provider's scope handling (#216), so
-        // one query key (Scope/Route/ClientTraceId) finds them without the
-        // stacks shouting in the console template.
+        // one query key (Scope/Route/ClientTraceId) finds them.
+        //
+        // #404 changed where those properties END UP. Production now formats
+        // the console sink as compact JSON, which serializes EVERY property —
+        // so these stacks, up to MaxStackChars each and supplied by an
+        // ANONYMOUS caller, are retained by whatever collector reads stdout.
+        // The old prose template rendered only Timestamp/Level/TraceId/SpanId/
+        // Message/Exception and dropped the rest, which hid them by accident
+        // rather than by policy. #273 owns the redaction/retention answer and
+        // names this endpoint explicitly; it is now a live exposure there, not
+        // a latent one.
         using (logger.BeginScope(new Dictionary<string, object?>
         {
             ["Stack"] = Truncate(report.Stack, MaxStackChars),
@@ -109,13 +118,19 @@ public static class ClientErrorEndpoints
             ["ClientTraceId"] = Truncate(report.TraceId, MaxShortChars)
         }))
         {
-            // Scope is validated to two literals above; Message and Route are
-            // the only anonymous-caller strings the console template RENDERS,
-            // so they get control characters stripped — CR/LF (or an ANSI
-            // escape) would let one report forge extra plain-text log lines.
-            // The stacks keep theirs: they ride as structured properties the
-            // console line never shows, and a stack without newlines is
-            // useless.
+            // Scope is validated to two literals above; Message and Route get
+            // control characters stripped because a CR/LF (or an ANSI escape)
+            // from this ANONYMOUS source would let one report forge extra
+            // plain-text log lines. The stacks keep theirs, and a stack
+            // without newlines is useless.
+            //
+            // That forging risk is specific to a PLAIN-TEXT sink, so post-#404
+            // it applies to Development's outputTemplate, not to Production's
+            // compact JSON — a JSON writer escapes control characters, so no
+            // property value can break out of its string and forge a record.
+            // The stripping stays unconditional: the format is chosen by
+            // configuration, and this code must not have to know which one is
+            // in force.
             logger.LogError("Client error ({Scope}) at {Route}: {Message}",
                 scope,
                 Sanitize(Truncate(report.Route, MaxRouteChars)) ?? "(unknown)",
