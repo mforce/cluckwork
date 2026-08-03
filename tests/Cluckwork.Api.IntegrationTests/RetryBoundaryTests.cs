@@ -297,6 +297,41 @@ public sealed class RetryBoundaryTests : IClassFixture<RetryBoundaryFactory>, ID
         Assert.Equal(2, await FailedAccessCountAsync(accountId, email));
     }
 
+    // A disable racing a wrong-password attempt also invalidates the tracked
+    // ConcurrencyStamp. Unlike another wrong-password writer, however, the
+    // freshly reloaded row is no longer eligible for lockout accounting: guesses
+    // made while an account is disabled must not leave it locked when an Owner
+    // later re-enables it. The retry loop therefore stops when reload observes
+    // DisabledAt instead of applying the stale attempt to the newer state.
+    [Fact]
+    public async Task ConcurrentDisable_StopsTheFailedAccessRetry_WithoutMutatingLockoutState()
+    {
+        var email = $"retry-boundary-{Guid.NewGuid():N}@test.local";
+        var accountId = await _factory.SeedAccountWithUserAsync(email);
+
+        using var failingAttempt = _factory.Services.CreateScope();
+        using var disabler = _factory.Services.CreateScope();
+        var failingUsers = failingAttempt.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var disablingUsers = disabler.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+
+        // The failed attempt reads first. Disabling through a different context
+        // then supersedes its ConcurrencyStamp before AccessFailedAsync saves.
+        var staleUser = await failingUsers.FindByEmailAsync(email);
+        var userToDisable = await disablingUsers.FindByEmailAsync(email);
+        Assert.NotNull(staleUser);
+        Assert.NotNull(userToDisable);
+
+        userToDisable.DisabledAt = DateTimeOffset.UtcNow;
+        Assert.True((await disablingUsers.UpdateAsync(userToDisable)).Succeeded);
+
+        await AccountLockout.RecordFailedAccessAsync(
+            failingUsers,
+            failingAttempt.ServiceProvider.GetRequiredService<AppDbContext>(),
+            staleUser);
+
+        Assert.Equal(0, await FailedAccessCountAsync(accountId, email));
+    }
+
     // --- codex 3696925253 (P2), and the round-5 sweep it opened ---
     //
     // THE SHAPE, stated once for the four tests below: an automatic replay

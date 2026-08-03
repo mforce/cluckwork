@@ -739,6 +739,24 @@ describe("changePassword (#165)", () => {
     await expect(changePassword({ currentPassword: "x", newPassword: "y" })).rejects.toThrow(ApiError);
     expect(getAccessToken()).toBe("at1"); // unchanged
   });
+
+  it("refreshes and retries inside the cookie lock when the access token expired", async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ title: "Unauthorized" }, 401))
+      .mockResolvedValueOnce(accessResponse("refreshed-access"))
+      .mockResolvedValueOnce(accessResponse("password-change-access"));
+
+    await changePassword({ currentPassword: "a", newPassword: "b" });
+
+    const changes = callsTo(fetchMock, "/auth/change-password");
+    expect(changes).toHaveLength(2);
+    expect(callsTo(fetchMock, "/auth/refresh")).toHaveLength(1);
+    // The one logical write keeps its idempotency key across the auth retry.
+    expect(headerOf(changes[1], "Idempotency-Key"))
+      .toBe(headerOf(changes[0], "Idempotency-Key"));
+    expect(authOf(changes[1])).toBe("Bearer refreshed-access");
+    expect(getAccessToken()).toBe("password-change-access");
+  });
 });
 
 // #308 — step-up grant issuance. Consumed by UsersPage.tsx immediately before
@@ -865,6 +883,41 @@ describe("cross-tab refresh coordination (#169)", () => {
     // coordination. (Asserted on the code's own call, not the setup call above.)
     expect(sutLockName(locks)).toBe("cluckwork.auth.refresh");
     expect(getAccessToken()).toBe("at2");
+  });
+
+  it("serializes password change after an in-flight refresh so stale credentials cannot win last", async () => {
+    const locks = fakeLockManager();
+    vi.stubGlobal("navigator", { locks });
+
+    const refreshGate = deferred<Response>();
+    const changeGate = deferred<Response>();
+    fetchMock.mockImplementation((url: string) => {
+      if (url.endsWith("/auth/refresh")) return refreshGate.promise;
+      if (url.endsWith("/auth/change-password")) return changeGate.promise;
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    // The refresh proves the old credential epoch, then remains in flight. A
+    // password change that overtakes it can commit E+1 first, only for the late
+    // refresh response to overwrite both browser credentials with retired E.
+    const refreshing = restoreSession();
+    await drain();
+    const changing = changePassword({ currentPassword: "a", newPassword: "b" });
+    await drain();
+
+    // Resolve in the dangerous order. Before serialization, change-password
+    // commits first and the stale refresh wins last. With the shared lock, the
+    // already-resolved password response is not requested until refresh exits.
+    changeGate.resolve(accessResponse("password-change-token"));
+    await drain();
+    refreshGate.resolve(accessResponse("stale-refresh-token"));
+
+    await expect(refreshing).resolves.toBe(true);
+    await expect(changing).resolves.toBeUndefined();
+    expect(getAccessToken()).toBe("password-change-token");
+    expect(callsTo(fetchMock, "/auth/refresh")).toHaveLength(1);
+    expect(callsTo(fetchMock, "/auth/change-password")).toHaveLength(1);
+    expect(sutLockName(locks)).toBe("cluckwork.auth.refresh");
   });
 
   it("a lock held under a DIFFERENT name does not block refresh (fake is name-scoped, like the real API)", async () => {
