@@ -36,10 +36,10 @@ const mockGetProfitReport = vi.mocked(getProfitReport);
 // of the `?? "—"` fallback (DATA, left raw per the namespace header comment).
 const PRODUCTION: ProductionReport = {
   days: [
-    { date: "2026-07-19", totalEggs: 100, cracked: 2, dirty: 3, discarded: 5, sellable: 90, deaths: 1, henDays: 98, henDayPct: 91.8 },
-    { date: "2026-07-18", totalEggs: 95, cracked: 1, dirty: 1, discarded: 2, sellable: 91, deaths: 0, henDays: 98, henDayPct: null },
+    { date: "2026-07-19", totalEggs: 100, cracked: 2, dirty: 3, discarded: 5, sellable: 90, fromCounts: 6, deaths: 1, henDays: 98, henDayPct: 91.8 },
+    { date: "2026-07-18", totalEggs: 95, cracked: 1, dirty: 1, discarded: 2, sellable: 91, fromCounts: 0, deaths: 0, henDays: 98, henDayPct: null },
   ],
-  totalEggs: 195, totalSellable: 181, totalDeaths: 1, totalHenDays: 196, periodHenDayPct: 92.3,
+  totalEggs: 195, totalSellable: 181, totalFromCounts: 6, totalDeaths: 1, totalHenDays: 196, periodHenDayPct: 92.3,
   gradeTotals: [
     { eggGradeId: "gr1", name: "Grade A", quantity: 60 },
     { eggGradeId: "gr2", name: "Grade B", quantity: 30 },
@@ -102,6 +102,36 @@ describe("ReportsPage production section (renders for every role)", () => {
     within(periodRow).getByText("92.3"); // periodHenDayPct
 
     expect(screen.getByText("By grade: Grade A 60, Grade B 30")).toBeInTheDocument();
+  });
+
+  // #396 — Condition sits BESIDE Sellable, never folded into it. The fixture
+  // gives day 1 sellable 90 and fromCounts 6, two values that cannot be
+  // confused for one another, so a column wired to the wrong field fails.
+  it("renders the Condition column beside Sellable, and keeps Sellable unchanged", async () => {
+    renderWithProviders(<ReportsPage />, { token: NON_ADMIN });
+
+    const row1 = await screen.findByRole("row", { name: /2026-07-19/ });
+    within(row1).getByText("90"); // sellable — still the hand-graded remainder
+    within(row1).getByText("6");  // condition — what the counters contributed
+
+    const periodRow = screen.getByRole("row", { name: /Period/ });
+    within(periodRow).getByText("181"); // totalSellable
+    within(periodRow).getByText("6");   // totalFromCounts
+
+    // The header must resolve through the catalog, not be hardcoded English.
+    expect(screen.getByRole("columnheader", { name: "Condition" })).toBeInTheDocument();
+  });
+
+  it("shows 0 in the Condition column for a day whose conditions were losses", async () => {
+    renderWithProviders(<ReportsPage />, { token: NON_ADMIN });
+
+    // Day 2 has cracked 1 / dirty 1 but fromCounts 0 — recorded as losses. The
+    // column must NOT fall back to the raw counters, which is the mistake that
+    // would invent stock the farm never had.
+    // Columns: date, eggs, losses, sellable, CONDITION, deaths, henDays, pct.
+    // Indexed: day 2 has a 0 in deaths too, so a text match proves nothing.
+    const row2 = await screen.findByRole("row", { name: /2026-07-18/ });
+    expect(within(row2).getAllByRole("cell")[4]).toHaveTextContent("0");
   });
 
   it("falls back to the em dash for a null periodHenDayPct in the Period row too, not just per-day", async () => {

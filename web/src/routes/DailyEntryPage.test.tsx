@@ -194,7 +194,7 @@ describe("DailyEntryPage prefill gating", () => {
   it("locks the form when the day already has a submitted entry", async () => {
     const existing: DailyEntry = {
       id: "de1", farmId: "farm1", houseId: "h1", flockId: "f1", date: todayIso(), status: "Submitted",
-      totalEggs: 100, crackedEggs: 2, dirtyEggs: 3, discardedEggs: 5, mortalityCount: 1,
+      totalEggs: 100, crackedEggs: 2, dirtyEggs: 3, discardedEggs: 5, mortalityCount: 1, crackedGradeId: null, dirtyGradeId: null,
       grades: [{ eggGradeId: "gr1", quantity: 60 }, { eggGradeId: "gr2", quantity: 25 }],
       version: 1, adjustReason: null, voidReason: null, lockedAtUtc: "2026-07-20T10:00:00Z", adjustedFrom: null,
     };
@@ -217,7 +217,7 @@ describe("DailyEntryPage prefill gating", () => {
   it("shows the harmonized 'adjusted' label, not the raw status, for a manager-adjusted day", async () => {
     const existing: DailyEntry = {
       id: "de1", farmId: "farm1", houseId: "h1", flockId: "f1", date: todayIso(), status: "ManagerAdjusted",
-      totalEggs: 100, crackedEggs: 2, dirtyEggs: 3, discardedEggs: 5, mortalityCount: 1,
+      totalEggs: 100, crackedEggs: 2, dirtyEggs: 3, discardedEggs: 5, mortalityCount: 1, crackedGradeId: null, dirtyGradeId: null,
       grades: [{ eggGradeId: "gr1", quantity: 60 }, { eggGradeId: "gr2", quantity: 25 }],
       version: 1, adjustReason: null, voidReason: null, lockedAtUtc: "2026-07-20T10:00:00Z", adjustedFrom: null,
     };
@@ -398,7 +398,7 @@ describe("DailyEntryPage structure", () => {
 describe("DailyEntryPage draft badge", () => {
   const draftFor = (date: string) => ({
     id: "de1", farmId: "farm1", houseId: "h1", flockId: "f1", date, status: "Draft",
-    totalEggs: 40, crackedEggs: 1, dirtyEggs: 0, discardedEggs: 0, mortalityCount: 0,
+    totalEggs: 40, crackedEggs: 1, dirtyEggs: 0, discardedEggs: 0, mortalityCount: 0, crackedGradeId: null, dirtyGradeId: null,
     grades: [], version: 1, adjustReason: null, voidReason: null,
     lockedAtUtc: null, adjustedFrom: null,
   } as DailyEntry);
@@ -832,7 +832,7 @@ describe("DailyEntryPage i18n wiring (#182, Task 11)", () => {
   it("interpolates the enum-labelled status into the entry-locked banner from the catalog", async () => {
     const existing: DailyEntry = {
       id: "de1", farmId: "farm1", houseId: "h1", flockId: "f1", date: todayIso(), status: "Submitted",
-      totalEggs: 100, crackedEggs: 2, dirtyEggs: 3, discardedEggs: 5, mortalityCount: 1,
+      totalEggs: 100, crackedEggs: 2, dirtyEggs: 3, discardedEggs: 5, mortalityCount: 1, crackedGradeId: null, dirtyGradeId: null,
       grades: [], version: 1, adjustReason: null, voidReason: null, lockedAtUtc: "2026-07-20T10:00:00Z", adjustedFrom: null,
     };
     mockListDailyEntries.mockResolvedValue([existing]);

@@ -127,6 +127,20 @@ export function HistoryPage() {
   const correctable = (e: DailyEntry) =>
     e.status === "Submitted" || e.status === "Locked" || e.status === "ManagerAdjusted";
 
+  // #396 — how many of this day's cracked/dirty eggs became stock. Read from
+  // the ENTRY's snapshot, never from the current grade catalog: a farm that
+  // switched Cracked off after recording a day must still see that day as it
+  // was recorded, and one that switched it on must not see past losses
+  // retroactively turn into stock.
+  //
+  // A draft has resolved nothing yet, so it shows an em dash rather than 0 —
+  // "not decided" and "decided to be a loss" are different facts, and 0 would
+  // state the second while the first is true.
+  const conditionStock = (e: DailyEntry) => {
+    if (e.status === "Draft") return "—";
+    return (e.crackedGradeId ? e.crackedEggs : 0) + (e.dirtyGradeId ? e.dirtyEggs : 0);
+  };
+
   function startAdjust(e: DailyEntry) {
     setAdjusting(e);
     setTotal(e.totalEggs);
@@ -513,7 +527,12 @@ export function HistoryPage() {
             <thead>
               <tr>
                 <th>{t("dateHeader")}</th><th>{t("flockHeader")}</th><th>{t("statusHeader")}</th><th>{t("totalHeader")}</th>
-                <th>{t("lossesHeader")}</th><th>{t("mortalityHeader")}</th><th>{t("gradedHeader")}</th>
+                <th>{t("lossesHeader")}</th>
+                {/* #396 — Losses shows the cracked/dirty/discarded COUNTS
+                    whatever became of them; this shows how many of those
+                    actually became stock, per the entry's own snapshot. */}
+                <th>{t("conditionHeader")}</th>
+                <th>{t("mortalityHeader")}</th><th>{t("gradedHeader")}</th>
                 <th></th>
               </tr>
             </thead>
@@ -525,6 +544,7 @@ export function HistoryPage() {
                   <td>{statusCell(e)}</td>
                   <td>{e.totalEggs}</td>
                   <td>{e.crackedEggs}/{e.dirtyEggs}/{e.discardedEggs}</td>
+                  <td>{conditionStock(e)}</td>
                   <td>{e.mortalityCount}</td>
                   <td>
                     {e.grades.length === 0

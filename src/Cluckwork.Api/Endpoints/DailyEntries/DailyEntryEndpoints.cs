@@ -84,6 +84,11 @@ public static class DailyEntryEndpoints
     private static DailyEntryResponse ToResponse(Cluckwork.Domain.Eggs.DailyEntry e) => new(
         e.Id, e.FarmId, e.HouseId, e.FlockId, e.Date, e.Status.ToString(),
         e.TotalEggs, e.CrackedEggs, e.DirtyEggs, e.DiscardedEggs, e.MortalityCount,
+        // #396 — which grade each condition counter resolved to when this entry
+        // became official, or null when that condition was a loss. The SPA needs
+        // it to say whether a day's cracked eggs became stock; it cannot re-derive
+        // that from the current catalog, which is the whole point of the snapshot.
+        e.CrackedGradeId, e.DirtyGradeId,
         e.Grades.Select(g => new GradeLineResponse(g.EggGradeId, g.Quantity)).ToList(),
         e.Version, e.AdjustReason, e.VoidReason, e.LockedAtUtc,
         // The audit snapshot is stored as JSON; embed it as an object, not a string.
@@ -219,6 +224,10 @@ public sealed record GradeQuantityRequest(Guid EggGradeId, int Quantity);
 public sealed record DailyEntryResponse(
     Guid Id, Guid FarmId, Guid HouseId, Guid FlockId, DateOnly Date, string Status,
     int TotalEggs, int CrackedEggs, int DirtyEggs, int DiscardedEggs, int MortalityCount,
+    // #396 — null on a draft (nothing has resolved yet) AND on an official entry
+    // whose condition was a loss. A reader distinguishes the two by Status, not
+    // by these fields.
+    Guid? CrackedGradeId, Guid? DirtyGradeId,
     IReadOnlyList<GradeLineResponse> Grades,
     int Version, string? AdjustReason, string? VoidReason, DateTimeOffset? LockedAtUtc,
     JsonElement? AdjustedFrom);

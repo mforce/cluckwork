@@ -1498,6 +1498,10 @@ export const en = {
     statusHeader: "Status",
     totalHeader: "Total",
     lossesHeader: "Losses (cr/di/ds)",
+    // #396 — Losses counts cracked/dirty/discarded whatever became of them;
+    // this counts only the ones that became stock, per the entry's snapshot.
+    // Em dash on a draft: nothing has resolved yet, and 0 would claim "loss".
+    conditionHeader: "Condition",
     mortalityHeader: "Mortality",
     gradedHeader: "Graded",
     // Lowercase link-styled row actions, same treatment as
@@ -1544,6 +1548,12 @@ export const en = {
     eggsHeader: "Eggs",
     lossesHeader: "Losses (cr/di/ds)",
     sellableHeader: "Sellable",
+    // #396 — cracked/dirty eggs that became stock instead of being written off.
+    // "Condition" is the term the specs and glossary already use for those two
+    // grades; deliberately NOT "ungraded" (they do carry a grade, shown in the
+    // By-grade breakdown on this same screen) and NOT "seconds" (a real seeded
+    // grade name, which would make the column and the breakdown disagree).
+    conditionHeader: "Condition",
     deathsHeader: "Deaths",
     henDaysHeader: "Hen-days",
     henDayPctHeader: "Hen-day %",
@@ -2169,9 +2179,19 @@ export const en = {
     // Reports
     reportsHeading: "Reports",
     reportsProduction:
-      "<strong>Production</strong> (everyone): pick a date range — per-day eggs, losses, sellable, deaths, "
-      + "and <strong>hen-day %</strong> (eggs collected ÷ birds alive that day × 100), with period totals and "
-      + "a by-grade breakdown. Draft and voided entries don't count.",
+      "<strong>Production</strong> (everyone): pick a date range — per-day eggs, losses, sellable, "
+      + "condition, deaths, and <strong>hen-day %</strong> (eggs collected ÷ birds alive that day × 100), "
+      + "with period totals and a by-grade breakdown. Draft and voided entries don't count.",
+    // #396 — the new column needs explaining because two of its neighbours look
+    // like they should already cover it: Losses shows the same cracked/dirty
+    // numbers (as counts, whether sold or not), and Sellable is the graded
+    // figure that deliberately excludes them.
+    reportsCondition:
+      "<strong>Condition</strong>: cracked and dirty eggs that became stock instead of being written off. "
+      + "They are counted in <strong>Egg counts</strong>, never graded by hand, so they are not part of "
+      + "<strong>Sellable</strong> — add the two together for everything the day produced that you can "
+      + "sell. A day shows 0 here if you have those grades switched off in Settings, and days recorded "
+      + "before you switched them on keep showing 0 — turning a grade on never rewrites a past day.",
     reportsMoney:
       "<strong>Money</strong> (admin): sales summary for the range's orders (revenue / paid / outstanding), "
       + "expenses by category, and <strong>basic profit</strong> — confirmed revenue minus recorded expenses, "
