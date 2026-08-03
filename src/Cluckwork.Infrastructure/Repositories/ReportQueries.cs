@@ -45,8 +45,53 @@ public sealed class ReportQueries(AppDbContext db) : IReportQueries
             .GroupBy(g => g.EggGradeId)
             .Select(g => new { EggGradeId = g.Key, Quantity = g.Sum(x => x.Quantity) })
             .ToListAsync(ct);
+
+        // #396 — condition-backed production has NO DailyEntryGrade row and
+        // never can: ConditionGradeGuard refuses a manual line naming a
+        // condition grade precisely so one day cannot produce two lots for one
+        // grade. So a breakdown built from DailyEntryGrades alone omits every
+        // cracked and dirty egg that this same response counts as produced
+        // stock in FromCounts/TotalFromCounts — the "By grade" table would sum
+        // to the hand-graded remainder while the header reported more. Fold the
+        // snapshot-backed counters in under the grade each entry actually
+        // resolved to, keyed on the SNAPSHOT (never the live grade catalog), so
+        // the breakdown reconciles with the stock that exists.
+        //
+        // Two queries rather than one: the counters live in different columns
+        // under different snapshot keys, so a single GROUP BY cannot express it
+        // without a UNION EF would not translate.
+        //
+        // `Counter > 0` mirrors SubmitDailyEntryHandler's own lot condition —
+        // a snapshot is recorded even on a zero-cracked day, and counting those
+        // would put a grade in the breakdown the farm holds no stock under,
+        // which reads as an empty grade rather than as absence.
+        var crackedTotals = await db.DailyEntries
+            .Where(e => e.Date >= from && e.Date <= to && OfficialStatuses.Contains(e.Status)
+                && e.CrackedGradeId != null && e.CrackedEggs > 0)
+            .GroupBy(e => e.CrackedGradeId!.Value)
+            .Select(g => new { EggGradeId = g.Key, Quantity = g.Sum(e => e.CrackedEggs) })
+            .ToListAsync(ct);
+
+        var dirtyTotals = await db.DailyEntries
+            .Where(e => e.Date >= from && e.Date <= to && OfficialStatuses.Contains(e.Status)
+                && e.DirtyGradeId != null && e.DirtyEggs > 0)
+            .GroupBy(e => e.DirtyGradeId!.Value)
+            .Select(g => new { EggGradeId = g.Key, Quantity = g.Sum(e => e.DirtyEggs) })
+            .ToListAsync(ct);
+
+        // Accumulate rather than assign. A condition grade cannot collide with
+        // a DailyEntryGrade row today (the guard above), but Cracked and Dirty
+        // could in principle be bound to the SAME grade id by a farm that
+        // pointed both kinds at one catalog row — accumulating keeps that
+        // arithmetic right instead of silently dropping one counter.
+        var combined = new Dictionary<Guid, int>();
+        foreach (var t in gradeTotals)
+            combined[t.EggGradeId] = combined.GetValueOrDefault(t.EggGradeId) + t.Quantity;
+        foreach (var t in crackedTotals.Concat(dirtyTotals))
+            combined[t.EggGradeId] = combined.GetValueOrDefault(t.EggGradeId) + t.Quantity;
+
         var gradeNames = await db.EggGrades
-            .Where(g => gradeTotals.Select(t => t.EggGradeId).Contains(g.Id))
+            .Where(g => combined.Keys.Contains(g.Id))
             .ToDictionaryAsync(g => g.Id, g => g.Name, ct);
 
         // Hen-days (spec §19.3): the farm's bird count on each day, summed over
@@ -142,12 +187,13 @@ public sealed class ReportQueries(AppDbContext db) : IReportQueries
             days.Sum(x => x.Deaths),
             totalHenDays,
             totalHenDays > 0 ? Math.Round(totalEggs * 100m / totalHenDays, 1) : null,
-            gradeTotals
+            combined
                 .Select(t => new GradeTotal(
-                    t.EggGradeId, gradeNames.GetValueOrDefault(t.EggGradeId, "?"), t.Quantity))
+                    t.Key, gradeNames.GetValueOrDefault(t.Key, "?"), t.Value))
                 .OrderByDescending(t => t.Quantity)
                 .ToList());
     }
+
 
     public async Task<SalesSummary> GetSalesAsync(
         DateOnly from, DateOnly to, CancellationToken ct = default)

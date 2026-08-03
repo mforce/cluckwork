@@ -84,6 +84,27 @@ public sealed class ReportsTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(6, day.FromCounts);     // cracked only — dirty stayed a loss
         Assert.Equal(90, report.TotalSellable);
         Assert.Equal(6, report.TotalFromCounts);
+
+        // #396 (codex review of #407): the "By grade" breakdown has to account
+        // for the condition stock this same response just reported as produced.
+        // Condition production creates an EggLot but NEVER a DailyEntryGrade row
+        // — ConditionGradeGuard refuses a manual line naming a condition grade,
+        // so one can never exist — and a breakdown built from DailyEntryGrades
+        // alone therefore omitted every cracked egg while the header counted it.
+        Assert.Equal(90, Assert.Single(report.GradeTotals, g => g.Name == "Large").Quantity);
+        Assert.Equal(6, Assert.Single(report.GradeTotals, g => g.Name == "Cracked").Quantity);
+
+        // Dirty was non-saleable, so it resolved to nothing and stayed a loss.
+        // Its absence is the other half of the guarantee: folding the counters
+        // in must not resurrect the ones the entry recorded as losses.
+        Assert.DoesNotContain(report.GradeTotals, g => g.Name == "Dirty");
+
+        // The whole point, stated as the arithmetic a reader of the screen does:
+        // the breakdown sums to the hand-graded remainder PLUS the condition
+        // stock, not to the remainder alone.
+        Assert.Equal(
+            report.TotalSellable + report.TotalFromCounts,
+            report.GradeTotals.Sum(g => g.Quantity));
     }
 
     [Fact]
