@@ -74,6 +74,15 @@ public sealed class AdjustDailyEntryHandler(
                     "DailyEntry.UnknownGrade",
                     "One or more egg grades do not exist, are inactive, or are not saleable."))
                     .LogFailure(logger, "AdjustDailyEntry");
+
+            // #396 — deliberately NOT folded into `allowed` above: that set
+            // unions the lines already on the entry, so a condition grade could
+            // be talked past it. ConditionGradeGuard asks the catalog directly.
+            var conditionGrade = await ConditionGradeGuard.CheckAsync(
+                eggGrades, command.Grades.Select(g => g.EggGradeId), ct);
+            if (conditionGrade is not null)
+                return Result.Failure<AdjustDailyEntryResponse>(conditionGrade)
+                    .LogFailure(logger, "AdjustDailyEntry");
         }
 
         var previousMortality = entry.MortalityCount;
