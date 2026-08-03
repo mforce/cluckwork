@@ -28,12 +28,14 @@ PR #395.
 - Modify: `src/Cluckwork.Domain/Eggs/EggGrade.cs`, `src/Cluckwork.Domain/Eggs/DailyEntry.cs`
 - Modify: EF configurations, the hand-maintained `InitialCreate`, and a new follow-on migration under `src/Cluckwork.Infrastructure/Persistence/Migrations/`
 - Modify: base-reference seed SQL and migration security/base-data tests
-- Test: Egg-grade and DailyEntry domain tests; migration tests
+- Modify: `src/Cluckwork.Infrastructure/Repositories/ExportQueries.cs` — add the two quality snapshot ids to the `daily-entries` projection and `DailyEntryKind` to the `egg-grades` projection, so a full account export can still reconstruct which grade a condition counter represented
+- Test: Egg-grade and DailyEntry domain tests; migration tests; `ExportTests.cs` regression coverage for both changed projections
 
-- [ ] Write failing tests for immutable `DailyEntryKind`, one Cracked/Dirty grade per farm, and null/non-null quality snapshots on official entries.
-- [ ] Run the focused tests and verify the model cannot yet distinguish a renamed Cracked/Dirty grade from any other quality grade.
+- [ ] Write failing tests for immutable `DailyEntryKind`, one Cracked/Dirty grade per farm, null/non-null quality snapshots on official entries, and an account export missing both additions.
+- [ ] Run the focused tests and verify the model cannot yet distinguish a renamed Cracked/Dirty grade from any other quality grade, and that a full account export cannot yet reconstruct which grade a condition counter represented.
 - [ ] Add the enum, partial uniqueness constraint, official-entry snapshots, a carefully hand-edited `InitialCreate` seed for fresh databases, and a follow-on migration that leaves existing farms' saleability untouched.
-- [ ] Verify new-base defaults are saleable, existing official records remain non-reclassified, and migration security tests still pass.
+- [ ] Add the quality snapshot ids to the `daily-entries` export projection and `DailyEntryKind` to the `egg-grades` export projection.
+- [ ] Verify new-base defaults are saleable, existing official records remain non-reclassified, migration security tests still pass, and both export regression tests are green.
 
 ### Task 2: Enforce exact reconciliation and atomically produce quality lots
 
@@ -41,23 +43,26 @@ PR #395.
 - Modify: `DailyEntry`, `SubmitDailyEntryHandler`, `AdjustDailyEntryHandler`, grade repositories/commands as required
 - Test: Domain, submit, adjustment, stock, report, and concurrency integration tests
 
-- [ ] Write failing domain/API tests for ungraded and partially graded official entries, zero remainder, each saleable quality counter, each non-saleable quality counter, and an adjustment that preserves its original snapshot.
+- [ ] Write failing domain/API tests for ungraded and partially graded official entries, zero remainder, each saleable quality counter, each non-saleable quality counter, a zero-count day for an otherwise-saleable quality counter (snapshot recorded, no lot — `EggLot.Create` rejects zero), and an adjustment that preserves its original snapshot.
 - [ ] Run them red; assert status/version/lots remain unchanged on refusal.
-- [ ] Implement `manualGrades == total - cracked - dirty - discarded` at the aggregate boundary, resolve snapshots only on first official submission, and create/reconcile quality lots in the existing transactions.
+- [ ] Implement `manualGrades == total - cracked - dirty - discarded` at the aggregate boundary, resolve snapshots only on first official submission, and create/reconcile quality lots — skipping lot creation for a zero counter while still recording its snapshot — in the existing transactions.
 - [ ] Update report and stock projections to count only snapshot-backed quality stock as marketable; verify no historical row changes its meaning.
 - [ ] Run targeted integration suites plus parallel submit/adjust tests.
 
-### Task 3: Align Daily Entry and adjustment UI
+### Task 3: Extend the API contract and align Daily Entry and adjustment UI
 
 **Files:**
+- Modify: `src/Cluckwork.Api/Endpoints/DailyEntries/DailyEntryEndpoints.cs` — `DailyEntryResponse` gains the two quality snapshot ids
+- Modify: `src/Cluckwork.Api/Endpoints/EggGrades/EggGradeEndpoints.cs` — `EggGradeResponse` gains `DailyEntryKind`
+- Modify: `web/src/api/cluckwork.ts` — mirror both DTO changes in the `DailyEntry` and `EggGrade` TypeScript contracts
 - Modify: `web/src/routes/DailyEntryPage.tsx`, `web/src/routes/HistoryPage.tsx`, shared dialog/styles if needed
 - Modify: `web/src/i18n/en.ts`, `web/src/i18n/es.ts`, `web/src/i18n/tl.ts`
-- Test: `DailyEntryPage.test.tsx`, `HistoryPage.test.tsx`, catalog parity/typecheck
+- Test: API integration coverage in `SubmitDailyEntryTests.cs`/`DailyEntryAdjustTests.cs` and `EggGradeManagementTests.cs` for the two new response fields; `DailyEntryPage.test.tsx`, `HistoryPage.test.tsx`, catalog parity/typecheck
 
-- [ ] Write failing UI tests that exclude condition grades from manual entry, show quality counts in the marketable summary, disable official saves for an under/over grade total, and render the adjustment dialog as the two-pane Daily Entry layout.
-- [ ] Run focused Vitest tests red.
-- [ ] Implement shared calculations and the adjustment layout without changing draft-save behavior, conflict rebind, reason requirement, or accessible live feedback.
-- [ ] Run page tests, i18n catalog parity, and typecheck.
+- [ ] Write failing API integration tests asserting `DailyEntryResponse` carries both quality snapshot ids and `EggGradeResponse` carries `DailyEntryKind`, plus failing UI tests that exclude condition grades from manual entry, show quality counts in the marketable summary, disable official saves for an under/over grade total, and render the adjustment dialog as the two-pane Daily Entry layout.
+- [ ] Run focused API and Vitest tests red.
+- [ ] Add both response fields and their TypeScript contract mirrors, then implement shared calculations and the adjustment layout without changing draft-save behavior, conflict rebind, reason requirement, or accessible live feedback. The History UI must derive its reconciliation feedback from the entry's own snapshots, never the current egg-grade catalog, so a later saleability change cannot retroactively rewrite how a past entry reads.
+- [ ] Run API integration tests, page tests, i18n catalog parity, and typecheck.
 
 ### Task 4: Preserve sales configuration and update non-CI writers
 

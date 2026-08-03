@@ -970,10 +970,13 @@ manual grade total = total eggs − cracked − dirty − discarded
 ```
 
 Drafts may remain incomplete. Submitting or manager-adjusting must satisfy the
-equation. The submitted entry creates one lot per manual grade plus a lot for
-each non-null, saleable condition snapshot. Discarded eggs are always a loss.
-Total marketable production is the manual grade total plus any Cracked and
-Dirty counts represented by saleable snapshots.
+equation. The submitted entry creates one lot per manual grade, plus one lot
+for each non-null, saleable condition snapshot whose counter is positive that
+day — a snapshot is always recorded once its condition grade is saleable, but
+a zero-cracked or zero-dirty day creates no lot for that condition, since a
+lot cannot hold a zero quantity. Discarded eggs are always a loss. Total
+marketable production is the manual grade total plus any Cracked and Dirty
+counts represented by saleable snapshots.
 
 Existing official entries are migrated with null condition snapshots. The
 system never backfills lots or retroactively converts historical losses to
