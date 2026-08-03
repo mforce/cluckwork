@@ -281,6 +281,37 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
   is the last step. Draft is safe for release-please's own bookkeeping because
   manifest mode reads the current version from `.release-please-manifest.json`, a
   committed file, not from tags.
+- **Draft-until-promoted has one consequence, and it is why release-please runs
+  twice per push.** Version bookkeeping is tag-independent (above), but the
+  **changelog boundary is not**: release-please resolves "commits since the last
+  release" to a commit **SHA via the git tag**. A draft has no tag. So a single
+  invocation that cuts `vX.Y.Z` *and* computes the next release PR computes it at
+  the one moment `vX.Y.Z` is unresolvable — the boundary falls through to the
+  whole 500-commit search depth, and the next PR **restates every earlier
+  release's entries**. Observed on the v0.0.2 cut: PR #409 proposed 0.0.3 with all
+  of 0.0.1's *and* 0.0.2's changelog. The version was still correct (manifest), so
+  nothing failed and the run was green.
+
+  It **self-heals on the next push to `main`**, which is exactly why it survived
+  the v0.0.1 cut unnoticed — and why you cannot fix an affected PR by re-running
+  anything: `release-please.yml`'s grooming job is `if: github.event_name ==
+  'push'`, and `workflow_dispatch` requires a `tag` and skips grooming entirely.
+
+  The workflow therefore splits the two passes around promotion: the
+  `release-please` job runs with **`skip-github-pull-request: true`** (cut only),
+  and a **`groom`** job with `needs: [release-please, promote]` and
+  **`skip-github-release: true`** maintains the next PR *after* `promote` has
+  published the release and created its tag. Two guards on `groom`'s condition are
+  load-bearing and neither is the obvious default: `always() && !cancelled()`,
+  because `promote` is **skipped** on an ordinary push and a skipped dependency
+  would otherwise skip grooming for every non-release merge; and
+  `needs.promote.result != 'failure'`, because a *failed* promotion leaves no tag,
+  so grooming would overwrite a correct PR with the duplicated one — leaving it
+  untouched is the fail-closed choice.
+
+  `groom` mints its own App token and **must** keep the `permission-*` downscoping
+  — omitting those does not mint a narrow token, it mints the union of every grant
+  the App holds, silently (see the release-PR-token bullet below).
 - **Repair path, in two parts.** Re-running the push event never helps —
   release-please reports `release_created: false` for an already-created release,
   so promotion would be skipped forever.
