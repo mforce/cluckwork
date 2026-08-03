@@ -51,10 +51,26 @@ fail=0
 # and passed — a false negative, which is the direction that lets the bug ship
 # (#411 review). Judge the whole message instead.
 #
-# The one part git does always drop is the `git commit -v` diff, and skipping it
-# needs no guess about cleanup: it begins at the first `diff --git ` line.
-# Leaving it in would flag ordinary diff context such as `+Assert.Single(x(y))`.
-body=$(sed -e '/^diff --git /,$d' "$msg")
+# The one part git always drops is the `git commit -v` diff. Identifying it by a
+# bare `diff --git ` line is NOT good enough — that is an inference too, and it
+# discards an AUTHORED patch excerpt, which git stores and the parser then
+# chokes on (#411 review). Measured: `+Assert.Single(AllMigrations())` fails the
+# parser exactly like the undecorated line, so this cannot be waved through.
+#
+# What distinguishes git's own section is its framing: `commit -v` always emits
+# the scissors marker, then its two notes, then the diff. So the tail is dropped
+# only when a `diff --git ` line is PRECEDED by a scissors line. The marker text
+# is a fixed ASCII constant, not a translated string, so this survives a
+# non-English locale.
+#
+#   scissors, then diff --git   -> git's verbose diff  -> ignored
+#   diff --git, no scissors     -> authored excerpt    -> CHECKED
+#   scissors, no diff --git     -> authored text       -> CHECKED (the repro)
+body=$(awk '
+  /^diff --git / && seen_scissors { exit }
+  /^# ------------------------ >8 ------------------------$/ { seen_scissors = 1 }
+  { print }
+' "$msg")
 
 # The subject is the first non-blank line of the message AS WRITTEN, comment or
 # not. Skipping comment lines here would repeat the same mistake one line lower:

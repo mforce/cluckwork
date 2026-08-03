@@ -387,8 +387,14 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
   scissors tail, a hook is never told which cleanup mode applies, and measuring
   `git commit -F` showed content below the scissors marker surviving under
   *every* mode including `--cleanup=strip` (#411 review). The only part always
-  dropped is the `git commit -v` diff, skipped from the first `diff --git ` line
-  — no guess about cleanup required. With `squash_merge_commit_message=COMMIT_MESSAGES`
+  dropped is the `git commit -v` diff, and identifying it by a bare `diff --git `
+  line is not good enough: that discards an **authored** patch excerpt, which git
+  stores and the parser rejects (`+Assert.Single(AllMigrations())` fails exactly
+  like the undecorated line). What distinguishes git's own section is its
+  framing — `commit -v` emits the scissors marker, then its notes, then the diff
+  — so the tail is dropped only when `diff --git ` is **preceded by a scissors
+  line**. That marker is a fixed ASCII constant, not a translated string, so it
+  holds in any locale. With `squash_merge_commit_message=COMMIT_MESSAGES`
   and `squash_merge_commit_title=COMMIT_OR_PR_TITLE` (and merge/rebase also
   enabled), what release-please parses is:
 
