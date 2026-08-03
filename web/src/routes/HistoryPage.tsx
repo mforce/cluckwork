@@ -136,6 +136,15 @@ export function HistoryPage() {
     return grades.filter((g) => onEntry.has(g.id) || (g.active && g.isSaleable));
   }
 
+  // #394: an adjustment has no draft state of its own — it replaces the
+  // entry's official numbers outright, so it is held to the same exact
+  // reconciliation Daily Entry's submit uses (mirrors DailyEntryPage's
+  // sellable/gradesSum, shared here so the Save button's disabled state and
+  // the submit-time guard below can never disagree with each other).
+  const gradesSum = Object.values(lineQty).reduce((sum, q) => sum + (q || 0), 0);
+  const sellable = total - cracked - dirty - discarded;
+  const gradesReconciled = gradesSum === sellable;
+
   // Key lifecycle differs from the create screens (codex review of PR #81):
   // a SERVER response — success or rejection — is a definite outcome, so the
   // key rotates immediately and an edited retry is a fresh request (the
@@ -182,12 +191,13 @@ export function HistoryPage() {
     const lines = Object.entries(lineQty)
       .filter(([, q]) => q > 0)
       .map(([eggGradeId, quantity]) => ({ eggGradeId, quantity }));
-    // Mirror the server's sellable-cap rule for an instant message; the
-    // API remains the authority. Validated before the flight opens: a
-    // rejected form never reads as busy.
-    const sellable = total - cracked - dirty - discarded;
-    if (lines.reduce((sum, l) => sum + l.quantity, 0) > sellable) {
-      setError(i18n.t("history:exceedsSellableMessage"));
+    // Mirror the server's exact-reconciliation rule (#394) for an instant
+    // message; the API remains the authority. The Save button is already
+    // disabled while this is false (see gradesReconciled above), so this is
+    // defense in depth rather than the primary gate. Validated before the
+    // flight opens: a rejected form never reads as busy.
+    if (!gradesReconciled) {
+      setError(i18n.t("history:gradesMustReconcileMessage"));
       return;
     }
     await run(scope, async () => {
@@ -383,8 +393,11 @@ export function HistoryPage() {
             {error && <p className="error" role="alert">{error}</p>}
             <div className="dialog-foot">
               <button type="button" className="link" onClick={() => setAdjusting(null)}>{tc("cancel")}</button>
+              {/* #394: an adjustment has no draft state — Save stays disabled
+                  until grading reconciles exactly, the same rule Daily
+                  Entry's submit uses. */}
               <BusyButton type="submit" busy={isPending(`adjust:${adjusting.id}`)}
-                disabled={busy || !reason.trim()}>{t("saveAdjustmentButton")}</BusyButton>
+                disabled={busy || !reason.trim() || !gradesReconciled}>{t("saveAdjustmentButton")}</BusyButton>
             </div>
             </form>
           </>

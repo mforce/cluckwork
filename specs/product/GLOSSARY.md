@@ -85,7 +85,8 @@ be read at once.
 **Left to grade (#134)** — grading counts **down** to zero rather than reporting
 *graded n of m*. The figure beside the grades is how many sellable eggs are
 still unaccounted for; it turns green when the day adds up exactly and red when
-the grades overshoot the sellable count. Submitting is blocked while it is over.
+the grades overshoot the sellable count. Submitting is blocked unless it reads
+**exactly zero** (#394) — short of sellable is refused just as much as over.
 
 **Entry footer (#134)** — both saves sit in a bar pinned to the bottom of the
 screen, along with save messages: anything below a pinned bar scrolls underneath
@@ -126,12 +127,16 @@ from starting a fresh day. Only locked days carried a signal before.
   older than 7 farm-local days (spec §8.1 default; background sweep).
   Locked ≠ untouchable: admins can still adjust or void.
 - **ManagerAdjusted** — an admin corrected the totals/grades of a
-  submitted or locked entry (reason required). The correction reconciles
-  the entry's egg lots in the same transaction — grown, shrunk, added, or
-  emptied — but **never below what a lot already sold**, and appends a
-  compensating bird movement for any mortality change. The replaced values
-  are kept as an audit snapshot on the entry until the audit log lands.
-  Adjusting again is allowed; each adjust snapshots what it replaced.
+  submitted or locked entry (reason required). An adjustment has no draft
+  state of its own, so it is held to the same **exact reconciliation** as
+  submit (#394): the corrected grades must sum to exactly the corrected
+  sellable count, with no partial-save escape hatch. The correction
+  reconciles the entry's egg lots in the same transaction — grown, shrunk,
+  added, or emptied — but **never below what a lot already sold**, and
+  appends a compensating bird movement for any mortality change. The
+  replaced values are kept as an audit snapshot on the entry until the audit
+  log lands. Adjusting again is allowed; each adjust snapshots what it
+  replaced.
 - **Voided** — an admin undid the whole entry (reason required): every lot
   it generated is emptied (refused if any of its eggs were sold), the
   day's mortality is reversed by a compensating movement, and the entry is
@@ -144,7 +149,19 @@ from starting a fresh day. Only locked days carried a signal before.
 
 **Sellable cap** — graded quantities must fit in
 `total − cracked − dirty − discarded`. You cannot grade more eggs than
-survived the day.
+survived the day. This is the only rule a **Draft** enforces — a draft may be
+graded partially, or not at all, and still be saved.
+
+**Grade reconciliation (#394)** — **Submit**, and **saving an adjustment**
+(which has no draft state of its own to leave incomplete), both go further
+than the sellable cap above: the grade lines must sum to *exactly*
+`total − cracked − dirty − discarded`, not merely fit within it. Zero
+sellable eggs validly reconciles to zero grade lines — a day where every
+egg was lost needs no grading to submit. Short of sellable and over
+sellable are refused the same way, at both the domain and the API layer,
+so a direct API caller cannot bypass it any more than the SPA can. This
+closes the gap where an ungraded, no-loss day could submit cleanly and
+silently produce zero stock for real production.
 
 ## Grading & stock
 

@@ -39,6 +39,10 @@ public sealed class ReportsTests(CluckworkWebApplicationFactory factory)
 
         async Task<Guid> RecordAsync(DateOnly date, int total, int mortality, bool submit)
         {
+            // #394: submit requires exact reconciliation — grade the entire
+            // sellable amount (total minus the 2 cracked + 1 dirty below) so a
+            // submitted entry's stock actually matches its own report figures.
+            var sellable = total - 2 - 1;
             var response = await client.PostWithKeyAsync("/api/v1/daily-entries", Guid.NewGuid().ToString(), new
             {
                 farmId,
@@ -50,7 +54,7 @@ public sealed class ReportsTests(CluckworkWebApplicationFactory factory)
                 dirtyEggs = 1,
                 discardedEggs = 0,
                 mortalityCount = mortality,
-                grades = new[] { new { eggGradeId = grades["Large"], quantity = total - 10 } }
+                grades = new[] { new { eggGradeId = grades["Large"], quantity = sellable } }
             });
             var id = (await response.Content.ReadFromJsonAsync<Created>())!.Id;
             if (submit)
@@ -84,7 +88,9 @@ public sealed class ReportsTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(198, report.TotalHenDays);
         // Period % = 170/198 — not the average of daily percentages.
         Assert.Equal(85.9m, report.PeriodHenDayPct);
-        Assert.Equal(70 + 80, report.GradeTotals.Single().Quantity);
+        // #394: each submitted day is now graded exactly to its own sellable
+        // count (77 + 87), not the old arbitrary total-10 stand-in.
+        Assert.Equal(77 + 87, report.GradeTotals.Single().Quantity);
     }
 
     // Depletion writes no removal movement — the flock's contribution must

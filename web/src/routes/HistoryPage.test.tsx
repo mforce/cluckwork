@@ -81,25 +81,77 @@ describe("HistoryPage dialog dismissal", () => {
   });
 });
 
-describe("HistoryPage adjust — sellable guard", () => {
-  it("blocks and warns when the graded lines SUM past sellable (neither line alone over)", async () => {
+// #394 — an adjustment has no draft state of its own: Save stays disabled
+// until grading reconciles EXACTLY to sellable, the same rule Daily Entry's
+// submit uses. Renamed from "sellable guard" — the old guard only blocked
+// going OVER; this one blocks under, over, and — the interesting new case —
+// the entry's OWN stored grades not reconciling the moment the dialog opens.
+describe("HistoryPage adjust — reconciliation guard", () => {
+  // SUBMITTED's own fixture grades (40 + 20 = 60) are short of its sellable
+  // (90) — a state #394 makes legal to have STORED (a pre-existing entry
+  // submitted before this rule, or one an earlier codex-flagged guard already
+  // let through) but not to SAVE without fixing. This is the base state every
+  // other test below edits away from.
+  it("opens already disabled when the entry's own stored grades don't reconcile", async () => {
+    mockListDailyEntries.mockResolvedValue([SUBMITTED]);
+    await openAdjustPanel();
+    // Filled so this isolates the GRADES gate — otherwise the still-empty
+    // reason field alone would explain the disabled state just as well.
+    fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: "recount" } });
+
+    expect(screen.getByRole("button", { name: "Save adjustment" })).toBeDisabled();
+  });
+
+  it("stays disabled when the graded lines are short of sellable", async () => {
+    mockListDailyEntries.mockResolvedValue([SUBMITTED]);
+    await openAdjustPanel();
+
+    // 46 + 40 = 86, short of sellable 90.
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Grade A" }), { target: { value: "46" } });
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Grade B" }), { target: { value: "40" } });
+    fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: "recount" } });
+
+    expect(screen.getByRole("button", { name: "Save adjustment" })).toBeDisabled();
+  });
+
+  it("stays disabled when the graded lines SUM past sellable (neither line alone over)", async () => {
     mockListDailyEntries.mockResolvedValue([SUBMITTED]);
     await openAdjustPanel();
 
     // 46 + 45 = 91 > sellable 90, yet neither line individually exceeds 90 —
-    // so this only fails if the guard actually SUMS the lines
+    // so this only fails if the guard actually SUMS the lines.
     fireEvent.change(screen.getByRole("spinbutton", { name: "Grade A" }), { target: { value: "46" } });
     fireEvent.change(screen.getByRole("spinbutton", { name: "Grade B" }), { target: { value: "45" } });
     fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: "recount" } });
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Save adjustment" }));
-    });
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(/cannot exceed total eggs/);
-    expect(mockAdjustDailyEntry).not.toHaveBeenCalled(); // client cap short-circuits the write
+    expect(screen.getByRole("button", { name: "Save adjustment" })).toBeDisabled();
+    expect(mockAdjustDailyEntry).not.toHaveBeenCalled();
   });
 
-  it("submits the corrected lines at the exact boundary sum === sellable (guard is >, not >=)", async () => {
+  // The button being disabled is the primary gate; onAdjustSubmit's own check
+  // is defense in depth and would otherwise be dead code — bypass the
+  // disabled button by dispatching submit on the form directly (same idiom
+  // DailyEntryPage.test.tsx uses for its own-submit-guard coverage) to prove
+  // that check still refuses on its own.
+  it("refuses via the handler's own guard even if the disabled button is bypassed", async () => {
+    mockListDailyEntries.mockResolvedValue([SUBMITTED]);
+    await openAdjustPanel();
+
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Grade A" }), { target: { value: "46" } });
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Grade B" }), { target: { value: "45" } });
+    fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: "recount" } });
+    const saveButton = screen.getByRole("button", { name: "Save adjustment" });
+    expect(saveButton).toBeDisabled();
+
+    await act(async () => {
+      fireEvent.submit(saveButton.closest("form")!);
+    });
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/must equal total eggs/);
+    expect(mockAdjustDailyEntry).not.toHaveBeenCalled();
+  });
+
+  it("enables Save and submits the corrected lines at the exact boundary sum === sellable", async () => {
     mockListDailyEntries.mockResolvedValue([SUBMITTED]);
     mockAdjustDailyEntry.mockResolvedValue({ id: "de1", status: "ManagerAdjusted", version: 2 });
     await openAdjustPanel();
@@ -107,6 +159,8 @@ describe("HistoryPage adjust — sellable guard", () => {
     fireEvent.change(screen.getByRole("spinbutton", { name: "Grade A" }), { target: { value: "45" } });
     fireEvent.change(screen.getByRole("spinbutton", { name: "Grade B" }), { target: { value: "45" } }); // 90 === sellable
     fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: "recount" } });
+    expect(screen.getByRole("button", { name: "Save adjustment" })).toBeEnabled();
+
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Save adjustment" }));
     });
@@ -443,6 +497,11 @@ describe("HistoryPage i18n wiring (#182, Task 27)", () => {
     mockGetDailyEntry.mockResolvedValue({ ...VOIDED, status: "Voided" });
     await withOverride("history", "nothingToAdjustMessage", "NOW-{{status}}-MARKER", async () => {
       await openAdjustPanel();
+      // #394: Save stays disabled until grading reconciles — bring the
+      // stored 40 + 20 up to the 90 sellable so the click actually reaches
+      // the (mocked, 409-rejecting) API call this test is about.
+      fireEvent.change(screen.getByRole("spinbutton", { name: "Grade A" }), { target: { value: "45" } });
+      fireEvent.change(screen.getByRole("spinbutton", { name: "Grade B" }), { target: { value: "45" } });
       fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: "recount" } });
       await act(async () => {
         fireEvent.click(screen.getByRole("button", { name: "Save adjustment" }));

@@ -64,6 +64,8 @@ public sealed class DailyEntry : AggregateRoot<Guid>
 
         // null = leave existing grade lines untouched (older clients omit the
         // field); the kept lines must still fit the new totals. [] clears.
+        // Drafts stay flexible (#394): grading may be incomplete or absent right
+        // up until submit, so this is the lenient "cannot exceed" check only.
         var effectiveGrades = grades ?? CurrentGradeQuantities();
         var gradeResult = ValidateGrades(totalEggs, cracked, dirty, discarded, effectiveGrades);
         if (gradeResult.IsFailure) return gradeResult;
@@ -84,6 +86,18 @@ public sealed class DailyEntry : AggregateRoot<Guid>
         if (Status != DailyEntryStatus.Draft)
             return Result.Failure(Error.Domain(
                 "DailyEntry.NotDraft", "Only draft entries can be submitted."));
+
+        // #394 — a draft may be incomplete or entirely ungraded, but submitting
+        // freezes it and turns the grade lines into the day's only stock: an
+        // ungraded submit would silently produce zero lots for real production.
+        // Grades must reconcile EXACTLY to the sellable count here (zero sellable
+        // reconciles to zero lines), unlike RecordProduction's lenient "cannot
+        // exceed" check above.
+        var gradeResult = ValidateGrades(
+            TotalEggs, CrackedEggs, DirtyEggs, DiscardedEggs, CurrentGradeQuantities(),
+            requireExactReconciliation: true);
+        if (gradeResult.IsFailure) return gradeResult;
+
         Status = DailyEntryStatus.Submitted;
         // Version is a concurrency token, not auto-incremented by EF: without this
         // bump, two racing submits both match WHERE Version = N and both succeed —
@@ -130,8 +144,13 @@ public sealed class DailyEntry : AggregateRoot<Guid>
             return Result.Failure(Error.Validation(
                 "DailyEntry.ReasonTooLong", $"Reason cannot exceed {MaxReasonLength} characters."));
 
+        // #394 — an adjustment has no draft state of its own to leave
+        // incomplete: it replaces the entry's official numbers outright, so it
+        // is held to the same exact reconciliation as submit.
         var effectiveGrades = grades ?? CurrentGradeQuantities();
-        var gradeResult = ValidateGrades(totalEggs, cracked, dirty, discarded, effectiveGrades);
+        var gradeResult = ValidateGrades(
+            totalEggs, cracked, dirty, discarded, effectiveGrades,
+            requireExactReconciliation: true);
         if (gradeResult.IsFailure) return gradeResult;
 
         AdjustedFromJson = SnapshotJson();
@@ -189,28 +208,55 @@ public sealed class DailyEntry : AggregateRoot<Guid>
     private List<GradeQuantity> CurrentGradeQuantities() =>
         _grades.Select(l => new GradeQuantity(l.EggGradeId, l.Quantity)).ToList();
 
+    // requireExactReconciliation=false (RecordProduction/draft): grades may be
+    // incomplete or absent — only "cannot exceed the sellable count" is
+    // enforced, and an empty set trivially passes regardless of sellable.
+    // requireExactReconciliation=true (Submit/ManagerAdjust, #394): grades must
+    // sum to EXACTLY the sellable count — an empty set only passes when
+    // sellable is itself zero, so an ungraded non-zero day is refused rather
+    // than silently producing no stock.
     private static Result ValidateGrades(
         int totalEggs, int cracked, int dirty, int discarded,
-        IReadOnlyCollection<GradeQuantity> grades)
+        IReadOnlyCollection<GradeQuantity> grades,
+        bool requireExactReconciliation = false)
     {
-        if (grades.Count == 0) return Result.Success();
+        if (grades.Count > 0)
+        {
+            if (grades.Any(g => g.EggGradeId == Guid.Empty))
+                return Result.Failure(Error.Validation(
+                    "DailyEntry.InvalidGrade", "Egg grade id is required."));
 
-        if (grades.Any(g => g.EggGradeId == Guid.Empty))
-            return Result.Failure(Error.Validation(
-                "DailyEntry.InvalidGrade", "Egg grade id is required."));
+            if (grades.Any(g => g.Quantity <= 0))
+                return Result.Failure(Error.Validation(
+                    "DailyEntry.InvalidGrade", "Grade quantities must be positive."));
 
-        if (grades.Any(g => g.Quantity <= 0))
-            return Result.Failure(Error.Validation(
-                "DailyEntry.InvalidGrade", "Grade quantities must be positive."));
-
-        if (grades.Select(g => g.EggGradeId).Distinct().Count() != grades.Count)
-            return Result.Failure(Error.Validation(
-                "DailyEntry.DuplicateGrade", "Each grade may appear only once."));
+            if (grades.Select(g => g.EggGradeId).Distinct().Count() != grades.Count)
+                return Result.Failure(Error.Validation(
+                    "DailyEntry.DuplicateGrade", "Each grade may appear only once."));
+        }
+        else if (!requireExactReconciliation)
+        {
+            // Lenient path only: zero lines is always a valid (incomplete) draft,
+            // regardless of what the counts imply. The exact path falls through —
+            // zero sellable is the one case where zero lines is also correct there.
+            return Result.Success();
+        }
 
         // Grades are the sellable portion; cracked/dirty/discarded are losses out
         // of the same total. long accumulation — Sum<int> would throw on overflow.
         var sellable = (long)totalEggs - cracked - dirty - discarded;
-        if (grades.Sum(g => (long)g.Quantity) > sellable)
+        var gradedTotal = grades.Sum(g => (long)g.Quantity);
+
+        if (requireExactReconciliation)
+        {
+            if (gradedTotal != sellable)
+                return Result.Failure(Error.Domain(
+                    "DailyEntry.GradesNotReconciled",
+                    "Graded quantities must equal total eggs minus cracked, dirty, and discarded eggs."));
+            return Result.Success();
+        }
+
+        if (gradedTotal > sellable)
             return Result.Failure(Error.Domain(
                 "DailyEntry.GradesExceedTotal",
                 "Graded quantities cannot exceed total eggs minus cracked/dirty/discarded."));

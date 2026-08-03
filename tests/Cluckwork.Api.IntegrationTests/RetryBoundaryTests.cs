@@ -87,6 +87,7 @@ public sealed class RetryBoundaryTests : IClassFixture<RetryBoundaryFactory>, ID
         var flockId = await _factory.SeedFlockAsync(accountId, farmId);
         var client = _factory.CreateAuthedClient(await _factory.LoginForAccessTokenAsync(email));
 
+        // #394: submit requires exact reconciliation — total matches the grade.
         var recorded = await client.PostWithKeyAsync(
             "/api/v1/daily-entries", Guid.NewGuid().ToString(),
             new
@@ -95,7 +96,7 @@ public sealed class RetryBoundaryTests : IClassFixture<RetryBoundaryFactory>, ID
                 houseId = Guid.NewGuid(),
                 flockId,
                 date = DateOnly.FromDateTime(DateTime.UtcNow.Date),
-                totalEggs = 1000,
+                totalEggs = 600,
                 crackedEggs = 0,
                 dirtyEggs = 0,
                 discardedEggs = 0,

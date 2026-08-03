@@ -1435,8 +1435,11 @@ export const en = {
     conflictReloadFailedMessage:
       "This entry was changed by someone else and the list could not be "
       + "reloaded — reload the page before retrying.",
-    exceedsSellableMessage:
-      "Graded quantities cannot exceed total eggs minus cracked/dirty/discarded.",
+    // #394 — an adjustment has no draft state: grading must reconcile
+    // EXACTLY to the sellable count (short or over both trigger this),
+    // the same rule Daily Entry's submit uses.
+    gradesMustReconcileMessage:
+      "Graded quantities must equal total eggs minus cracked, dirty, and discarded eggs.",
     entryAdjustedMessage: "Entry adjusted — stock and bird ledger updated to match.",
     adjustReloadFailedMessage: "The adjustment saved, but the list failed to reload — refresh the page.",
     // askReason dialog (title / body / confirmLabel). {{date}}/{{flock}} are
@@ -2010,8 +2013,8 @@ export const en = {
       + "they can never exceed it.",
     dailyEntryGradingDown:
       "Grading counts <strong>down</strong>. Beside the grades is how many sellable eggs you still have to "
-      + "place; it turns green the moment the day adds up and red if you go over. You cannot submit while it "
-      + "is over.",
+      + "place; it turns green the moment the day adds up and red if you go over. You cannot submit until it "
+      + "reads exactly zero — grading a day partway, or not at all, is fine for a draft but not for Submit.",
     dailyEntryButtons:
       "Every count has <strong>−</strong> and <strong>+</strong> buttons. Tap for one, or <strong>hold</strong> "
       + "— it speeds up as you go, so a few hundred eggs takes about a second. Easier than a keypad with "
@@ -2511,8 +2514,9 @@ export const en = {
 
     glossaryAdjustEntryTerm: "Adjust (entry)",
     glossaryAdjustEntryDef:
-      "Admin correction of a submitted entry. Stock and bird ledger reconcile automatically; sold eggs are "
-      + "untouchable; previous values stay visible.",
+      "Admin correction of a submitted entry. The corrected grades must add up to the corrected sellable count "
+      + "exactly, the same rule Submit uses — an adjustment has no draft state to leave partly graded. Stock "
+      + "and bird ledger reconcile automatically; sold eggs are untouchable; previous values stay visible.",
 
     glossaryVoidEntryTerm: "Void (entry)",
     glossaryVoidEntryDef:

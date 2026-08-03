@@ -1209,8 +1209,8 @@ export const tl = {
     conflictReloadFailedMessage:
       "Binago ng ibang tao ang entry na ito at hindi na-reload ang "
       + "listahan — i-reload ang page bago subukan ulit.",
-    exceedsSellableMessage:
-      "Hindi puwedeng lumampas ang mga na-grade na dami sa kabuuang itlog na bawas ang basag/marumi/tinapon.",
+    gradesMustReconcileMessage:
+      "Dapat magkapareho ang mga na-grade na dami sa kabuuang itlog na bawas ang basag, marumi, at tinapon.",
     entryAdjustedMessage: "Na-adjust ang entry — na-update ang stock at ang rekord ng manok para tumugma.",
     adjustReloadFailedMessage: "Na-save ang pag-adjust, pero hindi na-reload ang listahan — i-refresh ang page.",
     voidConfirmTitle: "I-void ang entry ng {{date}} para sa {{flock}}?",
@@ -1745,7 +1745,8 @@ export const tl = {
     dailyEntryGradingDown:
       "<strong>Bumababa</strong> ang bilang sa pag-grade. Sa tabi ng mga grado ay makikita kung ilang "
       + "naibibentang itlog pa ang kailangan mong ilagay; nagiging berde ito sa sandaling tumugma ang araw "
-      + "at pula kung lumagpas ka. Hindi ka puwedeng magsumite habang lumalagpas ito.",
+      + "at pula kung lumagpas ka. Hindi ka puwedeng magsumite hangga't hindi umaabot sa eksaktong zero — "
+      + "okay lang na bahagya o hindi man i-grade ang araw para sa draft, pero hindi para sa Isumite.",
     dailyEntryButtons:
       "May mga button na <strong>−</strong> at <strong>+</strong> ang bawat bilang. I-tap para sa isa, o "
       + "<strong>i-hold</strong> — bumibilis ito habang tumatagal, kaya ilang daang itlog ay tumatagal lang "
@@ -2284,8 +2285,11 @@ export const tl = {
 
     glossaryAdjustEntryTerm: "I-adjust (entry)",
     glossaryAdjustEntryDef:
-      "Pagtatama ng admin sa isang naisumiteng entry. Awtomatikong nagtutugma ang stock at ang talaan ng "
-      + "ibon; hindi na magagalaw ang mga naibentang itlog; nananatiling nakikita ang mga naunang value.",
+      "Pagtatama ng admin sa isang naisumiteng entry. Dapat eksaktong tumugma ang mga naitamang grado sa "
+      + "naitamang naibibentang bilang, ang parehong panuntunan na ginagamit ng Isumite — walang draft "
+      + "state ang isang pagsasaayos na maiiwan itong bahagyang na-grade. Awtomatikong nagtutugma ang "
+      + "stock at ang talaan ng ibon; hindi na magagalaw ang mga naibentang itlog; nananatiling nakikita "
+      + "ang mga naunang value.",
 
     glossaryVoidEntryTerm: "I-void (entry)",
     glossaryVoidEntryDef:

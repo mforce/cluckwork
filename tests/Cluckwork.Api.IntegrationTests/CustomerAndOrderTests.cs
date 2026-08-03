@@ -291,11 +291,13 @@ public sealed class CustomerAndOrderTests(CluckworkWebApplicationFactory factory
         var today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
 
         // 1. record + submit production
+        // #394: submit requires exact reconciliation — 918 total − 10 cracked −
+        // 5 dirty − 3 discarded = 900 sellable, matching the two grade lines.
         var entryId = await CreatedId(await client.PostWithKeyAsync(
             "/api/v1/daily-entries", Guid.NewGuid().ToString(), new
             {
                 farmId, houseId = Guid.NewGuid(), flockId, date = today,
-                totalEggs = 1000, crackedEggs = 10, dirtyEggs = 5, discardedEggs = 3, mortalityCount = 0,
+                totalEggs = 918, crackedEggs = 10, dirtyEggs = 5, discardedEggs = 3, mortalityCount = 0,
                 grades = new[]
                 {
                     new { eggGradeId = grades["Large"], quantity = 600 },

@@ -72,21 +72,38 @@ async function renderReady() {
 }
 
 describe("DailyEntryPage accuracy gating", () => {
-  it("reports graded-of-sellable (muted) and allows submit when within sellable", async () => {
+  // #394: grading must reconcile EXACTLY to sellable before submit — "within
+  // sellable" (the old gate) is no longer enough. This used to be the case
+  // that shipped the bug: a partially-graded day submitted cleanly and
+  // silently produced fewer egg lots than eggs actually collected.
+  it("blocks submit for a partially graded day, even though graded is within sellable (#394)", async () => {
     await renderReady();
     setNum("Total eggs", 100);
     setNum("Cracked", 2);
     setNum("Dirty", 3);
     setNum("Discarded", 5); // losses 10 → sellable 90 (all three counted)
     setNum("Grade A", 60);
-    setNum("Grade B", 25); // graded 85 ≤ 90
+    setNum("Grade B", 25); // graded 85, short of 90 — no longer enough to submit
 
     expect(sellableReadout()).toHaveTextContent("90");
     // 90 sellable − 85 graded: the number the counter is working towards.
     expect(remainingChip()).toHaveTextContent("5 left to grade");
     expect(remainingChip()).not.toHaveClass("over");
     expect(remainingChip()).not.toHaveClass("done");
-    expect(submitBtn()).toBeEnabled();
+    expect(submitBtn()).toBeDisabled();
+    expect(saveDraftBtn()).toBeEnabled(); // a draft stays flexible, even partly graded
+  });
+
+  // The bug exactly as reported (#394): no losses, no grading at all — the
+  // day used to submit cleanly and generate zero egg lots for real production.
+  it("blocks submit for a fully ungraded day, even with no losses at all (#394)", async () => {
+    await renderReady();
+    setNum("Total eggs", 200); // sellable 200, nothing graded
+
+    expect(sellableReadout()).toHaveTextContent("200");
+    expect(remainingChip()).toHaveTextContent("200 left to grade");
+    expect(submitBtn()).toBeDisabled();
+    expect(saveDraftBtn()).toBeEnabled();
   });
 
   it("blocks submit (but not draft) and styles the message error when graded exceeds sellable", async () => {
@@ -104,7 +121,7 @@ describe("DailyEntryPage accuracy gating", () => {
     expect(saveDraftBtn()).toBeEnabled(); // an over-graded draft is allowed
   });
 
-  it("allows submit at the exact boundary graded === sellable (the gate is >, not >=)", async () => {
+  it("allows submit at the exact boundary graded === sellable (#394: the gate is ===, nothing short or over)", async () => {
     await renderReady();
     setNum("Total eggs", 100);
     setNum("Cracked", 2);
@@ -289,6 +306,8 @@ describe("DailyEntryPage submit confirmation", () => {
     await renderReady();
     fireEvent.change(screen.getByLabelText("Flock"), { target: { value: "f1" } });
     setNum("Total eggs", 10);
+    // #394: submit needs grading to reconcile exactly — 10 sellable, 10 graded.
+    setNum("Grade A", 10);
     await waitFor(() => expect(submitBtn()).toBeEnabled());
   }
 
@@ -717,6 +736,8 @@ describe("DailyEntryPage i18n wiring (#182, Task 11)", () => {
         await renderReady();
         fireEvent.change(screen.getByLabelText("Flock"), { target: { value: "f1" } });
         setNum("Total eggs", 10);
+        // #394: submit needs grading to reconcile exactly — 10 sellable, 10 graded.
+        setNum("Grade A", 10);
         await waitFor(() => expect(submitBtn()).toBeEnabled());
 
         await act(async () => { fireEvent.click(submitBtn()); });
