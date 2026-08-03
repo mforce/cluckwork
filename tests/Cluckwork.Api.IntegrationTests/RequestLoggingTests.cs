@@ -338,6 +338,36 @@ public sealed class RequestLoggingTests(RequestLoggingFactory factory)
         Assert.Null(completion.Exception);
     }
 
+    // #398 review round 5 (Codex) — the inverse of the round-4 case, and a
+    // defect the round-4 fix introduced. A caller that omits a REQUIRED JSON
+    // body entirely also fails binding, and carries no payload bytes — so a
+    // "does the request have bytes?" test reports it as a query failure, which
+    // is exactly as wrong as blaming the body was.
+    //
+    // The signal has to be the ENDPOINT's contract (does it accept a body?),
+    // not the request's byte count.
+    [Fact]
+    public async Task Missing_required_body_is_reported_as_a_body_failure_not_a_query_one()
+    {
+        var client = factory.CreateClient();
+
+        // Declares JSON but sends nothing. A POST with NO Content-Type at all
+        // does not reach binding — the JSON-bound endpoint constrains content
+        // type on the route, so it 404s exactly like the unsupported-type case
+        // below. Declaring the type is what gets the request as far as the
+        // binder, where the required body is then found to be absent.
+        var content = new StringContent(
+            string.Empty, System.Text.Encoding.UTF8, "application/json");
+        var response = await client.SendAsync(
+            new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/login") { Content = content });
+
+        Assert.Equal(System.Net.HttpStatusCode.BadRequest, response.StatusCode);
+        var payload = await response.Content.ReadAsStringAsync();
+
+        Assert.Contains("\"body\"", payload);
+        Assert.DoesNotContain("\"query\"", payload);
+    }
+
     // #398 review round 3 (Codex) — the unsupported-Content-Type path, raised as
     // "binding-generated 415s inflate error telemetry". The reasoning was that
     // ThrowOnBadRequest governs the binder's OWN failures, an unsupported media

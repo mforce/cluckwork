@@ -466,13 +466,14 @@ app.Map("/error", (HttpContext context) =>
         // for the (rare, non-JSON-bound-endpoint) case that reaches /error
         // instead of being short-circuited there — don't fold that case into
         // the 400-only ValidationProblem mapping above.
-        // hasBody derived from the request, matching the primary path — a
-        // bodyless GET whose typed query parameter failed to bind must not be
-        // told its body was malformed (#398 review round 4).
+        // Same body-vs-query decision as the primary path, via the one shared
+        // helper: a bodyless GET whose typed query parameter failed to bind must
+        // not be told its body was malformed, and a caller who omitted a
+        // REQUIRED body must not be told the problem was a query parameter
+        // (#398 review rounds 4 and 5).
         BadHttpRequestException { StatusCode: StatusCodes.Status400BadRequest } =>
             ValidationResponse.BindingFailureProblem(
-                context.Request.ContentLength > 0
-                || context.Request.Headers.TransferEncoding.Count > 0),
+                BindingFailureResponse.ConcernsRequestBody(context)),
         BadHttpRequestException bad => Results.Problem(
             detail: bad.Message,
             statusCode: bad.StatusCode,

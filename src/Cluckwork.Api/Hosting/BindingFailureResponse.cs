@@ -1,6 +1,7 @@
 namespace Cluckwork.Api.Hosting;
 
 using Cluckwork.Api.Validation;
+using Microsoft.AspNetCore.Http.Metadata;
 
 // #398 review (Codex) — RouteHandlerOptions.ThrowOnBadRequest is forced true
 // in every environment (see Program.cs), so a JSON-binding failure (a
@@ -57,15 +58,35 @@ public static class BindingFailureResponse
 
                 // #398 review round 4 (Codex) — a failed TYPED QUERY PARAMETER
                 // throws this same 400, so blaming the body unconditionally lies
-                // to the caller of a bodyless GET. Decide from the request, not
-                // from ex.Message: the binding messages are framework internals
-                // that differ per binding source and can change between
-                // versions. A request with no body cannot have had a body
-                // binding failure, which is the case that was certainly wrong.
-                var hasBody = context.Request.ContentLength > 0
-                    || context.Request.Headers.TransferEncoding.Count > 0;
-
-                await ValidationResponse.BindingFailureProblem(hasBody).ExecuteAsync(context);
+                // to the caller of a bodyless GET.
+                //
+                // Round 5 (Codex) corrected HOW to tell them apart. The first
+                // attempt asked whether the REQUEST carried payload bytes, which
+                // inverts for the case that matters most: a caller who omits a
+                // REQUIRED body sends no bytes, yet that is a body failure, and
+                // it was being reported as a query one.
+                //
+                // So ask the ENDPOINT what it accepts, not the request what it
+                // sent. IAcceptsMetadata is present with a RequestType exactly
+                // when a route declares a request body — for those, a binding
+                // failure is a body failure whether the body was malformed or
+                // absent. The byte check stays only as a fallback for the
+                // (unexpected) case of no endpoint metadata.
+                //
+                // Still deliberately NOT ex.Message: the binding messages are
+                // framework internals that differ per binding source and can
+                // change between versions.
+                await ValidationResponse
+                    .BindingFailureProblem(ConcernsRequestBody(context))
+                    .ExecuteAsync(context);
             }
         });
+
+    // Shared by the middleware above and Program.cs's `/error` backstop, so the
+    // two can never disagree about which key a binding failure is reported
+    // under — the same reason the response shape itself is a single factory.
+    public static bool ConcernsRequestBody(HttpContext context) =>
+        context.GetEndpoint()?.Metadata.GetMetadata<IAcceptsMetadata>()?.RequestType is not null
+        || context.Request.ContentLength > 0
+        || context.Request.Headers.TransferEncoding.Count > 0;
 }
