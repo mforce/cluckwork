@@ -37,12 +37,32 @@ set -eu
 msg=$1
 fail=0
 
-# Comment lines and everything from the scissors line down are stripped by git
-# before the message is stored, so don't judge them.
-body=$(sed -e '/^# ------------------------ >8 ------------------------$/,$d' \
-           -e '/^#/d' "$msg")
+# WHAT GIT ACTUALLY STORES. An earlier version of this hook stripped comment
+# lines and everything below the scissors marker, on the assumption that git
+# always removes them. It does not, and a hook is never told which cleanup mode
+# is in effect. Measured with `git commit -F`:
+#
+#   cleanup                # lines   scissors line   content BELOW scissors
+#   default (whitespace)   kept      kept            KEPT
+#   --cleanup=scissors     kept      kept            KEPT
+#   --cleanup=strip        removed   removed         KEPT
+#
+# So the offending shape survives in all three while the old hook stripped it
+# and passed — a false negative, which is the direction that lets the bug ship
+# (#411 review). Judge the whole message instead.
+#
+# The one part git does always drop is the `git commit -v` diff, and skipping it
+# needs no guess about cleanup: it begins at the first `diff --git ` line.
+# Leaving it in would flag ordinary diff context such as `+Assert.Single(x(y))`.
+body=$(sed -e '/^diff --git /,$d' "$msg")
 
-subject=$(printf '%s\n' "$body" | sed -n '1p')
+# The subject is the first non-blank line of the message AS WRITTEN, comment or
+# not. Skipping comment lines here would repeat the same mistake one line lower:
+# under `whitespace` cleanup a leading comment IS the stored subject, so an
+# untouched editor template would sail through and land a commit whose subject
+# is "# Please enter the commit message...". Judging the raw line rejects that,
+# which is also what an abandoned commit deserves.
+subject=$(printf '%s\n' "$body" | awk 'NF { print; exit }')
 
 # --- 1. Subject must be a conventional header. -------------------------------
 # The type list is deliberately open (any lowercase word): release-please's

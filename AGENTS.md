@@ -382,7 +382,13 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
   ```
 
   `.githooks/commit-msg` catches this, and it is the right layer — **local commit
-  messages are what lands**. With `squash_merge_commit_message=COMMIT_MESSAGES`
+  messages are what lands**. It judges the message **as written**, not a
+  comment-stripped view of it: git is not obliged to remove `#` lines or the
+  scissors tail, a hook is never told which cleanup mode applies, and measuring
+  `git commit -F` showed content below the scissors marker surviving under
+  *every* mode including `--cleanup=strip` (#411 review). The only part always
+  dropped is the `git commit -v` diff, skipped from the first `diff --git ` line
+  — no guess about cleanup required. With `squash_merge_commit_message=COMMIT_MESSAGES`
   and `squash_merge_commit_title=COMMIT_OR_PR_TITLE` (and merge/rebase also
   enabled), what release-please parses is:
 
