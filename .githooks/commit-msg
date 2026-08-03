@@ -76,9 +76,21 @@ esac
 # and these were never a problem: foo(bar)  x() y()  (a(b))
 offenders=$(printf '%s\n' "$body" | grep -nE '^[^ ()]+\([^)]*\(' || true)
 if [ -n "$offenders" ]; then
-  echo "commit-msg: body line(s) would make release-please drop this commit:" >&2
-  printf '%s\n' "$offenders" | sed 's/^/  /' >&2
-  echo "  fix: indent the line, make it a '- ' list item, or put a word before it." >&2
+  echo "commit-msg: release-please cannot parse this message, so the WHOLE commit" >&2
+  echo "            would be dropped from the changelog — silently, on a green run." >&2
+  # Show the fix applied to the author's OWN line. Generic advice reads as
+  # boilerplate; the same sentence with their text in it gets acted on.
+  printf '%s\n' "$offenders" | while IFS= read -r offender; do
+    n=${offender%%:*}
+    text=${offender#*:}
+    echo >&2
+    printf '  line %s\n' "$n" >&2
+    printf '     got:  %s\n' "$text" >&2
+    printf '     any of these is fine instead:\n' >&2
+    printf '           %s        (indent it)\n' "$text" >&2
+    printf '         - %s        (make it a list item)\n' "$text" >&2
+    printf '         see %s      (put a word in front)\n' "$text" >&2
+  done
   fail=1
 fi
 

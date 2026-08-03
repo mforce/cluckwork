@@ -372,7 +372,42 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
   | `see foo(x) and bar(y())` (not at line start) | ok |
   | `foo(bar)`, `x() y()`, `(a(b))` | ok |
 
-  So: **indent it, bullet it, or split the nesting.**
+  So: **indent it, bullet it, or split the nesting.** A whole message, the way it
+  gets dropped and the way it should read — the only difference is the two lines
+  that mention code:
+
+  ```text
+  ✗ DROPPED — no changelog entry, no bump, green run
+
+    fix(daily-entry): require exact grade reconciliation on submit
+
+    The fence is the test, not the prose:
+    Assert.Single(AllMigrations()) fails the moment a second migration
+    appears. Mutation-checked — removing the guard turns it red.
+
+    MigrationSecurityReviewTests.Pins(Shape()) covers the SQL form.
+  ```
+
+  ```text
+  ✓ PARSES — every fix below is one of the three defusals
+
+    fix(daily-entry): require exact grade reconciliation on submit
+
+    The fence is the test, not the prose:
+
+      Assert.Single(AllMigrations())          <- indented
+
+    fails the moment a second migration appears. Mutation-checked — removing
+    the guard turns it red.
+
+    - MigrationSecurityReviewTests.Pins(Shape()) covers the SQL form.
+                                                 ^ list item
+  ```
+
+  Nothing about backticks, code fences or indentation *inside* the message is
+  special to the parser — only whether a line **begins** with the offending shape.
+  `.githooks/commit-msg` prints the three rewrites applied to your own line, so
+  you do not have to work out which one fits.
 
   **Your local commit messages are the thing that lands, so a `commit-msg` hook is
   the right place for this** — do not assume only the merge commit matters. The
