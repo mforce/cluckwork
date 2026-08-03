@@ -325,6 +325,56 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
   only early exit is "zero conventional commits" — so a `chore:`-only merge does
   bump the patch digit. It lands in the pending release PR rather than in a
   release, so it costs a number, not a deploy.
+- **The commit *body* is parsed too, and one prose shape silently drops the whole
+  commit.** release-please runs `@conventional-commits/parser` over the entire
+  message, not just the subject; a parse error is caught, logged as `commit could
+  not be parsed`, and the commit is then **skipped entirely** — no changelog entry,
+  no contribution to the bump, and the run reports success. `ef9a64b` (#407) hit
+  this and the release PR reported `remained the same`, so a whole feature is
+  missing from 0.0.2's notes.
+
+  **The rule, in one line: never start a line of a commit message — or of a PR
+  description, which becomes one on squash-merge — with `something(` that has
+  another `(` inside it.** Indent it, bullet it, or put a word in front. Everything
+  below is why.
+
+  The trigger is narrow and easy to write by accident: **a body line that begins at
+  column 1 with a run of non-space, non-paren characters, then `(`, then another
+  `(` before the closing `)`.** That is ordinary C#/JS prose —
+  `` `Assert.Single(AllMigrations())` `` is what broke it. Backticks do not protect
+  it; the parser lexes such a line as a nested `type(scope)` header and its scope
+  admits no `(`.
+
+  Any leading whitespace or preceding word defuses it, verified against the parser
+  directly:
+
+  | body line | result |
+  |---|---|
+  | `Assert.Single(AllMigrations())` | **parse error** |
+  | `` `Assert.Single(AllMigrations())` `` | **parse error** |
+  | `f(g(h))`, `a(())`, `a.b(c(d))` | **parse error** |
+  | `    Assert.Single(AllMigrations())` (indented) | ok |
+  | `- a(b())`, `* a(b())` (list item) | ok |
+  | `see foo(x) and bar(y())` (not at line start) | ok |
+  | `foo(bar)`, `x() y()`, `(a(b))` | ok |
+
+  So: **indent it, bullet it, or split the nesting.** `.githooks/commit-msg` flags
+  both this shape and a non-conventional subject, but it only sees *local* commits —
+  the squashed body GitHub composes from a PR description is never shown to it, and
+  that is exactly where #407's line came from. Reviewers should look for it in the
+  PR body too.
+
+  The second failure mode from the same run is the plain one: `b39e8fb`'s subject
+  was `Credential epoch: per-request revocation checks (#399)` — a space before the
+  colon, so `Credential` is not a type, so it too was dropped. This is the
+  "PR title is the release note" rule failing in practice, not in theory.
+
+  **Recovering a dropped commit is manual and not durable pre-merge.** Editing the
+  release PR's *body* does not touch the branch's `CHANGELOG.md`, which is what
+  actually ships; and release-please force-updates both the moment its computed
+  content changes, discarding hand edits. The durable repair is a follow-up PR
+  against `CHANGELOG.md` plus `gh release edit <tag> --notes` **after** the release
+  is cut.
 - **Deploy by digest, never by tag**, and treat *obtaining* the digest and
   *verifying* it as two separate problems — the deploy side needs both, and one
   does not imply the other.

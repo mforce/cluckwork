@@ -1,0 +1,82 @@
+#!/bin/sh
+# commit-msg: keep a commit parseable by release-please.
+#
+# Enable once per clone:   git config core.hooksPath .githooks
+# Skip once:               git commit --no-verify   (or SKIP_HOOKS=1)
+#
+# WHY THIS EXISTS. release-please runs @conventional-commits/parser over the
+# WHOLE message, subject and body. A parse error is caught, logged as "commit
+# could not be parsed", and the commit is then dropped entirely — no changelog
+# entry, no bump contribution — while the workflow still reports success. Two
+# such commits reached main before this hook existed (ef9a64b, b39e8fb) and are
+# missing from 0.0.2's notes.
+#
+# SCOPE OF THE CLAIM — read this before trusting it. This is NOT a conventional-
+# commits parser and does not attempt to be one. It matches exactly the two
+# shapes observed to break release-please here, verified against the real parser.
+# A message it passes can still be unparseable in some way nobody has hit yet.
+#
+# It also cannot see the message that matters most: a squash-merge body is
+# composed by GitHub from the PR description at merge time, and no local hook
+# runs on it. ef9a64b's offending line arrived that way. Reviewers still have to
+# look.
+#
+# POSIX sh on purpose: git invokes the shebang directly.
+set -eu
+
+[ "${SKIP_HOOKS:-0}" = "1" ] && exit 0
+
+msg=$1
+fail=0
+
+# Comment lines and everything from the scissors line down are stripped by git
+# before the message is stored, so don't judge them.
+body=$(sed -e '/^# ------------------------ >8 ------------------------$/,$d' \
+           -e '/^#/d' "$msg")
+
+subject=$(printf '%s\n' "$body" | sed -n '1p')
+
+# --- 1. Subject must be a conventional header. -------------------------------
+# The type list is deliberately open (any lowercase word): release-please's
+# config decides which types are CHANGELOG-visible, and an unknown type still
+# parses and still bumps the patch digit. What does NOT parse is a missing or
+# malformed "type: " prefix — b39e8fb's "Credential epoch: ..." had a space
+# before the colon, so "Credential" was not a type.
+# A revert or fixup is git's own shape; leave it alone.
+case $subject in
+  'Revert "'*|fixup!*|squash!*|amend!*) ;;
+  *)
+    if ! printf '%s\n' "$subject" | grep -qE '^[a-z][a-z0-9]*(\([^()]+\))?!?: .'; then
+      echo "commit-msg: subject is not a conventional header." >&2
+      echo "  got:    $subject" >&2
+      echo "  want:   type(scope): summary     e.g. fix(sales): reject fractional quantities" >&2
+      echo "  note:   no space before the colon; scope may not contain parens." >&2
+      fail=1
+    fi
+    ;;
+esac
+
+# --- 2. No body line that lexes as a nested type(scope) header. --------------
+# Trigger: a line starting at column 1 with non-space, non-paren characters,
+# then '(', then another '(' before the closing ')'. Ordinary code prose:
+#   `Assert.Single(AllMigrations())`   <- breaks
+#   f(g(h))  a(())  a.b(c(d))          <- breaks
+# Defused by any of: leading whitespace, a list marker, or preceding words —
+#       Assert.Single(AllMigrations())
+#   - Assert.Single(AllMigrations())
+#   see Assert.Single(AllMigrations())
+# and these were never a problem: foo(bar)  x() y()  (a(b))
+offenders=$(printf '%s\n' "$body" | grep -nE '^[^ ()]+\([^)]*\(' || true)
+if [ -n "$offenders" ]; then
+  echo "commit-msg: body line(s) would make release-please drop this commit:" >&2
+  printf '%s\n' "$offenders" | sed 's/^/  /' >&2
+  echo "  fix: indent the line, make it a '- ' list item, or put a word before it." >&2
+  fail=1
+fi
+
+[ "$fail" -eq 0 ] || {
+  echo "commit-msg: FAILED — fix, or use --no-verify to override." >&2
+  exit 1
+}
+
+exit 0
