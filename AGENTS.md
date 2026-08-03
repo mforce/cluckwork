@@ -277,10 +277,15 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
     round). That is why the App token is minted *before* the guard and why
     `permission-contents: write` on it is not only for the changelog commit.
 
-    A missing manifest version **proceeds** rather than skips: there is no
+    A **404** on the manifest **proceeds** rather than skips: there is no
     previous release to resolve against, so nothing can be got wrong, and it is
     the state a repo is in before its first release — skipping there would
-    deadlock it, since no grooming means no release PR, ever.
+    deadlock it, since no grooming means no release PR, ever. But **a 404 and a
+    rate-limit are not the same answer**: any other failure fails the step, so a
+    transient API error cannot masquerade as "never released" and groom with no
+    boundary check. Swallowing both into an empty version is a fail-open, and a
+    guard that passes when it should block is the one outcome worse than having
+    no guard.
 
   `groom` mints its own App token and **must** keep the `permission-*` downscoping
   — omitting those mints the union of every grant the App holds, silently (see the

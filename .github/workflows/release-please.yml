@@ -662,8 +662,24 @@ jobs:
         run: |
           set -euo pipefail
 
-          version=$(gh api "repos/$GH_REPO/contents/.release-please-manifest.json" \
-            -H "Accept: application/vnd.github.raw" --jq '."."' 2>/dev/null || true)
+          # A 404 and a rate-limit are NOT the same answer. Swallowing every
+          # failure into an empty version would make a transient API error read
+          # as "this repo has never released", and grooming would then proceed
+          # with no boundary check at all — the guard failing open, which is the
+          # one outcome worse than not having it.
+          err=$(mktemp)
+          if version=$(gh api "repos/$GH_REPO/contents/.release-please-manifest.json" \
+                -H "Accept: application/vnd.github.raw" --jq '."."' 2>"$err"); then
+            :
+          elif grep -q 'HTTP 404' "$err"; then
+            version=""
+          else
+            cat "$err" >&2
+            rm -f "$err"
+            echo "::error::Could not read .release-please-manifest.json — refusing to groom without a boundary check."
+            exit 1
+          fi
+          rm -f "$err"
 
           if [ -z "$version" ] || [ "$version" = "null" ]; then
             # No manifest version means no previous release to resolve a
