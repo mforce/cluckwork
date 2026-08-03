@@ -15,7 +15,7 @@ import { NumberField } from "../components/NumberField";
 import { useConfirm } from "../components/useConfirm";
 import { usePendingAction } from "../components/usePendingAction";
 import { StatusBadge } from "../components/StatusBadge";
-import { gradingState } from "../lib/grading";
+import { armedState, gradingState } from "../lib/grading";
 import { newId } from "../lib/ids";
 import i18n from "../i18n";
 
@@ -164,7 +164,8 @@ export function HistoryPage() {
   // the rows armed (and Save enabled) for the render between that keystroke
   // and the effect below, so "armed" and "saveable" overlapped by one frame
   // instead of being mutually exclusive. Derived, they cannot (codex round 2).
-  const armed = assigning && canAssign;
+  // The derivation itself lives in lib/grading, where it is asserted directly.
+  const armed = armedState(assigning, canAssign);
   // The effect still clears the stale flag, so typing back DOWN to a remainder
   // does not silently re-arm rows the user disarmed by walking away from it.
   useEffect(() => {

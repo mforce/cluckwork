@@ -44,6 +44,21 @@ export interface GradingState {
   reconciled: boolean;
 }
 
+/**
+ * Whether the remainder-assignment gesture is actually live: the user armed it
+ * AND there is still something to hand out.
+ *
+ * Trivial by design, and defined ONCE for both screens on purpose. Read as raw
+ * state it is a bug: a day reconciles by typing a grade (or, on the capture
+ * screen, locks or starts a prefill) and the flag stays true until the disarm
+ * effect runs, leaving one render with live drop targets over a settled day.
+ * Deriving it removes that frame — and having it here means the invariant is
+ * asserted directly rather than only through a test that has to out-manoeuvre
+ * React's effect flushing to observe it (codex round 3 of #403).
+ */
+export const armedState = (assigning: boolean, canAssign: boolean): boolean =>
+  assigning && canAssign;
+
 export function gradingState(
   { totalEggs, cracked, dirty, discarded, gradesSum }: GradingInput,
 ): GradingState {

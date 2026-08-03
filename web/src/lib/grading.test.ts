@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { gradingState } from "./grading";
+import { armedState, gradingState } from "./grading";
 
 const base = { totalEggs: 100, cracked: 2, dirty: 3, discarded: 5, gradesSum: 0 };
 
@@ -58,5 +58,26 @@ describe("gradingState", () => {
     const g = gradingState({ totalEggs: 0, cracked: 0, dirty: 0, discarded: 0, gradesSum: 0 });
     expect(g.reconciled).toBe(true);
     expect(g.tone).toBe("done");
+  });
+});
+
+// The whole truth table, stated where no scheduler can get between the input
+// and the answer. The screen-level test that observes the same invariant has to
+// dodge React's effect flushing to see it; this one cannot rot that way, so if
+// a future React ever makes that test pass vacuously, this still fails.
+describe("armedState", () => {
+  it.each([
+    [true, true, true],
+    [true, false, false],
+    [false, true, false],
+    [false, false, false],
+  ])("assigning=%s canAssign=%s → %s", (assigning, canAssign, expected) => {
+    expect(armedState(assigning, canAssign)).toBe(expected);
+  });
+
+  // The case the bug lived in, named: the flag survives the moment the day
+  // stops having anything to assign, and the derivation is what ignores it.
+  it("is not armed the instant there is nothing left to assign", () => {
+    expect(armedState(true, false)).toBe(false);
   });
 });

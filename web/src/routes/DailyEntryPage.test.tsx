@@ -596,6 +596,45 @@ describe("DailyEntryPage assign the remainder", () => {
     expect(screen.queryByRole("button", { name: /Put all \d+ remaining in/ })).toBeNull();
     expect(screen.queryByRole("button", { name: /Choose a grade/ })).toBeNull();
   });
+
+  // The test above cannot tell WHICH mechanism disarmed: `fireEvent` wraps its
+  // dispatch in act(), which flushes the passive effect before the assertion
+  // runs, so it passes whether the render reads the derived `armed` flag or the
+  // raw state. Dispatching raw skips that flush and sees the frame the user's
+  // next click would land in — the one the bug lived in (#403 round 3).
+  it("drops the row targets in the same render as the reconciliation", async () => {
+    await readyWithRemainder();
+    fireEvent.click(arm());
+
+    const input = screen.getByLabelText("Grade B") as HTMLInputElement;
+    // React tracks the value on the node, so assigning `.value` reads as a
+    // no-op change; go through the prototype setter React patched.
+    const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+    setValue.call(input, "60"); // 30 + 60 === sellable 90
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+
+    expect(screen.queryAllByRole("button", { name: /Put all \d+ remaining in/ })).toHaveLength(0);
+    expect(document.querySelector(".entry-row.taking")).toBeNull();
+  });
+
+  // Same frame, different trigger, and the one the effect cannot cover at all:
+  // the guard that would disqualify the gesture (`prefillPending`) is itself
+  // set in an effect, so BOTH sides of the check were a render late. Changing
+  // the day now disarms in the same event as the change.
+  it("drops the row targets in the same render as a change of day", async () => {
+    await readyWithRemainder();
+    fireEvent.click(arm());
+    expect(screen.getByRole("button", { name: "Put all 60 remaining in Grade A" })).toBeInTheDocument();
+
+    const picker = screen.getByLabelText("Date") as HTMLInputElement;
+    const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+    setValue.call(picker, "2026-01-02");
+    picker.dispatchEvent(new Event("input", { bubbles: true }));
+
+    // No row may still offer the PREVIOUS day's remainder over the new one.
+    expect(screen.queryAllByRole("button", { name: /Put all \d+ remaining in/ })).toHaveLength(0);
+    expect(document.querySelector(".entry-row.taking")).toBeNull();
+  });
 });
 
 // F134: the + refuses to build an over-graded day. Typing still can, because a

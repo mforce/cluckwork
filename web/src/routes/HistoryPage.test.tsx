@@ -293,12 +293,14 @@ describe("HistoryPage adjust — mirrored daily-entry layout", () => {
   });
 
   // Armed and saveable are mutually exclusive — arming needs a remainder, Save
-  // needs none. Both routes to zero are covered, because they are not the same
-  // mechanism: the gesture disarms itself, while a TYPED reconciliation is
-  // caught only by `armed` being derived (`assigning && canAssign`). Before
-  // that derivation the typed route left the rows armed with Save enabled for
-  // the render before the effect ran — which is what made the earlier
-  // "unreachable" claim false (codex round 2).
+  // needs none — asserted for both routes to zero: the gesture, which disarms
+  // itself, and typing, which does not.
+  //
+  // Scope, stated because it is easy to over-read: this pins the SETTLED state
+  // only, and passes whether the render derives `armed` or reads the raw flag
+  // (measured). What the derivation buys is the frame before the effect runs,
+  // and that needs the raw-dispatch test below; the truth table itself is in
+  // lib/grading.test.ts.
   it.each([
     ["the take-remainder control", () =>
       fireEvent.click(within(dialog()).getByRole("button", { name: /Put all 30 remaining in Grade A/ }))],

@@ -15,7 +15,7 @@ import { NumberField } from "../components/NumberField";
 import { useConfirm } from "../components/useConfirm";
 import { usePendingAction } from "../components/usePendingAction";
 import { useFarmToday } from "../farm/useFarm";
-import { gradingState } from "../lib/grading";
+import { armedState, gradingState } from "../lib/grading";
 import { newId } from "../lib/ids";
 import i18n from "../i18n";
 import { statusLabel } from "../i18n/enums";
@@ -238,7 +238,7 @@ export function DailyEntryPage() {
   // effect below only catches up on the NEXT render. Between the two, reading
   // `assigning` directly left rows armed with nothing to place, and on the
   // capture screen it also meant a "+0 here" button over a locked day.
-  const armed = assigning && canAssign;
+  const armed = armedState(assigning, canAssign);
   // The effect still clears the stale flag, so becoming assignable again does
   // not silently re-arm rows the user is no longer aiming at.
   useEffect(() => {
@@ -247,7 +247,21 @@ export function DailyEntryPage() {
 
   // Changing the flock or the date starts a different day; staying armed over
   // the new one would be a held gesture the user never aimed at it.
+  //
+  // The pickers ALSO disarm synchronously (see `retarget` below), because this
+  // effect — like the one above — only catches up on the next render, and the
+  // guard that would have covered the gap (`prefillPending`) is itself set in
+  // an effect. So for one render the rows were armed against the new day while
+  // still holding the OLD day's remainder (codex round 3). This stays for the
+  // paths that change the target without going through a picker.
   useEffect(() => setAssigning(false), [flockId, date]);
+
+  // Every target change goes through here: the disarm lands in the same event
+  // as the change, so no render ever shows one day's remainder over another's.
+  function retarget(apply: () => void) {
+    setAssigning(false);
+    apply();
+  }
 
   // NumberField owns its own input, so the row label points at it by id.
   const fieldId = useId();
@@ -378,7 +392,7 @@ export function DailyEntryPage() {
       <div className="form-grid entry-context">
         <label>
           {t("flockLabel")}
-          <select value={flockId} onChange={(e) => setFlockId(e.target.value)}>
+          <select value={flockId} onChange={(e) => retarget(() => setFlockId(e.target.value))}>
             {flocks.length === 0 && <option value="">{t("noFlocksYetOption")}</option>}
             {flocks.map((f) => (
               <option key={f.id} value={f.id}>
@@ -389,7 +403,7 @@ export function DailyEntryPage() {
         </label>
         <label>{t("dateLabel")}
           <input type="date" value={date} max={today}
-            onChange={(e) => setDate(e.target.value)} />
+            onChange={(e) => retarget(() => setDate(e.target.value))} />
         </label>
         <button className="link" type="button" onClick={() => { setError(null); setShowNewFlock(true); }}>
           {t("newFlockButton")}

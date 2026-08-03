@@ -82,13 +82,17 @@ recording it. The two panes reconcile: the **sellable** figure the counts
 produce is the target the grades have to hit, so they are placed where both can
 be read at once.
 
-The **adjust** dialog (#403) is this same form, not a second one: the same two
-numbered panes in the same order, the same **Left to grade** chip, the same
-**steppers**, and the same **Put all in…** remainder shortcut, sharing one
-implementation rather than a parallel copy. So every term defined below for
-capture means the same thing when correcting a day, and a correction is read
-the way the day was recorded. Only what is genuinely the dialog's own — the
-reason field, and the *previously adjusted* note — is particular to it.
+The **adjust** dialog (#403) presents the same form: the same two numbered panes
+in the same order, the same **Left to grade** chip, the same **steppers**, and
+the same **Put all in…** remainder shortcut. So every term defined below for
+capture means the same thing when correcting a day, and a correction is read the
+way the day was recorded. Only what is genuinely the dialog's own — the reason
+field, and the *previously adjusted* note — is particular to it.
+
+What is literally shared is the reconciliation arithmetic and the chip and
+remainder controls; each screen still renders its own form and owns its own
+state and submission. So the two can drift, and keeping them saying the same
+thing is a review obligation, not something the code enforces.
 
 **Left to grade (#134)** — grading counts **down** to zero rather than reporting
 *graded n of m*. The figure beside the grades is how many sellable eggs are
