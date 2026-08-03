@@ -174,8 +174,10 @@ checks are Phase 1.5.
 dotnet test Cluckwork.sln    # integration tests spin up Postgres via Docker
 ```
 
-Optional: `git config core.hooksPath .githooks` enables a fast pre-commit hook
-(unit tests for staged .NET changes, typecheck for staged `web/` changes).
+Optional: `git config core.hooksPath .githooks` enables two fast hooks —
+**pre-commit** (unit tests for staged .NET changes, typecheck for staged `web/`
+changes) and **commit-msg** (rejects a message release-please would silently drop
+from the changelog; see [Writing a commit message](#writing-a-commit-message)).
 
 ## Releases & container images
 
@@ -213,7 +215,8 @@ rebuilt, so the bytes carrying `v0.4.0` are provably the bytes that passed CI.
 
 ### What decides the version
 
-Your **PR title** — it becomes the commit subject when the PR is squashed:
+Your **PR title** — or, on a **one-commit** branch, that commit's own subject,
+which GitHub uses instead. Either way it becomes the squashed commit subject:
 
 While the version is **below 1.0.0**, everything is deliberately damped one level —
 the project is pre-1.0 and shouldn't burn major digits on Phase 1.x churn:
@@ -237,6 +240,71 @@ you mean it, not by accident.
 That is not as noisy as it sounds, because the bump lands in the **pending release
 PR**, not in a release. Several chore merges accumulate into one proposed patch, and
 nothing is released until you merge that PR.
+
+### Writing a commit message
+
+**Subject:** `type(scope): summary`, lowercase type, no space before the colon.
+The scope is free-form — the area touched. Real examples from this repo:
+
+| type | changelog section | example |
+|---|---|---|
+| `feat` | Features | `feat(eggs): make cracked and dirty eggs sellable stock via condition grades` |
+| `fix` | Bug fixes | `fix(sales): reject fractional order-line quantities` |
+| `perf` | Performance | `perf(reports): stream the CSV export instead of buffering it` |
+| `refactor` | Refactoring | `refactor(api): extract service registration from Program` |
+| `docs` | Documentation | `docs(agents): record the guard-writing rules #407 paid five rounds for` |
+| `ci` | *hidden* | `ci(e2e): workflow_dispatch job for the Playwright smoke suite` |
+| `test` | *hidden* | `test(e2e): Playwright smoke suite for the SPA over the #243 sim fixture` |
+| `build` | *hidden* | `build(deps): bump Npgsql to 10.0.2` |
+| `chore` | *hidden* | `chore(web): drop the unused date-fns dependency` |
+| `style` | *hidden* | `style(web): apply Prettier to the untouched settings screens` |
+
+Add `!` for a breaking change — `feat(api)!: drop the v0 endpoints` — or a
+`BREAKING CHANGE:` footer. *Hidden* types stay out of the changelog text but
+**still bump the patch digit** (see above); they cost a number, not a deploy.
+
+**Body:** release-please parses the whole message, body included, and the squash
+body is every branch commit message concatenated. One unparseable line drops the
+**entire commit** from the changelog — no entry, no version bump, green run. Two
+commits have already been lost this way.
+
+**Never start a line with `something(` that has another `(` inside it.** Ordinary
+code prose, and backticks do not protect it:
+
+```text
+fix(x): summary
+
+The fence is the test:
+Assert.Single(AllMigrations()) fails when a second appears.
+^^^^^^^^^^^^^^             ^
+│                          └─ a second "(" before the first one closes
+└─ line STARTS with  word(
+```
+
+release-please reads a line-initial `word(` as a `type(scope):` header. A scope
+cannot contain `(`, so the parse fails — and a failed parse means **this whole
+commit is skipped**, not just this line.
+
+Move the line off column 1 and it is fine. Nothing else changes:
+
+```text
+fix(x): summary
+
+The fence is the test:
+
+  Assert.Single(AllMigrations())
+^^
+└─ two spaces. The line no longer starts with the shape.
+
+fails when a second appears.
+```
+
+A `- ` list item or any word in front works equally well. Only line *starts*
+matter, so `see foo(x) and bar(y())` mid-sentence was never a problem.
+
+`.githooks/commit-msg` catches this and prints the rewrites applied to your own
+line. It cannot see a **PR title**, so a non-conventional title is still yours and
+the reviewer's to catch. [`AGENTS.md`](AGENTS.md) is canonical.
 
 ### Deploying
 

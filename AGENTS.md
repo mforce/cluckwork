@@ -289,6 +289,59 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
   is the last step. Draft is safe for release-please's own bookkeeping because
   manifest mode reads the current version from `.release-please-manifest.json`, a
   committed file, not from tags.
+- **release-please runs twice per push, split around promotion.** Versioning is
+  tag-independent (above); the **changelog boundary is not** — it resolves through
+  the previous release's **git tag**, and a draft has no tag. So one invocation
+  that cuts `vX.Y.Z` *and* computes the next PR computes it while `vX.Y.Z` is
+  unresolvable: the boundary falls through to the full search depth and the PR
+  restates every earlier release. Seen on the v0.0.2 cut (#409 proposed 0.0.3 with
+  0.0.1's *and* 0.0.2's changelog) on a **green** run, because the version comes
+  from the manifest and was right. It self-heals on the next push, which is why
+  v0.0.1 passed unnoticed. Hence `skip-github-pull-request: true` on the cut job
+  and a `groom` job with `skip-github-release: true` after `promote`.
+
+  Two things on `groom` are not the obvious default:
+
+  - `always() && !cancelled()` — `promote` is **skipped** on an ordinary push, and
+    a skipped dependency would otherwise skip grooming on every non-release merge.
+  - **The guarantee is a probe for the boundary release, not an inference from
+    job results. Do not "simplify" it back to a `needs` predicate.**
+    `needs.promote.result != 'failure'` looks sufficient and covers only the run
+    that failed: on the *next* push the cut job succeeds with
+    `release_created: false`, so `promote` is *skipped*, the predicate passes, and
+    the still-untagged draft produces the duplicate one run later (#411 review).
+    The predicate is kept only as a cheap fence.
+
+    The probe is **scoped to `v<version from .release-please-manifest.json>`** —
+    the one release release-please will try to resolve — and asks only whether
+    *that* release is still an unpublished draft. Blocking on **any** draft was
+    the first version and is wrong in the other direction: a hand-made draft
+    under an unrelated tag would wedge grooming shut forever (#411 review,
+    second round). It **skips rather than fails**, since an unrelated merge
+    should not go red because a release is stuck, but warns and names the draft
+    in the step summary.
+
+    **It must probe with the App token, not `GITHUB_TOKEN`.** GitHub lists draft
+    releases only to a caller with **push** access, and the job's own token is
+    `contents: read` — so probing with it returns no drafts at all, the boundary
+    draft looks absent, and the guard passes and grooms against the missing tag.
+    A guard that silently never fires is worse than none (#411 review, third
+    round). That is why the App token is minted *before* the guard and why
+    `permission-contents: write` on it is not only for the changelog commit.
+
+    A **404** on the manifest **proceeds** rather than skips: there is no
+    previous release to resolve against, so nothing can be got wrong, and it is
+    the state a repo is in before its first release — skipping there would
+    deadlock it, since no grooming means no release PR, ever. But **a 404 and a
+    rate-limit are not the same answer**: any other failure fails the step, so a
+    transient API error cannot masquerade as "never released" and groom with no
+    boundary check. Swallowing both into an empty version is a fail-open, and a
+    guard that passes when it should block is the one outcome worse than having
+    no guard.
+
+  `groom` mints its own App token and **must** keep the `permission-*` downscoping
+  — omitting those mints the union of every grant the App holds, silently (see the
+  release-PR-token bullet below).
 - **Repair path, in two parts.** Re-running the push event never helps —
   release-please reports `release_created: false` for an already-created release,
   so promotion would be skipped forever.
@@ -346,6 +399,92 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
   only early exit is "zero conventional commits" — so a `chore:`-only merge does
   bump the patch digit. It lands in the pending release PR rather than in a
   release, so it costs a number, not a deploy.
+- **The commit *body* is parsed too, and a parse error drops the whole commit** —
+  no changelog entry, no bump, and the run reports success. **Never start a line
+  with `something(` that has another `(` inside it**; indent it, bullet it, or put
+  a word in front. Backticks do not protect it: the parser lexes such a line as a
+  nested `type(scope)` header, and the scope admits no `(`. Only line *starts*
+  matter, so `see foo(x) and bar(y())` mid-sentence is fine, as are `foo(bar)` and
+  `(a(b))`. **Any** leading whitespace defuses it, tab as well as space — the
+  hook's character class has to exclude all whitespace, not just the literal
+  space, or it rejects tab-indented prose the real parser accepts (#411 review).
+
+  ```text
+  fix(x): summary                                    <- the whole commit is dropped
+
+  The fence is the test:
+  Assert.Single(AllMigrations()) fails when a second appears.
+  ^^^^^^^^^^^^^^             ^
+  │                          └─ a second "(" before the first one closes
+  └─ line STARTS with  word(     ... so the parser reads it as type(scope):
+
+  Pins(Shape()) covers the SQL.                      <- same shape, same problem
+  ```
+
+  ```text
+  fix(x): summary                                    <- parses
+
+  The fence is the test:
+
+    Assert.Single(AllMigrations())                   <- indented off column 1
+
+  fails when a second appears.
+
+  - Pins(Shape()) covers the SQL.                    <- or a list marker
+  ```
+
+  `.githooks/commit-msg` catches this, and it is the right layer — **local commit
+  messages are what lands**. It judges the message **as written**, not a
+  comment-stripped view of it: git is not obliged to remove `#` lines or the
+  scissors tail, a hook is never told which cleanup mode applies, and measuring
+  `git commit -F` showed content below the scissors marker surviving under
+  *every* mode including `--cleanup=strip` (#411 review). The only part always
+  dropped is the `git commit -v` diff, and identifying it by a bare `diff --git `
+  line is not good enough: that discards an **authored** patch excerpt, which git
+  stores and the parser rejects (`+Assert.Single(AllMigrations())` fails exactly
+  like the undecorated line). What distinguishes git's own section is its
+  framing — `commit -v` emits the scissors marker, then its notes, then the diff
+  — so the tail is dropped only when `diff --git ` is **preceded by a scissors
+  line, with no blank line between them**. Match that marker **structurally —
+  dashes, `>8`, dashes — never as a literal `#` string**: the surrounding notes
+  are translated, and `core.commentChar` changes the prefix outright. With `;`
+  configured, a literal `#` match missed git's own marker, so its verbose diff
+  read as authored text and an ordinary commit was rejected.
+
+  **Two of these findings compound to one accepted limit, stated plainly rather
+  than chased further.** "Seen a scissors line, then *eventually* a `diff --git`
+  line" was itself a gap — an unrelated later mention of `diff --git` truncated
+  everything after it, including a genuine offender placed past that mention
+  (#411 review). Tightened to require no blank line in between, which matches
+  git's real template and closes that. But git strips a `-v` diff
+  **unconditionally, regardless of cleanup mode** — measured true even under
+  `--cleanup=whitespace` — so the message a real `-v` commit hands this hook is
+  **byte-identical** to one where an author typed the same scissors-plus-diff
+  shape on purpose. No check over content alone can tell those apart, and this
+  hook does not try further: it is local and `--no-verify`-skippable already,
+  exists to catch **accidental** breakage, and deliberately reproducing git's
+  shape to smuggle a line past it takes the same intent as `--no-verify` — not
+  something to keep patching around. With
+  `squash_merge_commit_message=COMMIT_MESSAGES`
+  and `squash_merge_commit_title=COMMIT_OR_PR_TITLE` (and merge/rebase also
+  enabled), what release-please parses is:
+
+  | part of the squash commit | comes from | hook sees it |
+  |---|---|---|
+  | body | every branch commit message, concatenated | **yes** |
+  | subject, one-commit PR | that commit's subject | yes |
+  | subject, multi-commit PR | **the PR title** | **no** |
+
+  Both 2026-08 casualties sit in that table. `ef9a64b` (#407): a body line, from
+  one of 17 concatenated commit messages — the hook covers that class. `b39e8fb`
+  (#399): subject `Credential epoch: …` across 15 commits, so it came from the PR
+  title, which no local hook sees — that half is the "PR title is the release
+  note" rule plus reviewers.
+
+  **Recovery is manual and not durable pre-merge**: editing the release PR's body
+  does not touch the branch's `CHANGELOG.md`, and release-please force-updates
+  both whenever its computed content changes. Repair with a follow-up PR against
+  `CHANGELOG.md` plus `gh release edit <tag> --notes` **after** the release is cut.
 - **Deploy by digest, never by tag**, and treat *obtaining* the digest and
   *verifying* it as two separate problems — the deploy side needs both, and one
   does not imply the other.
