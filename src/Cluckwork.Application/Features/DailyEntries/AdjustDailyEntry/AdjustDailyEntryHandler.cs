@@ -74,6 +74,15 @@ public sealed class AdjustDailyEntryHandler(
                     "DailyEntry.UnknownGrade",
                     "One or more egg grades do not exist, are inactive, or are not saleable."))
                     .LogFailure(logger, "AdjustDailyEntry");
+
+            // #396 — deliberately NOT folded into `allowed` above: that set
+            // unions the lines already on the entry, so a condition grade could
+            // be talked past it. ConditionGradeGuard asks the catalog directly.
+            var conditionGrade = await ConditionGradeGuard.CheckAsync(
+                eggGrades, command.Grades.Select(g => g.EggGradeId), ct);
+            if (conditionGrade is not null)
+                return Result.Failure<AdjustDailyEntryResponse>(conditionGrade)
+                    .LogFailure(logger, "AdjustDailyEntry");
         }
 
         var previousMortality = entry.MortalityCount;
@@ -119,6 +128,23 @@ public sealed class AdjustDailyEntryHandler(
             // untouchable wherever they sit) and the first lot in canonical
             // order carries the remainder.
             var targets = entry.Grades.ToDictionary(l => l.EggGradeId, l => l.Quantity);
+
+            // #396 — the counter-backed lots are targets too. They are NOT in
+            // entry.Grades (a condition grade is never a manual line — see
+            // ConditionGradeGuard), so omitting them here does not merely skip
+            // them: the loop below drives EVERY lot linked to this entry toward
+            // its target, and a lot with no target reads as target ZERO. An
+            // adjustment would therefore silently destroy stock the farm holds,
+            // on an entry the adjustment did not even intend to change that way.
+            //
+            // Read from the entry's SNAPSHOT, never re-resolved from the
+            // catalog: a farm that turned Cracked non-saleable after submitting
+            // must still be able to correct that day's count, and the day keeps
+            // the meaning it was recorded with.
+            if (entry.CrackedGradeId is { } crackedGradeId)
+                targets[crackedGradeId] = entry.CrackedEggs;
+            if (entry.DirtyGradeId is { } dirtyGradeId)
+                targets[dirtyGradeId] = entry.DirtyEggs;
             foreach (var gradeLots in lockedLots.GroupBy(l => l.EggGradeId))
             {
                 var target = targets.GetValueOrDefault(gradeLots.Key, 0);
@@ -167,6 +193,13 @@ public sealed class AdjustDailyEntryHandler(
             foreach (var (gradeId, quantity) in targets)
             {
                 if (lockedLots.Any(l => l.EggGradeId == gradeId)) continue;
+
+                // #396 — a condition target can legitimately be ZERO (a day
+                // with no cracked eggs), and EggLot.Create rejects a zero
+                // quantity. Nothing to create: no lot, and nothing to
+                // reconcile away either, since there is no lot to shrink.
+                if (quantity <= 0) continue;
+
                 var newLot = EggLot.Create(
                     Guid.NewGuid(), accountId, entry.FlockId, entry.Date, gradeId, quantity,
                     dailyEntryId: entry.Id);

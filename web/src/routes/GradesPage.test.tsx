@@ -24,8 +24,8 @@ const mockUpdate = vi.mocked(updateEggGrade);
 const mockDeactivate = vi.mocked(deactivateEggGrade);
 const mockActivate = vi.mocked(activateEggGrade);
 
-const GRADE_A: EggGrade = { id: "g1", farmId: "f", name: "Grade A", gradeType: "Size", sortOrder: 1, isSaleable: true, active: true };
-const GRADE_OLD: EggGrade = { id: "g2", farmId: "f", name: "Legacy", gradeType: "Quality", sortOrder: 2, isSaleable: false, active: false };
+const GRADE_A: EggGrade = { id: "g1", farmId: "f", name: "Grade A", gradeType: "Size", sortOrder: 1, isSaleable: true, dailyEntryKind: "Manual", active: true };
+const GRADE_OLD: EggGrade = { id: "g2", farmId: "f", name: "Legacy", gradeType: "Quality", sortOrder: 2, isSaleable: false, dailyEntryKind: "Manual", active: false };
 
 const ADMIN = { sub: "u1", role: "Admin" };
 const WORKER = { sub: "u1" };

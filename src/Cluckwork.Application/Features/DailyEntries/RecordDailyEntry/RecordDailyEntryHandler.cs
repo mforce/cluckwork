@@ -64,6 +64,15 @@ public sealed class RecordDailyEntryHandler(
                     "DailyEntry.UnknownGrade",
                     "One or more egg grades do not exist, are inactive, or are not saleable."))
                     .LogFailure(logger, "RecordDailyEntry");
+
+            // #396 — and it must not be a COUNTER-fed grade. This check is
+            // separate from `known` above because the two ask different
+            // questions: `known` is "may this grade receive production at all",
+            // which Cracked and Dirty now pass. See ConditionGradeGuard.
+            var conditionGrade = await ConditionGradeGuard.CheckAsync(
+                eggGrades, command.Grades.Select(g => g.EggGradeId), ct);
+            if (conditionGrade is not null)
+                return Result.Failure<Guid>(conditionGrade).LogFailure(logger, "RecordDailyEntry");
         }
 
         var existing = await repository.FindByNaturalKeyAsync(

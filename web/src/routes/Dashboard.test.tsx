@@ -33,7 +33,8 @@ const flock = (id: string, status: string): Flock => ({
 });
 const entry = (flockId: string, status: string, totalEggs: number): DailyEntry => ({
   id: `de-${flockId}`, farmId: "f", houseId: "h", flockId, date: "2026-07-21", status,
-  totalEggs, crackedEggs: 0, dirtyEggs: 0, discardedEggs: 0, mortalityCount: 0, grades: [],
+  totalEggs, crackedEggs: 0, dirtyEggs: 0, discardedEggs: 0, mortalityCount: 0,
+  crackedGradeId: null, dirtyGradeId: null, grades: [],
   version: 1, adjustReason: null, voidReason: null, lockedAtUtc: null, adjustedFrom: null,
 });
 const STOCK: StockRow[] = [

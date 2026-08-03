@@ -1,6 +1,7 @@
 namespace Cluckwork.Application.Features.DailyEntries.SubmitDailyEntry;
 
 using Cluckwork.Application.Common;
+using Cluckwork.Application.Features.EggGrades;
 using Cluckwork.Application.Features.EggLots;
 using Cluckwork.Application.Features.Eggs;
 using Cluckwork.Application.Features.Flocks;
@@ -18,6 +19,7 @@ using Microsoft.Extensions.Logging;
 // are never generated twice.
 public sealed class SubmitDailyEntryHandler(
     IDailyEntryRepository entries,
+    IEggGradeRepository eggGrades,
     IEggLotRepository eggLots,
     IBirdMovementRepository birdMovements,
     IEggInventoryMovementRepository eggMovements,
@@ -51,7 +53,19 @@ public sealed class SubmitDailyEntryHandler(
         if (scope.IsFailure)
             return Result.Failure<SubmitDailyEntryResponse>(scope.Error).LogFailure(logger, "SubmitDailyEntry");
 
-        var submit = entry.Submit();
+        // #396 — submission is the ONE point at which the Cracked and Dirty
+        // counters resolve to a grade. Both flags are required and neither
+        // implies the other: EggGrade.Deactivate() leaves IsSaleable set, so
+        // "inactive but saleable" is an ordinary reachable state, and resolving
+        // on saleability alone would mint stock under a grade the farm has
+        // already retired from capture. Unresolved (null) is a durable record
+        // that those eggs were a loss, not a gap to be filled in later — see
+        // DailyEntry.CrackedGradeId.
+        var farmGrades = await eggGrades.ListActiveAsync(entry.FarmId, ct);
+        var crackedGradeId = ResolveCondition(farmGrades, DailyEntryKind.Cracked);
+        var dirtyGradeId = ResolveCondition(farmGrades, DailyEntryKind.Dirty);
+
+        var submit = entry.Submit(crackedGradeId, dirtyGradeId);
         if (submit.IsFailure)
             return Result.Failure<SubmitDailyEntryResponse>(submit.Error).LogFailure(logger, "SubmitDailyEntry");
 
@@ -71,6 +85,35 @@ public sealed class SubmitDailyEntryHandler(
             await eggMovements.AddAsync(EggInventoryMovement.Create(
                 Guid.NewGuid(), accountId, lot.Id, EggMovementType.Production,
                 line.Quantity, nameof(DailyEntry), entry.Id, clock.UtcNow), ct);
+        }
+
+        // #396 — the counter-backed lots, in the same transaction as the manual
+        // ones. Read from the entry's own SNAPSHOT rather than from the ids
+        // resolved above, so this loop and every later reader agree by
+        // construction and an adjustment (which never re-resolves) takes the
+        // identical path.
+        //
+        // A zero counter is skipped but stays snapshotted: EggLot.Create rejects
+        // a zero quantity, and "the farm was selling cracked eggs that day" is
+        // still a fact worth recording. Snapshot and lot are separate decisions.
+        foreach (var (gradeId, quantity) in new[]
+        {
+            (entry.CrackedGradeId, entry.CrackedEggs),
+            (entry.DirtyGradeId, entry.DirtyEggs),
+        })
+        {
+            if (gradeId is null || quantity <= 0) continue;
+
+            var lot = EggLot.Create(
+                Guid.NewGuid(), accountId, entry.FlockId,
+                entry.Date, gradeId.Value, quantity,
+                dailyEntryId: entry.Id);
+            await eggLots.AddAsync(lot, ct);
+            lotIds.Add(lot.Id);
+
+            await eggMovements.AddAsync(EggInventoryMovement.Create(
+                Guid.NewGuid(), accountId, lot.Id, EggMovementType.Production,
+                quantity, nameof(DailyEntry), entry.Id, clock.UtcNow), ct);
         }
 
         // The day's mortality becomes a ledger row so the flock's current count
@@ -94,6 +137,13 @@ public sealed class SubmitDailyEntryHandler(
             entry.Id, entry.FlockId, entry.Date, lotIds.Count, entry.MortalityCount);
         return Result.Success(new SubmitDailyEntryResponse(entry.Id, entry.Status.ToString(), lotIds));
     }
+
+    // BOTH flags, never one. ListActiveAsync has already excluded inactive
+    // grades; IsSaleable is checked here, and the pair is what the rule
+    // requires. Kept as a named method so the requirement reads as one thing
+    // rather than as an incidental filter clause.
+    private static Guid? ResolveCondition(IReadOnlyList<EggGrade> activeFarmGrades, DailyEntryKind kind) =>
+        activeFarmGrades.SingleOrDefault(g => g.DailyEntryKind == kind && g.IsSaleable)?.Id;
 }
 
 public sealed record SubmitDailyEntryResponse(Guid Id, string Status, IReadOnlyList<Guid> EggLotIds);

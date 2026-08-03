@@ -109,6 +109,38 @@ carries the pre-squash migration history: the 34 migrations were replaced by a
 single `InitialCreate`, which EF then sees as pending and tries to apply over
 tables that already exist. Such a database cannot migrate forward — recreate it.
 
+### Changing the database schema
+
+**Add a migration. Never edit `InitialCreate`.**
+
+```bash
+# Against the local dev Postgres. The connection is fail-closed (#318): there is
+# no default, and every target is held to the same TLS floor as a Production
+# boot — the loopback opt-out below is what permits plaintext, and only for
+# localhost/127.0.0.1/::1.
+CLUCKWORK_MIGRATIONS_CONNECTION='Host=localhost;Port=5432;Database=cluckwork;Username=…;Password=…' \
+CLUCKWORK_MIGRATIONS_ALLOW_INSECURE_LOOPBACK=true \
+  dotnet ef migrations add <Name> \
+  -p src/Cluckwork.Infrastructure -s src/Cluckwork.Api
+```
+
+Before PR #407 the repo held exactly one migration and schema changes were
+hand-folded into it. That was only safe while the app had never been deployed —
+no database had applied the file yet, so rewriting it was free. **#407 was the
+cutover.** Now that a database exists which has already applied `InitialCreate`,
+EF will never re-run it, so a hand-folded column is a column that silently does
+not exist. It surfaces as broken behaviour (a failing login, a missing field),
+not as a migration error — which is precisely what makes it worth a rule.
+
+`InitialCreate` is also **not regenerable**: it carries four `lower("Name")`
+expression indexes EF cannot model and 21 rows of guarded reference-data SQL,
+and re-adding it would mint a new timestamp that desynchronises
+`__EFMigrationsHistory` everywhere. `MigrationSecurityReviewTests` fails if it
+stops being the first migration or loses its recorded id.
+
+A dev database created **before #407 merged** predates those folded-in columns —
+wipe and recreate it as above.
+
 ### Backup &amp; restore (self-hosted)
 
 Two complementary layers (spec §17.5):

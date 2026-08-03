@@ -127,13 +127,21 @@ public static class EggGradeEndpoints
     }
 
     private static EggGradeResponse ToResponse(EggGrade g) =>
-        new(g.Id, g.FarmId, g.Name, g.GradeType.ToString(), g.SortOrder, g.IsSaleable, g.Active);
+        new(g.Id, g.FarmId, g.Name, g.GradeType.ToString(), g.SortOrder, g.IsSaleable,
+            g.DailyEntryKind.ToString(), g.Active);
 }
 
 // FarmId included from day one — grades are farm-scoped (spec §9.1) and a
 // multi-farm client needs to know which farm each bucket belongs to.
 public sealed record EggGradeResponse(
-    Guid Id, Guid FarmId, string Name, string GradeType, int SortOrder, bool IsSaleable, bool Active);
+    Guid Id, Guid FarmId, string Name, string GradeType, int SortOrder, bool IsSaleable,
+    // #396 — "Manual", "Cracked" or "Dirty". The client cannot infer this from
+    // Name (the farm may rename a grade) or from GradeType (a farm can have many
+    // Quality grades, only one of which is the Cracked counter's). It is what
+    // lets the Grading pane leave the two counter-fed grades out; the server
+    // refuses them regardless, so this is the affordance, not the enforcement.
+    string DailyEntryKind,
+    bool Active);
 
 public sealed record CreateEggGradeRequest(
     string Name, string GradeType, int SortOrder, bool IsSaleable);

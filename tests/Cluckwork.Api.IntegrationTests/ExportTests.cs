@@ -34,6 +34,41 @@ public sealed class ExportTests(CluckworkWebApplicationFactory factory)
         return (client, accountId, farmId, flockId);
     }
 
+    // #396 — an export is the farm's own copy of its records, so it must stay
+    // self-describing. Without these two columns it says a day had N cracked
+    // eggs but not whether they became stock or a loss, and that is NOT
+    // recoverable from the grade catalog afterwards — the snapshot exists
+    // precisely because the catalog can change. dailyEntryKind is the other
+    // half: the only field naming which counter a grade serves, and the only
+    // one that survives a rename.
+    [Fact]
+    public async Task Export_CarriesTheConditionSnapshotsAndTheGradeBinding()
+    {
+        var (client, accountId, farmId, _) = await SetupAsync();
+
+        await factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            db.EggGrades.Add(Domain.Eggs.EggGrade.Create(
+                Guid.NewGuid(), accountId, farmId, "Cracked",
+                Domain.Eggs.EggGradeType.Quality, 50, isSaleable: true,
+                dailyEntryKind: Domain.Eggs.DailyEntryKind.Cracked));
+            await db.SaveChangesAsync();
+        });
+
+        var gradesCsv = await (await client.GetAsync("/api/v1/export/egg-grades"))
+            .Content.ReadAsStringAsync();
+        var entriesHeader = (await (await client.GetAsync("/api/v1/export/daily-entries"))
+            .Content.ReadAsStringAsync()).Split('\n')[0];
+
+        // Header, then the value — a header-only check passes against a column
+        // wired to the wrong property.
+        Assert.Contains("dailyEntryKind", gradesCsv.Split('\n')[0], StringComparison.Ordinal);
+        Assert.Contains("Cracked", gradesCsv, StringComparison.Ordinal);
+
+        Assert.Contains("crackedGradeId", entriesHeader, StringComparison.Ordinal);
+        Assert.Contains("dirtyGradeId", entriesHeader, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task Export_IsAdminOnly_UnknownDatasetIs404()
     {

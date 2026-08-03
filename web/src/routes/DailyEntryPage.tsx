@@ -94,7 +94,13 @@ export function DailyEntryPage() {
       .then(([all, g]) => {
         const f = capturable(all);
         setFlocks(f);
-        setGrades(g.filter((x) => x.isSaleable));
+        // #396 — saleable AND hand-graded. Cracked and Dirty are saleable now,
+        // so filtering on isSaleable alone would put them in the Grading pane;
+        // their counters already produce a lot, and a manual line naming one
+        // would produce a second lot for the same grade on the same day. The
+        // server refuses that outright (ConditionGradeGuard) — this keeps the
+        // screen from offering a control whose only outcome is a rejection.
+        setGrades(g.filter((x) => x.isSaleable && x.dailyEntryKind === "Manual"));
         // Deep link from History's Draft "edit" (#85): ?flockId=…&date=….
         // The pair is applied atomically — applying only the date against a
         // fallback flock would open a DIFFERENT flock's day under the linked

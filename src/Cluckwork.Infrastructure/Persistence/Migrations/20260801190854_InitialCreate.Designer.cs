@@ -358,11 +358,17 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                     b.Property<int>("CrackedEggs")
                         .HasColumnType("integer");
 
+                    b.Property<Guid?>("CrackedGradeId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateOnly>("Date")
                         .HasColumnType("date");
 
                     b.Property<int>("DirtyEggs")
                         .HasColumnType("integer");
+
+                    b.Property<Guid?>("DirtyGradeId")
+                        .HasColumnType("uuid");
 
                     b.Property<int>("DiscardedEggs")
                         .HasColumnType("integer");
@@ -450,6 +456,11 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                     b.Property<bool>("Active")
                         .HasColumnType("boolean");
 
+                    b.Property<string>("DailyEntryKind")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
                     b.Property<Guid>("FarmId")
                         .HasColumnType("uuid");
 
@@ -474,6 +485,10 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("AccountId", "FarmId", "DailyEntryKind")
+                        .IsUnique()
+                        .HasFilter("\"DailyEntryKind\" <> 'Manual'");
 
                     b.ToTable("EggGrades");
                 });

@@ -15,13 +15,23 @@ public sealed class EggGrade : AggregateRoot<Guid>
     public int SortOrder { get; private set; }
     public bool IsSaleable { get; private set; }
     public bool Active { get; private set; }
+
+    // #396 — which Daily Entry counter, if any, feeds this grade. The binding
+    // is an IDENTITY, deliberately not a name match: a farm may rename
+    // "Cracked" to "Segunda" through the ordinary grade endpoint, and a
+    // name-matching resolver would then quietly detach the farm's own counter
+    // from the farm's own grade. At most one Cracked and one Dirty per farm,
+    // enforced by a partial unique index (see InitialCreate).
+    public DailyEntryKind DailyEntryKind { get; private set; }
+
     public int Version { get; private set; }
 
     private EggGrade() { }
 
     public static EggGrade Create(
         Guid id, Guid accountId, Guid farmId, string name,
-        EggGradeType gradeType, int sortOrder, bool isSaleable)
+        EggGradeType gradeType, int sortOrder, bool isSaleable,
+        DailyEntryKind dailyEntryKind = DailyEntryKind.Manual)
     {
         if (string.IsNullOrWhiteSpace(name))
             throw new ArgumentException("Grade name is required.", nameof(name));
@@ -35,13 +45,18 @@ public sealed class EggGrade : AggregateRoot<Guid>
             GradeType = gradeType,
             SortOrder = sortOrder,
             IsSaleable = isSaleable,
+            DailyEntryKind = dailyEntryKind,
             Active = true
         };
     }
 
     // GradeType stays immutable after creation — history recorded under a bucket
     // keeps the axis it was captured with; relabeling the axis would silently
-    // reinterpret past entries.
+    // reinterpret past entries. DailyEntryKind is immutable for a STRONGER
+    // reason (#396): an official entry snapshots the grade id its Cracked or
+    // Dirty counter resolved to, so re-pointing a kind afterwards would change
+    // what a past day's counter is understood to have produced. Neither is a
+    // parameter here, which is the enforcement — there is no path to change one.
     public Result Update(string name, int sortOrder, bool isSaleable)
     {
         if (string.IsNullOrWhiteSpace(name))
@@ -77,3 +92,15 @@ public sealed class EggGrade : AggregateRoot<Guid>
 }
 
 public enum EggGradeType { Size, Quality, Custom }
+
+// #396 — which Daily Entry input feeds a grade. `Manual` is every ordinary
+// grade, entered by hand in the Grading pane. `Cracked` and `Dirty` are the two
+// grades fed by the entry's own condition counters instead, and are excluded
+// from manual grading precisely so a condition egg cannot also be counted as a
+// manual line (which would produce two lots for one grade on one day).
+//
+// Deliberately separate from EggGradeType: that says what KIND of bucket this
+// is (a size, a quality, a custom one) and is the farm's own taxonomy, while
+// this says WHERE THE NUMBER COMES FROM and is the app's wiring. A farm can
+// have many Quality grades; only one of them can be the Cracked counter's.
+public enum DailyEntryKind { Manual, Cracked, Dirty }

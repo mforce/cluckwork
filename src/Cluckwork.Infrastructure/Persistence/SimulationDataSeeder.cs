@@ -66,8 +66,9 @@ using Microsoft.Extensions.Options;
 // paths without any change — it's one entry per (flock, day), so the
 // production report and the daily-entries/daily-entry-grades/egg-lots export
 // datasets scale directly with HistoryDays (2 flocks × 90 days = 180 entries,
-// ~500+ grade/lot rows once SubmitDailyEntry mints up to 3 egg lots per
-// entry). Sales and expenses were the thin spot: Task 3b/3c's lifecycle
+// ~500+ grade/lot rows once SubmitDailyEntry mints 3 graded + 2 condition
+// (#396) egg lots per entry). Sales and expenses were the thin spot: Task
+// 3b/3c's lifecycle
 // fixtures (draft/confirmed/partially-paid orders, the 4 expenses) all sat
 // inside the most recent ~week of history, so a sales/expense/profit report
 // or an export request against an OLDER slice of the window saw nothing.
@@ -597,11 +598,21 @@ public sealed class SimulationDataSeeder(
     // One product per saleable grade, sold in individual eggs (factor 1) —
     // keeps order-item quantities directly comparable to lot sizes, which is
     // what makes the FIFO-contention shape below easy to reason about.
+    //
+    // #396: Cracked/Dirty are here for a different reason than the graded
+    // three. Submit now mints a lot for each condition counter, so without a
+    // product mapped to those grades the fixture accumulates stock that can
+    // never leave — ~180 lots of dead inventory the sales screens can see and
+    // nothing can sell. Priced below Small, which is the point of the feature
+    // (a cracked egg is saleable, at a discount). Nothing here orders them;
+    // the FIFO-contention shape above stays a Large/Medium story.
     private static readonly (string GradeName, string ProductName, long PriceMinorUnits)[] CatalogWanted =
     [
         ("Large", "Sim Large Eggs", 45),
         ("Medium", "Sim Medium Eggs", 38),
         ("Small", "Sim Small Eggs", 30),
+        ("Cracked", "Sim Cracked Eggs", 18),
+        ("Dirty", "Sim Dirty Eggs", 22),
     ];
 
     private static readonly (string Name, string Phone, string Note)[] CustomersWanted =
@@ -1126,6 +1137,20 @@ public sealed class SimulationDataSeeder(
     // not merely "at least one" (#279 Fix 2).
     private const int GradesPerDailyEntry = 3;
 
+    // #396: submit ALSO mints a lot for each condition counter that resolved
+    // to a condition grade (DailyEntryKind.Cracked/Dirty) and carried a
+    // positive count. Kept separate from GradesPerDailyEntry rather than
+    // folded into it: these are NOT grade lines — no GradeQuantityDto names
+    // them, and ConditionGradeGuard actively refuses one that does — so the
+    // two constants answer different questions and drift for different
+    // reasons. Both counters are structurally positive here (`cracked = 4 +
+    // d % 3` >= 4, `dirty = 2 + d % 2` >= 2, for every day and baseline), and
+    // the base seed ships Cracked/Dirty active + saleable, so both resolve on
+    // every submitted entry — exactly 2, never "up to 2". If a future fixture
+    // lets either counter reach 0, SubmitDailyEntryHandler skips that lot and
+    // this must become a per-entry sum instead of a constant.
+    private const int ConditionLotsPerDailyEntry = 2;
+
     // Mirrors SeedSalesAsync's two EnsureDraftOrderAsync calls (customer1/2,
     // never confirmed) and its three lifecycle EnsureConfirmedOrderAsync
     // calls (customer1/2 unpaid + customer3 partially paid) — the recurring
@@ -1330,7 +1355,7 @@ public sealed class SimulationDataSeeder(
             DraftEntries: draftEntries,
             SubmittedEntries: submittedEntries,
             LockedEntries: lockedEntries,
-            EggLots: GradesPerDailyEntry * submittedOrLockedEntries,
+            EggLots: (GradesPerDailyEntry + ConditionLotsPerDailyEntry) * submittedOrLockedEntries,
             SalesOrdersTotal: DraftOrdersCount + salesOrdersConfirmed,
             SalesOrdersDraft: DraftOrdersCount,
             SalesOrdersConfirmed: salesOrdersConfirmed,

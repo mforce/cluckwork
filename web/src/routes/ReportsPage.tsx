@@ -110,6 +110,10 @@ export function ReportsPage() {
             <thead>
               <tr>
                 <th>{t("dateHeader")}</th><th>{t("eggsHeader")}</th><th>{t("lossesHeader")}</th><th>{t("sellableHeader")}</th>
+                {/* #396 — beside Sellable, not folded into it: Sellable is the
+                    hand-graded remainder, Condition is what the cracked/dirty
+                    counters contributed as stock. */}
+                <th>{t("conditionHeader")}</th>
                 <th>{t("deathsHeader")}</th><th>{t("henDaysHeader")}</th><th>{t("henDayPctHeader")}</th>
               </tr>
             </thead>
@@ -120,6 +124,7 @@ export function ReportsPage() {
                   <td>{d.totalEggs}</td>
                   <td>{d.cracked}/{d.dirty}/{d.discarded}</td>
                   <td>{d.sellable}</td>
+                  <td>{d.fromCounts}</td>
                   <td>{d.deaths}</td>
                   <td>{d.henDays}</td>
                   <td>{d.henDayPct ?? "—"}</td>
@@ -132,6 +137,7 @@ export function ReportsPage() {
                 <th>{production.totalEggs}</th>
                 <th></th>
                 <th>{production.totalSellable}</th>
+                <th>{production.totalFromCounts}</th>
                 <th>{production.totalDeaths}</th>
                 <th>{production.totalHenDays}</th>
                 <th>{production.periodHenDayPct ?? "—"}</th>

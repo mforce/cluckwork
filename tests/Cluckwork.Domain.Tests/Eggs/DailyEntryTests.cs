@@ -11,6 +11,72 @@ public sealed class DailyEntryTests
     private static readonly Guid GradeLarge = Guid.NewGuid();
     private static readonly Guid GradeMedium = Guid.NewGuid();
 
+    // ---- #396 quality-condition snapshots -------------------------------
+    //
+    // An official entry records WHICH grade its Cracked and Dirty counters
+    // resolved to, so a later catalog change cannot reinterpret a past day.
+    // The domain does not resolve them — it has no catalog — so the caller
+    // passes the ids it resolved (both Active and IsSaleable, or null).
+
+    private static readonly Guid GradeCracked = Guid.NewGuid();
+    private static readonly Guid GradeDirty = Guid.NewGuid();
+
+    [Fact]
+    public void Draft_has_no_quality_snapshots()
+    {
+        var entry = MakeDraft();
+        entry.RecordProduction(100, 10, 5, 0, 0, [new GradeQuantity(GradeLarge, 85)]);
+
+        Assert.Null(entry.CrackedGradeId);
+        Assert.Null(entry.DirtyGradeId);
+    }
+
+    [Fact]
+    public void Submit_records_the_resolved_quality_grades()
+    {
+        var entry = MakeDraft();
+        entry.RecordProduction(100, 10, 5, 0, 0, [new GradeQuantity(GradeLarge, 85)]);
+
+        Assert.True(entry.Submit(GradeCracked, GradeDirty).IsSuccess);
+
+        Assert.Equal(GradeCracked, entry.CrackedGradeId);
+        Assert.Equal(GradeDirty, entry.DirtyGradeId);
+    }
+
+    [Fact]
+    public void Submit_records_null_for_a_condition_that_is_a_loss()
+    {
+        // Non-saleable, or inactive: either way the caller resolved nothing,
+        // and null is the durable record that this day's cracked eggs were a
+        // loss — not an absence of information to be re-derived later.
+        var entry = MakeDraft();
+        entry.RecordProduction(100, 10, 5, 0, 0, [new GradeQuantity(GradeLarge, 85)]);
+
+        entry.Submit(crackedGradeId: null, dirtyGradeId: GradeDirty);
+
+        Assert.Null(entry.CrackedGradeId);
+        Assert.Equal(GradeDirty, entry.DirtyGradeId);
+    }
+
+    [Fact]
+    public void Adjust_keeps_the_original_snapshot_and_never_re_resolves()
+    {
+        // The load-bearing one. Submission is the ONLY resolution point: if an
+        // adjustment re-resolved, a farm that turned Cracked non-saleable (or
+        // deactivated it) between submit and correction would see a corrected
+        // day silently stop counting eggs it had already banked as stock — or
+        // the reverse, minting lots for a day that was recorded as a loss.
+        var entry = MakeDraft();
+        entry.RecordProduction(100, 10, 5, 0, 0, [new GradeQuantity(GradeLarge, 85)]);
+        entry.Submit(GradeCracked, GradeDirty);
+
+        var result = entry.ManagerAdjust(120, 10, 5, 0, 0, "recount", [new GradeQuantity(GradeLarge, 105)]);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(GradeCracked, entry.CrackedGradeId);
+        Assert.Equal(GradeDirty, entry.DirtyGradeId);
+    }
+
     [Fact]
     public void RecordProduction_OnDraft_Succeeds()
     {

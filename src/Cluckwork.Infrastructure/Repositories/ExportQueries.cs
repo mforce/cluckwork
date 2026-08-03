@@ -120,11 +120,19 @@ public sealed class ExportQueries(AppDbContext db, TenantContext tenant) : IExpo
 
             "daily-entries" => Rows(activeDb.DailyEntries.AsNoTracking()
                     .OrderBy(x => x.Date).ThenBy(x => x.Id),
+                // #396 — the two snapshot ids ride next to the counters they
+                // explain. Without them an export records that a day had 40
+                // cracked eggs but not whether those became saleable stock or a
+                // loss, and that is no longer derivable from the current
+                // catalog: the whole point of the snapshot is that the catalog
+                // may have changed since.
                 ["id", "farmId", "houseId", "flockId", "date", "status", "totalEggs",
                  "crackedEggs", "dirtyEggs", "discardedEggs", "mortalityCount",
+                 "crackedGradeId", "dirtyGradeId",
                  "adjustReason", "adjustedFromJson", "voidReason", "lockedAtUtc", "version"],
                 x => [x.Id, x.FarmId, x.HouseId, x.FlockId, x.Date, x.Status, x.TotalEggs,
                       x.CrackedEggs, x.DirtyEggs, x.DiscardedEggs, x.MortalityCount,
+                      x.CrackedGradeId, x.DirtyGradeId,
                       x.AdjustReason, x.AdjustedFromJson, x.VoidReason, x.LockedAtUtc, x.Version]),
 
             "daily-entry-grades" => Rows(activeDb.DailyEntryGrades.AsNoTracking()
@@ -134,8 +142,13 @@ public sealed class ExportQueries(AppDbContext db, TenantContext tenant) : IExpo
 
             "egg-grades" => Rows(activeDb.EggGrades.AsNoTracking()
                     .OrderBy(x => x.SortOrder).ThenBy(x => x.Id),
-                ["id", "farmId", "name", "gradeType", "sortOrder", "isSaleable", "active", "version"],
-                x => [x.Id, x.FarmId, x.Name, x.GradeType, x.SortOrder, x.IsSaleable, x.Active, x.Version]),
+                // #396 — dailyEntryKind is what makes the snapshot ids above
+                // interpretable: it is the only field saying WHICH counter a
+                // grade serves, and unlike the name it cannot be edited.
+                ["id", "farmId", "name", "gradeType", "sortOrder", "isSaleable",
+                 "dailyEntryKind", "active", "version"],
+                x => [x.Id, x.FarmId, x.Name, x.GradeType, x.SortOrder, x.IsSaleable,
+                      x.DailyEntryKind, x.Active, x.Version]),
 
             "egg-lots" => Rows(activeDb.EggLots.AsNoTracking()
                     .OrderBy(x => x.ProductionDate).ThenBy(x => x.Id),
