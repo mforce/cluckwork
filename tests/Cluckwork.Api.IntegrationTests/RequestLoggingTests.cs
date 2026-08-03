@@ -246,6 +246,54 @@ public sealed class RequestLoggingTests(RequestLoggingFactory factory)
         var completion = Assert.Single(CompletionEventsFor("/api/v1/customers"));
         Assert.Equal(accountId.ToString(), ScalarOf(completion, "AccountId"));
     }
+
+    // #398 review round 2 (Codex) — the STREAMED 413, which is a different path
+    // from the 400 above and was not covered by anything.
+    //
+    // RequestBodyLimit's recovery for this case is a post-`next()` STATUS CHECK,
+    // not a catch: it relies on minimal-API's generated binder catching
+    // ByteCappedRequestStream's 413 itself, setting Response.StatusCode = 413,
+    // and returning WITHOUT rethrowing. Forcing ThrowOnBadRequest=true globally
+    // (#398) is exactly the kind of change that could invalidate that premise —
+    // if the binder rethrew instead, `next()` would throw, the recovery would
+    // never run, BindingFailureResponse would rethrow it (413 != 400), and
+    // Serilog would log the hardcoded 500/Error this PR exists to eliminate.
+    //
+    // AuthBodyLimitTests pins the RESPONSE shape for this path and still passes,
+    // but a response assertion cannot see a mis-logged completion — the original
+    // #398 defect was invisible to every response-level test in the suite. So
+    // assert the telemetry directly: one completion, Information, 413.
+    [Fact]
+    public async Task Streamed_413_logs_one_completion_at_information_with_status_413()
+    {
+        var client = factory.CreateClient();
+
+        // Declares 10 bytes, actually sends ~8 KB: the cap is breached mid-read,
+        // inside the generated binder, rather than by the declared-length
+        // short-circuit that never reaches binding at all.
+        var payload = System.Text.Encoding.UTF8.GetBytes(
+            $"{{\"email\":\"nobody@example.com\",\"password\":\"{new string('a', 8192)}\"}}");
+        var content = new StreamContent(new MemoryStream(payload));
+        content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
+        content.Headers.ContentLength = 10;
+
+        var response = await client.SendAsync(
+            new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/login") { Content = content });
+
+        Assert.Equal(System.Net.HttpStatusCode.RequestEntityTooLarge, response.StatusCode);
+
+        // Filter by status rather than Assert.Single on the path: the sink is
+        // class-scoped and never reset, and several other tests here reach
+        // /api/v1/auth/login through the login helper, so a bare Single() fails
+        // on their traffic rather than on this guarantee. Exactly one 413
+        // completion is still the assertion — a re-executed /error would add a
+        // second, and a mis-logged 500 would leave zero.
+        var completion = Assert.Single(
+            CompletionEventsFor("/api/v1/auth/login"),
+            e => ScalarOf(e, "StatusCode") == "413");
+        Assert.Equal(LogEventLevel.Information, completion.Level);
+        Assert.Null(completion.Exception);
+    }
 }
 
 // Own collection (not "integration"): this class uses its own factory/container
