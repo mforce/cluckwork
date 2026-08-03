@@ -971,6 +971,36 @@ describe("cross-tab refresh coordination (#169)", () => {
     expect(callsTo(fetchMock, "/auth/change-password")).toHaveLength(0);
   });
 
+  it("never retries an in-flight password change against a newer login", async () => {
+    const firstChange = deferred<Response>();
+    let changeCalls = 0;
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.endsWith("/auth/change-password")) {
+        changeCalls += 1;
+        if (changeCalls === 1) return firstChange.promise;
+        return accessResponse("stale-form-retry-token");
+      }
+      if (url.endsWith("/auth/login")) return accessResponse("new-login-token");
+      if (url.endsWith("/auth/refresh")) return accessResponse("new-login-refreshed");
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    const changing = changePassword({ currentPassword: "a", newPassword: "b" })
+      .catch((err: unknown) => err);
+    await drain();
+
+    // Supersede the form while its first request is already on the wire, then
+    // make that old request answer 401. Generic apiFetch behavior would refresh
+    // the newer session and resend the old form body against it.
+    await login({ email: "new@session.test", password: `pw-${crypto.randomUUID()}` });
+    firstChange.resolve(jsonResponse({ title: "Unauthorized" }, 401));
+    await changing;
+
+    expect(getAccessToken()).toBe("new-login-token");
+    expect(callsTo(fetchMock, "/auth/change-password")).toHaveLength(1);
+    expect(callsTo(fetchMock, "/auth/refresh")).toHaveLength(0);
+  });
+
   it("a lock held under a DIFFERENT name does not block refresh (fake is name-scoped, like the real API)", async () => {
     const locks = fakeLockManager();
     vi.stubGlobal("navigator", { locks });

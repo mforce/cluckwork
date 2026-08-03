@@ -561,14 +561,22 @@ export async function apiFetch<T>(
     return await raw<T>(path, init, token);
   } catch (err) {
     if (!(err instanceof ApiError) || err.status !== 401) throw err;
+    // A held context identifies the non-replayable password form. Generic API
+    // requests may continue on a newer login after supersession; this one must
+    // not refresh that newer cookie or resend the old password body against it.
+    if (heldAuthCookieLock && sessionGeneration !== heldAuthCookieLock.generation)
+      throw new StaleSessionError();
     try {
       const refreshed = await refreshTokens(heldAuthCookieLock);
+      if (heldAuthCookieLock && sessionGeneration !== heldAuthCookieLock.generation)
+        throw new StaleSessionError();
       return await raw<T>(path, init, refreshed);
     } catch (refreshErr) {
       // #310 review — superseded mid-retry: retry once on the newer login's
       // token, or surface the ORIGINAL 401 if a logout ended the session.
       // Never let the internal marker reach the caller.
       if (refreshErr instanceof StaleSessionError) {
+        if (heldAuthCookieLock) throw refreshErr;
         const fresh = getAccessToken();
         if (fresh) return await raw<T>(path, init, fresh);
         throw err;
