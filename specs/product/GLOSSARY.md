@@ -72,10 +72,8 @@ as each screen's own inline error.
 ## Production
 
 **Daily entry** — one flock's production record for one operational day: total
-eggs, cracked / dirty / discarded condition counts, mortality count, and the
-graded breakdown of the remaining eggs. One entry per flock per day (natural
-key). Cracked and Dirty can each be configured as saleable; Discarded is always
-a loss.
+eggs, loss counts (cracked / dirty / discarded), mortality count, and the
+graded breakdown of sellable eggs. One entry per flock per day (natural key).
 
 **Daily entry steps (#134)** — the capture screen is two numbered panes side by
 side: **1 Egg counts** and **2 Grading**. Flock and date sit above them as
@@ -87,9 +85,7 @@ be read at once.
 **Left to grade (#134)** — grading counts **down** to zero rather than reporting
 *graded n of m*. The figure beside the grades is how many sellable eggs are
 still unaccounted for; it turns green when the day adds up exactly and red when
-the grades overshoot the target. Drafts can be incomplete, but submitting or
-adjusting is blocked unless manual grades equal `total − cracked − dirty −
-discarded`.
+the grades overshoot the sellable count. Submitting is blocked while it is over.
 
 **Entry footer (#134)** — both saves sit in a bar pinned to the bottom of the
 screen, along with save messages: anything below a pinned bar scrolls underneath
@@ -103,8 +99,8 @@ few hundred eggs takes about a second. Built for the barn: the browser's own
 spinner is a ten-pixel target and disappears entirely on touch.
 
 A grade's **+** stops once the day is fully graded — the guided control will not
-build an over-graded entry. Typing still can: a draft is allowed to be over or
-under while it is being rearranged, and only an official save is blocked.
+build an over-graded entry. Typing still can: a draft is allowed to be over
+while it is being rearranged, and only submitting is blocked.
 
 **Put all in… (#134)** — hands the entire remainder to one grade in a single
 move, for the commonest last step of the day ("and the rest are Large"). Drag it
@@ -146,10 +142,9 @@ from starting a fresh day. Only locked days carried a signal before.
   submitted before lot-to-entry tracking existed can't prove which lots are
   theirs and refuse adjust/void.
 
-**Official-entry reconciliation** — manual grade quantities must exactly equal
-`total − cracked − dirty − discarded` before a daily entry is submitted or an
-adjustment is saved. This keeps every egg accounted for once the entry creates
-or reconciles stock. Drafts remain intentionally flexible.
+**Sellable cap** — graded quantities must fit in
+`total − cracked − dirty − discarded`. You cannot grade more eggs than
+survived the day.
 
 ## Grading & stock
 
@@ -167,18 +162,10 @@ corrections. Written in the same transaction as the lot change, so the cached
 `QuantityAvailable` always equals the sum of the lot's movements — the
 tech-spec rule that cached balances must be rebuildable from ledgers.
 
-**Saleable** — grades flagged saleable can receive production and be sold on
-orders. The Cracked and Dirty default quality grades are saleable by default,
-but a farm may turn either off. Their counter quantities then either create
-their own quality-grade lots or remain losses, according to the disposition
-snapshotted when that entry became official. Names are unique per farm,
-case-insensitively.
-
-**Quality-condition grade** — the one grade explicitly bound to the Cracked or
-Dirty daily-entry counter. It is a stable configuration identity, not a grade
-name, so a farm may rename its quality grade without breaking daily-entry
-production. These quantities are entered in Egg counts, never duplicated in
-the manual Grading pane.
+**Saleable** — grades flagged saleable can receive graded production and be
+sold on orders. Non-saleable grades are bookkeeping buckets — losses are
+captured by the daily entry's counters, not grade lines. Names are unique per
+farm, case-insensitively.
 
 **Product (#97)** — what the farm sells (spec §10.1). Phase 1 supports egg
 products only: each maps to exactly one egg grade (sales will draw from that
