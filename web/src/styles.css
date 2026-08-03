@@ -506,6 +506,15 @@ input.cell {
   animation: dialog-rise 0.16s ease-out;
 }
 
+/* A dialog whose body is a two-pane layout (History's adjust form mirrors Daily
+   entry's side-by-side steps). At 30rem the two panes fold into one column even
+   on a desktop with room for both, which is the whole thing the layout exists
+   to avoid. The ≤900px sheet rule below resets max-width anyway, so this is
+   desktop-only by construction. */
+.dialog.wide {
+  max-width: 52rem;
+}
+
 @keyframes dialog-rise {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: none; }
@@ -823,6 +832,42 @@ input.cell {
 .entry-take:hover:not(:disabled) {
   background: var(--stat-accent);
   color: var(--surface);
+}
+
+/* ---- the same two steps inside a dialog: History's adjust form (#69) ----
+   A correction replaces the day's official numbers, so it is the same job as
+   capturing them and reads the same way — two panes that reconcile, with the
+   sellable figure the left one produces as the target the right one has to hit.
+   Only the surrounding chrome differs, which is all this block adjusts. */
+.entry-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.15rem;
+}
+
+/* The panes stop at the reason field, so the last one drops the page layout's
+   trailing gap (the flex column above owns the spacing here). */
+.dialog .entry-step {
+  margin-bottom: 0;
+}
+
+/* The step heading is an h3 like the dialog's own title; inside the panel it is
+   a subheading of it, not a peer. */
+.dialog .entry-step > h3 {
+  font-size: 0.95rem;
+}
+
+/* The pane sits ON the dialog surface, so a filled card would be invisible —
+   the hairline is what still separates the two steps. */
+.dialog .entry-pane {
+  background: transparent;
+  padding: 1.1rem 1.15rem;
+}
+
+/* Wraps, rather than stretching to one line: the reason is a sentence, and it
+   is the last thing standing between the correction and Save. */
+.entry-reason input {
+  width: 100%;
 }
 
 .entry-chip.done { background: var(--tint-ok); }

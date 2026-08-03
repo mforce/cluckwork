@@ -178,6 +178,126 @@ describe("HistoryPage adjust — reconciliation guard", () => {
   });
 });
 
+// The dialog mirrors the Daily entry screen's two-step layout: the counts pane
+// produces the sellable figure, the grading pane has to hit it, and the chip
+// between them says how far off it is. Everything below asserts the DIALOG's
+// own readouts — the same numbers Save is gated on, so a drift between what it
+// shows and what it allows would fail here.
+describe("HistoryPage adjust — mirrored daily-entry layout", () => {
+  const dialog = () => screen.getByRole("dialog");
+  // Class-selected, exactly as DailyEntryPage.test.tsx selects the same two
+  // readouts: neither has an unambiguous role here either — every BusyButton
+  // renders its own sr-only role="status" for the "Working…" announcement, so
+  // the chip's live region is one of several.
+  const chip = () => dialog().querySelector(".entry-chip") as HTMLElement;
+  const sellableReadout = () => dialog().querySelector(".entry-readout") as HTMLElement;
+
+  it("shows both steps and the sellable figure the grading pane has to hit", async () => {
+    mockListDailyEntries.mockResolvedValue([SUBMITTED]);
+    await openAdjustPanel();
+
+    // Both step headings, in order — this is the layout the correction shares
+    // with capture, not a flat list of fields. The dialog's own title is an h3
+    // too, so the steps are the two that follow it.
+    const headings = within(dialog()).getAllByRole("heading", { level: 3 });
+    expect(headings.slice(1).map((h) => h.textContent)).toEqual([
+      expect.stringContaining("Egg counts"),
+      expect.stringContaining("Grading"),
+    ]);
+
+    // 100 − 2 − 3 − 5 = 90, shown as a value beside its own formula.
+    expect(sellableReadout()).toHaveTextContent("Sellable");
+    expect(sellableReadout()).toHaveTextContent("100 − 2 − 3 − 5");
+    expect(within(sellableReadout()).getByText("90")).toBeInTheDocument();
+  });
+
+  it("counts the remainder down as grades are typed, then confirms the day adds up", async () => {
+    mockListDailyEntries.mockResolvedValue([SUBMITTED]);
+    await openAdjustPanel();
+
+    // Fixture grades are 40 + 20 = 60 against sellable 90.
+    expect(chip()).toHaveTextContent("30");
+    expect(chip()).toHaveTextContent("left to grade");
+
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Grade A" }), { target: { value: "60" } });
+    expect(chip()).toHaveTextContent("10"); // 60 + 20 against sellable 90
+
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Grade B" }), { target: { value: "30" } });
+    expect(chip()).toHaveTextContent("the day adds up");
+    // The chip and the button are the same rule (#394) — proven together, since
+    // the whole point of sharing lib/grading is that they cannot disagree.
+    fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: "recount" } });
+    expect(screen.getByRole("button", { name: "Save adjustment" })).toBeEnabled();
+  });
+
+  it("reports the overshoot rather than a negative remainder", async () => {
+    mockListDailyEntries.mockResolvedValue([SUBMITTED]);
+    await openAdjustPanel();
+
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Grade A" }), { target: { value: "95" } });
+    // 95 + 20 − 90, as a POSITIVE figure — asserted whole, since a substring
+    // match on "25" reads a rendered "-25" as a pass.
+    expect(chip()).toHaveTextContent(/^25 over the sellable count$/);
+  });
+
+  // A negative sellable makes every derived reading meaningless, so the counts
+  // pane says so instead of printing one.
+  it("replaces the sellable readout when the losses pass the total", async () => {
+    mockListDailyEntries.mockResolvedValue([SUBMITTED]);
+    await openAdjustPanel();
+
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Cracked" }), { target: { value: "99" } });
+
+    expect(within(dialog()).getByText(/exceed total eggs/)).toBeInTheDocument();
+    expect(within(dialog()).queryByText("Sellable", { exact: false })).not.toBeInTheDocument();
+    expect(chip()).toHaveTextContent("Fix the counts first");
+    fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: "recount" } });
+    expect(screen.getByRole("button", { name: "Save adjustment" })).toBeDisabled();
+  });
+
+  // F134's remainder gesture, mirrored here: dragging is unavailable on the
+  // phone this is used on and by keyboard, so arming turns each grade row into
+  // a plain button. Asserted through the DOM the user gets, not the handler.
+  it("hands the whole remainder to one grade line", async () => {
+    mockListDailyEntries.mockResolvedValue([SUBMITTED]);
+    await openAdjustPanel();
+
+    fireEvent.click(within(dialog()).getByRole("button", { name: /remaining 30/ }));
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Put all 30 remaining in Grade B" }));
+
+    // 20 + 30 = 50, and 40 + 50 now equals sellable — so the offer is gone.
+    expect(screen.getByRole("spinbutton", { name: "Grade B" })).toHaveValue(50);
+    expect(within(dialog()).queryByRole("button", { name: /remaining/ })).not.toBeInTheDocument();
+    expect(chip()).toHaveTextContent("the day adds up");
+  });
+
+  it("offers nothing to hand out once the day already reconciles", async () => {
+    mockListDailyEntries.mockResolvedValue([
+      { ...SUBMITTED, grades: [{ eggGradeId: "gr1", quantity: 90 }] },
+    ]);
+    await openAdjustPanel();
+
+    expect(within(dialog()).queryByRole("button", { name: /remaining/ })).not.toBeInTheDocument();
+  });
+
+  // Opening a different entry must not leave the previous one's armed state
+  // pointing at rows the user never aimed it at.
+  it("disarms the remainder gesture when another entry is opened", async () => {
+    mockListDailyEntries.mockResolvedValue([SUBMITTED, LOCKED]);
+    renderWithProviders(<HistoryPage />, { token: ADMIN });
+    const [firstAdjust, secondAdjust] = await screen.findAllByRole("button", { name: "adjust" });
+
+    fireEvent.click(firstAdjust);
+    fireEvent.click(within(dialog()).getByRole("button", { name: /remaining 30/ }));
+    expect(within(dialog()).getAllByRole("button", { name: /Put all/ })).toHaveLength(2);
+
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+    fireEvent.click(secondAdjust);
+
+    expect(within(dialog()).queryByRole("button", { name: /Put all/ })).not.toBeInTheDocument();
+  });
+});
+
 describe("HistoryPage draft edit link", () => {
   it("links a draft row to the Daily entry screen with its flock and date in the query", async () => {
     mockListDailyEntries.mockResolvedValue([DRAFT]);

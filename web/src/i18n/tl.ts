@@ -1240,11 +1240,8 @@ export const tl = {
     adjustDialogTitleWithEntry: "I-adjust — {{date}}, {{flock}}",
     previouslyAdjusted:
       "Na-adjust na dati (kabuuan {{total}}, mortalidad {{mortality}} — \"{{reason}}\").",
-    totalEggsLabel: "Kabuuang itlog",
-    crackedLabel: "Basag",
-    dirtyLabel: "Marumi",
-    discardedLabel: "Tinapon",
-    deathsLabel: "Namatay",
+    // Ang dalawang hakbang, mga label ng bilang at ang reconciliation chip ay
+    // galing sa `dailyEntry` namespace (iisang form).
     inactiveGradeSuffix: " (hindi aktibo)",
     reasonLabel: "Dahilan *",
     saveAdjustmentButton: "I-save ang pag-adjust",
@@ -1944,9 +1941,11 @@ export const tl = {
       + "Ipinapakita ng status column ang buhay ng entry: Draft, Naisumite, Naka-lock (7+ araw na), "
       + "Na-adjust (i-hover para sa dahilan), o Na-void.",
     historyAdminActions:
-      "Nagtatama ang mga admin mula rito: binubuksan ng <strong>i-adjust</strong> ang mga numero ng entry "
-      + "para sa pag-edit (kailangan ng dahilan), ina-undo ng <strong>i-void</strong> ang buong entry. "
-      + "Awtomatikong sumusunod ang stock at ang talaan ng ibon.",
+      "Nagtatama ang mga admin mula rito: muling binubuksan ng <strong>i-adjust</strong> ang entry sa "
+      + "parehong dalawang-hakbang na form ng Daily entry — parehong sellable na bilang, parehong grading "
+      + "chip, parehong shortcut na <strong>ilagay lahat sa…</strong> — na may kailangang dahilan; "
+      + "ina-undo ng <strong>i-void</strong> ang buong entry. Awtomatikong sumusunod ang stock at ang "
+      + "talaan ng ibon.",
     historyDraftEdit:
       "May link na <strong>i-edit</strong> ang mga row na draft (lahat, hindi lang admin) na tumatalon "
       + "pabalik sa screen na Araw-araw na Tala na may kasamang kawan at araw na iyon — doon ine-edit ang "

@@ -10,19 +10,17 @@ import { ApiError } from "../api/client";
 import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
 import { StatusBadge } from "../components/StatusBadge";
+import { GradingChip, TakeRemainderButton, remainderDropProps } from "../components/GradingChip";
 import { NumberField } from "../components/NumberField";
 import { useConfirm } from "../components/useConfirm";
 import { usePendingAction } from "../components/usePendingAction";
 import { useFarmToday } from "../farm/useFarm";
+import { gradingState } from "../lib/grading";
 import { newId } from "../lib/ids";
 import i18n from "../i18n";
 import { statusLabel } from "../i18n/enums";
 
 const LAST_FLOCK_KEY = "cluckwork.lastFlockId";
-
-// Marks OUR drag payload. Rows accept a drop only when they see this type, so
-// a file or a bit of text dragged in from elsewhere cannot assign the day.
-const REMAINDER_DRAG = "application/x-cluckwork-remainder";
 
 // Capture targets active flocks plus depleted ones — a depleted flock still
 // accepts backfilled entries up to its depletion date (the API gates exact
@@ -200,9 +198,11 @@ export function DailyEntryPage() {
     () => grades.filter((g) => g.active || (gradeQty[g.id] ?? 0) > 0),
     [grades, gradeQty],
   );
-  const losses = cracked + dirty + discarded;
-  const sellable = totalEggs - losses;
-  const lossesExceedTotal = losses > totalEggs;
+  // The day's arithmetic and its wording live in lib/grading (shared with
+  // History's adjust dialog, which mirrors this layout) so the two screens can
+  // never disagree about what "the day adds up" means (#394).
+  const state = gradingState({ totalEggs, cracked, dirty, discarded, gradesSum });
+  const { losses, sellable, lossesExceedTotal, remaining } = state;
   const selectedFlock = flocks.find((f) => f.id === flockId);
   const entryLocked = existingStatus !== null && existingStatus !== "Draft";
   // The prefill found a draft for this flock+date: the form is EDITING it,
@@ -213,22 +213,20 @@ export function DailyEntryPage() {
   // that fetch fails — so without this the badge claims "editing draft" for a
   // day it knows nothing about, and keeps claiming it (codex review).
   const editingDraft = existingStatus === "Draft" && !prefillPending && !prefillFailed;
-  // Grading counts DOWN to zero. "Graded 12 of 407" made the user do the
-  // subtraction; the number they are working towards is what is left.
-  const remaining = sellable - gradesSum;
-  // Derived once and rendered twice: in full beside the grades, and compressed
-  // in the pinned bar for phones, where both panes scroll out of sight.
+  // Grading counts DOWN to zero (see lib/grading). "Graded 12 of 407" made the
+  // user do the subtraction; the number they are working towards is what is
+  // left. Derived once and rendered twice: in full beside the grades, and
+  // compressed in the pinned bar for phones, where both panes scroll away.
   // F134: dump the whole remainder into one grade. Most days are lopsided —
   // one grade takes the bulk — so the last step is "and the rest are Large".
   const [assigning, setAssigning] = useState(false);
 
-  const grading = lossesExceedTotal
-    ? { tone: "over", count: null, says: t("fixCountsFirst"), short: t("fixCountsShort") }
-    : remaining < 0
-      ? { tone: "over", count: -remaining, says: t("overSellableCount"), short: t("overShort") }
-      : remaining === 0
-        ? { tone: "done", count: sellable, says: t("gradedDayAddsUp"), short: t("allGradedShort") }
-        : { tone: "", count: remaining, says: t("leftToGrade"), short: t("leftShort") };
+  const grading = {
+    tone: state.tone,
+    count: state.count,
+    says: t(state.saysKey),
+    short: t(state.shortKey),
+  };
 
   // Not while the prefill is unsettled: the remainder is computed from counts
   // that are about to be replaced, and handing those to a grade would assign
@@ -507,78 +505,26 @@ export function DailyEntryPage() {
                 <div
                   className={`entry-row${assigning ? " taking" : ""}`}
                   key={g.id}
-                  onDragOver={assigning ? (e) => {
-                    if (e.dataTransfer.types.includes(REMAINDER_DRAG)) e.preventDefault();
-                  } : undefined}
-                  onDrop={assigning ? (e) => {
-                    if (!e.dataTransfer.types.includes(REMAINDER_DRAG)) return;
-                    e.preventDefault();
-                    assignRest(g.id);
-                  } : undefined}
+                  {...remainderDropProps(assigning, () => assignRest(g.id))}
                 >
                   <label htmlFor={idFor(g.id)}>{g.name}{g.active ? "" : t("deactivatedGradeSuffix")}</label>
                   <NumberField id={idFor(g.id)} label={g.name.toLowerCase()}
                     value={gradeQty[g.id] ?? 0} onChange={setGrade(g.id)}
                     max={(gradeQty[g.id] ?? 0) + Math.max(0, remaining)}
                     disabled={entryLocked} />
-                  {/* Dragging alone would be a dead end on the phone this screen
-                      is used on, and unreachable by keyboard (WCAG 2.5.7), so
-                      arming turns every row into a plain button too. It sits
-                      BESIDE the field rather than replacing it: which grade
-                      should take the rest is a decision made by looking at what
-                      each one already holds. */}
                   {assigning && (
-                    <button type="button" className="entry-take"
-                      aria-label={t("takeRemainderAriaLabel", { count: remaining, grade: g.name })}
-                      onClick={() => assignRest(g.id)}>
-                      {t("takeRemainderButton", { count: remaining })}
-                    </button>
+                    <TakeRemainderButton remaining={remaining} grade={g.name}
+                      onTake={() => assignRest(g.id)} />
                   )}
                 </div>
               ))}
             </div>
 
-            {/* role=status: the count changes as they type, and it is the only
-                feedback that the day adds up. */}
-            <div className={`entry-chip ${grading.tone}`}>
-              {/* role=status on the text alone: the chip now contains a control,
-                  and a live region that also holds a button re-announces the
-                  button every time the number ticks. */}
-              {/* <s> means "no longer accurate" — wrong for a current reading;
-                  it was only ever reached for as a short inline tag. And the
-                  space is real, not the flex gap: CSS contributes no whitespace
-                  to the accessible name, so this used to be read out as
-                  "60left to grade" (codex review of PR #137). */}
-              <span className="entry-chip-text" role="status">
-                {grading.count !== null && <><b>{grading.count}</b>{" "}</>}
-                <span>{grading.says}</span>
-              </span>
-              {canAssign && (
-                <button
-                  type="button"
-                  className="entry-chip-grab"
-                  draggable
-                  aria-pressed={assigning}
-                  aria-label={assigning
-                    ? t("disarmAriaLabel")
-                    : t("armAriaLabel", { count: remaining })}
-                  onDragStart={(e) => {
-                    e.dataTransfer.effectAllowed = "move";
-                    // A private type, checked on drop: without it any dragged
-                    // text, link or file dropped on a row silently assigned the
-                    // whole remainder (codex review of PR #137).
-                    e.dataTransfer.setData(REMAINDER_DRAG, String(remaining));
-                    // Firefox refuses to start a drag with an empty payload.
-                    e.dataTransfer.setData("text/plain", String(remaining));
-                    setAssigning(true);
-                  }}
-                  onDragEnd={() => setAssigning(false)}
-                  onClick={() => setAssigning((on) => !on)}
-                >
-                  {assigning ? t("disarmButton") : t("armButton")}
-                </button>
-              )}
-            </div>
+            {/* The count changes as they type, and it is the only feedback that
+                the day adds up — see GradingChip for its live-region shape. */}
+            <GradingChip tone={grading.tone} count={grading.count} says={grading.says}
+              canAssign={canAssign} remaining={remaining}
+              assigning={assigning} onAssigningChange={setAssigning} />
           </div>
         </section>
       </div>

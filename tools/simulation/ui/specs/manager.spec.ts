@@ -100,7 +100,9 @@ test.describe("Manager", () => {
     const adjustDialog = page
       .getByRole("dialog")
       .filter({ has: page.getByLabel(tEn("history:reasonLabel")) });
-    await adjustDialog.getByLabel(tEn("history:totalEggsLabel"), { exact: true }).fill("38");
+    // The dialog now mirrors the Daily entry form field for field, so its count
+    // labels come from THAT screen's namespace (`dailyEntry`), not `history`.
+    await adjustDialog.getByLabel(tEn("dailyEntry:totalEggsLabel"), { exact: true }).fill("38");
     // #394: an adjustment has no draft state — Save stays disabled unless
     // grading reconciles exactly. Cracked carries over at 1, so 38 − 1 = 37.
     await adjustDialog.getByLabel("Large", { exact: true }).fill("37");
