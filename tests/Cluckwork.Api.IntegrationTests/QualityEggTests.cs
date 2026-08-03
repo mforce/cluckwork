@@ -178,6 +178,59 @@ public sealed class QualityEggTests(CluckworkWebApplicationFactory factory)
         });
     }
 
+    // Voiding is the destructive path, and the one where "condition lots are
+    // just lots" has to actually hold. VoidDailyEntryHandler reverses whatever
+    // GetByDailyEntryLockedAsync returns — every lot linked to the entry,
+    // grade-agnostic — so the condition lots are covered by construction rather
+    // than by a second code path. That is worth pinning precisely BECAUSE it is
+    // implicit: a future narrowing of that query to the entry's grade LINES
+    // (the shape AdjustDailyEntryHandler originally had, and the bug this PR
+    // fixed there) would leave a voided day carrying live, sellable cracked and
+    // dirty stock with no entry standing behind it — phantom inventory, and
+    // silent, since nothing else looks at a voided entry again.
+    [Fact]
+    public async Task Voiding_empties_the_condition_lots_too()
+    {
+        var (client, accountId, farmId, flockId, manual, crackedId, dirtyId) = await SetupAsync();
+        var manualGradeId = manual["Large"];
+
+        var entryId = await SubmitAsync(client, farmId, flockId, manualGradeId);
+        var version = (await StateOf(accountId, entryId)).Version;
+
+        var response = await client.PostWithKeyAsync(
+            $"/api/v1/daily-entries/{entryId}/void", Guid.NewGuid().ToString(),
+            new { version, reason = "recount void" });
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        await factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            var lots = await db.EggLots.IgnoreQueryFilters()
+                .Where(l => l.DailyEntryId == entryId).ToListAsync();
+
+            // All three lots survive as rows (#60 — nothing is deleted, only
+            // emptied), and every one of them is now at zero. Asserting the
+            // manual lot alongside the two condition ones is what makes this a
+            // test of the WHOLE reversal rather than of the condition half:
+            // a change that emptied only the condition lots would be just as
+            // wrong, and would pass an assertion that named them alone.
+            Assert.Equal(3, lots.Count);
+            Assert.Equal(0, Assert.Single(lots, l => l.EggGradeId == manualGradeId).QuantityProduced);
+            Assert.Equal(0, Assert.Single(lots, l => l.EggGradeId == crackedId).QuantityProduced);
+            Assert.Equal(0, Assert.Single(lots, l => l.EggGradeId == dirtyId).QuantityProduced);
+
+            // The eggs left on the ledger, not merely off the lot (#101). One
+            // Void movement per lot that had stock, so a reversal that zeroed a
+            // quantity without writing the movement is caught here rather than
+            // showing up later as stock that cannot be reconciled.
+            var lotIds = lots.Select(l => l.Id).ToList();
+            var voided = await db.EggInventoryMovements.IgnoreQueryFilters()
+                .Where(m => m.MovementType == EggMovementType.Void && lotIds.Contains(m.EggLotId))
+                .ToListAsync();
+            Assert.Equal(3, voided.Count);
+            Assert.Equal(-615, voided.Sum(m => m.QuantityDelta)); // 600 + 10 + 5
+        });
+    }
+
     [Fact]
     public async Task A_non_saleable_condition_stays_a_loss()
     {
