@@ -5,7 +5,9 @@
 
 ### Features
 
+* **auth:** credential epoch: per-request revocation checks ([#399](https://github.com/mforce/cluckwork/issues/399)) ([b39e8fb](https://github.com/mforce/cluckwork/commit/b39e8fb963174eb84760e394378763ac2b804bf6))
 * **ci:** attest published image provenance and publish the digest as an asset ([#354](https://github.com/mforce/cluckwork/issues/354)) ([#384](https://github.com/mforce/cluckwork/issues/384)) ([e4b4474](https://github.com/mforce/cluckwork/commit/e4b44744651696b3c12c1884cf136d7def371c80))
+* **eggs:** make cracked and dirty eggs sellable stock via condition grades ([#396](https://github.com/mforce/cluckwork/issues/396)) ([#407](https://github.com/mforce/cluckwork/issues/407)) ([ef9a64b](https://github.com/mforce/cluckwork/commit/ef9a64ba77067375d3bb0b029e11347cdc7c7521))
 * **history:** adjust modal mirrors the daily-entry two-step form ([#403](https://github.com/mforce/cluckwork/issues/403)) ([25e5969](https://github.com/mforce/cluckwork/commit/25e596993b412c4b346cd35f93cf0419e5863618))
 * **obs:** emit compact JSON logs to stdout in Production ([#405](https://github.com/mforce/cluckwork/issues/405)) ([82f2e77](https://github.com/mforce/cluckwork/commit/82f2e77f484c02a0b7f28e2213f5f6e236e5187a))
 * **sim:** canary-under-load UX probe recording Core Web Vitals alongside the k6 baseline ([#391](https://github.com/mforce/cluckwork/issues/391)) ([b114511](https://github.com/mforce/cluckwork/commit/b11451163988f78a8521c0763434b37ddd1c2f5d))
