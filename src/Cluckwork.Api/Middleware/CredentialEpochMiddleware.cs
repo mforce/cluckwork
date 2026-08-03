@@ -28,22 +28,27 @@ public sealed class CredentialEpochMiddleware(RequestDelegate next)
                 ? parsedEpoch
                 : 0;
 
-            var currentEpoch = Guid.TryParse(userIdClaim, out var userId)
+            var credentialState = Guid.TryParse(userIdClaim, out var userId)
                 && Guid.TryParse(accountIdClaim, out var accountId)
                 ? await db.Users.AsNoTracking()
                     .Where(user => user.Id == userId && user.AccountId == accountId)
-                    .Select(user => (int?)user.CredentialEpoch)
+                    .Select(user => new { user.CredentialEpoch, user.DisabledAt })
                     .SingleOrDefaultAsync(context.RequestAborted)
                 : null;
 
-            if (currentEpoch != tokenEpoch)
+            if (credentialState is null
+                || credentialState.CredentialEpoch != tokenEpoch
+                || credentialState.DisabledAt is not null)
             {
+                var disabled = credentialState?.DisabledAt is not null;
                 context.Response.StatusCode = StatusCodes.Status401Unauthorized;
                 context.Response.ContentType = "application/problem+json";
                 await context.Response.WriteAsJsonAsync(new ProblemDetails
                 {
-                    Title = "Auth.CredentialsSuperseded",
-                    Detail = "Your credentials have been superseded. Sign in again.",
+                    Title = disabled ? "Auth.AccountDisabled" : "Auth.CredentialsSuperseded",
+                    Detail = disabled
+                        ? "Your account has been disabled."
+                        : "Your credentials have been superseded. Sign in again.",
                     Status = StatusCodes.Status401Unauthorized,
                 });
                 return;
