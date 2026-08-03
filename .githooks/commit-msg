@@ -65,16 +65,20 @@ case $subject in
 esac
 
 # --- 2. No body line that lexes as a nested type(scope) header. --------------
-# Trigger: a line starting at column 1 with non-space, non-paren characters,
-# then '(', then another '(' before the closing ')'. Ordinary code prose:
+# Trigger: a line starting at column 1 with non-whitespace, non-paren
+# characters, then '(', then another '(' before the closing ')'. Ordinary code
+# prose:
 #   `Assert.Single(AllMigrations())`   <- breaks
 #   f(g(h))  a(())  a.b(c(d))          <- breaks
-# Defused by any of: leading whitespace, a list marker, or preceding words —
+# Defused by any of: leading whitespace (space OR TAB — the class must exclude
+# all whitespace, not just the literal space, or tab-indented prose is rejected
+# while the real parser accepts it, #411 review), a list marker, or a preceding
+# word —
 #       Assert.Single(AllMigrations())
 #   - Assert.Single(AllMigrations())
 #   see Assert.Single(AllMigrations())
 # and these were never a problem: foo(bar)  x() y()  (a(b))
-offenders=$(printf '%s\n' "$body" | grep -nE '^[^ ()]+\([^)]*\(' || true)
+offenders=$(printf '%s\n' "$body" | grep -nE '^[^[:space:]()]+\([^)]*\(' || true)
 if [ -n "$offenders" ]; then
   echo "commit-msg: release-please cannot parse this message, so the WHOLE commit" >&2
   echo "            would be dropped from the changelog — silently, on a green run." >&2

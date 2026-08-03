@@ -353,7 +353,9 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
   a word in front. Backticks do not protect it: the parser lexes such a line as a
   nested `type(scope)` header, and the scope admits no `(`. Only line *starts*
   matter, so `see foo(x) and bar(y())` mid-sentence is fine, as are `foo(bar)` and
-  `(a(b))`.
+  `(a(b))`. **Any** leading whitespace defuses it, tab as well as space — the
+  hook's character class has to exclude all whitespace, not just the literal
+  space, or it rejects tab-indented prose the real parser accepts (#411 review).
 
   ```text
   fix(x): summary                                    <- the whole commit is dropped
