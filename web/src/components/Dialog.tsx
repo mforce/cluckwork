@@ -54,6 +54,16 @@ interface DialogProps {
    * this a screen reader announces the title and the control and nothing else.
    */
   describedBy?: string;
+  /**
+   * Widens the panel past the default single-column form width. For a dialog
+   * whose content is itself a two-pane layout — History's adjust form mirrors
+   * Daily entry's side-by-side steps — the narrow panel would fold the two
+   * panes into one column on a desktop that has room for both. Undone at
+   * ≤900px, where the panel is a full-width sheet: by an explicit
+   * `.dialog.wide` rule inside that media query, NOT by the sheet's own
+   * `.dialog` reset, which this modifier outranks.
+   */
+  wide?: boolean;
   children: ReactNode;
 }
 
@@ -63,7 +73,7 @@ interface DialogProps {
 //
 // Portalled to <body> so the backdrop covers the whole viewport regardless of
 // where it is mounted in the shell grid.
-export function Dialog({ open, title, onClose, focusKey, describedBy, children }: DialogProps) {
+export function Dialog({ open, title, onClose, focusKey, describedBy, wide, children }: DialogProps) {
   const { t } = useTranslation("common");
   const panelRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -164,7 +174,7 @@ export function Dialog({ open, title, onClose, focusKey, describedBy, children }
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
-        className="dialog"
+        className={wide ? "dialog wide" : "dialog"}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}

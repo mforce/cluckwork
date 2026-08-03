@@ -1205,11 +1205,8 @@ export const es = {
     adjustDialogTitleWithEntry: "Ajustar — {{date}}, {{flock}}",
     previouslyAdjusted:
       "Ajustado anteriormente (total {{total}}, mortalidad {{mortality}} — \"{{reason}}\").",
-    totalEggsLabel: "Total de huevos",
-    crackedLabel: "Agrietados",
-    dirtyLabel: "Sucios",
-    discardedLabel: "Descartados",
-    deathsLabel: "Muertes",
+    // Los dos pasos, las etiquetas de conteo y el chip de conciliación vienen
+    // del espacio `dailyEntry` (mismo formulario).
     inactiveGradeSuffix: " (inactivo)",
     reasonLabel: "Motivo *",
     saveAdjustmentButton: "Guardar ajuste",
@@ -1877,9 +1874,10 @@ export const es = {
       + "de fechas. La columna de estado muestra la vida de la entrada: Borrador, Enviada, Bloqueada (7+ "
       + "días), Ajustada (pase el cursor para ver el motivo), o Anulada.",
     historyAdminActions:
-      "Los administradores corrigen desde aquí: <strong>ajustar</strong> abre los números de la entrada "
-      + "para edición (motivo requerido), <strong>anular</strong> deshace toda la entrada. Las existencias "
-      + "y el libro mayor de aves se actualizan automáticamente.",
+      "Los administradores corrigen desde aquí: <strong>ajustar</strong> reabre la entrada en el mismo "
+      + "formulario de dos pasos que Entrada diaria — mismo conteo vendible, misma ficha de clasificación, "
+      + "mismo atajo <strong>poner todo en…</strong> — con motivo requerido; <strong>anular</strong> "
+      + "deshace toda la entrada. Las existencias y el libro mayor de aves se actualizan automáticamente.",
     historyDraftEdit:
       "Las filas en borrador tienen un enlace <strong>editar</strong> (todos, no solo administradores) que "
       + "salta de vuelta a la pantalla de Entrada diaria con ese lote y día cargados — los borradores se "

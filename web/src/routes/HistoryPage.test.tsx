@@ -178,6 +178,283 @@ describe("HistoryPage adjust — reconciliation guard", () => {
   });
 });
 
+// The dialog mirrors the Daily entry screen's two-step layout: the counts pane
+// produces the sellable figure, the grading pane has to hit it, and the chip
+// between them says how far off it is. Everything below asserts the DIALOG's
+// own readouts — the same numbers Save is gated on, so a drift between what it
+// shows and what it allows would fail here.
+describe("HistoryPage adjust — mirrored daily-entry layout", () => {
+  const dialog = () => screen.getByRole("dialog");
+  // Class-selected, exactly as DailyEntryPage.test.tsx selects the same two
+  // readouts: neither has an unambiguous role here either — every BusyButton
+  // renders its own sr-only role="status" for the "Working…" announcement, so
+  // the chip's live region is one of several.
+  const chip = () => dialog().querySelector(".entry-chip") as HTMLElement;
+  const sellableReadout = () => dialog().querySelector(".entry-readout") as HTMLElement;
+
+  it("shows both steps and the sellable figure the grading pane has to hit", async () => {
+    mockListDailyEntries.mockResolvedValue([SUBMITTED]);
+    await openAdjustPanel();
+
+    // Both step headings, in order — this is the layout the correction shares
+    // with capture, not a flat list of fields. The dialog's own title is an h3
+    // too, so the steps are the two that follow it.
+    const headings = within(dialog()).getAllByRole("heading", { level: 3 });
+    expect(headings.slice(1).map((h) => h.textContent)).toEqual([
+      expect.stringContaining("Egg counts"),
+      expect.stringContaining("Grading"),
+    ]);
+
+    // 100 − 2 − 3 − 5 = 90, shown as a value beside its own formula.
+    expect(sellableReadout()).toHaveTextContent("Sellable");
+    expect(sellableReadout()).toHaveTextContent("100 − 2 − 3 − 5");
+    expect(within(sellableReadout()).getByText("90")).toBeInTheDocument();
+  });
+
+  it("counts the remainder down as grades are typed, then confirms the day adds up", async () => {
+    mockListDailyEntries.mockResolvedValue([SUBMITTED]);
+    await openAdjustPanel();
+
+    // Fixture grades are 40 + 20 = 60 against sellable 90.
+    expect(chip()).toHaveTextContent("30");
+    expect(chip()).toHaveTextContent("left to grade");
+
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Grade A" }), { target: { value: "60" } });
+    expect(chip()).toHaveTextContent("10"); // 60 + 20 against sellable 90
+
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Grade B" }), { target: { value: "30" } });
+    expect(chip()).toHaveTextContent("the day adds up");
+    // The chip and the button are the same rule (#394) — proven together, since
+    // the whole point of sharing lib/grading is that they cannot disagree.
+    fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: "recount" } });
+    expect(screen.getByRole("button", { name: "Save adjustment" })).toBeEnabled();
+  });
+
+  it("reports the overshoot rather than a negative remainder", async () => {
+    mockListDailyEntries.mockResolvedValue([SUBMITTED]);
+    await openAdjustPanel();
+
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Grade A" }), { target: { value: "95" } });
+    // 95 + 20 − 90, as a POSITIVE figure — asserted whole, since a substring
+    // match on "25" reads a rendered "-25" as a pass.
+    expect(chip()).toHaveTextContent(/^25 over the sellable count$/);
+  });
+
+  // A negative sellable makes every derived reading meaningless, so the counts
+  // pane says so instead of printing one.
+  it("replaces the sellable readout when the losses pass the total", async () => {
+    mockListDailyEntries.mockResolvedValue([SUBMITTED]);
+    await openAdjustPanel();
+
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Cracked" }), { target: { value: "99" } });
+
+    expect(within(dialog()).getByText(/exceed total eggs/)).toBeInTheDocument();
+    expect(within(dialog()).queryByText("Sellable", { exact: false })).not.toBeInTheDocument();
+    expect(chip()).toHaveTextContent("Fix the counts first");
+    fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: "recount" } });
+    expect(screen.getByRole("button", { name: "Save adjustment" })).toBeDisabled();
+  });
+
+  // F134's remainder gesture, mirrored here: dragging is unavailable on the
+  // phone this is used on and by keyboard, so arming turns each grade row into
+  // a plain button. Asserted through the DOM the user gets, not the handler.
+  it("hands the whole remainder to one grade line", async () => {
+    mockListDailyEntries.mockResolvedValue([SUBMITTED]);
+    await openAdjustPanel();
+
+    fireEvent.click(within(dialog()).getByRole("button", { name: /remaining 30/ }));
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Put all 30 remaining in Grade B" }));
+
+    // 20 + 30 = 50, and 40 + 50 now equals sellable — so the offer is gone.
+    expect(screen.getByRole("spinbutton", { name: "Grade B" })).toHaveValue(50);
+    expect(within(dialog()).queryByRole("button", { name: /remaining/ })).not.toBeInTheDocument();
+    expect(chip()).toHaveTextContent("the day adds up");
+  });
+
+  // The chip's drag payload and the row's drop handler are one contract: the
+  // row accepts a drop ONLY for our private type, so a file or a bit of text
+  // dragged in from elsewhere can never assign the day.
+  it("assigns the remainder on a drop carrying our own payload, and ignores any other", async () => {
+    mockListDailyEntries.mockResolvedValue([SUBMITTED]);
+    await openAdjustPanel();
+
+    fireEvent.click(within(dialog()).getByRole("button", { name: /remaining 30/ }));
+    const gradeBRow = screen.getByRole("spinbutton", { name: "Grade B" }).closest(".entry-row")!;
+
+    // A foreign drag (plain text — what dropping a link or a selection looks
+    // like) must leave the line untouched.
+    fireEvent.drop(gradeBRow, { dataTransfer: { types: ["text/plain"] } });
+    expect(screen.getByRole("spinbutton", { name: "Grade B" })).toHaveValue(20);
+
+    fireEvent.drop(gradeBRow, {
+      dataTransfer: { types: ["application/x-cluckwork-remainder", "text/plain"] },
+    });
+    expect(screen.getByRole("spinbutton", { name: "Grade B" })).toHaveValue(50);
+  });
+
+  // Armed and saveable are mutually exclusive — arming needs a remainder, Save
+  // needs none — asserted for both routes to zero: the gesture, which disarms
+  // itself, and typing, which does not.
+  //
+  // Scope, stated because it is easy to over-read: this pins the SETTLED state
+  // only, and passes whether the render derives `armed` or reads the raw flag
+  // (measured). What the derivation buys is the frame before the effect runs,
+  // and that needs the raw-dispatch test below; the truth table itself is in
+  // lib/grading.test.ts.
+  it.each([
+    ["the take-remainder control", () =>
+      fireEvent.click(within(dialog()).getByRole("button", { name: /Put all 30 remaining in Grade A/ }))],
+    ["typing the last grade", () =>
+      fireEvent.change(screen.getByRole("spinbutton", { name: "Grade A" }), { target: { value: "70" } })],
+  ])("is never armed and saveable at once — reconciled via %s", async (_label, reconcile) => {
+    mockListDailyEntries.mockResolvedValue([SUBMITTED]);
+    await openAdjustPanel();
+    fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: "recount" } });
+
+    // Armed: there is a remainder, so Save is necessarily refused.
+    fireEvent.click(within(dialog()).getByRole("button", { name: /remaining 30/ }));
+    expect(screen.getByRole("button", { name: "Save adjustment" })).toBeDisabled();
+
+    reconcile();
+
+    expect(screen.getByRole("button", { name: "Save adjustment" })).toBeEnabled();
+    expect(within(dialog()).queryByRole("button", { name: /Put all/ })).not.toBeInTheDocument();
+    expect(within(dialog()).queryByRole("button", { name: /remaining/ })).not.toBeInTheDocument();
+    // The rows stop being drop targets in the same breath, not a frame later.
+    expect(dialog().querySelector(".entry-row.taking")).toBeNull();
+  });
+
+  // The frame the two tests above CANNOT see, and the one the bug lived in.
+  // `fireEvent` wraps every dispatch in act(), which flushes passive effects
+  // before the assertions run — so with the disarm effect doing the work, both
+  // spellings look identical from a normal test. Dispatching the input event
+  // raw skips that flush: React still re-renders the discrete event
+  // synchronously, but the effect has not run yet, which is exactly the state a
+  // user's next click would land in. Derived `armed` is 0 take-buttons here;
+  // reading `assigning` directly renders 2 (measured both ways).
+  it("drops the row targets in the same render as the reconciliation, not on the effect", async () => {
+    mockListDailyEntries.mockResolvedValue([SUBMITTED]);
+    await openAdjustPanel();
+    fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: "recount" } });
+    fireEvent.click(within(dialog()).getByRole("button", { name: /remaining 30/ }));
+
+    const input = screen.getByRole("spinbutton", { name: "Grade A" }) as HTMLInputElement;
+    // React tracks the input's value on the node, so setting `.value` directly
+    // is ignored as a no-op change; go through the prototype setter it patched.
+    const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+    setValue.call(input, "70"); // 70 + 20 === sellable 90
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+
+    expect(screen.queryAllByRole("button", { name: /Put all/ })).toHaveLength(0);
+    expect(dialog().querySelector(".entry-row.taking")).toBeNull();
+    // …and Save is live in that same frame, which is what makes an armed save
+    // reachable at all if the two states are allowed to overlap.
+    expect(screen.getByRole("button", { name: "Save adjustment" })).toBeEnabled();
+  });
+
+  // The derived flag alone would let a typed correction RE-arm rows the user
+  // never re-armed: `assigning` stays true in state, so dropping back below
+  // sellable would light them up again. The effect is what clears it, and this
+  // is the only test that fails if it is deleted.
+  it("does not silently re-arm when a correction opens a remainder again", async () => {
+    mockListDailyEntries.mockResolvedValue([SUBMITTED]);
+    await openAdjustPanel();
+
+    fireEvent.click(within(dialog()).getByRole("button", { name: /remaining 30/ }));
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Grade A" }), { target: { value: "70" } });
+    // Back under sellable — a remainder exists again, but the gesture was let
+    // go, so the rows must stay quiet until it is armed deliberately.
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Grade A" }), { target: { value: "50" } });
+
+    expect(within(dialog()).getByRole("button", { name: /remaining 20/ })).toBeInTheDocument();
+    expect(within(dialog()).queryByRole("button", { name: /Put all/ })).not.toBeInTheDocument();
+  });
+
+  // The steppers carry the capture screen's ceiling too: + stops at what is
+  // unaccounted for, so the guided control cannot build an over-graded day.
+  // Without it the dialog looked like the same form and behaved differently in
+  // the hand — every + live from the start on an entry that already adds up
+  // (#403 round 5). Typing past it stays allowed on both screens.
+  it("stops the + stepper at the unallocated remainder, as the capture screen does", async () => {
+    mockListDailyEntries.mockResolvedValue([SUBMITTED]);
+    await openAdjustPanel();
+
+    // `max` never reaches the DOM — NumberField uses it to gate its own +
+    // button — so the ceiling is asserted the way the user meets it.
+    // Fixture: sellable 90, graded 40 + 20, so 30 unallocated.
+    const gradeA = screen.getByRole("spinbutton", { name: "Grade A" });
+    expect(screen.getByRole("button", { name: "Increase grade a" })).toBeEnabled();
+
+    // Its own 40 plus the 30 left is the ceiling: at 70 there is no headroom,
+    // and + refuses on every line.
+    fireEvent.change(gradeA, { target: { value: "70" } });
+    expect(screen.getByRole("button", { name: "Increase grade a" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Increase grade b" })).toBeDisabled();
+    // Typing is deliberately still uncapped — a correction may pass through an
+    // over-graded state while it is being rearranged; only Save refuses.
+    fireEvent.change(gradeA, { target: { value: "95" } });
+    expect(screen.getByRole("spinbutton", { name: "Grade A" })).toHaveValue(95);
+  });
+
+  // A 409 replaces every number in the form with the winner's, because keeping
+  // this admin's typed figures could silently clobber a grade line the other
+  // one just added. The REASON is the one thing that survives — it is this
+  // admin's own justification, and retyping it is pure friction. The behaviour
+  // predates this PR; nothing asserted it (pi review of #403).
+  it("keeps the typed reason, and only the reason, across a 409 rebind", async () => {
+    const WINNER: DailyEntry = {
+      ...SUBMITTED, version: 2, totalEggs: 120,
+      grades: [{ eggGradeId: "gr1", quantity: 55 }, { eggGradeId: "gr2", quantity: 55 }],
+    };
+    mockListDailyEntries.mockResolvedValue([SUBMITTED]);
+    mockAdjustDailyEntry.mockRejectedValue(new ApiError(409, "Conflict", "conflict"));
+    mockGetDailyEntry.mockResolvedValue(WINNER);
+    await openAdjustPanel();
+
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Grade A" }), { target: { value: "45" } });
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Grade B" }), { target: { value: "45" } });
+    fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: "recount after spillage" } });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Save adjustment" }));
+    });
+
+    expect(await screen.findByText(/re-apply your correction/)).toBeInTheDocument();
+    // Mine, kept.
+    expect(screen.getByLabelText(/Reason/)).toHaveValue("recount after spillage");
+    // Theirs, everywhere else — not the 45/45 this admin typed.
+    expect(screen.getByRole("spinbutton", { name: "Total eggs" })).toHaveValue(120);
+    expect(screen.getByRole("spinbutton", { name: "Grade A" })).toHaveValue(55);
+    expect(screen.getByRole("spinbutton", { name: "Grade B" })).toHaveValue(55);
+  });
+
+  it("offers nothing to hand out once the day already reconciles", async () => {
+    mockListDailyEntries.mockResolvedValue([
+      { ...SUBMITTED, grades: [{ eggGradeId: "gr1", quantity: 90 }] },
+    ]);
+    await openAdjustPanel();
+
+    expect(within(dialog()).queryByRole("button", { name: /remaining/ })).not.toBeInTheDocument();
+  });
+
+  // Opening a different entry must not leave the previous one's armed state
+  // pointing at rows the user never aimed it at.
+  it("disarms the remainder gesture when another entry is opened", async () => {
+    mockListDailyEntries.mockResolvedValue([SUBMITTED, LOCKED]);
+    renderWithProviders(<HistoryPage />, { token: ADMIN });
+    const [firstAdjust, secondAdjust] = await screen.findAllByRole("button", { name: "adjust" });
+
+    fireEvent.click(firstAdjust);
+    fireEvent.click(within(dialog()).getByRole("button", { name: /remaining 30/ }));
+    expect(within(dialog()).getAllByRole("button", { name: /Put all/ })).toHaveLength(2);
+
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+    fireEvent.click(secondAdjust);
+
+    expect(within(dialog()).queryByRole("button", { name: /Put all/ })).not.toBeInTheDocument();
+  });
+});
+
 describe("HistoryPage draft edit link", () => {
   it("links a draft row to the Daily entry screen with its flock and date in the query", async () => {
     mockListDailyEntries.mockResolvedValue([DRAFT]);

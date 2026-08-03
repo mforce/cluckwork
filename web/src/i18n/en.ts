@@ -1477,11 +1477,11 @@ export const en = {
     // {{reason}} is the free-form adjustReason DATA.
     previouslyAdjusted:
       "Previously adjusted (was total {{total}}, mortality {{mortality}} — \"{{reason}}\").",
-    totalEggsLabel: "Total eggs",
-    crackedLabel: "Cracked",
-    dirtyLabel: "Dirty",
-    discardedLabel: "Discarded",
-    deathsLabel: "Deaths",
+    // The dialog's two steps, its count labels and its reconciliation chip come
+    // from the `dailyEntry` namespace: the correction form IS that screen's
+    // form, and a second near-duplicate set here is how the two drifted (this
+    // namespace used to say "Deaths" where the capture screen said
+    // "Mortality"). Only what is genuinely this dialog's own stays below.
     // Appended to a grade line's free-form NAME (DATA) for a deactivated
     // grade still on the entry — distinct wording from
     // dailyEntry:deactivatedGradeSuffix (" (deactivated)"), preserved
@@ -2204,9 +2204,10 @@ export const en = {
       + "the entry's life: Draft, Submitted, Locked (7+ days old), Adjusted (hover for the reason), or "
       + "Voided.",
     historyAdminActions:
-      "Admins correct from here: <strong>adjust</strong> opens the entry's numbers for editing (reason "
-      + "required), <strong>void</strong> undoes the whole entry. Stock and the bird ledger follow "
-      + "automatically.",
+      "Admins correct from here: <strong>adjust</strong> reopens the entry in the same two-step form as "
+      + "Daily entry — same sellable count, same grading chip, same <strong>put all in…</strong> shortcut "
+      + "— with a reason required; <strong>void</strong> undoes the whole entry. Stock and the bird ledger "
+      + "follow automatically.",
     historyDraftEdit:
       "Draft rows have an <strong>edit</strong> link (everyone, not just admins) that jumps back to the "
       + "Daily entry screen with that flock and day loaded — drafts are edited there, not adjusted.",

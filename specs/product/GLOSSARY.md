@@ -82,6 +82,18 @@ recording it. The two panes reconcile: the **sellable** figure the counts
 produce is the target the grades have to hit, so they are placed where both can
 be read at once.
 
+The **adjust** dialog (#403) presents the same form: the same two numbered panes
+in the same order, the same **Left to grade** chip, the same **steppers**, and
+the same **Put all in…** remainder shortcut. So every term defined below for
+capture means the same thing when correcting a day, and a correction is read the
+way the day was recorded. Only what is genuinely the dialog's own — the reason
+field, and the *previously adjusted* note — is particular to it.
+
+What is literally shared is the reconciliation arithmetic and the chip and
+remainder controls; each screen still renders its own form and owns its own
+state and submission. So the two can drift, and keeping them saying the same
+thing is a review obligation, not something the code enforces.
+
 **Left to grade (#134)** — grading counts **down** to zero rather than reporting
 *graded n of m*. The figure beside the grades is how many sellable eggs are
 still unaccounted for; it turns green when the day adds up exactly and red when
@@ -127,10 +139,15 @@ from starting a fresh day. Only locked days carried a signal before.
   older than 7 farm-local days (spec §8.1 default; background sweep).
   Locked ≠ untouchable: admins can still adjust or void.
 - **ManagerAdjusted** — an admin corrected the totals/grades of a
-  submitted or locked entry (reason required). An adjustment has no draft
-  state of its own, so it is held to the same **exact reconciliation** as
-  submit (#394): the corrected grades must sum to exactly the corrected
-  sellable count, with no partial-save escape hatch. The correction
+  submitted or locked entry (reason required). The correction is made in
+  the **Daily entry** two-step form itself (#403) — the same panes, chip
+  and remainder shortcut described above — so an admin fixing a day works
+  the way the day was captured, and the reconciliation feedback is the
+  same feedback rather than a second interpretation of it. An adjustment
+  has no draft state of its own, so it is held to the same **exact
+  reconciliation** as submit (#394): the corrected grades must sum to
+  exactly the corrected sellable count, with no partial-save escape
+  hatch. The correction
   reconciles the entry's egg lots in the same transaction — grown, shrunk,
   added, or emptied — but **never below what a lot already sold**, and
   appends a compensating bird movement for any mortality change. The
