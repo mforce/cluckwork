@@ -333,10 +333,9 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
   this and the release PR reported `remained the same`, so a whole feature is
   missing from 0.0.2's notes.
 
-  **The rule, in one line: never start a line of a commit message — or of a PR
-  description, which becomes one on squash-merge — with `something(` that has
-  another `(` inside it.** Indent it, bullet it, or put a word in front. Everything
-  below is why.
+  **The rule, in one line: never start a line of a commit message with
+  `something(` that has another `(` inside it.** Indent it, bullet it, or put a
+  word in front. Everything below is why.
 
   The trigger is narrow and easy to write by accident: **a body line that begins at
   column 1 with a run of non-space, non-paren characters, then `(`, then another
@@ -358,11 +357,26 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
   | `see foo(x) and bar(y())` (not at line start) | ok |
   | `foo(bar)`, `x() y()`, `(a(b))` | ok |
 
-  So: **indent it, bullet it, or split the nesting.** `.githooks/commit-msg` flags
-  both this shape and a non-conventional subject, but it only sees *local* commits —
-  the squashed body GitHub composes from a PR description is never shown to it, and
-  that is exactly where #407's line came from. Reviewers should look for it in the
-  PR body too.
+  So: **indent it, bullet it, or split the nesting.**
+
+  **Your local commit messages are the thing that lands, so a `commit-msg` hook is
+  the right place for this** — do not assume only the merge commit matters. The
+  repo's squash settings are `squash_merge_commit_message=COMMIT_MESSAGES` and
+  `squash_merge_commit_title=COMMIT_OR_PR_TITLE`, and merge and rebase merging are
+  both enabled too. So what release-please actually parses is:
+
+  | part of the squash commit | comes from | `.githooks/commit-msg` sees it |
+  |---|---|---|
+  | body | **every branch commit message, concatenated** | **yes** |
+  | subject, PR with one commit | that commit's subject | yes |
+  | subject, PR with several commits | **the PR title** | **no** |
+
+  `ef9a64b`'s body is 17 `* type(scope):` bullets — GitHub concatenating 17 branch
+  commit messages — so #407's offending line came from a **commit message** and the
+  hook catches that class outright. `b39e8fb` is the other row: 15 commits, so its
+  subject came from the PR title (`Credential epoch: …`) and no local hook can see
+  it. That half is covered only by the "PR title is the release note" rule and by
+  reviewers reading the title.
 
   The second failure mode from the same run is the plain one: `b39e8fb`'s subject
   was `Credential epoch: per-request revocation checks (#399)` — a space before the

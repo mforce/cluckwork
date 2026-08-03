@@ -16,10 +16,18 @@
 # shapes observed to break release-please here, verified against the real parser.
 # A message it passes can still be unparseable in some way nobody has hit yet.
 #
-# It also cannot see the message that matters most: a squash-merge body is
-# composed by GitHub from the PR description at merge time, and no local hook
-# runs on it. ef9a64b's offending line arrived that way. Reviewers still have to
-# look.
+# WHAT IT COVERS, AND THE ONE GAP. This repo squashes with
+# squash_merge_commit_message=COMMIT_MESSAGES, so the squash BODY is every branch
+# commit message concatenated — the messages this hook checks are literally what
+# lands on main. ef9a64b's offending line came from a commit message that way
+# (its body is 17 "* type(scope):" bullets), so that whole class is covered here.
+# Merge and rebase merging are enabled too, where branch commits land verbatim.
+#
+# The gap is the SUBJECT. squash_merge_commit_title=COMMIT_OR_PR_TITLE takes the
+# single commit's subject for a one-commit PR — covered — but the PR TITLE when
+# there are several, which no local hook can see. That is how b39e8fb landed
+# ("Credential epoch: ..." across 15 commits). Reviewers own that half, via the
+# "PR title is the release note" rule.
 #
 # POSIX sh on purpose: git invokes the shebang directly.
 set -eu
