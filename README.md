@@ -174,8 +174,10 @@ checks are Phase 1.5.
 dotnet test Cluckwork.sln    # integration tests spin up Postgres via Docker
 ```
 
-Optional: `git config core.hooksPath .githooks` enables a fast pre-commit hook
-(unit tests for staged .NET changes, typecheck for staged `web/` changes).
+Optional: `git config core.hooksPath .githooks` enables two fast hooks —
+**pre-commit** (unit tests for staged .NET changes, typecheck for staged `web/`
+changes) and **commit-msg** (rejects a message release-please would silently drop
+from the changelog; see [Writing a commit message](#writing-a-commit-message)).
 
 ## Releases & container images
 
@@ -213,7 +215,10 @@ rebuilt, so the bytes carrying `v0.4.0` are provably the bytes that passed CI.
 
 ### What decides the version
 
-Your **PR title** — it becomes the commit subject when the PR is squashed:
+Your **PR title**, in the usual case. On a squash merge GitHub takes the subject
+from the PR title when the branch has **several** commits, and from the single
+commit's own subject when it has **one** — so a one-commit PR is decided by that
+commit, not by the title you typed:
 
 While the version is **below 1.0.0**, everything is deliberately damped one level —
 the project is pre-1.0 and shouldn't burn major digits on Phase 1.x churn:
@@ -237,6 +242,48 @@ you mean it, not by accident.
 That is not as noisy as it sounds, because the bump lands in the **pending release
 PR**, not in a release. Several chore merges accumulate into one proposed patch, and
 nothing is released until you merge that PR.
+
+### Writing a commit message
+
+The squash **body** is every branch commit message concatenated, and release-please
+parses all of it — not just the subject. If any line fails to parse, the **entire
+commit is dropped** from the changelog: no entry, no version bump, and a green run
+with nothing to notice. Two commits have already been lost this way.
+
+**The rule: never start a line with `something(` that has another `(` inside it.**
+That is ordinary code prose, and backticks do not protect it.
+
+```text
+✗ dropped — no changelog entry, no bump, green run
+
+  fix(daily-entry): require exact grade reconciliation on submit
+
+  The fence is the test, not the prose:
+  Assert.Single(AllMigrations()) fails the moment a second migration appears.
+```
+
+```text
+✓ parses
+
+  fix(daily-entry): require exact grade reconciliation on submit
+
+  The fence is the test, not the prose:
+
+    Assert.Single(AllMigrations())
+
+  fails the moment a second migration appears.
+```
+
+Indenting the line fixes it; so does making it a `- ` list item, or putting any
+word in front of it. Only the **start** of a line matters — `see foo(x) and
+bar(y())` mid-sentence is fine.
+
+`.githooks/commit-msg` catches this before the commit exists and prints the three
+rewrites applied to your own line. It cannot see a **PR title**, though, so a
+non-conventional title is still yours and the reviewer's to catch.
+
+[`AGENTS.md`](AGENTS.md) is canonical here — it carries the exact trigger, the
+verified pass/fail table, and what to do when a commit has already been dropped.
 
 ### Deploying
 
