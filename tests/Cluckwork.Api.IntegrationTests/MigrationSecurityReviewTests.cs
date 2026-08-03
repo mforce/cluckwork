@@ -1,7 +1,11 @@
 namespace Cluckwork.Api.IntegrationTests;
 
+using System.Collections;
+using System.Globalization;
+using System.Reflection;
 using System.Text.RegularExpressions;
 using Cluckwork.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Migrations.Operations;
 
@@ -157,7 +161,7 @@ public sealed class MigrationSecurityReviewTests
     // deployed database.
     private const int InitialCreateOperationCount = 114;
     private const string InitialCreateOperationDigest =
-        "511b60a66c85566967c54556a58fead9b2798728a1d4f42164db9607d83c11c1";
+        "543baa99852c47a2e9ea857c2c0591d58002eea508025012d8667f7dfa7e0f61";
 
     [Fact]
     public void InitialCreate_OperationsAreFrozen()
@@ -186,23 +190,91 @@ public sealed class MigrationSecurityReviewTests
              """);
     }
 
-    // Only the properties that define what an operation DOES — see the note on
-    // InitialCreateOperationDigest for why this is not a serialization.
-    private static string Describe(MigrationOperation operation) => operation switch
+    // #407 codex review round 2 (P1) — the hand-written switch this replaces
+    // listed properties per operation type, and that approach missed something
+    // on every pass. It captured a column's name/type/nullability but NOT its
+    // default, nor a CreateTable's nested primary key, foreign keys, unique
+    // constraints, or a foreign key's OnDelete. So changing
+    // `AspNetUsers.CredentialEpoch` from `defaultValue: 1` to `0` — a value
+    // #364 says is PERMANENTLY RETIRED — left the count and every emitted
+    // description identical, and the freeze test green.
+    //
+    // Enumerating harder is the same bet that already lost twice. This walks
+    // every public readable property instead, recursing into nested operations,
+    // column definitions, annotations and sequences, so a schema-defining
+    // property is included because it EXISTS, not because someone remembered
+    // it. Adding a property to an operation type cannot silently escape the
+    // digest.
+    //
+    // Determinism matters as much as completeness: properties are ordered by
+    // NAME, never by reflection order, for the same reason the ordering test
+    // above sorts on the migration id — Type.GetProperties() is explicitly
+    // unspecified, and a digest built on it would churn between runs.
+    //
+    // The EF-version-churn concern that motivated the original structural
+    // choice still applies and is accepted deliberately: this reads EF's
+    // PUBLIC operation model (the documented shape of a migration), not
+    // internals, and a genuine change there is worth a human look. The failure
+    // message says re-baselining is almost never the right response.
+    private static string Describe(MigrationOperation operation) =>
+        $"{operation.GetType().Name}({DescribeValue(operation, depth: 0)})";
+
+    private const int MaxDescribeDepth = 6;
+
+    private static string DescribeValue(object? value, int depth)
     {
-        CreateTableOperation t =>
-            $"CreateTable({t.Name}:{string.Join('|', t.Columns.Select(c => $"{c.Name}:{c.ColumnType}:{c.IsNullable}"))})",
-        AddColumnOperation c => $"AddColumn({c.Table}.{c.Name}:{c.ColumnType}:{c.IsNullable})",
-        DropColumnOperation c => $"DropColumn({c.Table}.{c.Name})",
-        CreateIndexOperation i =>
-            $"CreateIndex({i.Table}.{i.Name}:{string.Join('|', i.Columns)}:unique={i.IsUnique}:filter={i.Filter})",
-        AddForeignKeyOperation f => $"AddForeignKey({f.Table}.{f.Name}->{f.PrincipalTable})",
-        AddPrimaryKeyOperation p => $"AddPrimaryKey({p.Table}.{p.Name})",
-        AddUniqueConstraintOperation u => $"AddUniqueConstraint({u.Table}.{u.Name})",
-        AlterColumnOperation a => $"AlterColumn({a.Table}.{a.Name}:{a.ColumnType}:{a.IsNullable})",
-        SqlOperation s => $"Sql({Sha256Hex(s.Sql)})",
-        _ => operation.GetType().Name,
-    };
+        switch (value)
+        {
+            case null:
+                return "null";
+            case string s:
+                return $"'{s}'";
+            case bool or char or decimal or double or float or int or long or short
+                or uint or ulong or ushort or byte or sbyte or Guid or DateTime or DateTimeOffset:
+                return Convert.ToString(value, CultureInfo.InvariantCulture) ?? "?";
+            case Enum e:
+                return $"{e.GetType().Name}.{e}";
+        }
+
+        if (depth >= MaxDescribeDepth) return $"<depth:{value.GetType().Name}>";
+
+        // Annotations carry schema meaning (Npgsql's ValueGenerationStrategy,
+        // for one), so they are described rather than skipped — sorted by name,
+        // because IAnnotatable does not promise an order.
+        if (value is IAnnotation annotation)
+            return $"@{annotation.Name}={DescribeValue(annotation.Value, depth + 1)}";
+
+        if (value is IEnumerable enumerable)
+        {
+            var items = enumerable.Cast<object?>().Select(v => DescribeValue(v, depth + 1));
+            // NOT sorted: for columns, key columns and operation lists the ORDER
+            // is itself schema (a composite key's column order changes the
+            // index). Sorting here would hide a reordering.
+            return $"[{string.Join(',', items)}]";
+        }
+
+        var members = value.GetType()
+            .GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .Where(p => p.CanRead && p.GetIndexParameters().Length == 0)
+            .OrderBy(p => p.Name, StringComparer.Ordinal)
+            .Select(p => $"{p.Name}={DescribeValue(SafeGet(p, value), depth + 1)}");
+
+        return string.Join(';', members);
+    }
+
+    private static object? SafeGet(PropertyInfo property, object target)
+    {
+        try
+        {
+            return property.GetValue(target);
+        }
+        catch (Exception ex)
+        {
+            // A property that throws must not be silently equivalent to null —
+            // that would be a hole in the digest. Record the failure itself.
+            return $"<threw:{ex.GetType().Name}>";
+        }
+    }
 
     private static string Sha256Hex(string value) =>
         Convert.ToHexString(
