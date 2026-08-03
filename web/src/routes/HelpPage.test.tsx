@@ -417,4 +417,22 @@ describe("HelpPage glossary i18n wiring (#182, Task 33)", () => {
       },
     );
   });
+
+  // #398 — the SPA now refuses a fractional sale-line quantity before sending.
+  // The stepper note used to end "Prices and fractional amounts are still
+  // typed", which reads as permission to TYPE a fractional quantity — the exact
+  // thing that is now an error. The assertion has to be about that sentence
+  // saying quantities are whole numbers, not merely that the section renders:
+  // the section rendered perfectly happily with the misleading copy in it.
+  it("tells the reader a sale quantity is a whole number, not that fractional amounts are typeable (#398)", () => {
+    render(<HelpPage />);
+    expect(screen.getByText(/always a/i)).toBeInTheDocument();
+    expect(screen.getByText(/stepped or typed/i)).toBeInTheDocument();
+    expect(screen.getByText(/Decimals belong in prices/i)).toBeInTheDocument();
+    // The retired wording must be gone, not merely joined by the new sentence —
+    // leaving both in place would still tell a worker fractional amounts are
+    // acceptable input for a quantity.
+    expect(screen.queryByText(/Prices and fractional amounts are still typed/i))
+      .not.toBeInTheDocument();
+  });
 });

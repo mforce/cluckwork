@@ -316,6 +316,10 @@ export const en = {
     atMostDecimals: "At most {{count}} decimal places for this currency.",
     enterAmountGreaterThanZero: "Enter an amount greater than zero.",
     invalidUnitPrice: "Invalid unit price.",
+    // #398 — sales quantities are whole selling units; the add-line and
+    // edit-line quantity controls reject a fractional value before sending,
+    // rather than letting the server's JSON binding fail.
+    quantityMustBeWholeNumber: "Quantity must be a whole number.",
     loadSalesDataFailed: "Could not load sales data. Is the API up?",
     loadOrdersFailed: "Could not load orders.",
     loadPaymentsFailed: "Could not load this order's payments.",
@@ -1995,7 +1999,8 @@ export const en = {
     dialogsSteppers:
       "Whole-number counts — egg counts, bird counts, sale quantities, eggs per unit — have thumb-sized "
       + "<strong>−</strong> and <strong>+</strong> buttons: tap for one, <strong>hold</strong> to speed up. "
-      + "A sale line's quantity never steps below 1. Prices and fractional amounts are still typed.",
+      + "A sale line's quantity never steps below 1, and it is always a <strong>whole number</strong> — "
+      + "stepped or typed. Decimals belong in prices, which are typed.",
     dialogsConfirm:
       "<strong>Actions that cannot be undone ask first.</strong> Submitting a day, confirming or cancelling "
       + "an order, depleting or archiving a flock — each one says what is about to happen and waits. The "
@@ -2141,9 +2146,10 @@ export const en = {
     salesHeading: "Customers & sales",
     salesDrafts:
       "Orders start as <strong>drafts</strong>: add lines by picking a <strong>product</strong>, a packed "
-      + "unit (dozen, carton, …), a quantity, and a price per unit (prefilled from the product's default) — "
-      + "edit freely, or <strong>cancel</strong> (the draft is kept, read-only). Each line remembers how many "
-      + "eggs its unit held when it was added, so redefining a carton later never changes old orders.",
+      + "unit (dozen, carton, …), a whole-number quantity, and a price per unit (prefilled from the "
+      + "product's default, decimals allowed) — edit freely, or <strong>cancel</strong> (the draft is kept, "
+      + "read-only). Each line remembers how many eggs its unit held when it was added, so redefining a "
+      + "carton later never changes old orders.",
     salesConfirming:
       "<strong>Confirming</strong> an order allocates real stock — oldest lots first — and is the point "
       + "where inventory changes hands.",
@@ -2474,8 +2480,8 @@ export const en = {
 
     glossarySalesLineTerm: "Sales line",
     glossarySalesLineDef:
-      "One product on an order: quantity in selling units, priced per unit; the eggs behind it are "
-      + "quantity × the unit's egg count.",
+      "One product on an order: a whole-number quantity in selling units, priced per unit (the price may "
+      + "have decimals); the eggs behind it are quantity × the unit's egg count.",
 
     glossaryConfirmOrderTerm: "Confirm (order)",
     glossaryConfirmOrderDef: "Turns a draft order into a real sale and allocates stock. Undone only by voiding.",

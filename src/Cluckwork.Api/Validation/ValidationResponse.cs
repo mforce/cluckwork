@@ -33,6 +33,44 @@ public static class ValidationResponse
     public static IResult Problem(IDictionary<string, string[]> errors) =>
         Results.ValidationProblem(errors);
 
+    // #398 review (Codex) — the canonical ValidationProblem shape for a
+    // JSON-binding failure (a fractional quantity into an int, an
+    // unparseable date/guid, malformed JSON syntax, …): a
+    // BadHttpRequestException with StatusCode 400, thrown deep inside
+    // minimal-API's generated body-reader before any FluentValidation
+    // validator or handler runs. TWO sites render this and must never drift
+    // apart, hence the single factory: BindingFailureResponse
+    // (Hosting/BindingFailureResponse.cs), the primary path — it intercepts
+    // the exception INSIDE UseSerilogRequestLogging so the failure never
+    // reaches Serilog's own completion log as a (mis-logged 500/Error)
+    // exception; and the `/error` mapping in Program.cs, kept as the
+    // backstop for any binding failure that somehow bypasses that
+    // middleware (e.g. the response had already started).
+    //
+    // #398 review round 4 (Codex) — ThrowOnBadRequest is global, so a failed
+    // TYPED QUERY PARAMETER (`?from=not-a-date`, `?limit=abc`) throws the same
+    // 400 through the same path. Reporting those under `body` told the caller of
+    // a bodyless GET that its body was malformed. `hasBody` selects the key, and
+    // callers derive it from the REQUEST rather than from the exception's
+    // message: minimal-API's binding messages are framework internals that vary
+    // by binding source and can change between versions, so matching on them
+    // would be a silent trap on the next upgrade.
+    //
+    // A request that does carry a body still reports `body`, even though a bad
+    // query parameter on a POST would land there too. That case is genuinely
+    // ambiguous from here, and `body` is the likelier culprit; the falsehood
+    // this fixes is the one that was certain.
+    public static IResult BindingFailureProblem(bool hasBody = true) =>
+        Problem(hasBody
+            ? new Dictionary<string, string[]>
+            {
+                ["body"] = ["The request body has an invalid or incorrectly formatted value."],
+            }
+            : new Dictionary<string, string[]>
+            {
+                ["query"] = ["A query parameter has an invalid or incorrectly formatted value."],
+            });
+
     // Exposed for unit testing without executing an IResult.
     public static (Dictionary<string, string[]> Errors, Dictionary<string, string?[]>? Codes)
         Build(ValidationResult validation)

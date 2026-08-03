@@ -3,6 +3,7 @@ namespace Cluckwork.Api.Endpoints.ClientErrors;
 using System.Text.Json;
 using Cluckwork.Api.RateLimiting;
 using Microsoft.AspNetCore.Http.Features;
+using Cluckwork.Api.Hosting;
 
 // #217 — the SPA's ErrorBoundary reports render crashes here so the operator
 // learns a screen is crashing without a support screenshot. The report is
@@ -30,6 +31,9 @@ public static class ClientErrorEndpoints
     public static RouteGroupBuilder MapClientErrorEndpoints(this RouteGroupBuilder group)
     {
         group.MapPost("/", Report)
+            // #398 — binds HttpRequest and reads the body itself, so it carries
+            // no IAcceptsMetadata; see ReadsRequestBodyAttribute.
+            .WithMetadata(new ReadsRequestBodyAttribute())
             .AllowAnonymous()
             .RequireRateLimiting(RateLimitingOptions.ClientErrorsPolicyName)
             .WithName("ReportClientError")

@@ -54,6 +54,13 @@ public static class AuthEndpoints
             // #309 — refresh carries no body of its own (the token rides in the
             // cookie); 1 KB is a defensive cap so a junk body can't be streamed in.
             .WithMaxRequestBodyBytes(1024)
+            // #398 review round 8 — the handler DRAINS Request.Body to enforce
+            // that cap (see Refresh), so Kestrel can raise a 400 here for a
+            // truncated/malformed body. It declares no typed body parameter, so
+            // without this marker that failure would be reported as `errors.query`
+            // on an endpoint with no query input at all. BodyReadingEndpointTests
+            // is what keeps this from being forgotten again.
+            .WithMetadata(new ReadsRequestBodyAttribute())
             .WithName("RefreshToken")
             .WithSummary("Rotate the refresh-token cookie and return a fresh access token.");
 

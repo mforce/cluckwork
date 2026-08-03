@@ -301,6 +301,8 @@ export const tl = {
     atMostDecimals: "Pinakamarami {{count}} decimal para sa currency na ito.",
     enterAmountGreaterThanZero: "Maglagay ng halagang higit sa zero.",
     invalidUnitPrice: "Di-wastong presyo bawat yunit.",
+    // machine-drafted (#182) — pending native review.
+    quantityMustBeWholeNumber: "Dapat buong bilang ang dami.",
     loadSalesDataFailed: "Hindi na-load ang datos ng benta. Gumagana ba ang API?",
     loadOrdersFailed: "Hindi na-load ang mga order.",
     loadPaymentsFailed: "Hindi na-load ang mga bayad ng order na ito.",
@@ -1725,7 +1727,8 @@ export const tl = {
       "Ang mga bilang na buong numero — bilang ng itlog, bilang ng ibon, dami ng benta, itlog bawat unit — "
       + "ay may <strong>−</strong> at <strong>+</strong> na button na kasya sa hinlalaki: i-tap para sa isa, "
       + "<strong>pindutin nang matagal</strong> para bumilis. Ang dami ng isang linya ng benta ay hindi "
-      + "bababa sa 1. Ang mga presyo at fractional na halaga ay tina-type pa rin.",
+      + "bababa sa 1 at palaging <strong>buong numero</strong>, gamit man ang button o tina-type. Ang mga "
+      + "desimal ay para sa presyo, na tina-type.",
     dialogsConfirm:
       "<strong>Nagtatanong muna ang mga aksyong hindi na maaaring i-undo.</strong> Ang pagsumite ng isang "
       + "araw, pagkumpirma o pagkansela ng order, pag-ubos o pag-archive ng kawan — sinasabi ng bawat isa "
@@ -1884,11 +1887,11 @@ export const tl = {
     salesHeading: "Mga Customer at Benta",
     salesDrafts:
       "Nagsisimula ang mga order bilang <strong>draft</strong>: magdagdag ng linya sa pamamagitan ng "
-      + "pagpili ng <strong>produkto</strong>, isang packed unit (dosena, karton, …), isang dami, at isang "
-      + "presyo kada unit (naka-prefill mula sa default ng produkto) — i-edit nang malaya, o "
-      + "<strong>kanselahin</strong> (mananatili ang draft, read-only). Naaalala ng bawat linya kung ilang "
-      + "itlog ang laman ng unit nito noong idinagdag ito, kaya hindi kailanman binabago ng muling "
-      + "pagtukoy sa isang karton ang mga lumang order.",
+      + "pagpili ng <strong>produkto</strong>, isang packed unit (dosena, karton, …), isang buong bilang "
+      + "na dami, at isang presyo kada unit (naka-prefill mula sa default ng produkto, pinapayagan ang "
+      + "decimal) — i-edit nang malaya, o <strong>kanselahin</strong> (mananatili ang draft, read-only). "
+      + "Naaalala ng bawat linya kung ilang itlog ang laman ng unit nito noong idinagdag ito, kaya hindi "
+      + "kailanman binabago ng muling pagtukoy sa isang karton ang mga lumang order.",
     salesConfirming:
       "Ang <strong>Pagkumpirma</strong> ng isang order ay naglalaan ng aktwal na stock — pinakalumang lote "
       + "muna — at ito ang sandali kung saan lumilipat ang inventory.",
@@ -2237,8 +2240,9 @@ export const tl = {
 
     glossarySalesLineTerm: "Linya ng benta",
     glossarySalesLineDef:
-      "Isang produkto sa isang order: dami sa selling unit, may presyo kada unit; ang mga itlog sa likod "
-      + "nito ay dami × ang bilang ng itlog ng unit.",
+      "Isang produkto sa isang order: isang buong bilang na dami sa selling unit, may presyo kada unit "
+      + "(maaaring may decimal ang presyo); ang mga itlog sa likod nito ay dami × ang bilang ng itlog ng "
+      + "unit.",
 
     glossaryConfirmOrderTerm: "Kumpirmahin (order)",
     glossaryConfirmOrderDef:
