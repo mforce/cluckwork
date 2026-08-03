@@ -129,8 +129,6 @@ public sealed class EpochReplayBarrierInterceptor : DbCommandInterceptor
 public sealed class CredentialEpochRaceTests(CredentialEpochRaceFactory factory)
     : IClassFixture<CredentialEpochRaceFactory>
 {
-    private const string RotatedPassword = "Rotated-password!364";
-
     [Fact]
     public async Task ActiveRefreshThatPassedTheOldEpochCheck_MintsAChildRejectedAfterTheBump()
     {
@@ -210,6 +208,7 @@ public sealed class CredentialEpochRaceTests(CredentialEpochRaceFactory factory)
     public async Task LoginThatVerifiedTheOldPassword_CannotAdoptAConcurrentPasswordReset()
     {
         var email = $"login-proof-race-{Guid.NewGuid():N}@test.local";
+        var rotatedPassword = TemporaryPassword.Generate();
         var accountId = await factory.SeedAccountWithUserAsync(email);
         await PrimeFailedCountAsync(email);
 
@@ -220,7 +219,7 @@ public sealed class CredentialEpochRaceTests(CredentialEpochRaceFactory factory)
 
         try
         {
-            await RotatePasswordAsync(accountId, email);
+            await RotatePasswordAsync(accountId, email, rotatedPassword);
         }
         finally
         {
@@ -229,13 +228,14 @@ public sealed class CredentialEpochRaceTests(CredentialEpochRaceFactory factory)
 
         Assert.Equal(HttpStatusCode.Unauthorized, (await loginTask).StatusCode);
         Assert.Equal(HttpStatusCode.OK,
-            (await factory.TryLoginAsync(email, RotatedPassword)).StatusCode);
+            (await factory.TryLoginAsync(email, rotatedPassword)).StatusCode);
     }
 
     [Fact]
     public async Task StepUpThatVerifiedTheOldPassword_CannotAdoptAConcurrentPasswordReset()
     {
         var email = $"step-up-proof-race-{Guid.NewGuid():N}@test.local";
+        var rotatedPassword = TemporaryPassword.Generate();
         var accountId = await factory.SeedAccountWithUserAsync(email);
         await PrimeFailedCountAsync(email);
 
@@ -253,7 +253,7 @@ public sealed class CredentialEpochRaceTests(CredentialEpochRaceFactory factory)
 
         try
         {
-            await RotatePasswordAsync(accountId, email);
+            await RotatePasswordAsync(accountId, email, rotatedPassword);
         }
         finally
         {
@@ -312,12 +312,12 @@ public sealed class CredentialEpochRaceTests(CredentialEpochRaceFactory factory)
             (await factory.TryLoginAsync(email, "wrong-password")).StatusCode);
     }
 
-    private Task RotatePasswordAsync(Guid accountId, string email) =>
+    private Task RotatePasswordAsync(Guid accountId, string email, string rotatedPassword) =>
         factory.WithTenantScopeAsync(accountId, async db =>
         {
             var user = await db.Users.SingleAsync(candidate => candidate.Email == email);
             user.PasswordHash = new PasswordHasher<ApplicationUser>()
-                .HashPassword(user, RotatedPassword);
+                .HashPassword(user, rotatedPassword);
             user.CredentialEpoch++;
             user.SecurityStamp = Guid.NewGuid().ToString();
             user.ConcurrencyStamp = Guid.NewGuid().ToString();
