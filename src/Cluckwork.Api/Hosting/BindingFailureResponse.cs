@@ -29,6 +29,20 @@ using Microsoft.AspNetCore.Http.Metadata;
 // Information — exactly like any other well-formed 400. No re-execution at
 // /error happens either, since UseExceptionHandler (which sits ABOVE Serilog)
 // never sees anything propagate that far.
+
+// #398 review round 7 (Codex) — marks an endpoint that reads the request body
+// MANUALLY (raw stream, or a bound `HttpRequest`) instead of declaring a typed
+// body parameter. Those carry no IAcceptsMetadata, so without this marker
+// ConcernsRequestBody would classify a body failure on them as a query one —
+// and they have no query input at all.
+//
+// Deliberately a private marker rather than `.Accepts<T>(contentType)`:
+// Accepts also imposes a CONTENT-TYPE CONSTRAINT ON THE ROUTE, so adding it
+// would change which requests match and could start 404/415-ing callers that
+// work today. This affects only how a failure is described.
+[AttributeUsage(AttributeTargets.Method | AttributeTargets.Class)]
+public sealed class ReadsRequestBodyAttribute : Attribute;
+
 public static class BindingFailureResponse
 {
     public static IApplicationBuilder UseCluckworkBindingFailureResponse(this IApplicationBuilder app) =>
@@ -101,7 +115,11 @@ public static class BindingFailureResponse
     {
         var endpoint = context.GetEndpoint();
         if (endpoint is not null)
-            return endpoint.Metadata.GetMetadata<IAcceptsMetadata>()?.RequestType is not null;
+            // IAcceptsMetadata covers endpoints with a declared typed body.
+            // ReadsRequestBodyAttribute covers the ones that read it manually
+            // and therefore declare nothing — see the attribute's own comment.
+            return endpoint.Metadata.GetMetadata<IAcceptsMetadata>()?.RequestType is not null
+                || endpoint.Metadata.GetMetadata<ReadsRequestBodyAttribute>() is not null;
 
         // No endpoint (404, or a failure before routing resolved one): fall
         // back to whether the request carried a payload at all.
