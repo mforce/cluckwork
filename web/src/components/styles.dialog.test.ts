@@ -27,6 +27,31 @@ import type { AtRule, Rule } from "postcss";
 const css = readFileSync(resolve(process.cwd(), "src/styles.css"), "utf8");
 const root = postcss.parse(css);
 
+// Comments inside a selector are removed at tokenization and leave nothing
+// behind — `.dialog/* x */.wide` IS `.dialog.wide` — so they are stripped
+// rather than turned into whitespace.
+const cleanSelector = (selector: string) => selector.replace(/\/\*[\s\S]*?\*\//g, "").trim();
+
+// The physical property and its logical twin: the app is horizontal
+// writing-mode throughout, so `max-inline-size` caps this panel exactly as
+// `max-width` does and must not read as "no cap at all" (round 5).
+const CAPS = ["max-width", "max-inline-size"];
+
+const capsWidth = (rule: Rule): boolean =>
+  rule.nodes.some((n) => n.type === "decl" && CAPS.includes(n.prop));
+
+/** Does this rule set a width cap on something matching the panel element? */
+function capsPanel(rule: Rule, el: Element): boolean {
+  if (!capsWidth(rule)) return false;
+  return rule.selectors.some((selector) => {
+    try {
+      return el.matches(cleanSelector(selector));
+    } catch {
+      return false;
+    }
+  });
+}
+
 /** A rule's at-rule ancestry, innermost last. */
 function context(rule: Rule): AtRule[] {
   const chain: AtRule[] = [];
@@ -57,11 +82,30 @@ interface Candidate {
 }
 
 // Enough of the cascade for one property on one element: importance first, then
-// specificity, then source order. Specificity is counted as classes/attributes/
-// pseudo-classes, which is all this stylesheet uses for these rules — an id or
-// an inline style would need more, and there are none.
+// specificity, then source order.
+//
+// The counter is deliberately narrow — classes, ids, elements — and REFUSES
+// anything it cannot count faithfully rather than guessing. `:is()`/`:not()`
+// take the specificity of their most specific argument, `:where()` takes none,
+// and an attribute selector counts as a class; approximating those would let
+// this file report a winner that a browser disagrees with, which is worse than
+// no test (round 5). Nothing in this stylesheet needs them today; the day one
+// does, this fails loudly and asks for a real selector parser.
+const UNCOUNTABLE = /:is\(|:not\(|:where\(|:has\(|\[|::/;
+
 function specificityOf(selector: string): number {
-  return (selector.match(/[.[:]/g) ?? []).length;
+  if (UNCOUNTABLE.test(selector)) {
+    throw new Error(
+      `styles.dialog.test cannot compute specificity for "${selector}". `
+      + "Add a real selector parser (postcss-selector-parser) rather than "
+      + "letting this test approximate the cascade.",
+    );
+  }
+  if (selector.includes("#")) throw new Error(`unsupported id selector "${selector}"`);
+  // 100 per id (rejected above), 10 per class or pseudo-class, 1 per element.
+  const classes = (selector.match(/\.[\w-]+|:[\w-]+/g) ?? []).length;
+  const elements = (selector.match(/(^|[\s>+~])[a-zA-Z][\w-]*/g) ?? []).length;
+  return classes * 10 + elements;
 }
 
 /**
@@ -69,20 +113,40 @@ function specificityOf(selector: string): number {
  * rules whose at-rule context passes `applies`.
  */
 function effectiveMaxWidth(classes: string[], applies: (chain: AtRule[]) => boolean) {
+  // The real topology, not a bare div: the panel is a role="dialog" element
+  // inside .dialog-backdrop, and a selector like
+  // `.dialog-backdrop > .dialog[role="dialog"]` would cap production while
+  // silently failing to match a detached div here (round 5).
+  const backdrop = document.createElement("div");
+  backdrop.className = "dialog-backdrop";
   const el = document.createElement("div");
   el.className = classes.join(" ");
-  document.body.append(el);
+  el.setAttribute("role", "dialog");
+  el.setAttribute("aria-modal", "true");
+  el.tabIndex = -1;
+  backdrop.append(el);
+  document.body.append(backdrop);
 
   const candidates: Candidate[] = [];
   let order = 0;
   root.walkRules((rule) => {
     order += 1;
-    if (!applies(context(rule))) return;
+    const chain = context(rule);
+    if (!applies(chain)) {
+      // A context this file does not model (@layer, @supports, a nested media)
+      // is not silently skipped when it could actually constrain the panel:
+      // that is how a nested `!important` cap would pass unnoticed. Refuse.
+      if (chain.length > 0 && !isPhoneOnly(chain) && capsPanel(rule, el)) {
+        throw new Error(
+          `styles.dialog.test cannot evaluate a rule for this panel inside `
+          + `@${chain.map((a) => a.name).join(" > @")} ("${rule.selector}"). `
+          + "Teach the evaluator that context, or assert the width in a real browser.",
+        );
+      }
+      return;
+    }
     for (const selector of rule.selectors) {
-      // A comment inside a selector is removed at tokenization and leaves
-      // nothing behind — `.dialog/* x */.wide` is `.dialog.wide` — so it is
-      // stripped rather than turned into a space.
-      const clean = selector.replace(/\/\*[\s\S]*?\*\//g, "").trim();
+      const clean = cleanSelector(selector);
       let hit = false;
       try {
         hit = el.matches(clean);
@@ -91,18 +155,20 @@ function effectiveMaxWidth(classes: string[], applies: (chain: AtRule[]) => bool
         continue;
       }
       if (!hit) continue;
-      rule.walkDecls("max-width", (decl) => {
-        candidates.push({
-          value: decl.value.trim(),
-          important: decl.important === true,
-          specificity: specificityOf(clean),
-          order,
+      for (const prop of CAPS) {
+        rule.walkDecls(prop, (decl) => {
+          candidates.push({
+            value: decl.value.trim(),
+            important: decl.important === true,
+            specificity: specificityOf(clean),
+            order,
+          });
         });
-      });
+      }
     }
   });
 
-  el.remove();
+  backdrop.remove();
   if (candidates.length === 0) return { value: null, count: 0 };
   const winner = candidates.reduce((best, next) =>
     (next.important !== best.important

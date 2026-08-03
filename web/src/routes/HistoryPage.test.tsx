@@ -370,6 +370,32 @@ describe("HistoryPage adjust — mirrored daily-entry layout", () => {
     expect(within(dialog()).queryByRole("button", { name: /Put all/ })).not.toBeInTheDocument();
   });
 
+  // The steppers carry the capture screen's ceiling too: + stops at what is
+  // unaccounted for, so the guided control cannot build an over-graded day.
+  // Without it the dialog looked like the same form and behaved differently in
+  // the hand — every + live from the start on an entry that already adds up
+  // (#403 round 5). Typing past it stays allowed on both screens.
+  it("stops the + stepper at the unallocated remainder, as the capture screen does", async () => {
+    mockListDailyEntries.mockResolvedValue([SUBMITTED]);
+    await openAdjustPanel();
+
+    // `max` never reaches the DOM — NumberField uses it to gate its own +
+    // button — so the ceiling is asserted the way the user meets it.
+    // Fixture: sellable 90, graded 40 + 20, so 30 unallocated.
+    const gradeA = screen.getByRole("spinbutton", { name: "Grade A" });
+    expect(screen.getByRole("button", { name: "Increase grade a" })).toBeEnabled();
+
+    // Its own 40 plus the 30 left is the ceiling: at 70 there is no headroom,
+    // and + refuses on every line.
+    fireEvent.change(gradeA, { target: { value: "70" } });
+    expect(screen.getByRole("button", { name: "Increase grade a" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Increase grade b" })).toBeDisabled();
+    // Typing is deliberately still uncapped — a correction may pass through an
+    // over-graded state while it is being rearranged; only Save refuses.
+    fireEvent.change(gradeA, { target: { value: "95" } });
+    expect(screen.getByRole("spinbutton", { name: "Grade A" })).toHaveValue(95);
+  });
+
   it("offers nothing to hand out once the day already reconciles", async () => {
     mockListDailyEntries.mockResolvedValue([
       { ...SUBMITTED, grades: [{ eggGradeId: "gr1", quantity: 90 }] },

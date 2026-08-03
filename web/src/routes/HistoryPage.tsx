@@ -447,6 +447,14 @@ export function HistoryPage() {
                         <label htmlFor={idFor(`grade-${g.id}`)}>{g.name}{g.active ? "" : t("inactiveGradeSuffix")}</label>
                         <NumberField id={idFor(`grade-${g.id}`)} label={g.name.toLowerCase()}
                           value={lineQty[g.id] ?? 0}
+                          // Same ceiling as the capture screen: the + button
+                          // (and its hold-to-repeat) stops at what is actually
+                          // unaccounted for, so the guided control cannot build
+                          // an over-graded day. Typing is deliberately still
+                          // uncapped — see NumberField. Without this the two
+                          // screens behaved differently in the hand while the
+                          // Help text claimed they were the same form.
+                          max={(lineQty[g.id] ?? 0) + Math.max(0, remaining)}
                           onChange={(next) => setLineQty((prev) => ({
                             ...prev,
                             // A grade lives in a record, so its updater is adapted

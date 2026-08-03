@@ -638,6 +638,25 @@ describe("DailyEntryPage assign the remainder", () => {
     expect(document.querySelector(".entry-row.taking")).toBeNull();
   });
 
+  // The flock picker's own frame, not just the date's. Without it the flock
+  // path's only defence was the source-text check, and a reviewer showed that
+  // check can be walked around — one runtime test per picker, so neither rests
+  // on the other (#403 round 5).
+  it("drops the row targets in the same render as a change of flock", async () => {
+    mockListFlocks.mockResolvedValue([FLOCK, { ...FLOCK, id: "f2", name: "Second Coop" }]);
+    await readyWithRemainder();
+    fireEvent.click(arm());
+    expect(screen.getByRole("button", { name: "Put all 60 remaining in Grade A" })).toBeInTheDocument();
+
+    const picker = screen.getByLabelText("Flock") as HTMLSelectElement;
+    const setValue = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value")!.set!;
+    setValue.call(picker, "f2");
+    picker.dispatchEvent(new Event("change", { bubbles: true }));
+
+    expect(screen.queryAllByRole("button", { name: /Put all \d+ remaining in/ })).toHaveLength(0);
+    expect(document.querySelector(".entry-row.taking")).toBeNull();
+  });
+
   // The same switch reached through the other door. Creating a flock changes
   // the captured day too, and nothing prevents opening that dialog while armed
   // — so the fix has to live on every path that moves the target, not just the
@@ -672,6 +691,14 @@ describe("DailyEntryPage assign the remainder", () => {
       .replace(/\/\*[\s\S]*?\*\//g, "")
       .replace(/\/\/[^\n]*/g, "");
 
+    // The setters are pinned to these names FIRST. Without this the check
+    // greps for a literal that a rename makes disappear: a reviewer renamed
+    // the state setter and called it raw, reintroducing the bug with this test
+    // still green. Renaming is now the thing that fails, and the failure says
+    // to update this list.
+    expect(source, "flock setter name").toMatch(/const \[flockId, setFlockId\] = useState/);
+    expect(source, "date setter name").toMatch(/const \[date, setDate\] = useState/);
+
     // Every call site, in or out of an effect. The mount path cannot be armed
     // yet, but it is routed anyway so the rule has no exceptions to remember.
     for (const setter of ["setFlockId", "setDate"]) {
@@ -682,6 +709,15 @@ describe("DailyEntryPage assign the remainder", () => {
         expect(before, `${setter} at index ${call.index} must be inside retarget(...)`)
           .toMatch(/retarget\(\(\) =>\s*$/);
       }
+    }
+
+    // An alias would still let a raw call through under another name, so the
+    // setters may not be re-bound at all. (A wrapper whose BODY calls the
+    // setter is caught by the loop above; this closes the rename-at-source
+    // spelling the loop cannot see.)
+    for (const setter of ["setFlockId", "setDate"]) {
+      expect(source, `${setter} must not be aliased`)
+        .not.toMatch(new RegExp(`=\\s*${setter}\\s*[;,\\n]`));
     }
   });
 });
