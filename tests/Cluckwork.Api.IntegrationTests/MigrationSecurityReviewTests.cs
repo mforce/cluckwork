@@ -287,6 +287,17 @@ public sealed class MigrationSecurityReviewTests
             // FullName is the schema-relevant part and nothing else about a Type
             // is: a column's CLR type matters, the file its metadata lives in
             // does not.
+            //
+            // NOT AssemblyQualifiedName, and that is deliberate rather than
+            // lazy: it carries the assembly VERSION, so a routine dependency
+            // bump would change this digest without any schema changing — the
+            // same false-red churn the path leak caused, arriving by a tidier
+            // route. FullName can in principle collide between same-named types
+            // in different assemblies; every ClrType this migration actually
+            // uses is a BCL primitive (Guid, string, int, long, decimal, bool,
+            // DateTime, DateTimeOffset, DateOnly), so there is nothing to
+            // collide with, and a column typed as two different same-named
+            // types would be a far larger problem than this digest.
             case Type type:
                 return $"Type({type.FullName})";
         }
