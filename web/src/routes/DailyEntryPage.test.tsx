@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { render, screen, within, fireEvent, waitFor, act } from "@testing-library/react";
 import { DailyEntryPage } from "./DailyEntryPage";
 import {
@@ -634,6 +636,53 @@ describe("DailyEntryPage assign the remainder", () => {
     // No row may still offer the PREVIOUS day's remainder over the new one.
     expect(screen.queryAllByRole("button", { name: /Put all \d+ remaining in/ })).toHaveLength(0);
     expect(document.querySelector(".entry-row.taking")).toBeNull();
+  });
+
+  // The same switch reached through the other door. Creating a flock changes
+  // the captured day too, and nothing prevents opening that dialog while armed
+  // — so the fix has to live on every path that moves the target, not just the
+  // two pickers (#403 round 4).
+  it("drops the row targets when a newly created flock becomes the target", async () => {
+    mockCreateFlock.mockResolvedValue({ id: "f2" });
+    await readyWithRemainder();
+    fireEvent.click(arm());
+    expect(screen.getByRole("button", { name: "Put all 60 remaining in Grade A" })).toBeInTheDocument();
+
+    mockListFlocks.mockResolvedValue([FLOCK, { ...FLOCK, id: "f2", name: "Rhode Reds" }]);
+    fireEvent.click(screen.getByRole("button", { name: "+ new flock" }));
+    const dlg = screen.getByRole("dialog");
+    fireEvent.change(within(dlg).getByLabelText("Name"), { target: { value: "Rhode Reds" } });
+    fireEvent.change(within(dlg).getByLabelText("Breed"), { target: { value: "RIR" } });
+    await act(async () => {
+      fireEvent.click(within(dlg).getByRole("button", { name: "Create flock" }));
+    });
+
+    expect(screen.getByLabelText("Flock")).toHaveValue("f2");
+    expect(screen.queryAllByRole("button", { name: /Put all \d+ remaining in/ })).toHaveLength(0);
+  });
+
+  // Scope, because the test above cannot carry this on its own: the create
+  // resolves through awaits, so settling it flushes the effects too, and the
+  // assertion passes whether the disarm was synchronous or a render late
+  // (measured — it survives removing `retarget` from that path). The frame is
+  // observable for the two pickers and pinned there; for this path the
+  // guarantee is structural instead, and this is what enforces it.
+  it("routes every change of flock or date through the disarming helper", () => {
+    const source = readFileSync(resolve(process.cwd(), "src/routes/DailyEntryPage.tsx"), "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/\/\/[^\n]*/g, "");
+
+    // Every call site, in or out of an effect. The mount path cannot be armed
+    // yet, but it is routed anyway so the rule has no exceptions to remember.
+    for (const setter of ["setFlockId", "setDate"]) {
+      const calls = [...source.matchAll(new RegExp(`${setter}\\(`, "g"))];
+      expect(calls.length, `${setter} call sites`).toBeGreaterThan(0);
+      for (const call of calls) {
+        const before = source.slice(Math.max(0, call.index - 40), call.index);
+        expect(before, `${setter} at index ${call.index} must be inside retarget(...)`)
+          .toMatch(/retarget\(\(\) =>\s*$/);
+      }
+    }
   });
 });
 

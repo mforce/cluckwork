@@ -113,16 +113,16 @@ export function DailyEntryPage() {
           && wantedDate <= today;
         const flockOk = wantedFlock !== null && f.some((x) => x.id === wantedFlock);
         const deepLinked = flockOk && dateOk;
-        if (deepLinked) setDate(wantedDate!);
+        if (deepLinked) retarget(() => setDate(wantedDate!));
         else if (wantedFlock || wantedDate)
           setError(i18n.t("dailyEntry:deepLinkUnavailable"));
         const remembered = localStorage.getItem(LAST_FLOCK_KEY);
         // Default prefers an ACTIVE flock — depleted ones are backfill targets
         // you pick deliberately, not a default.
         const firstActive = f.find((x) => x.status === "Active") ?? f[0];
-        if (deepLinked) setFlockId(wantedFlock!);
-        else if (remembered && f.some((x) => x.id === remembered)) setFlockId(remembered);
-        else if (firstActive) setFlockId(firstActive.id);
+        if (deepLinked) retarget(() => setFlockId(wantedFlock!));
+        else if (remembered && f.some((x) => x.id === remembered)) retarget(() => setFlockId(remembered));
+        else if (firstActive) retarget(() => setFlockId(firstActive.id));
       })
       .catch(() => setLoadError(i18n.t("dailyEntry:loadFlocksGradesFailed")))
       .finally(() => setLoading(false));
@@ -256,8 +256,12 @@ export function DailyEntryPage() {
   // paths that change the target without going through a picker.
   useEffect(() => setAssigning(false), [flockId, date]);
 
-  // Every target change goes through here: the disarm lands in the same event
-  // as the change, so no render ever shows one day's remainder over another's.
+  // EVERY change of flock or date goes through here — the pickers, the
+  // new-flock dialog, and the mount-time deep-link/default selection — so the
+  // disarm lands in the same event as the change and no render can show one
+  // day's remainder over another's. The mount path cannot be armed yet, and is
+  // routed anyway so the rule is "no raw setFlockId/setDate, ever", which a
+  // test can check and a reader cannot get wrong (#403 round 4).
   function retarget(apply: () => void) {
     setAssigning(false);
     apply();
@@ -301,7 +305,12 @@ export function DailyEntryPage() {
         flockKey.current = newId();
         const refreshed = capturable(await listFlocks());
         setFlocks(refreshed);
-        setFlockId(created.id);
+        // Through `retarget` like the pickers: creating a flock switches the
+        // captured day too, and nothing stops the dialog being opened while the
+        // remainder gesture is armed (#403 round 4). Without it, the render
+        // after the create shows the NEW flock's rows armed over the previous
+        // flock's remainder — the picker bug reached by a different door.
+        retarget(() => setFlockId(created.id));
         setShowNewFlock(false);
         setNewFlockName("");
         setNewFlockBreed("");
