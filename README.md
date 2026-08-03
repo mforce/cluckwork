@@ -215,10 +215,8 @@ rebuilt, so the bytes carrying `v0.4.0` are provably the bytes that passed CI.
 
 ### What decides the version
 
-Your **PR title**, in the usual case. On a squash merge GitHub takes the subject
-from the PR title when the branch has **several** commits, and from the single
-commit's own subject when it has **one** — so a one-commit PR is decided by that
-commit, not by the title you typed:
+Your **PR title** — or, on a **one-commit** branch, that commit's own subject,
+which GitHub uses instead. Either way it becomes the squashed commit subject:
 
 While the version is **below 1.0.0**, everything is deliberately damped one level —
 the project is pre-1.0 and shouldn't burn major digits on Phase 1.x churn:
@@ -245,45 +243,48 @@ nothing is released until you merge that PR.
 
 ### Writing a commit message
 
-The squash **body** is every branch commit message concatenated, and release-please
-parses all of it — not just the subject. If any line fails to parse, the **entire
-commit is dropped** from the changelog: no entry, no version bump, and a green run
-with nothing to notice. Two commits have already been lost this way.
+release-please parses the whole message, body included, and the squash body is
+every branch commit message concatenated. One unparseable line drops the **entire
+commit** from the changelog — no entry, no version bump, green run. Two commits
+have already been lost this way.
 
-**The rule: never start a line with `something(` that has another `(` inside it.**
-That is ordinary code prose, and backticks do not protect it.
-
-```text
-✗ dropped — no changelog entry, no bump, green run
-
-  fix(daily-entry): require exact grade reconciliation on submit
-
-  The fence is the test, not the prose:
-  Assert.Single(AllMigrations()) fails the moment a second migration appears.
-```
+**Never start a line with `something(` that has another `(` inside it.** Ordinary
+code prose, and backticks do not protect it:
 
 ```text
-✓ parses
+fix(x): summary
 
-  fix(daily-entry): require exact grade reconciliation on submit
-
-  The fence is the test, not the prose:
-
-    Assert.Single(AllMigrations())
-
-  fails the moment a second migration appears.
+The fence is the test:
+Assert.Single(AllMigrations()) fails when a second appears.
+^^^^^^^^^^^^^^             ^
+│                          └─ a second "(" before the first one closes
+└─ line STARTS with  word(
 ```
 
-Indenting the line fixes it; so does making it a `- ` list item, or putting any
-word in front of it. Only the **start** of a line matters — `see foo(x) and
-bar(y())` mid-sentence is fine.
+release-please reads a line-initial `word(` as a `type(scope):` header. A scope
+cannot contain `(`, so the parse fails — and a failed parse means **this whole
+commit is skipped**, not just this line.
 
-`.githooks/commit-msg` catches this before the commit exists and prints the three
-rewrites applied to your own line. It cannot see a **PR title**, though, so a
-non-conventional title is still yours and the reviewer's to catch.
+Move the line off column 1 and it is fine. Nothing else changes:
 
-[`AGENTS.md`](AGENTS.md) is canonical here — it carries the exact trigger, the
-verified pass/fail table, and what to do when a commit has already been dropped.
+```text
+fix(x): summary
+
+The fence is the test:
+
+  Assert.Single(AllMigrations())
+^^
+└─ two spaces. The line no longer starts with the shape.
+
+fails when a second appears.
+```
+
+A `- ` list item or any word in front works equally well. Only line *starts*
+matter, so `see foo(x) and bar(y())` mid-sentence was never a problem.
+
+`.githooks/commit-msg` catches this and prints the rewrites applied to your own
+line. It cannot see a **PR title**, so a non-conventional title is still yours and
+the reviewer's to catch. [`AGENTS.md`](AGENTS.md) is canonical.
 
 ### Deploying
 

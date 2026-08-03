@@ -237,52 +237,34 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
   is the last step. Draft is safe for release-please's own bookkeeping because
   manifest mode reads the current version from `.release-please-manifest.json`, a
   committed file, not from tags.
-- **Draft-until-promoted has one consequence, and it is why release-please runs
-  twice per push.** Version bookkeeping is tag-independent (above), but the
-  **changelog boundary is not**: release-please resolves "commits since the last
-  release" to a commit **SHA via the git tag**. A draft has no tag. So a single
-  invocation that cuts `vX.Y.Z` *and* computes the next release PR computes it at
-  the one moment `vX.Y.Z` is unresolvable — the boundary falls through to the
-  whole 500-commit search depth, and the next PR **restates every earlier
-  release's entries**. Observed on the v0.0.2 cut: PR #409 proposed 0.0.3 with all
-  of 0.0.1's *and* 0.0.2's changelog. The version was still correct (manifest), so
-  nothing failed and the run was green.
+- **release-please runs twice per push, split around promotion.** Versioning is
+  tag-independent (above); the **changelog boundary is not** — it resolves through
+  the previous release's **git tag**, and a draft has no tag. So one invocation
+  that cuts `vX.Y.Z` *and* computes the next PR computes it while `vX.Y.Z` is
+  unresolvable: the boundary falls through to the full search depth and the PR
+  restates every earlier release. Seen on the v0.0.2 cut (#409 proposed 0.0.3 with
+  0.0.1's *and* 0.0.2's changelog) on a **green** run, because the version comes
+  from the manifest and was right. It self-heals on the next push, which is why
+  v0.0.1 passed unnoticed. Hence `skip-github-pull-request: true` on the cut job
+  and a `groom` job with `skip-github-release: true` after `promote`.
 
-  It **self-heals on the next push to `main`**, which is exactly why it survived
-  the v0.0.1 cut unnoticed — and why you cannot fix an affected PR by re-running
-  anything: `release-please.yml`'s grooming job is `if: github.event_name ==
-  'push'`, and `workflow_dispatch` requires a `tag` and skips grooming entirely.
+  Two things on `groom` are not the obvious default:
 
-  The workflow therefore splits the two passes around promotion: the
-  `release-please` job runs with **`skip-github-pull-request: true`** (cut only),
-  and a **`groom`** job with `needs: [release-please, promote]` and
-  **`skip-github-release: true`** maintains the next PR *after* `promote` has
-  published the release and created its tag.
-
-  `always() && !cancelled()` on `groom` is required and is not the obvious
-  default: `promote` is **skipped** on an ordinary push, and a skipped dependency
-  would otherwise skip grooming for every non-release merge.
-
-  **The guarantee is a probe for an untagged draft, not an inference from job
-  results — do not "simplify" it back to a `needs` predicate.** The tempting
-  version, `needs.promote.result != 'failure'`, looks like it closes the hole and
-  covers only the run in which promotion failed. On the **next** ordinary push the
-  cut job succeeds with `release_created: false`, so `promote` is **skipped**
-  rather than failed, the predicate passes, grooming runs — and the earlier draft
-  still has no tag, so the duplicated changelog is written over a correct PR one
-  run later. (Found by review on #411, against the first version of this fix.) So
-  `groom`'s first step asks GitHub directly whether any **draft** release exists
-  and skips if so; the `needs` predicate is kept only as a cheap fence that avoids
-  starting a runner in the obvious case.
-
-  That probe **skips rather than fails** — an unrelated merge should not go red
-  because a release is stuck — but it is loud about it: a `::warning::` annotation
-  and a step-summary block naming the draft tag. A stuck release is visible
-  without turning every subsequent merge red.
+  - `always() && !cancelled()` — `promote` is **skipped** on an ordinary push, and
+    a skipped dependency would otherwise skip grooming on every non-release merge.
+  - **The guarantee is a probe for an untagged draft, not an inference from job
+    results. Do not "simplify" it back to a `needs` predicate.**
+    `needs.promote.result != 'failure'` looks sufficient and covers only the run
+    that failed: on the *next* push the cut job succeeds with
+    `release_created: false`, so `promote` is *skipped*, the predicate passes, and
+    the still-untagged draft produces the duplicate one run later (#411 review).
+    The predicate is kept only as a cheap fence. The probe **skips rather than
+    fails** — an unrelated merge should not go red because a release is stuck —
+    but warns and names the draft in the step summary.
 
   `groom` mints its own App token and **must** keep the `permission-*` downscoping
-  — omitting those does not mint a narrow token, it mints the union of every grant
-  the App holds, silently (see the release-PR-token bullet below).
+  — omitting those mints the union of every grant the App holds, silently (see the
+  release-PR-token bullet below).
 - **Repair path, in two parts.** Re-running the push event never helps —
   release-please reports `release_created: false` for an already-created release,
   so promotion would be skipped forever.
@@ -340,105 +322,59 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
   only early exit is "zero conventional commits" — so a `chore:`-only merge does
   bump the patch digit. It lands in the pending release PR rather than in a
   release, so it costs a number, not a deploy.
-- **The commit *body* is parsed too, and one prose shape silently drops the whole
-  commit.** release-please runs `@conventional-commits/parser` over the entire
-  message, not just the subject; a parse error is caught, logged as `commit could
-  not be parsed`, and the commit is then **skipped entirely** — no changelog entry,
-  no contribution to the bump, and the run reports success. `ef9a64b` (#407) hit
-  this and the release PR reported `remained the same`, so a whole feature is
-  missing from 0.0.2's notes.
-
-  **The rule, in one line: never start a line of a commit message with
-  `something(` that has another `(` inside it.** Indent it, bullet it, or put a
-  word in front. Everything below is why.
-
-  The trigger is narrow and easy to write by accident: **a body line that begins at
-  column 1 with a run of non-space, non-paren characters, then `(`, then another
-  `(` before the closing `)`.** That is ordinary C#/JS prose —
-  `` `Assert.Single(AllMigrations())` `` is what broke it. Backticks do not protect
-  it; the parser lexes such a line as a nested `type(scope)` header and its scope
-  admits no `(`.
-
-  Any leading whitespace or preceding word defuses it, verified against the parser
-  directly:
-
-  | body line | result |
-  |---|---|
-  | `Assert.Single(AllMigrations())` | **parse error** |
-  | `` `Assert.Single(AllMigrations())` `` | **parse error** |
-  | `f(g(h))`, `a(())`, `a.b(c(d))` | **parse error** |
-  | `    Assert.Single(AllMigrations())` (indented) | ok |
-  | `- a(b())`, `* a(b())` (list item) | ok |
-  | `see foo(x) and bar(y())` (not at line start) | ok |
-  | `foo(bar)`, `x() y()`, `(a(b))` | ok |
-
-  So: **indent it, bullet it, or split the nesting.** A whole message, the way it
-  gets dropped and the way it should read — the only difference is the two lines
-  that mention code:
+- **The commit *body* is parsed too, and a parse error drops the whole commit** —
+  no changelog entry, no bump, and the run reports success. **Never start a line
+  with `something(` that has another `(` inside it**; indent it, bullet it, or put
+  a word in front. Backticks do not protect it: the parser lexes such a line as a
+  nested `type(scope)` header, and the scope admits no `(`. Only line *starts*
+  matter, so `see foo(x) and bar(y())` mid-sentence is fine, as are `foo(bar)` and
+  `(a(b))`.
 
   ```text
-  ✗ DROPPED — no changelog entry, no bump, green run
+  fix(x): summary                                    <- the whole commit is dropped
 
-    fix(daily-entry): require exact grade reconciliation on submit
+  The fence is the test:
+  Assert.Single(AllMigrations()) fails when a second appears.
+  ^^^^^^^^^^^^^^             ^
+  │                          └─ a second "(" before the first one closes
+  └─ line STARTS with  word(     ... so the parser reads it as type(scope):
 
-    The fence is the test, not the prose:
-    Assert.Single(AllMigrations()) fails the moment a second migration
-    appears. Mutation-checked — removing the guard turns it red.
-
-    MigrationSecurityReviewTests.Pins(Shape()) covers the SQL form.
+  Pins(Shape()) covers the SQL.                      <- same shape, same problem
   ```
 
   ```text
-  ✓ PARSES — every fix below is one of the three defusals
+  fix(x): summary                                    <- parses
 
-    fix(daily-entry): require exact grade reconciliation on submit
+  The fence is the test:
 
-    The fence is the test, not the prose:
+    Assert.Single(AllMigrations())                   <- indented off column 1
 
-      Assert.Single(AllMigrations())          <- indented
+  fails when a second appears.
 
-    fails the moment a second migration appears. Mutation-checked — removing
-    the guard turns it red.
-
-    - MigrationSecurityReviewTests.Pins(Shape()) covers the SQL form.
-                                                 ^ list item
+  - Pins(Shape()) covers the SQL.                    <- or a list marker
   ```
 
-  Nothing about backticks, code fences or indentation *inside* the message is
-  special to the parser — only whether a line **begins** with the offending shape.
-  `.githooks/commit-msg` prints the three rewrites applied to your own line, so
-  you do not have to work out which one fits.
+  `.githooks/commit-msg` catches this, and it is the right layer — **local commit
+  messages are what lands**. With `squash_merge_commit_message=COMMIT_MESSAGES`
+  and `squash_merge_commit_title=COMMIT_OR_PR_TITLE` (and merge/rebase also
+  enabled), what release-please parses is:
 
-  **Your local commit messages are the thing that lands, so a `commit-msg` hook is
-  the right place for this** — do not assume only the merge commit matters. The
-  repo's squash settings are `squash_merge_commit_message=COMMIT_MESSAGES` and
-  `squash_merge_commit_title=COMMIT_OR_PR_TITLE`, and merge and rebase merging are
-  both enabled too. So what release-please actually parses is:
-
-  | part of the squash commit | comes from | `.githooks/commit-msg` sees it |
+  | part of the squash commit | comes from | hook sees it |
   |---|---|---|
-  | body | **every branch commit message, concatenated** | **yes** |
-  | subject, PR with one commit | that commit's subject | yes |
-  | subject, PR with several commits | **the PR title** | **no** |
+  | body | every branch commit message, concatenated | **yes** |
+  | subject, one-commit PR | that commit's subject | yes |
+  | subject, multi-commit PR | **the PR title** | **no** |
 
-  `ef9a64b`'s body is 17 `* type(scope):` bullets — GitHub concatenating 17 branch
-  commit messages — so #407's offending line came from a **commit message** and the
-  hook catches that class outright. `b39e8fb` is the other row: 15 commits, so its
-  subject came from the PR title (`Credential epoch: …`) and no local hook can see
-  it. That half is covered only by the "PR title is the release note" rule and by
-  reviewers reading the title.
+  Both 2026-08 casualties sit in that table. `ef9a64b` (#407): a body line, from
+  one of 17 concatenated commit messages — the hook covers that class. `b39e8fb`
+  (#399): subject `Credential epoch: …` across 15 commits, so it came from the PR
+  title, which no local hook sees — that half is the "PR title is the release
+  note" rule plus reviewers.
 
-  The second failure mode from the same run is the plain one: `b39e8fb`'s subject
-  was `Credential epoch: per-request revocation checks (#399)` — a space before the
-  colon, so `Credential` is not a type, so it too was dropped. This is the
-  "PR title is the release note" rule failing in practice, not in theory.
-
-  **Recovering a dropped commit is manual and not durable pre-merge.** Editing the
-  release PR's *body* does not touch the branch's `CHANGELOG.md`, which is what
-  actually ships; and release-please force-updates both the moment its computed
-  content changes, discarding hand edits. The durable repair is a follow-up PR
-  against `CHANGELOG.md` plus `gh release edit <tag> --notes` **after** the release
-  is cut.
+  **Recovery is manual and not durable pre-merge**: editing the release PR's body
+  does not touch the branch's `CHANGELOG.md`, and release-please force-updates
+  both whenever its computed content changes. Repair with a follow-up PR against
+  `CHANGELOG.md` plus `gh release edit <tag> --notes` **after** the release is cut.
 - **Deploy by digest, never by tag**, and treat *obtaining* the digest and
   *verifying* it as two separate problems — the deploy side needs both, and one
   does not imply the other.
