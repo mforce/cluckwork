@@ -8,6 +8,15 @@ export interface EggGrade {
   gradeType: string;
   sortOrder: number;
   isSaleable: boolean;
+  /**
+   * #396 — "Manual" | "Cracked" | "Dirty". Which Daily Entry input feeds this
+   * grade. Not inferable from `name` (renameable) or `gradeType` (a farm can
+   * have many Quality grades, only one of which is the Cracked counter's).
+   *
+   * Used to keep the two counter-fed grades out of the Grading pane. That is an
+   * affordance only — the server refuses a manual line naming one regardless.
+   */
+  dailyEntryKind: string;
   active: boolean;
 }
 

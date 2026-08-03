@@ -157,9 +157,17 @@ export function HistoryPage() {
 
   // The entry's own lines (possibly deactivated grades — still correctable)
   // plus the active saleable catalog for adding a missed grade.
+  //
+  // #396 — a counter-fed grade is never offered for adding. It is excluded from
+  // the CATALOG half only, not from the entry's own lines: an existing line must
+  // stay correctable whatever it names, and a condition grade cannot legitimately
+  // be on an entry anyway (ConditionGradeGuard refuses it server-side). Adding
+  // one here would ask the server for a second lot on a grade its counter
+  // already produced, and be rejected.
   function panelGrades(e: DailyEntry): EggGrade[] {
     const onEntry = new Set(e.grades.map((g) => g.eggGradeId));
-    return grades.filter((g) => onEntry.has(g.id) || (g.active && g.isSaleable));
+    return grades.filter((g) =>
+      onEntry.has(g.id) || (g.active && g.isSaleable && g.dailyEntryKind === "Manual"));
   }
 
   // #394: an adjustment has no draft state of its own — it replaces the

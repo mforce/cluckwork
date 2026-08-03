@@ -32,9 +32,15 @@ const FLOCK: Flock = {
   placementDate: "2026-01-01", initialCount: 100, currentBirds: 98, status: "Active",
 };
 const GRADES: EggGrade[] = [
-  { id: "gr1", farmId: "farm1", name: "Grade A", gradeType: "Size", sortOrder: 1, isSaleable: true, active: true },
-  { id: "gr2", farmId: "farm1", name: "Grade B", gradeType: "Size", sortOrder: 2, isSaleable: true, active: true },
+  { id: "gr1", farmId: "farm1", name: "Grade A", gradeType: "Size", sortOrder: 1, isSaleable: true, dailyEntryKind: "Manual", active: true },
+  { id: "gr2", farmId: "farm1", name: "Grade B", gradeType: "Size", sortOrder: 2, isSaleable: true, dailyEntryKind: "Manual", active: true },
 ];
+// #396 — saleable AND active, so it passes every pre-existing filter. The only
+// thing that keeps it out of the Grading pane is its kind.
+const CRACKED: EggGrade = {
+  id: "gr-cracked", farmId: "farm1", name: "Cracked", gradeType: "Quality",
+  sortOrder: 3, isSaleable: true, dailyEntryKind: "Cracked", active: true,
+};
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -72,6 +78,35 @@ async function renderReady() {
   await waitFor(() => expect(saveDraftBtn()).toBeEnabled());
   expect(mockListDailyEntries).toHaveBeenCalled(); // prefill really ran
 }
+
+// #396 — Cracked and Dirty are fed by their own counters in Egg counts, so they
+// must never appear as grade fields in the Grading pane. Their counter already
+// produces a lot; a manual line naming one would produce a SECOND lot for the
+// same grade on the same day. The server refuses it outright, so this is the
+// affordance — the screen not offering a control whose only outcome is a
+// rejection.
+describe("DailyEntryPage grading pane excludes counter-fed grades", () => {
+  it("offers no grade field for a saleable, active condition grade", async () => {
+    mockListEggGrades.mockResolvedValue([...GRADES, CRACKED]);
+    await renderReady();
+
+    // Scoped to the GRADING pane. "Cracked" is a deliberately ambiguous label
+    // on this screen: Egg counts has a Cracked *counter*, which must stay — an
+    // unscoped query matches that and passes whatever the Grading pane does.
+    // (The first version of this test did exactly that and had to be tightened.)
+    const grading = screen.getByRole("heading", { name: /Grading/ })
+      .closest("section") as HTMLElement;
+
+    expect(within(grading).getByLabelText("Grade A")).toBeInTheDocument();
+    expect(within(grading).getByLabelText("Grade B")).toBeInTheDocument();
+    expect(within(grading).queryByLabelText("Cracked")).not.toBeInTheDocument();
+
+    // ...while the counter it IS fed by stays where it belongs.
+    const counts = screen.getByRole("heading", { name: /Egg counts/ })
+      .closest("section") as HTMLElement;
+    expect(within(counts).getByLabelText("Cracked")).toBeInTheDocument();
+  });
+});
 
 describe("DailyEntryPage accuracy gating", () => {
   // #394: grading must reconcile EXACTLY to sellable before submit — "within

@@ -32,8 +32,8 @@ const FLOCK: Flock = {
   placementDate: "2026-01-01", initialCount: 100, currentBirds: 98, status: "Active",
 };
 const ARCHIVED_FLOCK: Flock = { ...FLOCK, id: "f2", name: "Old Coop", status: "Archived" };
-const GRADE_A: EggGrade = { id: "gr1", farmId: "farm1", name: "Grade A", gradeType: "Size", sortOrder: 1, isSaleable: true, active: true };
-const GRADE_B: EggGrade = { id: "gr2", farmId: "farm1", name: "Grade B", gradeType: "Size", sortOrder: 2, isSaleable: true, active: true };
+const GRADE_A: EggGrade = { id: "gr1", farmId: "farm1", name: "Grade A", gradeType: "Size", sortOrder: 1, isSaleable: true, dailyEntryKind: "Manual", active: true };
+const GRADE_B: EggGrade = { id: "gr2", farmId: "farm1", name: "Grade B", gradeType: "Size", sortOrder: 2, isSaleable: true, dailyEntryKind: "Manual", active: true };
 
 // sellable = 100 − 2 − 3 − 5 = 90; two graded lines summing to 60 (within).
 const SUBMITTED: DailyEntry = {
@@ -110,6 +110,32 @@ describe("HistoryPage condition column", () => {
 
     const row = await screen.findByRole("row", { name: /2026-07-19/ });
     expect(conditionCell(row)).toHaveTextContent("0");
+  });
+});
+
+// #396 — the adjust dialog is the Daily entry form, so the same rule holds:
+// a counter-fed grade is never offered for adding. Excluded from the CATALOG
+// half only — an existing line stays correctable whatever it names.
+describe("HistoryPage adjust panel excludes counter-fed grades", () => {
+  const CRACKED: EggGrade = {
+    id: "gr-cracked", farmId: "farm1", name: "Cracked", gradeType: "Quality",
+    sortOrder: 3, isSaleable: true, dailyEntryKind: "Cracked", active: true,
+  };
+
+  it("offers no grade field for a saleable, active condition grade", async () => {
+    mockListEggGrades.mockResolvedValue([GRADE_A, GRADE_B, CRACKED]);
+    mockListDailyEntries.mockResolvedValue([SUBMITTED]);
+    await openAdjustPanel();
+
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByLabelText("Grade A")).toBeInTheDocument();
+    // Scoped to the dialog: the row behind it also renders the word, and the
+    // dialog's own Egg-counts half has a Cracked COUNTER that must stay.
+    expect(within(dialog).queryByLabelText("Cracked")).toBeInTheDocument();
+    // ...so assert on the grade field specifically: the counter is the only
+    // "Cracked" control the dialog may show, and it is a count input, not a
+    // grade line. A grade field would make TWO.
+    expect(within(dialog).getAllByLabelText("Cracked")).toHaveLength(1);
   });
 });
 
