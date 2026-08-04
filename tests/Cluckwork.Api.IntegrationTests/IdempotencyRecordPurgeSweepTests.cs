@@ -159,6 +159,27 @@ public sealed class IdempotencyRecordPurgeSweepTests(CluckworkWebApplicationFact
         Assert.True(await ExistsAsync(withinWindow.Id));
     }
 
+    // #421 codex review round 4/5 — the guard for CompletedAt keying. A claim
+    // created >48h ago that was stolen and only just published Completed has an
+    // ancient CreatedAt but a fresh CompletedAt; its retry window runs from
+    // completion, so it must be RETAINED. Keying the Completed purge on CreatedAt
+    // (the reverted bug) would delete it, so this test goes red on that form —
+    // which the equal-timestamp tests above cannot.
+    [Fact]
+    public async Task Sweep_LeavesAStolenThenCompletedClaim_AgedByCreationButFreshlyCompleted()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var stolenThenCompleted = NewRecord(
+            now - IdempotencyRecordPurgeSweep.PurgeRetention - TimeSpan.FromHours(1),
+            IdempotencyStatus.Completed);
+        stolenThenCompleted.CompletedAt = now; // published just now, long after creation
+        await SeedAsync(stolenThenCompleted);
+
+        await RunSweepAsync();
+
+        Assert.True(await ExistsAsync(stolenThenCompleted.Id));
+    }
+
     [Fact]
     public async Task Sweep_IsTenantSafeAndIdempotent()
     {
