@@ -101,6 +101,47 @@ public sealed class IdempotencyRecordPurgeSweepTests(CluckworkWebApplicationFact
         Assert.True(await ExistsAsync(liveRenewed.Id));
     }
 
+    // #421 codex review round 3 — the real guard for the renewal/delete race. The
+    // row starts aged AND lease-expired, so the sweep's InProgress DELETE selects
+    // it; a concurrent steal renews the lease while that DELETE is blocked on the
+    // row lock. The unbatched, target-predicated DELETE re-checks LeaseExpiresAt
+    // against the renewed row (READ COMMITTED EvalPlanQual) and skips it. The old
+    // batched `Id IN (subquery)` form re-checked only the id and would delete it,
+    // so reverting to that form turns this test red — which the already-live-lease
+    // test above cannot do (that one is excluded at selection time in both forms).
+    [Fact]
+    public async Task Sweep_DoesNotDeleteAnExpiredClaimStolenWhileTheDeleteIsBlocked()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var stolen = NewRecord(
+            now - IdempotencyRecordPurgeSweep.PurgeRetention - TimeSpan.FromHours(1),
+            IdempotencyStatus.InProgress); // default lease = createdAt + 30s → expired
+        await SeedAsync(stolen);
+
+        // A steal on its own connection: renew the lease into the future and hold
+        // the row lock by leaving the transaction open. idempotency_records has no
+        // tenant filter, so a raw UPDATE needs no tenant resolution.
+        await using var stealScope = factory.Services.CreateAsyncScope();
+        var stealDb = stealScope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await using var stealTx = await stealDb.Database.BeginTransactionAsync();
+        await stealDb.Database.ExecuteSqlInterpolatedAsync(
+            $"""UPDATE idempotency_records SET "LeaseExpiresAt" = {now.AddMinutes(5)} WHERE "Id" = {stolen.Id}""");
+
+        // Start the sweep (its own scope/connection). Its InProgress DELETE selects
+        // the still-expired row and blocks on the steal's row lock.
+        var sweep = RunSweepAsync();
+        // Give the DELETE time to reach the blocked state, then let the steal commit
+        // the renewal. On the FIXED code the row survives under every interleaving,
+        // so this delay only governs whether the broken form would be caught, never
+        // whether correct code flakes.
+        await Task.Delay(TimeSpan.FromSeconds(1));
+        await stealTx.CommitAsync();
+
+        await sweep; // unblocks, re-checks the now-live lease, skips the row
+
+        Assert.True(await ExistsAsync(stolen.Id));
+    }
+
     [Fact]
     public async Task Sweep_LeavesFreshRows_NearAndInsideTheWindow()
     {
