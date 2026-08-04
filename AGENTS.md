@@ -4,6 +4,10 @@ Poultry egg-farm management system. Backend: **.NET 10** (C#), layered DDD. Fron
 
 This file is the shared brief for any coding agent (Claude Code, Codex, etc.).
 
+## Communicating
+
+Keep explanations clear and human-sounding. Provide concise, focused responses. Skip preambles and recaps — lead with the action or answer.
+
 ## Layout
 
 ```
