@@ -141,6 +141,10 @@ stops being the first migration or loses its recorded id.
 A dev database created **before #407 merged** predates those folded-in columns —
 wipe and recreate it as above.
 
+The full reasoning — why the freeze, what the fingerprint guard covers, and what
+made the wrong versions of it pass — is in
+[`docs/decisions/407-migration-freeze.md`](docs/decisions/407-migration-freeze.md).
+
 ### Backup &amp; restore (self-hosted)
 
 Two complementary layers (spec §17.5):
@@ -183,6 +187,12 @@ from the changelog; see [Writing a commit message](#writing-a-commit-message)).
 
 Releasing has two stages: **CI publishes an image for every merge; you decide when
 those become a version.**
+
+> This section is the **how-to**. The **invariants** — what not to break, and why
+> each step is shaped the way it is — live in the release section of
+> [`AGENTS.md`](AGENTS.md#releases-and-image-publishing-351); the full internal
+> mechanism (promotion, the release-please split, the App token, the commit-body
+> parser) is in [`docs/decisions/351-releases.md`](docs/decisions/351-releases.md).
 
 ### 1. Merging a PR into `main`
 
