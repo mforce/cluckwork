@@ -11,26 +11,31 @@ using Microsoft.Extensions.Logging;
 // older than PurgeRetention. Runs from the DurableJobWorker poll, alongside
 // DailyEntryLockSweep and RefreshTokenPurgeSweep.
 //
-// Keyed on CreatedAt, and PurgeRetention is a single flat window applied to
-// EVERY row regardless of Status. Both choices are deliberate:
+// PurgeRetention is 48h, but the two states key it off DIFFERENT columns, because
+// what has to outlive the window differs (#421 review round 4):
 //
-//   * CreatedAt, not CompletedAt — CompletedAt is null on an InProgress row
-//     (#307), so it cannot bound both states; CreatedAt is stamped once at claim
-//     insert and is present on every row. A row's only post-hoc value is
-//     replaying its Completed response to a client retry, and PurgeRetention is
-//     chosen far beyond any plausible retry horizon (48h vs. the seconds-to-
-//     minutes a client actually retries), so age-since-creation is the right and
-//     sufficient bound. There is no theft-tripwire subtlety here as there is for
-//     RefreshTokenPurgeSweep's ExpiresAt keying — an idempotency row protects a
-//     retry, not a revocation, so nothing needs it to outlive its creation age.
+//   * Completed rows key on CompletedAt, NOT CreatedAt. A Completed row's only
+//     post-hoc value is replaying its response to a client retry, and that retry
+//     window starts when the response was produced — CompletedAt — not when the
+//     claim was first created. The two usually coincide (a claim completes within
+//     its own request), but the steal path renews a lease WITHOUT touching
+//     CreatedAt: a claim created >48h ago can be stolen and only now publish
+//     Completed. Keying on CreatedAt would purge that fresh response on the very
+//     next poll, and a client retry after that re-runs the business mutation.
+//     CompletedAt keeps every result replayable for the full window past its own
+//     completion. (CompletedAt is non-null exactly when Status is Completed, #307.)
+//
+//   * InProgress rows key on CreatedAt (their CompletedAt is null) AND require an
+//     expired lease — see below.
 //
 //   * Two DELETEs, split by Status, because the concurrency guarantee each needs
 //     is different (#421 review round 2):
 //       - Completed rows are the unbounded growth (one per successful write, kept
-//         forever). Completed is TERMINAL — nothing updates a row after publish —
-//         so no concurrent write can move a row out of eligibility. That makes the
-//         batched OrderBy/Take form safe here even though EF lowers it to
-//         `DELETE ... WHERE Id IN (SELECT ... ORDER BY CreatedAt LIMIT n)`: the
+//         forever). Completed is TERMINAL — nothing updates a row after publish,
+//         so both Status and CompletedAt are immutable — so no concurrent write
+//         can move a row out of eligibility. That makes the batched OrderBy/Take
+//         form safe here even though EF lowers it to
+//         `DELETE ... WHERE Id IN (SELECT ... ORDER BY CompletedAt LIMIT n)`: the
 //         id-keyed subquery cannot mis-collect a row that never changes.
 //       - InProgress rows must NOT use that batched form. The steal path
 //         (IdempotencyMiddleware) renews LeaseExpiresAt on an EXISTING row without
@@ -110,18 +115,21 @@ public sealed class IdempotencyRecordPurgeSweep(
                 .ExecuteDeleteAsync(ct);
 
             // Completed claims: the bulk (one per successful write, kept forever).
-            // Terminal, so the batched OrderBy/Take form is safe. Drain in capped
-            // batches — the first post-ship sweep of a months-long backlog must not
-            // take the table in a single statement. Strictly older than the cutoff:
-            // exact equality is a measure-zero case against a moving clock; what the
-            // tests pin is the WINDOW — a row is safe until CreatedAt + retention.
+            // Terminal, so the batched OrderBy/Take form is safe. Keyed on
+            // CompletedAt so a stolen claim stays replayable for the full window
+            // past its own completion, not its (possibly ancient) creation — see
+            // the class comment. Drain in capped batches — the first post-ship sweep
+            // of a months-long backlog must not take the table in a single
+            // statement. Strictly older than the cutoff: exact equality is a
+            // measure-zero case against a moving clock; what the tests pin is the
+            // WINDOW — a row is safe until CompletedAt + retention.
             var completed = 0;
             var capped = true;
             for (var batch = 0; batch < MaxBatchesPerRun; batch++)
             {
                 var deleted = await db.IdempotencyRecords
-                    .Where(r => r.Status == IdempotencyStatus.Completed && r.CreatedAt < cutoff)
-                    .OrderBy(r => r.CreatedAt)
+                    .Where(r => r.Status == IdempotencyStatus.Completed && r.CompletedAt < cutoff)
+                    .OrderBy(r => r.CompletedAt)
                     .Take(BatchSize)
                     .ExecuteDeleteAsync(ct);
 

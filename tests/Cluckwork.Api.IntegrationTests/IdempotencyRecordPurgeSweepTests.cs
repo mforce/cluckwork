@@ -241,14 +241,17 @@ public sealed class IdempotencyRecordPurgeSweepTests(CluckworkWebApplicationFact
 
         // Age the just-created idempotency claim past the retention window, then
         // sweep it away.
+        var aged = DateTimeOffset.UtcNow - IdempotencyRecordPurgeSweep.PurgeRetention - TimeSpan.FromHours(1);
         await factory.WithTenantScopeAsync(accountId, async db =>
         {
+            // Age both CreatedAt and CompletedAt — the Completed purge keys on
+            // CompletedAt, so aging CreatedAt alone would leave the row retained.
             await db.IdempotencyRecords
                 .IgnoreQueryFilters()
                 .Where(r => r.AccountId == accountId)
-                .ExecuteUpdateAsync(s => s.SetProperty(
-                    r => r.CreatedAt,
-                    DateTimeOffset.UtcNow - IdempotencyRecordPurgeSweep.PurgeRetention - TimeSpan.FromHours(1)));
+                .ExecuteUpdateAsync(s => s
+                    .SetProperty(r => r.CreatedAt, aged)
+                    .SetProperty(r => r.CompletedAt, (DateTimeOffset?)aged));
         });
         await RunSweepAsync();
 
