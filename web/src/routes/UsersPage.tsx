@@ -406,7 +406,7 @@ export function UsersPage() {
 
       {/* Each dialog carries its own error copy while it is up. */}
       {error && !creating && openUser === null && editUser === null && pwUser === null
-        && <p className="error">{error}</p>}
+        && <p className="error" role="alert">{error}</p>}
       {message && <p className="success">{message}</p>}
 
       <table className="data">
