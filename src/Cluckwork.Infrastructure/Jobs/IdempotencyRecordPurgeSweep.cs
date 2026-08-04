@@ -24,20 +24,32 @@ using Microsoft.Extensions.Logging;
 //     RefreshTokenPurgeSweep's ExpiresAt keying — an idempotency row protects a
 //     retry, not a revocation, so nothing needs it to outlive its creation age.
 //
-//   * Completed rows are collected freely once aged; an InProgress row is
-//     collected ONLY once its lease has also expired (LeaseExpiresAt < now).
-//     Age alone is not enough for an InProgress row: the steal path
-//     (IdempotencyMiddleware) renews LeaseExpiresAt on an EXISTING row without
-//     touching CreatedAt, so a retry can acquire a live lease over a claim
-//     created more than 48h ago. Deleting that row mid-flight would make the
-//     handler's guarded publish (UPDATE ... WHERE LeaseOwner = ours) match zero
-//     rows, roll back the business mutation, and return 409. The extra
-//     LeaseExpiresAt guard is race-safe under READ COMMITTED: a concurrent steal
-//     that renews the lease makes this DELETE re-evaluate and skip the row, and a
-//     DELETE that wins the row lock first leaves the steal's conditional UPDATE
-//     matching nothing, so it falls back to a fresh INSERT. An aged InProgress
-//     row whose lease is genuinely expired (an abandoned/crashed holder) is still
-//     collected — it just waits out its own lease first.
+//   * Two DELETEs, split by Status, because the concurrency guarantee each needs
+//     is different (#421 review round 2):
+//       - Completed rows are the unbounded growth (one per successful write, kept
+//         forever). Completed is TERMINAL — nothing updates a row after publish —
+//         so no concurrent write can move a row out of eligibility. That makes the
+//         batched OrderBy/Take form safe here even though EF lowers it to
+//         `DELETE ... WHERE Id IN (SELECT ... ORDER BY CreatedAt LIMIT n)`: the
+//         id-keyed subquery cannot mis-collect a row that never changes.
+//       - InProgress rows must NOT use that batched form. The steal path
+//         (IdempotencyMiddleware) renews LeaseExpiresAt on an EXISTING row without
+//         touching CreatedAt, so a retry can hold a live lease over a claim
+//         created >48h ago; deleting it mid-flight makes the guarded publish
+//         (UPDATE ... WHERE LeaseOwner = ours) match zero rows, roll back the
+//         business mutation, and return 409. The batched form would select an
+//         expired-lease row into the subquery and then delete it by id AFTER a
+//         concurrent steal renewed it, because the outer DELETE re-checks only the
+//         id, not the lease. So InProgress is a single UNBATCHED, predicated
+//         DELETE with `LeaseExpiresAt < now` ON THE DELETE TARGET: under READ
+//         COMMITTED, a steal that renews the lease makes Postgres re-evaluate the
+//         predicate against the updated row (EvalPlanQual) and skip it, while a
+//         DELETE that wins the row lock first leaves the steal's conditional
+//         UPDATE matching nothing, so it falls back to a fresh INSERT. This set is
+//         inherently tiny — an InProgress row becomes Completed within its own
+//         request, so the only aged, lease-expired ones are crashed requests whose
+//         key was never retried — so it needs no batching, and batching it would
+//         reopen exactly the race above.
 //
 // No tenant loop / TenantContext.Resolve, like RefreshTokenPurgeSweep and unlike
 // DailyEntryLockSweep: IdempotencyRecord carries AccountId but is deliberately
@@ -84,31 +96,52 @@ public sealed class IdempotencyRecordPurgeSweep(
 
         var now = timeProvider.GetUtcNow();
         var cutoff = now - PurgeRetention;
-        var total = 0;
-        var capped = true;
 
         try
         {
+            // Abandoned InProgress claims: aged AND lease-expired, deleted in one
+            // predicated DELETE (no OrderBy/Take) so the LeaseExpiresAt guard sits
+            // on the DELETE target and is re-checked against a concurrent steal —
+            // see the class comment. Inherently a small set, so no batching.
+            var abandoned = await db.IdempotencyRecords
+                .Where(r => r.Status == IdempotencyStatus.InProgress
+                    && r.LeaseExpiresAt < now
+                    && r.CreatedAt < cutoff)
+                .ExecuteDeleteAsync(ct);
+
+            // Completed claims: the bulk (one per successful write, kept forever).
+            // Terminal, so the batched OrderBy/Take form is safe. Drain in capped
+            // batches — the first post-ship sweep of a months-long backlog must not
+            // take the table in a single statement. Strictly older than the cutoff:
+            // exact equality is a measure-zero case against a moving clock; what the
+            // tests pin is the WINDOW — a row is safe until CreatedAt + retention.
+            var completed = 0;
+            var capped = true;
             for (var batch = 0; batch < MaxBatchesPerRun; batch++)
             {
-                // Strictly older than the cutoff. Exact equality is a measure-zero
-                // case against a moving clock; what matters, and what the tests
-                // pin, is the retention WINDOW: a row is safe until its own
-                // CreatedAt plus the retention.
                 var deleted = await db.IdempotencyRecords
-                    .Where(r => r.CreatedAt < cutoff
-                        && (r.Status == IdempotencyStatus.Completed || r.LeaseExpiresAt < now))
+                    .Where(r => r.Status == IdempotencyStatus.Completed && r.CreatedAt < cutoff)
                     .OrderBy(r => r.CreatedAt)
                     .Take(BatchSize)
                     .ExecuteDeleteAsync(ct);
 
-                total += deleted;
+                completed += deleted;
                 if (deleted < BatchSize)
                 {
                     capped = false;
                     break;
                 }
             }
+
+            if (abandoned + completed > 0)
+                logger.LogInformation(
+                    "Purged {Completed} completed and {Abandoned} abandoned idempotency records created before {Cutoff}.",
+                    completed, abandoned, cutoff);
+
+            if (capped)
+                logger.LogInformation(
+                    "Idempotency-record purge hit its {Max}-batch cap; more remain for the next poll.",
+                    MaxBatchesPerRun);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -122,16 +155,6 @@ public sealed class IdempotencyRecordPurgeSweep(
             // worker into backoff, delaying the business-critical daily-entry lock
             // sweep along with it.
             logger.LogError(ex, "Idempotency-record purge sweep failed; will retry next poll.");
-            return;
         }
-
-        if (total > 0)
-            logger.LogInformation(
-                "Purged {Count} idempotency records created before {Cutoff}.", total, cutoff);
-
-        if (capped)
-            logger.LogInformation(
-                "Idempotency-record purge hit its {Max}-batch cap; more remain for the next poll.",
-                MaxBatchesPerRun);
     }
 }
