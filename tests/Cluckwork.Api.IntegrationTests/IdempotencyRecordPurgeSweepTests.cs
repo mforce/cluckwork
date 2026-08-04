@@ -21,7 +21,8 @@ public sealed class IdempotencyRecordPurgeSweepTests(CluckworkWebApplicationFact
     private static IdempotencyRecord NewRecord(
         DateTimeOffset createdAt,
         IdempotencyStatus status = IdempotencyStatus.Completed,
-        Guid? accountId = null) => new()
+        Guid? accountId = null,
+        DateTimeOffset? leaseExpiresAt = null) => new()
     {
         Id = Guid.NewGuid(),
         AccountId = accountId ?? Guid.NewGuid(),
@@ -33,7 +34,7 @@ public sealed class IdempotencyRecordPurgeSweepTests(CluckworkWebApplicationFact
         RequestHash = Hash(),
         Status = status,
         LeaseOwner = Guid.NewGuid(),
-        LeaseExpiresAt = createdAt.AddSeconds(30),
+        LeaseExpiresAt = leaseExpiresAt ?? createdAt.AddSeconds(30),
         StatusCode = status == IdempotencyStatus.Completed ? 201 : null,
         ContentType = status == IdempotencyStatus.Completed ? "application/json" : null,
         ResponseBody = status == IdempotencyStatus.Completed ? "{\"id\":\"x\"}" : null,
@@ -65,17 +66,39 @@ public sealed class IdempotencyRecordPurgeSweepTests(CluckworkWebApplicationFact
         var now = DateTimeOffset.UtcNow;
         var agedCompleted = NewRecord(
             now - IdempotencyRecordPurgeSweep.PurgeRetention - TimeSpan.FromHours(1));
-        // An InProgress row this old is an abandoned lease (the lease is 30s), so
-        // the flat CreatedAt window collects it too — not just Completed rows.
-        var agedInProgress = NewRecord(
+        // An aged InProgress row whose lease is ALSO expired (the default lease
+        // here is createdAt+30s, long past) is an abandoned claim, so it is
+        // collected too — not just Completed rows.
+        var agedAbandoned = NewRecord(
             now - IdempotencyRecordPurgeSweep.PurgeRetention - TimeSpan.FromHours(1),
             IdempotencyStatus.InProgress);
-        await SeedAsync(agedCompleted, agedInProgress);
+        await SeedAsync(agedCompleted, agedAbandoned);
 
         await RunSweepAsync();
 
         Assert.False(await ExistsAsync(agedCompleted.Id));
-        Assert.False(await ExistsAsync(agedInProgress.Id));
+        Assert.False(await ExistsAsync(agedAbandoned.Id));
+    }
+
+    // #421 codex review — an aged InProgress row is NOT necessarily abandoned:
+    // the steal path renews LeaseExpiresAt on the existing row without touching
+    // CreatedAt, so a retry can hold a live lease over a claim created >48h ago.
+    // Purging it mid-flight would race the handler's guarded publish (0 rows
+    // updated → business mutation rolled back → 409). The lease guard must retain
+    // it until its lease actually expires.
+    [Fact]
+    public async Task Sweep_LeavesAgedInProgress_WithALiveRenewedLease()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var liveRenewed = NewRecord(
+            now - IdempotencyRecordPurgeSweep.PurgeRetention - TimeSpan.FromHours(1),
+            IdempotencyStatus.InProgress,
+            leaseExpiresAt: now.AddMinutes(5));
+        await SeedAsync(liveRenewed);
+
+        await RunSweepAsync();
+
+        Assert.True(await ExistsAsync(liveRenewed.Id));
     }
 
     [Fact]

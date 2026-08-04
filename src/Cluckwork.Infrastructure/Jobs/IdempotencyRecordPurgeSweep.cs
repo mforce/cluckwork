@@ -24,12 +24,20 @@ using Microsoft.Extensions.Logging;
 //     RefreshTokenPurgeSweep's ExpiresAt keying — an idempotency row protects a
 //     retry, not a revocation, so nothing needs it to outlive its creation age.
 //
-//   * All statuses, including InProgress — a lease lives LeaseDurationSeconds
-//     (IdempotencyOptions, 30s by default), so any InProgress row 48h old is an
-//     abandoned claim whose holder crashed long ago; the atomic protocol already
-//     treats an expired lease as stealable, and deleting the row instead simply
-//     lets the next same-key request INSERT a fresh claim. A live in-flight
-//     request can never be caught by this window.
+//   * Completed rows are collected freely once aged; an InProgress row is
+//     collected ONLY once its lease has also expired (LeaseExpiresAt < now).
+//     Age alone is not enough for an InProgress row: the steal path
+//     (IdempotencyMiddleware) renews LeaseExpiresAt on an EXISTING row without
+//     touching CreatedAt, so a retry can acquire a live lease over a claim
+//     created more than 48h ago. Deleting that row mid-flight would make the
+//     handler's guarded publish (UPDATE ... WHERE LeaseOwner = ours) match zero
+//     rows, roll back the business mutation, and return 409. The extra
+//     LeaseExpiresAt guard is race-safe under READ COMMITTED: a concurrent steal
+//     that renews the lease makes this DELETE re-evaluate and skip the row, and a
+//     DELETE that wins the row lock first leaves the steal's conditional UPDATE
+//     matching nothing, so it falls back to a fresh INSERT. An aged InProgress
+//     row whose lease is genuinely expired (an abandoned/crashed holder) is still
+//     collected — it just waits out its own lease first.
 //
 // No tenant loop / TenantContext.Resolve, like RefreshTokenPurgeSweep and unlike
 // DailyEntryLockSweep: IdempotencyRecord carries AccountId but is deliberately
@@ -74,7 +82,8 @@ public sealed class IdempotencyRecordPurgeSweep(
         using var scope = scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        var cutoff = timeProvider.GetUtcNow() - PurgeRetention;
+        var now = timeProvider.GetUtcNow();
+        var cutoff = now - PurgeRetention;
         var total = 0;
         var capped = true;
 
@@ -87,7 +96,8 @@ public sealed class IdempotencyRecordPurgeSweep(
                 // pin, is the retention WINDOW: a row is safe until its own
                 // CreatedAt plus the retention.
                 var deleted = await db.IdempotencyRecords
-                    .Where(r => r.CreatedAt < cutoff)
+                    .Where(r => r.CreatedAt < cutoff
+                        && (r.Status == IdempotencyStatus.Completed || r.LeaseExpiresAt < now))
                     .OrderBy(r => r.CreatedAt)
                     .Take(BatchSize)
                     .ExecuteDeleteAsync(ct);
