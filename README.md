@@ -56,6 +56,48 @@ anything.
 
 This writes the generated one-time password to **stdout only** — never the application logger or the OTLP pipeline. A host's stdout collector (docker logs, journald, a platform log pipeline) may still capture it, so treat that output as sensitive while the password is valid. Sign in with it — the app immediately shows a **Set your password** screen and refuses everything else until you pick your own. Re-running the command against an already-provisioned account is a safe no-op.
 
+### Provisioning the first admin on a production host
+
+The form above is for the **dev stack** — it needs this repo's
+`deploy/docker-compose.yml`. A production host has none of that: no source tree,
+no SDK, no compose file — only the published image. Run the verb against the
+image directly, and note the credential it requires, because the invocation and
+that requirement are a **single** fact:
+
+```bash
+# The --env-file MUST carry the migrator/owner credential (the #263 role split),
+# NOT the runtime role. bootstrap-admin migrates the schema before it creates the
+# Owner, and the runtime role has no DDL — point this at the runtime env file and
+# it fails with `permission denied for schema public` after you were reasonably
+# sure you had it right.
+docker run --rm --env-file <owner-credential.env> \
+  ghcr.io/mforce/cluckwork@sha256:<digest> \
+  bootstrap-admin --email admin@example.com
+```
+
+Pass the **verb only** — the image's `ENTRYPOINT` is already
+`dotnet Cluckwork.Api.dll` and `docker run` *appends* to it, so repeating the
+binary makes `args[0]` be `dotnet`, which matches no verb and boots the web
+server instead of provisioning anything. Everything else matches the dev form:
+the generated one-time password goes to **stdout only** (treat it as sensitive; a
+host log collector may still capture it), first sign-in forces a **Set your
+password** screen, and a re-run against an already-provisioned account is a safe
+no-op.
+
+The dev forms are correct for the dev stack — they just stop there, for the two
+reasons that also make the production form look different:
+
+- the dev compose `app` service has **no pinned container address**, so a
+  one-shot `run --rm app …` can start beside the serving one; a production
+  manifest that pins the app's address (to name it from a reverse proxy) makes
+  that form fail with `Address already in use`.
+- the dev stack uses **one credential for everything**, so `app`'s env file
+  happens to hold DDL; a real deployment splits the migrator/owner and runtime
+  roles (#263), which is why the credential has to be called out explicitly here.
+
+Host-specific details — compose service names, network layout, concrete digests
+or env-file paths — live in the deployment repo, not here.
+
 ### Frontend development
 
 ```bash
