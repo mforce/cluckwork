@@ -10,6 +10,11 @@
 #                     that commit is PROMOTED to `:vX.Y.Z`, and only then is the
 #                     release published
 #
+# release-please runs TWICE per push, deliberately split around promotion: the
+# `release-please` job cuts the release only, and `groom` maintains the next
+# release PR only. One combined invocation gets the NEXT PR wrong on exactly the
+# pushes that matter — see the `groom` job for why.
+#
 # Promotion is a server-side retag of an existing DIGEST — not a rebuild. The
 # bytes carrying a version are therefore, by construction, bytes CI already
 # built, Trivy-scanned and boot-tested. A rebuild here would produce a different
@@ -53,8 +58,8 @@ concurrency:
 
 jobs:
   release-please:
-    name: Maintain the release PR
-    # On a dispatch there is nothing to groom — go straight to promotion.
+    name: Cut the release
+    # On a dispatch there is nothing to cut — go straight to promotion.
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -142,7 +147,8 @@ jobs:
       # `permission-*` caps this token at release-please's needs regardless of
       # what the installation itself holds.
       #   contents      — commit the changelog/version files, create the release
-      #   pull-requests — open and groom the release PR
+      #   pull-requests — label the merged release PR. Still needed even though
+      #                   this pass skips PR maintenance (`groom` does that).
       #   issues        — create and apply the `autorelease: *` labels, which is
       #                   how release-please recognises its own merged PR
       #
@@ -167,6 +173,11 @@ jobs:
           token: ${{ steps.app.outputs.token }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+          # Release-creation pass ONLY. The next release PR is computed by
+          # `groom` below, after promotion has published this release and
+          # therefore created its git tag. See that job for the failure this
+          # avoids.
+          skip-github-pull-request: true
 
   # Either the release PR was just merged (a draft release now exists), or someone
   # dispatched a repair for an existing one. `always()` is required so a skipped
@@ -540,3 +551,171 @@ jobs:
       - name: Log out of GHCR
         if: always()
         run: docker logout ghcr.io >/dev/null 2>&1 || true
+
+  # The second release-please pass: maintain the NEXT release PR, and nothing
+  # else. It runs after `promote` on purpose.
+  #
+  # WHY THIS IS A SEPARATE JOB. release-please derives "commits since the last
+  # release" by resolving that release to a COMMIT SHA, and it resolves it
+  # through the git tag. This workflow deliberately leaves a release a DRAFT
+  # until its image is promoted (see the header), and GitHub withholds the tag
+  # for a draft. So a single invocation that both cuts vX.Y.Z and computes the
+  # next PR is computing it at the one moment when vX.Y.Z has no tag: the
+  # boundary is unresolvable, and release-please falls back to its whole search
+  # depth, restating every earlier release's entries in the new PR.
+  #
+  # Observed, not theorised: the run that cut v0.0.2 opened the 0.0.3 PR
+  # repeating all of 0.0.1's AND 0.0.2's changelog. It self-heals on the next
+  # push — which is precisely why it survived v0.0.1 unnoticed.
+  #
+  # Splitting the passes fixes it by construction: `promote` publishes the
+  # release (creating the tag) before this job asks where the last release was.
+  #
+  # `always() && !cancelled()` is required because `promote` is SKIPPED on an
+  # ordinary push (no release created) and a skipped dependency would otherwise
+  # skip this job too. A promote FAILURE is different and must stop us: no tag
+  # exists, so grooming now would write exactly the wrong PR over a correct one.
+  # Leaving the existing PR untouched is the fail-closed choice — the repair
+  # dispatch, then any later push, grooms it correctly.
+  #
+  # BUT `needs.promote.result != 'failure'` IS NOT SUFFICIENT ON ITS OWN, and it
+  # is worth being exact about why, because the predicate looks like it closes
+  # the hole and does not. It only covers the run in which promotion failed. On
+  # the NEXT ordinary push the cut job succeeds with `release_created: false`, so
+  # `promote` is SKIPPED rather than failed — the predicate passes, grooming
+  # runs, and the earlier draft STILL has no tag. Same duplicated changelog,
+  # written over a correct PR, one run later.
+  #
+  # So the load-bearing check is a probe of the actual condition — "does an
+  # unpublished draft release exist?" — not an inference from this run's job
+  # results. The predicate stays as a cheap first fence that avoids starting a
+  # runner at all in the obvious case.
+  #
+  # The probe SKIPS rather than fails: an unrelated merge should not go red
+  # because a release is stuck. It is loud instead — a `::warning::` annotation
+  # plus a step-summary line naming the draft — so a stuck release is visible
+  # without turning every subsequent merge red.
+  groom:
+    name: Maintain the release PR
+    needs: [release-please, promote]
+    if: |
+      always() && !cancelled()
+      && needs.release-please.result == 'success'
+      && needs.promote.result != 'failure'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Same posture as the cut job: every write goes through the App token, so
+    # GITHUB_TOKEN stays read.
+    permissions:
+      contents: read
+    steps:
+      # Minted FIRST, and used by the guard below as well as by release-please.
+      #
+      # The guard needs it: GitHub returns draft releases only to a caller with
+      # PUSH access, and this job's own GITHUB_TOKEN is `contents: read`. Probing
+      # with that token lists no drafts at all, so the boundary draft looks
+      # absent, the guard passes, and it grooms against the missing tag — a guard
+      # that silently never fires, which is worse than no guard (#411 review).
+      #
+      # Downscoped per-permission for the same reason as the cut job above: the
+      # same App backs dependabot-lockfix, and `permission-*` caps THIS token at
+      # what grooming needs regardless of what the installation holds. Omitting
+      # these does not mint a narrow token — it mints the union of every grant
+      # the App has, silently. `contents: write` is what makes it push-access for
+      # the draft listing; it is not there only for the changelog commit.
+      - name: Mint a short-lived GitHub App token
+        id: app
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ secrets.LOCKFIX_APP_CLIENT_ID }}
+          private-key: ${{ secrets.LOCKFIX_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+          permission-issues: write
+
+      # The actual guarantee. A DRAFT release was cut but never published, so it
+      # has no git tag, so release-please cannot resolve the changelog boundary
+      # through it — grooming then restates every earlier release over a correct
+      # PR. Probing for that is what makes this correct in EVERY run, not just
+      # the one where `promote` failed; see the comment above the job.
+      #
+      # Scoped to the ONE release that can be the boundary, not to any draft in
+      # the repo. release-please reads the current version from the committed
+      # manifest, so `v<manifest version>` is exactly the release it will try to
+      # resolve — this asks whether that specific release is still an unpublished
+      # draft. A hand-made draft under some other tag (`preview-notes`, a
+      # backport note) is none of our business and must not wedge grooming shut
+      # forever; the first version of this guard blocked on any draft at all and
+      # would have (#411 review).
+      #
+      # No checkout here, so `gh` has no git remote to infer the repository from:
+      # GH_REPO supplies it out of band, exactly as the promote job does. The tag
+      # goes through the environment into `$ENV.TAG` rather than being
+      # interpolated into the jq program. `--paginate` because the boundary
+      # release may be older than the first page, and `paste` rather than `head`
+      # because a closed pipe under `pipefail` would fail the step.
+      - name: Refuse to groom while the boundary release has no tag
+        id: guard
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          # A 404 and a rate-limit are NOT the same answer. Swallowing every
+          # failure into an empty version would make a transient API error read
+          # as "this repo has never released", and grooming would then proceed
+          # with no boundary check at all — the guard failing open, which is the
+          # one outcome worse than not having it.
+          err=$(mktemp)
+          if version=$(gh api "repos/$GH_REPO/contents/.release-please-manifest.json" \
+                -H "Accept: application/vnd.github.raw" --jq '."."' 2>"$err"); then
+            :
+          elif grep -q 'HTTP 404' "$err"; then
+            version=""
+          else
+            cat "$err" >&2
+            rm -f "$err"
+            echo "::error::Could not read .release-please-manifest.json — refusing to groom without a boundary check."
+            exit 1
+          fi
+          rm -f "$err"
+
+          if [ -z "$version" ] || [ "$version" = "null" ]; then
+            # No manifest version means no previous release to resolve a
+            # boundary against — there is nothing here to get wrong, and this is
+            # the state a repo is in before its FIRST release. Skipping would
+            # deadlock that repo: grooming never runs, so no release PR is ever
+            # opened. Proceed, and say why.
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::No version in .release-please-manifest.json — grooming without a boundary check (expected before the first release)."
+            exit 0
+          fi
+
+          blocked=$(TAG="v$version" gh api --paginate "repos/$GH_REPO/releases" \
+            --jq '.[] | select(.draft and .tag_name == $ENV.TAG) | .tag_name' | paste -sd' ' -)
+
+          if [ -n "$blocked" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "::warning::Release PR not groomed — ${blocked} is still an unpublished draft, so it has no git tag and release-please cannot resolve the changelog boundary. Promote it (Release workflow, dispatch by tag) and the next push will groom correctly."
+            {
+              echo "### Release PR not groomed"
+              echo
+              echo "\`${blocked}\` was cut but never published, so it has no git tag."
+              echo
+              echo "release-please resolves the changelog boundary through that tag; without it, grooming would restate every earlier release's entries over a correct PR. Promote the draft, then any push grooms correctly."
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run release-please
+        if: steps.guard.outputs.skip != 'true'
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          token: ${{ steps.app.outputs.token }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+          # PR-maintenance pass ONLY — the release was already cut above, and a
+          # second attempt would report release_created: false anyway.
+          skip-github-release: true

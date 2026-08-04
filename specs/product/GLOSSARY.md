@@ -94,6 +94,32 @@ remainder controls; each screen still renders its own form and owns its own
 state and submission. So the two can drift, and keeping them saying the same
 thing is a review obligation, not something the code enforces.
 
+**Condition grade (#396)** — the Cracked and Dirty grades, fed by the Daily
+Entry's own **counters** rather than by a hand-typed grade line. A farm may sell
+them as separate stock (both are saleable on a new installation) or keep them as
+losses by switching either off; **Discarded** is always a loss and is never a
+condition grade.
+
+Two things make the binding safe to rename around. The grade carries a fixed
+**kind** (`Cracked` / `Dirty`) rather than being matched on its name, so renaming
+"Cracked" to "Segunda" does not detach the counter from the grade. And the entry
+**snapshots** which grade each counter resolved to at the moment it became
+official — so turning a grade off later never rewrites a past day, and turning
+one on never invents stock for a day recorded as a loss. Resolution requires the
+grade to be **both active and saleable**; anything else records the condition as
+a loss.
+
+A condition grade can never be entered as a manual grade line — the server
+refuses it, not just the screen. Its counter already produces a lot, so a manual
+line naming it would produce a second lot for the same grade on the same day.
+
+**Condition (Reports / History column, #396)** — the eggs a day produced that
+became stock **without being hand-graded**: the condition counters above, counted
+only where that entry resolved them to a grade. Deliberately shown beside
+**Sellable** rather than added into it — Sellable is the hand-graded remainder
+and the figure grading counts down to, so the two answer different questions and
+are added together to get everything the day produced that can be sold.
+
 **Left to grade (#134)** — grading counts **down** to zero rather than reporting
 *graded n of m*. The figure beside the grades is how many sellable eggs are
 still unaccounted for; it turns green when the day adds up exactly and red when

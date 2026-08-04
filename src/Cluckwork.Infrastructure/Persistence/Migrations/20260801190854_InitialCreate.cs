@@ -194,6 +194,15 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                     DirtyEggs = table.Column<int>(type: "integer", nullable: false),
                     DiscardedEggs = table.Column<int>(type: "integer", nullable: false),
                     MortalityCount = table.Column<int>(type: "integer", nullable: false),
+                    // #396 — the grade each condition counter resolved to when
+                    // this entry became official, or NULL when that condition was
+                    // a loss. NULL is a RECORDED OUTCOME, not "unknown": a draft
+                    // has not resolved yet, and an official entry that reads NULL
+                    // is stating that those eggs were never stock. Deliberately
+                    // no FK to EggGrades — the snapshot must survive its grade
+                    // being deleted, exactly as it must survive a rename.
+                    CrackedGradeId = table.Column<Guid>(type: "uuid", nullable: true),
+                    DirtyGradeId = table.Column<Guid>(type: "uuid", nullable: true),
                     AdjustReason = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true),
                     AdjustedFromJson = table.Column<string>(type: "text", nullable: true),
                     VoidReason = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true),
@@ -236,6 +245,16 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                     SortOrder = table.Column<int>(type: "integer", nullable: false),
                     IsSaleable = table.Column<bool>(type: "boolean", nullable: false),
                     Active = table.Column<bool>(type: "boolean", nullable: false),
+                    // #396 — which Daily Entry counter feeds this grade. Defaults
+                    // to 'Manual' so every ordinary grade, and every row an older
+                    // writer inserts without naming a kind, is a hand-graded one:
+                    // a condition binding is only ever created deliberately. The
+                    // partial unique index below is what keeps a farm from having
+                    // two Cracked grades; the default must therefore stay
+                    // 'Manual', since that value is the one the filter excludes.
+                    DailyEntryKind = table.Column<string>(
+                        type: "character varying(16)", maxLength: 16, nullable: false,
+                        defaultValue: "Manual"),
                     Version = table.Column<int>(type: "integer", nullable: false),
                     AccountId = table.Column<Guid>(type: "uuid", nullable: false)
                 },
@@ -1311,6 +1330,23 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                 table: "WaterUsages",
                 columns: new[] { "FlockId", "Date" });
 
+            // #396 — one Cracked and one Dirty grade per farm. The Daily Entry
+            // has exactly one counter for each, so a second claimant would make
+            // "which grade does this counter feed" ambiguous and resolution
+            // would silently pick one. Partial, so the many ordinary 'Manual'
+            // grades stay unconstrained — which is also why 'Manual' must remain
+            // the column default (see the EggGrades table above).
+            //
+            // EF CAN model this one (unlike the four lower("Name") expression
+            // indexes below), so it lives above the hand-carried line and is
+            // reproduced by a regenerate.
+            migrationBuilder.CreateIndex(
+                name: "IX_EggGrades_AccountId_FarmId_DailyEntryKind",
+                table: "EggGrades",
+                columns: new[] { "AccountId", "FarmId", "DailyEntryKind" },
+                unique: true,
+                filter: "\"DailyEntryKind\" <> 'Manual'");
+
             // ---------------------------------------------------------------
             // Carried forward by hand from the squashed history (#245).
             // Everything above this line is regenerated from the EF model;
@@ -1423,21 +1459,28 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
             // not reference "Name", so either all ten insert or none do). ---
             migrationBuilder.Sql(
                 """
-                INSERT INTO "EggGrades" ("Id", "AccountId", "FarmId", "Name", "GradeType", "SortOrder", "IsSaleable", "Active", "Version")
+                INSERT INTO "EggGrades" ("Id", "AccountId", "FarmId", "Name", "GradeType", "SortOrder", "IsSaleable", "DailyEntryKind", "Active", "Version")
                 SELECT v.id::uuid, '0000000a-0000-0000-0000-000000000001', '0000000f-0000-0000-0000-000000000001',
-                       v.name, v.grade_type, v.sort_order, v.is_saleable, TRUE, 0
+                       v.name, v.grade_type, v.sort_order, v.is_saleable, v.daily_entry_kind, TRUE, 0
                 FROM (VALUES
-                    ('0000000e-0000-0000-0000-000000000001', 'Small',        'Size',    0, TRUE),
-                    ('0000000e-0000-0000-0000-000000000002', 'Medium',       'Size',    1, TRUE),
-                    ('0000000e-0000-0000-0000-000000000003', 'Large',        'Size',    2, TRUE),
-                    ('0000000e-0000-0000-0000-000000000004', 'Jumbo',        'Size',    3, TRUE),
-                    ('0000000e-0000-0000-0000-000000000005', 'Seconds',      'Quality', 4, TRUE),
-                    ('0000000e-0000-0000-0000-000000000006', 'Cracked',      'Quality', 5, FALSE),
-                    ('0000000e-0000-0000-0000-000000000007', 'Dirty',        'Quality', 6, FALSE),
-                    ('0000000e-0000-0000-0000-000000000008', 'Soft Shell',   'Quality', 7, FALSE),
-                    ('0000000e-0000-0000-0000-000000000009', 'Discarded',    'Custom',  8, FALSE),
-                    ('0000000e-0000-0000-0000-000000000010', 'Internal Use', 'Custom',  9, FALSE)
-                ) AS v(id, name, grade_type, sort_order, is_saleable)
+                    ('0000000e-0000-0000-0000-000000000001', 'Small',        'Size',    0, TRUE,  'Manual'),
+                    ('0000000e-0000-0000-0000-000000000002', 'Medium',       'Size',    1, TRUE,  'Manual'),
+                    ('0000000e-0000-0000-0000-000000000003', 'Large',        'Size',    2, TRUE,  'Manual'),
+                    ('0000000e-0000-0000-0000-000000000004', 'Jumbo',        'Size',    3, TRUE,  'Manual'),
+                    ('0000000e-0000-0000-0000-000000000005', 'Seconds',      'Quality', 4, TRUE,  'Manual'),
+                    -- #396 — Cracked and Dirty are SALEABLE by default and are
+                    -- the two counter-fed grades. Saleable is the product
+                    -- decision (a farm that does not sell them turns either off
+                    -- in Settings); the kind is the wiring, and is what makes
+                    -- the binding survive a rename. Discarded stays a loss and
+                    -- keeps 'Manual' precisely because no counter resolves to a
+                    -- grade for it — discarded eggs never become stock.
+                    ('0000000e-0000-0000-0000-000000000006', 'Cracked',      'Quality', 5, TRUE,  'Cracked'),
+                    ('0000000e-0000-0000-0000-000000000007', 'Dirty',        'Quality', 6, TRUE,  'Dirty'),
+                    ('0000000e-0000-0000-0000-000000000008', 'Soft Shell',   'Quality', 7, FALSE, 'Manual'),
+                    ('0000000e-0000-0000-0000-000000000009', 'Discarded',    'Custom',  8, FALSE, 'Manual'),
+                    ('0000000e-0000-0000-0000-000000000010', 'Internal Use', 'Custom',  9, FALSE, 'Manual')
+                ) AS v(id, name, grade_type, sort_order, is_saleable, daily_entry_kind)
                 WHERE NOT EXISTS (
                     SELECT 1 FROM "EggGrades"
                     WHERE "AccountId" = '0000000a-0000-0000-0000-000000000001'

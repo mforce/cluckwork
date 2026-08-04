@@ -52,7 +52,7 @@ const mockRecordPayment = vi.mocked(recordPayment);
 const CUSTOMER: Customer = { id: "c1", name: "Acme Eggs", phone: "555", email: null, address: null, note: null };
 // Only gr1 is saleable → the picker offers PRODUCT_A only; gr2/PRODUCT_B exists
 // solely to resolve the second line's display name (allProducts).
-const GRADE: EggGrade = { id: "gr1", farmId: "farm1", name: "Grade A", gradeType: "Size", sortOrder: 1, isSaleable: true, active: true };
+const GRADE: EggGrade = { id: "gr1", farmId: "farm1", name: "Grade A", gradeType: "Size", sortOrder: 1, isSaleable: true, dailyEntryKind: "Manual", active: true };
 const PRODUCT_A: Product = {
   id: "p1", name: "Grade A Dozen", productType: "Egg", defaultUnit: "Dozen",
   defaultPriceMinorUnits: 300, currencyCode: "USD", currencyMinorUnit: 2,

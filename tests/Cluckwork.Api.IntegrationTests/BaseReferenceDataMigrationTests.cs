@@ -1,6 +1,7 @@
 namespace Cluckwork.Api.IntegrationTests;
 
 using Cluckwork.Domain.Accounts;
+using Cluckwork.Domain.Eggs;
 using Cluckwork.Infrastructure.Persistence;
 using Cluckwork.Infrastructure.Persistence.Interceptors;
 using Cluckwork.Infrastructure.Providers;
@@ -100,5 +101,76 @@ public sealed class BaseReferenceDataMigrationTests
 
         Assert.NotNull(duplicate);
         Assert.Contains("IX_EggGrades_AccountId_FarmId_LowerName", duplicate.ToString(), StringComparison.Ordinal);
+    }
+
+    // #396 — the product decision ("Cracked and Dirty are saleable on a fresh
+    // install, and each is bound to its counter") lives entirely in the seed
+    // SQL, where nothing else would notice it being reverted: the sibling test
+    // above counts ten grades and would still pass with every flag wrong.
+    [Fact]
+    public async Task MigratingAVirginDatabase_MakesTheTwoConditionGradesSaleableAndBound()
+    {
+        await using var postgres = new PostgreSqlBuilder(PostgresImage).Build();
+        await postgres.StartAsync();
+        await using var db = BuildContext(postgres.GetConnectionString());
+
+        await db.Database.MigrateAsync();
+
+        var grades = await db.EggGrades.IgnoreQueryFilters()
+            .Where(g => g.AccountId == SeedDefaults.AccountId && g.FarmId == SeedDefaults.FarmId)
+            .ToListAsync();
+
+        var cracked = Assert.Single(grades, g => g.DailyEntryKind == DailyEntryKind.Cracked);
+        var dirty = Assert.Single(grades, g => g.DailyEntryKind == DailyEntryKind.Dirty);
+
+        Assert.Equal("Cracked", cracked.Name);
+        Assert.Equal("Dirty", dirty.Name);
+        Assert.True(cracked.IsSaleable, "Cracked must be saleable on a fresh install (#396).");
+        Assert.True(dirty.IsSaleable, "Dirty must be saleable on a fresh install (#396).");
+
+        // Discarded is always a loss, so it must NOT be bound to a counter —
+        // binding it would make discarded eggs resolvable to stock.
+        Assert.Equal(
+            DailyEntryKind.Manual,
+            Assert.Single(grades, g => g.Name == "Discarded").DailyEntryKind);
+        Assert.False(Assert.Single(grades, g => g.Name == "Discarded").IsSaleable);
+
+        // Every other seeded grade is hand-graded.
+        Assert.Equal(8, grades.Count(g => g.DailyEntryKind == DailyEntryKind.Manual));
+    }
+
+    // The partial unique index, proved the same way as the expression indexes
+    // above — by the behaviour it exists to produce, not by its name. A name
+    // check passes against an index created without its WHERE clause, which
+    // would instead forbid a farm from having more than one Manual grade.
+    [Fact]
+    public async Task MigratingAVirginDatabase_AllowsManyManualGradesButOnlyOneOfEachCondition()
+    {
+        await using var postgres = new PostgreSqlBuilder(PostgresImage).Build();
+        await postgres.StartAsync();
+        await using var db = BuildContext(postgres.GetConnectionString());
+
+        await db.Database.MigrateAsync();
+
+        // A second Cracked for the same farm is refused.
+        var secondCracked = await Record.ExceptionAsync(() => db.Database.ExecuteSqlAsync($"""
+            INSERT INTO "EggGrades" ("Id", "AccountId", "FarmId", "Name", "GradeType", "SortOrder", "IsSaleable", "DailyEntryKind", "Active", "Version")
+            VALUES ({Guid.NewGuid()}, {SeedDefaults.AccountId}, {SeedDefaults.FarmId}, 'Cracked 2', 'Quality', 98, TRUE, 'Cracked', TRUE, 0)
+            """));
+
+        Assert.NotNull(secondCracked);
+        Assert.Contains(
+            "IX_EggGrades_AccountId_FarmId_DailyEntryKind",
+            secondCracked.ToString(),
+            StringComparison.Ordinal);
+
+        // ...but an eleventh Manual grade is fine. This is the half a filterless
+        // index would break, and it is why the column default must stay 'Manual'.
+        var anotherManual = await Record.ExceptionAsync(() => db.Database.ExecuteSqlAsync($"""
+            INSERT INTO "EggGrades" ("Id", "AccountId", "FarmId", "Name", "GradeType", "SortOrder", "IsSaleable", "DailyEntryKind", "Active", "Version")
+            VALUES ({Guid.NewGuid()}, {SeedDefaults.AccountId}, {SeedDefaults.FarmId}, 'Peewee', 'Size', 97, TRUE, 'Manual', TRUE, 0)
+            """));
+
+        Assert.Null(anotherManual);
     }
 }

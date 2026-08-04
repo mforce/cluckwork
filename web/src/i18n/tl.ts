@@ -1260,6 +1260,8 @@ export const tl = {
     // Filipino words (basag/marumi/tapon → b/m/t) — confirm this reads
     // clearly as a table-header abbreviation.
     lossesHeader: "Nasira (b/m/t)",
+    // #396 — machine-drafted, pending native review (#182).
+    conditionHeader: "May depekto",
     mortalityHeader: "Mortalidad",
     gradedHeader: "Na-grade",
     editButton: "i-edit",
@@ -1296,6 +1298,9 @@ export const tl = {
     eggsHeader: "Itlog",
     lossesHeader: "Nasira (b/m/t)",
     sellableHeader: "Maibebenta",
+    // #396 — basag/marumi na itlog na naging stock sa halip na malugi.
+    // Machine-drafted, pending native review (#182).
+    conditionHeader: "May depekto",
     deathsHeader: "Namatay",
     henDaysHeader: "Hen-days",
     henDayPctHeader: "Hen-day %",
@@ -1910,8 +1915,17 @@ export const tl = {
     reportsHeading: "Mga Report",
     reportsProduction:
       "<strong>Production</strong> (lahat): pumili ng date range — itlog kada araw, nawala, naibibenta, "
-      + "namatay, at <strong>hen-day %</strong> (itlog na nakolekta ÷ ibong buhay sa araw na iyon × 100), "
-      + "may kasamang period total at breakdown kada grado. Hindi binibilang ang draft at na-void na entry.",
+      + "may depekto, namatay, at <strong>hen-day %</strong> (itlog na nakolekta ÷ ibong buhay sa araw na "
+      + "iyon × 100), may kasamang period total at breakdown kada grado. Hindi binibilang ang draft at "
+      + "na-void na entry.",
+    // #396 — machine-drafted, pending native review (#182).
+    reportsCondition:
+      "<strong>May depekto</strong>: basag at maruming itlog na naging stock sa halip na ituring na "
+      + "lugi. Binibilang ang mga ito sa <strong>Bilang ng itlog</strong>, hindi kailanman gine-grade sa "
+      + "kamay, kaya wala ang mga ito sa <strong>Maibebenta</strong> — pagsamahin ang dalawa para makuha "
+      + "ang lahat ng naibebenta sa araw na iyon. Magpapakita ng 0 kung naka-off ang mga gradong iyon sa "
+      + "Settings, at ang mga araw na naitala bago mo ito i-on ay mananatiling 0 — ang pag-on ng grado ay "
+      + "hindi kailanman binabago ang nakaraang araw.",
     reportsMoney:
       "<strong>Pera</strong> (admin): buod ng benta para sa mga order ng range (kita / nabayaran / "
       + "natitira), gastos kada kategorya, at <strong>basic profit</strong> — nakumpirmang kita bawas ang "

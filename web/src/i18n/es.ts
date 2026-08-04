@@ -1223,6 +1223,8 @@ export const es = {
     // Spanish words (ag/su/de) — confirm this reads clearly as a
     // table-header abbreviation.
     lossesHeader: "Pérdidas (ag/su/de)",
+    // #396 — machine-drafted, pending native review (#182).
+    conditionHeader: "Con defecto",
     mortalityHeader: "Mortalidad",
     gradedHeader: "Clasificado",
     editButton: "editar",
@@ -1254,6 +1256,9 @@ export const es = {
     eggsHeader: "Huevos",
     lossesHeader: "Pérdidas (ag/su/de)",
     sellableHeader: "Vendible",
+    // #396 — huevos rajados/sucios que pasaron a inventario en vez de perderse.
+    // Machine-drafted, pending native review (#182).
+    conditionHeader: "Con defecto",
     deathsHeader: "Muertes",
     henDaysHeader: "Días-gallina",
     henDayPctHeader: "% días-gallina",
@@ -1839,9 +1844,17 @@ export const es = {
     reportsHeading: "Informes",
     reportsProduction:
       "<strong>Producción</strong> (todos): elija un rango de fechas — huevos por día, pérdidas, "
-      + "vendibles, muertes, y <strong>% de puesta diaria</strong> (huevos recolectados ÷ aves vivas ese "
-      + "día × 100), con totales del período y un desglose por grado. Las entradas en borrador y anuladas "
-      + "no cuentan.",
+      + "vendibles, con defecto, muertes, y <strong>% de puesta diaria</strong> (huevos recolectados ÷ "
+      + "aves vivas ese día × 100), con totales del período y un desglose por grado. Las entradas en "
+      + "borrador y anuladas no cuentan.",
+    // #396 — machine-drafted, pending native review (#182).
+    reportsCondition:
+      "<strong>Con defecto</strong>: huevos rajados y sucios que pasaron a inventario en vez de "
+      + "registrarse como pérdida. Se cuentan en <strong>Conteo de huevos</strong>, nunca se clasifican a "
+      + "mano, así que no forman parte de <strong>Vendible</strong> — sume ambos para obtener todo lo que "
+      + "el día produjo y usted puede vender. El día muestra 0 si esos grados están desactivados en "
+      + "Ajustes, y los días registrados antes de activarlos siguen mostrando 0: activar un grado nunca "
+      + "reescribe un día pasado.",
     reportsMoney:
       "<strong>Dinero</strong> (admin): resumen de ventas de los pedidos del rango (ingresos / pagado / "
       + "pendiente), gastos por categoría, y <strong>ganancia básica</strong> — ingresos confirmados menos "

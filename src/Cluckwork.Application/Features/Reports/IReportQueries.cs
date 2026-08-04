@@ -14,15 +14,26 @@ public interface IReportQueries
     Task<ProfitReport> GetProfitAsync(DateOnly from, DateOnly to, CancellationToken ct = default);
 }
 
+// #396 — `Sellable` is the HAND-GRADED remainder (total − cracked − dirty −
+// discarded): the figure Daily Entry's grading counts down to, and what #394
+// requires the grade lines to reconcile against exactly.
+//
+// `FromCounts` is the eggs that became stock WITHOUT being hand-graded — the
+// Cracked and Dirty counters, but only where the entry resolved that condition
+// to a grade (see DailyEntry.CrackedGradeId). Deliberately a SEPARATE figure
+// rather than folded into Sellable: the two answer different questions ("how
+// many did we grade" vs "how many can we sell"), they were only ever equal
+// because conditions used to be losses, and merging them would silently move
+// the number the capture screen is validated against.
 public sealed record ProductionDay(
     DateOnly Date, int TotalEggs, int Cracked, int Dirty, int Discarded,
-    int Sellable, int Deaths, long HenDays, decimal? HenDayPct);
+    int Sellable, int FromCounts, int Deaths, long HenDays, decimal? HenDayPct);
 
 public sealed record GradeTotal(Guid EggGradeId, string Name, int Quantity);
 
 public sealed record ProductionReport(
     IReadOnlyList<ProductionDay> Days,
-    int TotalEggs, int TotalSellable, int TotalDeaths,
+    int TotalEggs, int TotalSellable, int TotalFromCounts, int TotalDeaths,
     long TotalHenDays, decimal? PeriodHenDayPct,
     IReadOnlyList<GradeTotal> GradeTotals);
 

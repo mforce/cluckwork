@@ -362,7 +362,14 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
         var products = await db.Products.IgnoreQueryFilters()
             .Where(p => p.AccountId == SeedDefaults.AccountId)
             .ToListAsync();
-        foreach (var name in new[] { "Sim Large Eggs", "Sim Medium Eggs", "Sim Small Eggs" })
+        // #396: Cracked/Dirty are saleable grades that submit now mints lots
+        // for, so the catalog covers them too — without a product those lots
+        // are stock nothing can sell.
+        foreach (var name in new[]
+                 {
+                     "Sim Large Eggs", "Sim Medium Eggs", "Sim Small Eggs",
+                     "Sim Cracked Eggs", "Sim Dirty Eggs",
+                 })
             Assert.Contains(products, p => p.Name == name);
 
         var customers = await db.Customers.IgnoreQueryFilters()
@@ -471,12 +478,13 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
             .ToListAsync();
 
         // A second full seed pass converges rather than doubling — same
-        // three products, three customers, six orders (2 draft + 2
+        // five products (#396 added the two condition grades), three
+        // customers, six orders (2 draft + 2
         // confirmed-unpaid + 1 confirmed-partially-paid + 1 recurring
         // confirmed, #243 Task 3d's RecurringStartDay/RecurringCadenceDays
         // drip — exactly one point lands inside a 12-day HistoryDays window)
         // as a single pass.
-        Assert.Equal(3, products.Count);
+        Assert.Equal(5, products.Count);
         Assert.Equal(3, customers.Count);
         Assert.Equal(6, orders.Count);
         Assert.DoesNotContain(products.GroupBy(p => p.Name), g => g.Count() > 1);
@@ -813,6 +821,13 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
     private const int ExpectedDraftWindowDays = 2;
     private const int ExpectedGradesPerDailyEntry = 3;
 
+    // #396: submit also mints a lot for each condition counter that resolved to
+    // a condition grade. Kept as its own constant, mirroring the seeder's
+    // ConditionLotsPerDailyEntry — the two answer different questions (grade
+    // LINES vs counter-backed lots) and a single merged "5" would hide which
+    // half moved if either changes.
+    private const int ExpectedConditionLotsPerDailyEntry = 2;
+
     [Fact]
     public async Task SimulationSeed_EmitsACompleteManifestWithValidatedCountsAndLifecycleStates()
     {
@@ -846,9 +861,13 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
         // #279 review Fix 2: one lot per grade (Large/Medium/Small) for every
         // entry that reached Submitted — Draft entries (the most recent
         // ExpectedDraftWindowDays per flock) never call SubmitDailyEntryHandler,
-        // so they mint no lots.
+        // so they mint no lots. #396 adds the two condition lots (Cracked and
+        // Dirty), which the seeder's own deterministic counter math keeps
+        // strictly positive on every entry, so they are minted on exactly the
+        // same population.
         Assert.Equal(
-            ExpectedGradesPerDailyEntry * 2 * (SimulationSeedFactory.HistoryDays - ExpectedDraftWindowDays),
+            (ExpectedGradesPerDailyEntry + ExpectedConditionLotsPerDailyEntry)
+                * 2 * (SimulationSeedFactory.HistoryDays - ExpectedDraftWindowDays),
             counts.EggLots);
         Assert.Equal(2 + ExpectedConfirmedOrders, counts.SalesOrdersTotal);
         Assert.Equal(1, counts.Payments);

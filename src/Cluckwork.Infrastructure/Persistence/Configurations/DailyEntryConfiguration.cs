@@ -86,6 +86,26 @@ public sealed class EggGradeConfiguration : IEntityTypeConfiguration<EggGrade>
             .HasMaxLength(16)
             .IsRequired();
 
+        // #396 — stored as a string like GradeType, for the same reason: the
+        // column stays readable in a psql session and an enum reorder cannot
+        // silently repoint existing rows to a different kind.
+        builder.Property(g => g.DailyEntryKind)
+            .HasConversion<string>()
+            .HasMaxLength(16)
+            .IsRequired();
+
+        // At most ONE Cracked and ONE Dirty grade per farm — the Daily Entry has
+        // exactly one counter for each, so a second claimant makes "which grade
+        // does this counter feed" ambiguous, and resolution would silently pick
+        // one. Filtered so the many ordinary Manual grades are unconstrained.
+        //
+        // Scoped per FARM rather than per account: grade rows are farm-owned
+        // (the case-insensitive name index is per farm too), so two farms in one
+        // account each get their own Cracked.
+        builder.HasIndex(g => new { g.AccountId, g.FarmId, g.DailyEntryKind })
+            .IsUnique()
+            .HasFilter("\"DailyEntryKind\" <> 'Manual'");
+
         builder.Property(g => g.Version).IsConcurrencyToken();
 
         // Name uniqueness is case-insensitive per farm — enforced by a raw

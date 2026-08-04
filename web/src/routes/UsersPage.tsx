@@ -344,7 +344,7 @@ export function UsersPage() {
     });
   }
 
-  if (error && users === null) return <section><h2>{t("heading")}</h2><p className="error">{error}</p></section>;
+  if (error && users === null) return <section><h2>{t("heading")}</h2><p className="error" role="alert">{error}</p></section>;
   if (users === null) return <section><h2>{t("heading")}</h2><p className="muted">{tc("loading")}</p></section>;
 
   return (
@@ -406,7 +406,7 @@ export function UsersPage() {
 
       {/* Each dialog carries its own error copy while it is up. */}
       {error && !creating && openUser === null && editUser === null && pwUser === null
-        && <p className="error">{error}</p>}
+        && <p className="error" role="alert">{error}</p>}
       {message && <p className="success">{message}</p>}
 
       <table className="data">

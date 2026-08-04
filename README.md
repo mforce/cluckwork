@@ -56,6 +56,48 @@ anything.
 
 This writes the generated one-time password to **stdout only** — never the application logger or the OTLP pipeline. A host's stdout collector (docker logs, journald, a platform log pipeline) may still capture it, so treat that output as sensitive while the password is valid. Sign in with it — the app immediately shows a **Set your password** screen and refuses everything else until you pick your own. Re-running the command against an already-provisioned account is a safe no-op.
 
+### Provisioning the first admin on a production host
+
+The form above is for the **dev stack** — it needs this repo's
+`deploy/docker-compose.yml`. A production host has none of that: no source tree,
+no SDK, no compose file — only the published image. Run the verb against the
+image directly, and note the credential it requires, because the invocation and
+that requirement are a **single** fact:
+
+```bash
+# The --env-file MUST carry the migrator/owner credential (the #263 role split),
+# NOT the runtime role. bootstrap-admin migrates the schema before it creates the
+# Owner, and the runtime role has no DDL — point this at the runtime env file and
+# it fails with `permission denied for schema public` after you were reasonably
+# sure you had it right.
+docker run --rm --env-file <owner-credential.env> \
+  ghcr.io/mforce/cluckwork@sha256:<digest> \
+  bootstrap-admin --email admin@example.com
+```
+
+Pass the **verb only** — the image's `ENTRYPOINT` is already
+`dotnet Cluckwork.Api.dll` and `docker run` *appends* to it, so repeating the
+binary makes `args[0]` be `dotnet`, which matches no verb and boots the web
+server instead of provisioning anything. Everything else matches the dev form:
+the generated one-time password goes to **stdout only** (treat it as sensitive; a
+host log collector may still capture it), first sign-in forces a **Set your
+password** screen, and a re-run against an already-provisioned account is a safe
+no-op.
+
+The dev forms are correct for the dev stack — they just stop there, for the two
+reasons that also make the production form look different:
+
+- the dev compose `app` service has **no pinned container address**, so a
+  one-shot `run --rm app …` can start beside the serving one; a production
+  manifest that pins the app's address (to name it from a reverse proxy) makes
+  that form fail with `Address already in use`.
+- the dev stack uses **one credential for everything**, so `app`'s env file
+  happens to hold DDL; a real deployment splits the migrator/owner and runtime
+  roles (#263), which is why the credential has to be called out explicitly here.
+
+Host-specific details — compose service names, network layout, concrete digests
+or env-file paths — live in the deployment repo, not here.
+
 ### Frontend development
 
 ```bash
@@ -109,6 +151,42 @@ carries the pre-squash migration history: the 34 migrations were replaced by a
 single `InitialCreate`, which EF then sees as pending and tries to apply over
 tables that already exist. Such a database cannot migrate forward — recreate it.
 
+### Changing the database schema
+
+**Add a migration. Never edit `InitialCreate`.**
+
+```bash
+# Against the local dev Postgres. The connection is fail-closed (#318): there is
+# no default, and every target is held to the same TLS floor as a Production
+# boot — the loopback opt-out below is what permits plaintext, and only for
+# localhost/127.0.0.1/::1.
+CLUCKWORK_MIGRATIONS_CONNECTION='Host=localhost;Port=5432;Database=cluckwork;Username=…;Password=…' \
+CLUCKWORK_MIGRATIONS_ALLOW_INSECURE_LOOPBACK=true \
+  dotnet ef migrations add <Name> \
+  -p src/Cluckwork.Infrastructure -s src/Cluckwork.Api
+```
+
+Before PR #407 the repo held exactly one migration and schema changes were
+hand-folded into it. That was only safe while the app had never been deployed —
+no database had applied the file yet, so rewriting it was free. **#407 was the
+cutover.** Now that a database exists which has already applied `InitialCreate`,
+EF will never re-run it, so a hand-folded column is a column that silently does
+not exist. It surfaces as broken behaviour (a failing login, a missing field),
+not as a migration error — which is precisely what makes it worth a rule.
+
+`InitialCreate` is also **not regenerable**: it carries four `lower("Name")`
+expression indexes EF cannot model and 21 rows of guarded reference-data SQL,
+and re-adding it would mint a new timestamp that desynchronises
+`__EFMigrationsHistory` everywhere. `MigrationSecurityReviewTests` fails if it
+stops being the first migration or loses its recorded id.
+
+A dev database created **before #407 merged** predates those folded-in columns —
+wipe and recreate it as above.
+
+The full reasoning — why the freeze, what the fingerprint guard covers, and what
+made the wrong versions of it pass — is in
+[`docs/decisions/407-migration-freeze.md`](docs/decisions/407-migration-freeze.md).
+
 ### Backup &amp; restore (self-hosted)
 
 Two complementary layers (spec §17.5):
@@ -142,13 +220,21 @@ checks are Phase 1.5.
 dotnet test Cluckwork.sln    # integration tests spin up Postgres via Docker
 ```
 
-Optional: `git config core.hooksPath .githooks` enables a fast pre-commit hook
-(unit tests for staged .NET changes, typecheck for staged `web/` changes).
+Optional: `git config core.hooksPath .githooks` enables two fast hooks —
+**pre-commit** (unit tests for staged .NET changes, typecheck for staged `web/`
+changes) and **commit-msg** (rejects a message release-please would silently drop
+from the changelog; see [Writing a commit message](#writing-a-commit-message)).
 
 ## Releases & container images
 
 Releasing has two stages: **CI publishes an image for every merge; you decide when
 those become a version.**
+
+> This section is the **how-to**. The **invariants** — what not to break, and why
+> each step is shaped the way it is — live in the release section of
+> [`AGENTS.md`](AGENTS.md#releases-and-image-publishing-351); the full internal
+> mechanism (promotion, the release-please split, the App token, the commit-body
+> parser) is in [`docs/decisions/351-releases.md`](docs/decisions/351-releases.md).
 
 ### 1. Merging a PR into `main`
 
@@ -181,7 +267,8 @@ rebuilt, so the bytes carrying `v0.4.0` are provably the bytes that passed CI.
 
 ### What decides the version
 
-Your **PR title** — it becomes the commit subject when the PR is squashed:
+Your **PR title** — or, on a **one-commit** branch, that commit's own subject,
+which GitHub uses instead. Either way it becomes the squashed commit subject:
 
 While the version is **below 1.0.0**, everything is deliberately damped one level —
 the project is pre-1.0 and shouldn't burn major digits on Phase 1.x churn:
@@ -205,6 +292,71 @@ you mean it, not by accident.
 That is not as noisy as it sounds, because the bump lands in the **pending release
 PR**, not in a release. Several chore merges accumulate into one proposed patch, and
 nothing is released until you merge that PR.
+
+### Writing a commit message
+
+**Subject:** `type(scope): summary`, lowercase type, no space before the colon.
+The scope is free-form — the area touched. Real examples from this repo:
+
+| type | changelog section | example |
+|---|---|---|
+| `feat` | Features | `feat(eggs): make cracked and dirty eggs sellable stock via condition grades` |
+| `fix` | Bug fixes | `fix(sales): reject fractional order-line quantities` |
+| `perf` | Performance | `perf(reports): stream the CSV export instead of buffering it` |
+| `refactor` | Refactoring | `refactor(api): extract service registration from Program` |
+| `docs` | Documentation | `docs(agents): record the guard-writing rules #407 paid five rounds for` |
+| `ci` | *hidden* | `ci(e2e): workflow_dispatch job for the Playwright smoke suite` |
+| `test` | *hidden* | `test(e2e): Playwright smoke suite for the SPA over the #243 sim fixture` |
+| `build` | *hidden* | `build(deps): bump Npgsql to 10.0.2` |
+| `chore` | *hidden* | `chore(web): drop the unused date-fns dependency` |
+| `style` | *hidden* | `style(web): apply Prettier to the untouched settings screens` |
+
+Add `!` for a breaking change — `feat(api)!: drop the v0 endpoints` — or a
+`BREAKING CHANGE:` footer. *Hidden* types stay out of the changelog text but
+**still bump the patch digit** (see above); they cost a number, not a deploy.
+
+**Body:** release-please parses the whole message, body included, and the squash
+body is every branch commit message concatenated. One unparseable line drops the
+**entire commit** from the changelog — no entry, no version bump, green run. Two
+commits have already been lost this way.
+
+**Never start a line with `something(` that has another `(` inside it.** Ordinary
+code prose, and backticks do not protect it:
+
+```text
+fix(x): summary
+
+The fence is the test:
+Assert.Single(AllMigrations()) fails when a second appears.
+^^^^^^^^^^^^^^             ^
+│                          └─ a second "(" before the first one closes
+└─ line STARTS with  word(
+```
+
+release-please reads a line-initial `word(` as a `type(scope):` header. A scope
+cannot contain `(`, so the parse fails — and a failed parse means **this whole
+commit is skipped**, not just this line.
+
+Move the line off column 1 and it is fine. Nothing else changes:
+
+```text
+fix(x): summary
+
+The fence is the test:
+
+  Assert.Single(AllMigrations())
+^^
+└─ two spaces. The line no longer starts with the shape.
+
+fails when a second appears.
+```
+
+A `- ` list item or any word in front works equally well. Only line *starts*
+matter, so `see foo(x) and bar(y())` mid-sentence was never a problem.
+
+`.githooks/commit-msg` catches this and prints the rewrites applied to your own
+line. It cannot see a **PR title**, so a non-conventional title is still yours and
+the reviewer's to catch. [`AGENTS.md`](AGENTS.md) is canonical.
 
 ### Deploying
 

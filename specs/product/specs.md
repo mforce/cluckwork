@@ -901,6 +901,7 @@ egg_grades
 - farm_id
 - name
 - grade_type: size / quality / custom
+- daily_entry_kind: manual / cracked / dirty
 - sort_order
 - is_saleable
 - is_default
@@ -922,6 +923,26 @@ Internal Use
 Seconds
 ```
 
+The default Cracked and Dirty quality grades are active and saleable on a new
+installation. A farm may independently mark either grade non-saleable.
+
+`daily_entry_kind` is immutable and makes the one grade fed by a Daily Entry
+condition counter explicit. It is not inferred from a mutable grade name:
+
+```text
+manual  = entered in the Grading pane
+cracked = populated from the Cracked counter
+dirty   = populated from the Dirty counter
+```
+
+There is at most one Cracked and one Dirty kind per farm. The manual Grading
+pane excludes both condition grades, and the record and adjust handlers reject
+a manual line naming either — so a condition egg cannot be entered a second
+time as a manual grade, whether through the app or a direct API call. The
+server check is what makes that true: manual lines are otherwise accepted on
+saleability alone, and a condition grade named manually would produce a second
+lot for the same grade alongside its counter-backed one.
+
 ## 9.2 Daily production by grade
 
 ```text
@@ -938,6 +959,44 @@ daily_egg_grade_entries
 - created_at
 - updated_at
 ```
+
+Daily Entry retains the three observed condition counters (`cracked`, `dirty`,
+and `discarded`). Cracked and Dirty are saleable only when the configured
+condition grade is **both active and saleable**. Both flags are required and
+neither implies the other: deactivating a grade leaves its saleable flag
+untouched, so an inactive-but-saleable grade is an ordinary reachable state,
+and resolving on saleability alone would mint stock under a grade the farm has
+already retired from capture. On the first official save, the entry snapshots
+the resolved Cracked and Dirty grade id (or null when that condition is a loss,
+whether because the grade is non-saleable or because it is inactive). The
+snapshot controls future reporting and lot reconciliation, so a later catalog
+change never reclassifies historical production.
+
+The manual grade lines must reconcile exactly when an entry becomes official:
+
+```text
+manual grade total = total eggs − cracked − dirty − discarded
+```
+
+Drafts may remain incomplete. Submitting or manager-adjusting must satisfy the
+equation. The submitted entry creates one lot per manual grade, plus one lot
+for each non-null condition snapshot whose counter is positive that day — a
+snapshot is always recorded once its condition grade is both active and
+saleable, but a zero-cracked or zero-dirty day creates no lot for that
+condition, since a lot cannot hold a zero quantity. Discarded eggs are always a
+loss. Total marketable production is the manual grade total plus any Cracked
+and Dirty counts represented by a non-null snapshot.
+
+The snapshot columns are nullable and are never backfilled: the system does not
+create lots for, or retroactively convert, production recorded before its
+condition grade resolved. Any entry that became official without a resolved
+condition keeps a null snapshot permanently, and reads treat that null as the
+durable answer "this condition was a loss that day" rather than as missing data.
+
+(Stated as a property of the columns rather than as a migration step. Under the
+single-migration rule a virgin database is the only starting state, so there is
+no population of pre-existing entries for a backfill to visit — and none should
+ever be added.)
 
 ## 9.3 Egg lots
 
@@ -1055,6 +1114,11 @@ Phase 1 assumes eggs are **graded at collection**: the daily grade entry (§9.2)
 the final grade of each egg. The lot's grade is fixed at production. This matches farms
 that candle/sort during collection and keeps the walking skeleton simple.
 
+Cracked and Dirty are final grades at collection too. Their counts are entered
+in Egg counts rather than the manual Grading pane, then materialize under the
+entry's snapshotted condition grade only when that grade is both active and
+saleable (§9.2).
+
 Phase 1 does **not** model a separate post-collection grading or wash/pack shift, nor
 moving eggs between grades after the lot exists.
 
@@ -1134,6 +1198,12 @@ Example:
 | Large Eggs | egg | Large |
 | Medium Eggs | egg | Medium |
 | Cracked Eggs | egg | Cracked |
+| Dirty Eggs | egg | Dirty |
+
+Each product owns its own optional default price. Cracked and Dirty products
+can be priced lower, but Cluckwork does not derive or enforce a discount from
+another product: each farm sets the price appropriate to its market. A sale
+continues to snapshot the actual selected product price.
 
 ## 10.3 Customers
 

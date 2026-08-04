@@ -319,6 +319,9 @@ export function HelpPage() {
           <Trans ns="help" i18nKey="reportsProduction" components={{ strong: <strong /> }} />
         </li>
         <li>
+          <Trans ns="help" i18nKey="reportsCondition" components={{ strong: <strong /> }} />
+        </li>
+        <li>
           <Trans ns="help" i18nKey="reportsMoney" components={{ strong: <strong /> }} />
         </li>
         <li>

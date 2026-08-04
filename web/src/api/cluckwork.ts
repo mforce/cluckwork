@@ -8,6 +8,15 @@ export interface EggGrade {
   gradeType: string;
   sortOrder: number;
   isSaleable: boolean;
+  /**
+   * #396 — "Manual" | "Cracked" | "Dirty". Which Daily Entry input feeds this
+   * grade. Not inferable from `name` (renameable) or `gradeType` (a farm can
+   * have many Quality grades, only one of which is the Cracked counter's).
+   *
+   * Used to keep the two counter-fed grades out of the Grading pane. That is an
+   * affordance only — the server refuses a manual line naming one regardless.
+   */
+  dailyEntryKind: string;
   active: boolean;
 }
 
@@ -51,6 +60,17 @@ export interface DailyEntry {
   dirtyEggs: number;
   discardedEggs: number;
   mortalityCount: number;
+  /**
+   * #396 — which grade each condition counter resolved to when this entry
+   * became official; null when that condition was a loss (and on any draft,
+   * which has not resolved yet — tell the two apart by `status`).
+   *
+   * The only way to know whether a past day's cracked eggs became stock: the
+   * current grade catalog cannot answer it, because the farm may have changed
+   * a grade's saleability since.
+   */
+  crackedGradeId: string | null;
+  dirtyGradeId: string | null;
   grades: GradeLine[];
   version: number;
   adjustReason: string | null;
@@ -729,7 +749,15 @@ export interface ProductionDay {
   cracked: number;
   dirty: number;
   discarded: number;
+  /** Hand-graded remainder: total − cracked − dirty − discarded (#394). */
   sellable: number;
+  /**
+   * #396 — eggs that became stock WITHOUT being hand-graded: the cracked and
+   * dirty counters, but only where that entry resolved the condition to a
+   * grade. Separate from `sellable` on purpose; the two answer different
+   * questions and were only ever equal while conditions were always losses.
+   */
+  fromCounts: number;
   deaths: number;
   henDays: number;
   henDayPct: number | null;
@@ -739,6 +767,7 @@ export interface ProductionReport {
   days: ProductionDay[];
   totalEggs: number;
   totalSellable: number;
+  totalFromCounts: number;
   totalDeaths: number;
   totalHenDays: number;
   periodHenDayPct: number | null;

@@ -32,13 +32,13 @@ const FLOCK: Flock = {
   placementDate: "2026-01-01", initialCount: 100, currentBirds: 98, status: "Active",
 };
 const ARCHIVED_FLOCK: Flock = { ...FLOCK, id: "f2", name: "Old Coop", status: "Archived" };
-const GRADE_A: EggGrade = { id: "gr1", farmId: "farm1", name: "Grade A", gradeType: "Size", sortOrder: 1, isSaleable: true, active: true };
-const GRADE_B: EggGrade = { id: "gr2", farmId: "farm1", name: "Grade B", gradeType: "Size", sortOrder: 2, isSaleable: true, active: true };
+const GRADE_A: EggGrade = { id: "gr1", farmId: "farm1", name: "Grade A", gradeType: "Size", sortOrder: 1, isSaleable: true, dailyEntryKind: "Manual", active: true };
+const GRADE_B: EggGrade = { id: "gr2", farmId: "farm1", name: "Grade B", gradeType: "Size", sortOrder: 2, isSaleable: true, dailyEntryKind: "Manual", active: true };
 
 // sellable = 100 − 2 − 3 − 5 = 90; two graded lines summing to 60 (within).
 const SUBMITTED: DailyEntry = {
   id: "de1", farmId: "farm1", houseId: "h1", flockId: "f1", date: "2026-07-19", status: "Submitted",
-  totalEggs: 100, crackedEggs: 2, dirtyEggs: 3, discardedEggs: 5, mortalityCount: 1,
+  totalEggs: 100, crackedEggs: 2, dirtyEggs: 3, discardedEggs: 5, mortalityCount: 1, crackedGradeId: null, dirtyGradeId: null,
   grades: [{ eggGradeId: "gr1", quantity: 40 }, { eggGradeId: "gr2", quantity: 20 }],
   version: 1, adjustReason: null, voidReason: null, lockedAtUtc: null, adjustedFrom: null,
 };
@@ -67,6 +67,77 @@ async function openAdjustPanel() {
   renderWithProviders(<HistoryPage />, { token: ADMIN });
   fireEvent.click(await screen.findByRole("button", { name: "adjust" }));
 }
+
+// #396 — the Condition column answers "how many of this day's cracked/dirty
+// eggs became stock", read from the ENTRY's own snapshot. It must never be
+// re-derived from the current grade catalog: a farm that switches Cracked off
+// today would otherwise see past days lose stock they already sold.
+// Columns: date, flock, status, total, losses, CONDITION, mortality, graded,
+// actions. Indexed rather than matched by text because "0" and the em dash both
+// occur in sibling cells, so a text query can pass against the wrong column.
+const conditionCell = (row: HTMLElement) => within(row).getAllByRole("cell")[5];
+
+describe("HistoryPage condition column", () => {
+  it("counts only the conditions this entry resolved to a grade", async () => {
+    // cracked 2 resolved (a grade id), dirty 3 did NOT (null) — so 2, not 5.
+    // Every number here is distinct, so a column wired to the wrong field, or
+    // one that sums the raw counters, produces a different value.
+    mockListDailyEntries.mockResolvedValue([
+      { ...SUBMITTED, crackedGradeId: "gr1", dirtyGradeId: null },
+    ]);
+    renderWithProviders(<HistoryPage />, { token: ADMIN });
+
+    const row = await screen.findByRole("row", { name: /2026-07-19/ });
+    within(row).getByText("2/3/5"); // Losses still shows all three counters
+    // By CELL, not by text: "2" also appears inside the losses cell, so a text
+    // match would pass against a column that renders the wrong number.
+    expect(conditionCell(row)).toHaveTextContent("2");
+  });
+
+  it("shows an em dash for a draft rather than 0", async () => {
+    // A draft has resolved nothing yet. 0 would state "these were a loss",
+    // which is a different fact and not yet true.
+    mockListDailyEntries.mockResolvedValue([DRAFT]);
+    renderWithProviders(<HistoryPage />, { token: ADMIN });
+
+    const row = await screen.findByRole("row", { name: /2026-07-18/ });
+    expect(conditionCell(row)).toHaveTextContent("—");
+  });
+
+  it("shows 0 for an official entry whose conditions were losses", async () => {
+    mockListDailyEntries.mockResolvedValue([SUBMITTED]); // both snapshots null
+    renderWithProviders(<HistoryPage />, { token: ADMIN });
+
+    const row = await screen.findByRole("row", { name: /2026-07-19/ });
+    expect(conditionCell(row)).toHaveTextContent("0");
+  });
+});
+
+// #396 — the adjust dialog is the Daily entry form, so the same rule holds:
+// a counter-fed grade is never offered for adding. Excluded from the CATALOG
+// half only — an existing line stays correctable whatever it names.
+describe("HistoryPage adjust panel excludes counter-fed grades", () => {
+  const CRACKED: EggGrade = {
+    id: "gr-cracked", farmId: "farm1", name: "Cracked", gradeType: "Quality",
+    sortOrder: 3, isSaleable: true, dailyEntryKind: "Cracked", active: true,
+  };
+
+  it("offers no grade field for a saleable, active condition grade", async () => {
+    mockListEggGrades.mockResolvedValue([GRADE_A, GRADE_B, CRACKED]);
+    mockListDailyEntries.mockResolvedValue([SUBMITTED]);
+    await openAdjustPanel();
+
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByLabelText("Grade A")).toBeInTheDocument();
+    // Scoped to the dialog: the row behind it also renders the word, and the
+    // dialog's own Egg-counts half has a Cracked COUNTER that must stay.
+    expect(within(dialog).queryByLabelText("Cracked")).toBeInTheDocument();
+    // ...so assert on the grade field specifically: the counter is the only
+    // "Cracked" control the dialog may show, and it is a count input, not a
+    // grade line. A grade field would make TWO.
+    expect(within(dialog).getAllByLabelText("Cracked")).toHaveLength(1);
+  });
+});
 
 describe("HistoryPage dialog dismissal", () => {
   it("closes the adjust dialog on Cancel without writing", async () => {
@@ -172,6 +243,9 @@ describe("HistoryPage adjust — reconciliation guard", () => {
     const [id, body] = mockAdjustDailyEntry.mock.calls[0];
     expect(id).toBe("de1");
     expect(body).toMatchObject({
+      // No crackedGradeId/dirtyGradeId here on purpose: an adjustment never
+      // re-resolves the condition grades, so the request does not carry them
+      // (#396). They live on the RESPONSE only.
       version: 1, totalEggs: 100, crackedEggs: 2, dirtyEggs: 3, discardedEggs: 5, mortalityCount: 1,
       reason: "recount", grades: [{ eggGradeId: "gr1", quantity: 45 }, { eggGradeId: "gr2", quantity: 45 }],
     });
