@@ -215,8 +215,13 @@ public sealed class StepUpGrantService(
             // failed /auth/step-up — a privileged password oracle — was
             // invisible to security telemetry. Same shape as LoginAsync's
             // wrong-password branch.
-            var justLockedOut = await AccountLockout.RecordFailedAccessAsync(userManager, db, user);
+            //
+            // Emitted BEFORE persisting lockout state (codex review round 2):
+            // RecordFailedAccessAsync is a durable write that can throw, and a
+            // throw there must not silently drop LoginFailed — the password was
+            // already confirmed wrong.
             securityEvents.LoginFailed();
+            var justLockedOut = await AccountLockout.RecordFailedAccessAsync(userManager, db, user);
             if (justLockedOut)
                 securityEvents.AccountLockedOut(user.Id);
             return Result.Failure<StepUpGrant>(WrongPasswordError);

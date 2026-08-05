@@ -1,6 +1,7 @@
 namespace Cluckwork.Api.IntegrationTests;
 
 using System.Collections.Concurrent;
+using System.Security.Cryptography;
 using Cluckwork.Api.Logging;
 using Serilog;
 using Serilog.Core;
@@ -95,6 +96,38 @@ public sealed class LogRedactionTests
         var rendered = e.RenderMessage();
         Assert.DoesNotContain(token, rendered);
         Assert.Contains("[REDACTED]", rendered);
+    }
+
+    // #273 codex review (round 3) — this repo's own refresh token
+    // (IdentityProvider.GenerateRefreshToken) is STANDARD, not URL-safe, Base64
+    // (Convert.ToBase64String), so it can contain '+' and '/'. A pattern
+    // missing either character class doesn't just fail to match — it redacts
+    // only up to that character and leaks the rest. 32 random bytes almost
+    // certainly contain both across enough attempts; loop deterministically
+    // instead of relying on one draw.
+    [Fact]
+    public void A_bearer_token_containing_plus_and_slash_is_redacted_in_full()
+    {
+        var (logger, events) = BuildLogger();
+        string token;
+        do
+        {
+            token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
+        } while (!token.Contains('+') || !token.Contains('/'));
+
+        logger.Information("Rejected header {Message}", $"Authorization: Bearer {token}");
+
+        var e = Assert.Single(events);
+        var rendered = e.RenderMessage();
+        Assert.DoesNotContain(token, rendered);
+        Assert.Contains("[REDACTED]", rendered);
+        // The bug this pins: a class missing '+'/'/' still matches "Bearer
+        // <prefix>" up to the first one and stops, leaving that character and
+        // everything after it — the TAIL — as unredacted literal text. The
+        // full-token check above passes even then (the contiguous string is
+        // broken by the partial redaction), so assert the tail specifically.
+        var tail = token[token.IndexOfAny(['+', '/'])..];
+        Assert.DoesNotContain(tail, rendered);
     }
 
     [Fact]

@@ -81,8 +81,15 @@ public sealed class SensitiveDataRedactionEnricher : ILogEventEnricher
         @"\beyJ[A-Za-z0-9_-]{7,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
+    // RFC 6750 §2.1's b64token alphabet (ALPHA / DIGIT / "-" / "." / "_" / "~" /
+    // "+" / "/", padded with "="). `+` and `/` matter concretely here: this
+    // repo's own refresh token (IdentityProvider.GenerateRefreshToken) is
+    // standard — not URL-safe — Base64, so it can contain either. Missing them
+    // from the class doesn't just miss a match; a value STARTING with one is
+    // skipped entirely, and one containing one mid-string is redacted only up
+    // to that character, leaking the remainder (codex review of #349).
     private static readonly Regex BearerPattern = new(
-        @"\bBearer\s+[A-Za-z0-9\-_.=]+",
+        @"\bBearer\s+[A-Za-z0-9\-._~+/=]+",
         RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
 
     // The KEY half of an ADO.NET-style connection-string credential pair

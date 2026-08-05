@@ -1,5 +1,6 @@
 namespace Cluckwork.Infrastructure.Identity;
 
+using System.Runtime.ExceptionServices;
 using System.Security.Cryptography;
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Common;
@@ -67,7 +68,6 @@ public sealed class IdentityProvider(
 
         if (!await userManager.CheckPasswordAsync(user, password))
         {
-            var justLockedOut = await RecordFailedAccessAsync(user);
             // #273 — LoginFailed carries NO user id/email on any of the three
             // branches (see SecurityEvents.LoginFailed): logging must not turn
             // into the identity-existence oracle the API response already
@@ -75,7 +75,16 @@ public sealed class IdentityProvider(
             // user on, because it only ever fires here — never on the
             // "user not found" branch — so its mere presence can't be used to
             // tell a nonexistent email apart from a wrong password.
+            //
+            // Emitted BEFORE persisting lockout state, not after: the password
+            // has already been confirmed wrong at this point, and
+            // RecordFailedAccessAsync is a durable write that can throw (DB
+            // trouble). A throw there must not silently drop LoginFailed from
+            // the stream — the wrong-password fact is real regardless of
+            // whether the lockout counter itself could be persisted
+            // (codex review of #349).
             securityEvents.LoginFailed();
+            var justLockedOut = await RecordFailedAccessAsync(user);
             if (justLockedOut)
                 securityEvents.AccountLockedOut(user.Id);
             return Result.Failure<TokenPair>(Error.Validation("Identity.InvalidCredentials", "Invalid email or password."));
@@ -268,7 +277,29 @@ public sealed class IdentityProvider(
             // exception EF raises depends on statement ordering inside the batch,
             // so a branch keyed on the exception type would be reading a coin
             // flip; whether our own token is durable is a fact.
-            if (await MintedTokenIsDurableAsync(newHash))
+            //
+            // The probe is itself a DB read (#269 codex review, #350 round 5's
+            // successor): under a SUSTAINED outage — not just the single blip the
+            // whole retry-then-probe dance is built to absorb — it can throw too,
+            // and a throw from inside this catch replaces it, skipping every
+            // branch below including the alert. Log the ROTATION's failure (ex),
+            // never the probe's — the probe throwing only corroborates the same
+            // outage — and preserve the fail-closed contract via
+            // ExceptionDispatchInfo so the original exception (type, message,
+            // stack) still reaches the caller unchanged (codex review of #349).
+            bool durable;
+            try
+            {
+                durable = await MintedTokenIsDurableAsync(newHash);
+            }
+            catch (Exception) when (ex is not OperationCanceledException)
+            {
+                LogRevocationFailed(ex, user.Id);
+                ExceptionDispatchInfo.Capture(ex).Throw();
+                throw; // unreachable; satisfies flow analysis
+            }
+
+            if (durable)
             {
                 // This attempt's rotation is durable, so deliver the token it
                 // minted. Same move IdempotencyMiddleware already makes on its own
