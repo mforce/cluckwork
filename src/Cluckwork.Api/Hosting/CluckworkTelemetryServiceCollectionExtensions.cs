@@ -34,10 +34,15 @@ internal static class CluckworkTelemetryServiceCollectionExtensions
         // owns the whole construction, including `ReadFrom.Configuration` /
         // `ReadFrom.Services`, because the guarantee it provides is that every
         // sink from either source sits behind the wrapper; read its class
-        // comment before changing how the logger is built here.
+        // comment before changing how the logger is built here. The enricher and
+        // exception-redaction delegate are this host's actual redaction CONTENT —
+        // RedactingLoggerPipeline itself stays agnostic of what SensitiveData-
+        // RedactionEnricher does (#426).
         services.AddSerilog(
             (registeredServices, cfg) =>
-                RedactingLoggerPipeline.Configure(cfg, configuration, registeredServices),
+                RedactingLoggerPipeline.Configure(
+                    cfg, configuration, registeredServices,
+                    new SensitiveDataRedactionEnricher(), SensitiveDataRedactionEnricher.RedactText),
             preserveStaticLogger: true);
 
         // Bind IDiagnosticContext property creation to THIS host's logger. The

@@ -1,5 +1,6 @@
 namespace Cluckwork.Api.Logging;
 
+using Microsoft.Extensions.Primitives;
 using Serilog;
 using Serilog.Configuration;
 using Serilog.Core;
@@ -9,12 +10,22 @@ using Serilog.Events;
 // that NO sink can be reached except through ExceptionRedactingSink.
 //
 // Why two stages rather than "add another enricher". Property redaction can be
-// an enricher (SensitiveDataRedactionEnricher mutates `logEvent.Properties`
-// in place), but `LogEvent.Exception` is get-only and Serilog offers no way for
-// an enricher or an ILogEventFilter to SUBSTITUTE an event. The only pipeline
-// element that receives an event and decides what the next element sees is a
-// sink. So the exception redactor has to be a sink wrapper — and a wrapper is
-// only a security control if it is impossible to register a sink beside it.
+// an enricher (it mutates `logEvent.Properties` in place), but `LogEvent.
+// Exception` is get-only and Serilog offers no way for an enricher or an
+// ILogEventFilter to SUBSTITUTE an event. The only pipeline element that
+// receives an event and decides what the next element sees is a sink. So the
+// exception redactor has to be a sink wrapper — and a wrapper is only a
+// security control if it is impossible to register a sink beside it.
+//
+// This class is deliberately just the WIRING: it takes an enricher and a
+// text-redaction function as parameters rather than referencing any specific
+// redaction implementation, so the pipeline mechanism (sink coverage, level
+// semantics) is reviewable and testable independent of what actually gets
+// redacted — see ExceptionRedactingSink. Split out of #273's log-redaction work
+// so this mechanism gets reviewed on its own terms; NOT YET WIRED into
+// CluckworkTelemetryServiceCollectionExtensions.AddCluckworkTelemetry, which
+// still builds a single-stage logger — that swap, plus the real redaction
+// content (SensitiveDataRedactionEnricher + RedactText), is the follow-up PR.
 //
 // Hence:
 //
@@ -33,9 +44,9 @@ using Serilog.Events;
 //     · every sink, from BOTH sources: `Serilog:WriteTo` in configuration and
 //       `ILogEventSink` registrations in DI (`ReadFrom.Services`, the #214 tap).
 //     · the configured enrichers (`Serilog:Enrich`, e.g. FromLogContext) and
-//       then SensitiveDataRedactionEnricher, in that order — the property
-//       redactor must run AFTER FromLogContext so that log-context properties
-//       are redacted too, which is only true if it is appended last.
+//       then the caller's `propertyEnricher`, in that order — it must run
+//       AFTER FromLogContext so that log-context properties are covered too,
+//       which is only true if it is appended last.
 //     · `MinimumLevel.Verbose()`, applied after the configuration is read: a
 //       sub-logger re-checks a forwarded event against its own flat minimum
 //       level and, unlike stage 1, does NOT re-apply the per-source override
@@ -57,10 +68,17 @@ public static class RedactingLoggerPipeline
     private static readonly string[] EventCreationSettings =
         ["MinimumLevel", "LevelSwitches", "Destructure", "Using"];
 
+    // `propertyEnricher` and `redactExceptionText` are the caller's redaction
+    // CONTENT; this method is only the wiring that guarantees every sink sees
+    // it. Keeping the two separate is what lets the pipeline mechanism be
+    // reviewed (and tested) independently of what gets redacted — see
+    // ExceptionRedactingSink.
     public static LoggerConfiguration Configure(
         LoggerConfiguration loggerConfiguration,
         IConfiguration configuration,
-        IServiceProvider services)
+        IServiceProvider services,
+        ILogEventEnricher propertyEnricher,
+        Func<string, string> redactExceptionText)
     {
         loggerConfiguration.ReadFrom.Configuration(EventCreationSettingsOf(configuration));
 
@@ -68,12 +86,12 @@ public static class RedactingLoggerPipeline
         // wrapped sink chain; WriteTo.Sink then attaches the wrapper — and only
         // the wrapper — as stage 1's single sink.
         var redactedSinks = LoggerSinkConfiguration.Wrap(
-            inner => new ExceptionRedactingSink(inner),
+            inner => new ExceptionRedactingSink(inner, redactExceptionText),
             sinks => sinks.Logger(stageTwo => stageTwo
                 .ReadFrom.Configuration(configuration)
                 .ReadFrom.Services(services)
                 .MinimumLevel.Verbose()
-                .Enrich.With(new SensitiveDataRedactionEnricher())));
+                .Enrich.With(propertyEnricher)));
 
         return loggerConfiguration.WriteTo.Sink(redactedSinks, LevelAlias.Minimum);
     }
@@ -84,14 +102,72 @@ public static class RedactingLoggerPipeline
     // meaning of `MinimumLevel` / `Destructure` stays whatever the library says
     // it is, from whichever provider (file, env var, test `UseSetting`) supplied
     // it.
-    private static IConfiguration EventCreationSettingsOf(IConfiguration configuration) =>
-        new ConfigurationBuilder()
-            .AddInMemoryCollection(
-                configuration.GetSection("Serilog")
-                    .AsEnumerable(makePathsRelative: true)
-                    .Where(entry => entry.Value is not null
-                        && EventCreationSettings.Any(setting =>
-                            entry.Key.StartsWith(setting, StringComparison.OrdinalIgnoreCase)))
-                    .Select(entry => new KeyValuePair<string, string?>($"Serilog:{entry.Key}", entry.Value)))
-            .Build();
+    //
+    // Wrapped in a reload-token-preserving view rather than handed back as a
+    // one-shot in-memory snapshot: Serilog.Settings.Configuration's dynamic
+    // MinimumLevel reload watches the RELOAD TOKEN of the exact `IConfiguration`
+    // instance passed to `ReadFrom.Configuration`, not `configuration`'s. A
+    // plain snapshot severs that token, so a running host would keep stage 1's
+    // startup levels forever — an `appsettings.json` edit under
+    // `reloadOnChange: true` could no longer raise verbosity, silently, with no
+    // error (codex review of #426).
+    // internal rather than private: RedactingLoggerPipelineTests asserts the
+    // reload-token behavior directly, since Configure()'s public surface has no
+    // other way to observe it.
+    internal static IConfiguration EventCreationSettingsOf(IConfiguration configuration) =>
+        new ReloadableFilteredConfiguration(configuration, EventCreationEntriesOf);
+
+    private static IEnumerable<KeyValuePair<string, string?>> EventCreationEntriesOf(IConfiguration configuration) =>
+        configuration.GetSection("Serilog")
+            .AsEnumerable(makePathsRelative: true)
+            .Where(entry => entry.Value is not null
+                && EventCreationSettings.Any(setting =>
+                    entry.Key.StartsWith(setting, StringComparison.OrdinalIgnoreCase)))
+            .Select(entry => new KeyValuePair<string, string?>($"Serilog:{entry.Key}", entry.Value));
+
+    // A read-only `IConfigurationRoot` holding a filtered snapshot of `source`,
+    // rebuilt and re-signaled on `source`'s own reload token so a consumer that
+    // (like Serilog.Settings.Configuration) subscribes to THIS instance's
+    // reload token still observes `source` changing. `ChangeToken.OnChange`
+    // re-subscribes after every fire, so this keeps working across repeated
+    // reloads, not just the first.
+    private sealed class ReloadableFilteredConfiguration : IConfigurationRoot, IDisposable
+    {
+        private readonly IConfiguration source;
+        private readonly Func<IConfiguration, IEnumerable<KeyValuePair<string, string?>>> filter;
+        private readonly IDisposable subscription;
+        private IConfigurationRoot snapshot;
+        private ConfigurationReloadToken reloadToken = new();
+
+        public ReloadableFilteredConfiguration(
+            IConfiguration source,
+            Func<IConfiguration, IEnumerable<KeyValuePair<string, string?>>> filter)
+        {
+            this.source = source;
+            this.filter = filter;
+            snapshot = BuildSnapshot();
+            subscription = ChangeToken.OnChange(source.GetReloadToken, Reload);
+        }
+
+        public void Reload()
+        {
+            snapshot = BuildSnapshot();
+            Interlocked.Exchange(ref reloadToken, new ConfigurationReloadToken()).OnReload();
+        }
+
+        private IConfigurationRoot BuildSnapshot() =>
+            new ConfigurationBuilder().AddInMemoryCollection(filter(source)).Build();
+
+        public string? this[string key]
+        {
+            get => snapshot[key];
+            set => snapshot[key] = value;
+        }
+
+        public IEnumerable<IConfigurationSection> GetChildren() => snapshot.GetChildren();
+        public IConfigurationSection GetSection(string key) => snapshot.GetSection(key);
+        public IChangeToken GetReloadToken() => reloadToken;
+        public IEnumerable<IConfigurationProvider> Providers => snapshot.Providers;
+        public void Dispose() => subscription.Dispose();
+    }
 }

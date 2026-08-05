@@ -3,17 +3,17 @@ namespace Cluckwork.Api.Logging;
 using Serilog.Core;
 using Serilog.Events;
 
-// #273 codex review (round 2, P1b) — the structural gap
-// SensitiveDataRedactionEnricher cannot close.
+// The structural gap a property-mutating ILogEventEnricher cannot close, split
+// out of #273's log-redaction work as its own reviewable unit (codex review
+// round 2, P1b).
 //
 // An ILogEventEnricher only ever sees `logEvent.Properties`. `LogEvent.Exception`
 // is a get-only property with no mutator and no Serilog API to replace it, and
 // Serilog renders it SEPARATELY from the properties (the `{Exception}` output
 // token calls `Exception.ToString()`; `Serilog.Formatting.Compact` writes the
-// same text as `@x`). So every `logger.LogError(ex, ...)` sent the exception's
-// message and stack text to the sinks completely unredacted — including
-// Npgsql's, whose messages routinely carry the connection string, and including
-// the Auth.RefreshRevocationFailed event this PR itself added.
+// same text as `@x`). So an ordinary `logger.LogError(ex, ...)` sends the
+// exception's message and stack text to every sink completely unredacted —
+// including Npgsql's, whose messages routinely carry the connection string.
 //
 // The only place in Serilog's pipeline where an event can be REPLACED rather
 // than merely mutated is a sink. This wrapper therefore sits between the logger
@@ -27,11 +27,19 @@ using Serilog.Events;
 // which is the overwhelmingly common case: an ordinary exception keeps its real
 // CLR type, stack trace and inner-exception chain, and only an exception whose
 // rendered text actually contains something sensitive is substituted.
-public sealed class ExceptionRedactingSink(ILogEventSink inner) : ILogEventSink
+//
+// `redactText` is injected rather than calling SensitiveDataRedactionEnricher
+// directly: this sink and RedactingLoggerPipeline are the generic "every sink
+// sees a chance to rewrite the exception" MECHANISM, reviewable on its own
+// terms (wiring, level semantics, sink coverage) independent of what any
+// particular redaction function actually does. What runs through the delegate
+// is the caller's decision — see CluckworkTelemetryServiceCollectionExtensions
+// for the real one.
+public sealed class ExceptionRedactingSink(ILogEventSink inner, Func<string, string> redactText) : ILogEventSink, IDisposable
 {
     public void Emit(LogEvent logEvent)
     {
-        var replacement = RedactedException.For(logEvent.Exception);
+        var replacement = RedactedException.For(logEvent.Exception, redactText);
         inner.Emit(ReferenceEquals(replacement, logEvent.Exception)
             ? logEvent
             : new LogEvent(
@@ -43,6 +51,14 @@ public sealed class ExceptionRedactingSink(ILogEventSink inner) : ILogEventSink
                 logEvent.TraceId ?? default,
                 logEvent.SpanId ?? default));
     }
+
+    // `inner` is the stage-two sub-logger `LoggerSinkConfiguration.Wrap` built
+    // (a `SecondaryLoggerSink`, disposable). Serilog's root `AggregateSink` only
+    // disposes sinks it directly holds — this wrapper, not what it wraps — so
+    // without delegating here, stage two (and any buffered/disposable sink
+    // inside it) never gets disposed and shutdown can drop unflushed events
+    // (codex review of #426).
+    public void Dispose() => (inner as IDisposable)?.Dispose();
 }
 
 // Stand-in for an exception whose rendered text carried something sensitive.
@@ -63,16 +79,15 @@ public sealed class RedactedException : Exception
 
     // Returns the ORIGINAL instance when redaction changed nothing, so callers
     // can use reference equality to decide whether the event needs rebuilding.
-    public static Exception? For(Exception? exception)
+    public static Exception? For(Exception? exception, Func<string, string> redactText)
     {
         if (exception is null) return null;
 
         var rendered = exception.ToString();
-        var redacted = SensitiveDataRedactionEnricher.RedactText(rendered);
+        var redacted = redactText(rendered);
         return string.Equals(rendered, redacted, StringComparison.Ordinal)
             ? exception
-            : new RedactedException(
-                SensitiveDataRedactionEnricher.RedactText(exception.Message), redacted);
+            : new RedactedException(redactText(exception.Message), redacted);
     }
 
     public override string ToString() => detail;

@@ -15,8 +15,29 @@ using Serilog.Events;
 // ExceptionRedactingSink, and the level configuration must survive the
 // restructure that put them there. A unit test on the redaction helper alone
 // would pass while every one of those was broken.
+//
+// Deliberately uses a TRIVIAL local redact function/enricher, not the app's
+// real SensitiveDataRedactionEnricher: this suite proves the WIRING (every
+// sink sees a chance to rewrite the exception; level semantics survive the
+// restructure), which is independent of what any particular redaction
+// implementation actually does. The real enricher's own content coverage is
+// LogRedactionTests' concern.
 public sealed class RedactingLoggerPipelineTests
 {
+    // Matches the one shape these tests construct (Password="..."), standing in
+    // for whatever a real content-pattern redactor would do.
+    private static string RedactPasswordCredential(string text) =>
+        System.Text.RegularExpressions.Regex.Replace(text, "Password=\"[^\"]*\"", "Password=[REDACTED]");
+
+    private sealed class RedactPasswordPropertyEnricher : ILogEventEnricher
+    {
+        public void Enrich(LogEvent logEvent, ILogEventPropertyFactory propertyFactory)
+        {
+            if (logEvent.Properties.ContainsKey("Password"))
+                logEvent.AddOrUpdateProperty(new LogEventProperty("Password", new ScalarValue("[REDACTED]")));
+        }
+    }
+
     // Thrown and caught, never constructed: the text a sink receives is
     // Exception.ToString(), which only carries a real stack trace once the
     // runtime has actually thrown it.
@@ -62,7 +83,9 @@ public sealed class RedactingLoggerPipelineTests
             .BuildServiceProvider();
 
         var loggerConfiguration = new LoggerConfiguration();
-        RedactingLoggerPipeline.Configure(loggerConfiguration, configuration, services);
+        RedactingLoggerPipeline.Configure(
+            loggerConfiguration, configuration, services,
+            new RedactPasswordPropertyEnricher(), RedactPasswordCredential);
         return (loggerConfiguration.CreateLogger(), ConfigDeclaredCollectingSink.Events, di.Events);
     }
 
@@ -174,6 +197,59 @@ public sealed class RedactingLoggerPipelineTests
             Assert.DoesNotContain(secret, e.RenderMessage());
             Assert.Contains("[REDACTED]", e.RenderMessage());
         }
+    }
+
+    // Disposing the outer logger must reach stage two: ExceptionRedactingSink
+    // wraps the sub-logger LoggerSinkConfiguration.Wrap built, and only
+    // delegating Dispose() through it flushes/closes whatever stage two holds
+    // (codex review of #426 — silently missing this leaks buffered sinks).
+    [Fact]
+    public void Disposing_the_outer_logger_disposes_the_inner_sink_the_wrapper_wraps()
+    {
+        var disposableSink = new DisposableTrackingSink();
+        var logger = new LoggerConfiguration()
+            .WriteTo.Sink(new ExceptionRedactingSink(disposableSink, RedactPasswordCredential))
+            .CreateLogger();
+
+        logger.Dispose();
+
+        Assert.True(disposableSink.Disposed);
+    }
+
+    private sealed class DisposableTrackingSink : ILogEventSink, IDisposable
+    {
+        public bool Disposed { get; private set; }
+        public void Emit(LogEvent logEvent) { }
+        public void Dispose() => Disposed = true;
+    }
+
+    // A snapshot severs the reload token from `configuration`'s underlying
+    // provider (codex review of #426): once wired in, a running host could
+    // never raise verbosity via Serilog:MinimumLevel again after startup. This
+    // proves the filtered view stage 1 reads still fires ITS OWN reload token
+    // when the live source reloads.
+    [Fact]
+    public void The_event_creation_settings_view_still_reloads_when_the_source_configuration_reloads()
+    {
+        var source = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Serilog:MinimumLevel:Default"] = "Warning",
+            })
+            .Build();
+
+        var view = RedactingLoggerPipeline.EventCreationSettingsOf(source);
+        Assert.Equal("Warning", view["Serilog:MinimumLevel:Default"]);
+
+        var reloadToken = view.GetReloadToken();
+        var fired = false;
+        reloadToken.RegisterChangeCallback(_ => fired = true, null);
+
+        source["Serilog:MinimumLevel:Default"] = "Debug";
+        (source as IConfigurationRoot)!.Reload();
+
+        Assert.True(fired);
+        Assert.Equal("Debug", view["Serilog:MinimumLevel:Default"]);
     }
 }
 
