@@ -204,12 +204,14 @@ public sealed class RedactingLoggerPipelineTests
     // delegating Dispose() through it flushes/closes whatever stage two holds
     // (codex review of #426 — silently missing this leaks buffered sinks).
     [Fact]
-    public void Disposing_the_wrapper_disposes_the_inner_sink_it_wraps()
+    public void Disposing_the_outer_logger_disposes_the_inner_sink_the_wrapper_wraps()
     {
         var disposableSink = new DisposableTrackingSink();
-        var wrapper = new ExceptionRedactingSink(disposableSink, RedactPasswordCredential);
+        var logger = new LoggerConfiguration()
+            .WriteTo.Sink(new ExceptionRedactingSink(disposableSink, RedactPasswordCredential))
+            .CreateLogger();
 
-        wrapper.Dispose();
+        logger.Dispose();
 
         Assert.True(disposableSink.Disposed);
     }
