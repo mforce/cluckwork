@@ -30,6 +30,7 @@ public sealed class DurableJobWorker(
     DurableJobWorkerHeartbeat? heartbeat = null,
     DailyEntryLockSweep? lockSweep = null,
     RefreshTokenPurgeSweep? refreshTokenPurgeSweep = null,
+    IdempotencyRecordPurgeSweep? idempotencyRecordPurgeSweep = null,
     TimeSpan? pollInterval = null,
     TimeSpan? initialBackoff = null) : BackgroundService
 {
@@ -112,6 +113,8 @@ public sealed class DurableJobWorker(
             await lockSweep.RunAsync(ct);
         if (refreshTokenPurgeSweep is not null)
             await refreshTokenPurgeSweep.RunAsync(ct);
+        if (idempotencyRecordPurgeSweep is not null)
+            await idempotencyRecordPurgeSweep.RunAsync(ct);
     }
 }
 
