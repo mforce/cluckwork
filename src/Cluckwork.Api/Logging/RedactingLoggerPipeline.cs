@@ -1,5 +1,6 @@
 namespace Cluckwork.Api.Logging;
 
+using Microsoft.Extensions.Primitives;
 using Serilog;
 using Serilog.Configuration;
 using Serilog.Core;
@@ -101,14 +102,72 @@ public static class RedactingLoggerPipeline
     // meaning of `MinimumLevel` / `Destructure` stays whatever the library says
     // it is, from whichever provider (file, env var, test `UseSetting`) supplied
     // it.
-    private static IConfiguration EventCreationSettingsOf(IConfiguration configuration) =>
-        new ConfigurationBuilder()
-            .AddInMemoryCollection(
-                configuration.GetSection("Serilog")
-                    .AsEnumerable(makePathsRelative: true)
-                    .Where(entry => entry.Value is not null
-                        && EventCreationSettings.Any(setting =>
-                            entry.Key.StartsWith(setting, StringComparison.OrdinalIgnoreCase)))
-                    .Select(entry => new KeyValuePair<string, string?>($"Serilog:{entry.Key}", entry.Value)))
-            .Build();
+    //
+    // Wrapped in a reload-token-preserving view rather than handed back as a
+    // one-shot in-memory snapshot: Serilog.Settings.Configuration's dynamic
+    // MinimumLevel reload watches the RELOAD TOKEN of the exact `IConfiguration`
+    // instance passed to `ReadFrom.Configuration`, not `configuration`'s. A
+    // plain snapshot severs that token, so a running host would keep stage 1's
+    // startup levels forever — an `appsettings.json` edit under
+    // `reloadOnChange: true` could no longer raise verbosity, silently, with no
+    // error (codex review of #426).
+    // internal rather than private: RedactingLoggerPipelineTests asserts the
+    // reload-token behavior directly, since Configure()'s public surface has no
+    // other way to observe it.
+    internal static IConfiguration EventCreationSettingsOf(IConfiguration configuration) =>
+        new ReloadableFilteredConfiguration(configuration, EventCreationEntriesOf);
+
+    private static IEnumerable<KeyValuePair<string, string?>> EventCreationEntriesOf(IConfiguration configuration) =>
+        configuration.GetSection("Serilog")
+            .AsEnumerable(makePathsRelative: true)
+            .Where(entry => entry.Value is not null
+                && EventCreationSettings.Any(setting =>
+                    entry.Key.StartsWith(setting, StringComparison.OrdinalIgnoreCase)))
+            .Select(entry => new KeyValuePair<string, string?>($"Serilog:{entry.Key}", entry.Value));
+
+    // A read-only `IConfigurationRoot` holding a filtered snapshot of `source`,
+    // rebuilt and re-signaled on `source`'s own reload token so a consumer that
+    // (like Serilog.Settings.Configuration) subscribes to THIS instance's
+    // reload token still observes `source` changing. `ChangeToken.OnChange`
+    // re-subscribes after every fire, so this keeps working across repeated
+    // reloads, not just the first.
+    private sealed class ReloadableFilteredConfiguration : IConfigurationRoot, IDisposable
+    {
+        private readonly IConfiguration source;
+        private readonly Func<IConfiguration, IEnumerable<KeyValuePair<string, string?>>> filter;
+        private readonly IDisposable subscription;
+        private IConfigurationRoot snapshot;
+        private ConfigurationReloadToken reloadToken = new();
+
+        public ReloadableFilteredConfiguration(
+            IConfiguration source,
+            Func<IConfiguration, IEnumerable<KeyValuePair<string, string?>>> filter)
+        {
+            this.source = source;
+            this.filter = filter;
+            snapshot = BuildSnapshot();
+            subscription = ChangeToken.OnChange(source.GetReloadToken, Reload);
+        }
+
+        public void Reload()
+        {
+            snapshot = BuildSnapshot();
+            Interlocked.Exchange(ref reloadToken, new ConfigurationReloadToken()).OnReload();
+        }
+
+        private IConfigurationRoot BuildSnapshot() =>
+            new ConfigurationBuilder().AddInMemoryCollection(filter(source)).Build();
+
+        public string? this[string key]
+        {
+            get => snapshot[key];
+            set => snapshot[key] = value;
+        }
+
+        public IEnumerable<IConfigurationSection> GetChildren() => snapshot.GetChildren();
+        public IConfigurationSection GetSection(string key) => snapshot.GetSection(key);
+        public IChangeToken GetReloadToken() => reloadToken;
+        public IEnumerable<IConfigurationProvider> Providers => snapshot.Providers;
+        public void Dispose() => subscription.Dispose();
+    }
 }

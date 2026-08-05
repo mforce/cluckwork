@@ -35,7 +35,7 @@ using Serilog.Events;
 // particular redaction function actually does. What runs through the delegate
 // is the caller's decision — see CluckworkTelemetryServiceCollectionExtensions
 // for the real one.
-public sealed class ExceptionRedactingSink(ILogEventSink inner, Func<string, string> redactText) : ILogEventSink
+public sealed class ExceptionRedactingSink(ILogEventSink inner, Func<string, string> redactText) : ILogEventSink, IDisposable
 {
     public void Emit(LogEvent logEvent)
     {
@@ -51,6 +51,14 @@ public sealed class ExceptionRedactingSink(ILogEventSink inner, Func<string, str
                 logEvent.TraceId ?? default,
                 logEvent.SpanId ?? default));
     }
+
+    // `inner` is the stage-two sub-logger `LoggerSinkConfiguration.Wrap` built
+    // (a `SecondaryLoggerSink`, disposable). Serilog's root `AggregateSink` only
+    // disposes sinks it directly holds — this wrapper, not what it wraps — so
+    // without delegating here, stage two (and any buffered/disposable sink
+    // inside it) never gets disposed and shutdown can drop unflushed events
+    // (codex review of #426).
+    public void Dispose() => (inner as IDisposable)?.Dispose();
 }
 
 // Stand-in for an exception whose rendered text carried something sensitive.

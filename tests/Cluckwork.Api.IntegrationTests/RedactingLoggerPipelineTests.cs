@@ -198,6 +198,57 @@ public sealed class RedactingLoggerPipelineTests
             Assert.Contains("[REDACTED]", e.RenderMessage());
         }
     }
+
+    // Disposing the outer logger must reach stage two: ExceptionRedactingSink
+    // wraps the sub-logger LoggerSinkConfiguration.Wrap built, and only
+    // delegating Dispose() through it flushes/closes whatever stage two holds
+    // (codex review of #426 — silently missing this leaks buffered sinks).
+    [Fact]
+    public void Disposing_the_wrapper_disposes_the_inner_sink_it_wraps()
+    {
+        var disposableSink = new DisposableTrackingSink();
+        var wrapper = new ExceptionRedactingSink(disposableSink, RedactPasswordCredential);
+
+        wrapper.Dispose();
+
+        Assert.True(disposableSink.Disposed);
+    }
+
+    private sealed class DisposableTrackingSink : ILogEventSink, IDisposable
+    {
+        public bool Disposed { get; private set; }
+        public void Emit(LogEvent logEvent) { }
+        public void Dispose() => Disposed = true;
+    }
+
+    // A snapshot severs the reload token from `configuration`'s underlying
+    // provider (codex review of #426): once wired in, a running host could
+    // never raise verbosity via Serilog:MinimumLevel again after startup. This
+    // proves the filtered view stage 1 reads still fires ITS OWN reload token
+    // when the live source reloads.
+    [Fact]
+    public void The_event_creation_settings_view_still_reloads_when_the_source_configuration_reloads()
+    {
+        var source = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Serilog:MinimumLevel:Default"] = "Warning",
+            })
+            .Build();
+
+        var view = RedactingLoggerPipeline.EventCreationSettingsOf(source);
+        Assert.Equal("Warning", view["Serilog:MinimumLevel:Default"]);
+
+        var reloadToken = view.GetReloadToken();
+        var fired = false;
+        reloadToken.RegisterChangeCallback(_ => fired = true, null);
+
+        source["Serilog:MinimumLevel:Default"] = "Debug";
+        (source as IConfigurationRoot)!.Reload();
+
+        Assert.True(fired);
+        Assert.Equal("Debug", view["Serilog:MinimumLevel:Default"]);
+    }
 }
 
 // Instantiated by Serilog.Settings.Configuration from the `Serilog:WriteTo`
