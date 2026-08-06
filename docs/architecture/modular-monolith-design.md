@@ -252,11 +252,12 @@ settings and cross-domain atomicity are necessary business coupling.
    creation. It locks the item first, then — still enlisted inside that same inventory
    transaction — calls a narrow Flock Management query `GetFlockProductionEligibility(flockId,date)`
    before reading lots. The check must stay inside the transaction, not run as a precondition
-   before it opens: the current handler reads the flock and evaluates `CanRecordProductionOn`
-   after the item lock is already held, so a flock cannot be archived or depleted between
-   eligibility passing and the lot-consumption/usage rows committing. Moving the check outside
-   the transaction would reopen that race and change today's behavior. No event is suitable:
-   rejection must be immediate. All inventory writes are atomic.
+   before it opens: today's handler reads the flock and evaluates `CanRecordProductionOn` after
+   the item lock is already held, which shrinks a concurrent archive/deplete race to the commit
+   itself rather than closing it — the flock row is deliberately left unlocked (a same-day
+   deplete racing a same-day feed is business-valid either way; the birds ate before they left).
+   Moving the check outside the transaction would widen that window instead and change today's
+   behavior. No event is suitable: rejection must be immediate. All inventory writes are atomic.
 4. **Manager adjust/void.** Keep entry/lot/egg-ledger correction in Egg Operations and call
    Flock Management synchronously for the compensating mortality row in the same ambient
    transaction. Acquire lots in canonical order and preserve
@@ -365,6 +366,16 @@ make atomic workflows fragile without solving a demonstrated runtime problem.
 
 * Move configurations into owner-named folders/assemblies over time, discovered explicitly
   by Platform. Keep `AppDbContext` internal to Platform/implementation persistence adapters.
+* An EF relationship configuration whose fluent API needs a peer module's entity type — e.g.
+  `HasOne<Flock>()` for `Expense.FlockId`, even though `Expense`'s own domain model carries only
+  the ID — is a cross-owner *composition* concern, not something either module's Implementation
+  assembly may express: giving Finance that reference is the same peer-entity access the module
+  guard (§8.3) forbids, and stripping the relationship to avoid it changes the EF model digest a
+  pilot phase requires to stay identical. Configure the owning entity's own columns/indexes
+  inside its module's configuration; keep any relationship whose generic parameter names another
+  owner's entity in a Platform-owned composition file, discovered by Platform alongside the
+  per-owner configurations it already assembles. Authoring location only — FK column, index and
+  migration output are unchanged.
 * Never edit/regenerate `20260801190854_InitialCreate`. Keep one ordered migration stream;
   every schema change is a new migration. Structural extraction should require no schema
   migration. Preserve the model snapshot and the migration digest guards.
