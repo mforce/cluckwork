@@ -138,9 +138,8 @@ Commerce.ConfirmSale / VoidSale
     +--> Platform commits once, then publishes read/audit events
 
 Inventory.RecordFeedUsage
-    | read-only precondition
-    +--> Flock Management.GetFlockProductionEligibility
-    | inventory transaction
+    | inventory transaction, item lock held first
+    +--> Flock Management.GetFlockProductionEligibility (enlisted, after the item lock)
     +--> Inventory consumes FIFO lots and writes movement/usage rows
 ```
 
@@ -250,10 +249,13 @@ settings and cross-domain atomicity are necessary business coupling.
    transaction. Stock owns lot mutation, ledger rows and canonical `(ProductionDate, Id)`
    locks; Commerce owns order locks and provenance. The seam returns opaque DTOs, not lots.
 3. **Record feed usage.** General Inventory owns FIFO lot consumption and usage/movement
-   creation. It synchronously calls a narrow Flock Management query
-   `GetFlockProductionEligibility(flockId,date)` before its transaction. This is a read-only
-   precondition; the inventory transaction covers its item/lot/usage/movement writes. No
-   event is suitable:
+   creation. It locks the item first, then — still enlisted inside that same inventory
+   transaction — calls a narrow Flock Management query `GetFlockProductionEligibility(flockId,date)`
+   before reading lots. The check must stay inside the transaction, not run as a precondition
+   before it opens: the current handler reads the flock and evaluates `CanRecordProductionOn`
+   after the item lock is already held, so a flock cannot be archived or depleted between
+   eligibility passing and the lot-consumption/usage rows committing. Moving the check outside
+   the transaction would reopen that race and change today's behavior. No event is suitable:
    rejection must be immediate. All inventory writes are atomic.
 4. **Manager adjust/void.** Keep entry/lot/egg-ledger correction in Egg Operations and call
    Flock Management synchronously for the compensating mortality row in the same ambient
@@ -266,8 +268,14 @@ settings and cross-domain atomicity are necessary business coupling.
    entities or the context, and cannot call `SaveChanges`. Events may later populate read
    models, but are not required to manufacture module purity.
 6. **Identity/platform paths.** Access owns token/security state and credential epoch.
-   Tenant resolution is a Platform adapter calling Access/Farm contracts; middleware order
-   and fresh credential-epoch read stay unchanged. Idempotency wraps HTTP writes outside
+   Tenant identity resolution stays claim-only in Platform: `TenantResolutionMiddleware`
+   keeps populating `TenantContext` directly from the JWT `account_id` claim, before any
+   module contract runs. It must not route through Access/Farm contracts to establish tenant
+   identity — those calls would either execute tenant-filtered reads before `TenantContext`
+   exists or require bypassing filters mid-request, weakening the fail-closed tenant boundary.
+   Farm contracts are called only after `TenantContext` is already resolved (e.g. to read farm
+   settings), never to resolve it. Middleware order and fresh credential-epoch read stay
+   unchanged. Idempotency wraps HTTP writes outside
    module calls. Jobs call module interfaces (`LockDueDailyEntries`, token purge), not EF.
    Seeders and simulation become explicit orchestration adapters calling module bootstrap
    interfaces; migration/health remain Platform. Bootstrap and break-glass remain Access

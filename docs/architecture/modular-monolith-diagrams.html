@@ -456,11 +456,13 @@ flowchart TD
           <pre class="mermaid">
 flowchart TD
   R3[Inventory.RecordFeedUsage]
-  C1["Flock Management.GetFlockProductionEligibility&lt;br/&gt;(read-only precondition)"]
-  subgraph TX3["inventory transaction"]
+  subgraph TX3["inventory transaction — item lock held first"]
+    direction TB
+    C1["Flock Management.GetFlockProductionEligibility&lt;br/&gt;(enlisted, after the item lock)"]
     C2["Inventory consumes FIFO lots and&lt;br/&gt;writes movement/usage rows"]
+    C1 --> C2
   end
-  R3 --> C1 --> TX3
+  R3 --> TX3
 
   classDef accent stroke:#b8672a,stroke-width:2px,color:#b8672a;
   class TX3 accent
