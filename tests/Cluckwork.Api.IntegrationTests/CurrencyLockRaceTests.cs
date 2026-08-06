@@ -173,7 +173,12 @@ public sealed class CurrencyLockRaceTests(CluckworkWebApplicationFactory factory
             var handler = scope.ServiceProvider.GetRequiredService<UpdateFarmSettingsHandler>();
             return await handler.HandleAsync(ChangeCurrencyCommand(snapshot), CancellationToken.None);
         });
-        Assert.True(await factory.WaitUntilDoneOrBlockedAsync(change, holderPid),
+        // minBlockedCount: 2 (#402) — the writer is ALREADY parked at this
+        // point, so a plain "is anyone blocked" check would pass instantly
+        // without ever proving the change's own FOR UPDATE reached Postgres's
+        // wait queue. Requiring the count to reach 2 forces this to observe
+        // the change's registration before the fence below is released.
+        Assert.True(await factory.WaitUntilDoneOrBlockedAsync(change, holderPid, minBlockedCount: 2),
             "the change must queue up behind the same fence");
 
         // Release the fence without having changed anything. Writer commits
