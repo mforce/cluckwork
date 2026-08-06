@@ -1,0 +1,633 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cluckwork — Modular Monolith Diagrams</title>
+<style>
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161a;
+      --surface: #1b1e23;
+      --surface-2: #1f2227;
+      --ink: #e9e6df;
+      --ink-dim: #9aa0a8;
+      --line: #333841;
+      --accent: #d99a52;
+      --accent-soft: #3a2e21;
+      --risk: #e0685a;
+      --risk-soft: #3a2420;
+    }
+  }
+  :root {
+    --bg: #f5f4f1;
+    --surface: #ffffff;
+    --surface-2: #fbfaf7;
+    --ink: #1b1e22;
+    --ink-dim: #5c636b;
+    --line: #d9d6cf;
+    --accent: #b8672a;
+    --accent-soft: #f1e3d3;
+    --risk: #b3392b;
+    --risk-soft: #f6e1dd;
+  }
+
+  * { box-sizing: border-box; }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+  body {
+    margin: 0;
+    background:
+      repeating-linear-gradient(0deg, transparent, transparent 31px, color-mix(in srgb, var(--ink) 4%, transparent) 32px),
+      repeating-linear-gradient(90deg, transparent, transparent 31px, color-mix(in srgb, var(--ink) 4%, transparent) 32px),
+      var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    line-height: 1.55;
+  }
+
+  .mono {
+    font-family: ui-monospace, "SFMono-Regular", "JetBrains Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  }
+
+  main {
+    max-width: 920px;
+    margin: 0 auto;
+    padding: 56px 24px 96px;
+  }
+
+  header.titleblock {
+    border: 1px solid var(--line);
+    background: var(--surface);
+    padding: 28px 28px 24px;
+    margin-bottom: 40px;
+  }
+  .eyebrow {
+    font-family: ui-monospace, "SFMono-Regular", "JetBrains Mono", Menlo, Consolas, monospace;
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+  h1 {
+    font-family: ui-monospace, "SFMono-Regular", "JetBrains Mono", Menlo, Consolas, monospace;
+    font-size: clamp(26px, 4.4vw, 36px);
+    letter-spacing: -0.01em;
+    text-transform: uppercase;
+    margin: 0 0 10px;
+    text-wrap: balance;
+  }
+  header.titleblock p {
+    margin: 0;
+    max-width: 62ch;
+    color: var(--ink-dim);
+    font-size: 15px;
+  }
+  .titleblock .meta {
+    margin-top: 18px;
+    padding-top: 16px;
+    border-top: 1px dashed var(--line);
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 14px;
+    font-size: 12.5px;
+    color: var(--ink-dim);
+  }
+  .titleblock .meta b { color: var(--ink); font-weight: 600; display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 3px; }
+
+  section { margin-bottom: 52px; }
+
+  .section-head {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 6px;
+  }
+  .section-num {
+    font-family: ui-monospace, "SFMono-Regular", "JetBrains Mono", Menlo, Consolas, monospace;
+    font-size: 12px;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    padding: 1px 7px;
+    white-space: nowrap;
+  }
+  h2 {
+    font-family: ui-monospace, "SFMono-Regular", "JetBrains Mono", Menlo, Consolas, monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    font-size: 18px;
+    margin: 0;
+  }
+  .section-intro {
+    color: var(--ink-dim);
+    font-size: 14.5px;
+    max-width: 68ch;
+    margin: 10px 0 22px;
+  }
+
+  figure {
+    margin: 0 0 18px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    padding: 18px 18px 16px;
+  }
+  figure + figure { margin-top: 20px; }
+  .diagram-scroll {
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+  .diagram-scroll pre.mermaid {
+    min-width: 480px;
+  }
+  figcaption {
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px dashed var(--line);
+    font-size: 13.5px;
+    color: var(--ink-dim);
+  }
+  figcaption .fig-title {
+    display: block;
+    font-family: ui-monospace, "SFMono-Regular", "JetBrains Mono", Menlo, Consolas, monospace;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink);
+    margin-bottom: 4px;
+  }
+
+  .grid-3 {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 18px;
+  }
+  .grid-3 figure { margin: 0; }
+
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 13px;
+    min-width: 640px;
+  }
+  caption { caption-side: top; text-align: left; }
+  th, td {
+    border: 1px solid var(--line);
+    padding: 7px 9px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+  thead th {
+    background: var(--surface-2);
+    font-family: ui-monospace, "SFMono-Regular", "JetBrains Mono", Menlo, Consolas, monospace;
+    font-size: 11px;
+    letter-spacing: 0.03em;
+  }
+  tbody th {
+    text-align: left;
+    background: var(--surface-2);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  td.dash { color: var(--ink-dim); opacity: 0.55; }
+  .badge {
+    display: inline-block;
+    min-width: 20px;
+    padding: 1px 5px;
+    font-family: ui-monospace, "SFMono-Regular", "JetBrains Mono", Menlo, Consolas, monospace;
+    font-weight: 700;
+    font-size: 12px;
+    border-radius: 3px;
+  }
+  .badge.W { background: var(--accent-soft); color: var(--accent); border: 1px solid var(--accent); }
+  .badge.R { background: color-mix(in srgb, #3f6ea6 16%, transparent); color: #3f6ea6; border: 1px solid #3f6ea6; }
+  .badge.E { background: transparent; color: var(--ink-dim); border: 1px dashed var(--line); font-style: italic; font-weight: 500; }
+  .badge.Q { background: color-mix(in srgb, #2f8f7c 16%, transparent); color: #2f8f7c; border: 1px solid #2f8f7c; }
+  .badge.P { background: var(--surface-2); color: var(--ink-dim); border: 1px solid var(--line); }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    margin: 14px 0 20px;
+    font-size: 12.5px;
+    color: var(--ink-dim);
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+
+  .roadmap-note {
+    font-size: 13px;
+    color: var(--ink-dim);
+    margin-top: 10px;
+  }
+
+  .risk-panel {
+    border: 1px solid var(--risk);
+    background: var(--risk-soft);
+    padding: 16px 18px;
+    font-size: 13.5px;
+  }
+  .risk-panel .fig-title { color: var(--risk); }
+  .risk-panel ol { margin: 8px 0 0; padding-left: 20px; }
+  .risk-panel li { margin-bottom: 4px; }
+
+  footer {
+    margin-top: 60px;
+    padding-top: 18px;
+    border-top: 1px solid var(--line);
+    font-size: 12px;
+    color: var(--ink-dim);
+    font-family: ui-monospace, "SFMono-Regular", "JetBrains Mono", Menlo, Consolas, monospace;
+  }
+  footer p { margin: 4px 0; }
+</style>
+</head>
+<body>
+<main>
+
+  <header class="titleblock">
+    <div class="eyebrow">
+      <span>Cluckwork · Architecture Proposal</span>
+      <span>Status: Proposed — not authorized</span>
+    </div>
+    <h1>Modular monolith — diagrams</h1>
+    <p>
+      Six figures rendered from <code class="mono">docs/architecture/modular-monolith-design.md</code>
+      and <code class="mono">docs/architecture/modular-monolith-implementation-plan.md</code>: the current
+      layered monolith, where its coupling is accidental, the proposed module-seam shape, the three
+      cross-module writes that stay synchronous, the full coupling matrix, and the ten-phase rollout.
+    </p>
+    <div class="meta">
+      <div><b>Evidence date</b>2026-08-04, branch <code class="mono">work</code></div>
+      <div><b>Recommended first slice</b>Phase 0–2 (Finance pilot)</div>
+      <div><b>Security hold point</b>Phase 8 — Access</div>
+      <div><b>Changes today</b>Nothing. Diagrams only.</div>
+    </div>
+  </header>
+
+  <section>
+    <div class="section-head"><span class="section-num">FIG 01 · §2.1</span><h2>Current state</h2></div>
+    <p class="section-intro">One layered stack. Every arrow below is a real call path that exists today — the risk is what <em>isn't</em> drawn: nothing stops a handler in one feature folder from reaching a repository owned by another.</p>
+    <figure>
+      <div class="diagram-scroll">
+        <pre class="mermaid">
+flowchart TD
+  SPA["Browser SPA"]
+  API["Cluckwork.Api&lt;br/&gt;minimal endpoints · middleware · jobs · CLI verbs · DI registration"]
+  APP["Cluckwork.Application&lt;br/&gt;feature folders: Accounts, DailyEntries, Flocks, Inventory, Sales, Users, ...&lt;br/&gt;handlers can reach common ports + feature repos across folders"]
+  INFRA["Cluckwork.Infrastructure&lt;br/&gt;EF repositories · Identity provider · seeders · read queries · background jobs"]
+  DB[("PostgreSQL&lt;br/&gt;Accounts, Flocks, DailyEntries, EggLots, EggInventoryMovements,&lt;br/&gt;SalesOrders, SalesOrderAllocations, Payments, InventoryLots, Expenses, ...")]
+  DOM["Cluckwork.Domain&lt;br/&gt;aggregates / value objects for all capabilities"]
+
+  SPA --> API
+  API -- "direct handler calls" --> APP
+  APP -- "repository interfaces / unit of work / identity ports" --> INFRA
+  INFRA -- "one AppDbContext exposes all sets" --> DB
+  APP -.->|underlies every handler| DOM
+
+  classDef muted stroke-dasharray: 3 3;
+  class DOM muted
+        </pre>
+      </div>
+      <figcaption>
+        <span class="fig-title">Layered monolith, feature folders</span>
+        Feature folders improve navigation but do not enforce module ownership — the monolith is layered
+        by technical concern (Api → Application → Infrastructure → DB), not by business boundary.
+      </figcaption>
+    </figure>
+
+    <figure>
+      <div class="diagram-scroll">
+        <pre class="mermaid">
+flowchart LR
+  DE[DailyEntries]
+  SA[Sales]
+  INV[Inventory]
+  EXP[Expenses]
+  USR[Users]
+
+  EG[EggGrades]
+  EL[EggLots]
+  EIM[EggInventoryMovements]
+  FL[Flocks]
+  CAT[Catalog]
+  CUST[Customers]
+  ACC[Accounts]
+
+  DE --> EG
+  DE --> EL
+  DE --> EIM
+  DE --> FL
+  SA --> CAT
+  SA --> CUST
+  SA --> EG
+  SA --> EL
+  SA --> EIM
+  INV --> ACC
+  INV --> FL
+  EXP --> ACC
+  EXP --> FL
+  USR --> FL
+
+  classDef risk stroke:#b3392b,stroke-width:2px,color:#b3392b;
+  class DE,SA,INV,EXP,USR risk
+        </pre>
+      </div>
+      <figcaption>
+        <span class="fig-title">Coupling hot spots (today)</span>
+        Meaning: these aren't necessarily wrong business dependencies — but today they're implemented
+        through broad project/folder visibility rather than a deliberate module seam.
+      </figcaption>
+    </figure>
+  </section>
+
+  <section>
+    <div class="section-head"><span class="section-num">FIG 02 · §2.2</span><h2>Proposed state</h2></div>
+    <p class="section-intro">Same process, same single database. What changes: the API calls a contract, DI wires it to exactly one hidden implementation, and peer implementations can no longer see each other.</p>
+    <figure>
+      <div class="diagram-scroll">
+        <pre class="mermaid">
+flowchart TD
+  SPA[Browser SPA]
+  API["Cluckwork.Api&lt;br/&gt;HTTP / CLI / job adapters only"]
+
+  subgraph CONTRACTS["Module contracts"]
+    direction LR
+    C1[Access.Contracts]
+    C2[Farm.Contracts]
+    C3[FlockManagement.Contracts]
+    C4[EggOperations.Contracts]
+    C5[Commerce.Contracts]
+    C6[Inventory.Contracts]
+    C7[Finance.Contracts]
+    C8[Insights.Contracts]
+  end
+
+  subgraph IMPL["Module implementations"]
+    direction LR
+    I1[Access.Implementation]
+    I2[Farm.Implementation]
+    I3[FlockManagement.Implementation]
+    I4[EggOperations.Implementation]
+    I5[Commerce.Implementation]
+    I6[Inventory.Implementation]
+    I7[Finance.Implementation]
+    I8[Insights.Implementation]
+  end
+
+  PLAT["Platform.Persistence&lt;br/&gt;single AppDbContext · migrations · tenant filter/stamping ·&lt;br/&gt;transactions · idempotency · audit append · execution strategy"]
+  DB[("Same PostgreSQL database")]
+  SK["SharedKernel&lt;br/&gt;Result/Error · Money · clocks/paging DTOs"]
+
+  SPA --> API
+  API -- "calls contracts, not repositories or implementations" --> CONTRACTS
+  CONTRACTS -- "DI wires each contract to one hidden implementation" --> IMPL
+  IMPL -- "approved persistence/session abstractions only" --> PLAT
+  PLAT --> DB
+  SK -.-> CONTRACTS
+  SK -.-> IMPL
+
+  classDef accent stroke:#b8672a,stroke-width:2px,color:#b8672a;
+  class CONTRACTS,IMPL,PLAT,SK accent
+        </pre>
+      </div>
+      <figcaption>
+        <span class="fig-title">Modular monolith with explicit seams</span>
+        The important change is not process count — it's that module implementations become private
+        and every caller crosses a deliberate interface seam instead of an open project reference.
+      </figcaption>
+    </figure>
+  </section>
+
+  <section>
+    <div class="section-head"><span class="section-num">FIG 03 · §2.3</span><h2>Cross-module writes that stay synchronous</h2></div>
+    <p class="section-intro">Three seams that must not become eventually-consistent, because Cluckwork needs atomic ledger updates, FIFO lock ordering, and today's HTTP/idempotency contract preserved exactly.</p>
+    <div class="grid-3">
+      <figure>
+        <div class="diagram-scroll">
+          <pre class="mermaid">
+flowchart TD
+  R1[Egg Operations.SubmitDailyEntry]
+  subgraph TX1["same ambient transaction"]
+    direction TB
+    A1[Flock Management.AppendMortalityMovement]
+    A2["Egg Operations creates lots +&lt;br/&gt;egg-ledger opening movements"]
+  end
+  P1["Platform commits once,&lt;br/&gt;then publishes read/audit events"]
+  R1 --> TX1
+  TX1 -.->|after commit| P1
+
+  classDef accent stroke:#b8672a,stroke-width:2px,color:#b8672a;
+  classDef muted stroke-dasharray: 3 3;
+  class TX1 accent
+  class P1 muted
+          </pre>
+        </div>
+        <figcaption><span class="fig-title">Submit daily entry</span></figcaption>
+      </figure>
+      <figure>
+        <div class="diagram-scroll">
+          <pre class="mermaid">
+flowchart TD
+  R2["Commerce.ConfirmSale / VoidSale"]
+  subgraph TX2["same ambient transaction"]
+    direction TB
+    B1["Egg Operations.ReserveFifo / RestoreReservation"]
+    B2["Commerce updates order, allocation&lt;br/&gt;and payment state"]
+  end
+  P2["Platform commits once,&lt;br/&gt;then publishes read/audit events"]
+  R2 --> TX2
+  TX2 -.->|after commit| P2
+
+  classDef accent stroke:#b8672a,stroke-width:2px,color:#b8672a;
+  classDef muted stroke-dasharray: 3 3;
+  class TX2 accent
+  class P2 muted
+          </pre>
+        </div>
+        <figcaption><span class="fig-title">Confirm / void sale</span></figcaption>
+      </figure>
+      <figure>
+        <div class="diagram-scroll">
+          <pre class="mermaid">
+flowchart TD
+  R3[Inventory.RecordFeedUsage]
+  C1["Flock Management.GetFlockProductionEligibility&lt;br/&gt;(read-only precondition)"]
+  subgraph TX3["inventory transaction"]
+    C2["Inventory consumes FIFO lots and&lt;br/&gt;writes movement/usage rows"]
+  end
+  R3 --> C1 --> TX3
+
+  classDef accent stroke:#b8672a,stroke-width:2px,color:#b8672a;
+  class TX3 accent
+          </pre>
+        </div>
+        <figcaption><span class="fig-title">Record feed usage</span></figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head"><span class="section-num">FIG 04 · §5</span><h2>Target dependency graph</h2></div>
+    <p class="section-intro">The assembly-level view: who is allowed to reference whom. Insights sits apart — it never writes, so it gets its own read-only session instead of going through Platform.Persistence's write path.</p>
+    <figure>
+      <div class="diagram-scroll">
+        <pre class="mermaid">
+flowchart TD
+  API["Cluckwork.Api&lt;br/&gt;HTTP/CLI/job adapters + composition root"]
+  WF["Cluckwork.Workflows&lt;br/&gt;only evidenced cross-module commands"]
+
+  subgraph MC["Modules.*.Contracts&lt;br/&gt;Access · Farm · FlockManagement · EggOperations · Commerce · Inventory · Finance"]
+  end
+
+  subgraph MI["Modules.*.Implementation"]
+  end
+
+  PP["Cluckwork.Platform.Persistence&lt;br/&gt;single AppDbContext / migrations"]
+  SK[Cluckwork.SharedKernel]
+
+  IC[Modules.Insights.Contracts]
+  II[Modules.Insights.Implementation]
+  RS["read-only reporting session"]
+
+  API --> MC
+  WF --> MC
+  MI -- "DI only; peer implementations invisible" --> MC
+  MI --> PP
+  PP --> SK
+  II --> IC
+  II --> RS
+
+  classDef accent stroke:#b8672a,stroke-width:2px,color:#b8672a;
+  classDef muted stroke-dasharray: 3 3;
+  class MC,MI accent
+  class WF muted
+        </pre>
+      </div>
+      <figcaption>
+        <span class="fig-title">Contracts, implementations, platform</span>
+        Contracts may depend only on SharedKernel. Implementations depend on their own contract,
+        SharedKernel and narrowly-approved platform contracts — never on a peer implementation.
+      </figcaption>
+    </figure>
+  </section>
+
+  <section>
+    <div class="section-head"><span class="section-num">TABLE · §3.4</span><h2>Coupling matrix</h2></div>
+    <p class="section-intro">Rows call columns, in the target design. <span class="badge W">W</span> is the only kind that has to stay synchronous — everything else can be a read, an after-commit event, or a query.</p>
+    <div class="legend">
+      <span><span class="badge W">W</span> necessary synchronous write coupling</span>
+      <span><span class="badge R">R</span> read / validation coupling</span>
+      <span><span class="badge E">E</span> after-commit event</span>
+      <span><span class="badge Q">Q</span> read-model query</span>
+      <span><span class="badge P">P</span> platform service</span>
+      <span><span class="badge dash" style="color:var(--ink-dim);border:1px dashed var(--line)">—</span> none</span>
+    </div>
+    <figure>
+      <div class="diagram-scroll">
+        <table>
+          <thead>
+            <tr><th>from ↓ / to →</th><th>Access</th><th>Farm</th><th>Flock</th><th>Egg&nbsp;Ops</th><th>Commerce</th><th>Inventory</th><th>Finance</th><th>Insights</th><th>Platform</th></tr>
+          </thead>
+          <tbody>
+            <tr><th>Access</th><td class="dash">—</td><td><span class="badge R">R</span></td><td><span class="badge R">R</span></td><td class="dash">—</td><td class="dash">—</td><td class="dash">—</td><td class="dash">—</td><td><span class="badge E">E</span></td><td><span class="badge P">P</span></td></tr>
+            <tr><th>Farm</th><td class="dash">—</td><td class="dash">—</td><td class="dash">—</td><td class="dash">—</td><td class="dash">—</td><td class="dash">—</td><td class="dash">—</td><td><span class="badge E">E</span></td><td><span class="badge P">P</span></td></tr>
+            <tr><th>Flock</th><td class="dash">—</td><td><span class="badge R">R</span></td><td class="dash">—</td><td class="dash">—</td><td class="dash">—</td><td class="dash">—</td><td class="dash">—</td><td><span class="badge E">E</span></td><td><span class="badge P">P</span></td></tr>
+            <tr><th>Egg Ops</th><td class="dash">—</td><td><span class="badge R">R</span></td><td><span class="badge W">W</span></td><td class="dash">—</td><td class="dash">—</td><td class="dash">—</td><td class="dash">—</td><td><span class="badge E">E</span></td><td><span class="badge P">P</span></td></tr>
+            <tr><th>Commerce</th><td class="dash">—</td><td><span class="badge R">R</span></td><td class="dash">—</td><td><span class="badge W">W</span></td><td class="dash">—</td><td class="dash">—</td><td class="dash">—</td><td><span class="badge E">E</span></td><td><span class="badge P">P</span></td></tr>
+            <tr><th>Inventory</th><td class="dash">—</td><td><span class="badge R">R</span></td><td><span class="badge R">R</span></td><td class="dash">—</td><td class="dash">—</td><td class="dash">—</td><td class="dash">—</td><td><span class="badge E">E</span></td><td><span class="badge P">P</span></td></tr>
+            <tr><th>Finance</th><td class="dash">—</td><td><span class="badge W">W</span></td><td><span class="badge R">R</span></td><td class="dash">—</td><td class="dash">—</td><td class="dash">—</td><td class="dash">—</td><td><span class="badge E">E</span></td><td><span class="badge P">P</span></td></tr>
+            <tr><th>Insights</th><td class="dash">—</td><td class="dash">—</td><td class="dash">—</td><td class="dash">—</td><td class="dash">—</td><td class="dash">—</td><td class="dash">—</td><td class="dash">—</td><td><span class="badge Q">Q</span>/<span class="badge P">P</span></td></tr>
+            <tr><th>Platform/adapters</th><td><span class="badge W">W</span></td><td><span class="badge W">W</span></td><td><span class="badge W">W</span></td><td><span class="badge W">W</span></td><td><span class="badge W">W</span></td><td><span class="badge W">W</span></td><td><span class="badge W">W</span></td><td><span class="badge R">R</span></td><td class="dash">—</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <figcaption>
+        <span class="fig-title">Three synchronous writes, everything else read/event/query</span>
+        Egg Operations → Flock (mortality), Commerce → Egg Operations (FIFO reserve/restore), and
+        Finance → Farm (currency snapshot) are the only <span class="badge W">W</span> edges between
+        business modules — every other cross-module path is a read, an after-commit event, or a query.
+      </figcaption>
+    </figure>
+  </section>
+
+  <section>
+    <div class="section-head"><span class="section-num">FIG 05 · plan §0–10</span><h2>Delivery roadmap</h2></div>
+    <p class="section-intro">Ten phases, each gated on the one before it finishing green. Solid arrows are stated dependencies; the dashed arrow into Phase 9 reflects that Insights only needs the ownership manifest from Phase 1, not the write-side moves.</p>
+    <figure>
+      <div class="diagram-scroll">
+        <pre class="mermaid">
+flowchart LR
+  P0["Phase 0&lt;br/&gt;Baseline &amp; characterization&lt;br/&gt;2–4d"]
+  P1["Phase 1&lt;br/&gt;Shared kernel &amp; guards&lt;br/&gt;3–5d"]
+  P2["Phase 2&lt;br/&gt;Finance pilot&lt;br/&gt;5–8d"]
+  P3["Phase 3&lt;br/&gt;Farm&lt;br/&gt;4–7d"]
+  P4["Phase 4&lt;br/&gt;Flock Management&lt;br/&gt;5–9d"]
+  P5["Phase 5&lt;br/&gt;Egg Operations&lt;br/&gt;10–16d"]
+  P6["Phase 6&lt;br/&gt;Commerce &amp; stock seam&lt;br/&gt;10–18d"]
+  P7["Phase 7&lt;br/&gt;General Inventory&lt;br/&gt;6–10d"]
+  P8["Phase 8&lt;br/&gt;Access&lt;br/&gt;10–18d&lt;br/&gt;security hold point"]
+  P9["Phase 9&lt;br/&gt;Insights &amp; audit&lt;br/&gt;6–10d"]
+  P10["Phase 10&lt;br/&gt;Platform adapters,&lt;br/&gt;seeding, cleanup&lt;br/&gt;7–12d"]
+
+  P0 --> P1 --> P2 --> P3 --> P4
+  P4 --> P5
+  P3 --> P5
+  P3 --> P6
+  P5 --> P6
+  P3 --> P7
+  P4 --> P7
+  P3 --> P8
+  P4 --> P8
+  P1 -.->|ownership manifest| P9
+  P6 --> P10
+  P7 --> P10
+  P8 --> P10
+  P9 --> P10
+
+  classDef accent stroke:#b8672a,stroke-width:2px,color:#b8672a;
+  classDef risk stroke:#b3392b,stroke-width:2px,color:#b3392b;
+  class P2 accent
+  class P8 risk
+        </pre>
+      </div>
+      <figcaption>
+        <span class="fig-title">Phase 0 → 10, gated rollout</span>
+        Sum of the low/high per-phase estimates: roughly 68–117 focused engineering days end to end.
+        Only Phases 0–2 (characterization, mutation-proven guards, Finance pilot) are the recommended
+        first authorized slice — everything past Phase 2 waits on an owner review.
+      </figcaption>
+    </figure>
+    <div class="risk-panel">
+      <span class="fig-title">Top five risks named in the design (§11)</span>
+      <ol>
+        <li>Breaking an atomic ledger/cache transaction while replacing repository calls with seams.</li>
+        <li>Changing FIFO lock acquisition order and introducing deadlocks or allocation races.</li>
+        <li>Leaking EF/entity types through a convenient contract, recreating coupling under new names.</li>
+        <li>Weakening tenant or credential fail-closed behavior through duplicated contexts/adapters.</li>
+        <li>Allowing compatibility adapters to become permanent, leaving two callable architectures.</li>
+      </ol>
+    </div>
+  </section>
+
+  <footer>
+    <p>Source: docs/architecture/modular-monolith-design.md · docs/architecture/modular-monolith-implementation-plan.md</p>
+    <p>Diagrams are a rendering aid only — the prose in both documents is the authoritative spec.</p>
+  </footer>
+
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js" integrity="sha384-WmdflGW9aGfoBdHc4rRyWzYuAjEmDwMdGdiPNacbwfGKxBW/SO6guzuQ76qjnSlr" crossorigin="anonymous"></script>
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'default',
+    securityLevel: 'loose'
+  });
+</script>
+</body>
+</html>
