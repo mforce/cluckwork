@@ -63,17 +63,33 @@ jobs:
   baseline:
     name: k6 baseline over the simulation fixture
     runs-on: ubuntu-latest
-    # REPS=3, real (non-dev-short) durations by default — generous but
-    # bounded, same "a hung stack must not burn an hour" reasoning as
-    # e2e-smoke.yml.
-    timeout-minutes: 40
+    # codex review, PR #432: sized for tools/simulation/README.md's own
+    # documented "real run" example — REPS=3 (the default, if `reps` is left
+    # blank), CAPACITY_DURATION=40m — not for the short dev-cycle durations
+    # this workflow's inputs also accept. 3 reps x (reset.sh ~2-5min +
+    # ~20s warmup + drain buffer + 40m capacity) is itself ~140min; the
+    # margin here covers setup (checkout/k6 install/bootstrap/verify) and a
+    # slower-than-usual image build. A combination bigger than the
+    # documented real run (more reps, or capacity_duration beyond 40m) WILL
+    # still hit this and get killed mid-run — bump this value by hand for
+    # that, there's no way to size a static timeout from a workflow_dispatch
+    # input.
+    timeout-minutes: 150
 
     steps:
       - uses: actions/checkout@v4
 
       - name: Install k6 (pinned, checksum-verified — see header)
+        # codex review, PR #432: extracting into $GITHUB_WORKSPACE (this
+        # step's default cwd) left k6.tar.gz and the extracted directory as
+        # untracked files in the checkout. run-baseline.sh stamps
+        # `git status --porcelain` non-empty as GIT_DIRTY=1 into every
+        # findings doc / aggregate.json's provenance — so every run from this
+        # workflow would falsely report a dirty tree. $RUNNER_TEMP is
+        # runner-local scratch space outside the checkout entirely.
         run: |
           set -euo pipefail
+          cd "$RUNNER_TEMP"
           curl -fsSL -o k6.tar.gz \
             "https://github.com/grafana/k6/releases/download/${K6_VERSION}/k6-${K6_VERSION}-linux-amd64.tar.gz"
           echo "${K6_SHA256}  k6.tar.gz" | sha256sum -c -
@@ -81,7 +97,7 @@ jobs:
           # Extend PATH for later steps via $GITHUB_PATH rather than moving
           # the binary into /usr/local/bin — avoids depending on whether that
           # directory happens to be host-user-writable on the runner image.
-          echo "$PWD/k6-${K6_VERSION}-linux-amd64" >> "$GITHUB_PATH"
+          echo "$RUNNER_TEMP/k6-${K6_VERSION}-linux-amd64" >> "$GITHUB_PATH"
 
       # Generates .env.sim and .sim-cast.json — runtime secrets, git-ignored,
       # regenerated per run. No credential is ever committed or passed in.
