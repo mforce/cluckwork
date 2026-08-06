@@ -92,6 +92,18 @@ bash "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/verify-harness.sh"
 echo "-- down -v (cluckwork-sim volumes only) --"
 compose down -v --remove-orphans
 
+# The app container bind-mounts this dir (./out:/app/sim-cast) and writes
+# manifest.json into it as root. Docker auto-creates a bind-mount target
+# that doesn't already exist on the host, and does so as root — which then
+# blocks any HOST-side process (canary.spec.ts's `mkdir out/canary-vitals`,
+# run outside Docker) from creating anything under it. Creating it here,
+# as this script's own (non-root) user, before compose ever touches it,
+# means Docker reuses the existing directory instead of auto-vivifying a
+# root-owned one — the container still writes manifest.json as root, but
+# the directory itself stays owned by whoever ran this script. Idempotent;
+# a pre-existing (non-root-owned) ./out from a prior run is left alone.
+mkdir -p "$OUT_DIR"
+
 echo "-- config -q (validate before build) --"
 compose config -q
 
