@@ -100,9 +100,17 @@ compose down -v --remove-orphans
 # as this script's own (non-root) user, before compose ever touches it,
 # means Docker reuses the existing directory instead of auto-vivifying a
 # root-owned one — the container still writes manifest.json as root, but
-# the directory itself stays owned by whoever ran this script. Idempotent;
-# a pre-existing (non-root-owned) ./out from a prior run is left alone.
+# the directory itself stays owned by whoever ran this script.
 mkdir -p "$OUT_DIR"
+# codex review, PR #430: `mkdir -p` alone is a no-op on a directory that
+# ALREADY exists, regardless of who owns it — so a dev box that hit this
+# bug before this fix landed (./out auto-vivified root-owned by an earlier
+# run) would stay broken forever, silently. Repair that case too: chown it
+# back to this script's own user. Routed through Docker (which has root via
+# the daemon) rather than requiring host sudo — a harmless no-op when
+# ownership is already correct, which is the common case on every run after
+# the first repair.
+docker run --rm -v "$OUT_DIR:/out" alpine chown -R "$(id -u):$(id -g)" /out
 
 echo "-- config -q (validate before build) --"
 compose config -q
