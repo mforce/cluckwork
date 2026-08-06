@@ -38,7 +38,10 @@
 // WHY THE DRAIN GAP IS THE FIX (not cosmetic): k6 does not number VUs
 // contiguously per scenario, and — this is the load-bearing fact — it does
 // NOT always simply sum `vus` across scenarios either. Direct-probed live
-// against this k6 version (`k6 v2.0.0`), both with and without a drain gap:
+// against this k6 version (`k6 v2.0.0`; re-confirmed against `k6 v2.1.0` —
+// same pool-reuse/collision-free behavior, see run-baseline.sh's
+// EXPECTED_K6_VERSION comment for that evidence), both with and without a
+// drain gap:
 //   - WITH a drain gap that fully separates warmup's window (duration +
 //     gracefulStop) from capacity's start: k6 REUSES the same underlying VU
 //     pool for both scenarios, sized to `max(WARMUP_VUS, CAPACITY_VUS)`.

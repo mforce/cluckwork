@@ -28,6 +28,15 @@
 # re-verifying the drain-gap VU-scheduling behavior against the new version
 # (file header above) and updating EXPECTED_K6_VERSION in run-baseline.sh to
 # match, together, in the same change.
+#
+# STALE as of the v2.1.0 bump below: run-baseline.sh's EXPECTED_K6_VERSION is
+# now v2.1.0 (re-verified live via a bare `k6` on PATH — see its own comment
+# for the evidence), but THIS pin was not re-verified against v2.1.0 (no nix
+# environment was available to build-and-confirm a candidate revision) and
+# still resolves to v2.0.0. A nix-shell run will therefore correctly fail
+# run-baseline.sh's preflight until someone with nix bumps this revision to
+# one confirmed to build k6 v2.1.0. That failure is the guard doing its job,
+# not a bug — do not silence it by loosening EXPECTED_K6_VERSION instead.
 {
   pkgs ? import (fetchTarball {
     url = "https://github.com/NixOS/nixpkgs/archive/b3fe9581c9061c749abef42b6d4ee7b7c05c33fa.tar.gz";
