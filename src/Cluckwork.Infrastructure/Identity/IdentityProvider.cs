@@ -46,6 +46,12 @@ public sealed class IdentityProvider(
             // it was disabled.
             userManager.PasswordHasher.VerifyHashedPassword(
                 user, user.PasswordHash ?? TimingEqualization.DummyHash, password);
+            // #273 codex review (round 4) — same identity-free LoginFailed as
+            // every other unsuccessful branch (user-not-found, locked-out,
+            // wrong-password): a disabled account is still an unsuccessful
+            // /auth/login attempt, and omitting it here silently dropped
+            // guesses against disabled accounts from the brute-force stream.
+            securityEvents.LoginFailed();
             return Result.Failure<TokenPair>(Error.Validation(
                 "Identity.InvalidCredentials", "Invalid email or password."));
         }
