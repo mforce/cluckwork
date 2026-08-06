@@ -105,12 +105,23 @@ mkdir -p "$OUT_DIR"
 # codex review, PR #430: `mkdir -p` alone is a no-op on a directory that
 # ALREADY exists, regardless of who owns it — so a dev box that hit this
 # bug before this fix landed (./out auto-vivified root-owned by an earlier
-# run) would stay broken forever, silently. Repair that case too: chown it
-# back to this script's own user. Routed through Docker (which has root via
-# the daemon) rather than requiring host sudo — a harmless no-op when
-# ownership is already correct, which is the common case on every run after
-# the first repair.
-docker run --rm -v "$OUT_DIR:/out" alpine chown -R "$(id -u):$(id -g)" /out
+# run) would stay broken forever, silently. Repair that case too, but only
+# when actually needed: `-w` gates the Docker round-trip to the (rare)
+# broken case instead of running it on every reset. That gate also matters
+# for a second reason (codex review, PR #430 round 2): under rootless
+# Docker / userns-remap, the container's UID 0 doing this chown does not
+# map straight to the host UID we pass in — it can fail, or worse, leave
+# ./out owned by some remapped/subordinate UID instead of actually fixing
+# it. Skipping the helper whenever ./out is already host-writable keeps
+# that failure mode out of the common path entirely. Residual: if you ARE
+# on rootless/userns-remapped Docker and ./out genuinely is broken, this
+# repair may not produce a correctly host-owned directory — remove
+# tools/simulation/out by hand (so mkdir -p above recreates it fresh, as
+# your own user) rather than relying on this chown in that setup.
+if [[ ! -w "$OUT_DIR" ]]; then
+  echo "-- ./out is not writable by $(id -un) — repairing ownership via Docker --"
+  docker run --rm -v "$OUT_DIR:/out" alpine chown -R "$(id -u):$(id -g)" /out
+fi
 
 echo "-- config -q (validate before build) --"
 compose config -q
