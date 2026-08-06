@@ -215,7 +215,12 @@ else
     echo "run-baseline: neither nix-shell nor a bare 'k6' found on PATH." >&2
     exit 1
   fi
-  if [[ "$k6_actual_version_line" != "k6 ${EXPECTED_K6_VERSION}"* ]]; then
+  # Exact equality on the version TOKEN (k6 version's 2nd field), not a prefix
+  # match on the whole line — codex review, PR #430: `k6 v2.1.0*` glob-matches
+  # `k6 v2.1.0-rc.1 (...)` too, letting a prerelease/locally-modified build
+  # (never live-probed) silently pass as if it were the verified v2.1.0.
+  k6_actual_version_token="$(awk '{print $2}' <<<"$k6_actual_version_line")"
+  if [[ "$k6_actual_version_token" != "$EXPECTED_K6_VERSION" ]]; then
     echo "run-baseline: k6 version mismatch (${K6_MODE}) — resolved '${k6_actual_version_line:-<none>}', expected 'k6 ${EXPECTED_K6_VERSION}'." >&2
     echo "  baseline.js's VU-scheduling (drain-gap) assumptions were only live-probed against ${EXPECTED_K6_VERSION} — see that file's header. Investigate before trusting this run's per-user capacity coverage." >&2
     if [[ "$K6_MODE" == "nix" ]]; then
