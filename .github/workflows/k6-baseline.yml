@@ -1,0 +1,134 @@
+# k6 load-test baseline (#431).
+#
+# ================== workflow_dispatch ONLY — AND WHY ==================
+#
+# Same reasoning as e2e-smoke.yml: this stands up the whole sim stack — build
+# the image, boot Postgres, migrate, bootstrap an admin, run `seed --profile
+# simulation` — once per rep (default 3), before k6 even starts. That's a
+# pre-release confidence check, not a per-push gate. See AGENTS.md and
+# tools/simulation/README.md for the harness's own #370 reasoning; it applies
+# here unchanged.
+#
+# THE COST OF THAT CHOICE, STATED SO NOBODY HAS TO REDISCOVER IT: nothing
+# exercises this workflow on its own between manual runs — same #370 pattern
+# as e2e-smoke.yml. If you change a boot guard, a config key, or the harness
+# layout, this file is downstream of that change too.
+#
+# ================== WHY A PLAIN k6 DOWNLOAD, NOT NIX ==================
+#
+# tools/simulation/k6/shell.nix pins a reproducible nixpkgs build of k6, but
+# that pin is currently STALE — it still resolves to v2.0.0 (see
+# run-baseline.sh's EXPECTED_K6_VERSION comment for the bump history).
+# Installing nix in CI just to hit a revision nobody's verified yet buys
+# nothing. Instead this downloads the official k6 release directly, pinned to
+# the exact version run-baseline.sh's own EXPECTED_K6_VERSION checks for, with
+# its published checksum verified before anything runs. run-baseline.sh's own
+# PATH-fallback preflight (added in #430) is what actually enforces the
+# version match — this step just makes sure a matching `k6` exists on PATH
+# for that preflight to find.
+#
+# Bumping EXPECTED_K6_VERSION later? Bump K6_VERSION/K6_SHA256 below in the
+# same change — this workflow carries no independent pin of its own to drift
+# from run-baseline.sh's.
+
+name: k6 load-test baseline
+
+on:
+  workflow_dispatch:
+    inputs:
+      reps:
+        description: "Number of reps (blank = run-baseline.sh's own default, 3)"
+        type: string
+        default: ""
+      warmup_duration:
+        description: "e.g. 10s, 20s (blank = k6/baseline.js's own default, 20s)"
+        type: string
+        default: ""
+      capacity_duration:
+        description: "e.g. 25s, 2m, 40m (blank = k6/baseline.js's own default, 2m)"
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+env:
+  K6_VERSION: "v2.1.0"
+  # Published by grafana/k6's own release, for k6-v2.1.0-linux-amd64.tar.gz —
+  # verified against the real download before this workflow was added, not
+  # copied from an unverified source.
+  K6_SHA256: "295d961ebfca306f295f1133068dcd403a8171c87f387928f5f30b0fbcff858a"
+
+jobs:
+  baseline:
+    name: k6 baseline over the simulation fixture
+    runs-on: ubuntu-latest
+    # REPS=3, real (non-dev-short) durations by default — generous but
+    # bounded, same "a hung stack must not burn an hour" reasoning as
+    # e2e-smoke.yml.
+    timeout-minutes: 40
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install k6 (pinned, checksum-verified — see header)
+        run: |
+          set -euo pipefail
+          curl -fsSL -o k6.tar.gz \
+            "https://github.com/grafana/k6/releases/download/${K6_VERSION}/k6-${K6_VERSION}-linux-amd64.tar.gz"
+          echo "${K6_SHA256}  k6.tar.gz" | sha256sum -c -
+          tar xzf k6.tar.gz "k6-${K6_VERSION}-linux-amd64/k6"
+          # Extend PATH for later steps via $GITHUB_PATH rather than moving
+          # the binary into /usr/local/bin — avoids depending on whether that
+          # directory happens to be host-user-writable on the runner image.
+          echo "$PWD/k6-${K6_VERSION}-linux-amd64" >> "$GITHUB_PATH"
+
+      # Generates .env.sim and .sim-cast.json — runtime secrets, git-ignored,
+      # regenerated per run. No credential is ever committed or passed in.
+      - name: Bootstrap the simulation harness config
+        run: bash tools/simulation/bootstrap.sh
+
+      # The self-check reset.sh runs anyway, hoisted so a config drift fails in
+      # ~0.1s here instead of minutes into the first rep's image build (#370).
+      - name: Verify harness config
+        run: bash tools/simulation/verify-harness.sh
+
+      - name: Run the k6 baseline
+        working-directory: tools/simulation
+        env:
+          REPS: ${{ inputs.reps }}
+          WARMUP_DURATION: ${{ inputs.warmup_duration }}
+          CAPACITY_DURATION: ${{ inputs.capacity_duration }}
+        run: |
+          set -euo pipefail
+          # A blank input must UNSET the var, not export it as "" — an empty
+          # string would override run-baseline.sh's own ${VAR:-default}
+          # fallback with nothing instead of leaving the default in place.
+          if [ -z "$REPS" ]; then unset REPS; fi
+          if [ -z "$WARMUP_DURATION" ]; then unset WARMUP_DURATION; fi
+          if [ -z "$CAPACITY_DURATION" ]; then unset CAPACITY_DURATION; fi
+          bash run-baseline.sh
+
+      # Findings doc + aggregate JSON only — no per-request raw k6 output, no
+      # docker-stats/pg-snapshot dumps. Checked before this workflow was added:
+      # neither file carries a persona email, password, or token, but keeping
+      # the upload narrow is the same discipline e2e-smoke.yml applies to the
+      # Playwright report for a different reason (see that file's own
+      # credential-stripping step).
+      - name: Upload findings doc + aggregate data
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: k6-baseline-findings
+          path: |
+            tools/simulation/findings/*-findings.md
+            tools/simulation/monitor/out/*/aggregate.json
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Stack logs on failure
+        if: failure()
+        run: |
+          docker compose -p cluckwork-sim \
+            --env-file tools/simulation/.env.sim \
+            -f tools/simulation/docker-compose.sim.yml logs --tail 200 || true
