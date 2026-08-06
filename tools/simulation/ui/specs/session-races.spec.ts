@@ -253,8 +253,20 @@ test.describe("#310 session races", () => {
     // Land on /login with that cookie present: AuthContext's bootstrap fires
     // `restoreSession()` immediately, and it is now held open. /login is outside
     // ProtectedRoute, so the form is interactive while that is pending.
-    await page.goto("/login");
-    await page.waitForRequest((r) => r.url().includes("/api/v1/auth/refresh"));
+    //
+    // #428 — goto() and waitForRequest() MUST be raced together, not sequential.
+    // goto()'s default waitUntil:"load" doesn't resolve until every subresource
+    // (this page fetches 7 web fonts) finishes, and the bootstrap fetch fires as
+    // soon as React mounts — often before that. A listener registered after goto()
+    // resolves can miss a request that already happened, which is exactly what
+    // made this racy: reliable locally (fast asset loads racing the listener into
+    // place in time) and a deterministic 45s timeout on CI's slower bundled
+    // Chromium, where the fetch — and its cancellation once orphaned mid-navigation
+    // — both happen before the sequential await ever got here.
+    await Promise.all([
+      page.waitForRequest((r) => r.url().includes("/api/v1/auth/refresh")),
+      page.goto("/login"),
+    ]);
 
     // A DIFFERENT person signs in on the same browser while the old session's
     // refresh is still outstanding. Different persona on purpose: the two
