@@ -51,7 +51,7 @@ public sealed class AdjustExpenseHandler(
         if (result.IsFailure) return result;
 
         // Same SaveChanges as the change (#93): commits or fails with it.
-        await audit.WriteAsync("Expense.Adjust", nameof(Cluckwork.Domain.Expenses.Expense), expense.Id,
+        await audit.WriteAsync(AuditActions.ExpenseAdjust, nameof(Cluckwork.Domain.Expenses.Expense), expense.Id,
             reason: null,
             new { previousAmountMinorUnits = previousAmount, newAmountMinorUnits = expense.AmountMinorUnits }, ct);
 

@@ -22,7 +22,7 @@ public sealed class UpdateEggGradeHandler(
         if (result.IsFailure) return result;
 
         // Same SaveChanges as the change (#93).
-        await audit.WriteAsync("EggGrade.Update", "EggGrade", grade.Id,
+        await audit.WriteAsync(AuditActions.EggGradeUpdate, "EggGrade", grade.Id,
             reason: null, details: new { grade.Name, grade.SortOrder, grade.IsSaleable }, ct: ct);
 
         await unitOfWork.SaveChangesAsync(ct);

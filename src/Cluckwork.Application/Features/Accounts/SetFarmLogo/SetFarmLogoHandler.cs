@@ -46,7 +46,7 @@ public sealed class SetFarmLogoHandler(
         // megabyte of base64 in its JSON would make the audit viewer unusable
         // and the table enormous.
         await audit.WriteAsync(
-            "Account.SetLogo", nameof(FarmLogo), existing.Id,
+            AuditActions.AccountSetLogo, nameof(FarmLogo), existing.Id,
             reason: null,
             details: new
             {

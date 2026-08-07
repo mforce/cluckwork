@@ -119,7 +119,7 @@ public sealed class UpdateFarmSettingsHandler(
     // both sides, not just "someone saved".
     private Task WriteAuditAsync(Account account, object before, CancellationToken ct) =>
         audit.WriteAsync(
-            "Account.UpdateSettings", nameof(Account), account.Id,
+            AuditActions.AccountUpdateSettings, nameof(Account), account.Id,
             reason: null,
             details: new { before, after = Snapshot(account) },
             ct: ct);

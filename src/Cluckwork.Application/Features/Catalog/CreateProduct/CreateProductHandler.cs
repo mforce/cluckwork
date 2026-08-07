@@ -61,7 +61,7 @@ public sealed class CreateProductHandler(
                 ProductEggGradeMapping.Create(Guid.NewGuid(), accountId, product.Id, grade.Id),
                 transactionCt);
 
-            await audit.WriteAsync("Product.Create", nameof(Product), product.Id,
+            await audit.WriteAsync(AuditActions.ProductCreate, nameof(Product), product.Id,
                 details: new { product.Name, product.ProductType, EggGrade = grade.Name }, ct: transactionCt);
 
             outcome = Result.Success(product.Id);

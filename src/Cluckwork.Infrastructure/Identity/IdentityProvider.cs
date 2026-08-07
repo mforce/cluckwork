@@ -419,7 +419,7 @@ public sealed class IdentityProvider(
 
             // Same transaction as the creation (#93): the event needs its own
             // SaveChanges because UserManager flushed its writes already.
-            await audit.WriteAsync("User.Create", "User", user.Id,
+            await audit.WriteAsync(AuditActions.UserCreate, "User", user.Id,
                 reason: null, details: new { email, role = role ?? "Worker" }, ct: token);
             await db.SaveChangesAsync(token);
 
@@ -442,7 +442,7 @@ public sealed class IdentityProvider(
         // silently last-write-win: EF checks the ORIGINAL stamp in the UPDATE's
         // WHERE, so the loser matches no row and fails closed to a 409.
         user.ConcurrencyStamp = Guid.NewGuid().ToString();
-        await audit.WriteAsync("User.Update", "User", user.Id,
+        await audit.WriteAsync(AuditActions.UserUpdate, "User", user.Id,
             reason: null, details: new { name }, ct: ct);
         try
         {
@@ -468,7 +468,7 @@ public sealed class IdentityProvider(
             return Result.Failure(Error.NotFound("Users", userId));
 
         return await ResetPasswordAndRevokeAsync(
-            user, newPassword, "User.PasswordSet", reason: null, details: null, ct);
+            user, newPassword, AuditActions.UserPasswordSet, reason: null, details: null, ct);
     }
 
     public async Task<Result> BreakGlassResetAsync(
@@ -491,7 +491,7 @@ public sealed class IdentityProvider(
         // A DISTINCT audit action + the operator's reason so a break-glass reset
         // stands out from an ordinary Owner-initiated one (#265).
         return await ResetPasswordAndRevokeAsync(
-            user, newPassword, "User.BreakGlassReset", reason, details, ct);
+            user, newPassword, AuditActions.UserBreakGlassReset, reason, details, ct);
     }
 
     // Shared core (#165 SetUserPassword + #265 break-glass): reset the password
@@ -607,7 +607,7 @@ public sealed class IdentityProvider(
 
             var (rawToken, tokenHash) = GenerateRefreshToken();
             db.RefreshTokens.Add(NewToken(user, tokenHash));
-            await audit.WriteAsync("User.PasswordChanged", "User", user.Id,
+            await audit.WriteAsync(AuditActions.UserPasswordChanged, "User", user.Id,
                 reason: null, details: null, ct: token);
             await db.SaveChangesAsync(token);
             await transaction.CommitAsync(token);

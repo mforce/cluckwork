@@ -20,7 +20,7 @@ public sealed class RemoveFarmLogoHandler(
         // Recorded before the delete, while there is still something to
         // describe. The hash is the useful part: it says WHICH logo went.
         await audit.WriteAsync(
-            "Account.RemoveLogo", nameof(FarmLogo), logo.Id,
+            AuditActions.AccountRemoveLogo, nameof(FarmLogo), logo.Id,
             reason: null,
             details: new { contentType = logo.ContentType, contentHash = logo.ContentHash },
             ct: ct);
