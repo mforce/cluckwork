@@ -110,13 +110,61 @@ public sealed class AuditVocabularyCoverageTests
             // guard that only works as long as nobody ever writes that phrase in
             // a comment again is not a guard worth trusting.
             var searchable = StripComments(source);
-            foreach (Match call in Regex.Matches(searchable, @"\baudit\.WriteAsync\s*\("))
+
+            // Every distinct identifier (parameter or field) declared with type
+            // IAuditWriter in this file — whatever name a handler injects it
+            // under (`audit`, `_audit`, `auditWriter`, ...). Matching the fixed
+            // literal name "audit" would silently miss a differently-named
+            // injection, which is exactly how a new call site could bypass every
+            // check below (codex review of #439).
+            var auditWriterNames = Regex.Matches(searchable, @"\bIAuditWriter\s+(\w+)")
+                .Select(m => m.Groups[1].Value)
+                .Distinct();
+
+            foreach (var receiver in auditWriterNames)
             {
-                var args = SplitTopLevelArguments(source, call.Index + call.Length);
+                foreach (Match call in Regex.Matches(searchable, $@"\b{Regex.Escape(receiver)}\.WriteAsync\s*\("))
+                {
+                    var (args, _) = SplitTopLevelArguments(source, call.Index + call.Length);
+                    var line = source[..call.Index].Count(c => c == '\n') + 1;
+
+                    AssertActionIsRegistryReference(relativePath, line, args[0]);
+                    callSites.Add(
+                        new AuditCallSite(relativePath, line, ResolveEntityType(relativePath, line, args[1])));
+                }
+            }
+
+            // IdentityProvider.ResetPasswordAndRevokeAsync forwards its action
+            // through a parameter rather than passing it to WriteAsync directly
+            // (see AssertActionIsRegistryReference's exemption below) — so the
+            // registry check has to happen at ITS call sites instead. Every
+            // caller today AND any future one is checked here, not just the two
+            // that exist when this guard was written (codex review of #439).
+            foreach (Match call in Regex.Matches(searchable, @"\bResetPasswordAndRevokeAsync\s*\("))
+            {
+                var (args, endIndex) = SplitTopLevelArguments(source, call.Index + call.Length);
                 var line = source[..call.Index].Count(c => c == '\n') + 1;
 
-                AssertActionIsRegistryReference(relativePath, line, args[0]);
-                callSites.Add(new AuditCallSite(relativePath, line, ResolveEntityType(relativePath, line, args[1])));
+                // The regex also matches the method's own DECLARATION, which has
+                // the identical "name(" shape. Distinguish by what follows the
+                // parameter list: a declaration continues into a block body
+                // ('{'), a call ends its statement ('...);'). Skip whitespace
+                // between ')' and that token.
+                var afterArgs = endIndex;
+                while (afterArgs < searchable.Length && char.IsWhiteSpace(searchable[afterArgs])) afterArgs++;
+                if (afterArgs < searchable.Length && searchable[afterArgs] == '{')
+                    continue;
+
+                // (user, newPassword, auditAction, reason, details[, ct]) — every
+                // call site today uses positional arguments, so index 2 is
+                // auditAction. A caller that switched to named arguments would
+                // shift what sits at index 2 to something that does not match
+                // AuditActions.X (or the ternary shape) below, which fails this
+                // test loudly rather than silently validating the wrong slot.
+                Assert.True(args.Length >= 3,
+                    $"{relativePath}:{line} — ResetPasswordAndRevokeAsync call has fewer than 3 arguments; " +
+                    "expected (user, newPassword, auditAction, ...).");
+                AssertActionIsRegistryReference(relativePath, line, args[2]);
             }
         }
 
@@ -185,8 +233,10 @@ public sealed class AuditVocabularyCoverageTests
     // nested (), {}, [] and string literals so a comma inside e.g. `new { a, b }`
     // or a namespace-qualified nameof(...) is never mistaken for an argument
     // separator. One forward pass, depth tracked by a counter — no backtracking
-    // to reason about.
-    private static string[] SplitTopLevelArguments(string source, int openParenEnd)
+    // to reason about. Also returns the index right after the matching ')', so
+    // a caller can peek at what follows (a declaration continues into '{'; a
+    // call ends the statement with ';' — see FindCallSites' declaration guard).
+    private static (string[] Args, int EndIndex) SplitTopLevelArguments(string source, int openParenEnd)
     {
         var args = new List<string>();
         var depth = 0;
@@ -213,7 +263,7 @@ public sealed class AuditVocabularyCoverageTests
                     break;
                 case ')' when depth == 0:
                     args.Add(source[argStart..i]);
-                    return [.. args];
+                    return ([.. args], i + 1);
                 case ')' or '}' or ']':
                     depth--;
                     break;
@@ -293,7 +343,12 @@ public sealed class AuditVocabularyCoverageTests
     private static HashSet<string> ParseTsStringArray(string constantName)
     {
         var enumsPath = Path.Combine(RepositoryRoot, "web", "src", "i18n", "enums.ts");
-        var source = File.ReadAllText(enumsPath);
+        // Comment-stripped for the same reason as the C# side: removing a value
+        // by commenting out its line (`// "Foo.Bar",`) is a natural edit, and
+        // StripComments's "//"/"/* */" handling is language-agnostic — it only
+        // needs to recognize double-quoted strings, which is exactly how every
+        // value in this array is written (codex review of #439).
+        var source = StripComments(File.ReadAllText(enumsPath));
 
         var declaration = Regex.Match(
             source, $@"export const {constantName} = \[(.*?)\]\s*as const;", RegexOptions.Singleline);
