@@ -2,7 +2,6 @@ namespace Cluckwork.Api.IntegrationTests;
 
 using System.Net;
 using System.Net.Http.Headers;
-using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
@@ -161,12 +160,20 @@ public sealed class KestrelRequestBodyLimitTests(KestrelBackedFactory factory)
     public async Task Login_body_just_under_the_cap_is_not_413_over_kestrel()
     {
         var client = factory.CreateClient();
-        // Well under the 4 KB cap: not accepted (wrong credentials), but that
-        // must be a 401, never a 413 — proves the transport cutoff isn't
-        // capping every request regardless of size.
-        var response = await client.PostAsJsonAsync(
-            LoginPath, new { email = "nobody@example.com", password = new string('a', 200) });
+        // Sent chunked (not PostAsJsonAsync's declared Content-Length), like
+        // the oversized test above — codex review, PR #440: a declared-length
+        // control can't prove the chunked transport shape is accepted on its
+        // own merits. If Kestrel or an endpoint ever regressed to rejecting
+        // every undeclared-length body outright, the oversized test above
+        // would still pass (still expects 413) while this one would catch it.
+        var underCap = Encoding.UTF8.GetBytes(
+            $$"""{"email":"nobody@example.com","password":"{{new string('a', 200)}}"}""");
 
+        var response = await client.SendAsync(ChunkedRequest(HttpMethod.Post, LoginPath, underCap, "application/json"));
+
+        // Not accepted (wrong credentials), but that must be a 401, never a
+        // 413 — proves the transport cutoff isn't capping every request
+        // regardless of size.
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
@@ -193,8 +200,10 @@ public sealed class KestrelRequestBodyLimitTests(KestrelBackedFactory factory)
     public async Task Logo_upload_under_the_cap_still_succeeds_over_kestrel()
     {
         var client = await AdminClientAsync();
-        var request = new HttpRequestMessage(HttpMethod.Put, LogoPath) { Content = new ByteArrayContent(TinyPng) };
-        request.Content.Headers.ContentType = new MediaTypeHeaderValue("image/png");
+        // Chunked, not ByteArrayContent's declared Content-Length — see the
+        // login under-cap test's comment for why a declared-length control
+        // can't prove this.
+        var request = ChunkedRequest(HttpMethod.Put, LogoPath, TinyPng, "image/png");
         request.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
 
         var response = await client.SendAsync(request);
@@ -233,8 +242,14 @@ public sealed class KestrelRequestBodyLimitTests(KestrelBackedFactory factory)
     public async Task Client_error_report_under_the_cap_still_succeeds_over_kestrel()
     {
         var client = factory.CreateClient();
-        var response = await client.PostAsJsonAsync(
-            ClientErrorPath, new { scope = "app", message = "a render crash, well under the cap" });
+        // Chunked, not PostAsJsonAsync's declared Content-Length — see the
+        // login under-cap test's comment for why a declared-length control
+        // can't prove this.
+        var underCap = Encoding.UTF8.GetBytes(
+            """{"scope":"app","message":"a render crash, well under the cap"}""");
+
+        var response = await client.SendAsync(
+            ChunkedRequest(HttpMethod.Post, ClientErrorPath, underCap, "application/json"));
 
         Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
     }
