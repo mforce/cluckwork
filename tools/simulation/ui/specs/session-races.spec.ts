@@ -62,8 +62,14 @@
 // REVERTED (PR #390 review round 4): it introduced a spurious 401 for any
 // request parked on the refresh when the login began, proven by a unit test
 // whose fetch mock actually honours `AbortSignal`. The hazard it aimed at — a
-// superseded refresh landing its `Set-Cookie` on top of a newer login's — is
-// real and is now tracked as its own #310 follow-up rather than carried here.
+// superseded refresh landing its `Set-Cookie` on top of a newer login's — was
+// real, tracked as its own #310 follow-up (#393), and is now FIXED there —
+// not by reattempting the abort, but by having `revokeSupersededCookie()`
+// always revoke a stale-generation flight's cookie instead of skipping the
+// revoke whenever an access token happens to be present (which never proved
+// anything about which Set-Cookie the browser actually kept). See that
+// function's own comment in `web/src/api/client.ts` and the corrected unit
+// test in `client.test.ts`.
 //
 // **AND THE LATE-`Set-Cookie` RACE CANNOT BE EXPRESSED WITH THIS INSTRUMENT AT
 // ALL.** This was chased to the bottom rather than assumed, and the answer is a
@@ -116,12 +122,17 @@
 // shape. Costed but not built here; recorded so the next attempt starts from a
 // path that has a reason to succeed rather than from the one that does not.
 //
-// CONSEQUENCE, stated plainly: the late-`Set-Cookie` hazard on the LOGIN path
-// has no coverage anywhere — not here, and not in `client.test.ts`. A fix for it
-// was written and reverted during this PR because it caused a regression of its
-// own. Both the hazard and the reproduction live in the #310 follow-up issue.
-// This spec asserts the OUTCOME of the race (which session the user lands in,
-// and that a reload agrees); it is not evidence about the cookie mechanism.
+// CONSEQUENCE, stated plainly (updated by #393): the hazard itself is fixed
+// and unit-covered in `client.test.ts` now — see revokeSupersededCookie()'s
+// comment in `web/src/api/client.ts`. What's still true is narrower than the
+// original claim: THIS spec, specifically, still cannot express the cookie
+// mechanism at the browser/E2E level, because `page.route` + `route.continue()`
+// cannot carry a stale cookie (see above) — that's a property of this testing
+// instrument, not of whether the hazard is fixed. The `route.fulfill()` replay
+// approach above remains the path for whoever wants E2E-level proof of the
+// cookie mechanism itself; costed but still not built. This spec asserts the
+// OUTCOME of the race (which session the user lands in, and that a reload
+// agrees); it was never evidence about the cookie mechanism, fixed or not.
 //
 // What these two tests DO cover, and what the killed `logout-not-honoured`
 // mutant stands behind: the session the user ends up in after the race, and that
