@@ -632,7 +632,10 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
             services.GetRequiredService<IOptions<JwtOptions>>(),
             timeProvider,
             services.GetRequiredService<IAuditWriter>(),
-            registry);
+            registry,
+            services.GetRequiredService<Microsoft.AspNetCore.Http.IHttpContextAccessor>(),
+            services.GetRequiredService<AuthSecurityEventLogger>(),
+            services.GetRequiredService<Microsoft.Extensions.Logging.ILogger<IdentityProvider>>());
 
         var beforeRevoke = timeProvider.GetUtcNow();
 
@@ -750,7 +753,8 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
             db,
             services.GetRequiredService<IOptions<JwtOptions>>(),
             services.GetRequiredService<TimeProvider>(),
-            registry);
+            registry,
+            services.GetRequiredService<AuthSecurityEventLogger>());
 
         return (stepUp, db, accountId, user!.Id);
     }

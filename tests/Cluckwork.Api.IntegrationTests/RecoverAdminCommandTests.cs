@@ -66,9 +66,22 @@ public sealed class RecoverAdminCommandTests : IClassFixture<BreakGlassRecoveryF
 
         Assert.True(0 == exitCode, $"expected exit 0, got {exitCode}. stdout={stdout} stderr={stderr}");
         Assert.Contains("Temporary password:", stdout);
+        var tempPassword = ExtractTemporaryPassword(stdout);
+        // #273 — the actual "never the logger" guarantee, asserted directly:
+        // Serilog's own Console sink ALSO writes to this SAME captured stdout
+        // stream (running in Production here, this subprocess also legitimately
+        // logs the #262 "INSECURE database connection explicitly permitted"
+        // warning — a real Serilog line, correctly present, NOT a regression),
+        // so a stray password-carrying log line would show up here, not vanish.
+        // The precise invariant: the password appears EXACTLY ONCE in the whole
+        // capture (the one explicit Console.Out line), and never inside a line
+        // that opens with a Serilog outputTemplate "[HH:mm:ss LVL]" bracket.
+        Assert.Equal(1, CountOccurrences(stdout, tempPassword));
+        Assert.DoesNotContain(
+            stdout.Split('\n', StringSplitOptions.RemoveEmptyEntries),
+            line => line.TrimStart().StartsWith('[') && line.Contains(tempPassword));
 
         // The printed one-time password must actually work, and the old one must not.
-        var tempPassword = ExtractTemporaryPassword(stdout);
         using var scope = _factory.Services.CreateScope();
         var idp = scope.ServiceProvider.GetRequiredService<IIdentityProvider>();
 
@@ -115,5 +128,17 @@ public sealed class RecoverAdminCommandTests : IClassFixture<BreakGlassRecoveryF
         const string marker = "Temporary password:";
         var line = stdout.Split('\n').First(l => l.Contains(marker));
         return line[(line.IndexOf(marker, StringComparison.Ordinal) + marker.Length)..].Trim();
+    }
+
+    private static int CountOccurrences(string haystack, string needle)
+    {
+        var count = 0;
+        var index = 0;
+        while ((index = haystack.IndexOf(needle, index, StringComparison.Ordinal)) >= 0)
+        {
+            count++;
+            index += needle.Length;
+        }
+        return count;
     }
 }

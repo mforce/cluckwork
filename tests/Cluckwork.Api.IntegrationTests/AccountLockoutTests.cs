@@ -4,6 +4,10 @@ using System.Linq;
 using System.Net;
 using System.Net.Http.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+using Cluckwork.Infrastructure.Identity;
+using Cluckwork.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.DependencyInjection;
 
 // #128 — the configured account lockout must actually fire: repeated failed
 // logins lock the account (rejecting even the correct password), a success
@@ -81,6 +85,59 @@ public sealed class AccountLockoutTests(CluckworkWebApplicationFactory factory)
 
         Assert.Equal(HttpStatusCode.Unauthorized,
             (await PostLoginAsync(factory.CreateClient(), email, TestHarness.Password)).StatusCode);
+    }
+
+    // #273 codex review (P2d) — AccountLockout.RecordFailedAccessAsync's
+    // returned bool must report a TRANSITION (this call caused the lockout),
+    // not merely "the account is locked now". Reproduces the exact race
+    // deterministically (no timing-dependent Task.WhenAll): two independent
+    // scopes each load the user while it sits ONE failure below the
+    // threshold — both pass the same unlocked precheck a real caller
+    // (LoginAsync/StepUpGrantService.IssueAsync) already ran. Driving "A"
+    // (the winner) to completion FIRST, sequentially, is what deterministically
+    // puts "B" (the loser) into the lost-concurrency-race retry path: B's
+    // stale ConcurrencyStamp is guaranteed to lose against A's already-
+    // committed write, forcing exactly the reload this fix targets, without
+    // depending on real thread scheduling.
+    [Fact]
+    public async Task Losing_writer_after_a_concurrency_reload_does_not_report_a_second_transition()
+    {
+        var email = await SeedUserAsync();
+
+        // Sequentially bring the account to one failure below the threshold —
+        // a distinct scope so it doesn't share a DbContext with A/B below.
+        using (var seedScope = factory.Services.CreateScope())
+        {
+            var seedUsers = seedScope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var seedDb = seedScope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var seedUser = await seedUsers.FindByEmailAsync(email);
+            for (var i = 0; i < MaxAttempts - 1; i++)
+                await AccountLockout.RecordFailedAccessAsync(seedUsers, seedDb, seedUser!);
+        }
+
+        // A and B each load their OWN tracked copy of the (still unlocked, one
+        // below threshold) user BEFORE either performs its failing write —
+        // exactly the interleaving a real concurrent pair of requests would
+        // produce.
+        using var scopeA = factory.Services.CreateScope();
+        using var scopeB = factory.Services.CreateScope();
+        var usersA = scopeA.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var dbA = scopeA.ServiceProvider.GetRequiredService<AppDbContext>();
+        var userA = await usersA.FindByEmailAsync(email);
+        var usersB = scopeB.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var dbB = scopeB.ServiceProvider.GetRequiredService<AppDbContext>();
+        var userB = await usersB.FindByEmailAsync(email);
+
+        // A commits first — the winner, crosses the threshold, locks the
+        // account.
+        var aTransitioned = await AccountLockout.RecordFailedAccessAsync(usersA, dbA, userA!);
+        // B's tracked entity is now stale (A already committed): B's first
+        // write loses the concurrency race, reloads, and finds the row A just
+        // locked.
+        var bTransitioned = await AccountLockout.RecordFailedAccessAsync(usersB, dbB, userB!);
+
+        Assert.True(aTransitioned); // A caused the lockout — must report it.
+        Assert.False(bTransitioned); // B only observed a lockout it didn't cause.
     }
 
     [Fact]

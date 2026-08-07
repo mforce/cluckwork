@@ -1,6 +1,7 @@
 namespace Cluckwork.Api.Hosting;
 
 using Cluckwork.Api.Configuration;
+using Cluckwork.Api.Logging;
 using OpenTelemetry.Exporter;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
@@ -26,9 +27,23 @@ internal static class CluckworkTelemetryServiceCollectionExtensions
         // the static to SilentLogger and every logger category created afterwards
         // goes permanently quiet (third bug of this family: options.Logger, then
         // DiagnosticContext, now the bridge itself).
-        services.AddSerilog((registeredServices, cfg) => cfg
-            .ReadFrom.Configuration(configuration)
-            .ReadFrom.Services(registeredServices), preserveStaticLogger: true);
+        // #273 — redact credentials/tokens/cookies/connection strings/emails
+        // BEFORE any sink sees the event, covering both the event's PROPERTIES
+        // (an enricher) and its EXCEPTION (a sink wrapper — an enricher
+        // structurally cannot reach LogEvent.Exception). RedactingLoggerPipeline
+        // owns the whole construction, including `ReadFrom.Configuration` /
+        // `ReadFrom.Services`, because the guarantee it provides is that every
+        // sink from either source sits behind the wrapper; read its class
+        // comment before changing how the logger is built here. The enricher and
+        // exception-redaction delegate are this host's actual redaction CONTENT —
+        // RedactingLoggerPipeline itself stays agnostic of what SensitiveData-
+        // RedactionEnricher does (#426).
+        services.AddSerilog(
+            (registeredServices, cfg) =>
+                RedactingLoggerPipeline.Configure(
+                    cfg, configuration, registeredServices,
+                    new SensitiveDataRedactionEnricher(), SensitiveDataRedactionEnricher.RedactText),
+            preserveStaticLogger: true);
 
         // Bind IDiagnosticContext property creation to THIS host's logger. The
         // default falls back to the process-global static Log.Logger at Set() time.

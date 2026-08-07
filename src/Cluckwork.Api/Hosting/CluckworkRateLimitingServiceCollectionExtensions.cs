@@ -4,6 +4,10 @@ using System.Globalization;
 using System.Net;
 using System.Threading.RateLimiting;
 using Cluckwork.Api.RateLimiting;
+using Cluckwork.Application.Common;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.Logging;
 
 internal static class CluckworkRateLimitingServiceCollectionExtensions
 {
@@ -29,6 +33,39 @@ internal static class CluckworkRateLimitingServiceCollectionExtensions
                     context.HttpContext.Response.Headers.RetryAfter =
                         ((int)Math.Ceiling(retryAfter.TotalSeconds))
                         .ToString(CultureInfo.InvariantCulture);
+                }
+
+                // #273 codex review (P1c) — a stable, alertable event for the AUTH
+                // POLICY only (RateLimitingOptions.LoginPolicyName /
+                // RefreshPolicyName): a 429 there is a brute-force/credential-
+                // stuffing signal a deployment backend should be able to page on.
+                // The client-errors policy (#217) guards log-pipeline VOLUME, not
+                // a credential, so its rejections deliberately stay plain 429s
+                // with no security event — see SecurityEvents.RateLimitRejected.
+                //
+                // Keyed on the endpoint's ATTACHED POLICY (via the
+                // EnableRateLimitingAttribute metadata RequireRateLimiting sets),
+                // not a hardcoded list of literal paths: AuthEndpoints attaches
+                // LoginPolicyName to /auth/login AND /auth/step-up AND
+                // /auth/change-password (all three verify a credential and must
+                // share the brute-force budget), and the earlier path-list version
+                // here only recognized /auth/login and /auth/refresh — a rejection
+                // on step-up or change-password was silently invisible. Matching
+                // the policy name means any FUTURE route that opts into the login
+                // or refresh policy is covered automatically, with no second edit
+                // required here.
+                var policyName = context.HttpContext.GetEndpoint()?.Metadata
+                    .GetMetadata<EnableRateLimitingAttribute>()?.PolicyName;
+                if (policyName == RateLimitingOptions.LoginPolicyName
+                    || policyName == RateLimitingOptions.RefreshPolicyName)
+                {
+                    var rejectionLogger = context.HttpContext.RequestServices
+                        .GetRequiredService<ILoggerFactory>()
+                        .CreateLogger("Cluckwork.Api.Security.RateLimiting");
+                    rejectionLogger.LogWarning("{SecurityEvent} client={ClientIp} path={Path}",
+                        SecurityEvents.RateLimitRejected,
+                        RateLimitKey.ForClient(context.HttpContext.Connection.RemoteIpAddress),
+                        context.HttpContext.Request.Path.Value);
                 }
 
                 await Results.Problem(

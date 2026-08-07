@@ -29,6 +29,29 @@ internal static class AccountLockout
     // per-IP rate limiter. The cap prevents an unbounded loop while still letting
     // every real failure land under normal contention.
     //
+    // #273 — returns whether THIS call is the one that crossed the lockout
+    // threshold (the account was NOT locked immediately before its successful
+    // write, and IS immediately after). Callers use that to fire the
+    // Auth.AccountLockedOut security event exactly once per lockout episode,
+    // not on every subsequent failed attempt against an already-locked
+    // account.
+    //
+    // #273 codex review (P2d) — "unlocked on entry" (every caller here already
+    // checks IsLockedOutAsync before calling this method) is true only for the
+    // FIRST attempt, not for one reached after a reload. Two concurrent
+    // failures one attempt below the threshold can both pass that precheck.
+    // The winner's AccessFailedAsync commits and locks the account; the
+    // loser's write then loses the concurrency race, reloads, and — on retry —
+    // sees the ALREADY-locked row the winner just committed. That retry's own
+    // AccessFailedAsync call typically succeeds (it's just an ordinary
+    // increment on the now-current row), so reporting "succeeded ->
+    // IsLockedOutAsync" unconditionally made the LOSER report a transition it
+    // never caused too, double-firing AccountLockedOut for one lockout
+    // episode. Snapshotting "was this row already locked" immediately before
+    // each attempt's write (not just once at method entry) is what lets a
+    // losing writer recognize a lockout it merely observed on reload, rather
+    // than caused.
+    //
     // #269 review (#350, codex round 4) — each save runs through
     // SingleAttemptExecution, and that is what makes "Succeeded == false" MEAN
     // a parallel writer. Neither password oracle is inside a user-initiated
@@ -50,7 +73,7 @@ internal static class AccountLockout
     // side-effect-free, so it keeps its automatic retry. A transient failure
     // inside the save now surfaces rather than being absorbed — deliberate,
     // and the pre-#269 behaviour; the remedy is the client trying again.
-    public static async Task RecordFailedAccessAsync(
+    public static async Task<bool> RecordFailedAccessAsync(
         UserManager<ApplicationUser> userManager, AppDbContext db, ApplicationUser user)
     {
         // Bind this durable failure to the credential state whose password was
@@ -60,19 +83,35 @@ internal static class AccountLockout
         var attemptedCredentialEpoch = user.CredentialEpoch;
         for (var attempt = 0; attempt < 10; attempt++)
         {
+            // Merge note (#364's boundary meets #273's transition detection):
+            // both apply, and the only thing to DECIDE is what the boundary
+            // returns now that this method reports a bool. `false` is the
+            // answer — it stops precisely because no failure was charged to
+            // this credential, so there is no lockout TRANSITION to report.
+            // Returning true would fire Auth.AccountLockedOut for an attempt
+            // that was deliberately not recorded, against the very credential
+            // the guard exists to protect.
             if (user.DisabledAt is not null || user.CredentialEpoch != attemptedCredentialEpoch)
-                return;
+                return false;
 
+            // Snapshot taken fresh on EVERY attempt (including retries after a
+            // reload) — see the P2d note above for why entry-time alone is not
+            // enough.
+            var wasLockedOut = await userManager.IsLockedOutAsync(user);
             var result = await SingleAttemptExecution.RunAsync(
                 db.Database, () => userManager.AccessFailedAsync(user));
             if (result.Succeeded)
-                return;
+                return !wasLockedOut && await userManager.IsLockedOutAsync(user);
             // The write lost the concurrency race. FindById would hand back the
             // same identity-map instance (stale stamp), so refresh the tracked
             // entity's values from the DB before retrying — `db` is the same
             // scoped context the UserManager store writes through.
             await db.Entry(user).ReloadAsync();
         }
+        // Exhausted retries without a successful write — the caller's failed
+        // attempt was never actually recorded, so this can't be reported as a
+        // lockout transition.
+        return false;
     }
 
     // The counterpart, and it lives here for the same reason RecordFailedAccess

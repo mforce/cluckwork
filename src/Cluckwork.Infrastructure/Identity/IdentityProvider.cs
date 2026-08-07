@@ -1,11 +1,14 @@
 namespace Cluckwork.Infrastructure.Identity;
 
+using System.Runtime.ExceptionServices;
 using System.Security.Cryptography;
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Common;
 using Cluckwork.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 public sealed class IdentityProvider(
@@ -16,7 +19,10 @@ public sealed class IdentityProvider(
     IOptions<JwtOptions> jwtOptions,
     TimeProvider timeProvider,
     Cluckwork.Application.Common.IAuditWriter audit,
-    IStepUpGrantRegistry stepUpGrants) : IIdentityProvider
+    IStepUpGrantRegistry stepUpGrants,
+    IHttpContextAccessor httpContextAccessor,
+    AuthSecurityEventLogger securityEvents,
+    ILogger<IdentityProvider> logger) : IIdentityProvider
 {
     public async Task<Result<TokenPair>> LoginAsync(string email, string password, CancellationToken ct = default)
     {
@@ -26,6 +32,7 @@ public sealed class IdentityProvider(
             // Always pay the PBKDF2 cost so that "user not found" and "wrong password"
             // are indistinguishable by timing.
             userManager.PasswordHasher.VerifyHashedPassword(new ApplicationUser(), TimingEqualization.DummyHash, password);
+            securityEvents.LoginFailed();
             return Result.Failure<TokenPair>(Error.Validation("Identity.InvalidCredentials", "Invalid email or password."));
         }
 
@@ -39,6 +46,12 @@ public sealed class IdentityProvider(
             // it was disabled.
             userManager.PasswordHasher.VerifyHashedPassword(
                 user, user.PasswordHash ?? TimingEqualization.DummyHash, password);
+            // #273 codex review (round 4) — same identity-free LoginFailed as
+            // every other unsuccessful branch (user-not-found, locked-out,
+            // wrong-password): a disabled account is still an unsuccessful
+            // /auth/login attempt, and omitting it here silently dropped
+            // guesses against disabled accounts from the brute-force stream.
+            securityEvents.LoginFailed();
             return Result.Failure<TokenPair>(Error.Validation(
                 "Identity.InvalidCredentials", "Invalid email or password."));
         }
@@ -52,12 +65,34 @@ public sealed class IdentityProvider(
             // DummyHash guards the (currently unreachable) passwordless-user case
             // so this stays a 401, never an NRE/500 that would leak account state.
             userManager.PasswordHasher.VerifyHashedPassword(user, user.PasswordHash ?? TimingEqualization.DummyHash, password);
+            // #273 — same LoginFailed shape as the "user not found" branch above:
+            // an attempt against an ALREADY-locked account re-fires LoginFailed but
+            // never AccountLockedOut again — that fired once, at the transition.
+            securityEvents.LoginFailed();
             return Result.Failure<TokenPair>(Error.Validation("Identity.InvalidCredentials", "Invalid email or password."));
         }
 
         if (!await userManager.CheckPasswordAsync(user, password))
         {
-            await RecordFailedAccessAsync(user);
+            // #273 — LoginFailed carries NO user id/email on any of the three
+            // branches (see SecurityEvents.LoginFailed): logging must not turn
+            // into the identity-existence oracle the API response already
+            // avoids. AccountLockedOut is a SEPARATE event, safe to name the
+            // user on, because it only ever fires here — never on the
+            // "user not found" branch — so its mere presence can't be used to
+            // tell a nonexistent email apart from a wrong password.
+            //
+            // Emitted BEFORE persisting lockout state, not after: the password
+            // has already been confirmed wrong at this point, and
+            // RecordFailedAccessAsync is a durable write that can throw (DB
+            // trouble). A throw there must not silently drop LoginFailed from
+            // the stream — the wrong-password fact is real regardless of
+            // whether the lockout counter itself could be persisted
+            // (codex review of #349).
+            securityEvents.LoginFailed();
+            var justLockedOut = await RecordFailedAccessAsync(user);
+            if (justLockedOut)
+                securityEvents.AccountLockedOut(user.Id);
             return Result.Failure<TokenPair>(Error.Validation("Identity.InvalidCredentials", "Invalid email or password."));
         }
 
@@ -112,11 +147,19 @@ public sealed class IdentityProvider(
 
     // Shared with /auth/step-up (#308) via AccountLockout — see the note there
     // on why every password oracle must apply this, not just login.
-    private Task RecordFailedAccessAsync(ApplicationUser user) =>
+    private Task<bool> RecordFailedAccessAsync(ApplicationUser user) =>
         AccountLockout.RecordFailedAccessAsync(userManager, db, user);
 
     private Task ResetFailedAccessCountAsync(ApplicationUser user, CancellationToken ct) =>
         AccountLockout.ResetFailedAccessCountAsync(userManager, db, user, ct);
+
+    // #273 — resolved per-call (never cached on the instance): IdentityProvider
+    // is scoped per REQUEST, so this is safe to read lazily, but reading it
+    // fresh here rather than in the constructor keeps the dependency honest
+    // for a caller with no ambient HttpContext (a future non-HTTP caller would
+    // just see null -> "unknown", not throw).
+    private string ClientIp =>
+        httpContextAccessor.HttpContext?.Connection.RemoteIpAddress?.ToString() ?? "unknown";
 
     public async Task<Result<TokenPair>> RefreshAsync(string refreshToken, CancellationToken ct = default)
     {
@@ -162,6 +205,19 @@ public sealed class IdentityProvider(
             }
             if (graced is null)
             {
+                // #273 — a genuine replay: log BEFORE attempting the revoke, so
+                // detection is recorded even if the revoke itself throws (the
+                // catch below logs that separately as Auth.RefreshRevocationFailed
+                // and rethrows — this call still completes and returns normally).
+                logger.LogWarning("{SecurityEvent} user={UserId} client={ClientIp}",
+                    SecurityEvents.RefreshTokenReplayDetected, stored.UserId, ClientIp);
+                // Merge note: #364 (on main after this branch was cut) scopes the
+                // revoke to the epoch that ISSUED the presented token. Keep that
+                // argument — the 2-arg overload still exists and still compiles,
+                // so dropping it is silent, and it would widen a replay
+                // revocation to credentials minted by a LATER epoch: a stale
+                // token could keep killing sessions created by a password reset
+                // that already superseded it.
                 await RevokeAllActiveForUserAsync(stored.UserId, stored.IssuedEpoch, now, ct);
                 return Result.Failure<TokenPair>(Error.Validation("Identity.InvalidRefreshToken", "Refresh token is invalid."));
             }
@@ -227,7 +283,29 @@ public sealed class IdentityProvider(
             // exception EF raises depends on statement ordering inside the batch,
             // so a branch keyed on the exception type would be reading a coin
             // flip; whether our own token is durable is a fact.
-            if (await MintedTokenIsDurableAsync(newHash))
+            //
+            // The probe is itself a DB read (#269 codex review, #350 round 5's
+            // successor): under a SUSTAINED outage — not just the single blip the
+            // whole retry-then-probe dance is built to absorb — it can throw too,
+            // and a throw from inside this catch replaces it, skipping every
+            // branch below including the alert. Log the ROTATION's failure (ex),
+            // never the probe's — the probe throwing only corroborates the same
+            // outage — and preserve the fail-closed contract via
+            // ExceptionDispatchInfo so the original exception (type, message,
+            // stack) still reaches the caller unchanged (codex review of #349).
+            bool durable;
+            try
+            {
+                durable = await MintedTokenIsDurableAsync(newHash);
+            }
+            catch (Exception) when (ex is not OperationCanceledException)
+            {
+                LogRevocationFailed(ex, user.Id);
+                ExceptionDispatchInfo.Capture(ex).Throw();
+                throw; // unreachable; satisfies flow analysis
+            }
+
+            if (durable)
             {
                 // This attempt's rotation is durable, so deliver the token it
                 // minted. Same move IdempotencyMiddleware already makes on its own
@@ -243,13 +321,32 @@ public sealed class IdentityProvider(
                 // minted the one live child; fail this one closed rather than fork
                 // a second session. Reaching here means the probe found NO token
                 // of ours, i.e. our transaction committed nothing — so this is a
-                // genuine race, never our own replay wearing its costume.
+                // genuine race, never our own replay wearing its costume. Benign
+                // and EXPECTED under normal traffic, so — unlike the branch below —
+                // this is not itself worth an Auth.RefreshRevocationFailed alert.
                 return Result.Failure<TokenPair>(Error.Validation("Identity.InvalidRefreshToken", "Refresh token is invalid."));
             }
             else
             {
                 // Nothing of ours is durable and this is not a CAS loss: report the
                 // real failure. Fails CLOSED — a session is never invented here.
+                //
+                // #273 codex review (P2e) — this SaveChangesAsync is ALSO a
+                // refresh-token revocation (it sets stored.RevokedAt = now on the
+                // presented token as part of the rotation, above), but it is a
+                // tracked read-modify-save rather than one of the bulk
+                // ExecuteUpdateAsync calls RunRevocationAsync wraps, so it sits
+                // outside that "single hardening point for EVERY refresh-token
+                // revocation this class performs" — a failure here that reaches
+                // this branch (a real outage, not a benign #176 race and not our
+                // own replay) must not silently skip the alert. Same event, same
+                // log shape, same rethrow-never-swallow contract as
+                // RunRevocationAsync — see LogRevocationFailed. Excluded on
+                // OperationCanceledException, same as RunRevocationAsync: a client
+                // hangup/cancellation aborting the save is not a security signal
+                // worth alerting on.
+                if (ex is not OperationCanceledException)
+                    LogRevocationFailed(ex, user.Id);
                 throw;
             }
         }
@@ -609,42 +706,62 @@ public sealed class IdentityProvider(
         // rotated concurrently. WHERE RevokedAt == null makes it idempotent.
         var presentedHash = Hash(refreshToken);
         var now = timeProvider.GetUtcNow();
+        Guid? ownerId = null;
 
-        // #308 — a real logout must invalidate any outstanding step-up grant for
-        // this user (a grant captured before this logout must not work after it),
-        // so read the owning user id BEFORE the bulk update.
+        // #273 codex review (round 2, P2c) — the failure boundary covers the
+        // owner LOOKUP as well as the update. The lookup is a prerequisite of
+        // the revocation, not something happening beside it: if it throws, the
+        // bulk update below never runs, so the revocation fails just as
+        // completely as if the update had thrown — but it used to do so in
+        // silence, with no Auth.RefreshRevocationFailed for a deployment to
+        // alert on. One boundary over the whole sequence, and EXACTLY ONE
+        // emission either way: the update inside is the raw statement
+        // (RevokeByHashCoreAsync), never a second RunRevocationAsync wrapper,
+        // so a failing update cannot log the event twice.
         //
-        // Deliberately NOT filtered on RevokedAt: the cookie may already be stale
-        // because a background refresh rotated it moments earlier, and #336's
-        // review caught that the revoked-only lookup silently skipped recording
-        // the logout in exactly that case — leaving a grant valid for the rest of
-        // its lifetime after the user had logged out. Identifying the user is
-        // what matters here, not whether this particular row is still live. A
-        // genuinely unknown token still records nothing (logout is best-effort
-        // and always fires, see AuthEndpoints.Logout).
-        var tokenRow = await db.RefreshTokens
-            .Where(t => t.TokenHash == presentedHash)
-            .Select(t => new { t.UserId })
-            .FirstOrDefaultAsync(ct);
+        // `ownerId` is read through a closure at catch time rather than passed
+        // in, because who the token belongs to is only known once the lookup
+        // this boundary now covers has succeeded — a lookup failure logs the
+        // event with no user id, which is honest, rather than not at all.
+        await RunRevocationAsync(() => ownerId, async () =>
+        {
+            // #308 — a real logout must invalidate any outstanding step-up grant
+            // for this user (a grant captured before this logout must not work
+            // after it), so read the owning user id BEFORE the bulk update.
+            //
+            // Deliberately NOT filtered on RevokedAt: the cookie may already be
+            // stale because a background refresh rotated it moments earlier, and
+            // #336's review caught that the revoked-only lookup silently skipped
+            // recording the logout in exactly that case — leaving a grant valid
+            // for the rest of its lifetime after the user had logged out.
+            // Identifying the user is what matters here, not whether this
+            // particular row is still live. A genuinely unknown token still
+            // records nothing (logout is best-effort and always fires, see
+            // AuthEndpoints.Logout).
+            var tokenRow = await db.RefreshTokens
+                .Where(t => t.TokenHash == presentedHash)
+                .Select(t => new { t.UserId })
+                .FirstOrDefaultAsync(ct);
+            ownerId = tokenRow?.UserId;
 
-        // #336 review (2nd round) — record BEFORE the bulk update, not after.
-        // RecordLogout is in-memory and cannot fail; ExecuteUpdateAsync hits the
-        // database and can throw (transient connection loss, deadlock). With the
-        // record afterwards, that exception skipped it entirely: the SPA has
-        // already cleared its local token and treats logout as best-effort, so
-        // the user believes they logged out while a captured access token plus an
-        // unexpired step-up grant stayed usable for the rest of the grant's life.
-        // Recording first means a database failure over-revokes (grants dead,
-        // refresh row possibly still live) instead of under-revoking — the same
-        // fail-safe direction AuthEndpoints.Logout applies to the bearer path one
-        // layer up. That fix corrected only the outer call site; this is the same
-        // hazard inside the cookie path.
-        if (tokenRow is not null)
-            stepUpGrants.RecordLogout(tokenRow.UserId, now);
+            // #336 review (2nd round) — record BEFORE the bulk update, not
+            // after. RecordLogout is in-memory and cannot fail;
+            // ExecuteUpdateAsync hits the database and can throw (transient
+            // connection loss, deadlock). With the record afterwards, that
+            // exception skipped it entirely: the SPA has already cleared its
+            // local token and treats logout as best-effort, so the user believes
+            // they logged out while a captured access token plus an unexpired
+            // step-up grant stayed usable for the rest of the grant's life.
+            // Recording first means a database failure over-revokes (grants
+            // dead, refresh row possibly still live) instead of under-revoking —
+            // the same fail-safe direction AuthEndpoints.Logout applies to the
+            // bearer path one layer up. That fix corrected only the outer call
+            // site; this is the same hazard inside the cookie path.
+            if (tokenRow is not null)
+                stepUpGrants.RecordLogout(tokenRow.UserId, now);
 
-        await db.RefreshTokens
-            .Where(t => t.TokenHash == presentedHash && t.RevokedAt == null)
-            .ExecuteUpdateAsync(s => s.SetProperty(t => t.RevokedAt, now), ct);
+            await RevokeByHashCoreAsync(presentedHash, now, ct);
+        });
     }
 
     // #336 review — the access-token half of logout revocation. The cookie owner
@@ -717,11 +834,86 @@ public sealed class IdentityProvider(
         // Bulk update rather than tracked read-modify-save: it never trips the
         // #176 xmin concurrency token (so it is safe to call from the rotation
         // fail path) and revokes the whole family in one statement.
-        await db.RefreshTokens
-            .Where(t => t.UserId == userId && t.RevokedAt == null
-                && (!issuedEpoch.HasValue || t.IssuedEpoch == issuedEpoch.Value))
-            .ExecuteUpdateAsync(s => s.SetProperty(t => t.RevokedAt, now), ct);
+        // Merge note: #273's RunRevocationAsync wrapper and #364's epoch scoping
+        // are independent and BOTH apply. The wrapper only adds an alertable
+        // event when the update throws; the filter decides which rows it
+        // touches. Losing either half is silent — without the wrapper a failed
+        // lock-out goes unreported, and without the filter a revoke reaches a
+        // newer epoch's sessions.
+        await RunRevocationAsync(
+            userId,
+            () => db.RefreshTokens
+                .Where(t => t.UserId == userId && t.RevokedAt == null
+                    && (!issuedEpoch.HasValue || t.IssuedEpoch == issuedEpoch.Value))
+                .ExecuteUpdateAsync(s => s.SetProperty(t => t.RevokedAt, now), ct));
     }
+
+    // #273 — hardening point for the BULK-UPDATE refresh-token revocations
+    // this class performs (replay-triggered family revocation, logout,
+    // password reset/change, break-glass — via RevokeAllActiveForUserAsync and
+    // RevokeRefreshTokenAsync): if the bulk update itself throws instead of
+    // completing, the safety action meant to lock a suspected attacker out of
+    // every session never ran. That is worth its own alertable event
+    // (Auth.RefreshRevocationFailed), separate from whatever triggered the
+    // revoke attempt (a replay, a logout, a password change, ...) — logging it
+    // here once, rather than at each bulk-update call site, is what keeps it
+    // from being forgotten at a future one. Logs and RETHROWS: the caller's
+    // existing behavior on a DB failure (bubble up, eventually a 500) is
+    // unchanged — this only adds observability, never swallows the failure.
+    // OperationCanceledException is excluded: a client hangup/cancellation
+    // aborting the update is not a security signal worth alerting on.
+    //
+    // #273 codex review (P2e) — NOT the only revocation this class performs:
+    // RefreshAsync's own token rotation also revokes (a tracked
+    // read-modify-save, not a bulk update — see its own try/catch), and that
+    // path cannot funnel through this method's Func<Task> shape without also
+    // swallowing the DbUpdateConcurrencyException it must handle differently
+    // (a benign race, not a failure worth alerting on). Both paths log through
+    // the same LogRevocationFailed helper below, so they stay identical in
+    // shape even though they can't share this wrapper's control flow.
+    //
+    // #273 codex review (round 2, P2c) — the boundary takes the user id as an
+    // ACCESSOR, not a value, because RevokeRefreshTokenAsync's boundary now also
+    // covers the lookup that discovers who the token belongs to: at the moment
+    // the boundary is entered there is no user id yet, and at the moment it
+    // catches there may or may not be one. The Guid?-taking overload below keeps
+    // the three call sites that do know it up front unchanged.
+    private async Task RunRevocationAsync(Func<Guid?> userId, Func<Task> revoke)
+    {
+        try
+        {
+            await revoke();
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            LogRevocationFailed(ex, userId());
+            throw;
+        }
+    }
+
+    private Task RunRevocationAsync(Guid? userId, Func<Task> revoke) =>
+        RunRevocationAsync(() => userId, revoke);
+
+    // #273 codex review (P2e) — the actual log call, factored out so
+    // RunRevocationAsync's three bulk-update revocations (family revoke,
+    // logout, break-glass/password-reset/change's RevokeAllActiveForUserAsync)
+    // and RefreshAsync's tracked rotation (which revokes by read-modify-save,
+    // not a bulk update, so it cannot go through RunRevocationAsync's
+    // Func<Task> shape without also swallowing the DbUpdateConcurrencyException
+    // it needs to handle separately) log the IDENTICAL event/shape rather than
+    // risking the two call sites drifting apart.
+    private void LogRevocationFailed(Exception ex, Guid? userId) =>
+        logger.LogError(ex, "{SecurityEvent} user={UserId}",
+            SecurityEvents.RefreshRevocationFailed, userId);
+
+    // The RAW single-token revoke, with no failure boundary of its own: its only
+    // caller (RevokeRefreshTokenAsync) already runs inside a boundary that
+    // starts one statement earlier, at the owner lookup. Wrapping here as well
+    // would emit Auth.RefreshRevocationFailed twice for one failed logout.
+    private Task RevokeByHashCoreAsync(string tokenHash, DateTimeOffset now, CancellationToken ct) =>
+        db.RefreshTokens
+            .Where(t => t.TokenHash == tokenHash && t.RevokedAt == null)
+            .ExecuteUpdateAsync(s => s.SetProperty(t => t.RevokedAt, now), ct);
 
     // #269 — "did the save I just attempted actually commit?", answered by the
     // one piece of evidence that cannot belong to anybody else: the hash of a
