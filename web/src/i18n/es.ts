@@ -1571,6 +1571,12 @@ export const es = {
       + "incluso al recargar y con la aplicación abierta en <strong>varias pestañas</strong> a la vez. "
       + "Después de que la aplicación se <strong>actualiza</strong> es posible que se le pida iniciar "
       + "sesión una vez más — eso es normal.",
+    // machine-drafted (#393) — pending native review.
+    signingInMultiTabResync:
+      "Iniciar sesión como otra persona en una <strong>pestaña del navegador</strong> mientras otra pestaña "
+      + "del mismo navegador está a mitad de su propia verificación silenciosa puede, en ocasiones, cerrarle "
+      + "la sesión justo después — simplemente vuelva a iniciar sesión. Esto solo ocurre en ese momento "
+      + "puntual con varias pestañas y nunca pierde nada que ya haya guardado.",
     // machine-drafted (#283) — pending native review.
     signingInFirstRun:
       "<strong>Primer inicio de sesión en una granja nueva.</strong> No hay una contraseña predeterminada — "

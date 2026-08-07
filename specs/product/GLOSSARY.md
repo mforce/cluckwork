@@ -564,6 +564,21 @@ replayed/stale token is still caught and revokes the whole family. Consuming a
 token is an atomic compare-and-swap (a per-token concurrency stamp), so concurrent
 replays can never fork one token into two live sessions.
 
+**Superseded-flight cookie revocation (#393)** — a refresh (or sign-in, or
+password change) that goes stale mid-flight — superseded by a newer sign-in
+before its own response lands — still rotates the shared refresh cookie the
+instant the browser receives that response, before the app's own bookkeeping
+ever runs. The stale flight's cookie is therefore always revoked, even when
+the newer sign-in already has a token in hand: which of the two responses'
+cookies the browser actually kept is real network timing, not something the
+app can observe or infer from "is someone currently signed in." User-visible
+consequence, narrow and rare: switching to a different sign-in in one browser
+tab while another tab of the same browser is mid-refresh can occasionally
+revoke the credential behind the *newer* sign-in too, surfacing as an
+unexpected "please sign in again" shortly after. No work is lost — it is
+exactly the same experience as any other session timeout, just sooner than
+expected. See the Help page's "Signing in" section.
+
 **Credential epoch (#364)** — a monotonically increasing per-user number carried
 in every access token and stamped onto every refresh token. A request is valid
 only when its epoch matches the current user record, so an administrative

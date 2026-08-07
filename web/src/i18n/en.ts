@@ -1917,6 +1917,14 @@ export const en = {
       "Your sign-in is kept in your browser securely and stays active as you work, even across reloads and "
       + "with the app open in <strong>several tabs</strong> at once. After the app is <strong>updated</strong> "
       + "you may be asked to sign in once more — that's expected.",
+    // #393 — revokeSupersededCookie() now always revokes a superseded flight's
+    // cookie, including the rare branch where the newer sign-in's own cookie
+    // was the one caught by that revoke. User-visible result: an unexpected
+    // "please sign in again" shortly after switching accounts across tabs.
+    signingInMultiTabResync:
+      "Signing in as someone else in one <strong>browser tab</strong> while another tab of the same browser is "
+      + "midway through its own quiet check can occasionally sign you back out right after — just sign in "
+      + "again. This only happens in that narrow multi-tab moment and never loses anything you already saved.",
     // #283 — first-run provisioning: no default credential ever ships with
     // the app, so the very first sign-in always starts from a printed
     // one-time password.
