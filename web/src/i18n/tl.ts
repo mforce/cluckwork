@@ -2190,6 +2190,14 @@ export const tl = {
       + "hanggang lumipas ang maikling paghihintay. Hindi nito naaapektuhan ang session na naka-sign in "
       + "na.",
 
+    // #393 (machine-drafted, pending native review)
+    glossaryForcedReauthTerm: "Na-sign out kaagad pagkatapos lumipat ng account",
+    glossaryForcedReauthDef:
+      "Ang pag-sign in bilang ibang tao sa isang <strong>browser tab</strong> habang kalagitnaan ng sarili "
+      + "nitong tahimik na pagsuri sa background ang isa pang tab ay paminsan-minsang maaaring mag-sign out "
+      + "kaagad sa bagong session. Mag-sign in na lang ulit — nangyayari lang ito sa maikling sandaling iyon "
+      + "ng maraming tab at walang nawawalang naka-save na.",
+
     // #308 (machine-drafted, pending native review)
     glossaryStepUpAuthTerm: "Karagdagang pagpapatunay (step-up)",
     glossaryStepUpAuthDef:

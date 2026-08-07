@@ -2440,6 +2440,15 @@ export const en = {
       + "minutes are refused with this message until a short cool-off passes. It never affects an already "
       + "signed-in session.",
 
+    // #393 — same forced-reauth edge case as signingInMultiTabResync above,
+    // now in the glossary table's own term/definition form.
+    glossaryForcedReauthTerm: "Signed out right after switching accounts",
+    glossaryForcedReauthDef:
+      "Signing in as someone else in one <strong>browser tab</strong> while another tab is midway through "
+      + "its own quiet background check can occasionally sign the new session back out again immediately. "
+      + "Just sign in again — this only happens in that narrow multi-tab moment and nothing already saved "
+      + "is lost.",
+
     glossaryTooManyReportsTerm: "Too many reports at once",
     glossaryTooManyReportsDef:
       "The farm runs only a few reports at the same time, so one busy screen cannot slow the app for "

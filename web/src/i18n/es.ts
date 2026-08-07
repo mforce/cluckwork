@@ -2111,6 +2111,14 @@ export const es = {
       + "demasiados intentos desde un mismo lugar en pocos minutos se rechazan con este mensaje hasta que "
       + "pasa un breve período de espera. Nunca afecta a una sesión que ya inició.",
 
+    // #393 (machine-drafted, pending native review)
+    glossaryForcedReauthTerm: "Sesión cerrada justo después de cambiar de cuenta",
+    glossaryForcedReauthDef:
+      "Iniciar sesión como otra persona en una <strong>pestaña del navegador</strong> mientras otra pestaña "
+      + "está a mitad de su propia comprobación silenciosa en segundo plano puede, en ocasiones, cerrar la "
+      + "nueva sesión de inmediato. Simplemente vuelva a iniciar sesión — esto solo ocurre en ese momento "
+      + "puntual de varias pestañas y no se pierde nada de lo ya guardado.",
+
     // #308 (machine-drafted, pending native review)
     glossaryStepUpAuthTerm: "Autenticación reforzada (step-up)",
     glossaryStepUpAuthDef:
