@@ -130,6 +130,9 @@ export function HelpPage() {
           <Trans ns="help" i18nKey="signingInPersistence" components={{ strong: <strong /> }} />
         </li>
         <li>
+          <Trans ns="help" i18nKey="signingInMultiTabResync" components={{ strong: <strong /> }} />
+        </li>
+        <li>
           <Trans ns="help" i18nKey="signingInStepUp" components={{ strong: <strong /> }} />
         </li>
         <li>
@@ -481,6 +484,8 @@ export function HelpPage() {
             <td>{t("glossaryNewVersionReadyDef")}</td></tr>
           <tr><th scope="row">{t("glossaryTooManySignInAttemptsTerm")}</th>
             <td>{t("glossaryTooManySignInAttemptsDef")}</td></tr>
+          <tr><th scope="row">{t("glossaryForcedReauthTerm")}</th>
+            <td><Trans ns="help" i18nKey="glossaryForcedReauthDef" components={{ strong: <strong /> }} /></td></tr>
           <tr><th scope="row">{t("glossaryTooManyReportsTerm")}</th>
             <td>{t("glossaryTooManyReportsDef")}</td></tr>
           <tr><th scope="row">{t("glossaryStepUpAuthTerm")}</th>

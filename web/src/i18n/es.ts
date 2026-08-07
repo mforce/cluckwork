@@ -1571,6 +1571,12 @@ export const es = {
       + "incluso al recargar y con la aplicación abierta en <strong>varias pestañas</strong> a la vez. "
       + "Después de que la aplicación se <strong>actualiza</strong> es posible que se le pida iniciar "
       + "sesión una vez más — eso es normal.",
+    // machine-drafted (#393) — pending native review.
+    signingInMultiTabResync:
+      "Iniciar sesión como otra persona en una <strong>pestaña del navegador</strong> mientras otra pestaña "
+      + "del mismo navegador está a mitad de su propia verificación silenciosa puede, en ocasiones, cerrarle "
+      + "la sesión justo después — simplemente vuelva a iniciar sesión. Esto solo ocurre en ese momento "
+      + "puntual con varias pestañas y nunca pierde nada que ya haya guardado.",
     // machine-drafted (#283) — pending native review.
     signingInFirstRun:
       "<strong>Primer inicio de sesión en una granja nueva.</strong> No hay una contraseña predeterminada — "
@@ -2104,6 +2110,14 @@ export const es = {
       "El inicio de sesión tiene un límite de frecuencia para frenar los intentos de adivinar contraseñas: "
       + "demasiados intentos desde un mismo lugar en pocos minutos se rechazan con este mensaje hasta que "
       + "pasa un breve período de espera. Nunca afecta a una sesión que ya inició.",
+
+    // #393 (machine-drafted, pending native review)
+    glossaryForcedReauthTerm: "Sesión cerrada justo después de cambiar de cuenta",
+    glossaryForcedReauthDef:
+      "Iniciar sesión como otra persona en una <strong>pestaña del navegador</strong> mientras otra pestaña "
+      + "está a mitad de su propia comprobación silenciosa en segundo plano puede, en ocasiones, cerrar la "
+      + "nueva sesión de inmediato. Simplemente vuelva a iniciar sesión — esto solo ocurre en ese momento "
+      + "puntual de varias pestañas y no se pierde nada de lo ya guardado.",
 
     // #308 (machine-drafted, pending native review)
     glossaryStepUpAuthTerm: "Autenticación reforzada (step-up)",

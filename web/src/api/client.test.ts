@@ -1484,10 +1484,18 @@ describe("session generation (#310)", () => {
     expect(settled).toMatchObject({ status: 401 });
   });
 
-  // #310 review — the revoke is scoped to "the session is gone". When a newer
-  // LOGIN supersedes an older flight, the cookie in the browser belongs to that
-  // live login; revoking it would sign the user out of the thing they just did.
-  it("does not revoke the cookie when a newer login superseded the flight", async () => {
+  // #393 — corrected from "does not revoke the cookie when a newer login
+  // superseded the flight". That title encoded a false premise: "the cookie in
+  // the browser belongs to that live login" is not something a present access
+  // token can prove. A successful /auth/refresh response applies its
+  // Set-Cookie the instant the browser parses it, unconditionally, before any
+  // generation-check JS runs — whether the PREVIOUS user's rotated cookie or
+  // the new login's cookie ends up "current" is real network arrival order,
+  // invisible to JS, and the HttpOnly cookie can't be read back to check
+  // either. Skipping the revoke here (the old behavior) could leave the
+  // previous user's cookie live in the browser, silently, with the new
+  // session's correct in-memory token masking it until reload.
+  it("still revokes the stale refresh's cookie even though a newer login already set a token", async () => {
     clearAccessToken();
     const refreshGate = deferred<Response>();
     fetchMock.mockImplementation((url: string) => {
@@ -1505,6 +1513,9 @@ describe("session generation (#310)", () => {
     await restoring;
 
     expect(getAccessToken()).toBe("newLoginToken"); // the live login survives
-    expect(callsTo(fetchMock, "/auth/logout")).toHaveLength(0); // and is NOT revoked
+    // The stale refresh's response DID rotate a cookie in the browser — that
+    // must be revoked regardless, or a reload risks walking back into the
+    // WRONG session depending on which Set-Cookie the browser actually kept.
+    expect(callsTo(fetchMock, "/auth/logout")).toHaveLength(1);
   });
 });

@@ -146,11 +146,21 @@ class StaleSessionError extends Error {
 // restoreSession() and the session the user ended comes back.
 //
 // So when a cookie-setting response is discarded, ask the server to revoke what
-// it just issued. Only when the session is actually gone (no access token): if a
-// newer LOGIN superseded this flight, the cookie now belongs to that live
-// session and revoking it would sign the user out of the thing they just did.
+// it just issued.
+//
+// #393 — ALWAYS revoke, even when an access token is currently present. A
+// present token only proves a newer login has ALSO happened; it proves nothing
+// about which of the two responses' Set-Cookie headers the browser actually
+// kept — that's real network arrival order, which JS cannot observe, and the
+// HttpOnly cookie itself can't be read back to check. Skipping the revoke
+// whenever a token happened to be present (the previous behavior) could leave
+// the PREVIOUS user's rotated cookie live in the browser, silently, with the
+// new session's correct in-memory token masking it until reload. Revoking
+// unconditionally is safe in both branches: worst case, the newer session's
+// own cookie was the one actually live, and this forces IT to re-authenticate
+// too — an inconvenience confined to an already-narrow race window, never a
+// wrong-session security hole.
 async function revokeSupersededCookie(): Promise<void> {
-  if (getAccessToken()) return; // superseded by a newer login, not by a logout
   try {
     await raw<void>("/auth/logout", { method: "POST", headers: { [CSRF_HEADER]: "1" } });
   } catch (err) {

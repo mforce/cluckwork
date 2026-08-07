@@ -1630,6 +1630,12 @@ export const tl = {
       + "kahit mag-reload at kahit bukas ang app sa <strong>ilang tab</strong> nang sabay-sabay. "
       + "Pagkatapos ma-<strong>update</strong> ang app, maaaring hilingin sa iyong mag-sign in muli — "
       + "normal lang iyon.",
+    // machine-drafted (#393) — pending native review.
+    signingInMultiTabResync:
+      "Ang pag-sign in bilang ibang tao sa isang <strong>browser tab</strong> habang ang isa pang tab ng "
+      + "parehong browser ay kalagitnaan pa lang ng sarili nitong tahimik na pag-check ay paminsan-minsang "
+      + "maaaring mag-sign out sa iyo agad pagkatapos — mag-sign in na lang ulit. Nangyayari lang ito sa "
+      + "bihirang sitwasyong ito na may maraming tab at hindi kailanman nawawala ang anumang na-save mo na.",
     // machine-drafted (#283) — pending native review.
     signingInFirstRun:
       "<strong>Unang pag-sign in sa isang bagong-bagong farm.</strong> Walang default na password — "
@@ -2183,6 +2189,14 @@ export const tl = {
       + "pagtatangka mula sa iisang lugar sa loob ng ilang minuto ay tatanggihan gamit ang mensaheng ito "
       + "hanggang lumipas ang maikling paghihintay. Hindi nito naaapektuhan ang session na naka-sign in "
       + "na.",
+
+    // #393 (machine-drafted, pending native review)
+    glossaryForcedReauthTerm: "Na-sign out kaagad pagkatapos lumipat ng account",
+    glossaryForcedReauthDef:
+      "Ang pag-sign in bilang ibang tao sa isang <strong>browser tab</strong> habang kalagitnaan ng sarili "
+      + "nitong tahimik na pagsuri sa background ang isa pang tab ay paminsan-minsang maaaring mag-sign out "
+      + "kaagad sa bagong session. Mag-sign in na lang ulit — nangyayari lang ito sa maikling sandaling iyon "
+      + "ng maraming tab at walang nawawalang naka-save na.",
 
     // #308 (machine-drafted, pending native review)
     glossaryStepUpAuthTerm: "Karagdagang pagpapatunay (step-up)",
