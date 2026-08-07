@@ -479,6 +479,37 @@ describe("HistoryPage adjust — mirrored daily-entry layout", () => {
     expect(chip()).toHaveTextContent("the day adds up");
   });
 
+  // Mirrors DailyEntryPage.test.tsx's identical test: a single tap cannot
+  // distinguish setLine's gradeQtyRef-based sum from one naively read off
+  // the `lineQty` closure, since NumberField's hold-to-repeat binds its
+  // WHOLE burst to the one setLine closure captured at press time. Only a
+  // genuine multi-tick hold exercises the reason the ref exists (codex
+  // review of #449 / adversarial review).
+  it("accumulates correctly across a genuine multi-tick hold, not just the press-time snapshot", async () => {
+    mockListDailyEntries.mockResolvedValue([SUBMITTED]);
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      await openAdjustPanel();
+
+      const plusA = screen.getByRole("button", { name: "Increase grade a" });
+      await act(async () => { fireEvent.pointerDown(plusA); });
+      // Same hold length and acceleration curve as NumberField.test.tsx's
+      // "accelerates while held" case: press 1 + ticks 1-10 at +1 (10) +
+      // ticks 11-16 at +5 (30) = 41 over 1300ms.
+      await act(async () => { vi.advanceTimersByTime(1300); });
+      await act(async () => { fireEvent.pointerUp(plusA); });
+
+      // Fixture: Grade A starts at 40, Grade B at 20, losses 10.
+      expect(screen.getByRole("spinbutton", { name: "Grade A" })).toHaveValue(40 + 41);
+      // Every tick in the burst increased the sum, so the total tracked all
+      // of them — the read-off-a-stale-closure regression would leave this
+      // frozen near the press-time value instead of 40 + 41 + 20 + 10.
+      expect(screen.getByRole("spinbutton", { name: "Total eggs" })).toHaveValue(40 + 41 + 20 + 10);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   // codex review of #449: gating only on "still over" (rather than on this
   // EDIT increasing the graded sum) meant correcting an over-graded day by
   // walking a grade back down with − ratcheted the total right back up on

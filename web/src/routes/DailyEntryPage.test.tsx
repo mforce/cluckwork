@@ -790,6 +790,39 @@ describe("DailyEntryPage grading sync (#443)", () => {
     expect(remainingChip()).toHaveClass("done");
   });
 
+  // The two tests above only ever fire ONE onChange per interaction (a tap,
+  // or a single programmatic change) — they cannot tell setGrade's
+  // gradeQtyRef-based sum apart from one naively read off the `gradeQty`
+  // closure, because NumberField's hold-to-repeat binds its WHOLE burst of
+  // ticks to the single setGrade closure captured at press time (see
+  // gradeQtyRef's own comment). Only a genuine multi-tick hold — several
+  // repeat() ticks firing before this component ever re-renders — exercises
+  // the reason the ref exists (codex review of #449 / adversarial review).
+  it("accumulates correctly across a genuine multi-tick hold, not just the press-time snapshot", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      await renderReady();
+      setNum("Total eggs", 10);
+      setNum("Grade A", 9); // sellable 10, one left
+
+      const plusA = screen.getByRole("button", { name: "Increase grade a" });
+      await act(async () => { fireEvent.pointerDown(plusA); });
+      // Same hold length and acceleration curve as NumberField.test.tsx's
+      // "accelerates while held" case: press 1 + ticks 1-10 at +1 (10) +
+      // ticks 11-16 at +5 (30) = 41 over 1300ms.
+      await act(async () => { vi.advanceTimersByTime(1300); });
+      await act(async () => { fireEvent.pointerUp(plusA); });
+
+      expect(screen.getByLabelText("Grade A")).toHaveValue(9 + 41);
+      // Every tick in the burst increased the sum, so the total tracked
+      // every one of them, not just the value the burst started from — the
+      // read-off-a-stale-closure regression would leave this frozen near 10.
+      expect(screen.getByLabelText("Total eggs")).toHaveValue(9 + 41);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("does not touch the total when the grade still fits under it", async () => {
     await renderReady();
     setNum("Total eggs", 20);
