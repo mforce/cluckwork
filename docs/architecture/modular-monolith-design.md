@@ -135,14 +135,17 @@ Egg Operations.SubmitDailyEntry
 Commerce.ConfirmSale
     | same ambient transaction
     +--> Egg Operations.ReserveFifo
-    +--> Commerce updates order, allocation and payment state
+    +--> Commerce updates order and allocation state (no payment access — ConfirmSaleHandler
+         does not touch payments)
     +--> commits once, then publishes read events
         (ConfirmSaleHandler injects no IAuditWriter today — no audit row)
 
 Commerce.VoidSale
     | same ambient transaction
     +--> Egg Operations.RestoreReservation
-    +--> Commerce updates order, allocation and payment state
+    +--> Commerce updates order/allocation state and GATES on payments (rejects if any
+         non-voided payment exists via IPaymentRepository.AnyNonVoidedByOrderAsync — does
+         not mutate them; payments are voided separately through VoidPaymentHandler)
     +--> Platform appends the audit row in the SAME transaction, commits once, then publishes read events
         (VoidSaleHandler already injects IAuditWriter today)
 
@@ -161,6 +164,14 @@ rule (implementation-plan.md) is "no schema/behavior changes are expected," a di
 audited-write panel exists for every shown command would have an implementer add audit rows these
 commands don't emit today — a real product change, not the refactor this plan authorizes. Split
 above to say only what's true now.
+
+codex review, PR #423 round 7: the previous version also folded payment mutation into
+confirm/void. It doesn't happen there: `ConfirmSaleHandler` never references payments at all,
+and `VoidSaleHandler` only *checks* `IPaymentRepository.AnyNonVoidedByOrderAsync` — a guard that
+rejects the void if a payment exists — it never mutates one. Payments are recorded/voided through
+their own separate commands (`VoidPaymentHandler` is one of the adjust/void handlers already
+listed above as the ones that do audit). Corrected above to describe VoidSale's payment
+interaction as a gate, not a mutation, for the same no-behavior-change reason as the audit fix.
 
 These seams stay in-process because Cluckwork must preserve atomic ledger updates,
 FIFO lock ordering, optimistic concurrency and existing HTTP/idempotency contracts.
@@ -268,10 +279,13 @@ settings and cross-domain atomicity are necessary business coupling.
    concurrency remains 409 and
    a retry sees the existing 422 state contract. Publish `DailyEntrySubmitted` only after
    commit for Insights; an event must never create authoritative stock asynchronously.
-2. **Confirm/void sale.** Commerce orchestrates order/allocation/payment mutation and a deep
+2. **Confirm/void sale.** Commerce orchestrates order/allocation mutation and a deep
    synchronous Egg Operations stock command (`ReserveFifo`/`RestoreReservation`) in one
    transaction. Stock owns lot mutation, ledger rows and canonical `(ProductionDate, Id)`
-   locks; Commerce owns order locks and provenance. The seam returns opaque DTOs, not lots.
+   locks; Commerce owns order locks and provenance. Payments are not mutated here — void
+   only gates on `IPaymentRepository.AnyNonVoidedByOrderAsync`, rejecting the void if a
+   payment exists; recording/voiding a payment is its own separate command. The seam
+   returns opaque DTOs, not lots.
 3. **Record feed usage.** General Inventory owns FIFO lot consumption and usage/movement
    creation. It locks the item first, then — still enlisted inside that same inventory
    transaction — calls a narrow Flock Management query `GetFlockProductionEligibility(flockId,date)`

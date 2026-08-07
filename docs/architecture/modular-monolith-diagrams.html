@@ -437,7 +437,7 @@ flowchart TD
   subgraph TX2["same ambient transaction"]
     direction TB
     B1[Egg Operations.ReserveFifo]
-    B2["Commerce updates order, allocation&lt;br/&gt;and payment state"]
+    B2["Commerce updates order and&lt;br/&gt;allocation state (no payment access)"]
   end
   P2["Platform commits once,&lt;br/&gt;then publishes read events&lt;br/&gt;(no audit row today)"]
   R2 --> TX2
@@ -459,7 +459,7 @@ flowchart TD
   subgraph TX4["same ambient transaction"]
     direction TB
     D1[Egg Operations.RestoreReservation]
-    D2["Commerce updates order, allocation&lt;br/&gt;and payment state"]
+    D2["Commerce updates order/allocation state,&lt;br/&gt;GATES on (does not mutate) payments"]
     D3["Platform appends the audit row"]
   end
   P4["Platform commits once,&lt;br/&gt;then publishes read events"]
