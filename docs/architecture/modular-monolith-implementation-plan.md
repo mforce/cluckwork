@@ -49,11 +49,27 @@ design have recorded red evidence and clean-tree tests are green.
 | 2.4 Move persistence adapter | move Expense's own configuration/repository behind internal Finance implementation; keep the `Expense`→`Flock` relationship via the **string-based** non-generic `HasOne("Cluckwork.Domain.Flocks.Flock")...HasForeignKey("FlockId").HasConstraintName("FK_Expenses_Flocks_FlockId").OnDelete(DeleteBehavior.Restrict)` (no `HasOne<Flock>()` generic and no `typeof(Flock)` — either would force a `Finance`→`Flock Management`/`Platform.Persistence`↔`Finance.Implementation` reference, design §7); this reproduces the FK/index/delete-behavior `InitialCreate` and the current `ExpenseConfiguration` already create byte-for-byte (codex review round 6: the fully-qualified name and the `Restrict` delete behavior are both load-bearing — a typo'd namespace or a dropped `OnDelete` each independently fail the model-equivalence check), so it needs **no new migration** — a fresh `AddForeignKey` for the same constraint name would fail against an already-migrated database | EF model digest before/after identical (zero pending migration); integration CRUD/tenant/version/audit tests | restore old registrations/files |
 | 2.5 Switch endpoints and remove adapter | change `ExpenseEndpoints` to inject `IFinanceModule`; central DI delegates to `AddFinanceModule`; remove legacy handler registrations/adapters | endpoint contract and SPA tests; guard reports zero endpoint bypasses | one-commit DI rollback |
 
+codex review, PR #423 round 8: `SimulationDataSeeder` (`SimulationDataSeeder.cs:112-113`, `:1034`,
+`:1049`, `:1283-1284`) DI-injects `CreateExpenseCategoryHandler`/`CreateExpenseHandler` directly
+and queries `db.ExpenseCategories`/`db.Expenses` for its idempotent-seeding existence checks and
+post-seed exact-count verification — a real production caller of the exact types 2.3/2.4 make
+internal to `Finance.Implementation`, and Phase 10 item 3 ("Convert demo/simulation seeders to
+module bootstrap/orchestration contracts one dataset at a time") is where this plan already
+schedules converting it, not Phase 2. Pulling that single caller's conversion forward into the
+Finance pilot would duplicate Phase 10's planned work; the plan instead makes the gap explicit
+and owned rather than silently contradicting the completion criterion below: `SimulationDataSeeder`
+is a **named, tracked compatibility exception** to Phase 2's "peers cannot reference
+implementation" rule (per the Delivery rules' compatibility-adapter policy — owner: this seeder;
+deletion phase: 10.3), and the dependency/signature guard (1.3) must explicitly allow-list it by
+name rather than fail on it, so the guard's own "zero bypasses" claim stays true about every
+*other* caller while this one is visible and dated, not accidentally exempted.
+
 Principal risks: currency snapshot and optional flock validation may be accidentally copied
 instead of called through Farm/Flock seams; EF configuration discovery may change the
 model. Completion: Finance can be tested solely through its contract, peers cannot reference
-implementation, EF digest and HTTP behavior are unchanged, and compatibility adapters are
-zero. Hold a retrospective before Phase 3 and adjust templates/guards.
+implementation except the one named, dated exception above, EF digest and HTTP behavior are
+unchanged, and compatibility adapters are zero apart from that same exception. Hold a
+retrospective before Phase 3 and adjust templates/guards.
 
 ## Phase 3 — Farm module (4–7 days)
 
