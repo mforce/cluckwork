@@ -32,14 +32,25 @@ using Microsoft.AspNetCore.Http;
 // Only the login test also asserts the completion log stayed clean, per
 // RequestBodyLimit.cs:85's own worry (the #340 class of bug: a response that
 // commits successfully while masking a throw behind it) — that guarantee is
-// specific to WithMaxRequestBodyBytes' swallow-and-recover design. The logo
-// and client-error tests measured, empirically, that which of the endpoint's
+// specific to WithMaxRequestBodyBytes' swallow-and-recover design.
+//
+// The client-error test measured, empirically, that which of the endpoint's
 // own read-loop cap vs. Kestrel's transport cutoff notices an oversized body
-// first is a genuine race that resolves differently at different cap sizes —
-// sometimes reaching /error as a real unhandled BadHttpRequestException, which
-// Program.cs documents as an intentional Error-level log, not a #340-shaped
-// bug. Those two tests assert only the client-visible 413 contract (accepting
-// either race outcome's shape), which holds regardless of which side wins.
+// first is a genuine race, and asserts only the client-visible 413 contract
+// (accepting either outcome's shape) rather than which side won.
+//
+// The logo test is NOT the same kind of race, despite the identical
+// hand-rolled-cap shape (codex review, PR #440, confirmed by tracing
+// Program.cs's pipeline order): FarmLogoEndpoints' PUT requires auth AND an
+// Idempotency-Key, so IdempotencyMiddleware.ComputeRequestHashAsync — which
+// calls EnableBuffering() and reads the WHOLE body to hash it — runs before
+// FarmLogoEndpoints' own handler ever gets to lower
+// IHttpMaxRequestBodySizeFeature from Kestrel's default. That first read
+// makes the feature IsReadOnly, so the endpoint's own cap-lowering silently
+// no-ops; Kestrel's transport cutoff can never fire at the intended cap for
+// this endpoint, ONLY the endpoint's own read loop (over an already-fully-
+// buffered body) can. Filed as #442 — this PR's own scope is proving/testing
+// existing behavior, not restructuring the idempotency/body-cap ordering.
 public sealed class KestrelRequestBodyLimitTests(KestrelBackedFactory factory)
     : IClassFixture<KestrelBackedFactory>
 {
@@ -76,15 +87,16 @@ public sealed class KestrelRequestBodyLimitTests(KestrelBackedFactory factory)
         return new ProblemFields(Str("type"), Str("title"), Str("detail"), Int("status"));
     }
 
-    // For an endpoint with NO WithMaxRequestBodyBytes swallow-and-recover
-    // (FarmLogoEndpoints, ClientErrorEndpoints): whether the endpoint's own
-    // bounded read loop or Kestrel's own IHttpMaxRequestBodySizeFeature notices
-    // an oversized chunked body first is a genuine transport-buffering/
-    // scheduling race, not a fixed property of the code (codex review, PR
-    // #440 — confirmed by measurement: it resolves one way at the 64 KB logo
-    // cap and the other way at the 16 KB report cap in THIS run, and nothing
-    // pins it to stay that way in every run or environment). Both shapes are
-    // a 413 with a non-empty detail; accept either rather than pinning one.
+    // For an endpoint with NO WithMaxRequestBodyBytes swallow-and-recover AND
+    // no idempotency buffering ahead of it (ClientErrorEndpoints — anonymous,
+    // no Idempotency-Key): whether the endpoint's own bounded read loop or
+    // Kestrel's own IHttpMaxRequestBodySizeFeature notices an oversized
+    // chunked body first is a genuine transport-buffering/scheduling race, not
+    // a fixed property of the code (codex review, PR #440 — confirmed by
+    // measurement: it varies run to run, nothing pins it to stay one way).
+    // Both shapes are a 413 with a non-empty detail; accept either rather than
+    // pinning one. NOT used for the logo test — see that test's own comment
+    // for why IdempotencyMiddleware makes it deterministic there, not a race.
     private static void AssertEitherBodyTooLargeShape(
         ProblemFields problem, string endpointTitle, string endpointDetail)
     {
@@ -192,8 +204,12 @@ public sealed class KestrelRequestBodyLimitTests(KestrelBackedFactory factory)
 
         Assert.Equal(HttpStatusCode.RequestEntityTooLarge, response.StatusCode);
         var problem = await ReadProblemAsync(response);
-        AssertEitherBodyTooLargeShape(
-            problem, "FarmLogo.TooLarge", $"The logo must be {LogoCapBytes / 1024} KB or smaller.");
+        // Deterministic, not a race — see the class-header comment (#442):
+        // IdempotencyMiddleware buffers the whole body before FarmLogoEndpoints
+        // can lower Kestrel's cap, so only the endpoint's own read loop, over
+        // the already-buffered body, can ever produce this 413.
+        Assert.Equal("FarmLogo.TooLarge", problem.Title);
+        Assert.Equal($"The logo must be {LogoCapBytes / 1024} KB or smaller.", problem.Detail);
     }
 
     [Fact]
