@@ -218,6 +218,79 @@ public sealed class KestrelRequestBodyLimitTests(KestrelBackedFactory factory)
         Assert.Equal($"The logo must be {LogoCapBytes / 1024} KB or smaller.", problem.Detail);
     }
 
+    // A non-seekable source stream that counts every byte actually PULLED
+    // from it by the HTTP client's send loop — i.e. bytes the SERVER caused
+    // to be read off the wire, not just bytes this test handed to StreamContent.
+    private sealed class CountingSourceStream(long length) : Stream
+    {
+        private long _pos;
+        public long BytesRead { get; private set; }
+
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            var n = (int)Math.Min(count, length - _pos);
+            if (n <= 0) return 0;
+            // Content doesn't matter (never a valid PNG) — the request is
+            // expected to be rejected on size alone, before any byte of it
+            // reaches the sanitizer.
+            Array.Fill(buffer, (byte)0xAA, offset, n);
+            _pos += n;
+            BytesRead += n;
+            return n;
+        }
+
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => _pos; set => throw new NotSupportedException(); }
+        public override void Flush() { }
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
+
+    // #442 review (codex) — the two tests above prove an oversized logo
+    // upload eventually gets rejected with the right shape, but their fixed,
+    // modest oversize (LogoCapBytes + 4096) can't distinguish "rejected
+    // before idempotency buffers the body" from "rejected after" — both
+    // orderings produce the identical response for a body that small. This
+    // test sources a body two orders of magnitude past the cap and counts
+    // how many bytes the server actually pulled off the wire before
+    // responding: if IdempotencyMiddleware's hash-read were ever unbounded
+    // again (the #442 regression — FarmLogoRequestBodyCap removed, or moved
+    // back to run after IdempotencyMiddleware), nothing would stop that read
+    // short of the full body, and this assertion would fail.
+    [Fact]
+    public async Task Chunked_oversized_logo_upload_is_rejected_without_reading_the_whole_body()
+    {
+        var client = await AdminClientAsync();
+        // 200x the cap: comfortably past any plausible OS socket receive
+        // buffer, so a server that genuinely stops reading around the cap
+        // cannot have the full amount handed to it regardless of local
+        // kernel buffer tuning — the client's send stalls once the server
+        // stops draining the connection, long before 200x the cap could ever
+        // have been read.
+        var source = new CountingSourceStream(LogoCapBytes * 200L);
+        var content = new StreamContent(source);
+        content.Headers.ContentType = new MediaTypeHeaderValue("image/png");
+        var request = new HttpRequestMessage(HttpMethod.Put, LogoPath) { Content = content };
+        request.Headers.TransferEncodingChunked = true;
+        request.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
+
+        var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.RequestEntityTooLarge, response.StatusCode);
+        // A generous margin over the exact cap (chunk framing, whatever the
+        // client had already queued when the reset reached it) — but nowhere
+        // close to the 200x source size, which is the only way this
+        // assertion could fail if the ordering ever regresses.
+        Assert.True(source.BytesRead < LogoCapBytes * 4,
+            $"expected well under {LogoCapBytes * 4} bytes read (source was {LogoCapBytes * 200L}), " +
+            $"but {source.BytesRead} were read — the body appears to have been fully buffered " +
+            "before rejection (the #442 regression).");
+    }
+
     [Fact]
     public async Task Logo_upload_under_the_cap_still_succeeds_over_kestrel()
     {
