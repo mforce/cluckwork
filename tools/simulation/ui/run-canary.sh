@@ -45,7 +45,8 @@ SIM_DIR="$(cd "$UI_DIR/.." && pwd)"
 K6_SHELL_NIX="$SIM_DIR/k6/shell.nix"
 K6_SCRIPT="$SIM_DIR/k6/baseline.js"
 # Kept in step with run-baseline.sh's constant of the same name, on purpose.
-EXPECTED_K6_VERSION="v2.0.0"
+# See that script's own comment for the bump history/evidence.
+EXPECTED_K6_VERSION="v2.1.0"
 
 # How long to let k6 run before the browser starts. baseline.js opens with a
 # warmup phase; measuring during it would describe a system that is not yet busy.
@@ -79,25 +80,42 @@ if [[ $WITH_LOAD -eq 0 ]]; then
 fi
 
 # --- concurrent mode -------------------------------------------------------
-command -v nix-shell >/dev/null 2>&1 || {
-  echo "canary: nix-shell not found — needed to run the pinned k6." >&2
-  exit 1
-}
 for f in "$K6_SHELL_NIX" "$K6_SCRIPT"; do
   [[ -f "$f" ]] || { echo "canary: required file missing: $f" >&2; exit 1; }
 done
 
-echo "[preflight] verifying pinned k6 version (expect k6 ${EXPECTED_K6_VERSION})..."
-k6_version_line="$(nix-shell "$K6_SHELL_NIX" --run 'k6 version' 2>/dev/null || true)"
-if [[ "$k6_version_line" != "k6 ${EXPECTED_K6_VERSION}"* ]]; then
-  echo "canary: k6 version mismatch — pinned shell resolved to '${k6_version_line:-<none>}', expected 'k6 ${EXPECTED_K6_VERSION}'." >&2
+# Same nix-shell-preferred, PATH-k6-fallback resolution as run-baseline.sh —
+# see that script's own comment for why. Kept in step here on purpose.
+if command -v nix-shell >/dev/null 2>&1; then
+  K6_MODE="nix"
+  echo "[preflight] verifying pinned k6 version via nix-shell (expect k6 ${EXPECTED_K6_VERSION})..."
+  k6_version_line="$(nix-shell "$K6_SHELL_NIX" --run 'k6 version' 2>/dev/null || true)"
+elif command -v k6 >/dev/null 2>&1; then
+  K6_MODE="path"
+  echo "canary: nix-shell not found — falling back to bare 'k6' on PATH (no pinned-build guarantee, EXPECTED_K6_VERSION is still enforced)." >&2
+  echo "[preflight] verifying k6 on PATH (expect k6 ${EXPECTED_K6_VERSION})..."
+  k6_version_line="$(k6 version 2>/dev/null || true)"
+else
+  echo "canary: neither nix-shell nor a bare 'k6' found on PATH — needed for --with-load." >&2
+  exit 1
+fi
+# Exact equality on the version TOKEN, not a prefix match — same reasoning
+# as run-baseline.sh's preflight (codex review, PR #430): a prefix glob lets
+# an unverified prerelease/local build (e.g. `v2.1.0-rc.1`) pass silently.
+k6_version_token="$(awk '{print $2}' <<<"$k6_version_line")"
+if [[ "$k6_version_token" != "$EXPECTED_K6_VERSION" ]]; then
+  echo "canary: k6 version mismatch (${K6_MODE}) — resolved '${k6_version_line:-<none>}', expected 'k6 ${EXPECTED_K6_VERSION}'." >&2
   echo "  Same rule as run-baseline.sh: baseline.js's VU scheduling was only probed against that build." >&2
   exit 1
 fi
 
 K6_LOG="$(mktemp -t canary-k6-XXXXXX.log)"
-echo "== canary: starting k6 (log: $K6_LOG) =="
-nix-shell "$K6_SHELL_NIX" --run "k6 run '$K6_SCRIPT'" > "$K6_LOG" 2>&1 &
+echo "== canary: starting k6 via ${K6_MODE} (log: $K6_LOG) =="
+if [[ "$K6_MODE" == "nix" ]]; then
+  nix-shell "$K6_SHELL_NIX" --run "k6 run '$K6_SCRIPT'" > "$K6_LOG" 2>&1 &
+else
+  k6 run "$K6_SCRIPT" > "$K6_LOG" 2>&1 &
+fi
 K6_PID=$!
 
 # Always reap k6, including on Ctrl-C or a failing canary — a k6 left hammering

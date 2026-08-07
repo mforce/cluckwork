@@ -427,37 +427,82 @@ internal static class TestHarness
     public static Task<int> BackendPidAsync(this AppDbContext db) =>
         db.Database.SqlQuery<int>($"""SELECT pg_backend_pid() AS "Value" """).SingleAsync();
 
-    // True while ANY backend sits blocked on a lock held by holderPid. Keying
-    // on the holder's pid (rather than grepping query text, where a
-    // parameterized account id never appears) keeps this immune to other test
-    // classes touching the same tables on their own rows. It does not identify
-    // WHICH backend is blocked, so a caller that needs "this specific request
-    // blocked" must be the only one contending with holderPid — true today
-    // because the holder's lock is on a row the calling test just seeded.
-    public static async Task<bool> AnyoneBlockedBehindAsync(
+    // Count of backends currently blocked (directly or transitively) behind
+    // holderPid. Keying on the holder's pid (rather than grepping query text,
+    // where a parameterized account id never appears) keeps this immune to
+    // other test classes touching the same tables on their own rows.
+    //
+    // #402 — pg_blocking_pids(pid) reports only the NEAREST blocker in the
+    // wait queue, not the ultimate lock holder: a second competitor queued
+    // behind a FIRST one (itself queued behind holderPid) reports the first
+    // competitor's pid, never holderPid's, even though it is transitively
+    // waiting on holderPid to release. Confirmed empirically: with dbA
+    // (holderPid) fencing a writer, then a change queuing behind the WRITER
+    // (not directly behind dbA), the change reports blockedby={writerPid},
+    // never {..., holderPid}. A plain `@> ARRAY[holderPid]` filter therefore
+    // undercounts the moment more than one competitor queues up — see
+    // minBlockedCount below for why that matters. The recursive walk here
+    // follows the chain to find every backend for which holderPid appears
+    // ANYWHERE in its (possibly multi-hop) blocking chain.
+    public static async Task<int> CountBlockedBehindAsync(
         this CluckworkWebApplicationFactory factory, int holderPid)
     {
-        var blocked = false;
+        var count = 0;
         await factory.WithTenantScopeAsync(Guid.NewGuid(), async db =>
         {
-            blocked = (await db.Database.SqlQuery<long>($"""
-                SELECT count(*) AS "Value" FROM pg_stat_activity
-                WHERE pg_blocking_pids(pid) @> ARRAY[{holderPid}]
-                """).SingleAsync()) > 0;
+            count = (int)await db.Database.SqlQuery<long>($"""
+                WITH RECURSIVE chain(pid, blocker) AS (
+                    SELECT pid, unnest(pg_blocking_pids(pid)) FROM pg_stat_activity
+                    WHERE pid != pg_backend_pid()
+                    UNION
+                    SELECT chain.pid, unnest(pg_blocking_pids(chain.blocker))
+                    FROM chain
+                )
+                SELECT count(DISTINCT pid) AS "Value" FROM chain WHERE blocker = {holderPid}
+                """).SingleAsync();
         });
-        return blocked;
+        return count;
     }
 
+    // True while ANY backend sits blocked on a lock held by holderPid. A
+    // caller that needs "THIS specific request blocked" and is the ONLY one
+    // contending with holderPid can rely on this — true for every #313
+    // negative-assertion caller (a lone competitor, checked once). A caller
+    // racing a SECOND competitor behind an ALREADY-blocked first one must NOT
+    // use this: it goes true on the very first poll purely because the first
+    // competitor is still parked, without ever proving the second one joined
+    // the queue at all. Use WaitUntilDoneOrBlockedAsync's minBlockedCount for
+    // that shape instead (#402).
+    public static async Task<bool> AnyoneBlockedBehindAsync(
+        this CluckworkWebApplicationFactory factory, int holderPid) =>
+        await factory.CountBlockedBehindAsync(holderPid) > 0;
+
     // Polls until the competing task either finishes without contending
-    // (false) or provably parks behind the holder's lock (true).
+    // (false) or provably parks behind the holder's lock, with AT LEAST
+    // minBlockedCount backends registered as waiters (true).
+    //
+    // #402 — minBlockedCount defaults to 1 (a lone competitor; every existing
+    // caller before this fix). A caller that already proved a FIRST
+    // competitor parked and now needs to prove a SECOND one ALSO parked
+    // behind the SAME holder — to pin their relative queue order — must pass
+    // minBlockedCount: 2. Checking merely "count > 0" there is satisfied
+    // immediately by the first competitor still sitting blocked, before the
+    // second one's lock request has even reached Postgres; a fence released
+    // right after that vacuous true can hand the row to whichever of the two
+    // actually arrives first, not whichever asked first. Requiring the count
+    // to reach 2 forces this call to observe the second competitor's own
+    // registration in pg_stat_activity before it returns, so releasing the
+    // fence afterward only ever wakes an already-fully-queued, FIFO-ordered
+    // pair.
     public static async Task<bool> WaitUntilDoneOrBlockedAsync(
-        this CluckworkWebApplicationFactory factory, Task competing, int holderPid)
+        this CluckworkWebApplicationFactory factory, Task competing, int holderPid,
+        int minBlockedCount = 1)
     {
         var stopAt = DateTime.UtcNow + LockWaitDeadline;
         while (DateTime.UtcNow < stopAt)
         {
             if (competing.IsCompleted) return false;
-            if (await factory.AnyoneBlockedBehindAsync(holderPid)) return true;
+            if (await factory.CountBlockedBehindAsync(holderPid) >= minBlockedCount) return true;
             await Task.Delay(50);
         }
         throw new TimeoutException("Neither completion nor a lock wait was observed.");
