@@ -143,19 +143,25 @@ describe("DailyEntryPage accuracy gating", () => {
     expect(saveDraftBtn()).toBeEnabled();
   });
 
-  it("blocks submit (but not draft) and styles the message error when graded exceeds sellable", async () => {
+  it("blocks both saves and styles the message error when graded exceeds sellable", async () => {
     await renderReady();
     setNum("Total eggs", 100);
     setNum("Cracked", 2);
     setNum("Dirty", 3);
     setNum("Discarded", 5); // sellable 90
     setNum("Grade A", 95); // graded 95 > 90
+    // #443 — typing now auto-raises the total to absorb the overshoot (95 +
+    // 10 losses = 105), so pin the total back to its original 100 to force
+    // the over state this test is about.
+    setNum("Total eggs", 100);
 
     // Over-graded reads as an overage, not as a bigger number than the target.
     expect(remainingChip()).toHaveTextContent("5 over the sellable count");
     expect(remainingChip()).toHaveClass("over");
     expect(submitBtn()).toBeDisabled();
-    expect(saveDraftBtn()).toBeEnabled(); // an over-graded draft is allowed
+    // #443 — an over-graded draft used to be save-able (the backend would
+    // reject it on its own); Save Draft is now blocked client-side too.
+    expect(saveDraftBtn()).toBeDisabled();
   });
 
   it("allows submit at the exact boundary graded === sellable (#394: the gate is ===, nothing short or over)", async () => {
@@ -759,22 +765,56 @@ describe("DailyEntryPage assign the remainder", () => {
 
 // F134: the + refuses to build an over-graded day. Typing still can, because a
 // draft is allowed to be over while it is being rearranged.
-describe("DailyEntryPage grading ceiling", () => {
-  it("stops + at the point the day is fully graded", async () => {
+// #443 — grading may run ahead of the total (counted the grades before adding
+// them up); the old ceiling that stopped a grade's + at the current total is
+// gone, replaced by the total catching up to fit.
+describe("DailyEntryPage grading sync (#443)", () => {
+  it("no longer stops + at the point the day is fully graded — raises the total to fit instead", async () => {
     await renderReady();
     setNum("Total eggs", 10);
     setNum("Grade A", 9); // sellable 10, one left
 
     const plusA = screen.getByRole("button", { name: "Increase grade a" });
+    fireEvent.pointerDown(plusA);
+    fireEvent.pointerUp(plusA);
+    expect(screen.getByLabelText("Grade A")).toHaveValue(10);
+    expect(remainingChip()).toHaveClass("done");
+
+    // Old behavior: this button would now be disabled. New behavior: it
+    // keeps going, and the total rises to keep the day reconciled.
     expect(plusA).toBeEnabled();
     fireEvent.pointerDown(plusA);
     fireEvent.pointerUp(plusA);
-
-    expect(screen.getByLabelText("Grade A")).toHaveValue(10);
+    expect(screen.getByLabelText("Grade A")).toHaveValue(11);
+    expect(screen.getByLabelText("Total eggs")).toHaveValue(11);
     expect(remainingChip()).toHaveClass("done");
-    // Nothing unallocated, so no grade can take more.
-    expect(screen.getByRole("button", { name: "Increase grade a" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Increase grade b" })).toBeDisabled();
+  });
+
+  it("does not touch the total when the grade still fits under it", async () => {
+    await renderReady();
+    setNum("Total eggs", 20);
+    setNum("Grade A", 5); // sellable 20, fifteen left
+
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Increase grade a" }));
+    fireEvent.pointerUp(screen.getByRole("button", { name: "Increase grade a" }));
+    expect(screen.getByLabelText("Grade A")).toHaveValue(6);
+    // Plenty of headroom left under 20 — nothing should have bumped it.
+    expect(screen.getByLabelText("Total eggs")).toHaveValue(20);
+  });
+
+  it("reducing the total below an already-graded sum reaches 'over' and blocks both saves, without forcing the grade down", async () => {
+    await renderReady();
+    setNum("Total eggs", 10);
+    setNum("Grade A", 10); // exactly reconciled
+    expect(remainingChip()).toHaveClass("done");
+
+    // The user lowers the total directly — this must never be fought by
+    // pulling Grade A back down (bullet 2 of #443's requested change).
+    setNum("Total eggs", 5);
+    expect(screen.getByLabelText("Grade A")).toHaveValue(10);
+    expect(remainingChip()).toHaveClass("over");
+    expect(saveDraftBtn()).toBeDisabled();
+    expect(submitBtn()).toBeDisabled();
   });
 });
 

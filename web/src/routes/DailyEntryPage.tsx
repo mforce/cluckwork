@@ -56,6 +56,16 @@ export function DailyEntryPage() {
   const [discarded, setDiscarded] = useState(0);
   const [mortality, setMortality] = useState(0);
   const [gradeQty, setGradeQty] = useState<Record<string, number>>({});
+  // #443 — setGrade reads this instead of the `gradeQty` closure so a
+  // hold-to-repeat burst (each tick its own onChange call, still against the
+  // SAME setGrade closure captured at press-time — see NumberField's own
+  // `live` ref for the identical problem) sees every earlier tick's write,
+  // not just the value from the render the hold began on. Synced on every
+  // render AND written immediately inside setGrade, matching NumberField's
+  // pattern: the render-time write alone would still lag one tick behind
+  // during a burst faster than a commit.
+  const gradeQtyRef = useRef(gradeQty);
+  gradeQtyRef.current = gradeQty;
   // Grades are only sent when the user (or prefill) touched them: the server
   // treats [] as "explicitly clear all lines" and omitted as "leave unchanged",
   // so an untouched re-save must not wipe an existing entry's grading.
@@ -286,12 +296,26 @@ export function DailyEntryPage() {
     setAssigning(false);
   }
 
+  // #443 — grading may run ahead of the total (counted the grades before
+  // adding them up); this used to be capped by NumberField's `max` instead.
+  // Now a grade bump that would push the graded sum past what step 1's total
+  // currently allows raises the total to match, computed here (not via a
+  // `remaining`-watching effect) because an effect can't tell a total raised
+  // BY this grade edit apart from `remaining` going negative because the
+  // total itself was just lowered on step 1 — the latter must never be
+  // fought back up. Only ever raises the total, never lowers it: Math.max
+  // against the CURRENT total leaves a total the user set higher untouched.
   const setGrade = (gradeId: string) => (next: number | ((prev: number) => number)) => {
     setGradesTouched(true);
-    setGradeQty((prev) => ({
-      ...prev,
-      [gradeId]: typeof next === "function" ? next(prev[gradeId] ?? 0) : next,
-    }));
+    const current = gradeQtyRef.current;
+    const updated = {
+      ...current,
+      [gradeId]: typeof next === "function" ? next(current[gradeId] ?? 0) : next,
+    };
+    gradeQtyRef.current = updated;
+    setGradeQty(updated);
+    const newSum = Object.values(updated).reduce((a, b) => a + (b || 0), 0);
+    setTotalEggs((t) => Math.max(t, newSum + losses));
   };
 
 
@@ -544,9 +568,12 @@ export function DailyEntryPage() {
                   {...remainderDropProps(armed, () => assignRest(g.id))}
                 >
                   <label htmlFor={idFor(g.id)}>{g.name}{g.active ? "" : t("deactivatedGradeSuffix")}</label>
+                  {/* #443 — no max=: the old ceiling refused to let a grade
+                      run ahead of step 1's total, forcing the total to be
+                      known before grading could finish. setGrade now raises
+                      the total to fit instead. */}
                   <NumberField id={idFor(g.id)} label={g.name.toLowerCase()}
                     value={gradeQty[g.id] ?? 0} onChange={setGrade(g.id)}
-                    max={(gradeQty[g.id] ?? 0) + Math.max(0, remaining)}
                     disabled={entryLocked} />
                   {armed && (
                     <TakeRemainderButton remaining={remaining} grade={g.name}
@@ -590,9 +617,17 @@ export function DailyEntryPage() {
           </p>
           <div className="actions">
             {/* Sibling triggers: each spins only for its own scope, while the
-                shared `busy` in disabled keeps the other one inert. */}
+                shared `busy` in disabled keeps the other one inert.
+                `grading.tone === "over"` (not the narrower `lossesExceedTotal`)
+                because #443 made an over-graded draft reachable a second way:
+                setGrade only ever RAISES the total to fit a grade, so the one
+                path still left to "over" is trimming the total on step 1
+                below a sum already graded — that must still block the save
+                the lenient backend rule would reject anyway (#394), rather
+                than round-trip to find out. `tone === "over"` already covers
+                the lossesExceedTotal case too (see lib/grading). */}
             <BusyButton busy={isPending("save")}
-              disabled={busy || !flockId || lossesExceedTotal || entryLocked || prefillFailed || prefillPending}
+              disabled={busy || !flockId || grading.tone === "over" || entryLocked || prefillFailed || prefillPending}
               onClick={() => onSave(false)}>{t("saveDraftButton")}</BusyButton>
             {/* #394: submit requires grading to reconcile EXACTLY — the same
                 "done" state the chip and footer already show, so the gate can

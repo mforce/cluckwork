@@ -1762,13 +1762,16 @@ export const tl = {
     dailyEntryGradingDown:
       "<strong>Bumababa</strong> ang bilang sa pag-grade. Sa tabi ng mga grado ay makikita kung ilang "
       + "naibibentang itlog pa ang kailangan mong ilagay; nagiging berde ito sa sandaling tumugma ang araw "
-      + "at pula kung lumagpas ka. Hindi ka puwedeng magsumite hangga't hindi umaabot sa eksaktong zero — "
-      + "okay lang na bahagya o hindi man i-grade ang araw para sa draft, pero hindi para sa Isumite.",
+      + "at pula kung lumagpas ka — ang paglagpas ay humaharang din sa pag-save ng draft, hindi lang sa "
+      + "Isumite. Hindi ka puwedeng magsumite hangga't hindi umaabot sa eksaktong zero — okay lang na "
+      + "bahagya o hindi man i-grade ang araw para sa draft, pero hindi para sa Isumite.",
     dailyEntryButtons:
       "May mga button na <strong>−</strong> at <strong>+</strong> ang bawat bilang. I-tap para sa isa, o "
       + "<strong>i-hold</strong> — bumibilis ito habang tumatagal, kaya ilang daang itlog ay tumatagal lang "
-      + "ng isang segundo. Mas madali kaysa sa keypad kapag naka-guwantes. Huminto ang <strong>+</strong> ng "
-      + "isang grado kapag kumpleto na ang pag-grade sa araw, para hindi ka lumampas dito.",
+      + "ng isang segundo. Mas madali kaysa sa keypad kapag naka-guwantes. Hindi na huminto ang "
+      + "<strong>+</strong> ng isang grado sa kasalukuyang kabuuan ng araw — bilangin muna ang mga grado at "
+      + "aabot ang kabuuan para tumugma. Tumataas lang ito, hindi kailanman bumababa, kaya ang pagbawas sa "
+      + "kabuuan sa hakbang 1 ay hindi kailanman itutulak pababa ang isang grado.",
     dailyEntryPutAllIn:
       "Karamihan sa mga araw ay natatapos sa parehong paraan — isang grado na lang ang kumukuha ng "
       + "natitira. Ginagawa ito sa isang galaw ng <strong>Ilagay lahat sa…</strong> sa tabi ng natitirang "

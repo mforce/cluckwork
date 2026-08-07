@@ -71,6 +71,12 @@ export function HistoryPage() {
   const [mortality, setMortality] = useState(0);
   const [reason, setReason] = useState("");
   const [lineQty, setLineQty] = useState<Record<string, number>>({});
+  // #443 — see DailyEntryPage's identical `gradeQtyRef` comment: setLine reads
+  // this instead of the `lineQty` closure so a hold-to-repeat burst (each
+  // tick against the SAME setLine closure captured at press-time) sees every
+  // earlier tick's write.
+  const lineQtyRef = useRef(lineQty);
+  lineQtyRef.current = lineQty;
   // F134's remainder gesture, mirrored here: hand everything still unaccounted
   // for to one grade. A recount is lopsided the same way a capture is.
   const [assigning, setAssigning] = useState(false);
@@ -177,7 +183,7 @@ export function HistoryPage() {
   // dialog and the submit-time guard below can never disagree.
   const gradesSum = Object.values(lineQty).reduce((sum, q) => sum + (q || 0), 0);
   const grading = gradingState({ totalEggs: total, cracked, dirty, discarded, gradesSum });
-  const { sellable, remaining, lossesExceedTotal } = grading;
+  const { losses, sellable, remaining, lossesExceedTotal } = grading;
   const gradesReconciled = grading.reconciled;
   const canAssign = remaining > 0;
   // DERIVED, not the raw flag: there is nothing left to hand out the instant
@@ -194,10 +200,26 @@ export function HistoryPage() {
     if (!canAssign && assigning) setAssigning(false);
   }, [canAssign, assigning]);
 
+  // #443 — mirrors DailyEntryPage's setGrade: a grade edit that would push
+  // the graded sum past what the total currently allows raises the total to
+  // fit instead of being capped (the removed `max=` did that). Only ever
+  // raises — never lowers — so trimming the total on step 1 is never fought.
+  const setLine = (gradeId: string) => (next: number | ((prev: number) => number)) => {
+    const current = lineQtyRef.current;
+    const updated = {
+      ...current,
+      [gradeId]: typeof next === "function" ? next(current[gradeId] ?? 0) : next,
+    };
+    lineQtyRef.current = updated;
+    setLineQty(updated);
+    const newSum = Object.values(updated).reduce((a, b) => a + (b || 0), 0);
+    setTotal((t) => Math.max(t, newSum + losses));
+  };
+
   // Hand the whole remainder to one grade line.
   function assignRest(gradeId: string) {
     if (remaining <= 0) return;
-    setLineQty((prev) => ({ ...prev, [gradeId]: (prev[gradeId] ?? 0) + remaining }));
+    setLine(gradeId)((prev) => prev + remaining);
     setAssigning(false);
   }
 
@@ -467,23 +489,11 @@ export function HistoryPage() {
                       <div key={g.id} className={`entry-row${armed ? " taking" : ""}`}
                         {...remainderDropProps(armed, () => assignRest(g.id))}>
                         <label htmlFor={idFor(`grade-${g.id}`)}>{g.name}{g.active ? "" : t("inactiveGradeSuffix")}</label>
+                        {/* #443 — no max=: same as the capture screen, the old
+                            ceiling refused to let a grade run ahead of the
+                            total. setLine raises the total to fit instead. */}
                         <NumberField id={idFor(`grade-${g.id}`)} label={g.name.toLowerCase()}
-                          value={lineQty[g.id] ?? 0}
-                          // Same ceiling as the capture screen: the + button
-                          // (and its hold-to-repeat) stops at what is actually
-                          // unaccounted for, so the guided control cannot build
-                          // an over-graded day. Typing is deliberately still
-                          // uncapped — see NumberField. Without this the two
-                          // screens behaved differently in the hand while the
-                          // Help text claimed they were the same form.
-                          max={(lineQty[g.id] ?? 0) + Math.max(0, remaining)}
-                          onChange={(next) => setLineQty((prev) => ({
-                            ...prev,
-                            // A grade lives in a record, so its updater is adapted
-                            // here — still the functional form, which
-                            // hold-to-repeat depends on.
-                            [g.id]: typeof next === "function" ? next(prev[g.id] ?? 0) : next,
-                          }))} />
+                          value={lineQty[g.id] ?? 0} onChange={setLine(g.id)} />
                         {armed && (
                           <TakeRemainderButton remaining={remaining} grade={g.name}
                             onTake={() => assignRest(g.id)} />

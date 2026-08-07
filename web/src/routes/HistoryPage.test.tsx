@@ -190,9 +190,13 @@ describe("HistoryPage adjust — reconciliation guard", () => {
     await openAdjustPanel();
 
     // 46 + 45 = 91 > sellable 90, yet neither line individually exceeds 90 —
-    // so this only fails if the guard actually SUMS the lines.
+    // so this only fails if the guard actually SUMS the lines. #443 made
+    // typing an overshoot auto-raise the total to absorb it (91 + 10 losses
+    // = 101), so pin the total back to its original 100 afterward to force
+    // the genuinely-over state this test is about.
     fireEvent.change(screen.getByRole("spinbutton", { name: "Grade A" }), { target: { value: "46" } });
     fireEvent.change(screen.getByRole("spinbutton", { name: "Grade B" }), { target: { value: "45" } });
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Total eggs" }), { target: { value: "100" } });
     fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: "recount" } });
 
     expect(screen.getByRole("button", { name: "Save adjustment" })).toBeDisabled();
@@ -210,6 +214,8 @@ describe("HistoryPage adjust — reconciliation guard", () => {
 
     fireEvent.change(screen.getByRole("spinbutton", { name: "Grade A" }), { target: { value: "46" } });
     fireEvent.change(screen.getByRole("spinbutton", { name: "Grade B" }), { target: { value: "45" } });
+    // #443 — pin the total back down; see the sibling test above for why.
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Total eggs" }), { target: { value: "100" } });
     fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: "recount" } });
     const saveButton = screen.getByRole("button", { name: "Save adjustment" });
     expect(saveButton).toBeDisabled();
@@ -309,6 +315,11 @@ describe("HistoryPage adjust — mirrored daily-entry layout", () => {
     await openAdjustPanel();
 
     fireEvent.change(screen.getByRole("spinbutton", { name: "Grade A" }), { target: { value: "95" } });
+    // #443 — typing now auto-raises the total to absorb the overshoot (95 +
+    // 20 would otherwise reconcile once the total catches up), so pin the
+    // total back to its original 100 to force the over state this test
+    // asserts on.
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Total eggs" }), { target: { value: "100" } });
     // 95 + 20 − 90, as a POSITIVE figure — asserted whole, since a substring
     // match on "25" reads a rendered "-25" as a pass.
     expect(chip()).toHaveTextContent(/^25 over the sellable count$/);
@@ -444,30 +455,28 @@ describe("HistoryPage adjust — mirrored daily-entry layout", () => {
     expect(within(dialog()).queryByRole("button", { name: /Put all/ })).not.toBeInTheDocument();
   });
 
-  // The steppers carry the capture screen's ceiling too: + stops at what is
-  // unaccounted for, so the guided control cannot build an over-graded day.
-  // Without it the dialog looked like the same form and behaved differently in
-  // the hand — every + live from the start on an entry that already adds up
-  // (#403 round 5). Typing past it stays allowed on both screens.
-  it("stops the + stepper at the unallocated remainder, as the capture screen does", async () => {
+  // #443 — the ceiling the steppers used to carry (+ stops at what is
+  // unaccounted for) is gone here too: a grade running the total's total
+  // out raises the total to match instead of refusing the tap.
+  it("no longer stops the + stepper at the unallocated remainder — raises the total to fit instead", async () => {
     mockListDailyEntries.mockResolvedValue([SUBMITTED]);
     await openAdjustPanel();
 
-    // `max` never reaches the DOM — NumberField uses it to gate its own +
-    // button — so the ceiling is asserted the way the user meets it.
-    // Fixture: sellable 90, graded 40 + 20, so 30 unallocated.
+    // Fixture: sellable 90, graded 40 + 20, so 30 unallocated — the old
+    // ceiling on Grade A was 40 + 30 = 70.
     const gradeA = screen.getByRole("spinbutton", { name: "Grade A" });
-    expect(screen.getByRole("button", { name: "Increase grade a" })).toBeEnabled();
+    fireEvent.change(gradeA, { target: { value: "70" } }); // exactly at the old ceiling
+    expect(chip()).toHaveTextContent("the day adds up");
 
-    // Its own 40 plus the 30 left is the ceiling: at 70 there is no headroom,
-    // and + refuses on every line.
-    fireEvent.change(gradeA, { target: { value: "70" } });
-    expect(screen.getByRole("button", { name: "Increase grade a" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Increase grade b" })).toBeDisabled();
-    // Typing is deliberately still uncapped — a correction may pass through an
-    // over-graded state while it is being rearranged; only Save refuses.
-    fireEvent.change(gradeA, { target: { value: "95" } });
-    expect(screen.getByRole("spinbutton", { name: "Grade A" })).toHaveValue(95);
+    const plusA = screen.getByRole("button", { name: "Increase grade a" });
+    expect(plusA).toBeEnabled();
+    fireEvent.pointerDown(plusA);
+    fireEvent.pointerUp(plusA);
+
+    expect(screen.getByRole("spinbutton", { name: "Grade A" })).toHaveValue(71);
+    // 100 → 101: the total caught up rather than refusing the tap.
+    expect(screen.getByRole("spinbutton", { name: "Total eggs" })).toHaveValue(101);
+    expect(chip()).toHaveTextContent("the day adds up");
   });
 
   // A 409 replaces every number in the form with the winner's, because keeping
