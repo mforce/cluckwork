@@ -13,9 +13,22 @@ using Microsoft.AspNetCore.Http;
 // all set best-effort) is ABSENT under the in-memory TestServer, so the rest of
 // the suite proves layers (2)/(3) — the declared-Content-Length short-circuit
 // and the portable read-cap — using a LYING Content-Length, never a genuinely
-// undeclared-length (chunked) body actually cut off by Kestrel itself. These
-// tests exercise that transport layer for real, over the same UseKestrel(0)
-// factory #341 introduced.
+// undeclared-length (chunked) body actually sent over a real connection. These
+// tests send one for real, over the same UseKestrel(0) factory #341 introduced
+// — the scenario the rest of the suite structurally cannot reach at all.
+//
+// What these tests do NOT claim (codex review, PR #440): that the response
+// came specifically from Kestrel's own IHttpMaxRequestBodySizeFeature (layer
+// (1)) rather than the portable ByteCappedRequestStream read cap (layer (3)).
+// Measured directly: with (1) disabled, the login test's assertions still pass
+// unchanged, because (3) unconditionally wraps and re-catches the same bytes
+// (1) would have. That is not a hole in these tests — RequestBodyLimit.cs's
+// own comments already document (1) as best-effort and (3) as "the portable
+// guarantee, not this", so a client-visible test cannot and is not meant to
+// isolate (1) from (3); AuthBodyLimitTests already proves the (1)-absent case
+// works (that's what running under TestServer literally is). What's new and
+// real here is exercising the previously-untested case where a genuinely
+// undeclared-length body crosses an actual socket into Kestrel.
 //
 // Only the login test also asserts the completion log stayed clean, per
 // RequestBodyLimit.cs:85's own worry (the #340 class of bug: a response that
@@ -26,8 +39,8 @@ using Microsoft.AspNetCore.Http;
 // first is a genuine race that resolves differently at different cap sizes —
 // sometimes reaching /error as a real unhandled BadHttpRequestException, which
 // Program.cs documents as an intentional Error-level log, not a #340-shaped
-// bug. Those two tests assert only the client-visible 413 contract, which
-// holds regardless of which side of the race wins.
+// bug. Those two tests assert only the client-visible 413 contract (accepting
+// either race outcome's shape), which holds regardless of which side wins.
 public sealed class KestrelRequestBodyLimitTests(KestrelBackedFactory factory)
     : IClassFixture<KestrelBackedFactory>
 {
@@ -62,6 +75,35 @@ public sealed class KestrelRequestBodyLimitTests(KestrelBackedFactory factory)
         int? Int(string name) =>
             root.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Number ? v.GetInt32() : null;
         return new ProblemFields(Str("type"), Str("title"), Str("detail"), Int("status"));
+    }
+
+    // For an endpoint with NO WithMaxRequestBodyBytes swallow-and-recover
+    // (FarmLogoEndpoints, ClientErrorEndpoints): whether the endpoint's own
+    // bounded read loop or Kestrel's own IHttpMaxRequestBodySizeFeature notices
+    // an oversized chunked body first is a genuine transport-buffering/
+    // scheduling race, not a fixed property of the code (codex review, PR
+    // #440 — confirmed by measurement: it resolves one way at the 64 KB logo
+    // cap and the other way at the 16 KB report cap in THIS run, and nothing
+    // pins it to stay that way in every run or environment). Both shapes are
+    // a 413 with a non-empty detail; accept either rather than pinning one.
+    private static void AssertEitherBodyTooLargeShape(
+        ProblemFields problem, string endpointTitle, string endpointDetail)
+    {
+        Assert.Equal(StatusCodes.Status413PayloadTooLarge, problem.Status);
+        if (problem.Title == "Invalid request body")
+        {
+            // Kestrel's own transport cutoff won the race: an unhandled
+            // BadHttpRequestException reached /error's generic mapping. The
+            // exact message is framework-internal, so only non-empty is
+            // asserted — see /error's `BadHttpRequestException bad` arm.
+            Assert.False(string.IsNullOrWhiteSpace(problem.Detail));
+        }
+        else
+        {
+            // The endpoint's own read loop won the race: its own ProblemDetails.
+            Assert.Equal(endpointTitle, problem.Title);
+            Assert.Equal(endpointDetail, problem.Detail);
+        }
     }
 
     // A genuinely chunked request: StreamContent over a non-seekable stream,
@@ -143,17 +185,8 @@ public sealed class KestrelRequestBodyLimitTests(KestrelBackedFactory factory)
 
         Assert.Equal(HttpStatusCode.RequestEntityTooLarge, response.StatusCode);
         var problem = await ReadProblemAsync(response);
-        Assert.Equal(StatusCodes.Status413PayloadTooLarge, problem.Status);
-        // Which of FarmLogoEndpoints' own bounded read loop vs. Kestrel's
-        // IHttpMaxRequestBodySizeFeature notices the overflow first is a real
-        // race, not a fixed property of this code — see the client-error test,
-        // where at a smaller cap the other side wins and the response comes
-        // from an unhandled exception reaching /error instead. This test only
-        // pins down what's actually guaranteed at this (64 KB test) cap size:
-        // FarmLogoEndpoints' own loop wins, so its own ProblemDetails shape is
-        // what the client gets.
-        Assert.Equal("FarmLogo.TooLarge", problem.Title);
-        Assert.Equal($"The logo must be {LogoCapBytes / 1024} KB or smaller.", problem.Detail);
+        AssertEitherBodyTooLargeShape(
+            problem, "FarmLogo.TooLarge", $"The logo must be {LogoCapBytes / 1024} KB or smaller.");
     }
 
     [Fact]
@@ -183,24 +216,17 @@ public sealed class KestrelRequestBodyLimitTests(KestrelBackedFactory factory)
 
         Assert.Equal(HttpStatusCode.RequestEntityTooLarge, response.StatusCode);
         var problem = await ReadProblemAsync(response);
-        Assert.Equal(StatusCodes.Status413PayloadTooLarge, problem.Status);
-        // Measured, not the same result as the logo case despite the identical
-        // hand-rolled-loop shape: at this (smaller, 16 KB) cap, Kestrel's own
-        // IHttpMaxRequestBodySizeFeature DOES abort the read before
-        // ClientErrorEndpoints' own loop notices the overflow, so this actually
-        // IS an unhandled BadHttpRequestException reaching /error's generic
-        // mapping — not this endpoint's own "Report too large" ProblemDetails.
-        // Which of the two fires is apparently a real timing race, not a fixed
-        // property of the code — see the logo test for the other outcome of the
-        // same race at a different cap size.
-        Assert.Equal("Invalid request body", problem.Title);
-        // No AssertServerSideCleanAsync here, unlike the login test: this IS a
-        // genuine unhandled BadHttpRequestException reaching /error, and
-        // Program.cs's UseSerilogRequestLogging.GetLevel documents that a
-        // non-400 BadHttpRequestException "correctly stays Error" — by design,
-        // not the #340 class of bug (a response that silently masks a throw
-        // behind an already-committed success status). The client-visible
-        // contract (413 + this ProblemDetails shape) is what's under test here.
+        AssertEitherBodyTooLargeShape(
+            problem, "Report too large", $"Error reports are capped at {ClientErrorCapBytes} bytes.");
+        // No AssertServerSideCleanAsync here, unlike the login test: when
+        // Kestrel's own cutoff wins this race, the result is a genuine
+        // unhandled BadHttpRequestException reaching /error, and Program.cs's
+        // UseSerilogRequestLogging.GetLevel documents that a non-400
+        // BadHttpRequestException "correctly stays Error" — by design, not the
+        // #340 class of bug (a response that silently masks a throw behind an
+        // already-committed success status). The client-visible contract (413
+        // + one of the two documented ProblemDetails shapes) is what's under
+        // test here, not which internal path produced it or the log level.
     }
 
     [Fact]
