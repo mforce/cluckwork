@@ -479,6 +479,26 @@ describe("HistoryPage adjust — mirrored daily-entry layout", () => {
     expect(chip()).toHaveTextContent("the day adds up");
   });
 
+  // codex review of #449: gating only on "still over" (rather than on this
+  // EDIT increasing the graded sum) meant correcting an over-graded day by
+  // walking a grade back down with − ratcheted the total right back up on
+  // every decrement, undoing the admin's own step-1 correction.
+  it("does not ratchet the total back up when correcting an over-graded day with −", async () => {
+    mockListDailyEntries.mockResolvedValue([SUBMITTED]);
+    await openAdjustPanel();
+
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Grade A" }), { target: { value: "70" } }); // 70 + 20 === sellable 90
+    expect(chip()).toHaveTextContent("the day adds up");
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Total eggs" }), { target: { value: "50" } }); // trimmed directly — now over
+
+    const minusA = screen.getByRole("button", { name: "Decrease grade a" });
+    fireEvent.pointerDown(minusA);
+    fireEvent.pointerUp(minusA);
+
+    expect(screen.getByRole("spinbutton", { name: "Grade A" })).toHaveValue(69);
+    expect(screen.getByRole("spinbutton", { name: "Total eggs" })).toHaveValue(50);
+  });
+
   // A 409 replaces every number in the form with the winner's, because keeping
   // this admin's typed figures could silently clobber a grade line the other
   // one just added. The REASON is the one thing that survives — it is this

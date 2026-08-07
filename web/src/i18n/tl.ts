@@ -2216,7 +2216,7 @@ export const tl = {
       + "I-reload o Bumalik sa dashboard. Naglalaman ang \"Error details\" ng mensahe para sa screenshot.",
 
     glossaryDailyEntryTerm: "Araw-araw na Tala",
-    glossaryDailyEntryDef: "Ang araw ng isang kawan: itlog ayon sa grado, nawala, namatay. Draft hanggang isumite.",
+    glossaryDailyEntryDef: "Ang araw ng isang kawan: itlog ayon sa grado, nawala, namatay. Ang pag-grade nang lampas sa kabuuan ay nagpapataas nito para tumugma. Draft hanggang isumite.",
 
     glossaryEggLotTerm: "Lote ng itlog",
     glossaryEggLotDef:

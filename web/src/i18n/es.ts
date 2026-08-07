@@ -2137,7 +2137,7 @@ export const es = {
       + "pantalla.",
 
     glossaryDailyEntryTerm: "Entrada diaria",
-    glossaryDailyEntryDef: "El día de un lote: huevos por grado, pérdidas, muertes. Borrador hasta que se envía.",
+    glossaryDailyEntryDef: "El día de un lote: huevos por grado, pérdidas, muertes. Clasificar por encima del total lo eleva para igualarlo. Borrador hasta que se envía.",
 
     glossaryEggLotTerm: "Lote de huevos",
     glossaryEggLotDef:

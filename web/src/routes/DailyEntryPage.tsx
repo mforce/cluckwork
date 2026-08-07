@@ -303,11 +303,18 @@ export function DailyEntryPage() {
   // `remaining`-watching effect) because an effect can't tell a total raised
   // BY this grade edit apart from `remaining` going negative because the
   // total itself was just lowered on step 1 — the latter must never be
-  // fought back up. Only ever raises the total, never lowers it: Math.max
-  // against the CURRENT total leaves a total the user set higher untouched.
+  // fought back up.
+  //
+  // Gated on `newSum > prevSum` (codex review of #449) — not just "still over
+  // the total" — for the same reason: after the user lowers the total below
+  // an already-graded sum, correcting the grade back DOWN with − is also
+  // "still over" on every step until it lands, and without this check each
+  // decrement would ratchet the total back up toward the old sum, undoing
+  // the very edit the user just made on step 1.
   const setGrade = (gradeId: string) => (next: number | ((prev: number) => number)) => {
     setGradesTouched(true);
     const current = gradeQtyRef.current;
+    const prevSum = Object.values(current).reduce((a, b) => a + (b || 0), 0);
     const updated = {
       ...current,
       [gradeId]: typeof next === "function" ? next(current[gradeId] ?? 0) : next,
@@ -315,7 +322,7 @@ export function DailyEntryPage() {
     gradeQtyRef.current = updated;
     setGradeQty(updated);
     const newSum = Object.values(updated).reduce((a, b) => a + (b || 0), 0);
-    setTotalEggs((t) => Math.max(t, newSum + losses));
+    if (newSum > prevSum) setTotalEggs((t) => Math.max(t, newSum + losses));
   };
 
 

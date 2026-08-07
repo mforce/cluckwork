@@ -202,10 +202,15 @@ export function HistoryPage() {
 
   // #443 — mirrors DailyEntryPage's setGrade: a grade edit that would push
   // the graded sum past what the total currently allows raises the total to
-  // fit instead of being capped (the removed `max=` did that). Only ever
-  // raises — never lowers — so trimming the total on step 1 is never fought.
+  // fit instead of being capped (the removed `max=` did that).
+  //
+  // Gated on `newSum > prevSum` (codex review of #449) — not just "still over
+  // the total" — so that correcting a grade back DOWN with − after the total
+  // was trimmed on step 1 doesn't ratchet the total back up on every
+  // decrement; only an edit that itself increases the graded sum bumps it.
   const setLine = (gradeId: string) => (next: number | ((prev: number) => number)) => {
     const current = lineQtyRef.current;
+    const prevSum = Object.values(current).reduce((a, b) => a + (b || 0), 0);
     const updated = {
       ...current,
       [gradeId]: typeof next === "function" ? next(current[gradeId] ?? 0) : next,
@@ -213,7 +218,7 @@ export function HistoryPage() {
     lineQtyRef.current = updated;
     setLineQty(updated);
     const newSum = Object.values(updated).reduce((a, b) => a + (b || 0), 0);
-    setTotal((t) => Math.max(t, newSum + losses));
+    if (newSum > prevSum) setTotal((t) => Math.max(t, newSum + losses));
   };
 
   // Hand the whole remainder to one grade line.

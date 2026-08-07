@@ -2473,7 +2473,7 @@ export const en = {
       + "details\" holds the message for a screenshot.",
 
     glossaryDailyEntryTerm: "Daily entry",
-    glossaryDailyEntryDef: "One flock's day: eggs by grade, losses, deaths. Draft until submitted.",
+    glossaryDailyEntryDef: "One flock's day: eggs by grade, losses, deaths. Grading past the total raises it to match. Draft until submitted.",
 
     glossaryEggLotTerm: "Egg lot",
     glossaryEggLotDef:

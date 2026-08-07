@@ -816,6 +816,24 @@ describe("DailyEntryPage grading sync (#443)", () => {
     expect(saveDraftBtn()).toBeDisabled();
     expect(submitBtn()).toBeDisabled();
   });
+
+  // codex review of #449: gating only on "still over" (rather than on this
+  // EDIT increasing the graded sum) meant that fixing the over-graded day
+  // above by walking Grade A back down with − ratcheted the total right back
+  // up on every decrement, undoing the user's own step-1 correction.
+  it("does not ratchet the total back up when correcting an over-graded day with −", async () => {
+    await renderReady();
+    setNum("Total eggs", 10);
+    setNum("Grade A", 10); // exactly reconciled
+    setNum("Total eggs", 5); // trimmed directly — now over
+
+    const minusA = screen.getByRole("button", { name: "Decrease grade a" });
+    fireEvent.pointerDown(minusA);
+    fireEvent.pointerUp(minusA);
+
+    expect(screen.getByLabelText("Grade A")).toHaveValue(9);
+    expect(screen.getByLabelText("Total eggs")).toHaveValue(5);
+  });
 });
 
 // #123 — the date field's ceiling comes from the FARM's clock. Since #35 the
