@@ -405,7 +405,7 @@ flowchart TD
 
   <section>
     <div class="section-head"><span class="section-num">FIG 03 · §2.3</span><h2>Cross-module writes that stay synchronous</h2></div>
-    <p class="section-intro">Three seams that must not become eventually-consistent, because Cluckwork needs atomic ledger updates, FIFO lock ordering, and today's HTTP/idempotency contract preserved exactly.</p>
+    <p class="section-intro">Seams that must not become eventually-consistent, because Cluckwork needs atomic ledger updates, FIFO lock ordering, and today's HTTP/idempotency contract preserved exactly. The audit-row node appears only where the current handler already injects <code class="mono">IAuditWriter</code> — codex review, PR #423 round 6: SubmitDailyEntryHandler and ConfirmSaleHandler inject none today, so this plan's no-behavior-change rule means their panels must not show one either.</p>
     <div class="grid-3">
       <figure>
         <div class="diagram-scroll">
@@ -416,9 +416,8 @@ flowchart TD
     direction TB
     A1[Flock Management.AppendMortalityMovement]
     A2["Egg Operations creates lots +&lt;br/&gt;egg-ledger opening movements"]
-    A3["Platform appends the audit row"]
   end
-  P1["Platform commits once,&lt;br/&gt;then publishes read events"]
+  P1["Platform commits once,&lt;br/&gt;then publishes read events&lt;br/&gt;(no audit row today)"]
   R1 --> TX1
   TX1 -.->|after commit| P1
 
@@ -434,14 +433,13 @@ flowchart TD
         <div class="diagram-scroll">
           <pre class="mermaid">
 flowchart TD
-  R2["Commerce.ConfirmSale / VoidSale"]
+  R2[Commerce.ConfirmSale]
   subgraph TX2["same ambient transaction"]
     direction TB
-    B1["Egg Operations.ReserveFifo / RestoreReservation"]
+    B1[Egg Operations.ReserveFifo]
     B2["Commerce updates order, allocation&lt;br/&gt;and payment state"]
-    B3["Platform appends the audit row"]
   end
-  P2["Platform commits once,&lt;br/&gt;then publishes read events"]
+  P2["Platform commits once,&lt;br/&gt;then publishes read events&lt;br/&gt;(no audit row today)"]
   R2 --> TX2
   TX2 -.->|after commit| P2
 
@@ -451,7 +449,30 @@ flowchart TD
   class P2 muted
           </pre>
         </div>
-        <figcaption><span class="fig-title">Confirm / void sale</span></figcaption>
+        <figcaption><span class="fig-title">Confirm sale</span></figcaption>
+      </figure>
+      <figure>
+        <div class="diagram-scroll">
+          <pre class="mermaid">
+flowchart TD
+  R4[Commerce.VoidSale]
+  subgraph TX4["same ambient transaction"]
+    direction TB
+    D1[Egg Operations.RestoreReservation]
+    D2["Commerce updates order, allocation&lt;br/&gt;and payment state"]
+    D3["Platform appends the audit row"]
+  end
+  P4["Platform commits once,&lt;br/&gt;then publishes read events"]
+  R4 --> TX4
+  TX4 -.->|after commit| P4
+
+  classDef accent stroke:#b8672a,stroke-width:2px,color:#b8672a;
+  classDef muted stroke-dasharray: 3 3;
+  class TX4 accent
+  class P4 muted
+          </pre>
+        </div>
+        <figcaption><span class="fig-title">Void sale</span></figcaption>
       </figure>
       <figure>
         <div class="diagram-scroll">

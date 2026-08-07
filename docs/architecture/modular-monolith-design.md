@@ -129,19 +129,38 @@ Egg Operations.SubmitDailyEntry
     | same ambient transaction
     +--> Flock Management.AppendMortalityMovement
     +--> Egg Operations creates lots + egg-ledger opening movements
-    +--> Platform appends the audit row in the SAME transaction, commits once, then publishes read events
+    +--> commits once, then publishes read events
+        (SubmitDailyEntryHandler injects no IAuditWriter today — no audit row)
 
-Commerce.ConfirmSale / VoidSale
+Commerce.ConfirmSale
     | same ambient transaction
-    +--> Egg Operations.ReserveFifo / RestoreReservation
+    +--> Egg Operations.ReserveFifo
+    +--> Commerce updates order, allocation and payment state
+    +--> commits once, then publishes read events
+        (ConfirmSaleHandler injects no IAuditWriter today — no audit row)
+
+Commerce.VoidSale
+    | same ambient transaction
+    +--> Egg Operations.RestoreReservation
     +--> Commerce updates order, allocation and payment state
     +--> Platform appends the audit row in the SAME transaction, commits once, then publishes read events
+        (VoidSaleHandler already injects IAuditWriter today)
 
 Inventory.RecordFeedUsage
     | inventory transaction, item lock held first
     +--> Flock Management.GetFlockProductionEligibility (enlisted, after the item lock)
     +--> Inventory consumes FIFO lots and writes movement/usage rows
 ```
+
+codex review, PR #423 round 6: the previous version of this diagram showed every one of these
+commands appending an audit row inside its transaction. That's true today only for the
+adjust/void paths (`AdjustDailyEntryHandler`, `VoidDailyEntryHandler`, `VoidSaleHandler`,
+`VoidPaymentHandler` — each already injects `IAuditWriter`); `SubmitDailyEntryHandler` and
+`ConfirmSaleHandler` inject no `IAuditWriter` and write no audit row. Since this plan's delivery
+rule (implementation-plan.md) is "no schema/behavior changes are expected," a diagram implying an
+audited-write panel exists for every shown command would have an implementer add audit rows these
+commands don't emit today — a real product change, not the refactor this plan authorizes. Split
+above to say only what's true now.
 
 These seams stay in-process because Cluckwork must preserve atomic ledger updates,
 FIFO lock ordering, optimistic concurrency and existing HTTP/idempotency contracts.
@@ -389,15 +408,22 @@ make atomic workflows fragile without solving a demonstrated runtime problem.
   migration at all, because it changes nothing about the schema, only how the relationship is
   *declared in C#*: `Expense`'s own configuration (owner-authored, in Finance) keeps a
   fully **string-based**, non-generic relationship —
-  `builder.HasOne("Cluckwork.Domain.Flock").WithMany().HasForeignKey("FlockId")
-  .HasConstraintName("FK_Expenses_Flocks_FlockId")` — using the *fully-qualified type name as a
-  string*, not `typeof(Flock)` or a generic parameter. This reproduces the exact FK column,
-  constraint name and index EF already generates today, so the model snapshot is byte-identical
-  and the digest guard passes with **zero new migration** — while requiring no compile-time C#
-  reference to `Flock`'s CLR type (in Farm's assembly) from Finance's configuration, so no
-  `Platform.Persistence` ↔ `Finance.Implementation` cycle and no `Finance` → `Farm` compile
-  dependency either. Same posture #283's base-reference-data migrations already take (favor a
-  mechanism with no C# type reference over one requiring it) and consistent with §3.3's existing
+  `builder.HasOne("Cluckwork.Domain.Flocks.Flock").WithMany().HasForeignKey("FlockId")
+  .HasConstraintName("FK_Expenses_Flocks_FlockId").OnDelete(DeleteBehavior.Restrict)` — using the
+  *fully-qualified type name as a string*, not `typeof(Flock)` or a generic parameter.
+* codex review, PR #423 round 6: the round-5 example named the wrong fully-qualified type
+  (`Cluckwork.Domain.Flock`, which doesn't exist — the actual entity is
+  `Cluckwork.Domain.Flocks.Flock`) and omitted `ExpenseConfiguration`'s existing
+  `.OnDelete(DeleteBehavior.Restrict)` (EF's convention default for an optional FK is
+  `ClientSetNull`, a different runtime model). Both are corrected above; a string-typo or a
+  dropped delete-behavior would each independently fail the promised model-equivalence check.
+  This reproduces the exact FK column, constraint name, index, AND delete behavior EF already
+  generates today, so the model snapshot is byte-identical and the digest guard passes with
+  **zero new migration** — while requiring no compile-time C# reference to `Flock`'s CLR type (in
+  Flock Management's assembly) from Finance's configuration, so no `Platform.Persistence` ↔
+  `Finance.Implementation` cycle and no `Finance` → `Flock Management` compile dependency either.
+  Same posture #283's base-reference-data migrations already take (favor a mechanism with no C#
+  type reference over one requiring it) and consistent with §3.3's existing
   statement that cross-owner FKs are retained as database integrity constraints, not typed EF
   navigations. Authoring location: each owner's own configuration, for its own entity, using the
   string-based API for the far side. No Platform-owned composition file, no cycle, no migration,
