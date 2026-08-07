@@ -260,9 +260,24 @@ public sealed class KestrelRequestBodyLimitTests(KestrelBackedFactory factory)
         var client = factory.CreateClient();
         // Chunked, not PostAsJsonAsync's declared Content-Length — see the
         // login under-cap test's comment for why a declared-length control
-        // can't prove this.
+        // can't prove this. Padded to just under ClientErrorCapBytes, not a
+        // trivial ~60-byte message (codex review, PR #440): a tiny body can't
+        // catch a regression that shrinks the cap to, say, 1 KB — the
+        // oversized test would still pass (still expects 413 at 2x the
+        // INTENDED cap) while every real report in between got silently
+        // rejected. This is the actual threshold, not just "some size works".
+        // 128-byte margin, not 1: measured that Kestrel's own transport cutoff
+        // (armed to ClientErrorCapBytes) counts raw chunked-encoding wire
+        // bytes — chunk-size line + CRLFs — not just the decoded JSON payload,
+        // so a body sized to exactly cap-1 content bytes still tripped it.
+        const string scaffold = """{"scope":"app","message":""}""";
+        const int margin = 128;
+        var padding = ClientErrorCapBytes - Encoding.UTF8.GetByteCount(scaffold) - margin;
         var underCap = Encoding.UTF8.GetBytes(
-            """{"scope":"app","message":"a render crash, well under the cap"}""");
+            $$"""{"scope":"app","message":"{{new string('a', padding)}}"}""");
+        Assert.True(
+            underCap.Length < ClientErrorCapBytes && underCap.Length > ClientErrorCapBytes - margin - 16,
+            $"expected the padded body within {margin + 16} bytes of the {ClientErrorCapBytes}-byte cap, was {underCap.Length}");
 
         var response = await client.SendAsync(
             ChunkedRequest(HttpMethod.Post, ClientErrorPath, underCap, "application/json"));
