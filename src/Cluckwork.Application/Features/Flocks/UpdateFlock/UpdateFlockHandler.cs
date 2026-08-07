@@ -23,7 +23,7 @@ public sealed class UpdateFlockHandler(
 
         flocks.Update(flock);
         // Same SaveChanges as the change (#93).
-        await audit.WriteAsync("Flock.Update", "Flock", flock.Id,
+        await audit.WriteAsync(AuditActions.FlockUpdate, "Flock", flock.Id,
             reason: null, details: null, ct: ct);
 
         await unitOfWork.SaveChangesAsync(ct);

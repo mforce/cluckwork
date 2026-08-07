@@ -22,7 +22,7 @@ public sealed class SetEggGradeActiveHandler(
         if (result.IsFailure) return result;
 
         // Same SaveChanges as the change (#93).
-        await audit.WriteAsync(active ? "EggGrade.Activate" : "EggGrade.Deactivate",
+        await audit.WriteAsync(active ? AuditActions.EggGradeActivate : AuditActions.EggGradeDeactivate,
             "EggGrade", grade.Id, ct: ct);
 
         await unitOfWork.SaveChangesAsync(ct);

@@ -68,7 +68,7 @@ public sealed class RecordAdjustmentHandler(
             await movements.AddAsync(movement, transactionCt);
 
             // Same transaction as the change (#93).
-            await audit.WriteAsync("InventoryItem.Adjust", nameof(InventoryItem), item.Id,
+            await audit.WriteAsync(AuditActions.InventoryItemAdjust, nameof(InventoryItem), item.Id,
                 command.Reason, new { command.Type, command.QuantityDelta }, transactionCt);
 
             outcome = Result.Success(movement.Id);

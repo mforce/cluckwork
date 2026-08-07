@@ -26,7 +26,7 @@ public sealed class DepleteFlockHandler(
 
         flocks.Update(flock);
         // Same SaveChanges as the change (#93).
-        await audit.WriteAsync("Flock.Deplete", "Flock", flock.Id,
+        await audit.WriteAsync(AuditActions.FlockDeplete, "Flock", flock.Id,
             reason: null, details: null, ct: ct);
 
         await unitOfWork.SaveChangesAsync(ct);

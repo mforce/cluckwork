@@ -229,7 +229,7 @@ public sealed class AdjustDailyEntryHandler(
             }
 
             // Same transaction as the change (#93): rolls back with it.
-            await audit.WriteAsync("DailyEntry.Adjust", nameof(DailyEntry), entry.Id,
+            await audit.WriteAsync(AuditActions.DailyEntryAdjust, nameof(DailyEntry), entry.Id,
                 command.Reason, ct: transactionCt);
 
             return true;

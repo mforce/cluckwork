@@ -47,7 +47,7 @@ public sealed class UpdateWaterUsageHandler(
             return result;
 
         // Same SaveChanges as the change (#93).
-        await audit.WriteAsync("WaterUsage.Correct", nameof(WaterUsage), usage.Id,
+        await audit.WriteAsync(AuditActions.WaterUsageCorrect, nameof(WaterUsage), usage.Id,
             reason: null, new { usage.Quantity, usage.Unit }, ct);
 
         // The EF Version token still backstops the microsecond window between

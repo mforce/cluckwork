@@ -41,7 +41,7 @@ public static class ExportEndpoints
         // Exports are auditable actions (spec §18) — and the exfiltration
         // trail must commit BEFORE the first byte streams, so an aborted
         // download still leaves its trace.
-        await audit.WriteAsync("Account.Export", "Account", tenant.AccountId,
+        await audit.WriteAsync(AuditActions.AccountExport, "Account", tenant.AccountId,
             details: new { dataset }, ct: ct);
         await unitOfWork.SaveChangesAsync(ct);
 
@@ -57,7 +57,7 @@ public static class ExportEndpoints
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
 
-        await audit.WriteAsync("Account.Export", "Account", tenant.AccountId,
+        await audit.WriteAsync(AuditActions.AccountExport, "Account", tenant.AccountId,
             details: new { scope = "all" }, ct: ct);
         await unitOfWork.SaveChangesAsync(ct);
 

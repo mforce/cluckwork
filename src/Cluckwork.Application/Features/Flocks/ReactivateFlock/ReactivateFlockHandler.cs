@@ -22,7 +22,7 @@ public sealed class ReactivateFlockHandler(
 
         flocks.Update(flock);
         // Same SaveChanges as the change (#93).
-        await audit.WriteAsync("Flock.Reactivate", "Flock", flock.Id,
+        await audit.WriteAsync(AuditActions.FlockReactivate, "Flock", flock.Id,
             reason: null, details: null, ct: ct);
 
         await unitOfWork.SaveChangesAsync(ct);
