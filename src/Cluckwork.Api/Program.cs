@@ -282,6 +282,15 @@ app.UseRateLimiter();
 // is available, and an over-limit body is refused before any of that work.
 app.UseCluckworkRequestBodyLimit();
 
+// #442 — the farm-logo upload cap, same reasoning as the middleware above:
+// registered before IdempotencyMiddleware so an oversized body is rejected
+// before idempotency buffers the whole thing to hash it. Can't reuse
+// UseCluckworkRequestBodyLimit's own metadata directly because FarmLogoOptions.
+// MaxUploadBytes is IOptionsSnapshot (per-request, config-reloadable), not the
+// compile-time long that mechanism's metadata carries. See
+// Hosting/FarmLogoRequestBodyCap.cs.
+app.UseFarmLogoRequestBodyCap();
+
 app.UseAuthentication();
 app.UseMiddleware<TenantResolutionMiddleware>();
 app.UseMiddleware<CredentialEpochMiddleware>();
