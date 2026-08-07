@@ -60,15 +60,36 @@ Finance pilot would duplicate Phase 10's planned work; the plan instead makes th
 and owned rather than silently contradicting the completion criterion below: `SimulationDataSeeder`
 is a **named, tracked compatibility exception** to Phase 2's "peers cannot reference
 implementation" rule (per the Delivery rules' compatibility-adapter policy — owner: this seeder;
-deletion phase: 10.3), and the dependency/signature guard (1.3) must explicitly allow-list it by
-name rather than fail on it, so the guard's own "zero bypasses" claim stays true about every
-*other* caller while this one is visible and dated, not accidentally exempted.
+deletion phase: 10.3).
+
+A second codex pass on the same commit found two more real callers that same exception did not
+cover: `ReportQueries` (`ReportQueries.cs:225`, `:230`, `:252`) and `ExportQueries`
+(`ExportQueries.cs:235`, `:240`) query `db.Expenses`/`db.ExpenseCategories` directly for the
+expense report and export, and `CurrencyBoundRowProbe` (`CurrencyBoundRowProbe.cs:21`) queries
+`db.Expenses` as one of seven rows-carrying-an-amount checks that lock a farm's currency (design
+§4.6). Each becomes its own **named, tracked compatibility exception**, same policy, with its own
+resolution point rather than one shared deadline:
+
+- `ReportQueries`/`ExportQueries` — Phase 9 item 2 ("move report queries without changing SQL
+  semantics") already schedules moving these; that move is this exception's deletion point, not
+  separate follow-up work.
+- `CurrencyBoundRowProbe` — spans three future module boundaries, not one: `Expenses` (Finance,
+  this phase), `SalesOrders`/`Payments`/`Products` (Commerce, Phase 6), `InventoryLots`/
+  `FeedUsages`/`InventoryItems` (Inventory, Phase 7). It cannot fully resolve until the LAST of
+  those lands (Phase 7) — until then it stays allow-listed, and each of Phases 2/6/7 should
+  confirm the rows it now owns still compile through the probe rather than silently widening the
+  exception further. Owner: Farm module (the probe backs its currency-change guard).
+
+The dependency/signature guard (1.3) must allow-list all four names above (`SimulationDataSeeder`,
+`ReportQueries`, `ExportQueries`, `CurrencyBoundRowProbe`) rather than fail on them, so the guard's
+own "zero bypasses" claim stays true about every *other* caller while these four are visible and
+dated, not accidentally exempted.
 
 Principal risks: currency snapshot and optional flock validation may be accidentally copied
 instead of called through Farm/Flock seams; EF configuration discovery may change the
 model. Completion: Finance can be tested solely through its contract, peers cannot reference
-implementation except the one named, dated exception above, EF digest and HTTP behavior are
-unchanged, and compatibility adapters are zero apart from that same exception. Hold a
+implementation except the four named, dated exceptions above, EF digest and HTTP behavior are
+unchanged, and compatibility adapters are zero apart from those same four exceptions. Hold a
 retrospective before Phase 3 and adjust templates/guards.
 
 ## Phase 3 — Farm module (4–7 days)
