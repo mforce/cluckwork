@@ -416,8 +416,9 @@ flowchart TD
     direction TB
     A1[Flock Management.AppendMortalityMovement]
     A2["Egg Operations creates lots +&lt;br/&gt;egg-ledger opening movements"]
+    A3["Platform appends the audit row"]
   end
-  P1["Platform commits once,&lt;br/&gt;then publishes read/audit events"]
+  P1["Platform commits once,&lt;br/&gt;then publishes read events"]
   R1 --> TX1
   TX1 -.->|after commit| P1
 
@@ -438,8 +439,9 @@ flowchart TD
     direction TB
     B1["Egg Operations.ReserveFifo / RestoreReservation"]
     B2["Commerce updates order, allocation&lt;br/&gt;and payment state"]
+    B3["Platform appends the audit row"]
   end
-  P2["Platform commits once,&lt;br/&gt;then publishes read/audit events"]
+  P2["Platform commits once,&lt;br/&gt;then publishes read events"]
   R2 --> TX2
   TX2 -.->|after commit| P2
 

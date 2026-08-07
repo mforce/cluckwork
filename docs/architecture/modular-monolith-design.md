@@ -375,20 +375,33 @@ make atomic workflows fragile without solving a demonstrated runtime problem.
   composition file" (this bullet's previous text) does not compile — Platform would need to
   reference the owning module's Implementation assembly for the entity type (`Expense`), while
   that module's repository needs Platform's `AppDbContext`, an unavoidable
-  `Platform.Persistence` ↔ `Finance.Implementation` cycle. The actual fix is narrower: a
-  cross-owner foreign key is never expressed through EF's fluent relationship API
-  (`HasOne<Flock>()`) at all, by either side — that generic type parameter is exactly what
-  forces the cycle. `Expense`'s own configuration declares `FlockId` as a plain scalar/shadow
-  `Guid` column (already true today — `Expense`'s domain model carries only the ID, no
-  navigation) and needs no reference to `Flock`'s CLR type to do so. The FK **constraint**
-  itself — enforcement, cascade behavior, the index — is emitted as a raw migration operation
-  (`migrationBuilder.AddForeignKey(...)` by table/column name), which needs no C# reference to
-  either module's entity type either. Same posture #283's base-reference-data migrations
-  already take (raw SQL over EF's data-seeding API) and consistent with §3.3's existing
-  statement that cross-owner FKs are retained as database integrity constraints, not EF
-  navigations. Authoring location: each owner's own configuration for its own columns; the
-  migration file (already Platform-authored, per #407) for the cross-owner constraint. No
-  Platform-owned composition file, no cycle, no digest change.
+  `Platform.Persistence` ↔ `Finance.Implementation` cycle. A cross-owner foreign key is never
+  expressed through EF's *generic* fluent relationship API (`HasOne<Flock>()`) at all, by either
+  side — that generic type parameter is exactly what forces the cycle.
+* codex review, PR #423 round 5: the round-3 fix's second half — "the FK constraint itself is a
+  raw migration operation (`migrationBuilder.AddForeignKey(...)`)" — does not hold, because
+  `FK_Expenses_Flocks_FlockId` and `IX_Expenses_FlockId` are **already created by the frozen
+  `InitialCreate`** (#407). A Phase 2.4 migration re-emitting `AddForeignKey` for a
+  same-named constraint that already exists fails on every already-migrated database; and
+  simply *not* emitting one, after `Expense`'s own configuration stops declaring the
+  relationship at all, drops the FK/index from EF's runtime model — which is itself a model
+  change the before/after digest guard (§8) is built to catch. The corrected mechanism needs no
+  migration at all, because it changes nothing about the schema, only how the relationship is
+  *declared in C#*: `Expense`'s own configuration (owner-authored, in Finance) keeps a
+  fully **string-based**, non-generic relationship —
+  `builder.HasOne("Cluckwork.Domain.Flock").WithMany().HasForeignKey("FlockId")
+  .HasConstraintName("FK_Expenses_Flocks_FlockId")` — using the *fully-qualified type name as a
+  string*, not `typeof(Flock)` or a generic parameter. This reproduces the exact FK column,
+  constraint name and index EF already generates today, so the model snapshot is byte-identical
+  and the digest guard passes with **zero new migration** — while requiring no compile-time C#
+  reference to `Flock`'s CLR type (in Farm's assembly) from Finance's configuration, so no
+  `Platform.Persistence` ↔ `Finance.Implementation` cycle and no `Finance` → `Farm` compile
+  dependency either. Same posture #283's base-reference-data migrations already take (favor a
+  mechanism with no C# type reference over one requiring it) and consistent with §3.3's existing
+  statement that cross-owner FKs are retained as database integrity constraints, not typed EF
+  navigations. Authoring location: each owner's own configuration, for its own entity, using the
+  string-based API for the far side. No Platform-owned composition file, no cycle, no migration,
+  no digest change.
 * Never edit/regenerate `20260801190854_InitialCreate`. Keep one ordered migration stream;
   every schema change is a new migration. Structural extraction should require no schema
   migration. Preserve the model snapshot and the migration digest guards.
