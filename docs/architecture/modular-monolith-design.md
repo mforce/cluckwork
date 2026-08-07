@@ -129,13 +129,13 @@ Egg Operations.SubmitDailyEntry
     | same ambient transaction
     +--> Flock Management.AppendMortalityMovement
     +--> Egg Operations creates lots + egg-ledger opening movements
-    +--> Platform commits once, then publishes read/audit events
+    +--> Platform appends the audit row in the SAME transaction, commits once, then publishes read events
 
 Commerce.ConfirmSale / VoidSale
     | same ambient transaction
     +--> Egg Operations.ReserveFifo / RestoreReservation
     +--> Commerce updates order, allocation and payment state
-    +--> Platform commits once, then publishes read/audit events
+    +--> Platform appends the audit row in the SAME transaction, commits once, then publishes read events
 
 Inventory.RecordFeedUsage
     | inventory transaction, item lock held first
@@ -145,6 +145,11 @@ Inventory.RecordFeedUsage
 
 These seams stay in-process because Cluckwork must preserve atomic ledger updates,
 FIFO lock ordering, optimistic concurrency and existing HTTP/idempotency contracts.
+The audit row is one of those atomic writes, not a decoupled event: it's appended
+in the SAME transaction as the mutation it records (§3.5 item 4, §6's Platform row)
+and would be rolled back with it on failure. Only the READ-model publish happens
+after commit — a crash between commit and that publish loses a cache refresh, never
+an audit trail entry.
 
 ## 3. Current-state evidence
 
@@ -366,16 +371,24 @@ make atomic workflows fragile without solving a demonstrated runtime problem.
 
 * Move configurations into owner-named folders/assemblies over time, discovered explicitly
   by Platform. Keep `AppDbContext` internal to Platform/implementation persistence adapters.
-* An EF relationship configuration whose fluent API needs a peer module's entity type — e.g.
-  `HasOne<Flock>()` for `Expense.FlockId`, even though `Expense`'s own domain model carries only
-  the ID — is a cross-owner *composition* concern, not something either module's Implementation
-  assembly may express: giving Finance that reference is the same peer-entity access the module
-  guard (§8.3) forbids, and stripping the relationship to avoid it changes the EF model digest a
-  pilot phase requires to stay identical. Configure the owning entity's own columns/indexes
-  inside its module's configuration; keep any relationship whose generic parameter names another
-  owner's entity in a Platform-owned composition file, discovered by Platform alongside the
-  per-owner configurations it already assembles. Authoring location only — FK column, index and
-  migration output are unchanged.
+* codex review, PR #423 round 3: putting a cross-owner relationship in "a Platform-owned
+  composition file" (this bullet's previous text) does not compile — Platform would need to
+  reference the owning module's Implementation assembly for the entity type (`Expense`), while
+  that module's repository needs Platform's `AppDbContext`, an unavoidable
+  `Platform.Persistence` ↔ `Finance.Implementation` cycle. The actual fix is narrower: a
+  cross-owner foreign key is never expressed through EF's fluent relationship API
+  (`HasOne<Flock>()`) at all, by either side — that generic type parameter is exactly what
+  forces the cycle. `Expense`'s own configuration declares `FlockId` as a plain scalar/shadow
+  `Guid` column (already true today — `Expense`'s domain model carries only the ID, no
+  navigation) and needs no reference to `Flock`'s CLR type to do so. The FK **constraint**
+  itself — enforcement, cascade behavior, the index — is emitted as a raw migration operation
+  (`migrationBuilder.AddForeignKey(...)` by table/column name), which needs no C# reference to
+  either module's entity type either. Same posture #283's base-reference-data migrations
+  already take (raw SQL over EF's data-seeding API) and consistent with §3.3's existing
+  statement that cross-owner FKs are retained as database integrity constraints, not EF
+  navigations. Authoring location: each owner's own configuration for its own columns; the
+  migration file (already Platform-authored, per #407) for the cross-owner constraint. No
+  Platform-owned composition file, no cycle, no digest change.
 * Never edit/regenerate `20260801190854_InitialCreate`. Keep one ordered migration stream;
   every schema change is a new migration. Structural extraction should require no schema
   migration. Preserve the model snapshot and the migration digest guards.
