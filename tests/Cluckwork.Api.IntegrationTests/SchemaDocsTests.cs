@@ -135,6 +135,11 @@ public sealed class SchemaDocsTests
         // line.
         var deferredImagePattern = new Regex(@"(?im)^[ \t]*(?:" + ImageKey + @"[ \t]*[>|][+-]?[ \t]*(?:#[^\r\n]*)?$|FROM[ \t]+[^\r\n]*\\[ \t]*$)");
         var bareImagePattern = new Regex(@"(?im)^[ \t]*" + ImageKey + @"[ \t]*(?:#[^\r\n]*)?\r?$");
+        // An image value that is a YAML alias (or carries an anchor) factors
+        // the real reference through another node — refused at the
+        // CONSUMPTION point, which covers whatever the anchor holds without
+        // resolving it.
+        var aliasImagePattern = new Regex(@"(?im)^[ \t]*" + ImageKey + @"[ \t]*[*&][^\r\n]*");
         var mappingKeyPattern = new Regex(@"^[ \t]*[A-Za-z0-9_.-]+:([ \t]|\r?$)");
         var hits = new Dictionary<string, List<string>>();
 
@@ -184,6 +189,13 @@ public sealed class SchemaDocsTests
                 var token = m.Value.Trim();
                 if (!hits.TryGetValue($"{token} (image value deferred past the line — not a reviewable pin)", out var files))
                     hits[$"{token} (image value deferred past the line — not a reviewable pin)"] = files = [];
+                files.Add(relative);
+            }
+            foreach (Match m in aliasImagePattern.Matches(text))
+            {
+                var token = m.Value.Trim();
+                if (!hits.TryGetValue($"{token} (image via YAML anchor/alias — not a reviewable pin)", out var files))
+                    hits[$"{token} (image via YAML anchor/alias — not a reviewable pin)"] = files = [];
                 files.Add(relative);
             }
             var textLines = text.Split('\n');
