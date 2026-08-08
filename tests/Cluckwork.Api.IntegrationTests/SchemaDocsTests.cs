@@ -129,7 +129,20 @@ public sealed class SchemaDocsTests
         // #351 promotion flow requires exactly this shape (the digest comes
         // from CI's own run artifact, never a declared pin). Operator-
         // settable expression roots (env., vars., inputs.) are NOT excepted.
-        var workflowOutputPattern = new Regex(@"^\$\{\{\s*(?:steps|needs)\.[^}]*\}\}$");
+        // Exactly ONE direct output reference, no operators: an expression
+        // like `steps.x.outputs.image || vars.Y` must not ride in on the
+        // steps. prefix — a fallback is an operator-settable escape hatch.
+        var workflowOutputPattern = new Regex(@"^\$\{\{\s*(?:steps|needs)\.[A-Za-z0-9_-]+\.outputs\.[A-Za-z0-9_-]+\s*\}\}$");
+        // Flow-style mappings put the image key mid-line where the
+        // line-anchored rule can't see it — refused wholesale in YAML files
+        // (declare the image as a block mapping key). The brace must be a
+        // YAML VALUE (preceded by `key:` or a sequence dash on the line):
+        // that keeps shell-embedded brace text inside run: blocks — e.g.
+        // release-please.yml's jq program building the #351 image.json —
+        // out of scope, since it opens behind a quote, not a YAML key.
+        // Scoped by extension: brace objects in JSON/JS are not compose.
+        var flowImageKeyPattern = new Regex(
+            @"(?m)^[ \t]*(?:-[ \t]+|[A-Za-z0-9_.""'-]+[ \t]*:[ \t]*)\{[^}\r\n]*[""']?image[""']?[ \t]*:");
         var fromLinePattern = new Regex(@"(?im)^[ \t]*FROM[ \t][^\r\n]*");
         var pgNamePattern = new Regex(@"postgres|_pg_?|pg_", RegexOptions.IgnoreCase);
         var mappingKeyPattern = new Regex(@"^[ \t]*[A-Za-z0-9_.-]+:([ \t]|\r?$)");
@@ -172,6 +185,13 @@ public sealed class SchemaDocsTests
             {
                 if (!hits.TryGetValue(key, out var files)) hits[key] = files = [];
                 files.Add(relative);
+            }
+
+            if (relative.EndsWith(".yml", StringComparison.OrdinalIgnoreCase)
+                || relative.EndsWith(".yaml", StringComparison.OrdinalIgnoreCase))
+            {
+                foreach (Match m in flowImageKeyPattern.Matches(text))
+                    AddHit("flow-style image key — declare the image as a block mapping key");
             }
 
             foreach (Match m in fromLinePattern.Matches(text))
