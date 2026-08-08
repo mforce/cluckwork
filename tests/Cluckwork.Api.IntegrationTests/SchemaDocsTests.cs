@@ -75,7 +75,15 @@ public sealed class SchemaDocsTests
     [Fact]
     public void PostgresImagePin_IsOneIdenticalStringAcrossEveryTrackedFile()
     {
-        var pinPattern = new Regex(@"postgres:[0-9][^@\s""']*@sha256:[0-9a-f]{64}");
+        // Discover, THEN validate: a pattern that only matched digest-pinned
+        // strings would let a new latest-tagged (or otherwise unpinned)
+        // postgres reference escape the sweep entirely. This candidate
+        // pattern matches any postgres image reference — pinned or not — and
+        // every match must equal the canonical pin. `(?!//)` keeps
+        // `postgres://` connection URIs (generate.sh's DSN) out of scope.
+        // (Written to avoid containing a matching literal itself — this file
+        // is inside its own sweep.)
+        var candidatePattern = new Regex(@"postgres:(?!//)[A-Za-z0-9][A-Za-z0-9._-]*(?:@sha256:[0-9a-f]{64})?");
         var hits = new Dictionary<string, List<string>>();
 
         foreach (var relative in TrackedFiles())
@@ -87,7 +95,7 @@ public sealed class SchemaDocsTests
             string text;
             try { text = File.ReadAllText(path); }
             catch (IOException) { continue; }
-            foreach (Match m in pinPattern.Matches(text))
+            foreach (Match m in candidatePattern.Matches(text))
             {
                 if (!hits.TryGetValue(m.Value, out var files))
                     hits[m.Value] = files = [];
@@ -95,11 +103,11 @@ public sealed class SchemaDocsTests
             }
         }
 
-        Assert.True(hits.Count > 0, "No postgres image pin found anywhere — the sweep itself is broken.");
-        Assert.True(hits.Count == 1,
-            "Multiple distinct postgres image pins found:\n" + string.Join("\n",
-                hits.Select(kv => $"  {kv.Key}\n    in: {string.Join(", ", kv.Value.Distinct())}")));
-        Assert.Equal(PostgresImage, hits.Keys.Single());
+        Assert.True(hits.Count > 0, "No postgres image reference found anywhere — the sweep itself is broken.");
+        Assert.True(hits.Count == 1 && hits.ContainsKey(PostgresImage),
+            "Postgres image references that are not the canonical digest-pinned string:\n" + string.Join("\n",
+                hits.Where(kv => kv.Key != PostgresImage)
+                    .Select(kv => $"  {kv.Key}\n    in: {string.Join(", ", kv.Value.Distinct())}")));
     }
 
     // The committed docs must be machine-independent: any absolute path,
@@ -153,10 +161,6 @@ public sealed class SchemaDocsTests
     {
         Assert.True(Directory.Exists(DocsDir),
             "docs/schema/ does not exist — run tools/schema-docs/generate.sh");
-        var docs = string.Join("\n",
-            Directory.EnumerateFiles(DocsDir, "*.md", SearchOption.AllDirectories)
-                .OrderBy(f => f, StringComparer.Ordinal)
-                .Select(File.ReadAllText));
 
         await using var postgres = new PostgreSqlBuilder(PostgresImage).Build();
         await postgres.StartAsync();
@@ -167,6 +171,27 @@ public sealed class SchemaDocsTests
         await conn.OpenAsync();
 
         var missing = new StringBuilder();
+        // All checks are scoped to the object's OWNING page, and name+def are
+        // required on ONE line (a markdown table row). Whole-docs containment
+        // was refutable two ways: a name surviving in the page's Indexes
+        // section while its Constraints row is gone, and a generic definition
+        // ("PRIMARY KEY (\"Id\")") borrowed from any other table's page.
+        var pageLines = new Dictionary<string, string[]>();
+        string[] LinesOf(string table)
+        {
+            var page = Path.Combine(DocsDir, $"public.{table}.md");
+            if (!pageLines.TryGetValue(page, out var lines))
+                pageLines[page] = lines = File.Exists(page) ? File.ReadAllLines(page) : [];
+            return lines;
+        }
+        void RequireRow(string table, string name, string def, string kind)
+        {
+            var lines = LinesOf(table);
+            if (lines.Length == 0) return; // missing page already reported
+            if (!lines.Any(l => l.Contains($"| {name} |", StringComparison.Ordinal)
+                    && l.Contains(def, StringComparison.Ordinal)))
+                missing.AppendLine($"{kind} row absent from public.{table}.md: {name} — {def}");
+        }
 
         foreach (var table in await QueryStringsAsync(conn,
             "SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename"))
@@ -175,11 +200,11 @@ public sealed class SchemaDocsTests
                 missing.AppendLine($"table without a doc page: {table}");
         }
 
-        // Column-level completeness: a page existing does not prove it lists
-        // every column. Each column must appear as a cell of its own table's
-        // page (the "| Name |" form tbls emits), so an omitted column can't
-        // hide behind the same word appearing in prose elsewhere.
-        var pageCache = new Dictionary<string, string>();
+        // Column-level completeness, scoped to the page's "## Columns"
+        // section: every page also contains header rows like "| Name | Type |",
+        // so a page-wide cell search would accept an omitted column that
+        // happens to be named like a header (Customers.Name). Only the data
+        // rows of the Columns table count.
         foreach (var row in await QueryPairsAsync(conn,
             """
             SELECT table_name, column_name FROM information_schema.columns
@@ -187,40 +212,48 @@ public sealed class SchemaDocsTests
             ORDER BY table_name, ordinal_position
             """))
         {
-            var page = Path.Combine(DocsDir, $"public.{row.Name}.md");
-            if (!File.Exists(page)) continue; // already reported above
-            if (!pageCache.TryGetValue(page, out var content))
-                pageCache[page] = content = File.ReadAllText(page);
-            if (!content.Contains($"| {row.Def} |", StringComparison.Ordinal))
-                missing.AppendLine($"column absent from its table page: {row.Name}.{row.Def}");
+            var lines = LinesOf(row.Name);
+            if (lines.Length == 0) continue; // missing page already reported
+            var inColumns = false;
+            var dataRows = new List<string>();
+            foreach (var line in lines)
+            {
+                if (line.StartsWith("## ", StringComparison.Ordinal))
+                    inColumns = line.StartsWith("## Columns", StringComparison.Ordinal);
+                else if (inColumns && line.StartsWith("| ", StringComparison.Ordinal))
+                    dataRows.Add(line);
+            }
+            // First two pipe rows are the header and its separator.
+            var cells = dataRows.Skip(2).Select(l => l.Split('|')[1].Trim()).ToHashSet(StringComparer.Ordinal);
+            if (!cells.Contains(row.Def))
+                missing.AppendLine($"column absent from the Columns section of public.{row.Name}.md: {row.Def}");
         }
 
-        foreach (var row in await QueryPairsAsync(conn,
-            "SELECT indexname, indexdef FROM pg_indexes WHERE schemaname = 'public' ORDER BY indexname"))
-        {
-            if (!docs.Contains(row.Name, StringComparison.Ordinal))
-                missing.AppendLine($"index name absent from docs: {row.Name}");
-            if (!docs.Contains(row.Def, StringComparison.Ordinal))
-                missing.AppendLine($"index definition absent from docs: {row.Def}");
-        }
-
-        // Every constraint kind, not just checks: PK ('p'), unique ('u'),
-        // FK ('f' — pg_get_constraintdef carries the ON DELETE action the
-        // issue requires documented), and check ('c').
-        foreach (var row in await QueryPairsAsync(conn,
+        foreach (var row in await QueryTriplesAsync(conn,
             """
-            SELECT con.conname, pg_get_constraintdef(con.oid)
+            SELECT tablename, indexname, indexdef FROM pg_indexes
+            WHERE schemaname = 'public'
+            ORDER BY indexname
+            """))
+        {
+            RequireRow(row.Table, row.Name, row.Def, "index");
+        }
+
+        // Every constraint kind: PK ('p'), unique ('u'), FK ('f' —
+        // pg_get_constraintdef carries the ON DELETE action the issue
+        // requires documented), check ('c'), and Postgres 18's named NOT
+        // NULL constraints ('n'), which tbls documents as constraint rows.
+        foreach (var row in await QueryTriplesAsync(conn,
+            """
+            SELECT rel.relname, con.conname, pg_get_constraintdef(con.oid)
             FROM pg_constraint con
             JOIN pg_class rel ON rel.oid = con.conrelid
             JOIN pg_namespace ns ON ns.oid = rel.relnamespace
-            WHERE ns.nspname = 'public' AND con.contype IN ('p', 'u', 'f', 'c')
+            WHERE ns.nspname = 'public' AND con.contype IN ('p', 'u', 'f', 'c', 'n')
             ORDER BY con.conname
             """))
         {
-            if (!docs.Contains(row.Name, StringComparison.Ordinal))
-                missing.AppendLine($"constraint name absent from docs: {row.Name}");
-            if (!docs.Contains(row.Def, StringComparison.Ordinal))
-                missing.AppendLine($"constraint definition absent from docs: {row.Def}");
+            RequireRow(row.Table, row.Name, row.Def, "constraint");
         }
 
         Assert.True(missing.Length == 0,
@@ -247,6 +280,18 @@ public sealed class SchemaDocsTests
         cmd.CommandText = sql;
         await using var reader = await cmd.ExecuteReaderAsync();
         while (await reader.ReadAsync()) results.Add((reader.GetString(0), reader.GetString(1)));
+        return results;
+    }
+
+    private static async Task<List<(string Table, string Name, string Def)>> QueryTriplesAsync(
+        System.Data.Common.DbConnection conn, string sql)
+    {
+        var results = new List<(string, string, string)>();
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = sql;
+        await using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+            results.Add((reader.GetString(0), reader.GetString(1), reader.GetString(2)));
         return results;
     }
 }

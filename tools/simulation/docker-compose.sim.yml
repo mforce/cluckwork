@@ -25,7 +25,14 @@ name: cluckwork-sim
 
 services:
   db:
-    image: postgres:16-alpine
+    # Same digest-pinned image as every other stack (deploy compose, CI,
+    # Testcontainers, the schema-docs generator) — enforced repo-wide by
+    # SchemaDocsTests (#417). This harness previously ran an unpinned
+    # Alpine Postgres 16, i.e. Production config against a different
+    # Postgres major than production-like stacks use. A pre-existing sim
+    # volume from the 16 era can't start under 18 — reset.sh's `down -v`
+    # already recreates it.
+    image: postgres:18.4-trixie@sha256:3a82e1f56c8f0f5616a11103ac3d47e632c3938698946a7ad26da0df1334744a
     # pg_stat_statements must be in shared_preload_libraries at server start
     # (a monitoring task later in #243 reads it) — CREATE EXTENSION alone
     # isn't enough for a library that needs preloading.
