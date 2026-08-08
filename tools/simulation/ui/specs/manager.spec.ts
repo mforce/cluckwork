@@ -59,6 +59,12 @@ test.describe("Manager", () => {
     await page.goto("/daily-entry");
     await page.getByLabel(tEn("dailyEntry:dateLabel")).fill(today);
     await selectOptionContaining(page.getByLabel(tEn("dailyEntry:flockLabel")), flockName);
+    // #446 prefill: picking the flock/date kicks off an async prefill that
+    // RESETS every count when it settles — fills landing before that are
+    // silently wiped, and the spec then submits an all-zeros day (a CI-speed
+    // race; PR #464's 46.9s red, caught on video). The save buttons are
+    // disabled while the prefill is pending, so enabled = settled.
+    await expect(page.getByRole("button", { name: tEn("dailyEntry:submitButton") })).toBeEnabled();
     await page.getByLabel(tEn("dailyEntry:totalEggsLabel"), { exact: true }).fill("40");
     await page.getByLabel(tEn("dailyEntry:crackedLabel"), { exact: true }).fill("1");
     // #394: submit is refused unless grading exactly reconciles sellable eggs
@@ -170,6 +176,9 @@ test.describe("Manager", () => {
     await page.goto("/daily-entry");
     await page.getByLabel(tEn("dailyEntry:dateLabel")).fill(today);
     await selectOptionContaining(page.getByLabel(tEn("dailyEntry:flockLabel")), flockName);
+    // Same #446 prefill-settle guard as the flow spec above — without it the
+    // prefill can wipe the fills and this spec submits an all-zeros day.
+    await expect(page.getByRole("button", { name: tEn("dailyEntry:submitButton") })).toBeEnabled();
     await page.getByLabel(tEn("dailyEntry:totalEggsLabel"), { exact: true }).fill(String(eggs));
     await page.getByLabel("Large", { exact: true }).fill(String(eggs));
     await page.getByRole("button", { name: tEn("dailyEntry:submitButton") }).click();
@@ -178,6 +187,11 @@ test.describe("Manager", () => {
       .getByRole("button", { name: tEn("dailyEntry:confirmSubmitLabel") })
       .click();
     await expect(page.getByText(prefixOf("en", "dailyEntry:entryLockedBanner"))).toBeVisible();
+    // The lot EXISTS, pinned by the created-count in the success message — a
+    // wiped form submits an all-zeros day whose banner looks identical but
+    // creates no lot, and the spec would then time out far away on /stock.
+    await expect(page.getByText(
+      tEn("dailyEntry:submittedMessage").replace("{{count}}", "1"))).toBeVisible();
 
     // ---- The write-off itself ---------------------------------------------
     await page.goto("/stock");
