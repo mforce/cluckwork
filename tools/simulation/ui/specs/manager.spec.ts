@@ -140,6 +140,80 @@ test.describe("Manager", () => {
     await expect(row).toContainText(tEn("history:statusVoided"));
   });
 
+  // #406 — the corrective tier's newest verb: a standalone per-lot write-off.
+  // Same self-owned-fixture doctrine as the flow above: this test creates its
+  // own flock and entry, so the lot it writes off is one no other spec and no
+  // previous run can have touched. The egg count is unique-ish per run so the
+  // lot row can be located unambiguously against a dirty fixture.
+  test("writes off lost stock from its own lot without touching the entry", async ({
+    page,
+    signIn,
+    farm,
+  }) => {
+    await signIn(castMember("Manager"));
+    const today = farmToday(farm.timeZoneId);
+    const flockName = `E2E WriteOff Flock ${Date.now()}`;
+    // 41–98, effectively unique per run — and disjoint from the 38–40 the
+    // flow spec above uses, so its same-day lot can never match the filter.
+    const eggs = 41 + (Date.now() % 58);
+
+    await page.goto("/flocks");
+    await page.getByRole("button", { name: tEn("flocks:newFlockButton") }).click();
+    const newFlock = page.getByRole("dialog", { name: tEn("flocks:newFlockDialogTitle") });
+    await newFlock.getByLabel(tEn("flocks:nameLabel")).fill(flockName);
+    await newFlock.getByLabel(tEn("flocks:breedLabel")).fill("E2E Leghorn");
+    await newFlock.getByLabel(tEn("flocks:placedLabel")).fill(today);
+    await newFlock.getByLabel(tEn("flocks:birdsLabel"), { exact: true }).fill("50");
+    await newFlock.getByRole("button", { name: tEn("flocks:addFlockButton") }).click();
+    await expect(newFlock).toBeHidden();
+
+    await page.goto("/daily-entry");
+    await page.getByLabel(tEn("dailyEntry:dateLabel")).fill(today);
+    await selectOptionContaining(page.getByLabel(tEn("dailyEntry:flockLabel")), flockName);
+    await page.getByLabel(tEn("dailyEntry:totalEggsLabel"), { exact: true }).fill(String(eggs));
+    await page.getByLabel("Large", { exact: true }).fill(String(eggs));
+    await page.getByRole("button", { name: tEn("dailyEntry:submitButton") }).click();
+    await page
+      .getByRole("dialog", { name: tEn("dailyEntry:confirmSubmitTitle") })
+      .getByRole("button", { name: tEn("dailyEntry:confirmSubmitLabel") })
+      .click();
+    await expect(page.getByText(prefixOf("en", "dailyEntry:entryLockedBanner"))).toBeVisible();
+
+    // ---- The write-off itself ---------------------------------------------
+    await page.goto("/stock");
+    await page
+      .getByRole("row")
+      .filter({ has: page.getByRole("cell", { name: "Large", exact: true }) })
+      .getByRole("button", { name: tEn("stock:lotsButton") })
+      .click();
+
+    // Exact CELL matches, not hasText: a grade summary row's 5-digit balance
+    // contains any 2-digit count as a substring (that exact false match
+    // shipped in this spec's first draft). Today's date + the exact produced
+    // count pins the one lot this test created.
+    const lotRow = page
+      .getByRole("row")
+      .filter({ has: page.getByRole("cell", { name: today, exact: true }) })
+      .filter({ has: page.getByRole("cell", { name: String(eggs), exact: true }) })
+      .first();
+    await lotRow.getByRole("button", { name: tEn("stock:writeOffButton") }).click();
+
+    const writeOff = page
+      .getByRole("dialog")
+      .filter({ has: page.getByRole("button", { name: tEn("stock:writeOffSubmitButton") }) });
+    await writeOff.getByLabel(tEn("stock:writeOffQuantityLabel"), { exact: true }).fill("2");
+    await writeOff.getByLabel(tEn("stock:writeOffReasonLabel")).fill("E2E cooler breakage");
+    await writeOff.getByRole("button", { name: tEn("stock:writeOffSubmitButton") }).click();
+
+    await expect(writeOff).toBeHidden();
+    const announcement = page.locator('p[role="status"]');
+    await expect(announcement).toContainText(prefixOf("en", "stock:writeOffRecordedMessage"));
+    // The lot row shows the new balance; produced is untouched — the write-off
+    // never restated the day's laying.
+    await expect(lotRow.getByRole("cell", { name: String(eggs - 2), exact: true })).toBeVisible();
+    await expect(lotRow.getByRole("cell", { name: String(eggs), exact: true })).toBeVisible();
+  });
+
   test("can reach the admin destinations a Worker cannot", async ({ signIn, nav }) => {
     // The mirror of the Worker spec's gate assertion. Manager is isAdmin, so the
     // Setup group is present — EXCEPT Users, which nav.tsx narrows to role

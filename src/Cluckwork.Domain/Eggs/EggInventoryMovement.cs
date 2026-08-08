@@ -50,9 +50,9 @@ public sealed class EggInventoryMovement : AggregateRoot<Guid>
     }
 }
 
-// Spec §9.4 movement types. Production/Sale/Adjustment/Void are written today
-// (#101); the rest are reserved for later phases (discard tracking, internal
-// use, transfers, reconciliation counts).
+// Spec §9.4 movement types. Production/Sale/Adjustment/Void come from the
+// entry/sale lifecycle (#101); Discard/InternalUse/Reconciliation from the
+// standalone stock write-off (#406). Transfer is reserved for a later phase.
 public enum EggMovementType
 {
     Production, Sale, Adjustment, Discard, InternalUse, Transfer, Reconciliation, Void,

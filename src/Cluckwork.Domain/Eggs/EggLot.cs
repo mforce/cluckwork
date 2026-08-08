@@ -117,6 +117,34 @@ public sealed class EggLot : AggregateRoot<Guid>
         return Result.Success();
     }
 
+    // Standalone stock correction (#406): write-off (breakage, spoilage,
+    // internal use) or reconciliation recount. Available moves within
+    // [0, Produced]; production is a fact about the day's laying this method
+    // never restates — beyond-produced recounts belong to AdjustProduction
+    // via the daily entry. Withdrawal restriction is intentionally not
+    // checked: it protects sales, and removing stock is the safe direction.
+    // Call only inside the pessimistic FOR UPDATE transaction, like Allocate.
+    public Result AdjustAvailable(int delta)
+    {
+        if (delta == 0)
+            return Result.Failure(Error.Validation(
+                "EggLot.InvalidQuantity", "Adjustment quantity cannot be zero."));
+
+        if (delta < 0 && -delta > QuantityAvailable)
+            return Result.Failure(Error.Domain(
+                "EggLot.InsufficientStock",
+                $"Cannot remove {-delta}: only {QuantityAvailable} available in this lot."));
+
+        if (delta > 0 && QuantityAvailable + delta > QuantityProduced)
+            return Result.Failure(Error.Domain(
+                "EggLot.ReconcileExceedsProduced",
+                $"Adding {delta} would exceed the {QuantityProduced} produced in this lot; a recount above production is a daily-entry adjustment."));
+
+        QuantityAvailable += delta;
+        Version++;
+        return Result.Success();
+    }
+
     // Inverse of Allocate, for voiding a confirmed sale (#60). Same rule as
     // Allocate: call only inside the pessimistic FOR UPDATE transaction.
     // Withdrawal restriction is intentionally not checked — the eggs return to

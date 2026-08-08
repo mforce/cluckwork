@@ -15,6 +15,7 @@ using Cluckwork.Application.Features.EggGrades.CreateEggGrade;
 using Cluckwork.Application.Features.EggGrades.SetEggGradeActive;
 using Cluckwork.Application.Features.EggGrades.UpdateEggGrade;
 using Cluckwork.Application.Features.EggLots;
+using Cluckwork.Application.Features.EggLots.RecordEggLotMovement;
 using Cluckwork.Application.Features.Expenses;
 using Cluckwork.Application.Features.Expenses.AdjustExpense;
 using Cluckwork.Application.Features.Expenses.CreateExpense;
@@ -206,6 +207,9 @@ internal static class CluckworkFeatureServiceCollectionExtensions
             IValidator<RecordAdjustmentCommand>,
             RecordAdjustmentValidator>();
         services.AddScoped<
+            IValidator<RecordEggLotMovementCommand>,
+            RecordEggLotMovementValidator>();
+        services.AddScoped<
             IValidator<RecordWaterUsageCommand>,
             RecordWaterUsageValidator>();
         services.AddScoped<
@@ -263,6 +267,7 @@ internal static class CluckworkFeatureServiceCollectionExtensions
         services.AddScoped<RecordPurchaseHandler>();
         services.AddScoped<RecordFeedUsageHandler>();
         services.AddScoped<RecordAdjustmentHandler>();
+        services.AddScoped<RecordEggLotMovementHandler>();
         services.AddScoped<RecordWaterUsageHandler>();
         services.AddScoped<UpdateWaterUsageHandler>();
         services.AddScoped<CreateFlockHandler>();

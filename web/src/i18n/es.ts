@@ -851,6 +851,25 @@ export const es = {
     ledgerTypeHeader: "Tipo",
     ledgerChangeHeader: "Cambio",
     ledgerReasonHeader: "Motivo",
+
+    // #406 — baja / reconciliación por lote (solo Propietario/Gerente).
+    writeOffButton: "dar de baja",
+    writeOffNeedsAdminMessage: "Las correcciones de existencias requieren un Propietario o Gerente.",
+    writeOffDialogTitle: "Corregir existencias — lote del {{date}}",
+    writeOffTypeLabel: "Tipo",
+    writeOffDirectionLabel: "Dirección",
+    writeOffDirectionRemoveOption: "Quitar huevos (perdidos o menos de lo registrado)",
+    writeOffDirectionAddOption: "Devolver huevos (el recuento encontró más)",
+    writeOffQuantityLabel: "Huevos",
+    writeOffReasonLabel: "Motivo",
+    writeOffPreviewMessage: "{{current}} → {{result}} disponibles",
+    writeOffSubmitButton: "Registrar corrección",
+    writeOffRecordedMessage: "Corrección registrada — {{available}} disponibles ahora.",
+    writeOffQuantityRequired: "Indique cuántos huevos.",
+    writeOffReasonRequired: "Las correcciones requieren un motivo.",
+    writeOffOutOfRangeMessage:
+      "El resultado debe quedar entre 0 y los {{produced}} que produjo este lote. "
+      + "Un recuento por encima de la producción es un ajuste de la entrada diaria.",
   },
 
   // machine-drafted (#182) — pending native review. Task CT3 (B3 catch-up):
@@ -1540,10 +1559,12 @@ export const es = {
     "auditAction.Product.Activate": "Producto activado",
     "auditAction.Product.Deactivate": "Producto desactivado",
     "auditAction.EggUnitConversion.Update": "Conversión de unidad de huevo actualizada",
+    "auditAction.EggLot.Movement": "Existencias dadas de baja / recontadas",
 
     "entityType.Account": "Cuenta",
     "entityType.DailyEntry": "Entrada diaria",
     "entityType.EggGrade": "Grado de huevo",
+    "entityType.EggLot": "Lote de huevos",
     "entityType.EggUnitConversion": "Conversión de unidad de huevo",
     "entityType.Expense": "Gasto",
     "entityType.ExpenseCategory": "Categoría de gasto",
@@ -1861,6 +1882,12 @@ export const es = {
       + "medicación. <strong>Nada marca huevos como restringidos todavía, así que el sistema no impone "
       + "tiempos de retiro hoy</strong> — gestione los períodos de retiro fuera de Cluckwork por ahora.",
     stockFifo: "Vender siempre toma primero los lotes más antiguos, para que las existencias roten naturalmente.",
+    stockWriteOff:
+      "Las existencias perdidas — roturas, deterioro, huevos consumidos en casa — se registran con "
+      + "<strong>dar de baja</strong> en el lote (Propietario/Gerente, motivo obligatorio). Reduce el disponible "
+      + "del lote sin tocar las cifras de producción del día; un recuento también puede devolver huevos, hasta lo "
+      + "que el lote produjo. Si el recuento indica que la <em>puesta</em> del día era incorrecta, ajuste la "
+      + "entrada diaria en su lugar.",
 
     inventoryHeading: "Alimento e inventario",
     inventoryItems:

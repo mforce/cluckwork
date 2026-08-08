@@ -237,6 +237,25 @@ export const listEggLots = (params?: { gradeId?: string; limit?: number; offset?
 export const listEggLotMovements = (lotId: string) =>
   apiGet<EggMovementRow[]>(`/stock/lots/${lotId}/movements`);
 
+// #406 — standalone stock correction against one lot (Owner/Manager only).
+// quantityDelta is signed: negative for Discard/InternalUse, either sign for
+// Reconciliation. The response carries the lot's new balance so the screen
+// can report it without a second read.
+export interface EggLotMovementResult {
+  movementId: string;
+  eggLotId: string;
+  movementType: string;
+  quantityDelta: number;
+  reason: string | null;
+  createdAtUtc: string;
+  quantityAvailable: number;
+  version: number;
+}
+
+export const recordEggLotMovement = (lotId: string, body: {
+  movementType: string; quantityDelta: number; reason: string;
+}, key?: string) => apiPost<EggLotMovementResult>(`/stock/lots/${lotId}/movements`, body, key);
+
 // --- Customers & sales (#23/#24) -------------------------------------------
 
 export interface Customer {

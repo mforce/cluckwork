@@ -272,6 +272,9 @@ export function HelpPage() {
           <Trans ns="help" i18nKey="stockRestricted" components={{ strong: <strong /> }} />
         </li>
         <li>{t("stockFifo")}</li>
+        <li>
+          <Trans ns="help" i18nKey="stockWriteOff" components={{ strong: <strong />, em: <em /> }} />
+        </li>
       </ul>
 
       <h3 id="inventory">{t("inventoryHeading")}</h3>

@@ -148,4 +148,97 @@ public sealed class EggLotTests
         var lot = MakeLot(100);
         Assert.True(lot.AdjustProduction(-1).IsFailure);
     }
+
+    // #406 — standalone stock write-off / reconciliation. Available moves,
+    // production stays: the day's laying is a fact this method never restates.
+    [Fact]
+    public void AdjustAvailable_NegativeWithinAvailable_Succeeds_AndBumpsVersion()
+    {
+        var lot = MakeLot(100);
+        var before = lot.Version;
+
+        var result = lot.AdjustAvailable(-10);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(90, lot.QuantityAvailable);
+        Assert.Equal(100, lot.QuantityProduced);
+        Assert.Equal(before + 1, lot.Version);
+    }
+
+    [Fact]
+    public void AdjustAvailable_ToExactlyZero_Succeeds()
+    {
+        var lot = MakeLot(100);
+        Assert.True(lot.AdjustAvailable(-100).IsSuccess);
+        Assert.Equal(0, lot.QuantityAvailable);
+    }
+
+    [Fact]
+    public void AdjustAvailable_BelowZero_Fails_AndChangesNothing()
+    {
+        var lot = MakeLot(100);
+        var before = lot.Version;
+
+        var result = lot.AdjustAvailable(-101);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal("EggLot.InsufficientStock", result.Error.Code);
+        Assert.Equal(100, lot.QuantityAvailable);
+        Assert.Equal(before, lot.Version);
+    }
+
+    [Fact]
+    public void AdjustAvailable_PositiveWithinProduced_Succeeds()
+    {
+        var lot = MakeLot(100);
+        Assert.True(lot.AdjustAvailable(-30).IsSuccess); // wrote off 30
+        Assert.True(lot.AdjustAvailable(5).IsSuccess);   // recount found 5
+        Assert.Equal(75, lot.QuantityAvailable);
+        Assert.Equal(100, lot.QuantityProduced);
+    }
+
+    [Fact]
+    public void AdjustAvailable_PositiveToExactlyProduced_Succeeds()
+    {
+        var lot = MakeLot(100);
+        Assert.True(lot.AdjustAvailable(-30).IsSuccess);
+        Assert.True(lot.AdjustAvailable(30).IsSuccess);
+        Assert.Equal(100, lot.QuantityAvailable);
+    }
+
+    [Fact]
+    public void AdjustAvailable_PositiveBeyondProduced_Fails_AndChangesNothing()
+    {
+        var lot = MakeLot(100);
+        Assert.True(lot.Allocate(30, Today).IsSuccess); // available 70
+        var before = lot.Version;
+
+        var result = lot.AdjustAvailable(31); // 70 + 31 > 100 produced
+
+        Assert.True(result.IsFailure);
+        Assert.Equal("EggLot.ReconcileExceedsProduced", result.Error.Code);
+        Assert.Equal(70, lot.QuantityAvailable);
+        Assert.Equal(before, lot.Version);
+    }
+
+    [Fact]
+    public void AdjustAvailable_Zero_Fails()
+    {
+        var lot = MakeLot(100);
+        var result = lot.AdjustAvailable(0);
+        Assert.True(result.IsFailure);
+        Assert.Equal("EggLot.InvalidQuantity", result.Error.Code);
+    }
+
+    [Fact]
+    public void AdjustAvailable_IgnoresWithdrawalRestriction()
+    {
+        // Spoiled eggs under withdrawal still need to leave the count — the
+        // restriction protects sales, and a write-off is the safe direction.
+        var lot = MakeLot(100);
+        lot.SetWithdrawalRestriction(Today.AddDays(7));
+
+        Assert.True(lot.AdjustAvailable(-10).IsSuccess);
+        Assert.Equal(90, lot.QuantityAvailable);
+    }
 }

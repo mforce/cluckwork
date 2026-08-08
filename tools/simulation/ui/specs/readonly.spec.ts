@@ -40,6 +40,14 @@ test.describe("ReadOnly", () => {
     await expect(page.getByText(tEn("stock:noStockMessage"))).toBeHidden();
     await expect(page.getByRole("alert")).toBeHidden();
 
+    // #406: the per-lot write-off is corrective-tier. Drill into the first
+    // grade's lots and assert the action is not offered (cosmetic half —
+    // RoleMatrixTests owns the server-side 403).
+    await page.getByRole("button", { name: tEn("stock:lotsButton") }).first().click();
+    await expect(page.getByRole("heading", { name: tEn("stock:lotsHeading") })).toBeVisible();
+    await expect(page.getByRole("button", { name: tEn("stock:writeOffButton") })).toHaveCount(0);
+    await expect(page.getByText(tEn("stock:writeOffNeedsAdminMessage"))).toBeVisible();
+
     // History — allowed for every role.
     await nav.link("nav:history").click();
     await expect(page.getByRole("heading", { name: tEn("history:title") })).toBeVisible();
