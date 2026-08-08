@@ -1696,15 +1696,17 @@ export const es = {
       + "clasificar — para enviar, debe cuadrar exactamente.",
     dailyEntryGradingDown:
       "La clasificación cuenta <strong>hacia abajo</strong>. Junto a los grados se muestra cuántos huevos "
-      + "vendibles le quedan por ubicar; se pone verde en cuanto el día cuadra y rojo si se excede. No "
-      + "puede enviar hasta que llegue exactamente a cero — clasificar el día a medias, o no clasificarlo, "
-      + "está bien para un borrador, pero no para enviar.",
+      + "vendibles le quedan por ubicar; se pone verde en cuanto el día cuadra y rojo si se excede — "
+      + "excederse también bloquea guardar el borrador, no solo Enviar. No puede enviar hasta que llegue "
+      + "exactamente a cero — clasificar el día a medias, o no clasificarlo, está bien para un borrador, "
+      + "pero no para enviar.",
     dailyEntryButtons:
       "Cada conteo tiene botones <strong>−</strong> y <strong>+</strong>. Toque para uno, o <strong>mantenga "
       + "presionado</strong> — se acelera a medida que avanza, así que unos cientos de huevos toman "
       + "aproximadamente un segundo. Más fácil que un teclado numérico con guantes puestos. El "
-      + "<strong>+</strong> de un grado se detiene una vez que el día está completamente clasificado, para "
-      + "que no pueda excederse con él.",
+      + "<strong>+</strong> de un grado ya no se detiene en el total actual del día — cuente los grados "
+      + "primero y el total se ajusta para igualarlos. Solo aumenta el total, nunca lo reduce, así que "
+      + "recortar el total en el paso 1 nunca empuja un grado hacia abajo.",
     dailyEntryPutAllIn:
       "La mayoría de los días terminan de la misma manera — un grado se lleva lo que queda. <strong>Poner "
       + "todo en…</strong> junto al conteo restante lo hace en un solo movimiento: arrástrelo a un grado, o "
@@ -2135,7 +2137,7 @@ export const es = {
       + "pantalla.",
 
     glossaryDailyEntryTerm: "Entrada diaria",
-    glossaryDailyEntryDef: "El día de un lote: huevos por grado, pérdidas, muertes. Borrador hasta que se envía.",
+    glossaryDailyEntryDef: "El día de un lote: huevos por grado, pérdidas, muertes. Clasificar por encima del total lo eleva para igualarlo. Borrador hasta que se envía.",
 
     glossaryEggLotTerm: "Lote de huevos",
     glossaryEggLotDef:

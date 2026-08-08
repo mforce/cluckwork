@@ -137,9 +137,14 @@ either side. Holding one repeats, widening its stride from 1 to 5 to 10, so a
 few hundred eggs takes about a second. Built for the barn: the browser's own
 spinner is a ten-pixel target and disappears entirely on touch.
 
-A grade's **+** stops once the day is fully graded — the guided control will not
-build an over-graded entry. Typing still can: a draft is allowed to be over
-while it is being rearranged, and only submitting is blocked.
+A grade's **+** no longer stops once the day is fully graded (#443) — a farm
+that counts the grades before adding them up needs to keep going past
+whatever **1 Egg counts** currently says. Grading past the current sellable
+figure raises that total to match instead of refusing the tap; it only ever
+raises the total, never lowers it, so trimming the total on step 1 never
+forces a grade back down. Typing already worked this way; the steppers now
+match it. **Over** is still reachable — trim the total below what is already
+graded — and it blocks both saves, not just Submit.
 
 **Put all in… (#134)** — hands the entire remainder to one grade in a single
 move, for the commonest last step of the day ("and the rest are Large"). Drag it
@@ -193,7 +198,12 @@ from starting a fresh day. Only locked days carried a signal before.
 **Sellable cap** — graded quantities must fit in
 `total − cracked − dirty − discarded`. You cannot grade more eggs than
 survived the day. This is the only rule a **Draft** enforces — a draft may be
-graded partially, or not at all, and still be saved.
+graded partially, or not at all, and still be saved. Since #443 the capture
+screen keeps the two sides from colliding on its own — grading past the
+current total raises the total to match — so this cap is normally satisfied
+by construction rather than by refusing input. It still applies: trimming the
+total below an already-graded sum reaches it, and both saves are blocked (the
+same **Left to grade** chip turns **over**) until the numbers agree again.
 
 **Grade reconciliation (#394)** — **Submit**, and **saving an adjustment**
 (which has no draft state of its own to leave incomplete), both go further

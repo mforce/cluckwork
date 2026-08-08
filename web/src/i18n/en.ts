@@ -2041,13 +2041,15 @@ export const en = {
       + "draft can leave that partly done, or not started at all — submitting needs it exact.",
     dailyEntryGradingDown:
       "Grading counts <strong>down</strong>. Beside the grades is how many sellable eggs you still have to "
-      + "place; it turns green the moment the day adds up and red if you go over. You cannot submit until it "
-      + "reads exactly zero — grading a day partway, or not at all, is fine for a draft but not for Submit.",
+      + "place; it turns green the moment the day adds up and red if you go over — going over blocks saving "
+      + "the draft too, not just Submit. You cannot submit until it reads exactly zero — grading a day "
+      + "partway, or not at all, is fine for a draft but not for Submit.",
     dailyEntryButtons:
       "Every count has <strong>−</strong> and <strong>+</strong> buttons. Tap for one, or <strong>hold</strong> "
       + "— it speeds up as you go, so a few hundred eggs takes about a second. Easier than a keypad with "
-      + "gloves on. A grade's <strong>+</strong> stops once the day is fully graded, so you cannot overshoot "
-      + "with it.",
+      + "gloves on. A grade's <strong>+</strong> no longer stops at the day's current total — count the "
+      + "grades first and the total catches up to match. It only ever raises the total, never lowers it, so "
+      + "trimming the total on step 1 never pushes a grade back down.",
     dailyEntryPutAllIn:
       "Most days end the same way — one grade takes whatever is left. <strong>Put all in…</strong> beside the "
       + "remaining count does it in one move: drag it onto a grade, or tap it and pick one.",
@@ -2471,7 +2473,7 @@ export const en = {
       + "details\" holds the message for a screenshot.",
 
     glossaryDailyEntryTerm: "Daily entry",
-    glossaryDailyEntryDef: "One flock's day: eggs by grade, losses, deaths. Draft until submitted.",
+    glossaryDailyEntryDef: "One flock's day: eggs by grade, losses, deaths. Grading past the total raises it to match. Draft until submitted.",
 
     glossaryEggLotTerm: "Egg lot",
     glossaryEggLotDef:
