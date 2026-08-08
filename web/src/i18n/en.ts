@@ -2432,8 +2432,9 @@ export const en = {
     farmSettingsDateTimeFormat:
       "<strong>Date format</strong> and <strong>time format</strong> offer a few common choices in a "
       + "dropdown — pick one and you are done. Need something not listed? Choose "
-      + "<strong>Custom…</strong> to type your own — only a value the server cannot use at all is "
-      + "rejected, so check it renders the way you expect after saving.",
+      + "<strong>Custom…</strong> to type your own; the presets are all safe choices, but a custom value "
+      + "is only checked well enough to save, not to prove it looks right — nothing in Cluckwork displays "
+      + "dates or times through this setting yet, so a broken custom value would not be visible today.",
     farmSettingsSquareLogo:
       "Use a <strong>square</strong> logo. It shows small in the sidebar, so a simple, tightly-cropped mark "
       + "— a symbol or a single letter — reads much better there than a wide wordmark or a detailed picture, "
