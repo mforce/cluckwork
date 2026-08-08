@@ -41,7 +41,12 @@ on:
       - "src/**"
       - "web/**"
       - "tools/simulation/**"
-      - "Dockerfile"
+      # Root-level image build inputs (codex review of #456): the Dockerfile
+      # itself lives under src/ (covered above), but it COPYs these from the
+      # repo root, and .dockerignore governs its whole build context.
+      - "Directory.Build.props"
+      - "Cluckwork.sln"
+      - ".dockerignore"
       - "deploy/**"
       - ".github/workflows/e2e-smoke.yml"
   workflow_dispatch:
