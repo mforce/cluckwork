@@ -129,7 +129,11 @@ public sealed class SchemaDocsTests
         const string ImageKey = @"[""']?image[""']?[ \t]*:";
         // COPY --from= consumes an external image when the name isn't a
         // build stage — a third syntax where a bare name is a live reference.
-        var untaggedPattern = new Regex(@"(?im)^\s*(?:" + ImageKey + @"\s*|FROM\s+|COPY[ \t]+(?:--[A-Za-z0-9-]+(?:=[^\s]+)?[ \t]+)*--from=)[""']?(?:[a-z0-9.-]+(?::\d+)?/)*postgres[""']?(?=\s|$)");
+        var untaggedPattern = new Regex(@"(?im)^\s*(?:" + ImageKey + @"\s*|FROM\s+)[""']?(?:[a-z0-9.-]+(?::\d+)?/)*postgres[""']?(?=\s|$)");
+        // COPY --from= UNANCHORED (like the mount rules): a continued COPY
+        // puts --from= on a line that no longer starts with COPY, and the
+        // token is unambiguous wherever it appears.
+        var copyFromPattern = new Regex(@"(?im)--from=[""']?(?:[a-z0-9.-]+(?::\d+)?/)*postgres[""']?(?=\s|$)");
         // BuildKit RUN mounts pull an external image when from= names no
         // build stage or context — a fourth bare-reference syntax.
         // NOT anchored to RUN: a continued instruction puts later mount
@@ -260,6 +264,12 @@ public sealed class SchemaDocsTests
             {
                 if (!hits.TryGetValue("postgres (untagged — floats to latest)", out var files))
                     hits["postgres (untagged — floats to latest)"] = files = [];
+                files.Add(relative);
+            }
+            foreach (Match m in copyFromPattern.Matches(text))
+            {
+                if (!hits.TryGetValue("postgres (untagged, in a --from= — floats to latest)", out var files))
+                    hits["postgres (untagged, in a --from= — floats to latest)"] = files = [];
                 files.Add(relative);
             }
             foreach (Match m in runMountFromPattern.Matches(text))
