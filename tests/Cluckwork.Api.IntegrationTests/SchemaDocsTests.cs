@@ -399,7 +399,14 @@ public sealed class SchemaDocsTests
             }
             if (relative.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
             {
-                foreach (Match m in csharpImageLiteralPattern.Matches(text))
+                // Comments are lexed away BEFORE any literal detection
+                // (round 81): a quoted decoy inside comment trivia would
+                // otherwise become a phantom token that splits a folded
+                // chain. Blanking preserves offsets, so gap slicing below
+                // stays valid; every C#-specific detector runs on the
+                // blanked text.
+                var codeText = BlankCSharpComments(text);
+                foreach (Match m in csharpImageLiteralPattern.Matches(codeText))
                 {
                     var val = m.Groups["img"].Value;
                     if (val == PostgresImage) continue;
@@ -407,7 +414,7 @@ public sealed class SchemaDocsTests
                         hits[$"\"{val}\" (postgres-shaped C# string literal — not the canonical pin)"] = files = [];
                     files.Add(relative);
                 }
-                foreach (Match m in csharpEscapedLiteralPattern.Matches(text))
+                foreach (Match m in csharpEscapedLiteralPattern.Matches(codeText))
                 {
                     if (m.Groups["pfx"].Value.Contains('@')) continue;
                     if (m.Groups["q"].Value.Length > 1) continue;
@@ -421,20 +428,18 @@ public sealed class SchemaDocsTests
                 // compile-time value — two adjacent word-fragment literals
                 // joined by plus ARE the bare image name at runtime and must
                 // be judged as the folded whole, not as innocuous fragments.
-                // (Comment deliberately avoids spelling such a chain — the
-                // scan is comment-blind and this file is inside its own
-                // sweep.) Identifier composition (a const ref in the chain)
-                // breaks the fold: a regex scan cannot resolve names, so
-                // that stays the documented opaque-indirection boundary.
+                // Identifier composition (a const ref in the chain) breaks
+                // the fold: a regex scan cannot resolve names, so that stays
+                // the documented opaque-indirection boundary.
                 var tokens = new List<(int Start, int End, string Value, bool HadEscape)>();
-                foreach (Match m in csharpAnyOrdinaryLiteralPattern.Matches(text))
+                foreach (Match m in csharpAnyOrdinaryLiteralPattern.Matches(codeText))
                 {
                     var escapesApply = !m.Groups["pfx"].Value.Contains('@') && m.Groups["q"].Value.Length == 1;
                     var body = m.Groups["body"].Value;
                     var value = escapesApply ? DecodeCSharpEscapes(body) : body;
                     tokens.Add((m.Index, m.Index + m.Length, value, escapesApply && body.Contains('\\')));
                 }
-                foreach (Match m in csharpRawMultilinePattern.Matches(text))
+                foreach (Match m in csharpRawMultilinePattern.Matches(codeText))
                 {
                     // Single-line raw literals are already captured above
                     // (the backreferenced quote-run pattern handles any
@@ -443,18 +448,14 @@ public sealed class SchemaDocsTests
                     tokens.Add((m.Index, m.Index + m.Length, m.Groups["body"].Value.Trim(), false));
                 }
                 tokens.Sort((a, b) => a.Start.CompareTo(b.Start));
-                // The gap between chained tokens is `+` plus any TRIVIA the
-                // compiler ignores — whitespace AND comments (block or line):
-                // a comment inside a constant expression does not break the
-                // fold. (A comment containing a quote is tokenized as if it
-                // were code by the comment-blind literal scan above — that
-                // direction only ever ADDS refusals, never opens a gap.)
-                const string GapTrivia = @"(?:\s|/\*[\s\S]*?\*/|//[^\r\n]*)";
-                var plusGap = new Regex("^" + GapTrivia + @"*\+" + GapTrivia + "*$");
+                // Comments were blanked to spaces above, so a comment
+                // around the plus is already plain whitespace here — the
+                // gap matcher needs nothing beyond `+` and whitespace.
+                var plusGap = new Regex(@"^\s*\+\s*$");
                 for (var i = 0; i < tokens.Count;)
                 {
                     var j = i;
-                    while (j + 1 < tokens.Count && plusGap.IsMatch(text[tokens[j].End..tokens[j + 1].Start]))
+                    while (j + 1 < tokens.Count && plusGap.IsMatch(codeText[tokens[j].End..tokens[j + 1].Start]))
                         j++;
                     var folded = string.Concat(tokens.Skip(i).Take(j - i + 1).Select(t => t.Value));
                     var isChain = j > i;
@@ -990,6 +991,97 @@ public sealed class SchemaDocsTests
         Assert.True(missing.Length == 0,
             "Migrated schema contains objects the committed docs do not:\n" + missing +
             "\nRegenerate with tools/schema-docs/generate.sh");
+    }
+
+    // Blanks C# comments to spaces (offsets preserved) WITHOUT touching
+    // string literals. Comments and literals are mutually exclusive lexical
+    // modes, which no per-pattern regex can track: a quote inside a comment
+    // must not become a phantom literal token (round 81: a quoted decoy in
+    // comment trivia SPLIT a folded chain — it opens a gap, it does not add
+    // a refusal), and a comment marker inside a literal must not end a
+    // comment. So the file is lexed once, forward: line/block comments are
+    // blanked; ordinary (escape-aware), verbatim (""-doubling), raw
+    // (matching-length quote run), and char literals are skipped intact.
+    private static string BlankCSharpComments(string text)
+    {
+        var chars = text.ToCharArray();
+        var i = 0;
+        while (i < chars.Length)
+        {
+            var c = chars[i];
+            if (c == '/' && i + 1 < chars.Length && chars[i + 1] == '/')
+            {
+                while (i < chars.Length && chars[i] != '\n' && chars[i] != '\r') chars[i++] = ' ';
+            }
+            else if (c == '/' && i + 1 < chars.Length && chars[i + 1] == '*')
+            {
+                chars[i++] = ' ';
+                chars[i++] = ' ';
+                while (i + 1 < chars.Length && !(chars[i] == '*' && chars[i + 1] == '/'))
+                {
+                    if (!char.IsWhiteSpace(chars[i])) chars[i] = ' ';
+                    i++;
+                }
+                if (i + 1 < chars.Length) { chars[i++] = ' '; chars[i++] = ' '; }
+                else if (i < chars.Length) { chars[i++] = ' '; }
+            }
+            else if (c == '\'')
+            {
+                i++;
+                if (i < chars.Length && chars[i] == '\\') i++;
+                i++;
+                while (i < chars.Length && chars[i] != '\'' && chars[i] != '\n') i++;
+                i++;
+            }
+            else if (c == '"')
+            {
+                var runStart = i;
+                while (i < chars.Length && chars[i] == '"') i++;
+                var run = i - runStart;
+                if (run >= 3)
+                {
+                    var closed = false;
+                    while (i < chars.Length && !closed)
+                    {
+                        if (chars[i] == '"')
+                        {
+                            var cs = i;
+                            while (i < chars.Length && chars[i] == '"') i++;
+                            if (i - cs >= run) closed = true;
+                        }
+                        else i++;
+                    }
+                }
+                else if (run == 1)
+                {
+                    var verbatim = false;
+                    for (var b = runStart - 1; b >= 0 && (chars[b] == '@' || chars[b] == '$'); b--)
+                        if (chars[b] == '@') { verbatim = true; break; }
+                    if (verbatim)
+                    {
+                        while (i < chars.Length)
+                        {
+                            if (chars[i] != '"') { i++; continue; }
+                            if (i + 1 < chars.Length && chars[i + 1] == '"') { i += 2; continue; }
+                            i++;
+                            break;
+                        }
+                    }
+                    else
+                    {
+                        while (i < chars.Length && chars[i] != '"' && chars[i] != '\n')
+                        {
+                            if (chars[i] == '\\') i++;
+                            i++;
+                        }
+                        i++;
+                    }
+                }
+                // run == 2: empty string, already consumed
+            }
+            else i++;
+        }
+        return new string(chars);
     }
 
     // Decodes the escape sequences an ordinary C# literal processes, so the
