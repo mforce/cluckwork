@@ -129,7 +129,7 @@ public sealed class SchemaDocsTests
         const string ImageKey = @"[""']?image[""']?[ \t]*:";
         // COPY --from= consumes an external image when the name isn't a
         // build stage — a third syntax where a bare name is a live reference.
-        var untaggedPattern = new Regex(@"(?im)^\s*(?:" + ImageKey + @"\s*|FROM\s+|COPY[ \t]+--from=)[""']?(?:[a-z0-9.-]+(?::\d+)?/)*postgres[""']?(?=\s|$)");
+        var untaggedPattern = new Regex(@"(?im)^\s*(?:" + ImageKey + @"\s*|FROM\s+|COPY[ \t]+(?:--[A-Za-z0-9-]+(?:=[^\s]+)?[ \t]+)*--from=)[""']?(?:[a-z0-9.-]+(?::\d+)?/)*postgres[""']?(?=\s|$)");
         // Digest-only pull grammar (NAME@DIGEST, no tag): immutable but not
         // the canonical reference — and tagless, so neither pattern above
         // sees it (no colon for the first, an @ failing the second's
@@ -690,15 +690,23 @@ public sealed class SchemaDocsTests
                 $"  erd:     [{string.Join(", ", erdEntities)}]\n" +
                 $"  catalog: [{string.Join(", ", ownerUnion)}]");
         }
+        // The tuple carries source, TARGET, and label: a redirected edge —
+        // right label, wrong drawn target — must not pass, so the target
+        // parsed from the diagram is compared against the table the
+        // definition actually REFERENCES.
         var erdEdges = readmeLines
-            .Select(l => Regex.Match(l.TrimEnd(), @"^""public\.([^""]+)""[ \t]+\S+[ \t]+""public\.[^""]+""[ \t]*:[ \t]*""(.+)""$"))
+            .Select(l => Regex.Match(l.TrimEnd(), @"^""public\.([^""]+)""[ \t]+\S+[ \t]+""public\.([^""]+)""[ \t]*:[ \t]*""(.+)""$"))
             .Where(m => m.Success)
-            .Select(m => $"{m.Groups[1].Value} :: {m.Groups[2].Value}")
+            .Select(m => $"{m.Groups[1].Value} :: {m.Groups[2].Value} :: {m.Groups[3].Value}")
             .OrderBy(x => x, StringComparer.Ordinal).ToList();
         var expectedEdges = constraintsByTable
             .SelectMany(kv => kv.Value
                 .Where(r => r.Def.StartsWith("FOREIGN KEY", StringComparison.Ordinal))
-                .Select(r => $"{kv.Key} :: {r.Def.Replace("\"", "#quot;")}"))
+                .Select(r =>
+                {
+                    var target = Regex.Match(r.Def, @"REFERENCES ""([^""]+)""").Groups[1].Value;
+                    return $"{kv.Key} :: {target} :: {r.Def.Replace("\"", "#quot;")}";
+                }))
             .OrderBy(x => x, StringComparer.Ordinal).ToList();
         if (!erdEdges.SequenceEqual(expectedEdges, StringComparer.Ordinal))
         {
