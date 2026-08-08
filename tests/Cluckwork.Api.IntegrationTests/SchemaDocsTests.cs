@@ -449,9 +449,16 @@ public sealed class SchemaDocsTests
                 }
                 tokens.Sort((a, b) => a.Start.CompareTo(b.Start));
                 // Comments were blanked to spaces above, so a comment
-                // around the plus is already plain whitespace here — the
-                // gap matcher needs nothing beyond `+` and whitespace.
-                var plusGap = new Regex(@"^\s*\+\s*$");
+                // around the plus is already plain whitespace here. The gap
+                // matcher admits parentheses besides whitespace: parens are
+                // semantically transparent in a constant string
+                // concatenation, so a wrapped fragment still folds. This is
+                // DELIBERATELY conservative — a gap like `) + (` also spans
+                // some non-constant expressions (a call result concatenated
+                // with a literal), and folding those can only ADD a refusal,
+                // never open a hole; any identifier character in the gap
+                // still breaks the fold.
+                var plusGap = new Regex(@"^[\s()]*\+[\s()]*$");
                 for (var i = 0; i < tokens.Count;)
                 {
                     var j = i;
