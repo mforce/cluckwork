@@ -6,10 +6,11 @@ import { account } from "../test/fixtures";
 import i18n from "../i18n";
 import {
   addOrderItem, cancelOrder, confirmOrder, createOrder, getOrder, listCustomers, listEggGrades,
-  listOrderPayments, listOrders, listProducts, recordPayment, removeOrderItem, updateOrderItem,
-  voidOrder, voidPayment,
+  listEggUnitConversions, listOrderPayments, listOrders, listProducts, recordPayment,
+  removeOrderItem, updateOrderItem, voidOrder, voidPayment,
 } from "../api/cluckwork";
-import type { Customer, EggGrade, OrderItem, Product, SalesOrder } from "../api/cluckwork";
+import type { Customer, EggGrade, EggUnitConversion, OrderItem, Product, SalesOrder } from "../api/cluckwork";
+import { ApiError } from "../api/client";
 
 // Keep the REAL formatMoney + parseMoneyToMinorUnits (the money math under test)
 // via importOriginal; stub only the network seam. Every network call the screen
@@ -23,6 +24,7 @@ vi.mock("../api/cluckwork", async (importOriginal) => {
     listCustomers: vi.fn(),
     listProducts: vi.fn(),
     listEggGrades: vi.fn(),
+    listEggUnitConversions: vi.fn(),
     listOrders: vi.fn(),
     listOrderPayments: vi.fn(),
     createOrder: vi.fn(),
@@ -41,6 +43,7 @@ vi.mock("../api/cluckwork", async (importOriginal) => {
 const mockListCustomers = vi.mocked(listCustomers);
 const mockListProducts = vi.mocked(listProducts);
 const mockListEggGrades = vi.mocked(listEggGrades);
+const mockListEggUnitConversions = vi.mocked(listEggUnitConversions);
 const mockListOrders = vi.mocked(listOrders);
 const mockListOrderPayments = vi.mocked(listOrderPayments);
 const mockCreateOrder = vi.mocked(createOrder);
@@ -96,6 +99,17 @@ const DRAFT_TWO: SalesOrder = {
   ...draftEmpty(2, "USD", "o2"), referenceNumber: "SO-2", totalMinorUnits: 2900, items: [ITEM_A, ITEM_B],
 };
 
+// #445 — the conversions feeding the unit-clarity surfaces (unit-aware
+// quantity label text comes from i18n; the FACTORS come from here). "Case" is
+// deliberately inactive: the no-active-definition fallback (bare labels, no
+// hint) needs a real selling unit to exercise it through.
+const CONVERSIONS: EggUnitConversion[] = [
+  { id: "cv1", unitCode: "Individual", eggsPerUnit: 1, active: true, version: 1 },
+  { id: "cv2", unitCode: "Dozen", eggsPerUnit: 12, active: true, version: 1 },
+  { id: "cv3", unitCode: "Tray", eggsPerUnit: 30, active: true, version: 1 },
+  { id: "cv4", unitCode: "Case", eggsPerUnit: 360, active: false, version: 1 },
+];
+
 // role irrelevant to add/update/display (Admin only unlocks void + payments,
 // which these tests don't touch) — just a stable authenticated session.
 const ADMIN = { sub: "u1", role: "Admin" };
@@ -106,6 +120,7 @@ beforeEach(() => {
   mockListCustomers.mockResolvedValue([CUSTOMER]);
   mockListProducts.mockResolvedValue([PRODUCT_A, PRODUCT_B]);
   mockListEggGrades.mockResolvedValue([GRADE]);
+  mockListEggUnitConversions.mockResolvedValue(CONVERSIONS);
   mockListOrders.mockResolvedValue([]);
   mockListOrderPayments.mockResolvedValue({
     items: [], paidMinorUnits: 0, outstandingMinorUnits: 0, totalMinorUnits: 0,
@@ -189,18 +204,19 @@ describe("SalesPage quantity steppers (#250)", () => {
 
     // Role query, not getByLabelText: the wrapping <label> makes every control
     // inside it (the −/+ buttons too) answer to "Quantity"; only the input has
-    // the spinbutton role.
-    const qty = screen.getByRole("spinbutton", { name: "Quantity" });
+    // the spinbutton role. Since #445 the label names the unit too — the first
+    // sellable product (PRODUCT_A) defaults to Dozen.
+    const qty = screen.getByRole("spinbutton", { name: "Quantity (dozen)" });
     fireEvent.change(qty, { target: { value: "2" } });
     expect(qty).toHaveValue(2);
 
-    const minus = screen.getByRole("button", { name: "Decrease quantity" });
+    const minus = screen.getByRole("button", { name: "Decrease quantity (dozen)" });
     fireEvent.click(minus);
     expect(qty).toHaveValue(1);
     // At the floor the − disables rather than silently no-opping…
     expect(minus).toBeDisabled();
 
-    fireEvent.click(screen.getByRole("button", { name: "Increase quantity" }));
+    fireEvent.click(screen.getByRole("button", { name: "Increase quantity (dozen)" }));
     expect(qty).toHaveValue(2);
 
     // …and typing below it clamps back up.
@@ -238,7 +254,7 @@ describe("SalesPage quantity must be a whole number (#398)", () => {
     await renderReady();
     await createDraft(draftEmpty(2, "USD"));
 
-    const qty = screen.getByRole("spinbutton", { name: "Quantity" });
+    const qty = screen.getByRole("spinbutton", { name: "Quantity (dozen)" });
     fireEvent.change(qty, { target: { value: "2.5" } });
     expect(qty).toHaveValue(2.5);
 
@@ -265,6 +281,190 @@ describe("SalesPage quantity must be a whole number (#398)", () => {
 
     expect(mockUpdateOrderItem).not.toHaveBeenCalled();
     expect(await screen.findByText(i18n.t("sales:quantityMustBeWholeNumber"))).toBeInTheDocument();
+  });
+});
+
+// #445 — users typed the EGG TOTAL into the quantity field (60 eggs → 60 trays
+// = 1,800 eggs sold, silently 30x over). Three reinforcing surfaces make the
+// unit visible AT ENTRY TIME: the unit in the quantity label, a live "= N eggs"
+// preview, and the unit size on the product option. All display-only — the
+// unit math itself is the server's (snapshotted per line, spec §9.7).
+describe("SalesPage quantity unit clarity (#445)", () => {
+  it("names the selected unit in the quantity label and follows the Per picker", async () => {
+    await renderReady();
+    await createDraft(draftEmpty(2, "USD"));
+
+    // First sellable product (PRODUCT_A) defaults the unit to Dozen.
+    expect(screen.getByRole("spinbutton", { name: "Quantity (dozen)" })).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Per"), { target: { value: "Tray" } });
+    expect(screen.getByRole("spinbutton", { name: "Quantity (tray)" })).toBeInTheDocument();
+    expect(screen.queryByRole("spinbutton", { name: "Quantity (dozen)" })).not.toBeInTheDocument();
+  });
+
+  it("previews the resulting egg count live while the quantity changes", async () => {
+    await renderReady();
+    await createDraft(draftEmpty(2, "USD"));
+
+    // qty starts at 30, unit Dozen (12/unit) → 360. THE reported mistake:
+    // "60" meant as an egg count reads back as 720 eggs, not 60.
+    expect(screen.getByText("= 360 eggs")).toBeInTheDocument();
+    const qty = screen.getByRole("spinbutton", { name: "Quantity (dozen)" });
+    fireEvent.change(qty, { target: { value: "60" } });
+    expect(screen.getByText("= 720 eggs")).toBeInTheDocument();
+
+    // Factor follows the Per picker too: 60 trays → 1,800 eggs.
+    fireEvent.change(screen.getByLabelText("Per"), { target: { value: "Tray" } });
+    expect(screen.getByText("= 1800 eggs")).toBeInTheDocument();
+  });
+
+  it("keeps a packed unit deliberately defined as 1 egg/unit visible — suppression is by identity, not factor", async () => {
+    // Only "Individual" is pinned to 1 server-side; a farm CAN define Dozen
+    // as 1 egg/unit, and that nonstandard setup is exactly what must stay
+    // visible at entry time (codex review of #445). An `f > 1` threshold
+    // would hide it — this pins the identity-based rule, and the singular
+    // _one catalog forms with it.
+    mockListEggUnitConversions.mockResolvedValue([
+      { id: "cv2", unitCode: "Dozen", eggsPerUnit: 1, active: true, version: 1 },
+    ]);
+    await renderReady();
+    await createDraft(draftEmpty(2, "USD"));
+
+    expect(screen.getByRole("option", { name: "Grade A Dozen (1 egg/dozen)" })).toBeInTheDocument();
+    expect(screen.getByText("= 30 eggs")).toBeInTheDocument(); // qty 30 × 1
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Quantity (dozen)" }),
+      { target: { value: "1" } });
+    expect(screen.getByText("= 1 egg")).toBeInTheDocument(); // singular form
+  });
+
+  it("shows no preview for the per-egg unit — '= 30 eggs' under 30 eggs is noise", async () => {
+    await renderReady();
+    await createDraft(draftEmpty(2, "USD"));
+
+    fireEvent.change(screen.getByLabelText("Per"), { target: { value: "Egg" } });
+    // Suppressed by unit IDENTITY (Egg needs no translation), not by factor.
+    expect(screen.getByRole("spinbutton", { name: "Quantity (egg)" })).toBeInTheDocument();
+    expect(screen.queryByText(/= \d+ eggs?/)).not.toBeInTheDocument();
+  });
+
+  it("degrades to the labeled field with no preview when the unit has no active definition", async () => {
+    await renderReady();
+    await createDraft(draftEmpty(2, "USD"));
+
+    // CONVERSIONS carries Case as INACTIVE — the label (pure i18n) keeps the
+    // unit, the hint (needs a factor) disappears rather than showing a stale
+    // or wrong number. The server's own SalesOrder.NoUnitConversion check
+    // still decides at add time.
+    fireEvent.change(screen.getByLabelText("Per"), { target: { value: "Case" } });
+    expect(screen.getByRole("spinbutton", { name: "Quantity (case)" })).toBeInTheDocument();
+    expect(screen.queryByText(/= \d+ eggs/)).not.toBeInTheDocument();
+  });
+
+  it("annotates product options with the default unit's size, leaving factor-1 products bare", async () => {
+    await renderReady();
+    await createDraft(draftEmpty(2, "USD"));
+
+    // PRODUCT_A sells by the dozen → annotated. Both products are offered
+    // (PRODUCT_B's grade is unsaleable, so only A is in the picker) — assert
+    // via the option list, not the line table (which renders bare names).
+    expect(screen.getByRole("option", { name: "Grade A Dozen (12 eggs/dozen)" })).toBeInTheDocument();
+  });
+
+  it("keeps bare product names and no preview when the conversions read fails (graceful degrade)", async () => {
+    mockListEggUnitConversions.mockRejectedValue(new Error("boom"));
+    await renderReady();
+    await createDraft(draftEmpty(2, "USD"));
+
+    // The screen still works — the supplementary surfaces just vanish.
+    expect(screen.getByRole("option", { name: "Grade A Dozen" })).toBeInTheDocument();
+    expect(screen.getByRole("spinbutton", { name: "Quantity (dozen)" })).toBeInTheDocument();
+    expect(screen.queryByText(/= \d+ eggs/)).not.toBeInTheDocument();
+  });
+
+  it("binds the previewed factor to the write — expectedEggsPerUnit rides the add-item request", async () => {
+    await renderReady();
+    await createDraft(draftEmpty(2, "USD"));
+    mockAddOrderItem.mockResolvedValue({ orderId: "o1", itemId: "new" });
+
+    // Dozen previews 12 → the write carries 12, so the server can refuse if
+    // an admin redefined the unit after this page read its conversions.
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Add line" }));
+    });
+    expect(mockAddOrderItem.mock.calls[0][1]).toMatchObject({
+      productId: "p1", quantity: 30, unit: "Dozen", expectedEggsPerUnit: 12,
+    });
+  });
+
+  it("omits expectedEggsPerUnit when nothing was previewed (per-egg unit)", async () => {
+    await renderReady();
+    await createDraft(draftEmpty(2, "USD"));
+    mockAddOrderItem.mockResolvedValue({ orderId: "o1", itemId: "new" });
+
+    fireEvent.change(screen.getByLabelText("Per"), { target: { value: "Egg" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Add line" }));
+    });
+    // No preview was shown, so there is no displayed factor to hold the
+    // server to — the write must not fabricate one.
+    expect(mockAddOrderItem.mock.calls[0][1].expectedEggsPerUnit).toBeUndefined();
+  });
+
+  it("refreshes the conversions after a rejected add, so the preview leaves the stale factor", async () => {
+    await renderReady();
+    await createDraft(draftEmpty(2, "USD"));
+    // The server refuses: the definition changed under the page.
+    mockAddOrderItem.mockRejectedValue(new ApiError(422, "SalesOrder.UnitDefinitionChanged",
+      "The eggs-per-unit definition for 'Dozen' is now 6, not 12 — re-check the quantity and try again."));
+    mockListEggUnitConversions.mockResolvedValue([
+      { id: "cv2", unitCode: "Dozen", eggsPerUnit: 6, active: true, version: 2 },
+    ]);
+
+    expect(screen.getByText("= 360 eggs")).toBeInTheDocument(); // 30 × stale 12
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Add line" }));
+    });
+
+    // The refusal surfaces AND the preview now shows the current factor —
+    // without the refetch every retry would loop on the stale 12.
+    expect(await screen.findByText(/is now 6, not 12/)).toBeInTheDocument();
+    expect(await screen.findByText("= 180 eggs")).toBeInTheDocument(); // 30 × fresh 6
+  });
+
+  it("tracks the edited quantity live in the eggs column during an inline edit", async () => {
+    const row = await openOrder(DRAFT_TWO, /Grade A Dozen/);
+    fireEvent.click(within(row).getByRole("button", { name: "edit" }));
+    const editRow = screen.getByRole("row", { name: /Grade A Dozen/ });
+
+    // ITEM_A: factor 12, qty 3 → the eggs cell shows 36 (not the old "—")…
+    expect(within(editRow).getByText("36")).toBeInTheDocument();
+    // …and follows the edit: 60 dozen is visibly 720 eggs before save.
+    const qty = within(editRow).getByRole("spinbutton", { name: "Edit quantity" });
+    fireEvent.change(qty, { target: { value: "60" } });
+    expect(within(editRow).getByText("720")).toBeInTheDocument();
+    expect(within(editRow).queryByText("36")).not.toBeInTheDocument();
+  });
+
+  it("reads the label, preview, and option annotation from the sales catalog, not literals", async () => {
+    const withOverride = (key: string, value: string) => {
+      const original = i18n.getResource("en", "sales", key) as string;
+      i18n.addResource("en", "sales", key, value);
+      return () => i18n.addResource("en", "sales", key, original);
+    };
+    const restores = [
+      withOverride("quantityWithUnit", "QTY-MARKER {{unit}}"),
+      withOverride("equalsEggs", "EGGS-MARKER {{count}}"),
+      withOverride("productOptionWithUnit", "OPT-MARKER {{name}} {{count}} {{unit}}"),
+    ];
+    try {
+      await renderReady();
+      await createDraft(draftEmpty(2, "USD"));
+      expect(screen.getByRole("spinbutton", { name: "QTY-MARKER dozen" })).toBeInTheDocument();
+      expect(screen.getByText("EGGS-MARKER 360")).toBeInTheDocument();
+      expect(screen.getByRole("option", { name: "OPT-MARKER Grade A Dozen 12 dozen" })).toBeInTheDocument();
+    } finally {
+      restores.forEach((r) => r());
+    }
   });
 });
 

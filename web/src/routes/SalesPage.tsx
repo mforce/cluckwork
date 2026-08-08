@@ -3,11 +3,11 @@ import { Plus } from "lucide-react";
 import { Trans, useTranslation } from "react-i18next";
 import {
   addOrderItem, cancelOrder, confirmOrder, createOrder, formatMoney, getOrder,
-  listCustomers, listEggGrades, listOrderPayments, listOrders, listProducts,
-  parseMoneyToMinorUnits, recordPayment,
+  listCustomers, listEggGrades, listEggUnitConversions, listOrderPayments, listOrders,
+  listProducts, parseMoneyToMinorUnits, recordPayment,
   removeOrderItem, updateOrderItem, voidOrder, voidPayment,
 } from "../api/cluckwork";
-import type { Customer, OrderPayments, Product, SalesOrder } from "../api/cluckwork";
+import type { Customer, EggUnitConversion, OrderPayments, Product, SalesOrder } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
@@ -22,6 +22,15 @@ import i18n from "../i18n";
 import { statusLabel } from "../i18n/enums";
 
 const PAGE = 50;
+
+// The egg selling units, in picker order — one list for the Per picker and
+// the #445 unit-label/preview helpers, mirroring the server's ProductUnit
+// egg subset. `as const` keeps `unit${SellingUnit}` a closed union the typed
+// i18n `t` accepts (a bare string template fails the tsc -b build).
+const SELLING_UNITS = ["Egg", "Dozen", "Flat", "Tray", "Carton", "Case"] as const;
+type SellingUnit = (typeof SELLING_UNITS)[number];
+const isSellingUnit = (u: string): u is SellingUnit =>
+  (SELLING_UNITS as readonly string[]).includes(u);
 
 // The sole RAW payment-method render site (below) mirrors the SAME six-value
 // vocabulary as the payment-method picker in this file (which already renders
@@ -67,6 +76,10 @@ export function SalesPage() {
   // (inactive included) resolves display names on existing lines.
   const [products, setProducts] = useState<Product[]>([]);
   const [allProducts, setAllProducts] = useState<Product[]>([]);
+  // #445 — eggs-per-unit definitions, so the add-line form can say what the
+  // quantity means BEFORE the line lands (the table row's "per tray (30 eggs)"
+  // arrives too late to catch "typed 60 eggs, sold 60 trays").
+  const [conversions, setConversions] = useState<EggUnitConversion[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   // list filters (#24: status/customer/paged)
@@ -144,6 +157,26 @@ export function SalesPage() {
   const customerName = (id: string) => customers.find((c) => c.id === id)?.name ?? id.slice(0, 8);
   const productName = (id: string) => allProducts.find((p) => p.id === id)?.name ?? id.slice(0, 8);
 
+  // #445 — eggs per PACKED selling unit. null when no active definition
+  // exists — the UI then shows nothing extra rather than a wrong number, and
+  // the server's own check decides at add time. Callers exclude the per-egg
+  // unit by IDENTITY, never by factor value: only "Individual" is pinned to 1
+  // server-side, so a packed unit deliberately defined as 1 egg/unit is a
+  // real (nonstandard) configuration that must stay visible at entry time
+  // (codex review of #445) — which also means the "Egg"→"Individual" lookup
+  // the server does is not needed here, since "Egg" never annotates.
+  const eggsPerUnit = (sellingUnit: string): number | null => {
+    const c = conversions.find((x) => x.unitCode === sellingUnit && x.active);
+    return c?.eggsPerUnit ?? null;
+  };
+  // Lowercased to match the row display's `perUnit` convention ("per tray").
+  // The membership guard is what lets the typed i18n key accept the template:
+  // `unit${SellingUnit}` is a closed union of real catalog keys, while an
+  // unrecognized unit string (a future enum value this build predates) falls
+  // back to its raw name rather than a missing-key render.
+  const unitWord = (sellingUnit: string) =>
+    (isSellingUnit(sellingUnit) ? t(`unit${sellingUnit}`) : sellingUnit).toLowerCase();
+
   const loadOrders = useCallback(async (offset = 0) => {
     const page = await listOrders({
       status: statusFilter || undefined,
@@ -187,6 +220,12 @@ export function SalesPage() {
         }
       })
       .catch(() => setLoadError(i18n.t("sales:loadSalesDataFailed")));
+    // Separate from the Promise.all above ON PURPOSE: the conversions only
+    // feed supplementary display (the live "= N eggs" hint and the option
+    // annotations), so a failed read degrades to the pre-#445 labels instead
+    // of blocking the whole screen. A genuinely missing conversion still 422s
+    // server-side at add time (SalesOrder.NoUnitConversion).
+    listEggUnitConversions().then(setConversions).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -263,9 +302,27 @@ export function SalesPage() {
       if (!Number.isFinite(minorUnits) || minorUnits < 0) throw new Error(i18n.t("sales:invalidUnitPrice"));
     }
     const scope = `add-item:${active.id}`;
-    await addOrderItem(active.id,
-      { productId, quantity: qty, unit, unitPriceMinorUnits: minorUnits },
-      keyFor(scope));
+    // #445 — bind the previewed factor to the write: if an admin redefined
+    // the unit after this page read its conversions, the server refuses
+    // (SalesOrder.UnitDefinitionChanged) instead of recording a QuantityBase
+    // different from the "= N eggs" the seller saw. undefined when nothing
+    // was previewed (per-egg unit, or no/failed conversions read).
+    const previewed = unit === "Egg" ? null : eggsPerUnit(unit);
+    try {
+      await addOrderItem(active.id,
+        {
+          productId, quantity: qty, unit, unitPriceMinorUnits: minorUnits,
+          expectedEggsPerUnit: previewed ?? undefined,
+        },
+        keyFor(scope));
+    } catch (err) {
+      // Any server rejection may mean the conversions moved under us (the
+      // UnitDefinitionChanged case) — refresh them so the preview and the
+      // next attempt use the current factors instead of looping on stale
+      // ones. Fire-and-forget: the thrown error still surfaces normally.
+      if (err instanceof ApiError) listEggUnitConversions().then(setConversions).catch(() => {});
+      throw err;
+    }
     setActive(await getOrder(active.id));
     clearKey(scope);
   });
@@ -488,7 +545,10 @@ export function SalesPage() {
                           <NumberField id={editQtyId} label={t("editQuantityAriaLabel").toLowerCase()}
                             value={editQty} onChange={setEditQty} min={1} />
                         </td>
-                        <td>—</td>
+                        {/* #445 — live: the eggs column tracks the edited
+                            quantity instead of going blank, so a unit/count
+                            mix-up is visible mid-edit too. */}
+                        <td className="muted">{i.baseUnitFactor * editQty}</td>
                         <td><input className="cell" type="number" min={0}
                           aria-label={t("editUnitPriceAriaLabel")}
                           step={10 ** -active.currencyMinorUnit} value={editPrice}
@@ -544,12 +604,25 @@ export function SalesPage() {
                       setPrice(priceInput(p.defaultPriceMinorUnits, priceScale));
                     }
                   }}>
-                    {products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    {products.map((p) => {
+                      // Unit size visible BEFORE quantity entry starts (#445):
+                      // "Grade A Tray (30 eggs/tray)". Only the per-egg unit
+                      // is bare — by identity, not factor, so "1 egg/dozen"
+                      // still shows (see eggsPerUnit above).
+                      const f = p.defaultUnit === "Egg" ? null : eggsPerUnit(p.defaultUnit);
+                      return (
+                        <option key={p.id} value={p.id}>
+                          {f !== null
+                            ? t("productOptionWithUnit", { name: p.name, count: f, unit: unitWord(p.defaultUnit) })
+                            : p.name}
+                        </option>
+                      );
+                    })}
                   </select>
                 </label>
                 <label>{t("perLabel")}
                   <select value={unit} onChange={(e) => setUnit(e.target.value)}>
-                    {(["Egg", "Dozen", "Flat", "Tray", "Carton", "Case"] as const).map((u) =>
+                    {SELLING_UNITS.map((u) =>
                       <option key={u} value={u}>{t(`unit${u}`)}</option>)}
                   </select>
                 </label>
@@ -557,9 +630,20 @@ export function SalesPage() {
                     interactive content other than its own control, and the
                     stepper carries two buttons. */}
                 <div className="numfield-field">
-                  <label htmlFor={addQtyId}>{t("quantity")}</label>
-                  <NumberField id={addQtyId} label={t("quantity").toLowerCase()}
+                  {/* #445 — the label names the unit ("Quantity (trays)" not
+                      bare "Quantity"), and the live hint shows the resulting
+                      egg count while typing, so "2 trays" typed as 60 is
+                      visibly 1,800 eggs before Add line is pressed. */}
+                  <label htmlFor={addQtyId}>{t("quantityWithUnit", { unit: unitWord(unit) })}</label>
+                  <NumberField id={addQtyId} label={t("quantityWithUnit", { unit: unitWord(unit) }).toLowerCase()}
                     value={qty} onChange={setQty} min={1} />
+                  {(() => {
+                    // Per-egg suppressed by identity, not factor (see above).
+                    const f = unit === "Egg" ? null : eggsPerUnit(unit);
+                    return f !== null
+                      ? <p className="muted">{t("equalsEggs", { count: qty * f })}</p>
+                      : null;
+                  })()}
                 </div>
                 <label>{t("unitPriceWithCurrency", { code: active.currencyCode })}
                   <input type="number" min={0} step={10 ** -active.currencyMinorUnit} value={price}

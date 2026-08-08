@@ -270,6 +270,18 @@ export const en = {
     product: "Product",
     perLabel: "Per",
     quantity: "Quantity",
+    // #445 — the add-line quantity is a count of SELLING UNITS, not eggs, and
+    // users were typing the egg total (60 eggs → 60 trays sold). Three
+    // reinforcing surfaces: the unit in the quantity label, a live "= N eggs"
+    // preview while typing, and the unit size on the product option itself.
+    quantityWithUnit: "Quantity ({{unit}})",
+    // A packed unit CAN legitimately be defined as 1 egg/unit (only
+    // Individual is pinned server-side), so the singular forms are reachable:
+    // i18next routes count 1 to _one and falls back to the base otherwise.
+    equalsEggs: "= {{count}} eggs",
+    equalsEggs_one: "= {{count}} egg",
+    productOptionWithUnit: "{{name}} ({{count}} eggs/{{unit}})",
+    productOptionWithUnit_one: "{{name}} ({{count}} egg/{{unit}})",
     unitPriceWithCurrency: "Unit price ({{code}})",
     method: "Method",
     referenceOptional: "Reference (optional)",
@@ -2196,8 +2208,10 @@ export const en = {
       "Orders start as <strong>drafts</strong>: add lines by picking a <strong>product</strong>, a packed "
       + "unit (dozen, carton, …), a whole-number quantity, and a price per unit (prefilled from the "
       + "product's default, decimals allowed) — edit freely, or <strong>cancel</strong> (the draft is kept, "
-      + "read-only). Each line remembers how many eggs its unit held when it was added, so redefining a "
-      + "carton later never changes old orders.",
+      + "read-only). The quantity counts <strong>units, not eggs</strong> — the field is labeled with the "
+      + "unit and shows the resulting egg count while you type (2 trays = 60 eggs, not 60 trays). Each "
+      + "line remembers how many eggs its unit held when it was added, so redefining a carton later never "
+      + "changes old orders.",
     salesConfirming:
       "<strong>Confirming</strong> an order allocates real stock — oldest lots first — and is the point "
       + "where inventory changes hands.",
