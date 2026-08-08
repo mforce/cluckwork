@@ -2286,6 +2286,11 @@ export const tl = {
     glossaryPackedUnitDef:
       "Ilang itlog ang laman ng isang dosena/tray/karton/case sa bukid mo. Iniingatan ng bawat linya ng "
       + "benta ang bilang na ipinagbenta dito.",
+    glossaryCountingUnitTerm: "Yunit ng pagbilang",
+    glossaryCountingUnitDef:
+      "Kung magkano ang bilang ng bawat tap ng mga − / + na button ng Daily Entry — isang itlog, o isang "
+      + "packed unit tulad ng tray. Default ng bukid sa Settings; ang sarili mong pili sa iyong Account "
+      + "screen. Ipinapakita ng mga button ang halaga (−30 / +30) kapag hindi ito isa.",
 
     glossarySalesLineTerm: "Linya ng benta",
     glossarySalesLineDef:

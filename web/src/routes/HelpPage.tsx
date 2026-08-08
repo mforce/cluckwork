@@ -516,6 +516,9 @@ export function HelpPage() {
             <td>{t("glossaryProductDef")}</td></tr>
           <tr><th scope="row">{t("glossaryPackedUnitTerm")}</th>
             <td>{t("glossaryPackedUnitDef")}</td></tr>
+          {/* #444 — beside the packed unit it counts by. */}
+          <tr><th scope="row">{t("glossaryCountingUnitTerm")}</th>
+            <td>{t("glossaryCountingUnitDef")}</td></tr>
           <tr><th scope="row">{t("glossarySalesLineTerm")}</th>
             <td>{t("glossarySalesLineDef")}</td></tr>
           <tr><th scope="row">{t("glossaryConfirmOrderTerm")}</th>

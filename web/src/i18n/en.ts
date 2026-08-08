@@ -2543,6 +2543,11 @@ export const en = {
     glossaryPackedUnitDef:
       "How many eggs a dozen/tray/carton/case holds on your farm. Each sale line keeps the count it was "
       + "sold with.",
+    glossaryCountingUnitTerm: "Counting unit",
+    glossaryCountingUnitDef:
+      "How much each tap of the Daily Entry − / + buttons counts — one egg, or a packed unit like a tray. "
+      + "Farm default in Settings; your own pick on your Account screen. The buttons show the amount "
+      + "(−30 / +30) when it isn't one.",
 
     glossarySalesLineTerm: "Sales line",
     glossarySalesLineDef:

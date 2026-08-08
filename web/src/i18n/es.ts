@@ -2208,6 +2208,11 @@ export const es = {
     glossaryPackedUnitDef:
       "Cuántos huevos contiene una docena/bandeja/cartón/caja en su granja. Cada línea de venta conserva "
       + "el conteo con el que se vendió.",
+    glossaryCountingUnitTerm: "Unidad de conteo",
+    glossaryCountingUnitDef:
+      "Cuánto cuenta cada toque de los botones − / + de la entrada diaria — un huevo, o una unidad "
+      + "empacada como una bandeja. Predeterminado de la granja en Configuración; su propia elección en su "
+      + "pantalla de Cuenta. Los botones muestran la cantidad (−30 / +30) cuando no es uno.",
 
     glossarySalesLineTerm: "Línea de venta",
     glossarySalesLineDef:
