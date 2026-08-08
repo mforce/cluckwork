@@ -75,6 +75,20 @@ describe("StepperUnitSelector (#444)", () => {
     expect(mockPut).toHaveBeenCalledWith("Tray");
   });
 
+  it("keeps a stale override visible when its unit was deactivated", async () => {
+    // pi review of #451: without its own option, <select value="Case"> matches
+    // nothing and the browser renders the first option as selected while the
+    // real value is still "Case" — the user cannot see what their stale
+    // preference is, let alone that it exists.
+    render(<Host me={{ ...ME, preferredStepperUnit: "Case" }} />);
+    const select = screen.getByLabelText("Daily Entry counting unit");
+    await waitFor(() =>
+      expect(screen.getByRole("option", { name: "Tray" })).toBeInTheDocument());
+
+    expect(select).toHaveValue("Case");
+    expect(screen.getByRole("option", { name: "Case" })).toBeInTheDocument();
+  });
+
   it("clears the override (null on the wire) when the farm-default option is picked", async () => {
     render(<Host me={{ ...ME, preferredStepperUnit: "Tray" }} />);
     const select = screen.getByLabelText("Daily Entry counting unit");

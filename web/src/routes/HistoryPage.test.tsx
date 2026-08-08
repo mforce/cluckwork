@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, within, fireEvent, act } from "@testing-library/react";
 import { HistoryPage } from "./HistoryPage";
 import { renderWithProviders } from "../test/renderWithProviders";
+import { account } from "../test/fixtures";
 import {
   adjustDailyEntry, getDailyEntry, listDailyEntries, listEggGrades, listEggUnitConversions,
   listFlocks, voidDailyEntry,
@@ -485,6 +486,33 @@ describe("HistoryPage adjust — mirrored daily-entry layout", () => {
     // 100 → 101: the total caught up rather than refusing the tap.
     expect(screen.getByRole("spinbutton", { name: "Total eggs" })).toHaveValue(101);
     expect(chip()).toHaveTextContent("the day adds up");
+  });
+
+  // #444 — mirrors DailyEntryPage.test.tsx's farm-default pack-unit test:
+  // the adjust dialog's steppers count by the resolved unit too, and its
+  // #443 auto-raise (setLine) must track a 30-egg tap exactly like a 1-egg
+  // one (adversarial review of #451 — this screen had no step≠1 coverage).
+  it("steps by the farm-default pack unit, and the total auto-raise tracks it", async () => {
+    mockListDailyEntries.mockResolvedValue([SUBMITTED]);
+    renderWithProviders(<HistoryPage />, {
+      token: ADMIN, farm: account({ defaultStepperUnit: "Tray" }),
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "adjust" }));
+
+    // Fixture: total 100, graded 40 + 20, losses 10 — sellable 90, 30 left.
+    const plusA = screen.getByRole("button", { name: "Increase grade a" });
+    fireEvent.pointerDown(plusA);
+    fireEvent.pointerUp(plusA);
+    // One tap = one tray. 40 + 30 = 70 exactly consumes the remainder, so
+    // the total must NOT move (the #443 raise only fires past the total).
+    expect(screen.getByRole("spinbutton", { name: "Grade A" })).toHaveValue(70);
+    expect(screen.getByRole("spinbutton", { name: "Total eggs" })).toHaveValue(100);
+
+    // A second tray overshoots — the total auto-raises by the same 30.
+    fireEvent.pointerDown(plusA);
+    fireEvent.pointerUp(plusA);
+    expect(screen.getByRole("spinbutton", { name: "Grade A" })).toHaveValue(100);
+    expect(screen.getByRole("spinbutton", { name: "Total eggs" })).toHaveValue(130);
   });
 
   // Mirrors DailyEntryPage.test.tsx's identical test: a single tap cannot

@@ -34,6 +34,14 @@ export function StepperUnitSelector() {
   }, []);
 
   const current = me?.preferredStepperUnit ?? "";
+  // A stored override can name a unit the farm has since deactivated. Without
+  // its own option the <select value> matches nothing and the browser renders
+  // the FIRST option as selected while the real value is something else —
+  // same hazard DailyEntryPage's visibleGrades solves for deactivated grades
+  // (pi review of #451). Keeping it visible also means the user can SEE what
+  // their stale preference is before clearing or replacing it; the stepper
+  // itself already falls back to counting by 1 (resolveStepperUnitSize).
+  const staleOverride = current !== "" && !units.some((u) => u.unitCode === current);
   const onChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const unit = e.target.value === "" ? null : e.target.value;
     // Optimistic, same as the language switch — the screen the preference
@@ -55,6 +63,7 @@ export function StepperUnitSelector() {
         {units.map((u) => (
           <option key={u.unitCode} value={u.unitCode}>{u.unitCode}</option>
         ))}
+        {staleOverride && <option value={current}>{current}</option>}
       </select>
     </label>
   );
