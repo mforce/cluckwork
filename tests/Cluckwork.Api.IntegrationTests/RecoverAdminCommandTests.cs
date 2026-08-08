@@ -1,6 +1,7 @@
 namespace Cluckwork.Api.IntegrationTests;
 
 using System.Diagnostics;
+using System.Security.Cryptography;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Common;
 using Microsoft.Extensions.DependencyInjection;
@@ -168,7 +169,7 @@ public sealed class RecoverAdminCommandTests : IClassFixture<BreakGlassRecoveryF
         // Generated per invocation, not a literal — GitGuardian scans PRs, and
         // AGENTS.md requires runtime-generated test credentials even for a
         // role that only ever exists inside this one disposable container.
-        var rolePassword = Guid.NewGuid().ToString("N");
+        var rolePassword = RandomNumberGenerator.GetHexString(64);
 
         await using (var admin = new NpgsqlConnection(_factory.ConnectionString))
         {
