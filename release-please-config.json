@@ -11,6 +11,12 @@
       "bump-patch-for-minor-pre-major": true,
       "changelog-path": "CHANGELOG.md",
       "include-component-in-tag": false,
+      "extra-files": [
+        {
+          "type": "generic",
+          "path": "web/.env.production"
+        }
+      ],
       "changelog-sections": [
         { "type": "feat", "section": "Features" },
         { "type": "fix", "section": "Bug fixes" },

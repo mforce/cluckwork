@@ -362,6 +362,15 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
   `.release-please-manifest.json`, and `version.txt`. **Never hand-edit the manifest
   or `version.txt`**; release-please owns them and a manual edit desynchronises the
   version it believes from the tags that exist.
+- **`extra-files` (#458) extends that ownership to `web/.env.production`'s
+  `VITE_APP_VERSION`** — release-please's `generic` updater bumps it in the same
+  release PR as `version.txt`/the manifest, anchored by an `x-release-please-version`
+  marker comment on the line above (not a same-line trailing comment — dotenv-style
+  parsers don't strip inline `#` comments the way YAML/generic key:value formats do,
+  so a trailing marker would have become part of the value). Vite loads
+  `.env.production` automatically for a production build; no Dockerfile/CI plumbing
+  needed beyond the file itself. Same "never hand-edit" rule applies to the value —
+  only the marker's presence and the file's existence are this repo's to maintain.
 - **The release PR is opened with a GitHub App token, not `GITHUB_TOKEN`** — and
   both reasons are load-bearing, so do not "simplify" it back.
   1. `GITHUB_TOKEN` **cannot open a pull request at all** unless the repo-wide

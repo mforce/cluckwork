@@ -138,6 +138,7 @@ export const es = {
     skipToContent: "Saltar al contenido principal",
     primaryNavAriaLabel: "Principal",
     signOut: "Cerrar sesión",
+    versionLabel: "v{{version}}",
     farmLoadFailedNeverLoaded:
       "No se pudo cargar la configuración de esta granja, así que las "
       + "fechas siguen a este dispositivo en lugar de a la granja.",
