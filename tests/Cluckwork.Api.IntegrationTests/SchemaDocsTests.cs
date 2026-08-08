@@ -130,6 +130,10 @@ public sealed class SchemaDocsTests
         // COPY --from= consumes an external image when the name isn't a
         // build stage — a third syntax where a bare name is a live reference.
         var untaggedPattern = new Regex(@"(?im)^\s*(?:" + ImageKey + @"\s*|FROM\s+|COPY[ \t]+(?:--[A-Za-z0-9-]+(?:=[^\s]+)?[ \t]+)*--from=)[""']?(?:[a-z0-9.-]+(?::\d+)?/)*postgres[""']?(?=\s|$)");
+        // BuildKit RUN mounts pull an external image when from= names no
+        // build stage or context — a fourth bare-reference syntax.
+        var runMountFromPattern = new Regex(
+            @"(?im)^[ \t]*RUN[ \t][^\r\n]*--mount=[^\s]*[,=]from=(?:[a-z0-9.-]+(?::\d+)?/)*postgres(?=[,\s""']|$)");
         // Digest-only pull grammar (NAME@DIGEST, no tag): immutable but not
         // the canonical reference — and tagless, so neither pattern above
         // sees it (no colon for the first, an @ failing the second's
@@ -246,6 +250,12 @@ public sealed class SchemaDocsTests
             {
                 if (!hits.TryGetValue("postgres (untagged — floats to latest)", out var files))
                     hits["postgres (untagged — floats to latest)"] = files = [];
+                files.Add(relative);
+            }
+            foreach (Match m in runMountFromPattern.Matches(text))
+            {
+                if (!hits.TryGetValue("postgres (untagged, in a RUN mount from= — floats to latest)", out var files))
+                    hits["postgres (untagged, in a RUN mount from= — floats to latest)"] = files = [];
                 files.Add(relative);
             }
             foreach (Match m in digestOnlyPattern.Matches(text))
