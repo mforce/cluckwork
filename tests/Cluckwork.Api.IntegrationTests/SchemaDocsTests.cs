@@ -146,8 +146,13 @@ public sealed class SchemaDocsTests
         // shape. A COMPLETE option followed by space-then-continuation is
         // ordinary multi-line RUN formatting and stays legitimate: the
         // refusal fires only when the continuation char ABUTS the token.
+        // Generalized from the mount-only form: ANY option token cut by a
+        // line continuation (--from=\ as much as --mount=...\) splices the
+        // next line into its value, deferring what the option names past
+        // this line. A complete value followed by space-then-continuation
+        // is ordinary formatting and stays legitimate.
         var runMountContinuedPattern = new Regex(
-            @"(?im)--mount=[^\s]*[\\`][ \t]*\r?$");
+            @"(?im)--[A-Za-z0-9-]+=[^\s]*[\\`][ \t]*\r?$");
         // Digest-only pull grammar (NAME@DIGEST, no tag): immutable but not
         // the canonical reference — and tagless, so neither pattern above
         // sees it (no colon for the first, an @ failing the second's
@@ -280,8 +285,8 @@ public sealed class SchemaDocsTests
             }
             foreach (Match m in runMountContinuedPattern.Matches(text))
             {
-                if (!hits.TryGetValue("RUN mount option continued past the line — not reviewable", out var files))
-                    hits["RUN mount option continued past the line — not reviewable"] = files = [];
+                if (!hits.TryGetValue("option value continued past the line — not reviewable", out var files))
+                    hits["option value continued past the line — not reviewable"] = files = [];
                 files.Add(relative);
             }
             foreach (Match m in digestOnlyPattern.Matches(text))
