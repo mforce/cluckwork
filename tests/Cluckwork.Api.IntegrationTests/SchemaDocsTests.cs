@@ -276,6 +276,14 @@ public sealed class SchemaDocsTests
                         AddHit($"{textLines[i].Trim()} (explicit mapping key — use plain keys)");
                         continue;
                     }
+                    // An alias in key position (*name: value) resolves to
+                    // whatever scalar its anchor holds — key indirection,
+                    // refused like escaped and explicit keys.
+                    if (Regex.IsMatch(textLines[i], @"^[ \t]*(?:-[ \t]+)*\*[^\s:]+[ \t]*:([ \t]|\r?$)"))
+                    {
+                        AddHit($"{textLines[i].Trim()} (alias mapping key — not reviewable as text)");
+                        continue;
+                    }
                     if (escapedKeyPattern.IsMatch(textLines[i]))
                     {
                         AddHit($"{textLines[i].Trim()} (escaped mapping key — not reviewable as text)");
