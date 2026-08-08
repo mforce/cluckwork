@@ -134,9 +134,13 @@ export function FeedPage() {
     setListError(null);
     load().catch(() => {
       // Degrade the list, keep the form: an empty list with its own error
-      // beats a dead page.
+      // beats a dead page. Rows and hasMore are CLEARED, not kept — rows
+      // from the previous filter under the new filter's controls would lie,
+      // and a stale hasMore would let load-more splice a new-filter page
+      // into them.
       setListError(i18n.t("feed:loadRecordsFailed"));
-      setRows((prev) => prev ?? []);
+      setRows([]);
+      setHasMore(false);
     });
   }, [load]);
 

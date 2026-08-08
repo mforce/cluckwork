@@ -223,9 +223,20 @@ export function DailyEntryPage() {
     if (!flockId || !date) { setDaySupport(null); return; }
     let cancelled = false;
     setDaySupport(null);
+    // The strip presents COUNTS and a cost SUM, so it must drain every page —
+    // a single limit-100 read would silently underreport a heavy day.
+    const PAGE = 100;
+    const drain = async <T,>(fetchPage: (offset: number) => Promise<T[]>) => {
+      const all: T[] = [];
+      for (let offset = 0; ; offset += PAGE) {
+        const page = await fetchPage(offset);
+        all.push(...page);
+        if (page.length < PAGE) return all;
+      }
+    };
     Promise.all([
-      listFeedUsage({ flockId, from: date, to: date, limit: 100 }),
-      listWaterUsage({ flockId, from: date, to: date, limit: 100 }),
+      drain((offset) => listFeedUsage({ flockId, from: date, to: date, limit: PAGE, offset })),
+      drain((offset) => listWaterUsage({ flockId, from: date, to: date, limit: PAGE, offset })),
     ])
       .then(([feed, water]) => { if (!cancelled) setDaySupport({ feed, water }); })
       .catch(() => { /* strip stays hidden; the entry form is untouched */ });

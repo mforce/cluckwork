@@ -249,6 +249,24 @@ describe("FeedPage (#446 — feed usage promoted out of the Inventory drill-down
     expect(screen.queryByText("Could not load feed records.")).not.toBeInTheDocument();
   });
 
+  it("clears stale rows and pagination when a filtered reload fails", async () => {
+    // Rows from the PREVIOUS filter must not sit under the NEW filter's
+    // controls — and a stale hasMore would let load-more append a new-filter
+    // page into old-filter rows.
+    const first = Array.from({ length: 50 }, (_, i) => usageRow({ id: `u${i}`, note: "old rows" }));
+    mockListUsage.mockResolvedValueOnce(first);
+    await renderReady();
+    expect(screen.getByRole("button", { name: "load more" })).toBeInTheDocument();
+
+    mockListUsage.mockRejectedValueOnce(new Error("boom"));
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-08-01" } });
+    });
+    expect(screen.getByText("Could not load feed records.")).toBeInTheDocument();
+    expect(screen.queryByText("old rows")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "load more" })).not.toBeInTheDocument();
+  });
+
   it("refreshes the picker's on-hand figures after a successful record", async () => {
     mockRecord.mockResolvedValue({
       feedUsageId: "u9", quantityUsed: 20, estimatedCostMinorUnits: 100, currencyCode: "USD",

@@ -1112,6 +1112,19 @@ describe("DailyEntryPage feed/water day summary (#446)", () => {
     expect(screen.getByText("Water: 0 records")).toBeInTheDocument();
   });
 
+  it("pages past the API limit so the count and cost are true day totals", async () => {
+    // The list endpoints page at 100; a single request would silently
+    // underreport both figures for a heavy day. The strip must drain pages.
+    const fullPage = Array.from({ length: 100 }, (_, i) =>
+      feedRow({ id: `fu${i}`, estimatedCostMinorUnits: 100 }));
+    mockListFeedUsage.mockResolvedValueOnce(fullPage);
+    mockListFeedUsage.mockResolvedValueOnce([feedRow({ id: "fu-tail", estimatedCostMinorUnits: 500 })]);
+    await renderReady();
+
+    expect(await screen.findByText("Feed: 101 records (est. 105.00 USD)")).toBeInTheDocument();
+    expect(mockListFeedUsage).toHaveBeenCalledWith(expect.objectContaining({ offset: 100 }));
+  });
+
   it("a failed summary read hides the strip and leaves the entry form fully usable", async () => {
     mockListFeedUsage.mockRejectedValue(new Error("boom"));
     mockListWaterUsage.mockRejectedValue(new Error("boom"));
