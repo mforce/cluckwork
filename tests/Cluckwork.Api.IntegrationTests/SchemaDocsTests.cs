@@ -266,6 +266,16 @@ public sealed class SchemaDocsTests
                 if (embedded[i]) continue; // block-scalar body: embedded text, not YAML structure
                 if (isYaml)
                 {
+                    // Explicit-key syntax (a line-leading `?` indicator)
+                    // splits the key/value pairing across physical lines by
+                    // design — refused as a class, like flow continuations,
+                    // whatever key it spells.
+                    if (textLines[i].TrimEnd().Length > 0
+                        && Regex.IsMatch(textLines[i], @"^[ \t]*(?:-[ \t]+)*\?([ \t]|\r?$)"))
+                    {
+                        AddHit($"{textLines[i].Trim()} (explicit mapping key — use plain keys)");
+                        continue;
+                    }
                     if (escapedKeyPattern.IsMatch(textLines[i]))
                     {
                         AddHit($"{textLines[i].Trim()} (escaped mapping key — not reviewable as text)");
