@@ -62,12 +62,15 @@ async function renderReady(route = "/feed") {
 }
 
 describe("FeedPage (#446 — feed usage promoted out of the Inventory drill-down)", () => {
-  it("offers only feedable, active items in the picker, with on-hand stock visible", async () => {
+  it("offers feedable items — active, or inactive with stock left to feed out — never other categories", async () => {
     mockListItems.mockResolvedValue([
       item(),
       item({ id: "i2", name: "Supplement mix", category: "Supplement", quantityOnHand: 4 }),
       item({ id: "i3", name: "Egg cartons", category: "Packaging" }),
-      item({ id: "i4", name: "Old feed", category: "Feed", active: false }),
+      // Inactive with stock: deactivation only stops NEW purchases; the
+      // remaining feed still gets eaten out (server-documented semantics).
+      item({ id: "i4", name: "Old feed", category: "Feed", active: false, quantityOnHand: 12 }),
+      item({ id: "i5", name: "Spent feed", category: "Feed", active: false, quantityOnHand: 0 }),
     ]);
     await renderReady();
 
@@ -76,6 +79,7 @@ describe("FeedPage (#446 — feed usage promoted out of the Inventory drill-down
     expect(options.map((o) => o.textContent)).toEqual([
       "Layer feed (120 kg on hand)",
       "Supplement mix (4 kg on hand)",
+      "Old feed (12 kg on hand) — inactive, feeding out remaining stock",
     ]);
   });
 
@@ -156,13 +160,74 @@ describe("FeedPage (#446 — feed usage promoted out of the Inventory drill-down
       expect.objectContaining({ offset: 50 }));
     expect(screen.getByText("page 2")).toBeInTheDocument();
 
-    // Filter select is the SECOND "Flock" label on the page (capture first).
     mockListUsage.mockResolvedValueOnce([]);
     await act(async () => {
-      fireEvent.change(screen.getAllByLabelText("Flock")[1], { target: { value: "f1" } });
+      fireEvent.change(screen.getByLabelText("Filter by flock"), { target: { value: "f1" } });
     });
     expect(mockListUsage).toHaveBeenLastCalledWith(
       expect.objectContaining({ flockId: "f1", offset: 0 }));
+  });
+
+  it("blocks a second load-more click while the first flight is still open", async () => {
+    const first = Array.from({ length: 50 }, (_, i) => usageRow({ id: `u${i}` }));
+    mockListUsage.mockResolvedValueOnce(first);
+    await renderReady();
+
+    let release!: (rows: FeedUsage[]) => void;
+    mockListUsage.mockReturnValueOnce(new Promise((r) => { release = r; }));
+    fireEvent.click(screen.getByRole("button", { name: "load more" }));
+    fireEvent.click(screen.getByRole("button", { name: "load more" }));
+    await act(async () => { release([usageRow({ id: "u99" })]); });
+
+    // 1 initial + 1 load-more — the second click was swallowed by the guard,
+    // so the same page can never append twice.
+    expect(mockListUsage).toHaveBeenCalledTimes(2);
+  });
+
+  it("preselects a deactivated item named by the deep link — remaining stock still gets fed out", async () => {
+    // Server-documented semantics: deactivation only stops NEW stock; an
+    // inactive item with stock keeps being eaten. The Inventory link to it
+    // must land on IT, never silently swap to another item.
+    mockListItems.mockResolvedValue([
+      item(),
+      item({ id: "i2", name: "Old feed", category: "Feed", active: false, quantityOnHand: 30 }),
+      item({ id: "i3", name: "Spent feed", category: "Feed", active: false, quantityOnHand: 0 }),
+    ]);
+    await renderReady("/feed?item=i2");
+    expect(screen.getByLabelText("Item")).toHaveValue("i2");
+    expect(screen.getByRole("option", { name: /Old feed .*inactive, feeding out/ })).toBeInTheDocument();
+    // Inactive AND empty is genuinely gone.
+    expect(screen.queryByRole("option", { name: /Spent feed/ })).not.toBeInTheDocument();
+  });
+
+  it("refreshes the picker's on-hand figures after a successful record", async () => {
+    mockRecord.mockResolvedValue({
+      feedUsageId: "u9", quantityUsed: 20, estimatedCostMinorUnits: 100, currencyCode: "USD",
+    });
+    await renderReady();
+    expect(screen.getByRole("option", { name: "Layer feed (120 kg on hand)" })).toBeInTheDocument();
+
+    mockListItems.mockResolvedValue([item({ quantityOnHand: 100 })]);
+    fireEvent.change(screen.getByLabelText(/Quantity/), { target: { value: "20" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Record feed" }));
+    });
+    // The pre-submit sanity number must not lie after the feeding it enabled.
+    expect(screen.getByRole("option", { name: "Layer feed (100 kg on hand)" })).toBeInTheDocument();
+  });
+
+  it("initializes the list filters from the Daily Entry strip's URL parameters", async () => {
+    await renderReady("/feed?flockId=f1&from=2026-08-01&to=2026-08-01");
+    expect(mockListUsage).toHaveBeenCalledWith(expect.objectContaining(
+      { flockId: "f1", from: "2026-08-01", to: "2026-08-01" }));
+    expect(screen.getByLabelText("Filter by flock")).toHaveValue("f1");
+  });
+
+  it("keeps the capture form usable when the history read fails", async () => {
+    mockListUsage.mockRejectedValueOnce(new Error("boom"));
+    await renderReady(); // findByRole('Record feed') IS the form being alive
+    expect(screen.getByText("Could not load feed records.")).toBeInTheDocument();
+    expect(screen.getByLabelText(/Quantity/)).toBeEnabled();
   });
 
   it("preselects the item named by the ?item= deep link from the Inventory page", async () => {

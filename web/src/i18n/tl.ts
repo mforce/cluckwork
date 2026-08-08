@@ -438,6 +438,9 @@ export const tl = {
     // ng Tagalog at hindi nagbabago ang anyo ng pangngalan).
     daySupportFeed: "Pakain: {{count}} na tala (tantiya: {{cost}})",
     daySupportFeed_one: "Pakain: {{count}} na tala (tantiya: {{cost}})",
+    // Cost dropped when the day's rows span currencies — never a blended sum.
+    daySupportFeedNoCost: "Pakain: {{count}} na tala",
+    daySupportFeedNoCost_one: "Pakain: {{count}} na tala",
     daySupportFeedNone: "Pakain: 0 tala",
     daySupportWater: "Tubig: {{count}} na tala",
     daySupportWater_one: "Tubig: {{count}} na tala",
@@ -533,6 +536,8 @@ export const tl = {
     correctionsHint:
       "Ang maling naitalang pagpapakain ay itinutuwid sa pamamagitan ng Inventory "
       + "adjustment sa apektadong lot — hindi kailanman ine-edit ang mga tala ng pakain.",
+    filterFlockLabel: "Salain ayon sa kawan",
+    inactiveItemSuffix: " — hindi aktibo, inuubos ang natitirang stock",
     recordsHeading: "Mga tala",
     fromLabel: "Mula",
     toLabel: "Hanggang",

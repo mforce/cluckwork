@@ -419,6 +419,9 @@ export const es = {
     // #446
     daySupportFeed: "Alimento: {{count}} registros (est. {{cost}})",
     daySupportFeed_one: "Alimento: {{count}} registro (est. {{cost}})",
+    // Cost dropped when the day's rows span currencies — never a blended sum.
+    daySupportFeedNoCost: "Alimento: {{count}} registros",
+    daySupportFeedNoCost_one: "Alimento: {{count}} registro",
     daySupportFeedNone: "Alimento: 0 registros",
     daySupportWater: "Agua: {{count}} registros",
     daySupportWater_one: "Agua: {{count}} registro",
@@ -512,6 +515,8 @@ export const es = {
     correctionsHint:
       "Una alimentación mal ingresada se corrige con un ajuste de Inventario en el "
       + "lote afectado — los registros de alimento nunca se editan.",
+    filterFlockLabel: "Filtrar por parvada",
+    inactiveItemSuffix: " — inactivo, consumiendo existencias restantes",
     recordsHeading: "Registros",
     fromLabel: "Desde",
     toLabel: "Hasta",

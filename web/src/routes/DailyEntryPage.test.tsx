@@ -1086,11 +1086,24 @@ describe("DailyEntryPage feed/water day summary (#446)", () => {
 
     expect(await screen.findByText("Feed: 2 records (est. 500.00 USD)")).toBeInTheDocument();
     expect(screen.getByText("Water: 1 record")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Feed: 2 records/ })).toHaveAttribute("href", "/feed");
-    expect(screen.getByRole("link", { name: /Water: 1 record/ })).toHaveAttribute("href", "/water");
+    // Context rides along: the link lands filtered to this flock and day.
+    expect(screen.getByRole("link", { name: /Feed: 2 records/ }))
+      .toHaveAttribute("href", `/feed?flockId=f1&from=${todayIso()}&to=${todayIso()}`);
+    expect(screen.getByRole("link", { name: /Water: 1 record/ }))
+      .toHaveAttribute("href", `/water?flockId=f1&from=${todayIso()}&to=${todayIso()}`);
     // Queried by the page's own flock+date, never by the entry link.
     expect(mockListFeedUsage).toHaveBeenCalledWith(
       expect.objectContaining({ flockId: "f1", from: todayIso(), to: todayIso() }));
+  });
+
+  it("drops the cost — never a blended sum — when the day's feed rows span currencies", async () => {
+    mockListFeedUsage.mockResolvedValue([
+      feedRow(),
+      feedRow({ id: "fu2", currencyCode: "JPY", currencyMinorUnit: 0, estimatedCostMinorUnits: 700 }),
+    ]);
+    await renderReady();
+    expect(await screen.findByText("Feed: 2 records")).toBeInTheDocument();
+    expect(screen.queryByText(/est\./)).not.toBeInTheDocument();
   });
 
   it("shows the zero state with both links when nothing was recorded yet", async () => {

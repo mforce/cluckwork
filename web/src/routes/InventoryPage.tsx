@@ -17,6 +17,7 @@ import { StatusBadge } from "../components/StatusBadge";
 import { usePendingAction } from "../components/usePendingAction";
 import { newId } from "../lib/ids";
 import { useFarmToday } from "../farm/useFarm";
+import { FEEDABLE_CATEGORIES } from "./FeedPage";
 import i18n from "../i18n";
 import { inventoryCategoryLabel, inventoryMovementLabel, statusLabel } from "../i18n/enums";
 
@@ -26,8 +27,7 @@ const CATEGORIES = [
   "Packaging", "Bedding", "Sanitation", "EquipmentPart", "Other",
 ];
 
-// Only these can be recorded as flock feed usage (mirrors the API gate).
-const FEEDABLE_CATEGORIES = ["Feed", "Supplement", "Additive"];
+
 
 function errText(err: unknown): string {
   if (err instanceof ApiError) return err.message;

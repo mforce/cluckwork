@@ -462,6 +462,9 @@ export const en = {
     // #446 — the day-support strip; count routes through i18next plurals.
     daySupportFeed: "Feed: {{count}} records (est. {{cost}})",
     daySupportFeed_one: "Feed: {{count}} record (est. {{cost}})",
+    // Cost dropped when the day's rows span currencies — never a blended sum.
+    daySupportFeedNoCost: "Feed: {{count}} records",
+    daySupportFeedNoCost_one: "Feed: {{count}} record",
     daySupportFeedNone: "Feed: 0 records",
     daySupportWater: "Water: {{count}} records",
     daySupportWater_one: "Water: {{count}} record",
@@ -588,6 +591,8 @@ export const en = {
       + "affected lot — feed records themselves are never edited.",
 
     // Records list — filters
+    filterFlockLabel: "Filter by flock",
+    inactiveItemSuffix: " — inactive, feeding out remaining stock",
     recordsHeading: "Records",
     fromLabel: "From",
     toLabel: "To",

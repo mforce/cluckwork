@@ -15,10 +15,10 @@ import i18n from "../i18n";
 
 const PAGE = 50;
 
-// Client-side mirror of RecordFeedUsageHandler.FeedableCategories — the same
-// list InventoryPage used to gate its (now removed) usage dialog. The server
+// Client-side mirror of RecordFeedUsageHandler.FeedableCategories — one copy
+// for the SPA (InventoryPage imports it for its panel link). The server
 // re-checks; this only keeps un-feedable items out of the picker.
-const FEEDABLE_CATEGORIES = ["Feed", "Supplement", "Additive"];
+export const FEEDABLE_CATEGORIES = ["Feed", "Supplement", "Additive"];
 
 function errText(err: unknown): string {
   if (err instanceof ApiError) return err.message;
@@ -54,10 +54,14 @@ export function FeedPage() {
   const [quantity, setQuantity] = useState("");
   const [note, setNote] = useState("");
 
-  // list filters
-  const [flockFilter, setFlockFilter] = useState("");
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
+  // list filters — initialized from the URL so the Daily Entry strip's
+  // "Feed: N records" link lands on exactly the day it was describing.
+  const [flockFilter, setFlockFilter] = useState(() => searchParams.get("flockId") ?? "");
+  const [from, setFrom] = useState(() => searchParams.get("from") ?? "");
+  const [to, setTo] = useState(() => searchParams.get("to") ?? "");
+  // records-list failures degrade the LIST only — the capture form must stay
+  // usable through a transient history read failure (quality review of #446).
+  const [listError, setListError] = useState<string | null>(null);
 
   // Stable idempotency keys per logical mutation, rotated only after the full
   // action (write + refresh) succeeds — same contract as the other screens.
@@ -95,7 +99,8 @@ export function FeedPage() {
           ?? allFlocks.find((f) => f.status === "Depleted");
         if (firstActive) setFlockId(firstActive.id);
         const feedable = allItems.filter(
-          (x) => x.active && FEEDABLE_CATEGORIES.includes(x.category));
+          (x) => FEEDABLE_CATEGORIES.includes(x.category)
+            && (x.active || x.quantityOnHand > 0));
         // ?item= deep link (from the Inventory page's per-item hint) wins
         // when it names a feedable item; otherwise the first feedable one.
         const linked = feedable.find((x) => x.id === searchParams.get("item"));
@@ -109,14 +114,26 @@ export function FeedPage() {
   }, []);
 
   useEffect(() => {
-    load().catch(() => setError(i18n.t("feed:loadRecordsFailed")));
+    setListError(null);
+    load().catch(() => {
+      // Degrade the list, keep the form: an empty list with its own error
+      // beats a dead page.
+      setListError(i18n.t("feed:loadRecordsFailed"));
+      setRows((prev) => prev ?? []);
+    });
   }, [load]);
 
   const flockName = (id: string) => flocks.find((f) => f.id === id)?.name ?? id.slice(0, 8);
   const itemName = (id: string) => items.find((x) => x.id === id)?.name ?? id.slice(0, 8);
   const pickableFlocks = flocks.filter((f) => f.status !== "Archived");
+  // Deactivation only stops NEW stock from arriving — an inactive item's
+  // remaining feed still gets eaten out, exactly as the server allows, so it
+  // stays pickable while stock remains (quality review of #446: the old
+  // Inventory dialog allowed this and the deep link must not silently swap
+  // to a different item).
   const pickableItems = items.filter(
-    (x) => x.active && FEEDABLE_CATEGORIES.includes(x.category));
+    (x) => FEEDABLE_CATEGORIES.includes(x.category)
+      && (x.active || x.quantityOnHand > 0));
   const selectedItem = items.find((x) => x.id === itemId);
 
   async function onSubmit(e: FormEvent) {
@@ -137,7 +154,13 @@ export function FeedPage() {
           { flockId, date, quantity: parsed, note: note.trim() || undefined },
           keyFor(scope));
         setMessage(i18n.t("feed:recordedMessage"));
-        await load();
+        // The picker's "(N kg on hand)" is the user's pre-submit sanity
+        // check — refresh it alongside the list or it lies after one feeding.
+        const [refreshedItems] = await Promise.all([
+          listInventoryItems({ includeInactive: true }),
+          load(),
+        ]);
+        setItems(refreshedItems);
         clearKey(scope);
         setQuantity("");
         setNote("");
@@ -170,6 +193,7 @@ export function FeedPage() {
             {pickableItems.map((x) => (
               <option key={x.id} value={x.id}>
                 {t("itemOption", { name: x.name, onHand: x.quantityOnHand, unit: x.unit })}
+                {x.active ? "" : t("inactiveItemSuffix")}
               </option>
             ))}
           </select>
@@ -201,8 +225,9 @@ export function FeedPage() {
       {message && <p className="success">{message}</p>}
 
       <h3>{t("recordsHeading")}</h3>
+      {listError && <p className="error">{listError}</p>}
       <div className="form-grid">
-        <label>{t("flockLabel")}
+        <label>{t("filterFlockLabel")}
           <select value={flockFilter} onChange={(e) => setFlockFilter(e.target.value)}>
             <option value="">{tc("all")}</option>
             {flocks.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
@@ -238,8 +263,11 @@ export function FeedPage() {
             </tbody>
           </table>
           {hasMore && (
+            // Routed through the pending guard: two rapid clicks must not
+            // append the same page twice (quality review of #446).
             <button className="link" disabled={busy}
-              onClick={() => void load(rows.length).catch(() => setError(i18n.t("feed:loadMoreFailed")))}>
+              onClick={() => void run("more", () =>
+                load(rows.length).catch(() => setError(i18n.t("feed:loadMoreFailed"))))}>
               {t("loadMoreButton")}
             </button>
           )}
