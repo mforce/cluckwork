@@ -289,6 +289,24 @@ public sealed class SchemaDocsTests
                         AddHit($"{textLines[i].Trim()} (escaped mapping key — not reviewable as text)");
                         continue;
                     }
+                    // A flow SEQUENCE in value position may carry inline
+                    // mappings (a merge key's bracketed list, e.g.) or defer
+                    // past its line; either hides keys from line rules.
+                    // Refused when the sequence contains a MAPPING brace or
+                    // never closes on its line. An interpolation brace
+                    // (dollar-prefixed) is not a mapping opener — compose
+                    // healthcheck arrays legitimately interpolate env vars
+                    // inside their strings, which the first version of this
+                    // rule flagged as a baseline false positive. The key
+                    // charset includes < for merge keys.
+                    var seq = Regex.Match(textLines[i],
+                        @"^[ \t]*(?:-[ \t]+)*[A-Za-z0-9_.""'<-]+[ \t]*:[ \t]*(?:[&!][^\s\[]+[ \t]+)*\[(?<rest>[^\r\n]*)");
+                    if (seq.Success && (Regex.IsMatch(seq.Groups["rest"].Value, @"(?<!\$)\{")
+                        || !seq.Groups["rest"].Value.Contains(']')))
+                    {
+                        AddHit($"{textLines[i].Trim()} (flow sequence carrying mappings or deferring past the line — not reviewable)");
+                        continue;
+                    }
                     if (flowMappingPattern.IsMatch(textLines[i]))
                     {
                         AddHit($"{textLines[i].Trim()} (flow-style mapping — use block mappings; only the empty {{}} idiom is allowed)");
