@@ -84,6 +84,12 @@ public sealed class SchemaDocsTests
         // (Written to avoid containing a matching literal itself — this file
         // is inside its own sweep.)
         var candidatePattern = new Regex(@"postgres:(?!//)[A-Za-z0-9][A-Za-z0-9._-]*(?:@sha256:[0-9a-f]{64})?");
+        // A reference with NO tag at all (compose `image: postgres`,
+        // Dockerfile `FROM postgres`) is valid and floats to latest — it has
+        // no colon for the pattern above to see, so it needs its own
+        // detector, scoped to the two syntaxes where a bare name is a live
+        // image reference rather than prose.
+        var untaggedPattern = new Regex(@"(?im)^\s*(?:image:\s*|FROM\s+)[""']?postgres[""']?(?=\s|$)");
         var hits = new Dictionary<string, List<string>>();
 
         foreach (var relative in TrackedFiles())
@@ -99,6 +105,12 @@ public sealed class SchemaDocsTests
             {
                 if (!hits.TryGetValue(m.Value, out var files))
                     hits[m.Value] = files = [];
+                files.Add(relative);
+            }
+            foreach (Match m in untaggedPattern.Matches(text))
+            {
+                if (!hits.TryGetValue("postgres (untagged — floats to latest)", out var files))
+                    hits["postgres (untagged — floats to latest)"] = files = [];
                 files.Add(relative);
             }
         }
@@ -204,29 +216,39 @@ public sealed class SchemaDocsTests
         // section: every page also contains header rows like "| Name | Type |",
         // so a page-wide cell search would accept an omitted column that
         // happens to be named like a header (Customers.Name). Only the data
-        // rows of the Columns table count.
-        foreach (var row in await QueryPairsAsync(conn,
-            """
-            SELECT table_name, column_name FROM information_schema.columns
-            WHERE table_schema = 'public'
-            ORDER BY table_name, ordinal_position
-            """))
+        // rows of the Columns table count — and the row's METADATA cells are
+        // held to the catalog too: default and nullability are exact (tbls
+        // prints pg_get_expr / true|false verbatim), the type cell must at
+        // least be non-empty (tbls normalizes type names — e.g. varchar(16)
+        // for character varying — and mirroring that normalizer here would be
+        // a parity chase; the byte-diff pins the exact text instead).
+        foreach (var col in await QueryColumnsAsync(conn))
         {
-            var lines = LinesOf(row.Name);
+            var lines = LinesOf(col.Table);
             if (lines.Length == 0) continue; // missing page already reported
             var inColumns = false;
-            var dataRows = new List<string>();
+            var dataRows = new List<string[]>();
             foreach (var line in lines)
             {
                 if (line.StartsWith("## ", StringComparison.Ordinal))
                     inColumns = line.StartsWith("## Columns", StringComparison.Ordinal);
                 else if (inColumns && line.StartsWith("| ", StringComparison.Ordinal))
-                    dataRows.Add(line);
+                    dataRows.Add(line.Split('|').Select(c => c.Trim()).ToArray());
             }
-            // First two pipe rows are the header and its separator.
-            var cells = dataRows.Skip(2).Select(l => l.Split('|')[1].Trim()).ToHashSet(StringComparer.Ordinal);
-            if (!cells.Contains(row.Def))
-                missing.AppendLine($"column absent from the Columns section of public.{row.Name}.md: {row.Def}");
+            // First two pipe rows are the header and its separator; cell 0 is
+            // the empty prefix before the leading pipe.
+            var row = dataRows.Skip(2).FirstOrDefault(cells => cells.Length > 4 && cells[1] == col.Column);
+            if (row is null)
+            {
+                missing.AppendLine($"column absent from the Columns section of public.{col.Table}.md: {col.Column}");
+                continue;
+            }
+            if (row[2].Length == 0)
+                missing.AppendLine($"column type cell empty in public.{col.Table}.md: {col.Column}");
+            if (row[3] != col.Default)
+                missing.AppendLine($"column default mismatch in public.{col.Table}.md: {col.Column} — docs \"{row[3]}\", catalog \"{col.Default}\"");
+            if (row[4] != col.Nullable)
+                missing.AppendLine($"column nullability mismatch in public.{col.Table}.md: {col.Column} — docs \"{row[4]}\", catalog \"{col.Nullable}\"");
         }
 
         foreach (var row in await QueryTriplesAsync(conn,
@@ -239,17 +261,19 @@ public sealed class SchemaDocsTests
             RequireRow(row.Table, row.Name, row.Def, "index");
         }
 
-        // Every constraint kind: PK ('p'), unique ('u'), FK ('f' —
-        // pg_get_constraintdef carries the ON DELETE action the issue
-        // requires documented), check ('c'), and Postgres 18's named NOT
-        // NULL constraints ('n'), which tbls documents as constraint rows.
+        // EVERY table-backed constraint row, no contype allow-list: a
+        // hand-kept type list is the exact shape #407 warns about — an
+        // exclusion constraint (or any future kind) added by a migration
+        // must fail this test if tbls stops documenting it, not slide
+        // through a filter written before it existed. The pg_class join
+        // already restricts the sweep to constraints owned by public tables.
         foreach (var row in await QueryTriplesAsync(conn,
             """
             SELECT rel.relname, con.conname, pg_get_constraintdef(con.oid)
             FROM pg_constraint con
             JOIN pg_class rel ON rel.oid = con.conrelid
             JOIN pg_namespace ns ON ns.oid = rel.relnamespace
-            WHERE ns.nspname = 'public' AND con.contype IN ('p', 'u', 'f', 'c', 'n')
+            WHERE ns.nspname = 'public'
             ORDER BY con.conname
             """))
         {
@@ -280,6 +304,27 @@ public sealed class SchemaDocsTests
         cmd.CommandText = sql;
         await using var reader = await cmd.ExecuteReaderAsync();
         while (await reader.ReadAsync()) results.Add((reader.GetString(0), reader.GetString(1)));
+        return results;
+    }
+
+    private static async Task<List<(string Table, string Column, string Default, string Nullable)>>
+        QueryColumnsAsync(System.Data.Common.DbConnection conn)
+    {
+        var results = new List<(string, string, string, string)>();
+        await using var cmd = conn.CreateCommand();
+        // column_default and is_nullable are rendered by tbls verbatim
+        // (pg_get_expr text; "true"/"false") — comparable exactly.
+        cmd.CommandText =
+            """
+            SELECT table_name, column_name, COALESCE(column_default, ''),
+                   CASE WHEN is_nullable = 'YES' THEN 'true' ELSE 'false' END
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+            ORDER BY table_name, ordinal_position
+            """;
+        await using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+            results.Add((reader.GetString(0), reader.GetString(1), reader.GetString(2), reader.GetString(3)));
         return results;
     }
 
