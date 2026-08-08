@@ -2427,6 +2427,13 @@ export const en = {
       + "Animated images are refused rather than flattened. What gets stored is a rebuilt copy: camera and "
       + "location details are stripped out on the way in — a photo taken on a phone carries where it was "
       + "taken, and for a farm that is its address. Remove it and the sidebar goes back to the Cluckwork mark.",
+    // #452 — the preset dropdown + Custom escape hatch for date/time format
+    // overrides, replacing what used to be a bare free-text field.
+    farmSettingsDateTimeFormat:
+      "<strong>Date format</strong> and <strong>time format</strong> offer a few common choices in a "
+      + "dropdown — pick one and you are done. Need something not listed? Choose "
+      + "<strong>Custom…</strong> to type your own; the same rules the presets follow still apply "
+      + "(the server checks it either way), so an unusable value is refused rather than saved.",
     farmSettingsSquareLogo:
       "Use a <strong>square</strong> logo. It shows small in the sidebar, so a simple, tightly-cropped mark "
       + "— a symbol or a single letter — reads much better there than a wide wordmark or a detailed picture, "
@@ -2740,8 +2747,9 @@ export const en = {
     glossaryFarmSettingsTerm: "Farm settings",
     glossaryFarmSettingsDef:
       "The farm's name, timezone, locale, currency and unit system, plus optional first day of week and "
-      + "date/time formats. Setup → Farm settings; owners and managers edit, everyone reads — formatting "
-      + "money and dates is not a permission.",
+      + "date/time formats — picked from a preset dropdown, or typed as a custom .NET format string. "
+      + "Setup → Farm settings; owners and managers edit, everyone reads — formatting money and dates is "
+      + "not a permission.",
 
     glossaryCurrencyLockTerm: "Currency lock",
     glossaryCurrencyLockDef:

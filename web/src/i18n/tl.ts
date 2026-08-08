@@ -2122,6 +2122,12 @@ export const tl = {
       + "ginawang kopya ang na-save: tinatanggal ang mga detalye ng camera at lokasyon papasok — ang isang "
       + "larawang kinunan sa telepono ay may kasamang kung saan ito kinuha, at para sa isang bukid, iyon "
       + "ang address nito. Alisin ito at babalik ang sidebar sa Cluckwork mark.",
+    farmSettingsDateTimeFormat:
+      "Nag-aalok ang <strong>format ng petsa</strong> at <strong>format ng oras</strong> ng ilang karaniwang "
+      + "pagpipilian sa isang dropdown — pumili at tapos na. Kailangan ng hindi nakalista? Piliin ang "
+      + "<strong>Custom…</strong> para mag-type ng sarili mo; sinusunod pa rin ang parehong mga panuntunan "
+      + "na sinusunod ng mga preset (sinusuri pa rin ito ng server), kaya tinatanggihan ang hindi magagamit "
+      + "na value sa halip na i-save.",
     farmSettingsSquareLogo:
       "Gumamit ng <strong>parisukat</strong> na logo. Maliit itong lumalabas sa sidebar, kaya isang simple "
       + "at maigsing-crop na marka — isang simbolo o iisang letra — ang mas magandang tingnan doon kaysa "
@@ -2464,7 +2470,8 @@ export const tl = {
     glossaryFarmSettingsTerm: "Mga Setting ng Bukid",
     glossaryFarmSettingsDef:
       "Ang pangalan ng bukid, time zone, locale, currency, at unit system, kasama ang opsyonal na unang "
-      + "araw ng linggo at mga format ng petsa/oras. Setup → Mga Setting ng Bukid; nag-e-edit ang mga "
+      + "araw ng linggo at mga format ng petsa/oras — pinipili mula sa dropdown ng mga preset, o "
+      + "ini-type bilang custom na .NET format string. Setup → Mga Setting ng Bukid; nag-e-edit ang mga "
       + "may-ari at manager, nakakabasa ang lahat — hindi permission ang pag-format ng pera at petsa.",
 
     glossaryCurrencyLockTerm: "Currency lock",
