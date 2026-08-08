@@ -28,6 +28,13 @@ using Testcontainers.PostgreSql;
 //      expression index added by a future migration is in scope automatically.
 public sealed class SchemaDocsTests
 {
+    // Composed wherever this file needs the bare word as a VALUE without
+    // carrying it as a literal: this file sits inside its own literal sweep,
+    // and identifier composition is the documented opaque-indirection
+    // boundary the sweep deliberately does not evaluate.
+    private const string PgWord = "post";
+    private const string GresWord = "gres";
+
     private const string PostgresImage =
         "postgres:18.4-trixie@sha256:3a82e1f56c8f0f5616a11103ac3d47e632c3938698946a7ad26da0df1334744a";
 
@@ -198,22 +205,27 @@ public sealed class SchemaDocsTests
             @"^(?:[a-z0-9.-]+(?::\d+)?/)*postgres(?::[^@\s""]+)?(?:@sha256:[0-9a-f]{64})?$");
         // The bare word 'postgres' is ALSO a legitimate scheme name, database
         // name, and username. Each entry here is a reviewed non-image use of
-        // a postgres-shaped literal; adding one is a deliberate act with a
-        // diff a reviewer sees. Keyed by repo-relative path + exact evaluated
-        // value.
-        // Values are built by concatenation so this file carries no
-        // postgres-shaped literal of its own (it is inside its own sweep,
-        // and allow-listing this file would open a hole in the guard).
-        var barePostgresLiteralAllowList = new Dictionary<string, string[]>
+        // a postgres-shaped literal, pinned to an EXACT occurrence count —
+        // an allowance for one reviewed occurrence must not silently extend
+        // to a second one added later, and a stale entry (count drops) must
+        // fail too. Keyed by repo-relative path + exact evaluated value.
+        // Values are composed from the class consts (identifier composition,
+        // which the chain-folding scan deliberately does not evaluate — the
+        // documented opaque-indirection boundary) so this file carries
+        // neither a postgres-shaped literal nor a foldable literal chain of
+        // its own: it is inside its own sweep, and allow-listing it would
+        // open a hole in the guard.
+        var barePostgresLiteralAllowList = new Dictionary<string, (string Value, int Count)[]>
         {
             // URI scheme names accepted by the connection-string normalizer —
             // a scheme, not an image reference.
-            ["src/Cluckwork.Infrastructure/Providers/Postgres/PostgresConnectionString.cs"] = ["post" + "gres"],
+            ["src/Cluckwork.Infrastructure/Providers/Postgres/PostgresConnectionString.cs"] = [(PgWord + GresWord, 1)],
             // #318 test asserting the retired predictable-credentials fallback
             // is NAMED in the failure message — error-text fixture, not an
             // image reference.
-            ["tests/Cluckwork.Api.IntegrationTests/AppDbContextDesignTimeFactoryTests.cs"] = ["post" + "gres/post" + "gres"],
+            ["tests/Cluckwork.Api.IntegrationTests/AppDbContextDesignTimeFactoryTests.cs"] = [(PgWord + GresWord + "/" + PgWord + GresWord, 1)],
         };
+        var allowSeen = new Dictionary<(string File, string Value), int>();
         // BuildKit RUN mounts pull an external image when from= names no
         // build stage or context — a fourth bare-reference syntax.
         // NOT anchored to RUN: a continued instruction puts later mount
@@ -248,12 +260,13 @@ public sealed class SchemaDocsTests
         // by definition not a reviewable pin, and invisible to all three
         // detectors above (the candidate pattern requires an alphanumeric
         // after the colon). Comment deliberately avoids spelling the literal
-        // — this file is inside its own sweep. The pattern source is built by
-        // concatenation for the same reason: the context-free literal scan
-        // below reads every string literal in this file too, and a source
-        // text that IS postgres-shaped would self-match ("postgres:" alone is
-        // not image-shaped — the optional tag group needs a character).
-        var interpolatedPattern = new Regex("postgres:" + @"\$\{?[A-Za-z_][A-Za-z0-9_:-]*\}?");
+        // — this file is inside its own sweep. The pattern source is composed
+        // from the class consts for the same reason: the context-free scan
+        // below reads every literal AND folds literal + literal chains in
+        // this file too, and a folded source text that IS postgres-shaped
+        // would self-match. (The remaining literal sub-chain folds to a
+        // colon-led fragment, which is not image-shaped.)
+        var interpolatedPattern = new Regex(PgWord + GresWord + ":" + @"\$\{?[A-Za-z_][A-Za-z0-9_:-]*\}?");
         // ALLOW-LIST, not marker enumeration: rounds 10-16 of review each
         // produced one more YAML syntax that defers or indirects an image
         // value (block scalars, comments, anchors, explicit tags...). The
@@ -403,34 +416,67 @@ public sealed class SchemaDocsTests
                         hits["escape-bearing C# string literal in an image-consuming expression — the evaluated value is not textually reviewable; write the reference unescaped"] = files = [];
                     files.Add(relative);
                 }
+                // Every literal in the file becomes a positioned token, then
+                // CONSECUTIVE tokens separated only by `+` fold into one
+                // compile-time value — two adjacent word-fragment literals
+                // joined by plus ARE the bare image name at runtime and must
+                // be judged as the folded whole, not as innocuous fragments.
+                // (Comment deliberately avoids spelling such a chain — the
+                // scan is comment-blind and this file is inside its own
+                // sweep.) Identifier composition (a const ref in the chain)
+                // breaks the fold: a regex scan cannot resolve names, so
+                // that stays the documented opaque-indirection boundary.
+                var tokens = new List<(int Start, int End, string Value, bool HadEscape)>();
                 foreach (Match m in csharpAnyOrdinaryLiteralPattern.Matches(text))
                 {
                     var escapesApply = !m.Groups["pfx"].Value.Contains('@') && m.Groups["q"].Value.Length == 1;
                     var body = m.Groups["body"].Value;
                     var value = escapesApply ? DecodeCSharpEscapes(body) : body;
-                    if (!decodedImageShapePattern.IsMatch(value)) continue;
-                    if (value == PostgresImage) continue;
+                    tokens.Add((m.Index, m.Index + m.Length, value, escapesApply && body.Contains('\\')));
+                }
+                foreach (Match m in csharpRawMultilinePattern.Matches(text))
+                {
+                    // Single-line raw literals are already captured above
+                    // (the backreferenced quote-run pattern handles any
+                    // delimiter length); only multiline bodies are new.
+                    if (tokens.Any(t => t.Start <= m.Index && m.Index < t.End)) continue;
+                    tokens.Add((m.Index, m.Index + m.Length, m.Groups["body"].Value.Trim(), false));
+                }
+                tokens.Sort((a, b) => a.Start.CompareTo(b.Start));
+                var plusGap = new Regex(@"^\s*\+\s*$");
+                for (var i = 0; i < tokens.Count;)
+                {
+                    var j = i;
+                    while (j + 1 < tokens.Count && plusGap.IsMatch(text[tokens[j].End..tokens[j + 1].Start]))
+                        j++;
+                    var folded = string.Concat(tokens.Skip(i).Take(j - i + 1).Select(t => t.Value));
+                    var isChain = j > i;
+                    var hadEscape = tokens.Skip(i).Take(j - i + 1).Any(t => t.HadEscape);
+                    i = j + 1;
+                    if (!decodedImageShapePattern.IsMatch(folded)) continue;
+                    if (!isChain && folded == PostgresImage) continue;
                     string msg;
-                    if (escapesApply && body.Contains('\\'))
+                    if (isChain)
+                    {
+                        // A chain folding to the CANONICAL pin is refused
+                        // too: the pin must be one contiguous reviewable
+                        // string everywhere.
+                        msg = $"\"{folded}\" (composed C# literal chain evaluating to a postgres-shaped value — write the reference as one contiguous literal)";
+                    }
+                    else if (hadEscape)
                     {
                         msg = "escape-disguised postgres reference (an ordinary C# literal whose DECODED value is image-shaped) — write the reference unescaped";
                     }
                     else
                     {
-                        if (barePostgresLiteralAllowList.TryGetValue(relative, out var allowed) && allowed.Contains(value)) continue;
-                        msg = $"\"{value}\" (postgres-shaped C# literal outside the canonical pin — pin it, or add a reviewed allow-list entry if it is not an image reference)";
+                        if (barePostgresLiteralAllowList.TryGetValue(relative, out var allowed)
+                            && allowed.Any(a => a.Value == folded))
+                        {
+                            allowSeen[(relative, folded)] = allowSeen.GetValueOrDefault((relative, folded)) + 1;
+                            continue;
+                        }
+                        msg = $"\"{folded}\" (postgres-shaped C# literal outside the canonical pin — pin it, or add a reviewed allow-list entry if it is not an image reference)";
                     }
-                    if (!hits.TryGetValue(msg, out var files))
-                        hits[msg] = files = [];
-                    files.Add(relative);
-                }
-                foreach (Match m in csharpRawMultilinePattern.Matches(text))
-                {
-                    var value = m.Groups["body"].Value.Trim();
-                    if (!decodedImageShapePattern.IsMatch(value)) continue;
-                    if (value == PostgresImage) continue;
-                    if (barePostgresLiteralAllowList.TryGetValue(relative, out var allowed) && allowed.Contains(value)) continue;
-                    var msg = $"\"{value}\" (postgres-shaped C# raw literal outside the canonical pin — pin it, or add a reviewed allow-list entry if it is not an image reference)";
                     if (!hits.TryGetValue(msg, out var files))
                         hits[msg] = files = [];
                     files.Add(relative);
@@ -601,6 +647,22 @@ public sealed class SchemaDocsTests
                 {
                     AddHit($"{textLines[i].Trim()} (image value is not a plain same-line literal — not a reviewable pin)");
                 }
+            }
+        }
+
+        // Each allow-list entry must match its reviewed occurrence count
+        // EXACTLY — one more means an unreviewed occurrence is hiding behind
+        // an existing allowance; one fewer means the entry is stale.
+        foreach (var (file, entries) in barePostgresLiteralAllowList)
+        {
+            foreach (var (value, expected) in entries)
+            {
+                var seen = allowSeen.GetValueOrDefault((file, value));
+                if (seen == expected) continue;
+                var msg = $"allow-list count drift for \"{value}\" in {file}: expected {expected}, found {seen} — a new occurrence needs its own review; a vanished one means the entry is stale";
+                if (!hits.TryGetValue(msg, out var files))
+                    hits[msg] = files = [];
+                files.Add(file);
             }
         }
 
