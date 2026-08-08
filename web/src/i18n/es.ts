@@ -1578,7 +1578,8 @@ export const es = {
     tocGrades: "Grados de huevo",
     tocProducts: "Productos",
     tocStock: "Existencias",
-    tocInventory: "Alimento e inventario",
+    tocInventory: "Suministros e inventario",
+    tocFeed: "Alimento",
     tocWater: "Agua",
     tocSales: "Clientes y ventas",
     tocReports: "Informes",
@@ -1861,9 +1862,8 @@ export const es = {
       + "deben seguir significando lo que significaban.",
     inventoryPurchaseUsage:
       "<strong>Registrar compra</strong> asienta las existencias recibidas como un lote fechado con su "
-      + "costo. <strong>Registrar uso</strong> anota lo que comió un lote en un día: toma de los lotes más "
-      + "antiguos primero (solo lotes que existían en esa fecha) y estima el costo a partir de los lotes "
-      + "realmente consumidos.",
+      + "costo. La alimentación de una parvada se registra en la <strong>página de Alimento</strong> — el "
+      + "panel de un artículo alimentable enlaza directamente allí con el artículo preseleccionado.",
     inventoryLedger:
       "Cada cambio queda registrado en el <strong>libro mayor de movimientos</strong> del artículo — "
       + "compras, uso, correcciones. Las filas del libro mayor nunca se editan ni se eliminan.",
@@ -1875,6 +1875,22 @@ export const es = {
       "Registrar compras y uso está abierto para todos; el catálogo de artículos y las correcciones de "
       + "existencias son solo para administradores.",
 
+    feedHeading: "Alimento",
+    feedRecording:
+      "<strong>Registrar alimento</strong> anota lo que comió una parvada en un día: elija la parvada, el "
+      + "artículo (las existencias actuales se ven en el propio selector), la cantidad y la fecha. Las "
+      + "existencias se descuentan de las compras más antiguas primero — solo lotes que existían en esa "
+      + "fecha — y el costo estimado proviene de los lotes realmente consumidos. El historial de la página "
+      + "lista cada alimentación con su costo estimado.",
+    feedCorrecting:
+      "Los registros de alimento <strong>nunca se editan</strong>: las existencias que consumieron ya están "
+      + "en el libro mayor, así que un error se corrige con un <strong>ajuste</strong> de Inventario en el "
+      + "lote afectado (con motivo), que queda visible junto al original.",
+    feedDailyEntry:
+      "La página de <strong>Entrada diaria</strong> muestra de un vistazo el alimento y el agua del día de "
+      + "la parvada seleccionada, con enlace aquí. Un registro de alimento o agua hecho cuando ya existe la "
+      + "entrada de ese día también recuerda esa entrada — los hechos antes quedan sin enlazar a propósito; "
+      + "el día en sí es lo que los une.",
     waterHeading: "Agua",
     waterRecording:
       "Registre lo que bebió cada lote por día: una cantidad directa (litros o galones) o <strong>lecturas "

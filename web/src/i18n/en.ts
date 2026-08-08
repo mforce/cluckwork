@@ -1968,7 +1968,8 @@ export const en = {
     tocGrades: "Egg grades",
     tocProducts: "Products",
     tocStock: "Stock",
-    tocInventory: "Feed & inventory",
+    tocInventory: "Supplies & inventory",
+    tocFeed: "Feed",
     tocWater: "Water",
     tocSales: "Customers & sales",
     tocReports: "Reports",
@@ -2237,9 +2238,9 @@ export const en = {
       "<strong>Items</strong> define what you track (feed, supplements…) and the unit it's measured in. The "
       + "unit locks once stock has been received — quantities on record must keep meaning what they meant.",
     inventoryPurchaseUsage:
-      "<strong>Record purchase</strong> books received stock as a dated lot with its cost. <strong>Record "
-      + "usage</strong> logs what a flock ate on a day: it draws from the oldest lots first (only lots that "
-      + "existed on that date) and estimates the cost from the actual lots consumed.",
+      "<strong>Record purchase</strong> books received stock as a dated lot with its cost. Feeding a flock "
+      + "is recorded on the <strong>Feed page</strong> — a feedable item's panel links straight there with "
+      + "the item preselected.",
     inventoryLedger:
       "Every change lands in the item's <strong>movement ledger</strong> — purchases, usage, corrections. "
       + "Ledger rows are never edited or deleted.",
@@ -2250,6 +2251,23 @@ export const en = {
     inventoryPermissions:
       "Recording purchases and usage is open to everyone; the item catalog and stock corrections are "
       + "admin-only.",
+
+    // Feed (#446 — its own page, out of the Inventory drill-down)
+    feedHeading: "Feed",
+    feedRecording:
+      "<strong>Record feed</strong> logs what a flock ate on a day: pick the flock, the item (current "
+      + "stock shows right in the picker), the amount, and the date. Stock drains from the oldest "
+      + "purchases first — only lots that existed on that date — and the cost estimate comes from the "
+      + "actual lots consumed. The page's history lists every feeding with its estimated cost.",
+    feedCorrecting:
+      "Feed records are <strong>never edited</strong>: the stock they drew is already in the ledger, so a "
+      + "mis-entry is fixed with an Inventory <strong>adjustment</strong> on the affected lot (reason "
+      + "required), which stays visible beside the original.",
+    feedDailyEntry:
+      "The <strong>Daily Entry</strong> page shows the selected flock and day's feed and water at a "
+      + "glance, linking here. A feed or water record made while that day's entry already exists also "
+      + "remembers that entry — records made before it stay unlinked on purpose; the day itself is what "
+      + "ties them together.",
 
     // Water
     waterHeading: "Water",

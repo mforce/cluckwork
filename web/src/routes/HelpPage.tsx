@@ -27,6 +27,7 @@ const TOC = [
   ["products", "tocProducts"],
   ["stock", "tocStock"],
   ["inventory", "tocInventory"],
+  ["feed", "tocFeed"],
   ["water", "tocWater"],
   ["sales", "tocSales"],
   ["reports", "tocReports"],
@@ -288,6 +289,19 @@ export function HelpPage() {
           <Trans ns="help" i18nKey="inventoryCorrections" components={{ strong: <strong />, em: <em /> }} />
         </li>
         <li>{t("inventoryPermissions")}</li>
+      </ul>
+
+      <h3 id="feed">{t("feedHeading")}</h3>
+      <ul>
+        <li>
+          <Trans ns="help" i18nKey="feedRecording" components={{ strong: <strong /> }} />
+        </li>
+        <li>
+          <Trans ns="help" i18nKey="feedCorrecting" components={{ strong: <strong /> }} />
+        </li>
+        <li>
+          <Trans ns="help" i18nKey="feedDailyEntry" components={{ strong: <strong /> }} />
+        </li>
       </ul>
 
       <h3 id="water">{t("waterHeading")}</h3>

@@ -1644,7 +1644,8 @@ export const tl = {
     tocGrades: "Mga Grado ng Itlog",
     tocProducts: "Mga Produkto",
     tocStock: "Stock",
-    tocInventory: "Feed at Imbentaryo",
+    tocInventory: "Mga suplay at imbentaryo",
+    tocFeed: "Pakain",
     tocWater: "Tubig",
     tocSales: "Mga Customer at Benta",
     tocReports: "Mga Report",
@@ -1937,9 +1938,9 @@ export const tl = {
       + "sabihin ng mga nakatalang dami ang dating ibig sabihin nito.",
     inventoryPurchaseUsage:
       "Ang <strong>Itala ang pagbili</strong> ay nagtatala ng natanggap na stock bilang isang may petsang "
-      + "lote na may kasamang gastos. Ang <strong>Itala ang paggamit</strong> ay nagtatala kung ano ang "
-      + "kinain ng isang kawan sa isang araw: kumukuha ito mula sa mga pinakalumang lote muna (mga lote "
-      + "lang na umiiral noong petsang iyon) at tinatantya ang gastos mula sa mga aktwal na lote na nagamit.",
+      + "lote na may kasamang gastos. Ang pagpapakain sa kawan ay itinatala sa <strong>pahina ng "
+      + "Pakain</strong> — ang panel ng isang item na maipapakain ay direktang naka-link doon nang "
+      + "paunang napili ang item.",
     inventoryLedger:
       "Napupunta ang bawat pagbabago sa <strong>talaan ng galaw</strong> ng item — pagbili, paggamit, "
       + "pagtatama. Hindi kailanman ine-edit o binubura ang mga row ng talaan.",
@@ -1951,6 +1952,22 @@ export const tl = {
       "Bukas sa lahat ang pagtatala ng pagbili at paggamit; ang katalogo ng item at mga pagtatama ng "
       + "stock ay para sa admin lang.",
 
+    feedHeading: "Pakain",
+    feedRecording:
+      "Ang <strong>Itala ang pakain</strong> ay nagtatala kung ano ang kinain ng kawan sa isang araw: "
+      + "piliin ang kawan, ang item (makikita ang kasalukuyang stock sa mismong picker), ang dami, at ang "
+      + "petsa. Ang stock ay kinukuha muna mula sa pinakalumang mga binili — mga lote lang na umiiral "
+      + "noong petsang iyon — at ang tantiyang gastos ay mula sa mga aktwal na lote na nagamit. Nakalista "
+      + "sa history ng pahina ang bawat pagpapakain kasama ang tantiyang gastos nito.",
+    feedCorrecting:
+      "Ang mga tala ng pakain ay <strong>hindi kailanman ine-edit</strong>: nasa ledger na ang stock na "
+      + "kinuha nila, kaya ang maling entry ay itinutuwid sa pamamagitan ng <strong>adjustment</strong> sa "
+      + "Inventory sa apektadong lote (may dahilan), na nananatiling nakikita katabi ng orihinal.",
+    feedDailyEntry:
+      "Ipinapakita ng pahina ng <strong>Daily Entry</strong> ang pakain at tubig ng napiling kawan at araw "
+      + "sa isang sulyap, na may link dito. Ang tala ng pakain o tubig na ginawa habang umiiral na ang "
+      + "entry ng araw na iyon ay naaalala rin ang entry na iyon — ang mga ginawa bago nito ay sadyang "
+      + "hindi naka-link; ang araw mismo ang nag-uugnay sa kanila.",
     waterHeading: "Tubig",
     waterRecording:
       "Itala kung ano ang ininom ng bawat kawan kada araw: alinman sa direktang dami (litro o galon) o "
