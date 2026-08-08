@@ -113,8 +113,12 @@ public sealed class SchemaDocsTests
         // Token-bounded, not line-anchored: a Dockerfile stage alias
         // (`AS db`) or a trailing YAML comment after the variable must not
         // hide it.
+        // Parameter-expansion operators are part of the braced form: a
+        // declaration defaulting to the canonical pin still lets the
+        // environment override it, so the DEFAULT is not the effective pin
+        // and the variable must be flagged regardless of its fallback.
         var wholeImageVarPattern = new Regex(
-            @"(?im)^\s*(?:image:\s*|FROM\s+)[""']?\$\{?[A-Za-z0-9_]*(?:postgres|_pg_?|pg_)[A-Za-z0-9_]*\}?[""']?(?=\s|$)");
+            @"(?im)^\s*(?:image:\s*|FROM\s+)[""']?\$(?:\{[A-Za-z0-9_]*(?:postgres|_pg_?|pg_)[A-Za-z0-9_]*(?:[:?+-][^}]*)?\}|[A-Za-z0-9_]*(?:postgres|_pg_?|pg_)[A-Za-z0-9_]*)[""']?(?=\s|$)");
         var hits = new Dictionary<string, List<string>>();
 
         foreach (var relative in TrackedFiles())
