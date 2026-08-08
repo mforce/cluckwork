@@ -92,7 +92,10 @@ public sealed class SchemaDocsTests
         // Namespaced/registry-qualified forms (docker.io/library/postgres,
         // registry:5000/ns/postgres) float to latest exactly the same way,
         // so the optional prefix segments are part of the detector.
-        var untaggedPattern = new Regex(@"(?im)^\s*(?:image:\s*|FROM\s+)[""']?(?:[a-z0-9.-]+(?::\d+)?/)*postgres[""']?(?=\s|$)");
+        // YAML allows the image key itself to be quoted or to carry space
+        // before the colon — every image-key pattern shares this spelling.
+        const string ImageKey = @"[""']?image[""']?[ \t]*:";
+        var untaggedPattern = new Regex(@"(?im)^\s*(?:" + ImageKey + @"\s*|FROM\s+)[""']?(?:[a-z0-9.-]+(?::\d+)?/)*postgres[""']?(?=\s|$)");
         // Digest-only pull grammar (NAME@DIGEST, no tag): immutable but not
         // the canonical reference — and tagless, so neither pattern above
         // sees it (no colon for the first, an @ failing the second's
@@ -115,7 +118,7 @@ public sealed class SchemaDocsTests
         // value is never a reviewable pin regardless of its syntax. The
         // remaining boundary is unchanged: a variable whose name does not
         // identify postgres is opaque indirection no text scan can close.
-        var imageLinePattern = new Regex(@"(?im)^[ \t]*(?:image:|FROM[ \t])[^\r\n]*");
+        var imageLinePattern = new Regex(@"(?im)^[ \t]*(?:" + ImageKey + @"|FROM[ \t])[^\r\n]*");
         var pgNamePattern = new Regex(@"postgres|_pg_?|pg_", RegexOptions.IgnoreCase);
         // A reviewable pin is a SAME-LINE literal. An image key whose value
         // is empty or a YAML block-scalar marker (or a FROM continued with a
@@ -130,8 +133,8 @@ public sealed class SchemaDocsTests
         // Both forms tolerate a trailing YAML comment — a comment after the
         // key or block marker doesn't stop the value deferring to the next
         // line.
-        var deferredImagePattern = new Regex(@"(?im)^[ \t]*(?:image:[ \t]*[>|][+-]?[ \t]*(?:#[^\r\n]*)?$|FROM[ \t]+[^\r\n]*\\[ \t]*$)");
-        var bareImagePattern = new Regex(@"(?m)^[ \t]*image:[ \t]*(?:#[^\r\n]*)?\r?$");
+        var deferredImagePattern = new Regex(@"(?im)^[ \t]*(?:" + ImageKey + @"[ \t]*[>|][+-]?[ \t]*(?:#[^\r\n]*)?$|FROM[ \t]+[^\r\n]*\\[ \t]*$)");
+        var bareImagePattern = new Regex(@"(?im)^[ \t]*" + ImageKey + @"[ \t]*(?:#[^\r\n]*)?\r?$");
         var mappingKeyPattern = new Regex(@"^[ \t]*[A-Za-z0-9_.-]+:([ \t]|\r?$)");
         var hits = new Dictionary<string, List<string>>();
 
