@@ -76,6 +76,7 @@ export const tl = {
       + "pumili ng pack unit tulad ng Tray para magbilang bawat tray sa halip na bawat itlog, "
       + "o sundin ang default ng bukid.",
     stepperUnitFarmDefaultOption: "Default ng bukid ({{unit}})",
+    stepperUnitSaveFailed: "Hindi na-save — hindi nabago ang iyong yunit ng pagbilang.",
 
     // machine-drafted (#182) — pending native review. Task 25 (B4): the rest
     // of AccountPage. Keys mirror en.ts exactly, including {{role}}/{{min}}
@@ -1605,6 +1606,7 @@ export const tl = {
     tocExport: "Export at Backup",
     tocFarmSettings: "Mga Setting ng Bukid",
     tocFarmPalette: "Paleta ng Bukid",
+    tocAccount: "Ang Iyong Account",
     tocInstall: "Pag-install sa Telepono",
     tocMistakes: "Pagtatama ng mga Pagkakamali",
     tocGlossary: "Glossary",
@@ -2049,6 +2051,12 @@ export const tl = {
       + "sa isang malawak na wordmark o isang detalyadong larawan, na bumabagsak sa isang bagay na hindi na "
       + "mabasa. Panatilihin ang isang detalyadong logo para sa print o isang website; bigyan ang app ng "
       + "isang malinis na maliit na marka.",
+    farmSettingsCountingUnit:
+      "<strong>Yunit ng pagbilang sa Daily Entry</strong> ang nagtatakda kung magkano ang bilang ng mga "
+      + "+/− na button ng entry screen para sa lahat sa bukid — isang itlog, o isang pack unit tulad ng "
+      + "Tray (30 bawat tap). Ang mga yunit lang na may aktibong depinisyon ng itlog-bawat-yunit sa "
+      + "Products screen ang mapipili, at maaari itong i-override ng bawat tao para sa sarili nila sa "
+      + "kanilang Account screen.",
 
     farmPaletteHeading: "Paleta ng Bukid",
     farmPaletteIntro:
@@ -2059,6 +2067,19 @@ export const tl = {
       "Magkahiwalay at personal ang light mode at night mode. Pumipili ang bawat tao ng sarili nila gamit "
       + "ang toggle sa sidebar, sa bawat device, at hindi kailanman ino-override ito ng paleta ng bukid — "
       + "dinisenyo ang bawat paleta para gumana sa pareho.",
+
+    accountHeading: "Ang Iyong Account",
+    accountPassword:
+      "Ang <strong>Palitan ang password</strong> ay nangangailangan ng kasalukuyan mo at nagsa-sign out sa "
+      + "iba mong device — magagawa ito ng bawat role para sa sarili nila.",
+    accountLanguage:
+      "Ang <strong>Wika</strong> ay nagpapalit ng interface para lang sa iyo, agad-agad, sa bawat device "
+      + "na pinag-sign in mo.",
+    accountCountingUnit:
+      "<strong>Yunit ng pagbilang sa Daily Entry</strong> — kung magkano ang bilang ng IYONG mga tap ng "
+      + "+/−, na nag-o-override sa default ng bukid mula sa Settings. Pumili ng pack unit tulad ng Tray "
+      + "para magbilang bawat tray, o sundin ang default ng bukid para awtomatikong sumunod sa iyo ang "
+      + "isang susunod na pagbabago sa buong bukid.",
 
     installHeading: "Pag-install sa Telepono",
     installIntro:

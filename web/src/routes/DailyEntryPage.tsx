@@ -568,8 +568,12 @@ export function DailyEntryPage() {
               </div>
               <div className="entry-row">
                 <label htmlFor={idFor("mortality")}>{t("mortalityLabel")}</label>
+                {/* NO step: the pack unit counts EGGS. One tap here records a
+                    dead BIRD, and submitting writes the bird-ledger movement —
+                    a Tray farm must never log 30 deaths per tap (codex P1
+                    review of #451). */}
                 <NumberField id={idFor("mortality")} label={t("mortalityLabel").toLowerCase()}
-                  value={mortality} onChange={setMortality} step={stepSize} disabled={entryLocked} />
+                  value={mortality} onChange={setMortality} disabled={entryLocked} />
               </div>
             </div>
 

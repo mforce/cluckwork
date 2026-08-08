@@ -88,6 +88,7 @@ export const en = {
       "How much the Daily Entry +/− buttons count by, just for you — pick a pack "
       + "unit like Tray to count by the tray instead of the egg, or follow the farm default.",
     stepperUnitFarmDefaultOption: "Farm default ({{unit}})",
+    stepperUnitSaveFailed: "Could not save — your counting unit was not changed.",
 
     // Task 25 (#182, B4) — the rest of AccountPage: the page heading, the
     // role line, and the self-service change-password surface (#165).
@@ -1903,6 +1904,7 @@ export const en = {
     tocExport: "Export & backup",
     tocFarmSettings: "Farm settings",
     tocFarmPalette: "Farm palette",
+    tocAccount: "Your account",
     tocInstall: "Install on a phone",
     tocMistakes: "Fixing mistakes",
     tocGlossary: "Glossary",
@@ -2319,6 +2321,11 @@ export const en = {
       + "— a symbol or a single letter — reads much better there than a wide wordmark or a detailed picture, "
       + "which shrink to something unreadable. Keep a detailed logo for print or a website; give the app a "
       + "clean little mark.",
+    farmSettingsCountingUnit:
+      "<strong>Daily Entry counting unit</strong> sets how much the entry screen's +/− buttons count by for "
+      + "everyone on the farm — one egg, or a pack unit like Tray (30 per tap). Only units with an active "
+      + "eggs-per-unit definition on the Products screen can be picked, and each person can override it for "
+      + "themselves on their Account screen.",
 
     // Farm palette
     farmPaletteHeading: "Farm palette",
@@ -2330,6 +2337,19 @@ export const en = {
       "Light and night mode are separate and personal. Each person picks their own with the toggle in the "
       + "sidebar, on each device, and the farm palette never overrides it — every palette is designed to work "
       + "in both.",
+
+    // Account (#444) — the personal counterpart to Farm settings.
+    accountHeading: "Your account",
+    accountPassword:
+      "<strong>Change password</strong> needs your current one and signs your other devices out — every "
+      + "role can do this for themselves.",
+    accountLanguage:
+      "<strong>Language</strong> switches the interface just for you, immediately, on every device you "
+      + "sign into.",
+    accountCountingUnit:
+      "<strong>Daily Entry counting unit</strong> — how much YOUR +/− taps count by, overriding the farm "
+      + "default from Settings. Pick a pack unit like Tray to count by the tray, or follow the farm "
+      + "default so a later farm-wide change follows you automatically.",
 
     // Install on a phone
     installHeading: "Install on a phone",

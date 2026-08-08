@@ -880,6 +880,13 @@ describe("DailyEntryPage grading sync (#443)", () => {
     // The unit is visible at the point of touch AND named above the panes.
     expect(screen.getAllByText("+30").length).toBeGreaterThan(0);
     expect(screen.getByText(/Counting by Tray/)).toBeInTheDocument();
+
+    // Mortality counts BIRDS, not eggs — a Tray farm must never record 30
+    // deaths per tap (codex P1 review of #451). Un-suffixed name = step 1.
+    const plusDeaths = screen.getByRole("button", { name: "Increase mortality" });
+    fireEvent.pointerDown(plusDeaths);
+    fireEvent.pointerUp(plusDeaths);
+    expect(screen.getByLabelText("Mortality")).toHaveValue(1);
   });
 
   it("shows no unit caption when counting by ones", async () => {

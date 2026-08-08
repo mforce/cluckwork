@@ -489,8 +489,10 @@ export function HistoryPage() {
                     </div>
                     <div className="entry-row">
                       <label htmlFor={idFor("mortality")}>{te("mortalityLabel")}</label>
+                      {/* NO step — deaths are birds, not eggs; see the capture
+                          screen's identical comment (codex P1 review of #451). */}
                       <NumberField id={idFor("mortality")} label={te("mortalityLabel").toLowerCase()}
-                        value={mortality} onChange={setMortality} step={stepSize} />
+                        value={mortality} onChange={setMortality} />
                     </div>
                   </div>
 

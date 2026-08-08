@@ -34,6 +34,7 @@ export function StepperUnitSelector() {
   }, []);
 
   const current = me?.preferredStepperUnit ?? "";
+  const [saveFailed, setSaveFailed] = useState(false);
   // A stored override can name a unit the farm has since deactivated. Without
   // its own option the <select value> matches nothing and the browser renders
   // the FIRST option as selected while the real value is something else —
@@ -45,11 +46,19 @@ export function StepperUnitSelector() {
   const onChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const unit = e.target.value === "" ? null : e.target.value;
     // Optimistic, same as the language switch — the screen the preference
-    // drives updates immediately; a failed persist logs and reconciles from
-    // /me on the next bootstrap.
+    // drives updates immediately. UNLIKE the language switch, a failed persist
+    // rolls the patch back (codex P2 review of #451): the language's local
+    // i18next switch is genuinely local and harmlessly reconciles at the next
+    // bootstrap, but a rejected stepper preference left in MeContext would
+    // keep every Daily Entry stepper counting by a unit the server refused —
+    // invisibly, until the next login.
+    const previous = me?.preferredStepperUnit ?? null;
+    setSaveFailed(false);
     patchMe({ preferredStepperUnit: unit });
     void run("stepper-unit", () => putMeStepperUnit(unit)).catch((err) => {
       console.warn("Failed to persist stepper-unit preference", err);
+      patchMe({ preferredStepperUnit: previous });
+      setSaveFailed(true);
     });
   };
 
@@ -65,6 +74,7 @@ export function StepperUnitSelector() {
         ))}
         {staleOverride && <option value={current}>{current}</option>}
       </select>
+      {saveFailed && <span className="error" role="alert">{t("stepperUnitSaveFailed")}</span>}
     </label>
   );
 }

@@ -71,6 +71,7 @@ export const es = {
       + "unidad de empaque como Tray para contar por bandeja en lugar de por huevo, o siga "
       + "el valor predeterminado de la granja.",
     stepperUnitFarmDefaultOption: "Predeterminado de la granja ({{unit}})",
+    stepperUnitSaveFailed: "No se pudo guardar — su unidad de conteo no cambió.",
 
     // machine-drafted (#182) — pending native review. Task 25 (B4): the rest
     // of AccountPage. Keys mirror en.ts exactly, including {{role}}/{{min}}
@@ -1544,6 +1545,7 @@ export const es = {
     tocExport: "Exportar y respaldo",
     tocFarmSettings: "Configuración de la granja",
     tocFarmPalette: "Paleta de la granja",
+    tocAccount: "Su cuenta",
     tocInstall: "Instalar en un teléfono",
     tocMistakes: "Corregir errores",
     tocGlossary: "Glosario",
@@ -1974,6 +1976,11 @@ export const es = {
       + "marca simple y bien recortada — un símbolo o una sola letra — se ve mucho mejor ahí que un "
       + "logotipo ancho o una imagen detallada, que se reducen a algo ilegible. Conserve un logotipo "
       + "detallado para impresión o un sitio web; dele a la aplicación una marca pequeña y limpia.",
+    farmSettingsCountingUnit:
+      "<strong>Unidad de conteo de la entrada diaria</strong> establece cuánto cuentan los botones +/− de "
+      + "la pantalla de entrada para todos en la granja — un huevo, o una unidad de empaque como Tray (30 "
+      + "por toque). Solo se pueden elegir unidades con una definición activa de huevos por unidad en la "
+      + "pantalla de Productos, y cada persona puede anularla para sí misma en su pantalla de Cuenta.",
 
     farmPaletteHeading: "Paleta de la granja",
     farmPaletteIntro:
@@ -1984,6 +1991,19 @@ export const es = {
       "El modo claro y nocturno son independientes y personales. Cada persona elige el suyo con el "
       + "interruptor en la barra lateral, en cada dispositivo, y la paleta de la granja nunca lo anula — "
       + "cada paleta está diseñada para funcionar en ambos.",
+
+    accountHeading: "Su cuenta",
+    accountPassword:
+      "<strong>Cambiar contraseña</strong> requiere la actual y cierra la sesión en sus otros dispositivos "
+      + "— todos los roles pueden hacerlo por sí mismos.",
+    accountLanguage:
+      "<strong>Idioma</strong> cambia la interfaz solo para usted, de inmediato, en cada dispositivo donde "
+      + "inicie sesión.",
+    accountCountingUnit:
+      "<strong>Unidad de conteo de la entrada diaria</strong> — cuánto cuentan SUS toques de +/−, "
+      + "anulando el valor predeterminado de la granja en Configuración. Elija una unidad de empaque como "
+      + "Tray para contar por bandeja, o siga el predeterminado de la granja para que un cambio posterior "
+      + "en toda la granja le aplique automáticamente.",
 
     installHeading: "Instalar en un teléfono",
     installIntro:

@@ -75,6 +75,23 @@ describe("StepperUnitSelector (#444)", () => {
     expect(mockPut).toHaveBeenCalledWith("Tray");
   });
 
+  it("rolls the optimistic patch back and says so when the persist fails", async () => {
+    // codex P2 review of #451: a rejected preference left in MeContext would
+    // keep every Daily Entry stepper counting by a unit the server refused,
+    // invisibly, until the next login. Language's log-only catch is fine for
+    // language (its switch is local); this one must roll back.
+    mockPut.mockRejectedValue(new Error("network down"));
+    render(<Host me={{ ...ME, preferredStepperUnit: "Individual" }} />);
+    const select = screen.getByLabelText("Daily Entry counting unit");
+    await waitFor(() =>
+      expect(screen.getByRole("option", { name: "Tray" })).toBeInTheDocument());
+
+    fireEvent.change(select, { target: { value: "Tray" } });
+
+    await waitFor(() => expect(select).toHaveValue("Individual")); // rolled back
+    expect(screen.getByRole("alert")).toHaveTextContent(/was not changed/);
+  });
+
   it("keeps a stale override visible when its unit was deactivated", async () => {
     // pi review of #451: without its own option, <select value="Case"> matches
     // nothing and the browser renders the first option as selected while the

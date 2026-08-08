@@ -516,6 +516,13 @@ describe("HistoryPage adjust — mirrored daily-entry layout", () => {
     fireEvent.pointerUp(plusA);
     expect(screen.getByRole("spinbutton", { name: "Grade A" })).toHaveValue(100);
     expect(screen.getByRole("spinbutton", { name: "Total eggs" })).toHaveValue(130);
+
+    // Mortality counts BIRDS — step 1 whatever the egg unit (codex P1 of #451).
+    // Fixture starts at 1 death.
+    const plusDeaths = screen.getByRole("button", { name: "Increase mortality" });
+    fireEvent.pointerDown(plusDeaths);
+    fireEvent.pointerUp(plusDeaths);
+    expect(screen.getByRole("spinbutton", { name: "Mortality" })).toHaveValue(2);
   });
 
   // Mirrors DailyEntryPage.test.tsx's identical test: a single tap cannot
