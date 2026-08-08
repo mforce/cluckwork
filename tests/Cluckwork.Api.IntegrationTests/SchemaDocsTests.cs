@@ -113,10 +113,16 @@ public sealed class SchemaDocsTests
         Assert.True(Directory.Exists(DocsDir),
             "docs/schema/ does not exist — run tools/schema-docs/generate.sh");
 
+        // The path rule is deliberately BROAD (any /-leading token, not a
+        // list of known prefixes): the generator's own /work container mount
+        // is identical on every machine, so a leak of it would survive the
+        // CI byte-diff — this guard is the only thing that can catch that
+        // class. Verified against the real tbls output: legitimate content
+        // contains no /-leading tokens at all.
         var leaks = new (string Name, Regex Pattern)[]
         {
-            ("absolute unix path", new Regex(@"(?:/home/|/tmp/|/Users/)")),
-            ("absolute windows path", new Regex(@"[A-Z]:\\")),
+            ("absolute unix path", new Regex(@"(?m)(?:^|[\s(""'`=])/[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]*)*")),
+            ("absolute windows path", new Regex(@"(?i)[a-z]:\\")),
             ("timestamp", new Regex(@"\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}")),
             ("connection URI (would carry the ephemeral password)", new Regex(@"postgres(?:ql)?://")),
         };
@@ -167,6 +173,26 @@ public sealed class SchemaDocsTests
         {
             if (!File.Exists(Path.Combine(DocsDir, $"public.{table}.md")))
                 missing.AppendLine($"table without a doc page: {table}");
+        }
+
+        // Column-level completeness: a page existing does not prove it lists
+        // every column. Each column must appear as a cell of its own table's
+        // page (the "| Name |" form tbls emits), so an omitted column can't
+        // hide behind the same word appearing in prose elsewhere.
+        var pageCache = new Dictionary<string, string>();
+        foreach (var row in await QueryPairsAsync(conn,
+            """
+            SELECT table_name, column_name FROM information_schema.columns
+            WHERE table_schema = 'public'
+            ORDER BY table_name, ordinal_position
+            """))
+        {
+            var page = Path.Combine(DocsDir, $"public.{row.Name}.md");
+            if (!File.Exists(page)) continue; // already reported above
+            if (!pageCache.TryGetValue(page, out var content))
+                pageCache[page] = content = File.ReadAllText(page);
+            if (!content.Contains($"| {row.Def} |", StringComparison.Ordinal))
+                missing.AppendLine($"column absent from its table page: {row.Name}.{row.Def}");
         }
 
         foreach (var row in await QueryPairsAsync(conn,
