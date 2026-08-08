@@ -34,6 +34,7 @@ follow the `→` link from the `AGENTS.md` bullet to get here.
 | [Writing a guard (a test that asserts an invariant)](407-writing-a-guard.md) | AGENTS · Writing a guard |
 | [CI security gates, lock-file healing, Dependabot, action pinning (#146)](146-ci-security-gates.md) | AGENTS · CI security gates |
 | [Releases and image publishing — internals (#351)](351-releases.md) | AGENTS · Releases · and `README.md` |
+| [Generated PostgreSQL schema documentation (#417)](417-schema-docs.md) | AGENTS · Conventions |
 
 The five short-enough Conventions bullets that kept their full rationale inline in
 `AGENTS.md` — break-glass recovery (#265), farm timezone (#264), the proxy-trust

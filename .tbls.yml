@@ -1,0 +1,96 @@
+# #417 — tbls configuration for the generated schema docs (docs/schema/).
+# The DSN is passed on the command line by tools/schema-docs/generate.sh (an
+# ephemeral, runtime-passworded container — never a real database). Regenerate
+# with: tools/schema-docs/generate.sh   Verify: tools/schema-docs/generate.sh --check
+name: cluckwork
+
+desc: |
+  PostgreSQL schema created by the repository's EF Core migrations (the frozen
+  `InitialCreate` squash plus one migration per change — see
+  [docs/decisions/407-migration-freeze.md](../decisions/407-migration-freeze.md)).
+  Generated with tbls from an ephemeral migrated database, so raw-SQL artifacts —
+  expression indexes, partial index predicates, check constraints — are shown as
+  PostgreSQL actually enforces them, not as the EF model approximates them.
+
+  A freshly migrated database is not empty: the migrations also seed 21 base
+  reference rows — the default account, the four assignable roles, ten default
+  egg grades, and six packed-unit conversions — as guarded raw SQL
+  (never `HasData`). See
+  [docs/decisions/283-migrations-base-provisioning.md](../decisions/283-migrations-base-provisioning.md).
+
+docPath: docs/schema
+
+# Markdown is the deliverable; without this tbls also emits a schema.json
+# machine dump into docPath, which would bloat the committed artifact set.
+disableOutputSchema: true
+
+er:
+  format: mermaid
+
+format:
+  # Keep the catalog in real physical column order — documenting the actual
+  # database, not an alphabetized view of it, is the point of #417. Ordering
+  # is stable because the schema comes from frozen, append-only migrations.
+  sort: false
+
+# Subject-area diagrams: the full 38-relation ERD in README.md is complete but
+# dense; these give each domain a readable slice. A table missing from every
+# viewpoint still appears in the README ERD and its own page — the coverage
+# guard (SchemaDocsTests) keys on tables/indexes, not viewpoint membership.
+viewpoints:
+  - name: Flocks & egg production
+    desc: The daily egg loop — flocks, daily entries, grading, lots, movements.
+    tables:
+      - public.Flocks
+      - public.BirdMovements
+      - public.DailyEntries
+      - public.DailyEntryGrades
+      - public.EggGrades
+      - public.EggLots
+      - public.EggInventoryMovements
+      - public.EggUnitConversions
+      - public.WaterUsages
+      - public.FeedUsages
+  - name: Feed & supply inventory
+    desc: Purchasable supplies, FIFO lots, and the movement ledger.
+    tables:
+      - public.InventoryItems
+      - public.InventoryLots
+      - public.InventoryMovements
+      - public.FeedUsages
+      - public.Flocks
+  - name: Sales & finance
+    desc: Customers, orders, FIFO allocations, payments, expenses, products.
+    tables:
+      - public.Customers
+      - public.SalesOrders
+      - public.SalesOrderItems
+      - public.SalesOrderAllocations
+      - public.Payments
+      - public.Products
+      - public.ProductEggGradeMappings
+      - public.Expenses
+      - public.ExpenseCategories
+      - public.EggLots
+      - public.EggGrades
+  - name: Identity & access
+    desc: ASP.NET Identity, refresh tokens, per-flock role assignments.
+    tables:
+      - public.AspNetUsers
+      - public.AspNetRoles
+      - public.AspNetUserRoles
+      - public.AspNetRoleClaims
+      - public.AspNetUserClaims
+      - public.AspNetUserLogins
+      - public.AspNetUserTokens
+      - public.UserRoleAssignments
+      - public.refresh_tokens
+  - name: Platform & operations
+    desc: Tenancy root, audit, jobs, idempotency, seeding bookkeeping.
+    tables:
+      - public.Accounts
+      - public.FarmLogos
+      - public.AuditEvents
+      - public.durable_jobs
+      - public.idempotency_records
+      - public.simulation_seed_state
