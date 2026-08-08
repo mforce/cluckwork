@@ -191,8 +191,10 @@ public sealed class SchemaDocsTests
         // release-please.yml jq program — out of scope, as before.
         // Node properties may precede the OUTER key as well as the brace
         // (&anchor key: { ... }).
+        // The outer key may be a QUOTED scalar containing whitespace — the
+        // quoted alternatives consume it with escape awareness.
         var flowMappingPattern = new Regex(
-            @"^[ \t]*(?:-[ \t]+)*(?:[&!][^\s]+[ \t]+)*(?:-[ \t]+|[A-Za-z0-9_.""'-]+[ \t]*:[ \t]*)(?:[&!][^\s{]+[ \t]+)*\{(?!\}[ \t]*(?:#[^\r\n]*)?\r?$)");
+            @"^[ \t]*(?:-[ \t]+)*(?:[&!][^\s]+[ \t]+)*(?:-[ \t]+|(?:[A-Za-z0-9_.""'-]+|""(?:[^""\\]|\\.)*""|'(?:[^']|'')*')[ \t]*:[ \t]*)(?:[&!][^\s{]+[ \t]+)*\{(?!\}[ \t]*(?:#[^\r\n]*)?\r?$)");
         // A document that is ITSELF a flow mapping — optionally indented,
         // optionally behind a --- document marker. Distinguishing this from
         // the shell/jq JSON embedded in run: block scalars is NOT a text-
@@ -327,8 +329,10 @@ public sealed class SchemaDocsTests
                     // closing quote immediately followed by a colon; a colon
                     // INSIDE a quoted scalar is adjacent to neither, so
                     // string arrays stay clean.
+                    // The outer key may be a quoted scalar containing
+                    // whitespace — quoted alternatives consume it.
                     var seq = Regex.Match(textLines[i],
-                        @"^[ \t]*(?:-[ \t]+)*(?:[&!][^\s]+[ \t]+)*[A-Za-z0-9_.""'<-]+[ \t]*:[ \t]*(?:[&!][^\s\[]+[ \t]+)*\[(?<rest>[^\r\n]*)");
+                        @"^[ \t]*(?:-[ \t]+)*(?:[&!][^\s]+[ \t]+)*(?:[A-Za-z0-9_.""'<-]+|""(?:[^""\\]|\\.)*""|'(?:[^']|'')*')[ \t]*:[ \t]*(?:[&!][^\s\[]+[ \t]+)*\[(?<rest>[^\r\n]*)");
                     // The CLOSE check must not be satisfied by a bracket
                     // living inside a quoted scalar or a trailing comment —
                     // evaluate it on a scope with quoted spans blanked and
