@@ -139,6 +139,10 @@ public sealed class SchemaDocsTests
         // latest like any untagged reference.
         var dockerImageContextPattern = new Regex(
             @"(?im)docker-image://[""']?(?:[a-z0-9.-]+(?::\d+)?/)*postgres[""']?(?=[,\s""'}\]]|$)");
+        // An interpolated docker-image:// reference is never a reviewable
+        // pin, whatever the variable's name — same name-blind refusal as a
+        // variable FROM image (a scheme-prefixed value is always an image).
+        var dockerImageVarPattern = new Regex(@"(?im)docker-image://[^\s""',}\]]*\$");
         // BuildKit RUN mounts pull an external image when from= names no
         // build stage or context — a fourth bare-reference syntax.
         // NOT anchored to RUN: a continued instruction puts later mount
@@ -291,6 +295,12 @@ public sealed class SchemaDocsTests
             {
                 if (!hits.TryGetValue("postgres (untagged, in a docker-image:// context — floats to latest)", out var files))
                     hits["postgres (untagged, in a docker-image:// context — floats to latest)"] = files = [];
+                files.Add(relative);
+            }
+            foreach (Match m in dockerImageVarPattern.Matches(text))
+            {
+                if (!hits.TryGetValue("docker-image:// context via variable — not a reviewable pin", out var files))
+                    hits["docker-image:// context via variable — not a reviewable pin"] = files = [];
                 files.Add(relative);
             }
             foreach (Match m in runMountFromPattern.Matches(text))
