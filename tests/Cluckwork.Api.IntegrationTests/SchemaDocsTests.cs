@@ -149,6 +149,13 @@ public sealed class SchemaDocsTests
         // same flow-mapping shape.
         var flowImageKeyPattern = new Regex(
             @"(?m)^[ \t]*(?:-[ \t]+|[A-Za-z0-9_.""'-]+[ \t]*:[ \t]*)(?:[&!][^\s{]+[ \t]+)*\{[^\r\n]*?[""']?image[""']?[ \t]*:");
+        // A flow mapping that does NOT close on its opening line defers its
+        // keys to later physical lines, where every line rule is blind — so
+        // an UNBALANCED value-position opener is refused outright, whatever
+        // it will contain. (The value-position anchor keeps shell-embedded
+        // brace text, like release-please.yml's jq program, out of scope.)
+        var flowOpenerPattern = new Regex(
+            @"(?m)^[ \t]*(?:-[ \t]+|[A-Za-z0-9_.""'-]+[ \t]*:[ \t]*)(?:[&!][^\s{]+[ \t]+)*\{[^\r\n]*");
         var fromLinePattern = new Regex(@"(?im)^[ \t]*FROM[ \t][^\r\n]*");
         var pgNamePattern = new Regex(@"postgres|_pg_?|pg_", RegexOptions.IgnoreCase);
         var mappingKeyPattern = new Regex(@"^[ \t]*[A-Za-z0-9_.-]+:([ \t]|\r?$)");
@@ -198,6 +205,11 @@ public sealed class SchemaDocsTests
             {
                 foreach (Match m in flowImageKeyPattern.Matches(text))
                     AddHit("flow-style image key — declare the image as a block mapping key");
+                foreach (Match m in flowOpenerPattern.Matches(text))
+                {
+                    if (m.Value.Count(c => c == '{') > m.Value.Count(c => c == '}'))
+                        AddHit($"{m.Value.Trim()} (multi-line flow mapping — not reviewable line-by-line)");
+                }
             }
 
             foreach (Match m in fromLinePattern.Matches(text))
