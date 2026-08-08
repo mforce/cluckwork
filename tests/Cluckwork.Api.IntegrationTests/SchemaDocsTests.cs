@@ -98,6 +98,13 @@ public sealed class SchemaDocsTests
         // sees it (no colon for the first, an @ failing the second's
         // end-of-token lookahead).
         var digestOnlyPattern = new Regex(@"postgres@sha256:[0-9a-f]{64}");
+        // A compose-interpolated tag (a dollar-brace variable where the tag
+        // belongs) resolves at runtime to whatever the operator's env says —
+        // by definition not a reviewable pin, and invisible to all three
+        // detectors above (the candidate pattern requires an alphanumeric
+        // after the colon). Comment deliberately avoids spelling the literal
+        // — this file is inside its own sweep.
+        var interpolatedPattern = new Regex(@"postgres:\$\{?[A-Za-z_][A-Za-z0-9_:-]*\}?");
         var hits = new Dictionary<string, List<string>>();
 
         foreach (var relative in TrackedFiles())
@@ -125,6 +132,12 @@ public sealed class SchemaDocsTests
             {
                 if (!hits.TryGetValue(m.Value, out var files))
                     hits[m.Value] = files = [];
+                files.Add(relative);
+            }
+            foreach (Match m in interpolatedPattern.Matches(text))
+            {
+                if (!hits.TryGetValue($"{m.Value} (interpolated — not a reviewable pin)", out var files))
+                    hits[$"{m.Value} (interpolated — not a reviewable pin)"] = files = [];
                 files.Add(relative);
             }
         }
