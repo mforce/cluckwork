@@ -155,11 +155,14 @@ public sealed class SchemaDocsTests
         // positives when the sweep ran anchor-free). An image reference fed
         // through any other expression is opaque indirection, same boundary
         // as variable names.
-        // Ordinary, verbatim (@\"...\"), and raw (\"\"\"...\"\"\") literal
-        // syntaxes all count — the opening quote run is captured and matched
-        // at the close.
+        // Ordinary, verbatim (@\"...\"), raw, and interpolated literal
+        // syntaxes all count. Raw strings permit ANY delimiter of three or
+        // more quotes, and interpolation stacks any number of $ signs
+        // ($$\"\"\"...\"\"\"), so the prefix is an unbounded [$@] run and
+        // the opening quote run is captured unbounded and matched at the
+        // close — never a hand-capped length.
         var csharpImageLiteralPattern = new Regex(
-            @"(?:Image\w*\s*=\s*|Builder\s*\(\s*(?:\w+\s*:\s*)?|WithImage\s*\(\s*(?:\w+\s*:\s*)?)@?(?<q>""{1,3})(?<img>(?:[a-z0-9.-]+(?::\d+)?/)*postgres(?::[^""@]+)?(?:@sha256:[0-9a-f]{64})?)\k<q>");
+            @"(?:Image\w*\s*=\s*|Builder\s*\(\s*(?:\w+\s*:\s*)?|WithImage\s*\(\s*(?:\w+\s*:\s*)?)[$@]*(?<q>""+)(?<img>(?:[a-z0-9.-]+(?::\d+)?/)*postgres(?::[^""@]+)?(?:@sha256:[0-9a-f]{64})?)\k<q>");
         // BuildKit RUN mounts pull an external image when from= names no
         // build stage or context — a fourth bare-reference syntax.
         // NOT anchored to RUN: a continued instruction puts later mount
