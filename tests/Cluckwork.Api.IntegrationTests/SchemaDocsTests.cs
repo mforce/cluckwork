@@ -132,15 +132,18 @@ public sealed class SchemaDocsTests
         var untaggedPattern = new Regex(@"(?im)^\s*(?:" + ImageKey + @"\s*|FROM\s+|COPY[ \t]+(?:--[A-Za-z0-9-]+(?:=[^\s]+)?[ \t]+)*--from=)[""']?(?:[a-z0-9.-]+(?::\d+)?/)*postgres[""']?(?=\s|$)");
         // BuildKit RUN mounts pull an external image when from= names no
         // build stage or context — a fourth bare-reference syntax.
+        // NOT anchored to RUN: a continued instruction puts later mount
+        // options on lines that no longer start with RUN, and a --mount=
+        // token is unambiguous wherever it appears.
         var runMountFromPattern = new Regex(
-            @"(?im)^[ \t]*RUN[ \t][^\r\n]*--mount=[^\s]*[,=]from=(?:[a-z0-9.-]+(?::\d+)?/)*postgres(?=[,\s""']|$)");
+            @"(?im)--mount=[^\s]*[,=]from=(?:[a-z0-9.-]+(?::\d+)?/)*postgres(?=[,\s""']|$)");
         // A mount option token cut by a line continuation defers its option
         // text (including a possible from=) past the line — refused as a
         // shape. A COMPLETE option followed by space-then-continuation is
         // ordinary multi-line RUN formatting and stays legitimate: the
         // refusal fires only when the continuation char ABUTS the token.
         var runMountContinuedPattern = new Regex(
-            @"(?im)^[ \t]*RUN[ \t][^\r\n]*--mount=[^\s]*[\\`][ \t]*\r?$");
+            @"(?im)--mount=[^\s]*[\\`][ \t]*\r?$");
         // Digest-only pull grammar (NAME@DIGEST, no tag): immutable but not
         // the canonical reference — and tagless, so neither pattern above
         // sees it (no colon for the first, an @ failing the second's
