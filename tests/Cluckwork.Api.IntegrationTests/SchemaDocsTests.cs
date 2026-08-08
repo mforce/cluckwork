@@ -127,7 +127,9 @@ public sealed class SchemaDocsTests
         // YAML allows the image key itself to be quoted or to carry space
         // before the colon — every image-key pattern shares this spelling.
         const string ImageKey = @"[""']?image[""']?[ \t]*:";
-        var untaggedPattern = new Regex(@"(?im)^\s*(?:" + ImageKey + @"\s*|FROM\s+)[""']?(?:[a-z0-9.-]+(?::\d+)?/)*postgres[""']?(?=\s|$)");
+        // COPY --from= consumes an external image when the name isn't a
+        // build stage — a third syntax where a bare name is a live reference.
+        var untaggedPattern = new Regex(@"(?im)^\s*(?:" + ImageKey + @"\s*|FROM\s+|COPY[ \t]+--from=)[""']?(?:[a-z0-9.-]+(?::\d+)?/)*postgres[""']?(?=\s|$)");
         // Digest-only pull grammar (NAME@DIGEST, no tag): immutable but not
         // the canonical reference — and tagless, so neither pattern above
         // sees it (no colon for the first, an @ failing the second's
@@ -669,27 +671,42 @@ public sealed class SchemaDocsTests
         // entity-escaped quotes) — per-relation pages surviving while the
         // diagram silently drops entities/edges is a drift --check
         // reproduces faithfully.
+        // BIDIRECTIONAL multiset comparison for the ERD, like every other
+        // level: missing, phantom, AND duplicate entities/edges all fail.
+        // Edges are (source entity, label) pairs — identical FK defs exist
+        // on sibling tables (AspNetRoleClaims and AspNetUserRoles both
+        // reference AspNetRoles via RoleId), so the label alone cannot
+        // identify an edge; that surviving mutant forced the pairing.
         var readme = File.ReadAllText(Path.Combine(DocsDir, "README.md"));
         var readmeLines = readme.Split('\n');
-        foreach (var table in ownerUnion)
+        var erdEntities = readmeLines
+            .Select(l => Regex.Match(l.TrimEnd(), @"^""public\.([^""]+)""[ \t]*\{$"))
+            .Where(m => m.Success).Select(m => m.Groups[1].Value)
+            .OrderBy(x => x, StringComparer.Ordinal).ToList();
+        if (!erdEntities.SequenceEqual(ownerUnion, StringComparer.Ordinal))
         {
-            if (!readme.Contains($"\"public.{table}\" {{", StringComparison.Ordinal))
-                missing.AppendLine($"README ERD missing entity: {table}");
+            missing.AppendLine(
+                "README ERD entity set does not match the catalog:\n" +
+                $"  erd:     [{string.Join(", ", erdEntities)}]\n" +
+                $"  catalog: [{string.Join(", ", ownerUnion)}]");
         }
-        foreach (var (tbl, rows) in constraintsByTable.OrderBy(kv => kv.Key, StringComparer.Ordinal))
+        var erdEdges = readmeLines
+            .Select(l => Regex.Match(l.TrimEnd(), @"^""public\.([^""]+)""[ \t]+\S+[ \t]+""public\.[^""]+""[ \t]*:[ \t]*""(.+)""$"))
+            .Where(m => m.Success)
+            .Select(m => $"{m.Groups[1].Value} :: {m.Groups[2].Value}")
+            .OrderBy(x => x, StringComparer.Ordinal).ToList();
+        var expectedEdges = constraintsByTable
+            .SelectMany(kv => kv.Value
+                .Where(r => r.Def.StartsWith("FOREIGN KEY", StringComparison.Ordinal))
+                .Select(r => $"{kv.Key} :: {r.Def.Replace("\"", "#quot;")}"))
+            .OrderBy(x => x, StringComparer.Ordinal).ToList();
+        if (!erdEdges.SequenceEqual(expectedEdges, StringComparer.Ordinal))
         {
-            foreach (var r in rows.Where(r => r.Def.StartsWith("FOREIGN KEY", StringComparison.Ordinal)))
-            {
-                // SOURCE entity and definition must share one edge LINE:
-                // identical FK defs exist on sibling tables (AspNetRoleClaims
-                // and AspNetUserRoles both reference AspNetRoles via RoleId),
-                // so a whole-README Contains let a deleted edge hide behind
-                // its twin — the surviving mutant that forced this shape.
-                var defQ = r.Def.Replace("\"", "#quot;");
-                if (!readmeLines.Any(l => l.Contains($"\"public.{tbl}\" ", StringComparison.Ordinal)
-                        && l.Contains(defQ, StringComparison.Ordinal)))
-                    missing.AppendLine($"README ERD missing FK edge: {tbl}.{r.Name}");
-            }
+            missing.AppendLine(
+                "README ERD FK edge multiset does not match the catalog:\n" +
+                $"  erd-only:     [{string.Join(" | ", erdEdges.Except(expectedEdges))}]\n" +
+                $"  catalog-only: [{string.Join(" | ", expectedEdges.Except(erdEdges))}]\n" +
+                $"  (counts: erd {erdEdges.Count}, catalog {expectedEdges.Count})");
         }
 
         Assert.True(missing.Length == 0,
