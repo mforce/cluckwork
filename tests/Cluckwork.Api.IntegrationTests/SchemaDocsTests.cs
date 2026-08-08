@@ -108,38 +108,30 @@ public sealed class SchemaDocsTests
         // after the colon). Comment deliberately avoids spelling the literal
         // — this file is inside its own sweep.
         var interpolatedPattern = new Regex(@"postgres:\$\{?[A-Za-z_][A-Za-z0-9_:-]*\}?");
-        // Interpolated image declarations, judged as a LINE CLASS: any
-        // image:/FROM line that names postgres AND carries an interpolation
-        // marker is flagged wholesale. Three review rounds each found one
-        // more expansion form a token pattern missed (default operators,
-        // stage aliases, nested braces — which a regex cannot balance at
-        // all); per the two-misses rule, the method changed: refuse the
-        // whole line class instead of enumerating its forms. An interpolated
-        // value is never a reviewable pin regardless of its syntax. The
-        // remaining boundary is unchanged: a variable whose name does not
-        // identify postgres is opaque indirection no text scan can close.
-        var imageLinePattern = new Regex(@"(?im)^[ \t]*(?:" + ImageKey + @"|FROM[ \t])[^\r\n]*");
+        // ALLOW-LIST, not marker enumeration: rounds 10-16 of review each
+        // produced one more YAML syntax that defers or indirects an image
+        // value (block scalars, comments, anchors, explicit tags...). The
+        // rule is now inverted — an image key's value must BE a plain
+        // same-line literal in image-reference shape; any other value is
+        // refused sight unseen, whatever mechanism it uses. A bare/comment-
+        // only value needs one lookahead, because `image:` is also how a
+        // MAPPING named image opens (ci.yml's job id): a mapping's next
+        // line is another key, a deferred value's next line is a scalar.
+        // FROM lines get the same treatment: a backslash continuation or a
+        // postgres-naming interpolated value is refused. The remaining
+        // boundary is unchanged: a variable whose name does not identify
+        // postgres is opaque indirection no text scan can close.
+        var imageKeyLinePattern = new Regex(@"^[ \t]*" + ImageKey + @"[ \t]*(?<value>[^\r\n]*?)[ \t]*\r?$",
+            RegexOptions.IgnoreCase);
+        var literalImageValuePattern = new Regex(@"^[""']?[A-Za-z0-9][A-Za-z0-9._:@/-]*[""']?(?:[ \t]+#[^\r\n]*)?$");
+        // Deliberate exception: a GitHub Actions expression carrying a PRIOR
+        // JOB'S output (steps./needs.) is workflow-internal dataflow — the
+        // #351 promotion flow requires exactly this shape (the digest comes
+        // from CI's own run artifact, never a declared pin). Operator-
+        // settable expression roots (env., vars., inputs.) are NOT excepted.
+        var workflowOutputPattern = new Regex(@"^\$\{\{\s*(?:steps|needs)\.[^}]*\}\}$");
+        var fromLinePattern = new Regex(@"(?im)^[ \t]*FROM[ \t][^\r\n]*");
         var pgNamePattern = new Regex(@"postgres|_pg_?|pg_", RegexOptions.IgnoreCase);
-        // A reviewable pin is a SAME-LINE literal. An image key whose value
-        // is empty or a YAML block-scalar marker (or a FROM continued with a
-        // backslash) defers its real value to following lines, where no
-        // line-based rule can see it — so that SHAPE is refused outright,
-        // whatever the deferred value turns out to be. Constraining the
-        // accepted syntax beats parsing YAML's logical-value forms.
-        // Block-scalar and backslash forms are unambiguous; a BARE `image:`
-        // needs a lookahead, because it is also how a MAPPING named "image"
-        // opens (ci.yml's job id) — a mapping's next line is another key:,
-        // a deferred value's next line is a scalar.
-        // Both forms tolerate a trailing YAML comment — a comment after the
-        // key or block marker doesn't stop the value deferring to the next
-        // line.
-        var deferredImagePattern = new Regex(@"(?im)^[ \t]*(?:" + ImageKey + @"[ \t]*[>|][+-]?[ \t]*(?:#[^\r\n]*)?$|FROM[ \t]+[^\r\n]*\\[ \t]*$)");
-        var bareImagePattern = new Regex(@"(?im)^[ \t]*" + ImageKey + @"[ \t]*(?:#[^\r\n]*)?\r?$");
-        // An image value that is a YAML alias (or carries an anchor) factors
-        // the real reference through another node — refused at the
-        // CONSUMPTION point, which covers whatever the anchor holds without
-        // resolving it.
-        var aliasImagePattern = new Regex(@"(?im)^[ \t]*" + ImageKey + @"[ \t]*[*&][^\r\n]*");
         var mappingKeyPattern = new Regex(@"^[ \t]*[A-Za-z0-9_.-]+:([ \t]|\r?$)");
         var hits = new Dictionary<string, List<string>>();
 
@@ -176,37 +168,37 @@ public sealed class SchemaDocsTests
                     hits[$"{m.Value} (interpolated — not a reviewable pin)"] = files = [];
                 files.Add(relative);
             }
-            foreach (Match m in imageLinePattern.Matches(text))
+            void AddHit(string key)
             {
-                if (!m.Value.Contains('$') || !pgNamePattern.IsMatch(m.Value)) continue;
-                var token = m.Value.Trim();
-                if (!hits.TryGetValue($"{token} (interpolated image line — not a reviewable pin)", out var files))
-                    hits[$"{token} (interpolated image line — not a reviewable pin)"] = files = [];
+                if (!hits.TryGetValue(key, out var files)) hits[key] = files = [];
                 files.Add(relative);
             }
-            foreach (Match m in deferredImagePattern.Matches(text))
+
+            foreach (Match m in fromLinePattern.Matches(text))
             {
-                var token = m.Value.Trim();
-                if (!hits.TryGetValue($"{token} (image value deferred past the line — not a reviewable pin)", out var files))
-                    hits[$"{token} (image value deferred past the line — not a reviewable pin)"] = files = [];
-                files.Add(relative);
+                var line = m.Value;
+                if (line.TrimEnd().EndsWith('\\'))
+                    AddHit($"{line.Trim()} (FROM continued past the line — not a reviewable pin)");
+                else if (line.Contains('$') && pgNamePattern.IsMatch(line))
+                    AddHit($"{line.Trim()} (interpolated image line — not a reviewable pin)");
             }
-            foreach (Match m in aliasImagePattern.Matches(text))
-            {
-                var token = m.Value.Trim();
-                if (!hits.TryGetValue($"{token} (image via YAML anchor/alias — not a reviewable pin)", out var files))
-                    hits[$"{token} (image via YAML anchor/alias — not a reviewable pin)"] = files = [];
-                files.Add(relative);
-            }
+
             var textLines = text.Split('\n');
             for (var i = 0; i < textLines.Length; i++)
             {
-                if (!bareImagePattern.IsMatch(textLines[i])) continue;
-                var next = textLines.Skip(i + 1).FirstOrDefault(l => l.Trim().Length > 0) ?? "";
-                if (mappingKeyPattern.IsMatch(next)) continue; // a mapping named "image", not an image key
-                if (!hits.TryGetValue("image: (value deferred to the next line — not a reviewable pin)", out var files))
-                    hits["image: (value deferred to the next line — not a reviewable pin)"] = files = [];
-                files.Add(relative);
+                var m = imageKeyLinePattern.Match(textLines[i]);
+                if (!m.Success) continue;
+                var value = m.Groups["value"].Value.Trim();
+                if (value.Length == 0 || value.StartsWith('#'))
+                {
+                    var next = textLines.Skip(i + 1).FirstOrDefault(l => l.Trim().Length > 0) ?? "";
+                    if (mappingKeyPattern.IsMatch(next)) continue; // a mapping named "image", not an image key
+                    AddHit("image: (value deferred to the next line — not a reviewable pin)");
+                }
+                else if (!literalImageValuePattern.IsMatch(value) && !workflowOutputPattern.IsMatch(value))
+                {
+                    AddHit($"{textLines[i].Trim()} (image value is not a plain same-line literal — not a reviewable pin)");
+                }
             }
         }
 
