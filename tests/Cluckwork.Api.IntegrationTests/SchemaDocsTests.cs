@@ -313,7 +313,9 @@ public sealed class SchemaDocsTests
                         || Regex.IsMatch(seq.Groups["rest"].Value, @"[""'][ \t]*:")
                         // Explicit compact pairs (an entry-position ? key
                         // indicator, node props allowed before it).
-                        || Regex.IsMatch(seq.Groups["rest"].Value, @"(?:^|,)[ \t]*(?:[&!][^\s\]]+[ \t]+)*\?([ \t]|\]|$)")))
+                        || Regex.IsMatch(seq.Groups["rest"].Value, @"(?:^|,)[ \t]*(?:[&!][^\s\]]+[ \t]+)*\?([ \t]|\]|$)")
+                        // Alias compact keys (an entry-position *name:).
+                        || Regex.IsMatch(seq.Groups["rest"].Value, @"(?:^|,)[ \t]*\*[^\s:\]]+[ \t]*:([ \t]|\]|$)")))
                     {
                         AddHit($"{textLines[i].Trim()} (flow sequence carrying mappings or deferring past the line — not reviewable)");
                         continue;
