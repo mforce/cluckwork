@@ -134,6 +134,11 @@ public sealed class SchemaDocsTests
         // puts --from= on a line that no longer starts with COPY, and the
         // token is unambiguous wherever it appears.
         var copyFromPattern = new Regex(@"(?im)--from=[""']?(?:[a-z0-9.-]+(?::\d+)?/)*postgres[""']?(?=\s|$)");
+        // Compose additional_contexts may back a build context with an image
+        // via the docker-image:// scheme — a bare name there floats to
+        // latest like any untagged reference.
+        var dockerImageContextPattern = new Regex(
+            @"(?im)docker-image://[""']?(?:[a-z0-9.-]+(?::\d+)?/)*postgres[""']?(?=[,\s""'}\]]|$)");
         // BuildKit RUN mounts pull an external image when from= names no
         // build stage or context — a fourth bare-reference syntax.
         // NOT anchored to RUN: a continued instruction puts later mount
@@ -280,6 +285,12 @@ public sealed class SchemaDocsTests
             {
                 if (!hits.TryGetValue("postgres (untagged, in a --from= — floats to latest)", out var files))
                     hits["postgres (untagged, in a --from= — floats to latest)"] = files = [];
+                files.Add(relative);
+            }
+            foreach (Match m in dockerImageContextPattern.Matches(text))
+            {
+                if (!hits.TryGetValue("postgres (untagged, in a docker-image:// context — floats to latest)", out var files))
+                    hits["postgres (untagged, in a docker-image:// context — floats to latest)"] = files = [];
                 files.Add(relative);
             }
             foreach (Match m in runMountFromPattern.Matches(text))
