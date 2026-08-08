@@ -127,8 +127,11 @@ public sealed class SchemaDocsTests
         // needs a lookahead, because it is also how a MAPPING named "image"
         // opens (ci.yml's job id) — a mapping's next line is another key:,
         // a deferred value's next line is a scalar.
-        var deferredImagePattern = new Regex(@"(?im)^[ \t]*(?:image:[ \t]*[>|][+-]?[ \t]*$|FROM[ \t]+[^\r\n]*\\[ \t]*$)");
-        var bareImagePattern = new Regex(@"(?m)^[ \t]*image:[ \t]*\r?$");
+        // Both forms tolerate a trailing YAML comment — a comment after the
+        // key or block marker doesn't stop the value deferring to the next
+        // line.
+        var deferredImagePattern = new Regex(@"(?im)^[ \t]*(?:image:[ \t]*[>|][+-]?[ \t]*(?:#[^\r\n]*)?$|FROM[ \t]+[^\r\n]*\\[ \t]*$)");
+        var bareImagePattern = new Regex(@"(?m)^[ \t]*image:[ \t]*(?:#[^\r\n]*)?\r?$");
         var mappingKeyPattern = new Regex(@"^[ \t]*[A-Za-z0-9_.-]+:([ \t]|\r?$)");
         var hits = new Dictionary<string, List<string>>();
 
