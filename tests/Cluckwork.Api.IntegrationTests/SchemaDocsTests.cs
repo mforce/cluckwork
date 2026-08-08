@@ -134,6 +134,13 @@ public sealed class SchemaDocsTests
         // build stage or context — a fourth bare-reference syntax.
         var runMountFromPattern = new Regex(
             @"(?im)^[ \t]*RUN[ \t][^\r\n]*--mount=[^\s]*[,=]from=(?:[a-z0-9.-]+(?::\d+)?/)*postgres(?=[,\s""']|$)");
+        // A mount option token cut by a line continuation defers its option
+        // text (including a possible from=) past the line — refused as a
+        // shape. A COMPLETE option followed by space-then-continuation is
+        // ordinary multi-line RUN formatting and stays legitimate: the
+        // refusal fires only when the continuation char ABUTS the token.
+        var runMountContinuedPattern = new Regex(
+            @"(?im)^[ \t]*RUN[ \t][^\r\n]*--mount=[^\s]*[\\`][ \t]*\r?$");
         // Digest-only pull grammar (NAME@DIGEST, no tag): immutable but not
         // the canonical reference — and tagless, so neither pattern above
         // sees it (no colon for the first, an @ failing the second's
@@ -256,6 +263,12 @@ public sealed class SchemaDocsTests
             {
                 if (!hits.TryGetValue("postgres (untagged, in a RUN mount from= — floats to latest)", out var files))
                     hits["postgres (untagged, in a RUN mount from= — floats to latest)"] = files = [];
+                files.Add(relative);
+            }
+            foreach (Match m in runMountContinuedPattern.Matches(text))
+            {
+                if (!hits.TryGetValue("RUN mount option continued past the line — not reviewable", out var files))
+                    hits["RUN mount option continued past the line — not reviewable"] = files = [];
                 files.Add(relative);
             }
             foreach (Match m in digestOnlyPattern.Matches(text))
