@@ -189,8 +189,10 @@ public sealed class SchemaDocsTests
         // multi-line joining, nothing left to hide an image key in. The
         // value-position anchor keeps shell-embedded brace text — the
         // release-please.yml jq program — out of scope, as before.
+        // Node properties may precede the OUTER key as well as the brace
+        // (&anchor key: { ... }).
         var flowMappingPattern = new Regex(
-            @"^[ \t]*(?:-[ \t]+|[A-Za-z0-9_.""'-]+[ \t]*:[ \t]*)(?:[&!][^\s{]+[ \t]+)*\{(?!\}[ \t]*(?:#[^\r\n]*)?\r?$)");
+            @"^[ \t]*(?:-[ \t]+)*(?:[&!][^\s]+[ \t]+)*(?:-[ \t]+|[A-Za-z0-9_.""'-]+[ \t]*:[ \t]*)(?:[&!][^\s{]+[ \t]+)*\{(?!\}[ \t]*(?:#[^\r\n]*)?\r?$)");
         // A document that is ITSELF a flow mapping — optionally indented,
         // optionally behind a --- document marker. Distinguishing this from
         // the shell/jq JSON embedded in run: block scalars is NOT a text-
