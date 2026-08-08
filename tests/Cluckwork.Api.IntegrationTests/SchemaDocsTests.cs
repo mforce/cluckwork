@@ -60,7 +60,12 @@ public sealed class SchemaDocsTests
     {
         var mask = new bool[lines.Length];
         var scalarKeyIndent = -1;
-        var opener = new Regex(@"^[ \t]*[^#\s][^\r\n]*:[ \t]*[|>][+-]?[0-9]*[ \t]*(?:#[^\r\n]*)?\r?$");
+        // The scalar boundary is the KEY's column, not the line's leading
+        // whitespace: for a sequence item (`- run: |`), sibling keys of the
+        // same item sit past the dash, so measuring from the dash would
+        // swallow them into the body. The prefix group spans indentation
+        // plus any dash markers.
+        var opener = new Regex(@"^(?<prefix>[ \t]*(?:-[ \t]+)*)[^#\s][^\r\n]*:[ \t]*[|>][+-]?[0-9]*[ \t]*(?:#[^\r\n]*)?\r?$");
         for (var i = 0; i < lines.Length; i++)
         {
             var line = lines[i];
@@ -72,7 +77,8 @@ public sealed class SchemaDocsTests
                 if (indent > scalarKeyIndent) { mask[i] = true; continue; }
                 scalarKeyIndent = -1;
             }
-            if (opener.IsMatch(line)) scalarKeyIndent = indent;
+            var m = opener.Match(line);
+            if (m.Success) scalarKeyIndent = m.Groups["prefix"].Length;
         }
         return mask;
     }
