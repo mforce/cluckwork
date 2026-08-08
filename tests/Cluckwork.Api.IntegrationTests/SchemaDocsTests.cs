@@ -93,6 +93,11 @@ public sealed class SchemaDocsTests
         // registry:5000/ns/postgres) float to latest exactly the same way,
         // so the optional prefix segments are part of the detector.
         var untaggedPattern = new Regex(@"(?im)^\s*(?:image:\s*|FROM\s+)[""']?(?:[a-z0-9.-]+(?::\d+)?/)*postgres[""']?(?=\s|$)");
+        // Digest-only pull grammar (NAME@DIGEST, no tag): immutable but not
+        // the canonical reference — and tagless, so neither pattern above
+        // sees it (no colon for the first, an @ failing the second's
+        // end-of-token lookahead).
+        var digestOnlyPattern = new Regex(@"postgres@sha256:[0-9a-f]{64}");
         var hits = new Dictionary<string, List<string>>();
 
         foreach (var relative in TrackedFiles())
@@ -114,6 +119,12 @@ public sealed class SchemaDocsTests
             {
                 if (!hits.TryGetValue("postgres (untagged — floats to latest)", out var files))
                     hits["postgres (untagged — floats to latest)"] = files = [];
+                files.Add(relative);
+            }
+            foreach (Match m in digestOnlyPattern.Matches(text))
+            {
+                if (!hits.TryGetValue(m.Value, out var files))
+                    hits[m.Value] = files = [];
                 files.Add(relative);
             }
         }
