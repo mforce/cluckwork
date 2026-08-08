@@ -155,8 +155,11 @@ public sealed class SchemaDocsTests
         // positives when the sweep ran anchor-free). An image reference fed
         // through any other expression is opaque indirection, same boundary
         // as variable names.
+        // Ordinary, verbatim (@\"...\"), and raw (\"\"\"...\"\"\") literal
+        // syntaxes all count — the opening quote run is captured and matched
+        // at the close.
         var csharpImageLiteralPattern = new Regex(
-            @"(?:Image\w*\s*=\s*|Builder\s*\(\s*(?:\w+\s*:\s*)?|WithImage\s*\(\s*(?:\w+\s*:\s*)?)""((?:[a-z0-9.-]+(?::\d+)?/)*postgres(?::[^""@]+)?(?:@sha256:[0-9a-f]{64})?)""");
+            @"(?:Image\w*\s*=\s*|Builder\s*\(\s*(?:\w+\s*:\s*)?|WithImage\s*\(\s*(?:\w+\s*:\s*)?)@?(?<q>""{1,3})(?<img>(?:[a-z0-9.-]+(?::\d+)?/)*postgres(?::[^""@]+)?(?:@sha256:[0-9a-f]{64})?)\k<q>");
         // BuildKit RUN mounts pull an external image when from= names no
         // build stage or context — a fourth bare-reference syntax.
         // NOT anchored to RUN: a continued instruction puts later mount
@@ -327,7 +330,7 @@ public sealed class SchemaDocsTests
             {
                 foreach (Match m in csharpImageLiteralPattern.Matches(text))
                 {
-                    var val = m.Groups[1].Value;
+                    var val = m.Groups["img"].Value;
                     if (val == PostgresImage) continue;
                     if (!hits.TryGetValue($"\"{val}\" (postgres-shaped C# string literal — not the canonical pin)", out var files))
                         hits[$"\"{val}\" (postgres-shaped C# string literal — not the canonical pin)"] = files = [];
