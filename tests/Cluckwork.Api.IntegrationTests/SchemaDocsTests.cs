@@ -287,8 +287,19 @@ public sealed class SchemaDocsTests
         {
             var lines = LinesOf(table);
             if (lines.Length == 0) return; // missing page already reported
-            if (!lines.Any(l => l.Contains($"| {name} |", StringComparison.Ordinal)
-                    && l.Contains(def, StringComparison.Ordinal)))
+            // Cell-exact, not substring: a definition cell that merely STARTS
+            // with the catalog text (trailing SQL appended by a rendering
+            // regression) must not pass. The row is identified by its first
+            // cell equalling the object name; the definition must then be an
+            // exact cell of that row, whichever column the table shape puts
+            // it in.
+            var ok = lines.Any(l =>
+            {
+                if (!l.StartsWith("| ", StringComparison.Ordinal)) return false;
+                var cells = l.Split('|').Select(c => c.Trim()).ToArray();
+                return cells.Length > 2 && cells[1] == name && cells.Contains(def);
+            });
+            if (!ok)
                 missing.AppendLine($"{kind} row absent from public.{table}.md: {name} — {def}");
         }
 
