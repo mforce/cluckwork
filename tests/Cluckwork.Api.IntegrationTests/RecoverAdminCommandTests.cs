@@ -165,7 +165,10 @@ public sealed class RecoverAdminCommandTests : IClassFixture<BreakGlassRecoveryF
     private async Task<string> CreateDmlOnlyRoleConnectionStringAsync()
     {
         var roleName = $"recover_test_role_{Guid.NewGuid():N}";
-        const string rolePassword = "test-only-not-a-real-secret";
+        // Generated per invocation, not a literal — GitGuardian scans PRs, and
+        // AGENTS.md requires runtime-generated test credentials even for a
+        // role that only ever exists inside this one disposable container.
+        var rolePassword = Guid.NewGuid().ToString("N");
 
         await using (var admin = new NpgsqlConnection(_factory.ConnectionString))
         {
