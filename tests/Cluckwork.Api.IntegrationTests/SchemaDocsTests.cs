@@ -201,7 +201,7 @@ public sealed class SchemaDocsTests
         // to ANY key ("image" is image) — refusing to decode is the
         // point: a key that needs escapes is not reviewable as text, so the
         // shape itself is rejected, whatever it decodes to.
-        var escapedKeyPattern = new Regex(@"^[ \t]*(?:-[ \t]+)*""[^""\r\n]*\\[^""\r\n]*""[ \t]*:");
+        var escapedKeyPattern = new Regex(@"^[ \t]*(?:-[ \t]+)*(?:[&!][^\s""]+[ \t]+)*""[^""\r\n]*\\[^""\r\n]*""[ \t]*:");
         var fromLinePattern = new Regex(@"(?im)^[ \t]*FROM[ \t][^\r\n]*");
         var pgNamePattern = new Regex(@"postgres|_pg_?|pg_", RegexOptions.IgnoreCase);
         var mappingKeyPattern = new Regex(@"^[ \t]*[A-Za-z0-9_.-]+:([ \t]|\r?$)");
