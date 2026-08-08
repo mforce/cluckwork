@@ -436,7 +436,8 @@ public sealed class SchemaDocsTests
         // mapping doesn't cover fails loudly and gets added consciously,
         // which beats both silently trusting the cell and mirroring tbls's
         // whole normalizer.
-        foreach (var tableColumns in (await QueryColumnsAsync(conn)).GroupBy(c => c.Table))
+        var columnsByTable = (await QueryColumnsAsync(conn)).GroupBy(c => c.Table).ToList();
+        foreach (var tableColumns in columnsByTable)
         {
             var lines = LinesOf(tableColumns.Key);
             if (lines.Length == 0) continue; // missing page already reported
@@ -517,6 +518,11 @@ public sealed class SchemaDocsTests
         foreach (var table in tables
             .Union(indexesByTable.Keys, StringComparer.Ordinal)
             .Union(constraintsByTable.Keys, StringComparer.Ordinal)
+            // Column owners too: an unindexed, unconstrained relation (a
+            // bare materialized view) appears ONLY in the column query, and
+            // its omitted page must still be reported here — the column
+            // loop's empty-page continue relies on it.
+            .Union(columnsByTable.Select(g => g.Key), StringComparer.Ordinal)
             .OrderBy(t => t, StringComparer.Ordinal))
         {
             if (!File.Exists(Path.Combine(DocsDir, $"public.{table}.md")))
