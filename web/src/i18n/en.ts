@@ -2432,8 +2432,8 @@ export const en = {
     farmSettingsDateTimeFormat:
       "<strong>Date format</strong> and <strong>time format</strong> offer a few common choices in a "
       + "dropdown — pick one and you are done. Need something not listed? Choose "
-      + "<strong>Custom…</strong> to type your own; the same rules the presets follow still apply "
-      + "(the server checks it either way), so an unusable value is refused rather than saved.",
+      + "<strong>Custom…</strong> to type your own — only a value the server cannot use at all is "
+      + "rejected, so check it renders the way you expect after saving.",
     farmSettingsSquareLogo:
       "Use a <strong>square</strong> logo. It shows small in the sidebar, so a simple, tightly-cropped mark "
       + "— a symbol or a single letter — reads much better there than a wide wordmark or a detailed picture, "

@@ -2045,9 +2045,8 @@ export const es = {
     farmSettingsDateTimeFormat:
       "<strong>Formato de fecha</strong> y <strong>formato de hora</strong> ofrecen algunas opciones "
       + "comunes en un menú desplegable — elija una y listo. ¿Necesita algo que no está en la lista? "
-      + "Elija <strong>Personalizado…</strong> para escribir el suyo; las mismas reglas que siguen las "
-      + "opciones predefinidas siguen aplicando (el servidor lo verifica de todos modos), así que un "
-      + "valor inutilizable se rechaza en lugar de guardarse.",
+      + "Elija <strong>Personalizado…</strong> para escribir el suyo — solo se rechaza un valor que el "
+      + "servidor no puede usar en absoluto, así que verifique cómo se muestra después de guardar.",
     farmSettingsSquareLogo:
       "Use un logotipo <strong>cuadrado</strong>. Se muestra pequeño en la barra lateral, así que una "
       + "marca simple y bien recortada — un símbolo o una sola letra — se ve mucho mejor ahí que un "

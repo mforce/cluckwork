@@ -2125,9 +2125,8 @@ export const tl = {
     farmSettingsDateTimeFormat:
       "Nag-aalok ang <strong>format ng petsa</strong> at <strong>format ng oras</strong> ng ilang karaniwang "
       + "pagpipilian sa isang dropdown — pumili at tapos na. Kailangan ng hindi nakalista? Piliin ang "
-      + "<strong>Custom…</strong> para mag-type ng sarili mo; sinusunod pa rin ang parehong mga panuntunan "
-      + "na sinusunod ng mga preset (sinusuri pa rin ito ng server), kaya tinatanggihan ang hindi magagamit "
-      + "na value sa halip na i-save.",
+      + "<strong>Custom…</strong> para mag-type ng sarili mo — isang value lang na talagang hindi "
+      + "magagamit ng server ang tinatanggihan, kaya tingnan kung paano ito lumalabas pagkatapos i-save.",
     farmSettingsSquareLogo:
       "Gumamit ng <strong>parisukat</strong> na logo. Maliit itong lumalabas sa sidebar, kaya isang simple "
       + "at maigsing-crop na marka — isang simbolo o iisang letra — ang mas magandang tingnan doon kaysa "
