@@ -338,12 +338,17 @@ public sealed class SchemaDocsTests
                     // doubled quotes — a naive [^"]* reducer stops at the
                     // escape and leaves the scalar's tail (with any fake
                     // closer it carries) in scope.
+                    // Closed pairs blank to NOTHING so that any quote left
+                    // standing means an unterminated (multiline) scalar —
+                    // whose tail could carry a fake closer on this line and
+                    // real content on the next, so the opener is refused.
                     var closeScope = seq.Success
-                        ? Regex.Replace(seq.Groups["rest"].Value, @"""(?:[^""\\]|\\.)*""|'(?:[^']|'')*'", "\"\"")
+                        ? Regex.Replace(seq.Groups["rest"].Value, @"""(?:[^""\\]|\\.)*""|'(?:[^']|'')*'", "")
                         : "";
                     var hashIdx = closeScope.IndexOf('#');
                     if (hashIdx >= 0) closeScope = closeScope[..hashIdx];
                     if (seq.Success && (Regex.IsMatch(seq.Groups["rest"].Value, @"(?<!\$)\{")
+                        || closeScope.Contains('"') || closeScope.Contains('\'')
                         || !closeScope.Contains(']')
                         || Regex.IsMatch(seq.Groups["rest"].Value, @"(?:^|,)[ \t]*(?:[&!][^\s\]]+[ \t]+)*[A-Za-z0-9_.-]+[ \t]*:[ \t]")
                         || Regex.IsMatch(seq.Groups["rest"].Value, @"[""'][ \t]*:")
