@@ -1,9 +1,7 @@
 namespace Cluckwork.Api.Cli;
 
 using Cluckwork.Infrastructure.Identity;
-using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 // `recover-admin --email <e> [--account <guid>] [--reason <t>]` (#265) — offline
@@ -13,6 +11,19 @@ using Microsoft.Extensions.DependencyInjection;
 // must work against a real Production database. Its safety comes from requiring
 // shell access to the deployment, plus a conspicuous "User.BreakGlassReset" audit
 // row.
+//
+// #450 — deliberately does NOT migrate. Unlike `seed`/`bootstrap-admin` (which
+// self-migrate because they can run against a fresh, never-yet-migrated
+// database), recover-admin only ever runs against a Production database that
+// #263's ordering already guarantees is on the current schema (the `migrate`
+// job completes before `app` — and therefore before any operator has a
+// locked-out account to recover — even boots). It ran Database.MigrateAsync()
+// here until #450: that call unconditionally issues `CREATE TABLE IF NOT
+// EXISTS "__EFMigrationsHistory"` to read the applied-migrations row, which
+// needs DDL and fails under the least-privilege DML-only runtime role this
+// verb is documented to run under — forcing an operator to keep the
+// higher-privileged migrator credential on hand specifically for incident
+// response, the one credential this role split exists to keep cold.
 public sealed class RecoverAdminCliCommand : ICliCommand
 {
     public string Name => "recover-admin";
@@ -35,8 +46,6 @@ public sealed class RecoverAdminCliCommand : ICliCommand
                 }
                 accountId = parsedAccount;
             }
-
-            await sp.GetRequiredService<AppDbContext>().Database.MigrateAsync();
 
             var recovery = sp.GetRequiredService<AdminRecoveryService>();
             var recovered = await recovery.RecoverAsync(

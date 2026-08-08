@@ -36,8 +36,15 @@ from requiring shell access to invoke it, plus the audit trail it leaves.
 ## Procedure
 
 Run the API binary with the `recover-admin` verb on (or with network access to)
-the deployment's database. The command **migrates the schema, performs the reset,
-prints the temporary password once, then exits** — Kestrel never starts.
+the deployment's database. The command **performs the reset, prints the
+temporary password once, then exits** — Kestrel never starts. Unlike `seed`/
+`bootstrap-admin`, it does **not** migrate the schema (#450): it's designed to
+run under the app's least-privilege DML-only runtime credential, the same one
+the serving process uses, not the higher-privileged migrator credential — so
+it needs the separate `migrate` job to have already run (the normal #263
+deploy ordering already guarantees this by the time an operator has a
+locked-out account to recover). If you ever need to run recovery against a
+database with genuinely pending migrations, run `migrate` first.
 
 ```bash
 # Minimum: the target's email. --reason is strongly recommended (it lands in the audit row).
