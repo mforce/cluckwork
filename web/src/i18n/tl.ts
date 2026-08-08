@@ -869,6 +869,10 @@ export const tl = {
     producedHeader: "Produksyon",
     historyButton: "history",
     hideHistoryButton: "itago ang history",
+    // #465 — paging + saklaw ng petsa sa talahanayan ng mga lote.
+    fromLabel: "Mula",
+    toLabel: "Hanggang",
+    loadMoreButton: "mag-load pa",
 
     // Movement ledger drill-down (per lot)
     movementLedgerHeading: "Talaan ng Galaw",
@@ -1953,7 +1957,9 @@ export const tl = {
       "Ang bawat grado ay lumalawak sa <strong>mga lote</strong> nito (isa kada naisumiteng araw), at ang "
       + "bawat lote naman ay lumalawak sa <strong>talaan ng galaw</strong> nito — isang malinaw na linya "
       + "para sa bawat production, benta, pagtatama, o void. Palaging katumbas ng balanseng ipinapakita ang "
-      + "tumatakbong kabuuan; walang nagbabago sa stock nang hindi nag-iiwan ng linya.",
+      + "tumatakbong kabuuan; walang nagbabago sa stock nang hindi nag-iiwan ng linya. Ipinapakita ng "
+      + "listahan ng lote ang pinakabagong 50 sa bawat pagkakataon — paliitin ito gamit ang mga petsang "
+      + "<strong>Mula/Hanggang</strong> para maabot ang mas lumang lote, o magpatuloy sa pag-load pa.",
     stockRestricted:
       "Ang stock ay ang kabuuan ng mga lote ng itlog mo kada grado. Ang column na "
       + "<strong>restricted</strong> ay nakalaan para sa mga withholding period ng gamot — darating ang "

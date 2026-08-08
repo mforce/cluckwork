@@ -33,9 +33,11 @@ public interface IEggLotRepository : IRepository<EggLot, Guid>
         Guid accountId, Guid dailyEntryId, CancellationToken ct = default);
 
     // Read-only lot listing for the stock drill-down (#101), newest production
-    // first, optionally filtered by grade. Capped by limit — the SPA pages.
+    // first, optionally filtered by grade and/or an inclusive production-date
+    // window (#465). Capped by limit — the SPA pages.
     Task<IReadOnlyList<EggLot>> ListAsync(
-        Guid? eggGradeId, int limit, int offset, CancellationToken ct = default);
+        Guid? eggGradeId, DateOnly? from, DateOnly? to,
+        int limit, int offset, CancellationToken ct = default);
 }
 
 public sealed record StockByGrade(

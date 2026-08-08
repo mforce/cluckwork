@@ -40,12 +40,13 @@ public static class StockEndpoints
 
     private static async Task<IResult> ListLots(
         IEggLotRepository eggLots, TenantContext tenant, CancellationToken ct,
-        Guid? gradeId = null, int? limit = null, int? offset = null)
+        Guid? gradeId = null, DateOnly? from = null, DateOnly? to = null,
+        int? limit = null, int? offset = null)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
         var take = Math.Clamp(limit ?? DefaultPageSize, 1, MaxPageSize);
         var skip = Math.Max(offset ?? 0, 0);
-        var lots = await eggLots.ListAsync(gradeId, take, skip, ct);
+        var lots = await eggLots.ListAsync(gradeId, from, to, take, skip, ct);
         return Results.Ok(lots.Select(l => new EggLotResponse(
             l.Id, l.EggGradeId, l.ProductionDate, l.QuantityProduced,
             l.QuantityAvailable, l.RestrictedUntil, l.DailyEntryId)));

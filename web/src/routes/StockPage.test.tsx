@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { ReactNode } from "react";
-import { screen, within, fireEvent } from "@testing-library/react";
+import { act, screen, within, fireEvent } from "@testing-library/react";
 import { StockPage } from "./StockPage";
 import {
   getStock, listEggLots, listEggLotMovements, recordEggLotMovement,
@@ -124,7 +124,9 @@ describe("StockPage drill-down", () => {
     fireEvent.click(within(gradeA).getByRole("button", { name: "lots" }));
 
     const lotRow = await screen.findByRole("row", { name: /2026-07-01/ });
-    expect(mockListEggLots).toHaveBeenCalledWith({ gradeId: "g1" });
+    // #465: the page asks for an explicit first page rather than leaning on
+    // the API's silent default.
+    expect(mockListEggLots).toHaveBeenCalledWith({ gradeId: "g1", limit: 50, offset: 0 });
     expect(mockListEggLots).toHaveBeenCalledTimes(1);
     // Values scoped to the lot row — pins WHERE they render, not just that they exist.
     expect(within(lotRow).getByText("120")).toBeInTheDocument(); // quantityProduced
@@ -141,7 +143,7 @@ describe("StockPage drill-down", () => {
     const gradeB = screen.getByRole("row", { name: /Grade B\b/ });
     fireEvent.click(within(gradeB).getByRole("button", { name: "lots" }));
     expect(await screen.findByText(/No lots for this grade yet/)).toBeInTheDocument();
-    expect(mockListEggLots).toHaveBeenCalledWith({ gradeId: "g2" });
+    expect(mockListEggLots).toHaveBeenCalledWith({ gradeId: "g2", limit: 50, offset: 0 });
   });
 
   it("collapses the lots again on 'hide lots'", async () => {
@@ -448,6 +450,151 @@ describe("StockPage write-off (#406)", () => {
       expect(within(lotRow).queryByRole("button", { name: "write off" })).not.toBeInTheDocument();
     } finally {
       i18n.addResource("en", "stock", "writeOffButton", original);
+    }
+  });
+});
+
+// #465 — the drill-down used to show only the API's newest-50 default page,
+// making older lots (the very ones a write-off targets) unreachable. Now the
+// panel pages ("load more") and filters by production date, both server-side.
+describe("StockPage lot paging + date filter (#465)", () => {
+  const PAGE = 50;
+
+  function makeLots(count: number, startDay = 1, month = "07"): EggLotRow[] {
+    return Array.from({ length: count }, (_, i) => ({
+      id: `lot-${month}-${i}`,
+      eggGradeId: "g1",
+      productionDate: `2026-${month}-${String(startDay + (i % 28)).padStart(2, "0")}`,
+      quantityProduced: 100 + i,
+      quantityAvailable: 90,
+      restrictedUntil: null,
+      dailyEntryId: null,
+    }));
+  }
+
+  async function expandGradeA() {
+    mockGetStock.mockResolvedValue(ROWS);
+    render(<StockPage />);
+    await screen.findByText("Grade A");
+    fireEvent.click(within(screen.getByRole("row", { name: /Grade A\b/ })).getByRole("button", { name: "lots" }));
+    await screen.findByText(/^Lots$/);
+  }
+
+  it("requests the first page explicitly and appends the next on 'load more'", async () => {
+    mockListEggLots
+      .mockResolvedValueOnce(makeLots(PAGE))
+      .mockResolvedValueOnce([{ ...LOTS[0], id: "old-lot", productionDate: "2026-06-01" }]);
+    await expandGradeA();
+
+    expect(mockListEggLots).toHaveBeenCalledWith({ gradeId: "g1", limit: PAGE, offset: 0 });
+    const loadMore = await screen.findByRole("button", { name: "load more" });
+    fireEvent.click(loadMore);
+
+    // The older lot appears BELOW the still-present first page (dates repeat
+    // across the 50 generated lots, so "at least one" is the right shape).
+    expect(await screen.findByText("2026-06-01")).toBeInTheDocument();
+    expect(screen.getAllByText("2026-07-01").length).toBeGreaterThan(0);
+    expect(mockListEggLots).toHaveBeenLastCalledWith({ gradeId: "g1", limit: PAGE, offset: PAGE });
+    // The second page was short — nothing further to load.
+    expect(screen.queryByRole("button", { name: "load more" })).not.toBeInTheDocument();
+  });
+
+  it("offers no 'load more' when the first page is short", async () => {
+    mockListEggLots.mockResolvedValue(LOTS);
+    await expandGradeA();
+    expect(screen.queryByRole("button", { name: "load more" })).not.toBeInTheDocument();
+  });
+
+  it("filters by production date server-side and restarts paging from the top", async () => {
+    mockListEggLots
+      .mockResolvedValueOnce(makeLots(PAGE))
+      .mockResolvedValueOnce([{ ...LOTS[0], id: "hit", productionDate: "2026-07-02" }]);
+    await expandGradeA();
+
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-07-02" } });
+    expect(await screen.findByText("2026-07-02")).toBeInTheDocument();
+    expect(mockListEggLots).toHaveBeenLastCalledWith(
+      { gradeId: "g1", from: "2026-07-02", to: undefined, limit: PAGE, offset: 0 });
+    // The filtered view REPLACES the unfiltered pages.
+    expect(screen.queryByText("2026-07-05")).not.toBeInTheDocument();
+  });
+
+  it("clears the filter when switching to another grade", async () => {
+    mockListEggLots.mockResolvedValue(LOTS);
+    await expandGradeA();
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-07-02" } });
+    await screen.findByText(/^Lots$/);
+
+    fireEvent.click(within(screen.getByRole("row", { name: /Grade B\b/ })).getByRole("button", { name: "lots" }));
+    await screen.findByText(/^Lots$/);
+    expect(mockListEggLots).toHaveBeenLastCalledWith({ gradeId: "g2", limit: PAGE, offset: 0 });
+    expect(screen.getByLabelText("From")).toHaveValue("");
+  });
+
+  it("re-fetches the whole loaded window after a write-off, not just page one", async () => {
+    // Two pages loaded (51 rows). A refresh that only re-fetched the default
+    // page would silently collapse the window back to 50 mid-correction.
+    mockRecordEggLotMovement.mockResolvedValue({
+      movementId: "wo1", eggLotId: "lot-07-0", movementType: "Discard",
+      quantityDelta: -7, reason: "dropped a tray",
+      createdAtUtc: "2026-08-08T10:00:00Z", quantityAvailable: 83, version: 2,
+    });
+    mockListEggLots
+      .mockResolvedValueOnce(makeLots(PAGE))
+      .mockResolvedValueOnce([{ ...LOTS[0], id: "old-lot", productionDate: "2026-06-01" }])
+      .mockResolvedValue(makeLots(PAGE));
+    await expandGradeA();
+    fireEvent.click(await screen.findByRole("button", { name: "load more" }));
+    await screen.findByText("2026-06-01");
+
+    const lotRow = screen.getAllByRole("row", { name: /2026-07-01/ })[0];
+    fireEvent.click(within(lotRow).getByRole("button", { name: "write off" }));
+    const dialog = screen.getByRole("dialog");
+    fireEvent.change(within(dialog).getByRole("spinbutton"), { target: { value: "7" } });
+    fireEvent.change(within(dialog).getByLabelText(/Reason/), { target: { value: "dropped a tray" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: /Record/ }));
+    await screen.findByText(/83 now available/);
+
+    // Refresh walked the window page-by-page: offsets 0 and 50 again.
+    const refreshCalls = mockListEggLots.mock.calls.slice(2);
+    expect(refreshCalls.map(([args]) => args?.offset)).toEqual([0, PAGE]);
+  });
+
+  it("ignores a stale response that settles after a newer filter's", async () => {
+    // From then To in quick succession = two in-flight requests. If the first
+    // (broader) response lands last, it must NOT overwrite the narrower view.
+    const pending: Array<(rows: EggLotRow[]) => void> = [];
+    mockListEggLots
+      .mockResolvedValueOnce(makeLots(3))
+      .mockImplementation(() => new Promise<EggLotRow[]>((r) => pending.push(r)));
+    await expandGradeA();
+
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-07-02" } });
+    fireEvent.change(screen.getByLabelText("To"), { target: { value: "2026-07-03" } });
+    expect(pending).toHaveLength(2);
+
+    // Newer (From+To) settles first with the narrow hit…
+    pending[1]([{ ...LOTS[0], id: "hit", productionDate: "2026-07-02" }]);
+    await screen.findByText("2026-07-02");
+    // …then the stale From-only response arrives late and must be dropped.
+    // act() flushes the state update the settle would trigger — without it a
+    // buggy overwrite renders after the assertions and the test lies green.
+    await act(async () => {
+      pending[0](makeLots(40));
+    });
+    expect(screen.getByText("2026-07-02")).toBeInTheDocument();
+    expect(screen.queryByText("2026-07-15")).not.toBeInTheDocument();
+  });
+
+  it("reads the load-more label from the catalog, not a hardcoded literal", async () => {
+    const original = i18n.getResource("en", "stock", "loadMoreButton") as string;
+    i18n.addResource("en", "stock", "loadMoreButton", "LOAD-MORE-MARKER");
+    try {
+      mockListEggLots.mockResolvedValue(makeLots(PAGE));
+      await expandGradeA();
+      expect(await screen.findByRole("button", { name: "LOAD-MORE-MARKER" })).toBeInTheDocument();
+    } finally {
+      i18n.addResource("en", "stock", "loadMoreButton", original);
     }
   });
 });

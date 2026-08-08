@@ -20,6 +20,9 @@ function errText(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
+// Matches the API's default page size — a full page means there may be more.
+const LOT_PAGE = 50;
+
 // F2 (#22): current sellable stock by grade; withdrawal-restricted quantities
 // are shown separately — they exist but cannot be sold yet.
 // #101: each grade expands into its lots, each lot into its movement ledger —
@@ -37,6 +40,12 @@ export function StockPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [openGrade, setOpenGrade] = useState<string | null>(null);
   const [lots, setLots] = useState<EggLotRow[]>([]);
+  // #465 — the drill-down pages server-side (the API caps a page at 50) and
+  // filters by production date, so lots older than the newest page stay
+  // reachable for history and write-off.
+  const [hasMoreLots, setHasMoreLots] = useState(false);
+  const [lotsFrom, setLotsFrom] = useState("");
+  const [lotsTo, setLotsTo] = useState("");
   const [openLot, setOpenLot] = useState<string | null>(null);
   const [movements, setMovements] = useState<EggMovementRow[] | null>(null);
 
@@ -67,6 +76,19 @@ export function StockPage() {
       .catch(() => setError(i18n.t("stock:loadStockFailed")));
   }, []);
 
+  // One page of lots under a filter; empty date strings mean "no bound".
+  function fetchLotPage(gradeId: string, from: string, to: string, offset: number) {
+    return listEggLots({
+      gradeId, from: from || undefined, to: to || undefined,
+      limit: LOT_PAGE, offset,
+    });
+  }
+
+  // Monotonic ticket per lot-list load: two quick filter changes race their
+  // responses, and the broader (older) one can settle LAST — without this it
+  // would overwrite the narrower view the user actually asked for.
+  const lotsReq = useRef(0);
+
   async function toggleGrade(gradeId: string) {
     setOpenLot(null);
     setMovements(null);
@@ -74,12 +96,51 @@ export function StockPage() {
       setOpenGrade(null);
       return;
     }
+    // The filter is scoped to one grade's panel — a switch starts clean.
+    setLotsFrom("");
+    setLotsTo("");
+    const seq = ++lotsReq.current;
     try {
-      setLots(await listEggLots({ gradeId }));
+      const page = await fetchLotPage(gradeId, "", "", 0);
+      if (seq !== lotsReq.current) return;
+      setLots(page);
+      setHasMoreLots(page.length === LOT_PAGE);
       setOpenGrade(gradeId);
       setError(null);
     } catch {
-      setError(i18n.t("stock:loadLotsFailed"));
+      if (seq === lotsReq.current) setError(i18n.t("stock:loadLotsFailed"));
+    }
+  }
+
+  // Filter changes restart from the top; the values are passed explicitly
+  // because the state set on the previous line hasn't rendered yet.
+  async function changeLotsFilter(from: string, to: string) {
+    if (openGrade === null) return;
+    setLotsFrom(from);
+    setLotsTo(to);
+    const seq = ++lotsReq.current;
+    try {
+      const page = await fetchLotPage(openGrade, from, to, 0);
+      if (seq !== lotsReq.current) return;
+      setLots(page);
+      setHasMoreLots(page.length === LOT_PAGE);
+      setError(null);
+    } catch {
+      if (seq === lotsReq.current) setError(i18n.t("stock:loadLotsFailed"));
+    }
+  }
+
+  async function loadMoreLots() {
+    if (openGrade === null) return;
+    const seq = ++lotsReq.current;
+    try {
+      const page = await fetchLotPage(openGrade, lotsFrom, lotsTo, lots.length);
+      if (seq !== lotsReq.current) return;
+      setLots((prev) => [...prev, ...page]);
+      setHasMoreLots(page.length === LOT_PAGE);
+      setError(null);
+    } catch {
+      if (seq === lotsReq.current) setError(i18n.t("stock:loadLotsFailed"));
     }
   }
 
@@ -112,9 +173,27 @@ export function StockPage() {
 
   // Everything the write-off changed, refetched together so the by-grade
   // totals, the lot row and an open ledger never disagree with each other.
+  // The lot list is re-walked page-by-page over the WHOLE loaded window under
+  // the active filter — one default-sized request would silently collapse a
+  // "load more"-extended view back to the newest page mid-correction (#465).
   async function refreshAfterWriteOff(lot: EggLotRow) {
     setRows(await getStock());
-    if (openGrade !== null) setLots(await listEggLots({ gradeId: openGrade }));
+    if (openGrade !== null) {
+      const seq = ++lotsReq.current;
+      const target = Math.max(lots.length, 1);
+      const window: EggLotRow[] = [];
+      let lastPageFull = false;
+      for (let offset = 0; offset < target; offset += LOT_PAGE) {
+        const page = await fetchLotPage(openGrade, lotsFrom, lotsTo, offset);
+        window.push(...page);
+        lastPageFull = page.length === LOT_PAGE;
+        if (!lastPageFull) break;
+      }
+      if (seq === lotsReq.current) {
+        setLots(window);
+        setHasMoreLots(lastPageFull);
+      }
+    }
     if (openLot === lot.id) setMovements(await listEggLotMovements(lot.id));
   }
 
@@ -220,6 +299,18 @@ export function StockPage() {
           {openGrade !== null && (
             <>
               <h3>{t("lotsHeading")}</h3>
+              {/* #465 — a server-side production-date window, so an old lot is
+                  findable without paging the whole history to it. */}
+              <div className="filters">
+                <label>{t("fromLabel")}
+                  <input type="date" value={lotsFrom}
+                    onChange={(e) => void changeLotsFilter(e.target.value, lotsTo)} />
+                </label>
+                <label>{t("toLabel")}
+                  <input type="date" value={lotsTo}
+                    onChange={(e) => void changeLotsFilter(lotsFrom, e.target.value)} />
+                </label>
+              </div>
               {lots.length === 0 ? (
                 <p className="muted">{t("noLotsMessage")}</p>
               ) : (
@@ -247,6 +338,11 @@ export function StockPage() {
                     ))}
                   </tbody>
                 </table>
+              )}
+              {hasMoreLots && (
+                <button className="link" onClick={() => void loadMoreLots()}>
+                  {t("loadMoreButton")}
+                </button>
               )}
               {/* Why the action is unavailable, in the place it would be. */}
               {!isAdmin && lots.length > 0 && (
