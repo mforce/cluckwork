@@ -2,10 +2,10 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  createFlock, listDailyEntries, listEggGrades, listFlocks,
+  createFlock, listDailyEntries, listEggGrades, listEggUnitConversions, listFlocks,
   recordDailyEntry, submitDailyEntry,
 } from "../api/cluckwork";
-import type { EggGrade, Flock } from "../api/cluckwork";
+import type { EggGrade, EggUnitConversion, Flock } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
@@ -14,9 +14,11 @@ import { GradingChip, TakeRemainderButton, remainderDropProps } from "../compone
 import { NumberField } from "../components/NumberField";
 import { useConfirm } from "../components/useConfirm";
 import { usePendingAction } from "../components/usePendingAction";
-import { useFarmToday } from "../farm/useFarm";
+import { useFarm, useFarmToday } from "../farm/useFarm";
 import { armedState, gradingState } from "../lib/grading";
 import { newId } from "../lib/ids";
+import { resolveStepperUnitSize } from "../lib/stepperUnit";
+import { useMe } from "../session/SessionContext";
 import i18n from "../i18n";
 import { statusLabel } from "../i18n/enums";
 
@@ -46,6 +48,10 @@ export function DailyEntryPage() {
   const { confirm, confirmDialog } = useConfirm();
   const [flocks, setFlocks] = useState<Flock[]>([]);
   const [grades, setGrades] = useState<EggGrade[]>([]);
+  // #444 — the stepper's base increment resolves from farm default + user
+  // override, both already fetched by the shell (useFarm/useMe); only the
+  // conversion catalog is this screen's own read.
+  const [eggUnitConversions, setEggUnitConversions] = useState<EggUnitConversion[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [flockId, setFlockId] = useState("");
@@ -100,8 +106,8 @@ export function DailyEntryPage() {
     // includeInactive: an existing draft may reference a since-deactivated
     // grade; that line must render and survive a re-save (only the ACTIVE
     // saleable grades are offered for new input — see visibleGrades).
-    Promise.all([listFlocks(), listEggGrades({ includeInactive: true })])
-      .then(([all, g]) => {
+    Promise.all([listFlocks(), listEggGrades({ includeInactive: true }), listEggUnitConversions()])
+      .then(([all, g, units]) => {
         const f = capturable(all);
         setFlocks(f);
         // #396 — saleable AND hand-graded. Cracked and Dirty are saleable now,
@@ -111,6 +117,7 @@ export function DailyEntryPage() {
         // server refuses that outright (ConditionGradeGuard) — this keeps the
         // screen from offering a control whose only outcome is a rejection.
         setGrades(g.filter((x) => x.isSaleable && x.dailyEntryKind === "Manual"));
+        setEggUnitConversions(units);
         // Deep link from History's Draft "edit" (#85): ?flockId=…&date=….
         // The pair is applied atomically — applying only the date against a
         // fallback flock would open a DIFFERENT flock's day under the linked
@@ -219,6 +226,12 @@ export function DailyEntryPage() {
   // never disagree about what "the day adds up" means (#394).
   const state = gradingState({ totalEggs, cracked, dirty, discarded, gradesSum });
   const { losses, sellable, lossesExceedTotal, remaining } = state;
+  // #444 — the user's own preference wins over the farm default; both fall
+  // back to "Individual" (today's plain +1/-1) if unset or unconfigured.
+  const { farm } = useFarm();
+  const me = useMe();
+  const stepSize = resolveStepperUnitSize(
+    farm?.defaultStepperUnit, me?.preferredStepperUnit, eggUnitConversions);
   const selectedFlock = flocks.find((f) => f.id === flockId);
   const entryLocked = existingStatus !== null && existingStatus !== "Draft";
   // The prefill found a draft for this flock+date: the form is EDITING it,
@@ -525,27 +538,27 @@ export function DailyEntryPage() {
               <div className="entry-row">
                 <label htmlFor={idFor("total")}>{t("totalEggsLabel")}</label>
                 <NumberField id={idFor("total")} label={t("totalEggsLabel").toLowerCase()}
-                  value={totalEggs} onChange={setTotalEggs} disabled={entryLocked} />
+                  value={totalEggs} onChange={setTotalEggs} step={stepSize} disabled={entryLocked} />
               </div>
               <div className="entry-row">
                 <label htmlFor={idFor("cracked")}>{t("crackedLabel")}</label>
                 <NumberField id={idFor("cracked")} label={t("crackedLabel").toLowerCase()}
-                  value={cracked} onChange={setCracked} disabled={entryLocked} />
+                  value={cracked} onChange={setCracked} step={stepSize} disabled={entryLocked} />
               </div>
               <div className="entry-row">
                 <label htmlFor={idFor("dirty")}>{t("dirtyLabel")}</label>
                 <NumberField id={idFor("dirty")} label={t("dirtyLabel").toLowerCase()}
-                  value={dirty} onChange={setDirty} disabled={entryLocked} />
+                  value={dirty} onChange={setDirty} step={stepSize} disabled={entryLocked} />
               </div>
               <div className="entry-row">
                 <label htmlFor={idFor("discarded")}>{t("discardedLabel")}</label>
                 <NumberField id={idFor("discarded")} label={t("discardedLabel").toLowerCase()}
-                  value={discarded} onChange={setDiscarded} disabled={entryLocked} />
+                  value={discarded} onChange={setDiscarded} step={stepSize} disabled={entryLocked} />
               </div>
               <div className="entry-row">
                 <label htmlFor={idFor("mortality")}>{t("mortalityLabel")}</label>
                 <NumberField id={idFor("mortality")} label={t("mortalityLabel").toLowerCase()}
-                  value={mortality} onChange={setMortality} disabled={entryLocked} />
+                  value={mortality} onChange={setMortality} step={stepSize} disabled={entryLocked} />
               </div>
             </div>
 
@@ -581,7 +594,7 @@ export function DailyEntryPage() {
                       the total to fit instead. */}
                   <NumberField id={idFor(g.id)} label={g.name.toLowerCase()}
                     value={gradeQty[g.id] ?? 0} onChange={setGrade(g.id)}
-                    disabled={entryLocked} />
+                    step={stepSize} disabled={entryLocked} />
                   {armed && (
                     <TakeRemainderButton remaining={remaining} grade={g.name}
                       onTake={() => assignRest(g.id)} />

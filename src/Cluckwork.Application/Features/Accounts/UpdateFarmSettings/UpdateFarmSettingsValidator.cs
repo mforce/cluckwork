@@ -2,6 +2,7 @@ namespace Cluckwork.Application.Features.Accounts.UpdateFarmSettings;
 
 using System.Globalization;
 using Cluckwork.Domain.Accounts;
+using Cluckwork.Domain.Catalog;
 using FluentValidation;
 
 public sealed class UpdateFarmSettingsValidator : AbstractValidator<UpdateFarmSettingsCommand>
@@ -74,6 +75,11 @@ public sealed class UpdateFarmSettingsValidator : AbstractValidator<UpdateFarmSe
             .Must(BeAUsableFormat)
             .WithMessage("Time format is not a usable .NET format string.")
             .WithErrorCode("FarmSettings.TimeFormatOverride.Format");
+
+        RuleFor(x => x.DefaultStepperUnit)
+            .Must(BeEnumName<EggUnit>)
+            .WithMessage("Default stepper unit must be one of the farm's egg units, for example Individual or Tray.")
+            .WithErrorCode("FarmSettings.DefaultStepperUnit.Allowed");
 
         RuleFor(x => x.Version)
             .GreaterThanOrEqualTo(0)

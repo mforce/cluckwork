@@ -19,7 +19,7 @@ public sealed class FarmSettingsTests(CluckworkWebApplicationFactory factory)
         Guid Id, string Name, string CurrencyCode, int CurrencyMinorUnit, string CurrencySymbol,
         string TimeZoneId, string Locale, string UnitSystem, string? FirstDayOfWeek,
         string? DateFormatOverride, string? TimeFormatOverride, int Version,
-        string? LogoContentHash, string Brand);
+        string? LogoContentHash, string Brand, string DefaultStepperUnit);
     private sealed record SettingsDto(AccountDto Settings, bool CanChangeCurrency, int LogoMaxUploadBytes);
     private sealed record ProblemDto(string? Title);
     private sealed record IdDto(Guid Id);
@@ -48,7 +48,7 @@ public sealed class FarmSettingsTests(CluckworkWebApplicationFactory factory)
         string? name = null, string? timeZoneId = null, string? locale = null,
         string? currencyCode = null, string? unitSystem = null, string? firstDayOfWeek = null,
         string? dateFormatOverride = null, string? timeFormatOverride = null,
-        string? brand = null, int? version = null) => new
+        string? brand = null, string? defaultStepperUnit = null, int? version = null) => new
         {
             name = name ?? current.Name,
             timeZoneId = timeZoneId ?? current.TimeZoneId,
@@ -59,6 +59,7 @@ public sealed class FarmSettingsTests(CluckworkWebApplicationFactory factory)
             dateFormatOverride = dateFormatOverride ?? current.DateFormatOverride,
             timeFormatOverride = timeFormatOverride ?? current.TimeFormatOverride,
             brand = brand ?? current.Brand,
+            defaultStepperUnit = defaultStepperUnit ?? current.DefaultStepperUnit,
             version = version ?? current.Version
         };
 
@@ -529,6 +530,64 @@ public sealed class FarmSettingsTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(email, recorded.ActorEmail);
         Assert.Contains("en-US", recorded.DetailsJson);   // before
         Assert.Contains("ja-JP", recorded.DetailsJson);   // after
+    }
+
+    // --- default stepper unit (#444) ---------------------------------------
+
+    [Fact]
+    public async Task DefaultStepperUnit_DefaultsToIndividual()
+    {
+        var (client, _, _) = await AdminAsync();
+
+        var account = await GetAccountAsync(client);
+
+        Assert.Equal("Individual", account.DefaultStepperUnit);
+    }
+
+    [Fact]
+    public async Task DefaultStepperUnit_RoundTripsThroughTheSettingsEndpoint()
+    {
+        var (client, _, _) = await AdminAsync();
+        var before = (await client.GetFromJsonAsync<SettingsDto>(SettingsPath))!.Settings;
+
+        var response = await PutSettingsAsync(client, Body(before, defaultStepperUnit: "Tray"));
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+
+        var after = (await client.GetFromJsonAsync<SettingsDto>(SettingsPath))!.Settings;
+        Assert.Equal("Tray", after.DefaultStepperUnit);
+
+        // And through the role-agnostic read DailyEntryPage actually uses.
+        var account = await client.GetFromJsonAsync<AccountDto>("/api/v1/account");
+        Assert.Equal("Tray", account!.DefaultStepperUnit);
+    }
+
+    [Fact]
+    public async Task UnknownStepperUnit_Is400()
+    {
+        var (client, _, _) = await AdminAsync();
+        var before = await GetAccountAsync(client);
+
+        var response = await PutSettingsAsync(client, Body(before, defaultStepperUnit: "Bushel"));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("Individual", (await GetAccountAsync(client)).DefaultStepperUnit);
+    }
+
+    // Same reasoning as MeEndpointsTests.Unit_with_no_active_conversion_is_a_422:
+    // "Other" is the one EggUnit member #283's base reference data deliberately
+    // leaves unseeded.
+    [Fact]
+    public async Task StepperUnitWithNoActiveConversion_Is422()
+    {
+        var (client, _, _) = await AdminAsync();
+        var before = await GetAccountAsync(client);
+
+        var response = await PutSettingsAsync(client, Body(before, defaultStepperUnit: "Other"));
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+        Assert.Equal("FarmSettings.NoUnitConversion",
+            (await response.Content.ReadFromJsonAsync<ProblemDto>())!.Title);
+        Assert.Equal("Individual", (await GetAccountAsync(client)).DefaultStepperUnit);
     }
 
     // --- accent palette (#149) ---------------------------------------------

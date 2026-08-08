@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { getMe, getAccount } from "../api/cluckwork";
 import type { Account, Me } from "../api/cluckwork";
@@ -13,6 +13,19 @@ export function useMe(): Me | null {
   return useContext(MeContext);
 }
 
+// #444 — patch fields of the bootstrapped Me in place. The language selector
+// never needed this (it switches i18next directly and reconciles from /me on
+// the next bootstrap), but the stepper-unit preference is READ live through
+// useMe() by DailyEntryPage — without a way to update the context, a change
+// on the Account screen would not apply until the next login. A no-op default
+// so the selector stays renderable (and testable) outside SessionProvider.
+// eslint-disable-next-line react-refresh/only-export-components
+export const MeUpdateContext = createContext<(patch: Partial<Me>) => void>(() => {});
+// eslint-disable-next-line react-refresh/only-export-components
+export function useMeUpdate(): (patch: Partial<Me>) => void {
+  return useContext(MeUpdateContext);
+}
+
 // The coordinated authenticated bootstrap (#182). Sits inside ProtectedRoute
 // (so it has a token) and BELOW it in the tree, wrapping the shell. It is the
 // ONLY place the UI language is set after login, and it GATES the shell until:
@@ -24,6 +37,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   // One settled result. me/account are independent: /me failing must NOT discard
   // a good /account (its timezone/locale drive date correctness), and vice versa.
   const [result, setResult] = useState<{ me: Me | null; account: Account | null } | null>(null);
+
+  // #444 — see MeUpdateContext. A patch against a failed /me read (me === null)
+  // is dropped: there is no profile to patch, and fabricating one from a
+  // Partial would put an object with made-up identity fields into MeContext.
+  const patchMe = useCallback((patch: Partial<Me>) => {
+    setResult((prev) =>
+      prev === null || prev.me === null ? prev : { ...prev, me: { ...prev.me, ...patch } });
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -56,7 +77,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   // effect is needed.
   return (
     <MeContext.Provider value={result.me}>
-      <FarmProvider initialAccount={result.account}>{children}</FarmProvider>
+      <MeUpdateContext.Provider value={patchMe}>
+        <FarmProvider initialAccount={result.account}>{children}</FarmProvider>
+      </MeUpdateContext.Provider>
     </MeContext.Provider>
   );
 }

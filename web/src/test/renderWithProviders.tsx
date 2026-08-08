@@ -13,7 +13,10 @@ import { clearAccessToken } from "../auth/tokenStore";
 // in. A test that DOES care passes `me: <fixture>`; one that cares the identity
 // is unknown (signed-in-but-/me-failed) passes `me: null` explicitly — see the
 // `=== undefined` check below, not `??`, so that null is honoured.
-const DEFAULT_ME: Me = { id: "u1", email: "test@farm.local", name: null, role: "Admin", language: null };
+const DEFAULT_ME: Me = {
+  id: "u1", email: "test@farm.local", name: null, role: "Admin", language: null,
+  preferredStepperUnit: null,
+};
 
 // Shared render harness for screen tests: wraps the UI in a MemoryRouter (so
 // components using router hooks / navigation work) and the real AuthProvider (so

@@ -1170,7 +1170,10 @@ describe("UsersPage step-up authentication (#308)", () => {
   // is directly observable — proving the effect cleared it, not incidental
   // unmounting.
   it("clears any half-entered step-up password the instant the session ends", async () => {
-    const me: Me = { id: "u1", email: "test@farm.local", name: null, role: "Admin", language: null };
+    const me: Me = {
+      id: "u1", email: "test@farm.local", name: null, role: "Admin", language: null,
+      preferredStepperUnit: null,
+    };
     const tree = (isAuthenticated: boolean) => (
       <MemoryRouter initialEntries={["/"]}>
         <AuthContext.Provider value={{

@@ -80,6 +80,14 @@ export const en = {
     preferences: "Preferences",
     language: "Language",
     languageHint: "The language the interface is shown in, just for you.",
+    // #444 — the pack unit YOUR Daily Entry steppers bump by. {{unit}} in the
+    // farm-default option is the raw EggUnit code (DATA, e.g. "Tray"), matching
+    // how the Products screen renders unit codes.
+    stepperUnit: "Daily Entry counting unit",
+    stepperUnitHint:
+      "How much the Daily Entry +/− buttons count by, just for you — pick a pack "
+      + "unit like Tray to count by the tray instead of the egg, or follow the farm default.",
+    stepperUnitFarmDefaultOption: "Farm default ({{unit}})",
 
     // Task 25 (#182, B4) — the rest of AccountPage: the page heading, the
     // role line, and the self-service change-password surface (#165).
@@ -1105,6 +1113,13 @@ export const en = {
       + "amounts in it. Recorded money is never re-priced, so changing this "
       + "would leave every stored total meaning something else.",
     unitSystemLabel: "Unit system",
+    // #444 — the pack unit Daily Entry's +/− buttons count by for everyone on
+    // this farm, unless a person picks their own on the Account screen.
+    defaultStepperUnitLabel: "Daily Entry counting unit",
+    defaultStepperUnitHint:
+      "How much the Daily Entry +/− buttons count by for everyone on this farm "
+      + "— for example Tray to count by the tray (30 eggs) instead of one egg at "
+      + "a time. Each person can pick their own on their Account screen.",
     firstDayOfWeekLabel: "First day of week",
     // Reused for the First-day-of-week "no override" option AND both the
     // date/time format placeholders — same English text, same meaning, in
@@ -2049,7 +2064,9 @@ export const en = {
       + "— it speeds up as you go, so a few hundred eggs takes about a second. Easier than a keypad with "
       + "gloves on. A grade's <strong>+</strong> no longer stops at the day's current total — count the "
       + "grades first and the total catches up to match. It only ever raises the total, never lowers it, so "
-      + "trimming the total on step 1 never pushes a grade back down.",
+      + "trimming the total on step 1 never pushes a grade back down. Farms that count by the tray can make "
+      + "each tap count a whole pack unit instead of one egg — the farm default lives in "
+      + "<strong>Settings</strong>, and each person can pick their own on their <strong>Account</strong> screen.",
     dailyEntryPutAllIn:
       "Most days end the same way — one grade takes whatever is left. <strong>Put all in…</strong> beside the "
       + "remaining count does it in one move: drag it onto a grade, or tap it and pick one.",

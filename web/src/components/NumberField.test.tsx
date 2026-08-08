@@ -9,9 +9,12 @@ const FIRST_REPEAT_UNDER = 350;
 
 // A real host holding real state: the repeat's whole correctness question is
 // whether each tick builds on the last one, which a vi.fn() spy cannot show.
-function Host({ start = 0, disabled = false }: { start?: number; disabled?: boolean } = {}) {
+function Host({ start = 0, disabled = false, step }: { start?: number; disabled?: boolean; step?: number } = {}) {
   const [value, setValue] = useState(start);
-  return <NumberField id="n" label="total eggs" value={value} onChange={setValue} disabled={disabled} />;
+  return (
+    <NumberField
+      id="n" label="total eggs" value={value} onChange={setValue} disabled={disabled} step={step} />
+  );
 }
 
 const field = () => screen.getByRole("spinbutton");
@@ -61,6 +64,42 @@ describe("NumberField", () => {
     // A hold reaches a real day's count in about a second; +1 alone would need
     // four hundred of them.
     expect(field()).toHaveValue(41);
+  });
+
+  // #444 — a farm/user counting by the pack unit (e.g. Tray = 30) rather than
+  // the individual egg.
+  describe("step (#444)", () => {
+    it("steps by the configured unit on a tap, not by one", async () => {
+      vi.useFakeTimers();
+      render(<Host step={30} />);
+
+      await hold(plus(), 0);
+      expect(field()).toHaveValue(30);
+
+      await hold(minus(), 0);
+      expect(field()).toHaveValue(0);
+      expect(minus()).toBeDisabled();
+    });
+
+    it("accelerates in multiples of the configured unit, not the raw stride", async () => {
+      vi.useFakeTimers();
+      render(<Host step={30} />);
+
+      // Same 1300ms hold as the default-step case above (press 1 + ticks
+      // 1-10 at x1 (10) + ticks 11-16 at x5 (30) = 41 strides) — each stride
+      // now worth 30, not 1.
+      await hold(plus(), 1300);
+
+      expect(field()).toHaveValue(41 * 30);
+    });
+
+    it("defaults to a step of one when the prop is omitted", async () => {
+      vi.useFakeTimers();
+      render(<Host />);
+
+      await hold(plus(), 0);
+      expect(field()).toHaveValue(1);
+    });
   });
 
   it("stays a tap for a short press — no repeat before the delay", async () => {

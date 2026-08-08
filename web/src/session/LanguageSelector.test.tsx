@@ -14,7 +14,8 @@ vi.mock("../i18n", async (io) => {
 
 function withMe(ui: React.ReactNode) {
   return render(
-    <MeContext.Provider value={{ id: "u1", email: "a@b.co", name: null, role: "Admin", language: null }}>
+    <MeContext.Provider
+      value={{ id: "u1", email: "a@b.co", name: null, role: "Admin", language: null, preferredStepperUnit: null }}>
       {ui}
     </MeContext.Provider>,
   );

@@ -65,6 +65,12 @@ export const es = {
     preferences: "Preferencias",
     language: "Idioma",
     languageHint: "El idioma en que se muestra la interfaz, solo para usted.",
+    stepperUnit: "Unidad de conteo de la entrada diaria",
+    stepperUnitHint:
+      "Cuánto cuentan los botones +/− de la entrada diaria, solo para usted — elija una "
+      + "unidad de empaque como Tray para contar por bandeja en lugar de por huevo, o siga "
+      + "el valor predeterminado de la granja.",
+    stepperUnitFarmDefaultOption: "Predeterminado de la granja ({{unit}})",
 
     // machine-drafted (#182) — pending native review. Task 25 (B4): the rest
     // of AccountPage. Keys mirror en.ts exactly, including {{role}}/{{min}}
@@ -942,6 +948,11 @@ export const es = {
       + "ella. El dinero registrado nunca se vuelve a valorar, así que "
       + "cambiar esto dejaría cada total guardado con otro significado.",
     unitSystemLabel: "Sistema de unidades",
+    defaultStepperUnitLabel: "Unidad de conteo de la entrada diaria",
+    defaultStepperUnitHint:
+      "Cuánto cuentan los botones +/− de la entrada diaria para todos en esta granja — "
+      + "por ejemplo Tray para contar por bandeja (30 huevos) en lugar de huevo por huevo. "
+      + "Cada persona puede elegir la suya en su pantalla de Cuenta.",
     firstDayOfWeekLabel: "Primer día de la semana",
     followLocaleOption: "Seguir la configuración regional",
     paletteLegend: "Paleta de la granja",
@@ -1706,7 +1717,10 @@ export const es = {
       + "aproximadamente un segundo. Más fácil que un teclado numérico con guantes puestos. El "
       + "<strong>+</strong> de un grado ya no se detiene en el total actual del día — cuente los grados "
       + "primero y el total se ajusta para igualarlos. Solo aumenta el total, nunca lo reduce, así que "
-      + "recortar el total en el paso 1 nunca empuja un grado hacia abajo.",
+      + "recortar el total en el paso 1 nunca empuja un grado hacia abajo. Las granjas que cuentan por "
+      + "bandeja pueden hacer que cada toque cuente una unidad de empaque completa en lugar de un huevo — "
+      + "el valor predeterminado de la granja está en <strong>Configuración</strong>, y cada persona puede "
+      + "elegir el suyo en su pantalla de <strong>Cuenta</strong>.",
     dailyEntryPutAllIn:
       "La mayoría de los días terminan de la misma manera — un grado se lleva lo que queda. <strong>Poner "
       + "todo en…</strong> junto al conteo restante lo hace en un solo movimiento: arrástrelo a un grado, o "

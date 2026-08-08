@@ -358,6 +358,9 @@ export interface Account {
   // light/night toggle, which stays a per-user device preference. The API is
   // the source of truth; localStorage only caches it for the pre-paint script.
   brand: string;
+  // #444 — the farm-default Daily Entry stepper pack unit (an EggUnitConversion
+  // code, e.g. "Tray"). A user's own Me.preferredStepperUnit overrides this.
+  defaultStepperUnit: string;
 }
 
 // Clients need the account currency to parse money input correctly — a JPY
@@ -375,6 +378,9 @@ export interface Me {
   name: string | null;
   role: string;
   language: string | null;
+  // #444 — overrides Account.defaultStepperUnit for this user's Daily Entry
+  // steppers. Null = follow the farm default.
+  preferredStepperUnit: string | null;
 }
 
 export const getMe = () => apiGet<Me>("/me");
@@ -383,6 +389,10 @@ export const getMe = () => apiGet<Me>("/me");
 // Idempotency-Key per call. Returns void (204).
 export const putMeLanguage = (language: string | null): Promise<void> =>
   apiPut<void>("/me/language", { language });
+
+// #444 — same shape as putMeLanguage: one absolute preference, null clears it.
+export const putMeStepperUnit = (unit: string | null): Promise<void> =>
+  apiPut<void>("/me/stepper-unit", { unit });
 
 export interface FarmSettings {
   settings: Account;
@@ -406,6 +416,7 @@ export interface UpdateFarmSettings {
   dateFormatOverride: string | null;
   timeFormatOverride: string | null;
   brand: string;
+  defaultStepperUnit: string;
   version: number;
 }
 

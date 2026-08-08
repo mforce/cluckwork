@@ -50,7 +50,10 @@ describe("SessionProvider", () => {
     // Gated: nothing rendered while the reads are in flight.
     expect(screen.queryByTestId("who")).toBeNull();
 
-    resolveMe({ id: "u1", email: "a@b.co", name: null, role: "Admin", language: null });
+    resolveMe({
+      id: "u1", email: "a@b.co", name: null, role: "Admin", language: null,
+      preferredStepperUnit: null,
+    });
     await waitFor(() => expect(screen.getByTestId("who")).toHaveTextContent("a@b.co"));
   });
 
@@ -88,7 +91,10 @@ describe("SessionProvider", () => {
     const { unmount } = renderShell();
     unmount(); // tear down while /me is still in flight (allSettled not resolved yet)
     changeSpy.mockClear(); // ignore anything before unmount
-    resolveMe({ id: "u1", email: "a@b.co", name: null, role: "Admin", language: null });
+    resolveMe({
+      id: "u1", email: "a@b.co", name: null, role: "Admin", language: null,
+      preferredStepperUnit: null,
+    });
     await Promise.resolve();
     await Promise.resolve();
     // The cancelled guard fires right after allSettled, BEFORE changeLanguage.
@@ -99,7 +105,10 @@ describe("SessionProvider", () => {
   it("resolves the user's language before revealing the shell", async () => {
     // en-only today, but prove changeLanguage ran with the resolved value.
     const spy = vi.spyOn(i18n, "changeLanguage");
-    mockGetMe.mockResolvedValue({ id: "u1", email: "a@b.co", name: null, role: "Admin", language: "en" });
+    mockGetMe.mockResolvedValue({
+      id: "u1", email: "a@b.co", name: null, role: "Admin", language: "en",
+      preferredStepperUnit: null,
+    });
     mockGetAccount.mockResolvedValue(account({ locale: "en-US" }));
     renderShell();
     await waitFor(() => expect(screen.getByTestId("who")).toHaveTextContent("a@b.co"));

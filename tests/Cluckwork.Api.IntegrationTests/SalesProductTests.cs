@@ -280,6 +280,7 @@ public sealed class SalesProductTests(CluckworkWebApplicationFactory factory)
                 dateFormatOverride = (string?)null,
                 timeFormatOverride = (string?)null,
                 brand = "aubergine",
+                defaultStepperUnit = "Individual",
                 settings.Settings.Version
             })
         };

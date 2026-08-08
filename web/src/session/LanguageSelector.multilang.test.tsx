@@ -17,7 +17,8 @@ describe("LanguageSelector with all installed languages", () => {
     const { LanguageSelector } = await import("./LanguageSelector");
     const changeSpy = vi.spyOn(i18n, "changeLanguage");
     render(
-      <MeContext.Provider value={{ id: "u1", email: "a@b.co", name: null, role: "Admin", language: "en" }}>
+      <MeContext.Provider
+        value={{ id: "u1", email: "a@b.co", name: null, role: "Admin", language: "en", preferredStepperUnit: null }}>
         <LanguageSelector />
       </MeContext.Provider>,
     );
@@ -46,7 +47,8 @@ describe("LanguageSelector with all installed languages", () => {
     let resolvePut!: () => void;
     vi.mocked(api.putMeLanguage).mockReturnValue(new Promise<void>((r) => (resolvePut = r)));
     render(
-      <MeContext.Provider value={{ id: "u1", email: "a@b.co", name: null, role: "Admin", language: "en" }}>
+      <MeContext.Provider
+        value={{ id: "u1", email: "a@b.co", name: null, role: "Admin", language: "en", preferredStepperUnit: null }}>
         <LanguageSelector />
       </MeContext.Provider>,
     );

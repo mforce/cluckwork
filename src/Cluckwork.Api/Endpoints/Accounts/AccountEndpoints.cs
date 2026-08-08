@@ -94,6 +94,7 @@ public static class AccountEndpoints
             request.DateFormatOverride,
             request.TimeFormatOverride,
             request.Brand,
+            request.DefaultStepperUnit,
             request.Version);
 
         var validation = await validator.ValidateAsync(command, ct);
@@ -124,7 +125,8 @@ public static class AccountEndpoints
         a.DateFormatOverride, a.TimeFormatOverride,
         a.Version,
         logoContentHash,
-        a.Brand);
+        a.Brand,
+        a.DefaultStepperUnit.ToString());
 }
 
 // CurrencyCode/CurrencyMinorUnit keep their names and positions from the
@@ -149,7 +151,11 @@ public sealed record AccountResponse(
     // The farm's accent palette (#149). On the role-agnostic /account read, not
     // just the admin-only settings payload: the palette is farm-wide, so every
     // role's shell needs it to render, and only admins can read /settings.
-    string Brand);
+    string Brand,
+    // #444 — the farm-default Daily Entry stepper pack unit, on the same
+    // role-agnostic read as Brand: DailyEntryPage needs it for every role,
+    // not just admins.
+    string DefaultStepperUnit);
 
 public sealed record FarmSettingsResponse(
     AccountResponse Settings,
@@ -168,4 +174,5 @@ public sealed record UpdateFarmSettingsRequest(
     string? DateFormatOverride,
     string? TimeFormatOverride,
     string Brand,
+    string DefaultStepperUnit,
     int Version);

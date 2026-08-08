@@ -70,6 +70,12 @@ export const tl = {
     preferences: "Mga Kagustuhan",
     language: "Wika",
     languageHint: "Ang wikang gagamitin sa interface, para lang sa iyo.",
+    stepperUnit: "Yunit ng pagbilang sa Daily Entry",
+    stepperUnitHint:
+      "Kung magkano ang ibinibilang ng mga +/− na button ng Daily Entry, para lang sa iyo — "
+      + "pumili ng pack unit tulad ng Tray para magbilang bawat tray sa halip na bawat itlog, "
+      + "o sundin ang default ng bukid.",
+    stepperUnitFarmDefaultOption: "Default ng bukid ({{unit}})",
 
     // machine-drafted (#182) — pending native review. Task 25 (B4): the rest
     // of AccountPage. Keys mirror en.ts exactly, including {{role}}/{{min}}
@@ -975,6 +981,11 @@ export const tl = {
       + "pera, kaya kung babaguhin ito, magkakaiba na ang ibig sabihin ng "
       + "bawat naka-save na total.",
     unitSystemLabel: "Sistema ng yunit",
+    defaultStepperUnitLabel: "Yunit ng pagbilang sa Daily Entry",
+    defaultStepperUnitHint:
+      "Kung magkano ang ibinibilang ng mga +/− na button ng Daily Entry para sa lahat sa "
+      + "bukid na ito — halimbawa Tray para magbilang bawat tray (30 itlog) sa halip na "
+      + "isa-isang itlog. Maaaring pumili ang bawat tao ng kanilang sarili sa kanilang Account screen.",
     firstDayOfWeekLabel: "Unang araw ng linggo",
     followLocaleOption: "Sundin ang locale",
     paletteLegend: "Paleta ng bukid",
@@ -1771,7 +1782,10 @@ export const tl = {
       + "ng isang segundo. Mas madali kaysa sa keypad kapag naka-guwantes. Hindi na huminto ang "
       + "<strong>+</strong> ng isang grado sa kasalukuyang kabuuan ng araw — bilangin muna ang mga grado at "
       + "aabot ang kabuuan para tumugma. Tumataas lang ito, hindi kailanman bumababa, kaya ang pagbawas sa "
-      + "kabuuan sa hakbang 1 ay hindi kailanman itutulak pababa ang isang grado.",
+      + "kabuuan sa hakbang 1 ay hindi kailanman itutulak pababa ang isang grado. Ang mga bukid na "
+      + "nagbibilang bawat tray ay maaaring gawing isang buong pack unit ang bilang ng bawat tap sa halip "
+      + "na isang itlog — nasa <strong>Settings</strong> ang default ng bukid, at maaaring pumili ang bawat "
+      + "tao ng kanilang sarili sa kanilang <strong>Account</strong> screen.",
     dailyEntryPutAllIn:
       "Karamihan sa mga araw ay natatapos sa parehong paraan — isang grado na lang ang kumukuha ng "
       + "natitira. Ginagawa ito sa isang galaw ng <strong>Ilagay lahat sa…</strong> sa tabi ng natitirang "

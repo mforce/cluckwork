@@ -3,7 +3,8 @@ import { screen, within, fireEvent, act } from "@testing-library/react";
 import { HistoryPage } from "./HistoryPage";
 import { renderWithProviders } from "../test/renderWithProviders";
 import {
-  adjustDailyEntry, getDailyEntry, listDailyEntries, listEggGrades, listFlocks, voidDailyEntry,
+  adjustDailyEntry, getDailyEntry, listDailyEntries, listEggGrades, listEggUnitConversions,
+  listFlocks, voidDailyEntry,
 } from "../api/cluckwork";
 import type { DailyEntry, EggGrade, Flock } from "../api/cluckwork";
 import { ApiError } from "../api/client";
@@ -15,6 +16,7 @@ import i18n from "../i18n";
 vi.mock("../api/cluckwork", () => ({
   listFlocks: vi.fn(),
   listEggGrades: vi.fn(),
+  listEggUnitConversions: vi.fn(),
   listDailyEntries: vi.fn(),
   getDailyEntry: vi.fn(),
   adjustDailyEntry: vi.fn(),
@@ -23,6 +25,7 @@ vi.mock("../api/cluckwork", () => ({
 
 const mockListFlocks = vi.mocked(listFlocks);
 const mockListEggGrades = vi.mocked(listEggGrades);
+const mockListEggUnitConversions = vi.mocked(listEggUnitConversions);
 const mockListDailyEntries = vi.mocked(listDailyEntries);
 const mockAdjustDailyEntry = vi.mocked(adjustDailyEntry);
 const mockGetDailyEntry = vi.mocked(getDailyEntry);
@@ -60,6 +63,11 @@ beforeEach(() => {
   Element.prototype.scrollIntoView = vi.fn();
   mockListFlocks.mockResolvedValue([FLOCK]);
   mockListEggGrades.mockResolvedValue([GRADE_A, GRADE_B]);
+  // #444 — Individual keeps every pre-existing test's +1/-1 arithmetic unchanged.
+  mockListEggUnitConversions.mockResolvedValue([
+    { id: "c1", unitCode: "Individual", eggsPerUnit: 1, active: true, version: 0 },
+    { id: "c3", unitCode: "Tray", eggsPerUnit: 30, active: true, version: 0 },
+  ]);
   mockListDailyEntries.mockResolvedValue([]);
 });
 

@@ -133,9 +133,22 @@ also carries a compressed *n sellable · n left*; on a wider screen both panes a
 already visible and repeating it would be noise.
 
 **Steppers (#134)** — every count and grade field has **−** and **+** buttons
-either side. Holding one repeats, widening its stride from 1 to 5 to 10, so a
-few hundred eggs takes about a second. Built for the barn: the browser's own
-spinner is a ten-pixel target and disappears entirely on touch.
+either side. Holding one repeats, widening its stride from 1× to 5× to 10× of
+the counting unit, so a few hundred eggs takes about a second. Built for the
+barn: the browser's own spinner is a ten-pixel target and disappears entirely
+on touch.
+
+**Stepper counting unit (#444)** — how much one tap of **−**/**+** counts by
+on the Daily Entry screen (and History's adjust dialog): one egg by default,
+or one of the farm's **packed units** (e.g. Tray = +30/−30) for a farm that
+counts by the tray rather than the egg. Resolved as: the **user's own
+preference** (Account screen, follows them across devices) if set, else the
+**farm default** (Settings, admin-set), else Individual. The hold-to-repeat
+stride multiplies this base, so a held Tray stepper accelerates in trays.
+Only units with an **active** eggs-per-unit definition (the same §9.7 catalog
+sales use) can be chosen; if a chosen unit is later deactivated, the stepper
+quietly falls back to one egg rather than counting by a retired factor.
+Typing stays plain numbers — only the guided control counts by units.
 
 A grade's **+** no longer stops once the day is fully graded (#443) — a farm
 that counts the grades before adding them up needs to keep going past

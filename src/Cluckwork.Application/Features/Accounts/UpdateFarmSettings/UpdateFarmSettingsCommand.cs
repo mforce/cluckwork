@@ -16,4 +16,7 @@ public sealed record UpdateFarmSettingsCommand(
     // Curated palette id, validated in the aggregate rather than here so the
     // failure surfaces as 422-with-a-code (#149).
     string Brand,
+    // #444 — the farm-default Daily Entry stepper pack unit (e.g. "Tray"),
+    // travels as a name like UnitSystem/FirstDayOfWeek above.
+    string DefaultStepperUnit,
     int Version);

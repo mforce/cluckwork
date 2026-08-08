@@ -7,11 +7,13 @@ import { Minus, Plus } from "lucide-react";
 const FIRST_REPEAT_MS = 400;
 const REPEAT_EVERY_MS = 60;
 
-// The step grows rather than the rate. A flock's day runs to several hundred
-// eggs, and machine-gunning +1 either takes for ever or overshoots wildly;
-// widening the stride gets there in a couple of seconds and still lands on a
-// round number the counter can correct by tapping once.
-const stepFor = (tick: number) => (tick > 30 ? 10 : tick > 10 ? 5 : 1);
+// The stride grows relative to the BASE step (#444's `step` prop — 1 egg by
+// default, or a farm/user's chosen pack unit, e.g. 30 for Tray) rather than a
+// fixed count. A flock's day runs to several hundred eggs, and machine-gunning
+// +1 either takes for ever or overshoots wildly; widening the stride gets
+// there in a couple of seconds and still lands on a round multiple of the
+// base unit the counter can correct by tapping once.
+const strideFor = (tick: number) => (tick > 30 ? 10 : tick > 10 ? 5 : 1);
 
 interface NumberFieldProps {
   /** Ties the input to its own <label htmlFor>. */
@@ -21,6 +23,14 @@ interface NumberFieldProps {
   value: number;
   /** Takes React's setState directly: the repeat MUST use the updater form. */
   onChange: Dispatch<SetStateAction<number>>;
+  /**
+   * #444 — the amount +/− (and the first tick of a hold) move by; the
+   * hold-repeat's growing stride (see strideFor) then multiplies THIS, not a
+   * hardcoded 1. Defaults to 1 (every caller but Daily Entry's grade/loss
+   * steppers). Typing stays a plain number regardless — only the guided
+   * control counts by units.
+   */
+  step?: number;
   /**
    * Ceiling for the + button and its repeat. Typing is deliberately NOT capped:
    * a draft is allowed to be over-graded while the counter rearranges it, and
@@ -41,7 +51,7 @@ interface NumberFieldProps {
 // vanishes entirely on touch, so counts get typed on a phone keypad one digit
 // at a time. These are thumb-sized, and holding one accelerates.
 export function NumberField({
-  id, label, value, onChange, max = Number.POSITIVE_INFINITY, min = 0, disabled = false,
+  id, label, value, onChange, step = 1, max = Number.POSITIVE_INFINITY, min = 0, disabled = false,
 }: NumberFieldProps) {
   const { t } = useTranslation("numberField");
   const timer = useRef<number | null>(null);
@@ -51,8 +61,8 @@ export function NumberField({
   // can also discover a submitted entry and lock the form — so the repeat reads
   // them live instead of from the closure it was created in. An earlier version
   // captured them and argued `max` was invariant during a hold; it is not.
-  const live = useRef({ value, max, min, disabled });
-  live.current = { value, max, min, disabled };
+  const live = useRef({ value, step, max, min, disabled });
+  live.current = { value, step, max, min, disabled };
 
   // Enter and Space on a focused button dispatch `click`, never `pointerdown`,
   // so pointer-only handlers leave these buttons completely dead to the
@@ -83,8 +93,12 @@ export function NumberField({
     // running past it. `max` is captured, which is correct: for a grade it is
     // (this field + what is unallocated), and that sum does not move while this
     // field is the one being incremented.
-    const bump = (by: number) =>
-      onChange((prev) => Math.min(live.current.max, Math.max(live.current.min, prev + direction * by)));
+    // `stride` multiplies the CURRENT `step` (live, like max/min below) rather
+    // than a bare count — #444 needs a hold that started at step=1 to keep
+    // accelerating correctly if the farm's stepper unit changes mid-render.
+    const bump = (stride: number) =>
+      onChange((prev) => Math.min(
+        live.current.max, Math.max(live.current.min, prev + direction * stride * live.current.step)));
 
     bump(1); // the press itself lands immediately
     const repeat = () => {
@@ -98,7 +112,7 @@ export function NumberField({
         return;
       }
       tick.current += 1;
-      bump(stepFor(tick.current));
+      bump(strideFor(tick.current));
       timer.current = window.setTimeout(repeat, REPEAT_EVERY_MS);
     };
     timer.current = window.setTimeout(repeat, FIRST_REPEAT_MS);
@@ -116,7 +130,8 @@ export function NumberField({
     onClick: () => {
       if (pointerDrove.current) { pointerDrove.current = false; return; }
       if (disabled) return;
-      onChange((prev) => Math.min(live.current.max, Math.max(live.current.min, prev + direction)));
+      onChange((prev) => Math.min(
+        live.current.max, Math.max(live.current.min, prev + direction * live.current.step)));
     },
   });
 

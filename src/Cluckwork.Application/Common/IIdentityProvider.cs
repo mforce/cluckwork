@@ -1,5 +1,7 @@
 namespace Cluckwork.Application.Common;
 
+using Cluckwork.Domain.Catalog;
+
 // Port — abstraction over ASP.NET Core Identity + JWT. Swap to Keycloak/Entra
 // in a future IIdentityProvider implementation without touching Application.
 public interface IIdentityProvider
@@ -78,6 +80,13 @@ public interface IIdentityProvider
     // #45 — set/clear the user's language, account-scoped (foreign id -> NotFound).
     Task<Result> SetLanguageAsync(
         Guid accountId, Guid userId, string? language, CancellationToken ct = default);
+
+    // #444 — set/clear the user's Daily Entry stepper pack-unit override,
+    // account-scoped (foreign id -> NotFound). The caller (SetStepperUnitHandler)
+    // has already confirmed a non-null unit is still an active EggUnitConversion —
+    // this is a plain write, same shape as SetLanguageAsync.
+    Task<Result> SetStepperUnitAsync(
+        Guid accountId, Guid userId, EggUnit? unit, CancellationToken ct = default);
 }
 
 public sealed record TokenPair(
@@ -88,4 +97,5 @@ public sealed record TokenPair(
 public sealed record UserSummary(Guid Id, string Email, string? DisplayName, string Role);
 
 public sealed record UserProfile(
-    Guid Id, string Email, string? DisplayName, string Role, string? Language);
+    Guid Id, string Email, string? DisplayName, string Role, string? Language,
+    EggUnit? PreferredStepperUnit);
