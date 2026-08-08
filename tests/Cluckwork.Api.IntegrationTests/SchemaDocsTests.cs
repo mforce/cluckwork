@@ -597,7 +597,7 @@ public sealed class SchemaDocsTests
             JOIN pg_class c ON c.oid = a.attrelid
             JOIN pg_namespace n ON n.oid = c.relnamespace
             LEFT JOIN pg_attrdef d ON d.adrelid = a.attrelid AND d.adnum = a.attnum
-            WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p', 'm', 'v')
+            WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p', 'm', 'v', 'f')
               AND a.attnum > 0 AND NOT a.attisdropped
             ORDER BY c.relname, a.attnum
             """;
