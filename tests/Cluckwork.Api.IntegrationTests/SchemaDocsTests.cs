@@ -179,6 +179,21 @@ public sealed class SchemaDocsTests
         // prefix or a multi-quote delimiter means no escape processing.
         var csharpEscapedLiteralPattern = new Regex(
             @"(?:Image\w*\s*=\s*|Builder\s*\(\s*(?:\w+\s*:\s*)?|WithImage\s*\(\s*(?:\w+\s*:\s*)?)(?<pfx>[$@]*)(?<q>""+)(?<body>(?:[^""\\\r\n]|\\.)*)""");
+        // The expression-anchored refusal above can be defeated by syntactic
+        // wrappers — extra parentheses, casts, named-argument trivia — so the
+        // escape family also gets a CONTEXT-FREE rule: every ordinary (or
+        // ordinary-interpolated) literal in a .cs file, wherever it sits, is
+        // decoded, and a literal whose decoded value is postgres-shaped while
+        // its source text carries an escape is refused. Expression context is
+        // irrelevant to this rule, which is what closes the wrapper class:
+        // no amount of surrounding trivia changes the literal itself. It
+        // fires only when a backslash is present AND the decoded value is
+        // exactly image-shaped, so ordinary strings that legitimately contain
+        // escapes (log messages, test fixtures) never match.
+        var csharpAnyOrdinaryLiteralPattern = new Regex(
+            @"(?<pfx>[$@]*)(?<q>""+)(?<body>(?:[^""\\\r\n]|\\.)*)""");
+        var decodedImageShapePattern = new Regex(
+            @"^(?:[a-z0-9.-]+(?::\d+)?/)*postgres(?::[^@\s""]+)?(?:@sha256:[0-9a-f]{64})?$");
         // BuildKit RUN mounts pull an external image when from= names no
         // build stage or context — a fourth bare-reference syntax.
         // NOT anchored to RUN: a continued instruction puts later mount
@@ -362,6 +377,17 @@ public sealed class SchemaDocsTests
                     if (!m.Groups["body"].Value.Contains('\\')) continue;
                     if (!hits.TryGetValue("escape-bearing C# string literal in an image-consuming expression — the evaluated value is not textually reviewable; write the reference unescaped", out var files))
                         hits["escape-bearing C# string literal in an image-consuming expression — the evaluated value is not textually reviewable; write the reference unescaped"] = files = [];
+                    files.Add(relative);
+                }
+                foreach (Match m in csharpAnyOrdinaryLiteralPattern.Matches(text))
+                {
+                    if (m.Groups["pfx"].Value.Contains('@')) continue;
+                    if (m.Groups["q"].Value.Length > 1) continue;
+                    var body = m.Groups["body"].Value;
+                    if (!body.Contains('\\')) continue;
+                    if (!decodedImageShapePattern.IsMatch(DecodeCSharpEscapes(body))) continue;
+                    if (!hits.TryGetValue("escape-disguised postgres reference (an ordinary C# literal whose DECODED value is image-shaped) — write the reference unescaped", out var files))
+                        hits["escape-disguised postgres reference (an ordinary C# literal whose DECODED value is image-shaped) — write the reference unescaped"] = files = [];
                     files.Add(relative);
                 }
             }
@@ -850,6 +876,63 @@ public sealed class SchemaDocsTests
         Assert.True(missing.Length == 0,
             "Migrated schema contains objects the committed docs do not:\n" + missing +
             "\nRegenerate with tools/schema-docs/generate.sh");
+    }
+
+    // Decodes the escape sequences an ordinary C# literal processes, so the
+    // pin sweep can compare a literal's EVALUATED value against the image
+    // shape. An undecodable sequence is kept as-is — it would not compile
+    // anyway, so it can never disguise a value.
+    private static string DecodeCSharpEscapes(string body)
+    {
+        var sb = new System.Text.StringBuilder(body.Length);
+        for (var i = 0; i < body.Length; i++)
+        {
+            if (body[i] != '\\' || i + 1 == body.Length)
+            {
+                sb.Append(body[i]);
+                continue;
+            }
+            var c = body[++i];
+            switch (c)
+            {
+                case 'u' when i + 4 < body.Length
+                    && int.TryParse(body.AsSpan(i + 1, 4), System.Globalization.NumberStyles.HexNumber, null, out var u16):
+                    sb.Append((char)u16);
+                    i += 4;
+                    break;
+                case 'U' when i + 8 < body.Length
+                    && int.TryParse(body.AsSpan(i + 1, 8), System.Globalization.NumberStyles.HexNumber, null, out var u32)
+                    && u32 <= 0x10FFFF:
+                    sb.Append(char.ConvertFromUtf32(u32));
+                    i += 8;
+                    break;
+                case 'x':
+                {
+                    var len = 0;
+                    while (len < 4 && i + 1 + len < body.Length && Uri.IsHexDigit(body[i + 1 + len])) len++;
+                    if (len == 0) goto default;
+                    sb.Append((char)int.Parse(body.AsSpan(i + 1, len), System.Globalization.NumberStyles.HexNumber));
+                    i += len;
+                    break;
+                }
+                case '0': sb.Append('\0'); break;
+                case 'a': sb.Append('\a'); break;
+                case 'b': sb.Append('\b'); break;
+                case 'e': sb.Append('\u001b'); break;
+                case 'f': sb.Append('\f'); break;
+                case 'n': sb.Append('\n'); break;
+                case 'r': sb.Append('\r'); break;
+                case 't': sb.Append('\t'); break;
+                case 'v': sb.Append('\v'); break;
+                case '\\': sb.Append('\\'); break;
+                case '"': sb.Append('"'); break;
+                case '\'': sb.Append('\''); break;
+                default:
+                    sb.Append('\\').Append(c);
+                    break;
+            }
+        }
+        return sb.ToString();
     }
 
     private static async Task<List<string>> QueryStringsAsync(
