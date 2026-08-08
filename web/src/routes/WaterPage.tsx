@@ -57,10 +57,15 @@ export function WaterPage() {
   const [meterEnd, setMeterEnd] = useState("");
   const [note, setNote] = useState("");
 
-  // list filters
-  const [flockFilter, setFlockFilter] = useState("");
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
+  // list filters — initialized from the URL (?flockId=&from=&to=) so the
+  // Daily Entry strip's "Water: N records" link lands on exactly the day it
+  // was describing. window.location, not a router hook, on purpose — this
+  // page has no other router dependency (DailyEntryPage's own deep-link
+  // precedent).
+  const [initialParams] = useState(() => new URLSearchParams(window.location.search));
+  const [flockFilter, setFlockFilter] = useState(initialParams.get("flockId") ?? "");
+  const [from, setFrom] = useState(initialParams.get("from") ?? "");
+  const [to, setTo] = useState(initialParams.get("to") ?? "");
 
   // Stable idempotency keys per logical mutation, rotated only after the full
   // action (write + refresh) succeeds — same contract as the other screens.

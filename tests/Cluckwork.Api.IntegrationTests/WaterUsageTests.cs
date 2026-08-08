@@ -198,4 +198,64 @@ public sealed class WaterUsageTests(CluckworkWebApplicationFactory factory)
             (quantity == 80m && source == "Well") || (quantity == 70m && source == "Tank"),
             $"blended write: {quantity} / {source}");
     }
+
+    // -----------------------------------------------------------------------
+    // #446 — record-time DailyEntryId stamping, same contract as feed: link
+    // the non-voided entry that exists at record time, never backfill. The
+    // void/re-create nuances are pinned on the feed side (shared contract,
+    // FeedUsageTests) — here the two base cases prove water's own handler
+    // resolves the link too, and that Update never touches it.
+    // -----------------------------------------------------------------------
+
+    private sealed record RowWithEntry(Guid Id, string? Note, int Version, Guid? DailyEntryId);
+
+    [Fact]
+    public async Task Record_WithExistingDailyEntry_StampsTheLink_AndUpdateKeepsIt()
+    {
+        var email = $"u-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var farmId = Guid.NewGuid();
+        var houseId = Guid.NewGuid();
+        var flockId = await factory.SeedFlockAsync(accountId, farmId, houseId);
+        var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
+
+        var record = await client.PostWithKeyAsync("/api/v1/daily-entries", Guid.NewGuid().ToString(), new
+        {
+            farmId, houseId, flockId, date = Today,
+            totalEggs = 0, crackedEggs = 0, dirtyEggs = 0, discardedEggs = 0, mortalityCount = 0,
+            grades = Array.Empty<object>(),
+        });
+        record.EnsureSuccessStatusCode();
+        var entryId = (await record.Content.ReadFromJsonAsync<Created>())!.Id;
+
+        var created = await client.PostWithKeyAsync("/api/v1/water-usage", Guid.NewGuid().ToString(),
+            new { flockId, date = Today, quantity = 100m, source = "Well" });
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+
+        var row = Assert.Single((await client.GetFromJsonAsync<List<RowWithEntry>>(
+            $"/api/v1/water-usage?flockId={flockId}"))!);
+        Assert.Equal(entryId, row.DailyEntryId);
+
+        // A correction keeps the link exactly as recorded.
+        var put = await PutWithKeyAsync(client, $"/api/v1/water-usage/{row.Id}",
+            new { quantity = 90m, unit = "L", source = "Well", note = "corrected", version = row.Version });
+        Assert.Equal(HttpStatusCode.NoContent, put.StatusCode);
+        var corrected = Assert.Single((await client.GetFromJsonAsync<List<RowWithEntry>>(
+            $"/api/v1/water-usage?flockId={flockId}"))!);
+        Assert.Equal(entryId, corrected.DailyEntryId);
+    }
+
+    [Fact]
+    public async Task Record_NoDailyEntry_LinkStaysNull()
+    {
+        var (client, _, flockId) = await SetupAsync();
+
+        var created = await client.PostWithKeyAsync("/api/v1/water-usage", Guid.NewGuid().ToString(),
+            new { flockId, date = Today, quantity = 100m, source = "Well" });
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+
+        var row = Assert.Single((await client.GetFromJsonAsync<List<RowWithEntry>>(
+            $"/api/v1/water-usage?flockId={flockId}"))!);
+        Assert.Null(row.DailyEntryId);
+    }
 }

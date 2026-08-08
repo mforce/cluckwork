@@ -144,6 +144,7 @@ export const en = {
     dashboard: "Dashboard",
     dailyEntry: "Daily entry",
     flocks: "Flocks",
+    feed: "Feed",
     water: "Water",
     inventory: "Inventory",
     stock: "Stock",
@@ -458,6 +459,16 @@ export const en = {
     countsExceedFooterMessage: "Losses exceed the total — fix the counts",
     // #444 — shown only when a pack unit is in force. {{unit}} is the raw
     // EggUnit code (DATA, e.g. "Tray"), same as everywhere unit codes render.
+    // #446 — the day-support strip; count routes through i18next plurals.
+    daySupportFeed: "Feed: {{count}} records (est. {{cost}})",
+    daySupportFeed_one: "Feed: {{count}} record (est. {{cost}})",
+    // Cost dropped when the day's rows span currencies — never a blended sum.
+    daySupportFeedNoCost: "Feed: {{count}} records",
+    daySupportFeedNoCost_one: "Feed: {{count}} record",
+    daySupportFeedNone: "Feed: 0 records",
+    daySupportWater: "Water: {{count}} records",
+    daySupportWater_one: "Water: {{count}} record",
+    daySupportWaterNone: "Water: 0 records",
     stepperUnitCaption: "Counting by {{unit}} — each tap of − / + moves {{count}} eggs. Typing still enters exact numbers.",
     sellableWord: "sellable",
     saveDraftButton: "Save draft",
@@ -538,6 +549,65 @@ export const en = {
   // helpers, not a key here — see WaterPage.tsx. Both families are
   // identity-labelled in English today, so wiring them changes nothing
   // visible (confirmed in the report).
+  // #446 — feed usage promoted out of the Inventory drill-down to its own
+  // page, mirroring the water namespace's shape (minus corrections: feed is
+  // create-only; mis-entries are compensated via Inventory adjustments).
+  feed: {
+    title: "Feed",
+
+    // Imperative messages (event handlers / promise callbacks).
+    loadFailed: "Could not load flocks and feed items. Is the API up?",
+    loadRecordsFailed: "Could not load feed records.",
+    loadMoreFailed: "Could not load more.",
+
+    intro:
+      "Record what each flock was fed. Stock is drawn from the oldest "
+      + "purchases first and the cost estimate comes from those lots.",
+
+    // Capture form labels
+    flockLabel: "Flock",
+    depletedFlockSuffix: " — depleted, backfill only",
+    itemLabel: "Item",
+    // {{onHand}} is the item's current stock in {{unit}} — visible before
+    // submitting, so an over-ask is caught by eye before the server refuses.
+    itemOption: "{{name}} ({{onHand}} {{unit}} on hand)",
+    dateLabel: "Date",
+    quantityLabel: "Quantity",
+    quantityLabelWithUnit: "Quantity ({{unit}})",
+    noteLabel: "Note",
+
+    // Capture form buttons
+    recordFeedButton: "Record feed",
+
+    // Inline validation messages
+    quantityMustBePositive: "Quantity must be a positive number.",
+
+    // Save-result messages
+    recordedMessage: "Feed recorded.",
+
+    // Feed is create-only — corrections are lot adjustments on Inventory.
+    correctionsHint:
+      "A mis-entered feeding is corrected with an Inventory adjustment on the "
+      + "affected lot — feed records themselves are never edited.",
+
+    // Records list — filters
+    filterFlockLabel: "Filter by flock",
+    inactiveItemSuffix: " — inactive, feeding out remaining stock",
+    inactiveEmptyItemSuffix: " — inactive, no stock left",
+    recordsHeading: "Records",
+    fromLabel: "From",
+    toLabel: "To",
+    noRecordsMatch: "No feed records match.",
+
+    // Records table
+    dateHeader: "Date",
+    flockHeader: "Flock",
+    itemHeader: "Item",
+    amountHeader: "Amount",
+    estimatedCostHeader: "Est. cost",
+    noteHeader: "Note",
+    loadMoreButton: "load more",
+  },
   water: {
     title: "Water",
 
@@ -697,7 +767,6 @@ export const en = {
     loadLedgerFailed: "Could not load the movement ledger.",
     quantityMustBePositive: "Quantity must be a positive number.",
     purchaseRecordedMessage: "Purchase recorded — stock received.",
-    usageRecordedMessage: "Feed usage recorded — stock drained oldest lots first.",
     adjustQuantityRequired: "Adjustment quantity must be a non-zero number (negative removes stock).",
     adjustReasonRequired: "A reason is required for corrections.",
     correctionRecordedMessage: "Correction recorded in the ledger.",
@@ -717,7 +786,9 @@ export const en = {
     // Item panel (opened item)
     itemPanelHeading: "{{name}} — {{quantity}} {{unit}} on hand",
     recordPurchaseButton: "Record purchase",
-    recordUsageButton: "Record usage",
+    // #446 — the usage dialog moved to the /feed page; the panel keeps a
+    // deep link that arrives with this item preselected.
+    recordUsageLink: "Record usage on the Feed page",
     correctStockButton: "Correct stock",
     // {{category}} is the ALREADY-LABELLED (inventoryCategoryLabel) category —
     // never the raw wire value. "Feed, Supplement, and Additive" names the
@@ -726,7 +797,6 @@ export const en = {
     notFeedableMessage:
       "{{category}} items aren't fed to flocks — usage applies to Feed, "
       + "Supplement, and Additive items only.",
-    noFlocksForUsageMessage: "No flocks — usage needs a flock to feed.",
     correctionsNeedAdminMessage: "Stock corrections need an admin.",
     noLotsMessage: "No lots yet — corrections target a received lot.",
 
@@ -746,11 +816,9 @@ export const en = {
     recordPurchaseSubmitButton: "Record purchase",
 
     // Record-usage dialog
-    recordUsageDialogTitle: "Record usage — {{name}}",
     flockLabel: "Flock",
     depletedFlockSuffix: " (depleted — backfill only)",
     dateLabel: "Date",
-    recordUsageSubmitButton: "Record usage",
 
     // Correct-stock dialog. The Type picker's two options are DECORATED
     // screen copy, not the ledger's inventoryMovementLabel identity text —
@@ -1906,7 +1974,8 @@ export const en = {
     tocGrades: "Egg grades",
     tocProducts: "Products",
     tocStock: "Stock",
-    tocInventory: "Feed & inventory",
+    tocInventory: "Supplies & inventory",
+    tocFeed: "Feed",
     tocWater: "Water",
     tocSales: "Customers & sales",
     tocReports: "Reports",
@@ -2175,9 +2244,9 @@ export const en = {
       "<strong>Items</strong> define what you track (feed, supplements…) and the unit it's measured in. The "
       + "unit locks once stock has been received — quantities on record must keep meaning what they meant.",
     inventoryPurchaseUsage:
-      "<strong>Record purchase</strong> books received stock as a dated lot with its cost. <strong>Record "
-      + "usage</strong> logs what a flock ate on a day: it draws from the oldest lots first (only lots that "
-      + "existed on that date) and estimates the cost from the actual lots consumed.",
+      "<strong>Record purchase</strong> books received stock as a dated lot with its cost. Feeding a flock "
+      + "is recorded on the <strong>Feed page</strong> — a feedable item's panel links straight there with "
+      + "the item preselected.",
     inventoryLedger:
       "Every change lands in the item's <strong>movement ledger</strong> — purchases, usage, corrections. "
       + "Ledger rows are never edited or deleted.",
@@ -2188,6 +2257,23 @@ export const en = {
     inventoryPermissions:
       "Recording purchases and usage is open to everyone; the item catalog and stock corrections are "
       + "admin-only.",
+
+    // Feed (#446 — its own page, out of the Inventory drill-down)
+    feedHeading: "Feed",
+    feedRecording:
+      "<strong>Record feed</strong> logs what a flock ate on a day: pick the flock, the item (current "
+      + "stock shows right in the picker), the amount, and the date. Stock drains from the oldest "
+      + "purchases first — only lots that existed on that date — and the cost estimate comes from the "
+      + "actual lots consumed. The page's history lists every feeding with its estimated cost.",
+    feedCorrecting:
+      "Feed records are <strong>never edited</strong>: the stock they drew is already in the ledger, so a "
+      + "mis-entry is fixed with an Inventory <strong>adjustment</strong> on the affected lot (reason "
+      + "required), which stays visible beside the original.",
+    feedDailyEntry:
+      "The <strong>Daily Entry</strong> page shows the selected flock and day's feed and water at a "
+      + "glance, linking here. A feed or water record made while that day's entry already exists also "
+      + "remembers that entry — records made before it stay unlinked on purpose; the day itself is what "
+      + "ties them together.",
 
     // Water
     waterHeading: "Water",

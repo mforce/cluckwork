@@ -329,6 +329,18 @@ Feed/Supplement/Additive items can be fed to a flock. Same lifecycle rule as
 production: depleted flocks accept backfill up to their depletion date,
 archived never.
 
+Recorded on the **Feed page** (#446) — its own capture form plus the feed
+history (filterable, paginated, with per-row estimated cost); an item's
+Inventory panel deep-links there with that item preselected. Each feed and
+water record also carries a **daily-entry link**: the non-voided daily entry
+that existed for the same flock's (farm, house, flock, date) *at the moment
+of recording*, or nothing if the day's entry didn't exist yet. The link is
+best-effort provenance — it is never backfilled when the entry arrives
+later, never changed by a water correction, and a later void of the entry
+does not clear it. Flock + date remains the authoritative way the app joins
+feed/water to a day (the Daily Entry page's own summary strip joins that
+way), so an empty link never hides a record.
+
 **Adjustment / Discard** — the correction path for stock: a signed ledger row
 against a specific lot (reason required). Negative fixes an over-entered
 purchase or writes off spoiled feed (Discard); positive undoes an

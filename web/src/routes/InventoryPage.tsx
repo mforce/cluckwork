@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
+import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
 import { Plus } from "lucide-react";
 import {
   createInventoryItem, activateInventoryItem, deactivateInventoryItem, formatMoney, getAccount,
-  listFlocks, listInventoryItems, listInventoryLots, listInventoryMovements, parseMoneyToMinorUnits,
-  recordFeedUsage, recordInventoryAdjustment, recordInventoryPurchase, updateInventoryItem,
+  listInventoryItems, listInventoryLots, listInventoryMovements, parseMoneyToMinorUnits,
+  recordInventoryAdjustment, recordInventoryPurchase, updateInventoryItem,
 } from "../api/cluckwork";
-import type { Account, Flock, InventoryItem, InventoryLot, InventoryMovement } from "../api/cluckwork";
+import type { Account, InventoryItem, InventoryLot, InventoryMovement } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
@@ -16,6 +17,7 @@ import { StatusBadge } from "../components/StatusBadge";
 import { usePendingAction } from "../components/usePendingAction";
 import { newId } from "../lib/ids";
 import { useFarmToday } from "../farm/useFarm";
+import { FEEDABLE_CATEGORIES } from "./FeedPage";
 import i18n from "../i18n";
 import { inventoryCategoryLabel, inventoryMovementLabel, statusLabel } from "../i18n/enums";
 
@@ -25,8 +27,7 @@ const CATEGORIES = [
   "Packaging", "Bedding", "Sanitation", "EquipmentPart", "Other",
 ];
 
-// Only these can be recorded as flock feed usage (mirrors the API gate).
-const FEEDABLE_CATEGORIES = ["Feed", "Supplement", "Additive"];
+
 
 function errText(err: unknown): string {
   if (err instanceof ApiError) return err.message;
@@ -68,20 +69,14 @@ export function InventoryPage() {
   const [editUnit, setEditUnit] = useState("");
   const [editCost, setEditCost] = useState("");
 
-  // open item panel: purchase/usage/adjust forms + ledger
+  // open item panel: purchase/adjust forms + ledger. Feed usage moved to its
+  // own /feed page (#446) — the panel keeps only a deep link there.
   const [active, setActive] = useState<InventoryItem | null>(null);
   const [movements, setMovements] = useState<InventoryMovement[]>([]);
   const [lots, setLots] = useState<InventoryLot[]>([]);
-  const [flocks, setFlocks] = useState<Flock[]>([]);
-  // the open item's three capture dialogs
+  // the open item's two capture dialogs
   const [purchasing, setPurchasing] = useState(false);
-  const [usingStock, setUsingStock] = useState(false);
   const [adjusting, setAdjusting] = useState(false);
-  // usage form
-  const [usageFlockId, setUsageFlockId] = useState("");
-  const [usageDate, setUsageDate] = useState(today);
-  const [usageQty, setUsageQty] = useState("");
-  const [usageNote, setUsageNote] = useState("");
   // adjustment form
   const [adjustLotId, setAdjustLotId] = useState("");
   const [adjustType, setAdjustType] = useState("Adjustment");
@@ -111,16 +106,10 @@ export function InventoryPage() {
   const fetchItems = () => listInventoryItems({ includeInactive: true });
 
   useEffect(() => {
-    Promise.all([fetchItems(), getAccount(), listFlocks()])
-      .then(([list, acct, flockList]) => {
+    Promise.all([fetchItems(), getAccount()])
+      .then(([list, acct]) => {
         setItems(list);
         setAccount(acct);
-        // Active + depleted: depleted flocks still take backfilled feed up to
-        // their depletion date (the API gates the exact dates). Archived are out.
-        const feedable = flockList.filter((f) => f.status !== "Archived");
-        setFlocks(feedable);
-        const firstActive = feedable.find((f) => f.status === "Active") ?? feedable[0];
-        if (firstActive) setUsageFlockId(firstActive.id);
       })
       .catch(() => setError(i18n.t("inventory:loadInventoryFailed")));
   }, []);
@@ -256,29 +245,6 @@ export function InventoryPage() {
     }
   }
 
-  async function onRecordUsage(e: FormEvent) {
-    e.preventDefault();
-    if (!active) return;
-    const qty = parseFloat(usageQty);
-    if (!Number.isFinite(qty) || qty <= 0) {
-      setError(i18n.t("inventory:quantityMustBePositive"));
-      return;
-    }
-    const ok = await run(`usage:${active.id}`, (key) =>
-      recordFeedUsage(active.id, {
-        flockId: usageFlockId,
-        date: usageDate,
-        quantity: qty,
-        note: usageNote.trim() || undefined,
-      }, key), active.id);
-    if (ok) {
-      setUsageQty("");
-      setUsageNote("");
-      setMessage(i18n.t("inventory:usageRecordedMessage"));
-      setUsingStock(false);
-    }
-  }
-
   async function onAdjust(e: FormEvent) {
     e.preventDefault();
     if (!active) return;
@@ -323,7 +289,7 @@ export function InventoryPage() {
     return <section><h2>{t("title")}</h2><p className="muted">{tc("loading")}</p></section>;
   }
 
-  const dialogOpen = creating || editingId !== null || purchasing || usingStock || adjusting;
+  const dialogOpen = creating || editingId !== null || purchasing || adjusting;
   const canFeed = active !== null && FEEDABLE_CATEGORIES.includes(active.category);
 
   return (
@@ -408,10 +374,13 @@ export function InventoryPage() {
             <button type="button" onClick={() => { setError(null); setPurchasing(true); }}>
               <Plus size={16} aria-hidden /> {t("recordPurchaseButton")}
             </button>
-            {canFeed && flocks.length > 0 && (
-              <button type="button" onClick={() => { setError(null); setUsingStock(true); }}>
-                {t("recordUsageButton")}
-              </button>
+            {canFeed && (
+              // #446 — feed usage lives on its own page now; the deep link
+              // keeps the one thing the old dialog had over it: the item you
+              // are looking at arrives preselected.
+              <Link className="link" to={`/feed?item=${active.id}`}>
+                {t("recordUsageLink")}
+              </Link>
             )}
             {isAdmin && lots.length > 0 && (
               <button type="button" className="link" onClick={() => { setError(null); setAdjusting(true); }}>
@@ -425,9 +394,6 @@ export function InventoryPage() {
             <p className="muted">
               {t("notFeedableMessage", { category: inventoryCategoryLabel(active.category) })}
             </p>
-          )}
-          {canFeed && flocks.length === 0 && (
-            <p className="muted">{t("noFlocksForUsageMessage")}</p>
           )}
           {!isAdmin ? (
             <p className="muted">{t("correctionsNeedAdminMessage")}</p>
@@ -469,39 +435,6 @@ export function InventoryPage() {
                 <button type="button" className="link" onClick={() => setPurchasing(false)}>{tc("cancel")}</button>
                 <BusyButton type="submit" busy={isPending(`purchase:${active.id}`)} disabled={busy}>
                   {t("recordPurchaseSubmitButton")}
-                </BusyButton>
-              </div>
-            </form>
-          </Dialog>
-
-          <Dialog open={usingStock} title={t("recordUsageDialogTitle", { name: active.name })} onClose={() => setUsingStock(false)}>
-            <form className="form-grid" onSubmit={onRecordUsage}>
-              <label>{t("flockLabel")}
-                <select value={usageFlockId} onChange={(e) => setUsageFlockId(e.target.value)}>
-                  {flocks.map((f) => (
-                    <option key={f.id} value={f.id}>
-                      {f.name}{f.status === "Depleted" ? t("depletedFlockSuffix") : ""}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>{t("dateLabel")}
-                <input type="date" value={usageDate} max={today} required
-                  onChange={(e) => setUsageDate(e.target.value)} />
-              </label>
-              <label>{t("quantityLabelWithUnit", { unit: active.unit })}
-                <input type="number" min={0.001} step={0.001} value={usageQty} required
-                  onChange={(e) => setUsageQty(e.target.value)} />
-              </label>
-              <label>{t("noteLabel")}
-                <input value={usageNote} maxLength={500}
-                  onChange={(e) => setUsageNote(e.target.value)} />
-              </label>
-              {error && <p className="error">{error}</p>}
-              <div className="dialog-foot">
-                <button type="button" className="link" onClick={() => setUsingStock(false)}>{tc("cancel")}</button>
-                <BusyButton type="submit" busy={isPending(`usage:${active.id}`)} disabled={busy || !usageFlockId}>
-                  {t("recordUsageSubmitButton")}
                 </BusyButton>
               </div>
             </form>

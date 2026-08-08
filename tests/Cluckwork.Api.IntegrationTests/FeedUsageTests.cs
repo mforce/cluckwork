@@ -297,4 +297,122 @@ public sealed class FeedUsageTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(versionBefore + 1, versionAfter);
         Assert.Equal(1, usageCount);
     }
+
+    // -----------------------------------------------------------------------
+    // #446 — record-time DailyEntryId stamping. The contract, exactly: "the
+    // non-voided daily entry that existed for this flock's (farm, house,
+    // flock, date) when the row was recorded". No backfill — a row recorded
+    // before the day's entry exists stays null forever; flock+date remains
+    // the authoritative join.
+    // -----------------------------------------------------------------------
+
+    private sealed record UsageRowWithEntry(Guid Id, DateOnly Date, Guid? DailyEntryId);
+    private sealed record EntryVersionDto(Guid Id, int Version);
+
+    private async Task<(HttpClient Client, Guid AccountId, Guid FlockId, Guid FarmId, Guid HouseId, Guid ItemId)>
+        SetupWithKnownHouseAsync()
+    {
+        var email = $"u-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var farmId = Guid.NewGuid();
+        var houseId = Guid.NewGuid();
+        var flockId = await factory.SeedFlockAsync(accountId, farmId, houseId);
+        var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
+
+        var item = await client.PostWithKeyAsync("/api/v1/inventory/items", Guid.NewGuid().ToString(),
+            new { name = "Layer feed", category = "Feed", unit = "kg", defaultUnitCostMinorUnits = 2500 });
+        item.EnsureSuccessStatusCode();
+        var itemId = (await item.Content.ReadFromJsonAsync<Created>())!.Id;
+        await PurchaseAsync(client, itemId, 500m, 2500, Today.AddDays(-10));
+        return (client, accountId, flockId, farmId, houseId, itemId);
+    }
+
+    private static async Task<Guid> RecordEmptyDraftEntryAsync(
+        HttpClient client, Guid farmId, Guid houseId, Guid flockId, DateOnly date)
+    {
+        var record = await client.PostWithKeyAsync("/api/v1/daily-entries", Guid.NewGuid().ToString(), new
+        {
+            farmId, houseId, flockId, date,
+            totalEggs = 0, crackedEggs = 0, dirtyEggs = 0, discardedEggs = 0, mortalityCount = 0,
+            grades = Array.Empty<object>(),
+        });
+        record.EnsureSuccessStatusCode();
+        return (await record.Content.ReadFromJsonAsync<Created>())!.Id;
+    }
+
+    private async Task<Guid?> RecordUsageAndReadLinkAsync(
+        HttpClient client, Guid itemId, Guid flockId, DateOnly date)
+    {
+        var response = await client.PostWithKeyAsync(
+            $"/api/v1/inventory/items/{itemId}/usage", Guid.NewGuid().ToString(),
+            new { flockId, date, quantity = 5m });
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var rows = await client.GetFromJsonAsync<List<UsageRowWithEntry>>(
+            $"/api/v1/inventory/usage?flockId={flockId}&from={date:yyyy-MM-dd}&to={date:yyyy-MM-dd}");
+        return Assert.Single(rows!).DailyEntryId;
+    }
+
+    [Fact]
+    public async Task Usage_WithExistingDailyEntry_StampsTheLink()
+    {
+        var (client, _, flockId, farmId, houseId, itemId) = await SetupWithKnownHouseAsync();
+        var entryId = await RecordEmptyDraftEntryAsync(client, farmId, houseId, flockId, Today);
+
+        Assert.Equal(entryId, await RecordUsageAndReadLinkAsync(client, itemId, flockId, Today));
+    }
+
+    [Fact]
+    public async Task Usage_NoDailyEntryYet_LinkStaysNull_AndIsNeverBackfilled()
+    {
+        var (client, _, flockId, farmId, houseId, itemId) = await SetupWithKnownHouseAsync();
+
+        Assert.Null(await RecordUsageAndReadLinkAsync(client, itemId, flockId, Today));
+
+        // The day's entry arriving later does NOT rewrite history — no
+        // backfill, by design (grilled out of #446: the backfill coupled the
+        // usage rows' concurrency tokens to the entry save).
+        await RecordEmptyDraftEntryAsync(client, farmId, houseId, flockId, Today);
+        var rows = await client.GetFromJsonAsync<List<UsageRowWithEntry>>(
+            $"/api/v1/inventory/usage?flockId={flockId}");
+        Assert.Null(Assert.Single(rows!).DailyEntryId);
+    }
+
+    [Fact]
+    public async Task Usage_VoidedEntryIsNotLinked_ARecreatedEntryIs()
+    {
+        var (client, accountId, flockId, farmId, houseId, itemId) = await SetupWithKnownHouseAsync();
+
+        // Submit a real graded entry then void it — the natural-key slot is
+        // vacated (#82) and the voided entry must never be linked.
+        var grades = await factory.SeedEggGradesAsync(accountId, farmId, "Large");
+        var record = await client.PostWithKeyAsync("/api/v1/daily-entries", Guid.NewGuid().ToString(), new
+        {
+            farmId, houseId, flockId, date = Today,
+            totalEggs = 90, crackedEggs = 0, dirtyEggs = 0, discardedEggs = 0, mortalityCount = 0,
+            grades = new[] { new { eggGradeId = grades["Large"], quantity = 90 } },
+        });
+        record.EnsureSuccessStatusCode();
+        var voidedId = (await record.Content.ReadFromJsonAsync<Created>())!.Id;
+        (await client.PostWithKeyAsync(
+            $"/api/v1/daily-entries/{voidedId}/submit", Guid.NewGuid().ToString())).EnsureSuccessStatusCode();
+        var version = (await client.GetFromJsonAsync<EntryVersionDto>(
+            $"/api/v1/daily-entries/{voidedId}"))!.Version;
+        (await client.PostWithKeyAsync(
+            $"/api/v1/daily-entries/{voidedId}/void", Guid.NewGuid().ToString(),
+            new { version, reason = "test void" })).EnsureSuccessStatusCode();
+
+        Assert.Null(await RecordUsageAndReadLinkAsync(client, itemId, flockId, Today));
+
+        // A fresh entry re-recorded into the vacated slot links NEW rows only.
+        var recreatedId = await RecordEmptyDraftEntryAsync(client, farmId, houseId, flockId, Today);
+        var response = await client.PostWithKeyAsync(
+            $"/api/v1/inventory/items/{itemId}/usage", Guid.NewGuid().ToString(),
+            new { flockId, date = Today, quantity = 3m });
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var rows = await client.GetFromJsonAsync<List<UsageRowWithEntry>>(
+            $"/api/v1/inventory/usage?flockId={flockId}");
+        Assert.Equal(2, rows!.Count);
+        Assert.Contains(rows, r => r.DailyEntryId == null);          // pre-recreate row, untouched
+        Assert.Contains(rows, r => r.DailyEntryId == recreatedId);   // post-recreate row, linked
+    }
 }

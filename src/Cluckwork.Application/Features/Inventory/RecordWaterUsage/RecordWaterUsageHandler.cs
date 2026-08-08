@@ -12,6 +12,7 @@ public sealed class RecordWaterUsageHandler(
     IWaterUsageRepository waterUsages,
     IFlockRepository flocks,
     IFlockScopeGuard flockScope,
+    Cluckwork.Application.Features.DailyEntries.IDailyEntryRepository dailyEntries,
     IUnitOfWork unitOfWork,
     IClock clock,
     IFarmClock farmClock,
@@ -42,10 +43,18 @@ public sealed class RecordWaterUsageHandler(
         var quantity = command.Quantity ?? command.MeterEnd!.Value - command.MeterStart!.Value;
         var source = Enum.Parse<WaterSource>(command.Source, ignoreCase: true);
 
+        // #446 — record-time stamp: the non-voided entry that exists for this
+        // flock's own (farm, house, flock, date) right now, or null. Never
+        // backfilled; Update never touches it. Same contract as feed — see
+        // RecordFeedUsageHandler's comment for the full reasoning.
+        var dailyEntryId = (await dailyEntries.FindByNaturalKeyAsync(
+            accountId, flock.FarmId, flock.HouseId, command.FlockId, command.Date, ct))?.Id;
+
         var usage = WaterUsage.Create(
             Guid.NewGuid(), accountId, flock.Id, command.Date,
             quantity, command.Unit ?? "L", source,
-            command.MeterStart, command.MeterEnd, clock.UtcNow, command.Note);
+            command.MeterStart, command.MeterEnd, clock.UtcNow, command.Note,
+            dailyEntryId);
 
         await waterUsages.AddAsync(usage, ct);
         await unitOfWork.SaveChangesAsync(ct);

@@ -38,11 +38,13 @@ const FLOCK_B: Flock = { ...FLOCK_A, id: "f2", name: "Coop 2" };
 const ROW: WaterUsage = {
   id: "w1", flockId: "f1", date: "2026-07-10", quantity: 12, unit: "L",
   source: "Well", meterStart: null, meterEnd: null, note: "morning", version: 3,
+  dailyEntryId: null,
 };
 // Meter-backed record: quantity is the delta, and the meters cell renders it.
 const METER_ROW: WaterUsage = {
   id: "w2", flockId: "f1", date: "2026-07-11", quantity: 74.75, unit: "L",
   source: "Municipal", meterStart: 100.5, meterEnd: 175.25, note: null, version: 1,
+  dailyEntryId: null,
 };
 
 const ADMIN = { sub: "u1", role: "Admin" };

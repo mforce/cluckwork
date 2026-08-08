@@ -88,7 +88,7 @@ public static class WaterUsageEndpoints
         var list = await waterUsages.ListAsync(flockId, from, to, take, skip, ct);
         return Results.Ok(list.Select(u => new WaterUsageResponse(
             u.Id, u.FlockId, u.Date, u.Quantity, u.Unit, u.Source.ToString(),
-            u.MeterStart, u.MeterEnd, u.Note, u.Version)));
+            u.MeterStart, u.MeterEnd, u.Note, u.Version, u.DailyEntryId)));
     }
 
     private static IResult MapFailure(Cluckwork.Domain.Common.Error error)
@@ -104,9 +104,11 @@ public static class WaterUsageEndpoints
 
 // Version rides on every row so corrections send it back as their base —
 // the mismatch → 409 contract (stale form never silently overwrites).
+// DailyEntryId (#446): best-effort record-time provenance — see
+// FeedUsageResponse's comment; corrections never change it.
 public sealed record WaterUsageResponse(
     Guid Id, Guid FlockId, DateOnly Date, decimal Quantity, string Unit, string Source,
-    decimal? MeterStart, decimal? MeterEnd, string? Note, int Version);
+    decimal? MeterStart, decimal? MeterEnd, string? Note, int Version, Guid? DailyEntryId);
 
 public sealed record RecordWaterUsageRequest(
     Guid FlockId, DateOnly Date, decimal? Quantity, string? Unit, string Source,

@@ -20,6 +20,7 @@ public sealed class RecordFeedUsageHandler(
     IFeedUsageRepository usages,
     IFlockRepository flocks,
     IFlockScopeGuard flockScope,
+    Cluckwork.Application.Features.DailyEntries.IDailyEntryRepository dailyEntries,
     IUnitOfWork unitOfWork,
     IClock clock,
     IFarmClock farmClock,
@@ -40,6 +41,23 @@ public sealed class RecordFeedUsageHandler(
         // Spec §5.3 (#103): scoped workers may only record for assigned flocks.
         var scope = await flockScope.CheckAsync(command.FlockId, ct);
         if (scope.IsFailure) return Result.Failure<RecordFeedUsageResponse>(scope.Error).LogFailure(logger, "RecordFeedUsage");
+
+        // #446 — record-time stamp of the day's entry, resolved BEFORE the
+        // FIFO transaction opens so the lookup never extends the item/lot
+        // lock-held window. The flock read here is deliberately separate from
+        // the transactional one below (which exists to shrink the deplete/
+        // archive race); this one only supplies the natural-key components,
+        // using the flock's OWN farm/house — what the SPA records entries
+        // under (houseId is otherwise caller-supplied and unpinned until
+        // Phase 2's House model). Best-effort provenance: no entry (or a
+        // mismatched house) means no link, and nothing ever backfills —
+        // flock+date stays the authoritative join.
+        Guid? dailyEntryId = null;
+        var flockForLink = await flocks.GetByIdAsync(command.FlockId, ct);
+        if (flockForLink is not null)
+            dailyEntryId = (await dailyEntries.FindByNaturalKeyAsync(
+                accountId, flockForLink.FarmId, flockForLink.HouseId,
+                command.FlockId, command.Date, ct))?.Id;
 
         Result<RecordFeedUsageResponse>? outcome = null;
 
@@ -144,7 +162,8 @@ public sealed class RecordFeedUsageHandler(
             var estimatedCost = new Money((long)costMinorUnits, currencyCode!, currencyMinorUnit);
             var usage = FeedUsage.Create(
                 usageId, accountId, flock.Id, item.Id,
-                command.Date, command.Quantity, item.Unit, estimatedCost, createdAt, command.Note);
+                command.Date, command.Quantity, item.Unit, estimatedCost, createdAt, command.Note,
+                dailyEntryId);
             await usages.AddAsync(usage, transactionCt);
 
             outcome = Result.Success(new RecordFeedUsageResponse(

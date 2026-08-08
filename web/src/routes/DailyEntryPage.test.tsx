@@ -2,10 +2,11 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { render, screen, within, fireEvent, waitFor, act } from "@testing-library/react";
+import { MemoryRouter } from "react-router";
 import { DailyEntryPage } from "./DailyEntryPage";
 import {
   listFlocks, listEggGrades, listEggUnitConversions, listDailyEntries, createFlock,
-  recordDailyEntry, submitDailyEntry,
+  listFeedUsage, listWaterUsage, recordDailyEntry, submitDailyEntry,
 } from "../api/cluckwork";
 import type { Flock, EggGrade, DailyEntry } from "../api/cluckwork";
 import { todayIso } from "../lib/dates";
@@ -13,21 +14,32 @@ import { FarmContext } from "../farm/FarmContext";
 import { account, farmState } from "../test/fixtures";
 import i18n from "../i18n";
 
-// DailyEntry has no auth/router deps — mock only the API seam it loads from.
-vi.mock("../api/cluckwork", () => ({
-  listFlocks: vi.fn(),
-  listEggGrades: vi.fn(),
-  listEggUnitConversions: vi.fn(),
-  listDailyEntries: vi.fn(),
-  recordDailyEntry: vi.fn(),
-  submitDailyEntry: vi.fn(),
-  createFlock: vi.fn(),
-}));
+// DailyEntry has no auth deps — mock only the API seam it loads from. The
+// MemoryRouter wrapper exists solely for the #446 summary strip's <Link>s.
+vi.mock("../api/cluckwork", async (importOriginal) => {
+  // Real module (formatMoney and friends stay genuine); only the network
+  // seam is stubbed.
+  const actual = await importOriginal<typeof import("../api/cluckwork")>();
+  return {
+    ...actual,
+    listFlocks: vi.fn(),
+    listFeedUsage: vi.fn(),
+    listWaterUsage: vi.fn(),
+    listEggGrades: vi.fn(),
+    listEggUnitConversions: vi.fn(),
+    listDailyEntries: vi.fn(),
+    recordDailyEntry: vi.fn(),
+    submitDailyEntry: vi.fn(),
+    createFlock: vi.fn(),
+  };
+});
 
 const mockListFlocks = vi.mocked(listFlocks);
 const mockListEggGrades = vi.mocked(listEggGrades);
 const mockListEggUnitConversions = vi.mocked(listEggUnitConversions);
 const mockListDailyEntries = vi.mocked(listDailyEntries);
+const mockListFeedUsage = vi.mocked(listFeedUsage);
+const mockListWaterUsage = vi.mocked(listWaterUsage);
 const mockCreateFlock = vi.mocked(createFlock);
 
 const FLOCK: Flock = {
@@ -57,6 +69,10 @@ beforeEach(() => {
     { id: "c3", unitCode: "Tray", eggsPerUnit: 30, active: true, version: 0 },
   ]);
   mockListDailyEntries.mockResolvedValue([]); // no existing entry for the day
+  // #446 — the day-support summary strip's own fetches; empty by default so
+  // pre-existing tests see the zero state and nothing else changes.
+  mockListFeedUsage.mockResolvedValue([]);
+  mockListWaterUsage.mockResolvedValue([]);
 });
 
 function setNum(label: string, value: number) {
@@ -81,7 +97,7 @@ function remainingChip() {
 }
 
 async function renderReady() {
-  render(<DailyEntryPage />);
+  render(<MemoryRouter><DailyEntryPage /></MemoryRouter>);
   await screen.findByLabelText("Grade A"); // mount load done, grades rendered
   // wait out the prefill fetch (it gates the save buttons via prefillPending)
   await waitFor(() => expect(saveDraftBtn()).toBeEnabled());
@@ -228,7 +244,7 @@ describe("DailyEntryPage prefill gating", () => {
   it("blocks saving until the prefill lookup resolves", async () => {
     let resolvePrefill!: (entries: DailyEntry[]) => void;
     mockListDailyEntries.mockReturnValue(new Promise((r) => (resolvePrefill = r)));
-    render(<DailyEntryPage />);
+    render(<MemoryRouter><DailyEntryPage /></MemoryRouter>);
     await screen.findByLabelText("Grade A"); // mount load done
 
     // prefill in flight → both saves disabled (no overwrite of an unknown day)
@@ -249,7 +265,7 @@ describe("DailyEntryPage prefill gating", () => {
       version: 1, adjustReason: null, voidReason: null, lockedAtUtc: "2026-07-20T10:00:00Z", adjustedFrom: null,
     };
     mockListDailyEntries.mockResolvedValue([existing]);
-    render(<DailyEntryPage />);
+    render(<MemoryRouter><DailyEntryPage /></MemoryRouter>);
 
     // the lock banner appears once the prefill applies the existing status
     expect(await screen.findByText(/already submitted/)).toBeInTheDocument();
@@ -272,7 +288,7 @@ describe("DailyEntryPage prefill gating", () => {
       version: 1, adjustReason: null, voidReason: null, lockedAtUtc: "2026-07-20T10:00:00Z", adjustedFrom: null,
     };
     mockListDailyEntries.mockResolvedValue([existing]);
-    render(<DailyEntryPage />);
+    render(<MemoryRouter><DailyEntryPage /></MemoryRouter>);
 
     expect(await screen.findByText(/already adjusted/)).toBeInTheDocument();
     expect(screen.queryByText(/manageradjusted/i)).not.toBeInTheDocument();
@@ -455,7 +471,7 @@ describe("DailyEntryPage draft badge", () => {
 
   it("says so when the prefill lands on an existing draft", async () => {
     mockListDailyEntries.mockResolvedValue([draftFor(todayIso())]);
-    render(<DailyEntryPage />);
+    render(<MemoryRouter><DailyEntryPage /></MemoryRouter>);
     await screen.findByLabelText("Grade A");
 
     // Without this the form looked identical whether it was a fresh day or an
@@ -487,7 +503,7 @@ describe("DailyEntryPage draft badge", () => {
     // Day one has a draft; switching to day two leaves existingStatus holding
     // the OLD day's value until the fetch lands.
     mockListDailyEntries.mockResolvedValueOnce([draftFor(todayIso())]);
-    render(<DailyEntryPage />);
+    render(<MemoryRouter><DailyEntryPage /></MemoryRouter>);
     expect(await screen.findByText("Editing draft")).toBeInTheDocument();
 
     // Hold the next prefill open so the assertion lands INSIDE the pending
@@ -506,7 +522,7 @@ describe("DailyEntryPage draft badge", () => {
 
   it("does not claim a draft when the prefill for a new day fails", async () => {
     mockListDailyEntries.mockResolvedValueOnce([draftFor(todayIso())]);
-    render(<DailyEntryPage />);
+    render(<MemoryRouter><DailyEntryPage /></MemoryRouter>);
     expect(await screen.findByText("Editing draft")).toBeInTheDocument();
 
     mockListDailyEntries.mockRejectedValueOnce(new Error("offline"));
@@ -522,7 +538,7 @@ describe("DailyEntryPage draft badge", () => {
     mockListDailyEntries.mockResolvedValue([
       { ...draftFor(todayIso()), status: "Submitted" },
     ]);
-    render(<DailyEntryPage />);
+    render(<MemoryRouter><DailyEntryPage /></MemoryRouter>);
 
     expect(await screen.findByText(/already submitted/)).toBeInTheDocument();
     expect(screen.queryByText("Editing draft")).toBeNull();
@@ -863,9 +879,11 @@ describe("DailyEntryPage grading sync (#443)", () => {
   // by the farm default's eggsPerUnit instead of 1. Typing stays raw numbers.
   it("steps by the farm-default pack unit when one is set", async () => {
     render(
-      <FarmContext.Provider value={farmState({ farm: account({ defaultStepperUnit: "Tray" }) })}>
-        <DailyEntryPage />
-      </FarmContext.Provider>);
+      <MemoryRouter>
+        <FarmContext.Provider value={farmState({ farm: account({ defaultStepperUnit: "Tray" }) })}>
+          <DailyEntryPage />
+        </FarmContext.Provider>
+      </MemoryRouter>);
     await screen.findByLabelText("Grade A");
     await waitFor(() => expect(saveDraftBtn()).toBeEnabled());
 
@@ -919,9 +937,11 @@ describe("DailyEntryPage grading sync (#443)", () => {
 // farm) or hides a legitimate one (device behind).
 describe("DailyEntryPage farm-local date", () => {
   const farmed = (timeZoneId: string) => render(
-    <FarmContext.Provider value={farmState({ farm: account({ timeZoneId }) })}>
-      <DailyEntryPage />
-    </FarmContext.Provider>);
+    <MemoryRouter>
+      <FarmContext.Provider value={farmState({ farm: account({ timeZoneId }) })}>
+        <DailyEntryPage />
+      </FarmContext.Provider>
+    </MemoryRouter>);
 
   it("opens on the farm's today and refuses to go past it", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
@@ -987,7 +1007,7 @@ describe("DailyEntryPage i18n wiring (#182, Task 11)", () => {
     // Not renderReady(): it waits on the ORIGINAL "Save draft" name to confirm
     // the prefill settled, which the override below replaces.
     await withOverride("dailyEntry", "saveDraftButton", "SAVE-DRAFT-MARKER", async () => {
-      render(<DailyEntryPage />);
+      render(<MemoryRouter><DailyEntryPage /></MemoryRouter>);
       await screen.findByLabelText("Grade A");
       await waitFor(() =>
         expect(screen.getByRole("button", { name: "SAVE-DRAFT-MARKER" })).toBeEnabled());
@@ -1007,7 +1027,7 @@ describe("DailyEntryPage i18n wiring (#182, Task 11)", () => {
     };
     mockListDailyEntries.mockResolvedValue([existing]);
     await withOverride("dailyEntry", "entryLockedBanner", "LOCKED-MARKER {{status}} MARKER-END", async () => {
-      render(<DailyEntryPage />);
+      render(<MemoryRouter><DailyEntryPage /></MemoryRouter>);
       expect(await screen.findByText("LOCKED-MARKER submitted MARKER-END")).toBeInTheDocument();
     });
   });
@@ -1039,5 +1059,78 @@ describe("DailyEntryPage i18n wiring (#182, Task 11)", () => {
         expect(screen.getByRole("dialog")).toHaveAccessibleName("SUBMIT-TITLE-MARKER");
         expect(screen.getByRole("button", { name: "SUBMIT-CONFIRM-MARKER" })).toBeInTheDocument();
       }));
+  });
+});
+
+// #446 — the day-support strip: what else was recorded for this flock+date
+// (feed + water), queried by flock+date — NOT by DailyEntryId, so it works
+// before the day's entry exists — with links to the pages that record them.
+describe("DailyEntryPage feed/water day summary (#446)", () => {
+  const feedRow = (over: object = {}) => ({
+    id: "fu1", flockId: "f1", inventoryItemId: "i1", date: todayIso(),
+    quantity: 18, unit: "kg", estimatedCostMinorUnits: 45_000,
+    currencyCode: "USD", currencyMinorUnit: 2, note: null, dailyEntryId: null,
+    ...over,
+  });
+  const waterRow = (over: object = {}) => ({
+    id: "wu1", flockId: "f1", date: todayIso(), quantity: 250, unit: "L",
+    source: "Well", meterStart: null, meterEnd: null, note: null, version: 1,
+    dailyEntryId: null,
+    ...over,
+  });
+
+  it("summarizes the day's feed and water for the selected flock+date, linking both pages", async () => {
+    mockListFeedUsage.mockResolvedValue([feedRow(), feedRow({ id: "fu2", estimatedCostMinorUnits: 5_000 })]);
+    mockListWaterUsage.mockResolvedValue([waterRow()]);
+    await renderReady();
+
+    expect(await screen.findByText("Feed: 2 records (est. 500.00 USD)")).toBeInTheDocument();
+    expect(screen.getByText("Water: 1 record")).toBeInTheDocument();
+    // Context rides along: the link lands filtered to this flock and day.
+    expect(screen.getByRole("link", { name: /Feed: 2 records/ }))
+      .toHaveAttribute("href", `/feed?flockId=f1&from=${todayIso()}&to=${todayIso()}`);
+    expect(screen.getByRole("link", { name: /Water: 1 record/ }))
+      .toHaveAttribute("href", `/water?flockId=f1&from=${todayIso()}&to=${todayIso()}`);
+    // Queried by the page's own flock+date, never by the entry link.
+    expect(mockListFeedUsage).toHaveBeenCalledWith(
+      expect.objectContaining({ flockId: "f1", from: todayIso(), to: todayIso() }));
+  });
+
+  it("drops the cost — never a blended sum — when the day's feed rows span currencies", async () => {
+    mockListFeedUsage.mockResolvedValue([
+      feedRow(),
+      feedRow({ id: "fu2", currencyCode: "JPY", currencyMinorUnit: 0, estimatedCostMinorUnits: 700 }),
+    ]);
+    await renderReady();
+    expect(await screen.findByText("Feed: 2 records")).toBeInTheDocument();
+    expect(screen.queryByText(/est\./)).not.toBeInTheDocument();
+  });
+
+  it("shows the zero state with both links when nothing was recorded yet", async () => {
+    await renderReady();
+    expect(await screen.findByText("Feed: 0 records")).toBeInTheDocument();
+    expect(screen.getByText("Water: 0 records")).toBeInTheDocument();
+  });
+
+  it("pages past the API limit so the count and cost are true day totals", async () => {
+    // The list endpoints page at 100; a single request would silently
+    // underreport both figures for a heavy day. The strip must drain pages.
+    const fullPage = Array.from({ length: 100 }, (_, i) =>
+      feedRow({ id: `fu${i}`, estimatedCostMinorUnits: 100 }));
+    mockListFeedUsage.mockResolvedValueOnce(fullPage);
+    mockListFeedUsage.mockResolvedValueOnce([feedRow({ id: "fu-tail", estimatedCostMinorUnits: 500 })]);
+    await renderReady();
+
+    expect(await screen.findByText("Feed: 101 records (est. 105.00 USD)")).toBeInTheDocument();
+    expect(mockListFeedUsage).toHaveBeenCalledWith(expect.objectContaining({ offset: 100 }));
+  });
+
+  it("a failed summary read hides the strip and leaves the entry form fully usable", async () => {
+    mockListFeedUsage.mockRejectedValue(new Error("boom"));
+    mockListWaterUsage.mockRejectedValue(new Error("boom"));
+    await renderReady(); // renderReady itself asserts the save buttons enable
+    expect(screen.queryByText(/^Feed: /)).not.toBeInTheDocument();
+    setNum("Total eggs", 5);
+    expect(screen.getByLabelText("Total eggs")).toHaveValue(5);
   });
 });

@@ -6,7 +6,7 @@ import { account } from "../test/fixtures";
 import {
   activateInventoryItem, createInventoryItem, deactivateInventoryItem, getAccount,
   listFlocks, listInventoryItems, listInventoryLots, listInventoryMovements,
-  recordFeedUsage, recordInventoryAdjustment, recordInventoryPurchase, updateInventoryItem,
+  recordInventoryAdjustment, recordInventoryPurchase, updateInventoryItem,
 } from "../api/cluckwork";
 import type { Account, Flock, InventoryItem, InventoryLot, InventoryMovement } from "../api/cluckwork";
 import { ApiError } from "../api/client";
@@ -45,7 +45,6 @@ const mockActivate = vi.mocked(activateInventoryItem);
 const mockDeactivate = vi.mocked(deactivateInventoryItem);
 const mockPurchase = vi.mocked(recordInventoryPurchase);
 const mockListLots = vi.mocked(listInventoryLots);
-const mockUsage = vi.mocked(recordFeedUsage);
 const mockAdjust = vi.mocked(recordInventoryAdjustment);
 const mockListMovements = vi.mocked(listInventoryMovements);
 
@@ -76,7 +75,6 @@ const FLOCK: Flock = {
 };
 // A second Active flock so the usage "Flock" select offers TWO options: picking
 // the second proves the request carries the chosen flockId, not a hard-coded index.
-const FLOCK2: Flock = { ...FLOCK, id: "fl2", name: "Flock Two" };
 
 const LOT: InventoryLot = {
   id: "lot1", inventoryItemId: "it1", receivedDate: "2026-07-01", lotNumber: "L-1",
@@ -316,39 +314,24 @@ describe("InventoryPage purchases", () => {
   // runs — a non-positive value never reaches the guard via a real click.
 });
 
-describe("InventoryPage feed usage", () => {
-  it("records feed usage against the SECOND selected flock, date, quantity + key on the opened item", async () => {
-    // TWO flocks so the select has two options and "fl1" is the prefilled default:
-    // choosing the second proves the request carries the selected flockId, not the
-    // default index.
-    mockListFlocks.mockResolvedValue([FLOCK, FLOCK2]);
-    mockUsage.mockResolvedValue({ feedUsageId: "fu1", quantityUsed: 25, estimatedCostMinorUnits: 0, currencyCode: "USD" });
-    await renderReady(WORKER); // usage is open to everyone, not just admins
+// #446 — the usage dialog moved to the /feed page; the panel keeps only a
+// deep link that carries the opened item along. Recording behavior is pinned
+// in FeedPage.test.tsx.
+describe("InventoryPage feed usage link", () => {
+  it("links a feedable item's panel to the Feed page with the item preselected", async () => {
+    await renderReady(WORKER); // recording is open to everyone, not just admins
     await openItem(FEED);
 
-    const form = openDialog("Record usage");
-    // Move off the prefilled first flock (fl1) to the second (fl2).
-    fireEvent.change(within(form).getByLabelText(/Flock/), { target: { value: "fl2" } });
-    fireEvent.change(within(form).getByLabelText(/Date/), { target: { value: "2026-07-10" } });
-    fireEvent.change(within(form).getByLabelText(/Quantity/), { target: { value: "25" } });
-    await act(async () => {
-      fireEvent.click(within(dialog()).getByRole("button", { name: "Record usage" }));
-    });
-
-    expect(mockUsage.mock.calls[0][0]).toBe("it1");
-    expect(mockUsage.mock.calls[0][1]).toEqual({
-      flockId: "fl2", date: "2026-07-10", quantity: 25, note: undefined, // the CHOSEN flock, not fl1
-    });
-    expect(mockUsage.mock.calls[0][2]).toEqual(expect.any(String));
-    expect(screen.getByText(/Feed usage recorded/)).toBeInTheDocument();
+    const link = screen.getByRole("link", { name: "Record usage on the Feed page" });
+    expect(link).toHaveAttribute("href", "/feed?item=it1");
   });
 
-  it("does not offer a usage form for a non-feedable category", async () => {
+  it("does not offer the usage link for a non-feedable category", async () => {
     await renderReady(WORKER);
     await openItem(PACKAGING);
 
     expect(screen.getByText(/aren't fed to flocks/)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Record usage" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Record usage on the Feed page" })).not.toBeInTheDocument();
   });
 });
 
@@ -557,17 +540,6 @@ describe("InventoryPage dialog dismissal", () => {
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(mockPurchase).not.toHaveBeenCalled();
-  });
-
-  it("closes the usage dialog on Cancel without writing", async () => {
-    await renderReady(ADMIN);
-    await openItem(FEED);
-    openDialog("Record usage");
-
-    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
-
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    expect(mockUsage).not.toHaveBeenCalled();
   });
 
   it("closes the correction dialog on Cancel without writing", async () => {

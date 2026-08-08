@@ -124,6 +124,7 @@ export const tl = {
     dashboard: "Dashboard",
     dailyEntry: "Araw-araw na Tala",
     flocks: "Mga Kawan",
+    feed: "Pakain",
     water: "Tubig",
     inventory: "Imbentaryo",
     stock: "Stock",
@@ -433,6 +434,17 @@ export const tl = {
 
     // Pinned footer (phone-only summary + saves)
     countsExceedFooterMessage: "Lumagpas sa kabuuan ang mga nawala — ayusin ang mga bilang",
+    // #446 — ang _one ay katumbas ng base nang sadya (malawak ang CLDR "one"
+    // ng Tagalog at hindi nagbabago ang anyo ng pangngalan).
+    daySupportFeed: "Pakain: {{count}} na tala (tantiya: {{cost}})",
+    daySupportFeed_one: "Pakain: {{count}} na tala (tantiya: {{cost}})",
+    // Cost dropped when the day's rows span currencies — never a blended sum.
+    daySupportFeedNoCost: "Pakain: {{count}} na tala",
+    daySupportFeedNoCost_one: "Pakain: {{count}} na tala",
+    daySupportFeedNone: "Pakain: 0 tala",
+    daySupportWater: "Tubig: {{count}} na tala",
+    daySupportWater_one: "Tubig: {{count}} na tala",
+    daySupportWaterNone: "Tubig: 0 tala",
     stepperUnitCaption: "Nagbibilang bawat {{unit}} — bawat tap ng − / + ay gumagalaw ng {{count}} itlog. Ang pag-type ay naglalagay pa rin ng eksaktong numero.",
     sellableWord: "nabebenta",
     saveDraftButton: "I-save ang draft",
@@ -501,6 +513,44 @@ export const tl = {
   // placeholder (no <Trans> tags in this namespace). Source/Unit picker
   // values go through the `enums` waterSourceLabel/waterUnitLabel helpers,
   // not a key here.
+  // #446 — machine-drafted, pending native review (translate-now policy).
+  feed: {
+    title: "Pakain",
+    loadFailed: "Hindi ma-load ang mga kawan at mga item ng pakain. Gumagana ba ang API?",
+    loadRecordsFailed: "Hindi ma-load ang mga tala ng pakain.",
+    loadMoreFailed: "Hindi ma-load ang iba pa.",
+    intro:
+      "Itala kung ano ang ipinakain sa bawat kawan. Ang stock ay kinukuha muna "
+      + "mula sa pinakalumang mga binili at ang tantiyang gastos ay mula sa mga lot na iyon.",
+    flockLabel: "Kawan",
+    depletedFlockSuffix: " — ubos na, backfill lamang",
+    itemLabel: "Item",
+    itemOption: "{{name}} ({{onHand}} {{unit}} na natitira)",
+    dateLabel: "Petsa",
+    quantityLabel: "Dami",
+    quantityLabelWithUnit: "Dami ({{unit}})",
+    noteLabel: "Tala",
+    recordFeedButton: "Itala ang pakain",
+    quantityMustBePositive: "Ang dami ay dapat positibong numero.",
+    recordedMessage: "Naitala ang pakain.",
+    correctionsHint:
+      "Ang maling naitalang pagpapakain ay itinutuwid sa pamamagitan ng Inventory "
+      + "adjustment sa apektadong lot — hindi kailanman ine-edit ang mga tala ng pakain.",
+    filterFlockLabel: "Salain ayon sa kawan",
+    inactiveItemSuffix: " — hindi aktibo, inuubos ang natitirang stock",
+    inactiveEmptyItemSuffix: " — hindi aktibo, wala nang stock",
+    recordsHeading: "Mga tala",
+    fromLabel: "Mula",
+    toLabel: "Hanggang",
+    noRecordsMatch: "Walang tumutugmang tala ng pakain.",
+    dateHeader: "Petsa",
+    flockHeader: "Kawan",
+    itemHeader: "Item",
+    amountHeader: "Dami",
+    estimatedCostHeader: "Tantiyang gastos",
+    noteHeader: "Tala",
+    loadMoreButton: "mag-load pa",
+  },
   water: {
     title: "Tubig",
 
@@ -633,9 +683,6 @@ export const tl = {
     loadLedgerFailed: "Hindi na-load ang talaan ng galaw.",
     quantityMustBePositive: "Dapat positibong numero ang dami.",
     purchaseRecordedMessage: "Naitala ang pagbili — natanggap ang stock.",
-    usageRecordedMessage:
-      "Naitala ang paggamit ng feed — inubos muna ang stock mula sa "
-      + "pinakamatandang lote.",
     adjustQuantityRequired:
       "Dapat hindi zero ang dami ng pagsasaayos (negatibo ang nag-aalis ng "
       + "stock).",
@@ -657,12 +704,11 @@ export const tl = {
     // Item panel (opened item)
     itemPanelHeading: "{{name}} — {{quantity}} {{unit}} available",
     recordPurchaseButton: "Itala ang pagbili",
-    recordUsageButton: "Itala ang paggamit",
+    recordUsageLink: "Itala ang paggamit sa pahina ng Pakain",
     correctStockButton: "Itama ang stock",
     notFeedableMessage:
       "Hindi ipinapakain sa mga kawan ang mga item na {{category}} — ang "
       + "paggamit ay para lang sa mga item na Feed, Suplemento, at Aditibo.",
-    noFlocksForUsageMessage: "Walang kawan — kailangan ng kawan ang paggamit para pakainin.",
     correctionsNeedAdminMessage: "Kailangan ng admin para sa mga pagtatama ng stock.",
     noLotsMessage: "Wala pang lote — ang mga pagtatama ay para sa isang natanggap na lote.",
 
@@ -680,11 +726,9 @@ export const tl = {
     recordPurchaseSubmitButton: "Itala ang pagbili",
 
     // Record-usage dialog
-    recordUsageDialogTitle: "Itala ang paggamit — {{name}}",
     flockLabel: "Kawan",
     depletedFlockSuffix: " (naubos — para sa pagtatala ng lumang petsa lang)",
     dateLabel: "Petsa",
-    recordUsageSubmitButton: "Itala ang paggamit",
 
     // Correct-stock dialog
     correctStockDialogTitle: "Itama ang stock — {{name}}",
@@ -1606,7 +1650,8 @@ export const tl = {
     tocGrades: "Mga Grado ng Itlog",
     tocProducts: "Mga Produkto",
     tocStock: "Stock",
-    tocInventory: "Feed at Imbentaryo",
+    tocInventory: "Mga suplay at imbentaryo",
+    tocFeed: "Pakain",
     tocWater: "Tubig",
     tocSales: "Mga Customer at Benta",
     tocReports: "Mga Report",
@@ -1899,9 +1944,9 @@ export const tl = {
       + "sabihin ng mga nakatalang dami ang dating ibig sabihin nito.",
     inventoryPurchaseUsage:
       "Ang <strong>Itala ang pagbili</strong> ay nagtatala ng natanggap na stock bilang isang may petsang "
-      + "lote na may kasamang gastos. Ang <strong>Itala ang paggamit</strong> ay nagtatala kung ano ang "
-      + "kinain ng isang kawan sa isang araw: kumukuha ito mula sa mga pinakalumang lote muna (mga lote "
-      + "lang na umiiral noong petsang iyon) at tinatantya ang gastos mula sa mga aktwal na lote na nagamit.",
+      + "lote na may kasamang gastos. Ang pagpapakain sa kawan ay itinatala sa <strong>pahina ng "
+      + "Pakain</strong> — ang panel ng isang item na maipapakain ay direktang naka-link doon nang "
+      + "paunang napili ang item.",
     inventoryLedger:
       "Napupunta ang bawat pagbabago sa <strong>talaan ng galaw</strong> ng item — pagbili, paggamit, "
       + "pagtatama. Hindi kailanman ine-edit o binubura ang mga row ng talaan.",
@@ -1913,6 +1958,22 @@ export const tl = {
       "Bukas sa lahat ang pagtatala ng pagbili at paggamit; ang katalogo ng item at mga pagtatama ng "
       + "stock ay para sa admin lang.",
 
+    feedHeading: "Pakain",
+    feedRecording:
+      "Ang <strong>Itala ang pakain</strong> ay nagtatala kung ano ang kinain ng kawan sa isang araw: "
+      + "piliin ang kawan, ang item (makikita ang kasalukuyang stock sa mismong picker), ang dami, at ang "
+      + "petsa. Ang stock ay kinukuha muna mula sa pinakalumang mga binili — mga lote lang na umiiral "
+      + "noong petsang iyon — at ang tantiyang gastos ay mula sa mga aktwal na lote na nagamit. Nakalista "
+      + "sa history ng pahina ang bawat pagpapakain kasama ang tantiyang gastos nito.",
+    feedCorrecting:
+      "Ang mga tala ng pakain ay <strong>hindi kailanman ine-edit</strong>: nasa ledger na ang stock na "
+      + "kinuha nila, kaya ang maling entry ay itinutuwid sa pamamagitan ng <strong>adjustment</strong> sa "
+      + "Inventory sa apektadong lote (may dahilan), na nananatiling nakikita katabi ng orihinal.",
+    feedDailyEntry:
+      "Ipinapakita ng pahina ng <strong>Daily Entry</strong> ang pakain at tubig ng napiling kawan at araw "
+      + "sa isang sulyap, na may link dito. Ang tala ng pakain o tubig na ginawa habang umiiral na ang "
+      + "entry ng araw na iyon ay naaalala rin ang entry na iyon — ang mga ginawa bago nito ay sadyang "
+      + "hindi naka-link; ang araw mismo ang nag-uugnay sa kanila.",
     waterHeading: "Tubig",
     waterRecording:
       "Itala kung ano ang ininom ng bawat kawan kada araw: alinman sa direktang dami (litro o galon) o "

@@ -253,7 +253,7 @@ public static class InventoryEndpoints
         return Results.Ok(list.Select(u => new FeedUsageResponse(
             u.Id, u.FlockId, u.InventoryItemId, u.Date, u.Quantity, u.Unit,
             u.EstimatedCost.MinorUnits, u.EstimatedCost.CurrencyCode, u.EstimatedCost.CurrencyMinorUnit,
-            u.Note)));
+            u.Note, u.DailyEntryId)));
     }
 
     private static IResult MapFailure(Cluckwork.Domain.Common.Error error)
@@ -303,6 +303,10 @@ public sealed record RecordFeedUsageRequest(
 public sealed record RecordAdjustmentRequest(
     Guid InventoryLotId, DateOnly Date, string Type, decimal QuantityDelta, string Reason);
 
+// DailyEntryId (#446): the non-voided daily entry that existed for the
+// flock's (farm, house, flock, date) when the row was recorded — best-effort
+// provenance, null when the day's entry didn't exist yet, never backfilled.
 public sealed record FeedUsageResponse(
     Guid Id, Guid FlockId, Guid InventoryItemId, DateOnly Date, decimal Quantity, string Unit,
-    long EstimatedCostMinorUnits, string CurrencyCode, int CurrencyMinorUnit, string? Note);
+    long EstimatedCostMinorUnits, string CurrencyCode, int CurrencyMinorUnit, string? Note,
+    Guid? DailyEntryId);

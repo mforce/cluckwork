@@ -21,7 +21,9 @@ public sealed class WaterUsage : AggregateRoot<Guid>
     public decimal? MeterEnd { get; private set; }
     public string? Note { get; private set; }
 
-    // Reserved for daily-entry integration (spec: daily_entry_id nullable).
+    // #446 — the non-voided daily entry that existed at record time, or
+    // null. Best-effort provenance: never backfilled, and Update never
+    // touches it. See FeedUsage for the full contract.
     public Guid? DailyEntryId { get; private set; }
 
     public DateTime CreatedAtUtc { get; private set; }

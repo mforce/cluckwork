@@ -114,6 +114,7 @@ export const es = {
     dashboard: "Panel",
     dailyEntry: "Registro diario",
     flocks: "Lotes",
+    feed: "Alimento",
     water: "Agua",
     inventory: "Inventario",
     stock: "Existencias",
@@ -415,6 +416,16 @@ export const es = {
 
     // Pinned footer (phone-only summary + saves)
     countsExceedFooterMessage: "Las pérdidas superan el total — corrija los conteos",
+    // #446
+    daySupportFeed: "Alimento: {{count}} registros (est. {{cost}})",
+    daySupportFeed_one: "Alimento: {{count}} registro (est. {{cost}})",
+    // Cost dropped when the day's rows span currencies — never a blended sum.
+    daySupportFeedNoCost: "Alimento: {{count}} registros",
+    daySupportFeedNoCost_one: "Alimento: {{count}} registro",
+    daySupportFeedNone: "Alimento: 0 registros",
+    daySupportWater: "Agua: {{count}} registros",
+    daySupportWater_one: "Agua: {{count}} registro",
+    daySupportWaterNone: "Agua: 0 registros",
     stepperUnitCaption: "Contando por {{unit}} — cada toque de − / + mueve {{count}} huevos. Escribir sigue ingresando números exactos.",
     sellableWord: "vendible",
     saveDraftButton: "Guardar borrador",
@@ -481,6 +492,44 @@ export const es = {
   // placeholder (no <Trans> tags in this namespace). Source/Unit picker
   // values go through the `enums` waterSourceLabel/waterUnitLabel helpers,
   // not a key here.
+  // #446 — machine-drafted, pending native review (translate-now policy).
+  feed: {
+    title: "Alimento",
+    loadFailed: "No se pudieron cargar las parvadas y los artículos de alimento. ¿Está activa la API?",
+    loadRecordsFailed: "No se pudieron cargar los registros de alimento.",
+    loadMoreFailed: "No se pudo cargar más.",
+    intro:
+      "Registre lo que se alimentó a cada parvada. El inventario se descuenta "
+      + "de las compras más antiguas primero y el costo estimado proviene de esos lotes.",
+    flockLabel: "Parvada",
+    depletedFlockSuffix: " — agotada, solo registro retroactivo",
+    itemLabel: "Artículo",
+    itemOption: "{{name}} ({{onHand}} {{unit}} disponibles)",
+    dateLabel: "Fecha",
+    quantityLabel: "Cantidad",
+    quantityLabelWithUnit: "Cantidad ({{unit}})",
+    noteLabel: "Nota",
+    recordFeedButton: "Registrar alimento",
+    quantityMustBePositive: "La cantidad debe ser un número positivo.",
+    recordedMessage: "Alimento registrado.",
+    correctionsHint:
+      "Una alimentación mal ingresada se corrige con un ajuste de Inventario en el "
+      + "lote afectado — los registros de alimento nunca se editan.",
+    filterFlockLabel: "Filtrar por parvada",
+    inactiveItemSuffix: " — inactivo, consumiendo existencias restantes",
+    inactiveEmptyItemSuffix: " — inactivo, sin existencias",
+    recordsHeading: "Registros",
+    fromLabel: "Desde",
+    toLabel: "Hasta",
+    noRecordsMatch: "Ningún registro de alimento coincide.",
+    dateHeader: "Fecha",
+    flockHeader: "Parvada",
+    itemHeader: "Artículo",
+    amountHeader: "Cantidad",
+    estimatedCostHeader: "Costo est.",
+    noteHeader: "Nota",
+    loadMoreButton: "cargar más",
+  },
   water: {
     title: "Agua",
 
@@ -611,9 +660,6 @@ export const es = {
     loadLedgerFailed: "No se pudo cargar el registro de movimientos.",
     quantityMustBePositive: "La cantidad debe ser un número positivo.",
     purchaseRecordedMessage: "Compra registrada — existencias recibidas.",
-    usageRecordedMessage:
-      "Uso de alimento registrado — se consumieron primero las existencias "
-      + "de los lotes más antiguos.",
     adjustQuantityRequired:
       "La cantidad de ajuste debe ser un número distinto de cero (negativo "
       + "quita existencias).",
@@ -635,12 +681,11 @@ export const es = {
     // Item panel (opened item)
     itemPanelHeading: "{{name}} — {{quantity}} {{unit}} disponible(s)",
     recordPurchaseButton: "Registrar compra",
-    recordUsageButton: "Registrar uso",
+    recordUsageLink: "Registrar uso en la página de Alimento",
     correctStockButton: "Corregir existencias",
     notFeedableMessage:
       "Los artículos de {{category}} no se dan de comer a los lotes — el "
       + "uso solo aplica a artículos de Alimento, Suplemento y Aditivo.",
-    noFlocksForUsageMessage: "No hay lotes — el uso necesita un lote para alimentar.",
     correctionsNeedAdminMessage: "Las correcciones de existencias requieren un administrador.",
     noLotsMessage: "Aún no hay lotes — las correcciones se aplican a un lote recibido.",
 
@@ -658,11 +703,9 @@ export const es = {
     recordPurchaseSubmitButton: "Registrar compra",
 
     // Record-usage dialog
-    recordUsageDialogTitle: "Registrar uso — {{name}}",
     flockLabel: "Lote",
     depletedFlockSuffix: " (agotado — solo para registrar fechas pasadas)",
     dateLabel: "Fecha",
-    recordUsageSubmitButton: "Registrar uso",
 
     // Correct-stock dialog
     correctStockDialogTitle: "Corregir existencias — {{name}}",
@@ -1541,7 +1584,8 @@ export const es = {
     tocGrades: "Grados de huevo",
     tocProducts: "Productos",
     tocStock: "Existencias",
-    tocInventory: "Alimento e inventario",
+    tocInventory: "Suministros e inventario",
+    tocFeed: "Alimento",
     tocWater: "Agua",
     tocSales: "Clientes y ventas",
     tocReports: "Informes",
@@ -1824,9 +1868,8 @@ export const es = {
       + "deben seguir significando lo que significaban.",
     inventoryPurchaseUsage:
       "<strong>Registrar compra</strong> asienta las existencias recibidas como un lote fechado con su "
-      + "costo. <strong>Registrar uso</strong> anota lo que comió un lote en un día: toma de los lotes más "
-      + "antiguos primero (solo lotes que existían en esa fecha) y estima el costo a partir de los lotes "
-      + "realmente consumidos.",
+      + "costo. La alimentación de una parvada se registra en la <strong>página de Alimento</strong> — el "
+      + "panel de un artículo alimentable enlaza directamente allí con el artículo preseleccionado.",
     inventoryLedger:
       "Cada cambio queda registrado en el <strong>libro mayor de movimientos</strong> del artículo — "
       + "compras, uso, correcciones. Las filas del libro mayor nunca se editan ni se eliminan.",
@@ -1838,6 +1881,22 @@ export const es = {
       "Registrar compras y uso está abierto para todos; el catálogo de artículos y las correcciones de "
       + "existencias son solo para administradores.",
 
+    feedHeading: "Alimento",
+    feedRecording:
+      "<strong>Registrar alimento</strong> anota lo que comió una parvada en un día: elija la parvada, el "
+      + "artículo (las existencias actuales se ven en el propio selector), la cantidad y la fecha. Las "
+      + "existencias se descuentan de las compras más antiguas primero — solo lotes que existían en esa "
+      + "fecha — y el costo estimado proviene de los lotes realmente consumidos. El historial de la página "
+      + "lista cada alimentación con su costo estimado.",
+    feedCorrecting:
+      "Los registros de alimento <strong>nunca se editan</strong>: las existencias que consumieron ya están "
+      + "en el libro mayor, así que un error se corrige con un <strong>ajuste</strong> de Inventario en el "
+      + "lote afectado (con motivo), que queda visible junto al original.",
+    feedDailyEntry:
+      "La página de <strong>Entrada diaria</strong> muestra de un vistazo el alimento y el agua del día de "
+      + "la parvada seleccionada, con enlace aquí. Un registro de alimento o agua hecho cuando ya existe la "
+      + "entrada de ese día también recuerda esa entrada — los hechos antes quedan sin enlazar a propósito; "
+      + "el día en sí es lo que los une.",
     waterHeading: "Agua",
     waterRecording:
       "Registre lo que bebió cada lote por día: una cantidad directa (litros o galones) o <strong>lecturas "
