@@ -420,9 +420,9 @@ public sealed class SchemaDocsTests
         // mapping doesn't cover fails loudly and gets added consciously,
         // which beats both silently trusting the cell and mirroring tbls's
         // whole normalizer.
-        foreach (var col in await QueryColumnsAsync(conn))
+        foreach (var tableColumns in (await QueryColumnsAsync(conn)).GroupBy(c => c.Table))
         {
-            var lines = LinesOf(col.Table);
+            var lines = LinesOf(tableColumns.Key);
             if (lines.Length == 0) continue; // missing page already reported
             var inColumns = false;
             var dataRows = new List<string[]>();
@@ -435,19 +435,35 @@ public sealed class SchemaDocsTests
             }
             // First two pipe rows are the header and its separator; cell 0 is
             // the empty prefix before the leading pipe.
-            var row = dataRows.Skip(2).FirstOrDefault(cells => cells.Length > 4 && cells[1] == col.Column);
-            if (row is null)
+            var docRows = dataRows.Skip(2).Where(cells => cells.Length > 4).ToList();
+
+            // ORDERED sequence comparison, not per-column lookup: physical
+            // column order is part of the documented contract (format.sort:
+            // false — the catalog shows the real database), so an
+            // alphabetized rendering must fail even though every column is
+            // still present. SequenceEqual also rejects phantom rows for
+            // columns the catalog doesn't have.
+            var docOrder = docRows.Select(cells => cells[1]).ToList();
+            var catalogOrder = tableColumns.Select(c => c.Column).ToList();
+            if (!docOrder.SequenceEqual(catalogOrder, StringComparer.Ordinal))
             {
-                missing.AppendLine($"column absent from the Columns section of public.{col.Table}.md: {col.Column}");
-                continue;
+                missing.AppendLine(
+                    $"column sequence mismatch in public.{tableColumns.Key}.md:\n" +
+                    $"  docs:    [{string.Join(", ", docOrder)}]\n" +
+                    $"  catalog: [{string.Join(", ", catalogOrder)}]");
+                continue; // per-cell checks would just repeat the mismatch
             }
-            var expectedType = col.Type.Replace("character varying", "varchar");
-            if (row[2] != expectedType)
-                missing.AppendLine($"column type mismatch in public.{col.Table}.md: {col.Column} — docs \"{row[2]}\", catalog \"{expectedType}\"");
-            if (row[3] != col.Default)
-                missing.AppendLine($"column default mismatch in public.{col.Table}.md: {col.Column} — docs \"{row[3]}\", catalog \"{col.Default}\"");
-            if (row[4] != col.Nullable)
-                missing.AppendLine($"column nullability mismatch in public.{col.Table}.md: {col.Column} — docs \"{row[4]}\", catalog \"{col.Nullable}\"");
+
+            foreach (var (col, row) in tableColumns.Zip(docRows))
+            {
+                var expectedType = col.Type.Replace("character varying", "varchar");
+                if (row[2] != expectedType)
+                    missing.AppendLine($"column type mismatch in public.{col.Table}.md: {col.Column} — docs \"{row[2]}\", catalog \"{expectedType}\"");
+                if (row[3] != col.Default)
+                    missing.AppendLine($"column default mismatch in public.{col.Table}.md: {col.Column} — docs \"{row[3]}\", catalog \"{col.Default}\"");
+                if (row[4] != col.Nullable)
+                    missing.AppendLine($"column nullability mismatch in public.{col.Table}.md: {col.Column} — docs \"{row[4]}\", catalog \"{col.Nullable}\"");
+            }
         }
 
         foreach (var row in await QueryTriplesAsync(conn,
