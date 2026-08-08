@@ -119,6 +119,11 @@ export function StockPage() {
   // because the state set on the previous line hasn't rendered yet.
   async function changeLotsFilter(from: string, to: string) {
     if (openGrade === null) return;
+    // Optimistic input update, remembered for rollback: on failure the rows
+    // keep showing the OLD window, and the inputs must go back to describing
+    // it rather than the request that never landed (codex review).
+    const prevFrom = lotsFrom;
+    const prevTo = lotsTo;
     setLotsFrom(from);
     setLotsTo(to);
     // The expanded lot may not be in the filtered page at all — its ledger
@@ -133,7 +138,11 @@ export function StockPage() {
       setHasMoreLots(page.length === LOT_PAGE);
       setError(null);
     } catch {
-      if (seq === lotsReq.current) setError(i18n.t("stock:loadLotsFailed"));
+      if (seq === lotsReq.current) {
+        setLotsFrom(prevFrom);
+        setLotsTo(prevTo);
+        setError(i18n.t("stock:loadLotsFailed"));
+      }
     }
   }
 
@@ -190,10 +199,16 @@ export function StockPage() {
   // The lot list is re-walked page-by-page over the WHOLE loaded window under
   // the active filter — one default-sized request would silently collapse a
   // "load more"-extended view back to the newest page mid-correction (#465).
-  async function refreshAfterWriteOff(lot: EggLotRow) {
+  // `seq` is the ticket claimed when the write-off was SUBMITTED — not here.
+  // Claiming inside this function (after the record POST, or worse after
+  // getStock()) would retroactively invalidate any grade/filter load the
+  // user started in between, then paint the old grade's rows under the new
+  // panel (codex review). Tickets follow intent order: anything the user
+  // does after submit outranks this refresh, which then only updates the
+  // grade-independent totals and skips the lot walk.
+  async function refreshAfterWriteOff(lot: EggLotRow, seq: number) {
     setRows(await getStock());
-    if (openGrade !== null) {
-      const seq = ++lotsReq.current;
+    if (openGrade !== null && seq === lotsReq.current) {
       const target = Math.max(lots.length, 1);
       // Keyed by id: an insert between the walk's own page fetches shifts the
       // offsets and can re-serve a row (same drift as loadMoreLots).
@@ -237,6 +252,9 @@ export function StockPage() {
       return;
     }
     const scope = `write-off:${lot.id}`;
+    // The refresh's ticket, claimed at submit time: any grade/filter action
+    // the user takes from here on is newer intent and outranks the refresh.
+    const lotSeq = ++lotsReq.current;
     const outcome = await runPending(scope, async () => {
       setDialogError(null);
       setMessage(null);
@@ -257,7 +275,7 @@ export function StockPage() {
       // with edited values while the dialog is still open (codex review).
       clearKey(scope);
       try {
-        await refreshAfterWriteOff(lot);
+        await refreshAfterWriteOff(lot, lotSeq);
       } catch {
         // Only the view is stale; the correction itself landed.
         setError(i18n.t("stock:loadStockFailed"));

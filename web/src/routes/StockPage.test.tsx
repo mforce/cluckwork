@@ -586,6 +586,58 @@ describe("StockPage lot paging + date filter (#465)", () => {
     expect(screen.queryByText("2026-07-15")).not.toBeInTheDocument();
   });
 
+  it("rolls the filter inputs back when the filter request fails (codex round 2)", async () => {
+    // The inputs update optimistically; on failure the rows keep showing the
+    // OLD window, so the inputs must return to describing it.
+    mockListEggLots
+      .mockResolvedValueOnce(LOTS)
+      .mockRejectedValueOnce(new Error("boom"));
+    await expandGradeA();
+
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-07-02" } });
+    await screen.findByText(/Could not load the grade's lots/);
+    expect(screen.getByLabelText("From")).toHaveValue("");
+    expect(screen.getByText("2026-07-01")).toBeInTheDocument();
+  });
+
+  it("abandons a write-off refresh superseded during the stock refetch (codex round 2)", async () => {
+    // refreshAfterWriteOff awaits getStock() first. If the user switches
+    // grades during that await, the refresh must NOT claim a fresh ticket
+    // afterwards and re-render the OLD grade's lots under the new panel.
+    mockRecordEggLotMovement.mockResolvedValue({
+      movementId: "wo1", eggLotId: "lot1", movementType: "Discard",
+      quantityDelta: -7, reason: "dropped a tray",
+      createdAtUtc: "2026-08-08T10:00:00Z", quantityAvailable: 92, version: 2,
+    });
+    let releaseStock!: (rows: StockRow[]) => void;
+    mockGetStock
+      .mockResolvedValueOnce(ROWS)
+      .mockReturnValueOnce(new Promise<StockRow[]>((r) => (releaseStock = r)));
+    mockListEggLots
+      .mockResolvedValueOnce(LOTS)
+      .mockResolvedValueOnce([{ ...LOTS[0], id: "b-lot", eggGradeId: "g2", productionDate: "2026-03-03" }])
+      .mockResolvedValue(LOTS);
+    await expandGradeA();
+
+    fireEvent.click(screen.getByRole("button", { name: "write off" }));
+    const dialog = screen.getByRole("dialog");
+    fireEvent.change(within(dialog).getByRole("spinbutton"), { target: { value: "7" } });
+    fireEvent.change(within(dialog).getByLabelText(/Reason/), { target: { value: "dropped a tray" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: /Record/ }));
+
+    // While the refresh's getStock() hangs, the user switches to Grade B.
+    fireEvent.click(within(screen.getByRole("row", { name: /Grade B\b/ })).getByRole("button", { name: "lots" }));
+    await screen.findByText("2026-03-03");
+
+    await act(async () => {
+      releaseStock(ROWS);
+    });
+    // Grade B's rows survive; the abandoned refresh issued no third lot fetch.
+    expect(screen.getByText("2026-03-03")).toBeInTheDocument();
+    expect(screen.queryByText("2026-07-01")).not.toBeInTheDocument();
+    expect(mockListEggLots).toHaveBeenCalledTimes(2);
+  });
+
   it("drops rows the next page repeats when a concurrent insert shifted the offset", async () => {
     // Offset paging over a live list: a lot created between page loads shifts
     // every index, so page two can re-serve page one's last row. Rendering it
