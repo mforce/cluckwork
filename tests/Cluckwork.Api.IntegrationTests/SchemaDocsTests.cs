@@ -162,8 +162,10 @@ public sealed class SchemaDocsTests
         // JSON inside run: steps) must be indented past its key, so an
         // unindented brace can never be embedded text. Anchoring at column 0
         // is what separates a root flow document from ci.yml's heredocs.
+        // An explicit document marker (---) may precede the root node on the
+        // same line; it stays a column-0 shape either way.
         var rootFlowPattern = new Regex(
-            @"(?m)^(?:[&!][^\s{]+[ \t]+)*\{(?!\}[ \t]*(?:#[^\r\n]*)?\r?$)[^\r\n]*");
+            @"(?m)^(?:---[ \t]+)?(?:[&!][^\s{]+[ \t]+)*\{(?!\}[ \t]*(?:#[^\r\n]*)?\r?$)[^\r\n]*");
         var fromLinePattern = new Regex(@"(?im)^[ \t]*FROM[ \t][^\r\n]*");
         var pgNamePattern = new Regex(@"postgres|_pg_?|pg_", RegexOptions.IgnoreCase);
         var mappingKeyPattern = new Regex(@"^[ \t]*[A-Za-z0-9_.-]+:([ \t]|\r?$)");
