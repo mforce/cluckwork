@@ -48,10 +48,11 @@ docker run -d --name "$PG" --network "$NET" \
   -p 127.0.0.1:0:5432 \
   "$POSTGRES_IMAGE" >/dev/null
 
+# Same 60s readiness budget as ci.yml's smoke test uses for this image.
 for i in $(seq 1 30); do
   if docker exec "$PG" pg_isready -h 127.0.0.1 -U cluckwork -d cluckwork >/dev/null 2>&1; then break; fi
   if [ "$i" = 30 ]; then echo "Postgres never became ready" >&2; exit 1; fi
-  sleep 1
+  sleep 2
 done
 
 PORT="$(docker inspect -f '{{ (index (index .NetworkSettings.Ports "5432/tcp") 0).HostPort }}' "$PG")"
@@ -97,6 +98,12 @@ if [ "$MODE" = "generate" ]; then
 else
   TMP_OUT="$(mktemp -d)"
   run_tbls "-v ${TMP_OUT}:/schema-check" "/schema-check"
+  # A generation that silently produced nothing must never read as "up to
+  # date" — README.md is the one file every tbls run emits.
+  if [ ! -f "$TMP_OUT/README.md" ]; then
+    echo "Schema-docs generation produced no output — refusing to compare." >&2
+    exit 1
+  fi
   if ! diff -r docs/schema "$TMP_OUT" >/dev/null 2>&1; then
     echo "docs/schema/ is STALE — it does not match what the migrations produce." >&2
     echo "Regenerate with: tools/schema-docs/generate.sh" >&2
