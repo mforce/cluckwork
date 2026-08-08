@@ -1019,6 +1019,9 @@ export const es = {
     paletteTerracotta: "Terracota",
     dateFormatLabel: "Formato de fecha",
     timeFormatLabel: "Formato de hora",
+    customFormatOption: "Personalizado…",
+    customDateFormatLabel: "Formato de fecha personalizado",
+    customTimeFormatLabel: "Formato de hora personalizado",
     savingButton: "Guardando…",
     saveButton: "Guardar configuración",
     effectNote:

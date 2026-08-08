@@ -1057,6 +1057,9 @@ export const tl = {
     paletteTerracotta: "Terracotta",
     dateFormatLabel: "Format ng petsa",
     timeFormatLabel: "Format ng oras",
+    customFormatOption: "Custom…",
+    customDateFormatLabel: "Custom na format ng petsa",
+    customTimeFormatLabel: "Custom na format ng oras",
     savingButton: "Sine-save…",
     saveButton: "I-save ang mga setting",
     effectNote:

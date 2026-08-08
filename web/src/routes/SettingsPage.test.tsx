@@ -129,6 +129,32 @@ describe("SettingsPage loading", () => {
     expect(screen.getByLabelText("Time format")).toHaveValue("");
   });
 
+  it("opens the date/time format dropdown on Custom… when the stored value isn't one of the presets (#452)", async () => {
+    mockGetSettings.mockResolvedValue(SETTINGS({
+      dateFormatOverride: "dd-MM-yy", timeFormatOverride: "HHmm",
+    }));
+    render(<SettingsPage />);
+    await screen.findByLabelText("Farm name");
+
+    expect(screen.getByLabelText("Date format")).toHaveValue("__custom__");
+    expect(screen.getByLabelText("Custom date format")).toHaveValue("dd-MM-yy");
+    expect(screen.getByLabelText("Time format")).toHaveValue("__custom__");
+    expect(screen.getByLabelText("Custom time format")).toHaveValue("HHmm");
+  });
+
+  it("opens the date/time format dropdown on the matching preset, with no custom field, for a stored preset value (#452)", async () => {
+    mockGetSettings.mockResolvedValue(SETTINGS({
+      dateFormatOverride: "yyyy-MM-dd", timeFormatOverride: "HH:mm",
+    }));
+    render(<SettingsPage />);
+    await screen.findByLabelText("Farm name");
+
+    expect(screen.getByLabelText("Date format")).toHaveValue("yyyy-MM-dd");
+    expect(screen.queryByLabelText("Custom date format")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Time format")).toHaveValue("HH:mm");
+    expect(screen.queryByLabelText("Custom time format")).not.toBeInTheDocument();
+  });
+
   it("reports a failed load instead of an empty form", async () => {
     mockGetSettings.mockRejectedValue(new Error("offline"));
     render(<SettingsPage />);
@@ -171,12 +197,48 @@ describe("SettingsPage saving", () => {
     await renderReady(SETTINGS({ firstDayOfWeek: "Monday", dateFormatOverride: "dd/MM/yyyy" }));
 
     fireEvent.change(screen.getByLabelText("First day of week"), { target: { value: "" } });
-    fireEvent.change(screen.getByLabelText("Date format"), { target: { value: "   " } });
+    // #452 — realistic path: switch the dropdown to "Custom…", which reveals
+    // the free-text field, THEN type whitespace into that field — a select
+    // itself has no way to hold an arbitrary typed value.
+    fireEvent.change(screen.getByLabelText("Date format"), { target: { value: "__custom__" } });
+    fireEvent.change(screen.getByLabelText("Custom date format"), { target: { value: "   " } });
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save settings" })); });
 
     const [body] = mockUpdate.mock.calls[0];
     expect(body.firstDayOfWeek).toBeNull();
     expect(body.dateFormatOverride).toBeNull();
+  });
+
+  it("sends a preset picked directly from the date/time format dropdowns, no custom field involved (#452)", async () => {
+    mockUpdate.mockResolvedValue(undefined);
+    await renderReady();
+
+    fireEvent.change(screen.getByLabelText("Date format"), { target: { value: "yyyy-MM-dd" } });
+    fireEvent.change(screen.getByLabelText("Time format"), { target: { value: "HH:mm" } });
+    expect(screen.queryByLabelText("Custom date format")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Custom time format")).not.toBeInTheDocument();
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save settings" })); });
+
+    const [body] = mockUpdate.mock.calls[0];
+    expect(body.dateFormatOverride).toBe("yyyy-MM-dd");
+    expect(body.timeFormatOverride).toBe("HH:mm");
+  });
+
+  it("reveals the custom field on Custom…, and re-hides it (discarding the typed value) if a preset is picked afterward (#452)", async () => {
+    mockUpdate.mockResolvedValue(undefined);
+    await renderReady();
+
+    fireEvent.change(screen.getByLabelText("Date format"), { target: { value: "__custom__" } });
+    const customField = screen.getByLabelText("Custom date format");
+    fireEvent.change(customField, { target: { value: "dd.MM.yyyy" } });
+    expect(screen.getByLabelText("Date format")).toHaveValue("__custom__");
+
+    fireEvent.change(screen.getByLabelText("Date format"), { target: { value: "MM/dd/yyyy" } });
+    expect(screen.queryByLabelText("Custom date format")).not.toBeInTheDocument();
+
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save settings" })); });
+    const [body] = mockUpdate.mock.calls[0];
+    expect(body.dateFormatOverride).toBe("MM/dd/yyyy");
   });
 
   it("uppercases the currency and trims the text fields", async () => {

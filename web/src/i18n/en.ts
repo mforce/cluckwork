@@ -1229,6 +1229,13 @@ export const en = {
     paletteTerracotta: "Terracotta",
     dateFormatLabel: "Date format",
     timeFormatLabel: "Time format",
+    // #452 — the dropdown's escape hatch to the free-text field, and that
+    // field's own labels (distinct from dateFormatLabel/timeFormatLabel,
+    // the dropdown's labels, since both a select and a text field are on
+    // screen at once while "Custom…" is chosen).
+    customFormatOption: "Custom…",
+    customDateFormatLabel: "Custom date format",
+    customTimeFormatLabel: "Custom time format",
     savingButton: "Saving…",
     saveButton: "Save settings",
     effectNote:
