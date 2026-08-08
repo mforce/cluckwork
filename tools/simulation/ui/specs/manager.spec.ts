@@ -31,22 +31,44 @@ import { selectOptionContaining } from "../src/dom";
 import { farmToday } from "../src/farm";
 import { prefixOf, tEn } from "../src/i18n";
 
-// #446 prefill: picking the flock fires a prefill that RESETS every count
-// when it settles, so fills must not race it. `prefillPending` is only raised
-// inside an effect — even a just-observed enabled save button can be the
-// pre-effect render (codex review of 366de81). So synchronize on the network:
-// the response wait is registered BEFORE selecting and keyed to this flock's
-// id (the date-change prefill for the auto-defaulted flock must not satisfy
-// it), and the enabled assertion afterwards proves the settle was APPLIED —
-// the response existing proves the effect ran and disabled the buttons, so
-// enabled-after-response can only be the post-reset state.
-async function selectFlockAwaitingPrefill(page: Page, flockName: string) {
-  const select = page.getByLabel(tEn("dailyEntry:flockLabel"));
-  const option = select.locator("option", { hasText: flockName });
-  await expect(option).toHaveCount(1);
-  const flockId = (await option.getAttribute("value"))!;
+// Creates a flock through the UI and returns its id, captured from the POST
+// response — the id is what the prefill synchronization below keys on.
+async function createFlock(page: Page, flockName: string, today: string): Promise<string> {
+  await page.goto("/flocks");
+  await page.getByRole("button", { name: tEn("flocks:newFlockButton") }).click();
+  const newFlock = page.getByRole("dialog", { name: tEn("flocks:newFlockDialogTitle") });
+  await newFlock.getByLabel(tEn("flocks:nameLabel")).fill(flockName);
+  await newFlock.getByLabel(tEn("flocks:breedLabel")).fill("E2E Leghorn");
+  await newFlock.getByLabel(tEn("flocks:placedLabel")).fill(today);
+  await newFlock.getByLabel(tEn("flocks:birdsLabel"), { exact: true }).fill("50");
+  const created = page.waitForResponse((r) =>
+    r.url().includes("/api/v1/flocks") && r.request().method() === "POST" && r.ok());
+  await newFlock.getByRole("button", { name: tEn("flocks:addFlockButton") }).click();
+  const flockId = ((await (await created).json()) as { id: string }).id;
+  await expect(newFlock).toBeHidden();
+  return flockId;
+}
+
+// #446 prefill: the Daily Entry page fires a prefill that RESETS every count
+// when it settles, so fills must not race it. Two refuted designs, kept for
+// the record: waiting for the enabled save button can observe the pre-effect
+// render (`prefillPending` rises inside an effect — codex round 3), and
+// registering waitForResponse only around the flock SELECT hangs when the
+// just-created flock is already the page's auto-default, because selecting
+// the same value fires no change and no new request (the CI red after
+// e5771a0's first attempt). So the wait is registered BEFORE goto and keyed
+// to the flock id: whichever path fires this flock's prefill — load-time
+// auto-default, date change, or the select — is caught. The enabled
+// assertion afterwards proves the settle was APPLIED: the response existing
+// proves the effect ran and disabled the buttons, so enabled-after-response
+// can only be the post-reset state.
+async function openDailyEntryAwaitingPrefill(page: Page, flockId: string, today: string) {
   const prefill = page.waitForResponse((r) =>
     r.url().includes("/daily-entries") && r.url().includes(flockId) && r.ok());
+  await page.goto("/daily-entry");
+  await page.getByLabel(tEn("dailyEntry:dateLabel")).fill(today);
+  const select = page.getByLabel(tEn("dailyEntry:flockLabel"));
+  await expect(select.locator(`option[value="${flockId}"]`)).toHaveCount(1);
   await select.selectOption(flockId);
   await prefill;
   await expect(page.getByRole("button", { name: tEn("dailyEntry:submitButton") })).toBeEnabled();
@@ -63,27 +85,15 @@ test.describe("Manager", () => {
     const flockName = `E2E Flock ${Date.now()}`;
 
     // ---- 1. Flock ops: create ----------------------------------------------
-    await page.goto("/flocks");
-    await page.getByRole("button", { name: tEn("flocks:newFlockButton") }).click();
-
-    const newFlock = page.getByRole("dialog", { name: tEn("flocks:newFlockDialogTitle") });
-    await newFlock.getByLabel(tEn("flocks:nameLabel")).fill(flockName);
-    await newFlock.getByLabel(tEn("flocks:breedLabel")).fill("E2E Leghorn");
-    await newFlock.getByLabel(tEn("flocks:placedLabel")).fill(today);
-    await newFlock.getByLabel(tEn("flocks:birdsLabel"), { exact: true }).fill("50");
-    await newFlock.getByRole("button", { name: tEn("flocks:addFlockButton") }).click();
-
-    await expect(newFlock).toBeHidden();
+    const flockId = await createFlock(page, flockName, today);
     // The flock is on the farm's roster — the guarantee, not the dialog closing.
     await expect(page.getByRole("cell", { name: flockName })).toBeVisible();
 
     // ---- 2. Record and SUBMIT a daily entry on it --------------------------
-    await page.goto("/daily-entry");
-    await page.getByLabel(tEn("dailyEntry:dateLabel")).fill(today);
-    // Prefill-settle synchronization — see selectFlockAwaitingPrefill. Without
-    // it the prefill wipes the fills and the spec submits an all-zeros day
-    // (PR #464's CI-only 46.9s red, caught frame-by-frame on video).
-    await selectFlockAwaitingPrefill(page, flockName);
+    // Prefill-settle synchronization — see openDailyEntryAwaitingPrefill.
+    // Without it the prefill wipes the fills and the spec submits an
+    // all-zeros day (PR #464's CI-only 46.9s red, caught on video).
+    await openDailyEntryAwaitingPrefill(page, flockId, today);
     await page.getByLabel(tEn("dailyEntry:totalEggsLabel"), { exact: true }).fill("40");
     await page.getByLabel(tEn("dailyEntry:crackedLabel"), { exact: true }).fill("1");
     // #394: submit is refused unless grading exactly reconciles sellable eggs
@@ -182,19 +192,9 @@ test.describe("Manager", () => {
     // flow spec above uses, so its same-day lot can never match the filter.
     const eggs = 41 + (Date.now() % 58);
 
-    await page.goto("/flocks");
-    await page.getByRole("button", { name: tEn("flocks:newFlockButton") }).click();
-    const newFlock = page.getByRole("dialog", { name: tEn("flocks:newFlockDialogTitle") });
-    await newFlock.getByLabel(tEn("flocks:nameLabel")).fill(flockName);
-    await newFlock.getByLabel(tEn("flocks:breedLabel")).fill("E2E Leghorn");
-    await newFlock.getByLabel(tEn("flocks:placedLabel")).fill(today);
-    await newFlock.getByLabel(tEn("flocks:birdsLabel"), { exact: true }).fill("50");
-    await newFlock.getByRole("button", { name: tEn("flocks:addFlockButton") }).click();
-    await expect(newFlock).toBeHidden();
+    const flockId = await createFlock(page, flockName, today);
 
-    await page.goto("/daily-entry");
-    await page.getByLabel(tEn("dailyEntry:dateLabel")).fill(today);
-    await selectFlockAwaitingPrefill(page, flockName);
+    await openDailyEntryAwaitingPrefill(page, flockId, today);
     await page.getByLabel(tEn("dailyEntry:totalEggsLabel"), { exact: true }).fill(String(eggs));
     await page.getByLabel("Large", { exact: true }).fill(String(eggs));
     await page.getByRole("button", { name: tEn("dailyEntry:submitButton") }).click();
