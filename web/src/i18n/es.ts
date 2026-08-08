@@ -114,6 +114,7 @@ export const es = {
     dashboard: "Panel",
     dailyEntry: "Registro diario",
     flocks: "Lotes",
+    feed: "Alimento",
     water: "Agua",
     inventory: "Inventario",
     stock: "Existencias",
@@ -415,6 +416,13 @@ export const es = {
 
     // Pinned footer (phone-only summary + saves)
     countsExceedFooterMessage: "Las pérdidas superan el total — corrija los conteos",
+    // #446
+    daySupportFeed: "Alimento: {{count}} registros (est. {{cost}})",
+    daySupportFeed_one: "Alimento: {{count}} registro (est. {{cost}})",
+    daySupportFeedNone: "Alimento: 0 registros",
+    daySupportWater: "Agua: {{count}} registros",
+    daySupportWater_one: "Agua: {{count}} registro",
+    daySupportWaterNone: "Agua: 0 registros",
     stepperUnitCaption: "Contando por {{unit}} — cada toque de − / + mueve {{count}} huevos. Escribir sigue ingresando números exactos.",
     sellableWord: "vendible",
     saveDraftButton: "Guardar borrador",
@@ -481,6 +489,41 @@ export const es = {
   // placeholder (no <Trans> tags in this namespace). Source/Unit picker
   // values go through the `enums` waterSourceLabel/waterUnitLabel helpers,
   // not a key here.
+  // #446 — machine-drafted, pending native review (translate-now policy).
+  feed: {
+    title: "Alimento",
+    loadFailed: "No se pudieron cargar las parvadas y los artículos de alimento. ¿Está activa la API?",
+    loadRecordsFailed: "No se pudieron cargar los registros de alimento.",
+    loadMoreFailed: "No se pudo cargar más.",
+    intro:
+      "Registre lo que se alimentó a cada parvada. El inventario se descuenta "
+      + "de las compras más antiguas primero y el costo estimado proviene de esos lotes.",
+    flockLabel: "Parvada",
+    depletedFlockSuffix: " — agotada, solo registro retroactivo",
+    itemLabel: "Artículo",
+    itemOption: "{{name}} ({{onHand}} {{unit}} disponibles)",
+    dateLabel: "Fecha",
+    quantityLabel: "Cantidad",
+    quantityLabelWithUnit: "Cantidad ({{unit}})",
+    noteLabel: "Nota",
+    recordFeedButton: "Registrar alimento",
+    quantityMustBePositive: "La cantidad debe ser un número positivo.",
+    recordedMessage: "Alimento registrado.",
+    correctionsHint:
+      "Una alimentación mal ingresada se corrige con un ajuste de Inventario en el "
+      + "lote afectado — los registros de alimento nunca se editan.",
+    recordsHeading: "Registros",
+    fromLabel: "Desde",
+    toLabel: "Hasta",
+    noRecordsMatch: "Ningún registro de alimento coincide.",
+    dateHeader: "Fecha",
+    flockHeader: "Parvada",
+    itemHeader: "Artículo",
+    amountHeader: "Cantidad",
+    estimatedCostHeader: "Costo est.",
+    noteHeader: "Nota",
+    loadMoreButton: "cargar más",
+  },
   water: {
     title: "Agua",
 
@@ -611,9 +654,6 @@ export const es = {
     loadLedgerFailed: "No se pudo cargar el registro de movimientos.",
     quantityMustBePositive: "La cantidad debe ser un número positivo.",
     purchaseRecordedMessage: "Compra registrada — existencias recibidas.",
-    usageRecordedMessage:
-      "Uso de alimento registrado — se consumieron primero las existencias "
-      + "de los lotes más antiguos.",
     adjustQuantityRequired:
       "La cantidad de ajuste debe ser un número distinto de cero (negativo "
       + "quita existencias).",
@@ -635,12 +675,11 @@ export const es = {
     // Item panel (opened item)
     itemPanelHeading: "{{name}} — {{quantity}} {{unit}} disponible(s)",
     recordPurchaseButton: "Registrar compra",
-    recordUsageButton: "Registrar uso",
+    recordUsageLink: "Registrar uso en la página de Alimento",
     correctStockButton: "Corregir existencias",
     notFeedableMessage:
       "Los artículos de {{category}} no se dan de comer a los lotes — el "
       + "uso solo aplica a artículos de Alimento, Suplemento y Aditivo.",
-    noFlocksForUsageMessage: "No hay lotes — el uso necesita un lote para alimentar.",
     correctionsNeedAdminMessage: "Las correcciones de existencias requieren un administrador.",
     noLotsMessage: "Aún no hay lotes — las correcciones se aplican a un lote recibido.",
 
@@ -658,11 +697,9 @@ export const es = {
     recordPurchaseSubmitButton: "Registrar compra",
 
     // Record-usage dialog
-    recordUsageDialogTitle: "Registrar uso — {{name}}",
     flockLabel: "Lote",
     depletedFlockSuffix: " (agotado — solo para registrar fechas pasadas)",
     dateLabel: "Fecha",
-    recordUsageSubmitButton: "Registrar uso",
 
     // Correct-stock dialog
     correctStockDialogTitle: "Corregir existencias — {{name}}",

@@ -1,11 +1,12 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
+import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
 import {
-  createFlock, listDailyEntries, listEggGrades, listEggUnitConversions, listFlocks,
-  recordDailyEntry, submitDailyEntry,
+  createFlock, formatMoney, listDailyEntries, listEggGrades, listEggUnitConversions,
+  listFeedUsage, listFlocks, listWaterUsage, recordDailyEntry, submitDailyEntry,
 } from "../api/cluckwork";
-import type { EggGrade, EggUnitConversion, Flock } from "../api/cluckwork";
+import type { EggGrade, EggUnitConversion, FeedUsage, Flock, WaterUsage } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
@@ -81,6 +82,14 @@ export function DailyEntryPage() {
   // guard, #59); failedTarget marks which flock+date the failure was for.
   const [prefillFailed, setPrefillFailed] = useState(false);
   const [prefillPending, setPrefillPending] = useState(false);
+  // #446 — the day-support strip: what else was recorded for this flock+date.
+  // DELIBERATELY isolated from the prefill state machine above it (its own
+  // effect, its own state, no retry) — a failed summary read hides the strip
+  // and must never gate or zero the entry form. Queried by flock+date, not by
+  // DailyEntryId: the strip works before the day's entry exists, which is
+  // exactly when a farmer is most likely filling this screen in.
+  const [daySupport, setDaySupport] =
+    useState<{ feed: FeedUsage[]; water: WaterUsage[] } | null>(null);
   const [prefillRetry, setPrefillRetry] = useState(0);
   const failedTarget = useRef<string | null>(null);
 
@@ -208,6 +217,20 @@ export function DailyEntryPage() {
   useEffect(() => {
     if (flockId) localStorage.setItem(LAST_FLOCK_KEY, flockId);
   }, [flockId]);
+
+  // #446 — see the daySupport state comment for why this effect is isolated.
+  useEffect(() => {
+    if (!flockId || !date) { setDaySupport(null); return; }
+    let cancelled = false;
+    setDaySupport(null);
+    Promise.all([
+      listFeedUsage({ flockId, from: date, to: date, limit: 100 }),
+      listWaterUsage({ flockId, from: date, to: date, limit: 100 }),
+    ])
+      .then(([feed, water]) => { if (!cancelled) setDaySupport({ feed, water }); })
+      .catch(() => { /* strip stays hidden; the entry form is untouched */ });
+    return () => { cancelled = true; };
+  }, [flockId, date]);
 
   const gradesSum = useMemo(
     () => Object.values(gradeQty).reduce((a, b) => a + (b || 0), 0),
@@ -531,6 +554,30 @@ export function DailyEntryPage() {
       {stepSize > 1 && (
         <p className="hint">
           {t("stepperUnitCaption", { unit: stepperUnit.unitCode, count: stepSize })}
+        </p>
+      )}
+
+      {/* #446 — what else this flock's day already carries, with the way to
+          the pages that record it. Joined on flock+date (never DailyEntryId),
+          so it's live before the day's entry exists. */}
+      {daySupport && (
+        <p className="hint">
+          <Link className="link" to="/feed">
+            {daySupport.feed.length > 0
+              ? t("daySupportFeed", {
+                  count: daySupport.feed.length,
+                  cost: formatMoney(
+                    daySupport.feed.reduce((a, r) => a + r.estimatedCostMinorUnits, 0),
+                    daySupport.feed[0].currencyCode, daySupport.feed[0].currencyMinorUnit),
+                })
+              : t("daySupportFeedNone")}
+          </Link>
+          {" · "}
+          <Link className="link" to="/water">
+            {daySupport.water.length > 0
+              ? t("daySupportWater", { count: daySupport.water.length })
+              : t("daySupportWaterNone")}
+          </Link>
         </p>
       )}
 

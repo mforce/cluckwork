@@ -17,6 +17,7 @@ import { FlocksPage } from "./routes/FlocksPage";
 import { InventoryPage } from "./routes/InventoryPage";
 import { HelpPage } from "./routes/HelpPage";
 import { AccountPage } from "./routes/AccountPage";
+import { FeedPage } from "./routes/FeedPage";
 import { WaterPage } from "./routes/WaterPage";
 import { ExpensesPage } from "./routes/ExpensesPage";
 import { ReportsPage } from "./routes/ReportsPage";
@@ -57,6 +58,7 @@ export function App() {
                 <Route path="products" element={<ProductsPage />} />
                 <Route path="flocks" element={<FlocksPage />} />
                 <Route path="inventory" element={<InventoryPage />} />
+                <Route path="feed" element={<FeedPage />} />
                 <Route path="water" element={<WaterPage />} />
                 <Route path="expenses" element={<ExpensesPage />} />
                 <Route path="reports" element={<ReportsPage />} />

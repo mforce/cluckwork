@@ -39,6 +39,7 @@ export const TRANSLATED_NAMESPACES = [
   "pwa",
   "dailyEntry",
   "dashboard",
+  "feed",
   "water",
   "grades",
   "inventory",

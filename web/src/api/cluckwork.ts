@@ -540,6 +540,36 @@ export const recordFeedUsage = (itemId: string, body: {
   feedUsageId: string; quantityUsed: number; estimatedCostMinorUnits: number; currencyCode: string;
 }>(`/inventory/items/${itemId}/usage`, body, key);
 
+// #446 — the feed-usage history the server has always exposed but no screen
+// read until the /feed page. dailyEntryId is best-effort record-time
+// provenance (null when the day's entry didn't exist yet; never backfilled).
+export interface FeedUsage {
+  id: string;
+  flockId: string;
+  inventoryItemId: string;
+  date: string;
+  quantity: number;
+  unit: string;
+  estimatedCostMinorUnits: number;
+  currencyCode: string;
+  currencyMinorUnit: number;
+  note: string | null;
+  dailyEntryId: string | null;
+}
+
+export const listFeedUsage = (params?: {
+  flockId?: string; from?: string; to?: string; limit?: number; offset?: number;
+}) => {
+  const q = new URLSearchParams();
+  if (params?.flockId) q.set("flockId", params.flockId);
+  if (params?.from) q.set("from", params.from);
+  if (params?.to) q.set("to", params.to);
+  if (params?.limit) q.set("limit", String(params.limit));
+  if (params?.offset) q.set("offset", String(params.offset));
+  const qs = q.size > 0 ? `?${q}` : "";
+  return apiGet<FeedUsage[]>(`/inventory/usage${qs}`);
+};
+
 // Correction path: compensating ledger row against a specific lot. Type
 // "Adjustment" (signed) or "Discard" (negative write-off); reason required.
 export const recordInventoryAdjustment = (itemId: string, body: {
@@ -559,6 +589,8 @@ export interface WaterUsage {
   meterEnd: number | null;
   note: string | null;
   version: number;
+  // #446 — best-effort record-time provenance; corrections never change it.
+  dailyEntryId: string | null;
 }
 
 export const listWaterUsage = (params?: {
