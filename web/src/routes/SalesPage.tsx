@@ -23,6 +23,15 @@ import { statusLabel } from "../i18n/enums";
 
 const PAGE = 50;
 
+// The egg selling units, in picker order — one list for the Per picker and
+// the #445 unit-label/preview helpers, mirroring the server's ProductUnit
+// egg subset. `as const` keeps `unit${SellingUnit}` a closed union the typed
+// i18n `t` accepts (a bare string template fails the tsc -b build).
+const SELLING_UNITS = ["Egg", "Dozen", "Flat", "Tray", "Carton", "Case"] as const;
+type SellingUnit = (typeof SELLING_UNITS)[number];
+const isSellingUnit = (u: string): u is SellingUnit =>
+  (SELLING_UNITS as readonly string[]).includes(u);
+
 // The sole RAW payment-method render site (below) mirrors the SAME six-value
 // vocabulary as the payment-method picker in this file (which already renders
 // via the translated sales:method* keys) rather than the English-only `enums`
@@ -161,7 +170,12 @@ export function SalesPage() {
     return c?.eggsPerUnit ?? null;
   };
   // Lowercased to match the row display's `perUnit` convention ("per tray").
-  const unitWord = (sellingUnit: string) => t(`unit${sellingUnit}`).toLowerCase();
+  // The membership guard is what lets the typed i18n key accept the template:
+  // `unit${SellingUnit}` is a closed union of real catalog keys, while an
+  // unrecognized unit string (a future enum value this build predates) falls
+  // back to its raw name rather than a missing-key render.
+  const unitWord = (sellingUnit: string) =>
+    (isSellingUnit(sellingUnit) ? t(`unit${sellingUnit}`) : sellingUnit).toLowerCase();
 
   const loadOrders = useCallback(async (offset = 0) => {
     const page = await listOrders({
@@ -608,7 +622,7 @@ export function SalesPage() {
                 </label>
                 <label>{t("perLabel")}
                   <select value={unit} onChange={(e) => setUnit(e.target.value)}>
-                    {(["Egg", "Dozen", "Flat", "Tray", "Carton", "Case"] as const).map((u) =>
+                    {SELLING_UNITS.map((u) =>
                       <option key={u} value={u}>{t(`unit${u}`)}</option>)}
                   </select>
                 </label>
