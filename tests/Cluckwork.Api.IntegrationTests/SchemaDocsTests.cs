@@ -145,7 +145,7 @@ public sealed class SchemaDocsTests
         var dockerImageVarPattern = new Regex(@"(?im)docker-image://[^\s""',}\]]*\$");
         // A postgres-reference-shaped C# string literal (a Testcontainers
         // image constant, e.g.) must BE the canonical pin — a bare
-        // "postgres" literal floats to latest with no colon for the global
+        // 'postgres' literal floats to latest with no colon for the global
         // candidate to see.
         // Scoped to IMAGE-CONSUMING expressions — an *Image* assignment, a
         // *Builder("...") construction, or WithImage("...") — because the
@@ -179,21 +179,41 @@ public sealed class SchemaDocsTests
         // prefix or a multi-quote delimiter means no escape processing.
         var csharpEscapedLiteralPattern = new Regex(
             @"(?:Image\w*\s*=\s*|Builder\s*\(\s*(?:\w+\s*:\s*)?|WithImage\s*\(\s*(?:\w+\s*:\s*)?)(?<pfx>[$@]*)(?<q>""+)(?<body>(?:[^""\\\r\n]|\\.)*)""");
-        // The expression-anchored refusal above can be defeated by syntactic
-        // wrappers — extra parentheses, casts, named-argument trivia — so the
-        // escape family also gets a CONTEXT-FREE rule: every ordinary (or
-        // ordinary-interpolated) literal in a .cs file, wherever it sits, is
-        // decoded, and a literal whose decoded value is postgres-shaped while
-        // its source text carries an escape is refused. Expression context is
-        // irrelevant to this rule, which is what closes the wrapper class:
-        // no amount of surrounding trivia changes the literal itself. It
-        // fires only when a backslash is present AND the decoded value is
-        // exactly image-shaped, so ordinary strings that legitimately contain
-        // escapes (log messages, test fixtures) never match.
+        // The expression-anchored patterns above can be defeated by syntactic
+        // wrappers — extra parentheses, casts, named-argument trivia — and
+        // the wrapper vocabulary is unbounded. So image-shaped literals get a
+        // CONTEXT-FREE rule: EVERY C# string literal, wherever it sits, has
+        // its evaluated value checked (ordinary literals are escape-decoded
+        // first), and a value that is postgres-shaped but not the canonical
+        // pin is refused unless that exact (file, value) pair is in the
+        // reviewed allow-list below. Walk everything, exclude deliberately —
+        // never enumerate consuming expressions. The expression-anchored
+        // sweeps stay as defense in depth (they catch multiline raw forms
+        // this single-line scan cannot).
         var csharpAnyOrdinaryLiteralPattern = new Regex(
-            @"(?<pfx>[$@]*)(?<q>""+)(?<body>(?:[^""\\\r\n]|\\.)*)""");
+            @"(?<pfx>[$@]*)(?<q>""+)(?<body>(?:[^""\\\r\n]|\\.)*)\k<q>");
+        var csharpRawMultilinePattern = new Regex(
+            @"(?<q>""{3,})(?<body>[\s\S]*?)\k<q>");
         var decodedImageShapePattern = new Regex(
             @"^(?:[a-z0-9.-]+(?::\d+)?/)*postgres(?::[^@\s""]+)?(?:@sha256:[0-9a-f]{64})?$");
+        // The bare word 'postgres' is ALSO a legitimate scheme name, database
+        // name, and username. Each entry here is a reviewed non-image use of
+        // a postgres-shaped literal; adding one is a deliberate act with a
+        // diff a reviewer sees. Keyed by repo-relative path + exact evaluated
+        // value.
+        // Values are built by concatenation so this file carries no
+        // postgres-shaped literal of its own (it is inside its own sweep,
+        // and allow-listing this file would open a hole in the guard).
+        var barePostgresLiteralAllowList = new Dictionary<string, string[]>
+        {
+            // URI scheme names accepted by the connection-string normalizer —
+            // a scheme, not an image reference.
+            ["src/Cluckwork.Infrastructure/Providers/Postgres/PostgresConnectionString.cs"] = ["post" + "gres"],
+            // #318 test asserting the retired predictable-credentials fallback
+            // is NAMED in the failure message — error-text fixture, not an
+            // image reference.
+            ["tests/Cluckwork.Api.IntegrationTests/AppDbContextDesignTimeFactoryTests.cs"] = ["post" + "gres/post" + "gres"],
+        };
         // BuildKit RUN mounts pull an external image when from= names no
         // build stage or context — a fourth bare-reference syntax.
         // NOT anchored to RUN: a continued instruction puts later mount
@@ -228,8 +248,12 @@ public sealed class SchemaDocsTests
         // by definition not a reviewable pin, and invisible to all three
         // detectors above (the candidate pattern requires an alphanumeric
         // after the colon). Comment deliberately avoids spelling the literal
-        // — this file is inside its own sweep.
-        var interpolatedPattern = new Regex(@"postgres:\$\{?[A-Za-z_][A-Za-z0-9_:-]*\}?");
+        // — this file is inside its own sweep. The pattern source is built by
+        // concatenation for the same reason: the context-free literal scan
+        // below reads every string literal in this file too, and a source
+        // text that IS postgres-shaped would self-match ("postgres:" alone is
+        // not image-shaped — the optional tag group needs a character).
+        var interpolatedPattern = new Regex("postgres:" + @"\$\{?[A-Za-z_][A-Za-z0-9_:-]*\}?");
         // ALLOW-LIST, not marker enumeration: rounds 10-16 of review each
         // produced one more YAML syntax that defers or indirects an image
         // value (block scalars, comments, anchors, explicit tags...). The
@@ -381,13 +405,34 @@ public sealed class SchemaDocsTests
                 }
                 foreach (Match m in csharpAnyOrdinaryLiteralPattern.Matches(text))
                 {
-                    if (m.Groups["pfx"].Value.Contains('@')) continue;
-                    if (m.Groups["q"].Value.Length > 1) continue;
+                    var escapesApply = !m.Groups["pfx"].Value.Contains('@') && m.Groups["q"].Value.Length == 1;
                     var body = m.Groups["body"].Value;
-                    if (!body.Contains('\\')) continue;
-                    if (!decodedImageShapePattern.IsMatch(DecodeCSharpEscapes(body))) continue;
-                    if (!hits.TryGetValue("escape-disguised postgres reference (an ordinary C# literal whose DECODED value is image-shaped) — write the reference unescaped", out var files))
-                        hits["escape-disguised postgres reference (an ordinary C# literal whose DECODED value is image-shaped) — write the reference unescaped"] = files = [];
+                    var value = escapesApply ? DecodeCSharpEscapes(body) : body;
+                    if (!decodedImageShapePattern.IsMatch(value)) continue;
+                    if (value == PostgresImage) continue;
+                    string msg;
+                    if (escapesApply && body.Contains('\\'))
+                    {
+                        msg = "escape-disguised postgres reference (an ordinary C# literal whose DECODED value is image-shaped) — write the reference unescaped";
+                    }
+                    else
+                    {
+                        if (barePostgresLiteralAllowList.TryGetValue(relative, out var allowed) && allowed.Contains(value)) continue;
+                        msg = $"\"{value}\" (postgres-shaped C# literal outside the canonical pin — pin it, or add a reviewed allow-list entry if it is not an image reference)";
+                    }
+                    if (!hits.TryGetValue(msg, out var files))
+                        hits[msg] = files = [];
+                    files.Add(relative);
+                }
+                foreach (Match m in csharpRawMultilinePattern.Matches(text))
+                {
+                    var value = m.Groups["body"].Value.Trim();
+                    if (!decodedImageShapePattern.IsMatch(value)) continue;
+                    if (value == PostgresImage) continue;
+                    if (barePostgresLiteralAllowList.TryGetValue(relative, out var allowed) && allowed.Contains(value)) continue;
+                    var msg = $"\"{value}\" (postgres-shaped C# raw literal outside the canonical pin — pin it, or add a reviewed allow-list entry if it is not an image reference)";
+                    if (!hits.TryGetValue(msg, out var files))
+                        hits[msg] = files = [];
                     files.Add(relative);
                 }
             }
