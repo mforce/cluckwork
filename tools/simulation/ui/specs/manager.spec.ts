@@ -24,11 +24,33 @@
 // on flock COUNT (the Owner dashboard asserts "not zero rows", deliberately), and
 // `reset.sh` clears it whenever anyone wants a clean slate.
 
+import type { Page } from "@playwright/test";
 import { expect, test } from "../src/fixtures";
 import { castMember } from "../src/cast";
 import { selectOptionContaining } from "../src/dom";
 import { farmToday } from "../src/farm";
 import { prefixOf, tEn } from "../src/i18n";
+
+// #446 prefill: picking the flock fires a prefill that RESETS every count
+// when it settles, so fills must not race it. `prefillPending` is only raised
+// inside an effect — even a just-observed enabled save button can be the
+// pre-effect render (codex review of 366de81). So synchronize on the network:
+// the response wait is registered BEFORE selecting and keyed to this flock's
+// id (the date-change prefill for the auto-defaulted flock must not satisfy
+// it), and the enabled assertion afterwards proves the settle was APPLIED —
+// the response existing proves the effect ran and disabled the buttons, so
+// enabled-after-response can only be the post-reset state.
+async function selectFlockAwaitingPrefill(page: Page, flockName: string) {
+  const select = page.getByLabel(tEn("dailyEntry:flockLabel"));
+  const option = select.locator("option", { hasText: flockName });
+  await expect(option).toHaveCount(1);
+  const flockId = (await option.getAttribute("value"))!;
+  const prefill = page.waitForResponse((r) =>
+    r.url().includes("/daily-entries") && r.url().includes(flockId) && r.ok());
+  await select.selectOption(flockId);
+  await prefill;
+  await expect(page.getByRole("button", { name: tEn("dailyEntry:submitButton") })).toBeEnabled();
+}
 
 test.describe("Manager", () => {
   test("creates a flock, submits its entry, then adjusts and voids it", async ({
@@ -58,13 +80,10 @@ test.describe("Manager", () => {
     // ---- 2. Record and SUBMIT a daily entry on it --------------------------
     await page.goto("/daily-entry");
     await page.getByLabel(tEn("dailyEntry:dateLabel")).fill(today);
-    await selectOptionContaining(page.getByLabel(tEn("dailyEntry:flockLabel")), flockName);
-    // #446 prefill: picking the flock/date kicks off an async prefill that
-    // RESETS every count when it settles — fills landing before that are
-    // silently wiped, and the spec then submits an all-zeros day (a CI-speed
-    // race; PR #464's 46.9s red, caught on video). The save buttons are
-    // disabled while the prefill is pending, so enabled = settled.
-    await expect(page.getByRole("button", { name: tEn("dailyEntry:submitButton") })).toBeEnabled();
+    // Prefill-settle synchronization — see selectFlockAwaitingPrefill. Without
+    // it the prefill wipes the fills and the spec submits an all-zeros day
+    // (PR #464's CI-only 46.9s red, caught frame-by-frame on video).
+    await selectFlockAwaitingPrefill(page, flockName);
     await page.getByLabel(tEn("dailyEntry:totalEggsLabel"), { exact: true }).fill("40");
     await page.getByLabel(tEn("dailyEntry:crackedLabel"), { exact: true }).fill("1");
     // #394: submit is refused unless grading exactly reconciles sellable eggs
@@ -175,10 +194,7 @@ test.describe("Manager", () => {
 
     await page.goto("/daily-entry");
     await page.getByLabel(tEn("dailyEntry:dateLabel")).fill(today);
-    await selectOptionContaining(page.getByLabel(tEn("dailyEntry:flockLabel")), flockName);
-    // Same #446 prefill-settle guard as the flow spec above — without it the
-    // prefill can wipe the fills and this spec submits an all-zeros day.
-    await expect(page.getByRole("button", { name: tEn("dailyEntry:submitButton") })).toBeEnabled();
+    await selectFlockAwaitingPrefill(page, flockName);
     await page.getByLabel(tEn("dailyEntry:totalEggsLabel"), { exact: true }).fill(String(eggs));
     await page.getByLabel("Large", { exact: true }).fill(String(eggs));
     await page.getByRole("button", { name: tEn("dailyEntry:submitButton") }).click();
