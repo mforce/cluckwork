@@ -132,6 +132,11 @@ export function FeedPage() {
 
   useEffect(() => {
     setListError(null);
+    // Load-more goes dark for the duration of the reload: with the OLD
+    // filter's hasMore still true, a click would start load(oldRows.length)
+    // under the NEW filters, supersede this offset-zero flight, and append
+    // a new-filter page onto old-filter rows. Success recomputes hasMore.
+    setHasMore(false);
     load().catch(() => {
       // Degrade the list, keep the form: an empty list with its own error
       // beats a dead page. Rows and hasMore are CLEARED, not kept — rows

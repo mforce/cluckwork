@@ -267,6 +267,28 @@ describe("FeedPage (#446 — feed usage promoted out of the Inventory drill-down
     expect(screen.queryByRole("button", { name: "load more" })).not.toBeInTheDocument();
   });
 
+  it("hides load-more while a filtered reload is in flight", async () => {
+    // With hasMore still true from the old filter, clicking load-more during
+    // the pending reload would start load(oldRows.length) under the NEW
+    // filters, supersede the offset-zero flight, and append a new-filter
+    // page onto old-filter rows while skipping the new filter's first page.
+    const first = Array.from({ length: 50 }, (_, i) => usageRow({ id: `u${i}`, note: "old rows" }));
+    mockListUsage.mockResolvedValueOnce(first);
+    await renderReady();
+    expect(screen.getByRole("button", { name: "load more" })).toBeInTheDocument();
+
+    let release!: (rows: FeedUsage[]) => void;
+    mockListUsage.mockReturnValueOnce(new Promise((r) => { release = r; }));
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-08-01" } });
+    });
+    expect(screen.queryByRole("button", { name: "load more" })).not.toBeInTheDocument();
+
+    await act(async () => { release([usageRow({ id: "uB", note: "new rows" })]); });
+    expect(screen.getByText("new rows")).toBeInTheDocument();
+    expect(screen.queryByText("old rows")).not.toBeInTheDocument();
+  });
+
   it("refreshes the picker's on-hand figures after a successful record", async () => {
     mockRecord.mockResolvedValue({
       feedUsageId: "u9", quantityUsed: 20, estimatedCostMinorUnits: 100, currencyCode: "USD",
