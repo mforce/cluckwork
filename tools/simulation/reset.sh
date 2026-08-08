@@ -126,8 +126,19 @@ fi
 echo "-- config -q (validate before build) --"
 compose config -q
 
-echo "-- up -d --build --"
-compose up -d --build
+# CLUCKWORK_SIM_REUSE_IMAGE=1 (CI only): e2e-smoke.yml has already built and
+# tagged cluckwork-sim-app:latest via buildx against a layer cache shared with
+# ci.yml's image job, so compose must not rebuild over it. `up` without
+# `--build` still builds a MISSING image for a build:-only service, so a cold
+# run works either way; the default (unset) keeps the always-rebuild behavior
+# every local flow relies on.
+if [[ "${CLUCKWORK_SIM_REUSE_IMAGE:-0}" == "1" ]]; then
+  echo "-- up -d (reusing pre-built cluckwork-sim-app:latest) --"
+  compose up -d
+else
+  echo "-- up -d --build --"
+  compose up -d --build
+fi
 
 # --- Wait for /health/ready (covers boot + migration + the base seed) -----
 echo "-- waiting up to ${READY_TIMEOUT_SECONDS}s for /health/ready --"
