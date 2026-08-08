@@ -170,6 +170,10 @@ export const en = {
     skipToContent: "Skip to main content",
     primaryNavAriaLabel: "Primary",
     signOut: "Sign out",
+    // {{version}} is a bare semver string (e.g. "0.0.2"), never itself
+    // translated — only the surrounding "v" template varies by locale in
+    // principle, though every catalog currently agrees on it (#458).
+    versionLabel: "v{{version}}",
     farmLoadFailedNeverLoaded:
       "Could not load this farm's settings, so dates follow this device rather than the farm.",
     farmLoadFailedStale:

@@ -148,6 +148,7 @@ export const tl = {
     skipToContent: "Lumaktaw papunta sa pangunahing content",
     primaryNavAriaLabel: "Pangunahin",
     signOut: "Mag-sign out",
+    versionLabel: "v{{version}}",
     farmLoadFailedNeverLoaded:
       "Hindi na-load ang mga setting ng bukid na ito, kaya susundin ng mga "
       + "petsa ang device na ito sa halip na ang bukid.",
