@@ -21,6 +21,7 @@ public sealed class UpdateFarmSettingsValidatorTests
         DateFormatOverride: null,
         TimeFormatOverride: null,
         Brand: FarmBrands.Default,
+        DefaultStepperUnit: "Individual",
         Version: 0);
 
     private bool Fails(UpdateFarmSettingsCommand command, string property) =>
@@ -123,6 +124,28 @@ public sealed class UpdateFarmSettingsValidatorTests
     public void CommaListedUnitSystems_Fail() =>
         Assert.True(Fails(Valid() with { UnitSystem = "Metric,Imperial" },
             nameof(UpdateFarmSettingsCommand.UnitSystem)));
+
+    // --- default stepper unit (#444) --------------------------------------
+
+    [Theory]
+    [InlineData("Individual")]
+    [InlineData("tray")]
+    [InlineData("Case")]
+    public void KnownEggUnit_Passes(string unit) =>
+        Assert.True(_validator.Validate(Valid() with { DefaultStepperUnit = unit }).IsValid);
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("Bushel")]
+    [InlineData("0")]   // numeric enum values are not the wire contract
+    public void UnknownEggUnit_Fails(string unit) =>
+        Assert.True(Fails(Valid() with { DefaultStepperUnit = unit },
+            nameof(UpdateFarmSettingsCommand.DefaultStepperUnit)));
+
+    [Fact]
+    public void CommaListedEggUnits_Fail() =>
+        Assert.True(Fails(Valid() with { DefaultStepperUnit = "Tray,Case" },
+            nameof(UpdateFarmSettingsCommand.DefaultStepperUnit)));
 
     // --- format overrides -------------------------------------------------
 

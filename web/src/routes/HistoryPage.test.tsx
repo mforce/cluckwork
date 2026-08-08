@@ -2,8 +2,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, within, fireEvent, act } from "@testing-library/react";
 import { HistoryPage } from "./HistoryPage";
 import { renderWithProviders } from "../test/renderWithProviders";
+import { account } from "../test/fixtures";
 import {
-  adjustDailyEntry, getDailyEntry, listDailyEntries, listEggGrades, listFlocks, voidDailyEntry,
+  adjustDailyEntry, getDailyEntry, listDailyEntries, listEggGrades, listEggUnitConversions,
+  listFlocks, voidDailyEntry,
 } from "../api/cluckwork";
 import type { DailyEntry, EggGrade, Flock } from "../api/cluckwork";
 import { ApiError } from "../api/client";
@@ -15,6 +17,7 @@ import i18n from "../i18n";
 vi.mock("../api/cluckwork", () => ({
   listFlocks: vi.fn(),
   listEggGrades: vi.fn(),
+  listEggUnitConversions: vi.fn(),
   listDailyEntries: vi.fn(),
   getDailyEntry: vi.fn(),
   adjustDailyEntry: vi.fn(),
@@ -23,6 +26,7 @@ vi.mock("../api/cluckwork", () => ({
 
 const mockListFlocks = vi.mocked(listFlocks);
 const mockListEggGrades = vi.mocked(listEggGrades);
+const mockListEggUnitConversions = vi.mocked(listEggUnitConversions);
 const mockListDailyEntries = vi.mocked(listDailyEntries);
 const mockAdjustDailyEntry = vi.mocked(adjustDailyEntry);
 const mockGetDailyEntry = vi.mocked(getDailyEntry);
@@ -60,6 +64,11 @@ beforeEach(() => {
   Element.prototype.scrollIntoView = vi.fn();
   mockListFlocks.mockResolvedValue([FLOCK]);
   mockListEggGrades.mockResolvedValue([GRADE_A, GRADE_B]);
+  // #444 — Individual keeps every pre-existing test's +1/-1 arithmetic unchanged.
+  mockListEggUnitConversions.mockResolvedValue([
+    { id: "c1", unitCode: "Individual", eggsPerUnit: 1, active: true, version: 0 },
+    { id: "c3", unitCode: "Tray", eggsPerUnit: 30, active: true, version: 0 },
+  ]);
   mockListDailyEntries.mockResolvedValue([]);
 });
 
@@ -477,6 +486,43 @@ describe("HistoryPage adjust — mirrored daily-entry layout", () => {
     // 100 → 101: the total caught up rather than refusing the tap.
     expect(screen.getByRole("spinbutton", { name: "Total eggs" })).toHaveValue(101);
     expect(chip()).toHaveTextContent("the day adds up");
+  });
+
+  // #444 — mirrors DailyEntryPage.test.tsx's farm-default pack-unit test:
+  // the adjust dialog's steppers count by the resolved unit too, and its
+  // #443 auto-raise (setLine) must track a 30-egg tap exactly like a 1-egg
+  // one (adversarial review of #451 — this screen had no step≠1 coverage).
+  it("steps by the farm-default pack unit, and the total auto-raise tracks it", async () => {
+    mockListDailyEntries.mockResolvedValue([SUBMITTED]);
+    renderWithProviders(<HistoryPage />, {
+      token: ADMIN, farm: account({ defaultStepperUnit: "Tray" }),
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "adjust" }));
+
+    // The dialog names the unit the taps count by, same as the capture screen.
+    expect(screen.getByText(/Counting by Tray/)).toBeInTheDocument();
+
+    // Fixture: total 100, graded 40 + 20, losses 10 — sellable 90, 30 left.
+    const plusA = screen.getByRole("button", { name: "Increase grade a by 30" });
+    fireEvent.pointerDown(plusA);
+    fireEvent.pointerUp(plusA);
+    // One tap = one tray. 40 + 30 = 70 exactly consumes the remainder, so
+    // the total must NOT move (the #443 raise only fires past the total).
+    expect(screen.getByRole("spinbutton", { name: "Grade A" })).toHaveValue(70);
+    expect(screen.getByRole("spinbutton", { name: "Total eggs" })).toHaveValue(100);
+
+    // A second tray overshoots — the total auto-raises by the same 30.
+    fireEvent.pointerDown(plusA);
+    fireEvent.pointerUp(plusA);
+    expect(screen.getByRole("spinbutton", { name: "Grade A" })).toHaveValue(100);
+    expect(screen.getByRole("spinbutton", { name: "Total eggs" })).toHaveValue(130);
+
+    // Mortality counts BIRDS — step 1 whatever the egg unit (codex P1 of #451).
+    // Fixture starts at 1 death.
+    const plusDeaths = screen.getByRole("button", { name: "Increase mortality" });
+    fireEvent.pointerDown(plusDeaths);
+    fireEvent.pointerUp(plusDeaths);
+    expect(screen.getByRole("spinbutton", { name: "Mortality" })).toHaveValue(2);
   });
 
   // Mirrors DailyEntryPage.test.tsx's identical test: a single tap cannot

@@ -1,5 +1,6 @@
 namespace Cluckwork.Infrastructure.Identity;
 
+using Cluckwork.Domain.Catalog;
 using Microsoft.AspNetCore.Identity;
 
 public sealed class ApplicationUser : IdentityUser<Guid>
@@ -11,6 +12,11 @@ public sealed class ApplicationUser : IdentityUser<Guid>
     // (lowercased). NOT a locale: regional/number/date formatting stays a
     // farm-scoped `Account` concern (§4.5). null = follow the app default.
     public string? Language { get; set; }
+
+    // #444 — overrides Account.DefaultStepperUnit for this user's Daily Entry
+    // steppers. null = follow the farm default; set only via SetStepperUnit,
+    // which also confirms the unit is still an active EggUnitConversion.
+    public EggUnit? PreferredStepperUnit { get; set; }
 
     // #283 — set true ONLY by the `bootstrap-admin` first-run command on the
     // admin it creates (never by ordinary user creation). While true, the JWT

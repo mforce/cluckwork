@@ -4,7 +4,8 @@ import { resolve } from "node:path";
 import { render, screen, within, fireEvent, waitFor, act } from "@testing-library/react";
 import { DailyEntryPage } from "./DailyEntryPage";
 import {
-  listFlocks, listEggGrades, listDailyEntries, createFlock, recordDailyEntry, submitDailyEntry,
+  listFlocks, listEggGrades, listEggUnitConversions, listDailyEntries, createFlock,
+  recordDailyEntry, submitDailyEntry,
 } from "../api/cluckwork";
 import type { Flock, EggGrade, DailyEntry } from "../api/cluckwork";
 import { todayIso } from "../lib/dates";
@@ -16,6 +17,7 @@ import i18n from "../i18n";
 vi.mock("../api/cluckwork", () => ({
   listFlocks: vi.fn(),
   listEggGrades: vi.fn(),
+  listEggUnitConversions: vi.fn(),
   listDailyEntries: vi.fn(),
   recordDailyEntry: vi.fn(),
   submitDailyEntry: vi.fn(),
@@ -24,6 +26,7 @@ vi.mock("../api/cluckwork", () => ({
 
 const mockListFlocks = vi.mocked(listFlocks);
 const mockListEggGrades = vi.mocked(listEggGrades);
+const mockListEggUnitConversions = vi.mocked(listEggUnitConversions);
 const mockListDailyEntries = vi.mocked(listDailyEntries);
 const mockCreateFlock = vi.mocked(createFlock);
 
@@ -47,6 +50,12 @@ beforeEach(() => {
   localStorage.clear();
   mockListFlocks.mockResolvedValue([FLOCK]);
   mockListEggGrades.mockResolvedValue(GRADES);
+  // #444 — the seeded defaults every real account carries; Individual keeps
+  // every pre-existing test's +1/-1 stepper arithmetic unchanged.
+  mockListEggUnitConversions.mockResolvedValue([
+    { id: "c1", unitCode: "Individual", eggsPerUnit: 1, active: true, version: 0 },
+    { id: "c3", unitCode: "Tray", eggsPerUnit: 30, active: true, version: 0 },
+  ]);
   mockListDailyEntries.mockResolvedValue([]); // no existing entry for the day
 });
 
@@ -848,6 +857,41 @@ describe("DailyEntryPage grading sync (#443)", () => {
     expect(remainingChip()).toHaveClass("over");
     expect(saveDraftBtn()).toBeDisabled();
     expect(submitBtn()).toBeDisabled();
+  });
+
+  // #444 — a farm that counts by the tray: every stepper on the screen bumps
+  // by the farm default's eggsPerUnit instead of 1. Typing stays raw numbers.
+  it("steps by the farm-default pack unit when one is set", async () => {
+    render(
+      <FarmContext.Provider value={farmState({ farm: account({ defaultStepperUnit: "Tray" }) })}>
+        <DailyEntryPage />
+      </FarmContext.Provider>);
+    await screen.findByLabelText("Grade A");
+    await waitFor(() => expect(saveDraftBtn()).toBeEnabled());
+
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Increase total eggs by 30" }));
+    fireEvent.pointerUp(screen.getByRole("button", { name: "Increase total eggs by 30" }));
+    expect(screen.getByLabelText("Total eggs")).toHaveValue(30);
+
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Increase grade a by 30" }));
+    fireEvent.pointerUp(screen.getByRole("button", { name: "Increase grade a by 30" }));
+    expect(screen.getByLabelText("Grade A")).toHaveValue(30);
+
+    // The unit is visible at the point of touch AND named above the panes.
+    expect(screen.getAllByText("+30").length).toBeGreaterThan(0);
+    expect(screen.getByText(/Counting by Tray/)).toBeInTheDocument();
+
+    // Mortality counts BIRDS, not eggs — a Tray farm must never record 30
+    // deaths per tap (codex P1 review of #451). Un-suffixed name = step 1.
+    const plusDeaths = screen.getByRole("button", { name: "Increase mortality" });
+    fireEvent.pointerDown(plusDeaths);
+    fireEvent.pointerUp(plusDeaths);
+    expect(screen.getByLabelText("Mortality")).toHaveValue(1);
+  });
+
+  it("shows no unit caption when counting by ones", async () => {
+    await renderReady(); // no farm context — resolves to Individual
+    expect(screen.queryByText(/Counting by/)).toBeNull();
   });
 
   // codex review of #449: gating only on "still over" (rather than on this

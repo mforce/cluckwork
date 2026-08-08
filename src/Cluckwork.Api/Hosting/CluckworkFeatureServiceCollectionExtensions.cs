@@ -47,6 +47,7 @@ using Cluckwork.Application.Features.Sales.VoidPayment;
 using Cluckwork.Application.Features.Sales.VoidSale;
 using Cluckwork.Application.Features.Users.CreateUser;
 using Cluckwork.Application.Features.Users.SetLanguage;
+using Cluckwork.Application.Features.Users.SetStepperUnit;
 using Cluckwork.Infrastructure.Persistence;
 using Cluckwork.Infrastructure.Providers;
 using Cluckwork.Infrastructure.Repositories;
@@ -236,6 +237,7 @@ internal static class CluckworkFeatureServiceCollectionExtensions
             IValidator<VoidDailyEntryCommand>,
             VoidDailyEntryValidator>();
         services.AddScoped<IValidator<SetLanguageCommand>, SetLanguageValidator>();
+        services.AddScoped<IValidator<SetStepperUnitCommand>, SetStepperUnitValidator>();
         services.AddScoped<
             IValidator<Cluckwork.Application.Features.Accounts.UpdateFarmSettings.UpdateFarmSettingsCommand>,
             Cluckwork.Application.Features.Accounts.UpdateFarmSettings.UpdateFarmSettingsValidator>();
@@ -292,6 +294,7 @@ internal static class CluckworkFeatureServiceCollectionExtensions
         services.AddScoped<
             Cluckwork.Application.Features.Users.ChangeOwnPassword.ChangeOwnPasswordHandler>();
         services.AddScoped<SetLanguageHandler>();
+        services.AddScoped<SetStepperUnitHandler>();
         services.AddScoped<AdjustDailyEntryHandler>();
         services.AddScoped<
             Cluckwork.Application.Features.Accounts.UpdateFarmSettings.UpdateFarmSettingsHandler>();

@@ -494,6 +494,7 @@ public sealed class SimulationDataSeeder(
             account.DateFormatOverride,
             account.TimeFormatOverride,
             account.Brand,
+            account.DefaultStepperUnit.ToString(),
             account.Version);
 
         var result = await updateFarmSettings.HandleAsync(command, ct);

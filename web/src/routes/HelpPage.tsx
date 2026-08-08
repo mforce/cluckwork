@@ -36,6 +36,7 @@ const TOC = [
   ["export", "tocExport"],
   ["farm-settings", "tocFarmSettings"],
   ["farm-palette", "tocFarmPalette"],
+  ["account", "tocAccount"],
   ["install", "tocInstall"],
   ["mistakes", "tocMistakes"],
   ["glossary", "tocGlossary"],
@@ -382,11 +383,30 @@ export function HelpPage() {
         <li>
           <Trans ns="help" i18nKey="farmSettingsSquareLogo" components={{ strong: <strong /> }} />
         </li>
+        {/* #444 — the farm-default Daily Entry counting unit. */}
+        <li>
+          <Trans ns="help" i18nKey="farmSettingsCountingUnit" components={{ strong: <strong /> }} />
+        </li>
       </ul>
 
       <h3 id="farm-palette">{t("farmPaletteHeading")}</h3>
       <p>{t("farmPaletteIntro")}</p>
       <p>{t("farmPaletteLightNight")}</p>
+
+      {/* #444 — the personal counterpart to Farm settings: what each signed-in
+          person can set for themselves, whatever their role. */}
+      <h3 id="account">{t("accountHeading")}</h3>
+      <ul>
+        <li>
+          <Trans ns="help" i18nKey="accountPassword" components={{ strong: <strong /> }} />
+        </li>
+        <li>
+          <Trans ns="help" i18nKey="accountLanguage" components={{ strong: <strong /> }} />
+        </li>
+        <li>
+          <Trans ns="help" i18nKey="accountCountingUnit" components={{ strong: <strong /> }} />
+        </li>
+      </ul>
 
       <h3 id="install">{t("installHeading")}</h3>
       <ul>
@@ -516,6 +536,9 @@ export function HelpPage() {
             <td>{t("glossaryProductDef")}</td></tr>
           <tr><th scope="row">{t("glossaryPackedUnitTerm")}</th>
             <td>{t("glossaryPackedUnitDef")}</td></tr>
+          {/* #444 — beside the packed unit it counts by. */}
+          <tr><th scope="row">{t("glossaryCountingUnitTerm")}</th>
+            <td>{t("glossaryCountingUnitDef")}</td></tr>
           <tr><th scope="row">{t("glossarySalesLineTerm")}</th>
             <td>{t("glossarySalesLineDef")}</td></tr>
           <tr><th scope="row">{t("glossaryConfirmOrderTerm")}</th>

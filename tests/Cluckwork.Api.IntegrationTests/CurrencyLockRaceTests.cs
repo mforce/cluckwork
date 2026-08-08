@@ -34,6 +34,11 @@ public sealed class CurrencyLockRaceTests(CluckworkWebApplicationFactory factory
         await factory.WithTenantScopeAsync(accountId, async db =>
         {
             db.Accounts.Add(Account.Create(accountId, "Race Farm", "UTC", "USD"));
+            // #444 — every real account carries these (TestHarness.SeedAccountWithUserAsync
+            // does the same); ChangeCurrencyCommand's DefaultStepperUnit defaults to
+            // Individual, and UpdateFarmSettingsHandler now confirms that unit has an
+            // active conversion before it ever reaches the lock this suite races.
+            db.EggUnitConversions.AddRange(Cluckwork.Domain.Catalog.EggUnitConversion.Defaults(accountId));
             await db.SaveChangesAsync();
         });
         return accountId;
@@ -56,7 +61,7 @@ public sealed class CurrencyLockRaceTests(CluckworkWebApplicationFactory factory
         account.Name, account.TimeZoneId, account.Locale, "JPY",
         account.UnitSystem.ToString(), account.FirstDayOfWeek?.ToString(),
         account.DateFormatOverride, account.TimeFormatOverride,
-        account.Brand, account.Version);
+        account.Brand, account.DefaultStepperUnit.ToString(), account.Version);
 
     [Fact]
     public async Task CurrencyChange_SerializesBehindAnInFlightMoneyWrite_AndRefuses()

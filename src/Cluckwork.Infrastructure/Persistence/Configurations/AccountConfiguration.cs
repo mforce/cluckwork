@@ -25,6 +25,10 @@ public sealed class AccountConfiguration : IEntityTypeConfiguration<Account>
         builder.Property(e => e.FirstDayOfWeek)
             .HasConversion<string>()
             .HasMaxLength(16);
+        builder.Property(e => e.DefaultStepperUnit)
+            .HasConversion<string>()
+            .HasMaxLength(16)
+            .IsRequired();
         builder.Property(e => e.DateFormatOverride).HasMaxLength(Account.MaxFormatOverrideLength);
         builder.Property(e => e.TimeFormatOverride).HasMaxLength(Account.MaxFormatOverrideLength);
 

@@ -3,6 +3,7 @@ namespace Cluckwork.Infrastructure.Identity;
 using System.Runtime.ExceptionServices;
 using System.Security.Cryptography;
 using Cluckwork.Application.Common;
+using Cluckwork.Domain.Catalog;
 using Cluckwork.Domain.Common;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Http;
@@ -673,7 +674,7 @@ public sealed class IdentityProvider(
     {
         var user = await db.Users
             .Where(u => u.Id == userId && u.AccountId == accountId)
-            .Select(u => new { u.Id, u.Email, u.DisplayName, u.Language })
+            .Select(u => new { u.Id, u.Email, u.DisplayName, u.Language, u.PreferredStepperUnit })
             .FirstOrDefaultAsync(ct);
         if (user is null) return null;
 
@@ -684,7 +685,9 @@ public sealed class IdentityProvider(
             select role.Name).ToListAsync(ct);
         var effectiveRole = roleNames.OrderByDescending(Rank).FirstOrDefault() ?? "Worker";
 
-        return new UserProfile(user.Id, user.Email!, user.DisplayName, effectiveRole, user.Language);
+        return new UserProfile(
+            user.Id, user.Email!, user.DisplayName, effectiveRole, user.Language,
+            user.PreferredStepperUnit);
     }
 
     public async Task<Result> SetLanguageAsync(
@@ -693,6 +696,17 @@ public sealed class IdentityProvider(
         var affected = await db.Users
             .Where(u => u.Id == userId && u.AccountId == accountId)
             .ExecuteUpdateAsync(s => s.SetProperty(u => u.Language, language), ct);
+        return affected == 0 ? Result.Failure(Error.NotFound("Users", userId)) : Result.Success();
+    }
+
+    // #444 — same shape as SetLanguageAsync; the caller has already confirmed a
+    // non-null unit is still an active EggUnitConversion.
+    public async Task<Result> SetStepperUnitAsync(
+        Guid accountId, Guid userId, EggUnit? unit, CancellationToken ct = default)
+    {
+        var affected = await db.Users
+            .Where(u => u.Id == userId && u.AccountId == accountId)
+            .ExecuteUpdateAsync(s => s.SetProperty(u => u.PreferredStepperUnit, unit), ct);
         return affected == 0 ? Result.Failure(Error.NotFound("Users", userId)) : Result.Success();
     }
 

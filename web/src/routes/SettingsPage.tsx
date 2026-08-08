@@ -3,10 +3,10 @@ import type { ChangeEvent, FormEvent } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { Trash2, Upload } from "lucide-react";
 import {
-  LOGO_ACCEPT, getFarmSettings, removeFarmLogo, updateFarmSettings,
+  LOGO_ACCEPT, getFarmSettings, listEggUnitConversions, removeFarmLogo, updateFarmSettings,
   uploadFarmLogo,
 } from "../api/cluckwork";
-import type { FarmSettings, UpdateFarmSettings } from "../api/cluckwork";
+import type { EggUnitConversion, FarmSettings, UpdateFarmSettings } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { BusyButton } from "../components/BusyButton";
 import { useConfirm } from "../components/useConfirm";
@@ -132,6 +132,12 @@ export function SettingsPage() {
   const [currencyCode, setCurrencyCode] = useState("");
   const [unitSystem, setUnitSystem] = useState("Metric");
   const [brand, setBrand] = useState<string>(DEFAULT_BRAND);
+  // #444 — the farm-default Daily Entry stepper pack unit. Fetched alongside
+  // the settings themselves (not a separate effect) so the select's value and
+  // its options always land together — no race where the stored code briefly
+  // has no matching <option>.
+  const [defaultStepperUnit, setDefaultStepperUnit] = useState("Individual");
+  const [stepperUnits, setStepperUnits] = useState<EggUnitConversion[]>([]);
   const [firstDayOfWeek, setFirstDayOfWeek] = useState("");
   const [dateFormat, setDateFormat] = useState("");
   const [timeFormat, setTimeFormat] = useState("");
@@ -182,8 +188,9 @@ export function SettingsPage() {
   // is exactly what the empty dependency list below exists to prevent (review
   // of #123).
   async function load() {
-    const next = await getFarmSettings();
+    const [next, units] = await Promise.all([getFarmSettings(), listEggUnitConversions()]);
     setLoaded(next);
+    setStepperUnits(units);
     const s = next.settings;
     setName(s.name);
     setTimeZoneId(s.timeZoneId);
@@ -198,6 +205,12 @@ export function SettingsPage() {
     // recovery the design describes.
     setBrand(isBrand(s.brand) ? s.brand : DEFAULT_BRAND);
     setTimeFormat(s.timeFormatOverride ?? "");
+    // Same recovery as brand: a unit can be deactivated (Products screen)
+    // while still named as the farm default. Individual is always active and
+    // cannot be deactivated (EggUnitConversion.cs), so it is always a safe
+    // fallback that the next save writes back as a valid value.
+    const activeCodes = units.filter((u) => u.active).map((u) => u.unitCode);
+    setDefaultStepperUnit(activeCodes.includes(s.defaultStepperUnit) ? s.defaultStepperUnit : "Individual");
     return next;
   }
 
@@ -247,6 +260,7 @@ export function SettingsPage() {
         dateFormatOverride: orNull(dateFormat),
         timeFormatOverride: orNull(timeFormat),
         brand,
+        defaultStepperUnit,
         version: loaded.settings.version,
       };
       const attempt = keyFor(saveAttempt.current, JSON.stringify(body));
@@ -508,6 +522,18 @@ export function SettingsPage() {
             {UNIT_SYSTEMS.map((u) => <option key={u} value={u}>{unitSystemLabel(u)}</option>)}
           </select>
         </label>
+
+        {/* #444 — the pack unit Daily Entry's steppers bump by, e.g. "+30/-30"
+            for Tray, unless a user overrides it for themselves (Header). Codes
+            render raw, untranslated, matching ProductsPage's own unitCode cells
+            — there is no separate label catalog for this enum anywhere else. */}
+        <label>{t("defaultStepperUnitLabel")}
+          <select value={defaultStepperUnit} onChange={(e) => setDefaultStepperUnit(e.target.value)}>
+            {stepperUnits.filter((u) => u.active).map((u) =>
+              <option key={u.unitCode} value={u.unitCode}>{u.unitCode}</option>)}
+          </select>
+        </label>
+        <p className="hint">{t("defaultStepperUnitHint")}</p>
 
         <label>{t("firstDayOfWeekLabel")}
           <select value={firstDayOfWeek} onChange={(e) => setFirstDayOfWeek(e.target.value)}>

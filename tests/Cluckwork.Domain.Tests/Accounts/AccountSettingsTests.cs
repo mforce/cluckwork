@@ -1,6 +1,7 @@
 namespace Cluckwork.Domain.Tests.Accounts;
 
 using Cluckwork.Domain.Accounts;
+using Cluckwork.Domain.Catalog;
 using Cluckwork.Domain.Common;
 
 // #123 — the settings block and the two rules that guard it: §4.6's currency
@@ -20,6 +21,7 @@ public sealed class AccountSettingsTests
         DayOfWeek? firstDayOfWeek = null,
         string? dateFormatOverride = null,
         string? timeFormatOverride = null,
+        EggUnit defaultStepperUnit = EggUnit.Individual,
         bool financialRowsExist = false) =>
         account.UpdateSettings(
             name ?? account.Name,
@@ -27,7 +29,7 @@ public sealed class AccountSettingsTests
             locale ?? account.Locale,
             currencyCode ?? account.DefaultCurrencyCode,
             unitSystem, firstDayOfWeek, dateFormatOverride, timeFormatOverride,
-            brand: FarmBrands.Default, financialRowsExist);
+            brand: FarmBrands.Default, defaultStepperUnit, financialRowsExist);
 
     [Fact]
     public void UpdateSettings_AppliesTheBlock_AndBumpsVersion()
@@ -52,6 +54,25 @@ public sealed class AccountSettingsTests
         Assert.Equal("dd/MM/yyyy", account.DateFormatOverride);
         Assert.Null(account.TimeFormatOverride);
         Assert.Equal(before + 1, account.Version);
+    }
+
+    // #444
+    [Fact]
+    public void NewAccount_DefaultsToTheIndividualStepperUnit()
+    {
+        var account = UsdFarm();
+        Assert.Equal(EggUnit.Individual, account.DefaultStepperUnit);
+    }
+
+    [Fact]
+    public void UpdateSettings_StoresTheDefaultStepperUnit()
+    {
+        var account = UsdFarm();
+
+        var result = Update(account, defaultStepperUnit: EggUnit.Tray);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(EggUnit.Tray, account.DefaultStepperUnit);
     }
 
     [Fact]
@@ -169,7 +190,7 @@ public sealed class AccountSettingsTests
         var result = account.UpdateSettings(
             name, timeZoneId, locale, currencyCode,
             UnitSystem.Metric, null, null, null,
-            brand: FarmBrands.Default, financialRowsExist: false);
+            brand: FarmBrands.Default, defaultStepperUnit: EggUnit.Individual, financialRowsExist: false);
 
         Assert.True(result.IsFailure);
         Assert.Equal(expectedCode, result.Error.Code);
@@ -203,7 +224,7 @@ public sealed class AccountSettingsTests
         var result = account.UpdateSettings(
             "Test Farm", "UTC", "en-US", "USD", UnitSystem.Metric,
             firstDayOfWeek: null, dateFormatOverride: null, timeFormatOverride: null,
-            brand: "forest", financialRowsExist: false);
+            brand: "forest", defaultStepperUnit: EggUnit.Individual, financialRowsExist: false);
 
         Assert.True(result.IsSuccess);
         Assert.Equal("forest", account.Brand);
@@ -221,7 +242,7 @@ public sealed class AccountSettingsTests
 
         var result = account.UpdateSettings(
             "Test Farm", "UTC", "en-US", "USD", UnitSystem.Metric,
-            null, null, null, brand: submitted, financialRowsExist: false);
+            null, null, null, brand: submitted, defaultStepperUnit: EggUnit.Individual, financialRowsExist: false);
 
         Assert.True(result.IsSuccess);
         Assert.Equal("forest", account.Brand);
@@ -237,7 +258,7 @@ public sealed class AccountSettingsTests
 
         var result = account.UpdateSettings(
             "Test Farm", "UTC", "en-US", "USD", UnitSystem.Metric,
-            null, null, null, brand: submitted, financialRowsExist: false);
+            null, null, null, brand: submitted, defaultStepperUnit: EggUnit.Individual, financialRowsExist: false);
 
         Assert.True(result.IsFailure);
         Assert.Equal("Account.UnknownBrand", result.Error.Code);
@@ -253,7 +274,7 @@ public sealed class AccountSettingsTests
 
         var result = account.UpdateSettings(
             "Renamed", "America/Los_Angeles", "es-MX", "USD", UnitSystem.Imperial,
-            null, null, null, brand: "chartreuse", financialRowsExist: false);
+            null, null, null, brand: "chartreuse", defaultStepperUnit: EggUnit.Individual, financialRowsExist: false);
 
         Assert.True(result.IsFailure);
         Assert.Equal("Original", account.Name);

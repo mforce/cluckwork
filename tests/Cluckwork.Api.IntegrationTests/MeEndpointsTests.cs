@@ -8,7 +8,8 @@ using Cluckwork.Domain.Accounts;
 [Collection(IntegrationCollection.Name)]
 public sealed class MeEndpointsTests(CluckworkWebApplicationFactory factory)
 {
-    private sealed record MeRow(Guid Id, string Email, string? Name, string Role, string? Language);
+    private sealed record MeRow(
+        Guid Id, string Email, string? Name, string Role, string? Language, string? PreferredStepperUnit);
 
     private async Task<HttpClient> ClientAsync(Guid accountId, string email, string? role)
     {
@@ -137,5 +138,111 @@ public sealed class MeEndpointsTests(CluckworkWebApplicationFactory factory)
             "/api/v1/me/language", Guid.NewGuid().ToString(), new { });
 
         Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
+    }
+
+    // #444 — same shape as the /language block above.
+
+    [Fact]
+    public async Task Get_me_returns_null_stepper_unit_by_default()
+    {
+        var owner = $"o-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(owner);
+        var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(owner));
+
+        var me = await client.GetFromJsonAsync<MeRow>("/api/v1/me");
+
+        Assert.Null(me!.PreferredStepperUnit);
+    }
+
+    [Theory]
+    [MemberData(nameof(RoleCases))]
+    public async Task Any_role_can_set_and_read_back_their_stepper_unit(string roleCase)
+    {
+        var role = roleCase == "Worker" ? null : roleCase;
+        var owner = $"o-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(owner);
+        var email = $"u-{Guid.NewGuid():N}@test.local";
+        var client = await ClientAsync(accountId, email, role);
+
+        var put = await client.PutWithKeyAsync(
+            "/api/v1/me/stepper-unit", Guid.NewGuid().ToString(), new { unit = "Tray" });
+        Assert.Equal(HttpStatusCode.NoContent, put.StatusCode);
+
+        var me = await client.GetFromJsonAsync<MeRow>("/api/v1/me");
+        Assert.Equal("Tray", me!.PreferredStepperUnit);
+    }
+
+    [Fact]
+    public async Task Null_clears_the_stepper_unit()
+    {
+        var email = $"o-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
+
+        await client.PutWithKeyAsync(
+            "/api/v1/me/stepper-unit", Guid.NewGuid().ToString(), new { unit = "Tray" });
+        var clearRes = await client.PutWithKeyAsync(
+            "/api/v1/me/stepper-unit", Guid.NewGuid().ToString(), new { unit = (string?)null });
+        Assert.Equal(HttpStatusCode.NoContent, clearRes.StatusCode);
+
+        var me = await client.GetFromJsonAsync<MeRow>("/api/v1/me");
+        Assert.Null(me!.PreferredStepperUnit);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("Bushel")]     // not a defined EggUnit name
+    [InlineData("0")]          // numeric enum values are not the wire contract
+    [InlineData("Tray,Case")]  // Enum.TryParse ORs comma lists together (#159-class)
+    public async Task Malformed_unit_is_a_coded_400(string bad)
+    {
+        var email = $"o-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
+
+        var res = await client.PutWithKeyAsync(
+            "/api/v1/me/stepper-unit", Guid.NewGuid().ToString(), new { unit = bad });
+
+        Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
+        using var doc = System.Text.Json.JsonDocument.Parse(await res.Content.ReadAsStringAsync());
+        var codes = doc.RootElement.GetProperty("errorCodes").GetProperty("Unit");
+        Assert.Equal("Me.StepperUnit.Format", codes[0].GetString());
+    }
+
+    [Fact]
+    public async Task Absent_stepper_unit_field_is_a_400()
+    {
+        var email = $"o-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
+
+        var res = await client.PutWithKeyAsync(
+            "/api/v1/me/stepper-unit", Guid.NewGuid().ToString(), new { });
+
+        Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
+    }
+
+    // A defined EggUnit name with no active conversion for this account. #283's
+    // base reference data seeds Individual/Dozen/Flat/Tray/Carton/Case; "Other"
+    // is the one EggUnit member deliberately left unseeded (spec §9.7's Other
+    // is a farm-defined catch-all, not a curated default) — a genuine, always-
+    // reproducible "not configured" case rather than one this test has to seed.
+    [Fact]
+    public async Task Unit_with_no_active_conversion_is_a_422()
+    {
+        var email = $"o-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
+
+        var res = await client.PutWithKeyAsync(
+            "/api/v1/me/stepper-unit", Guid.NewGuid().ToString(), new { unit = "Other" });
+
+        Assert.Equal((HttpStatusCode)422, res.StatusCode);
+        using var doc = System.Text.Json.JsonDocument.Parse(await res.Content.ReadAsStringAsync());
+        Assert.Equal("Me.StepperUnit.NoUnitConversion", doc.RootElement.GetProperty("title").GetString());
+
+        // Refused, so the preference must still read back as unset.
+        var me = await client.GetFromJsonAsync<MeRow>("/api/v1/me");
+        Assert.Null(me!.PreferredStepperUnit);
     }
 }

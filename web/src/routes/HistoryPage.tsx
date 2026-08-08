@@ -3,9 +3,10 @@ import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 import {
-  adjustDailyEntry, getDailyEntry, listDailyEntries, listEggGrades, listFlocks, voidDailyEntry,
+  adjustDailyEntry, getDailyEntry, listDailyEntries, listEggGrades, listEggUnitConversions,
+  listFlocks, voidDailyEntry,
 } from "../api/cluckwork";
-import type { DailyEntry, EggGrade, Flock } from "../api/cluckwork";
+import type { DailyEntry, EggGrade, EggUnitConversion, Flock } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
@@ -15,8 +16,11 @@ import { NumberField } from "../components/NumberField";
 import { useConfirm } from "../components/useConfirm";
 import { usePendingAction } from "../components/usePendingAction";
 import { StatusBadge } from "../components/StatusBadge";
+import { useFarm } from "../farm/useFarm";
 import { armedState, gradingState } from "../lib/grading";
 import { newId } from "../lib/ids";
+import { resolveStepperUnit } from "../lib/stepperUnit";
+import { useMe } from "../session/SessionContext";
 import i18n from "../i18n";
 
 const PAGE = 50;
@@ -48,6 +52,14 @@ export function HistoryPage() {
   const [hasMore, setHasMore] = useState(false);
   const [flocks, setFlocks] = useState<Flock[]>([]);
   const [grades, setGrades] = useState<EggGrade[]>([]);
+  // #444 — the adjust dialog's steppers use the same resolved pack unit as
+  // the capture screen (user override ?? farm default ?? Individual).
+  const [eggUnitConversions, setEggUnitConversions] = useState<EggUnitConversion[]>([]);
+  const { farm } = useFarm();
+  const me = useMe();
+  const stepperUnit = resolveStepperUnit(
+    farm?.defaultStepperUnit, me?.preferredStepperUnit, eggUnitConversions);
+  const stepSize = stepperUnit.eggsPerUnit;
   const [flockFilter, setFlockFilter] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
@@ -100,8 +112,12 @@ export function HistoryPage() {
   useEffect(() => {
     // includeInactive/includeArchived: historical entries may reference
     // deactivated grades or archived flocks and their names must still resolve.
-    Promise.all([listFlocks({ includeArchived: true }), listEggGrades({ includeInactive: true })])
-      .then(([f, g]) => { setFlocks(f); setGrades(g); })
+    Promise.all([
+      listFlocks({ includeArchived: true }),
+      listEggGrades({ includeInactive: true }),
+      listEggUnitConversions(),
+    ])
+      .then(([f, g, units]) => { setFlocks(f); setGrades(g); setEggUnitConversions(units); })
       .catch(() => setError(i18n.t("history:loadFlocksGradesFailed")));
   }, []);
 
@@ -433,6 +449,13 @@ export function HistoryPage() {
                 official numbers, so reading it should not be a different job
                 from recording them. #250's steppers throughout. */}
             <form className="entry-form" onSubmit={onAdjustSubmit}>
+            {/* #444 — same caption as the capture screen; the dialog IS that
+                form, so the taps count the same way and say so the same way. */}
+            {stepSize > 1 && (
+              <p className="hint">
+                {te("stepperUnitCaption", { unit: stepperUnit.unitCode, count: stepSize })}
+              </p>
+            )}
             <div className="entry-cols">
               <section className="entry-step">
                 {/* The word boundaries live in the h3's own text nodes, not at
@@ -447,25 +470,27 @@ export function HistoryPage() {
                     <div className="entry-row">
                       <label htmlFor={idFor("total")}>{te("totalEggsLabel")}</label>
                       <NumberField id={idFor("total")} label={te("totalEggsLabel").toLowerCase()}
-                        value={total} onChange={setTotal} />
+                        value={total} onChange={setTotal} step={stepSize} />
                     </div>
                     <div className="entry-row">
                       <label htmlFor={idFor("cracked")}>{te("crackedLabel")}</label>
                       <NumberField id={idFor("cracked")} label={te("crackedLabel").toLowerCase()}
-                        value={cracked} onChange={setCracked} />
+                        value={cracked} onChange={setCracked} step={stepSize} />
                     </div>
                     <div className="entry-row">
                       <label htmlFor={idFor("dirty")}>{te("dirtyLabel")}</label>
                       <NumberField id={idFor("dirty")} label={te("dirtyLabel").toLowerCase()}
-                        value={dirty} onChange={setDirty} />
+                        value={dirty} onChange={setDirty} step={stepSize} />
                     </div>
                     <div className="entry-row">
                       <label htmlFor={idFor("discarded")}>{te("discardedLabel")}</label>
                       <NumberField id={idFor("discarded")} label={te("discardedLabel").toLowerCase()}
-                        value={discarded} onChange={setDiscarded} />
+                        value={discarded} onChange={setDiscarded} step={stepSize} />
                     </div>
                     <div className="entry-row">
                       <label htmlFor={idFor("mortality")}>{te("mortalityLabel")}</label>
+                      {/* NO step — deaths are birds, not eggs; see the capture
+                          screen's identical comment (codex P1 review of #451). */}
                       <NumberField id={idFor("mortality")} label={te("mortalityLabel").toLowerCase()}
                         value={mortality} onChange={setMortality} />
                     </div>
@@ -498,7 +523,7 @@ export function HistoryPage() {
                             ceiling refused to let a grade run ahead of the
                             total. setLine raises the total to fit instead. */}
                         <NumberField id={idFor(`grade-${g.id}`)} label={g.name.toLowerCase()}
-                          value={lineQty[g.id] ?? 0} onChange={setLine(g.id)} />
+                          value={lineQty[g.id] ?? 0} onChange={setLine(g.id)} step={stepSize} />
                         {armed && (
                           <TakeRemainderButton remaining={remaining} grade={g.name}
                             onTake={() => assignRest(g.id)} />

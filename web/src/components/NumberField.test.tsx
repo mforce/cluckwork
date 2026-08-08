@@ -9,9 +9,12 @@ const FIRST_REPEAT_UNDER = 350;
 
 // A real host holding real state: the repeat's whole correctness question is
 // whether each tick builds on the last one, which a vi.fn() spy cannot show.
-function Host({ start = 0, disabled = false }: { start?: number; disabled?: boolean } = {}) {
+function Host({ start = 0, disabled = false, step }: { start?: number; disabled?: boolean; step?: number } = {}) {
   const [value, setValue] = useState(start);
-  return <NumberField id="n" label="total eggs" value={value} onChange={setValue} disabled={disabled} />;
+  return (
+    <NumberField
+      id="n" label="total eggs" value={value} onChange={setValue} disabled={disabled} step={step} />
+  );
 }
 
 const field = () => screen.getByRole("spinbutton");
@@ -61,6 +64,66 @@ describe("NumberField", () => {
     // A hold reaches a real day's count in about a second; +1 alone would need
     // four hundred of them.
     expect(field()).toHaveValue(41);
+  });
+
+  // #444 — a farm/user counting by the pack unit (e.g. Tray = 30) rather than
+  // the individual egg. A non-1 step also renames the buttons ("… by 30"), so
+  // this block queries them by their suffixed accessible names.
+  describe("step (#444)", () => {
+    const plus30 = () => screen.getByRole("button", { name: "Increase total eggs by 30" });
+    const minus30 = () => screen.getByRole("button", { name: "Decrease total eggs by 30" });
+
+    it("steps by the configured unit on a tap, not by one", async () => {
+      vi.useFakeTimers();
+      render(<Host step={30} />);
+
+      await hold(plus30(), 0);
+      expect(field()).toHaveValue(30);
+
+      await hold(minus30(), 0);
+      expect(field()).toHaveValue(0);
+      expect(minus30()).toBeDisabled();
+    });
+
+    it("accelerates in multiples of the configured unit, not the raw stride", async () => {
+      vi.useFakeTimers();
+      render(<Host step={30} />);
+
+      // Same 1300ms hold as the default-step case above (press 1 + ticks
+      // 1-10 at x1 (10) + ticks 11-16 at x5 (30) = 41 strides) — each stride
+      // now worth 30, not 1.
+      await hold(plus30(), 1300);
+
+      expect(field()).toHaveValue(41 * 30);
+    });
+
+    it("defaults to a step of one when the prop is omitted", async () => {
+      vi.useFakeTimers();
+      render(<Host />);
+
+      await hold(plus(), 0);
+      expect(field()).toHaveValue(1);
+    });
+
+    // A tap moving 30 eggs behind a bare − / + is a mystery button: a non-1
+    // step is spelled out ON the control, and the accessible name carries the
+    // amount the visible text shows.
+    it("shows the amount on the buttons and in their accessible names when the step is a pack unit", () => {
+      render(<Host step={30} />);
+
+      const inc = screen.getByRole("button", { name: "Increase total eggs by 30" });
+      const dec = screen.getByRole("button", { name: "Decrease total eggs by 30" });
+      expect(inc).toHaveTextContent("+30");
+      expect(dec).toHaveTextContent("−30");
+    });
+
+    it("keeps the plain icons and names at a step of one", () => {
+      render(<Host />);
+
+      // The un-suffixed names — a "+1" everywhere would restate the default.
+      expect(screen.getByRole("button", { name: "Increase total eggs" })).not.toHaveTextContent("+1");
+      expect(screen.getByRole("button", { name: "Decrease total eggs" })).not.toHaveTextContent("−1");
+    });
   });
 
   it("stays a tap for a short press — no repeat before the delay", async () => {

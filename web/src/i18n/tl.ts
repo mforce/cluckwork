@@ -70,6 +70,13 @@ export const tl = {
     preferences: "Mga Kagustuhan",
     language: "Wika",
     languageHint: "Ang wikang gagamitin sa interface, para lang sa iyo.",
+    stepperUnit: "Yunit ng pagbilang sa Daily Entry",
+    stepperUnitHint:
+      "Kung magkano ang ibinibilang ng mga +/− na button ng Daily Entry, para lang sa iyo — "
+      + "pumili ng pack unit tulad ng Tray para magbilang bawat tray sa halip na bawat itlog, "
+      + "o sundin ang default ng bukid.",
+    stepperUnitFarmDefaultOption: "Default ng bukid ({{unit}})",
+    stepperUnitSaveFailed: "Hindi na-save — hindi nabago ang iyong yunit ng pagbilang.",
 
     // machine-drafted (#182) — pending native review. Task 25 (B4): the rest
     // of AccountPage. Keys mirror en.ts exactly, including {{role}}/{{min}}
@@ -162,6 +169,8 @@ export const tl = {
   numberField: {
     increaseLabel: "Dagdagan ang {{label}}",
     decreaseLabel: "Bawasan ang {{label}}",
+    increaseByLabel: "Dagdagan ang {{label}} ng {{step}}",
+    decreaseByLabel: "Bawasan ang {{label}} ng {{step}}",
   },
 
   // machine-drafted (#182) — pending native review. Task CT1 (B1 catch-up):
@@ -414,6 +423,7 @@ export const tl = {
 
     // Pinned footer (phone-only summary + saves)
     countsExceedFooterMessage: "Lumagpas sa kabuuan ang mga nawala — ayusin ang mga bilang",
+    stepperUnitCaption: "Nagbibilang bawat {{unit}} — bawat tap ng − / + ay gumagalaw ng {{count}} itlog. Ang pag-type ay naglalagay pa rin ng eksaktong numero.",
     sellableWord: "nabebenta",
     saveDraftButton: "I-save ang draft",
     submitButton: "I-save at isumite (gagawa ng lote ng itlog)",
@@ -975,6 +985,11 @@ export const tl = {
       + "pera, kaya kung babaguhin ito, magkakaiba na ang ibig sabihin ng "
       + "bawat naka-save na total.",
     unitSystemLabel: "Sistema ng yunit",
+    defaultStepperUnitLabel: "Yunit ng pagbilang sa Daily Entry",
+    defaultStepperUnitHint:
+      "Kung magkano ang ibinibilang ng mga +/− na button ng Daily Entry para sa lahat sa "
+      + "bukid na ito — halimbawa Tray para magbilang bawat tray (30 itlog) sa halip na "
+      + "isa-isang itlog. Maaaring pumili ang bawat tao ng kanilang sarili sa kanilang Account screen.",
     firstDayOfWeekLabel: "Unang araw ng linggo",
     followLocaleOption: "Sundin ang locale",
     paletteLegend: "Paleta ng bukid",
@@ -1591,6 +1606,7 @@ export const tl = {
     tocExport: "Export at Backup",
     tocFarmSettings: "Mga Setting ng Bukid",
     tocFarmPalette: "Paleta ng Bukid",
+    tocAccount: "Ang Iyong Account",
     tocInstall: "Pag-install sa Telepono",
     tocMistakes: "Pagtatama ng mga Pagkakamali",
     tocGlossary: "Glossary",
@@ -1771,7 +1787,12 @@ export const tl = {
       + "ng isang segundo. Mas madali kaysa sa keypad kapag naka-guwantes. Hindi na huminto ang "
       + "<strong>+</strong> ng isang grado sa kasalukuyang kabuuan ng araw — bilangin muna ang mga grado at "
       + "aabot ang kabuuan para tumugma. Tumataas lang ito, hindi kailanman bumababa, kaya ang pagbawas sa "
-      + "kabuuan sa hakbang 1 ay hindi kailanman itutulak pababa ang isang grado.",
+      + "kabuuan sa hakbang 1 ay hindi kailanman itutulak pababa ang isang grado. Ang mga bukid na "
+      + "nagbibilang bawat tray ay maaaring gawing isang buong pack unit ang bilang ng bawat tap sa halip "
+      + "na isang itlog — nasa <strong>Settings</strong> ang default ng bukid, at maaaring pumili ang bawat "
+      + "tao ng kanilang sarili sa kanilang <strong>Account</strong> screen. Kapag may pack unit na "
+      + "ginagamit, sinasabi mismo ng mga button (<strong>−30 / +30</strong>) at may tala sa itaas ng mga "
+      + "pane na nagsasabi ng yunit; ang pag-type ay naglalagay pa rin ng eksaktong numero.",
     dailyEntryPutAllIn:
       "Karamihan sa mga araw ay natatapos sa parehong paraan — isang grado na lang ang kumukuha ng "
       + "natitira. Ginagawa ito sa isang galaw ng <strong>Ilagay lahat sa…</strong> sa tabi ng natitirang "
@@ -2030,6 +2051,12 @@ export const tl = {
       + "sa isang malawak na wordmark o isang detalyadong larawan, na bumabagsak sa isang bagay na hindi na "
       + "mabasa. Panatilihin ang isang detalyadong logo para sa print o isang website; bigyan ang app ng "
       + "isang malinis na maliit na marka.",
+    farmSettingsCountingUnit:
+      "<strong>Yunit ng pagbilang sa Daily Entry</strong> ang nagtatakda kung magkano ang bilang ng mga "
+      + "+/− na button ng entry screen para sa lahat sa bukid — isang itlog, o isang pack unit tulad ng "
+      + "Tray (30 bawat tap). Ang mga yunit lang na may aktibong depinisyon ng itlog-bawat-yunit sa "
+      + "Products screen ang mapipili, at maaari itong i-override ng bawat tao para sa sarili nila sa "
+      + "kanilang Account screen.",
 
     farmPaletteHeading: "Paleta ng Bukid",
     farmPaletteIntro:
@@ -2040,6 +2067,19 @@ export const tl = {
       "Magkahiwalay at personal ang light mode at night mode. Pumipili ang bawat tao ng sarili nila gamit "
       + "ang toggle sa sidebar, sa bawat device, at hindi kailanman ino-override ito ng paleta ng bukid — "
       + "dinisenyo ang bawat paleta para gumana sa pareho.",
+
+    accountHeading: "Ang Iyong Account",
+    accountPassword:
+      "Ang <strong>Palitan ang password</strong> ay nangangailangan ng kasalukuyan mo at nagsa-sign out sa "
+      + "iba mong device — magagawa ito ng bawat role para sa sarili nila.",
+    accountLanguage:
+      "Ang <strong>Wika</strong> ay nagpapalit ng interface para lang sa iyo, agad-agad, sa bawat device "
+      + "na pinag-sign in mo.",
+    accountCountingUnit:
+      "<strong>Yunit ng pagbilang sa Daily Entry</strong> — kung magkano ang bilang ng IYONG mga tap ng "
+      + "+/−, na nag-o-override sa default ng bukid mula sa Settings. Pumili ng pack unit tulad ng Tray "
+      + "para magbilang bawat tray, o sundin ang default ng bukid para awtomatikong sumunod sa iyo ang "
+      + "isang susunod na pagbabago sa buong bukid.",
 
     installHeading: "Pag-install sa Telepono",
     installIntro:
@@ -2267,6 +2307,11 @@ export const tl = {
     glossaryPackedUnitDef:
       "Ilang itlog ang laman ng isang dosena/tray/karton/case sa bukid mo. Iniingatan ng bawat linya ng "
       + "benta ang bilang na ipinagbenta dito.",
+    glossaryCountingUnitTerm: "Yunit ng pagbilang",
+    glossaryCountingUnitDef:
+      "Kung magkano ang bilang ng bawat tap ng mga − / + na button ng Daily Entry — isang itlog, o isang "
+      + "packed unit tulad ng tray. Default ng bukid sa Settings; ang sarili mong pili sa iyong Account "
+      + "screen. Ipinapakita ng mga button ang halaga (−30 / +30) kapag hindi ito isa.",
 
     glossarySalesLineTerm: "Linya ng benta",
     glossarySalesLineDef:

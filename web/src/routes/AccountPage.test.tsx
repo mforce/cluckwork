@@ -97,6 +97,15 @@ describe("AccountPage (#165 self-service password change)", () => {
     expect(screen.getByRole("heading", { name: "Preferences" })).toBeInTheDocument();
     expect(screen.getByLabelText("Language")).toBeInTheDocument();
   });
+
+  // #444 — the per-user stepper-unit picker lives beside the language selector.
+  // Behavior (options, persist, clear, stale override) is pinned in
+  // StepperUnitSelector.test.tsx; this pins its PLACEMENT on the Account page,
+  // for every role — the preference is personal, like the language.
+  it("shows the Daily Entry counting-unit picker in Preferences for any role (#444)", async () => {
+    renderWithProviders(<AccountPage />, { token: { sub: "u1", role: "ReadOnly" } });
+    expect(screen.getByLabelText("Daily Entry counting unit")).toBeInTheDocument();
+  });
 });
 
 // ---------------------------------------------------------------------------

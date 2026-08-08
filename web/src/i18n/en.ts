@@ -80,6 +80,15 @@ export const en = {
     preferences: "Preferences",
     language: "Language",
     languageHint: "The language the interface is shown in, just for you.",
+    // #444 — the pack unit YOUR Daily Entry steppers bump by. {{unit}} in the
+    // farm-default option is the raw EggUnit code (DATA, e.g. "Tray"), matching
+    // how the Products screen renders unit codes.
+    stepperUnit: "Daily Entry counting unit",
+    stepperUnitHint:
+      "How much the Daily Entry +/− buttons count by, just for you — pick a pack "
+      + "unit like Tray to count by the tray instead of the egg, or follow the farm default.",
+    stepperUnitFarmDefaultOption: "Farm default ({{unit}})",
+    stepperUnitSaveFailed: "Could not save — your counting unit was not changed.",
 
     // Task 25 (#182, B4) — the rest of AccountPage: the page heading, the
     // role line, and the self-service change-password surface (#165).
@@ -187,6 +196,10 @@ export const en = {
     // translated here.
     increaseLabel: "Increase {{label}}",
     decreaseLabel: "Decrease {{label}}",
+    // #444 — used instead of the plain pair when the stepper counts by a pack
+    // unit, so the announced name carries the amount the visible "+30" shows.
+    increaseByLabel: "Increase {{label}} by {{step}}",
+    decreaseByLabel: "Decrease {{label}} by {{step}}",
   },
   errorBoundary: {
     title: "Something went wrong",
@@ -431,6 +444,9 @@ export const en = {
 
     // Pinned footer (phone-only summary + saves)
     countsExceedFooterMessage: "Losses exceed the total — fix the counts",
+    // #444 — shown only when a pack unit is in force. {{unit}} is the raw
+    // EggUnit code (DATA, e.g. "Tray"), same as everywhere unit codes render.
+    stepperUnitCaption: "Counting by {{unit}} — each tap of − / + moves {{count}} eggs. Typing still enters exact numbers.",
     sellableWord: "sellable",
     saveDraftButton: "Save draft",
     submitButton: "Save & submit (creates egg lots)",
@@ -1105,6 +1121,13 @@ export const en = {
       + "amounts in it. Recorded money is never re-priced, so changing this "
       + "would leave every stored total meaning something else.",
     unitSystemLabel: "Unit system",
+    // #444 — the pack unit Daily Entry's +/− buttons count by for everyone on
+    // this farm, unless a person picks their own on the Account screen.
+    defaultStepperUnitLabel: "Daily Entry counting unit",
+    defaultStepperUnitHint:
+      "How much the Daily Entry +/− buttons count by for everyone on this farm "
+      + "— for example Tray to count by the tray (30 eggs) instead of one egg at "
+      + "a time. Each person can pick their own on their Account screen.",
     firstDayOfWeekLabel: "First day of week",
     // Reused for the First-day-of-week "no override" option AND both the
     // date/time format placeholders — same English text, same meaning, in
@@ -1881,6 +1904,7 @@ export const en = {
     tocExport: "Export & backup",
     tocFarmSettings: "Farm settings",
     tocFarmPalette: "Farm palette",
+    tocAccount: "Your account",
     tocInstall: "Install on a phone",
     tocMistakes: "Fixing mistakes",
     tocGlossary: "Glossary",
@@ -2049,7 +2073,11 @@ export const en = {
       + "— it speeds up as you go, so a few hundred eggs takes about a second. Easier than a keypad with "
       + "gloves on. A grade's <strong>+</strong> no longer stops at the day's current total — count the "
       + "grades first and the total catches up to match. It only ever raises the total, never lowers it, so "
-      + "trimming the total on step 1 never pushes a grade back down.",
+      + "trimming the total on step 1 never pushes a grade back down. Farms that count by the tray can make "
+      + "each tap count a whole pack unit instead of one egg — the farm default lives in "
+      + "<strong>Settings</strong>, and each person can pick their own on their <strong>Account</strong> "
+      + "screen. When a pack unit is in force the buttons say so themselves (<strong>−30 / +30</strong>) and "
+      + "a note above the panes names the unit; typing still enters exact numbers.",
     dailyEntryPutAllIn:
       "Most days end the same way — one grade takes whatever is left. <strong>Put all in…</strong> beside the "
       + "remaining count does it in one move: drag it onto a grade, or tap it and pick one.",
@@ -2293,6 +2321,11 @@ export const en = {
       + "— a symbol or a single letter — reads much better there than a wide wordmark or a detailed picture, "
       + "which shrink to something unreadable. Keep a detailed logo for print or a website; give the app a "
       + "clean little mark.",
+    farmSettingsCountingUnit:
+      "<strong>Daily Entry counting unit</strong> sets how much the entry screen's +/− buttons count by for "
+      + "everyone on the farm — one egg, or a pack unit like Tray (30 per tap). Only units with an active "
+      + "eggs-per-unit definition on the Products screen can be picked, and each person can override it for "
+      + "themselves on their Account screen.",
 
     // Farm palette
     farmPaletteHeading: "Farm palette",
@@ -2304,6 +2337,19 @@ export const en = {
       "Light and night mode are separate and personal. Each person picks their own with the toggle in the "
       + "sidebar, on each device, and the farm palette never overrides it — every palette is designed to work "
       + "in both.",
+
+    // Account (#444) — the personal counterpart to Farm settings.
+    accountHeading: "Your account",
+    accountPassword:
+      "<strong>Change password</strong> needs your current one and signs your other devices out — every "
+      + "role can do this for themselves.",
+    accountLanguage:
+      "<strong>Language</strong> switches the interface just for you, immediately, on every device you "
+      + "sign into.",
+    accountCountingUnit:
+      "<strong>Daily Entry counting unit</strong> — how much YOUR +/− taps count by, overriding the farm "
+      + "default from Settings. Pick a pack unit like Tray to count by the tray, or follow the farm "
+      + "default so a later farm-wide change follows you automatically.",
 
     // Install on a phone
     installHeading: "Install on a phone",
@@ -2517,6 +2563,11 @@ export const en = {
     glossaryPackedUnitDef:
       "How many eggs a dozen/tray/carton/case holds on your farm. Each sale line keeps the count it was "
       + "sold with.",
+    glossaryCountingUnitTerm: "Counting unit",
+    glossaryCountingUnitDef:
+      "How much each tap of the Daily Entry − / + buttons counts — one egg, or a packed unit like a tray. "
+      + "Farm default in Settings; your own pick on your Account screen. The buttons show the amount "
+      + "(−30 / +30) when it isn't one.",
 
     glossarySalesLineTerm: "Sales line",
     glossarySalesLineDef:

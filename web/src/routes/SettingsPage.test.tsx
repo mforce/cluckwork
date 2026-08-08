@@ -3,7 +3,7 @@ import { render, screen, within, fireEvent, act, waitFor } from "@testing-librar
 import { SettingsPage, formatByteCap } from "./SettingsPage";
 import { FarmContext } from "../farm/FarmContext";
 import {
-  getFarmLogo, getFarmSettings, removeFarmLogo, updateFarmSettings,
+  getFarmLogo, getFarmSettings, listEggUnitConversions, removeFarmLogo, updateFarmSettings,
   uploadFarmLogo,
 } from "../api/cluckwork";
 import type { Account, FarmSettings } from "../api/cluckwork";
@@ -36,6 +36,7 @@ vi.mock("../api/cluckwork", async () => {
     uploadFarmLogo: vi.fn(),
     removeFarmLogo: vi.fn(),
     getFarmLogo: vi.fn(),
+    listEggUnitConversions: vi.fn(),
   };
 });
 
@@ -44,6 +45,14 @@ const mockUpdate = vi.mocked(updateFarmSettings);
 const mockUpload = vi.mocked(uploadFarmLogo);
 const mockRemove = vi.mocked(removeFarmLogo);
 const mockGetLogo = vi.mocked(getFarmLogo);
+const mockListConversions = vi.mocked(listEggUnitConversions);
+
+// #444 — the seeded defaults every real account carries (EggUnitConversion.Defaults).
+const CONVERSIONS = [
+  { id: "c1", unitCode: "Individual", eggsPerUnit: 1, active: true, version: 0 },
+  { id: "c2", unitCode: "Dozen", eggsPerUnit: 12, active: true, version: 0 },
+  { id: "c3", unitCode: "Tray", eggsPerUnit: 30, active: true, version: 0 },
+];
 
 // A fixed cap for the size-boundary tests, independent of the production
 // default — the point is the > vs >= behaviour, not the number.
@@ -95,6 +104,7 @@ beforeEach(() => {
   refreshOk = true;
   document.documentElement.removeAttribute("data-brand");
   mockGetLogo.mockResolvedValue({ blob: new Blob(["png"]), filename: null });
+  mockListConversions.mockResolvedValue(CONVERSIONS);
   vi.stubGlobal("URL", {
     ...URL,
     createObjectURL: vi.fn(() => "blob:test/logo"),
@@ -149,6 +159,7 @@ describe("SettingsPage saving", () => {
       dateFormatOverride: null,
       timeFormatOverride: null,
       brand: "aubergine",
+      defaultStepperUnit: "Individual",
       version: 7,
     });
     expect(key).toBeTruthy();
@@ -330,6 +341,45 @@ describe("SettingsPage saving", () => {
 
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save settings" })); });
     expect(screen.getByRole("alert")).toHaveTextContent("This farm has already recorded amounts in USD.");
+  });
+});
+
+// #444 — the farm-default Daily Entry stepper pack unit.
+describe("SettingsPage stepper unit (#444)", () => {
+  const select = () => screen.getByLabelText("Daily Entry counting unit");
+
+  it("offers only the ACTIVE conversions and selects the stored default", async () => {
+    mockListConversions.mockResolvedValue([
+      ...CONVERSIONS,
+      { id: "c4", unitCode: "Case", eggsPerUnit: 360, active: false, version: 0 },
+    ]);
+    await renderReady(SETTINGS({ defaultStepperUnit: "Tray" }));
+
+    expect(select()).toHaveValue("Tray");
+    const options = within(select()).getAllByRole("option").map((o) => o.textContent);
+    expect(options).toEqual(["Individual", "Dozen", "Tray"]); // no inactive Case
+  });
+
+  it("sends the picked unit on save", async () => {
+    mockUpdate.mockResolvedValue(undefined);
+    await renderReady();
+
+    fireEvent.change(select(), { target: { value: "Tray" } });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save settings" })); });
+
+    expect(mockUpdate.mock.calls[0][0]).toMatchObject({ defaultStepperUnit: "Tray" });
+  });
+
+  it("falls back to Individual when the stored default's conversion is inactive", async () => {
+    // Same recovery as a retired brand: echoing a deactivated unit straight
+    // back on the next save would 422.
+    mockListConversions.mockResolvedValue([
+      { id: "c1", unitCode: "Individual", eggsPerUnit: 1, active: true, version: 0 },
+      { id: "c3", unitCode: "Tray", eggsPerUnit: 30, active: false, version: 0 },
+    ]);
+    await renderReady(SETTINGS({ defaultStepperUnit: "Tray" }));
+
+    expect(select()).toHaveValue("Individual");
   });
 });
 

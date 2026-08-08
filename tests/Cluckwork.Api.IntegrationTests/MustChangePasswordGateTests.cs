@@ -6,6 +6,7 @@ using Cluckwork.Api.Endpoints.Auth;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Accounts;
+using Cluckwork.Domain.Catalog;
 using Cluckwork.Domain.Common;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
@@ -248,4 +249,7 @@ internal sealed class ChangePasswordThrowingIdentityProvider(IIdentityProvider i
 
     public Task<Result> SetLanguageAsync(Guid accountId, Guid userId, string? language, CancellationToken ct = default) =>
         inner.SetLanguageAsync(accountId, userId, language, ct);
+
+    public Task<Result> SetStepperUnitAsync(Guid accountId, Guid userId, EggUnit? unit, CancellationToken ct = default) =>
+        inner.SetStepperUnitAsync(accountId, userId, unit, ct);
 }
