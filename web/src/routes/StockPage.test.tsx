@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { ReactNode } from "react";
-import { act, screen, within, fireEvent } from "@testing-library/react";
+import { act, screen, waitFor, within, fireEvent } from "@testing-library/react";
 import { StockPage } from "./StockPage";
 import {
   getStock, listEggLots, listEggLotMovements, recordEggLotMovement,
@@ -584,6 +584,120 @@ describe("StockPage lot paging + date filter (#465)", () => {
     });
     expect(screen.getByText("2026-07-02")).toBeInTheDocument();
     expect(screen.queryByText("2026-07-15")).not.toBeInTheDocument();
+  });
+
+  it("drops rows the next page repeats when a concurrent insert shifted the offset", async () => {
+    // Offset paging over a live list: a lot created between page loads shifts
+    // every index, so page two can re-serve page one's last row. Rendering it
+    // twice collides the row key; the append must dedupe by id.
+    const shifted = { ...LOTS[0], id: "lot-07-49", productionDate: "2026-05-05" };
+    mockListEggLots
+      .mockResolvedValueOnce([...makeLots(PAGE - 1), shifted])
+      .mockResolvedValueOnce([shifted, { ...LOTS[0], id: "older", productionDate: "2026-04-04" }]);
+    await expandGradeA();
+
+    fireEvent.click(await screen.findByRole("button", { name: "load more" }));
+    await screen.findByText("2026-04-04");
+    expect(screen.getAllByText("2026-05-05")).toHaveLength(1);
+  });
+
+  it("closes an open movement ledger when the filter changes (codex P2)", async () => {
+    // The expanded lot may not be in the filtered page at all — leaving its
+    // ledger rendered under an unrelated list misattributes the history.
+    mockListEggLots
+      .mockResolvedValueOnce(LOTS)
+      .mockResolvedValueOnce([{ ...LOTS[0], id: "hit", productionDate: "2026-07-02" }]);
+    mockListEggLotMovements.mockResolvedValue(MOVEMENTS);
+    await expandGradeA();
+    fireEvent.click(screen.getByRole("button", { name: "history" }));
+    await screen.findByText(/Movement ledger/);
+
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-07-02" } });
+    await screen.findByText("2026-07-02");
+    expect(screen.queryByText(/Movement ledger/)).not.toBeInTheDocument();
+  });
+
+  it("keeps the filter inputs when a grade switch fails (codex P2)", async () => {
+    // A failed switch leaves the OLD grade's filtered rows on screen — the
+    // inputs must keep describing them, not blank out optimistically.
+    mockListEggLots
+      .mockResolvedValueOnce(LOTS)
+      .mockResolvedValueOnce([{ ...LOTS[0], id: "hit", productionDate: "2026-07-02" }])
+      .mockRejectedValueOnce(new Error("boom"));
+    await expandGradeA();
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-07-02" } });
+    await screen.findByText("2026-07-02");
+
+    fireEvent.click(within(screen.getByRole("row", { name: /Grade B\b/ })).getByRole("button", { name: "lots" }));
+    await screen.findByText(/Could not load the grade's lots/);
+    expect(screen.getByLabelText("From")).toHaveValue("2026-07-02");
+    expect(screen.getByText("2026-07-02")).toBeInTheDocument();
+  });
+
+  it("dedupes overlapping pages in the post-write-off window walk", async () => {
+    // The same offset shift can happen between the walk's own page fetches.
+    const shifted = { ...LOTS[0], id: "lot-07-49", productionDate: "2026-05-05" };
+    mockRecordEggLotMovement.mockResolvedValue({
+      movementId: "wo1", eggLotId: "lot-07-0", movementType: "Discard",
+      quantityDelta: -7, reason: "dropped a tray",
+      createdAtUtc: "2026-08-08T10:00:00Z", quantityAvailable: 83, version: 2,
+    });
+    mockListEggLots
+      .mockResolvedValueOnce([...makeLots(PAGE - 1), shifted])
+      .mockResolvedValueOnce([{ ...LOTS[0], id: "old-lot", productionDate: "2026-06-01" }])
+      .mockResolvedValueOnce([...makeLots(PAGE - 1), shifted])
+      .mockResolvedValueOnce([shifted, { ...LOTS[0], id: "older", productionDate: "2026-04-04" }]);
+    await expandGradeA();
+    fireEvent.click(await screen.findByRole("button", { name: "load more" }));
+    await screen.findByText("2026-06-01");
+
+    const lotRow = screen.getAllByRole("row", { name: /2026-07-01/ })[0];
+    fireEvent.click(within(lotRow).getByRole("button", { name: "write off" }));
+    const dialog = screen.getByRole("dialog");
+    fireEvent.change(within(dialog).getByRole("spinbutton"), { target: { value: "7" } });
+    fireEvent.change(within(dialog).getByLabelText(/Reason/), { target: { value: "dropped a tray" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: /Record/ }));
+
+    await screen.findByText("2026-04-04");
+    expect(screen.getAllByText("2026-05-05")).toHaveLength(1);
+  });
+
+  it("stops walking refresh pages once a newer load supersedes it", async () => {
+    // A write-off refresh over a 2-page window issues its page fetches
+    // sequentially; if a filter change lands after page one, the walk must
+    // bail instead of firing the remaining page requests it will discard.
+    mockRecordEggLotMovement.mockResolvedValue({
+      movementId: "wo1", eggLotId: "lot-07-0", movementType: "Discard",
+      quantityDelta: -7, reason: "dropped a tray",
+      createdAtUtc: "2026-08-08T10:00:00Z", quantityAvailable: 83, version: 2,
+    });
+    const pending: Array<(rows: EggLotRow[]) => void> = [];
+    mockListEggLots
+      .mockResolvedValueOnce(makeLots(PAGE))
+      .mockResolvedValueOnce([{ ...LOTS[0], id: "old-lot", productionDate: "2026-06-01" }])
+      .mockImplementation(() => new Promise<EggLotRow[]>((r) => pending.push(r)));
+    await expandGradeA();
+    fireEvent.click(await screen.findByRole("button", { name: "load more" }));
+    await screen.findByText("2026-06-01");
+
+    const lotRow = screen.getAllByRole("row", { name: /2026-07-01/ })[0];
+    fireEvent.click(within(lotRow).getByRole("button", { name: "write off" }));
+    const dialog = screen.getByRole("dialog");
+    fireEvent.change(within(dialog).getByRole("spinbutton"), { target: { value: "7" } });
+    fireEvent.change(within(dialog).getByLabelText(/Reason/), { target: { value: "dropped a tray" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: /Record/ }));
+
+    // Refresh's page-0 request is in flight; a filter change supersedes it.
+    await waitFor(() => expect(pending).toHaveLength(1));
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-07-02" } });
+    await waitFor(() => expect(pending).toHaveLength(2));
+
+    // Settle the superseded page-0: the walk must NOT request offset 50.
+    await act(async () => {
+      pending[0](makeLots(PAGE));
+    });
+    const requestsAfter = mockListEggLots.mock.calls.slice(2);
+    expect(requestsAfter.map(([args]) => args?.offset)).toEqual([0, 0]);
   });
 
   it("reads the load-more label from the catalog, not a hardcoded literal", async () => {

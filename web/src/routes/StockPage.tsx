@@ -96,13 +96,16 @@ export function StockPage() {
       setOpenGrade(null);
       return;
     }
-    // The filter is scoped to one grade's panel — a switch starts clean.
-    setLotsFrom("");
-    setLotsTo("");
     const seq = ++lotsReq.current;
     try {
+      // The filter is scoped to one grade's panel, so the new grade loads
+      // unfiltered — but the inputs are only CLEARED on success: a failed
+      // switch leaves the old grade's filtered rows visible, and blank
+      // inputs would misdescribe them (codex review).
       const page = await fetchLotPage(gradeId, "", "", 0);
       if (seq !== lotsReq.current) return;
+      setLotsFrom("");
+      setLotsTo("");
       setLots(page);
       setHasMoreLots(page.length === LOT_PAGE);
       setOpenGrade(gradeId);
@@ -118,6 +121,10 @@ export function StockPage() {
     if (openGrade === null) return;
     setLotsFrom(from);
     setLotsTo(to);
+    // The expanded lot may not be in the filtered page at all — its ledger
+    // must not linger under an unrelated list (codex review).
+    setOpenLot(null);
+    setMovements(null);
     const seq = ++lotsReq.current;
     try {
       const page = await fetchLotPage(openGrade, from, to, 0);
@@ -136,7 +143,14 @@ export function StockPage() {
     try {
       const page = await fetchLotPage(openGrade, lotsFrom, lotsTo, lots.length);
       if (seq !== lotsReq.current) return;
-      setLots((prev) => [...prev, ...page]);
+      // A lot created between page loads shifts every offset, so the next
+      // page can re-serve rows already shown — dedupe by id on append. (The
+      // shifted-in newest lot itself appears on the next full reload; plain
+      // offset paging has no cursor to catch it mid-scroll.)
+      setLots((prev) => {
+        const seen = new Set(prev.map((l) => l.id));
+        return [...prev, ...page.filter((l) => !seen.has(l.id))];
+      });
       setHasMoreLots(page.length === LOT_PAGE);
       setError(null);
     } catch {
@@ -181,16 +195,21 @@ export function StockPage() {
     if (openGrade !== null) {
       const seq = ++lotsReq.current;
       const target = Math.max(lots.length, 1);
-      const window: EggLotRow[] = [];
+      // Keyed by id: an insert between the walk's own page fetches shifts the
+      // offsets and can re-serve a row (same drift as loadMoreLots).
+      const window = new Map<string, EggLotRow>();
       let lastPageFull = false;
       for (let offset = 0; offset < target; offset += LOT_PAGE) {
         const page = await fetchLotPage(openGrade, lotsFrom, lotsTo, offset);
-        window.push(...page);
+        // Superseded mid-walk (a filter change, a grade switch): stop issuing
+        // page requests whose results the final check would only discard.
+        if (seq !== lotsReq.current) return;
+        for (const l of page) window.set(l.id, l);
         lastPageFull = page.length === LOT_PAGE;
         if (!lastPageFull) break;
       }
       if (seq === lotsReq.current) {
-        setLots(window);
+        setLots([...window.values()]);
         setHasMoreLots(lastPageFull);
       }
     }
