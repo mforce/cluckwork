@@ -230,12 +230,38 @@ jobs:
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.sha || '' }}
 
+      # Layer cache shared with e2e-smoke.yml (owner call 2026-08-08): both
+      # workflows build this same Dockerfile per PR on separate runners with no
+      # daemon in common, which compiled everything twice. The key is
+      # content-addressed on every input the image consumes; restore-keys lets
+      # a PR start from the newest prior cache. Whichever workflow saves a key
+      # first wins — the other's save is a no-op, which is fine, they built the
+      # same bytes.
+      - name: Restore image layer cache
+        uses: actions/cache@v6
+        with:
+          path: /tmp/.buildx-cache
+          key: image-layers-${{ hashFiles('src/Cluckwork.Api/Dockerfile', '**/packages.lock.json', 'web/package-lock.json', 'Directory.Build.props', 'Cluckwork.sln', '.dockerignore') }}
+          restore-keys: |
+            image-layers-
+
       # Build the exact image the container ships: the multi-stage Dockerfile
       # compiles the SPA, publishes the API, and runs as the non-root `app` user
-      # on the digest-pinned base image (#267). Loaded into the local daemon so
-      # Trivy scans these freshly built bytes, not a re-pull.
+      # on the digest-pinned base image (#267). buildx with a docker-container
+      # driver (the daemon's default builder can't export a local cache);
+      # `--load` puts the result in the local daemon so Trivy scans these
+      # freshly built bytes, not a re-pull. The rm/mv rotation replaces the
+      # cache instead of accreting layers into it forever.
       - name: Build runtime image
-        run: docker build -f src/Cluckwork.Api/Dockerfile -t cluckwork-api:ci .
+        run: |
+          set -euo pipefail
+          docker buildx create --driver docker-container --name ci-builder --use
+          docker buildx build \
+            --cache-from type=local,src=/tmp/.buildx-cache \
+            --cache-to type=local,dest=/tmp/.buildx-cache-new,mode=max \
+            --load -f src/Cluckwork.Api/Dockerfile -t cluckwork-api:ci .
+          rm -rf /tmp/.buildx-cache
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
 
       # #315 — prove --locked-mode is enforced in the Docker restore: perturb an
       # exact-pinned PackageReference WITHOUT refreshing its lock and assert the

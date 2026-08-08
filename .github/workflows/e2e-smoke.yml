@@ -100,9 +100,41 @@ jobs:
       - name: Verify harness config
         run: bash tools/simulation/verify-harness.sh
 
-      # Builds the image, boots the stack, migrates, bootstrap-admins, seeds the
-      # simulation fixture, and verifies it. This is the expensive step.
+      # Layer cache shared with ci.yml's image job — same key, same inputs, so
+      # whichever workflow built this content first feeds the other and the
+      # image is compiled once per content change instead of twice per PR
+      # (owner call 2026-08-08). A cold cache (first run, manual dispatch on
+      # a fresh branch) just builds from scratch — nothing here is required
+      # for the run to work.
+      - name: Restore image layer cache
+        uses: actions/cache@v6
+        with:
+          path: /tmp/.buildx-cache
+          key: image-layers-${{ hashFiles('src/Cluckwork.Api/Dockerfile', '**/packages.lock.json', 'web/package-lock.json', 'Directory.Build.props', 'Cluckwork.sln', '.dockerignore') }}
+          restore-keys: |
+            image-layers-
+
+      # Pre-build the app image under the compose-derived tag (project
+      # `cluckwork-sim`, service `app` → `cluckwork-sim-app:latest`), so
+      # reset.sh's compose up can reuse it instead of rebuilding blind.
+      - name: Pre-build the app image with the shared layer cache
+        run: |
+          set -euo pipefail
+          docker buildx create --driver docker-container --name e2e-builder --use
+          docker buildx build \
+            --cache-from type=local,src=/tmp/.buildx-cache \
+            --cache-to type=local,dest=/tmp/.buildx-cache-new,mode=max \
+            --load -f src/Cluckwork.Api/Dockerfile -t cluckwork-sim-app:latest .
+          rm -rf /tmp/.buildx-cache
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+
+      # Boots the stack, migrates, bootstrap-admins, seeds the simulation
+      # fixture, and verifies it. CLUCKWORK_SIM_REUSE_IMAGE=1 makes compose use
+      # the image pre-built above (it still builds one itself if the tag were
+      # absent); local/manual reset.sh runs keep the always-rebuild default.
       - name: Reset and seed the simulation stack
+        env:
+          CLUCKWORK_SIM_REUSE_IMAGE: "1"
         run: bash tools/simulation/reset.sh
 
       - name: Install suite dependencies
