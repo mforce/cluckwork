@@ -105,6 +105,13 @@ public sealed class SchemaDocsTests
         // after the colon). Comment deliberately avoids spelling the literal
         // — this file is inside its own sweep.
         var interpolatedPattern = new Regex(@"postgres:\$\{?[A-Za-z_][A-Za-z0-9_:-]*\}?");
+        // Whole-image interpolation: an image/FROM value that is entirely a
+        // variable whose NAME identifies postgres. A deliberately name-based
+        // heuristic — indirection can always hide behind an opaque variable
+        // name, but no stack in this repo interpolates whole image values,
+        // so any appearance is a change worth failing on.
+        var wholeImageVarPattern = new Regex(
+            @"(?im)^\s*(?:image:\s*|FROM\s+)[""']?\$\{?[A-Za-z0-9_]*(?:postgres|_pg_?|pg_)[A-Za-z0-9_]*\}?[""']?\s*$");
         var hits = new Dictionary<string, List<string>>();
 
         foreach (var relative in TrackedFiles())
@@ -138,6 +145,13 @@ public sealed class SchemaDocsTests
             {
                 if (!hits.TryGetValue($"{m.Value} (interpolated — not a reviewable pin)", out var files))
                     hits[$"{m.Value} (interpolated — not a reviewable pin)"] = files = [];
+                files.Add(relative);
+            }
+            foreach (Match m in wholeImageVarPattern.Matches(text))
+            {
+                var token = m.Value.Trim();
+                if (!hits.TryGetValue($"{token} (whole-image variable — not a reviewable pin)", out var files))
+                    hits[$"{token} (whole-image variable — not a reviewable pin)"] = files = [];
                 files.Add(relative);
             }
         }
@@ -357,7 +371,7 @@ public sealed class SchemaDocsTests
             JOIN pg_class c ON c.oid = a.attrelid
             JOIN pg_namespace n ON n.oid = c.relnamespace
             LEFT JOIN pg_attrdef d ON d.adrelid = a.attrelid AND d.adnum = a.attnum
-            WHERE n.nspname = 'public' AND c.relkind = 'r'
+            WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p')
               AND a.attnum > 0 AND NOT a.attisdropped
             ORDER BY c.relname, a.attnum
             """;
