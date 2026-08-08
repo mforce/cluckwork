@@ -110,8 +110,11 @@ public sealed class SchemaDocsTests
         // heuristic — indirection can always hide behind an opaque variable
         // name, but no stack in this repo interpolates whole image values,
         // so any appearance is a change worth failing on.
+        // Token-bounded, not line-anchored: a Dockerfile stage alias
+        // (`AS db`) or a trailing YAML comment after the variable must not
+        // hide it.
         var wholeImageVarPattern = new Regex(
-            @"(?im)^\s*(?:image:\s*|FROM\s+)[""']?\$\{?[A-Za-z0-9_]*(?:postgres|_pg_?|pg_)[A-Za-z0-9_]*\}?[""']?\s*$");
+            @"(?im)^\s*(?:image:\s*|FROM\s+)[""']?\$\{?[A-Za-z0-9_]*(?:postgres|_pg_?|pg_)[A-Za-z0-9_]*\}?[""']?(?=\s|$)");
         var hits = new Dictionary<string, List<string>>();
 
         foreach (var relative in TrackedFiles())
