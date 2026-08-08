@@ -89,7 +89,10 @@ public sealed class SchemaDocsTests
         // no colon for the pattern above to see, so it needs its own
         // detector, scoped to the two syntaxes where a bare name is a live
         // image reference rather than prose.
-        var untaggedPattern = new Regex(@"(?im)^\s*(?:image:\s*|FROM\s+)[""']?postgres[""']?(?=\s|$)");
+        // Namespaced/registry-qualified forms (docker.io/library/postgres,
+        // registry:5000/ns/postgres) float to latest exactly the same way,
+        // so the optional prefix segments are part of the detector.
+        var untaggedPattern = new Regex(@"(?im)^\s*(?:image:\s*|FROM\s+)[""']?(?:[a-z0-9.-]+(?::\d+)?/)*postgres[""']?(?=\s|$)");
         var hits = new Dictionary<string, List<string>>();
 
         foreach (var relative in TrackedFiles())
@@ -145,6 +148,10 @@ public sealed class SchemaDocsTests
             ("absolute windows path", new Regex(@"(?i)[a-z]:\\")),
             ("timestamp", new Regex(@"\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}")),
             ("connection URI (would carry the ephemeral password)", new Regex(@"postgres(?:ql)?://")),
+            // Same portability class MigrationSecurityReviewTests fences on
+            // the migration digest: an assembly file name is stable across
+            // machines, so the byte-diff can't catch it either.
+            ("assembly artifact", new Regex(@"[\w.-]+\.(?:dll|pdb)\b", RegexOptions.IgnoreCase)),
         };
 
         var failures = new StringBuilder();
@@ -217,11 +224,13 @@ public sealed class SchemaDocsTests
         // so a page-wide cell search would accept an omitted column that
         // happens to be named like a header (Customers.Name). Only the data
         // rows of the Columns table count — and the row's METADATA cells are
-        // held to the catalog too: default and nullability are exact (tbls
-        // prints pg_get_expr / true|false verbatim), the type cell must at
-        // least be non-empty (tbls normalizes type names — e.g. varchar(16)
-        // for character varying — and mirroring that normalizer here would be
-        // a parity chase; the byte-diff pins the exact text instead).
+        // held to the catalog exactly: type, default, and nullability. The
+        // type comparison uses format_type with tbls's single observed
+        // normalization (character varying → varchar; every other type cell
+        // across all 38 tables is format_type verbatim) — a future type this
+        // mapping doesn't cover fails loudly and gets added consciously,
+        // which beats both silently trusting the cell and mirroring tbls's
+        // whole normalizer.
         foreach (var col in await QueryColumnsAsync(conn))
         {
             var lines = LinesOf(col.Table);
@@ -243,8 +252,9 @@ public sealed class SchemaDocsTests
                 missing.AppendLine($"column absent from the Columns section of public.{col.Table}.md: {col.Column}");
                 continue;
             }
-            if (row[2].Length == 0)
-                missing.AppendLine($"column type cell empty in public.{col.Table}.md: {col.Column}");
+            var expectedType = col.Type.Replace("character varying", "varchar");
+            if (row[2] != expectedType)
+                missing.AppendLine($"column type mismatch in public.{col.Table}.md: {col.Column} — docs \"{row[2]}\", catalog \"{expectedType}\"");
             if (row[3] != col.Default)
                 missing.AppendLine($"column default mismatch in public.{col.Table}.md: {col.Column} — docs \"{row[3]}\", catalog \"{col.Default}\"");
             if (row[4] != col.Nullable)
@@ -307,24 +317,30 @@ public sealed class SchemaDocsTests
         return results;
     }
 
-    private static async Task<List<(string Table, string Column, string Default, string Nullable)>>
+    private static async Task<List<(string Table, string Column, string Type, string Default, string Nullable)>>
         QueryColumnsAsync(System.Data.Common.DbConnection conn)
     {
-        var results = new List<(string, string, string, string)>();
+        var results = new List<(string, string, string, string, string)>();
         await using var cmd = conn.CreateCommand();
-        // column_default and is_nullable are rendered by tbls verbatim
-        // (pg_get_expr text; "true"/"false") — comparable exactly.
+        // Defaults and nullability are rendered by tbls verbatim
+        // (pg_get_expr text; "true"/"false"); types via format_type.
         cmd.CommandText =
             """
-            SELECT table_name, column_name, COALESCE(column_default, ''),
-                   CASE WHEN is_nullable = 'YES' THEN 'true' ELSE 'false' END
-            FROM information_schema.columns
-            WHERE table_schema = 'public'
-            ORDER BY table_name, ordinal_position
+            SELECT c.relname, a.attname, format_type(a.atttypid, a.atttypmod),
+                   COALESCE(pg_get_expr(d.adbin, d.adrelid), ''),
+                   CASE WHEN a.attnotnull THEN 'false' ELSE 'true' END
+            FROM pg_attribute a
+            JOIN pg_class c ON c.oid = a.attrelid
+            JOIN pg_namespace n ON n.oid = c.relnamespace
+            LEFT JOIN pg_attrdef d ON d.adrelid = a.attrelid AND d.adnum = a.attnum
+            WHERE n.nspname = 'public' AND c.relkind = 'r'
+              AND a.attnum > 0 AND NOT a.attisdropped
+            ORDER BY c.relname, a.attnum
             """;
         await using var reader = await cmd.ExecuteReaderAsync();
         while (await reader.ReadAsync())
-            results.Add((reader.GetString(0), reader.GetString(1), reader.GetString(2), reader.GetString(3)));
+            results.Add((reader.GetString(0), reader.GetString(1), reader.GetString(2),
+                reader.GetString(3), reader.GetString(4)));
         return results;
     }
 
