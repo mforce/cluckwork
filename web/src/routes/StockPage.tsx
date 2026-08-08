@@ -142,19 +142,29 @@ export function StockPage() {
     const outcome = await runPending(scope, async () => {
       setDialogError(null);
       setMessage(null);
+      let res;
       try {
-        const res = await recordEggLotMovement(lot.id, {
+        res = await recordEggLotMovement(lot.id, {
           movementType: woType, quantityDelta: woDelta, reason: woReason.trim(),
         }, keyFor(scope));
-        // The refresh must succeed before the key rotates: if it throws, the
-        // key survives and a retry replays the idempotent write.
-        await refreshAfterWriteOff(lot);
-        clearKey(scope);
-        return res;
       } catch (err) {
+        // No definitive success — keep the key so a retry replays rather than
+        // repeats. (A 4xx stores no idempotency record, so an edited resubmit
+        // under the same key is safe too.)
         setDialogError(errText(err));
         return undefined;
       }
+      // The write is durable the moment the server answers — rotate NOW.
+      // Holding the key past this point would hash-conflict a later submit
+      // with edited values while the dialog is still open (codex review).
+      clearKey(scope);
+      try {
+        await refreshAfterWriteOff(lot);
+      } catch {
+        // Only the view is stale; the correction itself landed.
+        setError(i18n.t("stock:loadStockFailed"));
+      }
+      return res;
     });
     if (outcome) {
       setMessage(i18n.t("stock:writeOffRecordedMessage", { available: outcome.quantityAvailable }));

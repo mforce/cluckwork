@@ -537,6 +537,8 @@ export function HelpPage() {
             <td>{t("glossaryGradeDef")}</td></tr>
           <tr><th scope="row">{t("glossaryEggMovementLedgerTerm")}</th>
             <td>{t("glossaryEggMovementLedgerDef")}</td></tr>
+          <tr><th scope="row">{t("glossaryStockWriteOffTerm")}</th>
+            <td>{t("glossaryStockWriteOffDef")}</td></tr>
           <tr><th scope="row">{t("glossaryFifoTerm")}</th>
             <td>{t("glossaryFifoDef")}</td></tr>
           <tr><th scope="row">{t("glossaryCullTerm")}</th>

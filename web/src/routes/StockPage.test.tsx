@@ -395,6 +395,32 @@ describe("StockPage write-off (#406)", () => {
     expect(mockRecordEggLotMovement).not.toHaveBeenCalled();
   });
 
+  it("rotates the key once the write succeeds, even if the refresh after it fails", async () => {
+    // Codex review: the write is durable the moment the server answers 200 —
+    // keeping the key while the dialog is editable would hash-conflict a
+    // later submit with edited values. Only the VIEW is stale on a failed
+    // refresh, and that surfaces as a page-level load error.
+    mockRecordEggLotMovement.mockResolvedValue(RESULT);
+    const lotRow = await openLotRow();
+    mockGetStock.mockRejectedValueOnce(new Error("refresh down"));
+
+    fireEvent.click(within(lotRow).getByRole("button", { name: "write off" }));
+    fillAndSubmit();
+    // The write landed: success message, dialog closed, stale-view error shown.
+    await screen.findByText(/92 now available/);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByText(/Could not load stock/)).toBeInTheDocument();
+
+    // A second write-off uses a FRESH key — the first is spent.
+    fireEvent.click(within(lotRow).getByRole("button", { name: "write off" }));
+    fillAndSubmit();
+    await screen.findByText(/92 now available/);
+    expect(mockRecordEggLotMovement).toHaveBeenCalledTimes(2);
+    const [, , firstKey] = mockRecordEggLotMovement.mock.calls[0];
+    const [, , secondKey] = mockRecordEggLotMovement.mock.calls[1];
+    expect(firstKey).not.toBe(secondKey);
+  });
+
   it("keeps the same idempotency key across a retry after a failure", async () => {
     mockRecordEggLotMovement
       .mockRejectedValueOnce(new Error("network down"))

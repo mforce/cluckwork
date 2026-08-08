@@ -2372,6 +2372,12 @@ export const tl = {
       "Ang history line by line sa likod ng balanse ng isang lote ng itlog: papasok na production, "
       + "palabas na benta, at mga pagtatama at void na may kaukulang sign.",
 
+    glossaryStockWriteOffTerm: "Write-off ng stock",
+    glossaryStockWriteOffDef:
+      "Pagwawasto ng Owner/Manager na nag-aalis ng nawalang itlog mula sa isang lote (nabasag, nasira, nagamit "
+      + "sa bahay) o naglalapat ng recount, na may kinakailangang dahilan. Binabago lamang nito ang available ng "
+      + "lote — hindi ginagalaw ang mga bilang ng produksyon ng araw. Maaaring magbalik ng itlog ang recount "
+      + "hanggang sa dating na-write off.",
     glossaryFifoTerm: "FIFO",
     glossaryFifoDef:
       "\"First in, first out\" — palaging kinukuha muna ng benta at ng paggamit ng feed ang pinakalumang "

@@ -2665,6 +2665,11 @@ export const en = {
       "The line-by-line history behind an egg lot's balance: production in, sales out, corrections and "
       + "voids signed accordingly.",
 
+    glossaryStockWriteOffTerm: "Stock write-off",
+    glossaryStockWriteOffDef:
+      "An Owner/Manager correction that removes lost eggs from a lot (breakage, spoilage, internal use) or "
+      + "applies a recount, with a required reason. It changes only the lot's available count — the day's "
+      + "production figures stay untouched. A recount can add eggs back up to what was previously written off.",
     glossaryFifoTerm: "FIFO",
     glossaryFifoDef: "\"First in, first out\" — sales and feed usage always take the oldest stock first.",
 

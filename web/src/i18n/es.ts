@@ -2288,6 +2288,11 @@ export const es = {
       "El historial línea por línea detrás del saldo de un lote de huevos: producción que entra, ventas "
       + "que salen, correcciones y anulaciones con su signo correspondiente.",
 
+    glossaryStockWriteOffTerm: "Baja de existencias",
+    glossaryStockWriteOffDef:
+      "Una corrección de Propietario/Gerente que quita huevos perdidos de un lote (roturas, deterioro, consumo "
+      + "propio) o aplica un recuento, con motivo obligatorio. Solo cambia el disponible del lote — las cifras "
+      + "de producción del día no se tocan. Un recuento puede devolver huevos hasta lo dado de baja previamente.",
     glossaryFifoTerm: "FIFO",
     glossaryFifoDef:
       "\"Primero en entrar, primero en salir\" — las ventas y el uso de alimento siempre toman primero las "
