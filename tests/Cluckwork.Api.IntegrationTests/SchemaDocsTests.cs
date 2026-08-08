@@ -105,20 +105,18 @@ public sealed class SchemaDocsTests
         // after the colon). Comment deliberately avoids spelling the literal
         // — this file is inside its own sweep.
         var interpolatedPattern = new Regex(@"postgres:\$\{?[A-Za-z_][A-Za-z0-9_:-]*\}?");
-        // Whole-image interpolation: an image/FROM value that is entirely a
-        // variable whose NAME identifies postgres. A deliberately name-based
-        // heuristic — indirection can always hide behind an opaque variable
-        // name, but no stack in this repo interpolates whole image values,
-        // so any appearance is a change worth failing on.
-        // Token-bounded, not line-anchored: a Dockerfile stage alias
-        // (`AS db`) or a trailing YAML comment after the variable must not
-        // hide it.
-        // Parameter-expansion operators are part of the braced form: a
-        // declaration defaulting to the canonical pin still lets the
-        // environment override it, so the DEFAULT is not the effective pin
-        // and the variable must be flagged regardless of its fallback.
-        var wholeImageVarPattern = new Regex(
-            @"(?im)^\s*(?:image:\s*|FROM\s+)[""']?\$(?:\{[A-Za-z0-9_]*(?:postgres|_pg_?|pg_)[A-Za-z0-9_]*(?:[:?+-][^}]*)?\}|[A-Za-z0-9_]*(?:postgres|_pg_?|pg_)[A-Za-z0-9_]*)[""']?(?=\s|$)");
+        // Interpolated image declarations, judged as a LINE CLASS: any
+        // image:/FROM line that names postgres AND carries an interpolation
+        // marker is flagged wholesale. Three review rounds each found one
+        // more expansion form a token pattern missed (default operators,
+        // stage aliases, nested braces — which a regex cannot balance at
+        // all); per the two-misses rule, the method changed: refuse the
+        // whole line class instead of enumerating its forms. An interpolated
+        // value is never a reviewable pin regardless of its syntax. The
+        // remaining boundary is unchanged: a variable whose name does not
+        // identify postgres is opaque indirection no text scan can close.
+        var imageLinePattern = new Regex(@"(?im)^[ \t]*(?:image:|FROM[ \t])[^\r\n]*");
+        var pgNamePattern = new Regex(@"postgres|_pg_?|pg_", RegexOptions.IgnoreCase);
         var hits = new Dictionary<string, List<string>>();
 
         foreach (var relative in TrackedFiles())
@@ -154,11 +152,12 @@ public sealed class SchemaDocsTests
                     hits[$"{m.Value} (interpolated — not a reviewable pin)"] = files = [];
                 files.Add(relative);
             }
-            foreach (Match m in wholeImageVarPattern.Matches(text))
+            foreach (Match m in imageLinePattern.Matches(text))
             {
+                if (!m.Value.Contains('$') || !pgNamePattern.IsMatch(m.Value)) continue;
                 var token = m.Value.Trim();
-                if (!hits.TryGetValue($"{token} (whole-image variable — not a reviewable pin)", out var files))
-                    hits[$"{token} (whole-image variable — not a reviewable pin)"] = files = [];
+                if (!hits.TryGetValue($"{token} (interpolated image line — not a reviewable pin)", out var files))
+                    hits[$"{token} (interpolated image line — not a reviewable pin)"] = files = [];
                 files.Add(relative);
             }
         }
