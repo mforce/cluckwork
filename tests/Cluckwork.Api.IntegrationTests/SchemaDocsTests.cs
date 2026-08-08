@@ -156,7 +156,7 @@ public sealed class SchemaDocsTests
         // through any other expression is opaque indirection, same boundary
         // as variable names.
         var csharpImageLiteralPattern = new Regex(
-            @"(?:Image\w*\s*=\s*|Builder\s*\(\s*|WithImage\s*\(\s*)""((?:[a-z0-9.-]+(?::\d+)?/)*postgres(?::[^""@]+)?(?:@sha256:[0-9a-f]{64})?)""");
+            @"(?:Image\w*\s*=\s*|Builder\s*\(\s*(?:\w+\s*:\s*)?|WithImage\s*\(\s*(?:\w+\s*:\s*)?)""((?:[a-z0-9.-]+(?::\d+)?/)*postgres(?::[^""@]+)?(?:@sha256:[0-9a-f]{64})?)""");
         // BuildKit RUN mounts pull an external image when from= names no
         // build stage or context — a fourth bare-reference syntax.
         // NOT anchored to RUN: a continued instruction puts later mount
