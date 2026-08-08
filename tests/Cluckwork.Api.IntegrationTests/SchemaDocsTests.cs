@@ -215,8 +215,10 @@ public sealed class SchemaDocsTests
         // whatever the variable's name, its value comes from ARG/build args.
         // (FROM context is narrow enough that this needs no name heuristic,
         // unlike compose values.)
-        // FROM options (--platform=...) may precede the image token.
-        var fromVariablePattern = new Regex(@"(?im)^[ \t]*FROM[ \t]+(?:--[A-Za-z0-9-]+=[^\s]+[ \t]+)*[""']?\$");
+        // FROM options (--platform=...) may precede the image token, and a
+        // variable may expand ANYWHERE within it (registry/${VAR} as much as
+        // ${VAR} alone) — any dollar in the image token refuses the line.
+        var fromVariablePattern = new Regex(@"(?im)^[ \t]*FROM[ \t]+(?:--[A-Za-z0-9-]+=[^\s]+[ \t]+)*[^\s]*\$");
         var pgNamePattern = new Regex(@"postgres|_pg_?|pg_", RegexOptions.IgnoreCase);
         var mappingKeyPattern = new Regex(@"^[ \t]*[A-Za-z0-9_.-]+:([ \t]|\r?$)");
         var hits = new Dictionary<string, List<string>>();
