@@ -394,6 +394,10 @@ export function HelpPage() {
         <li>
           <Trans ns="help" i18nKey="farmSettingsCurrency" components={{ strong: <strong /> }} />
         </li>
+        {/* #452 — preset dropdown + Custom escape hatch for date/time format overrides. */}
+        <li>
+          <Trans ns="help" i18nKey="farmSettingsDateTimeFormat" components={{ strong: <strong /> }} />
+        </li>
         <li>
           <Trans ns="help" i18nKey="farmSettingsLogo" components={{ strong: <strong /> }} />
         </li>

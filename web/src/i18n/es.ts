@@ -1038,6 +1038,9 @@ export const es = {
     paletteTerracotta: "Terracota",
     dateFormatLabel: "Formato de fecha",
     timeFormatLabel: "Formato de hora",
+    customFormatOption: "Personalizado…",
+    customDateFormatLabel: "Formato de fecha personalizado",
+    customTimeFormatLabel: "Formato de hora personalizado",
     savingButton: "Guardando…",
     saveButton: "Guardar configuración",
     effectNote:
@@ -2066,6 +2069,13 @@ export const es = {
       + "es una copia reconstruida: los detalles de cámara y ubicación se eliminan al ingresar — una foto "
       + "tomada en un teléfono lleva dónde se tomó, y para una granja eso es su dirección. Elimínelo y la "
       + "barra lateral vuelve a la marca de Cluckwork.",
+    farmSettingsDateTimeFormat:
+      "<strong>Formato de fecha</strong> y <strong>formato de hora</strong> ofrecen algunas opciones "
+      + "comunes en un menú desplegable — elija una y listo. ¿Necesita algo que no está en la lista? "
+      + "Elija <strong>Personalizado…</strong> para escribir el suyo; las opciones predefinidas son "
+      + "siempre seguras, pero un valor personalizado solo se verifica lo suficiente para guardarlo, no "
+      + "para comprobar que se ve bien — nada en Cluckwork muestra fechas u horas mediante esta "
+      + "configuración todavía, así que un valor personalizado incorrecto no sería visible hoy.",
     farmSettingsSquareLogo:
       "Use un logotipo <strong>cuadrado</strong>. Se muestra pequeño en la barra lateral, así que una "
       + "marca simple y bien recortada — un símbolo o una sola letra — se ve mucho mejor ahí que un "
@@ -2406,7 +2416,8 @@ export const es = {
     glossaryFarmSettingsTerm: "Configuración de la granja",
     glossaryFarmSettingsDef:
       "El nombre de la granja, la zona horaria, la configuración regional, la moneda y el sistema de "
-      + "unidades, además del primer día de la semana y los formatos de fecha/hora, opcionales. "
+      + "unidades, además del primer día de la semana y los formatos de fecha/hora, opcionales — elegidos "
+      + "de un menú de opciones predefinidas, o escritos como una cadena de formato .NET personalizada. "
       + "Configuración → Configuración de la granja; propietarios y gerentes editan, todos pueden leer — "
       + "dar formato a montos y fechas no es un permiso.",
 

@@ -1249,6 +1249,13 @@ export const en = {
     paletteTerracotta: "Terracotta",
     dateFormatLabel: "Date format",
     timeFormatLabel: "Time format",
+    // #452 — the dropdown's escape hatch to the free-text field, and that
+    // field's own labels (distinct from dateFormatLabel/timeFormatLabel,
+    // the dropdown's labels, since both a select and a text field are on
+    // screen at once while "Custom…" is chosen).
+    customFormatOption: "Custom…",
+    customDateFormatLabel: "Custom date format",
+    customTimeFormatLabel: "Custom time format",
     savingButton: "Saving…",
     saveButton: "Save settings",
     effectNote:
@@ -2447,6 +2454,14 @@ export const en = {
       + "Animated images are refused rather than flattened. What gets stored is a rebuilt copy: camera and "
       + "location details are stripped out on the way in — a photo taken on a phone carries where it was "
       + "taken, and for a farm that is its address. Remove it and the sidebar goes back to the Cluckwork mark.",
+    // #452 — the preset dropdown + Custom escape hatch for date/time format
+    // overrides, replacing what used to be a bare free-text field.
+    farmSettingsDateTimeFormat:
+      "<strong>Date format</strong> and <strong>time format</strong> offer a few common choices in a "
+      + "dropdown — pick one and you are done. Need something not listed? Choose "
+      + "<strong>Custom…</strong> to type your own; the presets are all safe choices, but a custom value "
+      + "is only checked well enough to save, not to prove it looks right — nothing in Cluckwork displays "
+      + "dates or times through this setting yet, so a broken custom value would not be visible today.",
     farmSettingsSquareLogo:
       "Use a <strong>square</strong> logo. It shows small in the sidebar, so a simple, tightly-cropped mark "
       + "— a symbol or a single letter — reads much better there than a wide wordmark or a detailed picture, "
@@ -2765,8 +2780,9 @@ export const en = {
     glossaryFarmSettingsTerm: "Farm settings",
     glossaryFarmSettingsDef:
       "The farm's name, timezone, locale, currency and unit system, plus optional first day of week and "
-      + "date/time formats. Setup → Farm settings; owners and managers edit, everyone reads — formatting "
-      + "money and dates is not a permission.",
+      + "date/time formats — picked from a preset dropdown, or typed as a custom .NET format string. "
+      + "Setup → Farm settings; owners and managers edit, everyone reads — formatting money and dates is "
+      + "not a permission.",
 
     glossaryCurrencyLockTerm: "Currency lock",
     glossaryCurrencyLockDef:
