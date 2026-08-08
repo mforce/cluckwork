@@ -51,6 +51,32 @@ public sealed class SchemaDocsTests
         return new AppDbContext(options.Options, new TenantContext());
     }
 
+    // Marks lines that are the BODY of a YAML block scalar (|/> values, e.g.
+    // run: steps' shell/jq text): a body line is indented deeper than the
+    // scalar's key and is embedded text, not YAML structure. Blank lines
+    // inside the body stay masked; the first non-blank line at or above the
+    // key's indent ends the scalar.
+    private static bool[] BlockScalarBodyMask(string[] lines)
+    {
+        var mask = new bool[lines.Length];
+        var scalarKeyIndent = -1;
+        var opener = new Regex(@"^[ \t]*[^#\s][^\r\n]*:[ \t]*[|>][+-]?[0-9]*[ \t]*(?:#[^\r\n]*)?\r?$");
+        for (var i = 0; i < lines.Length; i++)
+        {
+            var line = lines[i];
+            var trimmed = line.TrimStart(' ', '\t');
+            var indent = line.Length - trimmed.Length;
+            if (scalarKeyIndent >= 0)
+            {
+                if (trimmed.TrimEnd('\r').Length == 0) { mask[i] = true; continue; }
+                if (indent > scalarKeyIndent) { mask[i] = true; continue; }
+                scalarKeyIndent = -1;
+            }
+            if (opener.IsMatch(line)) scalarKeyIndent = indent;
+        }
+        return mask;
+    }
+
     private static IReadOnlyList<string> TrackedFiles()
     {
         // git ls-files, not a directory walk: untracked local clutter must not
@@ -156,16 +182,15 @@ public sealed class SchemaDocsTests
         // value-position anchor keeps shell-embedded brace text — the
         // release-please.yml jq program — out of scope, as before.
         var flowMappingPattern = new Regex(
-            @"(?m)^[ \t]*(?:-[ \t]+|[A-Za-z0-9_.""'-]+[ \t]*:[ \t]*)(?:[&!][^\s{]+[ \t]+)*\{(?!\}[ \t]*(?:#[^\r\n]*)?\r?$)[^\r\n]*");
-        // A document that is ITSELF a flow mapping opens with a brace at
-        // COLUMN 0 — and only there: a block scalar's body (the shell/jq
-        // JSON inside run: steps) must be indented past its key, so an
-        // unindented brace can never be embedded text. Anchoring at column 0
-        // is what separates a root flow document from ci.yml's heredocs.
-        // An explicit document marker (---) may precede the root node on the
-        // same line; it stays a column-0 shape either way.
+            @"^[ \t]*(?:-[ \t]+|[A-Za-z0-9_.""'-]+[ \t]*:[ \t]*)(?:[&!][^\s{]+[ \t]+)*\{(?!\}[ \t]*(?:#[^\r\n]*)?\r?$)");
+        // A document that is ITSELF a flow mapping — optionally indented,
+        // optionally behind a --- document marker. Distinguishing this from
+        // the shell/jq JSON embedded in run: block scalars is NOT a text-
+        // shape question (both are indented brace lines), so every YAML line
+        // rule runs behind a block-scalar mask: lines inside a |/> body are
+        // embedded text and skipped; everything else is YAML structure.
         var rootFlowPattern = new Regex(
-            @"(?m)^(?:---[ \t]+)?(?:[&!][^\s{]+[ \t]+)*\{(?!\}[ \t]*(?:#[^\r\n]*)?\r?$)[^\r\n]*");
+            @"^[ \t]*(?:---[ \t]+)?(?:[&!][^\s{]+[ \t]+)*\{(?!\}[ \t]*(?:#[^\r\n]*)?\r?$)");
         var fromLinePattern = new Regex(@"(?im)^[ \t]*FROM[ \t][^\r\n]*");
         var pgNamePattern = new Regex(@"postgres|_pg_?|pg_", RegexOptions.IgnoreCase);
         var mappingKeyPattern = new Regex(@"^[ \t]*[A-Za-z0-9_.-]+:([ \t]|\r?$)");
@@ -210,15 +235,6 @@ public sealed class SchemaDocsTests
                 files.Add(relative);
             }
 
-            if (relative.EndsWith(".yml", StringComparison.OrdinalIgnoreCase)
-                || relative.EndsWith(".yaml", StringComparison.OrdinalIgnoreCase))
-            {
-                foreach (Match m in flowMappingPattern.Matches(text))
-                    AddHit($"{m.Value.Trim()} (flow-style mapping — use block mappings; only the empty {{}} idiom is allowed)");
-                foreach (Match m in rootFlowPattern.Matches(text))
-                    AddHit($"{m.Value.Trim()} (root-level flow document — use a block mapping document)");
-            }
-
             foreach (Match m in fromLinePattern.Matches(text))
             {
                 var line = m.Value;
@@ -229,8 +245,25 @@ public sealed class SchemaDocsTests
             }
 
             var textLines = text.Split('\n');
+            var isYaml = relative.EndsWith(".yml", StringComparison.OrdinalIgnoreCase)
+                || relative.EndsWith(".yaml", StringComparison.OrdinalIgnoreCase);
+            var embedded = isYaml ? BlockScalarBodyMask(textLines) : new bool[textLines.Length];
             for (var i = 0; i < textLines.Length; i++)
             {
+                if (embedded[i]) continue; // block-scalar body: embedded text, not YAML structure
+                if (isYaml)
+                {
+                    if (flowMappingPattern.IsMatch(textLines[i]))
+                    {
+                        AddHit($"{textLines[i].Trim()} (flow-style mapping — use block mappings; only the empty {{}} idiom is allowed)");
+                        continue;
+                    }
+                    if (rootFlowPattern.IsMatch(textLines[i]))
+                    {
+                        AddHit($"{textLines[i].Trim()} (root-level flow document — use a block mapping document)");
+                        continue;
+                    }
+                }
                 var m = imageKeyLinePattern.Match(textLines[i]);
                 if (!m.Success) continue;
                 var value = m.Groups["value"].Value.Trim();
