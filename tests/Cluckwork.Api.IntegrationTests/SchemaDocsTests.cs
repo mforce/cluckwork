@@ -168,6 +168,17 @@ public sealed class SchemaDocsTests
         // into the captured value.
         var csharpImageLiteralPattern = new Regex(
             @"(?:Image\w*\s*=\s*|Builder\s*\(\s*(?:\w+\s*:\s*)?|WithImage\s*\(\s*(?:\w+\s*:\s*)?)[$@]*(?<q>""+)\s*(?<img>(?:[a-z0-9.-]+(?::\d+)?/)*postgres(?::[^""@\s]+)?(?:@sha256:[0-9a-f]{64})?)\s*\k<q>");
+        // An ORDINARY (or ordinary-interpolated) literal processes escape
+        // sequences, so its evaluated value need not appear contiguously in
+        // the source — such a literal in an image-consuming expression is
+        // refused outright whenever it carries a backslash, rather than
+        // decoded (same refuse-the-syntax-class posture as the YAML rules).
+        // Verbatim and raw literals are exempt: they process no escapes, so
+        // their text IS their value and the shape sweep above already reads
+        // them. The pfx/quote-run distinction happens in code: any @ in the
+        // prefix or a multi-quote delimiter means no escape processing.
+        var csharpEscapedLiteralPattern = new Regex(
+            @"(?:Image\w*\s*=\s*|Builder\s*\(\s*(?:\w+\s*:\s*)?|WithImage\s*\(\s*(?:\w+\s*:\s*)?)(?<pfx>[$@]*)(?<q>""+)(?<body>(?:[^""\\\r\n]|\\.)*)""");
         // BuildKit RUN mounts pull an external image when from= names no
         // build stage or context — a fourth bare-reference syntax.
         // NOT anchored to RUN: a continued instruction puts later mount
@@ -342,6 +353,15 @@ public sealed class SchemaDocsTests
                     if (val == PostgresImage) continue;
                     if (!hits.TryGetValue($"\"{val}\" (postgres-shaped C# string literal — not the canonical pin)", out var files))
                         hits[$"\"{val}\" (postgres-shaped C# string literal — not the canonical pin)"] = files = [];
+                    files.Add(relative);
+                }
+                foreach (Match m in csharpEscapedLiteralPattern.Matches(text))
+                {
+                    if (m.Groups["pfx"].Value.Contains('@')) continue;
+                    if (m.Groups["q"].Value.Length > 1) continue;
+                    if (!m.Groups["body"].Value.Contains('\\')) continue;
+                    if (!hits.TryGetValue("escape-bearing C# string literal in an image-consuming expression — the evaluated value is not textually reviewable; write the reference unescaped", out var files))
+                        hits["escape-bearing C# string literal in an image-consuming expression — the evaluated value is not textually reviewable; write the reference unescaped"] = files = [];
                     files.Add(relative);
                 }
             }
