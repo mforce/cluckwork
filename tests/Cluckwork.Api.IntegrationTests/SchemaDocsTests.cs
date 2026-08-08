@@ -144,8 +144,11 @@ public sealed class SchemaDocsTests
         // The image key may sit past NESTED braces inside the flow mapping,
         // so everything on the line after the value-position brace is in
         // scope — not just up to the first closing brace.
+        // YAML node properties (an &anchor or !tag) may sit between the
+        // value-position colon and the opening brace — they are part of the
+        // same flow-mapping shape.
         var flowImageKeyPattern = new Regex(
-            @"(?m)^[ \t]*(?:-[ \t]+|[A-Za-z0-9_.""'-]+[ \t]*:[ \t]*)\{[^\r\n]*?[""']?image[""']?[ \t]*:");
+            @"(?m)^[ \t]*(?:-[ \t]+|[A-Za-z0-9_.""'-]+[ \t]*:[ \t]*)(?:[&!][^\s{]+[ \t]+)*\{[^\r\n]*?[""']?image[""']?[ \t]*:");
         var fromLinePattern = new Regex(@"(?im)^[ \t]*FROM[ \t][^\r\n]*");
         var pgNamePattern = new Regex(@"postgres|_pg_?|pg_", RegexOptions.IgnoreCase);
         var mappingKeyPattern = new Regex(@"^[ \t]*[A-Za-z0-9_.-]+:([ \t]|\r?$)");
