@@ -600,6 +600,43 @@ describe("StockPage lot paging + date filter (#465)", () => {
     expect(screen.getByText("2026-07-01")).toBeInTheDocument();
   });
 
+  it("hides load-more while a filter load is pending (codex round 4)", async () => {
+    // Clicking load-more mid-filter-load would supersede the page-0 request
+    // and append the NEW window's page onto the OLD window's rows.
+    let release!: (rows: EggLotRow[]) => void;
+    mockListEggLots
+      .mockResolvedValueOnce(makeLots(PAGE))
+      .mockReturnValueOnce(new Promise<EggLotRow[]>((r) => (release = r)));
+    await expandGradeA();
+    await screen.findByRole("button", { name: "load more" });
+
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-07-02" } });
+    expect(screen.queryByRole("button", { name: "load more" })).not.toBeInTheDocument();
+
+    // The settled (full) filtered page brings it back.
+    await act(async () => {
+      release(makeLots(PAGE));
+    });
+    expect(screen.getByRole("button", { name: "load more" })).toBeInTheDocument();
+  });
+
+  it("restores the applied filter when a grade switch fails after superseding a pending filter (codex round 4)", async () => {
+    // Filter request still pending (inputs optimistic, never applied) when
+    // the user switches grades and THAT fails: the rows still come from the
+    // applied (empty) window — the inputs must return to describing it.
+    mockListEggLots
+      .mockResolvedValueOnce(LOTS)
+      .mockReturnValueOnce(new Promise<EggLotRow[]>(() => undefined))
+      .mockRejectedValueOnce(new Error("boom"));
+    await expandGradeA();
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-07-02" } });
+
+    fireEvent.click(within(screen.getByRole("row", { name: /Grade B\b/ })).getByRole("button", { name: "lots" }));
+    await screen.findByText(/Could not load the grade's lots/);
+    expect(screen.getByLabelText("From")).toHaveValue("");
+    expect(screen.getByText("2026-07-01")).toBeInTheDocument();
+  });
+
   it("rolls back to the last APPLIED filter, not the previous optimistic input (codex round 3)", async () => {
     // From then To before the first request settles: if the second fails,
     // the rows still show the ORIGINAL window — rolling back to the first

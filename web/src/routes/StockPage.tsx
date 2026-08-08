@@ -44,6 +44,10 @@ export function StockPage() {
   // filters by production date, so lots older than the newest page stay
   // reachable for history and write-off.
   const [hasMoreLots, setHasMoreLots] = useState(false);
+  // While any interactive lot-list load is in flight, load-more is hidden —
+  // clicking it mid-filter-load would supersede the page-0 request and
+  // append the new window's page onto the old window's rows (codex review).
+  const [lotsLoading, setLotsLoading] = useState(false);
   const [lotsFrom, setLotsFrom] = useState("");
   const [lotsTo, setLotsTo] = useState("");
   const [openLot, setOpenLot] = useState<string | null>(null);
@@ -105,6 +109,7 @@ export function StockPage() {
       return;
     }
     const seq = ++lotsReq.current;
+    setLotsLoading(true);
     try {
       // The filter is scoped to one grade's panel, so the new grade loads
       // unfiltered — but the inputs are only CLEARED on success: a failed
@@ -117,10 +122,20 @@ export function StockPage() {
       appliedFilter.current = { from: "", to: "" };
       setLots(page);
       setHasMoreLots(page.length === LOT_PAGE);
+      setLotsLoading(false);
       setOpenGrade(gradeId);
       setError(null);
     } catch {
-      if (seq === lotsReq.current) setError(i18n.t("stock:loadLotsFailed"));
+      if (seq === lotsReq.current) {
+        // The still-visible rows are the old grade's applied window — and if
+        // this switch superseded an unfinished filter change, the inputs
+        // still hold that never-applied value; restore both from the applied
+        // snapshot (codex review).
+        setLotsFrom(appliedFilter.current.from);
+        setLotsTo(appliedFilter.current.to);
+        setLotsLoading(false);
+        setError(i18n.t("stock:loadLotsFailed"));
+      }
     }
   }
 
@@ -137,12 +152,14 @@ export function StockPage() {
     setMovements(null);
     ledgerReq.current++;
     const seq = ++lotsReq.current;
+    setLotsLoading(true);
     try {
       const page = await fetchLotPage(openGrade, from, to, 0);
       if (seq !== lotsReq.current) return;
       appliedFilter.current = { from, to };
       setLots(page);
       setHasMoreLots(page.length === LOT_PAGE);
+      setLotsLoading(false);
       setError(null);
     } catch {
       // Roll the inputs back to the window the still-visible rows actually
@@ -151,6 +168,7 @@ export function StockPage() {
       if (seq === lotsReq.current) {
         setLotsFrom(appliedFilter.current.from);
         setLotsTo(appliedFilter.current.to);
+        setLotsLoading(false);
         setError(i18n.t("stock:loadLotsFailed"));
       }
     }
@@ -159,6 +177,7 @@ export function StockPage() {
   async function loadMoreLots() {
     if (openGrade === null) return;
     const seq = ++lotsReq.current;
+    setLotsLoading(true);
     try {
       const page = await fetchLotPage(openGrade, lotsFrom, lotsTo, lots.length);
       if (seq !== lotsReq.current) return;
@@ -171,9 +190,13 @@ export function StockPage() {
         return [...prev, ...page.filter((l) => !seen.has(l.id))];
       });
       setHasMoreLots(page.length === LOT_PAGE);
+      setLotsLoading(false);
       setError(null);
     } catch {
-      if (seq === lotsReq.current) setError(i18n.t("stock:loadLotsFailed"));
+      if (seq === lotsReq.current) {
+        setLotsLoading(false);
+        setError(i18n.t("stock:loadLotsFailed"));
+      }
     }
   }
 
@@ -392,7 +415,7 @@ export function StockPage() {
                   </tbody>
                 </table>
               )}
-              {hasMoreLots && (
+              {hasMoreLots && !lotsLoading && (
                 <button className="link" onClick={() => void loadMoreLots()}>
                   {t("loadMoreButton")}
                 </button>
