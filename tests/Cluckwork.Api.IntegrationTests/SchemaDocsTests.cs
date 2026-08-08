@@ -443,7 +443,14 @@ public sealed class SchemaDocsTests
                     tokens.Add((m.Index, m.Index + m.Length, m.Groups["body"].Value.Trim(), false));
                 }
                 tokens.Sort((a, b) => a.Start.CompareTo(b.Start));
-                var plusGap = new Regex(@"^\s*\+\s*$");
+                // The gap between chained tokens is `+` plus any TRIVIA the
+                // compiler ignores — whitespace AND comments (block or line):
+                // a comment inside a constant expression does not break the
+                // fold. (A comment containing a quote is tokenized as if it
+                // were code by the comment-blind literal scan above — that
+                // direction only ever ADDS refusals, never opens a gap.)
+                const string GapTrivia = @"(?:\s|/\*[\s\S]*?\*/|//[^\r\n]*)";
+                var plusGap = new Regex("^" + GapTrivia + @"*\+" + GapTrivia + "*$");
                 for (var i = 0; i < tokens.Count;)
                 {
                     var j = i;
