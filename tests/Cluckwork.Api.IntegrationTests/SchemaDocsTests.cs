@@ -381,42 +381,49 @@ public sealed class SchemaDocsTests
                 pageLines[page] = lines = File.Exists(page) ? File.ReadAllLines(page) : [];
             return lines;
         }
-        void RequireRow(string table, string name, string def, string kind)
+        // BIDIRECTIONAL per-section comparison (like the column check): the
+        // complete row set of the page's section must equal the catalog's
+        // set for that table — a live object without its row fails, and so
+        // does a phantom or duplicate row PostgreSQL doesn't have, which a
+        // per-object existence check could never reject. Rows are matched in
+        // the kind's OWN section (a misclassified row is a failure), and the
+        // definition must be an exact cell of the name's row.
+        void RequireSection(string table, string heading, List<(string Table, string Name, string Def)> catalogRows)
         {
             var lines = LinesOf(table);
             if (lines.Length == 0) return; // missing page already reported
-            // Scoped to the kind's OWN section: a row rendered under the
-            // wrong heading (an index listed as a constraint, or vice versa)
-            // misclassifies the object and must not pass just because the
-            // text exists somewhere on the page.
-            var heading = kind == "index" ? "## Indexes" : "## Constraints";
             var inSection = false;
-            var sectionLines = new List<string>();
+            var docRows = new List<string[]>();
             foreach (var line in lines)
             {
                 if (line.StartsWith("## ", StringComparison.Ordinal))
                     inSection = line.TrimEnd().Equals(heading, StringComparison.Ordinal);
-                else if (inSection)
-                    sectionLines.Add(line);
+                else if (inSection && line.StartsWith("| ", StringComparison.Ordinal))
+                    docRows.Add(line.Split('|').Select(c => c.Trim()).ToArray());
             }
-            // Cell-exact, not substring: a definition cell that merely STARTS
-            // with the catalog text (trailing SQL appended by a rendering
-            // regression) must not pass. The row is identified by its first
-            // cell equalling the object name; the definition must then be an
-            // exact cell of that row, whichever column the table shape puts
-            // it in.
-            var ok = sectionLines.Any(l =>
+            var docNames = docRows.Skip(2).Select(cells => cells[1]).ToList(); // header + separator skipped
+            var docSorted = docNames.OrderBy(n => n, StringComparer.Ordinal).ToList();
+            var catalogSorted = catalogRows.Select(r => r.Name).OrderBy(n => n, StringComparer.Ordinal).ToList();
+            if (!docSorted.SequenceEqual(catalogSorted, StringComparer.Ordinal))
             {
-                if (!l.StartsWith("| ", StringComparison.Ordinal)) return false;
-                var cells = l.Split('|').Select(c => c.Trim()).ToArray();
-                return cells.Length > 2 && cells[1] == name && cells.Contains(def);
-            });
-            if (!ok)
-                missing.AppendLine($"{kind} row absent from the {heading} section of public.{table}.md: {name} — {def}");
+                missing.AppendLine(
+                    $"{heading} row set mismatch in public.{table}.md:\n" +
+                    $"  docs:    [{string.Join(", ", docSorted)}]\n" +
+                    $"  catalog: [{string.Join(", ", catalogSorted)}]");
+                return; // per-row checks would just repeat the mismatch
+            }
+            foreach (var (_, name, def) in catalogRows)
+            {
+                var ok = docRows.Skip(2).Any(cells =>
+                    cells.Length > 2 && cells[1] == name && cells.Contains(def));
+                if (!ok)
+                    missing.AppendLine($"row definition mismatch in the {heading} section of public.{table}.md: {name} — {def}");
+            }
         }
 
-        foreach (var table in await QueryStringsAsync(conn,
-            "SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename"))
+        var tables = await QueryStringsAsync(conn,
+            "SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename");
+        foreach (var table in tables)
         {
             if (!File.Exists(Path.Combine(DocsDir, $"public.{table}.md")))
                 missing.AppendLine($"table without a doc page: {table}");
@@ -480,15 +487,12 @@ public sealed class SchemaDocsTests
             }
         }
 
-        foreach (var row in await QueryTriplesAsync(conn,
+        var indexesByTable = (await QueryTriplesAsync(conn,
             """
             SELECT tablename, indexname, indexdef FROM pg_indexes
             WHERE schemaname = 'public'
             ORDER BY indexname
-            """))
-        {
-            RequireRow(row.Table, row.Name, row.Def, "index");
-        }
+            """)).GroupBy(r => r.Table).ToDictionary(g => g.Key, g => g.ToList());
 
         // EVERY table-backed constraint row, no contype allow-list: a
         // hand-kept type list is the exact shape #407 warns about — an
@@ -496,7 +500,7 @@ public sealed class SchemaDocsTests
         // must fail this test if tbls stops documenting it, not slide
         // through a filter written before it existed. The pg_class join
         // already restricts the sweep to constraints owned by public tables.
-        foreach (var row in await QueryTriplesAsync(conn,
+        var constraintsByTable = (await QueryTriplesAsync(conn,
             """
             SELECT rel.relname, con.conname, pg_get_constraintdef(con.oid)
             FROM pg_constraint con
@@ -504,9 +508,12 @@ public sealed class SchemaDocsTests
             JOIN pg_namespace ns ON ns.oid = rel.relnamespace
             WHERE ns.nspname = 'public'
             ORDER BY con.conname
-            """))
+            """)).GroupBy(r => r.Table).ToDictionary(g => g.Key, g => g.ToList());
+
+        foreach (var table in tables)
         {
-            RequireRow(row.Table, row.Name, row.Def, "constraint");
+            RequireSection(table, "## Indexes", indexesByTable.GetValueOrDefault(table) ?? []);
+            RequireSection(table, "## Constraints", constraintsByTable.GetValueOrDefault(table) ?? []);
         }
 
         Assert.True(missing.Length == 0,
