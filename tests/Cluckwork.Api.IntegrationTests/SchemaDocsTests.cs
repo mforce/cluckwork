@@ -306,7 +306,7 @@ public sealed class SchemaDocsTests
                     // INSIDE a quoted scalar is adjacent to neither, so
                     // string arrays stay clean.
                     var seq = Regex.Match(textLines[i],
-                        @"^[ \t]*(?:-[ \t]+)*[A-Za-z0-9_.""'<-]+[ \t]*:[ \t]*(?:[&!][^\s\[]+[ \t]+)*\[(?<rest>[^\r\n]*)");
+                        @"^[ \t]*(?:-[ \t]+)*(?:[&!][^\s]+[ \t]+)*[A-Za-z0-9_.""'<-]+[ \t]*:[ \t]*(?:[&!][^\s\[]+[ \t]+)*\[(?<rest>[^\r\n]*)");
                     if (seq.Success && (Regex.IsMatch(seq.Groups["rest"].Value, @"(?<!\$)\{")
                         || !seq.Groups["rest"].Value.Contains(']')
                         || Regex.IsMatch(seq.Groups["rest"].Value, @"(?:^|,)[ \t]*(?:[&!][^\s\]]+[ \t]+)*[A-Za-z0-9_.-]+[ \t]*:[ \t]")
