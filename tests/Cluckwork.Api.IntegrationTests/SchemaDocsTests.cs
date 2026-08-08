@@ -423,11 +423,6 @@ public sealed class SchemaDocsTests
 
         var tables = await QueryStringsAsync(conn,
             "SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename");
-        foreach (var table in tables)
-        {
-            if (!File.Exists(Path.Combine(DocsDir, $"public.{table}.md")))
-                missing.AppendLine($"table without a doc page: {table}");
-        }
 
         // Column-level completeness, scoped to the page's "## Columns"
         // section: every page also contains header rows like "| Name | Type |",
@@ -515,11 +510,20 @@ public sealed class SchemaDocsTests
         // iterating tables alone would skip its section entirely. (No such
         // relation exists in this schema today — this is the same
         // future-proof shape as the partitioned-table relkind widening.)
+        // Page EXISTENCE is checked over the same union — a union-only owner
+        // (an indexed materialized view) whose page is entirely omitted must
+        // be reported here, since RequireSection's empty-page early return
+        // relies on this loop having said so.
         foreach (var table in tables
             .Union(indexesByTable.Keys, StringComparer.Ordinal)
             .Union(constraintsByTable.Keys, StringComparer.Ordinal)
             .OrderBy(t => t, StringComparer.Ordinal))
         {
+            if (!File.Exists(Path.Combine(DocsDir, $"public.{table}.md")))
+            {
+                missing.AppendLine($"relation without a doc page: {table}");
+                continue;
+            }
             RequireSection(table, "## Indexes", indexesByTable.GetValueOrDefault(table) ?? []);
             RequireSection(table, "## Constraints", constraintsByTable.GetValueOrDefault(table) ?? []);
         }
