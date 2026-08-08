@@ -263,7 +263,11 @@ public sealed class SchemaDocsTests
             foreach (Match m in fromLinePattern.Matches(text))
             {
                 var line = m.Value;
-                if (line.TrimEnd().EndsWith('\\'))
+                // Either continuation character: backslash by default, or
+                // backtick under the `escape` directive. No legitimate FROM
+                // ends with either, so both are refused without parsing the
+                // directive itself.
+                if (line.TrimEnd().EndsWith('\\') || line.TrimEnd().EndsWith('`'))
                     AddHit($"{line.Trim()} (FROM continued past the line — not a reviewable pin)");
                 else if (line.Contains('$') && pgNamePattern.IsMatch(line))
                     AddHit($"{line.Trim()} (interpolated image line — not a reviewable pin)");
