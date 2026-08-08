@@ -310,7 +310,10 @@ public sealed class SchemaDocsTests
                     if (seq.Success && (Regex.IsMatch(seq.Groups["rest"].Value, @"(?<!\$)\{")
                         || !seq.Groups["rest"].Value.Contains(']')
                         || Regex.IsMatch(seq.Groups["rest"].Value, @"(?:^|,)[ \t]*(?:[&!][^\s\]]+[ \t]+)*[A-Za-z0-9_.-]+[ \t]*:[ \t]")
-                        || Regex.IsMatch(seq.Groups["rest"].Value, @"[""'][ \t]*:")))
+                        || Regex.IsMatch(seq.Groups["rest"].Value, @"[""'][ \t]*:")
+                        // Explicit compact pairs (an entry-position ? key
+                        // indicator, node props allowed before it).
+                        || Regex.IsMatch(seq.Groups["rest"].Value, @"(?:^|,)[ \t]*(?:[&!][^\s\]]+[ \t]+)*\?([ \t]|\]|$)")))
                     {
                         AddHit($"{textLines[i].Trim()} (flow sequence carrying mappings or deferring past the line — not reviewable)");
                         continue;
