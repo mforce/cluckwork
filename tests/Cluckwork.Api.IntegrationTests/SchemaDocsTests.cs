@@ -307,8 +307,17 @@ public sealed class SchemaDocsTests
                     // string arrays stay clean.
                     var seq = Regex.Match(textLines[i],
                         @"^[ \t]*(?:-[ \t]+)*(?:[&!][^\s]+[ \t]+)*[A-Za-z0-9_.""'<-]+[ \t]*:[ \t]*(?:[&!][^\s\[]+[ \t]+)*\[(?<rest>[^\r\n]*)");
+                    // The CLOSE check must not be satisfied by a bracket
+                    // living inside a quoted scalar or a trailing comment —
+                    // evaluate it on a scope with quoted spans blanked and
+                    // the comment tail cut.
+                    var closeScope = seq.Success
+                        ? Regex.Replace(seq.Groups["rest"].Value, @"""[^""]*""|'[^']*'", "\"\"")
+                        : "";
+                    var hashIdx = closeScope.IndexOf('#');
+                    if (hashIdx >= 0) closeScope = closeScope[..hashIdx];
                     if (seq.Success && (Regex.IsMatch(seq.Groups["rest"].Value, @"(?<!\$)\{")
-                        || !seq.Groups["rest"].Value.Contains(']')
+                        || !closeScope.Contains(']')
                         || Regex.IsMatch(seq.Groups["rest"].Value, @"(?:^|,)[ \t]*(?:[&!][^\s\]]+[ \t]+)*[A-Za-z0-9_.-]+[ \t]*:[ \t]")
                         || Regex.IsMatch(seq.Groups["rest"].Value, @"[""'][ \t]*:")
                         // Explicit compact pairs (an entry-position ? key
