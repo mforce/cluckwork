@@ -153,7 +153,9 @@ public sealed class SchemaDocsTests
         // postgres-naming interpolated value is refused. The remaining
         // boundary is unchanged: a variable whose name does not identify
         // postgres is opaque indirection no text scan can close.
-        var imageKeyLinePattern = new Regex(@"^[ \t]*" + ImageKey + @"[ \t]*(?<value>[^\r\n]*?)[ \t]*\r?$",
+        // Node properties (a tag or anchor) and sequence dashes may precede
+        // the key itself — a tagged plain key still resolves to `image`.
+        var imageKeyLinePattern = new Regex(@"^[ \t]*(?:-[ \t]+)*(?:[&!][^\s]+[ \t]+)*" + ImageKey + @"[ \t]*(?<value>[^\r\n]*?)[ \t]*\r?$",
             RegexOptions.IgnoreCase);
         var literalImageValuePattern = new Regex(@"^[""']?[A-Za-z0-9][A-Za-z0-9._:@/-]*[""']?(?:[ \t]+#[^\r\n]*)?$");
         // Deliberate exception: a GitHub Actions expression carrying a PRIOR
@@ -577,7 +579,7 @@ public sealed class SchemaDocsTests
             JOIN pg_class c ON c.oid = a.attrelid
             JOIN pg_namespace n ON n.oid = c.relnamespace
             LEFT JOIN pg_attrdef d ON d.adrelid = a.attrelid AND d.adnum = a.attnum
-            WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p', 'm')
+            WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p', 'm', 'v')
               AND a.attnum > 0 AND NOT a.attisdropped
             ORDER BY c.relname, a.attnum
             """;
