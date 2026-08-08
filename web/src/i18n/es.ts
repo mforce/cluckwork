@@ -239,6 +239,10 @@ export const es = {
     product: "Producto",
     perLabel: "Por",
     quantity: "Cantidad",
+    // #445
+    quantityWithUnit: "Cantidad ({{unit}})",
+    equalsEggs: "= {{count}} huevos",
+    productOptionWithUnit: "{{name}} ({{count}} huevos/{{unit}})",
     unitPriceWithCurrency: "Precio unitario ({{code}})",
     method: "Método",
     referenceOptional: "Referencia (opcional)",
@@ -1850,7 +1854,9 @@ export const es = {
       "Los pedidos comienzan como <strong>borradores</strong>: agregue líneas eligiendo un "
       + "<strong>producto</strong>, una unidad empacada (docena, cartón, …), una cantidad entera, y un "
       + "precio por unidad (precargado desde el valor predeterminado del producto, se permiten decimales) — "
-      + "edite libremente, o <strong>cancele</strong> (el borrador se conserva, de solo lectura). Cada línea "
+      + "edite libremente, o <strong>cancele</strong> (el borrador se conserva, de solo lectura). La cantidad "
+      + "cuenta <strong>unidades, no huevos</strong> — el campo indica la unidad y muestra el total de huevos "
+      + "resultante mientras escribe (2 bandejas = 60 huevos, no 60 bandejas). Cada línea "
       + "recuerda cuántos huevos contenía su unidad cuando se agregó, así que redefinir un cartón más tarde "
       + "nunca cambia pedidos antiguos.",
     salesConfirming:

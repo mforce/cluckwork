@@ -250,6 +250,10 @@ export const tl = {
     product: "Produkto",
     perLabel: "Bawat",
     quantity: "Dami",
+    // #445
+    quantityWithUnit: "Dami ({{unit}})",
+    equalsEggs: "= {{count}} na itlog",
+    productOptionWithUnit: "{{name}} ({{count}} na itlog/{{unit}})",
     unitPriceWithCurrency: "Presyo bawat yunit ({{code}})",
     method: "Paraan",
     referenceOptional: "Reference (opsyonal)",
@@ -1922,6 +1926,8 @@ export const tl = {
       + "pagpili ng <strong>produkto</strong>, isang packed unit (dosena, karton, …), isang buong bilang "
       + "na dami, at isang presyo kada unit (naka-prefill mula sa default ng produkto, pinapayagan ang "
       + "decimal) — i-edit nang malaya, o <strong>kanselahin</strong> (mananatili ang draft, read-only). "
+      + "Ang dami ay bilang ng <strong>mga unit, hindi mga itlog</strong> — nakasaad sa field ang unit at "
+      + "ipinapakita nito ang kabuuang itlog habang nagta-type (2 tray = 60 itlog, hindi 60 tray). "
       + "Naaalala ng bawat linya kung ilang itlog ang laman ng unit nito noong idinagdag ito, kaya hindi "
       + "kailanman binabago ng muling pagtukoy sa isang karton ang mga lumang order.",
     salesConfirming:

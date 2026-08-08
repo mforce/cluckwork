@@ -271,6 +271,14 @@ dozen 12, flat/tray 30, carton 12, case 360; individual is always 1 and
 immutable). Sales lines will snapshot the factor at line creation — redefining
 a unit never reinterprets recorded orders.
 
+The unit is visible at the point of entry (#445): a sales line's quantity
+counts *units, not eggs*, so the add-line form names the unit in the quantity
+label ("Quantity (tray)"), previews the resulting egg count live while typing
+("= 60 eggs"), and shows the unit size on the product picker option ("(30
+eggs/tray)") — typing the egg total where the unit count belongs (a 30×
+oversale) is visible before the line is added, and the eggs column tracks an
+inline quantity edit the same way.
+
 **Deactivated grade** — removed from capture and order pickers; existing
 stock stays counted and order lines added before deactivation can still
 confirm, but the grade cannot go on *new* order lines (`AddOrderItem`
