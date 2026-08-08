@@ -52,6 +52,16 @@ public sealed class AddOrderItemHandler(
                 "SalesOrder.NoUnitConversion",
                 $"No active eggs-per-unit definition for '{unit}' — set one on the Products screen."));
 
+        // #445 — the caller previewed "= N eggs" from a factor it read
+        // earlier; if the definition changed in between, snapshotting the new
+        // one would silently record a different QuantityBase than the user
+        // saw. Refuse instead — the user re-checks against the new factor.
+        if (command.ExpectedEggsPerUnit is { } expected && expected != conversion.EggsPerUnit)
+            return Result.Failure<Guid>(Error.Validation(
+                "SalesOrder.UnitDefinitionChanged",
+                $"The eggs-per-unit definition for '{unit}' is now {conversion.EggsPerUnit}, not {expected} — " +
+                "re-check the quantity and try again."));
+
         // Price defaults from the product (per selling unit).
         var priceMinorUnits = command.UnitPriceMinorUnits ?? product.DefaultPriceMinorUnits;
         if (priceMinorUnits is null)

@@ -288,9 +288,27 @@ export function SalesPage() {
       if (!Number.isFinite(minorUnits) || minorUnits < 0) throw new Error(i18n.t("sales:invalidUnitPrice"));
     }
     const scope = `add-item:${active.id}`;
-    await addOrderItem(active.id,
-      { productId, quantity: qty, unit, unitPriceMinorUnits: minorUnits },
-      keyFor(scope));
+    // #445 — bind the previewed factor to the write: if an admin redefined
+    // the unit after this page read its conversions, the server refuses
+    // (SalesOrder.UnitDefinitionChanged) instead of recording a QuantityBase
+    // different from the "= N eggs" the seller saw. undefined when nothing
+    // was previewed (per-egg unit, or no/failed conversions read).
+    const previewed = unit === "Egg" ? null : eggsPerUnit(unit);
+    try {
+      await addOrderItem(active.id,
+        {
+          productId, quantity: qty, unit, unitPriceMinorUnits: minorUnits,
+          expectedEggsPerUnit: previewed ?? undefined,
+        },
+        keyFor(scope));
+    } catch (err) {
+      // Any server rejection may mean the conversions moved under us (the
+      // UnitDefinitionChanged case) — refresh them so the preview and the
+      // next attempt use the current factors instead of looping on stale
+      // ones. Fire-and-forget: the thrown error still surfaces normally.
+      if (err instanceof ApiError) listEggUnitConversions().then(setConversions).catch(() => {});
+      throw err;
+    }
     setActive(await getOrder(active.id));
     clearKey(scope);
   });

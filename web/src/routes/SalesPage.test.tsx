@@ -10,6 +10,7 @@ import {
   removeOrderItem, updateOrderItem, voidOrder, voidPayment,
 } from "../api/cluckwork";
 import type { Customer, EggGrade, EggUnitConversion, OrderItem, Product, SalesOrder } from "../api/cluckwork";
+import { ApiError } from "../api/client";
 
 // Keep the REAL formatMoney + parseMoneyToMinorUnits (the money math under test)
 // via importOriginal; stub only the network seam. Every network call the screen
@@ -378,6 +379,56 @@ describe("SalesPage quantity unit clarity (#445)", () => {
     expect(screen.getByRole("option", { name: "Grade A Dozen" })).toBeInTheDocument();
     expect(screen.getByRole("spinbutton", { name: "Quantity (dozen)" })).toBeInTheDocument();
     expect(screen.queryByText(/= \d+ eggs/)).not.toBeInTheDocument();
+  });
+
+  it("binds the previewed factor to the write — expectedEggsPerUnit rides the add-item request", async () => {
+    await renderReady();
+    await createDraft(draftEmpty(2, "USD"));
+    mockAddOrderItem.mockResolvedValue({ orderId: "o1", itemId: "new" });
+
+    // Dozen previews 12 → the write carries 12, so the server can refuse if
+    // an admin redefined the unit after this page read its conversions.
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Add line" }));
+    });
+    expect(mockAddOrderItem.mock.calls[0][1]).toMatchObject({
+      productId: "p1", quantity: 30, unit: "Dozen", expectedEggsPerUnit: 12,
+    });
+  });
+
+  it("omits expectedEggsPerUnit when nothing was previewed (per-egg unit)", async () => {
+    await renderReady();
+    await createDraft(draftEmpty(2, "USD"));
+    mockAddOrderItem.mockResolvedValue({ orderId: "o1", itemId: "new" });
+
+    fireEvent.change(screen.getByLabelText("Per"), { target: { value: "Egg" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Add line" }));
+    });
+    // No preview was shown, so there is no displayed factor to hold the
+    // server to — the write must not fabricate one.
+    expect(mockAddOrderItem.mock.calls[0][1].expectedEggsPerUnit).toBeUndefined();
+  });
+
+  it("refreshes the conversions after a rejected add, so the preview leaves the stale factor", async () => {
+    await renderReady();
+    await createDraft(draftEmpty(2, "USD"));
+    // The server refuses: the definition changed under the page.
+    mockAddOrderItem.mockRejectedValue(new ApiError(422, "SalesOrder.UnitDefinitionChanged",
+      "The eggs-per-unit definition for 'Dozen' is now 6, not 12 — re-check the quantity and try again."));
+    mockListEggUnitConversions.mockResolvedValue([
+      { id: "cv2", unitCode: "Dozen", eggsPerUnit: 6, active: true, version: 2 },
+    ]);
+
+    expect(screen.getByText("= 360 eggs")).toBeInTheDocument(); // 30 × stale 12
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Add line" }));
+    });
+
+    // The refusal surfaces AND the preview now shows the current factor —
+    // without the refetch every retry would loop on the stale 12.
+    expect(await screen.findByText(/is now 6, not 12/)).toBeInTheDocument();
+    expect(await screen.findByText("= 180 eggs")).toBeInTheDocument(); // 30 × fresh 6
   });
 
   it("tracks the edited quantity live in the eggs column during an inline edit", async () => {

@@ -307,7 +307,14 @@ export const createOrder = (body: { customerId: string; orderDate: string }, key
 
 export const addOrderItem = (
   orderId: string,
-  body: { productId: string; quantity: number; unit?: string; unitPriceMinorUnits?: number },
+  body: {
+    productId: string; quantity: number; unit?: string; unitPriceMinorUnits?: number;
+    // #445 — the eggs-per-unit factor the UI previewed while the quantity was
+    // entered; the server refuses the write (422 SalesOrder.UnitDefinitionChanged)
+    // if the definition changed in between, so the recorded QuantityBase can
+    // never silently differ from the previewed one. Omit when nothing was shown.
+    expectedEggsPerUnit?: number;
+  },
   key?: string,
 ) => apiPost<{ orderId: string; itemId: string }>(`/sales/${orderId}/items`, body, key);
 

@@ -44,9 +44,9 @@ public sealed class SalesProductTests(CluckworkWebApplicationFactory factory)
 
     private static Task<HttpResponseMessage> AddLineAsync(
         HttpClient client, Guid orderId, Guid productId, int quantity,
-        string? unit = null, long? price = null) =>
+        string? unit = null, long? price = null, int? expectedFactor = null) =>
         client.PostWithKeyAsync($"/api/v1/sales/{orderId}/items", Guid.NewGuid().ToString(),
-            new { productId, quantity, unit, unitPriceMinorUnits = price });
+            new { productId, quantity, unit, unitPriceMinorUnits = price, expectedEggsPerUnit = expectedFactor });
 
     // Spec §9.7: the factor is snapshotted at line creation — redefining the
     // carton later must never reinterpret an existing line.
@@ -78,6 +78,48 @@ public sealed class SalesProductTests(CluckworkWebApplicationFactory factory)
         Assert.Contains(order.Items, i => i.BaseUnitFactor == 30 && i.Quantity == 1 && i.QuantityBase == 30);
         // Total is per selling unit: (2 + 1) × 100.
         Assert.Equal(300, order.TotalMinorUnits);
+    }
+
+    // #445 — the SPA previews "= N eggs" from a conversions read done at page
+    // load and passes that factor with the write; a redefinition in between
+    // must refuse rather than silently snapshot a QuantityBase different from
+    // the previewed one. Probed from both sides: a matching factor sails
+    // through (the guard is not overzealous), a stale one 422s, and re-adding
+    // with the current factor succeeds (the refusal is recoverable).
+    [Fact]
+    public async Task AddLine_StaleExpectedFactor_RefusedAfterUnitRedefinition()
+    {
+        var (client, _, _, _, productId) = await SetupAsync();
+        var orderId = await CreateDraftAsync(client);
+
+        // Matching the current definition (Carton default 12) → accepted.
+        Assert.Equal(HttpStatusCode.Created,
+            (await AddLineAsync(client, orderId, productId, 1, unit: "Carton", expectedFactor: 12)).StatusCode);
+
+        // An admin redefines the carton while the seller's page still says 12.
+        var conversions = await client.GetFromJsonAsync<List<ConversionRow>>("/api/v1/egg-unit-conversions");
+        var carton = conversions!.Single(c => c.UnitCode == "Carton");
+        var put = new HttpRequestMessage(HttpMethod.Put, $"/api/v1/egg-unit-conversions/{carton.Id}")
+        { Content = JsonContent.Create(new { eggsPerUnit = 30, active = true }) };
+        put.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
+        Assert.Equal(HttpStatusCode.NoContent, (await client.SendAsync(put)).StatusCode);
+
+        var stale = await AddLineAsync(client, orderId, productId, 2, unit: "Carton", expectedFactor: 12);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, stale.StatusCode);
+        Assert.Contains("UnitDefinitionChanged", await stale.Content.ReadAsStringAsync());
+
+        // Nothing was recorded for the refused line, and retrying with the
+        // current factor works.
+        var order = await client.GetFromJsonAsync<OrderDto>($"/api/v1/sales/{orderId}");
+        Assert.Single(order!.Items);
+        Assert.Equal(HttpStatusCode.Created,
+            (await AddLineAsync(client, orderId, productId, 2, unit: "Carton", expectedFactor: 30)).StatusCode);
+
+        // A non-positive expected factor can only be a caller bug (real
+        // factors are floored at 1) — rejected by validation, not compared.
+        var zero = await AddLineAsync(client, orderId, productId, 1, unit: "Carton", expectedFactor: 0);
+        Assert.Equal(HttpStatusCode.BadRequest, zero.StatusCode);
+        Assert.Contains("ExpectedEggsPerUnit", await zero.Content.ReadAsStringAsync());
     }
 
     // Allocation and the oversell guard run on quantity_base, not unit count.
