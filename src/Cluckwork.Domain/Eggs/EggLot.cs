@@ -109,10 +109,43 @@ public sealed class EggLot : AggregateRoot<Guid>
         if (newQuantity < sold)
             return Result.Failure(Error.Domain(
                 "EggLot.SoldExceedsAdjusted",
-                $"{sold} eggs from this lot are already sold or allocated; production cannot be set below that."));
+                $"{sold} eggs from this lot are already sold, allocated, or written off; production cannot be set below that."));
 
         QuantityProduced = newQuantity;
         QuantityAvailable = newQuantity - sold;
+        Version++;
+        return Result.Success();
+    }
+
+    // Standalone stock correction (#406): write-off (breakage, spoilage,
+    // internal use) or reconciliation recount. Available moves within
+    // [0, Produced]; production is a fact about the day's laying this method
+    // never restates — beyond-produced recounts belong to AdjustProduction
+    // via the daily entry. Withdrawal restriction is intentionally not
+    // checked: it protects sales, and removing stock is the safe direction.
+    // Call only inside the pessimistic FOR UPDATE transaction, like Allocate.
+    public Result AdjustAvailable(int delta)
+    {
+        if (delta == 0)
+            return Result.Failure(Error.Validation(
+                "EggLot.InvalidQuantity", "Adjustment quantity cannot be zero."));
+
+        // 64-bit sums: near-int.MaxValue lots would wrap the 32-bit addition
+        // negative and sail past both guards (security review of #406).
+        if (delta < 0 && -(long)delta > QuantityAvailable)
+            return Result.Failure(Error.Domain(
+                "EggLot.InsufficientStock",
+                $"Cannot remove {-(long)delta}: only {QuantityAvailable} available in this lot."));
+
+        // Coarse ceiling only — the handler additionally caps a positive delta
+        // at the lot's cumulative write-off total, because allocation lowers
+        // Available without touching Produced and this guard cannot see it.
+        if (delta > 0 && QuantityAvailable + (long)delta > QuantityProduced)
+            return Result.Failure(Error.Domain(
+                "EggLot.ReconcileExceedsProduced",
+                $"Adding {delta} would exceed the {QuantityProduced} produced in this lot; a recount above production is a daily-entry adjustment."));
+
+        QuantityAvailable += delta;
         Version++;
         return Result.Success();
     }
@@ -127,7 +160,7 @@ public sealed class EggLot : AggregateRoot<Guid>
             return Result.Failure(Error.Validation(
                 "EggLot.InvalidQuantity", "Restore quantity must be positive."));
 
-        if (QuantityAvailable + quantity > QuantityProduced)
+        if (QuantityAvailable + (long)quantity > QuantityProduced)
             return Result.Failure(Error.Domain(
                 "EggLot.RestoreExceedsProduced",
                 $"Restoring {quantity} would exceed the {QuantityProduced} produced in this lot."));

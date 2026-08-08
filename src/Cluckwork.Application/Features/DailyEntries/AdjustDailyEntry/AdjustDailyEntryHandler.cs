@@ -155,7 +155,7 @@ public sealed class AdjustDailyEntryHandler(
                     failure = Result.Failure<AdjustDailyEntryResponse>(await NameGradeAsync(
                         Error.Domain(
                             "EggLot.SoldExceedsAdjusted",
-                            $"{totalSold} eggs of this grade are already sold or allocated; production cannot be set below that."),
+                            $"{totalSold} eggs of this grade are already sold, allocated, or written off; production cannot be set below that."),
                         gradeLots.Key, transactionCt));
                     return false;
                 }

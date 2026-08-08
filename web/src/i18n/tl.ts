@@ -879,6 +879,25 @@ export const tl = {
     ledgerTypeHeader: "Uri",
     ledgerChangeHeader: "Pagbabago",
     ledgerReasonHeader: "Dahilan",
+
+    // #406 — write-off / reconciliation kada lote (Owner/Manager lamang).
+    writeOffButton: "i-write off",
+    writeOffNeedsAdminMessage: "Ang mga pagwawasto ng stock ay nangangailangan ng Owner o Manager.",
+    writeOffDialogTitle: "Iwasto ang stock — lote ng {{date}}",
+    writeOffTypeLabel: "Uri",
+    writeOffDirectionLabel: "Direksyon",
+    writeOffDirectionRemoveOption: "Bawasan ang itlog (nawala o mas kaunti sa naitala)",
+    writeOffDirectionAddOption: "Ibalik ang itlog (mas marami ang nabilang)",
+    writeOffQuantityLabel: "Itlog",
+    writeOffReasonLabel: "Dahilan",
+    writeOffPreviewMessage: "{{current}} → {{result}} ang available",
+    writeOffSubmitButton: "Itala ang pagwawasto",
+    writeOffRecordedMessage: "Naitala ang pagwawasto — {{available}} na ang available.",
+    writeOffQuantityRequired: "Ilagay kung ilang itlog.",
+    writeOffReasonRequired: "Kailangan ng dahilan ang mga pagwawasto.",
+    writeOffOutOfRangeMessage:
+      "Ang resulta ay dapat manatili sa pagitan ng 0 at ng {{produced}} na ginawa ng loteng ito. "
+      + "Ang bilang na lampas sa produksyon ay pagsasaayos ng araw-araw na entry.",
   },
 
   // machine-drafted (#182) — pending native review. Task CT3 (B3 catch-up):
@@ -1602,10 +1621,12 @@ export const tl = {
     "auditAction.Product.Activate": "Na-activate ang produkto",
     "auditAction.Product.Deactivate": "Na-deactivate ang produkto",
     "auditAction.EggUnitConversion.Update": "Na-update ang conversion ng yunit ng itlog",
+    "auditAction.EggLot.Movement": "Na-write off / na-recount ang stock",
 
     "entityType.Account": "Account",
     "entityType.DailyEntry": "Araw-araw na Entry",
     "entityType.EggGrade": "Grado ng Itlog",
+    "entityType.EggLot": "Lote ng Itlog",
     "entityType.EggUnitConversion": "Conversion ng Yunit ng Itlog",
     "entityType.Expense": "Gastos",
     "entityType.ExpenseCategory": "Kategorya ng Gastos",
@@ -1937,6 +1958,12 @@ export const tl = {
       + "itlog, kaya hindi ipinapatupad ng system ang mga withdrawal time sa ngayon</strong> — pamahalaan "
       + "ang mga withholding period sa labas ng Cluckwork sa ngayon.",
     stockFifo: "Palaging kinukuha muna ng pagbebenta ang mga pinakalumang lote, para natural na umiikot ang stock.",
+    stockWriteOff:
+      "Ang nawalang stock — nabasag, nasira, itlog na nagamit sa bahay — ay itinatala gamit ang "
+      + "<strong>i-write off</strong> sa lote (Owner/Manager, kailangan ng dahilan). Binabawasan nito ang "
+      + "available ng lote nang hindi ginagalaw ang mga bilang ng produksyon ng araw; maaari ring magbalik ng "
+      + "itlog ang recount, hanggang sa dating na-write off. Kung sinasabi ng recount na mali ang "
+      + "<em>pangingitlog</em> ng araw, ayusin na lang ang araw-araw na entry.",
 
     inventoryHeading: "Feed at Imbentaryo",
     inventoryItems:
@@ -2345,6 +2372,12 @@ export const tl = {
       "Ang history line by line sa likod ng balanse ng isang lote ng itlog: papasok na production, "
       + "palabas na benta, at mga pagtatama at void na may kaukulang sign.",
 
+    glossaryStockWriteOffTerm: "Write-off ng stock",
+    glossaryStockWriteOffDef:
+      "Pagwawasto ng Owner/Manager na nag-aalis ng nawalang itlog mula sa isang lote (nabasag, nasira, nagamit "
+      + "sa bahay) o naglalapat ng recount, na may kinakailangang dahilan. Binabago lamang nito ang available ng "
+      + "lote — hindi ginagalaw ang mga bilang ng produksyon ng araw. Maaaring magbalik ng itlog ang recount "
+      + "hanggang sa dating na-write off.",
     glossaryFifoTerm: "FIFO",
     glossaryFifoDef:
       "\"First in, first out\" — palaging kinukuha muna ng benta at ng paggamit ng feed ang pinakalumang "

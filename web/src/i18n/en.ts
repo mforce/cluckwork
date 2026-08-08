@@ -999,7 +999,7 @@ export const en = {
 
     // Movement ledger drill-down (per lot). Type reads the RAW server value
     // through stockMovementLabel — the full EggMovementType enum is covered
-    // (there is no picker on this read-only screen).
+    // (the #406 write-off dialog's type picker reuses the same labels).
     movementLedgerHeading: "Movement ledger",
     movementLedgerIntro:
       "Every change to this lot's available eggs — the running sum always "
@@ -1008,6 +1008,26 @@ export const en = {
     ledgerTypeHeader: "Type",
     ledgerChangeHeader: "Change",
     ledgerReasonHeader: "Reason",
+
+    // #406 — per-lot write-off / reconciliation (Owner/Manager only). Type
+    // options reuse enums:stockMovement.* via stockMovementLabel.
+    writeOffButton: "write off",
+    writeOffNeedsAdminMessage: "Stock corrections need an Owner or Manager.",
+    writeOffDialogTitle: "Correct stock — lot of {{date}}",
+    writeOffTypeLabel: "Type",
+    writeOffDirectionLabel: "Direction",
+    writeOffDirectionRemoveOption: "Remove eggs (lost or fewer than recorded)",
+    writeOffDirectionAddOption: "Add eggs back (recount found more)",
+    writeOffQuantityLabel: "Eggs",
+    writeOffReasonLabel: "Reason",
+    writeOffPreviewMessage: "{{current}} → {{result}} available",
+    writeOffSubmitButton: "Record correction",
+    writeOffRecordedMessage: "Stock correction recorded — {{available}} now available.",
+    writeOffQuantityRequired: "Enter how many eggs.",
+    writeOffReasonRequired: "A reason is required for corrections.",
+    writeOffOutOfRangeMessage:
+      "The result must stay between 0 and the {{produced}} this lot produced. "
+      + "A recount above production is a daily-entry adjustment.",
   },
   // Flock roster + bird ledger — create/edit identity fields, deplete/archive/
   // reactivate lifecycle, and mortality/cull/adjustment movements (Task 19,
@@ -1931,11 +1951,13 @@ export const en = {
     "auditAction.Product.Activate": "Product activated",
     "auditAction.Product.Deactivate": "Product deactivated",
     "auditAction.EggUnitConversion.Update": "Egg unit conversion updated",
+    "auditAction.EggLot.Movement": "Stock written off / recounted",
 
     // entity type (AuditPage table entity cell) — AuditEvent.entityType.
     "entityType.Account": "Account",
     "entityType.DailyEntry": "Daily entry",
     "entityType.EggGrade": "Egg grade",
+    "entityType.EggLot": "Egg lot",
     "entityType.EggUnitConversion": "Egg unit conversion",
     "entityType.Expense": "Expense",
     "entityType.ExpenseCategory": "Expense category",
@@ -2241,6 +2263,11 @@ export const en = {
       + "marks eggs restricted yet, so the system does not enforce withdrawal times today</strong> — manage "
       + "withholding periods outside Cluckwork for now.",
     stockFifo: "Selling always takes the oldest lots first, so stock naturally rotates.",
+    stockWriteOff:
+      "Lost stock — breakage, spoilage, eggs used by the household — is recorded with <strong>write off</strong> "
+      + "on the lot (Owner/Manager, reason required). It lowers the lot's available count without touching the "
+      + "day's production figures; a recount can also add eggs back, up to what was previously written off. If "
+      + "the recount says the day's <em>laying</em> was wrong, adjust the daily entry instead.",
 
     // Feed & inventory
     inventoryHeading: "Feed & inventory",
@@ -2638,6 +2665,11 @@ export const en = {
       "The line-by-line history behind an egg lot's balance: production in, sales out, corrections and "
       + "voids signed accordingly.",
 
+    glossaryStockWriteOffTerm: "Stock write-off",
+    glossaryStockWriteOffDef:
+      "An Owner/Manager correction that removes lost eggs from a lot (breakage, spoilage, internal use) or "
+      + "applies a recount, with a required reason. It changes only the lot's available count — the day's "
+      + "production figures stay untouched. A recount can add eggs back up to what was previously written off.",
     glossaryFifoTerm: "FIFO",
     glossaryFifoDef: "\"First in, first out\" — sales and feed usage always take the oldest stock first.",
 

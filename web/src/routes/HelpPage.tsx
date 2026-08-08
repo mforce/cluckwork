@@ -272,6 +272,9 @@ export function HelpPage() {
           <Trans ns="help" i18nKey="stockRestricted" components={{ strong: <strong /> }} />
         </li>
         <li>{t("stockFifo")}</li>
+        <li>
+          <Trans ns="help" i18nKey="stockWriteOff" components={{ strong: <strong />, em: <em /> }} />
+        </li>
       </ul>
 
       <h3 id="inventory">{t("inventoryHeading")}</h3>
@@ -534,6 +537,8 @@ export function HelpPage() {
             <td>{t("glossaryGradeDef")}</td></tr>
           <tr><th scope="row">{t("glossaryEggMovementLedgerTerm")}</th>
             <td>{t("glossaryEggMovementLedgerDef")}</td></tr>
+          <tr><th scope="row">{t("glossaryStockWriteOffTerm")}</th>
+            <td>{t("glossaryStockWriteOffDef")}</td></tr>
           <tr><th scope="row">{t("glossaryFifoTerm")}</th>
             <td>{t("glossaryFifoDef")}</td></tr>
           <tr><th scope="row">{t("glossaryCullTerm")}</th>

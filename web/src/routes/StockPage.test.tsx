@@ -1,9 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, within, fireEvent } from "@testing-library/react";
+import type { ReactNode } from "react";
+import { screen, within, fireEvent } from "@testing-library/react";
 import { StockPage } from "./StockPage";
-import { getStock, listEggLots, listEggLotMovements } from "../api/cluckwork";
+import {
+  getStock, listEggLots, listEggLotMovements, recordEggLotMovement,
+} from "../api/cluckwork";
 import type { StockRow, EggLotRow, EggMovementRow } from "../api/cluckwork";
 import i18n from "../i18n";
+import { renderWithProviders } from "../test/renderWithProviders";
 
 // Mock the API seam so the screen renders against controlled data — no network,
 // no backend. This proves the component test harness handles an async data load,
@@ -12,11 +16,22 @@ vi.mock("../api/cluckwork", () => ({
   getStock: vi.fn(),
   listEggLots: vi.fn(),
   listEggLotMovements: vi.fn(),
+  recordEggLotMovement: vi.fn(),
 }));
 
 const mockGetStock = vi.mocked(getStock);
 const mockListEggLots = vi.mocked(listEggLots);
 const mockListEggLotMovements = vi.mocked(listEggLotMovements);
+const mockRecordEggLotMovement = vi.mocked(recordEggLotMovement);
+
+// The screen role-gates the write-off action through the real AuthProvider, so
+// every render seeds a token; OWNER for the existing read-path tests (gating
+// is asserted separately below).
+const OWNER = { sub: "u1", role: "Admin" };
+const WORKER = { sub: "u2" }; // no role claim — a plain Worker
+
+const render = (ui: ReactNode, token: Record<string, unknown> = OWNER) =>
+  renderWithProviders(ui, { token });
 
 const ROWS: StockRow[] = [
   { eggGradeId: "g1", gradeName: "Grade A", available: 100, restricted: 0 },
@@ -35,6 +50,7 @@ beforeEach(() => {
   mockGetStock.mockReset();
   mockListEggLots.mockReset();
   mockListEggLotMovements.mockReset();
+  mockRecordEggLotMovement.mockReset();
 });
 
 describe("StockPage", () => {
@@ -183,10 +199,8 @@ describe("StockPage drill-down", () => {
 // i18n wiring (#182, Task 18, batch B3 — the last B3 screen)
 // ---------------------------------------------------------------------------
 
-// `stock` is English-only (not in TRANSLATED_NAMESPACES — see
-// translations-status.ts), so under ANY UI language the rendered text falls
-// back to this exact English string, same as a still-hardcoded literal would
-// render — asserting it, even under a non-English locale, would prove nothing
+// The tests run under the English catalog, so asserting an English string
+// would prove nothing — a still-hardcoded literal renders identically
 // (CONTRIBUTING-i18n.md's fallback trap). Swap the catalog value at runtime
 // instead, the same i18n.addResource technique the other batches use, so each
 // marker only renders if the screen actually reads the catalog rather than a
@@ -271,5 +285,169 @@ describe("StockPage i18n wiring (#182, Task 18)", () => {
       expect(await screen.findByText("LOAD-LOTS-MARKER")).toBeInTheDocument();
       expect(screen.queryByText(/Could not load the grade's lots/)).not.toBeInTheDocument();
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// #406 — per-lot write-off / reconciliation. Admin-gated dialog: type,
+// quantity (NumberField), direction (Reconciliation only), required reason.
+// UI gating is cosmetic (#73/#103) — the API enforces the role separately.
+// ---------------------------------------------------------------------------
+describe("StockPage write-off (#406)", () => {
+  const RESULT = {
+    movementId: "wo1", eggLotId: "lot1", movementType: "Discard",
+    quantityDelta: -7, reason: "dropped a tray",
+    createdAtUtc: "2026-08-08T10:00:00Z", quantityAvailable: 92, version: 2,
+  };
+
+  async function openLotRow(token: Record<string, unknown> = OWNER) {
+    mockGetStock.mockResolvedValue(ROWS);
+    mockListEggLots.mockResolvedValue(LOTS);
+    render(<StockPage />, token);
+    await screen.findByText("Grade A");
+    fireEvent.click(within(screen.getByRole("row", { name: /Grade A\b/ })).getByRole("button", { name: "lots" }));
+    return await screen.findByRole("row", { name: /2026-07-01/ });
+  }
+
+  function fillAndSubmit({ qty = "7", reason = "dropped a tray" }: { qty?: string; reason?: string } = {}) {
+    const dialog = screen.getByRole("dialog");
+    fireEvent.change(within(dialog).getByRole("spinbutton"), { target: { value: qty } });
+    if (reason) fireEvent.change(within(dialog).getByLabelText(/Reason/), { target: { value: reason } });
+    fireEvent.click(within(dialog).getByRole("button", { name: /Record/ }));
+    return dialog;
+  }
+
+  it("shows the write-off action to an admin on each lot row", async () => {
+    const lotRow = await openLotRow();
+    expect(within(lotRow).getByRole("button", { name: "write off" })).toBeInTheDocument();
+  });
+
+  it("hides the write-off action from a worker and explains why", async () => {
+    const lotRow = await openLotRow(WORKER);
+    expect(within(lotRow).queryByRole("button", { name: "write off" })).not.toBeInTheDocument();
+    expect(screen.getByText(/need an Owner or Manager/)).toBeInTheDocument();
+  });
+
+  it("submits a discard as a negative delta and refreshes the balances", async () => {
+    mockRecordEggLotMovement.mockResolvedValue(RESULT);
+    const lotRow = await openLotRow();
+
+    fireEvent.click(within(lotRow).getByRole("button", { name: "write off" }));
+    fillAndSubmit();
+
+    await screen.findByText(/92 now available/);
+    expect(mockRecordEggLotMovement).toHaveBeenCalledWith(
+      "lot1",
+      { movementType: "Discard", quantityDelta: -7, reason: "dropped a tray" },
+      expect.any(String));
+    // Balances refetched — the by-grade totals and the open grade's lots.
+    expect(mockGetStock).toHaveBeenCalledTimes(2);
+    expect(mockListEggLots).toHaveBeenCalledTimes(2);
+  });
+
+  it("shows the resulting balance before submitting", async () => {
+    const lotRow = await openLotRow();
+    fireEvent.click(within(lotRow).getByRole("button", { name: "write off" }));
+    const dialog = screen.getByRole("dialog");
+    fireEvent.change(within(dialog).getByRole("spinbutton"), { target: { value: "7" } });
+    // Lot has 99 available; writing off 7 leaves 92.
+    expect(within(dialog).getByText(/99 → 92/)).toBeInTheDocument();
+  });
+
+  it("sends a positive delta for a reconciliation recount that found eggs", async () => {
+    mockRecordEggLotMovement.mockResolvedValue(
+      { ...RESULT, movementType: "Reconciliation", quantityDelta: 7, quantityAvailable: 106 });
+    const lotRow = await openLotRow();
+
+    fireEvent.click(within(lotRow).getByRole("button", { name: "write off" }));
+    const dialog = screen.getByRole("dialog");
+    fireEvent.change(within(dialog).getByLabelText(/Type/), { target: { value: "Reconciliation" } });
+    fireEvent.change(within(dialog).getByLabelText(/Direction/), { target: { value: "add" } });
+    fillAndSubmit();
+
+    await screen.findByText(/106 now available/);
+    expect(mockRecordEggLotMovement).toHaveBeenCalledWith(
+      "lot1",
+      { movementType: "Reconciliation", quantityDelta: 7, reason: "dropped a tray" },
+      expect.any(String));
+  });
+
+  it("offers the direction choice only for a reconciliation", async () => {
+    const lotRow = await openLotRow();
+    fireEvent.click(within(lotRow).getByRole("button", { name: "write off" }));
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).queryByLabelText(/Direction/)).not.toBeInTheDocument();
+    fireEvent.change(within(dialog).getByLabelText(/Type/), { target: { value: "Reconciliation" } });
+    expect(within(dialog).getByLabelText(/Direction/)).toBeInTheDocument();
+  });
+
+  it("blocks a submit without a reason", async () => {
+    const lotRow = await openLotRow();
+    fireEvent.click(within(lotRow).getByRole("button", { name: "write off" }));
+    fillAndSubmit({ reason: "" });
+    expect(mockRecordEggLotMovement).not.toHaveBeenCalled();
+  });
+
+  it("blocks a submit of zero eggs", async () => {
+    const lotRow = await openLotRow();
+    fireEvent.click(within(lotRow).getByRole("button", { name: "write off" }));
+    fillAndSubmit({ qty: "0" });
+    expect(mockRecordEggLotMovement).not.toHaveBeenCalled();
+  });
+
+  it("rotates the key once the write succeeds, even if the refresh after it fails", async () => {
+    // Codex review: the write is durable the moment the server answers 200 —
+    // keeping the key while the dialog is editable would hash-conflict a
+    // later submit with edited values. Only the VIEW is stale on a failed
+    // refresh, and that surfaces as a page-level load error.
+    mockRecordEggLotMovement.mockResolvedValue(RESULT);
+    const lotRow = await openLotRow();
+    mockGetStock.mockRejectedValueOnce(new Error("refresh down"));
+
+    fireEvent.click(within(lotRow).getByRole("button", { name: "write off" }));
+    fillAndSubmit();
+    // The write landed: success message, dialog closed, stale-view error shown.
+    await screen.findByText(/92 now available/);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByText(/Could not load stock/)).toBeInTheDocument();
+
+    // A second write-off uses a FRESH key — the first is spent.
+    fireEvent.click(within(lotRow).getByRole("button", { name: "write off" }));
+    fillAndSubmit();
+    await screen.findByText(/92 now available/);
+    expect(mockRecordEggLotMovement).toHaveBeenCalledTimes(2);
+    const [, , firstKey] = mockRecordEggLotMovement.mock.calls[0];
+    const [, , secondKey] = mockRecordEggLotMovement.mock.calls[1];
+    expect(firstKey).not.toBe(secondKey);
+  });
+
+  it("keeps the same idempotency key across a retry after a failure", async () => {
+    mockRecordEggLotMovement
+      .mockRejectedValueOnce(new Error("network down"))
+      .mockResolvedValueOnce(RESULT);
+    const lotRow = await openLotRow();
+
+    fireEvent.click(within(lotRow).getByRole("button", { name: "write off" }));
+    fillAndSubmit();
+    await screen.findByText(/network down/);
+    fillAndSubmit();
+    await screen.findByText(/92 now available/);
+
+    expect(mockRecordEggLotMovement).toHaveBeenCalledTimes(2);
+    const [, , firstKey] = mockRecordEggLotMovement.mock.calls[0];
+    const [, , secondKey] = mockRecordEggLotMovement.mock.calls[1];
+    expect(firstKey).toBe(secondKey); // a retry replays, never duplicates
+  });
+
+  it("reads the write-off button label from the catalog, not a hardcoded literal", async () => {
+    const original = i18n.getResource("en", "stock", "writeOffButton") as string;
+    i18n.addResource("en", "stock", "writeOffButton", "WRITE-OFF-MARKER");
+    try {
+      const lotRow = await openLotRow();
+      expect(within(lotRow).getByRole("button", { name: "WRITE-OFF-MARKER" })).toBeInTheDocument();
+      expect(within(lotRow).queryByRole("button", { name: "write off" })).not.toBeInTheDocument();
+    } finally {
+      i18n.addResource("en", "stock", "writeOffButton", original);
+    }
   });
 });
