@@ -157,6 +157,13 @@ public sealed class SchemaDocsTests
         // release-please.yml jq program — out of scope, as before.
         var flowMappingPattern = new Regex(
             @"(?m)^[ \t]*(?:-[ \t]+|[A-Za-z0-9_.""'-]+[ \t]*:[ \t]*)(?:[&!][^\s{]+[ \t]+)*\{(?!\}[ \t]*(?:#[^\r\n]*)?\r?$)[^\r\n]*");
+        // A document that is ITSELF a flow mapping opens with a brace at
+        // COLUMN 0 — and only there: a block scalar's body (the shell/jq
+        // JSON inside run: steps) must be indented past its key, so an
+        // unindented brace can never be embedded text. Anchoring at column 0
+        // is what separates a root flow document from ci.yml's heredocs.
+        var rootFlowPattern = new Regex(
+            @"(?m)^(?:[&!][^\s{]+[ \t]+)*\{(?!\}[ \t]*(?:#[^\r\n]*)?\r?$)[^\r\n]*");
         var fromLinePattern = new Regex(@"(?im)^[ \t]*FROM[ \t][^\r\n]*");
         var pgNamePattern = new Regex(@"postgres|_pg_?|pg_", RegexOptions.IgnoreCase);
         var mappingKeyPattern = new Regex(@"^[ \t]*[A-Za-z0-9_.-]+:([ \t]|\r?$)");
@@ -206,6 +213,8 @@ public sealed class SchemaDocsTests
             {
                 foreach (Match m in flowMappingPattern.Matches(text))
                     AddHit($"{m.Value.Trim()} (flow-style mapping — use block mappings; only the empty {{}} idiom is allowed)");
+                foreach (Match m in rootFlowPattern.Matches(text))
+                    AddHit($"{m.Value.Trim()} (root-level flow document — use a block mapping document)");
             }
 
             foreach (Match m in fromLinePattern.Matches(text))
