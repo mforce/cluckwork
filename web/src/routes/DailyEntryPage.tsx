@@ -17,7 +17,7 @@ import { usePendingAction } from "../components/usePendingAction";
 import { useFarm, useFarmToday } from "../farm/useFarm";
 import { armedState, gradingState } from "../lib/grading";
 import { newId } from "../lib/ids";
-import { resolveStepperUnitSize } from "../lib/stepperUnit";
+import { resolveStepperUnit } from "../lib/stepperUnit";
 import { useMe } from "../session/SessionContext";
 import i18n from "../i18n";
 import { statusLabel } from "../i18n/enums";
@@ -230,8 +230,9 @@ export function DailyEntryPage() {
   // back to "Individual" (today's plain +1/-1) if unset or unconfigured.
   const { farm } = useFarm();
   const me = useMe();
-  const stepSize = resolveStepperUnitSize(
+  const stepperUnit = resolveStepperUnit(
     farm?.defaultStepperUnit, me?.preferredStepperUnit, eggUnitConversions);
+  const stepSize = stepperUnit.eggsPerUnit;
   const selectedFlock = flocks.find((f) => f.id === flockId);
   const entryLocked = existingStatus !== null && existingStatus !== "Draft";
   // The prefill found a draft for this flock+date: the form is EDITING it,
@@ -520,6 +521,16 @@ export function DailyEntryPage() {
           {t("prefillFailedBanner")}{" "}
           <button className="link" type="button"
             onClick={() => setPrefillRetry((n) => n + 1)}>{tc("retry")}</button>
+        </p>
+      )}
+
+      {/* #444 — reinforces what the "+30" on the buttons already says: which
+          unit the taps count by and where that came from. Only when a pack
+          unit is in force — "counting by ones" would be noise restating the
+          default. */}
+      {stepSize > 1 && (
+        <p className="hint">
+          {t("stepperUnitCaption", { unit: stepperUnit.unitCode, count: stepSize })}
         </p>
       )}
 

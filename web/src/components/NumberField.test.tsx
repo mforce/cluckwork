@@ -67,18 +67,22 @@ describe("NumberField", () => {
   });
 
   // #444 — a farm/user counting by the pack unit (e.g. Tray = 30) rather than
-  // the individual egg.
+  // the individual egg. A non-1 step also renames the buttons ("… by 30"), so
+  // this block queries them by their suffixed accessible names.
   describe("step (#444)", () => {
+    const plus30 = () => screen.getByRole("button", { name: "Increase total eggs by 30" });
+    const minus30 = () => screen.getByRole("button", { name: "Decrease total eggs by 30" });
+
     it("steps by the configured unit on a tap, not by one", async () => {
       vi.useFakeTimers();
       render(<Host step={30} />);
 
-      await hold(plus(), 0);
+      await hold(plus30(), 0);
       expect(field()).toHaveValue(30);
 
-      await hold(minus(), 0);
+      await hold(minus30(), 0);
       expect(field()).toHaveValue(0);
-      expect(minus()).toBeDisabled();
+      expect(minus30()).toBeDisabled();
     });
 
     it("accelerates in multiples of the configured unit, not the raw stride", async () => {
@@ -88,7 +92,7 @@ describe("NumberField", () => {
       // Same 1300ms hold as the default-step case above (press 1 + ticks
       // 1-10 at x1 (10) + ticks 11-16 at x5 (30) = 41 strides) — each stride
       // now worth 30, not 1.
-      await hold(plus(), 1300);
+      await hold(plus30(), 1300);
 
       expect(field()).toHaveValue(41 * 30);
     });
@@ -99,6 +103,26 @@ describe("NumberField", () => {
 
       await hold(plus(), 0);
       expect(field()).toHaveValue(1);
+    });
+
+    // A tap moving 30 eggs behind a bare − / + is a mystery button: a non-1
+    // step is spelled out ON the control, and the accessible name carries the
+    // amount the visible text shows.
+    it("shows the amount on the buttons and in their accessible names when the step is a pack unit", () => {
+      render(<Host step={30} />);
+
+      const inc = screen.getByRole("button", { name: "Increase total eggs by 30" });
+      const dec = screen.getByRole("button", { name: "Decrease total eggs by 30" });
+      expect(inc).toHaveTextContent("+30");
+      expect(dec).toHaveTextContent("−30");
+    });
+
+    it("keeps the plain icons and names at a step of one", () => {
+      render(<Host />);
+
+      // The un-suffixed names — a "+1" everywhere would restate the default.
+      expect(screen.getByRole("button", { name: "Increase total eggs" })).not.toHaveTextContent("+1");
+      expect(screen.getByRole("button", { name: "Decrease total eggs" })).not.toHaveTextContent("−1");
     });
   });
 

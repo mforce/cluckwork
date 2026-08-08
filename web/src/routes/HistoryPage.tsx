@@ -19,7 +19,7 @@ import { StatusBadge } from "../components/StatusBadge";
 import { useFarm } from "../farm/useFarm";
 import { armedState, gradingState } from "../lib/grading";
 import { newId } from "../lib/ids";
-import { resolveStepperUnitSize } from "../lib/stepperUnit";
+import { resolveStepperUnit } from "../lib/stepperUnit";
 import { useMe } from "../session/SessionContext";
 import i18n from "../i18n";
 
@@ -57,8 +57,9 @@ export function HistoryPage() {
   const [eggUnitConversions, setEggUnitConversions] = useState<EggUnitConversion[]>([]);
   const { farm } = useFarm();
   const me = useMe();
-  const stepSize = resolveStepperUnitSize(
+  const stepperUnit = resolveStepperUnit(
     farm?.defaultStepperUnit, me?.preferredStepperUnit, eggUnitConversions);
+  const stepSize = stepperUnit.eggsPerUnit;
   const [flockFilter, setFlockFilter] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
@@ -448,6 +449,13 @@ export function HistoryPage() {
                 official numbers, so reading it should not be a different job
                 from recording them. #250's steppers throughout. */}
             <form className="entry-form" onSubmit={onAdjustSubmit}>
+            {/* #444 — same caption as the capture screen; the dialog IS that
+                form, so the taps count the same way and say so the same way. */}
+            {stepSize > 1 && (
+              <p className="hint">
+                {te("stepperUnitCaption", { unit: stepperUnit.unitCode, count: stepSize })}
+              </p>
+            )}
             <div className="entry-cols">
               <section className="entry-step">
                 {/* The word boundaries live in the h3's own text nodes, not at

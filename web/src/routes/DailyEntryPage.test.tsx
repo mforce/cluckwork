@@ -869,13 +869,22 @@ describe("DailyEntryPage grading sync (#443)", () => {
     await screen.findByLabelText("Grade A");
     await waitFor(() => expect(saveDraftBtn()).toBeEnabled());
 
-    fireEvent.pointerDown(screen.getByRole("button", { name: "Increase total eggs" }));
-    fireEvent.pointerUp(screen.getByRole("button", { name: "Increase total eggs" }));
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Increase total eggs by 30" }));
+    fireEvent.pointerUp(screen.getByRole("button", { name: "Increase total eggs by 30" }));
     expect(screen.getByLabelText("Total eggs")).toHaveValue(30);
 
-    fireEvent.pointerDown(screen.getByRole("button", { name: "Increase grade a" }));
-    fireEvent.pointerUp(screen.getByRole("button", { name: "Increase grade a" }));
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Increase grade a by 30" }));
+    fireEvent.pointerUp(screen.getByRole("button", { name: "Increase grade a by 30" }));
     expect(screen.getByLabelText("Grade A")).toHaveValue(30);
+
+    // The unit is visible at the point of touch AND named above the panes.
+    expect(screen.getAllByText("+30").length).toBeGreaterThan(0);
+    expect(screen.getByText(/Counting by Tray/)).toBeInTheDocument();
+  });
+
+  it("shows no unit caption when counting by ones", async () => {
+    await renderReady(); // no farm context — resolves to Individual
+    expect(screen.queryByText(/Counting by/)).toBeNull();
   });
 
   // codex review of #449: gating only on "still over" (rather than on this

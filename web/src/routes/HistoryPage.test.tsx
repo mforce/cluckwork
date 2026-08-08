@@ -499,8 +499,11 @@ describe("HistoryPage adjust — mirrored daily-entry layout", () => {
     });
     fireEvent.click(await screen.findByRole("button", { name: "adjust" }));
 
+    // The dialog names the unit the taps count by, same as the capture screen.
+    expect(screen.getByText(/Counting by Tray/)).toBeInTheDocument();
+
     // Fixture: total 100, graded 40 + 20, losses 10 — sellable 90, 30 left.
-    const plusA = screen.getByRole("button", { name: "Increase grade a" });
+    const plusA = screen.getByRole("button", { name: "Increase grade a by 30" });
     fireEvent.pointerDown(plusA);
     fireEvent.pointerUp(plusA);
     // One tap = one tray. 40 + 30 = 70 exactly consumes the remainder, so

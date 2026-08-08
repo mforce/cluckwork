@@ -150,6 +150,13 @@ sales use) can be chosen; if a chosen unit is later deactivated, the stepper
 quietly falls back to one egg rather than counting by a retired factor.
 Typing stays plain numbers — only the guided control counts by units.
 
+The unit is **visible at the point of touch**: when a pack unit is in force
+the buttons themselves read **−30 / +30** instead of bare −/+ (and announce
+"increase … by 30" to a screen reader), and a caption above the two panes
+says which unit is counting and where a tap lands ("Counting by Tray — each
+tap moves 30 eggs"). At one egg per tap neither appears — plain icons, no
+caption — since "+1" would just restate the default.
+
 A grade's **+** no longer stops once the day is fully graded (#443) — a farm
 that counts the grades before adding them up needs to keep going past
 whatever **1 Egg counts** currently says. Grading past the current sellable

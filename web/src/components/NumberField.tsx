@@ -135,11 +135,20 @@ export function NumberField({
     },
   });
 
+  // #444 — a bare −/+ is a mystery button once a tap moves 30 eggs, so a
+  // non-1 step is spelled out ON the control ("−30"/"+30"), at the point of
+  // touch, and the accessible names carry the amount too. The wider button is
+  // a better glove target, not a cost. Step 1 keeps the plain icons — "+1"
+  // everywhere would be noise restating the default.
+  const unitStep = step > 1;
   return (
     <span className="numfield">
-      <button type="button" className="numfield-step" disabled={disabled || value <= min}
-        aria-label={t("decreaseLabel", { label })} {...held(-1)}>
-        <Minus size={16} aria-hidden />
+      <button type="button"
+        className={`numfield-step${unitStep ? " numfield-step-unit" : ""}`}
+        disabled={disabled || value <= min}
+        aria-label={unitStep ? t("decreaseByLabel", { label, step }) : t("decreaseLabel", { label })}
+        {...held(-1)}>
+        {unitStep ? <span aria-hidden>−{step}</span> : <Minus size={16} aria-hidden />}
       </button>
       <input
         id={id}
@@ -151,9 +160,11 @@ export function NumberField({
         disabled={disabled}
         onChange={(e) => onChange(Math.max(min, e.target.valueAsNumber || 0))}
       />
-      <button type="button" className="numfield-step"
-        aria-label={t("increaseLabel", { label })} disabled={disabled || value >= max} {...held(1)}>
-        <Plus size={16} aria-hidden />
+      <button type="button"
+        className={`numfield-step${unitStep ? " numfield-step-unit" : ""}`}
+        aria-label={unitStep ? t("increaseByLabel", { label, step }) : t("increaseLabel", { label })}
+        disabled={disabled || value >= max} {...held(1)}>
+        {unitStep ? <span aria-hidden>+{step}</span> : <Plus size={16} aria-hidden />}
       </button>
     </span>
   );

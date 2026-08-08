@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { resolveStepperUnitSize } from "./stepperUnit";
+import { resolveStepperUnit, resolveStepperUnitSize } from "./stepperUnit";
 import type { EggUnitConversion } from "../api/cluckwork";
 
 const CONVERSIONS: EggUnitConversion[] = [
@@ -28,4 +28,16 @@ describe("resolveStepperUnitSize", () => {
 
   it("falls back to 1 when the conversions have not loaded yet", () =>
     expect(resolveStepperUnitSize("Tray", null, [])).toBe(1));
+});
+
+// The caption needs the resolved CODE, not just the size — and on any
+// fallback it must name Individual, never the unit the taps no longer honor.
+describe("resolveStepperUnit", () => {
+  it("returns the resolved unit's code alongside its size", () =>
+    expect(resolveStepperUnit("Tray", null, CONVERSIONS))
+      .toEqual({ unitCode: "Tray", eggsPerUnit: 30 }));
+
+  it("names Individual on the inactive-unit fallback, not the stale code", () =>
+    expect(resolveStepperUnit("Case", null, CONVERSIONS))
+      .toEqual({ unitCode: "Individual", eggsPerUnit: 1 }));
 });

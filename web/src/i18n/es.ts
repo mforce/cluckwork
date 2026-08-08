@@ -158,6 +158,8 @@ export const es = {
   numberField: {
     increaseLabel: "Aumentar {{label}}",
     decreaseLabel: "Disminuir {{label}}",
+    increaseByLabel: "Aumentar {{label}} en {{step}}",
+    decreaseByLabel: "Disminuir {{label}} en {{step}}",
   },
 
   // machine-drafted (#182) — pending native review. Task CT1 (B1 catch-up):
@@ -406,6 +408,7 @@ export const es = {
 
     // Pinned footer (phone-only summary + saves)
     countsExceedFooterMessage: "Las pérdidas superan el total — corrija los conteos",
+    stepperUnitCaption: "Contando por {{unit}} — cada toque de − / + mueve {{count}} huevos. Escribir sigue ingresando números exactos.",
     sellableWord: "vendible",
     saveDraftButton: "Guardar borrador",
     submitButton: "Guardar y enviar (crea lotes de huevos)",
@@ -1720,7 +1723,9 @@ export const es = {
       + "recortar el total en el paso 1 nunca empuja un grado hacia abajo. Las granjas que cuentan por "
       + "bandeja pueden hacer que cada toque cuente una unidad de empaque completa en lugar de un huevo — "
       + "el valor predeterminado de la granja está en <strong>Configuración</strong>, y cada persona puede "
-      + "elegir el suyo en su pantalla de <strong>Cuenta</strong>.",
+      + "elegir el suyo en su pantalla de <strong>Cuenta</strong>. Cuando una unidad de empaque está en uso, "
+      + "los propios botones lo indican (<strong>−30 / +30</strong>) y una nota sobre los paneles nombra la "
+      + "unidad; escribir sigue ingresando números exactos.",
     dailyEntryPutAllIn:
       "La mayoría de los días terminan de la misma manera — un grado se lleva lo que queda. <strong>Poner "
       + "todo en…</strong> junto al conteo restante lo hace en un solo movimiento: arrástrelo a un grado, o "

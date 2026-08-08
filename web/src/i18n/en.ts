@@ -195,6 +195,10 @@ export const en = {
     // translated here.
     increaseLabel: "Increase {{label}}",
     decreaseLabel: "Decrease {{label}}",
+    // #444 — used instead of the plain pair when the stepper counts by a pack
+    // unit, so the announced name carries the amount the visible "+30" shows.
+    increaseByLabel: "Increase {{label}} by {{step}}",
+    decreaseByLabel: "Decrease {{label}} by {{step}}",
   },
   errorBoundary: {
     title: "Something went wrong",
@@ -439,6 +443,9 @@ export const en = {
 
     // Pinned footer (phone-only summary + saves)
     countsExceedFooterMessage: "Losses exceed the total — fix the counts",
+    // #444 — shown only when a pack unit is in force. {{unit}} is the raw
+    // EggUnit code (DATA, e.g. "Tray"), same as everywhere unit codes render.
+    stepperUnitCaption: "Counting by {{unit}} — each tap of − / + moves {{count}} eggs. Typing still enters exact numbers.",
     sellableWord: "sellable",
     saveDraftButton: "Save draft",
     submitButton: "Save & submit (creates egg lots)",
@@ -2066,7 +2073,9 @@ export const en = {
       + "grades first and the total catches up to match. It only ever raises the total, never lowers it, so "
       + "trimming the total on step 1 never pushes a grade back down. Farms that count by the tray can make "
       + "each tap count a whole pack unit instead of one egg — the farm default lives in "
-      + "<strong>Settings</strong>, and each person can pick their own on their <strong>Account</strong> screen.",
+      + "<strong>Settings</strong>, and each person can pick their own on their <strong>Account</strong> "
+      + "screen. When a pack unit is in force the buttons say so themselves (<strong>−30 / +30</strong>) and "
+      + "a note above the panes names the unit; typing still enters exact numbers.",
     dailyEntryPutAllIn:
       "Most days end the same way — one grade takes whatever is left. <strong>Put all in…</strong> beside the "
       + "remaining count does it in one move: drag it onto a grade, or tap it and pick one.",

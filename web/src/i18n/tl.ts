@@ -168,6 +168,8 @@ export const tl = {
   numberField: {
     increaseLabel: "Dagdagan ang {{label}}",
     decreaseLabel: "Bawasan ang {{label}}",
+    increaseByLabel: "Dagdagan ang {{label}} ng {{step}}",
+    decreaseByLabel: "Bawasan ang {{label}} ng {{step}}",
   },
 
   // machine-drafted (#182) — pending native review. Task CT1 (B1 catch-up):
@@ -420,6 +422,7 @@ export const tl = {
 
     // Pinned footer (phone-only summary + saves)
     countsExceedFooterMessage: "Lumagpas sa kabuuan ang mga nawala — ayusin ang mga bilang",
+    stepperUnitCaption: "Nagbibilang bawat {{unit}} — bawat tap ng − / + ay gumagalaw ng {{count}} itlog. Ang pag-type ay naglalagay pa rin ng eksaktong numero.",
     sellableWord: "nabebenta",
     saveDraftButton: "I-save ang draft",
     submitButton: "I-save at isumite (gagawa ng lote ng itlog)",
@@ -1785,7 +1788,9 @@ export const tl = {
       + "kabuuan sa hakbang 1 ay hindi kailanman itutulak pababa ang isang grado. Ang mga bukid na "
       + "nagbibilang bawat tray ay maaaring gawing isang buong pack unit ang bilang ng bawat tap sa halip "
       + "na isang itlog — nasa <strong>Settings</strong> ang default ng bukid, at maaaring pumili ang bawat "
-      + "tao ng kanilang sarili sa kanilang <strong>Account</strong> screen.",
+      + "tao ng kanilang sarili sa kanilang <strong>Account</strong> screen. Kapag may pack unit na "
+      + "ginagamit, sinasabi mismo ng mga button (<strong>−30 / +30</strong>) at may tala sa itaas ng mga "
+      + "pane na nagsasabi ng yunit; ang pag-type ay naglalagay pa rin ng eksaktong numero.",
     dailyEntryPutAllIn:
       "Karamihan sa mga araw ay natatapos sa parehong paraan — isang grado na lang ang kumukuha ng "
       + "natitira. Ginagawa ito sa isang galaw ng <strong>Ilagay lahat sa…</strong> sa tabi ng natitirang "
