@@ -334,8 +334,11 @@ public sealed class SchemaDocsTests
                     // (plain, quoted, whitespace-bearing — rounds 54-55 each
                     // defeated a key charset) no longer matters at all. The
                     // colon must not be part of an interpolation (': ${').
+                    // Colon-value OR block-sequence-item position: a dash
+                    // opens a sequence entry just as a mapping colon opens a
+                    // value, and either may carry the flow opener.
                     var seq = Regex.Match(textLines[i],
-                        @":[ \t]*(?:[&!][^\s\[]+[ \t]+)*\[(?<rest>[^\r\n]*)");
+                        @"(?::|^[ \t]*(?:-[ \t]+)*-)[ \t]*(?:[&!][^\s\[]+[ \t]+)*\[(?<rest>[^\r\n]*)");
                     var flowVal = Regex.Match(textLines[i],
                         @":[ \t]*(?:[&!][^\s{]+[ \t]+)*(?<!\$)\{(?!\}[ \t]*(?:#[^\r\n]*)?\r?$)");
                     if (flowVal.Success)
@@ -658,6 +661,35 @@ public sealed class SchemaDocsTests
             .OrderBy(r => r, StringComparer.Ordinal))
         {
             missing.AppendLine($"doc page without a catalog relation: {page}");
+        }
+
+        // The README's flagship ERD is held to the catalog too: every
+        // relation must appear as an entity block and every FK as an edge
+        // (mermaid renders the pg_get_constraintdef text with #quot;
+        // entity-escaped quotes) — per-relation pages surviving while the
+        // diagram silently drops entities/edges is a drift --check
+        // reproduces faithfully.
+        var readme = File.ReadAllText(Path.Combine(DocsDir, "README.md"));
+        var readmeLines = readme.Split('\n');
+        foreach (var table in ownerUnion)
+        {
+            if (!readme.Contains($"\"public.{table}\" {{", StringComparison.Ordinal))
+                missing.AppendLine($"README ERD missing entity: {table}");
+        }
+        foreach (var (tbl, rows) in constraintsByTable.OrderBy(kv => kv.Key, StringComparer.Ordinal))
+        {
+            foreach (var r in rows.Where(r => r.Def.StartsWith("FOREIGN KEY", StringComparison.Ordinal)))
+            {
+                // SOURCE entity and definition must share one edge LINE:
+                // identical FK defs exist on sibling tables (AspNetRoleClaims
+                // and AspNetUserRoles both reference AspNetRoles via RoleId),
+                // so a whole-README Contains let a deleted edge hide behind
+                // its twin — the surviving mutant that forced this shape.
+                var defQ = r.Def.Replace("\"", "#quot;");
+                if (!readmeLines.Any(l => l.Contains($"\"public.{tbl}\" ", StringComparison.Ordinal)
+                        && l.Contains(defQ, StringComparison.Ordinal)))
+                    missing.AppendLine($"README ERD missing FK edge: {tbl}.{r.Name}");
+            }
         }
 
         Assert.True(missing.Length == 0,
