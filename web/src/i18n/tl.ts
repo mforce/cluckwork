@@ -252,8 +252,14 @@ export const tl = {
     quantity: "Dami",
     // #445
     quantityWithUnit: "Dami ({{unit}})",
+    // The _one strings equal the base ON PURPOSE: Tagalog's CLDR "one"
+    // category is broad (1, 2, 3, 5, 12, 30, …), not "exactly one", and
+    // Tagalog nouns don't inflect for number anyway — the keys exist only to
+    // satisfy catalog parity with en's genuinely singular forms.
     equalsEggs: "= {{count}} na itlog",
+    equalsEggs_one: "= {{count}} na itlog",
     productOptionWithUnit: "{{name}} ({{count}} na itlog/{{unit}})",
+    productOptionWithUnit_one: "{{name}} ({{count}} na itlog/{{unit}})",
     unitPriceWithCurrency: "Presyo bawat yunit ({{code}})",
     method: "Paraan",
     referenceOptional: "Reference (opsyonal)",

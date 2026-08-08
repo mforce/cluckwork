@@ -242,7 +242,9 @@ export const es = {
     // #445
     quantityWithUnit: "Cantidad ({{unit}})",
     equalsEggs: "= {{count}} huevos",
+    equalsEggs_one: "= {{count}} huevo",
     productOptionWithUnit: "{{name}} ({{count}} huevos/{{unit}})",
+    productOptionWithUnit_one: "{{name}} ({{count}} huevo/{{unit}})",
     unitPriceWithCurrency: "Precio unitario ({{code}})",
     method: "Método",
     referenceOptional: "Referencia (opcional)",

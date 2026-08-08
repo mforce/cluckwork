@@ -275,8 +275,13 @@ export const en = {
     // reinforcing surfaces: the unit in the quantity label, a live "= N eggs"
     // preview while typing, and the unit size on the product option itself.
     quantityWithUnit: "Quantity ({{unit}})",
+    // A packed unit CAN legitimately be defined as 1 egg/unit (only
+    // Individual is pinned server-side), so the singular forms are reachable:
+    // i18next routes count 1 to _one and falls back to the base otherwise.
     equalsEggs: "= {{count}} eggs",
+    equalsEggs_one: "= {{count}} egg",
     productOptionWithUnit: "{{name}} ({{count}} eggs/{{unit}})",
+    productOptionWithUnit_one: "{{name}} ({{count}} egg/{{unit}})",
     unitPriceWithCurrency: "Unit price ({{code}})",
     method: "Method",
     referenceOptional: "Reference (optional)",

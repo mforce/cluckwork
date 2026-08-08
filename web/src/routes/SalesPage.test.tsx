@@ -317,20 +317,23 @@ describe("SalesPage quantity unit clarity (#445)", () => {
     expect(screen.getByText("= 1800 eggs")).toBeInTheDocument();
   });
 
-  it("resolves the Egg selling unit through the 'Individual' conversion code", async () => {
-    // Real accounts can't have Individual ≠ 1 (immutable server-side), so the
-    // factor-1 absence test above can't tell "mapped, factor 1" from "not
-    // mapped at all" — deleting the Egg→Individual special-case would leave
-    // it green. A test-only factor makes the lookup observable: only a
-    // resolver that reaches Individual THROUGH the "Egg" code renders this.
+  it("keeps a packed unit deliberately defined as 1 egg/unit visible — suppression is by identity, not factor", async () => {
+    // Only "Individual" is pinned to 1 server-side; a farm CAN define Dozen
+    // as 1 egg/unit, and that nonstandard setup is exactly what must stay
+    // visible at entry time (codex review of #445). An `f > 1` threshold
+    // would hide it — this pins the identity-based rule, and the singular
+    // _one catalog forms with it.
     mockListEggUnitConversions.mockResolvedValue([
-      { id: "cv1", unitCode: "Individual", eggsPerUnit: 3, active: true, version: 1 },
+      { id: "cv2", unitCode: "Dozen", eggsPerUnit: 1, active: true, version: 1 },
     ]);
     await renderReady();
     await createDraft(draftEmpty(2, "USD"));
 
-    fireEvent.change(screen.getByLabelText("Per"), { target: { value: "Egg" } });
-    expect(screen.getByText("= 90 eggs")).toBeInTheDocument(); // qty 30 × 3
+    expect(screen.getByRole("option", { name: "Grade A Dozen (1 egg/dozen)" })).toBeInTheDocument();
+    expect(screen.getByText("= 30 eggs")).toBeInTheDocument(); // qty 30 × 1
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Quantity (dozen)" }),
+      { target: { value: "1" } });
+    expect(screen.getByText("= 1 egg")).toBeInTheDocument(); // singular form
   });
 
   it("shows no preview for the per-egg unit — '= 30 eggs' under 30 eggs is noise", async () => {
@@ -338,9 +341,9 @@ describe("SalesPage quantity unit clarity (#445)", () => {
     await createDraft(draftEmpty(2, "USD"));
 
     fireEvent.change(screen.getByLabelText("Per"), { target: { value: "Egg" } });
-    // The Egg selling unit maps to the "Individual" conversion (factor 1).
+    // Suppressed by unit IDENTITY (Egg needs no translation), not by factor.
     expect(screen.getByRole("spinbutton", { name: "Quantity (egg)" })).toBeInTheDocument();
-    expect(screen.queryByText(/= \d+ eggs/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/= \d+ eggs?/)).not.toBeInTheDocument();
   });
 
   it("degrades to the labeled field with no preview when the unit has no active definition", async () => {

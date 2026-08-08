@@ -148,14 +148,16 @@ export function SalesPage() {
   const customerName = (id: string) => customers.find((c) => c.id === id)?.name ?? id.slice(0, 8);
   const productName = (id: string) => allProducts.find((p) => p.id === id)?.name ?? id.slice(0, 8);
 
-  // #445 — eggs per selling unit, resolved the same way the server does
-  // (EggUnits.ToConversionUnit: the "Egg" selling unit is the conversion
-  // catalog's "Individual"; every other code matches by name). null when no
-  // active definition exists — the UI then shows nothing extra rather than a
-  // wrong number, and the server's own check decides at add time.
+  // #445 — eggs per PACKED selling unit. null when no active definition
+  // exists — the UI then shows nothing extra rather than a wrong number, and
+  // the server's own check decides at add time. Callers exclude the per-egg
+  // unit by IDENTITY, never by factor value: only "Individual" is pinned to 1
+  // server-side, so a packed unit deliberately defined as 1 egg/unit is a
+  // real (nonstandard) configuration that must stay visible at entry time
+  // (codex review of #445) — which also means the "Egg"→"Individual" lookup
+  // the server does is not needed here, since "Egg" never annotates.
   const eggsPerUnit = (sellingUnit: string): number | null => {
-    const code = sellingUnit === "Egg" ? "Individual" : sellingUnit;
-    const c = conversions.find((x) => x.unitCode === code && x.active);
+    const c = conversions.find((x) => x.unitCode === sellingUnit && x.active);
     return c?.eggsPerUnit ?? null;
   };
   // Lowercased to match the row display's `perUnit` convention ("per tray").
@@ -572,12 +574,13 @@ export function SalesPage() {
                   }}>
                     {products.map((p) => {
                       // Unit size visible BEFORE quantity entry starts (#445):
-                      // "Grade A Tray (30 eggs/tray)". Factor-1 units add noise,
-                      // not information — same threshold as the row display.
-                      const f = eggsPerUnit(p.defaultUnit);
+                      // "Grade A Tray (30 eggs/tray)". Only the per-egg unit
+                      // is bare — by identity, not factor, so "1 egg/dozen"
+                      // still shows (see eggsPerUnit above).
+                      const f = p.defaultUnit === "Egg" ? null : eggsPerUnit(p.defaultUnit);
                       return (
                         <option key={p.id} value={p.id}>
-                          {f !== null && f > 1
+                          {f !== null
                             ? t("productOptionWithUnit", { name: p.name, count: f, unit: unitWord(p.defaultUnit) })
                             : p.name}
                         </option>
@@ -603,8 +606,9 @@ export function SalesPage() {
                   <NumberField id={addQtyId} label={t("quantityWithUnit", { unit: unitWord(unit) }).toLowerCase()}
                     value={qty} onChange={setQty} min={1} />
                   {(() => {
-                    const f = eggsPerUnit(unit);
-                    return f !== null && f > 1
+                    // Per-egg suppressed by identity, not factor (see above).
+                    const f = unit === "Egg" ? null : eggsPerUnit(unit);
+                    return f !== null
                       ? <p className="muted">{t("equalsEggs", { count: qty * f })}</p>
                       : null;
                   })()}
