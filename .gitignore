@@ -43,3 +43,8 @@ node_modules/
 # and they embed the developer's machine name and absolute home path.
 TestResults/
 *.trx
+
+.agents/skills
+.claude/skills
+.codex/skills
+skills-lock.json
