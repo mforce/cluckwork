@@ -117,6 +117,19 @@ public sealed class SchemaDocsTests
         // identify postgres is opaque indirection no text scan can close.
         var imageLinePattern = new Regex(@"(?im)^[ \t]*(?:image:|FROM[ \t])[^\r\n]*");
         var pgNamePattern = new Regex(@"postgres|_pg_?|pg_", RegexOptions.IgnoreCase);
+        // A reviewable pin is a SAME-LINE literal. An image key whose value
+        // is empty or a YAML block-scalar marker (or a FROM continued with a
+        // backslash) defers its real value to following lines, where no
+        // line-based rule can see it — so that SHAPE is refused outright,
+        // whatever the deferred value turns out to be. Constraining the
+        // accepted syntax beats parsing YAML's logical-value forms.
+        // Block-scalar and backslash forms are unambiguous; a BARE `image:`
+        // needs a lookahead, because it is also how a MAPPING named "image"
+        // opens (ci.yml's job id) — a mapping's next line is another key:,
+        // a deferred value's next line is a scalar.
+        var deferredImagePattern = new Regex(@"(?im)^[ \t]*(?:image:[ \t]*[>|][+-]?[ \t]*$|FROM[ \t]+[^\r\n]*\\[ \t]*$)");
+        var bareImagePattern = new Regex(@"(?m)^[ \t]*image:[ \t]*\r?$");
+        var mappingKeyPattern = new Regex(@"^[ \t]*[A-Za-z0-9_.-]+:([ \t]|\r?$)");
         var hits = new Dictionary<string, List<string>>();
 
         foreach (var relative in TrackedFiles())
@@ -158,6 +171,23 @@ public sealed class SchemaDocsTests
                 var token = m.Value.Trim();
                 if (!hits.TryGetValue($"{token} (interpolated image line — not a reviewable pin)", out var files))
                     hits[$"{token} (interpolated image line — not a reviewable pin)"] = files = [];
+                files.Add(relative);
+            }
+            foreach (Match m in deferredImagePattern.Matches(text))
+            {
+                var token = m.Value.Trim();
+                if (!hits.TryGetValue($"{token} (image value deferred past the line — not a reviewable pin)", out var files))
+                    hits[$"{token} (image value deferred past the line — not a reviewable pin)"] = files = [];
+                files.Add(relative);
+            }
+            var textLines = text.Split('\n');
+            for (var i = 0; i < textLines.Length; i++)
+            {
+                if (!bareImagePattern.IsMatch(textLines[i])) continue;
+                var next = textLines.Skip(i + 1).FirstOrDefault(l => l.Trim().Length > 0) ?? "";
+                if (mappingKeyPattern.IsMatch(next)) continue; // a mapping named "image", not an image key
+                if (!hits.TryGetValue("image: (value deferred to the next line — not a reviewable pin)", out var files))
+                    hits["image: (value deferred to the next line — not a reviewable pin)"] = files = [];
                 files.Add(relative);
             }
         }
