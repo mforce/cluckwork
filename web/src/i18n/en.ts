@@ -2266,8 +2266,8 @@ export const en = {
     stockWriteOff:
       "Lost stock — breakage, spoilage, eggs used by the household — is recorded with <strong>write off</strong> "
       + "on the lot (Owner/Manager, reason required). It lowers the lot's available count without touching the "
-      + "day's production figures; a recount can also add eggs back, up to what the lot produced. If the recount "
-      + "says the day's <em>laying</em> was wrong, adjust the daily entry instead.",
+      + "day's production figures; a recount can also add eggs back, up to what was previously written off. If "
+      + "the recount says the day's <em>laying</em> was wrong, adjust the daily entry instead.",
 
     // Feed & inventory
     inventoryHeading: "Feed & inventory",

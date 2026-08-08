@@ -1886,8 +1886,8 @@ export const es = {
       "Las existencias perdidas — roturas, deterioro, huevos consumidos en casa — se registran con "
       + "<strong>dar de baja</strong> en el lote (Propietario/Gerente, motivo obligatorio). Reduce el disponible "
       + "del lote sin tocar las cifras de producción del día; un recuento también puede devolver huevos, hasta lo "
-      + "que el lote produjo. Si el recuento indica que la <em>puesta</em> del día era incorrecta, ajuste la "
-      + "entrada diaria en su lugar.",
+      + "que se dio de baja previamente. Si el recuento indica que la <em>puesta</em> del día era incorrecta, "
+      + "ajuste la entrada diaria en su lugar.",
 
     inventoryHeading: "Alimento e inventario",
     inventoryItems:

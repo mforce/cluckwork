@@ -1962,8 +1962,8 @@ export const tl = {
       "Ang nawalang stock — nabasag, nasira, itlog na nagamit sa bahay — ay itinatala gamit ang "
       + "<strong>i-write off</strong> sa lote (Owner/Manager, kailangan ng dahilan). Binabawasan nito ang "
       + "available ng lote nang hindi ginagalaw ang mga bilang ng produksyon ng araw; maaari ring magbalik ng "
-      + "itlog ang recount, hanggang sa ginawa ng lote. Kung sinasabi ng recount na mali ang <em>pangingitlog</em> "
-      + "ng araw, ayusin na lang ang araw-araw na entry.",
+      + "itlog ang recount, hanggang sa dating na-write off. Kung sinasabi ng recount na mali ang "
+      + "<em>pangingitlog</em> ng araw, ayusin na lang ang araw-araw na entry.",
 
     inventoryHeading: "Feed at Imbentaryo",
     inventoryItems:

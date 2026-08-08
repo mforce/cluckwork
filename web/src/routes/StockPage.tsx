@@ -130,7 +130,9 @@ export function StockPage() {
       setDialogError(i18n.t("stock:writeOffReasonRequired"));
       return;
     }
-    // The server enforces the same bounds; failing early spares a round trip.
+    // Coarse pre-check only — the server additionally caps a positive
+    // reconciliation at the lot's cumulative write-off total (which this
+    // screen doesn't know); its 422 renders through dialogError below.
     const result = lot.quantityAvailable + woDelta;
     if (result < 0 || result > lot.quantityProduced) {
       setDialogError(i18n.t("stock:writeOffOutOfRangeMessage", { produced: lot.quantityProduced }));

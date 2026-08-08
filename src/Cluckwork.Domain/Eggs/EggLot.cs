@@ -109,7 +109,7 @@ public sealed class EggLot : AggregateRoot<Guid>
         if (newQuantity < sold)
             return Result.Failure(Error.Domain(
                 "EggLot.SoldExceedsAdjusted",
-                $"{sold} eggs from this lot are already sold or allocated; production cannot be set below that."));
+                $"{sold} eggs from this lot are already sold, allocated, or written off; production cannot be set below that."));
 
         QuantityProduced = newQuantity;
         QuantityAvailable = newQuantity - sold;
@@ -130,12 +130,17 @@ public sealed class EggLot : AggregateRoot<Guid>
             return Result.Failure(Error.Validation(
                 "EggLot.InvalidQuantity", "Adjustment quantity cannot be zero."));
 
-        if (delta < 0 && -delta > QuantityAvailable)
+        // 64-bit sums: near-int.MaxValue lots would wrap the 32-bit addition
+        // negative and sail past both guards (security review of #406).
+        if (delta < 0 && -(long)delta > QuantityAvailable)
             return Result.Failure(Error.Domain(
                 "EggLot.InsufficientStock",
-                $"Cannot remove {-delta}: only {QuantityAvailable} available in this lot."));
+                $"Cannot remove {-(long)delta}: only {QuantityAvailable} available in this lot."));
 
-        if (delta > 0 && QuantityAvailable + delta > QuantityProduced)
+        // Coarse ceiling only — the handler additionally caps a positive delta
+        // at the lot's cumulative write-off total, because allocation lowers
+        // Available without touching Produced and this guard cannot see it.
+        if (delta > 0 && QuantityAvailable + (long)delta > QuantityProduced)
             return Result.Failure(Error.Domain(
                 "EggLot.ReconcileExceedsProduced",
                 $"Adding {delta} would exceed the {QuantityProduced} produced in this lot; a recount above production is a daily-entry adjustment."));
@@ -155,7 +160,7 @@ public sealed class EggLot : AggregateRoot<Guid>
             return Result.Failure(Error.Validation(
                 "EggLot.InvalidQuantity", "Restore quantity must be positive."));
 
-        if (QuantityAvailable + quantity > QuantityProduced)
+        if (QuantityAvailable + (long)quantity > QuantityProduced)
             return Result.Failure(Error.Domain(
                 "EggLot.RestoreExceedsProduced",
                 $"Restoring {quantity} would exceed the {QuantityProduced} produced in this lot."));

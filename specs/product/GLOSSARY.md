@@ -259,10 +259,13 @@ consumption → `InternalUse`) or applies a recount (`Reconciliation`, which
 alone may also add eggs back), with a required reason. It moves only the
 lot's available quantity — the daily entry's production figures and hen-day %
 are never restated, which is what separates it from a daily-entry adjustment.
-Available stays within 0 … produced: a write-off can never consume eggs
-already sold, and a recount above production is a daily-entry adjustment, not
-a write-off. Withdrawal restriction does not block one — restricted eggs
-spoil too, and removing stock is the safe direction.
+Available is floored at zero — a write-off can never consume eggs already
+sold — and a positive recount is capped at the lot's cumulative write-off
+total (never at raw production: eggs allocated to a confirmed order must not
+read as headroom, or they'd be sold twice). A recount beyond that means
+production or a sale is wrong, which have their own paths. Withdrawal
+restriction does not block a write-off — restricted eggs spoil too, and
+removing stock is the safe direction.
 
 **Saleable** — grades flagged saleable can receive graded production and be
 sold on orders. Non-saleable grades are bookkeeping buckets — losses are

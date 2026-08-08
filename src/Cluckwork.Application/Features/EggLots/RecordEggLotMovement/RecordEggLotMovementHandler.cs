@@ -44,6 +44,29 @@ public sealed class RecordEggLotMovementHandler(
                 return false;
             }
 
+            // A recount may only restore what write-offs removed. The domain's
+            // produced ceiling cannot enforce this: Allocate lowers Available
+            // without touching Produced, so allocation reads as headroom there
+            // — a positive delta into that gap would offer committed eggs for
+            // sale twice and make voiding the order impossible (Restore would
+            // then exceed produced). Summed under the same lot lock every
+            // ledger writer takes, so the figure cannot move underneath us.
+            if (command.QuantityDelta > 0)
+            {
+                var ledger = await movements.ListByLotAsync(lot.Id, transactionCt);
+                var writtenOff = -ledger
+                    .Where(m => m.MovementType is EggMovementType.Discard
+                        or EggMovementType.InternalUse or EggMovementType.Reconciliation)
+                    .Sum(m => (long)m.QuantityDelta);
+                if (command.QuantityDelta > writtenOff)
+                {
+                    outcome = Result.Failure<RecordEggLotMovementResult>(Error.Domain(
+                        "EggLot.ReconcileExceedsWrittenOff",
+                        $"Only {writtenOff} eggs have been written off from this lot; a recount above that is a daily-entry adjustment or a sale void."));
+                    return false;
+                }
+            }
+
             var adjust = lot.AdjustAvailable(command.QuantityDelta);
             if (adjust.IsFailure)
             {

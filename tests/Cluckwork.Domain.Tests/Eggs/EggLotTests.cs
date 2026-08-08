@@ -231,6 +231,35 @@ public sealed class EggLotTests
     }
 
     [Fact]
+    public void AdjustAvailable_NearIntMax_DoesNotOverflowTheCeilingGuard()
+    {
+        // Security review of #406: QuantityAvailable + delta in 32-bit wraps
+        // negative for a near-int.MaxValue lot, sailing past the ceiling and
+        // persisting a negative available. The guard must sum in 64-bit.
+        var lot = MakeLot(int.MaxValue);
+        Assert.True(lot.AdjustAvailable(-5).IsSuccess);
+
+        var result = lot.AdjustAvailable(10);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal("EggLot.ReconcileExceedsProduced", result.Error.Code);
+        Assert.Equal(int.MaxValue - 5, lot.QuantityAvailable);
+    }
+
+    [Fact]
+    public void Restore_NearIntMax_DoesNotOverflowTheCeilingGuard()
+    {
+        var lot = MakeLot(int.MaxValue);
+        Assert.True(lot.Allocate(5, Today).IsSuccess);
+
+        var result = lot.Restore(10);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal("EggLot.RestoreExceedsProduced", result.Error.Code);
+        Assert.Equal(int.MaxValue - 5, lot.QuantityAvailable);
+    }
+
+    [Fact]
     public void AdjustAvailable_IgnoresWithdrawalRestriction()
     {
         // Spoiled eggs under withdrawal still need to leave the count — the

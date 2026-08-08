@@ -91,8 +91,11 @@ public sealed class EggLotWriteOffTests(CluckworkWebApplicationFactory factory)
     }
 
     [Fact]
-    public async Task Reconciliation_BeyondProduced_422_PointsAtDailyEntryAdjust()
+    public async Task Reconciliation_WithNothingWrittenOff_422()
     {
+        // A recount can only restore what write-offs removed. On a lot with no
+        // write-off history, any positive delta means production or a sale is
+        // wrong — those have their own paths.
         var (_, lotId, client) = await SetupAsync(100);
 
         var response = await client.PostWithKeyAsync(Url(lotId), Guid.NewGuid().ToString(),
@@ -100,7 +103,58 @@ public sealed class EggLotWriteOffTests(CluckworkWebApplicationFactory factory)
 
         Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
         var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal("EggLot.ReconcileExceedsProduced", problem.GetProperty("title").GetString());
+        Assert.Equal("EggLot.ReconcileExceedsWrittenOff", problem.GetProperty("title").GetString());
+    }
+
+    [Fact]
+    public async Task Reconciliation_CannotReAddAllocatedEggs()
+    {
+        // Security review of this PR: Allocate lowers Available without
+        // touching Produced, so a produced-only ceiling reads allocation as
+        // headroom — a +40 recount would offer 40 committed eggs for sale
+        // again AND make voiding the order impossible (Restore would exceed
+        // produced). The written-off cap closes both.
+        var email = $"u-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var grades = await factory.SeedEggGradesAsync(accountId, Guid.NewGuid(), "Large");
+        var lotId = await factory.SeedEggLotAsync(accountId, grades["Large"], 100);
+        var orderId = await factory.SeedSalesOrderAsync(accountId, grades["Large"], 40);
+        var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
+
+        var confirm = await client.PostWithKeyAsync($"/api/v1/sales/{orderId}/confirm", Guid.NewGuid().ToString());
+        Assert.Equal(HttpStatusCode.OK, confirm.StatusCode); // available now 60
+
+        var response = await client.PostWithKeyAsync(Url(lotId), Guid.NewGuid().ToString(),
+            Body("Reconciliation", 40, "recount"));
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("EggLot.ReconcileExceedsWrittenOff", problem.GetProperty("title").GetString());
+
+        var available = await factory.WithTenantScopeAsync(accountId, async db =>
+            (await db.EggLots.SingleAsync(l => l.Id == lotId)).QuantityAvailable);
+        Assert.Equal(60, available); // the allocation stays spendable exactly once
+    }
+
+    [Fact]
+    public async Task Reconciliation_CappedAtCumulativeWriteOffs()
+    {
+        var (_, lotId, client) = await SetupAsync(100);
+
+        var discard = await client.PostWithKeyAsync(Url(lotId), Guid.NewGuid().ToString(), Body("Discard", -10));
+        Assert.Equal(HttpStatusCode.OK, discard.StatusCode);
+
+        var tooMuch = await client.PostWithKeyAsync(Url(lotId), Guid.NewGuid().ToString(),
+            Body("Reconciliation", 11, "recount"));
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, tooMuch.StatusCode);
+        var problem = await tooMuch.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("EggLot.ReconcileExceedsWrittenOff", problem.GetProperty("title").GetString());
+
+        var exact = await client.PostWithKeyAsync(Url(lotId), Guid.NewGuid().ToString(),
+            Body("Reconciliation", 10, "all found again"));
+        Assert.Equal(HttpStatusCode.OK, exact.StatusCode);
+        var payload = await exact.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(100, payload.GetProperty("quantityAvailable").GetInt32());
     }
 
     [Fact]
@@ -199,6 +253,32 @@ public sealed class EggLotWriteOffTests(CluckworkWebApplicationFactory factory)
         var row = Assert.Single(audit);
         Assert.Equal(lotId, row.EntityId);
         Assert.Equal("dropped a tray", row.Reason);
+    }
+
+    // Pins this endpoint's participation in the idempotency protocol (the
+    // middleware itself is proven in IdempotencyReplayTests): a replayed key
+    // returns the original response and never decrements the lot twice.
+    [Fact]
+    public async Task SameKey_ReplaysResponse_AndDecrementsOnce()
+    {
+        var (accountId, lotId, client) = await SetupAsync(100);
+        var key = Guid.NewGuid().ToString();
+
+        var first = await client.PostWithKeyAsync(Url(lotId), key, Body("Discard", -10));
+        var second = await client.PostWithKeyAsync(Url(lotId), key, Body("Discard", -10));
+
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, second.StatusCode);
+        Assert.Equal(await first.Content.ReadAsStringAsync(), await second.Content.ReadAsStringAsync());
+
+        var (available, discardCount) = await factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            var lot = await db.EggLots.SingleAsync(l => l.Id == lotId);
+            return (lot.QuantityAvailable, await db.EggInventoryMovements
+                .CountAsync(m => m.EggLotId == lotId && m.MovementType == EggMovementType.Discard));
+        });
+        Assert.Equal(90, available); // once, not twice
+        Assert.Equal(1, discardCount);
     }
 
     // AGENTS.md: every new aggregate mutation gets a parallel-race test. Two
