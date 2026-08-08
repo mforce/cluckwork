@@ -510,7 +510,15 @@ public sealed class SchemaDocsTests
             ORDER BY con.conname
             """)).GroupBy(r => r.Table).ToDictionary(g => g.Key, g => g.ToList());
 
-        foreach (var table in tables)
+        // The UNION of catalog owners, not just pg_tables: an indexed
+        // materialized view contributes to pg_indexes but not pg_tables, so
+        // iterating tables alone would skip its section entirely. (No such
+        // relation exists in this schema today — this is the same
+        // future-proof shape as the partitioned-table relkind widening.)
+        foreach (var table in tables
+            .Union(indexesByTable.Keys, StringComparer.Ordinal)
+            .Union(constraintsByTable.Keys, StringComparer.Ordinal)
+            .OrderBy(t => t, StringComparer.Ordinal))
         {
             RequireSection(table, "## Indexes", indexesByTable.GetValueOrDefault(table) ?? []);
             RequireSection(table, "## Constraints", constraintsByTable.GetValueOrDefault(table) ?? []);
