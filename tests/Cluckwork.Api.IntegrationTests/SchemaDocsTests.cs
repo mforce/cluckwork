@@ -496,6 +496,13 @@ public sealed class SchemaDocsTests
                         hits[msg] = files = [];
                     files.Add(relative);
                 }
+                if (HasStaticallyComposedInterpolation(codeText))
+                {
+                    const string interpMsg = "interpolated string composing a nested string literal in a hole — the evaluated value never appears contiguously in the source; write it as one literal or compose via named constants";
+                    if (!hits.TryGetValue(interpMsg, out var files))
+                        hits[interpMsg] = files = [];
+                    files.Add(relative);
+                }
             }
             if (relative.Contains("Dockerfile", StringComparison.OrdinalIgnoreCase))
             {
@@ -1089,6 +1096,109 @@ public sealed class SchemaDocsTests
             else i++;
         }
         return new string(chars);
+    }
+
+    // Detects an interpolated string that COMPOSES a nested string literal
+    // inside a hole — a constant expression whose evaluated value never
+    // appears contiguously in the source, so the literal scans cannot judge
+    // it. The rule keys on the hole's LEADING token (after whitespace and
+    // open-parens): a quote (or a prefixed quote) means static composition
+    // and is refused; an identifier-led hole is runtime assembly, which
+    // stays the documented opaque boundary — so holes like a string.Join
+    // call or a ternary are untouched even though literals appear deeper
+    // inside them (their leading identifier already makes the value
+    // non-textual). Runs on comment-blanked text.
+    private static bool HasStaticallyComposedInterpolation(string text)
+    {
+        var i = 0;
+        while (i < text.Length)
+        {
+            if (text[i] != '"') { i++; continue; }
+            var dollarCount = 0;
+            var verbatim = false;
+            for (var b = i - 1; b >= 0 && (text[b] == '@' || text[b] == '$'); b--)
+            {
+                if (text[b] == '$') dollarCount++;
+                else verbatim = true;
+            }
+            var runStart = i;
+            while (i < text.Length && text[i] == '"') i++;
+            var run = i - runStart;
+            if (run == 2) continue;
+            var isRaw = run >= 3;
+            // In a raw interpolated string a hole opens only on a brace run
+            // matching the dollar count — shorter runs are LITERAL braces
+            // (that is the whole point of $$: JSON-bearing bodies). In a
+            // non-raw interpolated string the dollar count is 1 and {{ is
+            // an escaped literal brace.
+            var holeBraces = isRaw ? dollarCount : 1;
+            while (i < text.Length)
+            {
+                var c = text[i];
+                if (c == '"')
+                {
+                    if (isRaw)
+                    {
+                        var cs = i;
+                        while (i < text.Length && text[i] == '"') i++;
+                        if (i - cs >= run) break;
+                        continue;
+                    }
+                    if (verbatim && i + 1 < text.Length && text[i + 1] == '"') { i += 2; continue; }
+                    i++;
+                    break;
+                }
+                if (!isRaw && !verbatim && c == '\\') { i += 2; continue; }
+                if (!isRaw && c == '\n') { i++; break; }
+                if (dollarCount > 0 && c == '{')
+                {
+                    var bs = i;
+                    while (i < text.Length && text[i] == '{') i++;
+                    var braceRun = i - bs;
+                    if (!isRaw && braceRun >= 2) continue; // {{ escape: literal braces
+                    if (isRaw && braceRun < holeBraces) continue; // literal braces
+                    var h = i;
+                    while (h < text.Length && (char.IsWhiteSpace(text[h]) || text[h] == '(')) h++;
+                    while (h < text.Length && (text[h] == '$' || text[h] == '@')) h++;
+                    if (h < text.Length && text[h] == '"') return true;
+                    // Skip to the hole's closing brace run, stepping over
+                    // any nested ordinary string so a brace inside it does
+                    // not end the hole early.
+                    var depth = 1;
+                    while (i < text.Length && depth > 0)
+                    {
+                        var hc = text[i];
+                        if (hc == '"')
+                        {
+                            i++;
+                            while (i < text.Length && text[i] != '"' && text[i] != '\n')
+                            {
+                                if (text[i] == '\\') i++;
+                                i++;
+                            }
+                            i++;
+                            continue;
+                        }
+                        if (hc == '{') depth++;
+                        else if (hc == '}')
+                        {
+                            if (isRaw && holeBraces > 1)
+                            {
+                                var es = i;
+                                while (i < text.Length && text[i] == '}') i++;
+                                if (i - es >= holeBraces) depth--;
+                                continue;
+                            }
+                            depth--;
+                        }
+                        i++;
+                    }
+                    continue;
+                }
+                i++;
+            }
+        }
+        return false;
     }
 
     // Decodes the escape sequences an ordinary C# literal processes, so the
