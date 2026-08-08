@@ -139,8 +139,10 @@ public sealed class SchemaDocsTests
         // NOT anchored to RUN: a continued instruction puts later mount
         // options on lines that no longer start with RUN, and a --mount=
         // token is unambiguous wherever it appears.
+        // from may be the FIRST option (type defaults to bind), so the
+        // preceding-option prefix is optional.
         var runMountFromPattern = new Regex(
-            @"(?im)--mount=[^\s]*[,=]from=(?:[a-z0-9.-]+(?::\d+)?/)*postgres(?=[,\s""']|$)");
+            @"(?im)--mount=(?:[^\s]*[,=])?from=(?:[a-z0-9.-]+(?::\d+)?/)*postgres(?=[,\s""']|$)");
         // A mount option token cut by a line continuation defers its option
         // text (including a possible from=) past the line — refused as a
         // shape. A COMPLETE option followed by space-then-continuation is
