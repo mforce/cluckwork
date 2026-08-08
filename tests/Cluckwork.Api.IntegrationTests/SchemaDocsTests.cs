@@ -404,7 +404,13 @@ public sealed class SchemaDocsTests
         // contains no /-leading tokens at all.
         var leaks = new (string Name, Regex Pattern)[]
         {
-            ("absolute unix path", new Regex(@"(?m)(?:^|[\s(""'`=])/[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]*)*")),
+            // The preceder class includes ':' so URI-wrapped paths
+            // (source:/work/...) are caught; https:// URLs stay clean
+            // because their second slash breaks the segment charset.
+            ("absolute unix path", new Regex(@"(?m)(?:^|[\s(""'`=:])/[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]*)*")),
+            // file:// URIs always wrap a local path — a leak regardless of
+            // how many slashes follow the scheme.
+            ("file URI", new Regex(@"(?i)file://")),
             ("absolute windows path", new Regex(@"(?i)[a-z]:\\")),
             ("timestamp", new Regex(@"\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}")),
             ("connection URI (would carry the ephemeral password)", new Regex(@"postgres(?:ql)?://")),
@@ -597,7 +603,7 @@ public sealed class SchemaDocsTests
         // (an indexed materialized view) whose page is entirely omitted must
         // be reported here, since RequireSection's empty-page early return
         // relies on this loop having said so.
-        foreach (var table in tables
+        var ownerUnion = tables
             .Union(indexesByTable.Keys, StringComparer.Ordinal)
             .Union(constraintsByTable.Keys, StringComparer.Ordinal)
             // Column owners too: an unindexed, unconstrained relation (a
@@ -605,7 +611,9 @@ public sealed class SchemaDocsTests
             // its omitted page must still be reported here — the column
             // loop's empty-page continue relies on it.
             .Union(columnsByTable.Select(g => g.Key), StringComparer.Ordinal)
-            .OrderBy(t => t, StringComparer.Ordinal))
+            .OrderBy(t => t, StringComparer.Ordinal)
+            .ToList();
+        foreach (var table in ownerUnion)
         {
             if (!File.Exists(Path.Combine(DocsDir, $"public.{table}.md")))
             {
@@ -614,6 +622,18 @@ public sealed class SchemaDocsTests
             }
             RequireSection(table, "## Indexes", indexesByTable.GetValueOrDefault(table) ?? []);
             RequireSection(table, "## Constraints", constraintsByTable.GetValueOrDefault(table) ?? []);
+        }
+
+        // BIDIRECTIONAL at the page level too: a committed public.<x>.md for
+        // a relation the live catalog doesn't have documents a phantom —
+        // and --check reproduces it, so only this comparison can see it.
+        foreach (var page in Directory.EnumerateFiles(DocsDir, "public.*.md")
+            .Select(f => Path.GetFileName(f)!)
+            .Select(f => f["public.".Length..^".md".Length])
+            .Where(rel => !ownerUnion.Contains(rel, StringComparer.Ordinal))
+            .OrderBy(r => r, StringComparer.Ordinal))
+        {
+            missing.AppendLine($"doc page without a catalog relation: {page}");
         }
 
         Assert.True(missing.Length == 0,
