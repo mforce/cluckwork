@@ -141,8 +141,11 @@ public sealed class SchemaDocsTests
         // release-please.yml's jq program building the #351 image.json —
         // out of scope, since it opens behind a quote, not a YAML key.
         // Scoped by extension: brace objects in JSON/JS are not compose.
+        // The image key may sit past NESTED braces inside the flow mapping,
+        // so everything on the line after the value-position brace is in
+        // scope — not just up to the first closing brace.
         var flowImageKeyPattern = new Regex(
-            @"(?m)^[ \t]*(?:-[ \t]+|[A-Za-z0-9_.""'-]+[ \t]*:[ \t]*)\{[^}\r\n]*[""']?image[""']?[ \t]*:");
+            @"(?m)^[ \t]*(?:-[ \t]+|[A-Za-z0-9_.""'-]+[ \t]*:[ \t]*)\{[^\r\n]*?[""']?image[""']?[ \t]*:");
         var fromLinePattern = new Regex(@"(?im)^[ \t]*FROM[ \t][^\r\n]*");
         var pgNamePattern = new Regex(@"postgres|_pg_?|pg_", RegexOptions.IgnoreCase);
         var mappingKeyPattern = new Regex(@"^[ \t]*[A-Za-z0-9_.-]+:([ \t]|\r?$)");
