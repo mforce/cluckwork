@@ -299,10 +299,18 @@ public sealed class SchemaDocsTests
                     // inside their strings, which the first version of this
                     // rule flagged as a baseline false positive. The key
                     // charset includes < for merge keys.
+                    // Compact mappings need no braces at all inside a flow
+                    // sequence ([ image: value ]) — an ENTRY-POSITION key is
+                    // an unquoted token-colon at the start of an entry, or a
+                    // closing quote immediately followed by a colon; a colon
+                    // INSIDE a quoted scalar is adjacent to neither, so
+                    // string arrays stay clean.
                     var seq = Regex.Match(textLines[i],
                         @"^[ \t]*(?:-[ \t]+)*[A-Za-z0-9_.""'<-]+[ \t]*:[ \t]*(?:[&!][^\s\[]+[ \t]+)*\[(?<rest>[^\r\n]*)");
                     if (seq.Success && (Regex.IsMatch(seq.Groups["rest"].Value, @"(?<!\$)\{")
-                        || !seq.Groups["rest"].Value.Contains(']')))
+                        || !seq.Groups["rest"].Value.Contains(']')
+                        || Regex.IsMatch(seq.Groups["rest"].Value, @"(?:^|,)[ \t]*[A-Za-z0-9_.-]+[ \t]*:[ \t]")
+                        || Regex.IsMatch(seq.Groups["rest"].Value, @"[""'][ \t]*:")))
                     {
                         AddHit($"{textLines[i].Trim()} (flow sequence carrying mappings or deferring past the line — not reviewable)");
                         continue;
