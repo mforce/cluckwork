@@ -88,10 +88,18 @@ export function StockPage() {
   // responses, and the broader (older) one can settle LAST — without this it
   // would overwrite the narrower view the user actually asked for.
   const lotsReq = useRef(0);
+  // The filter the visible rows actually came from — the rollback target for
+  // a failed change. The optimistic input values are NOT it: with two
+  // overlapping changes, the first may never have applied (codex review).
+  const appliedFilter = useRef({ from: "", to: "" });
+  // Ledger loads get their own ticket: a pending history request must not
+  // resurrect the ledger after a filter/grade change cleared it.
+  const ledgerReq = useRef(0);
 
   async function toggleGrade(gradeId: string) {
     setOpenLot(null);
     setMovements(null);
+    ledgerReq.current++;
     if (openGrade === gradeId) {
       setOpenGrade(null);
       return;
@@ -106,6 +114,7 @@ export function StockPage() {
       if (seq !== lotsReq.current) return;
       setLotsFrom("");
       setLotsTo("");
+      appliedFilter.current = { from: "", to: "" };
       setLots(page);
       setHasMoreLots(page.length === LOT_PAGE);
       setOpenGrade(gradeId);
@@ -119,28 +128,29 @@ export function StockPage() {
   // because the state set on the previous line hasn't rendered yet.
   async function changeLotsFilter(from: string, to: string) {
     if (openGrade === null) return;
-    // Optimistic input update, remembered for rollback: on failure the rows
-    // keep showing the OLD window, and the inputs must go back to describing
-    // it rather than the request that never landed (codex review).
-    const prevFrom = lotsFrom;
-    const prevTo = lotsTo;
     setLotsFrom(from);
     setLotsTo(to);
     // The expanded lot may not be in the filtered page at all — its ledger
-    // must not linger under an unrelated list (codex review).
+    // must not linger under an unrelated list, and a PENDING history load
+    // must not resurrect it after this clear (codex review).
     setOpenLot(null);
     setMovements(null);
+    ledgerReq.current++;
     const seq = ++lotsReq.current;
     try {
       const page = await fetchLotPage(openGrade, from, to, 0);
       if (seq !== lotsReq.current) return;
+      appliedFilter.current = { from, to };
       setLots(page);
       setHasMoreLots(page.length === LOT_PAGE);
       setError(null);
     } catch {
+      // Roll the inputs back to the window the still-visible rows actually
+      // came from — NOT the previous optimistic value, which with two
+      // overlapping changes may itself never have applied (codex review).
       if (seq === lotsReq.current) {
-        setLotsFrom(prevFrom);
-        setLotsTo(prevTo);
+        setLotsFrom(appliedFilter.current.from);
+        setLotsTo(appliedFilter.current.to);
         setError(i18n.t("stock:loadLotsFailed"));
       }
     }
@@ -171,14 +181,20 @@ export function StockPage() {
     if (openLot === lotId) {
       setOpenLot(null);
       setMovements(null);
+      ledgerReq.current++;
       return;
     }
+    const seq = ++ledgerReq.current;
     try {
-      setMovements(await listEggLotMovements(lotId));
+      const list = await listEggLotMovements(lotId);
+      // Cleared or replaced while in flight (filter change, grade switch,
+      // close): a late settle must not resurrect the ledger (codex review).
+      if (seq !== ledgerReq.current) return;
+      setMovements(list);
       setOpenLot(lotId);
       setError(null);
     } catch {
-      setError(i18n.t("stock:loadMovementsFailed"));
+      if (seq === ledgerReq.current) setError(i18n.t("stock:loadMovementsFailed"));
     }
   }
 

@@ -600,6 +600,52 @@ describe("StockPage lot paging + date filter (#465)", () => {
     expect(screen.getByText("2026-07-01")).toBeInTheDocument();
   });
 
+  it("rolls back to the last APPLIED filter, not the previous optimistic input (codex round 3)", async () => {
+    // From then To before the first request settles: if the second fails,
+    // the rows still show the ORIGINAL window — rolling back to the first
+    // change's never-applied From would misdescribe them.
+    const pending: Array<{ resolve: (rows: EggLotRow[]) => void; reject: (e: Error) => void }> = [];
+    mockListEggLots
+      .mockResolvedValueOnce(LOTS)
+      .mockImplementation(() => new Promise<EggLotRow[]>((resolve, reject) => pending.push({ resolve, reject })));
+    await expandGradeA();
+
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-07-02" } });
+    fireEvent.change(screen.getByLabelText("To"), { target: { value: "2026-07-03" } });
+    await waitFor(() => expect(pending).toHaveLength(2));
+
+    await act(async () => {
+      pending[1].reject(new Error("boom"));
+    });
+    await screen.findByText(/Could not load the grade's lots/);
+    // Applied filter was the unfiltered initial load — both inputs go back
+    // to empty, not to the intermediate From-only request that never landed.
+    expect(screen.getByLabelText("From")).toHaveValue("");
+    expect(screen.getByLabelText("To")).toHaveValue("");
+  });
+
+  it("drops a pending ledger load once the filter changes (codex round 3)", async () => {
+    // History clicked, its movement request in flight; the filter change
+    // clears the ledger — the late settle must not resurrect it under a
+    // filtered list that may not contain the lot at all.
+    let releaseMovements!: (rows: EggMovementRow[]) => void;
+    mockListEggLotMovements.mockReturnValue(
+      new Promise<EggMovementRow[]>((r) => (releaseMovements = r)));
+    mockListEggLots
+      .mockResolvedValueOnce(LOTS)
+      .mockResolvedValueOnce([{ ...LOTS[0], id: "hit", productionDate: "2026-07-02" }]);
+    await expandGradeA();
+
+    fireEvent.click(screen.getByRole("button", { name: "history" }));
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-07-02" } });
+    await screen.findByText("2026-07-02");
+
+    await act(async () => {
+      releaseMovements(MOVEMENTS);
+    });
+    expect(screen.queryByText(/Movement ledger/)).not.toBeInTheDocument();
+  });
+
   it("abandons a write-off refresh superseded during the stock refetch (codex round 2)", async () => {
     // refreshAfterWriteOff awaits getStock() first. If the user switches
     // grades during that await, the refresh must NOT claim a fresh ticket
