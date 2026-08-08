@@ -88,7 +88,13 @@ test.describe("Sales", () => {
 
     // ---- 3. Add a line -----------------------------------------------------
     await selectOptionContaining(page.getByLabel(tEn("sales:product")), PRODUCT);
-    await page.getByLabel(tEn("sales:quantity"), { exact: true }).fill(String(QUANTITY));
+    // #445 — the quantity label names the selected unit. The sim products all
+    // sell by the individual egg (SimulationDataSeeder: "sold in individual
+    // eggs"), so picking PRODUCT above lands the unit on Egg.
+    await page
+      .getByLabel(tEn("sales:quantityWithUnit", { unit: tEn("sales:unitEgg").toLowerCase() }),
+        { exact: true })
+      .fill(String(QUANTITY));
     await page.getByLabel(tEn("sales:unitPriceWithCurrency", { code: farm.currencyCode }))
       .fill(UNIT_PRICE);
     await page.getByRole("button", { name: tEn("sales:addLine") }).click();
