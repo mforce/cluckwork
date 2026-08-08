@@ -232,17 +232,22 @@ jobs:
 
       # Layer cache shared with e2e-smoke.yml (owner call 2026-08-08): both
       # workflows build this same Dockerfile per PR on separate runners with no
-      # daemon in common, which compiled everything twice. The key is
-      # content-addressed on every input the image consumes; restore-keys lets
-      # a PR start from the newest prior cache. Whichever workflow saves a key
-      # first wins — the other's save is a no-op, which is fine, they built the
-      # same bytes.
+      # daemon in common, which compiled everything twice. The key ends in the
+      # COMMIT — actions/cache never re-saves an exact-key hit, so a
+      # dependency-content-only key would freeze the cache at the first
+      # commit's source layers and every later source change would recompile
+      # in both jobs against a stale cache forever (codex review of #456).
+      # Per-commit keys make the second job of a commit a full hit; the
+      # restore-keys ladder gives a fresh commit the newest same-dependency
+      # cache (base images + restore layers + unchanged source layers), then
+      # anything.
       - name: Restore image layer cache
         uses: actions/cache@v6
         with:
           path: /tmp/.buildx-cache
-          key: image-layers-${{ hashFiles('src/Cluckwork.Api/Dockerfile', '**/packages.lock.json', 'web/package-lock.json', 'Directory.Build.props', 'Cluckwork.sln', '.dockerignore') }}
+          key: image-layers-${{ hashFiles('src/Cluckwork.Api/Dockerfile', '**/packages.lock.json', 'web/package-lock.json', 'Directory.Build.props', 'Cluckwork.sln', '.dockerignore') }}-${{ github.sha }}
           restore-keys: |
+            image-layers-${{ hashFiles('src/Cluckwork.Api/Dockerfile', '**/packages.lock.json', 'web/package-lock.json', 'Directory.Build.props', 'Cluckwork.sln', '.dockerignore') }}-
             image-layers-
 
       # Build the exact image the container ships: the multi-stage Dockerfile

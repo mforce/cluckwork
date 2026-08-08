@@ -100,18 +100,21 @@ jobs:
       - name: Verify harness config
         run: bash tools/simulation/verify-harness.sh
 
-      # Layer cache shared with ci.yml's image job — same key, same inputs, so
-      # whichever workflow built this content first feeds the other and the
-      # image is compiled once per content change instead of twice per PR
-      # (owner call 2026-08-08). A cold cache (first run, manual dispatch on
-      # a fresh branch) just builds from scratch — nothing here is required
-      # for the run to work.
+      # Layer cache shared with ci.yml's image job — same key expression, so
+      # whichever job built this commit first feeds the other, and a fresh
+      # commit starts from the newest same-dependency cache via restore-keys.
+      # Per-commit key suffix because actions/cache never re-saves an
+      # exact-key hit — a content-only key would freeze at the first commit's
+      # source layers (codex review of #456). A cold cache (first run, manual
+      # dispatch on a fresh branch) just builds from scratch — nothing here is
+      # required for the run to work.
       - name: Restore image layer cache
         uses: actions/cache@v6
         with:
           path: /tmp/.buildx-cache
-          key: image-layers-${{ hashFiles('src/Cluckwork.Api/Dockerfile', '**/packages.lock.json', 'web/package-lock.json', 'Directory.Build.props', 'Cluckwork.sln', '.dockerignore') }}
+          key: image-layers-${{ hashFiles('src/Cluckwork.Api/Dockerfile', '**/packages.lock.json', 'web/package-lock.json', 'Directory.Build.props', 'Cluckwork.sln', '.dockerignore') }}-${{ github.sha }}
           restore-keys: |
+            image-layers-${{ hashFiles('src/Cluckwork.Api/Dockerfile', '**/packages.lock.json', 'web/package-lock.json', 'Directory.Build.props', 'Cluckwork.sln', '.dockerignore') }}-
             image-layers-
 
       # Pre-build the app image under the compose-derived tag (project

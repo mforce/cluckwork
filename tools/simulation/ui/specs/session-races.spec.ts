@@ -323,6 +323,20 @@ test.describe("#310 session races", () => {
     // Releasing here still satisfies the ordering the test is named for: the
     // login response has landed, so its `Set-Cookie` is already applied, and the
     // freed refresh can only write on top of it.
+    // Registered BEFORE the click (so before the release in the finally
+    // below): the freed stale refresh settles, and the client's reaction to
+    // discarding it is the unconditional #393/#433 cookie revoke — a POST to
+    // /auth/logout. Awaiting BOTH, instead of the fixed settle timer this
+    // used to sleep, is what makes the reload below deterministic on a loaded
+    // runner too: a timer that usually covers the two round-trips races them
+    // on a slow PR runner, and this suite now gates covered PRs (codex review
+    // of #456).
+    const staleRefreshSettled = page.waitForResponse(
+      (r) => r.url().includes("/api/v1/auth/refresh"),
+    );
+    const revokeSettled = page.waitForResponse(
+      (r) => r.url().includes("/api/v1/auth/logout"),
+    );
     try {
       await page.getByRole("button", { name: tEn("auth:signIn") }).click();
       await loginLanded;
@@ -333,8 +347,10 @@ test.describe("#310 session races", () => {
     await expect(page.getByRole("navigation", { name: tEn("nav:primaryNavAriaLabel") }))
       .toBeVisible();
 
-    // Give the freed refresh time to arrive and be acted on.
-    await page.waitForTimeout(HOLD_MS + 2_000);
+    // The freed refresh has arrived, been discarded as stale, and its cookie
+    // revoke has completed — everything the reload's outcome depends on.
+    await staleRefreshSettled;
+    await revokeSettled;
 
     // THE GUARANTEE: this is the Sales session, and the Owner's has not been
     // restored underneath it. Asserted through the nav's role gates, which
