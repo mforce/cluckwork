@@ -146,13 +146,16 @@ public sealed class SchemaDocsTests
         // shape. A COMPLETE option followed by space-then-continuation is
         // ordinary multi-line RUN formatting and stays legitimate: the
         // refusal fires only when the continuation char ABUTS the token.
-        // Generalized from the mount-only form: ANY option token cut by a
-        // line continuation (--from=\ as much as --mount=...\) splices the
-        // next line into its value, deferring what the option names past
-        // this line. A complete value followed by space-then-continuation
-        // is ordinary formatting and stays legitimate.
+        // Terminal form (rounds 60/63/64 each found a narrower splice): in a
+        // Dockerfile, a continuation character ABUTTING any token splices
+        // the next physical line into that token — option names as much as
+        // option values — so token-abutting continuations are refused
+        // wholesale. Ordinary formatting puts a space before the
+        // continuation and stays legitimate. Scoped to Dockerfile-named
+        // files: backslash-abutting line ends are legit syntax in shell and
+        // C# sources.
         var runMountContinuedPattern = new Regex(
-            @"(?im)--[A-Za-z0-9-]+=[^\s]*[\\`][ \t]*\r?$");
+            @"(?im)[^\s\\`][\\`][ \t]*\r?$");
         // Digest-only pull grammar (NAME@DIGEST, no tag): immutable but not
         // the canonical reference — and tagless, so neither pattern above
         // sees it (no colon for the first, an @ failing the second's
@@ -283,11 +286,14 @@ public sealed class SchemaDocsTests
                     hits["postgres (untagged, in a RUN mount from= — floats to latest)"] = files = [];
                 files.Add(relative);
             }
-            foreach (Match m in runMountContinuedPattern.Matches(text))
+            if (relative.Contains("Dockerfile", StringComparison.OrdinalIgnoreCase))
             {
-                if (!hits.TryGetValue("option value continued past the line — not reviewable", out var files))
-                    hits["option value continued past the line — not reviewable"] = files = [];
-                files.Add(relative);
+                foreach (Match m in runMountContinuedPattern.Matches(text))
+                {
+                    if (!hits.TryGetValue("token-abutting continuation — not reviewable", out var files))
+                        hits["token-abutting continuation — not reviewable"] = files = [];
+                    files.Add(relative);
+                }
             }
             foreach (Match m in digestOnlyPattern.Matches(text))
             {
