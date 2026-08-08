@@ -147,8 +147,16 @@ public sealed class SchemaDocsTests
         // image constant, e.g.) must BE the canonical pin — a bare
         // "postgres" literal floats to latest with no colon for the global
         // candidate to see.
+        // Scoped to IMAGE-CONSUMING expressions — an *Image* assignment, a
+        // *Builder("...") construction, or WithImage("...") — because the
+        // bare word is ALSO a legitimate scheme name, username, and database
+        // name in C# sources (PostgresConnectionString's scheme handling and
+        // the design-time factory's DSN fixtures surfaced as baseline false
+        // positives when the sweep ran anchor-free). An image reference fed
+        // through any other expression is opaque indirection, same boundary
+        // as variable names.
         var csharpImageLiteralPattern = new Regex(
-            @"=\s*""((?:[a-z0-9.-]+(?::\d+)?/)*postgres(?::[^""@]+)?(?:@sha256:[0-9a-f]{64})?)""");
+            @"(?:Image\w*\s*=\s*|Builder\s*\(\s*|WithImage\s*\(\s*)""((?:[a-z0-9.-]+(?::\d+)?/)*postgres(?::[^""@]+)?(?:@sha256:[0-9a-f]{64})?)""");
         // BuildKit RUN mounts pull an external image when from= names no
         // build stage or context — a fourth bare-reference syntax.
         // NOT anchored to RUN: a continued instruction puts later mount
