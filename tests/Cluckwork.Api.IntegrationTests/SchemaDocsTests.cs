@@ -329,10 +329,20 @@ public sealed class SchemaDocsTests
                     // closing quote immediately followed by a colon; a colon
                     // INSIDE a quoted scalar is adjacent to neither, so
                     // string arrays stay clean.
-                    // The outer key may be a quoted scalar containing
-                    // whitespace — quoted alternatives consume it.
+                    // POSITION-FREE: the ': ' before the opener is the
+                    // value-position marker, so the owner key's spelling
+                    // (plain, quoted, whitespace-bearing — rounds 54-55 each
+                    // defeated a key charset) no longer matters at all. The
+                    // colon must not be part of an interpolation (': ${').
                     var seq = Regex.Match(textLines[i],
-                        @"^[ \t]*(?:-[ \t]+)*(?:[&!][^\s]+[ \t]+)*(?:[A-Za-z0-9_.""'<-]+|""(?:[^""\\]|\\.)*""|'(?:[^']|'')*')[ \t]*:[ \t]*(?:[&!][^\s\[]+[ \t]+)*\[(?<rest>[^\r\n]*)");
+                        @":[ \t]*(?:[&!][^\s\[]+[ \t]+)*\[(?<rest>[^\r\n]*)");
+                    var flowVal = Regex.Match(textLines[i],
+                        @":[ \t]*(?:[&!][^\s{]+[ \t]+)*(?<!\$)\{(?!\}[ \t]*(?:#[^\r\n]*)?\r?$)");
+                    if (flowVal.Success)
+                    {
+                        AddHit($"{textLines[i].Trim()} (flow-style mapping — use block mappings; only the empty {{}} idiom is allowed)");
+                        continue;
+                    }
                     // The CLOSE check must not be satisfied by a bracket
                     // living inside a quoted scalar or a trailing comment —
                     // evaluate it on a scope with quoted spans blanked and
