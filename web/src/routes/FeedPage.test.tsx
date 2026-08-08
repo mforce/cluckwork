@@ -200,6 +200,55 @@ describe("FeedPage (#446 — feed usage promoted out of the Inventory drill-down
     expect(screen.queryByRole("option", { name: /Spent feed/ })).not.toBeInTheDocument();
   });
 
+  it("honors a deep link to an inactive empty item rather than substituting another one", async () => {
+    // The Inventory link (or a stale bookmark) can name an item that has
+    // since gone inactive AND empty. Falling back to feedable[0] would let
+    // the user drain an UNRELATED item — keep the requested one selected
+    // with its own empty marker and let the stock check refuse the submit.
+    mockListItems.mockResolvedValue([
+      item(),
+      item({ id: "i3", name: "Spent feed", category: "Feed", active: false, quantityOnHand: 0 }),
+    ]);
+    await renderReady("/feed?item=i3");
+    expect(screen.getByLabelText("Item")).toHaveValue("i3");
+    expect(screen.getByRole("option", { name: /Spent feed .*inactive, no stock left/ })).toBeInTheDocument();
+  });
+
+  it("ignores a stale filter response that lands after a newer one", async () => {
+    await renderReady();
+
+    let releaseStale!: (rows: FeedUsage[]) => void;
+    mockListUsage.mockReturnValueOnce(new Promise((r) => { releaseStale = r; }));
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-08-01" } });
+    mockListUsage.mockResolvedValueOnce([usageRow({ id: "uF", note: "fresh rows" })]);
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("To"), { target: { value: "2026-08-02" } });
+    });
+    expect(screen.getByText("fresh rows")).toBeInTheDocument();
+
+    // The abandoned first request resolves LAST — it must not clobber the
+    // rows that match the currently displayed filters.
+    await act(async () => { releaseStale([usageRow({ id: "uS", note: "stale rows" })]); });
+    expect(screen.getByText("fresh rows")).toBeInTheDocument();
+    expect(screen.queryByText("stale rows")).not.toBeInTheDocument();
+  });
+
+  it("ignores a stale filter rejection that lands after a newer success", async () => {
+    await renderReady();
+
+    let rejectStale!: (err: Error) => void;
+    mockListUsage.mockReturnValueOnce(new Promise((_, rej) => { rejectStale = rej; }));
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-08-01" } });
+    mockListUsage.mockResolvedValueOnce([usageRow({ id: "uF", note: "fresh rows" })]);
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("To"), { target: { value: "2026-08-02" } });
+    });
+
+    await act(async () => { rejectStale(new Error("boom")); });
+    expect(screen.getByText("fresh rows")).toBeInTheDocument();
+    expect(screen.queryByText("Could not load feed records.")).not.toBeInTheDocument();
+  });
+
   it("refreshes the picker's on-hand figures after a successful record", async () => {
     mockRecord.mockResolvedValue({
       feedUsageId: "u9", quantityUsed: 20, estimatedCostMinorUnits: 100, currencyCode: "USD",

@@ -75,14 +75,26 @@ export function FeedPage() {
   };
   const clearKey = (scope: string) => keys.current.delete(scope);
 
+  // Monotonic sequence: rapid filter changes overlap flights, and a slow
+  // network can deliver the OLD response (or rejection) last — only the
+  // newest flight may touch rows/hasMore or surface an error.
+  const loadSeq = useRef(0);
   const load = useCallback(async (offset = 0) => {
-    const page = await listFeedUsage({
-      flockId: flockFilter || undefined,
-      from: from || undefined,
-      to: to || undefined,
-      limit: PAGE,
-      offset,
-    });
+    const seq = ++loadSeq.current;
+    let page: FeedUsage[];
+    try {
+      page = await listFeedUsage({
+        flockId: flockFilter || undefined,
+        from: from || undefined,
+        to: to || undefined,
+        limit: PAGE,
+        offset,
+      });
+    } catch (err) {
+      if (seq !== loadSeq.current) return; // superseded — stale failure is noise
+      throw err;
+    }
+    if (seq !== loadSeq.current) return;
     setHasMore(page.length === PAGE);
     setRows((prev) => (offset === 0 ? page : [...(prev ?? []), ...page]));
   }, [flockFilter, from, to]);
@@ -101,9 +113,14 @@ export function FeedPage() {
         const feedable = allItems.filter(
           (x) => FEEDABLE_CATEGORIES.includes(x.category)
             && (x.active || x.quantityOnHand > 0));
-        // ?item= deep link (from the Inventory page's per-item hint) wins
-        // when it names a feedable item; otherwise the first feedable one.
-        const linked = feedable.find((x) => x.id === searchParams.get("item"));
+        // ?item= deep link (from the Inventory page's per-item hint) ALWAYS
+        // wins when it names a feedable-category item — even one that has
+        // gone inactive AND empty. Substituting feedable[0] there would let
+        // a user following a stale link drain an unrelated item; keeping the
+        // requested one selected lets the stock check refuse the submit.
+        const linked = allItems.find(
+          (x) => x.id === searchParams.get("item")
+            && FEEDABLE_CATEGORIES.includes(x.category));
         const preselected = linked ?? feedable[0];
         if (preselected) setItemId(preselected.id);
       })
@@ -131,9 +148,12 @@ export function FeedPage() {
   // stays pickable while stock remains (quality review of #446: the old
   // Inventory dialog allowed this and the deep link must not silently swap
   // to a different item).
+  // The deep-linked item stays listed even when inactive+empty, so the
+  // selection above always has a visible option behind it.
+  const requestedItemId = searchParams.get("item");
   const pickableItems = items.filter(
     (x) => FEEDABLE_CATEGORIES.includes(x.category)
-      && (x.active || x.quantityOnHand > 0));
+      && (x.active || x.quantityOnHand > 0 || x.id === requestedItemId));
   const selectedItem = items.find((x) => x.id === itemId);
 
   async function onSubmit(e: FormEvent) {
@@ -193,7 +213,9 @@ export function FeedPage() {
             {pickableItems.map((x) => (
               <option key={x.id} value={x.id}>
                 {t("itemOption", { name: x.name, onHand: x.quantityOnHand, unit: x.unit })}
-                {x.active ? "" : t("inactiveItemSuffix")}
+                {x.active ? ""
+                  : x.quantityOnHand > 0 ? t("inactiveItemSuffix")
+                    : t("inactiveEmptyItemSuffix")}
               </option>
             ))}
           </select>

@@ -517,6 +517,7 @@ export const es = {
       + "lote afectado — los registros de alimento nunca se editan.",
     filterFlockLabel: "Filtrar por parvada",
     inactiveItemSuffix: " — inactivo, consumiendo existencias restantes",
+    inactiveEmptyItemSuffix: " — inactivo, sin existencias",
     recordsHeading: "Registros",
     fromLabel: "Desde",
     toLabel: "Hasta",

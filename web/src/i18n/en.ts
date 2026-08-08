@@ -593,6 +593,7 @@ export const en = {
     // Records list — filters
     filterFlockLabel: "Filter by flock",
     inactiveItemSuffix: " — inactive, feeding out remaining stock",
+    inactiveEmptyItemSuffix: " — inactive, no stock left",
     recordsHeading: "Records",
     fromLabel: "From",
     toLabel: "To",

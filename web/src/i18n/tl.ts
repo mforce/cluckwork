@@ -538,6 +538,7 @@ export const tl = {
       + "adjustment sa apektadong lot — hindi kailanman ine-edit ang mga tala ng pakain.",
     filterFlockLabel: "Salain ayon sa kawan",
     inactiveItemSuffix: " — hindi aktibo, inuubos ang natitirang stock",
+    inactiveEmptyItemSuffix: " — hindi aktibo, wala nang stock",
     recordsHeading: "Mga tala",
     fromLabel: "Mula",
     toLabel: "Hanggang",
