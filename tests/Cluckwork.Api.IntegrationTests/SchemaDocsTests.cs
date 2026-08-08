@@ -207,6 +207,15 @@ public sealed class SchemaDocsTests
         // shape itself is rejected, whatever it decodes to.
         var escapedKeyPattern = new Regex(@"^[ \t]*(?:-[ \t]+)*(?:[&!][^\s""]+[ \t]+)*""[^""\r\n]*\\[^""\r\n]*""[ \t]*:");
         var fromLinePattern = new Regex(@"(?im)^[ \t]*FROM[ \t][^\r\n]*");
+        // A bare (untagged) postgres reference hiding in an ARG default
+        // (ARG X=postgres) floats to latest when the ARG parameterizes FROM.
+        var argPostgresDefaultPattern = new Regex(
+            @"(?im)^[ \t]*ARG[ \t]+[A-Za-z_][A-Za-z0-9_]*=[""']?(?:[a-z0-9.-]+(?::\d+)?/)*postgres[""']?(?=\s|$)");
+        // A FROM whose image is entirely a variable is never reviewable —
+        // whatever the variable's name, its value comes from ARG/build args.
+        // (FROM context is narrow enough that this needs no name heuristic,
+        // unlike compose values.)
+        var fromVariablePattern = new Regex(@"(?im)^[ \t]*FROM[ \t]+[""']?\$");
         var pgNamePattern = new Regex(@"postgres|_pg_?|pg_", RegexOptions.IgnoreCase);
         var mappingKeyPattern = new Regex(@"^[ \t]*[A-Za-z0-9_.-]+:([ \t]|\r?$)");
         var hits = new Dictionary<string, List<string>>();
@@ -258,6 +267,10 @@ public sealed class SchemaDocsTests
                 else if (line.Contains('$') && pgNamePattern.IsMatch(line))
                     AddHit($"{line.Trim()} (interpolated image line — not a reviewable pin)");
             }
+            foreach (Match m in argPostgresDefaultPattern.Matches(text))
+                AddHit($"{m.Value.Trim()} (untagged postgres in an ARG default — floats to latest)");
+            foreach (Match m in fromVariablePattern.Matches(text))
+                AddHit($"{m.Value.Trim()}... (FROM via variable — not a reviewable pin)");
 
             var textLines = text.Split('\n');
             var isYaml = relative.EndsWith(".yml", StringComparison.OrdinalIgnoreCase)
