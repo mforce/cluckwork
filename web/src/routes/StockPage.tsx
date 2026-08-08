@@ -293,7 +293,11 @@ export function StockPage() {
     const scope = `write-off:${lot.id}`;
     // The refresh's ticket, claimed at submit time: any grade/filter action
     // the user takes from here on is newer intent and outranks the refresh.
+    // The claim also assumes ownership of the loading flag — a superseded
+    // filter load can no longer clear it, so this operation must release it
+    // when it settles, whatever the outcome (codex review).
     const lotSeq = ++lotsReq.current;
+    setLotsLoading(true);
     const outcome = await runPending(scope, async () => {
       setDialogError(null);
       setMessage(null);
@@ -313,6 +317,13 @@ export function StockPage() {
       // Holding the key past this point would hash-conflict a later submit
       // with edited values while the dialog is still open (codex review).
       clearKey(scope);
+      // Patch the visible row from the write's own response, ticket-blind:
+      // if a newer filter/page GET raced this POST, its data predates the
+      // mutation, and the superseded refresh below will skip its walk — this
+      // is the only correction that always lands (codex review). A refresh
+      // that does run replaces it with the same server truth.
+      setLots((prev) => prev.map((l) =>
+        l.id === lot.id ? { ...l, quantityAvailable: res.quantityAvailable } : l));
       try {
         await refreshAfterWriteOff(lot, lotSeq);
       } catch {
@@ -321,6 +332,9 @@ export function StockPage() {
       }
       return res;
     });
+    // Release the loading flag claimed at submit — success, failure, or
+    // skipped walk alike — unless something newer has taken ownership.
+    if (lotSeq === lotsReq.current) setLotsLoading(false);
     if (outcome) {
       setMessage(i18n.t("stock:writeOffRecordedMessage", { available: outcome.quantityAvailable }));
       setWriteOffLot(null);

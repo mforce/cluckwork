@@ -600,6 +600,74 @@ describe("StockPage lot paging + date filter (#465)", () => {
     expect(screen.getByText("2026-07-01")).toBeInTheDocument();
   });
 
+  it("releases the loading flag when a write-off supersedes a pending filter (codex round 5)", async () => {
+    // Filter load sets lotsLoading; the write-off submit supersedes it, so
+    // the filter's settle can't clear the flag — the submit must own and
+    // eventually release it, or load-more stays hidden forever.
+    mockRecordEggLotMovement.mockResolvedValue({
+      movementId: "wo1", eggLotId: "lot-07-0", movementType: "Discard",
+      quantityDelta: -7, reason: "dropped a tray",
+      createdAtUtc: "2026-08-08T10:00:00Z", quantityAvailable: 83, version: 2,
+    });
+    mockListEggLots
+      .mockResolvedValueOnce(makeLots(PAGE))
+      .mockImplementationOnce(() => new Promise<EggLotRow[]>(() => undefined))
+      .mockResolvedValue(makeLots(PAGE));
+    await expandGradeA();
+    await screen.findByRole("button", { name: "load more" });
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-07-02" } });
+    expect(screen.queryByRole("button", { name: "load more" })).not.toBeInTheDocument();
+
+    const lotRow = screen.getAllByRole("row", { name: /2026-07-01/ })[0];
+    fireEvent.click(within(lotRow).getByRole("button", { name: "write off" }));
+    const dialog = screen.getByRole("dialog");
+    fireEvent.change(within(dialog).getByRole("spinbutton"), { target: { value: "7" } });
+    fireEvent.change(within(dialog).getByLabelText(/Reason/), { target: { value: "dropped a tray" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: /Record/ }));
+    await screen.findByText(/83 now available/);
+
+    // The walk returned a full page: load-more must be usable again.
+    expect(await screen.findByRole("button", { name: "load more" })).toBeInTheDocument();
+  });
+
+  it("patches the lot row from the write response even when superseded (codex round 5)", async () => {
+    // POST pending, user's filter GET settles first with the PRE-mutation
+    // balance; the superseded refresh skips its walk — the durable write's
+    // own response must still correct the visible row.
+    let releaseRecord!: (r: {
+      movementId: string; eggLotId: string; movementType: string; quantityDelta: number;
+      reason: string; createdAtUtc: string; quantityAvailable: number; version: number;
+    }) => void;
+    mockRecordEggLotMovement.mockReturnValue(
+      new Promise((r) => (releaseRecord = r)));
+    mockListEggLots
+      .mockResolvedValueOnce(LOTS)
+      .mockResolvedValueOnce([{ ...LOTS[0] }]); // filter GET: stale 99 balance
+    await expandGradeA();
+
+    fireEvent.click(screen.getByRole("button", { name: "write off" }));
+    const dialog = screen.getByRole("dialog");
+    fireEvent.change(within(dialog).getByRole("spinbutton"), { target: { value: "7" } });
+    fireEvent.change(within(dialog).getByLabelText(/Reason/), { target: { value: "dropped a tray" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: /Record/ }));
+
+    // While the POST hangs, the user narrows the filter; the stale GET lands.
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-07-01" } });
+    await waitFor(() => expect(mockListEggLots).toHaveBeenCalledTimes(2));
+
+    await act(async () => {
+      releaseRecord({
+        movementId: "wo1", eggLotId: "lot1", movementType: "Discard",
+        quantityDelta: -7, reason: "dropped a tray",
+        createdAtUtc: "2026-08-08T10:00:00Z", quantityAvailable: 92, version: 2,
+      });
+    });
+    await screen.findByText(/92 now available/);
+    const lotRow = screen.getByRole("row", { name: /2026-07-01/ });
+    expect(within(lotRow).getByText("92")).toBeInTheDocument();
+    expect(within(lotRow).queryByText("99")).not.toBeInTheDocument();
+  });
+
   it("hides load-more while a filter load is pending (codex round 4)", async () => {
     // Clicking load-more mid-filter-load would supersede the page-0 request
     // and append the NEW window's page onto the OLD window's rows.
