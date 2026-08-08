@@ -333,8 +333,13 @@ public sealed class SchemaDocsTests
                     // living inside a quoted scalar or a trailing comment —
                     // evaluate it on a scope with quoted spans blanked and
                     // the comment tail cut.
+                    // Escape-aware quote blanking: a double-quoted scalar may
+                    // contain backslash-escaped quotes, a single-quoted one
+                    // doubled quotes — a naive [^"]* reducer stops at the
+                    // escape and leaves the scalar's tail (with any fake
+                    // closer it carries) in scope.
                     var closeScope = seq.Success
-                        ? Regex.Replace(seq.Groups["rest"].Value, @"""[^""]*""|'[^']*'", "\"\"")
+                        ? Regex.Replace(seq.Groups["rest"].Value, @"""(?:[^""\\]|\\.)*""|'(?:[^']|'')*'", "\"\"")
                         : "";
                     var hashIdx = closeScope.IndexOf('#');
                     if (hashIdx >= 0) closeScope = closeScope[..hashIdx];
