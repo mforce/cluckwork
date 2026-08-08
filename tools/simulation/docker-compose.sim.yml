@@ -42,7 +42,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
-      - cluckwork-sim-postgres:/var/lib/postgresql/data
+      - cluckwork-sim-postgres-pg18:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
@@ -159,4 +159,4 @@ services:
       - "127.0.0.1:8889:8889"
 
 volumes:
-  cluckwork-sim-postgres:
+  cluckwork-sim-postgres-pg18:
