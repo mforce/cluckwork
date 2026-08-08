@@ -197,6 +197,11 @@ public sealed class SchemaDocsTests
         // embedded text and skipped; everything else is YAML structure.
         var rootFlowPattern = new Regex(
             @"^[ \t]*(?:---[ \t]+)?(?:[&!][^\s{]+[ \t]+)*\{(?!\}[ \t]*(?:#[^\r\n]*)?\r?$)");
+        // A double-quoted mapping key carrying escape sequences can resolve
+        // to ANY key ("image" is image) — refusing to decode is the
+        // point: a key that needs escapes is not reviewable as text, so the
+        // shape itself is rejected, whatever it decodes to.
+        var escapedKeyPattern = new Regex(@"^[ \t]*(?:-[ \t]+)*""[^""\r\n]*\\[^""\r\n]*""[ \t]*:");
         var fromLinePattern = new Regex(@"(?im)^[ \t]*FROM[ \t][^\r\n]*");
         var pgNamePattern = new Regex(@"postgres|_pg_?|pg_", RegexOptions.IgnoreCase);
         var mappingKeyPattern = new Regex(@"^[ \t]*[A-Za-z0-9_.-]+:([ \t]|\r?$)");
@@ -259,6 +264,11 @@ public sealed class SchemaDocsTests
                 if (embedded[i]) continue; // block-scalar body: embedded text, not YAML structure
                 if (isYaml)
                 {
+                    if (escapedKeyPattern.IsMatch(textLines[i]))
+                    {
+                        AddHit($"{textLines[i].Trim()} (escaped mapping key — not reviewable as text)");
+                        continue;
+                    }
                     if (flowMappingPattern.IsMatch(textLines[i]))
                     {
                         AddHit($"{textLines[i].Trim()} (flow-style mapping — use block mappings; only the empty {{}} idiom is allowed)");
