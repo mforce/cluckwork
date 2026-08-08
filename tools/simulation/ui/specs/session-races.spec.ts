@@ -1,8 +1,9 @@
 // #310 acceptance — the two session-generation races, driven in a real browser.
 //
 // #310 is CLOSED. These two tests assert the OUTCOME of its races in a real
-// browser — which session the user ends up in, and that a reload agrees — not
-// the mechanism. The mechanism is `sessionGeneration` in
+// browser — which session the user ends up in, and what a reload then does
+// (post-#433: for the login race, a forced fresh sign-in — see the reload
+// block's comment) — not the mechanism. The mechanism is `sessionGeneration` in
 // `web/src/api/client.ts`: a module-level counter that `login()` and `logout()`
 // bump, captured before each await and re-checked on settlement, so a superseded
 // completion is discarded (`StaleSessionError`) instead of committing tokens.
@@ -131,12 +132,16 @@
 // instrument, not of whether the hazard is fixed. The `route.fulfill()` replay
 // approach above remains the path for whoever wants E2E-level proof of the
 // cookie mechanism itself; costed but still not built. This spec asserts the
-// OUTCOME of the race (which session the user lands in, and that a reload
-// agrees); it was never evidence about the cookie mechanism, fixed or not.
+// OUTCOME of the race (which session the user lands in, and what a reload
+// then does); it was never evidence about the cookie mechanism, fixed or not.
 //
 // What these two tests DO cover, and what the killed `logout-not-honoured`
-// mutant stands behind: the session the user ends up in after the race, and that
-// a reload agrees with it. That is the outcome a farmer would notice.
+// mutant stands behind: the session the user ends up in after the race, and
+// what a reload then does. Post-#433 those differ per race: the logout race's
+// reload stays signed out, and the login race's reload asks for a fresh
+// sign-in (the unconditional stale-flight revoke — #393/#433/#455 — has
+// killed the jar's cookie by then, on purpose). That is still the outcome a
+// farmer would notice.
 
 import { expect, test } from "../src/fixtures";
 import { castMember, owner } from "../src/cast";
@@ -348,15 +353,32 @@ test.describe("#310 session races", () => {
     await expect(nav.link("nav:sales")).toBeVisible();
     await expect(nav.link("nav:customers")).toBeVisible();
 
-    // Reload to prove the DURABLE cookie also belongs to Sales, not merely the
-    // in-memory access token the assertions above read.
+    // Reload to pin the DURABLE half of the contract — which CHANGED in
+    // #393/#433. A discarded stale flight's cookie is now revoked
+    // UNCONDITIONALLY: network arrival order decides which Set-Cookie the
+    // browser kept, JS cannot observe it, and the HttpOnly cookie can't be
+    // read back — so the revoke deliberately accepts catching the newer
+    // session's own cookie rather than ever leaving the PREVIOUS user's
+    // cookie live (the wrong-session hole #393 closed). In the race this
+    // test manufactures, that worst case is certain: the freed Owner
+    // refresh is always discarded as stale, so the jar's cookie — whichever
+    // of the two it is — is dead by the time of this reload.
     //
-    // Worth knowing what this does and does not prove: it is a real check that
-    // the reload restores the Sales session, and it would catch a client that
-    // committed a superseded response's tokens. It is NOT evidence about the
-    // late-`Set-Cookie` race, because — see the header — this harness cannot
-    // make a held request carry a stale cookie.
+    // The documented outcome (Help → Signing in, multi-tab resync; #455) is
+    // a forced fresh sign-in, and that is the SAFE outcome this asserts: the
+    // reload restores NOBODY — not the old Owner session, and not a Sales
+    // session riding a cookie the client no longer trusts. Before #433 this
+    // block asserted the Sales session survived the reload; that assertion
+    // described the pre-#433 contract and broke the day the fix merged
+    // (silently — this suite is workflow_dispatch-only, the #370 trap).
     await page.reload();
+    await expect(page.getByLabel(tEn("auth:email"))).toBeVisible();
+
+    // And the forced re-auth is a plain re-auth, not a wedged account:
+    // Sales signs straight back in and lands in a Sales-shaped shell.
+    await page.getByLabel(tEn("auth:email")).fill(sales.email);
+    await page.getByLabel(tEn("auth:password")).fill(sales.password);
+    await page.getByRole("button", { name: tEn("auth:signIn") }).click();
     await expect(nav.link("nav:sales")).toBeVisible();
     await expect(nav.link("nav:audit")).toBeHidden();
   });

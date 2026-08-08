@@ -1,22 +1,20 @@
 # SPA E2E smoke suite (#277 / #385 / #387).
 #
-# ================== workflow_dispatch ONLY — AND WHY ==================
+# ================== WHEN THIS RUNS — AND WHY ==================
 #
-# This never runs on a push or a PR, deliberately (owner call). It stands up the
-# whole sim stack — build the image, boot Postgres, migrate, bootstrap an admin,
-# run `seed --profile simulation` — before the first assertion, which is roughly
-# 6-10 billed minutes per run. That is badly out of proportion to a per-push gate
-# for a suite whose job is a pre-release confidence check.
+# The quick suite runs ON PULL REQUESTS (owner call, 2026-08-08, revising the
+# original dispatch-only decision): #433 merged a deliberate session-contract
+# change that broke this suite and nothing reported it for a day — the exact
+# #370 rot the dispatch-only header used to warn about. The original cost
+# estimate ("roughly 6-10 billed minutes") is also stale: the measured job is
+# ~3 minutes wall (image build + boot + migrate + seed + 28 specs), which is
+# in proportion to a PR gate. Path-filtered to changes the suite can actually
+# see, and superseded runs are cancelled, so docs-only PRs and force-push
+# churn cost nothing.
 #
-# It is the same reasoning already written into AGENTS.md and
-# tools/simulation/README.md for the k6 harness, and it applies harder here,
-# because this needs everything that one needs PLUS a browser.
-#
-# THE COST OF THAT CHOICE, STATED SO NOBODY HAS TO REDISCOVER IT: nothing
-# exercises this workflow on its own. It will rot exactly the way the sim harness
-# rotted (#370 — four boot guards landed and it could no longer boot main at all,
-# with nothing reporting it). If you change a boot guard, a config key, or the
-# harness layout, this file is downstream of that change.
+# workflow_dispatch remains for the modes a PR run never exercises — `slow`
+# (the real 15-minute expiry spec) and `canary` — and for the k6 sibling the
+# #370 warning still fully applies: nothing runs those for you.
 #
 # ================== THE SECOND BROWSER PATH ==================
 #
@@ -25,16 +23,27 @@
 # downloaded binaries do not launch there. A GitHub runner is the mirror image:
 # no system chromium, and `playwright install` is the working path.
 #
-# So there are two live paths, and **this workflow is the only thing that ever
-# exercises the downloaded one.** If it is never dispatched, that path rots
-# silently and the first person to need it (a new contributor on Ubuntu) finds
-# out the hard way. `CLUCKWORK_E2E_BUNDLED_BROWSER=1` below pins it explicitly
-# rather than relying on the absence of a system binary, so the run proves the
-# path on purpose instead of by accident.
+# So there are two live paths, and **this workflow is the only thing that
+# exercises the downloaded one** — routinely now, since every covered PR runs
+# it. `CLUCKWORK_E2E_BUNDLED_BROWSER=1` below pins it explicitly rather than
+# relying on the absence of a system binary, so the run proves the path on
+# purpose instead of by accident.
 
 name: E2E smoke
 
 on:
+  pull_request:
+    # Only what the suite can observe: the app (image), the SPA it serves, the
+    # harness that boots it, and this workflow itself. Docs/specs-only PRs
+    # skip it. On pull_request the dispatch inputs below are empty, so the
+    # slow and canary steps are off by construction.
+    paths:
+      - "src/**"
+      - "web/**"
+      - "tools/simulation/**"
+      - "Dockerfile"
+      - "deploy/**"
+      - ".github/workflows/e2e-smoke.yml"
   workflow_dispatch:
     inputs:
       slow:
@@ -53,13 +62,19 @@ on:
 permissions:
   contents: read
 
+# A force-push obsoletes the previous run's answer — stop paying for it.
+concurrency:
+  group: e2e-smoke-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   e2e:
     name: Playwright smoke over the simulation fixture
     runs-on: ubuntu-latest
-    # Generous, because a `slow: true` run spends 16 of these minutes asleep on
-    # purpose. Still bounded: a hung stack must not burn an hour.
-    timeout-minutes: 45
+    # PR runs are the ~3-minute quick suite with a headroom cap (a hung stack
+    # must fail fast, not burn minutes). Dispatch stays generous because a
+    # `slow: true` run spends 16 of these minutes asleep on purpose.
+    timeout-minutes: ${{ github.event_name == 'pull_request' && 10 || 45 }}
 
     steps:
       - uses: actions/checkout@v7
