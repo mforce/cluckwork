@@ -143,6 +143,12 @@ public sealed class SchemaDocsTests
         // pin, whatever the variable's name — same name-blind refusal as a
         // variable FROM image (a scheme-prefixed value is always an image).
         var dockerImageVarPattern = new Regex(@"(?im)docker-image://[^\s""',}\]]*\$");
+        // A postgres-reference-shaped C# string literal (a Testcontainers
+        // image constant, e.g.) must BE the canonical pin — a bare
+        // "postgres" literal floats to latest with no colon for the global
+        // candidate to see.
+        var csharpImageLiteralPattern = new Regex(
+            @"=\s*""((?:[a-z0-9.-]+(?::\d+)?/)*postgres(?::[^""@]+)?(?:@sha256:[0-9a-f]{64})?)""");
         // BuildKit RUN mounts pull an external image when from= names no
         // build stage or context — a fourth bare-reference syntax.
         // NOT anchored to RUN: a continued instruction puts later mount
@@ -308,6 +314,17 @@ public sealed class SchemaDocsTests
                 if (!hits.TryGetValue("postgres (untagged, in a RUN mount from= — floats to latest)", out var files))
                     hits["postgres (untagged, in a RUN mount from= — floats to latest)"] = files = [];
                 files.Add(relative);
+            }
+            if (relative.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
+            {
+                foreach (Match m in csharpImageLiteralPattern.Matches(text))
+                {
+                    var val = m.Groups[1].Value;
+                    if (val == PostgresImage) continue;
+                    if (!hits.TryGetValue($"\"{val}\" (postgres-shaped C# string literal — not the canonical pin)", out var files))
+                        hits[$"\"{val}\" (postgres-shaped C# string literal — not the canonical pin)"] = files = [];
+                    files.Add(relative);
+                }
             }
             if (relative.Contains("Dockerfile", StringComparison.OrdinalIgnoreCase))
             {
@@ -601,8 +618,12 @@ public sealed class SchemaDocsTests
             }
             foreach (var (_, name, def) in catalogRows)
             {
+                // The definition must sit in its DESIGNATED column — the
+                // last cell of the row in both section shapes — not merely
+                // anywhere in the row (a Type/Definition cell swap would
+                // otherwise pass).
                 var ok = docRows.Skip(2).Any(cells =>
-                    cells.Length > 2 && cells[1] == name && cells.Contains(def));
+                    cells.Length > 2 && cells[1] == name && cells[^2] == def);
                 if (!ok)
                     missing.AppendLine($"row definition mismatch in the {heading} section of public.{table}.md: {name} — {def}");
             }
