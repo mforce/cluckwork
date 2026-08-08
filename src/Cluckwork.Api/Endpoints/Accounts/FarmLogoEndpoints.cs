@@ -8,7 +8,6 @@ using Cluckwork.Application.Features.Accounts.SetFarmLogo;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Media;
 using Cluckwork.Infrastructure.Persistence;
-using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Options;
 using Microsoft.Net.Http.Headers;
 using Cluckwork.Api.Hosting;
@@ -37,6 +36,11 @@ public static class FarmLogoEndpoints
             // parameter and carries no IAcceptsMetadata. Without this marker a
             // 400 body failure here would be reported as a query error.
             .WithMetadata(new ReadsRequestBodyAttribute())
+            // #442 — read by FarmLogoRequestBodyCap, registered before
+            // IdempotencyMiddleware, so the upload cap is armed and the body
+            // stream capped BEFORE idempotency buffers the whole thing to hash
+            // it. See that file for why this couldn't be WithMaxRequestBodyBytes.
+            .WithMetadata(new FarmLogoUploadCapMetadata())
             .RequireAuthorization(AuthPolicies.AdminOnly)
             .WithName("SetFarmLogo")
             .WithSummary(
@@ -141,20 +145,14 @@ public static class FarmLogoEndpoints
         // under ImageSanitizer.MaxByteLengthCeiling (#123).
         var maxBytes = logoOptions.Value.MaxUploadBytes;
 
-        // A declared oversize is refused without reading a byte. Content-Length
-        // is only a claim, which is why the read below is capped as well.
-        if (http.Request.ContentLength > maxBytes)
-            return MapFailure(ImageSanitizer.TooLarge(maxBytes));
-
-        // Kestrel's default ceiling is 30 MB; lowering it here cuts an oversized
-        // upload off at the transport instead of streaming it into the process.
-        // Best-effort only — the feature is absent under TestServer and turns
-        // read-only once the body has been touched — so it is a nicety, never
-        // the guarantee. The read loop below is the guarantee.
-        var sizeLimit = http.Features.Get<IHttpMaxRequestBodySizeFeature>();
-        if (sizeLimit is { IsReadOnly: false })
-            sizeLimit.MaxRequestBodySize = maxBytes;
-
+        // #442 — the declared-oversize short-circuit and the transport-cutoff
+        // arming used to live here, but by the time this handler runs,
+        // IdempotencyMiddleware has already buffered and hashed the entire
+        // body, making both checks too late to avoid that buffering (and the
+        // transport feature already read-only, so the cutoff silently no-op'd).
+        // FarmLogoRequestBodyCap (Hosting/) now does both BEFORE idempotency,
+        // reusing this same maxBytes value from the same options snapshot.
+        //
         // THE LOOP BOUND IS THE MEMORY GUARANTEE: the condition and the slice
         // both stop at the cap, so a body with no declared length — or a lying
         // one — is read that far and no further, whatever the client meant to
@@ -230,6 +228,13 @@ public static class FarmLogoEndpoints
 
         return Results.Problem(error.Description, statusCode: status, title: error.Code);
     }
+
+    // #442 — shared with FarmLogoRequestBodyCap (Hosting/), so the response
+    // for an oversized upload is byte-identical whether the cap fires in that
+    // pre-idempotency middleware or (for a body that snuck through some other
+    // path) here via MapFailure — one contract either way.
+    internal static Task WriteTooLargeAsync(HttpContext context, int maxBytes) =>
+        MapFailure(ImageSanitizer.TooLarge(maxBytes)).ExecuteAsync(context);
 
     private static FarmLogoResponse ToResponse(FarmLogoMetadata m) =>
         new(m.ContentType, m.ContentHash, m.Width, m.Height, m.ByteLength, m.UpdatedAt);

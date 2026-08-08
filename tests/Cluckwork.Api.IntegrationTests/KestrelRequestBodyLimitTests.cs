@@ -39,18 +39,23 @@ using Microsoft.AspNetCore.Http;
 // first is a genuine race, and asserts only the client-visible 413 contract
 // (accepting either outcome's shape) rather than which side won.
 //
-// The logo test is NOT the same kind of race, despite the identical
-// hand-rolled-cap shape (codex review, PR #440, confirmed by tracing
-// Program.cs's pipeline order): FarmLogoEndpoints' PUT requires auth AND an
-// Idempotency-Key, so IdempotencyMiddleware.ComputeRequestHashAsync — which
-// calls EnableBuffering() and reads the WHOLE body to hash it — runs before
-// FarmLogoEndpoints' own handler ever gets to lower
-// IHttpMaxRequestBodySizeFeature from Kestrel's default. That first read
-// makes the feature IsReadOnly, so the endpoint's own cap-lowering silently
-// no-ops; Kestrel's transport cutoff can never fire at the intended cap for
-// this endpoint, ONLY the endpoint's own read loop (over an already-fully-
-// buffered body) can. Filed as #442 — this PR's own scope is proving/testing
-// existing behavior, not restructuring the idempotency/body-cap ordering.
+// The logo test is NOT the same kind of race as the client-error one, despite
+// the superficially similar hand-rolled-cap shape: FarmLogoEndpoints' PUT
+// requires auth AND an Idempotency-Key, so IdempotencyMiddleware.
+// ComputeRequestHashAsync — which calls EnableBuffering() and reads the body
+// to hash it — runs before FarmLogoEndpoints' own handler. #442 (codex review,
+// PR #440) found that, at the time, the cap was armed INSIDE that handler, so
+// idempotency's read always ran first, unbounded, before the endpoint's own
+// cap-lowering could ever take effect (Kestrel's feature was already
+// IsReadOnly by the time the handler got to it) — an oversized upload was
+// still eventually rejected, but only after being fully buffered in memory.
+// FarmLogoRequestBodyCap (Hosting/) now arms the SAME cap in a middleware
+// registered before IdempotencyMiddleware, so the wrapped body stream — not
+// just the endpoint's own read loop — is what idempotency's hash-read runs
+// into. This test's assertions (status, title, detail) are unchanged, because
+// FarmLogoRequestBodyCap converts that earlier throw back into the exact same
+// FarmLogo.TooLarge response — but deterministically for a different reason
+// now: it fires before idempotency buffers the body, not after.
 public sealed class KestrelRequestBodyLimitTests(KestrelBackedFactory factory)
     : IClassFixture<KestrelBackedFactory>
 {
@@ -205,12 +210,32 @@ public sealed class KestrelRequestBodyLimitTests(KestrelBackedFactory factory)
         Assert.Equal(HttpStatusCode.RequestEntityTooLarge, response.StatusCode);
         var problem = await ReadProblemAsync(response);
         // Deterministic, not a race — see the class-header comment (#442):
-        // IdempotencyMiddleware buffers the whole body before FarmLogoEndpoints
-        // can lower Kestrel's cap, so only the endpoint's own read loop, over
-        // the already-buffered body, can ever produce this 413.
+        // FarmLogoRequestBodyCap wraps the body in the read-capped stream
+        // BEFORE IdempotencyMiddleware ever touches it, so the cap fires
+        // during idempotency's hash-read rather than after it, and the
+        // response is converted back to this same FarmLogo.TooLarge shape.
         Assert.Equal("FarmLogo.TooLarge", problem.Title);
         Assert.Equal($"The logo must be {LogoCapBytes / 1024} KB or smaller.", problem.Detail);
     }
+
+    // #442 review (codex) — this class's two tests above prove an oversized
+    // logo upload eventually gets rejected with the right shape, but that's
+    // identical whether the cap fires before or after IdempotencyMiddleware
+    // buffers the body, so they can't prove the ORDERING. Proving that over
+    // a real socket turned out to be the wrong tool: an earlier version of
+    // this file tried a byte-counted assertion here, sized against
+    // LogoCapBytes, but how many bytes a client manages to push before a
+    // server-side rejection actually stalls it depends on Kestrel's own
+    // internal pipe buffering (PauseWriterThreshold, ~1 MB by default) and
+    // the OS's TCP receive buffer — neither controlled by this repo, both
+    // comfortably able to absorb far more than a modest multiple of
+    // LogoCapBytes before the client ever blocks, REGARDLESS of whether the
+    // fix is in place. No fixed threshold is both tight enough to catch a
+    // regression and loose enough to survive normal buffering variance
+    // across CI runners. FarmLogoRequestBodyCapTests proves the ordering
+    // instead, in-process with a plain in-memory stream (no networking, no
+    // buffering variance) — see that file for the actual regression-catching
+    // test the codex comment asked for.
 
     [Fact]
     public async Task Logo_upload_under_the_cap_still_succeeds_over_kestrel()
