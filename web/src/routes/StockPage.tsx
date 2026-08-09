@@ -281,7 +281,7 @@ export function StockPage() {
   // panel (codex review). Tickets follow intent order: anything the user
   // does after submit outranks this refresh, which then only updates the
   // grade-independent totals and skips the lot walk.
-  async function refreshAfterWriteOff(lot: EggLotRow, seq: number) {
+  async function refreshAfterWriteOff(lot: EggLotRow, seq: number, ledgerSeq: number) {
     setRows(await getStock());
     if (openGrade !== null && seq === lotsReq.current) {
       const target = Math.max(lots.length, 1);
@@ -318,7 +318,13 @@ export function StockPage() {
         appliedFilter.current = { from: lotsFrom, to: lotsTo };
       }
     }
-    if (openLot === lot.id) setMovements(await listEggLotMovements(lot.id));
+    // Refresh the open ledger only while the submit-time ledger intent still
+    // stands — checked again after the fetch, since the user can open another
+    // lot's History while this request is in flight (codex review).
+    if (openLot === lot.id && ledgerSeq === ledgerReq.current) {
+      const list = await listEggLotMovements(lot.id);
+      if (ledgerSeq === ledgerReq.current) setMovements(list);
+    }
   }
 
   async function onWriteOff(e: FormEvent) {
@@ -348,6 +354,10 @@ export function StockPage() {
     // filter load can no longer clear it, so this operation must release it
     // when it settles, whatever the outcome (codex review).
     const lotSeq = ++lotsReq.current;
+    // Snapshot (not claim) of the ledger intent at submit: the refresh only
+    // re-fetches the ledger that was open THEN, and stands down if any newer
+    // ledger action has happened by the time it runs (codex review).
+    const ledgerSeq = ledgerReq.current;
     setLotsLoading(true);
     const outcome = await runPending(scope, async () => {
       setDialogError(null);
@@ -381,7 +391,7 @@ export function StockPage() {
       writePatches.current.set(lot.id,
         { available: res.quantityAvailable, tick: lotsReq.current });
       try {
-        await refreshAfterWriteOff(lot, lotSeq);
+        await refreshAfterWriteOff(lot, lotSeq, ledgerSeq);
       } catch {
         // Only the view is stale; the correction itself landed.
         setError(i18n.t("stock:loadStockFailed"));

@@ -600,6 +600,50 @@ describe("StockPage lot paging + date filter (#465)", () => {
     expect(screen.getByText("2026-07-01")).toBeInTheDocument();
   });
 
+  it("abandons the post-write ledger refresh once a newer ledger intent exists (codex round 10)", async () => {
+    // Write-off submitted with lot A's ledger open; while the refresh hangs
+    // on getStock, the user opens lot B's History. The refresh's submit-time
+    // closure still says openLot === A — it must consult the ledger ticket
+    // or it paints A's movements under B's heading.
+    const lotA = { ...LOTS[0] }; // lot1, 2026-07-01
+    const lotB = { ...LOTS[0], id: "lot2", productionDate: "2026-06-15" };
+    mockRecordEggLotMovement.mockResolvedValue({
+      movementId: "wo1", eggLotId: "lot1", movementType: "Discard",
+      quantityDelta: -7, reason: "dropped a tray",
+      createdAtUtc: "2026-08-08T10:00:00Z", quantityAvailable: 92, version: 2,
+    });
+    let releaseStock!: (rows: StockRow[]) => void;
+    mockGetStock
+      .mockResolvedValueOnce(ROWS)
+      .mockReturnValueOnce(new Promise<StockRow[]>((r) => (releaseStock = r)));
+    mockListEggLots.mockResolvedValue([lotA, lotB]);
+    mockListEggLotMovements.mockImplementation((id: string) =>
+      Promise.resolve([{ ...MOVEMENTS[0], id: `mv-${id}`, reason: `marker-${id}` }]));
+    await expandGradeA();
+
+    const rowA = screen.getByRole("row", { name: /2026-07-01/ });
+    fireEvent.click(within(rowA).getByRole("button", { name: "history" }));
+    await screen.findByText("marker-lot1");
+
+    fireEvent.click(within(rowA).getByRole("button", { name: "write off" }));
+    const dialog = screen.getByRole("dialog");
+    fireEvent.change(within(dialog).getByRole("spinbutton"), { target: { value: "7" } });
+    fireEvent.change(within(dialog).getByLabelText(/Reason/), { target: { value: "dropped a tray" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: /Record/ }));
+
+    // Refresh hangs on getStock; the user switches the ledger to lot B.
+    const rowB = screen.getByRole("row", { name: /2026-06-15/ });
+    fireEvent.click(within(rowB).getByRole("button", { name: "history" }));
+    await screen.findByText("marker-lot2");
+
+    await act(async () => {
+      releaseStock(ROWS);
+    });
+    await screen.findByText(/92 now available/);
+    expect(screen.getByText("marker-lot2")).toBeInTheDocument();
+    expect(screen.queryByText("marker-lot1")).not.toBeInTheDocument();
+  });
+
   it("clears a ledger opened DURING the filter load when the page commits (codex round 9)", async () => {
     // Inverse of round 3: History is clicked after the filter's invalidation
     // (old rows stay interactive), so it owns the newer ledger ticket — the
