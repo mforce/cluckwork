@@ -161,7 +161,7 @@ reading or changing it:
 | `RateLimiting__Login__PermitLimit` / `…Refresh…` / `…ClientErrors…` | `1000000` (windows unchanged) | All three per-IP buckets raised — see deviation list below. |
 | `Otlp__Endpoint` / `Otlp__Protocol` | `http://otel-collector:4317` / `grpc` | See "Monitoring" and deviation list below. |
 | `AllowedHosts` | `cluckwork-sim.local` | A concrete placeholder host, **not** `*`. There is no traefik/public hostname in front of the sim stack, but the serving container runs Production config and #319 **fails that boot** on a missing, blank, or wildcard value — a `*` here does not merely weaken Host filtering, it stops the stack booting. Loopback is force-added by `AddCluckworkEdgeSecurity` whenever the list is not wildcard, so k6 and the browser still reach the app on `http://127.0.0.1:8081/`. |
-| `POSTGRES_DB` / `POSTGRES_USER` / `POSTGRES_PASSWORD` | `cluckwork_sim` / `cluckwork_sim` / generated | Isolated database, isolated named volume (`cluckwork-sim-postgres`, namespaced by the compose project to `cluckwork-sim_cluckwork-sim-postgres`) — never the real dev DB. |
+| `POSTGRES_DB` / `POSTGRES_USER` / `POSTGRES_PASSWORD` | `cluckwork_sim` / `cluckwork_sim` / generated | Isolated database, isolated named volume (`cluckwork-sim-postgres-pg18`, namespaced by the compose project to `cluckwork-sim_cluckwork-sim-postgres-pg18`) — never the real dev DB. |
 | App port | `127.0.0.1:8081` | Different from the real dev stack's `127.0.0.1:8080` (`deploy/docker-compose.yml`), so both can run at once without colliding. |
 | `db` port | *(not published)* | `reset.sh`'s `pg_stat_statements` preflight runs in-container (`docker compose exec db psql`), never over a host connection — one less thing to collide with a real local Postgres. |
 

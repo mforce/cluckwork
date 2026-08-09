@@ -139,9 +139,21 @@ gen_password() {
   echo "$raw" | fold -w1 | shuf | tr -d '\n'
 }
 
+# The DB password rides inside a key-value Npgsql connection string —
+# compose interpolates Password=${POSTGRES_PASSWORD} verbatim — where '='
+# and ';' are structural: an unquoted value containing '=' fails
+# NpgsqlConnectionStringBuilder at boot with "Format of the initialization
+# string does not conform to specification" (CI hit this on an unlucky
+# draw after five green runs; pool_symbol contains '='). Identity's
+# complexity policy applies to Identity USERS, not the Postgres role, so
+# this password is alphanumeric-only — entropy comes from length.
+gen_db_password() {
+  rand_chars "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789" 32
+}
+
 SEED_ADMIN_PASSWORD="$(gen_password)"
 SIM_CAST_PASSWORD="$(gen_password)"
-POSTGRES_PASSWORD="$(gen_password)"
+POSTGRES_PASSWORD="$(gen_db_password)"
 echo "Passwords generated (Owner, shared cast, sim Postgres)."
 
 POSTGRES_DB="cluckwork_sim"

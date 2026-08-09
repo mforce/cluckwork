@@ -74,6 +74,15 @@ jobs:
       - name: Test
         run: dotnet test Cluckwork.sln --configuration Release --no-build --verbosity normal
 
+      # #417 — the committed docs/schema/ must be exactly what the migrations
+      # produce: the script regenerates from an ephemeral migrated Postgres
+      # (same digest-pinned image Testcontainers just pulled for the tests,
+      # so the pull is warm) and byte-diffs against the committed docs.
+      # Reuses the Release build from the steps above. Rationale + the
+      # deliberate everything-runs-it trade-off: docs/decisions/417-schema-docs.md
+      - name: Verify schema docs are current
+        run: tools/schema-docs/generate.sh --check
+
   web:
     name: Web typecheck, test, and build
     runs-on: ubuntu-latest
