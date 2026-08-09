@@ -75,6 +75,13 @@ export function usePagedList<T extends { id: string }, M = never>({
   // event handler fires, and adding them as deps would rebuild `loadMore` on
   // every page — which the load effect below would read as a filter change.
   const rowsRef = useRef<T[] | null>(null);
+  // How many rows the SERVER has handed over for this window — the paging
+  // cursor. Deliberately NOT rowsRef.current.length: dedupe can drop a whole
+  // page (a page's worth of newer records lands between clicks and the next
+  // offset page is entirely rows already shown), and a cursor derived from
+  // unique rows would then never move again, walling off exactly the older
+  // records paging exists to reach (codex review).
+  const cursorRef = useRef(0);
   const loadingRef = useRef(false);
   // Held in a ref, deliberately NOT a dep of `load`: screens pass an inline
   // arrow (`errorText: () => t("…")`) whose identity changes every render, and
@@ -118,6 +125,7 @@ export function usePagedList<T extends { id: string }, M = never>({
         rowsRef.current = next;
         return next;
       });
+      cursorRef.current = offset === 0 ? page.length : cursorRef.current + page.length;
       setHasMore(page.length === pageSize);
       setError(null);
       return true;
@@ -132,6 +140,7 @@ export function usePagedList<T extends { id: string }, M = never>({
       // put so the page can be retried (codex review).
       if (offset === 0) {
         rowsRef.current = [];
+        cursorRef.current = 0;
         setRows([]);
         setMeta(null);
         setHasMore(false);
@@ -173,7 +182,7 @@ export function usePagedList<T extends { id: string }, M = never>({
   const loadMore = useCallback(async () => {
     if (loadingRef.current) return;
     const seq = ++req.current;
-    await load(rowsRef.current?.length ?? 0, seq);
+    await load(cursorRef.current, seq);
   }, [load]);
 
   // Re-fetch every page the user currently has, not just the newest one. A
@@ -183,7 +192,8 @@ export function usePagedList<T extends { id: string }, M = never>({
   // the ticket, so an abandoned walk stops issuing requests instead of
   // finishing them for nothing.
   const refreshWindow = useCallback(async (seq: number) => {
-    const target = Math.max(rowsRef.current?.length ?? 0, 1);
+    const target = Math.max(cursorRef.current, 1);
+    let consumed = 0;
     const window = new Map<string, T>();
     let lastPageFull = false;
     for (let offset = 0; offset < target; offset += pageSize) {
@@ -195,6 +205,7 @@ export function usePagedList<T extends { id: string }, M = never>({
         if (seq !== req.current) return;
         setError(formatErrorRef.current(err));
         rowsRef.current = [];
+        cursorRef.current = 0;
         setRows([]);
         setMeta(null);
         setHasMore(false);
@@ -209,12 +220,14 @@ export function usePagedList<T extends { id: string }, M = never>({
       // Keyed by id: an insert between the walk's own fetches shifts the
       // offsets and can re-serve a row already collected.
       for (const row of page) window.set(row.id, row);
+      consumed += page.length;
       lastPageFull = page.length === pageSize;
       if (!lastPageFull) break;
     }
     if (seq !== req.current) return;
     const next = [...window.values()];
     rowsRef.current = next;
+    cursorRef.current = consumed;
     setRows(next);
     setHasMore(lastPageFull);
     setError(null);

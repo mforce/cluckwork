@@ -85,6 +85,32 @@ describe("usePagedList — first load and paging", () => {
     expect(fetchPage).toHaveBeenLastCalledWith(3, 3);
   });
 
+  it("advances the cursor past a page that was ENTIRELY duplicates (codex P2)", async () => {
+    // Dedupe keeps the rendered list honest but must not drive the cursor: if
+    // a whole page of newer records lands between clicks, the next offset
+    // page can be 100% rows already shown. Deriving the offset from unique
+    // rows then leaves it parked forever and the older records — the ones
+    // #465 exists to reach — become unreachable no matter how often the user
+    // clicks.
+    const fetchPage = vi.fn()
+      .mockResolvedValueOnce(rows("a", "b", "c"))
+      .mockResolvedValueOnce(rows("a", "b", "c"))   // a full page of duplicates
+      .mockResolvedValueOnce(rows("d", "e", "f"));
+    render(<Host fetchPage={fetchPage} />);
+    await waitFor(() => expect(shown()).toBe("a,b,c"));
+
+    fireEvent.click(screen.getByRole("button", { name: "more" }));
+    await waitFor(() => expect(fetchPage).toHaveBeenCalledTimes(2));
+    expect(fetchPage).toHaveBeenLastCalledWith(3, 3);
+    expect(shown()).toBe("a,b,c"); // nothing new to show, correctly
+
+    fireEvent.click(screen.getByRole("button", { name: "more" }));
+    await waitFor(() => expect(shown()).toBe("a,b,c,d,e,f"));
+    // The cursor moved by what the SERVER returned, not by what survived
+    // dedupe — otherwise this asks for offset 3 again, forever.
+    expect(fetchPage).toHaveBeenLastCalledWith(6, 3);
+  });
+
   it("drops rows the next page repeats after a concurrent insert shifted the offset", async () => {
     // A row created between pages pushes everything deeper, so page two
     // re-serves page one's tail. Appending it blind collides React keys.
@@ -461,7 +487,8 @@ describe("usePagedList — writes", () => {
       .mockResolvedValueOnce(rows("a", "b", "c"))
       .mockResolvedValueOnce(rows("d", "e", "f"))
       .mockResolvedValueOnce(rows("a", "b", "c"))   // refresh page 1
-      .mockResolvedValueOnce(rows("c", "d", "e"));  // refresh page 2 re-serves c
+      .mockResolvedValueOnce(rows("c", "d", "e"))   // refresh page 2 re-serves c
+      .mockResolvedValueOnce(rows("g", "h", "i"));
     render(<Host fetchPage={fetchPage} write={() => Promise.resolve()} />);
     await waitFor(() => expect(shown()).toBe("a,b,c"));
     fireEvent.click(screen.getByRole("button", { name: "more" }));
@@ -469,6 +496,13 @@ describe("usePagedList — writes", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "write" }));
     await waitFor(() => expect(shown()).toBe("a,b,c,d,e"));
+
+    // The walk consumed SIX server rows to render five, so paging resumes at
+    // 6. Rebuilding the cursor from the rendered rows would ask for 5 and
+    // re-serve a row for every duplicate the walk absorbed.
+    fireEvent.click(screen.getByRole("button", { name: "more" }));
+    await waitFor(() => expect(shown()).toBe("a,b,c,d,e,g,h,i"));
+    expect(fetchPage).toHaveBeenLastCalledWith(6, 3);
   });
 
   it("stops the post-write walk as soon as a newer intent supersedes it", async () => {
