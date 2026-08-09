@@ -1592,10 +1592,12 @@ export const en = {
       + "Voided. Refused if any of its eggs were already sold.",
     voidConfirmLabel: "Void entry",
     entryVoidedMessage: "Entry voided — its egg lots were emptied and its deaths reversed.",
-    voidConflictMessage: "This entry was changed by someone else — the list has been reloaded; retry.",
-    voidConflictReloadFailedMessage:
-      "This entry was changed by someone else and the list could not be "
-      + "reloaded — reload the page.",
+    // Says what the CONFLICT was and nothing about the list: whether the
+    // refresh landed is the list's own business, and it reports that itself
+    // through loadEntriesFailed. Three review rounds came from the previous
+    // wording claiming "the list has been reloaded" — a promise the screen
+    // could not keep, and every attempt to keep it added machinery (#469).
+    voidConflictMessage: "This entry was changed by someone else — check the list and retry.",
 
     // Filters
     flockLabel: "Flock",

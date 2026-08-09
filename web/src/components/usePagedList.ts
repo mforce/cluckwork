@@ -55,15 +55,7 @@ export function usePagedList<T extends { id: string }, M = never>({
   error: string | null;
   loadMore: () => Promise<void>;
   runWrite: <R>(write: () => Promise<R>) => Promise<R>;
-  // Resolves to whether the read actually landed rows, for callers that
-  // report the outcome to the user rather than just re-rendering.
-  reload: () => Promise<boolean>;
-  // Whether the most recent read to reach a conclusion landed. `runWrite`
-  // already re-reads in BOTH its paths, so a caller that wants to report the
-  // outcome of that refresh must ask rather than issue a second read of its
-  // own — a duplicate that transiently fails would clear the rows the first
-  // one just loaded (codex review).
-  lastReadLanded: () => boolean;
+  reload: () => Promise<void>;
 } {
   const [rows, setRows] = useState<T[] | null>(null);
   const [meta, setMeta] = useState<M | null>(null);
@@ -88,10 +80,6 @@ export function usePagedList<T extends { id: string }, M = never>({
   // unique rows would then never move again, walling off exactly the older
   // records paging exists to reach (codex review).
   const cursorRef = useRef(0);
-  // Set by every read that reaches a conclusion while it still owns the
-  // ticket; a superseded read leaves it alone, because the newer read is the
-  // one that speaks for the view.
-  const readLandedRef = useRef(false);
   const loadingRef = useRef(false);
   // Held in a ref, deliberately NOT a dep of `load`: screens pass an inline
   // arrow (`errorText: () => t("…")`) whose identity changes every render, and
@@ -138,11 +126,9 @@ export function usePagedList<T extends { id: string }, M = never>({
       cursorRef.current = offset === 0 ? page.length : cursorRef.current + page.length;
       setHasMore(page.length === pageSize);
       setError(null);
-      readLandedRef.current = true;
       return true;
     } catch (err) {
       if (seq !== req.current) return false;
-      readLandedRef.current = false;
       setError(formatErrorRef.current(err));
       // Only a failed REPLACEMENT empties the list: the rows still on screen
       // belong to a window the user has navigated away from, and the metadata
@@ -180,7 +166,7 @@ export function usePagedList<T extends { id: string }, M = never>({
     // so the pager is withdrawn for the whole reload. A mutation check proved
     // an explicit reset changed no observable behaviour, and an unpinned line
     // reads as a guarantee nothing is holding.
-    return await load(0, seq);
+    await load(0, seq);
   }, [load]);
 
   // A new `fetchPage` identity IS a filter change.
@@ -215,8 +201,7 @@ export function usePagedList<T extends { id: string }, M = never>({
       } catch (err) {
         // Same rule as `load`: a superseded page's failure is moot.
         if (seq !== req.current) return;
-        readLandedRef.current = false;
-        setError(formatErrorRef.current(err));
+          setError(formatErrorRef.current(err));
         rowsRef.current = [];
         cursorRef.current = 0;
         setRows([]);
@@ -244,7 +229,6 @@ export function usePagedList<T extends { id: string }, M = never>({
     setRows(next);
     setHasMore(lastPageFull);
     setError(null);
-    readLandedRef.current = true;
     // This IS a replacement read: whatever is on screen now came from the
     // current filter, so any blanking a pending change raised can end.
     setReloading(false);
@@ -289,8 +273,6 @@ export function usePagedList<T extends { id: string }, M = never>({
     }
   }, [refreshWindow]);
 
-  const lastReadLanded = useCallback(() => readLandedRef.current, []);
-
   return {
     rows,
     meta,
@@ -304,6 +286,5 @@ export function usePagedList<T extends { id: string }, M = never>({
     loadMore,
     runWrite,
     reload,
-    lastReadLanded,
   };
 }

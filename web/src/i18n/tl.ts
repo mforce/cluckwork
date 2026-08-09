@@ -1317,10 +1317,7 @@ export const tl = {
       + "kung nabenta na ang alinman sa mga itlog nito.",
     voidConfirmLabel: "I-void ang entry",
     entryVoidedMessage: "Na-void ang entry — nawalan ng laman ang mga lote ng itlog nito at nabaliktad ang mga namatay dito.",
-    voidConflictMessage: "Binago ng ibang tao ang entry na ito — na-reload na ang listahan; subukan ulit.",
-    voidConflictReloadFailedMessage:
-      "Binago ng ibang tao ang entry na ito at hindi na-reload ang "
-      + "listahan — i-reload ang page.",
+    voidConflictMessage: "Binago ng ibang tao ang entry na ito — tingnan ang listahan at subukan ulit.",
 
     // Filters
     flockLabel: "Kawan",

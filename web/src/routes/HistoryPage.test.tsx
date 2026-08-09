@@ -1036,12 +1036,12 @@ describe("HistoryPage setup failure (#469)", () => {
   });
 });
 
-describe("HistoryPage void conflict when the reload also fails (#469)", () => {
-  // voidConflictMessage says "the list has been reloaded — retry". When that
-  // reload ALSO fails, saying so is a lie, and there is a distinct message
-  // for exactly that case — which the migration had made unreachable because
-  // usePagedList.reload() owns its errors and never rejects.
-  it("says the reload failed rather than claiming the list was refreshed", async () => {
+describe("HistoryPage void conflict messaging (#469)", () => {
+  // The conflict message states the CONFLICT and makes no claim about the
+  // list — three review rounds came from the old wording promising "the list
+  // has been reloaded", which the screen cannot reliably know. When the
+  // refresh does fail, the list says so itself through its own banner.
+  it("does not claim a reload, and lets the list report its own failure", async () => {
     mockListDailyEntries
       .mockResolvedValueOnce([SUBMITTED])
       .mockRejectedValue(new Error("boom"));
@@ -1055,8 +1055,10 @@ describe("HistoryPage void conflict when the reload also fails (#469)", () => {
       fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Void entry" }));
     });
 
-    expect(screen.getByText(/could not be reloaded/i)).toBeInTheDocument();
-    expect(screen.queryByText(/the list has been reloaded/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/check the list and retry/i)).toBeInTheDocument();
+    expect(screen.queryByText(/has been reloaded/i)).not.toBeInTheDocument();
+    // The failed refresh is reported by the list, not by the conflict copy.
+    expect(screen.getByText("Could not load entries.")).toBeInTheDocument();
   });
 });
 
@@ -1081,8 +1083,8 @@ describe("HistoryPage conflict reload is issued once (#469)", () => {
     });
 
     expect(mockListDailyEntries).toHaveBeenCalledTimes(2);
-    // The refresh DID land, so the message must say so — and the rows survive.
-    expect(screen.getByText(/the list has been reloaded/i)).toBeInTheDocument();
+    expect(screen.getByText(/check the list and retry/i)).toBeInTheDocument();
+    // The refresh runWrite performed DID land, so its rows are on screen.
     expect(screen.getByRole("row", { name: /2026-07-19/ })).toBeInTheDocument();
   });
 });

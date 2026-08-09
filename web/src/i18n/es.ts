@@ -1275,10 +1275,7 @@ export const es = {
     voidConfirmLabel: "Anular entrada",
     entryVoidedMessage: "Entrada anulada — sus lotes de huevos quedaron vacíos y sus muertes se revirtieron.",
     voidConflictMessage:
-      "Esta entrada fue cambiada por otra persona — la lista se ha vuelto a cargar; vuelva a intentarlo.",
-    voidConflictReloadFailedMessage:
-      "Esta entrada fue cambiada por otra persona y la lista no se pudo "
-      + "volver a cargar — vuelva a cargar la página.",
+      "Esta entrada fue cambiada por otra persona — revise la lista y vuelva a intentarlo.",
 
     // Filters
     flockLabel: "Lote",

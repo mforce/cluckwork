@@ -368,14 +368,12 @@ export function HistoryPage() {
           // a stale adjust panel for this entry: the 409 path used to leave
           // it bound to pre-conflict values while the success path closed it.
           if (adjusting?.id === e.id) setAdjusting(null);
-          // No reload of our own: runWrite already re-read in its rejection
-          // path, and a second replacement read that transiently failed would
-          // clear the rows the first one just loaded. Ask the hook how that
-          // read went instead — the message must not claim "the list has been
-          // reloaded" when it has not (#469).
-          setError(i18n.t(entries.lastReadLanded()
-            ? "history:voidConflictMessage"
-            : "history:voidConflictReloadFailedMessage"));
+          // No reload of our own — runWrite already re-read in its rejection
+          // path — and no claim about how that read went: the message states
+          // the conflict, and the list reports its own health through the
+          // hook's error banner. Saying more needed the screen to know an
+          // outcome it cannot reliably observe (#469).
+          setError(i18n.t("history:voidConflictMessage"));
         } else {
           setError(errText(err));
         }
