@@ -390,3 +390,45 @@ describe("WaterPage i18n wiring (#182, Task 13)", () => {
     });
   });
 });
+
+describe("WaterPage list races (#469)", () => {
+  // This list had NO request sequencing: two quick filter picks let the older
+  // response win, and a stale rejection painted an error over a healthy view.
+  it("ignores a stale filter response that lands after a newer one", async () => {
+    mockListWaterUsage.mockResolvedValue([ROW]);
+    await renderReadyForm(ADMIN);
+    expect(screen.getByText("morning")).toBeInTheDocument();
+
+    let releaseStale!: (rows: WaterUsage[]) => void;
+    mockListWaterUsage.mockReturnValueOnce(new Promise((r) => { releaseStale = r; }));
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-07-01" } });
+    mockListWaterUsage.mockResolvedValueOnce([{ ...ROW, id: "wF", note: "fresh rows" }]);
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("To"), { target: { value: "2026-07-31" } });
+    });
+    expect(screen.getByText("fresh rows")).toBeInTheDocument();
+
+    await act(async () => {
+      releaseStale([{ ...ROW, id: "wS", note: "stale rows" }]);
+    });
+    expect(screen.getByText("fresh rows")).toBeInTheDocument();
+    expect(screen.queryByText("stale rows")).not.toBeInTheDocument();
+  });
+
+  it("discards a stale rejection instead of painting an error over a healthy list", async () => {
+    mockListWaterUsage.mockResolvedValue([ROW]);
+    await renderReadyForm(ADMIN);
+
+    let rejectStale!: (err: Error) => void;
+    mockListWaterUsage.mockReturnValueOnce(new Promise((_, rej) => { rejectStale = rej; }));
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-07-01" } });
+    mockListWaterUsage.mockResolvedValueOnce([{ ...ROW, id: "wF", note: "fresh rows" }]);
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("To"), { target: { value: "2026-07-31" } });
+    });
+
+    await act(async () => { rejectStale(new Error("stale blew up")); });
+    expect(screen.getByText("fresh rows")).toBeInTheDocument();
+    expect(screen.queryByText("Could not load water records.")).not.toBeInTheDocument();
+  });
+});

@@ -967,3 +967,49 @@ describe("HistoryPage i18n wiring (#182, Task 27)", () => {
     });
   });
 });
+
+describe("HistoryPage list races (#469)", () => {
+  // Six call sites shared one unticketed load: the filter effect, load-more,
+  // the adjust and void refreshes, the 409 refresh, and the conflict rebind.
+  // Whichever response landed last won, regardless of what the user had asked
+  // for most recently.
+  it("ignores a stale filter response that lands after a newer one", async () => {
+    mockListDailyEntries.mockResolvedValue([SUBMITTED]);
+    renderWithProviders(<HistoryPage />, { token: ADMIN });
+    await screen.findByRole("row", { name: /2026-07-19/ });
+
+    let releaseStale!: (rows: DailyEntry[]) => void;
+    mockListDailyEntries.mockReturnValueOnce(new Promise((r) => { releaseStale = r; }));
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-07-01" } });
+    mockListDailyEntries.mockResolvedValueOnce([{ ...SUBMITTED, id: "fresh", date: "2026-07-20" }]);
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("To"), { target: { value: "2026-07-31" } });
+    });
+    expect(screen.getByRole("row", { name: /2026-07-20/ })).toBeInTheDocument();
+
+    await act(async () => {
+      releaseStale([{ ...SUBMITTED, id: "stale", date: "2026-07-02" }]);
+    });
+    expect(screen.getByRole("row", { name: /2026-07-20/ })).toBeInTheDocument();
+    expect(screen.queryByRole("row", { name: /2026-07-02/ })).not.toBeInTheDocument();
+  });
+
+  it("withdraws load-more while a filter reload is in flight", async () => {
+    // With the old windows' hasMore still true, a click mid-reload appended
+    // the NEW filter's page onto the OLD filter's rows.
+    const full = Array.from({ length: 50 }, (_, i) => ({
+      ...SUBMITTED, id: `e${i}`, date: "2026-07-19",
+    }));
+    mockListDailyEntries.mockResolvedValueOnce(full);
+    renderWithProviders(<HistoryPage />, { token: ADMIN });
+    expect(await screen.findByRole("button", { name: "load more" })).toBeInTheDocument();
+
+    let release!: (rows: DailyEntry[]) => void;
+    mockListDailyEntries.mockReturnValueOnce(new Promise((r) => { release = r; }));
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-07-01" } });
+    expect(screen.queryByRole("button", { name: "load more" })).not.toBeInTheDocument();
+
+    await act(async () => { release([SUBMITTED]); });
+    expect(screen.getByRole("row", { name: /2026-07-19/ })).toBeInTheDocument();
+  });
+});

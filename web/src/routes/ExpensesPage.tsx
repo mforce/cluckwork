@@ -9,6 +9,7 @@ import type { Expense, ExpenseCategory, Flock } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
+import { usePagedList } from "../components/usePagedList";
 import { usePendingAction } from "../components/usePendingAction";
 import { useFarmToday } from "../farm/useFarm";
 import { newId } from "../lib/ids";
@@ -33,10 +34,6 @@ export function ExpensesPage() {
   const today = useFarmToday();
   const [categories, setCategories] = useState<ExpenseCategory[]>([]);
   const [flocks, setFlocks] = useState<Flock[]>([]);
-  const [items, setItems] = useState<Expense[] | null>(null);
-  const [hasMore, setHasMore] = useState(false);
-  const [total, setTotal] = useState(0);
-  const [currency, setCurrency] = useState<{ code: string; minor: number }>({ code: "", minor: 2 });
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   // #236: the flight guard + per-scope spinner state live in the shared hook;
@@ -95,16 +92,32 @@ export function ExpensesPage() {
   // offset appends — months can exceed one page and every row must stay
   // reachable for correction (codex review of #88). The total always covers
   // the WHOLE filtered period regardless of paging.
-  const load = useCallback(async (offset = 0) => {
-    const { from, to } = monthRange(month);
-    const list = await listExpenses({
-      from, to, categoryId: filterCategory || undefined, limit: PAGE, offset,
-    });
-    setItems((prev) => (offset === 0 || prev === null) ? list.items : [...prev, ...list.items]);
-    setHasMore(list.items.length === PAGE);
-    setTotal(list.totalMinorUnits);
-    setCurrency({ code: list.currencyCode, minor: list.currencyMinorUnit });
-  }, [month, filterCategory, monthRange]);
+  // #469 — this list had no request sequencing, on the screen where it hurts
+  // most: a failed month change used to leave the PREVIOUS month's rows and
+  // total under the new month's picker, reading as a legitimate figure for a
+  // period it never described. The total rides as page metadata so it is
+  // ticket-protected exactly like the rows and cleared with them.
+  const expenses = usePagedList<Expense, { total: number; code: string; minor: number }>({
+    fetchPage: useCallback(async (offset: number, limit: number) => {
+      const { from, to } = monthRange(month);
+      const list = await listExpenses({
+        from, to, categoryId: filterCategory || undefined, limit, offset,
+      });
+      return {
+        items: list.items,
+        meta: {
+          total: list.totalMinorUnits,
+          code: list.currencyCode,
+          minor: list.currencyMinorUnit,
+        },
+      };
+    }, [month, filterCategory, monthRange]),
+    pageSize: PAGE,
+  });
+  const currency = {
+    code: expenses.meta?.code ?? "",
+    minor: expenses.meta?.minor ?? 2,
+  };
 
   useEffect(() => {
     Promise.all([
@@ -118,9 +131,6 @@ export function ExpensesPage() {
       .catch((err) => setError(errText(err)));
   }, []);
 
-  useEffect(() => {
-    load().catch((err) => setError(errText(err)));
-  }, [load]);
 
   const categoryName = (id: string) =>
     categories.find((c) => c.id === id)?.name ?? id.slice(0, 8);
@@ -169,21 +179,24 @@ export function ExpensesPage() {
   function onAdd(e: FormEvent) {
     e.preventDefault();
     void run("add", async () => {
-      await createExpense({
-        expenseCategoryId: categoryId,
-        date,
-        description: description.trim(),
-        amountMinorUnits: toMinorUnits(amount, currency.minor),
-        flockId: flockId || null,
-        note: note.trim() || null,
-      }, keyFor("add"));
-      // Reset BEFORE the refresh: if the reload fails after the write landed,
-      // a still-populated form invites a duplicate re-submit under a fresh
-      // key (codex review of #88).
-      setDescription("");
-      setAmount("");
-      setNote("");
-      await load();
+      // runWrite claims the list's ticket before the POST, so a month or
+      // category change made while it is in flight keeps the view (#469).
+      await expenses.runWrite(async () => {
+        await createExpense({
+          expenseCategoryId: categoryId,
+          date,
+          description: description.trim(),
+          amountMinorUnits: toMinorUnits(amount, currency.minor),
+          flockId: flockId || null,
+          note: note.trim() || null,
+        }, keyFor("add"));
+        // Reset BEFORE the refresh: if the reload fails after the write
+        // landed, a still-populated form invites a duplicate re-submit under
+        // a fresh key (codex review of #88).
+        setDescription("");
+        setAmount("");
+        setNote("");
+      });
       setMessage(i18n.t("expenses:expenseRecordedMessage"));
     });
   }
@@ -209,18 +222,20 @@ export function ExpensesPage() {
     const scope = `edit:${target.id}`;
     void run(scope, async () => {
       try {
-        const updated = await adjustExpense(target.id, {
-          version: target.version,
-          expenseCategoryId: editCategory,
-          date: editDate,
-          description: editDescription.trim(),
-          amountMinorUnits: toMinorUnits(editAmount, target.currencyMinorUnit),
-          flockId: editFlock || null,
-          note: editNote.trim() || null,
-        }, keyFor(scope));
-        setEditing(null);
-        setItems((prev) => prev?.map((x) => (x.id === updated.id ? updated : x)) ?? null);
-        await load();
+        // The refresh that follows replaces the row wholesale, so the old
+        // optimistic splice into `items` is gone with the local list state.
+        await expenses.runWrite(async () => {
+          await adjustExpense(target.id, {
+            version: target.version,
+            expenseCategoryId: editCategory,
+            date: editDate,
+            description: editDescription.trim(),
+            amountMinorUnits: toMinorUnits(editAmount, target.currencyMinorUnit),
+            flockId: editFlock || null,
+            note: editNote.trim() || null,
+          }, keyFor(scope));
+          setEditing(null);
+        });
         setMessage(i18n.t("expenses:expenseCorrectedMessage"));
       } catch (err) {
         // 409: someone else corrected it meanwhile — rebind the panel to the
@@ -229,7 +244,7 @@ export function ExpensesPage() {
         // the expense to another day (pi review of #88).
         if (err instanceof ApiError && err.status === 409) {
           settleKey(scope, err);
-          await load();
+          await expenses.reload();
           startEdit(await getExpense(target.id));
           throw new Error(i18n.t("expenses:conflictRebindMessage"));
         }
@@ -288,7 +303,11 @@ export function ExpensesPage() {
         </button>
       </div>
 
-      <p><strong>{t("monthTotalLabel", { amount: formatMoney(total, currency.code, currency.minor) })}</strong></p>
+      {/* The total belongs to the rows below it: it lands and clears with
+          them, so it can never describe a period they do not (#469). */}
+      <p><strong>{t("monthTotalLabel", {
+        amount: formatMoney(expenses.meta?.total ?? 0, currency.code, currency.minor),
+      })}</strong></p>
 
       {showCategories && (
         <div className="order-panel">
@@ -433,9 +452,11 @@ export function ExpensesPage() {
         )}
       </Dialog>
 
-      {items === null ? (
+      {expenses.error && <p className="error" role="alert">{expenses.error}</p>}
+
+      {expenses.rows === null ? (
         <p className="muted">{tc("loading")}</p>
-      ) : items.length === 0 ? (
+      ) : expenses.rows.length === 0 ? (
         <p className="muted">{t("noExpensesMessage")}</p>
       ) : (
         <table className="data">
@@ -446,7 +467,7 @@ export function ExpensesPage() {
             </tr>
           </thead>
           <tbody>
-            {items.map((x) => (
+            {expenses.rows.map((x) => (
               <tr key={x.id}>
                 <td>{x.date}</td>
                 <td>{categoryName(x.expenseCategoryId)}</td>
@@ -467,9 +488,9 @@ export function ExpensesPage() {
           </tbody>
         </table>
       )}
-      {hasMore && (
+      {expenses.canLoadMore && (
         <button className="link" disabled={busy}
-          onClick={() => void load(items?.length ?? 0).catch((err) => setError(errText(err)))}>
+          onClick={() => void expenses.loadMore()}>
           {t("loadMoreButton")}
         </button>
       )}

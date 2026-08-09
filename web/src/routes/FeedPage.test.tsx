@@ -168,7 +168,12 @@ describe("FeedPage (#446 — feed usage promoted out of the Inventory drill-down
       expect.objectContaining({ flockId: "f1", offset: 0 }));
   });
 
-  it("blocks a second load-more click while the first flight is still open", async () => {
+  it("withdraws load-more for the duration of its own flight", async () => {
+    // #469 made this stricter than the old "the second click is swallowed":
+    // usePagedList's canLoadMore folds in `loading`, so there is no control to
+    // click a second time. (The hook additionally no-ops a load-more issued
+    // while one is in flight — pinned in usePagedList.test.tsx, for callers
+    // that do not render from canLoadMore.)
     const first = Array.from({ length: 50 }, (_, i) => usageRow({ id: `u${i}` }));
     mockListUsage.mockResolvedValueOnce(first);
     await renderReady();
@@ -176,12 +181,13 @@ describe("FeedPage (#446 — feed usage promoted out of the Inventory drill-down
     let release!: (rows: FeedUsage[]) => void;
     mockListUsage.mockReturnValueOnce(new Promise((r) => { release = r; }));
     fireEvent.click(screen.getByRole("button", { name: "load more" }));
-    fireEvent.click(screen.getByRole("button", { name: "load more" }));
-    await act(async () => { release([usageRow({ id: "u99" })]); });
+    expect(screen.queryByRole("button", { name: "load more" })).not.toBeInTheDocument();
 
-    // 1 initial + 1 load-more — the second click was swallowed by the guard,
-    // so the same page can never append twice.
+    await act(async () => { release([usageRow({ id: "u99", note: "appended page" })]); });
+
+    // 1 initial + 1 load-more, and the appended page is the only new one.
     expect(mockListUsage).toHaveBeenCalledTimes(2);
+    expect(screen.getByText("appended page")).toBeInTheDocument();
   });
 
   it("preselects a deactivated item named by the deep link — remaining stock still gets fed out", async () => {

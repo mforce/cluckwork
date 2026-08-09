@@ -580,3 +580,50 @@ describe("ExpensesPage i18n wiring (#182, Task 23)", () => {
     });
   });
 });
+
+describe("ExpensesPage list failures (#469)", () => {
+  // The money-screen version of the stale-window bug: this list had no
+  // request sequencing, so a failed month change used to leave the PREVIOUS
+  // month's rows AND its total on screen under the new month's picker — a
+  // figure that reads as legitimate while describing a period it never
+  // covered. The total now travels with the rows as page metadata, so it
+  // lands and clears with them.
+  it("does not keep the previous month's total when the month change fails", async () => {
+    mockListExpenses.mockResolvedValueOnce({
+      items: [EXP_OLD], totalMinorUnits: 99900, currencyCode: "USD", currencyMinorUnit: 2,
+    });
+    await renderReady();
+    expect(screen.getByText(/Month total: 999\.00 USD/)).toBeInTheDocument();
+
+    mockListExpenses.mockRejectedValueOnce(new Error("boom"));
+    await act(async () => {
+      // A month the picker is not already on — it defaults to the current one.
+      fireEvent.change(screen.getByLabelText("Month"), { target: { value: "2026-05" } });
+    });
+
+    // Neither the old month's rows nor its money may describe the new one.
+    expect(screen.queryByText(/999\.00 USD/)).not.toBeInTheDocument();
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+  });
+
+  it("ignores a stale month response that lands after a newer one", async () => {
+    await renderReady();
+
+    let releaseStale!: (v: ExpenseList) => void;
+    mockListExpenses.mockReturnValueOnce(new Promise((r) => { releaseStale = r; }));
+    fireEvent.change(screen.getByLabelText("Month"), { target: { value: "2026-06" } });
+    mockListExpenses.mockResolvedValueOnce({
+      items: [], totalMinorUnits: 500, currencyCode: "USD", currencyMinorUnit: 2,
+    });
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Month"), { target: { value: "2026-05" } });
+    });
+    expect(screen.getByText(/Month total: 5\.00 USD/)).toBeInTheDocument();
+
+    await act(async () => {
+      releaseStale({ items: [], totalMinorUnits: 88800, currencyCode: "USD", currencyMinorUnit: 2 });
+    });
+    expect(screen.getByText(/Month total: 5\.00 USD/)).toBeInTheDocument();
+    expect(screen.queryByText(/888\.00 USD/)).not.toBeInTheDocument();
+  });
+});

@@ -5,9 +5,10 @@ import { useTranslation } from "react-i18next";
 import {
   formatMoney, listFeedUsage, listFlocks, listInventoryItems, recordFeedUsage,
 } from "../api/cluckwork";
-import type { FeedUsage, Flock, InventoryItem } from "../api/cluckwork";
+import type { Flock, InventoryItem } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { BusyButton } from "../components/BusyButton";
+import { usePagedList } from "../components/usePagedList";
 import { usePendingAction } from "../components/usePendingAction";
 import { useFarmToday } from "../farm/useFarm";
 import { newId } from "../lib/ids";
@@ -37,8 +38,6 @@ export function FeedPage() {
   // against the FARM's day, so the picker's ceiling must agree.
   const today = useFarmToday();
   const [searchParams] = useSearchParams();
-  const [rows, setRows] = useState<FeedUsage[] | null>(null);
-  const [hasMore, setHasMore] = useState(false);
   const [flocks, setFlocks] = useState<Flock[]>([]);
   // Full list (inactive included) resolves history names; the picker filters
   // down to active feedable items.
@@ -59,9 +58,6 @@ export function FeedPage() {
   const [flockFilter, setFlockFilter] = useState(() => searchParams.get("flockId") ?? "");
   const [from, setFrom] = useState(() => searchParams.get("from") ?? "");
   const [to, setTo] = useState(() => searchParams.get("to") ?? "");
-  // records-list failures degrade the LIST only — the capture form must stay
-  // usable through a transient history read failure (quality review of #446).
-  const [listError, setListError] = useState<string | null>(null);
 
   // Stable idempotency keys per logical mutation, rotated only after the full
   // action (write + refresh) succeeds — same contract as the other screens.
@@ -75,29 +71,25 @@ export function FeedPage() {
   };
   const clearKey = (scope: string) => keys.current.delete(scope);
 
-  // Monotonic sequence: rapid filter changes overlap flights, and a slow
-  // network can deliver the OLD response (or rejection) last — only the
-  // newest flight may touch rows/hasMore or surface an error.
-  const loadSeq = useRef(0);
-  const load = useCallback(async (offset = 0) => {
-    const seq = ++loadSeq.current;
-    let page: FeedUsage[];
-    try {
-      page = await listFeedUsage({
+  // #469 — the sequencing this screen grew for itself now lives in
+  // usePagedList, shared with every paged screen: only the newest flight may
+  // touch rows/hasMore or surface an error, a failed reload clears the rows
+  // rather than leaving the previous filter's under the new controls, and the
+  // pager is withdrawn for the duration of a reload.
+  const usage = usePagedList({
+    fetchPage: useCallback(
+      (offset: number, limit: number) => listFeedUsage({
         flockId: flockFilter || undefined,
         from: from || undefined,
         to: to || undefined,
-        limit: PAGE,
+        limit,
         offset,
-      });
-    } catch (err) {
-      if (seq !== loadSeq.current) return; // superseded — stale failure is noise
-      throw err;
-    }
-    if (seq !== loadSeq.current) return;
-    setHasMore(page.length === PAGE);
-    setRows((prev) => (offset === 0 ? page : [...(prev ?? []), ...page]));
-  }, [flockFilter, from, to]);
+      }),
+      [flockFilter, from, to],
+    ),
+    pageSize: PAGE,
+    errorText: () => i18n.t("feed:loadRecordsFailed"),
+  });
 
   useEffect(() => {
     Promise.all([
@@ -130,24 +122,6 @@ export function FeedPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    setListError(null);
-    // Load-more goes dark for the duration of the reload: with the OLD
-    // filter's hasMore still true, a click would start load(oldRows.length)
-    // under the NEW filters, supersede this offset-zero flight, and append
-    // a new-filter page onto old-filter rows. Success recomputes hasMore.
-    setHasMore(false);
-    load().catch(() => {
-      // Degrade the list, keep the form: an empty list with its own error
-      // beats a dead page. Rows and hasMore are CLEARED, not kept — rows
-      // from the previous filter under the new filter's controls would lie,
-      // and a stale hasMore would let load-more splice a new-filter page
-      // into them.
-      setListError(i18n.t("feed:loadRecordsFailed"));
-      setRows([]);
-      setHasMore(false);
-    });
-  }, [load]);
 
   const flockName = (id: string) => flocks.find((f) => f.id === id)?.name ?? id.slice(0, 8);
   const itemName = (id: string) => items.find((x) => x.id === id)?.name ?? id.slice(0, 8);
@@ -179,17 +153,19 @@ export function FeedPage() {
     const scope = `record:${itemId}:${flockId}:${date}`;
     await run(scope, async () => {
       try {
-        await recordFeedUsage(itemId,
-          { flockId, date, quantity: parsed, note: note.trim() || undefined },
-          keyFor(scope));
-        setMessage(i18n.t("feed:recordedMessage"));
-        // The picker's "(N kg on hand)" is the user's pre-submit sanity
-        // check — refresh it alongside the list or it lies after one feeding.
-        const [refreshedItems] = await Promise.all([
-          listInventoryItems({ includeInactive: true }),
-          load(),
-        ]);
-        setItems(refreshedItems);
+        // runWrite claims the list's ticket BEFORE the POST, so a filter
+        // change made while it is in flight is newer intent and keeps the
+        // view; the refresh stands down instead of repainting the old
+        // filter's rows over it (#469 — this screen had it backwards).
+        await usage.runWrite(async () => {
+          await recordFeedUsage(itemId,
+            { flockId, date, quantity: parsed, note: note.trim() || undefined },
+            keyFor(scope));
+          setMessage(i18n.t("feed:recordedMessage"));
+          // The picker's "(N kg on hand)" is the user's pre-submit sanity
+          // check — refresh it or it lies after one feeding.
+          setItems(await listInventoryItems({ includeInactive: true }));
+        });
         clearKey(scope);
         setQuantity("");
         setNote("");
@@ -199,8 +175,8 @@ export function FeedPage() {
     });
   }
 
-  if (error && rows === null) return <section><h2>{t("title")}</h2><p className="error">{error}</p></section>;
-  if (rows === null) return <section><h2>{t("title")}</h2><p className="muted">{tc("loading")}</p></section>;
+  if (error && usage.rows === null) return <section><h2>{t("title")}</h2><p className="error">{error}</p></section>;
+  if (usage.rows === null) return <section><h2>{t("title")}</h2><p className="muted">{tc("loading")}</p></section>;
 
   return (
     <section>
@@ -256,7 +232,9 @@ export function FeedPage() {
       {message && <p className="success">{message}</p>}
 
       <h3>{t("recordsHeading")}</h3>
-      {listError && <p className="error">{listError}</p>}
+      {/* List failures degrade the LIST only — the capture form must stay
+          usable through a transient history read failure (review of #446). */}
+      {usage.error && <p className="error">{usage.error}</p>}
       <div className="form-grid">
         <label>{t("filterFlockLabel")}
           <select value={flockFilter} onChange={(e) => setFlockFilter(e.target.value)}>
@@ -272,7 +250,7 @@ export function FeedPage() {
         </label>
       </div>
 
-      {rows.length === 0 ? (
+      {usage.rows.length === 0 ? (
         <p className="muted">{t("noRecordsMatch")}</p>
       ) : (
         <>
@@ -281,7 +259,7 @@ export function FeedPage() {
               <tr><th>{t("dateHeader")}</th><th>{t("flockHeader")}</th><th>{t("itemHeader")}</th><th>{t("amountHeader")}</th><th>{t("estimatedCostHeader")}</th><th>{t("noteHeader")}</th></tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
+              {usage.rows.map((r) => (
                 <tr key={r.id}>
                   <td>{r.date}</td>
                   <td>{flockName(r.flockId)}</td>
@@ -293,12 +271,12 @@ export function FeedPage() {
               ))}
             </tbody>
           </table>
-          {hasMore && (
-            // Routed through the pending guard: two rapid clicks must not
-            // append the same page twice (quality review of #446).
+          {usage.canLoadMore && (
+            // Two rapid clicks cannot append the same page twice: the hook
+            // no-ops a load-more while one is in flight, and canLoadMore
+            // withdraws the control for the duration (review of #446).
             <button className="link" disabled={busy}
-              onClick={() => void run("more", () =>
-                load(rows.length).catch(() => setError(i18n.t("feed:loadMoreFailed"))))}>
+              onClick={() => void usage.loadMore()}>
               {t("loadMoreButton")}
             </button>
           )}

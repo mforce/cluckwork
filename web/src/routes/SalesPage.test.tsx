@@ -931,3 +931,58 @@ describe("SalesPage pending states (#236)", () => {
     errorSpy.mockRestore();
   });
 });
+
+describe("SalesPage list failures (#469)", () => {
+  // The old behaviour: ANY rejection from the order-list fetch set a
+  // `loadError` that nothing ever cleared, and the render replaced the whole
+  // workspace with it — so a transient blip during a filter change threw away
+  // an order the user was part-way through editing, for the rest of the
+  // session. Both halves are fixed: the error is a banner, and it heals.
+  it("keeps the workspace and shows a banner when the order list fails", async () => {
+    await renderReady();
+
+    mockListOrders.mockRejectedValueOnce(new Error("boom"));
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Status"), { target: { value: "Draft" } });
+    });
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Could not load orders.");
+    // The workspace survives — this is what the full-screen replacement ate.
+    expect(screen.getByRole("button", { name: "New order" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Status")).toBeInTheDocument();
+  });
+
+  it("heals the banner on the next successful load", async () => {
+    await renderReady();
+    mockListOrders.mockRejectedValueOnce(new Error("boom"));
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Status"), { target: { value: "Draft" } });
+    });
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+
+    mockListOrders.mockResolvedValueOnce([]);
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Status"), { target: { value: "Confirmed" } });
+    });
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("ignores a stale filter response that lands after a newer one", async () => {
+    await renderReady();
+
+    let releaseStale!: (orders: SalesOrder[]) => void;
+    mockListOrders.mockReturnValueOnce(new Promise((r) => { releaseStale = r; }));
+    fireEvent.change(screen.getByLabelText("Status"), { target: { value: "Draft" } });
+    mockListOrders.mockResolvedValueOnce([{ ...DRAFT_TWO, referenceNumber: "SO-FRESH" }]);
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Status"), { target: { value: "Confirmed" } });
+    });
+    expect(screen.getByText("SO-FRESH")).toBeInTheDocument();
+
+    await act(async () => {
+      releaseStale([{ ...DRAFT_TWO, id: "stale", referenceNumber: "SO-STALE" }]);
+    });
+    expect(screen.getByText("SO-FRESH")).toBeInTheDocument();
+    expect(screen.queryByText("SO-STALE")).not.toBeInTheDocument();
+  });
+});
