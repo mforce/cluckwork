@@ -121,11 +121,22 @@ public sealed class IdempotencyRecordPurgeSweepTests(CluckworkWebApplicationFact
         // A steal on its own connection: renew the lease into the future and hold
         // the row lock by leaving the transaction open. idempotency_records has no
         // tenant filter, so a raw UPDATE needs no tenant resolution.
-        await using var stealScope = factory.Services.CreateAsyncScope();
-        var stealDb = stealScope.ServiceProvider.GetRequiredService<AppDbContext>();
+        //
+        // Built directly rather than from factory.Services: that DbContext carries
+        // EnableRetryOnFailure (#269), and its execution strategy refuses to run a
+        // query inside a user-initiated transaction — which is what reading this
+        // connection's own backend pid below is. Same pattern, and the same
+        // reason, as CurrencyLockRaceTests and StepUpAuthTests build their lock
+        // holder by hand.
+        var stealTenant = new TenantContext();
+        stealTenant.Resolve(Guid.NewGuid());
+        await using var stealDb = new AppDbContext(
+            new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(factory.ConnectionString).Options,
+            stealTenant);
         await using var stealTx = await stealDb.Database.BeginTransactionAsync();
         await stealDb.Database.ExecuteSqlInterpolatedAsync(
             $"""UPDATE idempotency_records SET "LeaseExpiresAt" = {now.AddMinutes(5)} WHERE "Id" = {stolen.Id}""");
+        var stealPid = await stealDb.BackendPidAsync();
 
         // Start the sweep (its own scope/connection). Its InProgress DELETE selects
         // the still-expired row and blocks on the steal's row lock.
@@ -136,42 +147,25 @@ public sealed class IdempotencyRecordPurgeSweepTests(CluckworkWebApplicationFact
         // expire before the DELETE selects the row, and after the steal commits even
         // the broken batched form would see only the renewed lease — a false pass
         // that silently stops guarding the regression (#421 review round 6).
-        await using (var probeScope = factory.Services.CreateAsyncScope())
-        {
-            var probeDb = probeScope.ServiceProvider.GetRequiredService<AppDbContext>();
-            await WaitUntilSweepBlockedAsync(probeDb);
-        }
+        //
+        // #470 — this waits through the SHARED probe rather than a copy local to
+        // this file. The copy keyed "blocked" on a text match against
+        // pg_stat_activity.query, could not see the sweep task at all, and carried
+        // its own 10s ceiling, so all three of "not started yet", "finished without
+        // ever contending" and "genuinely blocked" arrived as one opaque timeout —
+        // which is how it failed on a loaded runner with nothing to diagnose. The
+        // shared probe keys on the holder's backend pid via pg_blocking_pids and
+        // returns false the moment the sweep completes, so a sweep that never
+        // contended fails HERE, naming that, instead of 10s later as a timeout.
+        Assert.True(await factory.WaitUntilDoneOrBlockedAsync(sweep, stealPid),
+            "the sweep finished without ever blocking on the steal's row lock — the "
+            + "interleaving this guard exists to exercise never happened, so a pass "
+            + "would prove nothing about the DELETE's re-check");
 
         await stealTx.CommitAsync(); // lease now live; the DELETE unblocks
         await sweep; // re-checks the now-live lease (EvalPlanQual) and skips the row
 
         Assert.True(await ExistsAsync(stolen.Id));
-    }
-
-    // Poll pg_stat_activity until a session is blocked waiting on a Lock while
-    // running a statement against idempotency_records — i.e. the sweep's DELETE
-    // has selected the still-expired row and is waiting on the steal's row lock.
-    // Deterministic replacement for a fixed delay, so a slow host cannot let the
-    // guard pass without exercising the interleaving.
-    private static async Task WaitUntilSweepBlockedAsync(AppDbContext probeDb)
-    {
-        for (var i = 0; i < 200; i++) // ~10s ceiling at 50ms
-        {
-            var blocked = await probeDb.Database
-                .SqlQuery<long>($"""
-                    SELECT COUNT(*) AS "Value"
-                    FROM pg_stat_activity
-                    WHERE wait_event_type = 'Lock'
-                      AND query ILIKE '%idempotency_records%'
-                      AND pid <> pg_backend_pid()
-                    """)
-                .SingleAsync();
-            if (blocked > 0) return;
-            await Task.Delay(TimeSpan.FromMilliseconds(50));
-        }
-
-        throw new InvalidOperationException(
-            "sweep DELETE never blocked on the idempotency row lock within the timeout");
     }
 
     [Fact]
