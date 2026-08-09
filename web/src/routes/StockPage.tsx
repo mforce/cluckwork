@@ -322,7 +322,16 @@ export function StockPage() {
     // stands — checked again after the fetch, since the user can open another
     // lot's History while this request is in flight (codex review).
     if (openLot === lot.id && ledgerSeq === ledgerReq.current) {
-      const list = await listEggLotMovements(lot.id);
+      let list: EggMovementRow[];
+      try {
+        list = await listEggLotMovements(lot.id);
+      } catch (err) {
+        // Same rule as the walk pages: a superseded fetch's failure is moot —
+        // a newer History already owns the ledger; only a current-intent
+        // failure reaches the caller's stale-view handler (codex review).
+        if (ledgerSeq !== ledgerReq.current) return;
+        throw err;
+      }
       if (ledgerSeq === ledgerReq.current) setMovements(list);
     }
   }

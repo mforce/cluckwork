@@ -644,6 +644,54 @@ describe("StockPage lot paging + date filter (#465)", () => {
     expect(screen.queryByText("marker-lot1")).not.toBeInTheDocument();
   });
 
+  it("discards a superseded ledger refresh's failure instead of raising the banner (codex round 11)", async () => {
+    // Mirror of round 7 for the ledger: the post-write movement fetch
+    // rejects only after a newer History load landed — the stale failure
+    // must not surface as loadStockFailed over the healthy view.
+    const lotA = { ...LOTS[0] };
+    const lotB = { ...LOTS[0], id: "lot2", productionDate: "2026-06-15" };
+    mockRecordEggLotMovement.mockResolvedValue({
+      movementId: "wo1", eggLotId: "lot1", movementType: "Discard",
+      quantityDelta: -7, reason: "dropped a tray",
+      createdAtUtc: "2026-08-08T10:00:00Z", quantityAvailable: 92, version: 2,
+    });
+    mockGetStock.mockResolvedValue(ROWS);
+    mockListEggLots.mockResolvedValue([lotA, lotB]);
+    let rejectRefreshFetch!: (e: Error) => void;
+    let call = 0;
+    mockListEggLotMovements.mockImplementation((id: string) => {
+      call += 1;
+      if (call === 2) return new Promise<EggMovementRow[]>((_, rej) => (rejectRefreshFetch = rej));
+      return Promise.resolve([{ ...MOVEMENTS[0], id: `mv-${id}-${call}`, reason: `marker-${id}` }]);
+    });
+    await expandGradeA();
+
+    const rowA = screen.getByRole("row", { name: /2026-07-01/ });
+    fireEvent.click(within(rowA).getByRole("button", { name: "history" }));
+    await screen.findByText("marker-lot1");
+
+    fireEvent.click(within(rowA).getByRole("button", { name: "write off" }));
+    const dialog = screen.getByRole("dialog");
+    fireEvent.change(within(dialog).getByRole("spinbutton"), { target: { value: "7" } });
+    fireEvent.change(within(dialog).getByLabelText(/Reason/), { target: { value: "dropped a tray" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: /Record/ }));
+
+    // The refresh's ledger fetch (call 2) hangs; the user opens lot B's
+    // History, which lands successfully...
+    await waitFor(() => expect(call).toBe(2));
+    fireEvent.click(within(screen.getByRole("row", { name: /2026-06-15/ }))
+      .getByRole("button", { name: "history" }));
+    await screen.findByText("marker-lot2");
+
+    // ...and only then does the superseded fetch reject.
+    await act(async () => {
+      rejectRefreshFetch(new Error("stale ledger fetch died"));
+    });
+    await screen.findByText(/92 now available/);
+    expect(screen.queryByText(/Could not load stock/)).not.toBeInTheDocument();
+    expect(screen.getByText("marker-lot2")).toBeInTheDocument();
+  });
+
   it("clears a ledger opened DURING the filter load when the page commits (codex round 9)", async () => {
     // Inverse of round 3: History is clicked after the filter's invalidation
     // (old rows stay interactive), so it owns the newer ledger ticket — the
