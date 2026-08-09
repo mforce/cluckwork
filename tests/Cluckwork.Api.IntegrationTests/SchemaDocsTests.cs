@@ -1187,6 +1187,17 @@ public sealed class SchemaDocsTests
                         {
                             var cp = cw;
                             while (cp < text.Length && char.IsWhiteSpace(text[cp])) cp++;
+                            // Nullable suffix: (char?) / (System.Char?) is
+                            // still a cast — boxing a static atom through a
+                            // nullable changes nothing about its value. A
+                            // reserved type word followed by ? cannot be a
+                            // conditional (reserved words are not
+                            // expressions), so consuming it is unambiguous.
+                            if (cp < text.Length && text[cp] == '?')
+                            {
+                                cp++;
+                                while (cp < text.Length && char.IsWhiteSpace(text[cp])) cp++;
+                            }
                             if (cp < text.Length && text[cp] == ')') { h = cp + 1; continue; }
                         }
                         break;
