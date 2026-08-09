@@ -153,6 +153,33 @@ describe("usePagedList — intent ordering", () => {
     expect(reloading()).toBe("false");
   });
 
+  it("keeps reporting reloading when a write starts mid-replacement (codex P2)", async () => {
+    // `reloading` means "what is on screen may not belong to the current
+    // filter". A write starting does not make that untrue — and screens blank
+    // their list on it, so clearing it here puts the PREVIOUS filter's rows
+    // back on screen for the length of the POST.
+    const pendingFilter = deferred<Row[]>();
+    const writeGate = deferred<void>();
+    const fetchA = vi.fn().mockResolvedValue(rows("a"));
+    const fetchB = vi.fn()
+      .mockReturnValueOnce(pendingFilter.promise)
+      .mockResolvedValue(rows("b"));
+    const { rerender } = render(
+      <Host fetchPage={fetchA} write={() => writeGate.promise} />);
+    await waitFor(() => expect(shown()).toBe("a"));
+
+    rerender(<Host fetchPage={fetchB} write={() => writeGate.promise} />);
+    expect(reloading()).toBe("true");
+
+    fireEvent.click(screen.getByRole("button", { name: "write" }));
+    expect(reloading()).toBe("true"); // still not the current filter's rows
+
+    await act(async () => { writeGate.resolve(); });
+    await waitFor(() => expect(reloading()).toBe("false"));
+    // Settled under the CURRENT filter, so blanking can end.
+    expect(shown()).toBe("b");
+  });
+
   it("does not report reloading while a load-more is in flight", async () => {
     // The distinction Audit needs: blanking the table for a REPLACE is right,
     // blanking it for an EXTEND would hide the rows being extended.

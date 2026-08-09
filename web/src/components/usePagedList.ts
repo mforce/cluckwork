@@ -85,9 +85,12 @@ export function usePagedList<T extends { id: string }, M = never>({
     if (seq !== req.current) return;
     loadingRef.current = value;
     setLoading(value);
-    // Only a replace raises it; any settle clears it, so an extend that
-    // follows a replace cannot leave it stuck on.
-    setReloading(value && replace);
+    // `reloading` answers "may what is on screen belong to a window the user
+    // has left?" — so ONLY a replacement moves it, and only in its own
+    // direction. A load-more or a write starting says nothing about that
+    // question, and clearing it there un-blanked the previous filter's rows
+    // for the length of the POST (codex review).
+    if (replace) setReloading(value);
   };
 
   // `seq` is claimed by the CALLER, before anything awaits, so the ticket
@@ -128,7 +131,10 @@ export function usePagedList<T extends { id: string }, M = never>({
         setHasMore(false);
       }
     } finally {
-      setLoadingOwned(seq, false);
+      // The same `replace` this load claimed with: a completed replacement is
+      // exactly what ends the blanking, and omitting it here left `reloading`
+      // stuck on for good.
+      setLoadingOwned(seq, false, offset === 0);
     }
   }, [fetchPage, pageSize]);
 
@@ -185,6 +191,9 @@ export function usePagedList<T extends { id: string }, M = never>({
         setRows([]);
         setMeta(null);
         setHasMore(false);
+        // A failed replacement still ENDS the replacement — leaving the
+        // blanking on would strand the screen on its loading state.
+        setReloading(false);
         return;
       }
       if (seq !== req.current) return;
@@ -202,6 +211,9 @@ export function usePagedList<T extends { id: string }, M = never>({
     setRows(next);
     setHasMore(lastPageFull);
     setError(null);
+    // This IS a replacement read: whatever is on screen now came from the
+    // current filter, so any blanking a pending change raised can end.
+    setReloading(false);
   }, [fetchPage, pageSize]);
 
   const runWrite = useCallback(async <R,>(write: () => Promise<R>): Promise<R> => {
