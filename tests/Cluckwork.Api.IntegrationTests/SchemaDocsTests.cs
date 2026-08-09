@@ -498,7 +498,7 @@ public sealed class SchemaDocsTests
                 }
                 if (HasStaticallyComposedInterpolation(codeText))
                 {
-                    const string interpMsg = "interpolated string composing a nested string literal in a hole — the evaluated value never appears contiguously in the source; write it as one literal or compose via named constants";
+                    const string interpMsg = "interpolated string composing a static atom in a hole (a nested string, char, or numeric literal, or a constant keyword) — the evaluated value never appears contiguously in the source; write it as one literal or compose via named constants";
                     if (!hits.TryGetValue(interpMsg, out var files))
                         hits[interpMsg] = files = [];
                     files.Add(relative);
@@ -1160,7 +1160,34 @@ public sealed class SchemaDocsTests
                     var h = i;
                     while (h < text.Length && (char.IsWhiteSpace(text[h]) || text[h] == '(')) h++;
                     while (h < text.Length && (text[h] == '$' || text[h] == '@')) h++;
-                    if (h < text.Length && text[h] == '"') return true;
+                    // A hole led by ANY static atom is composition: string
+                    // or char literal, numeric literal (optionally signed),
+                    // or a reserved keyword that denotes a constant
+                    // (null/true/false/default fold to text or empty;
+                    // sizeof/checked/unchecked wrap constants). These
+                    // keywords are reserved, so no variable can collide.
+                    // nameof is deliberately NOT in the set: it yields an
+                    // identifier's own name, so composing the image name
+                    // through it would require declaring a symbol literally
+                    // named after the image — itself visible, reviewable
+                    // source text — and nameof-led holes are idiomatic
+                    // throughout this codebase (EF filters, error codes,
+                    // options messages). Identifier-led holes remain the
+                    // runtime boundary.
+                    if (h < text.Length && (text[h] == '"' || text[h] == '\'')) return true;
+                    var s = h;
+                    if (s < text.Length && (text[s] == '-' || text[s] == '+'))
+                    {
+                        s++;
+                        while (s < text.Length && char.IsWhiteSpace(text[s])) s++;
+                    }
+                    if (s < text.Length && (char.IsDigit(text[s])
+                        || (text[s] == '.' && s + 1 < text.Length && char.IsDigit(text[s + 1]))))
+                        return true;
+                    var we = h;
+                    while (we < text.Length && (char.IsLetterOrDigit(text[we]) || text[we] == '_')) we++;
+                    if (text[h..we] is "null" or "true" or "false" or "default" or "sizeof" or "checked" or "unchecked")
+                        return true;
                     // Skip to the hole's closing brace run, stepping over
                     // any nested ordinary string so a brace inside it does
                     // not end the hole early.
