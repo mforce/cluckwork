@@ -1304,9 +1304,9 @@ export const tl = {
       "Binago ng ibang tao ang entry na ito — ipinapakita na ngayon ng "
       + "form ang pinakabagong mga value; i-apply ulit ang iyong pagtatama.",
     nothingToAdjustMessage: "{{status}} na ngayon ang entry na ito — wala nang puwedeng i-adjust.",
-    conflictReloadFailedMessage:
-      "Binago ng ibang tao ang entry na ito at hindi na-reload ang "
-      + "listahan — i-reload ang page bago subukan ulit.",
+    conflictRebindFailedMessage:
+      "Binago ng ibang tao ang entry na ito at hindi na-load ang "
+      + "pinakabagong halaga nito — isara ang form at subukan ulit.",
     gradesMustReconcileMessage:
       "Dapat magkapareho ang mga na-grade na dami sa kabuuang itlog na bawas ang basag, marumi, at tinapon.",
     entryAdjustedMessage: "Na-adjust ang entry — na-update ang stock at ang rekord ng manok para tumugma.",

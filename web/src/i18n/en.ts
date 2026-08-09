@@ -1575,9 +1575,12 @@ export const en = {
     // {{status}} is the RAW wire status, lowercased — see the locale-fragile
     // note in the namespace header comment above.
     nothingToAdjustMessage: "This entry is now {{status}} — nothing left to adjust.",
-    conflictReloadFailedMessage:
-      "This entry was changed by someone else and the list could not be "
-      + "reloaded — reload the page before retrying.",
+    // Describes what actually failed HERE: the form's fetch of the winning
+    // entry's values. The list is refreshed by the write path and reports its
+    // own health separately — this branch never touches it (#469).
+    conflictRebindFailedMessage:
+      "This entry was changed by someone else, and its latest values could "
+      + "not be loaded — close the form and try again.",
     // #394 — an adjustment has no draft state: grading must reconcile
     // EXACTLY to the sellable count (short or over both trigger this),
     // the same rule Daily Entry's submit uses.

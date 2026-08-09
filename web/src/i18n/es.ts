@@ -1260,9 +1260,9 @@ export const es = {
       "Esta entrada fue cambiada por otra persona — el formulario muestra "
       + "los valores más recientes; vuelva a aplicar su corrección.",
     nothingToAdjustMessage: "Esta entrada ahora está {{status}} — no queda nada por ajustar.",
-    conflictReloadFailedMessage:
-      "Esta entrada fue cambiada por otra persona y la lista no se pudo "
-      + "volver a cargar — vuelva a cargar la página antes de reintentarlo.",
+    conflictRebindFailedMessage:
+      "Esta entrada fue cambiada por otra persona y no se pudieron cargar "
+      + "sus valores más recientes — cierre el formulario y vuelva a intentarlo.",
     gradesMustReconcileMessage:
       "Las cantidades clasificadas deben ser iguales al total de huevos menos los agrietados, sucios y "
       + "descartados.",

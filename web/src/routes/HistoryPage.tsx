@@ -282,7 +282,7 @@ export function HistoryPage() {
         setError(i18n.t("history:nothingToAdjustMessage", { status: fresh.status.toLowerCase() }));
       }
     } catch {
-      setError(i18n.t("history:conflictReloadFailedMessage"));
+      setError(i18n.t("history:conflictRebindFailedMessage"));
     }
   }
 

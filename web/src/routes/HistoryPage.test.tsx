@@ -1088,3 +1088,27 @@ describe("HistoryPage conflict reload is issued once (#469)", () => {
     expect(screen.getByRole("row", { name: /2026-07-19/ })).toBeInTheDocument();
   });
 });
+
+describe("HistoryPage adjust conflict — the rebind's own failure (#469)", () => {
+  // rebindAfterConflict no longer reads the list, so the only thing that can
+  // fail in it is the form's fetch of the winning entry. The message has to
+  // say THAT, not "the list could not be reloaded" — the list is refreshed by
+  // the write path and reports its own health separately.
+  it("names the form's failed value load, not a list reload", async () => {
+    mockListDailyEntries.mockResolvedValue([SUBMITTED]);
+    mockAdjustDailyEntry.mockRejectedValue(new ApiError(409, "Conflict", "stale"));
+    mockGetDailyEntry.mockRejectedValue(new Error("boom"));
+    await openAdjustPanel();
+
+    // Grading must reconcile or the submit never reaches the API (#394).
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Grade A" }), { target: { value: "45" } });
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Grade B" }), { target: { value: "45" } });
+    fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: "recount" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Save adjustment" }));
+    });
+
+    expect(screen.getByText(/latest values could not be loaded/i)).toBeInTheDocument();
+    expect(screen.queryByText(/list could not be reloaded/i)).not.toBeInTheDocument();
+  });
+});
