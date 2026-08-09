@@ -144,19 +144,32 @@ export function SalesPage() {
   };
   const clearKey = (scope: string) => keys.current.delete(scope);
 
-  // #474 — the error carries the SCOPE that raised it, not just its text. One
-  // flat string was enough while every copy of it rendered in the same place;
-  // it is not enough now that the dialogs render their own, because neither
-  // dialog trigger is disabled while another request is in flight. A payments
-  // read (or a panel write started before the dialog was opened) that rejects
-  // underneath an open dialog would otherwise be presented as that dialog's
-  // own failure (codex review of #476). Scopes are the same strings run()
-  // already takes.
-  const [error, setError] = useState<{ scope: string; text: string } | null>(null);
-  // Scopes whose dialog was dismissed while their write was still in flight.
-  // A ref, not state: it is read in the settle path of a request that is
-  // already running, and must never be a render behind (#474).
+  // #474 — TWO slots, not one. A dialog's own failure and the page's are
+  // different messages in different places, and neither dialog trigger is
+  // disabled while another request is in flight: a payments read, or a panel
+  // write started before the dialog was opened, can reject underneath an open
+  // dialog. Sharing one slot made that failure either MISATTRIBUTED to the
+  // dialog or — once the dialogs read their own scope — able to OVERWRITE the
+  // actionable 422 the user was reading (three codex rounds, one per
+  // consequence). Separate states cannot do either. `dialogError` carries the
+  // scope because there are two dialogs; the page's needs no tag, because
+  // everything that is not a dialog's belongs to it. StockPage already splits
+  // its `dialogError` out the same way.
+  const [error, setError] = useState<string | null>(null);
+  // One slot for both dialogs, deliberately: they are modal, so at most one is
+  // ever open, and each clears this on open and on dismissal. Tagging it by
+  // scope would add a discriminator no reachable state can exercise.
+  const [dialogError, setDialogError] = useState<string | null>(null);
+  // Scopes whose dialog was dismissed while their write was still out. The
+  // dismissal alone is not enough: nothing stops the user reopening the same
+  // dialog (the trigger is not gated on `busy`), and the abandoned attempt's
+  // failure would then be reported against the session they are now filling in.
+  // A ref, not state: it is read in the settle path of a request already
+  // running, where a render-behind value is wrong.
   const abandoned = useRef<Set<string>>(new Set());
+  // The scopes that own a dialog. run() routes a failure by this and nothing
+  // else, so a new dialog action is one entry, not a new render condition.
+  const DIALOG_SCOPES = ["create-order", "record-payment"];
   const [message, setMessage] = useState<string | null>(null);
 
   // Payments (#89, admin-only money data) — settlement state of the open
@@ -266,7 +279,7 @@ export function SalesPage() {
     listOrderPayments(activeId)
       .then((p) => { if (!cancelled) setPayments(p); })
       .catch(() => {
-        if (!cancelled) setError({ scope: "payments", text: i18n.t("sales:loadPaymentsFailed") });
+        if (!cancelled) setError(i18n.t("sales:loadPaymentsFailed"));
       });
     return () => { cancelled = true; };
   }, [activeId, activeStatus, canSettle]);
@@ -295,30 +308,32 @@ export function SalesPage() {
     runPending(scope, async () => {
       // Cleared per attempt: abandoning one attempt must not mute the next.
       abandoned.current.delete(scope);
-      setError(null);
+      // This attempt's own slot only. A dialog write must not wipe a page
+      // failure the user has not seen, and vice versa.
+      if (DIALOG_SCOPES.includes(scope)) setDialogError(null); else setError(null);
       setMessage(null);
       try {
         await fn();
       } catch (err) {
-        // #474 — a dialog dismissed while its own write was still out has
-        // abandoned that attempt, and the failure has nowhere honest to land:
-        // reporting it on the page is the context-free message the issue was
-        // filed about, now without even the form that would explain it. Cancel
-        // stays live during `busy`, and Escape and the backdrop dismiss too, so
-        // this is ordinary, not a corner (codex + pi review of #476).
+        // #474 — the user gave up on this one (Cancel stays live during
+        // `busy`, and Escape and the backdrop dismiss too), so its failure has
+        // nowhere honest to land: not on the page, which is the context-free
+        // message the issue was filed about, and not in the dialog, which by
+        // now may be a SECOND session the user reopened and is filling in
+        // (codex + pi review of #476).
         if (abandoned.current.has(scope)) return;
-        setError({ scope, text: errText(err) });
+        const text = errText(err);
+        if (DIALOG_SCOPES.includes(scope)) setDialogError(text); else setError(text);
       }
     });
 
-  // #474 — dismissing a dialog abandons its attempt, so its failure goes with
-  // it. Leaving the message behind produces exactly what the issue was filed
-  // about: a page-level error with no context. Its OWN message only — a
-  // failure that was never this dialog's is still the page's to report.
+  // #474 — dismissing marks the attempt abandoned, so a failure that lands
+  // afterwards is dropped rather than shown against a reopened session. The
+  // message itself needs no clearing here: it lives in a slot only the dialog
+  // renders, and each dialog clears that slot on open.
   const dismiss = (scope: string, setOpen: (open: boolean) => void) => {
     setOpen(false);
     abandoned.current.add(scope);
-    setError((current) => (current?.scope === scope ? null : current));
   };
   const closeNewOrder = () => dismiss("create-order", setCreatingOrder);
   const closePayment = () => dismiss("record-payment", setPaying);
@@ -525,12 +540,6 @@ export function SalesPage() {
   // is part-way through editing (#469). Only the setup reads — customers and
   // products, without which no form on this screen can function — still gate
   // the page.
-  // Exactly the two cases a dialog renders itself (#474) — the page copy skips
-  // those and shows everything else.
-  const shownInDialog =
-    (creatingOrder && error?.scope === "create-order")
-    || (paying && error?.scope === "record-payment");
-
   if (setupError) return <section><h2>{t("title")}</h2><p className="error">{setupError}</p></section>;
   if (orders.rows === null) return <section><h2>{t("title")}</h2><p className="muted">{t("loading")}</p></section>;
 
@@ -544,7 +553,9 @@ export function SalesPage() {
           // while the picker's own ceiling had already moved on (codex review
           // of #123).
           <button type="button" onClick={() => {
-            setError(null); setOrderDate(today); setCreatingOrder(true);
+            // The DIALOG's slot: opening a form clears what the last attempt
+            // at it said, not a page failure the user has not dealt with.
+            setDialogError(null); setOrderDate(today); setCreatingOrder(true);
           }}>
             <Plus size={16} aria-hidden /> {t("newOrder")}
           </button>
@@ -576,7 +587,7 @@ export function SalesPage() {
               whatever else happened to fail underneath it. role="alert"
               because focus is trapped in the panel and nothing else announces
               the failure. */}
-          {error?.scope === "create-order" && <p className="error" role="alert">{error.text}</p>}
+          {dialogError && <p className="error" role="alert">{dialogError}</p>}
           <div className="dialog-foot">
             <button type="button" className="link" onClick={closeNewOrder}>{tc("cancel")}</button>
             <BusyButton disabled={busy || !customerId} busy={isPending("create-order")}
@@ -773,7 +784,7 @@ export function SalesPage() {
               {payments.outstandingMinorUnits > 0 && (
                 <div className="panel-actions">
                   <button type="button" onClick={() => {
-                    setError(null); setPayDate(today); setPaying(true);
+                    setDialogError(null); setPayDate(today); setPaying(true);
                   }}>
                     {t("recordPayment")}
                   </button>
@@ -810,7 +821,7 @@ export function SalesPage() {
                   {/* #474 — this dialog's own write only: see the new-order
                       dialog above. A void raised from the payments table can
                       land while this is open, and is not this form's failure. */}
-                  {error?.scope === "record-payment" && <p className="error" role="alert">{error.text}</p>}
+                  {dialogError && <p className="error" role="alert">{dialogError}</p>}
                   <div className="dialog-foot">
                     <button type="button" className="link" onClick={closePayment}>{tc("cancel")}</button>
                     <BusyButton disabled={busy || !payAmount} busy={isPending("record-payment")}
@@ -846,7 +857,7 @@ export function SalesPage() {
           failure that is nobody's dialog even while one is open, rather than
           swallowing it. Suppressed only for the message the open dialog is
           already showing, so it is never rendered twice (#474). */}
-      {error && !shownInDialog && <p className="error">{error.text}</p>}
+      {error && <p className="error">{error}</p>}
       {message && <p className="success">{message}</p>}
 
       <h3>{t("ordersHeading")}</h3>

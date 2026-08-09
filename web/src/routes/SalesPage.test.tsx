@@ -1164,6 +1164,27 @@ describe("SalesPage in-dialog errors (#474)", () => {
     expect(screen.queryByText("Order date cannot be in the future.")).not.toBeInTheDocument();
   });
 
+  it("does not report an abandoned attempt against the session that replaced it", async () => {
+    // The dismissal alone is not enough. Nothing gates the trigger on `busy`,
+    // so the user can reopen the same dialog while the attempt they gave up on
+    // is still out — and its failure would then be shown against the form they
+    // are filling in now, describing an attempt that no longer exists.
+    await renderReady();
+    let rejectCreate!: (e: unknown) => void;
+    mockCreateOrder.mockReturnValueOnce(new Promise((_, rej) => { rejectCreate = rej; }) as never);
+    fireEvent.click(screen.getByRole("button", { name: "New order" }));
+    fireEvent.click(within(dialog()).getByRole("button", { name: "New draft order" }));
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "New order" })); // second session
+    await act(async () => {
+      rejectCreate(new ApiError(422, "Validation failed", "Order date cannot be in the future."));
+    });
+
+    expect(within(dialog()).queryByText("Order date cannot be in the future.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Order date cannot be in the future.")).not.toBeInTheDocument();
+  });
+
   it("reports the next attempt after an abandoned one", async () => {
     // The abandonment is per-attempt, not permanent: reopening and failing
     // again must still say so, or the first Cancel would mute the dialog for
@@ -1184,6 +1205,64 @@ describe("SalesPage in-dialog errors (#474)", () => {
     });
 
     expect(within(dialog()).getByText("Order date cannot be in the future.")).toBeInTheDocument();
+  });
+
+  it("does not let a background read wipe the open dialog's own message", async () => {
+    // Codex, third round: with one slot, a `payments` failure that lands while
+    // the dialog is up REPLACES the actionable 422 the user is reading — the
+    // form's own explanation vanishes underneath them. The two live in
+    // separate state, so neither can overwrite the other.
+    let rejectPayments!: (e: unknown) => void;
+    mockListOrderPayments.mockReturnValueOnce(
+      new Promise((_, rej) => { rejectPayments = rej; }) as never);
+    await openOrder(CONFIRMED_9, /Grade A Dozen/);
+
+    mockCreateOrder.mockRejectedValueOnce(
+      new ApiError(422, "Validation failed", "Order date cannot be in the future."));
+    fireEvent.click(screen.getByRole("button", { name: "New order" }));
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "New draft order" }));
+    });
+    expect(within(dialog()).getByText("Order date cannot be in the future.")).toBeInTheDocument();
+
+    await act(async () => { rejectPayments(new Error("boom")); });
+
+    // Still there, and still the dialog's own.
+    expect(within(dialog()).getByText("Order date cannot be in the future.")).toBeInTheDocument();
+    // The read's failure is reported too — on the page, where it belongs.
+    expect(screen.getByText("Could not load this order's payments.")).toBeInTheDocument();
+  });
+
+  it("keeps a page failure the user has not dealt with when a dialog opens", async () => {
+    // The other half of the split: opening a form clears what the last attempt
+    // at THAT form said, not an unrelated failure standing on the page.
+    mockListOrderPayments.mockRejectedValueOnce(new Error("boom"));
+    await openOrder(CONFIRMED_9, /Grade A Dozen/);
+    expect(await screen.findByText("Could not load this order's payments.")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "New order" }));
+
+    expect(screen.getByText("Could not load this order's payments.")).toBeInTheDocument();
+    expect(within(dialog()).queryByText("Could not load this order's payments.")).not.toBeInTheDocument();
+  });
+
+  it("keeps a page failure while a dialog write runs and fails", async () => {
+    // Each attempt clears its OWN slot before it starts. Clearing both would
+    // make an unrelated page failure disappear the moment the user tries
+    // something else — dismissed by an action that never addressed it.
+    mockListOrderPayments.mockRejectedValueOnce(new Error("boom"));
+    await openOrder(CONFIRMED_9, /Grade A Dozen/);
+    expect(await screen.findByText("Could not load this order's payments.")).toBeInTheDocument();
+
+    mockCreateOrder.mockRejectedValueOnce(
+      new ApiError(422, "Validation failed", "Order date cannot be in the future."));
+    fireEvent.click(screen.getByRole("button", { name: "New order" }));
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "New draft order" }));
+    });
+
+    expect(within(dialog()).getByText("Order date cannot be in the future.")).toBeInTheDocument();
+    expect(screen.getByText("Could not load this order's payments.")).toBeInTheDocument();
   });
 
   it("keeps someone else's error when a dialog is dismissed", async () => {
