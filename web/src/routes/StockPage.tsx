@@ -265,6 +265,11 @@ export function StockPage() {
       if (seq === lotsReq.current) {
         setLots([...window.values()]);
         setHasMoreLots(lastPageFull);
+        // The walk fetched under the CURRENT inputs (which may be a filter
+        // this write-off superseded mid-flight): those values are now the
+        // window on screen, so commit them as applied — a later failure
+        // must roll back to them, not to an older snapshot (codex review).
+        appliedFilter.current = { from: lotsFrom, to: lotsTo };
       }
     }
     if (openLot === lot.id) setMovements(await listEggLotMovements(lot.id));
@@ -333,8 +338,16 @@ export function StockPage() {
       return res;
     });
     // Release the loading flag claimed at submit — success, failure, or
-    // skipped walk alike — unless something newer has taken ownership.
-    if (lotSeq === lotsReq.current) setLotsLoading(false);
+    // skipped walk alike — unless something newer has taken ownership. The
+    // inputs re-sync to the applied snapshot at the same moment: after a
+    // successful walk that committed its window this is a no-op, and on any
+    // failure it rolls back a filter this operation superseded before that
+    // filter could apply or roll itself back (codex review).
+    if (lotSeq === lotsReq.current) {
+      setLotsLoading(false);
+      setLotsFrom(appliedFilter.current.from);
+      setLotsTo(appliedFilter.current.to);
+    }
     if (outcome) {
       setMessage(i18n.t("stock:writeOffRecordedMessage", { available: outcome.quantityAvailable }));
       setWriteOffLot(null);

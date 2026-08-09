@@ -600,6 +600,60 @@ describe("StockPage lot paging + date filter (#465)", () => {
     expect(screen.getByText("2026-07-01")).toBeInTheDocument();
   });
 
+  it("restores the applied filter when a failing write-off superseded a pending filter (codex round 6)", async () => {
+    // Filter pending (inputs optimistic, never applied) when the write-off
+    // claims the ticket; the POST then rejects. The stale filter completion
+    // can neither apply nor roll back — the write-off's failure path must
+    // re-sync the inputs to the applied window the visible rows still show.
+    mockRecordEggLotMovement.mockRejectedValueOnce(new Error("network down"));
+    mockListEggLots
+      .mockResolvedValueOnce(LOTS)
+      .mockImplementationOnce(() => new Promise<EggLotRow[]>(() => undefined));
+    await expandGradeA();
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-07-02" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "write off" }));
+    const dialog = screen.getByRole("dialog");
+    fireEvent.change(within(dialog).getByRole("spinbutton"), { target: { value: "7" } });
+    fireEvent.change(within(dialog).getByLabelText(/Reason/), { target: { value: "dropped a tray" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: /Record/ }));
+    await screen.findByText(/network down/);
+
+    expect(screen.getByLabelText("From")).toHaveValue("");
+    expect(screen.getByText("2026-07-01")).toBeInTheDocument();
+  });
+
+  it("commits the filter its refresh walk applied, so a later rollback targets it (codex round 6)", async () => {
+    // The dual of the failure case: a SUCCESSFUL write-off that superseded a
+    // pending filter walks with the optimistic values — those become the
+    // applied window, and a later failed change must roll back to THEM.
+    mockRecordEggLotMovement.mockResolvedValue({
+      movementId: "wo1", eggLotId: "lot1", movementType: "Discard",
+      quantityDelta: -7, reason: "dropped a tray",
+      createdAtUtc: "2026-08-08T10:00:00Z", quantityAvailable: 92, version: 2,
+    });
+    mockListEggLots
+      .mockResolvedValueOnce(LOTS)
+      .mockImplementationOnce(() => new Promise<EggLotRow[]>(() => undefined))
+      .mockResolvedValueOnce([{ ...LOTS[0], quantityAvailable: 92 }]) // walk page 0
+      .mockRejectedValueOnce(new Error("boom")); // the later filter change
+    await expandGradeA();
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-07-01" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "write off" }));
+    const dialog = screen.getByRole("dialog");
+    fireEvent.change(within(dialog).getByRole("spinbutton"), { target: { value: "7" } });
+    fireEvent.change(within(dialog).getByLabelText(/Reason/), { target: { value: "dropped a tray" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: /Record/ }));
+    await screen.findByText(/92 now available/);
+    expect(screen.getByLabelText("From")).toHaveValue("2026-07-01");
+
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-07-03" } });
+    await screen.findByText(/Could not load the grade's lots/);
+    // Rolls back to the window the walk applied — not all the way to empty.
+    expect(screen.getByLabelText("From")).toHaveValue("2026-07-01");
+  });
+
   it("releases the loading flag when a write-off supersedes a pending filter (codex round 5)", async () => {
     // Filter load sets lotsLoading; the write-off submit supersedes it, so
     // the filter's settle can't clear the flag — the submit must own and
