@@ -272,7 +272,10 @@ export function ExpensesPage() {
         // the expense to another day (pi review of #88).
         if (err instanceof ApiError && err.status === 409) {
           settleKey(scope, err);
-          await expenses.reload();
+          // No reload of our own: runWrite already re-read the loaded WINDOW
+          // before rethrowing. A second read here is page-one only, so for a
+          // user who had paged deeper it collapses the window that refresh
+          // just restored — and clears it outright if it fails (#469).
           startEdit(await getExpense(target.id));
           throw new Error(i18n.t("expenses:conflictRebindMessage"));
         }

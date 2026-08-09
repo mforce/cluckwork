@@ -750,3 +750,31 @@ describe("ExpensesPage cross-period display while loading (#469, codex P2)", () 
     expect(screen.getByText("Loading…")).toBeInTheDocument();
   });
 });
+
+describe("ExpensesPage conflict reload is issued once (#469)", () => {
+  // runWrite already re-read the loaded WINDOW before rethrowing the 409, so
+  // a second read here is redundant — and worse than redundant: reload() is
+  // page-one only, so for a user who had paged deeper it collapses the very
+  // window runWrite just restored, and if it transiently fails it clears the
+  // rows that refresh had recovered.
+  it("does not issue a second replacement read after a 409", async () => {
+    mockListExpenses
+      .mockResolvedValueOnce({ items: [EXP_OLD], totalMinorUnits: 1500, currencyCode: "BHD", currencyMinorUnit: 3 })
+      .mockResolvedValueOnce({ items: [EXP_OLD], totalMinorUnits: 1500, currencyCode: "BHD", currencyMinorUnit: 3 })
+      .mockRejectedValue(new Error("boom")); // a third read would wipe the rows
+    mockAdjustExpense.mockRejectedValue(new ApiError(409, "Conflict", "stale"));
+    mockGetExpense.mockResolvedValue({ ...EXP_OLD, description: "Diesel (recount)", version: 8 });
+    renderWithProviders(<ExpensesPage />, { token: ADMIN });
+
+    const row = await screen.findByRole("row", { name: /Generator diesel/ });
+    fireEvent.click(within(row).getByRole("button", { name: "correct" }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Save correction" }));
+    });
+
+    expect(mockListExpenses).toHaveBeenCalledTimes(2);
+    expect(await screen.findByRole("alert")).toHaveTextContent(/changed by someone else/);
+    // The window runWrite restored is still on screen.
+    expect(screen.getByRole("row", { name: /Generator diesel/ })).toBeInTheDocument();
+  });
+});
