@@ -1002,3 +1002,64 @@ describe("SalesPage cross-window display while loading (#469)", () => {
     expect(screen.queryByText("SO-OLD")).not.toBeInTheDocument();
   });
 });
+
+// #474 — the screen renders the error paragraph three times: once per dialog
+// and once for the page. All three carried the PAGE's guard (`!creatingOrder &&
+// !paying`), which is false exactly when the dialog holding that copy is open —
+// so a mutation that failed under a dialog cleared its spinner and said
+// nothing. The dialog copies are guarded by the Dialog itself (it renders
+// nothing while closed), and the page copy keeps the suppression so the message
+// is never duplicated.
+describe("SalesPage in-dialog errors (#474)", () => {
+  it("shows a failed create-order inside the new-order dialog", async () => {
+    await renderReady();
+    mockCreateOrder.mockRejectedValueOnce(
+      new ApiError(422, "Validation failed", "Order date cannot be in the future."));
+
+    fireEvent.click(screen.getByRole("button", { name: "New order" }));
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "New draft order" }));
+    });
+
+    // The dialog stays up (a throw keeps it open) and now says why.
+    expect(within(dialog()).getByText("Order date cannot be in the future.")).toBeInTheDocument();
+    // Exactly one copy: the page-level paragraph stays suppressed behind the
+    // open dialog, so a fix that simply dropped the page guard fails here.
+    expect(screen.getAllByText("Order date cannot be in the future.")).toHaveLength(1);
+  });
+
+  it("shows a failed payment inside the payment dialog", async () => {
+    mockListOrderPayments.mockResolvedValue({
+      items: [], paidMinorUnits: 0, outstandingMinorUnits: 12000, totalMinorUnits: 12000,
+      currencyCode: "BHD", currencyMinorUnit: 3,
+    });
+    await openOrder(
+      { ...draftEmpty(3, "BHD", "o9"), referenceNumber: "SO-9", status: "Confirmed", totalMinorUnits: 12000, items: [ITEM_A] },
+      /Grade A Dozen/);
+    fireEvent.click(await screen.findByRole("button", { name: "Record payment" }));
+
+    mockRecordPayment.mockRejectedValueOnce(
+      new ApiError(422, "Validation failed", "Payment exceeds the outstanding balance."));
+    fireEvent.change(within(dialog()).getByLabelText(/Amount/), { target: { value: "99" } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Record payment" }));
+    });
+
+    expect(within(dialog()).getByText("Payment exceeds the outstanding balance.")).toBeInTheDocument();
+    expect(screen.getAllByText("Payment exceeds the outstanding balance.")).toHaveLength(1);
+  });
+
+  it("still renders a page-level error with no dialog open", async () => {
+    // The panel's own writes are not behind a dialog — their errors must keep
+    // landing on the page, which is what the page copy's guard exists for.
+    await openOrder(DRAFT_TWO, /Grade A Dozen/);
+    vi.mocked(addOrderItem).mockRejectedValueOnce(
+      new ApiError(422, "Validation failed", "That product is no longer sellable."));
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Add line" }));
+    });
+
+    expect(screen.getByText("That product is no longer sellable.")).toBeInTheDocument();
+  });
+});

@@ -528,8 +528,12 @@ export function SalesPage() {
             <input type="date" value={orderDate} max={today}
               onChange={(e) => setOrderDate(e.target.value)} />
           </label>
-          {/* An open dialog renders its own copy of the error. */}
-      {error && !creatingOrder && !paying && <p className="error">{error}</p>}
+          {/* #474 — no `!creatingOrder` guard here: this copy lives INSIDE the
+              dialog, which renders nothing while closed, so the page's
+              suppression condition would have hidden the message exactly when
+              the dialog it belongs to is up. role="alert" because focus is
+              trapped in the panel and nothing else announces the failure. */}
+          {error && <p className="error" role="alert">{error}</p>}
           <div className="dialog-foot">
             <button type="button" className="link" onClick={() => setCreatingOrder(false)}>{tc("cancel")}</button>
             <BusyButton disabled={busy || !customerId} busy={isPending("create-order")}
@@ -760,8 +764,9 @@ export function SalesPage() {
                     <input value={payNote} maxLength={500}
                       onChange={(e) => setPayNote(e.target.value)} />
                   </label>
-                  {/* An open dialog renders its own copy of the error. */}
-      {error && !creatingOrder && !paying && <p className="error">{error}</p>}
+                  {/* #474 — inside the dialog, so no `!paying` guard: see the
+                      new-order dialog above. */}
+                  {error && <p className="error" role="alert">{error}</p>}
                   <div className="dialog-foot">
                     <button type="button" className="link" onClick={() => setPaying(false)}>{tc("cancel")}</button>
                     <BusyButton disabled={busy || !payAmount} busy={isPending("record-payment")}
@@ -793,7 +798,9 @@ export function SalesPage() {
         </div>
       )}
 
-      {/* An open dialog renders its own copy of the error. */}
+      {/* The page's own copy, for the panel and list writes that are not behind
+          a dialog. Suppressed while either dialog is open — that one renders
+          the same message where the user is looking (#474). */}
       {error && !creatingOrder && !paying && <p className="error">{error}</p>}
       {message && <p className="success">{message}</p>}
 
