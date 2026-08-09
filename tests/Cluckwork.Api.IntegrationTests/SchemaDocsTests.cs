@@ -482,6 +482,23 @@ public sealed class SchemaDocsTests
                             continue;
                         }
                         if (t[p] is '-' or '+' or '~' or '!') { p = SkipTrivia(t, p + 1); continue; }
+                        // A bare null OPERAND between pluses contributes an
+                        // empty string, so consuming it keeps the fold
+                        // exact. Word-bounded: an identifier merely starting
+                        // with these letters breaks the fold as usual. It
+                        // must be followed (past postfix wrappers) by
+                        // another plus — null cannot abut the next literal.
+                        // true/false are deliberately NOT consumed: they ADD
+                        // text, so folding across them would misstate the
+                        // value.
+                        if (p + 4 <= end && t.Substring(p, 4) == "null"
+                            && (p + 4 == end || !(char.IsLetterOrDigit(t[p + 4]) || t[p + 4] == '_')))
+                        {
+                            p = SkipTrivia(t, p + 4);
+                            while (p < end && (t[p] == ')' || t[p] == '!')) p = SkipTrivia(t, p + 1);
+                            if (p < end && t[p] == '+') { p = SkipTrivia(t, p + 1); continue; }
+                            return false;
+                        }
                         return false;
                     }
                     return true;
