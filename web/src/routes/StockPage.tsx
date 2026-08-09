@@ -148,6 +148,12 @@ export function StockPage() {
       setHasMoreLots(page.length === LOT_PAGE);
       setLotsLoading(false);
       setOpenGrade(gradeId);
+      // A ledger opened while this load was in flight claimed a NEWER
+      // ledger ticket than the entry-time invalidation — the committing
+      // page replaces the window wholesale, so clear again (codex review).
+      setOpenLot(null);
+      setMovements(null);
+      ledgerReq.current++;
       setError(null);
     } catch {
       if (seq === lotsReq.current) {
@@ -184,6 +190,11 @@ export function StockPage() {
       setLots(reconcileWrites(page, seq));
       setHasMoreLots(page.length === LOT_PAGE);
       setLotsLoading(false);
+      // Same wholesale-replace rule as the grade-switch commit: a ledger
+      // opened during this load outlived the entry-time clear (codex review).
+      setOpenLot(null);
+      setMovements(null);
+      ledgerReq.current++;
       setError(null);
     } catch {
       // Roll the inputs back to the window the still-visible rows actually

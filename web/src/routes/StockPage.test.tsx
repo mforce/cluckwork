@@ -600,6 +600,47 @@ describe("StockPage lot paging + date filter (#465)", () => {
     expect(screen.getByText("2026-07-01")).toBeInTheDocument();
   });
 
+  it("clears a ledger opened DURING the filter load when the page commits (codex round 9)", async () => {
+    // Inverse of round 3: History is clicked after the filter's invalidation
+    // (old rows stay interactive), so it owns the newer ledger ticket — the
+    // committing page must clear it again or the old lot's ledger sits under
+    // a list that may not contain it.
+    let releaseFilter!: (rows: EggLotRow[]) => void;
+    mockListEggLotMovements.mockResolvedValue(MOVEMENTS);
+    mockListEggLots
+      .mockResolvedValueOnce(LOTS)
+      .mockImplementationOnce(() => new Promise<EggLotRow[]>((r) => (releaseFilter = r)));
+    await expandGradeA();
+
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-07-02" } });
+    fireEvent.click(screen.getByRole("button", { name: "history" }));
+    await screen.findByText(/Movement ledger/);
+
+    await act(async () => {
+      releaseFilter([{ ...LOTS[0], id: "hit", productionDate: "2026-07-02" }]);
+    });
+    expect(screen.queryByText(/Movement ledger/)).not.toBeInTheDocument();
+  });
+
+  it("clears a ledger opened DURING a grade switch when the new grade commits (codex round 9)", async () => {
+    // Same inverse order on the other replace path.
+    let releaseSwitch!: (rows: EggLotRow[]) => void;
+    mockListEggLotMovements.mockResolvedValue(MOVEMENTS);
+    mockListEggLots
+      .mockResolvedValueOnce(LOTS)
+      .mockImplementationOnce(() => new Promise<EggLotRow[]>((r) => (releaseSwitch = r)));
+    await expandGradeA();
+
+    fireEvent.click(within(screen.getByRole("row", { name: /Grade B\b/ })).getByRole("button", { name: "lots" }));
+    fireEvent.click(screen.getByRole("button", { name: "history" }));
+    await screen.findByText(/Movement ledger/);
+
+    await act(async () => {
+      releaseSwitch([{ ...LOTS[0], id: "b-lot", eggGradeId: "g2", productionDate: "2026-03-03" }]);
+    });
+    expect(screen.queryByText(/Movement ledger/)).not.toBeInTheDocument();
+  });
+
   it("re-applies the write patch when a pre-mutation GET settles after it (codex round 8)", async () => {
     // Inverse of round 5: the filter GET snapshots the OLD balance while the
     // POST is pending, but settles AFTER the patch — its setLots would
