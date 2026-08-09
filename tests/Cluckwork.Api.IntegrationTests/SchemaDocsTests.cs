@@ -1256,10 +1256,18 @@ public sealed class SchemaDocsTests
                             var angleDepth = 1;
                             while (g < text.Length && angleDepth > 0)
                             {
+                                // Trivia first: comments are legal anywhere
+                                // between type-argument tokens, and their
+                                // CONTENTS are not type syntax — an operator
+                                // inside a comment must not disqualify the
+                                // list. A lone slash that survives the skip
+                                // IS an operator, and disqualifies.
+                                var t2 = SkipTrivia(text, g);
+                                if (t2 != g) { g = t2; continue; }
                                 var gc = text[g];
                                 if (gc == '<') angleDepth++;
                                 else if (gc == '>') angleDepth--;
-                                else if (!(char.IsLetterOrDigit(gc) || gc is '_' or '.' or ':' or ',' or '?' or '[' or ']' or '*' or '/' || char.IsWhiteSpace(gc)))
+                                else if (!(char.IsLetterOrDigit(gc) || gc is '_' or '.' or ':' or ',' or '?' or '[' or ']' or '*'))
                                 {
                                     angleDepth = -1;
                                     break;
