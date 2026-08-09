@@ -1144,6 +1144,48 @@ describe("SalesPage in-dialog errors (#474)", () => {
     expect(screen.queryByText("Order date cannot be in the future.")).not.toBeInTheDocument();
   });
 
+  it("says nothing when the dialog is dismissed before its write fails", async () => {
+    // Codex P2 + pi, same hole: dismissing only cleared an error that had
+    // ALREADY landed. A slow request the user gave up on still reported at
+    // page level afterwards — the context-free message again, now with the
+    // form that explains it gone. Cancel is live during `busy`, and Escape and
+    // the backdrop close the dialog too, so this is the ordinary case.
+    await renderReady();
+    let rejectCreate!: (e: unknown) => void;
+    mockCreateOrder.mockReturnValueOnce(new Promise((_, rej) => { rejectCreate = rej; }) as never);
+    fireEvent.click(screen.getByRole("button", { name: "New order" }));
+    fireEvent.click(within(dialog()).getByRole("button", { name: "New draft order" }));
+
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+    await act(async () => {
+      rejectCreate(new ApiError(422, "Validation failed", "Order date cannot be in the future."));
+    });
+
+    expect(screen.queryByText("Order date cannot be in the future.")).not.toBeInTheDocument();
+  });
+
+  it("reports the next attempt after an abandoned one", async () => {
+    // The abandonment is per-attempt, not permanent: reopening and failing
+    // again must still say so, or the first Cancel would mute the dialog for
+    // the rest of the session.
+    await renderReady();
+    let rejectCreate!: (e: unknown) => void;
+    mockCreateOrder.mockReturnValueOnce(new Promise((_, rej) => { rejectCreate = rej; }) as never);
+    fireEvent.click(screen.getByRole("button", { name: "New order" }));
+    fireEvent.click(within(dialog()).getByRole("button", { name: "New draft order" }));
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+    await act(async () => { rejectCreate(new ApiError(500, "Server error", "abandoned")); });
+
+    mockCreateOrder.mockRejectedValueOnce(
+      new ApiError(422, "Validation failed", "Order date cannot be in the future."));
+    fireEvent.click(screen.getByRole("button", { name: "New order" }));
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "New draft order" }));
+    });
+
+    expect(within(dialog()).getByText("Order date cannot be in the future.")).toBeInTheDocument();
+  });
+
   it("keeps someone else's error when a dialog is dismissed", async () => {
     // Only the dialog's OWN message goes with it. A failure that was never
     // this dialog's is still the page's to report.

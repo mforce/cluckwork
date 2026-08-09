@@ -153,6 +153,10 @@ export function SalesPage() {
   // own failure (codex review of #476). Scopes are the same strings run()
   // already takes.
   const [error, setError] = useState<{ scope: string; text: string } | null>(null);
+  // Scopes whose dialog was dismissed while their write was still in flight.
+  // A ref, not state: it is read in the settle path of a request that is
+  // already running, and must never be a render behind (#474).
+  const abandoned = useRef<Set<string>>(new Set());
   const [message, setMessage] = useState<string | null>(null);
 
   // Payments (#89, admin-only money data) — settlement state of the open
@@ -289,11 +293,20 @@ export function SalesPage() {
   // guard but deliberately get no BusyButton treatment (#236 is writes).
   const run = (scope: string, fn: () => Promise<void>) =>
     runPending(scope, async () => {
+      // Cleared per attempt: abandoning one attempt must not mute the next.
+      abandoned.current.delete(scope);
       setError(null);
       setMessage(null);
       try {
         await fn();
       } catch (err) {
+        // #474 — a dialog dismissed while its own write was still out has
+        // abandoned that attempt, and the failure has nowhere honest to land:
+        // reporting it on the page is the context-free message the issue was
+        // filed about, now without even the form that would explain it. Cancel
+        // stays live during `busy`, and Escape and the backdrop dismiss too, so
+        // this is ordinary, not a corner (codex + pi review of #476).
+        if (abandoned.current.has(scope)) return;
         setError({ scope, text: errText(err) });
       }
     });
@@ -304,6 +317,7 @@ export function SalesPage() {
   // failure that was never this dialog's is still the page's to report.
   const dismiss = (scope: string, setOpen: (open: boolean) => void) => {
     setOpen(false);
+    abandoned.current.add(scope);
     setError((current) => (current?.scope === scope ? null : current));
   };
   const closeNewOrder = () => dismiss("create-order", setCreatingOrder);
