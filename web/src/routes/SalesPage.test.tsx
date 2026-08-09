@@ -1002,3 +1002,216 @@ describe("SalesPage cross-window display while loading (#469)", () => {
     expect(screen.queryByText("SO-OLD")).not.toBeInTheDocument();
   });
 });
+
+// #474 — the screen renders the error paragraph three times: once per dialog
+// and once for the page. All three carried the PAGE's guard (`!creatingOrder &&
+// !paying`), which is false exactly when the dialog holding that copy is open —
+// so a mutation that failed under a dialog cleared its spinner and said
+// nothing. The dialog copies are guarded by the Dialog itself (it renders
+// nothing while closed), and the page copy keeps the suppression so the message
+// is never duplicated.
+describe("SalesPage in-dialog errors (#474)", () => {
+  it("shows a failed create-order inside the new-order dialog", async () => {
+    await renderReady();
+    mockCreateOrder.mockRejectedValueOnce(
+      new ApiError(422, "Validation failed", "Order date cannot be in the future."));
+
+    fireEvent.click(screen.getByRole("button", { name: "New order" }));
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "New draft order" }));
+    });
+
+    // The dialog stays up (a throw keeps it open) and now says why.
+    expect(within(dialog()).getByText("Order date cannot be in the future.")).toBeInTheDocument();
+    // Exactly one copy: the page-level paragraph stays suppressed behind the
+    // open dialog, so a fix that simply dropped the page guard fails here.
+    expect(screen.getAllByText("Order date cannot be in the future.")).toHaveLength(1);
+  });
+
+  it("shows a failed payment inside the payment dialog", async () => {
+    mockListOrderPayments.mockResolvedValue({
+      items: [], paidMinorUnits: 0, outstandingMinorUnits: 12000, totalMinorUnits: 12000,
+      currencyCode: "BHD", currencyMinorUnit: 3,
+    });
+    await openOrder(
+      { ...draftEmpty(3, "BHD", "o9"), referenceNumber: "SO-9", status: "Confirmed", totalMinorUnits: 12000, items: [ITEM_A] },
+      /Grade A Dozen/);
+    fireEvent.click(await screen.findByRole("button", { name: "Record payment" }));
+
+    mockRecordPayment.mockRejectedValueOnce(
+      new ApiError(422, "Validation failed", "Payment exceeds the outstanding balance."));
+    fireEvent.change(within(dialog()).getByLabelText(/Amount/), { target: { value: "99" } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Record payment" }));
+    });
+
+    expect(within(dialog()).getByText("Payment exceeds the outstanding balance.")).toBeInTheDocument();
+    expect(screen.getAllByText("Payment exceeds the outstanding balance.")).toHaveLength(1);
+  });
+
+  // Codex review of #476: `error` is ONE state shared by every action on the
+  // screen, and neither dialog trigger is disabled while another request is in
+  // flight. So an unconditional in-dialog render presents someone else's
+  // failure — a payments read, a write started before the dialog opened — as
+  // the dialog's own. The error carries the scope that raised it, and each
+  // dialog shows only its own.
+  const CONFIRMED_9: SalesOrder = {
+    ...draftEmpty(2, "USD", "o9"), referenceNumber: "SO-9", status: "Confirmed",
+    totalMinorUnits: 2900, items: [ITEM_A],
+  };
+
+  it("keeps an unrelated failure out of the new-order dialog", async () => {
+    let rejectPayments!: (e: unknown) => void;
+    mockListOrderPayments.mockReturnValueOnce(
+      new Promise((_, rej) => { rejectPayments = rej; }) as never);
+    await openOrder(CONFIRMED_9, /Grade A Dozen/);
+
+    // The trigger is live while that read is still out.
+    fireEvent.click(screen.getByRole("button", { name: "New order" }));
+    await act(async () => { rejectPayments(new Error("boom")); });
+
+    const message = "Could not load this order's payments.";
+    expect(within(dialog()).queryByText(message)).not.toBeInTheDocument();
+    // Not swallowed either — it belongs to the page, and says so there.
+    expect(screen.getByText(message)).toBeInTheDocument();
+  });
+
+  it("keeps a panel write's failure out of the new-order dialog", async () => {
+    // The other source: not a background read but another WRITE, started
+    // before the dialog was opened. Its scope is the one run() was called
+    // with, so tagging every failure alike would land it here.
+    await openOrder(DRAFT_TWO, /Grade A Dozen/);
+    let rejectAdd!: (e: unknown) => void;
+    vi.mocked(addOrderItem).mockReturnValue(
+      new Promise((_, rej) => { rejectAdd = rej; }) as never);
+    fireEvent.click(screen.getByRole("button", { name: "Add line" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "New order" }));
+    await act(async () => { rejectAdd(new ApiError(422, "Validation failed", "That product is no longer sellable.")); });
+
+    expect(within(dialog()).queryByText("That product is no longer sellable.")).not.toBeInTheDocument();
+    expect(screen.getByText("That product is no longer sellable.")).toBeInTheDocument();
+  });
+
+  it("keeps an unrelated failure out of the payment dialog", async () => {
+    mockListOrderPayments.mockResolvedValue({
+      items: [{
+        id: "pay1", salesOrderId: "o9", customerId: "c1", amountMinorUnits: 500,
+        currencyCode: "USD", currencyMinorUnit: 2, method: "Cash", paymentDate: "2026-07-20",
+        referenceNumber: "R1", note: null, voided: false, voidReason: null, version: 1,
+      }],
+      paidMinorUnits: 500, outstandingMinorUnits: 2400, totalMinorUnits: 2900,
+      currencyCode: "USD", currencyMinorUnit: 2,
+    });
+    let rejectVoid!: (e: unknown) => void;
+    vi.mocked(voidPayment).mockReturnValue(
+      new Promise((_, rej) => { rejectVoid = rej; }) as never);
+    await openOrder(CONFIRMED_9, /Grade A Dozen/);
+
+    // Start voiding a payment, leave it in flight…
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "void" }));
+    });
+    fireEvent.change(within(dialog()).getByLabelText("Reason *"), { target: { value: "wrong order" } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Void payment" }));
+    });
+    // …then open the payment dialog and let the void fail underneath it.
+    fireEvent.click(screen.getByRole("button", { name: "Record payment" }));
+    await act(async () => { rejectVoid(new ApiError(409, "Conflict", "That payment was already voided.")); });
+
+    expect(within(dialog()).queryByText("That payment was already voided.")).not.toBeInTheDocument();
+    expect(screen.getByText("That payment was already voided.")).toBeInTheDocument();
+  });
+
+  it("drops the dialog's own error when the dialog is dismissed", async () => {
+    // #474's own complaint, the other way round: a message about an abandoned
+    // attempt, left on the page after its dialog is gone, "reads as a
+    // page-level error with no context". The attempt is over — so is the
+    // message.
+    await renderReady();
+    mockCreateOrder.mockRejectedValueOnce(
+      new ApiError(422, "Validation failed", "Order date cannot be in the future."));
+    fireEvent.click(screen.getByRole("button", { name: "New order" }));
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "New draft order" }));
+    });
+    expect(within(dialog()).getByText("Order date cannot be in the future.")).toBeInTheDocument();
+
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByText("Order date cannot be in the future.")).not.toBeInTheDocument();
+  });
+
+  it("says nothing when the dialog is dismissed before its write fails", async () => {
+    // Codex P2 + pi, same hole: dismissing only cleared an error that had
+    // ALREADY landed. A slow request the user gave up on still reported at
+    // page level afterwards — the context-free message again, now with the
+    // form that explains it gone. Cancel is live during `busy`, and Escape and
+    // the backdrop close the dialog too, so this is the ordinary case.
+    await renderReady();
+    let rejectCreate!: (e: unknown) => void;
+    mockCreateOrder.mockReturnValueOnce(new Promise((_, rej) => { rejectCreate = rej; }) as never);
+    fireEvent.click(screen.getByRole("button", { name: "New order" }));
+    fireEvent.click(within(dialog()).getByRole("button", { name: "New draft order" }));
+
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+    await act(async () => {
+      rejectCreate(new ApiError(422, "Validation failed", "Order date cannot be in the future."));
+    });
+
+    expect(screen.queryByText("Order date cannot be in the future.")).not.toBeInTheDocument();
+  });
+
+  it("reports the next attempt after an abandoned one", async () => {
+    // The abandonment is per-attempt, not permanent: reopening and failing
+    // again must still say so, or the first Cancel would mute the dialog for
+    // the rest of the session.
+    await renderReady();
+    let rejectCreate!: (e: unknown) => void;
+    mockCreateOrder.mockReturnValueOnce(new Promise((_, rej) => { rejectCreate = rej; }) as never);
+    fireEvent.click(screen.getByRole("button", { name: "New order" }));
+    fireEvent.click(within(dialog()).getByRole("button", { name: "New draft order" }));
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+    await act(async () => { rejectCreate(new ApiError(500, "Server error", "abandoned")); });
+
+    mockCreateOrder.mockRejectedValueOnce(
+      new ApiError(422, "Validation failed", "Order date cannot be in the future."));
+    fireEvent.click(screen.getByRole("button", { name: "New order" }));
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "New draft order" }));
+    });
+
+    expect(within(dialog()).getByText("Order date cannot be in the future.")).toBeInTheDocument();
+  });
+
+  it("keeps someone else's error when a dialog is dismissed", async () => {
+    // Only the dialog's OWN message goes with it. A failure that was never
+    // this dialog's is still the page's to report.
+    let rejectPayments!: (e: unknown) => void;
+    mockListOrderPayments.mockReturnValueOnce(
+      new Promise((_, rej) => { rejectPayments = rej; }) as never);
+    await openOrder(CONFIRMED_9, /Grade A Dozen/);
+    fireEvent.click(screen.getByRole("button", { name: "New order" }));
+    await act(async () => { rejectPayments(new Error("boom")); });
+
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+
+    expect(screen.getByText("Could not load this order's payments.")).toBeInTheDocument();
+  });
+
+  it("still renders a page-level error with no dialog open", async () => {
+    // The panel's own writes are not behind a dialog — their errors must keep
+    // landing on the page, which is what the page copy's guard exists for.
+    await openOrder(DRAFT_TWO, /Grade A Dozen/);
+    vi.mocked(addOrderItem).mockRejectedValueOnce(
+      new ApiError(422, "Validation failed", "That product is no longer sellable."));
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Add line" }));
+    });
+
+    expect(screen.getByText("That product is no longer sellable.")).toBeInTheDocument();
+  });
+});
