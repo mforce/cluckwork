@@ -600,6 +600,65 @@ describe("StockPage lot paging + date filter (#465)", () => {
     expect(screen.getByText("2026-07-01")).toBeInTheDocument();
   });
 
+  it("re-applies the write patch when a pre-mutation GET settles after it (codex round 8)", async () => {
+    // Inverse of round 5: the filter GET snapshots the OLD balance while the
+    // POST is pending, but settles AFTER the patch — its setLots would
+    // silently restore the stale number with no later correction.
+    let releaseRecord!: (r: {
+      movementId: string; eggLotId: string; movementType: string; quantityDelta: number;
+      reason: string; createdAtUtc: string; quantityAvailable: number; version: number;
+    }) => void;
+    let releaseFilter!: (rows: EggLotRow[]) => void;
+    mockRecordEggLotMovement.mockReturnValue(new Promise((r) => (releaseRecord = r)));
+    mockListEggLots
+      .mockResolvedValueOnce(LOTS)
+      .mockImplementationOnce(() => new Promise<EggLotRow[]>((r) => (releaseFilter = r)));
+    await expandGradeA();
+
+    fireEvent.click(screen.getByRole("button", { name: "write off" }));
+    const dialog = screen.getByRole("dialog");
+    fireEvent.change(within(dialog).getByRole("spinbutton"), { target: { value: "7" } });
+    fireEvent.change(within(dialog).getByLabelText(/Reason/), { target: { value: "dropped a tray" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: /Record/ }));
+    // GET issued while the POST is pending — it will carry the old balance.
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-07-01" } });
+
+    await act(async () => {
+      releaseRecord({
+        movementId: "wo1", eggLotId: "lot1", movementType: "Discard",
+        quantityDelta: -7, reason: "dropped a tray",
+        createdAtUtc: "2026-08-08T10:00:00Z", quantityAvailable: 92, version: 2,
+      });
+    });
+    await screen.findByText(/92 now available/);
+    // The stale GET settles last; the durable result must survive it.
+    await act(async () => {
+      releaseFilter([{ ...LOTS[0] }]); // pre-mutation snapshot: 99
+    });
+    const lotRow = screen.getByRole("row", { name: /2026-07-01/ });
+    expect(within(lotRow).getByText("92")).toBeInTheDocument();
+    expect(within(lotRow).queryByText("99")).not.toBeInTheDocument();
+  });
+
+  it("invalidates pending lot loads when the grade collapses (codex round 8)", async () => {
+    // "hide lots" while a filter request hangs: its late rejection must not
+    // paint loadLotsFailed under a closed panel.
+    let rejectFilter!: (e: Error) => void;
+    mockListEggLots
+      .mockResolvedValueOnce(LOTS)
+      .mockImplementationOnce(() => new Promise<EggLotRow[]>((_, rej) => (rejectFilter = rej)));
+    await expandGradeA();
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-07-02" } });
+
+    fireEvent.click(within(screen.getByRole("row", { name: /Grade A\b/ })).getByRole("button", { name: "hide lots" }));
+    expect(screen.queryByText(/^Lots$/)).not.toBeInTheDocument();
+
+    await act(async () => {
+      rejectFilter(new Error("late boom"));
+    });
+    expect(screen.queryByText(/Could not load the grade's lots/)).not.toBeInTheDocument();
+  });
+
   it("discards a superseded refresh page's failure instead of raising the error banner (codex round 7)", async () => {
     // The walk's page fetch rejects only AFTER a newer filter load took the
     // ticket and rendered successfully — that stale failure is moot and must

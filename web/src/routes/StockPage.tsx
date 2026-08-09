@@ -99,12 +99,36 @@ export function StockPage() {
   // Ledger loads get their own ticket: a pending history request must not
   // resurrect the ledger after a filter/grade change cleared it.
   const ledgerReq = useRef(0);
+  // Durable write results that in-flight reads may predate: a GET issued
+  // while a write-off POST was pending can snapshot the OLD balance yet
+  // settle after the patch. Each entry records the ticket at the moment the
+  // write completed; a load claimed at seq <= tick may carry stale data for
+  // that lot and re-applies the patch, a later load is proven fresh and
+  // retires the entry (codex review).
+  const writePatches = useRef(new Map<string, { available: number; tick: number }>());
+
+  function reconcileWrites(page: EggLotRow[], seq: number): EggLotRow[] {
+    const patches = writePatches.current;
+    if (patches.size === 0) return page;
+    const out = page.map((l) => {
+      const p = patches.get(l.id);
+      return p !== undefined && seq <= p.tick
+        ? { ...l, quantityAvailable: p.available } : l;
+    });
+    for (const [id, p] of patches) if (seq > p.tick) patches.delete(id);
+    return out;
+  }
 
   async function toggleGrade(gradeId: string) {
     setOpenLot(null);
     setMovements(null);
     ledgerReq.current++;
     if (openGrade === gradeId) {
+      // Collapsing invalidates any pending lot load too: its late failure
+      // would otherwise paint loadLotsFailed under a closed panel, and a
+      // late success would mutate hidden paging state (codex review).
+      lotsReq.current++;
+      setLotsLoading(false);
       setOpenGrade(null);
       return;
     }
@@ -120,7 +144,7 @@ export function StockPage() {
       setLotsFrom("");
       setLotsTo("");
       appliedFilter.current = { from: "", to: "" };
-      setLots(page);
+      setLots(reconcileWrites(page, seq));
       setHasMoreLots(page.length === LOT_PAGE);
       setLotsLoading(false);
       setOpenGrade(gradeId);
@@ -157,7 +181,7 @@ export function StockPage() {
       const page = await fetchLotPage(openGrade, from, to, 0);
       if (seq !== lotsReq.current) return;
       appliedFilter.current = { from, to };
-      setLots(page);
+      setLots(reconcileWrites(page, seq));
       setHasMoreLots(page.length === LOT_PAGE);
       setLotsLoading(false);
       setError(null);
@@ -185,9 +209,10 @@ export function StockPage() {
       // page can re-serve rows already shown — dedupe by id on append. (The
       // shifted-in newest lot itself appears on the next full reload; plain
       // offset paging has no cursor to catch it mid-scroll.)
+      const fresh = reconcileWrites(page, seq);
       setLots((prev) => {
         const seen = new Set(prev.map((l) => l.id));
-        return [...prev, ...page.filter((l) => !seen.has(l.id))];
+        return [...prev, ...fresh.filter((l) => !seen.has(l.id))];
       });
       setHasMoreLots(page.length === LOT_PAGE);
       setLotsLoading(false);
@@ -273,7 +298,7 @@ export function StockPage() {
         if (!lastPageFull) break;
       }
       if (seq === lotsReq.current) {
-        setLots([...window.values()]);
+        setLots(reconcileWrites([...window.values()], seq));
         setHasMoreLots(lastPageFull);
         // The walk fetched under the CURRENT inputs (which may be a filter
         // this write-off superseded mid-flight): those values are now the
@@ -339,6 +364,11 @@ export function StockPage() {
       // that does run replaces it with the same server truth.
       setLots((prev) => prev.map((l) =>
         l.id === lot.id ? { ...l, quantityAvailable: res.quantityAvailable } : l));
+      // Remember the durable result so a pre-mutation GET that settles
+      // AFTER this patch re-applies it instead of restoring the stale
+      // balance (codex review; see writePatches).
+      writePatches.current.set(lot.id,
+        { available: res.quantityAvailable, tick: lotsReq.current });
       try {
         await refreshAfterWriteOff(lot, lotSeq);
       } catch {
