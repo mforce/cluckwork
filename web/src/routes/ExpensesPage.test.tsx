@@ -654,3 +654,46 @@ describe("ExpensesPage currency scale (#469, codex P1)", () => {
       expect.objectContaining({ amountMinorUnits: 1000 }), expect.any(String));
   });
 });
+
+describe("ExpensesPage currency scale without an account (#469, codex P1)", () => {
+  // The account read can fail while the screen still renders (FarmProvider
+  // supplies farm === null and AppLayout carries on). The list response is
+  // then the only place a scale has ever come from — and the hook clears it
+  // on the next failed load. Guessing 2 decimals there is how a 3-decimal
+  // farm stores 1.000 as 100 minor units.
+  it("retains the last observed scale when a later load fails and no account is available", async () => {
+    mockListExpenses
+      .mockResolvedValueOnce({ items: [], totalMinorUnits: 0, currencyCode: "BHD", currencyMinorUnit: 3 })
+      .mockRejectedValue(new Error("boom"));
+    mockCreateExpense.mockResolvedValue({ id: "e-new" });
+    renderWithProviders(<ExpensesPage />, { token: ADMIN }); // no farm
+    await screen.findByLabelText(/Amount \(BHD\)/);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Record expense" })).toBeEnabled());
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Month"), { target: { value: "2026-05" } });
+    });
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+
+    fireEvent.change(comboWithOption(/— pick —/), { target: { value: CAT_FEED.id } });
+    fireEvent.change(screen.getByLabelText("Description"), { target: { value: "Diesel" } });
+    fireEvent.change(screen.getByLabelText(/Amount \(BHD\)/), { target: { value: "1.000" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Record expense" }));
+    });
+
+    expect(mockCreateExpense).toHaveBeenCalledWith(
+      expect.objectContaining({ amountMinorUnits: 1000 }), expect.any(String));
+  });
+
+  it("refuses to record at all when no scale has ever been observed", async () => {
+    // Nothing authoritative has ever loaded: recording would have to GUESS
+    // the denomination. Refusing beats storing a wrong number.
+    mockListExpenses.mockRejectedValue(new Error("boom"));
+    renderWithProviders(<ExpensesPage />, { token: ADMIN }); // no farm
+
+    await screen.findByRole("alert");
+    expect(screen.getByRole("button", { name: "Record expense" })).toBeDisabled();
+    expect(mockCreateExpense).not.toHaveBeenCalled();
+  });
+});

@@ -115,16 +115,28 @@ export function ExpensesPage() {
     }, [month, filterCategory, monthRange]),
     pageSize: PAGE,
   });
-  // The FORM's scale comes from the account, never from the list response.
-  // Reading it off the list made a failed load fall back to 2 decimals while
-  // the form stayed enabled, so on a 0- or 3-decimal currency the next submit
-  // converted at the wrong scale and stored a wrong number of minor units
-  // (codex review). The list's own currency still renders its period total,
-  // where clearing it with the rows is correct.
-  const currency = {
-    code: farm?.currencyCode ?? expenses.meta?.code ?? "",
-    minor: farm?.currencyMinorUnit ?? expenses.meta?.minor ?? 2,
-  };
+  // MONEY SCALE — never guessed. Reading it off the list response meant a
+  // failed load cleared it and silently fell back to two decimals with the
+  // form still enabled, so a 3-decimal farm stored 1.000 as 100 minor units.
+  // The account is the authority, but it is not always there: /account can
+  // fail while this screen still renders (farm === null), leaving the list as
+  // the only place a scale ever came from — and the hook clears that too.
+  //
+  // So: remember the last scale actually observed and never clear it, and if
+  // none has EVER been observed, refuse to record rather than denominate a
+  // number nobody can vouch for (codex review, twice).
+  const knownScale = useRef<{ code: string; minor: number } | null>(null);
+  const observedScale = farm !== null
+    ? { code: farm.currencyCode, minor: farm.currencyMinorUnit }
+    : expenses.meta !== null
+      ? { code: expenses.meta.code, minor: expenses.meta.minor }
+      : null;
+  if (observedScale !== null) knownScale.current = observedScale;
+  const currency = knownScale.current;
+  const scaleKnown = currency !== null;
+  // Display-only fallbacks; nothing below CONVERTS with these.
+  const currencyCode = currency?.code ?? "";
+  const currencyMinor = currency?.minor ?? 2;
 
   useEffect(() => {
     Promise.all([
@@ -193,7 +205,9 @@ export function ExpensesPage() {
           expenseCategoryId: categoryId,
           date,
           description: description.trim(),
-          amountMinorUnits: toMinorUnits(amount, currency.minor),
+          // Guarded by the disabled submit below; asserted here because this
+          // is the line that turns a typed string into stored money.
+          amountMinorUnits: toMinorUnits(amount, currency!.minor),
           flockId: flockId || null,
           note: note.trim() || null,
         }, keyFor("add"));
@@ -313,7 +327,7 @@ export function ExpensesPage() {
       {/* The total belongs to the rows below it: it lands and clears with
           them, so it can never describe a period they do not (#469). */}
       <p><strong>{t("monthTotalLabel", {
-        amount: formatMoney(expenses.meta?.total ?? 0, currency.code, currency.minor),
+        amount: formatMoney(expenses.meta?.total ?? 0, currencyCode, currencyMinor),
       })}</strong></p>
 
       {showCategories && (
@@ -374,8 +388,8 @@ export function ExpensesPage() {
           <input value={description} required maxLength={200}
             onChange={(e) => setDescription(e.target.value)} />
         </label>
-        <label>{t("amountLabel", { code: currency.code || "…" })}
-          <input type="number" min={(1 / 10 ** currency.minor).toFixed(currency.minor)}
+        <label>{t("amountLabel", { code: currencyCode || "…" })}
+          <input type="number" min={(1 / 10 ** currencyMinor).toFixed(currencyMinor)}
             step="any" value={amount} required
             onChange={(e) => setAmount(e.target.value)} />
         </label>
@@ -389,7 +403,10 @@ export function ExpensesPage() {
           <input value={note} maxLength={500} onChange={(e) => setNote(e.target.value)} />
         </label>
         <div className="actions">
-          <BusyButton type="submit" busy={isPending("add")} disabled={busy || activeCategories.length === 0}>
+          {/* No known denomination means no recording: converting the typed
+              amount would have to guess the scale (#469 codex review). */}
+          <BusyButton type="submit" busy={isPending("add")}
+            disabled={busy || activeCategories.length === 0 || !scaleKnown}>
             {t("recordExpenseButton")}
           </BusyButton>
         </div>
