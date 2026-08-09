@@ -463,15 +463,29 @@ public sealed class SchemaDocsTests
                 // the gap still breaks the fold.
                 static bool IsPlusGap(string t, int start, int end)
                 {
+                    // The connector between fragments may be `+` or the
+                    // null-coalescing `??` — a LITERAL left operand is never
+                    // null, so `lit ?? x` is the left literal and the folded
+                    // concat stays exact whenever the right side is the
+                    // empty string (the evasion shape); a non-empty right
+                    // side folds inexactly and can only add a refusal.
+                    // A single `?` (ternary, conditional access) never
+                    // matches the two-char check.
+                    static bool TryConnector(string t, ref int p, int end)
+                    {
+                        if (p < end && t[p] == '+') { p = SkipTrivia(t, p + 1); return true; }
+                        if (p + 1 < end && t[p] == '?' && t[p + 1] == '?') { p = SkipTrivia(t, p + 2); return true; }
+                        return false;
+                    }
                     var p = SkipTrivia(t, start);
-                    // Before the plus: closing parens of a wrapped previous
-                    // fragment, and the postfix null-forgiving operator —
-                    // both value-preserving. Consuming `!` cannot mistake an
-                    // inequality for a chain: after it the very next token
-                    // must still be `+`, and `!=` fails that.
+                    // Before the connector: closing parens of a wrapped
+                    // previous fragment, and the postfix null-forgiving
+                    // operator — both value-preserving. Consuming `!` cannot
+                    // mistake an inequality for a chain: after it the very
+                    // next token must still be a connector, and `!=` fails
+                    // that.
                     while (p < end && (t[p] == ')' || t[p] == '!')) p = SkipTrivia(t, p + 1);
-                    if (p >= end || t[p] != '+') return false;
-                    p = SkipTrivia(t, p + 1);
+                    if (!TryConnector(t, ref p, end)) return false;
                     while (p < end)
                     {
                         if (t[p] == '(')
@@ -496,7 +510,7 @@ public sealed class SchemaDocsTests
                         {
                             p = SkipTrivia(t, p + 4);
                             while (p < end && (t[p] == ')' || t[p] == '!')) p = SkipTrivia(t, p + 1);
-                            if (p < end && t[p] == '+') { p = SkipTrivia(t, p + 1); continue; }
+                            if (TryConnector(t, ref p, end)) continue;
                             return false;
                         }
                         // default(T) likewise: for any reference type it IS
@@ -520,7 +534,7 @@ public sealed class SchemaDocsTests
                                 {
                                     p = SkipTrivia(t, de);
                                     while (p < end && (t[p] == ')' || t[p] == '!')) p = SkipTrivia(t, p + 1);
-                                    if (p < end && t[p] == '+') { p = SkipTrivia(t, p + 1); continue; }
+                                    if (TryConnector(t, ref p, end)) continue;
                                 }
                             }
                             return false;
