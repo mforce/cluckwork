@@ -499,6 +499,32 @@ public sealed class SchemaDocsTests
                             if (p < end && t[p] == '+') { p = SkipTrivia(t, p + 1); continue; }
                             return false;
                         }
+                        // default(T) likewise: for any reference type it IS
+                        // null and contributes nothing, which is the actual
+                        // evasion — and a text scan cannot tell reference
+                        // from value types, so ALL default(T) operands are
+                        // consumed as empty. Deliberately conservative: a
+                        // value-type default in a fragment chain folds
+                        // inexactly and may refuse absurd-but-harmless code
+                        // (same fail-closed stance as the cast/subtraction
+                        // ambiguity). Untyped `default` cannot compile in a
+                        // concatenation, so the paren form is required.
+                        if (p + 7 <= end && t.Substring(p, 7) == "default"
+                            && (p + 7 == end || !(char.IsLetterOrDigit(t[p + 7]) || t[p + 7] == '_')))
+                        {
+                            var d = SkipTrivia(t, p + 7);
+                            if (d < end && t[d] == '(')
+                            {
+                                var de = TryConsumeTypeParen(t, d);
+                                if (de > 0 && de <= end)
+                                {
+                                    p = SkipTrivia(t, de);
+                                    while (p < end && (t[p] == ')' || t[p] == '!')) p = SkipTrivia(t, p + 1);
+                                    if (p < end && t[p] == '+') { p = SkipTrivia(t, p + 1); continue; }
+                                }
+                            }
+                            return false;
+                        }
                         return false;
                     }
                     return true;
