@@ -199,12 +199,15 @@ public sealed class DemoDataSeeder(
         Check(old.Deplete(today.AddDays(-30)));
         await db.SaveChangesAsync(ct);
 
-        // --- A week of submitted entries per active flock. Deterministic
-        // variation (no Random: reproducible demos). Today stays unrecorded for
-        // House 2 so the dashboard shows the "no entry" flag.
-        foreach (var (flockId, baseline) in new[] { (house1, 430), (house2, 350) })
+        // --- Submitted entries per active flock, deterministic variation (no
+        // Random: reproducible demos). House 1 carries ~8 months of history so
+        // every per-grade lot list OUT-PAGES the stock drill-down's 50-lot
+        // page (#465 — the load-more pager and date filter are exercisable
+        // straight from a demo farm); House 2 keeps a single week. Today stays
+        // unrecorded for House 2 so the dashboard shows the "no entry" flag.
+        foreach (var (flockId, baseline, days) in new[] { (house1, 430, 240), (house2, 350, 7) })
         {
-            for (var d = 7; d >= 0; d--)
+            for (var d = days; d >= 0; d--)
             {
                 if (d == 0 && flockId == house2) continue;
                 var date = today.AddDays(-d);

@@ -145,6 +145,24 @@ export const MUTANTS: Record<string, Mutant> = {
   },
 
   // --- data integrity on screen -------------------------------------------
+  "stock-pager-inert": {
+    breaks:
+      "offset paging on the lot list (#465) — every page request is rewritten to offset 0, so "
+      + "load more re-serves page one forever and older lots stay unreachable (the pre-#465 "
+      + "behavior; the SPA's id-dedupe silently appends nothing)",
+    caughtBy: "readonly.spec.ts — pages a deep grade's lots with load more (#465)",
+    apply: async (page) => {
+      await page.route("**/api/v1/stock/lots**", async (route) => {
+        const url = new URL(route.request().url());
+        const offset = url.searchParams.get("offset");
+        if (offset === null || offset === "0") return route.fallback();
+        url.searchParams.set("offset", "0");
+        const response = await route.fetch({ url: url.toString() });
+        await route.fulfill({ response });
+      });
+    },
+  },
+
   "stock-summary-broken": {
     breaks: "the stock summary fetch, so the dashboard's stat tiles fall back to their em-dash",
     caughtBy: "owner.spec.ts — dashboard shows real production, stock and sales data",

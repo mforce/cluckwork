@@ -59,6 +59,7 @@ declare -A SPEC_FOR=(
   [audit-gate-removed]="specs/readonly.spec.ts"
   [users-gate-removed]="specs/readonly.spec.ts"
   [flock-scope-removed]="specs/worker.spec.ts"
+  [stock-pager-inert]="specs/readonly.spec.ts"
   [stock-summary-broken]="specs/owner.spec.ts"
   [report-range-bound-removed]="specs/reports-range.spec.ts"
   [refresh-always-fails]="specs/session-refresh.spec.ts"
@@ -72,6 +73,7 @@ declare -A GREP_FOR=(
   [audit-gate-removed]="direct link to /audit"
   [users-gate-removed]="direct link to /users"
   [flock-scope-removed]="is refused a daily entry"
+  [stock-pager-inert]="pages a deep grade"
   [stock-summary-broken]="dashboard shows real production"
   [report-range-bound-removed]="refuses one day beyond"
   [refresh-always-fails]="forces a 401"
@@ -89,7 +91,7 @@ declare -A FALSE_KILLS=(
 MUTANTS=("$@")
 if [ ${#MUTANTS[@]} -eq 0 ]; then
   MUTANTS=(audit-gate-removed users-gate-removed flock-scope-removed
-           stock-summary-broken report-range-bound-removed
+           stock-pager-inert stock-summary-broken report-range-bound-removed
            refresh-always-fails logout-not-honoured
            nav-role-gate-bypassed payment-never-settles export-returns-nothing)
 fi
