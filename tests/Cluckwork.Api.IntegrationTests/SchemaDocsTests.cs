@@ -461,7 +461,7 @@ public sealed class SchemaDocsTests
                 // concatenated with a literal), and folding those can only
                 // ADD a refusal, never open a hole; a bare identifier in
                 // the gap still breaks the fold.
-                static bool IsPlusGap(string t, int start, int end)
+                static bool IsPlusGap(string t, int start, int end, ref bool staticConditional)
                 {
                     // The connector between fragments may be `+` or the
                     // null-coalescing `??` — a LITERAL left operand is never
@@ -496,6 +496,29 @@ public sealed class SchemaDocsTests
                             continue;
                         }
                         if (t[p] is '-' or '+' or '~' or '!') { p = SkipTrivia(t, p + 1); continue; }
+                        // A CONSTANT conditional — a literal true/false
+                        // followed by ternary `?` — selects a branch at
+                        // compile time, which the fold cannot represent (it
+                        // would concatenate BOTH branch literals). Flagged
+                        // for outright refusal rather than folded. A bare
+                        // true/false operand without `?` stays the round-103
+                        // non-consumed case (fold breaks, no refusal), and a
+                        // runtime condition is identifier-led and never
+                        // reaches here.
+                        if (p + 4 <= end && t.Substring(p, 4) == "true"
+                            && (p + 4 == end || !(char.IsLetterOrDigit(t[p + 4]) || t[p + 4] == '_')))
+                        {
+                            var q = SkipTrivia(t, p + 4);
+                            if (q < end && t[q] == '?' && (q + 1 >= end || t[q + 1] != '?')) staticConditional = true;
+                            return false;
+                        }
+                        if (p + 5 <= end && t.Substring(p, 5) == "false"
+                            && (p + 5 == end || !(char.IsLetterOrDigit(t[p + 5]) || t[p + 5] == '_')))
+                        {
+                            var q = SkipTrivia(t, p + 5);
+                            if (q < end && t[q] == '?' && (q + 1 >= end || t[q + 1] != '?')) staticConditional = true;
+                            return false;
+                        }
                         // A bare null OPERAND between pluses contributes an
                         // empty string, so consuming it keeps the fold
                         // exact. Word-bounded: an identifier merely starting
@@ -543,10 +566,11 @@ public sealed class SchemaDocsTests
                     }
                     return true;
                 }
+                var sawStaticConditional = false;
                 for (var i = 0; i < tokens.Count;)
                 {
                     var j = i;
-                    while (j + 1 < tokens.Count && IsPlusGap(codeText, tokens[j].End, tokens[j + 1].Start))
+                    while (j + 1 < tokens.Count && IsPlusGap(codeText, tokens[j].End, tokens[j + 1].Start, ref sawStaticConditional))
                         j++;
                     var folded = string.Concat(tokens.Skip(i).Take(j - i + 1).Select(t => t.Value));
                     var isChain = j > i;
@@ -578,6 +602,13 @@ public sealed class SchemaDocsTests
                     }
                     if (!hits.TryGetValue(msg, out var files))
                         hits[msg] = files = [];
+                    files.Add(relative);
+                }
+                if (sawStaticConditional)
+                {
+                    const string condMsg = "constant-conditional fragment selection in a literal chain (a literal true/false condition picks a branch at compile time) — evaluate it by hand and write the value contiguously";
+                    if (!hits.TryGetValue(condMsg, out var files))
+                        hits[condMsg] = files = [];
                     files.Add(relative);
                 }
                 if (HasStaticallyComposedInterpolation(codeText))
