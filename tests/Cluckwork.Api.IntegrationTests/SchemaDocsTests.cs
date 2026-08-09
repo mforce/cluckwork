@@ -1134,6 +1134,42 @@ public sealed class SchemaDocsTests
         return p;
     }
 
+    // From an opening paren, consumes a balanced run whose interior is pure
+    // TYPE syntax — identifiers (verbatim-@ allowed), qualification, commas,
+    // nullable/array marks, pointers, nested angles and parens (generics,
+    // tuples — at any nesting), trivia. Returns the index just past the
+    // matching close paren, or -1 when the interior carries anything else
+    // (an operator, a quote): that is an expression, not a type. A `)` or
+    // `>` that closes what is not open is malformed and also -1.
+    private static int TryConsumeTypeParen(string t, int p)
+    {
+        var parenDepth = 1;
+        var angleDepth = 0;
+        p++;
+        while (p < t.Length && parenDepth > 0)
+        {
+            var t2 = SkipTrivia(t, p);
+            if (t2 != p) { p = t2; continue; }
+            var c = t[p];
+            if (c == '(') parenDepth++;
+            else if (c == ')')
+            {
+                if (parenDepth == 1 && angleDepth > 0) return -1;
+                parenDepth--;
+            }
+            else if (c == '<') angleDepth++;
+            else if (c == '>')
+            {
+                if (angleDepth == 0) return -1;
+                angleDepth--;
+            }
+            else if (!(char.IsLetterOrDigit(c) || c is '_' or '.' or ':' or ',' or '?' or '[' or ']' or '*' or '@'))
+                return -1;
+            p++;
+        }
+        return parenDepth == 0 ? p : -1;
+    }
+
     private static bool HasStaticallyComposedInterpolation(string text)
     {
         var i = 0;
@@ -1186,132 +1222,42 @@ public sealed class SchemaDocsTests
                     var h = i;
                     // ONE fixpoint loop strips every value-preserving
                     // wrapper a constant expression can nest in any order —
-                    // whitespace, parens, unary operators (~ ! + -), and
-                    // casts to (optionally qualified, optionally nullable)
-                    // primitive types — until the underlying leading token
-                    // is reached; the atom checks below then judge THAT.
-                    // Alternation matters: casts and unary operators
-                    // interleave ((char)~(int)-104), so a single pass of
-                    // each in fixed order leaves the inner one unexamined.
-                    // Every skipped character cannot start an identifier,
-                    // and a cast-shaped wrapper only strips when `)` closes
-                    // the chain directly — so the loop never turns an
+                    // whitespace/comment trivia, grouping parens, unary
+                    // operators (~ ! + -), and CASTS — until the underlying
+                    // leading token is reached; the atom checks below judge
+                    // THAT. A cast is recognized structurally: a balanced
+                    // paren whose interior is pure type syntax (chains,
+                    // generics, tuples, nullable/array marks — see
+                    // TryConsumeTypeParen), and it strips only when an
+                    // OPERAND token follows the close paren. When nothing
+                    // operand-shaped follows, the paren was a value grouping
+                    // and the loop descends INTO it instead, so a
+                    // parenthesized constant ({(103)}) still reaches the
+                    // digit refusal. Every consumed character cannot start
+                    // an identifier, so the loop never turns an
                     // identifier-led (runtime) hole into a static one; it
                     // only ever exposes the operand behind wrappers.
                     while (h < text.Length)
                     {
                         var trivia = SkipTrivia(text, h);
                         if (trivia != h) { h = trivia; continue; }
-                        if (text[h] is '(' or '-' or '+' or '~' or '!') { h++; continue; }
-                        // A cast type may be the keyword alias, the
-                        // framework name, or a namespace-qualified form
-                        // (System.Char, global::System.Char) — walk the
-                        // dotted chain and judge its LAST segment. The walk
-                        // tolerates whitespace AND comment trivia around
-                        // separators: both are legal C# there, and comments
-                        // inside a hole survive BlankCSharpComments
-                        // verbatim (the blanker lexes hole contents as
-                        // string body).
-                        var cw = h;
-                        var lastEnd = h;
-                        while (true)
+                        if (text[h] is '-' or '+' or '~' or '!') { h++; continue; }
+                        if (text[h] == '(')
                         {
-                            var segStart = cw;
-                            // A segment may carry the verbatim-identifier
-                            // prefix: (@DayOfWeek)18 is a legal cast.
-                            if (cw < text.Length && text[cw] == '@'
-                                && cw + 1 < text.Length && (char.IsLetter(text[cw + 1]) || text[cw + 1] == '_')) cw++;
-                            while (cw < text.Length && (char.IsLetterOrDigit(text[cw]) || text[cw] == '_')) cw++;
-                            if (cw == segStart) break;
-                            lastEnd = cw;
-                            var p = SkipTrivia(text, cw);
-                            if (p < text.Length && text[p] == '.') p++;
-                            else if (p + 1 < text.Length && text[p] == ':' && text[p + 1] == ':') p += 2;
-                            else break;
-                            cw = SkipTrivia(text, p);
-                        }
-                        cw = lastEnd;
-                        if (lastEnd == h) break;
-                        // ANY dotted chain (optionally nullable) that closes
-                        // straight into `)` strips as a cast-shaped wrapper —
-                        // not just the primitive type set. `(expr)atom` with
-                        // no operator between is invalid C#, so when a static
-                        // atom follows, the parenthesized chain can only have
-                        // been a cast (an enum cast of an undefined value
-                        // formats as its number, composing a tag). The one
-                        // grammar ambiguity — `(x)-104` as subtraction vs a
-                        // cast of -104 — resolves conservatively to the
-                        // refusal side: parenthesizing a lone identifier
-                        // before arithmetic is noise a writer can drop.
-                        // A chain NOT followed by `)` (a call like
-                        // nameof(...), a ternary, member access) is left for
-                        // the atom checks, which pass identifier-led holes.
-                        var cp = SkipTrivia(text, cw);
-                        // Generic argument list: consume a balanced <...>
-                        // whose interior holds only type-argument syntax
-                        // (identifiers, qualification, commas, nested
-                        // angles, nullable/array marks, trivia). Anything
-                        // else — an operator, a paren — means this was a
-                        // comparison, not a type: bail, and the `)` check
-                        // below refuses the strip.
-                        if (cp < text.Length && text[cp] == '<')
-                        {
-                            var g = cp + 1;
-                            var angleDepth = 1;
-                            var parenDepth = 0;
-                            while (g < text.Length && angleDepth > 0)
+                            var castEnd = TryConsumeTypeParen(text, h);
+                            if (castEnd > 0)
                             {
-                                // Trivia first: comments are legal anywhere
-                                // between type-argument tokens, and their
-                                // CONTENTS are not type syntax — an operator
-                                // inside a comment must not disqualify the
-                                // list. A lone slash that survives the skip
-                                // IS an operator, and disqualifies.
-                                var t2 = SkipTrivia(text, g);
-                                if (t2 != g) { g = t2; continue; }
-                                var gc = text[g];
-                                if (gc == '<') angleDepth++;
-                                else if (gc == '>') angleDepth--;
-                                // Tuple types put balanced parens inside a
-                                // type-argument list — (int, int) as a
-                                // dictionary key, e.g. An UNbalanced close
-                                // means the enclosing cast paren ended with
-                                // the angle still open: not a generic.
-                                else if (gc == '(') parenDepth++;
-                                else if (gc == ')')
+                                var nx = SkipTrivia(text, castEnd);
+                                if (nx < text.Length && (char.IsLetterOrDigit(text[nx])
+                                    || text[nx] is '_' or '@' or '$' or '"' or '\'' or '(' or '-' or '+' or '~' or '!'))
                                 {
-                                    if (parenDepth == 0) { angleDepth = -1; break; }
-                                    parenDepth--;
+                                    h = castEnd;
+                                    continue;
                                 }
-                                // @ is the verbatim-identifier prefix, legal
-                                // on type names and tuple element names
-                                // alike (int @key).
-                                else if (!(char.IsLetterOrDigit(gc) || gc is '_' or '.' or ':' or ',' or '?' or '[' or ']' or '*' or '@'))
-                                {
-                                    angleDepth = -1;
-                                    break;
-                                }
-                                g++;
                             }
-                            if (angleDepth == 0) cp = SkipTrivia(text, g);
+                            h++;
+                            continue;
                         }
-                        // Nullable and array suffixes, in any order and any
-                        // count (int?[], int[][], int[,]): an array bracket
-                        // counts only when it holds nothing but commas and
-                        // trivia — a digit inside is an indexer or size,
-                        // not a type.
-                        while (cp < text.Length)
-                        {
-                            if (text[cp] == '?') { cp = SkipTrivia(text, cp + 1); continue; }
-                            if (text[cp] == '[')
-                            {
-                                var b = SkipTrivia(text, cp + 1);
-                                while (b < text.Length && text[b] == ',') b = SkipTrivia(text, b + 1);
-                                if (b < text.Length && text[b] == ']') { cp = SkipTrivia(text, b + 1); continue; }
-                            }
-                            break;
-                        }
-                        if (cp < text.Length && text[cp] == ')') { h = cp + 1; continue; }
                         break;
                     }
                     while (h < text.Length && (text[h] == '$' || text[h] == '@')) h++;
