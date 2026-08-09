@@ -115,24 +115,31 @@ export function ExpensesPage() {
     }, [month, filterCategory, monthRange]),
     pageSize: PAGE,
   });
-  // MONEY SCALE — never guessed. Reading it off the list response meant a
-  // failed load cleared it and silently fell back to two decimals with the
-  // form still enabled, so a 3-decimal farm stored 1.000 as 100 minor units.
-  // The account is the authority, but it is not always there: /account can
-  // fail while this screen still renders (farm === null), leaving the list as
-  // the only place a scale ever came from — and the hook clears that too.
+  // MONEY SCALE — never guessed, always the freshest authority available.
+  // Three review rounds landed on this order, each for its own failure:
   //
-  // So: remember the last scale actually observed and never clear it, and if
-  // none has EVER been observed, refuse to record rather than denominate a
-  // number nobody can vouch for (codex review, twice).
-  const knownScale = useRef<{ code: string; minor: number } | null>(null);
-  const observedScale = farm !== null
-    ? { code: farm.currencyCode, minor: farm.currencyMinorUnit }
-    : expenses.meta !== null
-      ? { code: expenses.meta.code, minor: expenses.meta.minor }
-      : null;
-  if (observedScale !== null) knownScale.current = observedScale;
-  const currency = knownScale.current;
+  //   1. the CURRENT list response, because its envelope carries the
+  //      account's live currency (the endpoint reads the account per
+  //      request) — while `farm` is only the snapshot this tab booted with,
+  //      so a currency changed elsewhere reaches this screen through the
+  //      list first and the snapshot would convert at a retired scale;
+  //   2. the last list scale seen, retained across a failed load so a blip
+  //      cannot un-know a scale that was already established;
+  //   3. the farm snapshot, for the case where no list has ever landed;
+  //   4. nothing — and then the form REFUSES to record (see scaleKnown),
+  //      because denominating a typed amount at an assumed two decimals is
+  //      how a 3-decimal farm stores 1.000 as 100 minor units.
+  const lastListScale = useRef<{ code: string; minor: number } | null>(null);
+  if (expenses.meta !== null) {
+    lastListScale.current = { code: expenses.meta.code, minor: expenses.meta.minor };
+  }
+  const currency = expenses.meta !== null
+    ? { code: expenses.meta.code, minor: expenses.meta.minor }
+    // Retained across a failed load, so a blip cannot un-know the scale.
+    : lastListScale.current
+      ?? (farm !== null
+        ? { code: farm.currencyCode, minor: farm.currencyMinorUnit }
+        : null);
   const scaleKnown = currency !== null;
   // Display-only fallbacks; nothing below CONVERTS with these.
   const currencyCode = currency?.code ?? "";

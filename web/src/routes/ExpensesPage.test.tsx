@@ -697,3 +697,32 @@ describe("ExpensesPage currency scale without an account (#469, codex P1)", () =
     expect(mockCreateExpense).not.toHaveBeenCalled();
   });
 });
+
+describe("ExpensesPage currency scale freshness (#469, codex P1)", () => {
+  // The list envelope carries the ACCOUNT'S CURRENT currency (the endpoint
+  // reads accounts.GetCurrentAsync per request), whereas `farm` is the
+  // bootstrap snapshot this tab loaded with. So a currency change made
+  // elsewhere reaches this screen through the list first, and preferring the
+  // snapshot converts at a scale the server no longer uses.
+  it("prefers the freshly loaded list scale over a stale farm snapshot", async () => {
+    mockListExpenses.mockResolvedValue(emptyList("JPY", 0)); // server: 0 decimals now
+    mockCreateExpense.mockResolvedValue({ id: "e-new" });
+    renderWithProviders(<ExpensesPage />, {
+      token: ADMIN, farm: account({ currencyCode: "USD", currencyMinorUnit: 2 }), // stale
+    });
+    await screen.findByLabelText(/Amount \(JPY\)/);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Record expense" })).toBeEnabled());
+
+    fireEvent.change(comboWithOption(/— pick —/), { target: { value: CAT_FEED.id } });
+    fireEvent.change(screen.getByLabelText("Description"), { target: { value: "Diesel" } });
+    fireEvent.change(screen.getByLabelText(/Amount \(JPY\)/), { target: { value: "1" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Record expense" }));
+    });
+
+    // 1 JPY is 1 minor unit. Converting at the stale 2-decimal snapshot would
+    // post 100 — stored as 100 JPY against the server's own currency.
+    expect(mockCreateExpense).toHaveBeenCalledWith(
+      expect.objectContaining({ amountMinorUnits: 1 }), expect.any(String));
+  });
+});
