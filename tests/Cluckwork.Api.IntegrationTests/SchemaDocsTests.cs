@@ -1141,6 +1141,20 @@ public sealed class SchemaDocsTests
     // matching close paren, or -1 when the interior carries anything else
     // (an operator, a quote): that is an expression, not a type. A `)` or
     // `>` that closes what is not open is malformed and also -1.
+    // C# identifier characters, per the language's identifier-part
+    // categories — IsLetterOrDigit alone misses letter numbers, connector
+    // punctuation, combining marks, and format characters, all of which are
+    // legal in identifiers (and therefore in type names and tuple element
+    // names) as LITERAL characters, not only as \u escapes.
+    private static bool IsCSharpIdentifierChar(char c) =>
+        char.IsLetterOrDigit(c)
+        || c == '_'
+        || char.GetUnicodeCategory(c) is System.Globalization.UnicodeCategory.LetterNumber
+            or System.Globalization.UnicodeCategory.ConnectorPunctuation
+            or System.Globalization.UnicodeCategory.NonSpacingMark
+            or System.Globalization.UnicodeCategory.SpacingCombiningMark
+            or System.Globalization.UnicodeCategory.Format;
+
     private static int TryConsumeTypeParen(string t, int p)
     {
         var parenDepth = 1;
@@ -1183,7 +1197,7 @@ public sealed class SchemaDocsTests
                 if (p + 1 < t.Length && t[p + 1] == 'U' && Hex(t, p + 2, 8)) { p += 10; continue; }
                 return -1;
             }
-            else if (!(char.IsLetterOrDigit(c) || c is '_' or '.' or ':' or ',' or '?' or '[' or ']' or '*' or '@'))
+            else if (!(IsCSharpIdentifierChar(c) || c is '.' or ':' or ',' or '?' or '[' or ']' or '*' or '@'))
                 return -1;
             p++;
         }
