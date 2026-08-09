@@ -1158,7 +1158,28 @@ public sealed class SchemaDocsTests
                     if (!isRaw && braceRun >= 2) continue; // {{ escape: literal braces
                     if (isRaw && braceRun < holeBraces) continue; // literal braces
                     var h = i;
-                    while (h < text.Length && (char.IsWhiteSpace(text[h]) || text[h] == '(')) h++;
+                    // Skip whitespace, open-parens, and CASTS to a reserved
+                    // primitive type on the way to the hole's leading token.
+                    // Reserved type words cannot be expressions, so `(char)`
+                    // in expression position can only be a cast — what
+                    // matters is its OPERAND, which the atom checks below
+                    // then judge: a static operand (a numeric char code) is
+                    // composition, a runtime identifier operand stays the
+                    // runtime boundary.
+                    while (h < text.Length)
+                    {
+                        if (char.IsWhiteSpace(text[h]) || text[h] == '(') { h++; continue; }
+                        var cw = h;
+                        while (cw < text.Length && char.IsLetter(text[cw])) cw++;
+                        if (text[h..cw] is "char" or "byte" or "sbyte" or "short" or "ushort" or "int" or "uint"
+                            or "long" or "ulong" or "float" or "double" or "decimal" or "bool" or "object" or "string")
+                        {
+                            var cp = cw;
+                            while (cp < text.Length && char.IsWhiteSpace(text[cp])) cp++;
+                            if (cp < text.Length && text[cp] == ')') { h = cp + 1; continue; }
+                        }
+                        break;
+                    }
                     while (h < text.Length && (text[h] == '$' || text[h] == '@')) h++;
                     // A hole led by ANY static atom is composition: string
                     // or char literal, numeric literal (optionally signed),
