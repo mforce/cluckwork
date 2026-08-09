@@ -1193,10 +1193,11 @@ public sealed class SchemaDocsTests
                     // Alternation matters: casts and unary operators
                     // interleave ((char)~(int)-104), so a single pass of
                     // each in fixed order leaves the inner one unexamined.
-                    // Reserved type words cannot be expressions, so `(char)`
-                    // in expression position can only be a cast; every other
-                    // skipped character cannot start an identifier, so the
-                    // loop never reclassifies a runtime hole as static.
+                    // Every skipped character cannot start an identifier,
+                    // and a cast-shaped wrapper only strips when `)` closes
+                    // the chain directly — so the loop never turns an
+                    // identifier-led (runtime) hole into a static one; it
+                    // only ever exposes the operand behind wrappers.
                     while (h < text.Length)
                     {
                         var trivia = SkipTrivia(text, h);
@@ -1212,14 +1213,12 @@ public sealed class SchemaDocsTests
                         // verbatim (the blanker lexes hole contents as
                         // string body).
                         var cw = h;
-                        var lastStart = h;
                         var lastEnd = h;
                         while (true)
                         {
                             var segStart = cw;
                             while (cw < text.Length && (char.IsLetterOrDigit(text[cw]) || text[cw] == '_')) cw++;
                             if (cw == segStart) break;
-                            lastStart = segStart;
                             lastEnd = cw;
                             var p = SkipTrivia(text, cw);
                             if (p < text.Length && text[p] == '.') p++;
@@ -1228,23 +1227,25 @@ public sealed class SchemaDocsTests
                             cw = SkipTrivia(text, p);
                         }
                         cw = lastEnd;
-                        var lastSeg = text[lastStart..lastEnd];
-                        if (lastSeg is "char" or "byte" or "sbyte" or "short" or "ushort" or "int" or "uint"
-                            or "long" or "ulong" or "nint" or "nuint" or "float" or "double" or "decimal" or "bool" or "object" or "string"
-                            or "Char" or "Byte" or "SByte" or "Int16" or "UInt16" or "Int32" or "UInt32"
-                            or "Int64" or "UInt64" or "IntPtr" or "UIntPtr" or "Single" or "Double" or "Decimal" or "Boolean" or "Object" or "String")
-                        {
-                            var cp = SkipTrivia(text, cw);
-                            // Nullable suffix: (char?) / (System.Char?) is
-                            // still a cast — boxing a static atom through a
-                            // nullable changes nothing about its value. A
-                            // reserved type word followed by ? cannot be a
-                            // conditional (reserved words are not
-                            // expressions), so consuming it is unambiguous.
-                            if (cp < text.Length && text[cp] == '?')
-                                cp = SkipTrivia(text, cp + 1);
-                            if (cp < text.Length && text[cp] == ')') { h = cp + 1; continue; }
-                        }
+                        if (lastEnd == h) break;
+                        // ANY dotted chain (optionally nullable) that closes
+                        // straight into `)` strips as a cast-shaped wrapper —
+                        // not just the primitive type set. `(expr)atom` with
+                        // no operator between is invalid C#, so when a static
+                        // atom follows, the parenthesized chain can only have
+                        // been a cast (an enum cast of an undefined value
+                        // formats as its number, composing a tag). The one
+                        // grammar ambiguity — `(x)-104` as subtraction vs a
+                        // cast of -104 — resolves conservatively to the
+                        // refusal side: parenthesizing a lone identifier
+                        // before arithmetic is noise a writer can drop.
+                        // A chain NOT followed by `)` (a call like
+                        // nameof(...), a ternary, member access) is left for
+                        // the atom checks, which pass identifier-led holes.
+                        var cp = SkipTrivia(text, cw);
+                        if (cp < text.Length && text[cp] == '?')
+                            cp = SkipTrivia(text, cp + 1);
+                        if (cp < text.Length && text[cp] == ')') { h = cp + 1; continue; }
                         break;
                     }
                     while (h < text.Length && (text[h] == '$' || text[h] == '@')) h++;
