@@ -61,6 +61,27 @@ test.describe("ReadOnly", () => {
     await expect(page.getByRole("heading", { name: tEn("reports:moneyHeading") })).toBeHidden();
   });
 
+  // #465 — the fixture's 90-day × 2-flock history gives every graded grade
+  // ~176 lots, so the drill-down MUST page: exactly one 50-lot page first,
+  // then load-more appends the next. Growth-after-click is the load-bearing
+  // assertion — the stock-pager-inert mutant serves page one for every
+  // offset, and only the count reaching 100 catches it.
+  test("pages a deep grade's lots with load more (#465)", async ({ page, nav }) => {
+    await nav.link("nav:stock").click();
+    await page.getByRole("button", { name: tEn("stock:lotsButton") }).first().click();
+    await expect(page.getByRole("heading", { name: tEn("stock:lotsHeading") })).toBeVisible();
+
+    const lotRows = page.getByRole("button", { name: tEn("stock:historyButton"), exact: true });
+    await expect(lotRows).toHaveCount(50);
+    const loadMore = page.getByRole("button", { name: tEn("stock:loadMoreButton") });
+    await expect(loadMore).toBeVisible();
+
+    await loadMore.click();
+    await expect(lotRows).toHaveCount(100);
+    // ~176 lots in the fixture: still more to load after two pages.
+    await expect(loadMore).toBeVisible();
+  });
+
   test("is not offered the destinations it cannot use", async ({ nav }) => {
     for (const key of ["nav:customers", "nav:sales", "nav:audit", "nav:users", "nav:expenses"]) {
       await expect(

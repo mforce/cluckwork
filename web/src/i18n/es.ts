@@ -841,6 +841,10 @@ export const es = {
     producedHeader: "Producido",
     historyButton: "historial",
     hideHistoryButton: "ocultar historial",
+    // #465 — paginación + ventana de fechas sobre la tabla de lotes.
+    fromLabel: "Desde",
+    toLabel: "Hasta",
+    loadMoreButton: "cargar más",
 
     // Movement ledger drill-down (per lot)
     movementLedgerHeading: "Registro de movimientos",
@@ -1878,7 +1882,9 @@ export const es = {
       "Cada grado se expande en sus <strong>lotes</strong> (uno por día enviado), y cada lote en su "
       + "<strong>libro mayor de movimientos</strong> — una línea explícita por cada producción, venta, "
       + "corrección o anulación. La suma acumulada siempre es igual al saldo mostrado; nada cambia las "
-      + "existencias sin dejar una línea.",
+      + "existencias sin dejar una línea. La lista de lotes muestra los 50 más recientes a la vez — "
+      + "acótela con las fechas <strong>Desde/Hasta</strong> para llegar a un lote antiguo, o siga "
+      + "cargando más.",
     stockRestricted:
       "Las existencias son la suma de sus lotes de huevos por grado. La columna <strong>restringido</strong> "
       + "está reservada para períodos de retiro por medicación — esa función llega con el seguimiento de "

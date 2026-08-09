@@ -226,9 +226,13 @@ export interface EggMovementRow {
   createdAtUtc: string;
 }
 
-export const listEggLots = (params?: { gradeId?: string; limit?: number; offset?: number }) => {
+export const listEggLots = (params?: {
+  gradeId?: string; from?: string; to?: string; limit?: number; offset?: number;
+}) => {
   const q = new URLSearchParams();
   if (params?.gradeId) q.set("gradeId", params.gradeId);
+  if (params?.from) q.set("from", params.from);
+  if (params?.to) q.set("to", params.to);
   if (params?.limit) q.set("limit", String(params.limit));
   if (params?.offset) q.set("offset", String(params.offset));
   return apiGet<EggLotRow[]>(`/stock/lots${q.size > 0 ? `?${q}` : ""}`);

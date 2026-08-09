@@ -60,6 +60,15 @@ public sealed class DemoSeedTests(CluckworkWebApplicationFactory factory)
         var entries = await client.GetFromJsonAsync<List<object>>("/api/v1/daily-entries");
         Assert.True(entries!.Count >= 14, $"expected a week of entries, got {entries.Count}");
 
+        // #465 — the demo must OUT-PAGE the stock drill-down (50/page), so the
+        // load-more pager and date filter are exercisable straight from a
+        // demo-seeded farm. Per grade, because the panel filters by grade.
+        var largeId = stock!.Single(s => s.GradeName == "Large").EggGradeId;
+        var largeLots = await client.GetFromJsonAsync<List<object>>(
+            $"/api/v1/stock/lots?gradeId={largeId}&limit=200");
+        Assert.True(largeLots!.Count > 50,
+            $"expected the Large grade to out-page the 50-lot stock page, got {largeLots.Count}");
+
         // A second SeedAsync call against the same database is a no-op —
         // DemoDataSeeder's own empty-catalog guard fires.
         using (var seedScope2 = factory.Services.CreateScope())

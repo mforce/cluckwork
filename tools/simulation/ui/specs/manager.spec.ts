@@ -242,6 +242,16 @@ test.describe("Manager", () => {
     // never restated the day's laying.
     await expect(lotRow.getByRole("cell", { name: String(eggs - 2), exact: true })).toBeVisible();
     await expect(lotRow.getByRole("cell", { name: String(eggs), exact: true })).toBeVisible();
+
+    // ---- #465: the date filter reaches lots server-side -------------------
+    // A window that cannot contain this lot empties the table…
+    await page.getByLabel(tEn("stock:fromLabel"), { exact: true }).fill("2000-01-01");
+    await page.getByLabel(tEn("stock:toLabel"), { exact: true }).fill("2000-01-02");
+    await expect(page.getByText(tEn("stock:noLotsMessage"))).toBeVisible();
+    // …and narrowing to exactly today brings it back, corrected balance intact.
+    await page.getByLabel(tEn("stock:fromLabel"), { exact: true }).fill(today);
+    await page.getByLabel(tEn("stock:toLabel"), { exact: true }).fill(today);
+    await expect(lotRow.getByRole("cell", { name: String(eggs - 2), exact: true })).toBeVisible();
   });
 
   test("can reach the admin destinations a Worker cannot", async ({ signIn, nav }) => {

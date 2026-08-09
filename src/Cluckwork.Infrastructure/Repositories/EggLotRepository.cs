@@ -11,10 +11,13 @@ public sealed class EggLotRepository(AppDbContext db) : IEggLotRepository
         db.EggLots.FirstOrDefaultAsync(e => e.Id == id, ct);
 
     public async Task<IReadOnlyList<EggLot>> ListAsync(
-        Guid? eggGradeId, int limit, int offset, CancellationToken ct = default) =>
+        Guid? eggGradeId, DateOnly? from, DateOnly? to,
+        int limit, int offset, CancellationToken ct = default) =>
         await db.EggLots
             .AsNoTracking()
             .Where(l => eggGradeId == null || l.EggGradeId == eggGradeId)
+            .Where(l => from == null || l.ProductionDate >= from)
+            .Where(l => to == null || l.ProductionDate <= to)
             .OrderByDescending(l => l.ProductionDate).ThenByDescending(l => l.Id)
             .Skip(offset)
             .Take(limit)

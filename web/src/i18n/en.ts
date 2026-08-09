@@ -996,6 +996,11 @@ export const en = {
     producedHeader: "Produced",
     historyButton: "history",
     hideHistoryButton: "hide history",
+    // #465 — server-side paging + production-date window over the lots table,
+    // so old lots stay reachable. Same wording as the History/Audit filters.
+    fromLabel: "From",
+    toLabel: "To",
+    loadMoreButton: "load more",
 
     // Movement ledger drill-down (per lot). Type reads the RAW server value
     // through stockMovementLabel — the full EggMovementType enum is covered
@@ -2263,7 +2268,9 @@ export const en = {
     stockLots:
       "Every grade expands into its <strong>lots</strong> (one per submitted day), and every lot into its "
       + "<strong>movement ledger</strong> — an explicit line for each production, sale, correction, or void. "
-      + "The running sum always equals the balance shown; nothing changes stock without leaving a line.",
+      + "The running sum always equals the balance shown; nothing changes stock without leaving a line. "
+      + "The lot list shows the newest 50 at a time — narrow it with the <strong>From/To</strong> dates "
+      + "to reach an older lot, or keep loading more.",
     stockRestricted:
       "Stock is the sum of your egg lots per grade. The <strong>restricted</strong> column is reserved for "
       + "medication withholding periods — that feature arrives with medication tracking. <strong>Nothing "
