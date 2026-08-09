@@ -11,7 +11,7 @@ import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
 import { usePagedList } from "../components/usePagedList";
 import { usePendingAction } from "../components/usePendingAction";
-import { useFarmToday } from "../farm/useFarm";
+import { useFarm, useFarmToday } from "../farm/useFarm";
 import { newId } from "../lib/ids";
 import i18n from "../i18n";
 
@@ -32,6 +32,7 @@ export function ExpensesPage() {
   // Farm-local, not browser-local: since #35 the API judges "is this date in
   // the future?" against the FARM's day, so the pickers must agree (#123).
   const today = useFarmToday();
+  const { farm } = useFarm();
   const [categories, setCategories] = useState<ExpenseCategory[]>([]);
   const [flocks, setFlocks] = useState<Flock[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -114,9 +115,15 @@ export function ExpensesPage() {
     }, [month, filterCategory, monthRange]),
     pageSize: PAGE,
   });
+  // The FORM's scale comes from the account, never from the list response.
+  // Reading it off the list made a failed load fall back to 2 decimals while
+  // the form stayed enabled, so on a 0- or 3-decimal currency the next submit
+  // converted at the wrong scale and stored a wrong number of minor units
+  // (codex review). The list's own currency still renders its period total,
+  // where clearing it with the rows is correct.
   const currency = {
-    code: expenses.meta?.code ?? "",
-    minor: expenses.meta?.minor ?? 2,
+    code: farm?.currencyCode ?? expenses.meta?.code ?? "",
+    minor: farm?.currencyMinorUnit ?? expenses.meta?.minor ?? 2,
   };
 
   useEffect(() => {

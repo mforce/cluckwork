@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, within, fireEvent, act, waitFor } from "@testing-library/react";
 import { ExpensesPage } from "./ExpensesPage";
 import { renderWithProviders } from "../test/renderWithProviders";
+import { account } from "../test/fixtures";
 import {
   adjustExpense, createExpense, createExpenseCategory, getExpense,
   listExpenseCategories, listExpenses, listFlocks, updateExpenseCategory,
@@ -625,5 +626,31 @@ describe("ExpensesPage list failures (#469)", () => {
     });
     expect(screen.getByText(/Month total: 5\.00 USD/)).toBeInTheDocument();
     expect(screen.queryByText(/888\.00 USD/)).not.toBeInTheDocument();
+  });
+});
+
+describe("ExpensesPage currency scale (#469, codex P1)", () => {
+  // The form used to take its decimal scale from the LIST response, so a
+  // failed load cleared it and silently fell back to 2 decimals while the
+  // form stayed enabled. On a 3-decimal currency that converts 1.000 BHD to
+  // 100 minor units instead of 1000 — a wrong number stored against the
+  // account's real scale. The account is the authority; the list is not.
+  it("converts at the account's scale even after the list load fails", async () => {
+    mockListExpenses.mockRejectedValue(new Error("boom"));
+    renderWithProviders(<ExpensesPage />, {
+      token: ADMIN, farm: account({ currencyCode: "BHD", currencyMinorUnit: 3 }),
+    });
+    await screen.findByLabelText(/Amount \(BHD\)/);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Record expense" })).toBeEnabled());
+
+    fireEvent.change(comboWithOption(/— pick —/), { target: { value: CAT_FEED.id } });
+    fireEvent.change(screen.getByLabelText("Description"), { target: { value: "Diesel" } });
+    fireEvent.change(screen.getByLabelText(/Amount \(BHD\)/), { target: { value: "1.000" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Record expense" }));
+    });
+
+    expect(mockCreateExpense).toHaveBeenCalledWith(
+      expect.objectContaining({ amountMinorUnits: 1000 }), expect.any(String));
   });
 });

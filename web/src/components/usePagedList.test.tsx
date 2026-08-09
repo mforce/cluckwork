@@ -311,6 +311,23 @@ describe("usePagedList — error lifecycle", () => {
     expect(screen.queryByRole("button", { name: "more" })).not.toBeInTheDocument();
   });
 
+  it("keeps the loaded rows when only a load-more fails (codex P2)", async () => {
+    // A failed EXTENSION says nothing about the rows already on screen —
+    // they still belong to the current filter. Emptying them turned a
+    // transient paging blip into "no records at all".
+    const fetchPage = vi.fn()
+      .mockResolvedValueOnce(rows("a", "b", "c"))
+      .mockRejectedValueOnce(new Error("boom"));
+    render(<Host fetchPage={fetchPage} />);
+    await waitFor(() => expect(shown()).toBe("a,b,c"));
+
+    fireEvent.click(screen.getByRole("button", { name: "more" }));
+    await waitFor(() => expect(errorText()).toBe("boom"));
+    expect(shown()).toBe("a,b,c");
+    // The window is intact, so the next page may still be there to retry for.
+    expect(screen.getByRole("button", { name: "more" })).toBeInTheDocument();
+  });
+
   it("heals the error on the next successful load", async () => {
     // SalesPage's brick: an error nothing ever cleared replaced the screen for
     // the rest of the session.
@@ -439,6 +456,32 @@ describe("usePagedList — writes", () => {
     // The write landed, but the newer filter owns the view — no revert to A.
     expect(shown()).toBe("b");
     expect(fetchA).toHaveBeenCalledTimes(1); // never refetched for the refresh
+  });
+
+  it("re-reads the newest filter when a write's refresh was superseded (codex P1)", async () => {
+    // Request START order is not database COMMIT order: a filter GET issued
+    // during the write can also COMPLETE before the write's transaction
+    // commits, so its rows do not contain the mutation. Skipping the refresh
+    // then leaves the screen showing a successful write whose effect is
+    // missing. The newer filter still owns the view — it is re-read, not
+    // overridden.
+    const writeGate = deferred<void>();
+    const fetchA = vi.fn().mockResolvedValue(rows("a"));
+    const fetchB = vi.fn()
+      .mockResolvedValueOnce(rows("b"))              // the racing filter GET
+      .mockResolvedValueOnce(rows("b", "written"));  // the re-read, post-commit
+    const { rerender } = render(
+      <Host fetchPage={fetchA} write={() => writeGate.promise} />);
+    await waitFor(() => expect(shown()).toBe("a"));
+
+    fireEvent.click(screen.getByRole("button", { name: "write" }));
+    rerender(<Host fetchPage={fetchB} write={() => writeGate.promise} />);
+    await waitFor(() => expect(shown()).toBe("b"));
+
+    await act(async () => { writeGate.resolve(); });
+    await waitFor(() => expect(shown()).toBe("b,written"));
+    // Re-read under the NEWEST filter, never the one the write started under.
+    expect(fetchA).toHaveBeenCalledTimes(1);
   });
 
   it("surfaces a failed write's error and leaves the rows alone", async () => {

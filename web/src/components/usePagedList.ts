@@ -115,13 +115,18 @@ export function usePagedList<T extends { id: string }, M = never>({
     } catch (err) {
       if (seq !== req.current) return;
       setError(formatErrorRef.current(err));
-      // Empty, not stale: the rows that are still on screen belong to a window
-      // the user has already navigated away from. The metadata goes with them
-      // — a total that outlived its rows is the worst of both.
-      rowsRef.current = [];
-      setRows([]);
-      setMeta(null);
-      setHasMore(false);
+      // Only a failed REPLACEMENT empties the list: the rows still on screen
+      // belong to a window the user has navigated away from, and the metadata
+      // goes with them (a total that outlived its rows is the worst of both).
+      // A failed EXTENSION says nothing about what is already shown — those
+      // rows are still the current filter's, so they stay, and hasMore stays
+      // put so the page can be retried (codex review).
+      if (offset === 0) {
+        rowsRef.current = [];
+        setRows([]);
+        setMeta(null);
+        setHasMore(false);
+      }
     } finally {
       setLoadingOwned(seq, false);
     }
@@ -146,6 +151,11 @@ export function usePagedList<T extends { id: string }, M = never>({
 
   // A new `fetchPage` identity IS a filter change.
   useEffect(() => { void reload(); }, [reload]);
+
+  // Always the CURRENT render's reload, for the one caller that must re-read
+  // under whatever filter is newest rather than the one it closed over.
+  const reloadRef = useRef(reload);
+  reloadRef.current = reload;
 
   const loadMore = useCallback(async () => {
     if (loadingRef.current) return;
@@ -203,9 +213,17 @@ export function usePagedList<T extends { id: string }, M = never>({
     setLoadingOwned(seq, true);
     try {
       const result = await write();
-      // Superseded while the write was in flight — the newer view stands, and
-      // it was fetched after this write reached the server anyway.
-      if (seq === req.current) await refreshWindow(seq);
+      if (seq === req.current) {
+        await refreshWindow(seq);
+      } else {
+        // Superseded mid-write. The newer filter owns the view — but its GET
+        // may have both started AND completed before this write's transaction
+        // committed, in which case its rows do not contain the mutation and
+        // nothing would ever correct them (request start order is not commit
+        // order). Re-read under whatever filter is newest NOW, which is the
+        // current render's reload, not the one this call closed over.
+        await reloadRef.current();
+      }
       return result;
     } catch (err) {
       // The claim above invalidated whatever read was in flight, and a failed
