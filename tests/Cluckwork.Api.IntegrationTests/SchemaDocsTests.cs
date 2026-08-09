@@ -448,21 +448,43 @@ public sealed class SchemaDocsTests
                     tokens.Add((m.Index, m.Index + m.Length, m.Groups["body"].Value.Trim(), false));
                 }
                 tokens.Sort((a, b) => a.Start.CompareTo(b.Start));
-                // Comments were blanked to spaces above, so a comment
-                // around the plus is already plain whitespace here. The gap
-                // matcher admits parentheses besides whitespace: parens are
-                // semantically transparent in a constant string
-                // concatenation, so a wrapped fragment still folds. This is
-                // DELIBERATELY conservative — a gap like `) + (` also spans
-                // some non-constant expressions (a call result concatenated
-                // with a literal), and folding those can only ADD a refusal,
-                // never open a hole; any identifier character in the gap
-                // still breaks the fold.
-                var plusGap = new Regex(@"^[\s()]*\+[\s()]*$");
+                // The gap between chained tokens is `+` surrounded by
+                // value-preserving wrappers: trivia (comments were blanked
+                // to spaces above, but trivia is skipped regardless),
+                // closing parens of a wrapped previous fragment before the
+                // plus, and — after the plus — grouping parens, unary
+                // operators, and CAST-shaped parens (the same structural
+                // recognizer the interpolation scanner uses), so
+                // `+ (string)` before the next fragment still folds. This
+                // stays DELIBERATELY conservative: some non-constant
+                // expressions match the same gap shape (a call result
+                // concatenated with a literal), and folding those can only
+                // ADD a refusal, never open a hole; a bare identifier in
+                // the gap still breaks the fold.
+                static bool IsPlusGap(string t, int start, int end)
+                {
+                    var p = SkipTrivia(t, start);
+                    while (p < end && t[p] == ')') p = SkipTrivia(t, p + 1);
+                    if (p >= end || t[p] != '+') return false;
+                    p = SkipTrivia(t, p + 1);
+                    while (p < end)
+                    {
+                        if (t[p] == '(')
+                        {
+                            var castEnd = TryConsumeTypeParen(t, p);
+                            if (castEnd > 0 && castEnd <= end) { p = SkipTrivia(t, castEnd); continue; }
+                            p = SkipTrivia(t, p + 1);
+                            continue;
+                        }
+                        if (t[p] is '-' or '+' or '~' or '!') { p = SkipTrivia(t, p + 1); continue; }
+                        return false;
+                    }
+                    return true;
+                }
                 for (var i = 0; i < tokens.Count;)
                 {
                     var j = i;
-                    while (j + 1 < tokens.Count && plusGap.IsMatch(codeText[tokens[j].End..tokens[j + 1].Start]))
+                    while (j + 1 < tokens.Count && IsPlusGap(codeText, tokens[j].End, tokens[j + 1].Start))
                         j++;
                     var folded = string.Concat(tokens.Skip(i).Take(j - i + 1).Select(t => t.Value));
                     var isChain = j > i;
