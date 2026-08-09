@@ -1181,9 +1181,9 @@ public sealed class SchemaDocsTests
                         var lastSep = chain.LastIndexOfAny(['.', ':']);
                         var lastSeg = chain[(lastSep + 1)..];
                         if (lastSeg is "char" or "byte" or "sbyte" or "short" or "ushort" or "int" or "uint"
-                            or "long" or "ulong" or "float" or "double" or "decimal" or "bool" or "object" or "string"
+                            or "long" or "ulong" or "nint" or "nuint" or "float" or "double" or "decimal" or "bool" or "object" or "string"
                             or "Char" or "Byte" or "SByte" or "Int16" or "UInt16" or "Int32" or "UInt32"
-                            or "Int64" or "UInt64" or "Single" or "Double" or "Decimal" or "Boolean" or "Object" or "String")
+                            or "Int64" or "UInt64" or "IntPtr" or "UIntPtr" or "Single" or "Double" or "Decimal" or "Boolean" or "Object" or "String")
                         {
                             var cp = cw;
                             while (cp < text.Length && char.IsWhiteSpace(text[cp])) cp++;
