@@ -1169,10 +1169,21 @@ public sealed class SchemaDocsTests
                     while (h < text.Length)
                     {
                         if (char.IsWhiteSpace(text[h]) || text[h] == '(') { h++; continue; }
+                        // A cast type may be the keyword alias, the
+                        // framework name, or a namespace-qualified form
+                        // (System.Char, global::System.Char) — walk the
+                        // dotted chain and judge its LAST segment.
                         var cw = h;
-                        while (cw < text.Length && char.IsLetter(text[cw])) cw++;
-                        if (text[h..cw] is "char" or "byte" or "sbyte" or "short" or "ushort" or "int" or "uint"
-                            or "long" or "ulong" or "float" or "double" or "decimal" or "bool" or "object" or "string")
+                        while (cw < text.Length && (char.IsLetterOrDigit(text[cw]) || text[cw] == '_' || text[cw] == '.'
+                            || (text[cw] == ':' && cw + 1 < text.Length && text[cw + 1] == ':')))
+                            cw += text[cw] == ':' ? 2 : 1;
+                        var chain = text[h..cw];
+                        var lastSep = chain.LastIndexOfAny(['.', ':']);
+                        var lastSeg = chain[(lastSep + 1)..];
+                        if (lastSeg is "char" or "byte" or "sbyte" or "short" or "ushort" or "int" or "uint"
+                            or "long" or "ulong" or "float" or "double" or "decimal" or "bool" or "object" or "string"
+                            or "Char" or "Byte" or "SByte" or "Int16" or "UInt16" or "Int32" or "UInt32"
+                            or "Int64" or "UInt64" or "Single" or "Double" or "Decimal" or "Boolean" or "Object" or "String")
                         {
                             var cp = cw;
                             while (cp < text.Length && char.IsWhiteSpace(text[cp])) cp++;
