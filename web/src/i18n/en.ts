@@ -2041,6 +2041,9 @@ export const en = {
       + "instead of leaving you on a blank page. Anything you had already saved is safe (anything you were "
       + "still typing may need to be entered again) — tap <strong>Reload</strong>, or <strong>Back to the "
       + "dashboard</strong> and try again. If it keeps happening, open \"Error details\" and send a screenshot.",
+    gettingAroundWhereMessagesAppear:
+      "If a save fails, the form tells you why <strong>inside the form</strong>, beside the fields it is "
+      + "about — it stays open, so you can correct it and try again without losing what you typed.",
 
     // Signing in
     signingInHeading: "Signing in",

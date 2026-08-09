@@ -1636,6 +1636,10 @@ export const es = {
       + "está a salvo (lo que todavía estaba escribiendo puede que deba ingresarlo de nuevo) — toque "
       + "<strong>Recargar</strong>, o <strong>Volver al panel</strong> e inténtelo de nuevo. Si sigue "
       + "sucediendo, abra \"Detalles del error\" y envíe una captura de pantalla.",
+    gettingAroundWhereMessagesAppear:
+      "Si un guardado falla, el formulario le dice por qué <strong>dentro del formulario</strong>, junto a los "
+      + "campos a los que se refiere — y permanece abierto, para que pueda corregirlo e intentarlo de nuevo sin "
+      + "perder lo que escribió.",
 
     signingInHeading: "Iniciar sesión",
     signingInBasic:

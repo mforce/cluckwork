@@ -1701,6 +1701,10 @@ export const tl = {
       + "na-save mo na (maaaring kailanganin mong i-type ulit ang kahit anong tina-type mo pa) — i-tap ang "
       + "<strong>I-reload</strong>, o <strong>Bumalik sa dashboard</strong> at subukan ulit. Kung "
       + "paulit-ulit itong nangyayari, buksan ang \"Mga detalye ng error\" at magpadala ng screenshot.",
+    gettingAroundWhereMessagesAppear:
+      "Kung nabigo ang pag-save, sinasabi ng form kung bakit <strong>sa loob mismo ng form</strong>, katabi ng "
+      + "mga field na tinutukoy nito — at nananatili itong bukas, para maitama mo at masubukan ulit nang hindi "
+      + "nawawala ang tinipa mo.",
 
     signingInHeading: "Pag-sign in",
     signingInBasic:
