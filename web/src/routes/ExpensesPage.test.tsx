@@ -778,3 +778,25 @@ describe("ExpensesPage conflict reload is issued once (#469)", () => {
     expect(screen.getByRole("row", { name: /Generator diesel/ })).toBeInTheDocument();
   });
 });
+
+describe("ExpensesPage total is never a guess (#469, codex P2)", () => {
+  // meta is cleared when a replacement fails, and `?? 0` then rendered a
+  // definitive "Month total: 0.00" next to the error — stating that a period
+  // whose figure is UNKNOWN is zero. On a money screen that is not a
+  // degraded display, it is a wrong number.
+  it("shows no total at all when the month load failed", async () => {
+    mockListExpenses
+      .mockResolvedValueOnce({ items: [EXP_OLD], totalMinorUnits: 99900, currencyCode: "USD", currencyMinorUnit: 2 })
+      .mockRejectedValue(new Error("boom"));
+    await renderReady();
+    expect(screen.getByText(/Month total: 999\.00 USD/)).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Month"), { target: { value: "2026-05" } });
+    });
+
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+    expect(screen.queryByText(/Month total:/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/0\.00/)).not.toBeInTheDocument();
+  });
+});

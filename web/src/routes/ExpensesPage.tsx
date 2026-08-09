@@ -340,9 +340,14 @@ export function ExpensesPage() {
           previous window until the new one lands, and a figure from last
           month sitting under this month's picker is the very thing this
           change exists to stop, pending or settled (codex review). */}
-      {!expenses.reloading && (
+      {/* ...and only when there IS an authoritative figure. A failed load
+          clears the metadata, and `?? 0` then rendered a definitive
+          "Month total: 0.00" beside the error — stating that a period whose
+          spend is UNKNOWN is zero, which on a money screen is a wrong number
+          rather than a degraded display (codex review). */}
+      {!expenses.reloading && expenses.meta !== null && (
         <p><strong>{t("monthTotalLabel", {
-          amount: formatMoney(expenses.meta?.total ?? 0, currencyCode, currencyMinor),
+          amount: formatMoney(expenses.meta.total, currencyCode, currencyMinor),
         })}</strong></p>
       )}
 
