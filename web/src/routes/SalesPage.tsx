@@ -298,6 +298,17 @@ export function SalesPage() {
       }
     });
 
+  // #474 — dismissing a dialog abandons its attempt, so its failure goes with
+  // it. Leaving the message behind produces exactly what the issue was filed
+  // about: a page-level error with no context. Its OWN message only — a
+  // failure that was never this dialog's is still the page's to report.
+  const dismiss = (scope: string, setOpen: (open: boolean) => void) => {
+    setOpen(false);
+    setError((current) => (current?.scope === scope ? null : current));
+  };
+  const closeNewOrder = () => dismiss("create-order", setCreatingOrder);
+  const closePayment = () => dismiss("record-payment", setPaying);
+
   const onCreateOrder = () => run("create-order", async () => {
     // runWrite claims the list ticket before the POST, so a filter change
     // made while it is in flight keeps the view (#469).
@@ -533,7 +544,7 @@ export function SalesPage() {
       {/* Deliberately NOT a <form>: these controls were button-driven, so
           wrapping them in one would newly enforce min/step and swallow the
           screen's own money messages (codex review of #132). */}
-      <Dialog open={creatingOrder} title={t("newOrder")} onClose={() => setCreatingOrder(false)}>
+      <Dialog open={creatingOrder} title={t("newOrder")} onClose={closeNewOrder}>
         <div className="form-grid">
           <label>{t("customer")}
             <select value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
@@ -553,7 +564,7 @@ export function SalesPage() {
               the failure. */}
           {error?.scope === "create-order" && <p className="error" role="alert">{error.text}</p>}
           <div className="dialog-foot">
-            <button type="button" className="link" onClick={() => setCreatingOrder(false)}>{tc("cancel")}</button>
+            <button type="button" className="link" onClick={closeNewOrder}>{tc("cancel")}</button>
             <BusyButton disabled={busy || !customerId} busy={isPending("create-order")}
               onClick={onCreateOrder}>{t("newDraftOrder")}</BusyButton>
           </div>
@@ -755,7 +766,7 @@ export function SalesPage() {
                 </div>
               )}
 
-              <Dialog open={paying} title={t("recordPayment")} onClose={() => setPaying(false)}>
+              <Dialog open={paying} title={t("recordPayment")} onClose={closePayment}>
                 <div className="form-grid">
                   <label>{t("date")}
                     <input type="date" value={payDate} max={today}
@@ -787,7 +798,7 @@ export function SalesPage() {
                       land while this is open, and is not this form's failure. */}
                   {error?.scope === "record-payment" && <p className="error" role="alert">{error.text}</p>}
                   <div className="dialog-foot">
-                    <button type="button" className="link" onClick={() => setPaying(false)}>{tc("cancel")}</button>
+                    <button type="button" className="link" onClick={closePayment}>{tc("cancel")}</button>
                     <BusyButton disabled={busy || !payAmount} busy={isPending("record-payment")}
                       onClick={onRecordPayment}>
                       {t("recordPayment")}

@@ -1124,6 +1124,41 @@ describe("SalesPage in-dialog errors (#474)", () => {
     expect(screen.getByText("That payment was already voided.")).toBeInTheDocument();
   });
 
+  it("drops the dialog's own error when the dialog is dismissed", async () => {
+    // #474's own complaint, the other way round: a message about an abandoned
+    // attempt, left on the page after its dialog is gone, "reads as a
+    // page-level error with no context". The attempt is over — so is the
+    // message.
+    await renderReady();
+    mockCreateOrder.mockRejectedValueOnce(
+      new ApiError(422, "Validation failed", "Order date cannot be in the future."));
+    fireEvent.click(screen.getByRole("button", { name: "New order" }));
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "New draft order" }));
+    });
+    expect(within(dialog()).getByText("Order date cannot be in the future.")).toBeInTheDocument();
+
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByText("Order date cannot be in the future.")).not.toBeInTheDocument();
+  });
+
+  it("keeps someone else's error when a dialog is dismissed", async () => {
+    // Only the dialog's OWN message goes with it. A failure that was never
+    // this dialog's is still the page's to report.
+    let rejectPayments!: (e: unknown) => void;
+    mockListOrderPayments.mockReturnValueOnce(
+      new Promise((_, rej) => { rejectPayments = rej; }) as never);
+    await openOrder(CONFIRMED_9, /Grade A Dozen/);
+    fireEvent.click(screen.getByRole("button", { name: "New order" }));
+    await act(async () => { rejectPayments(new Error("boom")); });
+
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+
+    expect(screen.getByText("Could not load this order's payments.")).toBeInTheDocument();
+  });
+
   it("still renders a page-level error with no dialog open", async () => {
     // The panel's own writes are not behind a dialog — their errors must keep
     // landing on the page, which is what the page copy's guard exists for.
