@@ -272,6 +272,60 @@ public sealed class ChangeUserRoleRaceTests(CluckworkWebApplicationFactory facto
         Assert.Equal(["Manager"], cRole); // never promoted
     }
 
+    // ---------- Stale-tracked-actor fix (codex review, PR #475 round-2) ----------
+
+    [Fact]
+    public async Task StaleTrackedActorFix_ActorDisabledWhilePromotionQueued_IsForbidden_NotStaleSuccess()
+    {
+        // StepUpGrantService.ValidateAsync tracks the ACTOR's ApplicationUser
+        // (via userManager.FindByIdAsync) on the SAME scoped DbContext the
+        // handler goes on to use for the actor re-check inside the account
+        // lock. EF's identity map means a later tracked query for the same PK
+        // would silently return that CACHED (pre-lock) instance instead of a
+        // fresh row — so if the actor is disabled AFTER their grant is
+        // validated but BEFORE the lock is acquired, a stale re-check would
+        // still see DisabledAt == null and let the promotion through.
+        var owner = Unique("owner");
+        var promoter = Unique("promoter");
+        var target = Unique("target");
+        var accountId = await SeedOwnerFarmAsync(owner, promoter);
+        await factory.SeedUserAsync(accountId, target, "Manager");
+        var promoterId = await UserIdAsync(accountId, promoter);
+        var targetId = await UserIdAsync(accountId, target);
+        var stepUpForPromoter = await StepUpAsync(promoter);
+
+        var (db, tx, pid) = await FenceAccountAsync(accountId);
+        await using var _ = db;
+        await using var __ = tx;
+
+        // The promoter's own request: consumes their step-up grant (tracking
+        // their ApplicationUser row on the handler's DbContext), THEN blocks
+        // on the fenced account lock.
+        var promote = Task.Run(() =>
+            InvokeAsync(accountId, targetId, "Admin", actingUserId: promoterId, stepUpForPromoter));
+        Assert.True(await factory.WaitUntilDoneOrBlockedAsync(promote, pid),
+            "the promotion must park on the account lock after consuming the step-up grant");
+
+        // While it's queued, disable the promoter via a completely separate
+        // connection/DbContext — the promoter's own row isn't locked by the
+        // queued transaction yet (it's still parked on the ACCOUNT row), so
+        // this must not collide with the fence.
+        await DisableAsync(accountId, promoterId);
+
+        await tx.RollbackAsync();
+
+        var result = await promote;
+
+        Assert.True(result.IsFailure, "a disabled actor's queued promotion must not succeed");
+        Assert.Equal("Auth.Forbidden", result.Error.Code);
+        var targetRole = await factory.WithTenantScopeAsync(accountId, async db2 =>
+            await (from ur in db2.UserRoles
+                   join r in db2.Roles on ur.RoleId equals r.Id
+                   where ur.UserId == targetId
+                   select r.Name).ToListAsync());
+        Assert.Equal(["Manager"], targetRole); // never promoted
+    }
+
     // ---------- IdentityResult-level concurrency conflict (#355 round-2/3 finding) ----------
 
     // Identity's UserStore.UpdateAsync swallows a concurrency loss into a

@@ -1133,6 +1133,7 @@ export const tl = {
     stepUpFieldLabel: "Ang kasalukuyan mong password *",
     stepUpCreateHint: "Ang paggawa ng isa pang Owner ay nangangailangan muling ilagay ang kasalukuyan mong password.",
     stepUpResetHint: "Ang pag-reset ng password ng isang Owner ay nangangailangan muling ilagay ang kasalukuyan mong password.",
+    stepUpRoleHint: "Ang pag-promote ng isang tao bilang Owner ay nangangailangan muling ilagay ang kasalukuyan mong password.",
 
     // Users table
     emailColumnHeader: "Email",
@@ -1140,6 +1141,8 @@ export const tl = {
     roleColumnHeader: "Tungkulin",
     editButton: "i-edit",
     resetPasswordButton: "password",
+    changeRoleButton: "tungkulin",
+    changeRoleSubmitButton: "Palitan ang tungkulin",
     flocksButton: "mga kawan",
 
     // Flock-access dialog
@@ -1167,11 +1170,20 @@ export const tl = {
     confirmPasswordFieldLabel: "Kumpirmahin ang bagong password *",
     setPasswordButton: "Itakda ang password",
 
+    // Change-role dialog
+    changeRoleTitle: "Palitan ang tungkulin — {{email}}",
+    roleDialogHint:
+      "Ang pagpapalit ng tungkulin ng isang tao ay nag-sa-sign out sa "
+      + "kanila sa lahat ng device. Hindi puwedeng i-demote ang huling "
+      + "Owner ng account, at hindi mo mapapalitan ang sarili mong "
+      + "tungkulin — humingi ng tulong sa ibang Owner.",
+
     // Imperative messages
     createSuccessMessage: "Nagawa ang {{role}} account para sa {{email}}.",
     passwordMismatchMessage: "Hindi magkatugma ang mga password.",
     passwordSetMessage: "Naitakda ang password para sa {{email}}. Na-sign out na sila sa lahat ng lugar.",
     updatedMessage: "Na-update ang {{email}}.",
+    roleChangedMessage: "Si {{email}} ay {{role}} na ngayon.",
   },
 
   // machine-drafted (#182) — pending native review. Task 25c (B4): new

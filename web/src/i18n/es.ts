@@ -1092,6 +1092,7 @@ export const es = {
     stepUpFieldLabel: "Tu contraseña actual *",
     stepUpCreateHint: "Crear otro propietario requiere volver a ingresar tu contraseña actual.",
     stepUpResetHint: "Restablecer la contraseña de un propietario requiere volver a ingresar tu contraseña actual.",
+    stepUpRoleHint: "Ascender a alguien a propietario requiere volver a ingresar tu contraseña actual.",
 
     // Users table
     emailColumnHeader: "Correo electrónico",
@@ -1099,6 +1100,8 @@ export const es = {
     roleColumnHeader: "Rol",
     editButton: "editar",
     resetPasswordButton: "contraseña",
+    changeRoleButton: "rol",
+    changeRoleSubmitButton: "Cambiar rol",
     flocksButton: "lotes",
 
     // Flock-access dialog
@@ -1125,11 +1128,19 @@ export const es = {
     confirmPasswordFieldLabel: "Confirmar nueva contraseña *",
     setPasswordButton: "Establecer contraseña",
 
+    // Change-role dialog
+    changeRoleTitle: "Cambiar rol — {{email}}",
+    roleDialogHint:
+      "Cambiar el rol de alguien cierra su sesión en todos los "
+      + "dispositivos. No se puede degradar al último propietario de la "
+      + "cuenta, y no puedes cambiar tu propio rol — pide a otro propietario.",
+
     // Imperative messages
     createSuccessMessage: "Cuenta de {{role}} creada para {{email}}.",
     passwordMismatchMessage: "Las contraseñas no coinciden.",
     passwordSetMessage: "Contraseña establecida para {{email}}. Se cerró la sesión en todos los dispositivos.",
     updatedMessage: "Se actualizó {{email}}.",
+    roleChangedMessage: "{{email}} ahora es {{role}}.",
   },
 
   // machine-drafted (#182) — pending native review. Task 25c (B4): new

@@ -696,6 +696,18 @@ export const setUserPassword = (
 ) => apiPut<void>(
   `/users/${id}/password`, body, key, stepUpToken ? { [STEP_UP_HEADER]: stepUpToken } : undefined);
 
+// #355 — promote/demote an existing user's role. The server signs that user
+// out of every device.
+//
+// #308 — stepUpToken is required only when the REQUESTED role is Owner
+// ("Admin"); every other target role is unchanged. Server also refuses
+// self-targeting (400 Users.CannotChangeOwnRole) — surfaced as an ordinary
+// ApiError, not special-cased client-side.
+export const changeUserRole = (
+  id: string, body: { role: string }, key?: string, stepUpToken?: string,
+) => apiPut<void>(
+  `/users/${id}/role`, body, key, stepUpToken ? { [STEP_UP_HEADER]: stepUpToken } : undefined);
+
 // Formats minor units per the order's snapshotted currency (JPY has 0 decimals).
 export function formatMoney(minorUnits: number, currencyCode: string, minorUnit: number): string {
   const value = minorUnits / 10 ** minorUnit;

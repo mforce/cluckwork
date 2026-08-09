@@ -1322,6 +1322,7 @@ export const en = {
     stepUpFieldLabel: "Your current password *",
     stepUpCreateHint: "Creating another Owner needs your current password again.",
     stepUpResetHint: "Resetting an Owner's password needs your current password again.",
+    stepUpRoleHint: "Promoting someone to Owner needs your current password again.",
 
     // Users table
     emailColumnHeader: "Email",
@@ -1329,6 +1330,8 @@ export const en = {
     roleColumnHeader: "Role",
     editButton: "edit",
     resetPasswordButton: "password",
+    changeRoleButton: "role",
+    changeRoleSubmitButton: "Change role",
     flocksButton: "flocks",
 
     // Flock-access dialog (per-worker scoping). {{email}} is the user's
@@ -1355,6 +1358,13 @@ export const en = {
     confirmPasswordFieldLabel: "Confirm new password *",
     setPasswordButton: "Set password",
 
+    // Change-role dialog (#355). {{email}} is DATA.
+    changeRoleTitle: "Change role — {{email}}",
+    roleDialogHint:
+      "Changing someone's role signs them out of every device. The "
+      + "account's last Owner cannot be demoted, and you cannot change "
+      + "your own role — ask another Owner.",
+
     // Imperative messages (event handlers — see CONTRIBUTING-i18n.md's
     // imperative i18n.t() pattern). {{email}} is DATA; {{role}} is
     // roleLabel(role) — see the namespace header comment above.
@@ -1363,6 +1373,7 @@ export const en = {
     passwordSetMessage:
       "Password set for {{email}}. They have been signed out everywhere.",
     updatedMessage: "Updated {{email}}.",
+    roleChangedMessage: "{{email}} is now {{role}}.",
   },
   // Expenses screen — category management (a dialog panel: create/deactivate/
   // reactivate) + record/correct expenses, filtered by month and category

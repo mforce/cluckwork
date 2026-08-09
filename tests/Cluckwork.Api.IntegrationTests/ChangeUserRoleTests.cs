@@ -398,6 +398,34 @@ public sealed class ChangeUserRoleTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(HttpStatusCode.NoContent, replay.StatusCode);
     }
 
+    // ---------- SecurityStamp rotation (codex review, PR #475 round-2) ----------
+
+    [Fact]
+    public async Task RoleChange_InvalidatesTheTargets_OutstandingStepUpGrant()
+    {
+        // CredentialEpoch kills the target's bearer/refresh tokens on a role
+        // change, but a step-up grant (#308) is validated against
+        // SecurityStamp — a separate credential entirely. Without an explicit
+        // rotation, a grant the target already holds (issued for some other
+        // purpose, moments before their own role changed) would still be
+        // spendable after they sign back in with a fresh epoch.
+        var (owner, accountId, _) = await OwnerAsync();
+        var (targetEmail, targetId) = await SeedUserAsync(accountId, "Manager");
+        var targetClient = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(targetEmail));
+        var targetGrant = await StepUpAsync(targetClient, TestHarness.Password);
+
+        var response = await ChangeRoleAsync(owner, targetId, "Sales");
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+
+        using var scope = factory.Services.CreateScope();
+        scope.ServiceProvider.GetRequiredService<Cluckwork.Infrastructure.Persistence.TenantContext>()
+            .Resolve(accountId);
+        var stepUpService = scope.ServiceProvider.GetRequiredService<Cluckwork.Application.Common.IStepUpGrantService>();
+        var validated = await stepUpService.ValidateAsync(accountId, targetId, targetGrant, CancellationToken.None);
+
+        Assert.True(validated.IsFailure, "a step-up grant issued before the role change must not survive it");
+    }
+
     // ---------- Request body cap ----------
 
     [Fact]

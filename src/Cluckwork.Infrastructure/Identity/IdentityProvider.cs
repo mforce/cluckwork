@@ -527,12 +527,28 @@ public sealed class IdentityProvider(
             // that promotion after being demoted. A disabled actor retains
             // its Owner ROLE ROW (only auth is blocked), so DisabledAt is
             // checked here too, not just effective role.
-            var actor = await db.Users.FirstOrDefaultAsync(
-                u => u.Id == actingUserId && u.AccountId == accountId, token);
-            if (actor is null || actor.DisabledAt is not null)
+            //
+            // MUST be a fresh, untracked read (AsNoTracking + a plain join,
+            // not db.Users.FirstOrDefaultAsync/userManager.GetRolesAsync):
+            // the Owner-promotion path already ran this actor through
+            // StepUpGrantService.ValidateAsync's userManager.FindByIdAsync
+            // BEFORE this transaction started, on this SAME scoped
+            // DbContext. EF's identity map means any later tracked query for
+            // the same PK returns that cached instance's property values —
+            // NOT a fresh row — silently defeating this whole re-check
+            // (codex review, PR #475).
+            var actorRow = await db.Users.AsNoTracking()
+                .Where(u => u.Id == actingUserId && u.AccountId == accountId)
+                .Select(u => new { u.DisabledAt })
+                .SingleOrDefaultAsync(token);
+            if (actorRow is null || actorRow.DisabledAt is not null)
                 return Result.Failure(AppError.Forbidden());
-            var actorRoles = await userManager.GetRolesAsync(actor);
-            if (!actorRoles.Contains(Cluckwork.Domain.Accounts.Roles.Owner))
+            var actorIsOwner = await (
+                from userRole in db.UserRoles
+                join r in db.Roles on userRole.RoleId equals r.Id
+                where userRole.UserId == actingUserId && r.Name == Cluckwork.Domain.Accounts.Roles.Owner
+                select r.Name).AnyAsync(token);
+            if (!actorIsOwner)
                 return Result.Failure(AppError.Forbidden());
 
             var currentRoleNames = (await userManager.GetRolesAsync(user)).ToList();
@@ -620,6 +636,21 @@ public sealed class IdentityProvider(
                         ? Error.Conflict("Users.Conflict", "The user was modified by another request. Reload and retry.")
                         : Error.Validation("Users.RoleChangeFailed", Describe(added)));
             }
+
+            // Rotate the TARGET's SecurityStamp. CredentialEpoch kills bearer
+            // and refresh tokens, but a step-up grant (#308) is a THIRD,
+            // separate credential validated against SecurityStamp, not the
+            // epoch (StepUpGrantService.ValidateAsync) — without this, a
+            // grant issued to the target just before their own role changed
+            // (e.g. right before being promoted to Owner) would still be
+            // spendable after they sign back in with a fresh epoch (codex
+            // review, PR #475). Same IdentityResult-concurrency handling as
+            // the role-row mutations above, for the same reason.
+            var stampRotated = await userManager.UpdateSecurityStampAsync(user);
+            if (!stampRotated.Succeeded)
+                return Result.Failure(IsConcurrencyFailure(stampRotated)
+                    ? Error.Conflict("Users.Conflict", "The user was modified by another request. Reload and retry.")
+                    : Error.Validation("Users.RoleChangeFailed", Describe(stampRotated)));
 
             user.CredentialEpoch++;
             await RevokeAllActiveForUserAsync(user.Id, timeProvider.GetUtcNow(), token);

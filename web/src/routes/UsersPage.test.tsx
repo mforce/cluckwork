@@ -11,8 +11,8 @@ import { FarmContext } from "../farm/FarmContext";
 import { MeContext } from "../session/SessionContext";
 import type { Me } from "../api/cluckwork";
 import {
-  assignFlock, createUser, listFlockAssignments, listFlocks, listUsers, setUserPassword,
-  unassignFlock, updateUser,
+  assignFlock, changeUserRole, createUser, listFlockAssignments, listFlocks, listUsers,
+  setUserPassword, unassignFlock, updateUser,
 } from "../api/cluckwork";
 import type { Flock, FlockAssignment, User } from "../api/cluckwork";
 import { ApiError, stepUp } from "../api/client";
@@ -24,6 +24,7 @@ vi.mock("../api/cluckwork", () => ({
   createUser: vi.fn(),
   updateUser: vi.fn(),
   setUserPassword: vi.fn(),
+  changeUserRole: vi.fn(),
   listFlockAssignments: vi.fn(),
   assignFlock: vi.fn(),
   unassignFlock: vi.fn(),
@@ -42,6 +43,7 @@ const mockListUsers = vi.mocked(listUsers);
 const mockCreateUser = vi.mocked(createUser);
 const mockUpdateUser = vi.mocked(updateUser);
 const mockSetUserPassword = vi.mocked(setUserPassword);
+const mockChangeUserRole = vi.mocked(changeUserRole);
 const mockListAssignments = vi.mocked(listFlockAssignments);
 const mockAssignFlock = vi.mocked(assignFlock);
 const mockUnassignFlock = vi.mocked(unassignFlock);
@@ -355,6 +357,164 @@ describe("UsersPage set password (#165)", () => {
 
     expect(within(dialog()).getByText(/too weak|Bad request/)).toBeInTheDocument();
     expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+});
+
+describe("UsersPage change role (#355)", () => {
+  const openRole = (rowName: RegExp) =>
+    fireEvent.click(within(screen.getByRole("row", { name: rowName })).getByRole("button", { name: "role" }));
+
+  it("opens the dialog seeded with the target's current role", async () => {
+    await renderReady(ADMIN);
+    openRole(/worker@farm.test/);
+    expect(within(dialog()).getByLabelText("Role")).toHaveValue("Worker");
+  });
+
+  it("changes a user's role from the row 'role' action, sending id + role + a key", async () => {
+    mockChangeUserRole.mockResolvedValue(undefined);
+    await renderReady(ADMIN);
+
+    openRole(/worker@farm.test/);
+    fireEvent.change(within(dialog()).getByLabelText("Role"), { target: { value: "Manager" } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Change role" }));
+    });
+
+    // #308 — the 4th arg (stepUpToken) is undefined: the requested role is
+    // Manager, not Owner, so no step-up grant is requested at all.
+    expect(mockChangeUserRole).toHaveBeenCalledWith(
+      "u-w", { role: "Manager" }, expect.any(String), undefined);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(await screen.findByText(/worker@farm\.test is now Manager/)).toBeInTheDocument();
+    expect(mockListUsers).toHaveBeenCalledTimes(2); // initial load + post-change refresh
+  });
+
+  it("keeps the dialog open and shows the error when the server rejects it", async () => {
+    mockChangeUserRole.mockRejectedValue(new ApiError(422, "Users.LastOwner", "cannot demote the sole remaining owner"));
+    await renderReady(ADMIN);
+
+    openRole(/boss@farm.test/);
+    fireEvent.change(within(dialog()).getByLabelText("Role"), { target: { value: "Manager" } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Change role" }));
+    });
+
+    expect(within(dialog()).getByText(/sole remaining owner/)).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("closes the dialog on Cancel without writing, and clears any typed step-up password on reopen", async () => {
+    await renderReady(ADMIN);
+    openRole(/boss@farm.test/);
+    fireEvent.change(within(dialog()).getByLabelText("Role"), { target: { value: "Admin" } });
+    fireEvent.change(within(dialog()).getByLabelText(/Your current password/), { target: { value: "typed" } });
+
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(mockChangeUserRole).not.toHaveBeenCalled();
+
+    openRole(/boss@farm.test/);
+    fireEvent.change(within(dialog()).getByLabelText("Role"), { target: { value: "Admin" } });
+    expect(within(dialog()).getByLabelText(/Your current password/)).toHaveValue("");
+  });
+});
+
+describe("UsersPage change-role step-up (#308, #355)", () => {
+  const openRole = (rowName: RegExp) =>
+    fireEvent.click(within(screen.getByRole("row", { name: rowName })).getByRole("button", { name: "role" }));
+  const ownerPasswordInput = () => within(dialog()).getByLabelText(/Your current password/);
+  const selectAdminRole = () =>
+    fireEvent.change(within(dialog()).getByLabelText("Role"), { target: { value: "Admin" } });
+
+  it("shows the step-up field only once Admin (Owner) is picked as the requested role", async () => {
+    await renderReady(ADMIN);
+    openRole(/worker@farm.test/);
+
+    expect(within(dialog()).queryByLabelText(/Your current password/)).not.toBeInTheDocument();
+    selectAdminRole();
+    expect(ownerPasswordInput()).toBeInTheDocument();
+  });
+
+  it("does not prompt at all when demoting an existing Owner (the requested role isn't Owner)", async () => {
+    await renderReady(ADMIN);
+    openRole(/boss@farm.test/);
+    fireEvent.change(within(dialog()).getByLabelText("Role"), { target: { value: "Manager" } });
+    expect(within(dialog()).queryByLabelText(/Your current password/)).not.toBeInTheDocument();
+  });
+
+  it("promoting to Owner exchanges the current password for a grant and attaches it", async () => {
+    mockStepUp.mockResolvedValue({ token: "grant-789", expiresAt: "2026-01-01T00:05:00Z" });
+    mockChangeUserRole.mockResolvedValue(undefined);
+    await renderReady(ADMIN);
+
+    openRole(/worker@farm.test/);
+    selectAdminRole();
+    fireEvent.change(ownerPasswordInput(), { target: { value: "OwnerCurrentPw!1" } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Change role" }));
+    });
+
+    expect(mockStepUp).toHaveBeenCalledWith("OwnerCurrentPw!1");
+    expect(mockChangeUserRole).toHaveBeenCalledWith(
+      "u-w", { role: "Admin" }, expect.any(String), "grant-789");
+  });
+
+  it("never stores the entered step-up password: reopening after a successful use shows it empty", async () => {
+    mockStepUp.mockResolvedValue({ token: "grant-789", expiresAt: "2026-01-01T00:05:00Z" });
+    mockChangeUserRole.mockResolvedValue(undefined);
+    await renderReady(ADMIN);
+
+    openRole(/worker@farm.test/);
+    selectAdminRole();
+    fireEvent.change(ownerPasswordInput(), { target: { value: "OwnerCurrentPw!1" } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Change role" }));
+    });
+
+    openRole(/worker@farm.test/);
+    selectAdminRole();
+    expect(ownerPasswordInput()).toHaveValue("");
+  });
+
+  // Same controlled-AuthContext technique the create/password dialogs use
+  // above, applied to the role dialog's own step-up field — the dialog
+  // stays mounted across the rerender (its local state untouched), so an
+  // empty value here proves the logout effect cleared it, not incidental
+  // unmounting.
+  it("clears any half-entered step-up password the instant the session ends", async () => {
+    const me: Me = {
+      id: "u1", email: "test@farm.local", name: null, role: "Admin", language: null,
+      preferredStepperUnit: null,
+    };
+    const tree = (isAuthenticated: boolean) => (
+      <MemoryRouter initialEntries={["/"]}>
+        <AuthContext.Provider value={{
+          isAuthenticated, isLoading: false, isAdmin: true, role: "Admin" as Role,
+          mustChangePassword: false,
+          unauthenticatedReason: null,
+          login: vi.fn(), logout: vi.fn(),
+        }}
+        >
+          <MeContext.Provider value={me}>
+            <FarmContext.Provider value={farmState({ farm: null })}>
+              <UsersPage />
+            </FarmContext.Provider>
+          </MeContext.Provider>
+        </AuthContext.Provider>
+      </MemoryRouter>
+    );
+    const view = render(tree(true));
+    await screen.findByText("worker@farm.test");
+
+    openRole(/worker@farm.test/);
+    selectAdminRole();
+    fireEvent.change(ownerPasswordInput(), { target: { value: "still-typing" } });
+    expect(ownerPasswordInput()).toHaveValue("still-typing");
+
+    view.rerender(tree(false)); // simulated logout
+
+    expect(ownerPasswordInput()).toHaveValue("");
   });
 });
 
