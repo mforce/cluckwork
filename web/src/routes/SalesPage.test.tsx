@@ -1338,6 +1338,37 @@ describe("SalesPage in-dialog errors (#474)", () => {
     expect(within(newOrder).getByText("Order date cannot be in the future.")).toBeInTheDocument();
   });
 
+  it("does not carry a payment failure across to another order", async () => {
+    // Codex on #481: the payment form belongs to the OPEN ORDER, but its key
+    // does not say so. Per-dialog entries survive longer than the shared slot
+    // did, so a failure left behind when the active order changes would be
+    // shown against a different order's money — the worst possible place for a
+    // message about a wrong amount.
+    mockListOrderPayments.mockResolvedValue({
+      items: [], paidMinorUnits: 0, outstandingMinorUnits: 12000, totalMinorUnits: 12000,
+      currencyCode: "USD", currencyMinorUnit: 2,
+    });
+    await openOrder(CONFIRMED_9, /Grade A Dozen/);
+    fireEvent.click(await screen.findByRole("button", { name: "Record payment" }));
+    mockRecordPayment.mockRejectedValueOnce(
+      new ApiError(422, "Validation failed", "Payment exceeds the outstanding balance."));
+    fireEvent.change(within(dialog()).getByLabelText(/Amount/), { target: { value: "99" } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Record payment" }));
+    });
+    expect(within(dialog()).getByText("Payment exceeds the outstanding balance.")).toBeInTheDocument();
+
+    // Open a different confirmed order while that message is still up.
+    mockGetOrder.mockResolvedValue({ ...CONFIRMED_9, id: "o10", referenceNumber: "SO-10" });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "open" }));
+    });
+
+    expect(screen.queryByText("Payment exceeds the outstanding balance.")).not.toBeInTheDocument();
+    // …and the form itself does not reopen on the new order either.
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
   it("clears the form's last message while its next attempt is in flight", async () => {
     // A form mid-save must not still be showing why the PREVIOUS attempt
     // failed — the user cannot tell whether it is a stale message or the

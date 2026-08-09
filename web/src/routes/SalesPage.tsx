@@ -290,6 +290,15 @@ export function SalesPage() {
     // actionable — their Void buttons would target the wrong order's money
     // (codex review of #90).
     setPayments(null);
+    // …and so does the payment form, for the same reason one layer up: it
+    // belongs to the order that was open, not to the screen. Left open,
+    // `paying` would reopen it on the NEXT order unasked, showing that order's
+    // money under the previous order's failure — its key says "record-payment",
+    // not which order (codex review of #481). Closing is the whole fix: the
+    // message renders only inside this form, and the trigger clears the entry
+    // on the way back in. A clear here as well was unobservable — a mutation
+    // that removed it killed no test.
+    setPaying(false);
     if (activeId === null || activeStatus !== "Confirmed" || !canSettle) return;
     let cancelled = false;
     listOrderPayments(activeId)
