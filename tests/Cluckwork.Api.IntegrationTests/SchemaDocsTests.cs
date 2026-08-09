@@ -1254,6 +1254,7 @@ public sealed class SchemaDocsTests
                         {
                             var g = cp + 1;
                             var angleDepth = 1;
+                            var parenDepth = 0;
                             while (g < text.Length && angleDepth > 0)
                             {
                                 // Trivia first: comments are legal anywhere
@@ -1267,6 +1268,17 @@ public sealed class SchemaDocsTests
                                 var gc = text[g];
                                 if (gc == '<') angleDepth++;
                                 else if (gc == '>') angleDepth--;
+                                // Tuple types put balanced parens inside a
+                                // type-argument list — (int, int) as a
+                                // dictionary key, e.g. An UNbalanced close
+                                // means the enclosing cast paren ended with
+                                // the angle still open: not a generic.
+                                else if (gc == '(') parenDepth++;
+                                else if (gc == ')')
+                                {
+                                    if (parenDepth == 0) { angleDepth = -1; break; }
+                                    parenDepth--;
+                                }
                                 else if (!(char.IsLetterOrDigit(gc) || gc is '_' or '.' or ':' or ',' or '?' or '[' or ']' or '*'))
                                 {
                                     angleDepth = -1;
