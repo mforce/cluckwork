@@ -108,8 +108,18 @@ grace above has two HIGH holes; both are now closed (user chose "full hardening"
    from the rotation fail path. Invariant: two concurrent presentations of one
    token never leave more than one live tip.
 
-Also: a clock-skew guard (`elapsed >= 0`) so a future `RevokedAt` from a lagging
-node can't widen the window.
+Also: a clock-skew guard, so a `RevokedAt` stamped ahead of the reader can't
+widen the window.
+
+Corrected in #468 — as first shipped, this guard did not bound the window, it
+burned the family. `elapsed` was measured from an instant captured BEFORE the
+request read the token, so ordinary concurrency produced a negative elapsed (the
+winner reads its clock after the loser, stamps `RevokedAt`, and commits first)
+and the guard answered by revoking every session the user had. The window is now
+measured from the read, which makes a negative elapsed impossible to reach by
+ordering alone; a stamp still ahead of that read means the clocks disagree, and
+that fails inert — a 401, no family revocation — rather than being read as
+theft. The window itself is unchanged at `RefreshReuseGraceSeconds`.
 
 ## Out of scope
 
