@@ -26,8 +26,9 @@ using Microsoft.IdentityModel.Tokens;
 // Mechanism: current-password re-confirmation. POST /auth/step-up mints a
 // SEPARATE, short-lived JWT — the "step-up grant" — that the caller presents
 // (as the X-Cluckwork-Step-Up header, never the request body) alongside the
-// normal Bearer access token on the two gated calls (CreateUser with
-// Role=Owner; SetUserPassword targeting a user who currently holds Owner).
+// normal Bearer access token on the three gated calls (CreateUser with
+// Role=Owner; SetUserPassword targeting a user who currently holds Owner;
+// ChangeUserRole, #355, whenever the REQUESTED role is Owner).
 // Properties, and how each failure mode is produced:
 //
 //   - Lifetime: JwtOptions.StepUpGrantMinutes (default 5) from issuance —

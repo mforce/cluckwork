@@ -311,7 +311,8 @@ public sealed class SecurityEventLoggingTests(SecurityEventLoggingFactory factor
             services.GetRequiredService<IStepUpGrantRegistry>(),
             services.GetRequiredService<IHttpContextAccessor>(),
             services.GetRequiredService<AuthSecurityEventLogger>(),
-            services.GetRequiredService<ILogger<IdentityProvider>>());
+            services.GetRequiredService<ILogger<IdentityProvider>>(),
+            services.GetRequiredService<Cluckwork.Application.Features.Accounts.IAccountRepository>());
 
         var rawRefreshToken = Uri.UnescapeDataString(tokens.RefreshToken);
 
@@ -368,7 +369,8 @@ public sealed class SecurityEventLoggingTests(SecurityEventLoggingFactory factor
             services.GetRequiredService<IStepUpGrantRegistry>(),
             services.GetRequiredService<IHttpContextAccessor>(),
             services.GetRequiredService<AuthSecurityEventLogger>(),
-            services.GetRequiredService<ILogger<IdentityProvider>>());
+            services.GetRequiredService<ILogger<IdentityProvider>>(),
+            services.GetRequiredService<Cluckwork.Application.Features.Accounts.IAccountRepository>());
 
         var rawRefreshToken = Uri.UnescapeDataString(tokens.RefreshToken);
 
@@ -472,7 +474,8 @@ public sealed class SecurityEventLoggingTests(SecurityEventLoggingFactory factor
             services.GetRequiredService<IStepUpGrantRegistry>(),
             services.GetRequiredService<IHttpContextAccessor>(),
             services.GetRequiredService<AuthSecurityEventLogger>(),
-            services.GetRequiredService<ILogger<IdentityProvider>>());
+            services.GetRequiredService<ILogger<IdentityProvider>>(),
+            services.GetRequiredService<Cluckwork.Application.Features.Accounts.IAccountRepository>());
 }
 
 [CollectionDefinition(Name)]

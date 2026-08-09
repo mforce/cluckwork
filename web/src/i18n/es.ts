@@ -1547,6 +1547,7 @@ export const es = {
     "auditAction.User.PasswordSet": "Contraseña establecida",
     "auditAction.User.PasswordChanged": "Contraseña cambiada",
     "auditAction.User.BreakGlassReset": "Restablecimiento de emergencia",
+    "auditAction.User.RoleChanged": "Rol cambiado",
     "auditAction.User.FlockAssign": "Lote asignado al usuario",
     "auditAction.User.FlockUnassign": "Lote desasignado del usuario",
     "auditAction.Account.Export": "Datos exportados",
@@ -1679,11 +1680,12 @@ export const es = {
       + "servidor, en lugar de afirmar que sus datos eran incorrectos.",
     // #308 (machine-drafted, pending native review)
     signingInStepUp:
-      "Dos acciones en la pantalla <strong>Usuarios</strong> le piden <strong>volver a ingresar su contraseña "
-      + "actual</strong> directamente en el diálogo: crear otro propietario y restablecer la contraseña de un "
-      + "propietario existente. Esto confirma que realmente es usted antes de otorgar tanto acceso — ninguna "
-      + "otra acción en esa pantalla (crear un usuario Worker/Manager/Sales/Read-only, restablecer su "
-      + "contraseña) vuelve a preguntar.",
+      "Tres acciones en la pantalla <strong>Usuarios</strong> le piden <strong>volver a ingresar su contraseña "
+      + "actual</strong> directamente en el diálogo: crear otro propietario, restablecer la contraseña de un "
+      + "propietario existente, y ascender a alguien a propietario. Esto confirma que realmente es usted antes "
+      + "de otorgar tanto acceso — ninguna otra acción en esa pantalla (crear un usuario "
+      + "Worker/Manager/Sales/Read-only, restablecer su contraseña, cambiar el rol de alguien a algo distinto "
+      + "de propietario) vuelve a preguntar.",
     signingInCredentialEpoch:
       "Cuando un administrador restablece una contraseña, su sesión actual puede invalidarse inmediatamente. Si "
       + "ve un mensaje indicando que sus credenciales cambiaron, inicie sesión de nuevo con su contraseña actual.",
@@ -1727,8 +1729,14 @@ export const es = {
       + "administra usuarios: crea inicios de sesión en la pantalla <strong>Usuarios</strong> (correo "
       + "electrónico, contraseña, un nombre opcional y rol) y asigna trabajadores a lotes. El nombre de un "
       + "usuario se puede cambiar más tarde desde la acción <strong>editar</strong> de la fila, y la acción "
-      + "<strong>contraseña</strong> establece una contraseña olvidada sin necesitar la anterior. Cambiar el "
-      + "rol de un usuario existente llega con una versión posterior. Los controles que no puede usar "
+      + "<strong>contraseña</strong> establece una contraseña olvidada sin necesitar la anterior. La acción "
+      + "<strong>rol</strong> asciende o desciende a un usuario existente entre los cinco roles — rechaza "
+      + "dirigirse a su propio inicio de sesión, y rechaza degradar al último Administrador (propietario) "
+      + "de la cuenta, para que la granja nunca pueda quedarse sin administración de usuarios. Ascender a "
+      + "alguien a Administrador (propietario) pide la misma reconfirmación que restablecer la contraseña "
+      + "de un Administrador (vea abajo); cualquier otro cambio de rol no necesita reconfirmación. Un "
+      + "cambio de rol cierra la sesión afectada en todas partes en su siguiente solicitud, igual que un "
+      + "restablecimiento de contraseña. Los controles que no puede usar "
       + "están ocultos, y el servidor los rechaza de todos modos.",
     ownPassword:
       "<strong>Su propia contraseña.</strong> Cualquiera, en cualquier rol, puede cambiar su propia "
@@ -2270,10 +2278,11 @@ export const es = {
     // #308 (machine-drafted, pending native review)
     glossaryStepUpAuthTerm: "Autenticación reforzada (step-up)",
     glossaryStepUpAuthDef:
-      "Una comprobación adicional además de haber iniciado sesión: antes de crear otro propietario o "
-      + "restablecer la contraseña de un propietario existente, la pantalla Usuarios le pide volver a "
-      + "ingresar su contraseña actual directamente en el diálogo. Esto confirma que realmente es usted "
-      + "antes de otorgar tanto acceso — ninguna otra acción en esa pantalla vuelve a preguntar.",
+      "Una comprobación adicional además de haber iniciado sesión: antes de crear otro propietario, "
+      + "restablecer la contraseña de un propietario existente, o ascender a alguien a propietario, la "
+      + "pantalla Usuarios le pide volver a ingresar su contraseña actual directamente en el diálogo. Esto "
+      + "confirma que realmente es usted antes de otorgar tanto acceso — ninguna otra acción en esa "
+      + "pantalla vuelve a preguntar.",
 
     glossarySomethingWentWrongScreenTerm: "Pantalla \"Algo salió mal\"",
     glossarySomethingWentWrongScreenDef:

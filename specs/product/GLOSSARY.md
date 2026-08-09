@@ -705,7 +705,15 @@ manage worker flock assignments (spec §5.3). A user's name can be set at
 creation and later changed from the row's **edit** action (#163; blank clears
 it back to "—"). The row's **password** action sets a new password without
 knowing the current one (#165) — the forgot-password path, since there is no
-email reset. Editing an existing user's *role* still belongs to a later slice.
+email reset. The row's **role** action changes an existing user's role —
+promote or demote among the five roles (#355). It **refuses self-targeting**
+(ask another Owner) and refuses demoting the account's **last Owner** (a farm
+cannot lock itself out of user administration). Promoting to Owner requires a
+**step-up grant** (see below); every other target role is ungated. Any actual
+change is audited (`User.RoleChanged`, old to new) and, like a password reset,
+bumps the target's **credential epoch** and revokes their sessions — a demoted
+user's already-issued access token stops working on its very next request, not
+merely once its ~15-minute lifetime runs out.
 
 **Password change (#165)** — two paths with different rules. An Owner sets any
 *other* user's password from the Users screen without the current one; any
@@ -725,18 +733,18 @@ is checked against it — so an already-issued access token is rejected on its
 very next request, not merely bounded by the ~15-min access-token lifetime.
 
 **Step-up authentication (#308)** — a fresh proof of identity required, on top
-of a normal valid Owner access token, before two specific actions: **creating
-another Owner**, and **resetting an existing Owner's password**. The threat it
-closes: a stolen-but-still-valid Owner access token (good for ~15 min — merely
-holding it bumps no credential epoch, see **Credential epoch** above) is
-otherwise enough on its own to mint a second, independent Owner or take over
-an existing one, turning short-lived token theft into durable account
-control. Every other
+of a normal valid Owner access token, before three specific actions:
+**creating another Owner**, **resetting an existing Owner's password**, and
+**changing a user's role to Owner** (#355). The threat it closes: a
+stolen-but-still-valid Owner access token (good for ~15 min — merely holding
+it bumps no credential epoch, see **Credential epoch** above) is otherwise
+enough on its own to mint a second, independent Owner or take over an existing
+one, turning short-lived token theft into durable account control. Every other
 action on the Users screen — creating a Worker/Manager/Sales/Read-only user,
-resetting one of their passwords, editing a display name, flock assignment —
-is **unchanged and ungated**; the point is to gate exactly the two operations
-that can multiply or hand over account control, not to add a blanket prompt to
-ordinary farm administration.
+resetting one of their passwords, editing a display name, flock assignment,
+changing a role to anything OTHER than Owner — is **unchanged and ungated**;
+the point is to gate exactly the operations that can multiply or hand over
+account control, not to add a blanket prompt to ordinary farm administration.
 The mechanism is **current-password re-confirmation**: the Users screen shows
 an inline "your current password" field only when the action needs it (never
 a separate popup), which the SPA exchanges for a short-lived (5 minutes by

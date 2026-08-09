@@ -248,6 +248,12 @@ public sealed class AuthBodyLimitTests(AuthBodyLimitFactory factory)
             new { newPassword = new string('a', 4096) });
         Assert.Equal(HttpStatusCode.RequestEntityTooLarge, setPassword.StatusCode);
 
+        // change-role (Owner-only, 512-byte cap, #355)
+        var changeRole = await client.PutAsJsonAsync(
+            $"/api/v1/users/{Guid.NewGuid()}/role",
+            new { role = new string('a', 4096) });
+        Assert.Equal(HttpStatusCode.RequestEntityTooLarge, changeRole.StatusCode);
+
         // change-password (authenticated, 4 KB cap)
         var changePassword = await client.PostAsJsonAsync("/api/v1/auth/change-password",
             new { currentPassword = TestHarness.Password, newPassword = new string('a', 8192) });

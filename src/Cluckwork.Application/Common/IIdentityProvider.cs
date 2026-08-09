@@ -52,6 +52,26 @@ public interface IIdentityProvider
     Task<Result> SetUserPasswordAsync(
         Guid accountId, Guid userId, string newPassword, CancellationToken ct = default);
 
+    // #355 — promote/demote an existing user's role, account-scoped (foreign
+    // id -> NotFound). `role` is one of Roles.Assignable, or null for a plain
+    // worker — same convention as CreateUserAsync. `actingUserId` is
+    // re-verified INSIDE the locked transaction to still be an active
+    // (non-disabled) Owner — an authorization failure (AppError.Forbidden())
+    // if not, since the caller's authentication happened once, before this
+    // transaction (and its account-wide lock) ever ran, and their own role
+    // could have changed while queued behind it. A true no-op (the requested
+    // role already equals the target's full current role-row set) skips ALL
+    // side effects: no epoch bump, no revoke, no audit row, no mutation. Any
+    // REAL change unconditionally bumps CredentialEpoch and revokes every
+    // refresh token for the target (RevokeAllActiveForUserAsync) — both
+    // promotion and demotion, per #355's own reasoning that consistency here
+    // is cheaper than a rule nobody remembers. Demoting the account's LAST
+    // active Owner away from Owner fails with "Users.LastOwner" instead of
+    // applying; a concurrent Identity write conflict on the same user fails
+    // with "Users.Conflict".
+    Task<Result> ChangeUserRoleAsync(
+        Guid accountId, Guid userId, string? role, Guid actingUserId, CancellationToken ct = default);
+
     // #265 — offline break-glass recovery for a locked-out account (e.g. a sole
     // Owner with a lost password and no email/SMTP reset path). Same account-
     // scoped reset as SetUserPasswordAsync — sets the password WITHOUT the
