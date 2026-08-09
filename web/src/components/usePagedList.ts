@@ -55,7 +55,9 @@ export function usePagedList<T extends { id: string }, M = never>({
   error: string | null;
   loadMore: () => Promise<void>;
   runWrite: <R>(write: () => Promise<R>) => Promise<R>;
-  reload: () => Promise<void>;
+  // Resolves to whether the read actually landed rows, for callers that
+  // report the outcome to the user rather than just re-rendering.
+  reload: () => Promise<boolean>;
 } {
   const [rows, setRows] = useState<T[] | null>(null);
   const [meta, setMeta] = useState<M | null>(null);
@@ -96,11 +98,14 @@ export function usePagedList<T extends { id: string }, M = never>({
   // `seq` is claimed by the CALLER, before anything awaits, so the ticket
   // order matches the order the user asked in — not the order the network
   // happened to answer in.
-  const load = useCallback(async (offset: number, seq: number) => {
+  // Returns whether THIS call actually put rows on screen — callers that
+  // report an outcome to the user need to know (HistoryPage's 409 path
+  // says "the list has been reloaded", which is a lie when it has not).
+  const load = useCallback(async (offset: number, seq: number): Promise<boolean> => {
     setLoadingOwned(seq, true, offset === 0);
     try {
       const result = await fetchPage(offset, pageSize);
-      if (seq !== req.current) return;
+      if (seq !== req.current) return false;
       const page = Array.isArray(result) ? result : result.items;
       if (!Array.isArray(result)) setMeta(result.meta);
       setRows((prev) => {
@@ -115,8 +120,9 @@ export function usePagedList<T extends { id: string }, M = never>({
       });
       setHasMore(page.length === pageSize);
       setError(null);
+      return true;
     } catch (err) {
-      if (seq !== req.current) return;
+      if (seq !== req.current) return false;
       setError(formatErrorRef.current(err));
       // Only a failed REPLACEMENT empties the list: the rows still on screen
       // belong to a window the user has navigated away from, and the metadata
@@ -130,6 +136,7 @@ export function usePagedList<T extends { id: string }, M = never>({
         setMeta(null);
         setHasMore(false);
       }
+      return false;
     } finally {
       // The same `replace` this load claimed with: a completed replacement is
       // exactly what ends the blanking, and omitting it here left `reloading`
@@ -152,7 +159,7 @@ export function usePagedList<T extends { id: string }, M = never>({
     // so the pager is withdrawn for the whole reload. A mutation check proved
     // an explicit reset changed no observable behaviour, and an unpinned line
     // reads as a guarantee nothing is holding.
-    await load(0, seq);
+    return await load(0, seq);
   }, [load]);
 
   // A new `fetchPage` identity IS a filter change.

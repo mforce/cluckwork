@@ -362,12 +362,17 @@ export function HistoryPage() {
       } catch (err) {
         settleKey(scope, err);
         if (err instanceof ApiError && err.status === 409) {
-          setError(i18n.t("history:voidConflictMessage"));
           // The void lost a race — show what actually stands now. Also close
           // a stale adjust panel for this entry: the 409 path used to leave
           // it bound to pre-conflict values while the success path closed it.
           if (adjusting?.id === e.id) setAdjusting(null);
-          await entries.reload();
+          // The message is chosen by the OUTCOME: voidConflictMessage says
+          // "the list has been reloaded — retry", which is untrue when that
+          // reload failed, and there is a message for exactly that (#469).
+          const reloaded = await entries.reload();
+          setError(i18n.t(reloaded
+            ? "history:voidConflictMessage"
+            : "history:voidConflictReloadFailedMessage"));
         } else {
           setError(errText(err));
         }

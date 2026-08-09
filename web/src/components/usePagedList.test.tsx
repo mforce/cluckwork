@@ -338,6 +338,36 @@ describe("usePagedList — error lifecycle", () => {
     expect(screen.queryByRole("button", { name: "more" })).not.toBeInTheDocument();
   });
 
+  it("reports from reload() whether the read actually landed (codex P2)", async () => {
+    // Callers that TELL THE USER what happened need to know. HistoryPage's
+    // 409 path says "the list has been reloaded — retry", which is a lie when
+    // that reload failed, and it has a separate message for exactly that case.
+    const outcomes: boolean[] = [];
+    function ReloadHost({ fetchPage }: {
+      fetchPage: (offset: number, limit: number) => Promise<Row[]>;
+    }) {
+      const list = usePagedList<Row>({ fetchPage, pageSize: 3 });
+      return (
+        <button onClick={() => void list.reload().then((ok) => outcomes.push(ok))}>
+          reload
+        </button>
+      );
+    }
+
+    const fetchPage = vi.fn()
+      .mockResolvedValueOnce(rows("a"))
+      .mockResolvedValueOnce(rows("b"))
+      .mockRejectedValueOnce(new Error("boom"));
+    render(<ReloadHost fetchPage={fetchPage} />);
+    await waitFor(() => expect(fetchPage).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole("button", { name: "reload" }));
+    await waitFor(() => expect(outcomes).toEqual([true]));
+
+    fireEvent.click(screen.getByRole("button", { name: "reload" }));
+    await waitFor(() => expect(outcomes).toEqual([true, false]));
+  });
+
   it("keeps the loaded rows when only a load-more fails (codex P2)", async () => {
     // A failed EXTENSION says nothing about the rows already on screen —
     // they still belong to the current filter. Emptying them turned a
@@ -442,26 +472,36 @@ describe("usePagedList — writes", () => {
   });
 
   it("stops the post-write walk as soon as a newer intent supersedes it", async () => {
+    // THREE pages loaded, so the walk still has a page left to fetch when it
+    // is superseded — with only two, the loop ends on its own and a missing
+    // bail is indistinguishable (a mutant survived exactly that way).
     const secondPage = deferred<Row[]>();
     const fetchA = vi.fn()
       .mockResolvedValueOnce(rows("a", "b", "c"))
       .mockResolvedValueOnce(rows("d", "e", "f"))
+      .mockResolvedValueOnce(rows("g", "h", "i"))
       .mockResolvedValueOnce(rows("a", "b", "c"))     // refresh page 1
-      .mockReturnValueOnce(secondPage.promise);       // refresh page 2, hangs
+      .mockReturnValueOnce(secondPage.promise)        // refresh page 2, hangs
+      .mockResolvedValue(rows("g", "h", "i"));        // page 3 — must NOT be asked for
     const fetchB = vi.fn().mockResolvedValue(rows("z"));
     const { rerender } = render(
       <Host fetchPage={fetchA} write={() => Promise.resolve()} />);
     await waitFor(() => expect(shown()).toBe("a,b,c"));
     fireEvent.click(screen.getByRole("button", { name: "more" }));
     await waitFor(() => expect(shown()).toBe("a,b,c,d,e,f"));
+    fireEvent.click(screen.getByRole("button", { name: "more" }));
+    await waitFor(() => expect(shown()).toBe("a,b,c,d,e,f,g,h,i"));
 
     fireEvent.click(screen.getByRole("button", { name: "write" }));
-    await waitFor(() => expect(fetchA).toHaveBeenCalledTimes(4));
+    await waitFor(() => expect(fetchA).toHaveBeenCalledTimes(5));
     rerender(<Host fetchPage={fetchB} write={() => Promise.resolve()} />);
     await waitFor(() => expect(shown()).toBe("z"));
 
     await act(async () => { secondPage.resolve(rows("d", "e", "f")); });
     expect(shown()).toBe("z"); // the abandoned walk never lands
+    // ...and it STOPPED rather than finishing a walk whose result it would
+    // only discard: no sixth call was issued for the window's third page.
+    expect(fetchA).toHaveBeenCalledTimes(5);
   });
 
   it("lets a filter change made during the write supersede the write's refresh", async () => {

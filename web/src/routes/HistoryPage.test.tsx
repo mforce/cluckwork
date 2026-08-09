@@ -1035,3 +1035,27 @@ describe("HistoryPage setup failure (#469)", () => {
     expect(screen.getByText("Could not load flocks/grades.")).toBeInTheDocument();
   });
 });
+
+describe("HistoryPage void conflict when the reload also fails (#469)", () => {
+  // voidConflictMessage says "the list has been reloaded — retry". When that
+  // reload ALSO fails, saying so is a lie, and there is a distinct message
+  // for exactly that case — which the migration had made unreachable because
+  // usePagedList.reload() owns its errors and never rejects.
+  it("says the reload failed rather than claiming the list was refreshed", async () => {
+    mockListDailyEntries
+      .mockResolvedValueOnce([SUBMITTED])
+      .mockRejectedValue(new Error("boom"));
+    vi.mocked(voidDailyEntry).mockRejectedValue(new ApiError(409, "Conflict", "conflict"));
+    renderWithProviders(<HistoryPage />, { token: ADMIN });
+
+    fireEvent.click(await screen.findByRole("button", { name: "void" }));
+    fireEvent.change(within(screen.getByRole("dialog")).getByLabelText("Reason *"),
+      { target: { value: "miscounted" } });
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Void entry" }));
+    });
+
+    expect(screen.getByText(/could not be reloaded/i)).toBeInTheDocument();
+    expect(screen.queryByText(/the list has been reloaded/i)).not.toBeInTheDocument();
+  });
+});
