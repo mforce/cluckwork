@@ -254,7 +254,17 @@ export function StockPage() {
       const window = new Map<string, EggLotRow>();
       let lastPageFull = false;
       for (let offset = 0; offset < target; offset += LOT_PAGE) {
-        const page = await fetchLotPage(openGrade, lotsFrom, lotsTo, offset);
+        let page: EggLotRow[];
+        try {
+          page = await fetchLotPage(openGrade, lotsFrom, lotsTo, offset);
+        } catch (err) {
+          // A superseded page's failure is moot — the newer load already
+          // owns the view; surfacing it would paint loadStockFailed over a
+          // healthy screen (codex review). A current-ticket failure still
+          // propagates to the caller's stale-view handler.
+          if (seq !== lotsReq.current) return;
+          throw err;
+        }
         // Superseded mid-walk (a filter change, a grade switch): stop issuing
         // page requests whose results the final check would only discard.
         if (seq !== lotsReq.current) return;

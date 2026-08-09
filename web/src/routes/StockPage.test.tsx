@@ -600,6 +600,41 @@ describe("StockPage lot paging + date filter (#465)", () => {
     expect(screen.getByText("2026-07-01")).toBeInTheDocument();
   });
 
+  it("discards a superseded refresh page's failure instead of raising the error banner (codex round 7)", async () => {
+    // The walk's page fetch rejects only AFTER a newer filter load took the
+    // ticket and rendered successfully — that stale failure is moot and must
+    // not paint loadStockFailed over the healthy current view.
+    mockRecordEggLotMovement.mockResolvedValue({
+      movementId: "wo1", eggLotId: "lot1", movementType: "Discard",
+      quantityDelta: -7, reason: "dropped a tray",
+      createdAtUtc: "2026-08-08T10:00:00Z", quantityAvailable: 92, version: 2,
+    });
+    let rejectWalk!: (e: Error) => void;
+    mockListEggLots
+      .mockResolvedValueOnce(LOTS)
+      .mockImplementationOnce(() => new Promise<EggLotRow[]>((_, rej) => (rejectWalk = rej)))
+      .mockResolvedValueOnce([{ ...LOTS[0], id: "hit", productionDate: "2026-07-02", quantityAvailable: 92 }]);
+    await expandGradeA();
+
+    fireEvent.click(screen.getByRole("button", { name: "write off" }));
+    const dialog = screen.getByRole("dialog");
+    fireEvent.change(within(dialog).getByRole("spinbutton"), { target: { value: "7" } });
+    fireEvent.change(within(dialog).getByLabelText(/Reason/), { target: { value: "dropped a tray" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: /Record/ }));
+    // The walk's page-0 request is pending; a filter change supersedes it
+    // and lands successfully.
+    await waitFor(() => expect(mockListEggLots).toHaveBeenCalledTimes(2));
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-07-02" } });
+    await screen.findByText("2026-07-02");
+
+    await act(async () => {
+      rejectWalk(new Error("stale fetch died"));
+    });
+    await screen.findByText(/92 now available/);
+    expect(screen.queryByText(/Could not load stock/)).not.toBeInTheDocument();
+    expect(screen.getByText("2026-07-02")).toBeInTheDocument();
+  });
+
   it("restores the applied filter when a failing write-off superseded a pending filter (codex round 6)", async () => {
     // Filter pending (inputs optimistic, never applied) when the write-off
     // claims the ticket; the POST then rejects. The stale filter completion
