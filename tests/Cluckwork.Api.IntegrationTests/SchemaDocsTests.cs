@@ -1163,6 +1163,26 @@ public sealed class SchemaDocsTests
                 if (angleDepth == 0) return -1;
                 angleDepth--;
             }
+            else if (c == '\\')
+            {
+                // C# permits Unicode escapes WITHIN identifiers — an
+                // escape-spelled type name resolves to the same type as
+                // its plain spelling — so a well-formed \uXXXX /
+                // \UXXXXXXXX counts as identifier characters. No decoding
+                // is needed: recognition is structural since round 97,
+                // the type's NAME is never compared. A malformed escape
+                // is not type syntax.
+                static bool Hex(string s, int start, int count)
+                {
+                    if (start + count > s.Length) return false;
+                    for (var k = 0; k < count; k++)
+                        if (!Uri.IsHexDigit(s[start + k])) return false;
+                    return true;
+                }
+                if (p + 1 < t.Length && t[p + 1] == 'u' && Hex(t, p + 2, 4)) { p += 6; continue; }
+                if (p + 1 < t.Length && t[p + 1] == 'U' && Hex(t, p + 2, 8)) { p += 10; continue; }
+                return -1;
+            }
             else if (!(char.IsLetterOrDigit(c) || c is '_' or '.' or ':' or ',' or '?' or '[' or ']' or '*' or '@'))
                 return -1;
             p++;
