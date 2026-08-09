@@ -379,6 +379,24 @@ describe("usePagedList — writes", () => {
     expect(fetchPage.mock.calls.slice(2).map(([offset]) => offset)).toEqual([0, 3]);
   });
 
+  it("dedupes rows the post-write walk re-serves across its own pages", async () => {
+    // The walk issues its pages sequentially, so an insert landing between
+    // them shifts the offsets and re-serves a row it already collected —
+    // the same drift load-more has, on a path that also has to survive it.
+    const fetchPage = vi.fn()
+      .mockResolvedValueOnce(rows("a", "b", "c"))
+      .mockResolvedValueOnce(rows("d", "e", "f"))
+      .mockResolvedValueOnce(rows("a", "b", "c"))   // refresh page 1
+      .mockResolvedValueOnce(rows("c", "d", "e"));  // refresh page 2 re-serves c
+    render(<Host fetchPage={fetchPage} write={() => Promise.resolve()} />);
+    await waitFor(() => expect(shown()).toBe("a,b,c"));
+    fireEvent.click(screen.getByRole("button", { name: "more" }));
+    await waitFor(() => expect(shown()).toBe("a,b,c,d,e,f"));
+
+    fireEvent.click(screen.getByRole("button", { name: "write" }));
+    await waitFor(() => expect(shown()).toBe("a,b,c,d,e"));
+  });
+
   it("stops the post-write walk as soon as a newer intent supersedes it", async () => {
     const secondPage = deferred<Row[]>();
     const fetchA = vi.fn()
