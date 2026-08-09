@@ -112,6 +112,9 @@ export function HelpPage() {
         <li>
           <Trans ns="help" i18nKey="gettingAroundErrorScreen" components={{ strong: <strong /> }} />
         </li>
+        <li>
+          <Trans ns="help" i18nKey="gettingAroundWhereMessagesAppear" components={{ strong: <strong /> }} />
+        </li>
       </ul>
 
       <h3 id="signing-in">{t("signingInHeading")}</h3>

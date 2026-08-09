@@ -1701,6 +1701,13 @@ export const tl = {
       + "na-save mo na (maaaring kailanganin mong i-type ulit ang kahit anong tina-type mo pa) — i-tap ang "
       + "<strong>I-reload</strong>, o <strong>Bumalik sa dashboard</strong> at subukan ulit. Kung "
       + "paulit-ulit itong nangyayari, buksan ang \"Mga detalye ng error\" at magpadala ng screenshot.",
+    gettingAroundWhereMessagesAppear:
+      "Ang mensahe tungkol sa isang bagay na nabigo ay lumalabas <strong>kung nasaan ang trabaho</strong>: "
+      + "kung pumupuno ka ng pop-up na form, lalabas ito sa loob ng form na iyon, katabi ng mga field na "
+      + "tinutukoy nito; kung ang screen mismo ang nabigo — halimbawa, isang listahang hindi ma-load — lalabas "
+      + "ito sa screen sa likod. Kaya't ang isang form na ayaw mag-save ay laging nagsasabi kung bakit nang "
+      + "hindi nagsasara. Kapag isinara mo ang form, nawawala ang mensahe nito: tapos na ang pagsubok na iyon, "
+      + "at nananatili ang anumang iniulat ng screen mismo.",
 
     signingInHeading: "Pag-sign in",
     signingInBasic:

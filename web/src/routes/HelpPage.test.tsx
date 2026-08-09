@@ -77,6 +77,24 @@ describe("HelpPage", () => {
     expect(screen.getByText(/A spinning button means the save is still working/)).toBeInTheDocument();
   });
 
+  it("says where a failure message appears, in every catalog (#477)", () => {
+    // The behaviour this documents is the two-slot split: a form's failure is
+    // rendered inside that form, the screen's on the screen, and closing the
+    // form drops only its own. Asserted per catalog because the i18n policy
+    // ships es/tl with the English, and a missing key would render the key.
+    render(<HelpPage />);
+    expect(screen.getByText(/if you were filling in a pop-up form, it appears inside that form/i))
+      .toBeInTheDocument();
+    // …and closing it drops that message rather than moving it to the screen.
+    expect(screen.getByText(/Closing the form drops its message/i)).toBeInTheDocument();
+
+    for (const lng of ["es", "tl"] as const) {
+      const value = i18n.getResource(lng, "help", "gettingAroundWhereMessagesAppear") as string;
+      expect(value).toBeTruthy();
+      expect(value).not.toBe(i18n.getResource("en", "help", "gettingAroundWhereMessagesAppear"));
+    }
+  });
+
   it("explains the per-account sign-in lock as temporary, without a non-existent admin reset", () => {
     render(<HelpPage />);
     const signIn = screen.getByRole("heading", { name: "Signing in", level: 3 });
