@@ -967,3 +967,148 @@ describe("HistoryPage i18n wiring (#182, Task 27)", () => {
     });
   });
 });
+
+describe("HistoryPage list races (#469)", () => {
+  // Six call sites shared one unticketed load: the filter effect, load-more,
+  // the adjust and void refreshes, the 409 refresh, and the conflict rebind.
+  // Whichever response landed last won, regardless of what the user had asked
+  // for most recently.
+  it("ignores a stale filter response that lands after a newer one", async () => {
+    mockListDailyEntries.mockResolvedValue([SUBMITTED]);
+    renderWithProviders(<HistoryPage />, { token: ADMIN });
+    await screen.findByRole("row", { name: /2026-07-19/ });
+
+    let releaseStale!: (rows: DailyEntry[]) => void;
+    mockListDailyEntries.mockReturnValueOnce(new Promise((r) => { releaseStale = r; }));
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-07-01" } });
+    mockListDailyEntries.mockResolvedValueOnce([{ ...SUBMITTED, id: "fresh", date: "2026-07-20" }]);
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("To"), { target: { value: "2026-07-31" } });
+    });
+    expect(screen.getByRole("row", { name: /2026-07-20/ })).toBeInTheDocument();
+
+    await act(async () => {
+      releaseStale([{ ...SUBMITTED, id: "stale", date: "2026-07-02" }]);
+    });
+    expect(screen.getByRole("row", { name: /2026-07-20/ })).toBeInTheDocument();
+    expect(screen.queryByRole("row", { name: /2026-07-02/ })).not.toBeInTheDocument();
+  });
+
+  it("withdraws load-more while a filter reload is in flight", async () => {
+    // With the old windows' hasMore still true, a click mid-reload appended
+    // the NEW filter's page onto the OLD filter's rows.
+    const full = Array.from({ length: 50 }, (_, i) => ({
+      ...SUBMITTED, id: `e${i}`, date: "2026-07-19",
+    }));
+    mockListDailyEntries.mockResolvedValueOnce(full);
+    renderWithProviders(<HistoryPage />, { token: ADMIN });
+    expect(await screen.findByRole("button", { name: "load more" })).toBeInTheDocument();
+
+    let release!: (rows: DailyEntry[]) => void;
+    mockListDailyEntries.mockReturnValueOnce(new Promise((r) => { release = r; }));
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-07-01" } });
+    expect(screen.queryByRole("button", { name: "load more" })).not.toBeInTheDocument();
+
+    await act(async () => { release([SUBMITTED]); });
+    expect(screen.getByRole("row", { name: /2026-07-19/ })).toBeInTheDocument();
+  });
+});
+
+describe("HistoryPage setup failure (#469)", () => {
+  // Without flocks and grades every row renders unresolvable ids, so that
+  // read failing with nothing on screen is the one fatal case. The migration
+  // to usePagedList briefly made this branch unreachable (the test is what
+  // keeps it honest: `entries` is the hook handle, not the rows).
+  it("shows the full-page error when the setup read fails and no entries loaded", async () => {
+    mockListFlocks.mockRejectedValue(new Error("down"));
+    mockListDailyEntries.mockReturnValue(new Promise(() => {}));
+    renderWithProviders(<HistoryPage />, { token: ADMIN });
+
+    // The fatal branch is identified by its OWN heading ("History", the short
+    // early-return title) and by the absence of the filter bar — the message
+    // alone also renders in the ordinary banner, so asserting on it would
+    // pass with the branch deleted (this test was vacuous until it did not
+    // assert these two).
+    expect(await screen.findByRole("heading", { name: "History" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Daily entry history" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("From")).not.toBeInTheDocument();
+    expect(screen.getByText("Could not load flocks/grades.")).toBeInTheDocument();
+  });
+});
+
+describe("HistoryPage void conflict messaging (#469)", () => {
+  // The conflict message states the CONFLICT and makes no claim about the
+  // list — three review rounds came from the old wording promising "the list
+  // has been reloaded", which the screen cannot reliably know. When the
+  // refresh does fail, the list says so itself through its own banner.
+  it("does not claim a reload, and lets the list report its own failure", async () => {
+    mockListDailyEntries
+      .mockResolvedValueOnce([SUBMITTED])
+      .mockRejectedValue(new Error("boom"));
+    vi.mocked(voidDailyEntry).mockRejectedValue(new ApiError(409, "Conflict", "conflict"));
+    renderWithProviders(<HistoryPage />, { token: ADMIN });
+
+    fireEvent.click(await screen.findByRole("button", { name: "void" }));
+    fireEvent.change(within(screen.getByRole("dialog")).getByLabelText("Reason *"),
+      { target: { value: "miscounted" } });
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Void entry" }));
+    });
+
+    expect(screen.getByText(/check the list and retry/i)).toBeInTheDocument();
+    expect(screen.queryByText(/has been reloaded/i)).not.toBeInTheDocument();
+    // The failed refresh is reported by the list, not by the conflict copy.
+    expect(screen.getByText("Could not load entries.")).toBeInTheDocument();
+  });
+});
+
+describe("HistoryPage conflict reload is issued once (#469)", () => {
+  // runWrite already re-reads in its rejection path, so a second reload here
+  // is not just wasted: if the first succeeds and the duplicate transiently
+  // fails, the hook clears the freshly loaded rows and reports failure —
+  // strictly worse than either read alone.
+  it("does not issue a second replacement read after a 409", async () => {
+    mockListDailyEntries
+      .mockResolvedValueOnce([SUBMITTED])   // initial
+      .mockResolvedValueOnce([SUBMITTED])   // runWrite's own re-read: succeeds
+      .mockRejectedValue(new Error("boom")); // any further read would fail
+    vi.mocked(voidDailyEntry).mockRejectedValue(new ApiError(409, "Conflict", "conflict"));
+    renderWithProviders(<HistoryPage />, { token: ADMIN });
+
+    fireEvent.click(await screen.findByRole("button", { name: "void" }));
+    fireEvent.change(within(screen.getByRole("dialog")).getByLabelText("Reason *"),
+      { target: { value: "miscounted" } });
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Void entry" }));
+    });
+
+    expect(mockListDailyEntries).toHaveBeenCalledTimes(2);
+    expect(screen.getByText(/check the list and retry/i)).toBeInTheDocument();
+    // The refresh runWrite performed DID land, so its rows are on screen.
+    expect(screen.getByRole("row", { name: /2026-07-19/ })).toBeInTheDocument();
+  });
+});
+
+describe("HistoryPage adjust conflict — the rebind's own failure (#469)", () => {
+  // rebindAfterConflict no longer reads the list, so the only thing that can
+  // fail in it is the form's fetch of the winning entry. The message has to
+  // say THAT, not "the list could not be reloaded" — the list is refreshed by
+  // the write path and reports its own health separately.
+  it("names the form's failed value load, not a list reload", async () => {
+    mockListDailyEntries.mockResolvedValue([SUBMITTED]);
+    mockAdjustDailyEntry.mockRejectedValue(new ApiError(409, "Conflict", "stale"));
+    mockGetDailyEntry.mockRejectedValue(new Error("boom"));
+    await openAdjustPanel();
+
+    // Grading must reconcile or the submit never reaches the API (#394).
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Grade A" }), { target: { value: "45" } });
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Grade B" }), { target: { value: "45" } });
+    fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: "recount" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Save adjustment" }));
+    });
+
+    expect(screen.getByText(/latest values could not be loaded/i)).toBeInTheDocument();
+    expect(screen.queryByText(/list could not be reloaded/i)).not.toBeInTheDocument();
+  });
+});

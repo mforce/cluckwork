@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, within, fireEvent, act, waitFor } from "@testing-library/react";
 import { ExpensesPage } from "./ExpensesPage";
 import { renderWithProviders } from "../test/renderWithProviders";
+import { account } from "../test/fixtures";
 import {
   adjustExpense, createExpense, createExpenseCategory, getExpense,
   listExpenseCategories, listExpenses, listFlocks, updateExpenseCategory,
@@ -578,5 +579,224 @@ describe("ExpensesPage i18n wiring (#182, Task 23)", () => {
       expect(await screen.findByRole("alert")).toHaveTextContent("CONFLICT-MARKER");
       expect(screen.queryByText(/changed by someone else/)).not.toBeInTheDocument();
     });
+  });
+});
+
+describe("ExpensesPage list failures (#469)", () => {
+  // The money-screen version of the stale-window bug: this list had no
+  // request sequencing, so a failed month change used to leave the PREVIOUS
+  // month's rows AND its total on screen under the new month's picker — a
+  // figure that reads as legitimate while describing a period it never
+  // covered. The total now travels with the rows as page metadata, so it
+  // lands and clears with them.
+  it("does not keep the previous month's total when the month change fails", async () => {
+    mockListExpenses.mockResolvedValueOnce({
+      items: [EXP_OLD], totalMinorUnits: 99900, currencyCode: "USD", currencyMinorUnit: 2,
+    });
+    await renderReady();
+    expect(screen.getByText(/Month total: 999\.00 USD/)).toBeInTheDocument();
+
+    mockListExpenses.mockRejectedValueOnce(new Error("boom"));
+    await act(async () => {
+      // A month the picker is not already on — it defaults to the current one.
+      fireEvent.change(screen.getByLabelText("Month"), { target: { value: "2026-05" } });
+    });
+
+    // Neither the old month's rows nor its money may describe the new one.
+    expect(screen.queryByText(/999\.00 USD/)).not.toBeInTheDocument();
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+  });
+
+  it("ignores a stale month response that lands after a newer one", async () => {
+    await renderReady();
+
+    let releaseStale!: (v: ExpenseList) => void;
+    mockListExpenses.mockReturnValueOnce(new Promise((r) => { releaseStale = r; }));
+    fireEvent.change(screen.getByLabelText("Month"), { target: { value: "2026-06" } });
+    mockListExpenses.mockResolvedValueOnce({
+      items: [], totalMinorUnits: 500, currencyCode: "USD", currencyMinorUnit: 2,
+    });
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Month"), { target: { value: "2026-05" } });
+    });
+    expect(screen.getByText(/Month total: 5\.00 USD/)).toBeInTheDocument();
+
+    await act(async () => {
+      releaseStale({ items: [], totalMinorUnits: 88800, currencyCode: "USD", currencyMinorUnit: 2 });
+    });
+    expect(screen.getByText(/Month total: 5\.00 USD/)).toBeInTheDocument();
+    expect(screen.queryByText(/888\.00 USD/)).not.toBeInTheDocument();
+  });
+});
+
+describe("ExpensesPage currency scale (#469, codex P1)", () => {
+  // The form used to take its decimal scale from the LIST response, so a
+  // failed load cleared it and silently fell back to 2 decimals while the
+  // form stayed enabled. On a 3-decimal currency that converts 1.000 BHD to
+  // 100 minor units instead of 1000 — a wrong number stored against the
+  // account's real scale. The account is the authority; the list is not.
+  it("converts at the account's scale even after the list load fails", async () => {
+    mockListExpenses.mockRejectedValue(new Error("boom"));
+    renderWithProviders(<ExpensesPage />, {
+      token: ADMIN, farm: account({ currencyCode: "BHD", currencyMinorUnit: 3 }),
+    });
+    await screen.findByLabelText(/Amount \(BHD\)/);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Record expense" })).toBeEnabled());
+
+    fireEvent.change(comboWithOption(/— pick —/), { target: { value: CAT_FEED.id } });
+    fireEvent.change(screen.getByLabelText("Description"), { target: { value: "Diesel" } });
+    fireEvent.change(screen.getByLabelText(/Amount \(BHD\)/), { target: { value: "1.000" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Record expense" }));
+    });
+
+    expect(mockCreateExpense).toHaveBeenCalledWith(
+      expect.objectContaining({ amountMinorUnits: 1000 }), expect.any(String));
+  });
+});
+
+describe("ExpensesPage currency scale without an account (#469, codex P1)", () => {
+  // The account read can fail while the screen still renders (FarmProvider
+  // supplies farm === null and AppLayout carries on). The list response is
+  // then the only place a scale has ever come from — and the hook clears it
+  // on the next failed load. Guessing 2 decimals there is how a 3-decimal
+  // farm stores 1.000 as 100 minor units.
+  it("retains the last observed scale when a later load fails and no account is available", async () => {
+    mockListExpenses
+      .mockResolvedValueOnce({ items: [], totalMinorUnits: 0, currencyCode: "BHD", currencyMinorUnit: 3 })
+      .mockRejectedValue(new Error("boom"));
+    mockCreateExpense.mockResolvedValue({ id: "e-new" });
+    renderWithProviders(<ExpensesPage />, { token: ADMIN }); // no farm
+    await screen.findByLabelText(/Amount \(BHD\)/);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Record expense" })).toBeEnabled());
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Month"), { target: { value: "2026-05" } });
+    });
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+
+    fireEvent.change(comboWithOption(/— pick —/), { target: { value: CAT_FEED.id } });
+    fireEvent.change(screen.getByLabelText("Description"), { target: { value: "Diesel" } });
+    fireEvent.change(screen.getByLabelText(/Amount \(BHD\)/), { target: { value: "1.000" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Record expense" }));
+    });
+
+    expect(mockCreateExpense).toHaveBeenCalledWith(
+      expect.objectContaining({ amountMinorUnits: 1000 }), expect.any(String));
+  });
+
+  it("refuses to record at all when no scale has ever been observed", async () => {
+    // Nothing authoritative has ever loaded: recording would have to GUESS
+    // the denomination. Refusing beats storing a wrong number.
+    mockListExpenses.mockRejectedValue(new Error("boom"));
+    renderWithProviders(<ExpensesPage />, { token: ADMIN }); // no farm
+
+    await screen.findByRole("alert");
+    expect(screen.getByRole("button", { name: "Record expense" })).toBeDisabled();
+    expect(mockCreateExpense).not.toHaveBeenCalled();
+  });
+});
+
+describe("ExpensesPage currency scale freshness (#469, codex P1)", () => {
+  // The list envelope carries the ACCOUNT'S CURRENT currency (the endpoint
+  // reads accounts.GetCurrentAsync per request), whereas `farm` is the
+  // bootstrap snapshot this tab loaded with. So a currency change made
+  // elsewhere reaches this screen through the list first, and preferring the
+  // snapshot converts at a scale the server no longer uses.
+  it("prefers the freshly loaded list scale over a stale farm snapshot", async () => {
+    mockListExpenses.mockResolvedValue(emptyList("JPY", 0)); // server: 0 decimals now
+    mockCreateExpense.mockResolvedValue({ id: "e-new" });
+    renderWithProviders(<ExpensesPage />, {
+      token: ADMIN, farm: account({ currencyCode: "USD", currencyMinorUnit: 2 }), // stale
+    });
+    await screen.findByLabelText(/Amount \(JPY\)/);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Record expense" })).toBeEnabled());
+
+    fireEvent.change(comboWithOption(/— pick —/), { target: { value: CAT_FEED.id } });
+    fireEvent.change(screen.getByLabelText("Description"), { target: { value: "Diesel" } });
+    fireEvent.change(screen.getByLabelText(/Amount \(JPY\)/), { target: { value: "1" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Record expense" }));
+    });
+
+    // 1 JPY is 1 minor unit. Converting at the stale 2-decimal snapshot would
+    // post 100 — stored as 100 JPY against the server's own currency.
+    expect(mockCreateExpense).toHaveBeenCalledWith(
+      expect.objectContaining({ amountMinorUnits: 1 }), expect.any(String));
+  });
+});
+
+describe("ExpensesPage cross-period display while loading (#469, codex P2)", () => {
+  // The whole point of this change was that a total must never describe a
+  // period the picker does not show. A PENDING month change is that same
+  // defect with a shorter fuse: the hook deliberately keeps the previous
+  // window until the replacement lands, so the screen has to blank it.
+  it("hides the previous month's total and rows while the new month is loading", async () => {
+    mockListExpenses.mockResolvedValueOnce({
+      items: [EXP_OLD], totalMinorUnits: 99900, currencyCode: "USD", currencyMinorUnit: 2,
+    });
+    await renderReady();
+    expect(screen.getByText(/Month total: 999\.00 USD/)).toBeInTheDocument();
+
+    // The replacement hangs: nothing about the old month may still show.
+    mockListExpenses.mockReturnValueOnce(new Promise(() => {}));
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Month"), { target: { value: "2026-05" } });
+    });
+
+    expect(screen.queryByText(/999\.00 USD/)).not.toBeInTheDocument();
+    expect(screen.queryByText("Generator diesel")).not.toBeInTheDocument();
+    expect(screen.getByText("Loading…")).toBeInTheDocument();
+  });
+});
+
+describe("ExpensesPage conflict reload is issued once (#469)", () => {
+  // runWrite already re-read the loaded WINDOW before rethrowing the 409, so
+  // a second read here is redundant — and worse than redundant: reload() is
+  // page-one only, so for a user who had paged deeper it collapses the very
+  // window runWrite just restored, and if it transiently fails it clears the
+  // rows that refresh had recovered.
+  it("does not issue a second replacement read after a 409", async () => {
+    mockListExpenses
+      .mockResolvedValueOnce({ items: [EXP_OLD], totalMinorUnits: 1500, currencyCode: "BHD", currencyMinorUnit: 3 })
+      .mockResolvedValueOnce({ items: [EXP_OLD], totalMinorUnits: 1500, currencyCode: "BHD", currencyMinorUnit: 3 })
+      .mockRejectedValue(new Error("boom")); // a third read would wipe the rows
+    mockAdjustExpense.mockRejectedValue(new ApiError(409, "Conflict", "stale"));
+    mockGetExpense.mockResolvedValue({ ...EXP_OLD, description: "Diesel (recount)", version: 8 });
+    renderWithProviders(<ExpensesPage />, { token: ADMIN });
+
+    const row = await screen.findByRole("row", { name: /Generator diesel/ });
+    fireEvent.click(within(row).getByRole("button", { name: "correct" }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Save correction" }));
+    });
+
+    expect(mockListExpenses).toHaveBeenCalledTimes(2);
+    expect(await screen.findByRole("alert")).toHaveTextContent(/changed by someone else/);
+    // The window runWrite restored is still on screen.
+    expect(screen.getByRole("row", { name: /Generator diesel/ })).toBeInTheDocument();
+  });
+});
+
+describe("ExpensesPage total is never a guess (#469, codex P2)", () => {
+  // meta is cleared when a replacement fails, and `?? 0` then rendered a
+  // definitive "Month total: 0.00" next to the error — stating that a period
+  // whose figure is UNKNOWN is zero. On a money screen that is not a
+  // degraded display, it is a wrong number.
+  it("shows no total at all when the month load failed", async () => {
+    mockListExpenses
+      .mockResolvedValueOnce({ items: [EXP_OLD], totalMinorUnits: 99900, currencyCode: "USD", currencyMinorUnit: 2 })
+      .mockRejectedValue(new Error("boom"));
+    await renderReady();
+    expect(screen.getByText(/Month total: 999\.00 USD/)).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Month"), { target: { value: "2026-05" } });
+    });
+
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+    expect(screen.queryByText(/Month total:/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/0\.00/)).not.toBeInTheDocument();
   });
 });

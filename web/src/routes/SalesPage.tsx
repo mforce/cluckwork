@@ -14,6 +14,7 @@ import { BusyButton } from "../components/BusyButton";
 import { NumberField } from "../components/NumberField";
 import { Dialog } from "../components/Dialog";
 import { useConfirm } from "../components/useConfirm";
+import { usePagedList } from "../components/usePagedList";
 import { usePendingAction } from "../components/usePendingAction";
 import { StatusBadge } from "../components/StatusBadge";
 import { newId } from "../lib/ids";
@@ -69,8 +70,6 @@ export function SalesPage() {
   // voiding a payment stays corrective (Owner/Manager) like every other undo.
   const canSettle = isAdmin || role === "Sales";
   const { confirm, askReason, confirmDialog } = useConfirm();
-  const [orders, setOrders] = useState<SalesOrder[] | null>(null);
-  const [hasMore, setHasMore] = useState(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
   // #99: lines sell PRODUCTS. Active ones feed the picker; the full list
   // (inactive included) resolves display names on existing lines.
@@ -80,7 +79,10 @@ export function SalesPage() {
   // quantity means BEFORE the line lands (the table row's "per tray (30 eggs)"
   // arrives too late to catch "typed 60 eggs, sold 60 trays").
   const [conversions, setConversions] = useState<EggUnitConversion[]>([]);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  // Setup reads only (customers + products). The ORDER LIST's failures live
+  // in the paged-list hook and render as a banner — they must never take the
+  // workspace down with them (#469).
+  const [setupError, setSetupError] = useState<string | null>(null);
 
   // list filters (#24: status/customer/paged)
   const [statusFilter, setStatusFilter] = useState("");
@@ -177,16 +179,26 @@ export function SalesPage() {
   const unitWord = (sellingUnit: string) =>
     (isSellingUnit(sellingUnit) ? t(`unit${sellingUnit}`) : sellingUnit).toLowerCase();
 
-  const loadOrders = useCallback(async (offset = 0) => {
-    const page = await listOrders({
-      status: statusFilter || undefined,
-      customerId: customerFilter || undefined,
-      limit: PAGE,
-      offset,
-    });
-    setHasMore(page.length === PAGE);
-    setOrders((prev) => (offset === 0 ? page : [...(prev ?? []), ...page]));
-  }, [statusFilter, customerFilter]);
+  // #469 — this list had no request sequencing, and its failure was fatal:
+  // any rejection (including one from a request the user had already moved
+  // past) set a `loadError` that NOTHING ever cleared, replacing the whole
+  // workspace — an order being edited included — for the rest of the session.
+  // The hook raises an error only from the current request and clears it on
+  // the next successful load; the screen now renders it as a banner beside
+  // the work rather than instead of it.
+  const orders = usePagedList({
+    fetchPage: useCallback(
+      (offset: number, limit: number) => listOrders({
+        status: statusFilter || undefined,
+        customerId: customerFilter || undefined,
+        limit,
+        offset,
+      }),
+      [statusFilter, customerFilter],
+    ),
+    pageSize: PAGE,
+    errorText: () => i18n.t("sales:loadOrdersFailed"),
+  });
 
   useEffect(() => {
     // includeInactive: existing order lines may reference deactivated
@@ -219,7 +231,7 @@ export function SalesPage() {
           setPrice(priceInput(first.defaultPriceMinorUnits, farmScale));
         }
       })
-      .catch(() => setLoadError(i18n.t("sales:loadSalesDataFailed")));
+      .catch(() => setSetupError(i18n.t("sales:loadSalesDataFailed")));
     // Separate from the Promise.all above ON PURPOSE: the conversions only
     // feed supplementary display (the live "= N eggs" hint and the option
     // annotations), so a failed read degrades to the pre-#445 labels instead
@@ -228,9 +240,6 @@ export function SalesPage() {
     listEggUnitConversions().then(setConversions).catch(() => {});
   }, []);
 
-  useEffect(() => {
-    loadOrders().catch(() => setLoadError(i18n.t("sales:loadOrdersFailed")));
-  }, [loadOrders]);
 
   const activeId = active?.id ?? null;
   const activeStatus = active?.status ?? null;
@@ -280,9 +289,12 @@ export function SalesPage() {
     });
 
   const onCreateOrder = () => run("create-order", async () => {
-    const created = await createOrder({ customerId, orderDate }, keyFor("create-order"));
-    setActive(await getOrder(created.id));
-    await loadOrders();
+    // runWrite claims the list ticket before the POST, so a filter change
+    // made while it is in flight keeps the view (#469).
+    await orders.runWrite(async () => {
+      const created = await createOrder({ customerId, orderDate }, keyFor("create-order"));
+      setActive(await getOrder(created.id));
+    });
     clearKey("create-order");
     setCreatingOrder(false); // only on success — a throw keeps the dialog up
   });
@@ -360,11 +372,12 @@ export function SalesPage() {
     if (!ok || !active) return;
     void run(`confirm:${active.id}`, async () => {
       const scope = `confirm:${active.id}`;
-      await confirmOrder(active.id, keyFor(scope));
-      const refreshed = await getOrder(active.id);
-      setActive(refreshed);
-      setMessage(i18n.t("sales:orderConfirmed", { ref: refreshed.referenceNumber }));
-      await loadOrders();
+      await orders.runWrite(async () => {
+        await confirmOrder(active.id, keyFor(scope));
+        const refreshed = await getOrder(active.id);
+        setActive(refreshed);
+        setMessage(i18n.t("sales:orderConfirmed", { ref: refreshed.referenceNumber }));
+      });
       clearKey(scope);
     });
   };
@@ -381,10 +394,11 @@ export function SalesPage() {
     if (!ok || !active) return;
     void run(`cancel:${active.id}`, async () => {
       const scope = `cancel:${active.id}`;
-      await cancelOrder(active.id, keyFor(scope));
-      setActive(null);
-      setMessage(i18n.t("sales:draftOrderCancelled"));
-      await loadOrders();
+      await orders.runWrite(async () => {
+        await cancelOrder(active.id, keyFor(scope));
+        setActive(null);
+        setMessage(i18n.t("sales:draftOrderCancelled"));
+      });
       clearKey(scope);
     });
   };
@@ -455,11 +469,12 @@ export function SalesPage() {
     if (reason === null || !active) return;
     void run(`void:${active.id}`, async () => {
       const scope = `void:${active.id}`;
-      await voidOrder(active.id, reason, keyFor(scope));
-      const refreshed = await getOrder(active.id);
-      setActive(refreshed);
-      setMessage(i18n.t("sales:orderVoided", { ref: refreshed.referenceNumber }));
-      await loadOrders();
+      await orders.runWrite(async () => {
+        await voidOrder(active.id, reason, keyFor(scope));
+        const refreshed = await getOrder(active.id);
+        setActive(refreshed);
+        setMessage(i18n.t("sales:orderVoided", { ref: refreshed.referenceNumber }));
+      });
       clearKey(scope);
     });
   };
@@ -470,8 +485,13 @@ export function SalesPage() {
     setActive(await getOrder(id));
   });
 
-  if (loadError) return <section><h2>{t("title")}</h2><p className="error">{loadError}</p></section>;
-  if (orders === null) return <section><h2>{t("title")}</h2><p className="muted">{t("loading")}</p></section>;
+  // A list failure no longer replaces the workspace: it renders as a banner
+  // beside it (below), so a transient blip cannot discard an order the user
+  // is part-way through editing (#469). Only the setup reads — customers and
+  // products, without which no form on this screen can function — still gate
+  // the page.
+  if (setupError) return <section><h2>{t("title")}</h2><p className="error">{setupError}</p></section>;
+  if (orders.rows === null) return <section><h2>{t("title")}</h2><p className="muted">{t("loading")}</p></section>;
 
   return (
     <section>
@@ -795,7 +815,14 @@ export function SalesPage() {
           </select>
         </label>
       </div>
-      {orders.length === 0 ? (
+      {/* The list's own failure, beside the workspace rather than instead of
+          it — and self-healing on the next successful load (#469). */}
+      {orders.error && <p className="error" role="alert">{orders.error}</p>}
+      {/* One window's orders must never sit under another window's filters,
+          not even for the length of the request (#469). */}
+      {orders.reloading ? (
+        <p className="muted">{t("loading")}</p>
+      ) : orders.rows.length === 0 ? (
         <p className="muted">{t("noOrdersMatch")}</p>
       ) : (
         <>
@@ -804,7 +831,7 @@ export function SalesPage() {
               <tr><th>{t("reference")}</th><th>{t("date")}</th><th>{t("customer")}</th><th>{t("status")}</th><th>{t("total")}</th><th></th></tr>
             </thead>
             <tbody>
-              {orders.map((o) => (
+              {orders.rows.map((o) => (
                 <tr key={o.id}>
                   <td>{o.referenceNumber}</td>
                   <td>{o.orderDate}</td>
@@ -816,10 +843,11 @@ export function SalesPage() {
               ))}
             </tbody>
           </table>
-          {hasMore && (
-            // A guarded READ ("more") — flight-scoped but no BusyButton (#236).
+          {orders.canLoadMore && (
+            // A guarded READ — the hook withdraws this control for the
+            // duration of any load, so it cannot mix two windows (#469).
             <button className="link" disabled={busy}
-              onClick={() => run("more", () => loadOrders(orders.length))}>{t("loadMore")}</button>
+              onClick={() => void orders.loadMore()}>{t("loadMore")}</button>
           )}
         </>
       )}

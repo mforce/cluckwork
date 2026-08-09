@@ -498,7 +498,6 @@ export const es = {
     title: "Alimento",
     loadFailed: "No se pudieron cargar las parvadas y los artículos de alimento. ¿Está activa la API?",
     loadRecordsFailed: "No se pudieron cargar los registros de alimento.",
-    loadMoreFailed: "No se pudo cargar más.",
     intro:
       "Registre lo que se alimentó a cada parvada. El inventario se descuenta "
       + "de las compras más antiguas primero y el costo estimado proviene de esos lotes.",
@@ -537,7 +536,6 @@ export const es = {
     // Imperative messages
     loadFlocksFailed: "No se pudieron cargar los lotes. ¿Está la API activa?",
     loadRecordsFailed: "No se pudieron cargar los registros de agua.",
-    loadMoreFailed: "No se pudo cargar más.",
     concurrentEditError:
       "Este registro se acaba de cambiar en otro lugar — recargue la lista "
       + "e inténtelo de nuevo.",
@@ -1262,14 +1260,13 @@ export const es = {
       "Esta entrada fue cambiada por otra persona — el formulario muestra "
       + "los valores más recientes; vuelva a aplicar su corrección.",
     nothingToAdjustMessage: "Esta entrada ahora está {{status}} — no queda nada por ajustar.",
-    conflictReloadFailedMessage:
-      "Esta entrada fue cambiada por otra persona y la lista no se pudo "
-      + "volver a cargar — vuelva a cargar la página antes de reintentarlo.",
+    conflictRebindFailedMessage:
+      "Esta entrada fue cambiada por otra persona y no se pudieron cargar "
+      + "sus valores más recientes — cierre el formulario y vuelva a intentarlo.",
     gradesMustReconcileMessage:
       "Las cantidades clasificadas deben ser iguales al total de huevos menos los agrietados, sucios y "
       + "descartados.",
     entryAdjustedMessage: "Entrada ajustada — las existencias y el registro de aves se actualizaron para coincidir.",
-    adjustReloadFailedMessage: "El ajuste se guardó, pero la lista no se pudo volver a cargar — actualice la página.",
     voidConfirmTitle: "¿Anular la entrada del {{date}} para {{flock}}?",
     voidConfirmBody:
       "Sus lotes de huevos quedan vacíos y sus muertes se revierten. La "
@@ -1277,13 +1274,8 @@ export const es = {
       + "huevos ya fue vendido.",
     voidConfirmLabel: "Anular entrada",
     entryVoidedMessage: "Entrada anulada — sus lotes de huevos quedaron vacíos y sus muertes se revirtieron.",
-    voidReloadFailedMessage: "La anulación se guardó, pero la lista no se pudo volver a cargar — actualice la página.",
     voidConflictMessage:
-      "Esta entrada fue cambiada por otra persona — la lista se ha vuelto a cargar; vuelva a intentarlo.",
-    voidConflictReloadFailedMessage:
-      "Esta entrada fue cambiada por otra persona y la lista no se pudo "
-      + "volver a cargar — vuelva a cargar la página.",
-    loadMoreFailedMessage: "No se pudo cargar más.",
+      "Esta entrada fue cambiada por otra persona — revise la lista y vuelva a intentarlo.",
 
     // Filters
     flockLabel: "Lote",

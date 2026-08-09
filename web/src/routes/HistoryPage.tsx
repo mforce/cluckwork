@@ -14,6 +14,7 @@ import { Dialog } from "../components/Dialog";
 import { GradingChip, TakeRemainderButton, remainderDropProps } from "../components/GradingChip";
 import { NumberField } from "../components/NumberField";
 import { useConfirm } from "../components/useConfirm";
+import { usePagedList } from "../components/usePagedList";
 import { usePendingAction } from "../components/usePendingAction";
 import { StatusBadge } from "../components/StatusBadge";
 import { useFarm } from "../farm/useFarm";
@@ -48,8 +49,6 @@ export function HistoryPage() {
   const { t: te } = useTranslation("dailyEntry");
   const { isAdmin } = useAuth();
   const { askReason, confirmDialog } = useConfirm();
-  const [entries, setEntries] = useState<DailyEntry[] | null>(null);
-  const [hasMore, setHasMore] = useState(false);
   const [flocks, setFlocks] = useState<Flock[]>([]);
   const [grades, setGrades] = useState<EggGrade[]>([]);
   // #444 — the adjust dialog's steppers use the same resolved pack unit as
@@ -121,21 +120,25 @@ export function HistoryPage() {
       .catch(() => setError(i18n.t("history:loadFlocksGradesFailed")));
   }, []);
 
-  const load = useCallback(async (offset = 0) => {
-    const page = await listDailyEntries({
-      flockId: flockFilter || undefined,
-      from: from || undefined,
-      to: to || undefined,
-      limit: PAGE,
-      offset,
-    });
-    setHasMore(page.length === PAGE);
-    setEntries((prev) => (offset === 0 ? page : [...(prev ?? []), ...page]));
-  }, [flockFilter, from, to]);
-
-  useEffect(() => {
-    load().catch(() => setError(i18n.t("history:loadEntriesFailed")));
-  }, [load]);
+  // #469 — six call sites (the filter effect, load-more, the adjust and void
+  // refreshes, the 409 refresh, and the conflict rebind) shared one load with
+  // no request sequencing at all: whichever response landed last won, a stale
+  // rejection painted an error over a healthy table, and a load-more during a
+  // filter change appended the new window's page onto the old rows.
+  const entries = usePagedList({
+    fetchPage: useCallback(
+      (offset: number, limit: number) => listDailyEntries({
+        flockId: flockFilter || undefined,
+        from: from || undefined,
+        to: to || undefined,
+        limit,
+        offset,
+      }),
+      [flockFilter, from, to],
+    ),
+    pageSize: PAGE,
+    errorText: () => i18n.t("history:loadEntriesFailed"),
+  });
 
   const flockName = (id: string) => flocks.find((f) => f.id === id)?.name ?? id.slice(0, 8);
   // The Daily entry screen can't target archived flocks (capture excludes
@@ -260,7 +263,9 @@ export function HistoryPage() {
   // the entry is no longer correctable (voided meanwhile), close the panel.
   async function rebindAfterConflict(entryId: string) {
     try {
-      await load();
+      // No reload here either: this runs from the adjust submit's 409 catch,
+      // by which point runWrite has already re-read. A duplicate replacement
+      // read that failed would clear the rows that one just loaded (#469).
       const fresh = await getDailyEntry(entryId);
       if (correctable(fresh)) {
         const keptReason = reason;
@@ -277,7 +282,7 @@ export function HistoryPage() {
         setError(i18n.t("history:nothingToAdjustMessage", { status: fresh.status.toLowerCase() }));
       }
     } catch {
-      setError(i18n.t("history:conflictReloadFailedMessage"));
+      setError(i18n.t("history:conflictRebindFailedMessage"));
     }
   }
 
@@ -301,21 +306,24 @@ export function HistoryPage() {
     }
     await run(scope, async () => {
       try {
-        await adjustDailyEntry(adjusting.id, {
-          version: adjusting.version,
-          totalEggs: total,
-          crackedEggs: cracked,
-          dirtyEggs: dirty,
-          discardedEggs: discarded,
-          mortalityCount: mortality,
-          reason: reason.trim(),
-          grades: lines, // [] explicitly clears all lines
-        }, keyFor(scope));
-        settleKey(scope);
-        setAdjusting(null);
-        setMessage(i18n.t("history:entryAdjustedMessage"));
-        await load().catch(() =>
-          setError(i18n.t("history:adjustReloadFailedMessage")));
+        // The list ticket is claimed before the PUT, so a filter change made
+        // while it is in flight keeps the view and this refresh stands down
+        // rather than repainting the old filter's rows (#469).
+        await entries.runWrite(async () => {
+          await adjustDailyEntry(adjusting.id, {
+            version: adjusting.version,
+            totalEggs: total,
+            crackedEggs: cracked,
+            dirtyEggs: dirty,
+            discardedEggs: discarded,
+            mortalityCount: mortality,
+            reason: reason.trim(),
+            grades: lines, // [] explicitly clears all lines
+          }, keyFor(scope));
+          settleKey(scope);
+          setAdjusting(null);
+          setMessage(i18n.t("history:entryAdjustedMessage"));
+        });
       } catch (err) {
         settleKey(scope, err);
         if (err instanceof ApiError && err.status === 409) {
@@ -346,19 +354,26 @@ export function HistoryPage() {
       setError(null);
       setMessage(null);
       try {
-        await voidDailyEntry(e.id, { version: e.version, reason: voidReason }, keyFor(scope));
-        settleKey(scope);
-        // A stale adjust panel for the now-voided entry would only 409.
-        if (adjusting?.id === e.id) setAdjusting(null);
-        setMessage(i18n.t("history:entryVoidedMessage"));
-        await load().catch(() =>
-          setError(i18n.t("history:voidReloadFailedMessage")));
+        await entries.runWrite(async () => {
+          await voidDailyEntry(e.id, { version: e.version, reason: voidReason }, keyFor(scope));
+          settleKey(scope);
+          // A stale adjust panel for the now-voided entry would only 409.
+          if (adjusting?.id === e.id) setAdjusting(null);
+          setMessage(i18n.t("history:entryVoidedMessage"));
+        });
       } catch (err) {
         settleKey(scope, err);
         if (err instanceof ApiError && err.status === 409) {
+          // The void lost a race — show what actually stands now. Also close
+          // a stale adjust panel for this entry: the 409 path used to leave
+          // it bound to pre-conflict values while the success path closed it.
+          if (adjusting?.id === e.id) setAdjusting(null);
+          // No reload of our own — runWrite already re-read in its rejection
+          // path — and no claim about how that read went: the message states
+          // the conflict, and the list reports its own health through the
+          // hook's error banner. Saying more needed the screen to know an
+          // outcome it cannot reliably observe (#469).
           setError(i18n.t("history:voidConflictMessage"));
-          await load().catch(() => setError(
-            i18n.t("history:voidConflictReloadFailedMessage")));
         } else {
           setError(errText(err));
         }
@@ -390,7 +405,10 @@ export function HistoryPage() {
     );
   }
 
-  if (error && entries === null) return <section><h2>{t("loadingTitle")}</h2><p className="error">{error}</p></section>;
+  // The setup read (flocks + grades) failing with nothing to show is the one
+  // fatal case: without those, every row renders unresolvable ids. `entries`
+  // is the hook's handle, so the emptiness test is on its rows.
+  if (error && entries.rows === null) return <section><h2>{t("loadingTitle")}</h2><p className="error">{error}</p></section>;
 
   return (
     <section>
@@ -565,9 +583,15 @@ export function HistoryPage() {
       {error && adjusting === null && <p className="error" role="alert">{error}</p>}
       {message && <p className="success" role="status">{message}</p>}
 
-      {entries === null ? (
+      {entries.error && adjusting === null && (
+        <p className="error" role="alert">{entries.error}</p>
+      )}
+
+      {/* Blanked while a replacement is in flight too: one window's rows must
+          never sit under another window's filters (#469). */}
+      {entries.rows === null || entries.reloading ? (
         <p className="muted">{tc("loading")}</p>
-      ) : entries.length === 0 ? (
+      ) : entries.rows.length === 0 ? (
         <p className="muted">{t("noEntriesMatch")}</p>
       ) : (
         <>
@@ -585,7 +609,7 @@ export function HistoryPage() {
               </tr>
             </thead>
             <tbody>
-              {entries.map((e) => (
+              {entries.rows.map((e) => (
                 <tr key={e.id} className={e.status === "Voided" ? "inactive" : undefined}>
                   <td>{e.date}</td>
                   <td>{flockName(e.flockId)}</td>
@@ -624,9 +648,9 @@ export function HistoryPage() {
               ))}
             </tbody>
           </table>
-          {hasMore && (
+          {entries.canLoadMore && (
             <button className="link" disabled={busy}
-              onClick={() => void load(entries.length).catch(() => setError(i18n.t("history:loadMoreFailedMessage")))}>
+              onClick={() => void entries.loadMore()}>
               {t("loadMoreButton")}
             </button>
           )}

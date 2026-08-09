@@ -6,6 +6,7 @@ import type { Flock, WaterUsage } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
+import { usePagedList } from "../components/usePagedList";
 import { usePendingAction } from "../components/usePendingAction";
 import { useFarmToday } from "../farm/useFarm";
 import { newId } from "../lib/ids";
@@ -35,8 +36,6 @@ export function WaterPage() {
   const today = useFarmToday();
   // Recording is open to everyone; correcting a record is admin-only (#73).
   const { isAdmin } = useAuth();
-  const [rows, setRows] = useState<WaterUsage[] | null>(null);
-  const [hasMore, setHasMore] = useState(false);
   const [flocks, setFlocks] = useState<Flock[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -79,17 +78,24 @@ export function WaterPage() {
   };
   const clearKey = (scope: string) => keys.current.delete(scope);
 
-  const load = useCallback(async (offset = 0) => {
-    const page = await listWaterUsage({
-      flockId: flockFilter || undefined,
-      from: from || undefined,
-      to: to || undefined,
-      limit: PAGE,
-      offset,
-    });
-    setHasMore(page.length === PAGE);
-    setRows((prev) => (offset === 0 ? page : [...(prev ?? []), ...page]));
-  }, [flockFilter, from, to]);
+  // #469 — this list had no request sequencing at all: two quick flock picks
+  // let the older response win, a stale rejection painted an error over a
+  // healthy view, and a failed reload left the previous filter's rows under
+  // the new filter's controls. usePagedList owns all of that now.
+  const usage = usePagedList({
+    fetchPage: useCallback(
+      (offset: number, limit: number) => listWaterUsage({
+        flockId: flockFilter || undefined,
+        from: from || undefined,
+        to: to || undefined,
+        limit,
+        offset,
+      }),
+      [flockFilter, from, to],
+    ),
+    pageSize: PAGE,
+    errorText: () => i18n.t("water:loadRecordsFailed"),
+  });
 
   useEffect(() => {
     listFlocks({ includeArchived: true })
@@ -104,9 +110,6 @@ export function WaterPage() {
       .catch(() => setError(i18n.t("water:loadFlocksFailed")));
   }, []);
 
-  useEffect(() => {
-    load().catch(() => setError(i18n.t("water:loadRecordsFailed")));
-  }, [load]);
 
   const flockName = (id: string) => flocks.find((f) => f.id === id)?.name ?? id.slice(0, 8);
   const pickableFlocks = flocks.filter((f) => f.status !== "Archived");
@@ -176,14 +179,18 @@ export function WaterPage() {
     const scope = editingId ? `update:${editingId}` : `record:${flockId}:${date}`;
     await run(scope, async () => {
       try {
-        if (editingId) {
-          await updateWaterUsage(editingId, { ...body, version: editingVersion }, keyFor(scope));
-          setMessage(i18n.t("water:recordCorrectedMessage"));
-        } else {
-          await recordWaterUsage({ ...body, flockId, date }, keyFor(scope));
-          setMessage(i18n.t("water:recordedMessage"));
-        }
-        await load();
+        // The list ticket is claimed BEFORE the write, so a filter change made
+        // while it is in flight keeps the view and this refresh stands down
+        // (#469).
+        await usage.runWrite(async () => {
+          if (editingId) {
+            await updateWaterUsage(editingId, { ...body, version: editingVersion }, keyFor(scope));
+            setMessage(i18n.t("water:recordCorrectedMessage"));
+          } else {
+            await recordWaterUsage({ ...body, flockId, date }, keyFor(scope));
+            setMessage(i18n.t("water:recordedMessage"));
+          }
+        });
         clearKey(scope);
         resetForm();
       } catch (err) {
@@ -192,8 +199,8 @@ export function WaterPage() {
     });
   }
 
-  if (error && rows === null) return <section><h2>{t("title")}</h2><p className="error">{error}</p></section>;
-  if (rows === null) return <section><h2>{t("title")}</h2><p className="muted">{tc("loading")}</p></section>;
+  if (error && usage.rows === null) return <section><h2>{t("title")}</h2><p className="error">{error}</p></section>;
+  if (usage.rows === null) return <section><h2>{t("title")}</h2><p className="muted">{tc("loading")}</p></section>;
 
   return (
     <section>
@@ -279,7 +286,13 @@ export function WaterPage() {
         </label>
       </div>
 
-      {rows.length === 0 ? (
+      {usage.error && <p className="error">{usage.error}</p>}
+
+      {/* One window's rows must never sit under another window's controls,
+          not even for the length of the request (#469). */}
+      {usage.reloading ? (
+        <p className="muted">{tc("loading")}</p>
+      ) : usage.rows.length === 0 ? (
         <p className="muted">{t("noRecordsMatch")}</p>
       ) : (
         <>
@@ -288,7 +301,7 @@ export function WaterPage() {
               <tr><th>{t("dateHeader")}</th><th>{t("flockHeader")}</th><th>{t("amountHeader")}</th><th>{t("sourceHeader")}</th><th>{t("metersHeader")}</th><th>{t("noteHeader")}</th><th></th></tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
+              {usage.rows.map((r) => (
                 <tr key={r.id}>
                   <td>{r.date}</td>
                   <td>{flockName(r.flockId)}</td>
@@ -305,9 +318,9 @@ export function WaterPage() {
               ))}
             </tbody>
           </table>
-          {hasMore && (
+          {usage.canLoadMore && (
             <button className="link" disabled={busy}
-              onClick={() => void load(rows.length).catch(() => setError(i18n.t("water:loadMoreFailed")))}>
+              onClick={() => void usage.loadMore()}>
               {t("loadMoreButton")}
             </button>
           )}

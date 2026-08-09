@@ -519,7 +519,6 @@ export const tl = {
     title: "Pakain",
     loadFailed: "Hindi ma-load ang mga kawan at mga item ng pakain. Gumagana ba ang API?",
     loadRecordsFailed: "Hindi ma-load ang mga tala ng pakain.",
-    loadMoreFailed: "Hindi ma-load ang iba pa.",
     intro:
       "Itala kung ano ang ipinakain sa bawat kawan. Ang stock ay kinukuha muna "
       + "mula sa pinakalumang mga binili at ang tantiyang gastos ay mula sa mga lot na iyon.",
@@ -558,7 +557,6 @@ export const tl = {
     // Imperative messages
     loadFlocksFailed: "Hindi na-load ang mga kawan. Gumagana ba ang API?",
     loadRecordsFailed: "Hindi na-load ang mga tala ng tubig.",
-    loadMoreFailed: "Hindi na-load ang iba pa.",
     concurrentEditError:
       "Kababago lang ng record na ito sa ibang lugar — i-reload ang "
       + "listahan at subukan ulit.",
@@ -1306,13 +1304,12 @@ export const tl = {
       "Binago ng ibang tao ang entry na ito — ipinapakita na ngayon ng "
       + "form ang pinakabagong mga value; i-apply ulit ang iyong pagtatama.",
     nothingToAdjustMessage: "{{status}} na ngayon ang entry na ito — wala nang puwedeng i-adjust.",
-    conflictReloadFailedMessage:
-      "Binago ng ibang tao ang entry na ito at hindi na-reload ang "
-      + "listahan — i-reload ang page bago subukan ulit.",
+    conflictRebindFailedMessage:
+      "Binago ng ibang tao ang entry na ito at hindi na-load ang "
+      + "pinakabagong halaga nito — isara ang form at subukan ulit.",
     gradesMustReconcileMessage:
       "Dapat magkapareho ang mga na-grade na dami sa kabuuang itlog na bawas ang basag, marumi, at tinapon.",
     entryAdjustedMessage: "Na-adjust ang entry — na-update ang stock at ang rekord ng manok para tumugma.",
-    adjustReloadFailedMessage: "Na-save ang pag-adjust, pero hindi na-reload ang listahan — i-refresh ang page.",
     voidConfirmTitle: "I-void ang entry ng {{date}} para sa {{flock}}?",
     voidConfirmBody:
       "Mawawalan ng laman ang mga lote ng itlog nito at mababaliktad ang "
@@ -1320,12 +1317,7 @@ export const tl = {
       + "kung nabenta na ang alinman sa mga itlog nito.",
     voidConfirmLabel: "I-void ang entry",
     entryVoidedMessage: "Na-void ang entry — nawalan ng laman ang mga lote ng itlog nito at nabaliktad ang mga namatay dito.",
-    voidReloadFailedMessage: "Na-save ang pag-void, pero hindi na-reload ang listahan — i-refresh ang page.",
-    voidConflictMessage: "Binago ng ibang tao ang entry na ito — na-reload na ang listahan; subukan ulit.",
-    voidConflictReloadFailedMessage:
-      "Binago ng ibang tao ang entry na ito at hindi na-reload ang "
-      + "listahan — i-reload ang page.",
-    loadMoreFailedMessage: "Hindi na-load ang karagdagan.",
+    voidConflictMessage: "Binago ng ibang tao ang entry na ito — tingnan ang listahan at subukan ulit.",
 
     // Filters
     flockLabel: "Kawan",
