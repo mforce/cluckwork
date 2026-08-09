@@ -207,6 +207,14 @@ export function usePagedList<T extends { id: string }, M = never>({
       // it was fetched after this write reached the server anyway.
       if (seq === req.current) await refreshWindow(seq);
       return result;
+    } catch (err) {
+      // The claim above invalidated whatever read was in flight, and a failed
+      // write has no refresh to replace it — so without this the discarded
+      // response leaves the screen with nothing, stuck on its loading state
+      // until the user happens to change a filter (codex review). Skipped
+      // when something newer already owns the view.
+      if (seq === req.current) await refreshWindow(seq);
+      throw err;
     } finally {
       setLoadingOwned(seq, false);
     }

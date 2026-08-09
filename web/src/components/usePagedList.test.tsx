@@ -454,6 +454,45 @@ describe("usePagedList — writes", () => {
     expect(shown()).toBe("a");
   });
 
+  it("reissues the read that a FAILED write invalidated (codex P1)", async () => {
+    // Claiming the ticket at submit invalidates whatever read is in flight.
+    // On success the refresh replaces it — but on failure there was no
+    // replacement, so the discarded response left the screen with nothing:
+    // stuck on its loading state until the user happened to change a filter.
+    const initial = deferred<Row[]>();
+    const fetchPage = vi.fn()
+      .mockReturnValueOnce(initial.promise)
+      .mockResolvedValueOnce(rows("a", "b"));
+    render(<Host fetchPage={fetchPage} write={() => Promise.reject(new Error("nope"))} />);
+    expect(shown()).toBe("null");
+
+    fireEvent.click(screen.getByRole("button", { name: "write" }));
+    await waitFor(() => expect(shown()).toBe("a,b"));
+
+    // The abandoned first response is still stale and must stay dropped.
+    await act(async () => { initial.resolve(rows("z")); });
+    expect(shown()).toBe("a,b");
+  });
+
+  it("leaves a newer intent alone when a failed write would have reissued", async () => {
+    // The reissue must not outrank a filter change the user made while the
+    // doomed write was in flight.
+    const writeGate = deferred<void>();
+    const fetchA = vi.fn().mockResolvedValue(rows("a"));
+    const fetchB = vi.fn().mockResolvedValue(rows("b"));
+    const { rerender } = render(
+      <Host fetchPage={fetchA} write={() => writeGate.promise} />);
+    await waitFor(() => expect(shown()).toBe("a"));
+
+    fireEvent.click(screen.getByRole("button", { name: "write" }));
+    rerender(<Host fetchPage={fetchB} write={() => writeGate.promise} />);
+    await waitFor(() => expect(shown()).toBe("b"));
+
+    await act(async () => { writeGate.reject(new Error("nope")); });
+    expect(shown()).toBe("b");
+    expect(fetchA).toHaveBeenCalledTimes(1); // no reissue under the old filter
+  });
+
   it("rethrows the write's error so the screen can render it", async () => {
     const seen: unknown[] = [];
     function WriteHost() {
