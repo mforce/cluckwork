@@ -1217,6 +1217,10 @@ public sealed class SchemaDocsTests
                         while (true)
                         {
                             var segStart = cw;
+                            // A segment may carry the verbatim-identifier
+                            // prefix: (@DayOfWeek)18 is a legal cast.
+                            if (cw < text.Length && text[cw] == '@'
+                                && cw + 1 < text.Length && (char.IsLetter(text[cw + 1]) || text[cw + 1] == '_')) cw++;
                             while (cw < text.Length && (char.IsLetterOrDigit(text[cw]) || text[cw] == '_')) cw++;
                             if (cw == segStart) break;
                             lastEnd = cw;
@@ -1279,7 +1283,10 @@ public sealed class SchemaDocsTests
                                     if (parenDepth == 0) { angleDepth = -1; break; }
                                     parenDepth--;
                                 }
-                                else if (!(char.IsLetterOrDigit(gc) || gc is '_' or '.' or ':' or ',' or '?' or '[' or ']' or '*'))
+                                // @ is the verbatim-identifier prefix, legal
+                                // on type names and tuple element names
+                                // alike (int @key).
+                                else if (!(char.IsLetterOrDigit(gc) || gc is '_' or '.' or ':' or ',' or '?' or '[' or ']' or '*' or '@'))
                                 {
                                     angleDepth = -1;
                                     break;
