@@ -153,6 +153,47 @@ export function usePagedList<T extends { id: string }, M = never>({
     await load(rowsRef.current?.length ?? 0, seq);
   }, [load]);
 
+  // Re-fetch every page the user currently has, not just the newest one. A
+  // reader who paged deeper to reach an old row and then corrected it must
+  // not have the list snap back to page one, taking that row off screen
+  // (StockPage learned this in #467). Bails the moment a newer intent claims
+  // the ticket, so an abandoned walk stops issuing requests instead of
+  // finishing them for nothing.
+  const refreshWindow = useCallback(async (seq: number) => {
+    const target = Math.max(rowsRef.current?.length ?? 0, 1);
+    const window = new Map<string, T>();
+    let lastPageFull = false;
+    for (let offset = 0; offset < target; offset += pageSize) {
+      let result: PageResult<T, M>;
+      try {
+        result = await fetchPage(offset, pageSize);
+      } catch (err) {
+        // Same rule as `load`: a superseded page's failure is moot.
+        if (seq !== req.current) return;
+        setError(formatErrorRef.current(err));
+        rowsRef.current = [];
+        setRows([]);
+        setMeta(null);
+        setHasMore(false);
+        return;
+      }
+      if (seq !== req.current) return;
+      const page = Array.isArray(result) ? result : result.items;
+      if (!Array.isArray(result)) setMeta(result.meta);
+      // Keyed by id: an insert between the walk's own fetches shifts the
+      // offsets and can re-serve a row already collected.
+      for (const row of page) window.set(row.id, row);
+      lastPageFull = page.length === pageSize;
+      if (!lastPageFull) break;
+    }
+    if (seq !== req.current) return;
+    const next = [...window.values()];
+    rowsRef.current = next;
+    setRows(next);
+    setHasMore(lastPageFull);
+    setError(null);
+  }, [fetchPage, pageSize]);
+
   const runWrite = useCallback(async <R,>(write: () => Promise<R>): Promise<R> => {
     // Claimed BEFORE the write: everything the user does from here on is
     // newer intent than this refresh, and every read issued before it is
@@ -164,12 +205,12 @@ export function usePagedList<T extends { id: string }, M = never>({
       const result = await write();
       // Superseded while the write was in flight — the newer view stands, and
       // it was fetched after this write reached the server anyway.
-      if (seq === req.current) await load(0, seq);
+      if (seq === req.current) await refreshWindow(seq);
       return result;
     } finally {
       setLoadingOwned(seq, false);
     }
-  }, [load]);
+  }, [refreshWindow]);
 
   return {
     rows,

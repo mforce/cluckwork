@@ -1013,3 +1013,25 @@ describe("HistoryPage list races (#469)", () => {
     expect(screen.getByRole("row", { name: /2026-07-19/ })).toBeInTheDocument();
   });
 });
+
+describe("HistoryPage setup failure (#469)", () => {
+  // Without flocks and grades every row renders unresolvable ids, so that
+  // read failing with nothing on screen is the one fatal case. The migration
+  // to usePagedList briefly made this branch unreachable (the test is what
+  // keeps it honest: `entries` is the hook handle, not the rows).
+  it("shows the full-page error when the setup read fails and no entries loaded", async () => {
+    mockListFlocks.mockRejectedValue(new Error("down"));
+    mockListDailyEntries.mockReturnValue(new Promise(() => {}));
+    renderWithProviders(<HistoryPage />, { token: ADMIN });
+
+    // The fatal branch is identified by its OWN heading ("History", the short
+    // early-return title) and by the absence of the filter bar — the message
+    // alone also renders in the ordinary banner, so asserting on it would
+    // pass with the branch deleted (this test was vacuous until it did not
+    // assert these two).
+    expect(await screen.findByRole("heading", { name: "History" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Daily entry history" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("From")).not.toBeInTheDocument();
+    expect(screen.getByText("Could not load flocks/grades.")).toBeInTheDocument();
+  });
+});

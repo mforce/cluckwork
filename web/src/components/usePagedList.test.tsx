@@ -360,6 +360,48 @@ describe("usePagedList — writes", () => {
     expect(write).toHaveBeenCalledOnce();
   });
 
+  it("re-walks the whole loaded window after a write instead of collapsing to page one", async () => {
+    // #467 learned this on StockPage: a user who paged deeper to reach an old
+    // row, then corrected it, must not have the list snap back to the newest
+    // page — the row they were working on vanishes from under them.
+    const fetchPage = vi.fn()
+      .mockResolvedValueOnce(rows("a", "b", "c"))   // page 1
+      .mockResolvedValueOnce(rows("d", "e", "f"))   // page 2 via load-more
+      .mockResolvedValueOnce(rows("a", "b", "c"))   // refresh, page 1
+      .mockResolvedValueOnce(rows("d", "e", "F"));  // refresh, page 2 (f corrected)
+    render(<Host fetchPage={fetchPage} write={() => Promise.resolve()} />);
+    await waitFor(() => expect(shown()).toBe("a,b,c"));
+    fireEvent.click(screen.getByRole("button", { name: "more" }));
+    await waitFor(() => expect(shown()).toBe("a,b,c,d,e,f"));
+
+    fireEvent.click(screen.getByRole("button", { name: "write" }));
+    await waitFor(() => expect(shown()).toBe("a,b,c,d,e,F"));
+    expect(fetchPage.mock.calls.slice(2).map(([offset]) => offset)).toEqual([0, 3]);
+  });
+
+  it("stops the post-write walk as soon as a newer intent supersedes it", async () => {
+    const secondPage = deferred<Row[]>();
+    const fetchA = vi.fn()
+      .mockResolvedValueOnce(rows("a", "b", "c"))
+      .mockResolvedValueOnce(rows("d", "e", "f"))
+      .mockResolvedValueOnce(rows("a", "b", "c"))     // refresh page 1
+      .mockReturnValueOnce(secondPage.promise);       // refresh page 2, hangs
+    const fetchB = vi.fn().mockResolvedValue(rows("z"));
+    const { rerender } = render(
+      <Host fetchPage={fetchA} write={() => Promise.resolve()} />);
+    await waitFor(() => expect(shown()).toBe("a,b,c"));
+    fireEvent.click(screen.getByRole("button", { name: "more" }));
+    await waitFor(() => expect(shown()).toBe("a,b,c,d,e,f"));
+
+    fireEvent.click(screen.getByRole("button", { name: "write" }));
+    await waitFor(() => expect(fetchA).toHaveBeenCalledTimes(4));
+    rerender(<Host fetchPage={fetchB} write={() => Promise.resolve()} />);
+    await waitFor(() => expect(shown()).toBe("z"));
+
+    await act(async () => { secondPage.resolve(rows("d", "e", "f")); });
+    expect(shown()).toBe("z"); // the abandoned walk never lands
+  });
+
   it("lets a filter change made during the write supersede the write's refresh", async () => {
     // FeedPage's live bug: the submit's refresh claimed its ticket AFTER the
     // POST resolved, so it outranked — and overwrote — the newer filter.

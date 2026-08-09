@@ -399,7 +399,10 @@ export function HistoryPage() {
     );
   }
 
-  if (error && entries === null) return <section><h2>{t("loadingTitle")}</h2><p className="error">{error}</p></section>;
+  // The setup read (flocks + grades) failing with nothing to show is the one
+  // fatal case: without those, every row renders unresolvable ids. `entries`
+  // is the hook's handle, so the emptiness test is on its rows.
+  if (error && entries.rows === null) return <section><h2>{t("loadingTitle")}</h2><p className="error">{error}</p></section>;
 
   return (
     <section>

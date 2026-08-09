@@ -562,7 +562,6 @@ export const en = {
     // Imperative messages (event handlers / promise callbacks).
     loadFailed: "Could not load flocks and feed items. Is the API up?",
     loadRecordsFailed: "Could not load feed records.",
-    loadMoreFailed: "Could not load more.",
 
     intro:
       "Record what each flock was fed. Stock is drawn from the oldest "
@@ -619,7 +618,6 @@ export const en = {
     // CONTRIBUTING-i18n.md's imperative i18n.t() pattern).
     loadFlocksFailed: "Could not load flocks. Is the API up?",
     loadRecordsFailed: "Could not load water records.",
-    loadMoreFailed: "Could not load more.",
     concurrentEditError:
       "This record was just changed elsewhere — reload the list and retry.",
 
@@ -1586,7 +1584,6 @@ export const en = {
     gradesMustReconcileMessage:
       "Graded quantities must equal total eggs minus cracked, dirty, and discarded eggs.",
     entryAdjustedMessage: "Entry adjusted — stock and bird ledger updated to match.",
-    adjustReloadFailedMessage: "The adjustment saved, but the list failed to reload — refresh the page.",
     // askReason dialog (title / body / confirmLabel). {{date}}/{{flock}} are
     // the entry's own free-form DATA (date string, resolved flock name).
     voidConfirmTitle: "Void the {{date}} entry for {{flock}}?",
@@ -1595,12 +1592,10 @@ export const en = {
       + "Voided. Refused if any of its eggs were already sold.",
     voidConfirmLabel: "Void entry",
     entryVoidedMessage: "Entry voided — its egg lots were emptied and its deaths reversed.",
-    voidReloadFailedMessage: "The void saved, but the list failed to reload — refresh the page.",
     voidConflictMessage: "This entry was changed by someone else — the list has been reloaded; retry.",
     voidConflictReloadFailedMessage:
       "This entry was changed by someone else and the list could not be "
       + "reloaded — reload the page.",
-    loadMoreFailedMessage: "Could not load more.",
 
     // Filters
     flockLabel: "Flock",
