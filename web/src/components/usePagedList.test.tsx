@@ -517,12 +517,18 @@ describe("usePagedList — writes", () => {
     expect(shown()).toBe("a,b");
   });
 
-  it("leaves a newer intent alone when a failed write would have reissued", async () => {
-    // The reissue must not outrank a filter change the user made while the
-    // doomed write was in flight.
+  it("re-reads the NEWEST filter when a superseded write rejects (codex P2)", async () => {
+    // A rejection does not mean nothing committed: a screen's write callback
+    // can POST successfully and then fail on a follow-up read (FeedPage
+    // refreshes its inventory figures inside the same callback). If a filter
+    // change superseded the write and its GET completed before the POST
+    // committed, that list is missing the record — so the catch path must
+    // re-read too, and under the NEWEST filter, never the write's old one.
     const writeGate = deferred<void>();
     const fetchA = vi.fn().mockResolvedValue(rows("a"));
-    const fetchB = vi.fn().mockResolvedValue(rows("b"));
+    const fetchB = vi.fn()
+      .mockResolvedValueOnce(rows("b"))              // the racing filter GET
+      .mockResolvedValueOnce(rows("b", "committed"));
     const { rerender } = render(
       <Host fetchPage={fetchA} write={() => writeGate.promise} />);
     await waitFor(() => expect(shown()).toBe("a"));
@@ -532,8 +538,8 @@ describe("usePagedList — writes", () => {
     await waitFor(() => expect(shown()).toBe("b"));
 
     await act(async () => { writeGate.reject(new Error("nope")); });
-    expect(shown()).toBe("b");
-    expect(fetchA).toHaveBeenCalledTimes(1); // no reissue under the old filter
+    await waitFor(() => expect(shown()).toBe("b,committed"));
+    expect(fetchA).toHaveBeenCalledTimes(1); // never under the old filter
   });
 
   it("rethrows the write's error so the screen can render it", async () => {

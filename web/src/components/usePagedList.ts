@@ -226,12 +226,17 @@ export function usePagedList<T extends { id: string }, M = never>({
       }
       return result;
     } catch (err) {
-      // The claim above invalidated whatever read was in flight, and a failed
-      // write has no refresh to replace it — so without this the discarded
-      // response leaves the screen with nothing, stuck on its loading state
-      // until the user happens to change a filter (codex review). Skipped
-      // when something newer already owns the view.
+      // A rejection does not mean nothing committed: a screen's callback can
+      // POST successfully and then fail on a follow-up read. So this path
+      // needs BOTH re-reads the success path has —
+      //   * still holding the ticket: replace the read the claim invalidated,
+      //     or the discarded response leaves the screen stuck on its loading
+      //     state until the user happens to change a filter;
+      //   * superseded: re-read under the NEWEST filter, because that GET may
+      //     have completed before the write committed and would otherwise
+      //     omit the record for good (codex review).
       if (seq === req.current) await refreshWindow(seq);
+      else await reloadRef.current();
       throw err;
     } finally {
       setLoadingOwned(seq, false);
