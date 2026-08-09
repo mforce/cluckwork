@@ -161,4 +161,114 @@ public sealed class RefreshGraceClockRaceTests(RefreshGraceClockRaceFactory fact
         Assert.Equal(HttpStatusCode.OK, (await client.PostRefreshAsync(t1.RefreshToken)).StatusCode);
         Assert.Equal(1, await ActiveTokenCountAsync(accountId));
     }
+
+    // A disagreeing clock excuses ONLY the question the clock answers — whether
+    // the revocation was recent. It must not excuse the replay evidence that
+    // holds no matter what any clock says. The three tests below are those
+    // signals, each raised on a token whose revocation is ALSO stamped ahead of
+    // this request: every one must still burn the family down.
+    //
+    // Ordering the anomaly check ahead of them handed an attacker a way to
+    // suppress the family revoke outright — replay against a node whose clock
+    // trails the stamping one and the theft response never fires (codex review
+    // of #468).
+
+    // The #176 leap-frog: presenting the link that a grace advance revoked. The
+    // one-hop bound exists so a stolen token cannot be walked down the chain,
+    // and it is a fact about THIS row, not about when it was revoked.
+    [Fact]
+    public async Task Refresh_LeapFrogOffAGraceHop_StillRevokesTheFamily_EvenWhenStampedAhead()
+    {
+        var email = $"u-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var client = factory.CreateClient(Cookieless);
+
+        var t0 = await factory.LoginAsync(email);
+        var t1Response = await client.PostRefreshAsync(t0.RefreshToken);  // t0 → t1, normally
+        Assert.Equal(HttpStatusCode.OK, t1Response.StatusCode);
+        var t1 = await TestHarness.ReadTokensAsync(t1Response);
+
+        var t2Response = await client.PostRefreshAsync(t0.RefreshToken);  // grace: t0 → t2, marks t1
+        Assert.Equal(HttpStatusCode.OK, t2Response.StatusCode);
+        var t2 = await TestHarness.ReadTokensAsync(t2Response);
+
+        // Restamp the grace-revoked link only — RevokedByGrace names it exactly.
+        await factory.WithTenantScopeAsync(accountId, async db =>
+            await db.Database.ExecuteSqlInterpolatedAsync(
+                $"""UPDATE refresh_tokens SET "RevokedAt" = {DateTimeOffset.UtcNow.AddSeconds(5)} WHERE "AccountId" = {accountId} AND "RevokedByGrace" = true"""));
+
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.PostRefreshAsync(t1.RefreshToken)).StatusCode);
+
+        // Theft, not inert: the live tip dies with the rest of the family.
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.PostRefreshAsync(t2.RefreshToken)).StatusCode);
+        Assert.Equal(0, await ActiveTokenCountAsync(accountId));
+    }
+
+    // A replay whose replacement has itself already been rotated away: the chain
+    // moved on, which is replay evidence on its own — the token is being
+    // presented long after the session stopped using it.
+    [Fact]
+    public async Task Refresh_ReplayAfterTheChainMovedOn_StillRevokesTheFamily_EvenWhenStampedAhead()
+    {
+        var email = $"u-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var client = factory.CreateClient(Cookieless);
+
+        var t0 = await factory.LoginAsync(email);
+        var t1 = await TestHarness.ReadTokensAsync(await client.PostRefreshAsync(t0.RefreshToken));
+        var t2 = await TestHarness.ReadTokensAsync(await client.PostRefreshAsync(t1.RefreshToken));
+
+        // Restamp t0 — the oldest row, and the only one whose replacement (t1) is
+        // itself already revoked.
+        await factory.WithTenantScopeAsync(accountId, async db =>
+            await db.Database.ExecuteSqlInterpolatedAsync(
+                $"""UPDATE refresh_tokens SET "RevokedAt" = {DateTimeOffset.UtcNow.AddSeconds(5)} WHERE "Id" = (SELECT "Id" FROM refresh_tokens WHERE "AccountId" = {accountId} ORDER BY "CreatedAt" LIMIT 1)"""));
+
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.PostRefreshAsync(t0.RefreshToken)).StatusCode);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.PostRefreshAsync(t2.RefreshToken)).StatusCode);
+        Assert.Equal(0, await ActiveTokenCountAsync(accountId));
+    }
+
+}
+
+// The grace-disabled deployment asked for strict replay handling. A clock
+// disagreement must not quietly re-enable a softer answer for it.
+public sealed class RefreshClockAnomalyGraceDisabledFactory : CluckworkWebApplicationFactory
+{
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        base.ConfigureWebHost(builder);
+        builder.UseSetting("Jwt:RefreshReuseGraceSeconds", "0");
+    }
+}
+
+public sealed class RefreshClockAnomalyGraceDisabledTests(RefreshClockAnomalyGraceDisabledFactory factory)
+    : IClassFixture<RefreshClockAnomalyGraceDisabledFactory>
+{
+    private static readonly WebApplicationFactoryClientOptions Cookieless =
+        new() { HandleCookies = false };
+
+    [Fact]
+    public async Task Refresh_WithGraceDisabled_StillRevokesTheFamily_EvenWhenStampedAhead()
+    {
+        var email = $"u-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var client = factory.CreateClient(Cookieless);
+
+        var t0 = await factory.LoginAsync(email);
+        var t1 = await TestHarness.ReadTokensAsync(await client.PostRefreshAsync(t0.RefreshToken));
+
+        await factory.WithTenantScopeAsync(accountId, async db =>
+            await db.Database.ExecuteSqlInterpolatedAsync(
+                $"""UPDATE refresh_tokens SET "RevokedAt" = {DateTimeOffset.UtcNow.AddSeconds(5)} WHERE "AccountId" = {accountId} AND "RevokedAt" IS NOT NULL"""));
+
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.PostRefreshAsync(t0.RefreshToken)).StatusCode);
+
+        // Grace is off, so even a clock anomaly is strict theft — the family goes.
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.PostRefreshAsync(t1.RefreshToken)).StatusCode);
+        var active = await factory.WithTenantScopeAsync(accountId, db =>
+            db.RefreshTokens.CountAsync(t => t.AccountId == accountId && t.RevokedAt == null));
+        Assert.Equal(0, active);
+    }
 }

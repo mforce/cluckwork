@@ -849,26 +849,43 @@ public sealed class IdentityProvider(
         var graceSeconds = jwtOptions.Value.RefreshReuseGraceSeconds;
         var elapsed = now - revoked.RevokedAt.Value;
 
+        // Replay evidence that does NOT depend on the clock is settled FIRST,
+        // and is unchanged by #468: grace switched off, a second grace hop (the
+        // one-hop bound that stops a stolen token being walked down the chain),
+        // or a replacement that is no longer the live tip. None of the three is
+        // a statement about WHEN the revocation happened, so no clock
+        // disagreement can excuse them. Testing the skew case ahead of these
+        // instead — as #468 first shipped — let an attacker suppress the family
+        // revoke outright by replaying against a node whose clock trails the
+        // stamping one: the leap-frog, the moved-on chain, and even a
+        // deployment that disabled grace entirely all failed inert (codex
+        // review of #468, pinned from all three sides in
+        // RefreshGraceClockRaceTests).
+        if (graceSeconds <= 0                        // grace disabled → strict replay
+            || revoked.RevokedByGrace                // already a grace hop → don't chain (one-hop bound)
+            || replacement is null || !replacement.IsActive(now))  // chain moved on → not a benign retry
+            return (null, false);
+
+        // What remains is a benign-looking retry off the live tip, where the
+        // only open question is whether it landed inside the window — the one
+        // question the clock answers.
+        //
         // #468 — a RevokedAt stamped AHEAD of the instant we read it cannot be
         // explained by concurrency: RefreshAsync reads its clock after the
         // lookup, so anything we can observe was committed before that read. A
         // future stamp therefore means the clocks disagree (a node running
         // ahead, an NTP step), and a disagreeing clock is evidence about
-        // nothing — least of all about theft. Fail inert, exactly as a losing
-        // tab already does: no family revocation. This is checked BEFORE the
-        // grace gate because it is not a statement about the window at all; the
-        // previous code folded it into the window check and answered it by
-        // revoking every session the user had, which is the one outcome a clock
-        // anomaly must never cause.
+        // nothing. Fail inert, exactly as a losing tab already does: no family
+        // revocation. The previous code folded this into the window check and
+        // answered it by revoking every session the user had, which is the one
+        // outcome a clock anomaly must never cause.
         if (elapsed < TimeSpan.Zero)
             return (null, true);
 
-        if (graceSeconds <= 0                        // grace disabled → strict replay
-            || revoked.RevokedByGrace                // already a grace hop → don't chain (one-hop bound)
-            || elapsed > TimeSpan.FromSeconds(graceSeconds))
+        if (elapsed > TimeSpan.FromSeconds(graceSeconds))
             return (null, false);
 
-        return (replacement is not null && replacement.IsActive(now) ? replacement : null, false);
+        return (replacement, false);
     }
 
     private async Task RevokeAllActiveForUserAsync(
