@@ -1243,8 +1243,47 @@ public sealed class SchemaDocsTests
                         // nameof(...), a ternary, member access) is left for
                         // the atom checks, which pass identifier-led holes.
                         var cp = SkipTrivia(text, cw);
-                        if (cp < text.Length && text[cp] == '?')
-                            cp = SkipTrivia(text, cp + 1);
+                        // Generic argument list: consume a balanced <...>
+                        // whose interior holds only type-argument syntax
+                        // (identifiers, qualification, commas, nested
+                        // angles, nullable/array marks, trivia). Anything
+                        // else — an operator, a paren — means this was a
+                        // comparison, not a type: bail, and the `)` check
+                        // below refuses the strip.
+                        if (cp < text.Length && text[cp] == '<')
+                        {
+                            var g = cp + 1;
+                            var angleDepth = 1;
+                            while (g < text.Length && angleDepth > 0)
+                            {
+                                var gc = text[g];
+                                if (gc == '<') angleDepth++;
+                                else if (gc == '>') angleDepth--;
+                                else if (!(char.IsLetterOrDigit(gc) || gc is '_' or '.' or ':' or ',' or '?' or '[' or ']' or '*' or '/' || char.IsWhiteSpace(gc)))
+                                {
+                                    angleDepth = -1;
+                                    break;
+                                }
+                                g++;
+                            }
+                            if (angleDepth == 0) cp = SkipTrivia(text, g);
+                        }
+                        // Nullable and array suffixes, in any order and any
+                        // count (int?[], int[][], int[,]): an array bracket
+                        // counts only when it holds nothing but commas and
+                        // trivia — a digit inside is an indexer or size,
+                        // not a type.
+                        while (cp < text.Length)
+                        {
+                            if (text[cp] == '?') { cp = SkipTrivia(text, cp + 1); continue; }
+                            if (text[cp] == '[')
+                            {
+                                var b = SkipTrivia(text, cp + 1);
+                                while (b < text.Length && text[b] == ',') b = SkipTrivia(text, b + 1);
+                                if (b < text.Length && text[b] == ']') { cp = SkipTrivia(text, b + 1); continue; }
+                            }
+                            break;
+                        }
                         if (cp < text.Length && text[cp] == ')') { h = cp + 1; continue; }
                         break;
                     }
