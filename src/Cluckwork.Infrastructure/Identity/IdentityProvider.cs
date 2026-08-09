@@ -165,11 +165,25 @@ public sealed class IdentityProvider(
     public async Task<Result<TokenPair>> RefreshAsync(string refreshToken, CancellationToken ct = default)
     {
         var presentedHash = Hash(refreshToken);
-        var now = timeProvider.GetUtcNow();
 
         var stored = await db.RefreshTokens.FirstOrDefaultAsync(t => t.TokenHash == presentedHash, ct);
         if (stored is null)
             return Result.Failure<TokenPair>(Error.Validation("Identity.InvalidRefreshToken", "Refresh token is invalid."));
+
+        // #468 — the clock is read AFTER the lookup, and this ordering is load-
+        // bearing: the #176 grace window below measures how long ago the row we
+        // just READ was revoked. Reading the clock first makes that elapsed
+        // NEGATIVE under ordinary concurrency — a competing request can read its
+        // own clock later than ours, stamp RevokedAt with it, and commit before
+        // our lookup runs — which the skew guard in InspectGraceReplacementAsync
+        // then read as a replay and answered by revoking the whole family. Two
+        // tabs refreshing at once signed the user out of every device. Reading
+        // here instead makes the ordering an invariant rather than a race: any
+        // revocation we can observe was committed before this line, so its stamp
+        // precedes this instant on a single clock. The rotation below stamps the
+        // same instant (RevokedAt, ExpiresAt), so the row we write stays
+        // consistent with the one we read.
+        var now = timeProvider.GetUtcNow();
 
         // This MUST precede the #176 grace/replay branch. A retired token is
         // not evidence about the current family, so it fails inert rather than
@@ -192,15 +206,18 @@ public sealed class IdentityProvider(
             // delivered, so this does not fork the chain. Anything else — a stale
             // token, an expired grace, or a replacement already gone — is a genuine
             // replay and still burns the family down.
-            var (graced, crossEpochReplacement) =
+            var (graced, failInert) =
                 await InspectGraceReplacementAsync(stored, now, ct);
-            if (crossEpochReplacement)
+            if (failInert)
             {
-                // A mixed-version replica linked this current-epoch token to a
-                // child whose default epoch is permanently retired. That child
-                // is not evidence of theft in the current family: fail inertly,
-                // or repeated presentation of the parent could keep revoking
-                // unrelated sessions minted after the new version took over.
+                // Either a mixed-version replica linked this current-epoch token
+                // to a child whose default epoch is permanently retired (#364),
+                // or the revocation is stamped ahead of this request's clock
+                // (#468). Neither is evidence of theft in the current family:
+                // fail inertly, or repeated presentation of the parent could
+                // keep revoking unrelated sessions — ones minted after the new
+                // version took over, or ones a disagreeing clock made look
+                // impossible.
                 return Result.Failure<TokenPair>(Error.Validation(
                     "Identity.InvalidRefreshToken", "Refresh token is invalid."));
             }
@@ -808,12 +825,14 @@ public sealed class IdentityProvider(
         };
     }
 
-    // #176/#364 — identifies three distinct states for a revoked token:
-    // a live same-epoch grace replacement, a genuine same-epoch replay, or a
-    // linked child written with a retired epoch by an old replica. The last one
-    // must fail inertly even outside the grace window; it is mixed-version
-    // evidence, not evidence that the current-epoch family was stolen.
-    private async Task<(RefreshToken? Replacement, bool CrossEpochReplacement)>
+    // #176/#364/#468 — identifies four distinct states for a revoked token: a
+    // live same-epoch grace replacement, a genuine same-epoch replay, a linked
+    // child written with a retired epoch by an old replica, or a revocation
+    // stamped ahead of this request's clock. The last two must fail INERTLY —
+    // they are mixed-version and clock-disagreement evidence respectively, and
+    // neither is evidence that the current-epoch family was stolen, so neither
+    // may answer with a family revocation.
+    private async Task<(RefreshToken? Replacement, bool FailInert)>
         InspectGraceReplacementAsync(
         RefreshToken revoked, DateTimeOffset now, CancellationToken ct)
     {
@@ -829,13 +848,44 @@ public sealed class IdentityProvider(
 
         var graceSeconds = jwtOptions.Value.RefreshReuseGraceSeconds;
         var elapsed = now - revoked.RevokedAt.Value;
+
+        // Replay evidence that does NOT depend on the clock is settled FIRST,
+        // and is unchanged by #468: grace switched off, a second grace hop (the
+        // one-hop bound that stops a stolen token being walked down the chain),
+        // or a replacement that is no longer the live tip. None of the three is
+        // a statement about WHEN the revocation happened, so no clock
+        // disagreement can excuse them. Testing the skew case ahead of these
+        // instead — as #468 first shipped — let an attacker suppress the family
+        // revoke outright by replaying against a node whose clock trails the
+        // stamping one: the leap-frog, the moved-on chain, and even a
+        // deployment that disabled grace entirely all failed inert (codex
+        // review of #468, pinned from all three sides in
+        // RefreshGraceClockRaceTests).
         if (graceSeconds <= 0                        // grace disabled → strict replay
             || revoked.RevokedByGrace                // already a grace hop → don't chain (one-hop bound)
-            || elapsed < TimeSpan.Zero               // clock-skew guard: a future RevokedAt must not widen the window
-            || elapsed > TimeSpan.FromSeconds(graceSeconds))
+            || replacement is null || !replacement.IsActive(now))  // chain moved on → not a benign retry
             return (null, false);
 
-        return (replacement is not null && replacement.IsActive(now) ? replacement : null, false);
+        // What remains is a benign-looking retry off the live tip, where the
+        // only open question is whether it landed inside the window — the one
+        // question the clock answers.
+        //
+        // #468 — a RevokedAt stamped AHEAD of the instant we read it cannot be
+        // explained by concurrency: RefreshAsync reads its clock after the
+        // lookup, so anything we can observe was committed before that read. A
+        // future stamp therefore means the clocks disagree (a node running
+        // ahead, an NTP step), and a disagreeing clock is evidence about
+        // nothing. Fail inert, exactly as a losing tab already does: no family
+        // revocation. The previous code folded this into the window check and
+        // answered it by revoking every session the user had, which is the one
+        // outcome a clock anomaly must never cause.
+        if (elapsed < TimeSpan.Zero)
+            return (null, true);
+
+        if (elapsed > TimeSpan.FromSeconds(graceSeconds))
+            return (null, false);
+
+        return (replacement, false);
     }
 
     private async Task RevokeAllActiveForUserAsync(

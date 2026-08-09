@@ -292,7 +292,7 @@ public sealed class AuditVocabularyCoverageTests
     // re-confirm the exemption still applies rather than silently widening.
     private static readonly HashSet<(string File, int Line)> KnownIndirectActionCallSites =
     [
-        ("Cluckwork.Infrastructure/Identity/IdentityProvider.cs", 549),
+        ("Cluckwork.Infrastructure/Identity/IdentityProvider.cs", 566),
     ];
 
     // Fails closed on anything but a direct AuditActions.X reference, a
