@@ -332,10 +332,16 @@ export function ExpensesPage() {
       </div>
 
       {/* The total belongs to the rows below it: it lands and clears with
-          them, so it can never describe a period they do not (#469). */}
-      <p><strong>{t("monthTotalLabel", {
-        amount: formatMoney(expenses.meta?.total ?? 0, currencyCode, currencyMinor),
-      })}</strong></p>
+          them, so it can never describe a period they do not (#469). It is
+          also WITHHELD while a replacement is in flight — the hook keeps the
+          previous window until the new one lands, and a figure from last
+          month sitting under this month's picker is the very thing this
+          change exists to stop, pending or settled (codex review). */}
+      {!expenses.reloading && (
+        <p><strong>{t("monthTotalLabel", {
+          amount: formatMoney(expenses.meta?.total ?? 0, currencyCode, currencyMinor),
+        })}</strong></p>
+      )}
 
       {showCategories && (
         <div className="order-panel">
@@ -485,7 +491,7 @@ export function ExpensesPage() {
 
       {expenses.error && <p className="error" role="alert">{expenses.error}</p>}
 
-      {expenses.rows === null ? (
+      {expenses.rows === null || expenses.reloading ? (
         <p className="muted">{tc("loading")}</p>
       ) : expenses.rows.length === 0 ? (
         <p className="muted">{t("noExpensesMessage")}</p>

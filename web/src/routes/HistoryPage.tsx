@@ -581,7 +581,9 @@ export function HistoryPage() {
         <p className="error" role="alert">{entries.error}</p>
       )}
 
-      {entries.rows === null ? (
+      {/* Blanked while a replacement is in flight too: one window's rows must
+          never sit under another window's filters (#469). */}
+      {entries.rows === null || entries.reloading ? (
         <p className="muted">{tc("loading")}</p>
       ) : entries.rows.length === 0 ? (
         <p className="muted">{t("noEntriesMatch")}</p>

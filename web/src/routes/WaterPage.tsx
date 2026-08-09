@@ -288,7 +288,11 @@ export function WaterPage() {
 
       {usage.error && <p className="error">{usage.error}</p>}
 
-      {usage.rows.length === 0 ? (
+      {/* One window's rows must never sit under another window's controls,
+          not even for the length of the request (#469). */}
+      {usage.reloading ? (
+        <p className="muted">{tc("loading")}</p>
+      ) : usage.rows.length === 0 ? (
         <p className="muted">{t("noRecordsMatch")}</p>
       ) : (
         <>

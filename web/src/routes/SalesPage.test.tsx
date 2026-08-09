@@ -986,3 +986,19 @@ describe("SalesPage list failures (#469)", () => {
     expect(screen.queryByText("SO-STALE")).not.toBeInTheDocument();
   });
 });
+
+describe("SalesPage cross-window display while loading (#469)", () => {
+  it("hides the previous filter's orders while the new one loads", async () => {
+    mockListOrders.mockResolvedValueOnce([{ ...DRAFT_TWO, referenceNumber: "SO-OLD" }]);
+    await renderReady();
+    expect(screen.getByText("SO-OLD")).toBeInTheDocument();
+
+    mockListOrders.mockReturnValueOnce(new Promise(() => {}));
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Status"), { target: { value: "Draft" } });
+    });
+
+    // One window's orders must never sit under another window's filters.
+    expect(screen.queryByText("SO-OLD")).not.toBeInTheDocument();
+  });
+});

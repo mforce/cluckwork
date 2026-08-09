@@ -726,3 +726,27 @@ describe("ExpensesPage currency scale freshness (#469, codex P1)", () => {
       expect.objectContaining({ amountMinorUnits: 1 }), expect.any(String));
   });
 });
+
+describe("ExpensesPage cross-period display while loading (#469, codex P2)", () => {
+  // The whole point of this change was that a total must never describe a
+  // period the picker does not show. A PENDING month change is that same
+  // defect with a shorter fuse: the hook deliberately keeps the previous
+  // window until the replacement lands, so the screen has to blank it.
+  it("hides the previous month's total and rows while the new month is loading", async () => {
+    mockListExpenses.mockResolvedValueOnce({
+      items: [EXP_OLD], totalMinorUnits: 99900, currencyCode: "USD", currencyMinorUnit: 2,
+    });
+    await renderReady();
+    expect(screen.getByText(/Month total: 999\.00 USD/)).toBeInTheDocument();
+
+    // The replacement hangs: nothing about the old month may still show.
+    mockListExpenses.mockReturnValueOnce(new Promise(() => {}));
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Month"), { target: { value: "2026-05" } });
+    });
+
+    expect(screen.queryByText(/999\.00 USD/)).not.toBeInTheDocument();
+    expect(screen.queryByText("Generator diesel")).not.toBeInTheDocument();
+    expect(screen.getByText("Loading…")).toBeInTheDocument();
+  });
+});

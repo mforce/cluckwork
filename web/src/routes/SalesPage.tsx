@@ -818,7 +818,11 @@ export function SalesPage() {
       {/* The list's own failure, beside the workspace rather than instead of
           it — and self-healing on the next successful load (#469). */}
       {orders.error && <p className="error" role="alert">{orders.error}</p>}
-      {orders.rows.length === 0 ? (
+      {/* One window's orders must never sit under another window's filters,
+          not even for the length of the request (#469). */}
+      {orders.reloading ? (
+        <p className="muted">{t("loading")}</p>
+      ) : orders.rows.length === 0 ? (
         <p className="muted">{t("noOrdersMatch")}</p>
       ) : (
         <>
