@@ -1108,6 +1108,32 @@ public sealed class SchemaDocsTests
     // call or a ternary are untouched even though literals appear deeper
     // inside them (their leading identifier already makes the value
     // non-textual). Runs on comment-blanked text.
+    // Skips whitespace AND comment trivia from pos. Needed inside
+    // interpolation-hole analysis specifically: BlankCSharpComments lexes
+    // holes as string body (it does not parse interpolation), so a comment
+    // INSIDE a hole survives blanking verbatim and must be skipped here.
+    private static int SkipTrivia(string t, int p)
+    {
+        while (p < t.Length)
+        {
+            if (char.IsWhiteSpace(t[p])) { p++; continue; }
+            if (p + 1 < t.Length && t[p] == '/' && t[p + 1] == '*')
+            {
+                p += 2;
+                while (p + 1 < t.Length && !(t[p] == '*' && t[p + 1] == '/')) p++;
+                p = Math.Min(p + 2, t.Length);
+                continue;
+            }
+            if (p + 1 < t.Length && t[p] == '/' && t[p + 1] == '/')
+            {
+                while (p < t.Length && t[p] != '\n') p++;
+                continue;
+            }
+            break;
+        }
+        return p;
+    }
+
     private static bool HasStaticallyComposedInterpolation(string text)
     {
         var i = 0;
@@ -1173,25 +1199,42 @@ public sealed class SchemaDocsTests
                     // loop never reclassifies a runtime hole as static.
                     while (h < text.Length)
                     {
-                        if (char.IsWhiteSpace(text[h]) || text[h] is '(' or '-' or '+' or '~' or '!') { h++; continue; }
+                        var trivia = SkipTrivia(text, h);
+                        if (trivia != h) { h = trivia; continue; }
+                        if (text[h] is '(' or '-' or '+' or '~' or '!') { h++; continue; }
                         // A cast type may be the keyword alias, the
                         // framework name, or a namespace-qualified form
                         // (System.Char, global::System.Char) — walk the
-                        // dotted chain and judge its LAST segment.
+                        // dotted chain and judge its LAST segment. The walk
+                        // tolerates whitespace AND comment trivia around
+                        // separators: both are legal C# there, and comments
+                        // inside a hole survive BlankCSharpComments
+                        // verbatim (the blanker lexes hole contents as
+                        // string body).
                         var cw = h;
-                        while (cw < text.Length && (char.IsLetterOrDigit(text[cw]) || text[cw] == '_' || text[cw] == '.'
-                            || (text[cw] == ':' && cw + 1 < text.Length && text[cw + 1] == ':')))
-                            cw += text[cw] == ':' ? 2 : 1;
-                        var chain = text[h..cw];
-                        var lastSep = chain.LastIndexOfAny(['.', ':']);
-                        var lastSeg = chain[(lastSep + 1)..];
+                        var lastStart = h;
+                        var lastEnd = h;
+                        while (true)
+                        {
+                            var segStart = cw;
+                            while (cw < text.Length && (char.IsLetterOrDigit(text[cw]) || text[cw] == '_')) cw++;
+                            if (cw == segStart) break;
+                            lastStart = segStart;
+                            lastEnd = cw;
+                            var p = SkipTrivia(text, cw);
+                            if (p < text.Length && text[p] == '.') p++;
+                            else if (p + 1 < text.Length && text[p] == ':' && text[p + 1] == ':') p += 2;
+                            else break;
+                            cw = SkipTrivia(text, p);
+                        }
+                        cw = lastEnd;
+                        var lastSeg = text[lastStart..lastEnd];
                         if (lastSeg is "char" or "byte" or "sbyte" or "short" or "ushort" or "int" or "uint"
                             or "long" or "ulong" or "nint" or "nuint" or "float" or "double" or "decimal" or "bool" or "object" or "string"
                             or "Char" or "Byte" or "SByte" or "Int16" or "UInt16" or "Int32" or "UInt32"
                             or "Int64" or "UInt64" or "IntPtr" or "UIntPtr" or "Single" or "Double" or "Decimal" or "Boolean" or "Object" or "String")
                         {
-                            var cp = cw;
-                            while (cp < text.Length && char.IsWhiteSpace(text[cp])) cp++;
+                            var cp = SkipTrivia(text, cw);
                             // Nullable suffix: (char?) / (System.Char?) is
                             // still a cast — boxing a static atom through a
                             // nullable changes nothing about its value. A
@@ -1199,10 +1242,7 @@ public sealed class SchemaDocsTests
                             // conditional (reserved words are not
                             // expressions), so consuming it is unambiguous.
                             if (cp < text.Length && text[cp] == '?')
-                            {
-                                cp++;
-                                while (cp < text.Length && char.IsWhiteSpace(text[cp])) cp++;
-                            }
+                                cp = SkipTrivia(text, cp + 1);
                             if (cp < text.Length && text[cp] == ')') { h = cp + 1; continue; }
                         }
                         break;
