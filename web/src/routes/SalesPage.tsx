@@ -144,7 +144,15 @@ export function SalesPage() {
   };
   const clearKey = (scope: string) => keys.current.delete(scope);
 
-  const [error, setError] = useState<string | null>(null);
+  // #474 — the error carries the SCOPE that raised it, not just its text. One
+  // flat string was enough while every copy of it rendered in the same place;
+  // it is not enough now that the dialogs render their own, because neither
+  // dialog trigger is disabled while another request is in flight. A payments
+  // read (or a panel write started before the dialog was opened) that rejects
+  // underneath an open dialog would otherwise be presented as that dialog's
+  // own failure (codex review of #476). Scopes are the same strings run()
+  // already takes.
+  const [error, setError] = useState<{ scope: string; text: string } | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
   // Payments (#89, admin-only money data) — settlement state of the open
@@ -253,7 +261,9 @@ export function SalesPage() {
     let cancelled = false;
     listOrderPayments(activeId)
       .then((p) => { if (!cancelled) setPayments(p); })
-      .catch(() => { if (!cancelled) setError(i18n.t("sales:loadPaymentsFailed")); });
+      .catch(() => {
+        if (!cancelled) setError({ scope: "payments", text: i18n.t("sales:loadPaymentsFailed") });
+      });
     return () => { cancelled = true; };
   }, [activeId, activeStatus, canSettle]);
 
@@ -284,7 +294,7 @@ export function SalesPage() {
       try {
         await fn();
       } catch (err) {
-        setError(errText(err));
+        setError({ scope, text: errText(err) });
       }
     });
 
@@ -490,6 +500,12 @@ export function SalesPage() {
   // is part-way through editing (#469). Only the setup reads — customers and
   // products, without which no form on this screen can function — still gate
   // the page.
+  // Exactly the two cases a dialog renders itself (#474) — the page copy skips
+  // those and shows everything else.
+  const shownInDialog =
+    (creatingOrder && error?.scope === "create-order")
+    || (paying && error?.scope === "record-payment");
+
   if (setupError) return <section><h2>{t("title")}</h2><p className="error">{setupError}</p></section>;
   if (orders.rows === null) return <section><h2>{t("title")}</h2><p className="muted">{t("loading")}</p></section>;
 
@@ -528,12 +544,14 @@ export function SalesPage() {
             <input type="date" value={orderDate} max={today}
               onChange={(e) => setOrderDate(e.target.value)} />
           </label>
-          {/* #474 — no `!creatingOrder` guard here: this copy lives INSIDE the
-              dialog, which renders nothing while closed, so the page's
-              suppression condition would have hidden the message exactly when
-              the dialog it belongs to is up. role="alert" because focus is
-              trapped in the panel and nothing else announces the failure. */}
-          {error && <p className="error" role="alert">{error}</p>}
+          {/* #474 — this copy lives INSIDE the dialog, which renders nothing
+              while closed, so the page's `!creatingOrder` condition hid the
+              message exactly when the dialog it belongs to was up. The scope
+              test replaces it: the dialog reports its OWN write, never
+              whatever else happened to fail underneath it. role="alert"
+              because focus is trapped in the panel and nothing else announces
+              the failure. */}
+          {error?.scope === "create-order" && <p className="error" role="alert">{error.text}</p>}
           <div className="dialog-foot">
             <button type="button" className="link" onClick={() => setCreatingOrder(false)}>{tc("cancel")}</button>
             <BusyButton disabled={busy || !customerId} busy={isPending("create-order")}
@@ -764,9 +782,10 @@ export function SalesPage() {
                     <input value={payNote} maxLength={500}
                       onChange={(e) => setPayNote(e.target.value)} />
                   </label>
-                  {/* #474 — inside the dialog, so no `!paying` guard: see the
-                      new-order dialog above. */}
-                  {error && <p className="error" role="alert">{error}</p>}
+                  {/* #474 — this dialog's own write only: see the new-order
+                      dialog above. A void raised from the payments table can
+                      land while this is open, and is not this form's failure. */}
+                  {error?.scope === "record-payment" && <p className="error" role="alert">{error.text}</p>}
                   <div className="dialog-foot">
                     <button type="button" className="link" onClick={() => setPaying(false)}>{tc("cancel")}</button>
                     <BusyButton disabled={busy || !payAmount} busy={isPending("record-payment")}
@@ -798,10 +817,11 @@ export function SalesPage() {
         </div>
       )}
 
-      {/* The page's own copy, for the panel and list writes that are not behind
-          a dialog. Suppressed while either dialog is open — that one renders
-          the same message where the user is looking (#474). */}
-      {error && !creatingOrder && !paying && <p className="error">{error}</p>}
+      {/* The page's own copy, for everything not behind a dialog — and for a
+          failure that is nobody's dialog even while one is open, rather than
+          swallowing it. Suppressed only for the message the open dialog is
+          already showing, so it is never rendered twice (#474). */}
+      {error && !shownInDialog && <p className="error">{error.text}</p>}
       {message && <p className="success">{message}</p>}
 
       <h3>{t("ordersHeading")}</h3>

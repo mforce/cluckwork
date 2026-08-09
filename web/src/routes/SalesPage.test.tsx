@@ -1049,6 +1049,81 @@ describe("SalesPage in-dialog errors (#474)", () => {
     expect(screen.getAllByText("Payment exceeds the outstanding balance.")).toHaveLength(1);
   });
 
+  // Codex review of #476: `error` is ONE state shared by every action on the
+  // screen, and neither dialog trigger is disabled while another request is in
+  // flight. So an unconditional in-dialog render presents someone else's
+  // failure — a payments read, a write started before the dialog opened — as
+  // the dialog's own. The error carries the scope that raised it, and each
+  // dialog shows only its own.
+  const CONFIRMED_9: SalesOrder = {
+    ...draftEmpty(2, "USD", "o9"), referenceNumber: "SO-9", status: "Confirmed",
+    totalMinorUnits: 2900, items: [ITEM_A],
+  };
+
+  it("keeps an unrelated failure out of the new-order dialog", async () => {
+    let rejectPayments!: (e: unknown) => void;
+    mockListOrderPayments.mockReturnValueOnce(
+      new Promise((_, rej) => { rejectPayments = rej; }) as never);
+    await openOrder(CONFIRMED_9, /Grade A Dozen/);
+
+    // The trigger is live while that read is still out.
+    fireEvent.click(screen.getByRole("button", { name: "New order" }));
+    await act(async () => { rejectPayments(new Error("boom")); });
+
+    const message = "Could not load this order's payments.";
+    expect(within(dialog()).queryByText(message)).not.toBeInTheDocument();
+    // Not swallowed either — it belongs to the page, and says so there.
+    expect(screen.getByText(message)).toBeInTheDocument();
+  });
+
+  it("keeps a panel write's failure out of the new-order dialog", async () => {
+    // The other source: not a background read but another WRITE, started
+    // before the dialog was opened. Its scope is the one run() was called
+    // with, so tagging every failure alike would land it here.
+    await openOrder(DRAFT_TWO, /Grade A Dozen/);
+    let rejectAdd!: (e: unknown) => void;
+    vi.mocked(addOrderItem).mockReturnValue(
+      new Promise((_, rej) => { rejectAdd = rej; }) as never);
+    fireEvent.click(screen.getByRole("button", { name: "Add line" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "New order" }));
+    await act(async () => { rejectAdd(new ApiError(422, "Validation failed", "That product is no longer sellable.")); });
+
+    expect(within(dialog()).queryByText("That product is no longer sellable.")).not.toBeInTheDocument();
+    expect(screen.getByText("That product is no longer sellable.")).toBeInTheDocument();
+  });
+
+  it("keeps an unrelated failure out of the payment dialog", async () => {
+    mockListOrderPayments.mockResolvedValue({
+      items: [{
+        id: "pay1", salesOrderId: "o9", customerId: "c1", amountMinorUnits: 500,
+        currencyCode: "USD", currencyMinorUnit: 2, method: "Cash", paymentDate: "2026-07-20",
+        referenceNumber: "R1", note: null, voided: false, voidReason: null, version: 1,
+      }],
+      paidMinorUnits: 500, outstandingMinorUnits: 2400, totalMinorUnits: 2900,
+      currencyCode: "USD", currencyMinorUnit: 2,
+    });
+    let rejectVoid!: (e: unknown) => void;
+    vi.mocked(voidPayment).mockReturnValue(
+      new Promise((_, rej) => { rejectVoid = rej; }) as never);
+    await openOrder(CONFIRMED_9, /Grade A Dozen/);
+
+    // Start voiding a payment, leave it in flight…
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "void" }));
+    });
+    fireEvent.change(within(dialog()).getByLabelText("Reason *"), { target: { value: "wrong order" } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Void payment" }));
+    });
+    // …then open the payment dialog and let the void fail underneath it.
+    fireEvent.click(screen.getByRole("button", { name: "Record payment" }));
+    await act(async () => { rejectVoid(new ApiError(409, "Conflict", "That payment was already voided.")); });
+
+    expect(within(dialog()).queryByText("That payment was already voided.")).not.toBeInTheDocument();
+    expect(screen.getByText("That payment was already voided.")).toBeInTheDocument();
+  });
+
   it("still renders a page-level error with no dialog open", async () => {
     // The panel's own writes are not behind a dialog — their errors must keep
     // landing on the page, which is what the page copy's guard exists for.
