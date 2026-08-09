@@ -1158,17 +1158,22 @@ public sealed class SchemaDocsTests
                     if (!isRaw && braceRun >= 2) continue; // {{ escape: literal braces
                     if (isRaw && braceRun < holeBraces) continue; // literal braces
                     var h = i;
-                    // Skip whitespace, open-parens, and CASTS to a reserved
-                    // primitive type on the way to the hole's leading token.
+                    // ONE fixpoint loop strips every value-preserving
+                    // wrapper a constant expression can nest in any order —
+                    // whitespace, parens, unary operators (~ ! + -), and
+                    // casts to (optionally qualified, optionally nullable)
+                    // primitive types — until the underlying leading token
+                    // is reached; the atom checks below then judge THAT.
+                    // Alternation matters: casts and unary operators
+                    // interleave ((char)~(int)-104), so a single pass of
+                    // each in fixed order leaves the inner one unexamined.
                     // Reserved type words cannot be expressions, so `(char)`
-                    // in expression position can only be a cast — what
-                    // matters is its OPERAND, which the atom checks below
-                    // then judge: a static operand (a numeric char code) is
-                    // composition, a runtime identifier operand stays the
-                    // runtime boundary.
+                    // in expression position can only be a cast; every other
+                    // skipped character cannot start an identifier, so the
+                    // loop never reclassifies a runtime hole as static.
                     while (h < text.Length)
                     {
-                        if (char.IsWhiteSpace(text[h]) || text[h] == '(') { h++; continue; }
+                        if (char.IsWhiteSpace(text[h]) || text[h] is '(' or '-' or '+' or '~' or '!') { h++; continue; }
                         // A cast type may be the keyword alias, the
                         // framework name, or a namespace-qualified form
                         // (System.Char, global::System.Char) — walk the
@@ -1218,26 +1223,12 @@ public sealed class SchemaDocsTests
                     // options messages). Identifier-led holes remain the
                     // runtime boundary.
                     if (h < text.Length && (text[h] == '"' || text[h] == '\'')) return true;
-                    // Unary operators are value-preserving wrappers around a
-                    // static atom: complement, negation, plus, and logical
-                    // not — possibly interleaved with parens and whitespace
-                    // (`~(-104)`). Skip the whole run, then judge what it
-                    // wraps: a digit or constant keyword there is still
-                    // static composition; an identifier there is still the
-                    // runtime boundary. Every skipped character is one that
-                    // cannot START an identifier, so this skip never
-                    // reclassifies a runtime hole.
-                    var s = h;
-                    while (s < text.Length && (text[s] is '-' or '+' or '~' or '!' or '(' || char.IsWhiteSpace(text[s]))) s++;
-                    var q2 = s;
-                    while (q2 < text.Length && (text[q2] == '$' || text[q2] == '@')) q2++;
-                    if (q2 < text.Length && (text[q2] == '"' || text[q2] == '\'')) return true;
-                    if (s < text.Length && (char.IsDigit(text[s])
-                        || (text[s] == '.' && s + 1 < text.Length && char.IsDigit(text[s + 1]))))
+                    if (h < text.Length && (char.IsDigit(text[h])
+                        || (text[h] == '.' && h + 1 < text.Length && char.IsDigit(text[h + 1]))))
                         return true;
-                    var we = s;
+                    var we = h;
                     while (we < text.Length && (char.IsLetterOrDigit(text[we]) || text[we] == '_')) we++;
-                    if (text[s..we] is "null" or "true" or "false" or "default" or "sizeof" or "checked" or "unchecked")
+                    if (text[h..we] is "null" or "true" or "false" or "default" or "sizeof" or "checked" or "unchecked")
                         return true;
                     // Skip to the hole's closing brace run, stepping over
                     // any nested ordinary string so a brace inside it does
