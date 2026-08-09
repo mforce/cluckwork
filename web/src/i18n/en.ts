@@ -2042,11 +2042,8 @@ export const en = {
       + "still typing may need to be entered again) — tap <strong>Reload</strong>, or <strong>Back to the "
       + "dashboard</strong> and try again. If it keeps happening, open \"Error details\" and send a screenshot.",
     gettingAroundWhereMessagesAppear:
-      "A message about something that failed appears <strong>where the work is</strong>: if you were filling in "
-      + "a pop-up form, it appears inside that form, next to the fields it is about; if it was the screen itself "
-      + "— a list that would not load, say — it appears on the screen behind. So a form that refuses to save "
-      + "always tells you why without closing. Closing the form drops its message: that attempt is over, and "
-      + "anything the screen itself reported stays put.",
+      "If a save fails, the form tells you why <strong>inside the form</strong>, beside the fields it is "
+      + "about — it stays open, so you can correct it and try again without losing what you typed.",
 
     // Signing in
     signingInHeading: "Signing in",
