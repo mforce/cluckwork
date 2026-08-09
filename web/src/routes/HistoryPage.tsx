@@ -263,7 +263,9 @@ export function HistoryPage() {
   // the entry is no longer correctable (voided meanwhile), close the panel.
   async function rebindAfterConflict(entryId: string) {
     try {
-      await entries.reload();
+      // No reload here either: this runs from the adjust submit's 409 catch,
+      // by which point runWrite has already re-read. A duplicate replacement
+      // read that failed would clear the rows that one just loaded (#469).
       const fresh = await getDailyEntry(entryId);
       if (correctable(fresh)) {
         const keptReason = reason;
@@ -366,11 +368,12 @@ export function HistoryPage() {
           // a stale adjust panel for this entry: the 409 path used to leave
           // it bound to pre-conflict values while the success path closed it.
           if (adjusting?.id === e.id) setAdjusting(null);
-          // The message is chosen by the OUTCOME: voidConflictMessage says
-          // "the list has been reloaded — retry", which is untrue when that
-          // reload failed, and there is a message for exactly that (#469).
-          const reloaded = await entries.reload();
-          setError(i18n.t(reloaded
+          // No reload of our own: runWrite already re-read in its rejection
+          // path, and a second replacement read that transiently failed would
+          // clear the rows the first one just loaded. Ask the hook how that
+          // read went instead — the message must not claim "the list has been
+          // reloaded" when it has not (#469).
+          setError(i18n.t(entries.lastReadLanded()
             ? "history:voidConflictMessage"
             : "history:voidConflictReloadFailedMessage"));
         } else {

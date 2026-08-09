@@ -1059,3 +1059,30 @@ describe("HistoryPage void conflict when the reload also fails (#469)", () => {
     expect(screen.queryByText(/the list has been reloaded/i)).not.toBeInTheDocument();
   });
 });
+
+describe("HistoryPage conflict reload is issued once (#469)", () => {
+  // runWrite already re-reads in its rejection path, so a second reload here
+  // is not just wasted: if the first succeeds and the duplicate transiently
+  // fails, the hook clears the freshly loaded rows and reports failure —
+  // strictly worse than either read alone.
+  it("does not issue a second replacement read after a 409", async () => {
+    mockListDailyEntries
+      .mockResolvedValueOnce([SUBMITTED])   // initial
+      .mockResolvedValueOnce([SUBMITTED])   // runWrite's own re-read: succeeds
+      .mockRejectedValue(new Error("boom")); // any further read would fail
+    vi.mocked(voidDailyEntry).mockRejectedValue(new ApiError(409, "Conflict", "conflict"));
+    renderWithProviders(<HistoryPage />, { token: ADMIN });
+
+    fireEvent.click(await screen.findByRole("button", { name: "void" }));
+    fireEvent.change(within(screen.getByRole("dialog")).getByLabelText("Reason *"),
+      { target: { value: "miscounted" } });
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Void entry" }));
+    });
+
+    expect(mockListDailyEntries).toHaveBeenCalledTimes(2);
+    // The refresh DID land, so the message must say so — and the rows survive.
+    expect(screen.getByText(/the list has been reloaded/i)).toBeInTheDocument();
+    expect(screen.getByRole("row", { name: /2026-07-19/ })).toBeInTheDocument();
+  });
+});

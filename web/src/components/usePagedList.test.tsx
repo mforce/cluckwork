@@ -394,6 +394,66 @@ describe("usePagedList — error lifecycle", () => {
     await waitFor(() => expect(outcomes).toEqual([true, false]));
   });
 
+  it("reports from lastReadLanded() how the most recent read went (codex P2)", async () => {
+    // runWrite re-reads in BOTH its paths, so a caller that wants to report
+    // that refresh's outcome must ask instead of issuing a second read — a
+    // duplicate that transiently failed would clear the rows the first one
+    // just loaded (HistoryPage's 409 message).
+    const landed: boolean[] = [];
+    function ProbeHost({ fetchPage }: {
+      fetchPage: (offset: number, limit: number) => Promise<Row[]>;
+    }) {
+      const list = usePagedList<Row>({ fetchPage, pageSize: 3 });
+      return (
+        <button onClick={() => void list.runWrite(() => Promise.reject(new Error("nope")))
+          .catch(() => landed.push(list.lastReadLanded()))}>go</button>
+      );
+    }
+
+    const fetchPage = vi.fn()
+      .mockResolvedValueOnce(rows("a"))
+      .mockResolvedValueOnce(rows("a"))          // the write's own re-read: lands
+      .mockRejectedValueOnce(new Error("boom")); // next one does not
+    render(<ProbeHost fetchPage={fetchPage} />);
+    await waitFor(() => expect(fetchPage).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole("button", { name: "go" }));
+    await waitFor(() => expect(landed).toEqual([true]));
+
+    fireEvent.click(screen.getByRole("button", { name: "go" }));
+    await waitFor(() => expect(landed).toEqual([true, false]));
+  });
+
+  it("records a failed plain read in lastReadLanded() too", async () => {
+    // The write paths run through refreshWindow; a filter reload runs through
+    // load. Both must record the outcome, and only covering one let a mutant
+    // that dropped the other survive.
+    const seen: boolean[] = [];
+    function ProbeHost({ fetchPage }: {
+      fetchPage: (offset: number, limit: number) => Promise<Row[]>;
+    }) {
+      const list = usePagedList<Row>({ fetchPage, pageSize: 3 });
+      return (
+        <button onClick={() => void list.reload().then(() => seen.push(list.lastReadLanded()))}>
+          reload
+        </button>
+      );
+    }
+
+    const fetchPage = vi.fn()
+      .mockResolvedValueOnce(rows("a"))
+      .mockRejectedValueOnce(new Error("boom"))
+      .mockResolvedValueOnce(rows("b"));
+    render(<ProbeHost fetchPage={fetchPage} />);
+    await waitFor(() => expect(fetchPage).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole("button", { name: "reload" }));
+    await waitFor(() => expect(seen).toEqual([false]));
+
+    fireEvent.click(screen.getByRole("button", { name: "reload" }));
+    await waitFor(() => expect(seen).toEqual([false, true]));
+  });
+
   it("keeps the loaded rows when only a load-more fails (codex P2)", async () => {
     // A failed EXTENSION says nothing about the rows already on screen —
     // they still belong to the current filter. Emptying them turned a
