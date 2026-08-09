@@ -1218,18 +1218,26 @@ public sealed class SchemaDocsTests
                     // options messages). Identifier-led holes remain the
                     // runtime boundary.
                     if (h < text.Length && (text[h] == '"' || text[h] == '\'')) return true;
+                    // Unary operators are value-preserving wrappers around a
+                    // static atom: complement, negation, plus, and logical
+                    // not — possibly interleaved with parens and whitespace
+                    // (`~(-104)`). Skip the whole run, then judge what it
+                    // wraps: a digit or constant keyword there is still
+                    // static composition; an identifier there is still the
+                    // runtime boundary. Every skipped character is one that
+                    // cannot START an identifier, so this skip never
+                    // reclassifies a runtime hole.
                     var s = h;
-                    if (s < text.Length && (text[s] == '-' || text[s] == '+'))
-                    {
-                        s++;
-                        while (s < text.Length && char.IsWhiteSpace(text[s])) s++;
-                    }
+                    while (s < text.Length && (text[s] is '-' or '+' or '~' or '!' or '(' || char.IsWhiteSpace(text[s]))) s++;
+                    var q2 = s;
+                    while (q2 < text.Length && (text[q2] == '$' || text[q2] == '@')) q2++;
+                    if (q2 < text.Length && (text[q2] == '"' || text[q2] == '\'')) return true;
                     if (s < text.Length && (char.IsDigit(text[s])
                         || (text[s] == '.' && s + 1 < text.Length && char.IsDigit(text[s + 1]))))
                         return true;
-                    var we = h;
+                    var we = s;
                     while (we < text.Length && (char.IsLetterOrDigit(text[we]) || text[we] == '_')) we++;
-                    if (text[h..we] is "null" or "true" or "false" or "default" or "sizeof" or "checked" or "unchecked")
+                    if (text[s..we] is "null" or "true" or "false" or "default" or "sizeof" or "checked" or "unchecked")
                         return true;
                     // Skip to the hole's closing brace run, stepping over
                     // any nested ordinary string so a brace inside it does
