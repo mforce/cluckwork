@@ -464,7 +464,12 @@ public sealed class SchemaDocsTests
                 static bool IsPlusGap(string t, int start, int end)
                 {
                     var p = SkipTrivia(t, start);
-                    while (p < end && t[p] == ')') p = SkipTrivia(t, p + 1);
+                    // Before the plus: closing parens of a wrapped previous
+                    // fragment, and the postfix null-forgiving operator —
+                    // both value-preserving. Consuming `!` cannot mistake an
+                    // inequality for a chain: after it the very next token
+                    // must still be `+`, and `!=` fails that.
+                    while (p < end && (t[p] == ')' || t[p] == '!')) p = SkipTrivia(t, p + 1);
                     if (p >= end || t[p] != '+') return false;
                     p = SkipTrivia(t, p + 1);
                     while (p < end)
