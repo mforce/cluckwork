@@ -158,8 +158,9 @@ file the first sweep had already opened. So do not extend this list from memory.
 Re-derive it: enumerate **every** `AddSingleton`/`AddHostedService` under `src/`
 plus every in-memory state primitive (`ConcurrentDictionary`, `IMemoryCache`,
 `PartitionedRateLimiter`, `Channel`, `SemaphoreSlim`, mutable statics), then
-classify each one as safe or not. That walk is currently 13 singletons and 1
-hosted service; the four above are what survives it. Excluded deliberately, so
+classify each one as safe or not. That walk currently finds 12 `AddSingleton`
+registrations and 1 `AddHostedService` (13 total, the hosted service is not one
+of the 12); the four above are what survives it. Excluded deliberately, so
 the next walk need not re-litigate them: `TimeProvider.System`, the Serilog
 diagnostic contexts, `IValidateOptions`/`IAuthorizationMiddlewareResultHandler`
 (all stateless), and `FirstRunProvisioningLatch` — a monotonic one-way cache of
