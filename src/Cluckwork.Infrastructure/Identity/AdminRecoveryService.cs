@@ -62,9 +62,21 @@ public sealed class AdminRecoveryService(
         // Refusing is this slice's job; CLEARING DisabledAt here is not — that
         // ships with the --user-id lookup, because locating by email is
         // circular once an email typo is what locked the account. Until then
-        // the operator gets an actionable error rather than a lie. The advice
-        // is always followable: the last-active-Owner guard means an account
-        // can never be left with zero Owners able to sign in and re-enable.
+        // the operator gets an actionable error rather than a lie.
+        //
+        // The advice ("re-enable them from the Users screen") is followable for
+        // any state THIS APPLICATION can produce: the last-active-Owner guard
+        // runs inside the account lock on both the disable and the demote path,
+        // so no in-app sequence reaches an account with zero active Owners.
+        // It is NOT followable for a hand-edited or restored database that
+        // arrives with every Owner disabled — and that population is precisely
+        // the one break-glass exists for, so the limit is stated rather than
+        // assumed away. `bootstrap-admin` is not an escape hatch from it today
+        // either: FirstRunAdminService counts Owner ROLE ROWS without excluding
+        // DisabledAt, so a disabled Owner still reads as "already provisioned"
+        // and it exits 0 having done nothing. Recovering that state needs
+        // direct DB surgery until #357 ships --user-id with a clear-disabled.
+        // Do not restate this as an unconditional guarantee.
         if (target.DisabledAt is not null)
             return Result.Failure<AdminRecoveryResult>(Error.Validation(
                 "Recovery.UserDisabled",

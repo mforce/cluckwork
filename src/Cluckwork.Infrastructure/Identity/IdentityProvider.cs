@@ -761,9 +761,13 @@ public sealed class IdentityProvider(
             if (targetIsOwner
                 && await CountOtherActiveOwnersAsync(accountId, userId, token) == 0)
             {
+                // Same wording discipline as ConcurrencyConflict(): step-up is
+                // unconditional here and its grant is already spent by the time
+                // this guard runs, so the copy must not imply a bare resubmit.
                 return Result.Failure(Error.Validation(
                     "Users.LastOwner",
-                    "This is the account's last active Owner — promote or re-enable another Owner first."));
+                    "This is the account's last active Owner — promote or re-enable another Owner first, "
+                    + "then confirm your password again."));
             }
 
             var now = timeProvider.GetUtcNow();
@@ -853,9 +857,14 @@ public sealed class IdentityProvider(
             // unrotated stamp and write DisabledAt back from its pre-enable
             // snapshot. The Owner would have received 204 and a User.Enabled
             // audit row for an enable that was silently undone, with the user
-            // still locked out. Rotating makes that stale write lose its CAS and
-            // surface as Users.Conflict instead. Pinned by
-            // ConcurrentStampChange_DuringTheEnableItself_Is409.
+            // still locked out. Rotating makes that stale write lose its CAS.
+            //
+            // Pinned by Enable_RotatesBothStamps_SoAStaleFullEntityWriteCannotRevertIt,
+            // NOT by ConcurrentStampChange_DuringTheEnableItself_Is409: in that
+            // test the FENCE changes the stamp, which EF's own ConcurrencyStamp
+            // token catches with or without this rotation, so it stays green
+            // when the rotation is deleted. Only a direct assertion that the
+            // stamp VALUE changed pins this line.
             var stampRotated = await userManager.UpdateSecurityStampAsync(user);
             if (!stampRotated.Succeeded)
                 return Result.Failure(IsConcurrencyFailure(stampRotated)
@@ -931,7 +940,17 @@ public sealed class IdentityProvider(
             var resetToken = await userManager.GeneratePasswordResetTokenAsync(user);
             var reset = await userManager.ResetPasswordAsync(user, resetToken, newPassword);
             if (!reset.Succeeded)
-                return Result.Failure(Error.Validation("Users.PasswordRejected", Describe(reset)));
+                // #356 — a lost CAS is separated from a rejected password. This
+                // became reachable when EnableUserAsync started rotating the
+                // stamp: that rotation is what makes a concurrent reset lose,
+                // and Identity reports the loss as a FAILED IdentityResult, not
+                // a throw. Without this split the loser is told "the new
+                // password was rejected" — a 422 whose only actionable reading
+                // is "choose a stronger password", for a password that was
+                // never the problem.
+                return Result.Failure(IsConcurrencyFailure(reset)
+                    ? ConcurrencyConflict()
+                    : Error.Validation("Users.PasswordRejected", Describe(reset)));
 
             // #283 — any successful password reset clears a pending first-run gate.
             // Covers an Owner using SetUserPassword or an offline break-glass reset

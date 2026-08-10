@@ -89,8 +89,16 @@ A clear message is written to **stderr**, e.g.:
   before the password is ever checked. Have another Owner re-enable them from **Users → Enable**, then re-run
   this command if the password is still unknown. This command refuses rather than resetting precisely so it
   cannot hand you a credential that silently does not work; clearing the disabled flag from the CLI is not yet
-  supported (tracked with the `--user-id` lookup in #357). The account can always reach an Owner who is able to
-  re-enable: the last **active** Owner cannot be disabled.
+  supported (tracked with the `--user-id` lookup in #357).
+
+  **If EVERY Owner on the account is disabled, there is no CLI route back.** The application cannot produce that
+  state — the last *active* Owner cannot be disabled, and that guard runs inside the account lock on both the
+  disable and the demote path — but a hand-edited or restored database can arrive in it, and that is exactly the
+  population this runbook serves. `bootstrap-admin` does **not** rescue it: it counts Owner role rows without
+  excluding `DisabledAt`, so a disabled Owner still reads as "already provisioned" and it exits `0` having done
+  nothing. Until #357 ships, recovery from that state is direct DB surgery —
+  `UPDATE "AspNetUsers" SET "DisabledAt" = NULL, "DisabledBy" = NULL WHERE "Id" = '<owner-id>';` — followed by
+  re-running this command if the password is also unknown.
 - `Invalid --account '<x>' — must be a GUID.`
 
 Nothing is changed on a failure.

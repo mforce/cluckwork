@@ -549,6 +549,15 @@ describe("UsersPage disable/enable (#356)", () => {
   const enableRow = (rowName: RegExp) =>
     within(screen.getByRole("row", { name: rowName })).getByRole("button", { name: "enable" });
 
+  // Same idiom as the #236 pending-states block below (client.test.ts style):
+  // a promise this test controls, so it can assert what the component does
+  // WHILE a request is genuinely in flight, not just before/after it.
+  function deferred<T>() {
+    let resolve!: (v: T) => void;
+    const promise = new Promise<T>((r) => { resolve = r; });
+    return { promise, resolve };
+  }
+
   it("renders a disabled user's row muted with a Disabled badge, offering Enable and not Disable", async () => {
     mockListUsers.mockResolvedValue([WORKER_USER, DISABLED_USER]);
     await renderReady(ADMIN);
@@ -680,6 +689,130 @@ describe("UsersPage disable/enable (#356)", () => {
     expect(within(dialog).getByText(/sole remaining owner/)).toBeInTheDocument();
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(mockEnableUser).not.toHaveBeenCalled();
+  });
+
+  // NOT a regression test for the #356 reason/await reorder — see the report
+  // to whoever asked for this file for the full reasoning. Short version: the
+  // canonical shape for this kind of race elsewhere in the file ("discards a
+  // stale refresh from a worker whose dialog was closed and reopened for
+  // another", flock scoping above) doesn't reach here. The row's
+  // disable/enable buttons are `disabled={busy}` for the WHOLE flight (stepUp
+  // + disableUser + the listUsers refresh — confirmed directly: clicking a
+  // different row's trigger while one is pending fires no handler, matching
+  // Dialog.tsx's own comment that a busy save "leaves its row trigger
+  // disabled for one more render"), so a second dialog for another worker
+  // can never open while one is in flight, and reopening for a different
+  // TARGET is the only way `disableReason` could plausibly carry someone
+  // else's text — `onSubmitStepUp` closes over `disableReason` fresh on every
+  // render, so a value read later in the SAME invocation is identical to one
+  // read earlier regardless of any retyping into the still-open dialog in the
+  // meantime (confirmed by reverting the fix's line order locally: the
+  // suite's outcome for this exact test was unchanged — see report). This
+  // test instead pins the resulting, still-true behavior: the reason actually
+  // sent is the one present at submit time, not whatever the field holds by
+  // the time the write resolves.
+  it("sends the reason present at submit time, not a later edit made to the still-open dialog while the write is in flight", async () => {
+    const gate = deferred<{ token: string; expiresAt: string }>();
+    mockStepUp.mockReturnValue(gate.promise);
+    mockDisableUser.mockResolvedValue(undefined);
+    await renderReady(ADMIN);
+
+    fireEvent.click(disableRow(/worker@farm.test/));
+    const dlg = await screen.findByRole("dialog", { name: /Disable — worker@farm\.test/ });
+    fireEvent.change(within(dlg).getByLabelText(/Reason/), { target: { value: "first reason" } });
+    fireEvent.change(within(dlg).getByLabelText(/Your current password/), {
+      target: { value: "OwnerCurrentPw!1" },
+    });
+
+    // Submit — stepUp() hangs on the deferred, so the write is now in flight.
+    await act(async () => {
+      fireEvent.click(within(dlg).getByRole("button", { name: "Disable" }));
+    });
+
+    // While still pending, retype the SAME still-open dialog's reason field.
+    // Pre-fix, reading `disableReason` after the step-up await would pick
+    // this up and file it as worker@farm.test's disable reason.
+    fireEvent.change(within(dlg).getByLabelText(/Reason/), { target: { value: "second reason" } });
+
+    await act(async () => {
+      gate.resolve({ token: "grant-d1", expiresAt: "2026-01-01T00:05:00Z" });
+    });
+
+    expect(mockDisableUser).toHaveBeenCalledWith(
+      "u-w", { reason: "first reason" }, expect.any(String), "grant-d1");
+  });
+
+  // Every other mutation on this screen has a replay/rotate test; disable did
+  // not. Mirrors "replays the SAME create key after a failure, and rotates it
+  // after success" above.
+  it("replays the SAME disable key after a failure, and rotates it after success", async () => {
+    mockStepUp.mockResolvedValue({ token: "grant-d1", expiresAt: "2026-01-01T00:05:00Z" });
+    mockDisableUser.mockRejectedValueOnce(new ApiError(500, "Server error", "boom"));
+    mockDisableUser.mockResolvedValue(undefined);
+    await renderReady(ADMIN);
+
+    fireEvent.click(disableRow(/worker@farm.test/));
+    const dlg = await screen.findByRole("dialog", { name: /Disable — worker@farm\.test/ });
+    fireEvent.change(within(dlg).getByLabelText(/Your current password/), {
+      target: { value: "OwnerCurrentPw!1" },
+    });
+    const submit = () => within(dlg).getByRole("button", { name: "Disable" });
+
+    // Attempt 1 — fails, so the key is kept and the dialog stays open. The
+    // step-up password is cleared unconditionally the instant it's captured
+    // (#308 — read-then-clear-before-await), win or lose, so it must be
+    // retyped for the retry below; that's independent of the idempotency key.
+    await act(async () => { fireEvent.click(submit()); });
+    expect(within(dlg).getByText(/Server error|boom/)).toBeInTheDocument();
+
+    // Attempt 2 — same target/scope, refilled password → replay of the kept key.
+    fireEvent.change(within(dlg).getByLabelText(/Your current password/), {
+      target: { value: "OwnerCurrentPw!1" },
+    });
+    await act(async () => { fireEvent.click(submit()); });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(await screen.findByText(/worker@farm\.test has been disabled/)).toBeInTheDocument();
+
+    const k1 = mockDisableUser.mock.calls[0][2];
+    const k2 = mockDisableUser.mock.calls[1][2];
+    expect(k2).toBe(k1); // failure kept the key → exact replay
+
+    // The disabled scope can't be resubmitted (the row now offers Enable, not
+    // Disable) — so, as with the other per-target scopes on this screen,
+    // rotation is proven on the next disable, here a different user.
+    fireEvent.click(disableRow(/boss@farm.test/));
+    const dlg2 = await screen.findByRole("dialog", { name: /Disable — boss@farm\.test/ });
+    fireEvent.change(within(dlg2).getByLabelText(/Your current password/), {
+      target: { value: "OwnerCurrentPw!1" },
+    });
+    await act(async () => {
+      fireEvent.click(within(dlg2).getByRole("button", { name: "Disable" }));
+    });
+
+    const k3 = mockDisableUser.mock.calls[2][2];
+    expect(k3).not.toBe(k2); // the prior success rotated it → this write is fresh
+  });
+
+  // The existing "reason left empty" test (above) never types anything into
+  // the textarea, so `disableReason || null` (missing the `.trim()`) would
+  // still pass it — this pins the trim explicitly.
+  it("sends reason: null for a whitespace-only reason, not the raw whitespace string", async () => {
+    mockStepUp.mockResolvedValue({ token: "grant-d1", expiresAt: "2026-01-01T00:05:00Z" });
+    mockDisableUser.mockResolvedValue(undefined);
+    await renderReady(ADMIN);
+
+    fireEvent.click(disableRow(/worker@farm.test/));
+    const dialog = await screen.findByRole("dialog", { name: /Disable — worker@farm\.test/ });
+    fireEvent.change(within(dialog).getByLabelText(/Reason/), { target: { value: "   " } });
+    fireEvent.change(within(dialog).getByLabelText(/Your current password/), {
+      target: { value: "OwnerCurrentPw!1" },
+    });
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole("button", { name: "Disable" }));
+    });
+
+    expect(mockDisableUser).toHaveBeenCalledWith(
+      "u-w", { reason: null }, expect.any(String), "grant-d1");
   });
 });
 

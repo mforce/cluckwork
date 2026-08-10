@@ -430,12 +430,27 @@ export function UsersPage() {
         // across the network call that consumes it.
         const enteredPassword = stepUpPassword;
         setStepUpPassword("");
+
+        // #356 — captured HERE, with the password, rather than read from state
+        // after the await below.
+        //
+        // Stated precisely, because the obvious stronger claim is not true
+        // today: `usePendingAction` keeps every row trigger `disabled={busy}`
+        // for the whole flight, so a SECOND dialog cannot currently be opened
+        // for a different user mid-request, and no test driven through this
+        // component can make the read order observable. This is defence in
+        // depth, not a fix for a reachable bug. It is still the right order —
+        // the moment the busy gate is relaxed, or a second entry point to this
+        // dialog appears, a late read would file one dialog's text as the
+        // reason on another user's disable, and the audit trail is exactly the
+        // wrong place to discover that. Same discipline as the password above.
+        //
+        // Reason is optional: empty or whitespace sends null, never "".
+        const enteredReason = disableReason.trim() || null;
         const token = (await stepUp(enteredPassword)).token;
 
         if (mode === "disable") {
-          // #356 — reason is optional: an empty/whitespace-only textarea
-          // sends null, never "" (the API contract's nullable field).
-          await disableUser(target.id, { reason: disableReason.trim() || null }, keyFor(scope), token);
+          await disableUser(target.id, { reason: enteredReason }, keyFor(scope), token);
         } else {
           await enableUser(target.id, keyFor(scope), token);
         }

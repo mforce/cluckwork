@@ -505,8 +505,14 @@ public sealed class DisableUserRaceTests(CluckworkWebApplicationFactory factory)
     }
 
     [Fact]
-    public async Task Enable_TakesTheAccountLock_SoItSerializesAgainstADisable()
+    public async Task Enable_ParksOnTheAccountLock_AndCompletesOnceItIsReleased()
     {
+        // Named for what it actually does: no disable runs here, so it does not
+        // demonstrate serialisation against one — it demonstrates that the
+        // enable path TAKES the lock at all, which is the precondition for any
+        // serialisation claim. Renamed after review caught the original name
+        // ("SoItSerializesAgainstADisable") promising the stronger thing.
+        //
         // Pins the lock on the ENABLE path specifically. Without it, deleting
         // GetCurrentLockedAsync from EnableUserAsync is green across every other
         // test in both new files — and the enable path is the one with a real
@@ -535,6 +541,55 @@ public sealed class DisableUserRaceTests(CluckworkWebApplicationFactory factory)
         Assert.True((await enable).IsSuccess, $"and then complete once released: {(await enable).Error}");
         Assert.Null(await factory.WithTenantScopeAsync(accountId, async d =>
             await d.Users.Where(u => u.Id == targetId).Select(u => u.DisabledAt).SingleAsync()));
+    }
+
+    [Fact]
+    public async Task PasswordResetLosingTheCas_Is409_NotAPasswordRejection()
+    {
+        // Collateral of #356's enable-side stamp rotation, and the reason
+        // ResetPasswordAndRevokeAsync now separates a lost CAS from a bad
+        // password. That rotation exists precisely so a concurrent
+        // SetUserPassword LOSES — and Identity reports a lost CAS as a FAILED
+        // IdentityResult, not a throw. Mapped naively it surfaces as
+        // Users.PasswordRejected: a 422 whose only actionable reading is
+        // "choose a stronger password", for a password that was never the
+        // problem. Constructed deterministically with the same user-row fence
+        // the disable/enable conflict tests use, rather than by racing a real
+        // enable and hoping for the interleaving.
+        var owner = Unique("owner");
+        var target = Unique("target");
+        var accountId = await SeedOwnerFarmAsync(owner);
+        await factory.SeedUserAsync(accountId, target, "Manager");
+        var targetId = await UserIdAsync(accountId, target);
+
+        var tenant = new TenantContext();
+        tenant.Resolve(accountId);
+        await using var fenceDb = new AppDbContext(
+            new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(factory.ConnectionString).Options, tenant);
+        await using var fenceTx = await fenceDb.Database.BeginTransactionAsync();
+        await fenceDb.Database.ExecuteSqlInterpolatedAsync(
+            $"""SELECT 1 FROM "AspNetUsers" WHERE "Id" = {targetId} FOR UPDATE""");
+        var fencePid = await fenceDb.BackendPidAsync();
+
+        var reset = Task.Run(async () =>
+        {
+            using var scope = factory.Services.CreateScope();
+            scope.ServiceProvider.GetRequiredService<TenantContext>().Resolve(accountId);
+            var identity = scope.ServiceProvider.GetRequiredService<IIdentityProvider>();
+            return await identity.SetUserPasswordAsync(
+                accountId, targetId, $"Aa1!{Guid.NewGuid():N}", CancellationToken.None);
+        });
+        Assert.True(await factory.WaitUntilDoneOrBlockedAsync(reset, fencePid),
+            "the password reset's own UPDATE must park behind the user-row fence");
+
+        await fenceDb.Database.ExecuteSqlInterpolatedAsync(
+            $"""UPDATE "AspNetUsers" SET "ConcurrencyStamp" = {Guid.NewGuid().ToString()} WHERE "Id" = {targetId}""");
+        await fenceTx.CommitAsync();
+
+        var result = await reset;
+
+        Assert.True(result.IsFailure);
+        Assert.Equal("Users.Conflict", result.Error.Code);
     }
 
     [Fact]

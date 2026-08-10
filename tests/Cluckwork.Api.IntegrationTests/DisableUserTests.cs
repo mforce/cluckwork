@@ -536,11 +536,10 @@ public sealed class DisableUserTests(CluckworkWebApplicationFactory factory)
         // request — without this, tightening the parameter to non-nullable is
         // green everywhere and the documented contract quietly stops holding.
         //
-        // The Content-Type is required and is not incidental to this test. A
-        // POST with NO Content-Type at all does not 415: the body parameter
-        // gives this endpoint application/json Accepts metadata, the consumes
-        // matcher drops it from the candidate set, and Program.cs's
-        // `/api/{**rest}` catch-all then answers 404. Verified, not assumed.
+        // The Content-Type is required and is not incidental to this test —
+        // see Disable_WithNoContentTypeAtAll_Is404_NotUnsupportedMediaType,
+        // which asserts that behaviour rather than leaving it as a claim in a
+        // comment here.
         var (owner, accountId, _) = await OwnerAsync();
         var (email, id) = await SeedUserAsync(accountId, "Manager");
 
@@ -553,6 +552,26 @@ public sealed class DisableUserTests(CluckworkWebApplicationFactory factory)
 
         Assert.Equal(HttpStatusCode.NoContent, (await owner.SendAsync(request)).StatusCode);
         Assert.NotNull((await FindUserAsync(owner, email)).DisabledAt);
+    }
+
+    [Fact]
+    public async Task Disable_WithNoContentTypeAtAll_Is404_NotUnsupportedMediaType()
+    {
+        // Surprising enough to pin rather than describe in a comment. The body
+        // parameter gives this endpoint application/json Accepts metadata, so a
+        // request with no Content-Type is dropped from the candidate set by the
+        // consumes matcher — and Program.cs's `/api/{**rest}` catch-all then
+        // answers 404, NOT the 415 the shape suggests. A future reader debugging
+        // "why is my POST 404-ing" should find this asserted, not inferred.
+        var (owner, accountId, _) = await OwnerAsync();
+        var (email, id) = await SeedUserAsync(accountId, "Manager");
+
+        var request = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/users/{id}/disable");
+        request.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
+        request.Headers.Add(AuthEndpoints.StepUpHeaderName, await StepUpAsync(owner));
+
+        Assert.Equal(HttpStatusCode.NotFound, (await owner.SendAsync(request)).StatusCode);
+        Assert.Null((await FindUserAsync(owner, email)).DisabledAt);
     }
 
     [Fact]

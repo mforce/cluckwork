@@ -90,6 +90,10 @@ public sealed class AuditVocabularyCoverageTests
     private static List<AuditCallSite> FindCallSites()
     {
         var callSites = new List<AuditCallSite>();
+        // Every call an exemption waved through, keyed by that exemption. The
+        // exemption names ONE call, and is verified below to have matched
+        // exactly one — see KnownIndirectActionCallSites.
+        var exempted = new Dictionary<(string File, string Method), List<int>>();
         var srcRoot = Path.Combine(RepositoryRoot, "src");
         var separator = Path.DirectorySeparatorChar;
 
@@ -128,8 +132,21 @@ public sealed class AuditVocabularyCoverageTests
                     var (args, _) = SplitTopLevelArguments(source, call.Index + call.Length);
                     var line = source[..call.Index].Count(c => c == '\n') + 1;
 
-                    AssertActionIsRegistryReference(
-                        relativePath, line, args[0], EnclosingMethod(searchable, call.Index));
+                    var enclosing = EnclosingMethod(searchable, call.Index);
+                    if (KnownIndirectActionCallSites.Contains((relativePath, enclosing)))
+                    {
+                        // Record rather than assert. Whether this exemption is
+                        // legitimate cannot be decided here: it depends on how
+                        // many calls the method contains, which is only known
+                        // once every file has been walked.
+                        if (!exempted.TryGetValue((relativePath, enclosing), out var lines))
+                            exempted[(relativePath, enclosing)] = lines = [];
+                        lines.Add(line);
+                    }
+                    else
+                    {
+                        AssertActionIsRegistryReference(relativePath, line, args[0]);
+                    }
                     callSites.Add(
                         new AuditCallSite(relativePath, line, ResolveEntityType(relativePath, line, args[1])));
                 }
@@ -165,13 +182,36 @@ public sealed class AuditVocabularyCoverageTests
                 Assert.True(args.Length >= 3,
                     $"{relativePath}:{line} — ResetPasswordAndRevokeAsync call has fewer than 3 arguments; " +
                     "expected (user, newPassword, auditAction, ...).");
-                // A sentinel that is deliberately not a real method name, so no
-                // exemption can ever match here: these are the CALLERS of the
-                // one exempted forwarder, and they are precisely what has to
-                // keep passing a registry member.
-                AssertActionIsRegistryReference(
-                    relativePath, line, args[2], "(caller of ResetPasswordAndRevokeAsync)");
+                // Never exempt: these are the CALLERS of the one exempted
+                // forwarder, and they are precisely what has to keep passing a
+                // registry member.
+                AssertActionIsRegistryReference(relativePath, line, args[2]);
             }
+        }
+
+        // The exemption names ONE call, so hold it to exactly one.
+        //
+        // Keying by (file, method) alone would exempt the whole METHOD: a second
+        // dynamic call added inside ResetPasswordAndRevokeAsync would be waved
+        // through while the comment above claimed it could not be (codex review
+        // of #492 — the earlier mutation only tried a second dynamic call in a
+        // DIFFERENT method, which is why the hole survived it).
+        //
+        // Asserting >= 1 as well as <= 1 is the other half: an exemption whose
+        // method was renamed or deleted is dead weight that reads as a live,
+        // reviewed decision, and would silently start exempting nothing — or,
+        // worse, something else that later takes the name.
+        foreach (var key in KnownIndirectActionCallSites)
+        {
+            var matched = exempted.TryGetValue(key, out var lines) ? lines : [];
+            Assert.True(matched.Count == 1,
+                $"The indirect-action exemption for {key.File}::{key.Method} must cover EXACTLY ONE "
+                + $"audit.WriteAsync call, but matched {matched.Count} "
+                + $"(lines: {(matched.Count == 0 ? "none" : string.Join(", ", matched))}). "
+                + "Zero means the exemption is stale — the method was renamed or removed, so it now "
+                + "guards nothing. More than one means a NEW dynamic call site appeared inside an "
+                + "already-exempt method and is being accepted unreviewed: give it a registry "
+                + "constant, or split the method.");
         }
 
         return callSites;
@@ -301,9 +341,12 @@ public sealed class AuditVocabularyCoverageTests
     // produces ("audit.WriteAsync's action argument is 'auditAction'") points
     // at a line the author did not touch and invites renumbering on faith —
     // which is exactly how a genuinely new dynamic call site would get waved
-    // through. Keying on the method keeps the exemption just as narrow (a
-    // second dynamic call site anywhere else, including elsewhere in this same
-    // file, still fails) while surviving edits that only move it.
+    // through.
+    //
+    // A method name alone would be too WIDE, though — it would exempt every
+    // call in the method, including one added later. So the narrowing is not
+    // in the key: FindCallSites asserts each entry here matches EXACTLY ONE
+    // call. One key, one call, and a stale key fails too.
     private static readonly HashSet<(string File, string Method)> KnownIndirectActionCallSites =
     [
         ("Cluckwork.Infrastructure/Identity/IdentityProvider.cs", "ResetPasswordAndRevokeAsync"),
@@ -328,11 +371,8 @@ public sealed class AuditVocabularyCoverageTests
     // literal (the exact regression #258 exists to prevent) trips this
     // immediately instead of silently bypassing AuditActions' registry (and
     // therefore the coverage check above).
-    private static void AssertActionIsRegistryReference(
-        string file, int line, string actionArg, string enclosingMethod)
+    private static void AssertActionIsRegistryReference(string file, int line, string actionArg)
     {
-        if (KnownIndirectActionCallSites.Contains((file, enclosingMethod))) return;
-
         var normalized = Regex.Replace(actionArg, @"\s+", " ").Trim();
         var isDirectReference = Regex.IsMatch(normalized, @"^AuditActions\.\w+$");
         var isTernaryOfReferences = Regex.IsMatch(
