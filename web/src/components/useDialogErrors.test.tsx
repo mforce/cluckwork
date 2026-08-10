@@ -24,8 +24,8 @@ function Host() {
 
       <button onClick={() => errors.setPage("page failed")}>fail page</button>
       <button onClick={() => errors.setPage(null)}>clear page</button>
-      <button onClick={() => errors.setDialog("new", "new failed")}>fail new</button>
-      <button onClick={() => errors.setDialog("edit", "edit failed")}>fail edit</button>
+      <button onClick={() => errors.report("new", "new failed")}>fail new</button>
+      <button onClick={() => errors.report("edit", "edit failed")}>fail edit</button>
       <button onClick={() => errors.clearDialog("new")}>clear new</button>
       <button onClick={() => errors.beginAttempt("new")}>start new attempt</button>
       <button onClick={() => errors.beginAttempt(null)}>start page attempt</button>
@@ -183,6 +183,65 @@ describe("useDialogErrors", () => {
       click("dismiss new");
 
       expect(shown("edit")).toBe("edit failed");
+    });
+
+    it("stays muted alongside a second abandoned dialog", () => {
+      // Both at once, because nothing enforces one-open-dialog (#480). The
+      // mute has to be a SET that accumulates: replacing it wholesale on each
+      // dismissal would un-mute whichever attempt was abandoned first, and
+      // every other test here abandons only one scope, so nothing else looks.
+      render(<Host />);
+      click("dismiss new");
+      click("dismiss edit");
+
+      click("report new");
+      click("report edit");
+
+      expect(shown("new")).toBe("—");
+      expect(shown("edit")).toBe("—");
+    });
+
+    it("is un-muted one scope at a time", () => {
+      // The other half of the same rule: reopening one form must not revive
+      // the other's abandoned attempt.
+      render(<Host />);
+      click("dismiss new");
+      click("dismiss edit");
+
+      click("start new attempt");
+      click("report new");
+      click("report edit");
+
+      expect(shown("new")).toBe("new failed late");
+      expect(shown("edit")).toBe("—");
+    });
+
+    it("stays muted however many times its attempt reports", () => {
+      // `report` is a read, not a write. A settle path that reports twice — a
+      // catch plus a finally, a retry wrapper, a validation throw after a
+      // caught network error — must not have its SECOND message appear in the
+      // dialog the user dismissed. Consuming the mute on first read did
+      // exactly that, and is why it does not.
+      render(<Host />);
+      click("dismiss new");
+
+      click("report new");
+      click("report new");
+
+      expect(shown("new")).toBe("—");
+    });
+
+    it("survives a page attempt starting", () => {
+      // A page attempt owns the page's slot and nothing else. Clearing the
+      // mute set here would revive an abandoned dialog attempt because the
+      // user happened to do something unrelated on the screen behind.
+      render(<Host />);
+      click("dismiss new");
+
+      click("start page attempt");
+      click("report new");
+
+      expect(shown("new")).toBe("—");
     });
   });
 

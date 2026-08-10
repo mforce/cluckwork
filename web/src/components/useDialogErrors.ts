@@ -6,7 +6,6 @@ export interface DialogErrors {
   setPage: (text: string | null) => void;
   /** The message this dialog raised, if any. */
   forDialog: (scope: string) => string | undefined;
-  setDialog: (scope: string, text: string) => void;
   clearDialog: (scope: string) => void;
   /**
    * Called when an attempt starts: clears the slot that attempt will write to
@@ -21,9 +20,11 @@ export interface DialogErrors {
    */
   abandon: (scope: string) => void;
   /**
-   * The settle path: routes a failure to the slot its scope names, unless that
-   * attempt was abandoned, in which case it lands nowhere. `null` is the
-   * page's — a page failure is never muted, because the page does not go away.
+   * The settle path, and the only way a screen should write a dialog's slot:
+   * routes a failure to the slot its scope names, unless that attempt was
+   * abandoned, in which case it lands nowhere. Safe to call more than once for
+   * one attempt. `null` is the page's, and a page failure is never muted,
+   * because the page does not go away.
    */
   report: (scope: string | null, text: string) => void;
 }
@@ -67,6 +68,9 @@ export function useDialogErrors(): DialogErrors {
     });
   }, []);
 
+  // Deliberately NOT returned. Writing a slot directly bypasses the mute, so a
+  // screen reaching for the obvious-looking setter in a settle path would
+  // reintroduce #474 with nothing failing. `report` is the only way in.
   const setDialog = useCallback((scope: string, text: string) => {
     setDialogs((current) => ({ ...current, [scope]: text }));
   }, []);
@@ -95,11 +99,19 @@ export function useDialogErrors(): DialogErrors {
     // The user gave up on this one, so its verdict has nowhere honest to land:
     // not on the page, which is the context-free message #474 was filed about,
     // and not in the dialog, which by now may be a second session.
+    //
+    // A read, never a write. Consuming the entry here was tried and reverted:
+    // it makes reporting twice in one settle path — a catch plus a finally, a
+    // retry wrapper, a validation throw after a caught network error — put the
+    // SECOND message inside the dialog the user already dismissed, which is
+    // #474 reintroduced by its own safeguard. Pruning belongs to `beginAttempt`
+    // and only there, because starting an attempt is the one moment that knows
+    // a new one exists.
     if (abandoned.current.has(scope)) return;
     setDialog(scope, text);
   }, [setDialog]);
 
   const forDialog = useCallback((scope: string) => dialogs[scope], [dialogs]);
 
-  return { page, setPage, forDialog, setDialog, clearDialog, beginAttempt, abandon, report };
+  return { page, setPage, forDialog, clearDialog, beginAttempt, abandon, report };
 }

@@ -153,6 +153,9 @@ export function SalesPage() {
   // screens. The rules and the incidents that earned them live with the hook —
   // Sales-specific is only WHICH scopes own a dialog.
   const errors = useDialogErrors();
+  // Pulled out for the payments effect's dependency list: both are stable, and
+  // naming them is what lets that effect declare its real dependencies.
+  const { abandon: abandonError, setPage: setPageError } = errors;
   // The scopes that own a dialog. run() routes a failure by this and nothing
   // else, so a new dialog action is one entry, not a new render condition.
   const DIALOG_SCOPES = ["create-order", "record-payment"];
@@ -273,22 +276,43 @@ export function SalesPage() {
     // below, a 422 about the previous order's money survives the switch and is
     // waiting inside the form when they open it on this order's.
     //
-    // `clearDialog`, not `abandon`: abandoning would also mute a write still in
-    // flight, and no such write can exist here. The open trigger is
-    // `disabled={busy}` and usePendingAction refuses a second action outright,
-    // so the active order cannot change while a payment is out. Muting would be
-    // an unreachable guard reading as a real one.
+    // `abandon`, not `clearDialog`: a payment write can still be out when this
+    // runs, so the slot is emptied and that attempt muted together. Clearing
+    // alone would let the rejection settle into the slot afterwards, to be
+    // found by whoever opens a payment form next.
+    //
+    // An earlier version used `clearDialog` and argued the mute was
+    // unreachable, because the row's open button is `disabled={busy}`. That
+    // enumeration of what can change these deps was wrong twice over — the
+    // panel's own Close is ungated (and #480 already established the backdrop
+    // stops a mouse, not a screen reader's virtual cursor), and `canSettle`
+    // flips with no button at all when a transparent 401 refresh re-derives the
+    // role mid-write. Two misses of one shape means the method is wrong, so
+    // this stops reasoning about reachability: `abandon` is correct whether or
+    // not a write is out, and the next `beginAttempt` un-mutes so a later form
+    // can still fail normally.
+    //
+    // Stated honestly, because a mutation says so: swapping this back to
+    // `clearDialog` breaks NO test, and no test can be written that it would
+    // break — every route back into a payment form re-runs this effect, which
+    // clears the slot on the way in regardless. The choice buys the removal of
+    // an argument that has been wrong twice, not an observable fix. Deleting
+    // the line altogether IS caught, by the reopen test below.
     setPaying(false);
-    errors.clearDialog("record-payment");
+    abandonError("record-payment");
     if (activeId === null || activeStatus !== "Confirmed" || !canSettle) return;
     let cancelled = false;
     listOrderPayments(activeId)
       .then((p) => { if (!cancelled) setPayments(p); })
       .catch(() => {
-        if (!cancelled) errors.setPage(i18n.t("sales:loadPaymentsFailed"));
+        if (!cancelled) setPageError(i18n.t("sales:loadPaymentsFailed"));
       });
     return () => { cancelled = true; };
-  }, [activeId, activeStatus, canSettle]);
+    // The two hook members this effect uses are destructured above and listed
+    // here, rather than depending on `errors` — that object is rebuilt every
+    // render, so naming it would re-run this on every render and re-fetch the
+    // payments. There is no eslint in this package to have caught either.
+  }, [activeId, activeStatus, canSettle, abandonError, setPageError]);
 
   // Exact decimal parsing in the ORDER's denomination (no float multiply —
   // #88 review); excess decimals are rejected, not silently rounded.

@@ -13,8 +13,8 @@ function Host() {
   return (
     <>
       <DialogError errors={errors} scope="new" />
-      <button onClick={() => errors.setDialog("new", "new failed")}>fail new</button>
-      <button onClick={() => errors.setDialog("edit", "edit failed")}>fail edit</button>
+      <button onClick={() => errors.report("new", "new failed")}>fail new</button>
+      <button onClick={() => errors.report("edit", "edit failed")}>fail edit</button>
       <button onClick={() => errors.setPage("page failed")}>fail page</button>
       <button onClick={() => errors.clearDialog("new")}>clear new</button>
     </>
