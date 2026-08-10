@@ -156,10 +156,26 @@ export function SalesPage() {
   // everything that is not a dialog's belongs to it. StockPage already splits
   // its `dialogError` out the same way.
   const [error, setError] = useState<string | null>(null);
-  // One slot for both dialogs, deliberately: they are modal, so at most one is
-  // ever open, and each clears this on open and on dismissal. Tagging it by
-  // scope would add a discriminator no reachable state can exercise.
-  const [dialogError, setDialogError] = useState<string | null>(null);
+  // One entry PER DIALOG, keyed by scope. Two earlier rounds got this wrong in
+  // opposite directions: a single untagged slot showed one form's failure
+  // inside the other, and a single tagged slot fixed the attribution but still
+  // let the second failure ERASE the first — a form losing its explanation
+  // with nothing happening inside it. Both rested on "they are modal, so only
+  // one is open", which NOTHING enforces: `creatingOrder` and `paying` are
+  // independent, both triggers stay mounted and enabled, and only the
+  // backdrop's CSS stops a mouse (not a screen reader's virtual cursor, not a
+  // second click racing the paint). A map costs the same lines and makes the
+  // question moot instead of assuming the answer (internal review of #481).
+  const [dialogErrors, setDialogErrors] = useState<Record<string, string>>({});
+  // Clears one dialog's message without touching the other's. Identity is kept
+  // when there is nothing to drop, so this cannot cause a pointless re-render.
+  const clearDialogError = (scope: string) =>
+    setDialogErrors((current) => {
+      if (!(scope in current)) return current;
+      const next = { ...current };
+      delete next[scope];
+      return next;
+    });
   // Scopes whose dialog was dismissed while their write was still out. The
   // dismissal alone is not enough: nothing stops the user reopening the same
   // dialog (the trigger is not gated on `busy`), and the abandoned attempt's
@@ -274,6 +290,15 @@ export function SalesPage() {
     // actionable — their Void buttons would target the wrong order's money
     // (codex review of #90).
     setPayments(null);
+    // …and so does the payment form, for the same reason one layer up: it
+    // belongs to the order that was open, not to the screen. Left open,
+    // `paying` would reopen it on the NEXT order unasked, showing that order's
+    // money under the previous order's failure — its key says "record-payment",
+    // not which order (codex review of #481). Closing is the whole fix: the
+    // message renders only inside this form, and the trigger clears the entry
+    // on the way back in. A clear here as well was unobservable — a mutation
+    // that removed it killed no test.
+    setPaying(false);
     if (activeId === null || activeStatus !== "Confirmed" || !canSettle) return;
     let cancelled = false;
     listOrderPayments(activeId)
@@ -310,7 +335,7 @@ export function SalesPage() {
       abandoned.current.delete(scope);
       // This attempt's own slot only. A dialog write must not wipe a page
       // failure the user has not seen, and vice versa.
-      if (DIALOG_SCOPES.includes(scope)) setDialogError(null); else setError(null);
+      if (DIALOG_SCOPES.includes(scope)) clearDialogError(scope); else setError(null);
       setMessage(null);
       try {
         await fn();
@@ -323,7 +348,8 @@ export function SalesPage() {
         // (codex + pi review of #476).
         if (abandoned.current.has(scope)) return;
         const text = errText(err);
-        if (DIALOG_SCOPES.includes(scope)) setDialogError(text); else setError(text);
+        if (DIALOG_SCOPES.includes(scope)) setDialogErrors((c) => ({ ...c, [scope]: text }));
+        else setError(text);
       }
     });
 
@@ -555,7 +581,7 @@ export function SalesPage() {
           <button type="button" onClick={() => {
             // The DIALOG's slot: opening a form clears what the last attempt
             // at it said, not a page failure the user has not dealt with.
-            setDialogError(null); setOrderDate(today); setCreatingOrder(true);
+            clearDialogError("create-order"); setOrderDate(today); setCreatingOrder(true);
           }}>
             <Plus size={16} aria-hidden /> {t("newOrder")}
           </button>
@@ -587,7 +613,8 @@ export function SalesPage() {
               whatever else happened to fail underneath it. role="alert"
               because focus is trapped in the panel and nothing else announces
               the failure. */}
-          {dialogError && <p className="error" role="alert">{dialogError}</p>}
+          {dialogErrors["create-order"]
+            && <p className="error" role="alert">{dialogErrors["create-order"]}</p>}
           <div className="dialog-foot">
             <button type="button" className="link" onClick={closeNewOrder}>{tc("cancel")}</button>
             <BusyButton disabled={busy || !customerId} busy={isPending("create-order")}
@@ -784,7 +811,7 @@ export function SalesPage() {
               {payments.outstandingMinorUnits > 0 && (
                 <div className="panel-actions">
                   <button type="button" onClick={() => {
-                    setDialogError(null); setPayDate(today); setPaying(true);
+                    clearDialogError("record-payment"); setPayDate(today); setPaying(true);
                   }}>
                     {t("recordPayment")}
                   </button>
@@ -821,7 +848,8 @@ export function SalesPage() {
                   {/* #474 — this dialog's own write only: see the new-order
                       dialog above. A void raised from the payments table can
                       land while this is open, and is not this form's failure. */}
-                  {dialogError && <p className="error" role="alert">{dialogError}</p>}
+                  {dialogErrors["record-payment"]
+                    && <p className="error" role="alert">{dialogErrors["record-payment"]}</p>}
                   <div className="dialog-foot">
                     <button type="button" className="link" onClick={closePayment}>{tc("cancel")}</button>
                     <BusyButton disabled={busy || !payAmount} busy={isPending("record-payment")}

@@ -1277,7 +1277,159 @@ describe("SalesPage in-dialog errors (#474)", () => {
 
     fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
 
+    // The name promised a dismissal; assert one happened, or this passes with
+    // Cancel wired to nothing (internal review of #478).
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(screen.getByText("Could not load this order's payments.")).toBeInTheDocument();
+  });
+
+  it("shows a dialog's failure only in the dialog that raised it, even with both open", async () => {
+    // I had written "they are modal, so at most one is ever open" in the
+    // source and shared one slot between them on that basis. Nothing enforces
+    // it: `creatingOrder` and `paying` are independent, and both triggers stay
+    // mounted and enabled. Only the CSS backdrop stops a mouse — not a screen
+    // reader's virtual cursor, and not a second click racing the paint
+    // (internal review of #478).
+    mockListOrderPayments.mockResolvedValue({
+      items: [], paidMinorUnits: 0, outstandingMinorUnits: 12000, totalMinorUnits: 12000,
+      currencyCode: "USD", currencyMinorUnit: 2,
+    });
+    await openOrder(CONFIRMED_9, /Grade A Dozen/);
+    fireEvent.click(screen.getByRole("button", { name: "Record payment" }));
+    fireEvent.click(screen.getByRole("button", { name: "New order" }));
+    const dialogs = screen.getAllByRole("dialog");
+    expect(dialogs).toHaveLength(2); // the state this fixture exists to cover
+
+    const newOrder = dialogs.find((d) => within(d).queryByRole("button", { name: "New draft order" }))!;
+    const payment = dialogs.find((d) => d !== newOrder)!;
+    mockCreateOrder.mockRejectedValueOnce(
+      new ApiError(422, "Validation failed", "Order date cannot be in the future."));
+    await act(async () => {
+      fireEvent.click(within(newOrder).getByRole("button", { name: "New draft order" }));
+    });
+
+    expect(within(newOrder).getByText("Order date cannot be in the future.")).toBeInTheDocument();
+    // The payment form did not fail. It must not say it did.
+    expect(within(payment).queryByText("Order date cannot be in the future.")).not.toBeInTheDocument();
+
+    // The other direction — and each form keeps its own. A single slot held
+    // one message, so this second failure ERASED the first: the new-order form
+    // lost its explanation with nothing happening inside it and no way for the
+    // user to know why (internal review of #481). Each dialog owns its entry.
+    mockRecordPayment.mockRejectedValueOnce(
+      new ApiError(422, "Validation failed", "Payment exceeds the outstanding balance."));
+    fireEvent.change(within(payment).getByLabelText(/Amount/), { target: { value: "99" } });
+    await act(async () => {
+      fireEvent.click(within(payment).getByRole("button", { name: "Record payment" }));
+    });
+
+    expect(within(payment).getByText("Payment exceeds the outstanding balance.")).toBeInTheDocument();
+    expect(within(newOrder).queryByText("Payment exceeds the outstanding balance.")).not.toBeInTheDocument();
+    expect(within(newOrder).getByText("Order date cannot be in the future.")).toBeInTheDocument();
+
+    // And clearing one entry clears ONE entry: dismissing and reopening the
+    // payment form drops its own message and leaves the new-order form's.
+    fireEvent.click(within(payment).getByRole("button", { name: "Cancel" }));
+    fireEvent.click(screen.getByRole("button", { name: "Record payment" }));
+
+    const reopened = screen.getAllByRole("dialog")
+      .find((d) => within(d).queryByRole("button", { name: "New draft order" }) === null)!;
+    expect(within(reopened).queryByText("Payment exceeds the outstanding balance.")).not.toBeInTheDocument();
+    expect(within(newOrder).getByText("Order date cannot be in the future.")).toBeInTheDocument();
+  });
+
+  it("does not carry a payment failure across to another order", async () => {
+    // Codex on #481: the payment form belongs to the OPEN ORDER, but its key
+    // does not say so. Per-dialog entries survive longer than the shared slot
+    // did, so a failure left behind when the active order changes would be
+    // shown against a different order's money — the worst possible place for a
+    // message about a wrong amount.
+    mockListOrderPayments.mockResolvedValue({
+      items: [], paidMinorUnits: 0, outstandingMinorUnits: 12000, totalMinorUnits: 12000,
+      currencyCode: "USD", currencyMinorUnit: 2,
+    });
+    await openOrder(CONFIRMED_9, /Grade A Dozen/);
+    fireEvent.click(await screen.findByRole("button", { name: "Record payment" }));
+    mockRecordPayment.mockRejectedValueOnce(
+      new ApiError(422, "Validation failed", "Payment exceeds the outstanding balance."));
+    fireEvent.change(within(dialog()).getByLabelText(/Amount/), { target: { value: "99" } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Record payment" }));
+    });
+    expect(within(dialog()).getByText("Payment exceeds the outstanding balance.")).toBeInTheDocument();
+
+    // Open a different confirmed order while that message is still up.
+    mockGetOrder.mockResolvedValue({ ...CONFIRMED_9, id: "o10", referenceNumber: "SO-10" });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "open" }));
+    });
+
+    expect(screen.queryByText("Payment exceeds the outstanding balance.")).not.toBeInTheDocument();
+    // …and the form itself does not reopen on the new order either.
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("clears the form's last message while its next attempt is in flight", async () => {
+    // A form mid-save must not still be showing why the PREVIOUS attempt
+    // failed — the user cannot tell whether it is a stale message or the
+    // verdict on what they just submitted.
+    await renderReady();
+    mockCreateOrder.mockRejectedValueOnce(
+      new ApiError(422, "Validation failed", "Order date cannot be in the future."));
+    fireEvent.click(screen.getByRole("button", { name: "New order" }));
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "New draft order" }));
+    });
+    expect(within(dialog()).getByText("Order date cannot be in the future.")).toBeInTheDocument();
+
+    mockCreateOrder.mockReturnValueOnce(new Promise(() => {}) as never); // never settles
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "New draft order" }));
+    });
+
+    expect(within(dialog()).queryByText("Order date cannot be in the future.")).not.toBeInTheDocument();
+  });
+
+  it("opening the other dialog leaves the first one's message alone", async () => {
+    // The clear is per dialog. Clearing the slot outright would blank a
+    // message the OTHER form is still displaying — and the user is still
+    // looking at it.
+    mockListOrderPayments.mockResolvedValue({
+      items: [], paidMinorUnits: 0, outstandingMinorUnits: 12000, totalMinorUnits: 12000,
+      currencyCode: "USD", currencyMinorUnit: 2,
+    });
+    await openOrder(CONFIRMED_9, /Grade A Dozen/);
+    mockCreateOrder.mockRejectedValueOnce(
+      new ApiError(422, "Validation failed", "Order date cannot be in the future."));
+    fireEvent.click(screen.getByRole("button", { name: "New order" }));
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "New draft order" }));
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Record payment" })); // the other dialog
+
+    const newOrder = screen.getAllByRole("dialog")
+      .find((d) => within(d).queryByRole("button", { name: "New draft order" }))!;
+    expect(within(newOrder).getByText("Order date cannot be in the future.")).toBeInTheDocument();
+  });
+
+  it("reopening a dialog does not show the message its last attempt left", async () => {
+    // The slot survives the close; the reopen is what clears it. Without that,
+    // a form opens already accusing the user of a mistake they made minutes
+    // ago, about a submission they never made this time.
+    await renderReady();
+    mockCreateOrder.mockRejectedValueOnce(
+      new ApiError(422, "Validation failed", "Order date cannot be in the future."));
+    fireEvent.click(screen.getByRole("button", { name: "New order" }));
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "New draft order" }));
+    });
+    expect(within(dialog()).getByText("Order date cannot be in the future.")).toBeInTheDocument();
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "New order" }));
+
+    expect(within(dialog()).queryByText("Order date cannot be in the future.")).not.toBeInTheDocument();
   });
 
   it("still renders a page-level error with no dialog open", async () => {
