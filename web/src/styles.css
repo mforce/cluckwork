@@ -500,7 +500,11 @@ input.cell {
   justify-content: center;
   gap: 1.5rem;
   padding: 1.5rem;
-  background: var(--bg);
+  /* --bg does not exist (bug: fell back to transparent, so the dashboard
+     behind it stayed fully visible). --canvas is the real app-background
+     token (same one `body` uses) — opaque, matching "the very first thing
+     the authenticated shell shows" above. */
+  background: var(--canvas);
 }
 
 @media (prefers-reduced-motion: no-preference) {
