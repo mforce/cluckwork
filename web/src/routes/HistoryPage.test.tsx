@@ -784,6 +784,69 @@ describe("HistoryPage void — reason dialog", () => {
   });
 });
 
+// #479 — one slot per PLACE a message can appear: the adjust dialog's own
+// failures must render inside it and nowhere else, a background failure must
+// never land in the dialog, and a page failure must survive both the dialog
+// opening and a dialog write failing.
+describe("HistoryPage error placement (#479)", () => {
+  const dialog = () => screen.getByRole("dialog");
+  // Already reconciled (grades sum 90 === sellable 90), so only the Reason
+  // field stands between opening the dialog and a live Save button.
+  const RECONCILED: DailyEntry = {
+    ...SUBMITTED, grades: [{ eggGradeId: "gr1", quantity: 90 }],
+  };
+
+  it("shows a failed adjust save inside the dialog, not on the page", async () => {
+    mockListDailyEntries.mockResolvedValue([RECONCILED]);
+    mockAdjustDailyEntry.mockRejectedValue(new ApiError(500, "Server error", "boom"));
+    await openAdjustPanel();
+    fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: "recount" } });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Save adjustment" }));
+    });
+
+    expect(within(dialog()).getByText("boom")).toBeInTheDocument();
+    // Exactly one copy: the page must not render the dialog's message too.
+    expect(screen.getAllByText("boom")).toHaveLength(1);
+  });
+
+  it("keeps the flocks/grades setup failure out of the open adjust dialog", async () => {
+    // Only the setup read fails — grades still load, so the dialog's own
+    // fields render normally and the failure has nothing to do with them.
+    mockListFlocks.mockRejectedValue(new Error("down"));
+    mockListDailyEntries.mockResolvedValue([SUBMITTED]);
+    renderWithProviders(<HistoryPage />, { token: ADMIN });
+    const message = i18n.t("history:loadFlocksGradesFailed");
+    await screen.findByText(message);
+
+    fireEvent.click(screen.getByRole("button", { name: "adjust" }));
+
+    expect(within(dialog()).queryByText(message)).not.toBeInTheDocument();
+    expect(screen.getByText(message)).toBeInTheDocument();
+  });
+
+  it("keeps a page failure while the adjust dialog opens and its own save fails", async () => {
+    mockListFlocks.mockRejectedValue(new Error("down"));
+    mockListDailyEntries.mockResolvedValue([RECONCILED]);
+    mockAdjustDailyEntry.mockRejectedValue(new ApiError(500, "Server error", "boom"));
+    renderWithProviders(<HistoryPage />, { token: ADMIN });
+    const pageFailure = i18n.t("history:loadFlocksGradesFailed");
+    await screen.findByText(pageFailure);
+
+    fireEvent.click(screen.getByRole("button", { name: "adjust" }));
+    expect(screen.getByText(pageFailure)).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: "recount" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Save adjustment" }));
+    });
+
+    expect(within(dialog()).getByText("boom")).toBeInTheDocument();
+    expect(screen.getByText(pageFailure)).toBeInTheDocument();
+  });
+});
+
 // ---------------------------------------------------------------------------
 // i18n wiring (#182, Task 27, batch B5)
 // ---------------------------------------------------------------------------
