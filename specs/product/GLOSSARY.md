@@ -133,13 +133,38 @@ also carries a compressed *n sellable · n left*; on a wider screen both panes a
 already visible and repeating it would be noise.
 
 **Steppers (#134)** — every count and grade field has **−** and **+** buttons
-either side. Holding one repeats, widening its stride from 1 to 5 to 10, so a
-few hundred eggs takes about a second. Built for the barn: the browser's own
-spinner is a ten-pixel target and disappears entirely on touch.
+either side. Holding one repeats, widening its stride from 1× to 5× to 10× of
+the counting unit, so a few hundred eggs takes about a second. Built for the
+barn: the browser's own spinner is a ten-pixel target and disappears entirely
+on touch.
 
-A grade's **+** stops once the day is fully graded — the guided control will not
-build an over-graded entry. Typing still can: a draft is allowed to be over
-while it is being rearranged, and only submitting is blocked.
+**Stepper counting unit (#444)** — how much one tap of **−**/**+** counts by
+on the Daily Entry screen (and History's adjust dialog): one egg by default,
+or one of the farm's **packed units** (e.g. Tray = +30/−30) for a farm that
+counts by the tray rather than the egg. Resolved as: the **user's own
+preference** (Account screen, follows them across devices) if set, else the
+**farm default** (Settings, admin-set), else Individual. The hold-to-repeat
+stride multiplies this base, so a held Tray stepper accelerates in trays.
+Only units with an **active** eggs-per-unit definition (the same §9.7 catalog
+sales use) can be chosen; if a chosen unit is later deactivated, the stepper
+quietly falls back to one egg rather than counting by a retired factor.
+Typing stays plain numbers — only the guided control counts by units.
+
+The unit is **visible at the point of touch**: when a pack unit is in force
+the buttons themselves read **−30 / +30** instead of bare −/+ (and announce
+"increase … by 30" to a screen reader), and a caption above the two panes
+says which unit is counting and where a tap lands ("Counting by Tray — each
+tap moves 30 eggs"). At one egg per tap neither appears — plain icons, no
+caption — since "+1" would just restate the default.
+
+A grade's **+** no longer stops once the day is fully graded (#443) — a farm
+that counts the grades before adding them up needs to keep going past
+whatever **1 Egg counts** currently says. Grading past the current sellable
+figure raises that total to match instead of refusing the tap; it only ever
+raises the total, never lowers it, so trimming the total on step 1 never
+forces a grade back down. Typing already worked this way; the steppers now
+match it. **Over** is still reachable — trim the total below what is already
+graded — and it blocks both saves, not just Submit.
 
 **Put all in… (#134)** — hands the entire remainder to one grade in a single
 move, for the commonest last step of the day ("and the rest are Large"). Drag it
@@ -193,7 +218,12 @@ from starting a fresh day. Only locked days carried a signal before.
 **Sellable cap** — graded quantities must fit in
 `total − cracked − dirty − discarded`. You cannot grade more eggs than
 survived the day. This is the only rule a **Draft** enforces — a draft may be
-graded partially, or not at all, and still be saved.
+graded partially, or not at all, and still be saved. Since #443 the capture
+screen keeps the two sides from colliding on its own — grading past the
+current total raises the total to match — so this cap is normally satisfied
+by construction rather than by refusing input. It still applies: trimming the
+total below an already-graded sum reaches it, and both saves are blocked (the
+same **Left to grade** chip turns **over**) until the numbers agree again.
 
 **Grade reconciliation (#394)** — **Submit**, and **saving an adjustment**
 (which has no draft state of its own to leave incomplete), both go further
@@ -218,9 +248,24 @@ is on and is immutable after creation.
 is an explicit, append-only signed row (spec §9.4): `Production` when a
 submitted entry creates the lot, `Sale` per confirmed allocation, `Void` when
 a sale or entry void returns/vacates eggs, `Adjustment` for manager
-corrections. Written in the same transaction as the lot change, so the cached
-`QuantityAvailable` always equals the sum of the lot's movements — the
-tech-spec rule that cached balances must be rebuildable from ledgers.
+corrections, and `Discard` / `InternalUse` / `Reconciliation` for stock
+write-offs (see below). Written in the same transaction as the lot change, so
+the cached `QuantityAvailable` always equals the sum of the lot's movements —
+the tech-spec rule that cached balances must be rebuildable from ledgers.
+
+**Stock write-off (#406)** — an Owner/Manager correction that removes lost
+eggs from a specific lot (breakage, spoilage, theft → `Discard`; farm
+consumption → `InternalUse`) or applies a recount (`Reconciliation`, which
+alone may also add eggs back), with a required reason. It moves only the
+lot's available quantity — the daily entry's production figures and hen-day %
+are never restated, which is what separates it from a daily-entry adjustment.
+Available is floored at zero — a write-off can never consume eggs already
+sold — and a positive recount is capped at the lot's cumulative write-off
+total (never at raw production: eggs allocated to a confirmed order must not
+read as headroom, or they'd be sold twice). A recount beyond that means
+production or a sale is wrong, which have their own paths. Withdrawal
+restriction does not block a write-off — restricted eggs spoil too, and
+removing stock is the safe direction.
 
 **Saleable** — grades flagged saleable can receive graded production and be
 sold on orders. Non-saleable grades are bookkeeping buckets — losses are
@@ -240,6 +285,14 @@ eggs depending on the market, so each account defines its own (defaults:
 dozen 12, flat/tray 30, carton 12, case 360; individual is always 1 and
 immutable). Sales lines will snapshot the factor at line creation — redefining
 a unit never reinterprets recorded orders.
+
+The unit is visible at the point of entry (#445): a sales line's quantity
+counts *units, not eggs*, so the add-line form names the unit in the quantity
+label ("Quantity (tray)"), previews the resulting egg count live while typing
+("= 60 eggs"), and shows the unit size on the product picker option ("(30
+eggs/tray)") — typing the egg total where the unit count belongs (a 30×
+oversale) is visible before the line is added, and the eggs column tracks an
+inline quantity edit the same way.
 
 **Deactivated grade** — removed from capture and order pickers; existing
 stock stays counted and order lines added before deactivation can still
@@ -290,6 +343,18 @@ usage date, and records an estimated cost from the actual lots consumed
 Feed/Supplement/Additive items can be fed to a flock. Same lifecycle rule as
 production: depleted flocks accept backfill up to their depletion date,
 archived never.
+
+Recorded on the **Feed page** (#446) — its own capture form plus the feed
+history (filterable, paginated, with per-row estimated cost); an item's
+Inventory panel deep-links there with that item preselected. Each feed and
+water record also carries a **daily-entry link**: the non-voided daily entry
+that existed for the same flock's (farm, house, flock, date) *at the moment
+of recording*, or nothing if the day's entry didn't exist yet. The link is
+best-effort provenance — it is never backfilled when the entry arrives
+later, never changed by a water correction, and a later void of the entry
+does not clear it. Flock + date remains the authoritative way the app joins
+feed/water to a day (the Daily Entry page's own summary strip joins that
+way), so an empty link never hides a record.
 
 **Adjustment / Discard** — the correction path for stock: a signed ledger row
 against a specific lot (reason required). Negative fixes an over-entered
@@ -564,12 +629,51 @@ replayed/stale token is still caught and revokes the whole family. Consuming a
 token is an atomic compare-and-swap (a per-token concurrency stamp), so concurrent
 replays can never fork one token into two live sessions.
 
+**Superseded-flight cookie revocation (#393)** — a refresh (or sign-in, or
+password change) that goes stale mid-flight — superseded by a newer sign-in
+before its own response lands — still rotates the shared refresh cookie the
+instant the browser receives that response, before the app's own bookkeeping
+ever runs. The stale flight's cookie is therefore always revoked, even when
+the newer sign-in already has a token in hand: which of the two responses'
+cookies the browser actually kept is real network timing, not something the
+app can observe or infer from "is someone currently signed in." User-visible
+consequence, narrow and rare: switching to a different sign-in in one browser
+tab while another tab of the same browser is mid-refresh can occasionally
+revoke the credential behind the *newer* sign-in too, surfacing as an
+unexpected "please sign in again" shortly after. No work is lost — it is
+exactly the same experience as any other session timeout, just sooner than
+expected. See the Help page's "Signing in" section.
+
 **Credential epoch (#364)** — a monotonically increasing per-user number carried
 in every access token and stamped onto every refresh token. A request is valid
 only when its epoch matches the current user record, so an administrative
 credential reset can invalidate access tokens immediately without a per-request
 revocation list. The epoch readers ship before the mutations that advance it;
 deploys must drain older replicas before enabling those mutations.
+
+**Disabled user (#356)** — an Owner-only Users-screen action that revokes a
+colleague's access without deleting them. A disabled user cannot sign in,
+cannot refresh an existing session, and cannot obtain or spend a **step-up
+grant**; every one of their live sessions stops working on its very next
+request, not once the access token's ~15-minute lifetime happens to run out —
+the disable bumps the target's **credential epoch** (see above), rotates
+their security stamp, and revokes every refresh token, mirroring the side
+effects a role change applies. Re-enabling is reversible but deliberately
+**not symmetric on the credential epoch**: it also rotates the security
+stamp (so a stale concurrent password-reset write cannot silently restore
+the disabled flag), but it does NOT roll the credential epoch back, so every
+credential issued before the disable stays permanently dead and the user
+signs back in fresh; nothing minted before the disable is ever revived. The
+account's last active Owner cannot be disabled
+(refused inside the same account-locked transaction that guards a demotion),
+and nobody can disable themselves (refused at the endpoint before validation
+even runs). This is not deletion: a disabled user's row, their audit trail,
+and every record elsewhere that names them (created-by trails, refresh-token
+history, orders they raised) are untouched; hard delete of a user account is
+out of scope here (personal-data erasure is #272). Break-glass recovery
+**refuses** a disabled target rather than resetting its password — a reset
+would not restore access, because a disabled user is turned away before the
+password is ever checked; re-enable them first.
 
 **Version (concurrency token)** — every mutable aggregate carries a `Version`
 that each mutation bumps. Two concurrent edits: first save wins, second gets
@@ -625,7 +729,15 @@ manage worker flock assignments (spec §5.3). A user's name can be set at
 creation and later changed from the row's **edit** action (#163; blank clears
 it back to "—"). The row's **password** action sets a new password without
 knowing the current one (#165) — the forgot-password path, since there is no
-email reset. Editing an existing user's *role* still belongs to a later slice.
+email reset. The row's **role** action changes an existing user's role —
+promote or demote among the five roles (#355). It **refuses self-targeting**
+(ask another Owner) and refuses demoting the account's **last Owner** (a farm
+cannot lock itself out of user administration). Promoting to Owner requires a
+**step-up grant** (see below); every other target role is ungated. Any actual
+change is audited (`User.RoleChanged`, old to new) and, like a password reset,
+bumps the target's **credential epoch** and revokes their sessions — a demoted
+user's already-issued access token stops working on its very next request, not
+merely once its ~15-minute lifetime runs out.
 
 **Password change (#165)** — two paths with different rules. An Owner sets any
 *other* user's password from the Users screen without the current one; any
@@ -645,18 +757,24 @@ is checked against it — so an already-issued access token is rejected on its
 very next request, not merely bounded by the ~15-min access-token lifetime.
 
 **Step-up authentication (#308)** — a fresh proof of identity required, on top
-of a normal valid Owner access token, before two specific actions: **creating
-another Owner**, and **resetting an existing Owner's password**. The threat it
-closes: a stolen-but-still-valid Owner access token (good for ~15 min — merely
-holding it bumps no credential epoch, see **Credential epoch** above) is
-otherwise enough on its own to mint a second, independent Owner or take over
-an existing one, turning short-lived token theft into durable account
-control. Every other
-action on the Users screen — creating a Worker/Manager/Sales/Read-only user,
-resetting one of their passwords, editing a display name, flock assignment —
-is **unchanged and ungated**; the point is to gate exactly the two operations
-that can multiply or hand over account control, not to add a blanket prompt to
-ordinary farm administration.
+of a normal valid Owner access token, before five specific actions:
+**creating another Owner**, **resetting an existing Owner's password**, and
+**changing a user's role to Owner** (#355) — plus, since #356, **disabling**
+or **re-enabling** a user, gated UNCONDITIONALLY rather than only when the
+target holds Owner. The first three close one threat: a stolen-but-still-valid
+Owner access token (good for ~15 min — merely holding it bumps no credential
+epoch, see **Credential epoch** above) is otherwise enough on its own to mint
+a second, independent Owner or take over an existing one, turning short-lived
+token theft into durable account control. Disable/enable close a related one
+that isn't Owner-scoped: any disable revokes real access outright, and
+re-enabling an Owner would otherwise hand back exactly what a stolen token's
+disable took away — so, unlike the role-change gating above, there is no
+"ordinary farm administration" case here left ungated. Every other action on
+the Users screen — creating a Worker/Manager/Sales/Read-only user, resetting
+one of their passwords, editing a display name, flock assignment, changing a
+role to anything OTHER than Owner — is **unchanged and ungated**; the point is
+to gate exactly the operations that can multiply, hand over, or cut off
+account control, not to add a blanket prompt to ordinary farm administration.
 The mechanism is **current-password re-confirmation**: the Users screen shows
 an inline "your current password" field only when the action needs it (never
 a separate popup), which the SPA exchanges for a short-lived (5 minutes by

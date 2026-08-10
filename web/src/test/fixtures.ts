@@ -22,6 +22,7 @@ export function account(overrides: Partial<Account> = {}): Account {
     version: 1,
     logoContentHash: null,
     brand: "aubergine",
+    defaultStepperUnit: "Individual",
     ...overrides,
   };
 }

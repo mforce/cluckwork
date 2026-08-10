@@ -113,7 +113,7 @@ public sealed class VoidDailyEntryHandler(
             }
 
             // Same transaction as the change (#93): rolls back with it.
-            await audit.WriteAsync("DailyEntry.Void", nameof(DailyEntry), entry.Id,
+            await audit.WriteAsync(AuditActions.DailyEntryVoid, nameof(DailyEntry), entry.Id,
                 command.Reason, ct: transactionCt);
 
             return true;

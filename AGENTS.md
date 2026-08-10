@@ -4,6 +4,10 @@ Poultry egg-farm management system. Backend: **.NET 10** (C#), layered DDD. Fron
 
 This file is the shared brief for any coding agent (Claude Code, Codex, etc.).
 
+## Communicating
+
+Keep explanations clear and human-sounding. Provide concise, focused responses. Skip preambles and recaps — lead with the action or answer.
+
 ## Layout
 
 ```
@@ -44,6 +48,7 @@ dotnet test  Cluckwork.sln                 # 688 tests as of 2026-07; integratio
 - **Credential epoch revocation (#364).** Every access/refresh token is bound to the user's `CredentialEpoch`; every password-reset path bumps it so issued credentials fail on next use. Epoch **`0` is permanently retired** (users start at `1`, legacy refresh rows at `0`), and a missing/malformed `credential_epoch` claim is **always a mismatch** — never default it to the DB epoch. `CredentialEpochMiddleware` does a **fresh DB read per authenticated request** (the round trip *is* the fail-closed guarantee — do not cache), sits **after `TenantResolutionMiddleware`, before `MustChangePasswordMiddleware`**, and exempts `auth/logout`. Login/step-up snapshot the verified epoch+stamp before clearing failed-access and refuse issuance on a concurrency-loss reload. Distinct from #283/#265/#308 — none substitutes for another. **Break it and a revoked credential keeps working.** → [`docs/decisions/364-credential-epoch-revocation.md`](docs/decisions/364-credential-epoch-revocation.md)
 - **Base reference data via guarded raw-SQL migrations (#283).** The default account, four assignable roles, default egg grades, and packed-unit conversions are **static reference data baked into the migrations** as hand-written `migrationBuilder.Sql` with `WHERE NOT EXISTS` guards — **never `HasData`/`InsertData`** (which key on the PK and would either collide or emit `UpdateData`/`DeleteData` that silently reverts the farm's own edits). No runtime seeder, no `Seed:*`. The **grades** guard is whole-set (empty catalog, because grades are user-renamable); roles/conversions/account are **per-key** (keys aren't user-mutable). Pinned by `MigrationSecurityReviewTests` + `BaseReferenceDataMigrationTests`. **Regenerate these into `HasData` and a later model-diff reverts a renamed grade.** → [`docs/decisions/283-migrations-base-provisioning.md`](docs/decisions/283-migrations-base-provisioning.md)
 - **Migrations: `InitialCreate` frozen, one migration per change (#407).** `Persistence/Migrations/` is one squashed `InitialCreate` (recorded id `20260801190854_InitialCreate`); it is **frozen and never regenerated**, and **every schema change gets its own `dotnet ef migrations add`**. EF never re-runs an applied migration, so a column **hand-folded into `InitialCreate` silently does not exist** on any booted DB — it surfaces as broken behaviour (a failed login, #399), not a migration error. `InitialCreate` also carries four un-regenerable `lower("Name")` expression indexes + the base-reference SQL; regenerating mints a new timestamp that desynchronises `__EFMigrationsHistory` everywhere. Pre-squash or pre-#407 dev DBs can't migrate forward — drop and recreate. `MigrationSecurityReviewTests` freezes the id + a portable operation digest. → [`docs/decisions/407-migration-freeze.md`](docs/decisions/407-migration-freeze.md)
+- **Schema docs are generated, committed, and regenerated with every migration (#417).** `docs/schema/` (mermaid ERD + full catalog: every column, constraint, and index — including the raw-SQL expression indexes and partial predicates EF reflection can't see) is produced by `tools/schema-docs/generate.sh` from an ephemeral migrated Postgres via digest-pinned tbls. **Every PR that adds a migration runs the generator and commits the result in the same PR** — CI's `build-and-test` runs `generate.sh --check` (byte-diff against a fresh generation) and fails a stale PR. Generated files under `docs/schema/` are **never hand-edited**, and a conflict there after a rebase is resolved by regenerating, never by hand-merging. Pinned from three sides by `SchemaDocsTests` (postgres-pin uniformity across every tracked file, no environment leakage, completeness against the live catalog). → [`docs/decisions/417-schema-docs.md`](docs/decisions/417-schema-docs.md)
 - **Seed / simulation data is never boot-seeded (#280, #284, #279).** Run it explicitly against an **already-base-seeded, non-Production** database: `ASPNETCORE_ENVIRONMENT=Development dotnet Cluckwork.Api.dll seed --profile demo|simulation` (an unset env → Production → blocked). The verb migrates, seeds, then exits — **authoritative** (ignores config) and **fail-loud** (a real exit code, never a silent no-op). `simulation` additionally records a durable date anchor + completion marker, so a clean re-run — even across a UTC-midnight rollover — converges to `AlreadySeeded`; a polluted account fails the exact-count validation **closed**. → [`docs/decisions/280-seed-and-simulation.md`](docs/decisions/280-seed-and-simulation.md)
 - **Break-glass recovery (#265):** `recover-admin` is a second one-off CLI verb on the same binary, same run-then-exit shape as `seed` — but deliberately **NOT** environment-gated (it must work against a real Production database): `dotnet Cluckwork.Api.dll recover-admin --email <e> [--account <guid>] [--reason <text>]`. For a locked-out account (the sole-Owner-lost-password case, no email/SMTP reset path) it, in one transaction, resets to a **freshly generated** temporary password (never one passed on the command line), rotates the security stamp, revokes every refresh token, and writes a conspicuous `User.BreakGlassReset` audit row carrying `--reason`. The temp password is printed to **stdout only** (never the logger/OTLP) and exit `0`; failures go to stderr with exit `1` and change nothing. `AdminRecoveryService` orchestrates; `IdentityProvider.BreakGlassResetAsync` shares the reset/revoke core with `SetUserPasswordAsync`. Full procedure + verification drill: `docs/runbooks/break-glass-account-recovery.md`.
 - **First-run admin provisioning: `bootstrap-admin` (#283).** `dotnet Cluckwork.Api.dll bootstrap-admin --email <e>` (run-then-exit, always available in Production) migrates, then — **only if the default account has no Owner** — creates one with a **freshly generated password (stdout only, never the logger/OTLP)** and `MustChangePassword=true`; a re-run is a **silent no-op**. While the flag is set the JWT carries `must_change_password`, `MustChangePasswordMiddleware` 403s every endpoint except `auth/change-password`+`auth/logout` (before `UseAuthorization` and before idempotency), and the SPA renders **Set your password**. Any successful reset clears the flag (one invariant in `IdentityProvider`). **Deliberately a separate credential type from #265/#308** — never conflated. → [`docs/decisions/283-first-run-admin-provisioning.md`](docs/decisions/283-first-run-admin-provisioning.md)
@@ -57,7 +62,7 @@ dotnet test  Cluckwork.sln                 # 688 tests as of 2026-07; integratio
 - **Container health probe: the `healthcheck` verb (#266).** The runtime image and the compose `app` service run `dotnet Cluckwork.Api.dll healthcheck` — a run-then-exit verb **dispatched before host build** (it needs no host/DI/DB/config, so a 30s probe doesn't re-run startup or re-log boot warnings). The hardened image ships no curl/wget, so the probe is **in-process**: it GETs `/health/ready` over loopback and exits `0` on a 2xx, `1` on any other status or an unreachable server — **never a false green**. CI boots the built image and asserts `/health/ready` goes green. → [`docs/decisions/266-container-health-probe.md`](docs/decisions/266-container-health-probe.md)
 - **Transient-DB retry, and where it stops (#269).** `EnableRetryOnFailure` retries only **self-contained EF units** (every read, every `SaveChanges` outside a user transaction); it must **not** wrap unreplayable work. The general hazard is **an automatic replay sitting above a stateful detector** (a monotonic counter, a CAS stamp, a single-use claim) that can't tell "this request racing itself" from the signal it exists to detect. Two cures, and picking wrong ships the bug: **`SingleAttemptExecution`** when the replay is itself observable (e.g. `AccessFailedAsync`'s second durable increment — otherwise one wrong password locks at ~half the #128 threshold); a **durability probe keyed on a self-minted token** when the replay writes nothing and the defect is a mis-read `catch` (refresh-token rotation, login/reset `INSERT`s). All fail closed; pinned from both sides in `RetryBoundaryTests`. → [`docs/decisions/269-transient-db-retry-boundary.md`](docs/decisions/269-transient-db-retry-boundary.md)
 - **A new Production boot guard must be taught to the sim harness (#370).** Every guard that fails the boot on missing/invalid config (#260, #261/#262, #316, #319, …) and every config-key add/rename/retire must **also update `tools/simulation/bootstrap.sh` + `docker-compose.sim.yml` + `verify-harness.sh` in the same PR** — that harness runs **Production config on purpose**, is **deliberately not in CI**, and every path into it is human-started, so nothing tells you when you break it (four guards once landed unnoticed until it couldn't boot `main`). Satisfy guards **properly** (a concrete `AllowedHosts`, the documented opt-outs), never by disabling one. **Treat a boot-guard PR that leaves the harness behind like a missing test.** → [`docs/decisions/370-sim-harness-boot-guards.md`](docs/decisions/370-sim-harness-boot-guards.md)
-- **SPA E2E lives in `tools/simulation/ui/` (#277/#385).** Playwright drives the real built SPA over the **same** `seed --profile simulation` fixture k6 uses; `web/` stays Vitest + Testing Library. Three enforced rules, each of which has caught something: **never hardcode a credential** (personas from the git-ignored `.sim-cast.json`), **never hardcode English** (selectors resolve through the SPA's own en/es/tl catalogs — a missing key throws), and **respect the farm clock** (`America/Chicago` is behind UTC). Mutation-checked (`npm run mutation`; a red baseline aborts). **CI is `workflow_dispatch` only**, so the #370 warning applies. → [`docs/decisions/277-spa-e2e.md`](docs/decisions/277-spa-e2e.md)
+- **SPA E2E lives in `tools/simulation/ui/` (#277/#385).** Playwright drives the real built SPA over the **same** `seed --profile simulation` fixture k6 uses; `web/` stays Vitest + Testing Library. Three enforced rules, each of which has caught something: **never hardcode a credential** (personas from the git-ignored `.sim-cast.json`), **never hardcode English** (selectors resolve through the SPA's own en/es/tl catalogs — a missing key throws), and **respect the farm clock** (`America/Chicago` is behind UTC). Mutation-checked (`npm run mutation`; a red baseline aborts). **The quick suite runs on PRs** (path-filtered, ~3 min; owner call 2026-08-08 after #433 broke it silently); the `slow`/`canary` modes and the k6 sibling stay `workflow_dispatch`-only, so the #370 warning still applies to those. → [`docs/decisions/277-spa-e2e.md`](docs/decisions/277-spa-e2e.md)
 - **A write-contract change must update its non-CI callers (#394).** Adding a required field, tightening a validator, or changing an aggregate's state machine breaks automated callers no test references. **Coverage is not uniform:** the seeders are covered only to the handler/domain layer, so a **validator-only** tightening is invisible to all five seeder tests (they call `HandleAsync` directly, skipping `ValidateAsync`); `tools/simulation/k6/` and the Playwright specs are **uncovered**, and a green baseline hides it (`authedPost` counts a tolerated `[403,409,422]` as a pass, and `reset.sh` never runs k6). **So verify the request/status contract by reading the callers, not by running.** Grep callers of the endpoint, re-check each payload, and narrow a tolerated-status list when a status flips from "constrained write" to "broken write". → [`docs/decisions/394-write-contract-callers.md`](docs/decisions/394-write-contract-callers.md)
 - **Production logs: compact JSON on stdout; base layer argument-free (#404).** stdout is the only sink (no file/vendor sink). Production selects `CompactJsonFormatter`; Development the human `outputTemplate`; the base `appsettings.json` Console entry carries **`Name` only, no `Args`** — a template left in the base file merges *beside* the formatter and Serilog **silently binds the template and ignores the formatter**. Trace fields differ by format: compact JSON writes **`@tr`/`@sp`**, the Dev template `{TraceId}`/`{SpanId}` — a collector query against the wrong name matches nothing. **Compact JSON serializes EVERY property**, so anything pushed via `BeginScope`/`LogContext`/`ForContext` now reaches the collector (see #273 for the redaction answer). Pinned by `ProductionLogFormatTests`. → [`docs/decisions/404-production-logs.md`](docs/decisions/404-production-logs.md)
 - **Nullable enabled**, no unused usings (both are build-breaking).
@@ -89,6 +94,86 @@ Postgres `sslmode`, …) and **never names or branches on a hosting provider**.
 Reviewers: treat a hardcoded provider name in code, config, or a committed doc
 like a missing test — flag it. Naming a provider as a passing *example* in prose
 is tolerable only when no portable phrasing works; prefer the neutral term.
+
+### Deploy invariant: exactly ONE serving API instance (#271, #338)
+
+**Run one serving instance.** More than one breaks four separate things, and
+none of them announces itself as "you are running two replicas". This is a
+*requirement* the app imposes on its host, so it lives here; the concrete
+replica count and how it is pinned are deploy-side.
+
+`AddHostedService<DurableJobWorker>()`
+(`Hosting/CluckworkJobServiceCollectionExtensions.cs`) means **every** instance
+runs the worker loop, and the poll claims nothing — no `FOR UPDATE SKIP
+LOCKED`, no lease, no advisory lock. What that exposes today is **the three
+recurring sweeps**, which ride the same poll and run unconditionally per
+instance: `DailyEntryLockSweep`, `RefreshTokenPurgeSweep`,
+`IdempotencyRecordPurgeSweep`. The durable-job half is still a scaffold that
+selects pending rows and logs them — no handlers are registered — so job
+double-execution is latent, not live. **Registering the first handler makes it
+live**, which is the moment this invariant stops being about sweeps only.
+
+Not every double-run is equally bad, and the difference decides what an operator
+would actually see. The two purge sweeps are idempotent deletes, so a second
+runner wastes work and reports nothing — genuinely silent.
+`DailyEntryLockSweep` is not silent: it reads-then-writes behind an optimistic
+`Version` token, so the losing replica's `SaveChangesAsync` throws a concurrency
+exception, which its per-account `catch` logs as `Lock sweep failed for account
+{AccountId}` (`Jobs/DailyEntryLockSweep.cs`). That is observable — but it reads
+as a database fault, not as "two replicas are sweeping", which is the sense in
+which the duplicate stays invisible.
+
+**Four independent blockers, all of which must close before scaling** — and
+they are not all in #271:
+
+- **#271 — background work has no single-runner guarantee** (this section's
+  subject). Needs an advisory-lock lease or `FOR UPDATE SKIP LOCKED` with crash
+  recovery, **plus** a two-instance test proving each job and each sweep runs
+  exactly once.
+- **#338 — `IStepUpGrantRegistry` is process-local.** `InMemoryStepUpGrantRegistry`
+  is a per-process singleton holding step-up replay tracking and logout epochs,
+  and its own header says a multi-instance deployment must move it to a shared
+  store. Both #308 guarantees degrade per replica: a single-use grant becomes
+  usable **once per replica**, and a logout honoured by one replica is invisible
+  to the others. These grants gate privileged account-control operations, so
+  this is the blocker with teeth — closing #271 alone does not license scaling.
+- **The IP-keyed auth limiters (#143) are in-process.** `AddRateLimiter`'s
+  partitions live in each process — login, refresh, and client-error reports
+  alike — so N replicas allow roughly N times the intended attempts per IP
+  before lockout.
+- **The per-account report concurrency cap (#311) is in-process.**
+  `ReportConcurrencyLimiter` is a singleton owning a `PartitionedRateLimiter<Guid>`
+  (`Api/RateLimiting/ReportConcurrencyLimiter.cs`, registered at
+  `Hosting/CluckworkRateLimitingServiceCollectionExtensions.cs`), so one account
+  can hold up to N × `ReportsConcurrency.PermitLimit` heavyweight report queries
+  in flight — the DB/CPU ceiling that cap exists to bound, multiplied by the
+  replica count.
+
+The last two have no open issue; they are recorded here rather than left to be
+rediscovered.
+
+**How this list was derived, because it was twice derived wrongly.** Both misses
+were the same shape — a process-local limiter — and the second one lived in a
+file the first sweep had already opened. So do not extend this list from memory.
+Re-derive it: enumerate **every** `AddSingleton`/`AddHostedService` under `src/`
+plus every in-memory state primitive (`ConcurrentDictionary`, `IMemoryCache`,
+`PartitionedRateLimiter`, `Channel`, `SemaphoreSlim`, mutable statics), then
+classify each one as safe or not. That walk currently finds 12 `AddSingleton`
+registrations and 1 `AddHostedService` (13 total, the hosted service is not one
+of the 12); the four above are what survives it. Excluded deliberately, so
+the next walk need not re-litigate them: `TimeProvider.System`, the Serilog
+diagnostic contexts, `IValidateOptions`/`IAuthorizationMiddlewareResultHandler`
+(all stateless), and `FirstRunProvisioningLatch` — a monotonic one-way cache of
+"the default account has an Owner", where a per-replica copy costs at most a few
+extra reads and cannot go stale in the unsafe direction.
+
+**#307 (multi-replica HTTP write idempotency) is CLOSED**, so the request-path
+half is genuinely done — do not read that closure, or #271's, as permission to
+scale. Documenting the invariant, as this section does, is the interim
+mitigation, not the close for any of the four.
+
+The run-then-exit verbs (`migrate`, `seed`, `recover-admin`, `bootstrap-admin`,
+`healthcheck`) are unaffected: they do not start the host's hosted services.
 
 ## Writing a guard (a test that asserts an invariant)
 

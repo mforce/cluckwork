@@ -6,6 +6,7 @@ import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
 import { usePendingAction } from "../components/usePendingAction";
 import { LanguageSelector } from "../session/LanguageSelector";
+import { StepperUnitSelector } from "../session/StepperUnitSelector";
 import { SUPPORTED_LANGUAGES } from "../i18n";
 import { roleLabel } from "../i18n/enums";
 
@@ -72,13 +73,19 @@ export function AccountPage() {
         <Trans ns="account" i18nKey="roleLine" values={{ role: roleLabel(role) }} components={{ strong: <strong /> }} />
       </p>
 
-      {SUPPORTED_LANGUAGES.length > 1 && (
-        <section>
-          <h3>{t("preferences")}</h3>
-          <p className="hint">{t("languageHint")}</p>
-          <LanguageSelector />
-        </section>
-      )}
+      <section>
+        <h3>{t("preferences")}</h3>
+        {SUPPORTED_LANGUAGES.length > 1 && (
+          <>
+            <p className="hint">{t("languageHint")}</p>
+            <LanguageSelector />
+          </>
+        )}
+        {/* #444 — the pack unit YOUR Daily Entry steppers bump by, overriding
+            the farm default set in Settings. */}
+        <p className="hint">{t("stepperUnitHint")}</p>
+        <StepperUnitSelector />
+      </section>
 
       <h3>{t("changePasswordHeading")}</h3>
       <p className="muted">

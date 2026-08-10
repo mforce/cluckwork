@@ -122,7 +122,7 @@ public sealed class VoidSaleHandler(
                 row.MarkReleased(releasedAt);
 
             // Same transaction as the change (#93): rolls back with it.
-            await audit.WriteAsync("SalesOrder.Void", nameof(SalesOrder), order.Id,
+            await audit.WriteAsync(AuditActions.SalesOrderVoid, nameof(SalesOrder), order.Id,
                 command.Reason, ct: transactionCt);
 
             outcome = Result.Success(new VoidSaleResponse(order.Id, order.Status.ToString()));

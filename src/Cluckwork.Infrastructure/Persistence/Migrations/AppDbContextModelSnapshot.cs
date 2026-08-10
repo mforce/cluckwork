@@ -52,6 +52,11 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                         .HasMaxLength(8)
                         .HasColumnType("character varying(8)");
 
+                    b.Property<string>("DefaultStepperUnit")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
                     b.Property<string>("FirstDayOfWeek")
                         .HasMaxLength(16)
                         .HasColumnType("character varying(16)");
@@ -1339,6 +1344,10 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
 
                     b.Property<bool>("PhoneNumberConfirmed")
                         .HasColumnType("boolean");
+
+                    b.Property<string>("PreferredStepperUnit")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
 
                     b.Property<string>("SecurityStamp")
                         .HasColumnType("text");

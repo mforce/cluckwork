@@ -161,10 +161,24 @@ export default defineConfig(({ mode }) => {
           // cluckwork.ts + UsersPage.tsx changes, all covered): actuals
           // 91.03/88.02/82.32/78.34 — every number moved UP, so the floors
           // below are unchanged (still ~1-1.3pt headroom, same convention).
-          lines: 90,
-          statements: 87,
-          functions: 81,
-          branches: 77,
+          //
+          // Ratcheted after #469 (usePagedList extracted with its own 24-test
+          // race suite; six screens migrated onto it and shed their hand-rolled
+          // load/ticket code, so the remaining lines are better covered):
+          // actuals 91.96/89.11/84.62/80.32. Branches rose here rather than
+          // fell — the hook concentrates the conditionals that used to be
+          // spread across six screens, and they are exhaustively tested.
+          //
+          // Ratcheted after #479 (useDialogErrors + DialogError, then eleven
+          // screens migrated onto them with ~50 new placement tests): actuals
+          // 93.36/90.45/86.78/81.75. Branches rose again for the same reason
+          // #469 did — the conditionals that decided WHERE a message renders
+          // used to be per screen, and are now one tested hook plus one tested
+          // component. Floors keep the usual ~1.3pt headroom.
+          lines: 92,
+          statements: 89,
+          functions: 85,
+          branches: 80,
           // high-water locks on the fully-covered foundation (AST-aware
           // counting surfaces statements/branches the old remapper credited
           // for free, so the 100s that survived stay; the rest pin to the

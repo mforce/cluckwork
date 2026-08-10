@@ -34,7 +34,7 @@ public sealed class RecordBirdMovementHandler(
 
         await movements.AddAsync(movement, ct);
         // Same SaveChanges as the change (#93).
-        await audit.WriteAsync("Flock.BirdMovement", "Flock", flock.Id,
+        await audit.WriteAsync(AuditActions.FlockBirdMovement, "Flock", flock.Id,
             reason: command.Note, details: new { command.Type, command.Quantity }, ct: ct);
 
         await unitOfWork.SaveChangesAsync(ct);

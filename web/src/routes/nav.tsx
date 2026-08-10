@@ -1,7 +1,7 @@
 import {
   Bird, Boxes, ChartColumn, CircleHelp, ClipboardList, Download, Egg, History,
   LayoutDashboard, Package, ScrollText, Settings, ShoppingCart, Tags, UserCog,
-  UserRound, Users, Wallet, Droplets,
+  UserRound, Users, Wallet, Droplets, Wheat,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { Role } from "../auth/claims";
@@ -49,6 +49,7 @@ export function navGroups(role: Role, isAdmin: boolean): NavGroup[] {
       entries: [
         { to: "/daily-entry", labelKey: "dailyEntry", Icon: ClipboardList },
         { to: "/flocks", labelKey: "flocks", Icon: Bird },
+        { to: "/feed", labelKey: "feed", Icon: Wheat },
         { to: "/water", labelKey: "water", Icon: Droplets },
         { to: "/inventory", labelKey: "inventory", Icon: Boxes },
       ],

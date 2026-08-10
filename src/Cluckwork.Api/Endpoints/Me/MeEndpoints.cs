@@ -3,6 +3,7 @@ namespace Cluckwork.Api.Endpoints.Me;
 using Cluckwork.Api.Validation;
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Users.SetLanguage;
+using Cluckwork.Application.Features.Users.SetStepperUnit;
 using Cluckwork.Domain.Common;
 using Cluckwork.Infrastructure.Persistence;
 using FluentValidation;
@@ -24,6 +25,11 @@ public static class MeEndpoints
             .WithName("SetOwnLanguage")
             .WithSummary("Set or clear your UI-language preference.");
 
+        // #444 — same shape and reasoning as /language: personal, every role.
+        group.MapPut("/stepper-unit", SetStepperUnit)
+            .WithName("SetOwnStepperUnit")
+            .WithSummary("Set or clear your Daily Entry stepper pack-unit override.");
+
         return group;
     }
 
@@ -36,7 +42,8 @@ public static class MeEndpoints
         return profile is null
             ? Results.NotFound()
             : Results.Ok(new MeResponse(
-                profile.Id, profile.Email, profile.DisplayName, profile.Role, profile.Language));
+                profile.Id, profile.Email, profile.DisplayName, profile.Role, profile.Language,
+                profile.PreferredStepperUnit?.ToString()));
     }
 
     private static async Task<IResult> SetLanguage(
@@ -58,6 +65,26 @@ public static class MeEndpoints
         return result.IsSuccess ? Results.NoContent() : MapFailure(result.Error);
     }
 
+    // #444 — same shape as SetLanguage above: identity from the token, not the
+    // body; a defined-name check in the validator; the "does this unit still
+    // exist and is it active" check inside the handler (needs a repository read,
+    // unlike SetLanguage's plain format check).
+    private static async Task<IResult> SetStepperUnit(
+        SetStepperUnitRequest request, SetStepperUnitHandler handler,
+        IValidator<SetStepperUnitCommand> validator, ICurrentUser currentUser,
+        TenantContext tenant, CancellationToken ct)
+    {
+        if (!currentUser.IsResolved || !tenant.IsResolved) return Results.Unauthorized();
+
+        var command = new SetStepperUnitCommand(request.Unit?.Trim());
+        var validation = await validator.ValidateAsync(command, ct);
+        if (!validation.IsValid)
+            return ValidationResponse.Problem(validation); // carries Me.StepperUnit.Format
+
+        var result = await handler.HandleAsync(command, tenant.AccountId, currentUser.UserId, ct);
+        return result.IsSuccess ? Results.NoContent() : MapFailure(result.Error);
+    }
+
     private static IResult MapFailure(Error error) =>
         error.Code.EndsWith(".NotFound", StringComparison.Ordinal)
             ? Results.NotFound()
@@ -66,7 +93,8 @@ public static class MeEndpoints
 
 // Field order is part of the contract the SPA (#182) parses. `Name` is DisplayName
 // so the SPA needn't decode the JWT for it; role is echoed (JWT stays authoritative).
-public sealed record MeResponse(Guid Id, string Email, string? Name, string Role, string? Language);
+public sealed record MeResponse(
+    Guid Id, string Email, string? Name, string Role, string? Language, string? PreferredStepperUnit);
 
 public sealed record SetLanguageRequest
 {
@@ -74,4 +102,10 @@ public sealed record SetLanguageRequest
     // absolute preference, so the field must be present. An explicit null clears
     // it; a missing field is a client bug, not a clear.
     public required string? Language { get; init; }
+}
+
+public sealed record SetStepperUnitRequest
+{
+    // Same `required` reasoning as SetLanguageRequest.Language.
+    public required string? Unit { get; init; }
 }

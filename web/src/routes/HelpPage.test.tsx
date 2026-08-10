@@ -77,6 +77,61 @@ describe("HelpPage", () => {
     expect(screen.getByText(/A spinning button means the save is still working/)).toBeInTheDocument();
   });
 
+  it("says the page behind a popup is out of reach, in every catalog (#482)", () => {
+    // The behaviour: everything except the topmost dialog is inert, so the
+    // background is unreachable by pointer AND by a screen reader — and Escape
+    // closes the dialog the user is in, not every open one.
+    render(<HelpPage />);
+    expect(screen.getByText(/the page behind it/i)).toBeInTheDocument();
+    expect(screen.getByText(/Escape closes the popup you are working in/i)).toBeInTheDocument();
+
+    for (const lng of ["es", "tl"] as const) {
+      const value = i18n.getResource(lng, "help", "dialogsModal") as string;
+      expect(value).toBeTruthy();
+      expect(value).not.toBe(i18n.getResource("en", "help", "dialogsModal"));
+    }
+  });
+
+  // codex on #483: the string-concatenated en catalog entry lost the space
+  // between two adjacent <Trans> segments, rendering "Daily entry,Water"
+  // with nothing between the names. Nothing asserted the joined text before,
+  // so it shipped silently — this is that assertion.
+  it("keeps a space between adjacent inline-form names", () => {
+    // The two names sit in separate <strong> elements either side of the
+    // regression's missing space, so the joined text is not any single
+    // node's own — read the item's full textContent instead of getByText,
+    // which only matches within one node.
+    render(<HelpPage />);
+    // "Daily entry" and "Water" both appear elsewhere on the page (nav, other
+    // sections); "recording an expense" is unique to this list item.
+    const item = screen.getByText(/recording an expense/).closest("li");
+    expect(item).not.toBeNull();
+    expect(item!.textContent).toMatch(/Daily entry,\s+Water/);
+  });
+
+  it("says where a failure message appears, in every catalog (#479)", () => {
+    // #478 narrowed this to "a failed save explains itself inside the form"
+    // because only Sales had the two-slot split then — CustomersPage's
+    // background balance-load failure landed inside its own New customer
+    // dialog, the exact opposite of the wider claim. #479 gave every dialog
+    // screen its own page/dialog split (#489/#491), so the full behaviour —
+    // a form's failure rendered inside that form, the screen's on the
+    // screen, and closing the form dropping only its own — now holds
+    // app-wide. Asserted per catalog because the i18n policy ships es/tl
+    // with the English, and a missing key would render the key.
+    render(<HelpPage />);
+    expect(screen.getByText(/if you were filling in a pop-up form, it appears inside that form/i))
+      .toBeInTheDocument();
+    // …and closing it drops that message rather than moving it to the screen.
+    expect(screen.getByText(/Closing the form drops its message/i)).toBeInTheDocument();
+
+    for (const lng of ["es", "tl"] as const) {
+      const value = i18n.getResource(lng, "help", "gettingAroundWhereMessagesAppear") as string;
+      expect(value).toBeTruthy();
+      expect(value).not.toBe(i18n.getResource("en", "help", "gettingAroundWhereMessagesAppear"));
+    }
+  });
+
   it("explains the per-account sign-in lock as temporary, without a non-existent admin reset", () => {
     render(<HelpPage />);
     const signIn = screen.getByRole("heading", { name: "Signing in", level: 3 });
@@ -181,6 +236,55 @@ describe("HelpPage", () => {
     expect(within(adjustFixCell).getByText(/The previous values stay visible on the entry/)).toBeInTheDocument();
   });
 
+  it("documents disabling and re-enabling a user, immediately and without deleting old sessions (#356)", () => {
+    render(<HelpPage />);
+    expect(screen.getByRole("heading", { name: "Who can do what", level: 3 })).toBeInTheDocument();
+    // Takes effect immediately — on the very next request, not at token expiry.
+    // ("...ends on its very next request" also appears in the glossary row
+    // below, so this asserts the phrase unique to the roles bullet.)
+    expect(screen.getByText(/cuts off access immediately/i)).toBeInTheDocument();
+    expect(screen.getByText(/the same as a role change or password reset/i)).toBeInTheDocument();
+    // A reason is optional, and recorded either way.
+    // ("lands in the audit log" also appears in the Audit log section below,
+    // so this asserts the fuller phrase unique to the roles bullet.)
+    expect(screen.getByText(/A reason is optional/i)).toBeInTheDocument();
+    expect(screen.getByText(/either way it lands in the audit log/i)).toBeInTheDocument();
+    // Re-enabling restores sign-in but not the old sessions.
+    expect(screen.getByText(/never revives the sessions the disable ended/i)).toBeInTheDocument();
+    expect(screen.getByText(/sign in fresh with their existing password/i)).toBeInTheDocument();
+    // Self-target and last-Owner refusals.
+    expect(screen.getByText(/can't disable your own sign-in/i)).toBeInTheDocument();
+    expect(screen.getByText(/can't disable the account's last Admin \(owner\)/i)).toBeInTheDocument();
+  });
+
+  it("counts disable/enable among the step-up-gated actions, alongside the three Owner-scoped ones (#356)", () => {
+    // #356 added two more step-up-gated actions to the Users screen. The old
+    // "Three actions ... every other action ... does not ask again" copy
+    // would otherwise misstate disable/enable as ungated the moment this
+    // feature shipped — this pins the corrected count and wording.
+    render(<HelpPage />);
+    expect(screen.getByText(/Five actions on the/i)).toBeInTheDocument();
+    expect(screen.getByText(/disabling or re-enabling a user/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Three actions on the/i)).not.toBeInTheDocument();
+  });
+
+  it("documents the Disabled user term in the in-app glossary (#356)", () => {
+    render(<HelpPage />);
+    expect(screen.getByRole("rowheader", { name: "Disabled user" })).toBeInTheDocument();
+    expect(screen.getByText(/Revoked access, not deletion/i)).toBeInTheDocument();
+  });
+
+  it("ships es/tl for the disable-user roles bullet and glossary row, not English placeholders (#356)", () => {
+    for (const catalog of [es, tl]) {
+      expect(catalog.help.rolesDisableUser).toBeTruthy();
+      expect(catalog.help.rolesDisableUser).not.toBe(en.help.rolesDisableUser);
+      expect(catalog.help.glossaryDisabledUserTerm).toBeTruthy();
+      expect(catalog.help.glossaryDisabledUserTerm).not.toBe(en.help.glossaryDisabledUserTerm);
+      expect(catalog.help.glossaryDisabledUserDef).toBeTruthy();
+      expect(catalog.help.glossaryDisabledUserDef).not.toBe(en.help.glossaryDisabledUserDef);
+    }
+  });
+
   it("scroll-spies the contents rail — the section in view is marked current", () => {
     render(<HelpPage />);
     const toc = screen.getByRole("navigation", { name: "Help contents" });
@@ -270,6 +374,16 @@ describe("HelpPage i18n wiring (#182, Task 32)", () => {
     });
   });
 
+  // #356 — the disable/enable roles bullet, same shape as the other
+  // <Trans>-rendered bullets above.
+  it("reads the disable-user roles bullet from the catalog, not a hardcoded literal", () => {
+    withOverride("rolesDisableUser", "DISABLE-USER-MARKER", () => {
+      render(<HelpPage />);
+      expect(screen.getByText("DISABLE-USER-MARKER")).toBeInTheDocument();
+      expect(screen.queryByText(/cuts off access immediately/i)).not.toBeInTheDocument();
+    });
+  });
+
   // The multi-tag <Trans> proof: override a key whose en value carries BOTH
   // a <strong> and an <em> tag (signingInRateLimit) with a marker of the same
   // shape, and assert real STRONG/EM elements come out the other end — not
@@ -347,6 +461,19 @@ describe("HelpPage glossary i18n wiring (#182, Task 33)", () => {
         expect(screen.getByRole("rowheader", { name: "REPORT-THROTTLE-TERM-MARKER" })).toBeInTheDocument();
         expect(screen.getByText("REPORT-THROTTLE-DEF-MARKER")).toBeInTheDocument();
         expect(screen.queryByRole("rowheader", { name: "Too many reports at once" })).not.toBeInTheDocument();
+      });
+    });
+  });
+
+  // #356 — the Disabled user row, appended last in the table (same shape as
+  // the FIFO/step-up rows above).
+  it("reads the Disabled user glossary row's term and definition from the catalog, not a hardcoded literal", () => {
+    withOverride("glossaryDisabledUserTerm", "DISABLED-USER-TERM-MARKER", () => {
+      withOverride("glossaryDisabledUserDef", "DISABLED-USER-DEF-MARKER", () => {
+        render(<HelpPage />);
+        expect(screen.getByRole("rowheader", { name: "DISABLED-USER-TERM-MARKER" })).toBeInTheDocument();
+        expect(screen.getByText("DISABLED-USER-DEF-MARKER")).toBeInTheDocument();
+        expect(screen.queryByRole("rowheader", { name: "Disabled user" })).not.toBeInTheDocument();
       });
     });
   });

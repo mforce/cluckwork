@@ -6,10 +6,11 @@ import { account } from "../test/fixtures";
 import i18n from "../i18n";
 import {
   addOrderItem, cancelOrder, confirmOrder, createOrder, getOrder, listCustomers, listEggGrades,
-  listOrderPayments, listOrders, listProducts, recordPayment, removeOrderItem, updateOrderItem,
-  voidOrder, voidPayment,
+  listEggUnitConversions, listOrderPayments, listOrders, listProducts, recordPayment,
+  removeOrderItem, updateOrderItem, voidOrder, voidPayment,
 } from "../api/cluckwork";
-import type { Customer, EggGrade, OrderItem, Product, SalesOrder } from "../api/cluckwork";
+import type { Customer, EggGrade, EggUnitConversion, OrderItem, Product, SalesOrder } from "../api/cluckwork";
+import { ApiError } from "../api/client";
 
 // Keep the REAL formatMoney + parseMoneyToMinorUnits (the money math under test)
 // via importOriginal; stub only the network seam. Every network call the screen
@@ -23,6 +24,7 @@ vi.mock("../api/cluckwork", async (importOriginal) => {
     listCustomers: vi.fn(),
     listProducts: vi.fn(),
     listEggGrades: vi.fn(),
+    listEggUnitConversions: vi.fn(),
     listOrders: vi.fn(),
     listOrderPayments: vi.fn(),
     createOrder: vi.fn(),
@@ -41,6 +43,7 @@ vi.mock("../api/cluckwork", async (importOriginal) => {
 const mockListCustomers = vi.mocked(listCustomers);
 const mockListProducts = vi.mocked(listProducts);
 const mockListEggGrades = vi.mocked(listEggGrades);
+const mockListEggUnitConversions = vi.mocked(listEggUnitConversions);
 const mockListOrders = vi.mocked(listOrders);
 const mockListOrderPayments = vi.mocked(listOrderPayments);
 const mockCreateOrder = vi.mocked(createOrder);
@@ -96,6 +99,17 @@ const DRAFT_TWO: SalesOrder = {
   ...draftEmpty(2, "USD", "o2"), referenceNumber: "SO-2", totalMinorUnits: 2900, items: [ITEM_A, ITEM_B],
 };
 
+// #445 — the conversions feeding the unit-clarity surfaces (unit-aware
+// quantity label text comes from i18n; the FACTORS come from here). "Case" is
+// deliberately inactive: the no-active-definition fallback (bare labels, no
+// hint) needs a real selling unit to exercise it through.
+const CONVERSIONS: EggUnitConversion[] = [
+  { id: "cv1", unitCode: "Individual", eggsPerUnit: 1, active: true, version: 1 },
+  { id: "cv2", unitCode: "Dozen", eggsPerUnit: 12, active: true, version: 1 },
+  { id: "cv3", unitCode: "Tray", eggsPerUnit: 30, active: true, version: 1 },
+  { id: "cv4", unitCode: "Case", eggsPerUnit: 360, active: false, version: 1 },
+];
+
 // role irrelevant to add/update/display (Admin only unlocks void + payments,
 // which these tests don't touch) — just a stable authenticated session.
 const ADMIN = { sub: "u1", role: "Admin" };
@@ -106,6 +120,7 @@ beforeEach(() => {
   mockListCustomers.mockResolvedValue([CUSTOMER]);
   mockListProducts.mockResolvedValue([PRODUCT_A, PRODUCT_B]);
   mockListEggGrades.mockResolvedValue([GRADE]);
+  mockListEggUnitConversions.mockResolvedValue(CONVERSIONS);
   mockListOrders.mockResolvedValue([]);
   mockListOrderPayments.mockResolvedValue({
     items: [], paidMinorUnits: 0, outstandingMinorUnits: 0, totalMinorUnits: 0,
@@ -189,18 +204,19 @@ describe("SalesPage quantity steppers (#250)", () => {
 
     // Role query, not getByLabelText: the wrapping <label> makes every control
     // inside it (the −/+ buttons too) answer to "Quantity"; only the input has
-    // the spinbutton role.
-    const qty = screen.getByRole("spinbutton", { name: "Quantity" });
+    // the spinbutton role. Since #445 the label names the unit too — the first
+    // sellable product (PRODUCT_A) defaults to Dozen.
+    const qty = screen.getByRole("spinbutton", { name: "Quantity (dozen)" });
     fireEvent.change(qty, { target: { value: "2" } });
     expect(qty).toHaveValue(2);
 
-    const minus = screen.getByRole("button", { name: "Decrease quantity" });
+    const minus = screen.getByRole("button", { name: "Decrease quantity (dozen)" });
     fireEvent.click(minus);
     expect(qty).toHaveValue(1);
     // At the floor the − disables rather than silently no-opping…
     expect(minus).toBeDisabled();
 
-    fireEvent.click(screen.getByRole("button", { name: "Increase quantity" }));
+    fireEvent.click(screen.getByRole("button", { name: "Increase quantity (dozen)" }));
     expect(qty).toHaveValue(2);
 
     // …and typing below it clamps back up.
@@ -238,7 +254,7 @@ describe("SalesPage quantity must be a whole number (#398)", () => {
     await renderReady();
     await createDraft(draftEmpty(2, "USD"));
 
-    const qty = screen.getByRole("spinbutton", { name: "Quantity" });
+    const qty = screen.getByRole("spinbutton", { name: "Quantity (dozen)" });
     fireEvent.change(qty, { target: { value: "2.5" } });
     expect(qty).toHaveValue(2.5);
 
@@ -265,6 +281,190 @@ describe("SalesPage quantity must be a whole number (#398)", () => {
 
     expect(mockUpdateOrderItem).not.toHaveBeenCalled();
     expect(await screen.findByText(i18n.t("sales:quantityMustBeWholeNumber"))).toBeInTheDocument();
+  });
+});
+
+// #445 — users typed the EGG TOTAL into the quantity field (60 eggs → 60 trays
+// = 1,800 eggs sold, silently 30x over). Three reinforcing surfaces make the
+// unit visible AT ENTRY TIME: the unit in the quantity label, a live "= N eggs"
+// preview, and the unit size on the product option. All display-only — the
+// unit math itself is the server's (snapshotted per line, spec §9.7).
+describe("SalesPage quantity unit clarity (#445)", () => {
+  it("names the selected unit in the quantity label and follows the Per picker", async () => {
+    await renderReady();
+    await createDraft(draftEmpty(2, "USD"));
+
+    // First sellable product (PRODUCT_A) defaults the unit to Dozen.
+    expect(screen.getByRole("spinbutton", { name: "Quantity (dozen)" })).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Per"), { target: { value: "Tray" } });
+    expect(screen.getByRole("spinbutton", { name: "Quantity (tray)" })).toBeInTheDocument();
+    expect(screen.queryByRole("spinbutton", { name: "Quantity (dozen)" })).not.toBeInTheDocument();
+  });
+
+  it("previews the resulting egg count live while the quantity changes", async () => {
+    await renderReady();
+    await createDraft(draftEmpty(2, "USD"));
+
+    // qty starts at 30, unit Dozen (12/unit) → 360. THE reported mistake:
+    // "60" meant as an egg count reads back as 720 eggs, not 60.
+    expect(screen.getByText("= 360 eggs")).toBeInTheDocument();
+    const qty = screen.getByRole("spinbutton", { name: "Quantity (dozen)" });
+    fireEvent.change(qty, { target: { value: "60" } });
+    expect(screen.getByText("= 720 eggs")).toBeInTheDocument();
+
+    // Factor follows the Per picker too: 60 trays → 1,800 eggs.
+    fireEvent.change(screen.getByLabelText("Per"), { target: { value: "Tray" } });
+    expect(screen.getByText("= 1800 eggs")).toBeInTheDocument();
+  });
+
+  it("keeps a packed unit deliberately defined as 1 egg/unit visible — suppression is by identity, not factor", async () => {
+    // Only "Individual" is pinned to 1 server-side; a farm CAN define Dozen
+    // as 1 egg/unit, and that nonstandard setup is exactly what must stay
+    // visible at entry time (codex review of #445). An `f > 1` threshold
+    // would hide it — this pins the identity-based rule, and the singular
+    // _one catalog forms with it.
+    mockListEggUnitConversions.mockResolvedValue([
+      { id: "cv2", unitCode: "Dozen", eggsPerUnit: 1, active: true, version: 1 },
+    ]);
+    await renderReady();
+    await createDraft(draftEmpty(2, "USD"));
+
+    expect(screen.getByRole("option", { name: "Grade A Dozen (1 egg/dozen)" })).toBeInTheDocument();
+    expect(screen.getByText("= 30 eggs")).toBeInTheDocument(); // qty 30 × 1
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Quantity (dozen)" }),
+      { target: { value: "1" } });
+    expect(screen.getByText("= 1 egg")).toBeInTheDocument(); // singular form
+  });
+
+  it("shows no preview for the per-egg unit — '= 30 eggs' under 30 eggs is noise", async () => {
+    await renderReady();
+    await createDraft(draftEmpty(2, "USD"));
+
+    fireEvent.change(screen.getByLabelText("Per"), { target: { value: "Egg" } });
+    // Suppressed by unit IDENTITY (Egg needs no translation), not by factor.
+    expect(screen.getByRole("spinbutton", { name: "Quantity (egg)" })).toBeInTheDocument();
+    expect(screen.queryByText(/= \d+ eggs?/)).not.toBeInTheDocument();
+  });
+
+  it("degrades to the labeled field with no preview when the unit has no active definition", async () => {
+    await renderReady();
+    await createDraft(draftEmpty(2, "USD"));
+
+    // CONVERSIONS carries Case as INACTIVE — the label (pure i18n) keeps the
+    // unit, the hint (needs a factor) disappears rather than showing a stale
+    // or wrong number. The server's own SalesOrder.NoUnitConversion check
+    // still decides at add time.
+    fireEvent.change(screen.getByLabelText("Per"), { target: { value: "Case" } });
+    expect(screen.getByRole("spinbutton", { name: "Quantity (case)" })).toBeInTheDocument();
+    expect(screen.queryByText(/= \d+ eggs/)).not.toBeInTheDocument();
+  });
+
+  it("annotates product options with the default unit's size, leaving factor-1 products bare", async () => {
+    await renderReady();
+    await createDraft(draftEmpty(2, "USD"));
+
+    // PRODUCT_A sells by the dozen → annotated. Both products are offered
+    // (PRODUCT_B's grade is unsaleable, so only A is in the picker) — assert
+    // via the option list, not the line table (which renders bare names).
+    expect(screen.getByRole("option", { name: "Grade A Dozen (12 eggs/dozen)" })).toBeInTheDocument();
+  });
+
+  it("keeps bare product names and no preview when the conversions read fails (graceful degrade)", async () => {
+    mockListEggUnitConversions.mockRejectedValue(new Error("boom"));
+    await renderReady();
+    await createDraft(draftEmpty(2, "USD"));
+
+    // The screen still works — the supplementary surfaces just vanish.
+    expect(screen.getByRole("option", { name: "Grade A Dozen" })).toBeInTheDocument();
+    expect(screen.getByRole("spinbutton", { name: "Quantity (dozen)" })).toBeInTheDocument();
+    expect(screen.queryByText(/= \d+ eggs/)).not.toBeInTheDocument();
+  });
+
+  it("binds the previewed factor to the write — expectedEggsPerUnit rides the add-item request", async () => {
+    await renderReady();
+    await createDraft(draftEmpty(2, "USD"));
+    mockAddOrderItem.mockResolvedValue({ orderId: "o1", itemId: "new" });
+
+    // Dozen previews 12 → the write carries 12, so the server can refuse if
+    // an admin redefined the unit after this page read its conversions.
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Add line" }));
+    });
+    expect(mockAddOrderItem.mock.calls[0][1]).toMatchObject({
+      productId: "p1", quantity: 30, unit: "Dozen", expectedEggsPerUnit: 12,
+    });
+  });
+
+  it("omits expectedEggsPerUnit when nothing was previewed (per-egg unit)", async () => {
+    await renderReady();
+    await createDraft(draftEmpty(2, "USD"));
+    mockAddOrderItem.mockResolvedValue({ orderId: "o1", itemId: "new" });
+
+    fireEvent.change(screen.getByLabelText("Per"), { target: { value: "Egg" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Add line" }));
+    });
+    // No preview was shown, so there is no displayed factor to hold the
+    // server to — the write must not fabricate one.
+    expect(mockAddOrderItem.mock.calls[0][1].expectedEggsPerUnit).toBeUndefined();
+  });
+
+  it("refreshes the conversions after a rejected add, so the preview leaves the stale factor", async () => {
+    await renderReady();
+    await createDraft(draftEmpty(2, "USD"));
+    // The server refuses: the definition changed under the page.
+    mockAddOrderItem.mockRejectedValue(new ApiError(422, "SalesOrder.UnitDefinitionChanged",
+      "The eggs-per-unit definition for 'Dozen' is now 6, not 12 — re-check the quantity and try again."));
+    mockListEggUnitConversions.mockResolvedValue([
+      { id: "cv2", unitCode: "Dozen", eggsPerUnit: 6, active: true, version: 2 },
+    ]);
+
+    expect(screen.getByText("= 360 eggs")).toBeInTheDocument(); // 30 × stale 12
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Add line" }));
+    });
+
+    // The refusal surfaces AND the preview now shows the current factor —
+    // without the refetch every retry would loop on the stale 12.
+    expect(await screen.findByText(/is now 6, not 12/)).toBeInTheDocument();
+    expect(await screen.findByText("= 180 eggs")).toBeInTheDocument(); // 30 × fresh 6
+  });
+
+  it("tracks the edited quantity live in the eggs column during an inline edit", async () => {
+    const row = await openOrder(DRAFT_TWO, /Grade A Dozen/);
+    fireEvent.click(within(row).getByRole("button", { name: "edit" }));
+    const editRow = screen.getByRole("row", { name: /Grade A Dozen/ });
+
+    // ITEM_A: factor 12, qty 3 → the eggs cell shows 36 (not the old "—")…
+    expect(within(editRow).getByText("36")).toBeInTheDocument();
+    // …and follows the edit: 60 dozen is visibly 720 eggs before save.
+    const qty = within(editRow).getByRole("spinbutton", { name: "Edit quantity" });
+    fireEvent.change(qty, { target: { value: "60" } });
+    expect(within(editRow).getByText("720")).toBeInTheDocument();
+    expect(within(editRow).queryByText("36")).not.toBeInTheDocument();
+  });
+
+  it("reads the label, preview, and option annotation from the sales catalog, not literals", async () => {
+    const withOverride = (key: string, value: string) => {
+      const original = i18n.getResource("en", "sales", key) as string;
+      i18n.addResource("en", "sales", key, value);
+      return () => i18n.addResource("en", "sales", key, original);
+    };
+    const restores = [
+      withOverride("quantityWithUnit", "QTY-MARKER {{unit}}"),
+      withOverride("equalsEggs", "EGGS-MARKER {{count}}"),
+      withOverride("productOptionWithUnit", "OPT-MARKER {{name}} {{count}} {{unit}}"),
+    ];
+    try {
+      await renderReady();
+      await createDraft(draftEmpty(2, "USD"));
+      expect(screen.getByRole("spinbutton", { name: "QTY-MARKER dozen" })).toBeInTheDocument();
+      expect(screen.getByText("EGGS-MARKER 360")).toBeInTheDocument();
+      expect(screen.getByRole("option", { name: "OPT-MARKER Grade A Dozen 12 dozen" })).toBeInTheDocument();
+    } finally {
+      restores.forEach((r) => r());
+    }
   });
 });
 
@@ -729,5 +929,554 @@ describe("SalesPage pending states (#236)", () => {
     await screen.findByText(new RegExp(order.referenceNumber));
     expect(errorSpy.mock.calls.filter(([first]) => String(first).includes("act("))).toEqual([]);
     errorSpy.mockRestore();
+  });
+});
+
+describe("SalesPage list failures (#469)", () => {
+  // The old behaviour: ANY rejection from the order-list fetch set a
+  // `loadError` that nothing ever cleared, and the render replaced the whole
+  // workspace with it — so a transient blip during a filter change threw away
+  // an order the user was part-way through editing, for the rest of the
+  // session. Both halves are fixed: the error is a banner, and it heals.
+  it("keeps the workspace and shows a banner when the order list fails", async () => {
+    await renderReady();
+
+    mockListOrders.mockRejectedValueOnce(new Error("boom"));
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Status"), { target: { value: "Draft" } });
+    });
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Could not load orders.");
+    // The workspace survives — this is what the full-screen replacement ate.
+    expect(screen.getByRole("button", { name: "New order" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Status")).toBeInTheDocument();
+  });
+
+  it("heals the banner on the next successful load", async () => {
+    await renderReady();
+    mockListOrders.mockRejectedValueOnce(new Error("boom"));
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Status"), { target: { value: "Draft" } });
+    });
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+
+    mockListOrders.mockResolvedValueOnce([]);
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Status"), { target: { value: "Confirmed" } });
+    });
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("ignores a stale filter response that lands after a newer one", async () => {
+    await renderReady();
+
+    let releaseStale!: (orders: SalesOrder[]) => void;
+    mockListOrders.mockReturnValueOnce(new Promise((r) => { releaseStale = r; }));
+    fireEvent.change(screen.getByLabelText("Status"), { target: { value: "Draft" } });
+    mockListOrders.mockResolvedValueOnce([{ ...DRAFT_TWO, referenceNumber: "SO-FRESH" }]);
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Status"), { target: { value: "Confirmed" } });
+    });
+    expect(screen.getByText("SO-FRESH")).toBeInTheDocument();
+
+    await act(async () => {
+      releaseStale([{ ...DRAFT_TWO, id: "stale", referenceNumber: "SO-STALE" }]);
+    });
+    expect(screen.getByText("SO-FRESH")).toBeInTheDocument();
+    expect(screen.queryByText("SO-STALE")).not.toBeInTheDocument();
+  });
+});
+
+describe("SalesPage cross-window display while loading (#469)", () => {
+  it("hides the previous filter's orders while the new one loads", async () => {
+    mockListOrders.mockResolvedValueOnce([{ ...DRAFT_TWO, referenceNumber: "SO-OLD" }]);
+    await renderReady();
+    expect(screen.getByText("SO-OLD")).toBeInTheDocument();
+
+    mockListOrders.mockReturnValueOnce(new Promise(() => {}));
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Status"), { target: { value: "Draft" } });
+    });
+
+    // One window's orders must never sit under another window's filters.
+    expect(screen.queryByText("SO-OLD")).not.toBeInTheDocument();
+  });
+});
+
+// #474 — the screen renders the error paragraph three times: once per dialog
+// and once for the page. All three carried the PAGE's guard (`!creatingOrder &&
+// !paying`), which is false exactly when the dialog holding that copy is open —
+// so a mutation that failed under a dialog cleared its spinner and said
+// nothing. The dialog copies are guarded by the Dialog itself (it renders
+// nothing while closed), and the page copy keeps the suppression so the message
+// is never duplicated.
+describe("SalesPage in-dialog errors (#474)", () => {
+  it("shows a failed create-order inside the new-order dialog", async () => {
+    await renderReady();
+    mockCreateOrder.mockRejectedValueOnce(
+      new ApiError(422, "Validation failed", "Order date cannot be in the future."));
+
+    fireEvent.click(screen.getByRole("button", { name: "New order" }));
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "New draft order" }));
+    });
+
+    // The dialog stays up (a throw keeps it open) and now says why.
+    expect(within(dialog()).getByText("Order date cannot be in the future.")).toBeInTheDocument();
+    // Exactly one copy: the page-level paragraph stays suppressed behind the
+    // open dialog, so a fix that simply dropped the page guard fails here.
+    expect(screen.getAllByText("Order date cannot be in the future.")).toHaveLength(1);
+  });
+
+  it("shows a failed payment inside the payment dialog", async () => {
+    mockListOrderPayments.mockResolvedValue({
+      items: [], paidMinorUnits: 0, outstandingMinorUnits: 12000, totalMinorUnits: 12000,
+      currencyCode: "BHD", currencyMinorUnit: 3,
+    });
+    await openOrder(
+      { ...draftEmpty(3, "BHD", "o9"), referenceNumber: "SO-9", status: "Confirmed", totalMinorUnits: 12000, items: [ITEM_A] },
+      /Grade A Dozen/);
+    fireEvent.click(await screen.findByRole("button", { name: "Record payment" }));
+
+    mockRecordPayment.mockRejectedValueOnce(
+      new ApiError(422, "Validation failed", "Payment exceeds the outstanding balance."));
+    fireEvent.change(within(dialog()).getByLabelText(/Amount/), { target: { value: "99" } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Record payment" }));
+    });
+
+    expect(within(dialog()).getByText("Payment exceeds the outstanding balance.")).toBeInTheDocument();
+    expect(screen.getAllByText("Payment exceeds the outstanding balance.")).toHaveLength(1);
+  });
+
+  // Codex review of #476: `error` is ONE state shared by every action on the
+  // screen, and neither dialog trigger is disabled while another request is in
+  // flight. So an unconditional in-dialog render presents someone else's
+  // failure — a payments read, a write started before the dialog opened — as
+  // the dialog's own. The error carries the scope that raised it, and each
+  // dialog shows only its own.
+  const CONFIRMED_9: SalesOrder = {
+    ...draftEmpty(2, "USD", "o9"), referenceNumber: "SO-9", status: "Confirmed",
+    totalMinorUnits: 2900, items: [ITEM_A],
+  };
+
+  it("keeps an unrelated failure out of the new-order dialog", async () => {
+    let rejectPayments!: (e: unknown) => void;
+    mockListOrderPayments.mockReturnValueOnce(
+      new Promise((_, rej) => { rejectPayments = rej; }) as never);
+    await openOrder(CONFIRMED_9, /Grade A Dozen/);
+
+    // The trigger is live while that read is still out.
+    fireEvent.click(screen.getByRole("button", { name: "New order" }));
+    await act(async () => { rejectPayments(new Error("boom")); });
+
+    const message = "Could not load this order's payments.";
+    expect(within(dialog()).queryByText(message)).not.toBeInTheDocument();
+    // Not swallowed either — it belongs to the page, and says so there.
+    expect(screen.getByText(message)).toBeInTheDocument();
+  });
+
+  it("keeps a panel write's failure out of the new-order dialog", async () => {
+    // The other source: not a background read but another WRITE, started
+    // before the dialog was opened. Its scope is the one run() was called
+    // with, so tagging every failure alike would land it here.
+    await openOrder(DRAFT_TWO, /Grade A Dozen/);
+    let rejectAdd!: (e: unknown) => void;
+    vi.mocked(addOrderItem).mockReturnValue(
+      new Promise((_, rej) => { rejectAdd = rej; }) as never);
+    fireEvent.click(screen.getByRole("button", { name: "Add line" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "New order" }));
+    await act(async () => { rejectAdd(new ApiError(422, "Validation failed", "That product is no longer sellable.")); });
+
+    expect(within(dialog()).queryByText("That product is no longer sellable.")).not.toBeInTheDocument();
+    expect(screen.getByText("That product is no longer sellable.")).toBeInTheDocument();
+  });
+
+  it("keeps an unrelated failure out of the payment dialog", async () => {
+    mockListOrderPayments.mockResolvedValue({
+      items: [{
+        id: "pay1", salesOrderId: "o9", customerId: "c1", amountMinorUnits: 500,
+        currencyCode: "USD", currencyMinorUnit: 2, method: "Cash", paymentDate: "2026-07-20",
+        referenceNumber: "R1", note: null, voided: false, voidReason: null, version: 1,
+      }],
+      paidMinorUnits: 500, outstandingMinorUnits: 2400, totalMinorUnits: 2900,
+      currencyCode: "USD", currencyMinorUnit: 2,
+    });
+    let rejectVoid!: (e: unknown) => void;
+    vi.mocked(voidPayment).mockReturnValue(
+      new Promise((_, rej) => { rejectVoid = rej; }) as never);
+    await openOrder(CONFIRMED_9, /Grade A Dozen/);
+
+    // Start voiding a payment, leave it in flight…
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "void" }));
+    });
+    fireEvent.change(within(dialog()).getByLabelText("Reason *"), { target: { value: "wrong order" } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Void payment" }));
+    });
+    // …then open the payment dialog and let the void fail underneath it.
+    fireEvent.click(screen.getByRole("button", { name: "Record payment" }));
+    await act(async () => { rejectVoid(new ApiError(409, "Conflict", "That payment was already voided.")); });
+
+    expect(within(dialog()).queryByText("That payment was already voided.")).not.toBeInTheDocument();
+    expect(screen.getByText("That payment was already voided.")).toBeInTheDocument();
+  });
+
+  it("drops the dialog's own error when the dialog is dismissed", async () => {
+    // #474's own complaint, the other way round: a message about an abandoned
+    // attempt, left on the page after its dialog is gone, "reads as a
+    // page-level error with no context". The attempt is over — so is the
+    // message.
+    await renderReady();
+    mockCreateOrder.mockRejectedValueOnce(
+      new ApiError(422, "Validation failed", "Order date cannot be in the future."));
+    fireEvent.click(screen.getByRole("button", { name: "New order" }));
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "New draft order" }));
+    });
+    expect(within(dialog()).getByText("Order date cannot be in the future.")).toBeInTheDocument();
+
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByText("Order date cannot be in the future.")).not.toBeInTheDocument();
+  });
+
+  it("says nothing when the dialog is dismissed before its write fails", async () => {
+    // Codex P2 + pi, same hole: dismissing only cleared an error that had
+    // ALREADY landed. A slow request the user gave up on still reported at
+    // page level afterwards — the context-free message again, now with the
+    // form that explains it gone. Cancel is live during `busy`, and Escape and
+    // the backdrop close the dialog too, so this is the ordinary case.
+    await renderReady();
+    let rejectCreate!: (e: unknown) => void;
+    mockCreateOrder.mockReturnValueOnce(new Promise((_, rej) => { rejectCreate = rej; }) as never);
+    fireEvent.click(screen.getByRole("button", { name: "New order" }));
+    fireEvent.click(within(dialog()).getByRole("button", { name: "New draft order" }));
+
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+    await act(async () => {
+      rejectCreate(new ApiError(422, "Validation failed", "Order date cannot be in the future."));
+    });
+
+    expect(screen.queryByText("Order date cannot be in the future.")).not.toBeInTheDocument();
+  });
+
+  it("does not report an abandoned attempt against the session that replaced it", async () => {
+    // The dismissal alone is not enough. Nothing gates the trigger on `busy`,
+    // so the user can reopen the same dialog while the attempt they gave up on
+    // is still out — and its failure would then be shown against the form they
+    // are filling in now, describing an attempt that no longer exists.
+    await renderReady();
+    let rejectCreate!: (e: unknown) => void;
+    mockCreateOrder.mockReturnValueOnce(new Promise((_, rej) => { rejectCreate = rej; }) as never);
+    fireEvent.click(screen.getByRole("button", { name: "New order" }));
+    fireEvent.click(within(dialog()).getByRole("button", { name: "New draft order" }));
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "New order" })); // second session
+    await act(async () => {
+      rejectCreate(new ApiError(422, "Validation failed", "Order date cannot be in the future."));
+    });
+
+    expect(within(dialog()).queryByText("Order date cannot be in the future.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Order date cannot be in the future.")).not.toBeInTheDocument();
+  });
+
+  it("reports the next attempt after an abandoned one", async () => {
+    // The abandonment is per-attempt, not permanent: reopening and failing
+    // again must still say so, or the first Cancel would mute the dialog for
+    // the rest of the session.
+    await renderReady();
+    let rejectCreate!: (e: unknown) => void;
+    mockCreateOrder.mockReturnValueOnce(new Promise((_, rej) => { rejectCreate = rej; }) as never);
+    fireEvent.click(screen.getByRole("button", { name: "New order" }));
+    fireEvent.click(within(dialog()).getByRole("button", { name: "New draft order" }));
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+    await act(async () => { rejectCreate(new ApiError(500, "Server error", "abandoned")); });
+
+    mockCreateOrder.mockRejectedValueOnce(
+      new ApiError(422, "Validation failed", "Order date cannot be in the future."));
+    fireEvent.click(screen.getByRole("button", { name: "New order" }));
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "New draft order" }));
+    });
+
+    expect(within(dialog()).getByText("Order date cannot be in the future.")).toBeInTheDocument();
+  });
+
+  it("does not let a background read wipe the open dialog's own message", async () => {
+    // Codex, third round: with one slot, a `payments` failure that lands while
+    // the dialog is up REPLACES the actionable 422 the user is reading — the
+    // form's own explanation vanishes underneath them. The two live in
+    // separate state, so neither can overwrite the other.
+    let rejectPayments!: (e: unknown) => void;
+    mockListOrderPayments.mockReturnValueOnce(
+      new Promise((_, rej) => { rejectPayments = rej; }) as never);
+    await openOrder(CONFIRMED_9, /Grade A Dozen/);
+
+    mockCreateOrder.mockRejectedValueOnce(
+      new ApiError(422, "Validation failed", "Order date cannot be in the future."));
+    fireEvent.click(screen.getByRole("button", { name: "New order" }));
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "New draft order" }));
+    });
+    expect(within(dialog()).getByText("Order date cannot be in the future.")).toBeInTheDocument();
+
+    await act(async () => { rejectPayments(new Error("boom")); });
+
+    // Still there, and still the dialog's own.
+    expect(within(dialog()).getByText("Order date cannot be in the future.")).toBeInTheDocument();
+    // The read's failure is reported too — on the page, where it belongs.
+    expect(screen.getByText("Could not load this order's payments.")).toBeInTheDocument();
+  });
+
+  it("keeps a page failure the user has not dealt with when a dialog opens", async () => {
+    // The other half of the split: opening a form clears what the last attempt
+    // at THAT form said, not an unrelated failure standing on the page.
+    mockListOrderPayments.mockRejectedValueOnce(new Error("boom"));
+    await openOrder(CONFIRMED_9, /Grade A Dozen/);
+    expect(await screen.findByText("Could not load this order's payments.")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "New order" }));
+
+    expect(screen.getByText("Could not load this order's payments.")).toBeInTheDocument();
+    expect(within(dialog()).queryByText("Could not load this order's payments.")).not.toBeInTheDocument();
+  });
+
+  it("keeps a page failure while a dialog write runs and fails", async () => {
+    // Each attempt clears its OWN slot before it starts. Clearing both would
+    // make an unrelated page failure disappear the moment the user tries
+    // something else — dismissed by an action that never addressed it.
+    mockListOrderPayments.mockRejectedValueOnce(new Error("boom"));
+    await openOrder(CONFIRMED_9, /Grade A Dozen/);
+    expect(await screen.findByText("Could not load this order's payments.")).toBeInTheDocument();
+
+    mockCreateOrder.mockRejectedValueOnce(
+      new ApiError(422, "Validation failed", "Order date cannot be in the future."));
+    fireEvent.click(screen.getByRole("button", { name: "New order" }));
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "New draft order" }));
+    });
+
+    expect(within(dialog()).getByText("Order date cannot be in the future.")).toBeInTheDocument();
+    expect(screen.getByText("Could not load this order's payments.")).toBeInTheDocument();
+  });
+
+  it("keeps someone else's error when a dialog is dismissed", async () => {
+    // Only the dialog's OWN message goes with it. A failure that was never
+    // this dialog's is still the page's to report.
+    let rejectPayments!: (e: unknown) => void;
+    mockListOrderPayments.mockReturnValueOnce(
+      new Promise((_, rej) => { rejectPayments = rej; }) as never);
+    await openOrder(CONFIRMED_9, /Grade A Dozen/);
+    fireEvent.click(screen.getByRole("button", { name: "New order" }));
+    await act(async () => { rejectPayments(new Error("boom")); });
+
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+
+    // The name promised a dismissal; assert one happened, or this passes with
+    // Cancel wired to nothing (internal review of #478).
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByText("Could not load this order's payments.")).toBeInTheDocument();
+  });
+
+  it("shows a dialog's failure only in the dialog that raised it, even with both open", async () => {
+    // I had written "they are modal, so at most one is ever open" in the
+    // source and shared one slot between them on that basis. Nothing enforces
+    // it: `creatingOrder` and `paying` are independent, and both triggers stay
+    // mounted and enabled. Only the CSS backdrop stops a mouse — not a screen
+    // reader's virtual cursor, and not a second click racing the paint
+    // (internal review of #478).
+    mockListOrderPayments.mockResolvedValue({
+      items: [], paidMinorUnits: 0, outstandingMinorUnits: 12000, totalMinorUnits: 12000,
+      currencyCode: "USD", currencyMinorUnit: 2,
+    });
+    await openOrder(CONFIRMED_9, /Grade A Dozen/);
+    fireEvent.click(screen.getByRole("button", { name: "Record payment" }));
+    fireEvent.click(screen.getByRole("button", { name: "New order" }));
+    const dialogs = screen.getAllByRole("dialog");
+    expect(dialogs).toHaveLength(2); // the state this fixture exists to cover
+
+    const newOrder = dialogs.find((d) => within(d).queryByRole("button", { name: "New draft order" }))!;
+    const payment = dialogs.find((d) => d !== newOrder)!;
+    mockCreateOrder.mockRejectedValueOnce(
+      new ApiError(422, "Validation failed", "Order date cannot be in the future."));
+    await act(async () => {
+      fireEvent.click(within(newOrder).getByRole("button", { name: "New draft order" }));
+    });
+
+    expect(within(newOrder).getByText("Order date cannot be in the future.")).toBeInTheDocument();
+    // The payment form did not fail. It must not say it did.
+    expect(within(payment).queryByText("Order date cannot be in the future.")).not.toBeInTheDocument();
+
+    // The other direction — and each form keeps its own. A single slot held
+    // one message, so this second failure ERASED the first: the new-order form
+    // lost its explanation with nothing happening inside it and no way for the
+    // user to know why (internal review of #481). Each dialog owns its entry.
+    mockRecordPayment.mockRejectedValueOnce(
+      new ApiError(422, "Validation failed", "Payment exceeds the outstanding balance."));
+    fireEvent.change(within(payment).getByLabelText(/Amount/), { target: { value: "99" } });
+    await act(async () => {
+      fireEvent.click(within(payment).getByRole("button", { name: "Record payment" }));
+    });
+
+    expect(within(payment).getByText("Payment exceeds the outstanding balance.")).toBeInTheDocument();
+    expect(within(newOrder).queryByText("Payment exceeds the outstanding balance.")).not.toBeInTheDocument();
+    expect(within(newOrder).getByText("Order date cannot be in the future.")).toBeInTheDocument();
+
+    // And clearing one entry clears ONE entry: dismissing and reopening the
+    // payment form drops its own message and leaves the new-order form's.
+    fireEvent.click(within(payment).getByRole("button", { name: "Cancel" }));
+    fireEvent.click(screen.getByRole("button", { name: "Record payment" }));
+
+    const reopened = screen.getAllByRole("dialog")
+      .find((d) => within(d).queryByRole("button", { name: "New draft order" }) === null)!;
+    expect(within(reopened).queryByText("Payment exceeds the outstanding balance.")).not.toBeInTheDocument();
+    expect(within(newOrder).getByText("Order date cannot be in the future.")).toBeInTheDocument();
+  });
+
+  it("does not carry a payment failure across to another order", async () => {
+    // Codex on #481: the payment form belongs to the OPEN ORDER, but its key
+    // does not say so. Per-dialog entries survive longer than the shared slot
+    // did, so a failure left behind when the active order changes would be
+    // shown against a different order's money — the worst possible place for a
+    // message about a wrong amount.
+    mockListOrderPayments.mockResolvedValue({
+      items: [], paidMinorUnits: 0, outstandingMinorUnits: 12000, totalMinorUnits: 12000,
+      currencyCode: "USD", currencyMinorUnit: 2,
+    });
+    await openOrder(CONFIRMED_9, /Grade A Dozen/);
+    fireEvent.click(await screen.findByRole("button", { name: "Record payment" }));
+    mockRecordPayment.mockRejectedValueOnce(
+      new ApiError(422, "Validation failed", "Payment exceeds the outstanding balance."));
+    fireEvent.change(within(dialog()).getByLabelText(/Amount/), { target: { value: "99" } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Record payment" }));
+    });
+    expect(within(dialog()).getByText("Payment exceeds the outstanding balance.")).toBeInTheDocument();
+
+    // Open a different confirmed order while that message is still up.
+    mockGetOrder.mockResolvedValue({ ...CONFIRMED_9, id: "o10", referenceNumber: "SO-10" });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "open" }));
+    });
+
+    expect(screen.queryByText("Payment exceeds the outstanding balance.")).not.toBeInTheDocument();
+    // …and the form itself does not reopen on the new order either.
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("opens the next order's payment form without the last order's failure", async () => {
+    // #479 — until now the trigger cleared the slot on the way in, so this was
+    // covered by accident. The clear moved onto the dismissal, and the screen
+    // closing the form because the ORDER changed is not a dismissal: without an
+    // explicit clear there, a 422 about SO-9's money is sitting in SO-10's form
+    // when the user opens it. The test therefore has to REOPEN — the previous
+    // test stops at "the message is not on screen", which a closed dialog
+    // satisfies whether or not the slot was emptied.
+    mockListOrderPayments.mockResolvedValue({
+      items: [], paidMinorUnits: 0, outstandingMinorUnits: 12000, totalMinorUnits: 12000,
+      currencyCode: "USD", currencyMinorUnit: 2,
+    });
+    await openOrder(CONFIRMED_9, /Grade A Dozen/);
+    fireEvent.click(await screen.findByRole("button", { name: "Record payment" }));
+    mockRecordPayment.mockRejectedValueOnce(
+      new ApiError(422, "Validation failed", "Payment exceeds the outstanding balance."));
+    fireEvent.change(within(dialog()).getByLabelText(/Amount/), { target: { value: "99" } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Record payment" }));
+    });
+    expect(within(dialog()).getByText("Payment exceeds the outstanding balance.")).toBeInTheDocument();
+
+    mockGetOrder.mockResolvedValue({ ...CONFIRMED_9, id: "o10", referenceNumber: "SO-10" });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "open" }));
+    });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Record payment" }));
+
+    expect(within(dialog()).queryByText("Payment exceeds the outstanding balance."))
+      .not.toBeInTheDocument();
+  });
+
+  it("clears the form's last message while its next attempt is in flight", async () => {
+    // A form mid-save must not still be showing why the PREVIOUS attempt
+    // failed — the user cannot tell whether it is a stale message or the
+    // verdict on what they just submitted.
+    await renderReady();
+    mockCreateOrder.mockRejectedValueOnce(
+      new ApiError(422, "Validation failed", "Order date cannot be in the future."));
+    fireEvent.click(screen.getByRole("button", { name: "New order" }));
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "New draft order" }));
+    });
+    expect(within(dialog()).getByText("Order date cannot be in the future.")).toBeInTheDocument();
+
+    mockCreateOrder.mockReturnValueOnce(new Promise(() => {}) as never); // never settles
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "New draft order" }));
+    });
+
+    expect(within(dialog()).queryByText("Order date cannot be in the future.")).not.toBeInTheDocument();
+  });
+
+  it("opening the other dialog leaves the first one's message alone", async () => {
+    // The clear is per dialog. Clearing the slot outright would blank a
+    // message the OTHER form is still displaying — and the user is still
+    // looking at it.
+    mockListOrderPayments.mockResolvedValue({
+      items: [], paidMinorUnits: 0, outstandingMinorUnits: 12000, totalMinorUnits: 12000,
+      currencyCode: "USD", currencyMinorUnit: 2,
+    });
+    await openOrder(CONFIRMED_9, /Grade A Dozen/);
+    mockCreateOrder.mockRejectedValueOnce(
+      new ApiError(422, "Validation failed", "Order date cannot be in the future."));
+    fireEvent.click(screen.getByRole("button", { name: "New order" }));
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "New draft order" }));
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Record payment" })); // the other dialog
+
+    const newOrder = screen.getAllByRole("dialog")
+      .find((d) => within(d).queryByRole("button", { name: "New draft order" }))!;
+    expect(within(newOrder).getByText("Order date cannot be in the future.")).toBeInTheDocument();
+  });
+
+  it("reopening a dialog does not show the message its last attempt left", async () => {
+    // The dismissal empties the slot (#479 moved it there from the reopen).
+    // Without that, a form opens already accusing the user of a mistake they
+    // made minutes ago, about a submission they never made this time.
+    await renderReady();
+    mockCreateOrder.mockRejectedValueOnce(
+      new ApiError(422, "Validation failed", "Order date cannot be in the future."));
+    fireEvent.click(screen.getByRole("button", { name: "New order" }));
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "New draft order" }));
+    });
+    expect(within(dialog()).getByText("Order date cannot be in the future.")).toBeInTheDocument();
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "New order" }));
+
+    expect(within(dialog()).queryByText("Order date cannot be in the future.")).not.toBeInTheDocument();
+  });
+
+  it("still renders a page-level error with no dialog open", async () => {
+    // The panel's own writes are not behind a dialog — their errors must keep
+    // landing on the page, which is what the page copy's guard exists for.
+    await openOrder(DRAFT_TWO, /Grade A Dozen/);
+    vi.mocked(addOrderItem).mockRejectedValueOnce(
+      new ApiError(422, "Validation failed", "That product is no longer sellable."));
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Add line" }));
+    });
+
+    expect(screen.getByText("That product is no longer sellable.")).toBeInTheDocument();
   });
 });

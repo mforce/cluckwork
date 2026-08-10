@@ -31,7 +31,7 @@ public sealed class UpdateExpenseCategoryHandler(
         }
 
         // Same SaveChanges as the change (#93).
-        await audit.WriteAsync("ExpenseCategory.Update",
+        await audit.WriteAsync(AuditActions.ExpenseCategoryUpdate,
             nameof(Cluckwork.Domain.Expenses.ExpenseCategory), category.Id,
             reason: null, new { category.Name, category.Active }, ct);
 

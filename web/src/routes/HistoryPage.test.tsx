@@ -2,8 +2,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, within, fireEvent, act } from "@testing-library/react";
 import { HistoryPage } from "./HistoryPage";
 import { renderWithProviders } from "../test/renderWithProviders";
+import { account } from "../test/fixtures";
 import {
-  adjustDailyEntry, getDailyEntry, listDailyEntries, listEggGrades, listFlocks, voidDailyEntry,
+  adjustDailyEntry, getDailyEntry, listDailyEntries, listEggGrades, listEggUnitConversions,
+  listFlocks, voidDailyEntry,
 } from "../api/cluckwork";
 import type { DailyEntry, EggGrade, Flock } from "../api/cluckwork";
 import { ApiError } from "../api/client";
@@ -15,6 +17,7 @@ import i18n from "../i18n";
 vi.mock("../api/cluckwork", () => ({
   listFlocks: vi.fn(),
   listEggGrades: vi.fn(),
+  listEggUnitConversions: vi.fn(),
   listDailyEntries: vi.fn(),
   getDailyEntry: vi.fn(),
   adjustDailyEntry: vi.fn(),
@@ -23,6 +26,7 @@ vi.mock("../api/cluckwork", () => ({
 
 const mockListFlocks = vi.mocked(listFlocks);
 const mockListEggGrades = vi.mocked(listEggGrades);
+const mockListEggUnitConversions = vi.mocked(listEggUnitConversions);
 const mockListDailyEntries = vi.mocked(listDailyEntries);
 const mockAdjustDailyEntry = vi.mocked(adjustDailyEntry);
 const mockGetDailyEntry = vi.mocked(getDailyEntry);
@@ -60,6 +64,11 @@ beforeEach(() => {
   Element.prototype.scrollIntoView = vi.fn();
   mockListFlocks.mockResolvedValue([FLOCK]);
   mockListEggGrades.mockResolvedValue([GRADE_A, GRADE_B]);
+  // #444 — Individual keeps every pre-existing test's +1/-1 arithmetic unchanged.
+  mockListEggUnitConversions.mockResolvedValue([
+    { id: "c1", unitCode: "Individual", eggsPerUnit: 1, active: true, version: 0 },
+    { id: "c3", unitCode: "Tray", eggsPerUnit: 30, active: true, version: 0 },
+  ]);
   mockListDailyEntries.mockResolvedValue([]);
 });
 
@@ -190,9 +199,13 @@ describe("HistoryPage adjust — reconciliation guard", () => {
     await openAdjustPanel();
 
     // 46 + 45 = 91 > sellable 90, yet neither line individually exceeds 90 —
-    // so this only fails if the guard actually SUMS the lines.
+    // so this only fails if the guard actually SUMS the lines. #443 made
+    // typing an overshoot auto-raise the total to absorb it (91 + 10 losses
+    // = 101), so pin the total back to its original 100 afterward to force
+    // the genuinely-over state this test is about.
     fireEvent.change(screen.getByRole("spinbutton", { name: "Grade A" }), { target: { value: "46" } });
     fireEvent.change(screen.getByRole("spinbutton", { name: "Grade B" }), { target: { value: "45" } });
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Total eggs" }), { target: { value: "100" } });
     fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: "recount" } });
 
     expect(screen.getByRole("button", { name: "Save adjustment" })).toBeDisabled();
@@ -210,6 +223,8 @@ describe("HistoryPage adjust — reconciliation guard", () => {
 
     fireEvent.change(screen.getByRole("spinbutton", { name: "Grade A" }), { target: { value: "46" } });
     fireEvent.change(screen.getByRole("spinbutton", { name: "Grade B" }), { target: { value: "45" } });
+    // #443 — pin the total back down; see the sibling test above for why.
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Total eggs" }), { target: { value: "100" } });
     fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: "recount" } });
     const saveButton = screen.getByRole("button", { name: "Save adjustment" });
     expect(saveButton).toBeDisabled();
@@ -309,6 +324,11 @@ describe("HistoryPage adjust — mirrored daily-entry layout", () => {
     await openAdjustPanel();
 
     fireEvent.change(screen.getByRole("spinbutton", { name: "Grade A" }), { target: { value: "95" } });
+    // #443 — typing now auto-raises the total to absorb the overshoot (95 +
+    // 20 would otherwise reconcile once the total catches up), so pin the
+    // total back to its original 100 to force the over state this test
+    // asserts on.
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Total eggs" }), { target: { value: "100" } });
     // 95 + 20 − 90, as a POSITIVE figure — asserted whole, since a substring
     // match on "25" reads a rendered "-25" as a pass.
     expect(chip()).toHaveTextContent(/^25 over the sellable count$/);
@@ -444,30 +464,116 @@ describe("HistoryPage adjust — mirrored daily-entry layout", () => {
     expect(within(dialog()).queryByRole("button", { name: /Put all/ })).not.toBeInTheDocument();
   });
 
-  // The steppers carry the capture screen's ceiling too: + stops at what is
-  // unaccounted for, so the guided control cannot build an over-graded day.
-  // Without it the dialog looked like the same form and behaved differently in
-  // the hand — every + live from the start on an entry that already adds up
-  // (#403 round 5). Typing past it stays allowed on both screens.
-  it("stops the + stepper at the unallocated remainder, as the capture screen does", async () => {
+  // #443 — the ceiling the steppers used to carry (+ stops at what is
+  // unaccounted for) is gone here too: a grade running the total's total
+  // out raises the total to match instead of refusing the tap.
+  it("no longer stops the + stepper at the unallocated remainder — raises the total to fit instead", async () => {
     mockListDailyEntries.mockResolvedValue([SUBMITTED]);
     await openAdjustPanel();
 
-    // `max` never reaches the DOM — NumberField uses it to gate its own +
-    // button — so the ceiling is asserted the way the user meets it.
-    // Fixture: sellable 90, graded 40 + 20, so 30 unallocated.
+    // Fixture: sellable 90, graded 40 + 20, so 30 unallocated — the old
+    // ceiling on Grade A was 40 + 30 = 70.
     const gradeA = screen.getByRole("spinbutton", { name: "Grade A" });
-    expect(screen.getByRole("button", { name: "Increase grade a" })).toBeEnabled();
+    fireEvent.change(gradeA, { target: { value: "70" } }); // exactly at the old ceiling
+    expect(chip()).toHaveTextContent("the day adds up");
 
-    // Its own 40 plus the 30 left is the ceiling: at 70 there is no headroom,
-    // and + refuses on every line.
-    fireEvent.change(gradeA, { target: { value: "70" } });
-    expect(screen.getByRole("button", { name: "Increase grade a" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Increase grade b" })).toBeDisabled();
-    // Typing is deliberately still uncapped — a correction may pass through an
-    // over-graded state while it is being rearranged; only Save refuses.
-    fireEvent.change(gradeA, { target: { value: "95" } });
-    expect(screen.getByRole("spinbutton", { name: "Grade A" })).toHaveValue(95);
+    const plusA = screen.getByRole("button", { name: "Increase grade a" });
+    expect(plusA).toBeEnabled();
+    fireEvent.pointerDown(plusA);
+    fireEvent.pointerUp(plusA);
+
+    expect(screen.getByRole("spinbutton", { name: "Grade A" })).toHaveValue(71);
+    // 100 → 101: the total caught up rather than refusing the tap.
+    expect(screen.getByRole("spinbutton", { name: "Total eggs" })).toHaveValue(101);
+    expect(chip()).toHaveTextContent("the day adds up");
+  });
+
+  // #444 — mirrors DailyEntryPage.test.tsx's farm-default pack-unit test:
+  // the adjust dialog's steppers count by the resolved unit too, and its
+  // #443 auto-raise (setLine) must track a 30-egg tap exactly like a 1-egg
+  // one (adversarial review of #451 — this screen had no step≠1 coverage).
+  it("steps by the farm-default pack unit, and the total auto-raise tracks it", async () => {
+    mockListDailyEntries.mockResolvedValue([SUBMITTED]);
+    renderWithProviders(<HistoryPage />, {
+      token: ADMIN, farm: account({ defaultStepperUnit: "Tray" }),
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "adjust" }));
+
+    // The dialog names the unit the taps count by, same as the capture screen.
+    expect(screen.getByText(/Counting by Tray/)).toBeInTheDocument();
+
+    // Fixture: total 100, graded 40 + 20, losses 10 — sellable 90, 30 left.
+    const plusA = screen.getByRole("button", { name: "Increase grade a by 30" });
+    fireEvent.pointerDown(plusA);
+    fireEvent.pointerUp(plusA);
+    // One tap = one tray. 40 + 30 = 70 exactly consumes the remainder, so
+    // the total must NOT move (the #443 raise only fires past the total).
+    expect(screen.getByRole("spinbutton", { name: "Grade A" })).toHaveValue(70);
+    expect(screen.getByRole("spinbutton", { name: "Total eggs" })).toHaveValue(100);
+
+    // A second tray overshoots — the total auto-raises by the same 30.
+    fireEvent.pointerDown(plusA);
+    fireEvent.pointerUp(plusA);
+    expect(screen.getByRole("spinbutton", { name: "Grade A" })).toHaveValue(100);
+    expect(screen.getByRole("spinbutton", { name: "Total eggs" })).toHaveValue(130);
+
+    // Mortality counts BIRDS — step 1 whatever the egg unit (codex P1 of #451).
+    // Fixture starts at 1 death.
+    const plusDeaths = screen.getByRole("button", { name: "Increase mortality" });
+    fireEvent.pointerDown(plusDeaths);
+    fireEvent.pointerUp(plusDeaths);
+    expect(screen.getByRole("spinbutton", { name: "Mortality" })).toHaveValue(2);
+  });
+
+  // Mirrors DailyEntryPage.test.tsx's identical test: a single tap cannot
+  // distinguish setLine's gradeQtyRef-based sum from one naively read off
+  // the `lineQty` closure, since NumberField's hold-to-repeat binds its
+  // WHOLE burst to the one setLine closure captured at press time. Only a
+  // genuine multi-tick hold exercises the reason the ref exists (codex
+  // review of #449 / adversarial review).
+  it("accumulates correctly across a genuine multi-tick hold, not just the press-time snapshot", async () => {
+    mockListDailyEntries.mockResolvedValue([SUBMITTED]);
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      await openAdjustPanel();
+
+      const plusA = screen.getByRole("button", { name: "Increase grade a" });
+      await act(async () => { fireEvent.pointerDown(plusA); });
+      // Same hold length and acceleration curve as NumberField.test.tsx's
+      // "accelerates while held" case: press 1 + ticks 1-10 at +1 (10) +
+      // ticks 11-16 at +5 (30) = 41 over 1300ms.
+      await act(async () => { vi.advanceTimersByTime(1300); });
+      await act(async () => { fireEvent.pointerUp(plusA); });
+
+      // Fixture: Grade A starts at 40, Grade B at 20, losses 10.
+      expect(screen.getByRole("spinbutton", { name: "Grade A" })).toHaveValue(40 + 41);
+      // Every tick in the burst increased the sum, so the total tracked all
+      // of them — the read-off-a-stale-closure regression would leave this
+      // frozen near the press-time value instead of 40 + 41 + 20 + 10.
+      expect(screen.getByRole("spinbutton", { name: "Total eggs" })).toHaveValue(40 + 41 + 20 + 10);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // codex review of #449: gating only on "still over" (rather than on this
+  // EDIT increasing the graded sum) meant correcting an over-graded day by
+  // walking a grade back down with − ratcheted the total right back up on
+  // every decrement, undoing the admin's own step-1 correction.
+  it("does not ratchet the total back up when correcting an over-graded day with −", async () => {
+    mockListDailyEntries.mockResolvedValue([SUBMITTED]);
+    await openAdjustPanel();
+
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Grade A" }), { target: { value: "70" } }); // 70 + 20 === sellable 90
+    expect(chip()).toHaveTextContent("the day adds up");
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Total eggs" }), { target: { value: "50" } }); // trimmed directly — now over
+
+    const minusA = screen.getByRole("button", { name: "Decrease grade a" });
+    fireEvent.pointerDown(minusA);
+    fireEvent.pointerUp(minusA);
+
+    expect(screen.getByRole("spinbutton", { name: "Grade A" })).toHaveValue(69);
+    expect(screen.getByRole("spinbutton", { name: "Total eggs" })).toHaveValue(50);
   });
 
   // A 409 replaces every number in the form with the winner's, because keeping
@@ -678,6 +784,117 @@ describe("HistoryPage void — reason dialog", () => {
   });
 });
 
+// #479 — one slot per PLACE a message can appear: the adjust dialog's own
+// failures must render inside it and nowhere else, a background failure must
+// never land in the dialog, and a page failure must survive both the dialog
+// opening and a dialog write failing.
+describe("HistoryPage error placement (#479)", () => {
+  const dialog = () => screen.getByRole("dialog");
+  // Already reconciled (grades sum 90 === sellable 90), so only the Reason
+  // field stands between opening the dialog and a live Save button.
+  const RECONCILED: DailyEntry = {
+    ...SUBMITTED, grades: [{ eggGradeId: "gr1", quantity: 90 }],
+  };
+
+  it("shows a failed adjust save inside the dialog, not on the page", async () => {
+    mockListDailyEntries.mockResolvedValue([RECONCILED]);
+    mockAdjustDailyEntry.mockRejectedValue(new ApiError(500, "Server error", "boom"));
+    await openAdjustPanel();
+    fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: "recount" } });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Save adjustment" }));
+    });
+
+    expect(within(dialog()).getByText("boom")).toBeInTheDocument();
+    // Exactly one copy: the page must not render the dialog's message too.
+    expect(screen.getAllByText("boom")).toHaveLength(1);
+  });
+
+  // Displacement: the adjust scope is fixed ("adjust"), and a second entry's
+  // adjust can begin without the first being dismissed — the row buttons
+  // behind the backdrop are reachable to a screen reader's virtual cursor
+  // (#480). Without an abandon on the switch, day A's failed save renders
+  // inside day B's dialog (pi review of #491).
+  it("does not carry one entry's failed adjust into another entry's dialog", async () => {
+    const RECONCILED_2: DailyEntry = { ...RECONCILED, id: "de7", date: "2026-07-18" };
+    mockListDailyEntries.mockResolvedValue([RECONCILED, RECONCILED_2]);
+    mockAdjustDailyEntry.mockRejectedValue(new ApiError(500, "Server error", "boom"));
+    renderWithProviders(<HistoryPage />, { token: ADMIN });
+    const [firstAdjust, secondAdjust] = await screen.findAllByRole("button", { name: "adjust" });
+
+    fireEvent.click(firstAdjust);
+    fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: "recount" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Save adjustment" }));
+    });
+    expect(within(dialog()).getByText("boom")).toBeInTheDocument();
+
+    fireEvent.click(secondAdjust);
+    // The dialog really swapped entries (startAdjust reseeds Reason empty) —
+    // otherwise the absence below could pass for the wrong reason.
+    expect(screen.getByLabelText(/Reason/)).toHaveValue("");
+    expect(screen.queryByText("boom")).not.toBeInTheDocument();
+  });
+
+  // The other half of the displacement rule: re-entering the SAME entry is
+  // not a displacement. Clicking the row's adjust button again with that
+  // entry's dialog already open reseeds the form, but the session is still
+  // about this entry — its failed save's verdict must survive the re-entry,
+  // not be abandoned as if the user had moved to a different day.
+  it("keeps a save failure visible after re-entering the same entry's adjust", async () => {
+    mockAdjustDailyEntry.mockRejectedValue(new ApiError(500, "Server error", "boom"));
+    mockListDailyEntries.mockResolvedValue([RECONCILED]);
+    renderWithProviders(<HistoryPage />, { token: ADMIN });
+    const adjustButton = await screen.findByRole("button", { name: "adjust" });
+
+    fireEvent.click(adjustButton);
+    fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: "recount" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Save adjustment" }));
+    });
+    expect(within(dialog()).getByText("boom")).toBeInTheDocument();
+
+    fireEvent.click(adjustButton); // same entry, dialog still open — reseed only
+    expect(within(dialog()).getByText("boom")).toBeInTheDocument();
+  });
+
+  it("keeps the flocks/grades setup failure out of the open adjust dialog", async () => {
+    // Only the setup read fails — grades still load, so the dialog's own
+    // fields render normally and the failure has nothing to do with them.
+    mockListFlocks.mockRejectedValue(new Error("down"));
+    mockListDailyEntries.mockResolvedValue([SUBMITTED]);
+    renderWithProviders(<HistoryPage />, { token: ADMIN });
+    const message = i18n.t("history:loadFlocksGradesFailed");
+    await screen.findByText(message);
+
+    fireEvent.click(screen.getByRole("button", { name: "adjust" }));
+
+    expect(within(dialog()).queryByText(message)).not.toBeInTheDocument();
+    expect(screen.getByText(message)).toBeInTheDocument();
+  });
+
+  it("keeps a page failure while the adjust dialog opens and its own save fails", async () => {
+    mockListFlocks.mockRejectedValue(new Error("down"));
+    mockListDailyEntries.mockResolvedValue([RECONCILED]);
+    mockAdjustDailyEntry.mockRejectedValue(new ApiError(500, "Server error", "boom"));
+    renderWithProviders(<HistoryPage />, { token: ADMIN });
+    const pageFailure = i18n.t("history:loadFlocksGradesFailed");
+    await screen.findByText(pageFailure);
+
+    fireEvent.click(screen.getByRole("button", { name: "adjust" }));
+    expect(screen.getByText(pageFailure)).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: "recount" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Save adjustment" }));
+    });
+
+    expect(within(dialog()).getByText("boom")).toBeInTheDocument();
+    expect(screen.getByText(pageFailure)).toBeInTheDocument();
+  });
+});
+
 // ---------------------------------------------------------------------------
 // i18n wiring (#182, Task 27, batch B5)
 // ---------------------------------------------------------------------------
@@ -859,5 +1076,243 @@ describe("HistoryPage i18n wiring (#182, Task 27)", () => {
       });
       expect(await screen.findByText("NOW-voided-MARKER")).toBeInTheDocument();
     });
+  });
+});
+
+describe("HistoryPage list races (#469)", () => {
+  // Six call sites shared one unticketed load: the filter effect, load-more,
+  // the adjust and void refreshes, the 409 refresh, and the conflict rebind.
+  // Whichever response landed last won, regardless of what the user had asked
+  // for most recently.
+  it("ignores a stale filter response that lands after a newer one", async () => {
+    mockListDailyEntries.mockResolvedValue([SUBMITTED]);
+    renderWithProviders(<HistoryPage />, { token: ADMIN });
+    await screen.findByRole("row", { name: /2026-07-19/ });
+
+    let releaseStale!: (rows: DailyEntry[]) => void;
+    mockListDailyEntries.mockReturnValueOnce(new Promise((r) => { releaseStale = r; }));
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-07-01" } });
+    mockListDailyEntries.mockResolvedValueOnce([{ ...SUBMITTED, id: "fresh", date: "2026-07-20" }]);
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("To"), { target: { value: "2026-07-31" } });
+    });
+    expect(screen.getByRole("row", { name: /2026-07-20/ })).toBeInTheDocument();
+
+    await act(async () => {
+      releaseStale([{ ...SUBMITTED, id: "stale", date: "2026-07-02" }]);
+    });
+    expect(screen.getByRole("row", { name: /2026-07-20/ })).toBeInTheDocument();
+    expect(screen.queryByRole("row", { name: /2026-07-02/ })).not.toBeInTheDocument();
+  });
+
+  it("withdraws load-more while a filter reload is in flight", async () => {
+    // With the old windows' hasMore still true, a click mid-reload appended
+    // the NEW filter's page onto the OLD filter's rows.
+    const full = Array.from({ length: 50 }, (_, i) => ({
+      ...SUBMITTED, id: `e${i}`, date: "2026-07-19",
+    }));
+    mockListDailyEntries.mockResolvedValueOnce(full);
+    renderWithProviders(<HistoryPage />, { token: ADMIN });
+    expect(await screen.findByRole("button", { name: "load more" })).toBeInTheDocument();
+
+    let release!: (rows: DailyEntry[]) => void;
+    mockListDailyEntries.mockReturnValueOnce(new Promise((r) => { release = r; }));
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-07-01" } });
+    expect(screen.queryByRole("button", { name: "load more" })).not.toBeInTheDocument();
+
+    await act(async () => { release([SUBMITTED]); });
+    expect(screen.getByRole("row", { name: /2026-07-19/ })).toBeInTheDocument();
+  });
+});
+
+describe("HistoryPage setup failure (#469)", () => {
+  // Without flocks and grades every row renders unresolvable ids, so that
+  // read failing with nothing on screen is the one fatal case. The migration
+  // to usePagedList briefly made this branch unreachable (the test is what
+  // keeps it honest: `entries` is the hook handle, not the rows).
+  it("shows the full-page error when the setup read fails and no entries loaded", async () => {
+    mockListFlocks.mockRejectedValue(new Error("down"));
+    mockListDailyEntries.mockReturnValue(new Promise(() => {}));
+    renderWithProviders(<HistoryPage />, { token: ADMIN });
+
+    // The fatal branch is identified by its OWN heading ("History", the short
+    // early-return title) and by the absence of the filter bar — the message
+    // alone also renders in the ordinary banner, so asserting on it would
+    // pass with the branch deleted (this test was vacuous until it did not
+    // assert these two).
+    expect(await screen.findByRole("heading", { name: "History" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Daily entry history" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("From")).not.toBeInTheDocument();
+    expect(screen.getByText("Could not load flocks/grades.")).toBeInTheDocument();
+  });
+});
+
+describe("HistoryPage void conflict messaging (#469)", () => {
+  // The conflict message states the CONFLICT and makes no claim about the
+  // list — three review rounds came from the old wording promising "the list
+  // has been reloaded", which the screen cannot reliably know. When the
+  // refresh does fail, the list says so itself through its own banner.
+  it("does not claim a reload, and lets the list report its own failure", async () => {
+    mockListDailyEntries
+      .mockResolvedValueOnce([SUBMITTED])
+      .mockRejectedValue(new Error("boom"));
+    vi.mocked(voidDailyEntry).mockRejectedValue(new ApiError(409, "Conflict", "conflict"));
+    renderWithProviders(<HistoryPage />, { token: ADMIN });
+
+    fireEvent.click(await screen.findByRole("button", { name: "void" }));
+    fireEvent.change(within(screen.getByRole("dialog")).getByLabelText("Reason *"),
+      { target: { value: "miscounted" } });
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Void entry" }));
+    });
+
+    expect(screen.getByText(/check the list and retry/i)).toBeInTheDocument();
+    expect(screen.queryByText(/has been reloaded/i)).not.toBeInTheDocument();
+    // The failed refresh is reported by the list, not by the conflict copy.
+    expect(screen.getByText("Could not load entries.")).toBeInTheDocument();
+  });
+});
+
+describe("HistoryPage conflict reload is issued once (#469)", () => {
+  // runWrite already re-reads in its rejection path, so a second reload here
+  // is not just wasted: if the first succeeds and the duplicate transiently
+  // fails, the hook clears the freshly loaded rows and reports failure —
+  // strictly worse than either read alone.
+  it("does not issue a second replacement read after a 409", async () => {
+    mockListDailyEntries
+      .mockResolvedValueOnce([SUBMITTED])   // initial
+      .mockResolvedValueOnce([SUBMITTED])   // runWrite's own re-read: succeeds
+      .mockRejectedValue(new Error("boom")); // any further read would fail
+    vi.mocked(voidDailyEntry).mockRejectedValue(new ApiError(409, "Conflict", "conflict"));
+    renderWithProviders(<HistoryPage />, { token: ADMIN });
+
+    fireEvent.click(await screen.findByRole("button", { name: "void" }));
+    fireEvent.change(within(screen.getByRole("dialog")).getByLabelText("Reason *"),
+      { target: { value: "miscounted" } });
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Void entry" }));
+    });
+
+    expect(mockListDailyEntries).toHaveBeenCalledTimes(2);
+    expect(screen.getByText(/check the list and retry/i)).toBeInTheDocument();
+    // The refresh runWrite performed DID land, so its rows are on screen.
+    expect(screen.getByRole("row", { name: /2026-07-19/ })).toBeInTheDocument();
+  });
+});
+
+describe("HistoryPage adjust conflict — the rebind's own failure (#469)", () => {
+  // rebindAfterConflict no longer reads the list, so the only thing that can
+  // fail in it is the form's fetch of the winning entry. The message has to
+  // say THAT, not "the list could not be reloaded" — the list is refreshed by
+  // the write path and reports its own health separately.
+  it("names the form's failed value load, not a list reload", async () => {
+    mockListDailyEntries.mockResolvedValue([SUBMITTED]);
+    mockAdjustDailyEntry.mockRejectedValue(new ApiError(409, "Conflict", "stale"));
+    mockGetDailyEntry.mockRejectedValue(new Error("boom"));
+    await openAdjustPanel();
+
+    // Grading must reconcile or the submit never reaches the API (#394).
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Grade A" }), { target: { value: "45" } });
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Grade B" }), { target: { value: "45" } });
+    fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: "recount" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Save adjustment" }));
+    });
+
+    expect(screen.getByText(/latest values could not be loaded/i)).toBeInTheDocument();
+    expect(screen.queryByText(/list could not be reloaded/i)).not.toBeInTheDocument();
+  });
+});
+
+// #491 review — the 409 rebind reopens a panel the user may have dismissed
+// while the re-read was still out. Found independently by two reviewers.
+describe("HistoryPage rebind after a dismissed conflict (#491)", () => {
+  it("explains the reopened panel even when the adjust was dismissed mid-flight", async () => {
+    const WINNER: DailyEntry = {
+      ...SUBMITTED, version: 2, totalEggs: 120,
+      grades: [{ eggGradeId: "gr1", quantity: 60 }, { eggGradeId: "gr2", quantity: 60 }],
+    };
+    mockListDailyEntries.mockResolvedValue([SUBMITTED]);
+    mockAdjustDailyEntry.mockRejectedValue(new ApiError(409, "Conflict", "conflict"));
+    // Hold the re-read open so the dismissal lands between the 409 and the rebind.
+    let resolveReread!: (e: DailyEntry) => void;
+    mockGetDailyEntry.mockReturnValueOnce(
+      new Promise((resolve) => { resolveReread = resolve; }) as never);
+    await openAdjustPanel();
+
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Grade A" }), { target: { value: "45" } });
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Grade B" }), { target: { value: "45" } });
+    fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: "recount" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Save adjustment" }));
+    });
+
+    // Cancel is not gated on busy, so the user can walk away mid-rebind.
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Cancel" }));
+    await act(async () => {
+      resolveReread(WINNER);
+    });
+
+    // The panel comes back on its own carrying the winner's numbers. Without
+    // the rebind message that is a form reappearing for no stated reason.
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByRole("spinbutton", { name: "Total eggs" })).toHaveValue(120);
+    expect(await screen.findByText(/re-apply your correction/)).toBeInTheDocument();
+  });
+
+  // The catch is different: a FAILED re-read does not reopen the panel, so
+  // when the user dismissed mid-flight there is no session for the failure
+  // to belong to. Un-muting there anyway parks the message in the closed
+  // "adjust" slot, where the next adjust dialog — any entry's — would replay
+  // it (pi review of #491). The dismissal's mute is the mechanism that drops
+  // it; the catch must not override it.
+  it("drops the rebind-failed message after a dismissal, instead of parking it for the next dialog", async () => {
+    mockListDailyEntries.mockResolvedValue([SUBMITTED]);
+    mockAdjustDailyEntry.mockRejectedValue(new ApiError(409, "Conflict", "conflict"));
+    let rejectReread!: (err: unknown) => void;
+    mockGetDailyEntry.mockReturnValueOnce(
+      new Promise((_resolve, reject) => { rejectReread = reject; }) as never);
+    await openAdjustPanel();
+
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Grade A" }), { target: { value: "45" } });
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Grade B" }), { target: { value: "45" } });
+    fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: "recount" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Save adjustment" }));
+    });
+
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Cancel" }));
+    await act(async () => {
+      rejectReread(new ApiError(500, "Server error", "boom"));
+    });
+
+    // Dismissed session's failure lands nowhere (#474)...
+    const failed = i18n.t("history:conflictRebindFailedMessage");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByText(failed)).not.toBeInTheDocument();
+
+    // ...and is not replayed into the next session either.
+    fireEvent.click(screen.getByRole("button", { name: "adjust" }));
+    expect(screen.queryByText(failed)).not.toBeInTheDocument();
+  });
+
+  // And when the user did NOT dismiss, the failed re-read's message must
+  // still land in the open panel — it sits on stale numbers, which is the
+  // worst thing to leave unexplained.
+  it("explains a failed re-read inside the panel the user kept open", async () => {
+    mockListDailyEntries.mockResolvedValue([SUBMITTED]);
+    mockAdjustDailyEntry.mockRejectedValue(new ApiError(409, "Conflict", "conflict"));
+    mockGetDailyEntry.mockRejectedValueOnce(new ApiError(500, "Server error", "boom"));
+    await openAdjustPanel();
+
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Grade A" }), { target: { value: "45" } });
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Grade B" }), { target: { value: "45" } });
+    fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: "recount" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Save adjustment" }));
+    });
+
+    const dlg = screen.getByRole("dialog");
+    expect(within(dlg).getByText(i18n.t("history:conflictRebindFailedMessage"))).toBeInTheDocument();
   });
 });

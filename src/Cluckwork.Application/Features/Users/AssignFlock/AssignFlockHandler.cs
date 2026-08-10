@@ -35,7 +35,7 @@ public sealed class AssignFlockHandler(
             Guid.NewGuid(), accountId, userId, farmId: null, houseId: null, flockId);
         await assignments.AddAsync(assignment, ct);
 
-        await audit.WriteAsync("User.FlockAssign", "User", userId,
+        await audit.WriteAsync(AuditActions.UserFlockAssign, "User", userId,
             details: new { target.Email, Flock = flock.Name }, ct: ct);
 
         await unitOfWork.SaveChangesAsync(ct);
@@ -59,7 +59,7 @@ public sealed class UnassignFlockHandler(
 
         assignments.Remove(assignment);
 
-        await audit.WriteAsync("User.FlockUnassign", "User", assignment.UserId,
+        await audit.WriteAsync(AuditActions.UserFlockUnassign, "User", assignment.UserId,
             details: new { assignment.FlockId }, ct: ct);
 
         await unitOfWork.SaveChangesAsync(ct);

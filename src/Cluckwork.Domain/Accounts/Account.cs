@@ -1,5 +1,7 @@
 namespace Cluckwork.Domain.Accounts;
 
+using Cluckwork.Domain.Catalog;
+
 // The farm's own settings row. Spec §3.2 models `farms` as a table under the
 // account; there is no farms aggregate yet (SeedDefaults.FarmId is a stand-in),
 // so for the single-farm Phase 1 the §4.5 localization fields live here on the
@@ -28,6 +30,10 @@ public sealed class Account : AggregateRoot<Guid>
         DefaultCurrencySymbol ?? CurrencyCatalog.Resolve(DefaultCurrencyCode).Symbol;
 
     public UnitSystem UnitSystem { get; private set; } = UnitSystem.Metric;
+    // #444 — the pack unit Daily Entry's steppers bump by (e.g. Tray = +30/-30)
+    // when a user hasn't set their own override (ApplicationUser.PreferredStepperUnit).
+    // Individual keeps today's +1/-1 behavior unchanged for a farm that never sets this.
+    public EggUnit DefaultStepperUnit { get; private set; } = EggUnit.Individual;
     // Null = follow the locale's own convention.
     public DayOfWeek? FirstDayOfWeek { get; private set; }
     public string? DateFormatOverride { get; private set; }
@@ -75,6 +81,7 @@ public sealed class Account : AggregateRoot<Guid>
         string? dateFormatOverride,
         string? timeFormatOverride,
         string brand,
+        EggUnit defaultStepperUnit,
         bool financialRowsExist)
     {
         var guard = ValidateRequiredFields(name, timeZoneId, locale, currencyCode);
@@ -115,6 +122,7 @@ public sealed class Account : AggregateRoot<Guid>
         DateFormatOverride = Normalize(dateFormatOverride);
         TimeFormatOverride = Normalize(timeFormatOverride);
         Brand = normalizedBrand;
+        DefaultStepperUnit = defaultStepperUnit;
 
         // Only re-derive on an actual change (§4.6). Refreshing the symbol and
         // minor unit on every save would let a catalog update silently

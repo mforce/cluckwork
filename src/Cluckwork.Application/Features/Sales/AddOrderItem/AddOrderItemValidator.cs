@@ -16,6 +16,11 @@ public sealed class AddOrderItemValidator : AbstractValidator<AddOrderItemComman
         RuleFor(x => x.UnitPriceMinorUnits).GreaterThanOrEqualTo(0)
             .WithErrorCode("OrderItem.UnitPrice.NonNegative")
             .When(x => x.UnitPriceMinorUnits is not null);
+        // #445 — a previewed factor is a real conversion's EggsPerUnit, which
+        // the domain floors at 1; zero/negative can only be a caller bug.
+        RuleFor(x => x.ExpectedEggsPerUnit).GreaterThan(0)
+            .WithErrorCode("OrderItem.ExpectedEggsPerUnit.Positive")
+            .When(x => x.ExpectedEggsPerUnit is not null);
         // quantity * price must not overflow long (Money.Multiply is unchecked) —
         // wrap-around would store a negative line/order total.
         RuleFor(x => x)

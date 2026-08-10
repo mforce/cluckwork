@@ -12,6 +12,10 @@ import { navGroups, tabEntries } from "./nav";
 
 const ICON = 17;
 
+// #458 — same env var, same "absent in dev" contract errorReport.ts already
+// relies on for crash reports; read once at module scope rather than per render.
+const APP_VERSION = import.meta.env.VITE_APP_VERSION as string | undefined;
+
 // Authenticated shell (#52 redesign): an aubergine sidebar — the brand's
 // navigation spine — with the 15+ destinations grouped by job, each with a
 // lucide glyph. Role-tiered (#103): links and whole groups hide per role; the
@@ -73,6 +77,10 @@ export function AppLayout() {
           <button className="link" onClick={onLogout}>
             <LogOut size={ICON} aria-hidden /><span>{t("signOut")}</span>
           </button>
+          {/* #458 — set at build time (VITE_APP_VERSION, release-please-owned
+              via web/.env.production); absent in dev builds, so this line
+              simply doesn't render rather than showing "vundefined". */}
+          {APP_VERSION && <p className="sidebar-version">{t("versionLabel", { version: APP_VERSION })}</p>}
         </div>
       </aside>
 

@@ -284,10 +284,11 @@ export const AUDIT_ACTION_VALUES = [
   "WaterUsage.Correct", "Flock.BirdMovement", "Flock.Update", "Flock.Deplete",
   "Flock.Archive", "Flock.Reactivate", "EggGrade.Update", "EggGrade.Activate",
   "EggGrade.Deactivate", "User.Create", "User.Update", "User.PasswordSet",
-  "User.PasswordChanged", "User.BreakGlassReset", "User.FlockAssign", "User.FlockUnassign",
+  "User.PasswordChanged", "User.BreakGlassReset", "User.RoleChanged", "User.Disabled", "User.Enabled",
+  "User.FlockAssign", "User.FlockUnassign",
   "Account.Export", "Account.SetLogo", "Account.RemoveLogo", "Account.UpdateSettings",
   "Product.Create", "Product.Update", "Product.Activate",
-  "Product.Deactivate", "EggUnitConversion.Update",
+  "Product.Deactivate", "EggUnitConversion.Update", "EggLot.Movement",
 ] as const;
 export type AuditActionValue = (typeof AUDIT_ACTION_VALUES)[number];
 const AUDIT_ACTION_KEYS = {
@@ -312,6 +313,9 @@ const AUDIT_ACTION_KEYS = {
   "User.PasswordSet": "enums:auditAction.User.PasswordSet",
   "User.PasswordChanged": "enums:auditAction.User.PasswordChanged",
   "User.BreakGlassReset": "enums:auditAction.User.BreakGlassReset",
+  "User.RoleChanged": "enums:auditAction.User.RoleChanged",
+  "User.Disabled": "enums:auditAction.User.Disabled",
+  "User.Enabled": "enums:auditAction.User.Enabled",
   "User.FlockAssign": "enums:auditAction.User.FlockAssign",
   "User.FlockUnassign": "enums:auditAction.User.FlockUnassign",
   "Account.Export": "enums:auditAction.Account.Export",
@@ -323,6 +327,7 @@ const AUDIT_ACTION_KEYS = {
   "Product.Activate": "enums:auditAction.Product.Activate",
   "Product.Deactivate": "enums:auditAction.Product.Deactivate",
   "EggUnitConversion.Update": "enums:auditAction.EggUnitConversion.Update",
+  "EggLot.Movement": "enums:auditAction.EggLot.Movement",
 } as const satisfies Record<AuditActionValue, EnumsKey>;
 export function auditActionLabel(value: AuditActionValue | (string & {})): string {
   const key = AUDIT_ACTION_KEYS[value as AuditActionValue];
@@ -333,7 +338,7 @@ export function auditActionLabel(value: AuditActionValue | (string & {})): strin
 // entity type (AuditPage table entity cell) — AuditEvent.entityType.
 // ---------------------------------------------------------------------------
 export const ENTITY_TYPE_VALUES = [
-  "Account", "DailyEntry", "EggGrade", "EggUnitConversion", "Expense",
+  "Account", "DailyEntry", "EggGrade", "EggLot", "EggUnitConversion", "Expense",
   "ExpenseCategory", "FarmLogo", "Flock", "InventoryItem", "Payment", "Product",
   "SalesOrder", "User", "WaterUsage",
 ] as const;
@@ -342,6 +347,7 @@ const ENTITY_TYPE_KEYS = {
   Account: "enums:entityType.Account",
   DailyEntry: "enums:entityType.DailyEntry",
   EggGrade: "enums:entityType.EggGrade",
+  EggLot: "enums:entityType.EggLot",
   EggUnitConversion: "enums:entityType.EggUnitConversion",
   Expense: "enums:entityType.Expense",
   ExpenseCategory: "enums:entityType.ExpenseCategory",

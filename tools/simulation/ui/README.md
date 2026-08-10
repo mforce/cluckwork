@@ -126,11 +126,12 @@ spec does not test what it says; report it, do not delete the mutant.
   longest interaction rather than INP. See `src/vitals.ts`; the approximations
   are named as upper bounds on purpose.
 
-## This is dev tooling, and nothing runs it for you
+## What runs for you, and what still doesn't
 
-Same standing warning as `tools/simulation/README.md` (#370). The CI workflow
-(`.github/workflows/e2e-smoke.yml`) is **`workflow_dispatch` only** — it needs the
-whole stack plus a multi-minute seed, which is out of proportion to a per-push
-gate. So **when you break this, nothing tells you.** If you change a boot guard,
-a config key, or a screen's markup, this suite is downstream of that change and
-you are the only thing that will notice.
+The **quick suite now runs on pull requests** (`.github/workflows/e2e-smoke.yml`,
+path-filtered, ~3 min — owner call 2026-08-08 after #433 broke it silently), so
+a PR that breaks a covered screen or boot guard gets told. Everything else keeps
+the standing #370 warning from `tools/simulation/README.md`: the `slow` and
+`canary` dispatch modes, the k6 harness, and any change a docs-only path filter
+skips — **nothing runs those for you**, and you are the only thing that will
+notice breaking them.

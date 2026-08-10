@@ -20,8 +20,9 @@ public sealed class FeedUsage : AggregateRoot<Guid>
     // §12.4); feeds the §19 feed-cost KPIs.
     public Money EstimatedCost { get; private set; } = null!;
 
-    // Reserved for daily-entry integration (spec: daily_entry_id nullable);
-    // not populated by any path yet.
+    // #446 — the non-voided daily entry that existed for the flock's
+    // (farm, house, flock, date) when this row was recorded, or null.
+    // Best-effort provenance: never backfilled; flock+date is the join.
     public Guid? DailyEntryId { get; private set; }
 
     public string? Note { get; private set; }

@@ -1,11 +1,14 @@
 namespace Cluckwork.Application.Features.Accounts.UpdateFarmSettings;
 
 using Cluckwork.Application.Common;
+using Cluckwork.Application.Features.Catalog;
 using Cluckwork.Domain.Accounts;
+using Cluckwork.Domain.Catalog;
 
 public sealed class UpdateFarmSettingsHandler(
     IAccountRepository accounts,
     ICurrencyBoundRowProbe currencyBoundRows,
+    IEggUnitConversionRepository conversions,
     IUnitOfWork unitOfWork,
     IAuditWriter audit)
 {
@@ -20,6 +23,17 @@ public sealed class UpdateFarmSettingsHandler(
             return Result.Failure(Error.Conflict(
                 "Account.VersionMismatch",
                 "These settings were changed by someone else. Reload them and reapply your edit."));
+
+        // #444 — same reason as AddOrderItemHandler's identical check: a farm
+        // default pointing at a deactivated (or never-activated) conversion
+        // would silently produce +1/-1 with no explanation. Account.UpdateSettings
+        // has no repository access, so this is decided here, like financialRowsExist.
+        var stepperUnit = Enum.Parse<EggUnit>(command.DefaultStepperUnit, ignoreCase: true);
+        var stepperConversion = await conversions.GetByUnitAsync(stepperUnit, ct);
+        if (stepperConversion is null || !stepperConversion.Active)
+            return Result.Failure(Error.Validation(
+                "FarmSettings.NoUnitConversion",
+                $"No active eggs-per-unit definition for '{stepperUnit}' — set one on the Products screen."));
 
         var currencyChanging = !string.Equals(
             command.CurrencyCode.Trim(), account.DefaultCurrencyCode, StringComparison.OrdinalIgnoreCase);
@@ -112,6 +126,7 @@ public sealed class UpdateFarmSettingsHandler(
             command.DateFormatOverride,
             command.TimeFormatOverride,
             command.Brand,
+            Enum.Parse<EggUnit>(command.DefaultStepperUnit, ignoreCase: true),
             currencyBoundRowsExist);
 
     // Same SaveChanges as the change (#93). Settings decide how every date and
@@ -119,7 +134,7 @@ public sealed class UpdateFarmSettingsHandler(
     // both sides, not just "someone saved".
     private Task WriteAuditAsync(Account account, object before, CancellationToken ct) =>
         audit.WriteAsync(
-            "Account.UpdateSettings", nameof(Account), account.Id,
+            AuditActions.AccountUpdateSettings, nameof(Account), account.Id,
             reason: null,
             details: new { before, after = Snapshot(account) },
             ct: ct);
@@ -135,6 +150,7 @@ public sealed class UpdateFarmSettingsHandler(
         FirstDayOfWeek = a.FirstDayOfWeek?.ToString(),
         a.DateFormatOverride,
         a.TimeFormatOverride,
-        a.Brand
+        a.Brand,
+        DefaultStepperUnit = a.DefaultStepperUnit.ToString()
     };
 }

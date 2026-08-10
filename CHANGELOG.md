@@ -1,5 +1,36 @@
 # Changelog
 
+## [0.0.3](https://github.com/mforce/cluckwork/compare/v0.0.2...v0.0.3) (2026-08-08)
+
+
+### Features
+
+* **api:** a two-stage Serilog pipeline so every sink can be wrapped ([#426](https://github.com/mforce/cluckwork/issues/426)) ([aa3619d](https://github.com/mforce/cluckwork/commit/aa3619d3a594f899d54c45dee4552823b709a7fc))
+* **api:** purge aged idempotency_records on the durable-job worker ([#259](https://github.com/mforce/cluckwork/issues/259)) ([#422](https://github.com/mforce/cluckwork/issues/422)) ([0966f11](https://github.com/mforce/cluckwork/commit/0966f11282cdebd46d3376983c9823ffe3437852))
+* **api:** redact sensitive log content and emit stable security events ([#273](https://github.com/mforce/cluckwork/issues/273)) ([#349](https://github.com/mforce/cluckwork/issues/349)) ([455dd70](https://github.com/mforce/cluckwork/commit/455dd7031dbf86c9f6321b40f17915cfa9a8909f))
+* **ci:** add a workflow_dispatch job for the k6 load-test baseline ([#432](https://github.com/mforce/cluckwork/issues/432)) ([72c6fda](https://github.com/mforce/cluckwork/commit/72c6fda211e31ad77ff5b3c22ab46a497adef84a))
+
+
+### Bug fixes
+
+* **api:** arm the farm-logo upload cap before IdempotencyMiddleware buffers the body ([#448](https://github.com/mforce/cluckwork/issues/448)) ([44c633e](https://github.com/mforce/cluckwork/commit/44c633e1a9a1772a48ed73187748d925d98c7499))
+* **api:** prove queue entry for both racers in the currency-lock FIFO test ([#402](https://github.com/mforce/cluckwork/issues/402)) ([#425](https://github.com/mforce/cluckwork/issues/425)) ([085a907](https://github.com/mforce/cluckwork/commit/085a907740c2b7dc454b5a7bb61320a97b9aecb5))
+* **ci:** stop the release changelog silently losing entries ([#411](https://github.com/mforce/cluckwork/issues/411)) ([a29b13f](https://github.com/mforce/cluckwork/commit/a29b13ff7178ac0c77a0669920a8e0d2b2a39691))
+* **cli:** recover-admin no longer migrates, closing the DDL-privilege gap ([#453](https://github.com/mforce/cluckwork/issues/453)) ([2283d71](https://github.com/mforce/cluckwork/commit/2283d712df5d25c6dbde0c8b9b24e60b1c5de6b9))
+* **e2e:** assert the [#433](https://github.com/mforce/cluckwork/issues/433) post-race session contract and run the quick smoke suite on PRs ([#455](https://github.com/mforce/cluckwork/issues/455)) ([#456](https://github.com/mforce/cluckwork/issues/456)) ([607da04](https://github.com/mforce/cluckwork/commit/607da044921302a2fbf8dfb38194a40af1676214))
+* **e2e:** race waitForRequest with goto() to stop session-races flake ([#429](https://github.com/mforce/cluckwork/issues/429)) ([24e0859](https://github.com/mforce/cluckwork/commit/24e0859ac2caece4c92c62c1b954af12b5a1f1bd)), closes [#428](https://github.com/mforce/cluckwork/issues/428)
+* **spa:** announce the UsersPage load-failure to screen readers ([#419](https://github.com/mforce/cluckwork/issues/419)) ([0e4d6bf](https://github.com/mforce/cluckwork/commit/0e4d6bf6a2f9b1548809f1830ad02ea5f01179b5))
+* **web:** always revoke a stale flight's cookie, not just when logged out ([#393](https://github.com/mforce/cluckwork/issues/393)) ([#433](https://github.com/mforce/cluckwork/issues/433)) ([99d62a1](https://github.com/mforce/cluckwork/commit/99d62a17071bcc7a214a07dc765b5d95e12a3153))
+* **web:** stop mobile grid tracks from blowing out the layout viewport ([#441](https://github.com/mforce/cluckwork/issues/441)) ([#447](https://github.com/mforce/cluckwork/issues/447)) ([013bb07](https://github.com/mforce/cluckwork/commit/013bb077d1a80d6a12efbfe17ccece8a1ffd44ac))
+
+
+### Documentation
+
+* **agents:** add a Communicating section on response style ([#420](https://github.com/mforce/cluckwork/issues/420)) ([86335eb](https://github.com/mforce/cluckwork/commit/86335eb4eb3325569671573ee64173dec1b587c7))
+* **agents:** record the guard-writing rules [#407](https://github.com/mforce/cluckwork/issues/407) paid five rounds for ([#412](https://github.com/mforce/cluckwork/issues/412)) ([08d41f6](https://github.com/mforce/cluckwork/commit/08d41f63b0024b0b4a9142c9b858e3926bd56c50))
+* **agents:** relocate AGENTS.md rationale to docs/decisions, compress to ~4.3k words ([#416](https://github.com/mforce/cluckwork/issues/416)) ([b734f59](https://github.com/mforce/cluckwork/commit/b734f5918632e68ad84986545a3863a0dd7b60fe))
+* **readme:** document bootstrap-admin for a production host ([#418](https://github.com/mforce/cluckwork/issues/418)) ([72ef8db](https://github.com/mforce/cluckwork/commit/72ef8db5e7f0442b28983413dbb535d62b05cf8f))
+
 ## [0.0.2](https://github.com/mforce/cluckwork/compare/v0.0.1...v0.0.2) (2026-08-03)
 
 

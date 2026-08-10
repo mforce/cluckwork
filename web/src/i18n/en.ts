@@ -80,6 +80,15 @@ export const en = {
     preferences: "Preferences",
     language: "Language",
     languageHint: "The language the interface is shown in, just for you.",
+    // #444 — the pack unit YOUR Daily Entry steppers bump by. {{unit}} in the
+    // farm-default option is the raw EggUnit code (DATA, e.g. "Tray"), matching
+    // how the Products screen renders unit codes.
+    stepperUnit: "Daily Entry counting unit",
+    stepperUnitHint:
+      "How much the Daily Entry +/− buttons count by, just for you — pick a pack "
+      + "unit like Tray to count by the tray instead of the egg, or follow the farm default.",
+    stepperUnitFarmDefaultOption: "Farm default ({{unit}})",
+    stepperUnitSaveFailed: "Could not save — your counting unit was not changed.",
 
     // Task 25 (#182, B4) — the rest of AccountPage: the page heading, the
     // role line, and the self-service change-password surface (#165).
@@ -135,6 +144,7 @@ export const en = {
     dashboard: "Dashboard",
     dailyEntry: "Daily entry",
     flocks: "Flocks",
+    feed: "Feed",
     water: "Water",
     inventory: "Inventory",
     stock: "Stock",
@@ -160,6 +170,10 @@ export const en = {
     skipToContent: "Skip to main content",
     primaryNavAriaLabel: "Primary",
     signOut: "Sign out",
+    // {{version}} is a bare semver string (e.g. "0.0.2"), never itself
+    // translated — only the surrounding "v" template varies by locale in
+    // principle, though every catalog currently agrees on it (#458).
+    versionLabel: "v{{version}}",
     farmLoadFailedNeverLoaded:
       "Could not load this farm's settings, so dates follow this device rather than the farm.",
     farmLoadFailedStale:
@@ -187,6 +201,10 @@ export const en = {
     // translated here.
     increaseLabel: "Increase {{label}}",
     decreaseLabel: "Decrease {{label}}",
+    // #444 — used instead of the plain pair when the stepper counts by a pack
+    // unit, so the announced name carries the amount the visible "+30" shows.
+    increaseByLabel: "Increase {{label}} by {{step}}",
+    decreaseByLabel: "Decrease {{label}} by {{step}}",
   },
   errorBoundary: {
     title: "Something went wrong",
@@ -257,6 +275,18 @@ export const en = {
     product: "Product",
     perLabel: "Per",
     quantity: "Quantity",
+    // #445 — the add-line quantity is a count of SELLING UNITS, not eggs, and
+    // users were typing the egg total (60 eggs → 60 trays sold). Three
+    // reinforcing surfaces: the unit in the quantity label, a live "= N eggs"
+    // preview while typing, and the unit size on the product option itself.
+    quantityWithUnit: "Quantity ({{unit}})",
+    // A packed unit CAN legitimately be defined as 1 egg/unit (only
+    // Individual is pinned server-side), so the singular forms are reachable:
+    // i18next routes count 1 to _one and falls back to the base otherwise.
+    equalsEggs: "= {{count}} eggs",
+    equalsEggs_one: "= {{count}} egg",
+    productOptionWithUnit: "{{name}} ({{count}} eggs/{{unit}})",
+    productOptionWithUnit_one: "{{name}} ({{count}} egg/{{unit}})",
     unitPriceWithCurrency: "Unit price ({{code}})",
     method: "Method",
     referenceOptional: "Reference (optional)",
@@ -431,6 +461,19 @@ export const en = {
 
     // Pinned footer (phone-only summary + saves)
     countsExceedFooterMessage: "Losses exceed the total — fix the counts",
+    // #444 — shown only when a pack unit is in force. {{unit}} is the raw
+    // EggUnit code (DATA, e.g. "Tray"), same as everywhere unit codes render.
+    // #446 — the day-support strip; count routes through i18next plurals.
+    daySupportFeed: "Feed: {{count}} records (est. {{cost}})",
+    daySupportFeed_one: "Feed: {{count}} record (est. {{cost}})",
+    // Cost dropped when the day's rows span currencies — never a blended sum.
+    daySupportFeedNoCost: "Feed: {{count}} records",
+    daySupportFeedNoCost_one: "Feed: {{count}} record",
+    daySupportFeedNone: "Feed: 0 records",
+    daySupportWater: "Water: {{count}} records",
+    daySupportWater_one: "Water: {{count}} record",
+    daySupportWaterNone: "Water: 0 records",
+    stepperUnitCaption: "Counting by {{unit}} — each tap of − / + moves {{count}} eggs. Typing still enters exact numbers.",
     sellableWord: "sellable",
     saveDraftButton: "Save draft",
     submitButton: "Save & submit (creates egg lots)",
@@ -510,6 +553,64 @@ export const en = {
   // helpers, not a key here — see WaterPage.tsx. Both families are
   // identity-labelled in English today, so wiring them changes nothing
   // visible (confirmed in the report).
+  // #446 — feed usage promoted out of the Inventory drill-down to its own
+  // page, mirroring the water namespace's shape (minus corrections: feed is
+  // create-only; mis-entries are compensated via Inventory adjustments).
+  feed: {
+    title: "Feed",
+
+    // Imperative messages (event handlers / promise callbacks).
+    loadFailed: "Could not load flocks and feed items. Is the API up?",
+    loadRecordsFailed: "Could not load feed records.",
+
+    intro:
+      "Record what each flock was fed. Stock is drawn from the oldest "
+      + "purchases first and the cost estimate comes from those lots.",
+
+    // Capture form labels
+    flockLabel: "Flock",
+    depletedFlockSuffix: " — depleted, backfill only",
+    itemLabel: "Item",
+    // {{onHand}} is the item's current stock in {{unit}} — visible before
+    // submitting, so an over-ask is caught by eye before the server refuses.
+    itemOption: "{{name}} ({{onHand}} {{unit}} on hand)",
+    dateLabel: "Date",
+    quantityLabel: "Quantity",
+    quantityLabelWithUnit: "Quantity ({{unit}})",
+    noteLabel: "Note",
+
+    // Capture form buttons
+    recordFeedButton: "Record feed",
+
+    // Inline validation messages
+    quantityMustBePositive: "Quantity must be a positive number.",
+
+    // Save-result messages
+    recordedMessage: "Feed recorded.",
+
+    // Feed is create-only — corrections are lot adjustments on Inventory.
+    correctionsHint:
+      "A mis-entered feeding is corrected with an Inventory adjustment on the "
+      + "affected lot — feed records themselves are never edited.",
+
+    // Records list — filters
+    filterFlockLabel: "Filter by flock",
+    inactiveItemSuffix: " — inactive, feeding out remaining stock",
+    inactiveEmptyItemSuffix: " — inactive, no stock left",
+    recordsHeading: "Records",
+    fromLabel: "From",
+    toLabel: "To",
+    noRecordsMatch: "No feed records match.",
+
+    // Records table
+    dateHeader: "Date",
+    flockHeader: "Flock",
+    itemHeader: "Item",
+    amountHeader: "Amount",
+    estimatedCostHeader: "Est. cost",
+    noteHeader: "Note",
+    loadMoreButton: "load more",
+  },
   water: {
     title: "Water",
 
@@ -517,7 +618,6 @@ export const en = {
     // CONTRIBUTING-i18n.md's imperative i18n.t() pattern).
     loadFlocksFailed: "Could not load flocks. Is the API up?",
     loadRecordsFailed: "Could not load water records.",
-    loadMoreFailed: "Could not load more.",
     concurrentEditError:
       "This record was just changed elsewhere — reload the list and retry.",
 
@@ -669,7 +769,6 @@ export const en = {
     loadLedgerFailed: "Could not load the movement ledger.",
     quantityMustBePositive: "Quantity must be a positive number.",
     purchaseRecordedMessage: "Purchase recorded — stock received.",
-    usageRecordedMessage: "Feed usage recorded — stock drained oldest lots first.",
     adjustQuantityRequired: "Adjustment quantity must be a non-zero number (negative removes stock).",
     adjustReasonRequired: "A reason is required for corrections.",
     correctionRecordedMessage: "Correction recorded in the ledger.",
@@ -689,7 +788,9 @@ export const en = {
     // Item panel (opened item)
     itemPanelHeading: "{{name}} — {{quantity}} {{unit}} on hand",
     recordPurchaseButton: "Record purchase",
-    recordUsageButton: "Record usage",
+    // #446 — the usage dialog moved to the /feed page; the panel keeps a
+    // deep link that arrives with this item preselected.
+    recordUsageLink: "Record usage on the Feed page",
     correctStockButton: "Correct stock",
     // {{category}} is the ALREADY-LABELLED (inventoryCategoryLabel) category —
     // never the raw wire value. "Feed, Supplement, and Additive" names the
@@ -698,7 +799,6 @@ export const en = {
     notFeedableMessage:
       "{{category}} items aren't fed to flocks — usage applies to Feed, "
       + "Supplement, and Additive items only.",
-    noFlocksForUsageMessage: "No flocks — usage needs a flock to feed.",
     correctionsNeedAdminMessage: "Stock corrections need an admin.",
     noLotsMessage: "No lots yet — corrections target a received lot.",
 
@@ -718,11 +818,9 @@ export const en = {
     recordPurchaseSubmitButton: "Record purchase",
 
     // Record-usage dialog
-    recordUsageDialogTitle: "Record usage — {{name}}",
     flockLabel: "Flock",
     depletedFlockSuffix: " (depleted — backfill only)",
     dateLabel: "Date",
-    recordUsageSubmitButton: "Record usage",
 
     // Correct-stock dialog. The Type picker's two options are DECORATED
     // screen copy, not the ledger's inventoryMovementLabel identity text —
@@ -896,10 +994,15 @@ export const en = {
     producedHeader: "Produced",
     historyButton: "history",
     hideHistoryButton: "hide history",
+    // #465 — server-side paging + production-date window over the lots table,
+    // so old lots stay reachable. Same wording as the History/Audit filters.
+    fromLabel: "From",
+    toLabel: "To",
+    loadMoreButton: "load more",
 
     // Movement ledger drill-down (per lot). Type reads the RAW server value
     // through stockMovementLabel — the full EggMovementType enum is covered
-    // (there is no picker on this read-only screen).
+    // (the #406 write-off dialog's type picker reuses the same labels).
     movementLedgerHeading: "Movement ledger",
     movementLedgerIntro:
       "Every change to this lot's available eggs — the running sum always "
@@ -908,6 +1011,26 @@ export const en = {
     ledgerTypeHeader: "Type",
     ledgerChangeHeader: "Change",
     ledgerReasonHeader: "Reason",
+
+    // #406 — per-lot write-off / reconciliation (Owner/Manager only). Type
+    // options reuse enums:stockMovement.* via stockMovementLabel.
+    writeOffButton: "write off",
+    writeOffNeedsAdminMessage: "Stock corrections need an Owner or Manager.",
+    writeOffDialogTitle: "Correct stock — lot of {{date}}",
+    writeOffTypeLabel: "Type",
+    writeOffDirectionLabel: "Direction",
+    writeOffDirectionRemoveOption: "Remove eggs (lost or fewer than recorded)",
+    writeOffDirectionAddOption: "Add eggs back (recount found more)",
+    writeOffQuantityLabel: "Eggs",
+    writeOffReasonLabel: "Reason",
+    writeOffPreviewMessage: "{{current}} → {{result}} available",
+    writeOffSubmitButton: "Record correction",
+    writeOffRecordedMessage: "Stock correction recorded — {{available}} now available.",
+    writeOffQuantityRequired: "Enter how many eggs.",
+    writeOffReasonRequired: "A reason is required for corrections.",
+    writeOffOutOfRangeMessage:
+      "The result must stay between 0 and the {{produced}} this lot produced. "
+      + "A recount above production is a daily-entry adjustment.",
   },
   // Flock roster + bird ledger — create/edit identity fields, deplete/archive/
   // reactivate lifecycle, and mortality/cull/adjustment movements (Task 19,
@@ -1105,6 +1228,13 @@ export const en = {
       + "amounts in it. Recorded money is never re-priced, so changing this "
       + "would leave every stored total meaning something else.",
     unitSystemLabel: "Unit system",
+    // #444 — the pack unit Daily Entry's +/− buttons count by for everyone on
+    // this farm, unless a person picks their own on the Account screen.
+    defaultStepperUnitLabel: "Daily Entry counting unit",
+    defaultStepperUnitHint:
+      "How much the Daily Entry +/− buttons count by for everyone on this farm "
+      + "— for example Tray to count by the tray (30 eggs) instead of one egg at "
+      + "a time. Each person can pick their own on their Account screen.",
     firstDayOfWeekLabel: "First day of week",
     // Reused for the First-day-of-week "no override" option AND both the
     // date/time format placeholders — same English text, same meaning, in
@@ -1122,6 +1252,13 @@ export const en = {
     paletteTerracotta: "Terracotta",
     dateFormatLabel: "Date format",
     timeFormatLabel: "Time format",
+    // #452 — the dropdown's escape hatch to the free-text field, and that
+    // field's own labels (distinct from dateFormatLabel/timeFormatLabel,
+    // the dropdown's labels, since both a select and a text field are on
+    // screen at once while "Custom…" is chosen).
+    customFormatOption: "Custom…",
+    customDateFormatLabel: "Custom date format",
+    customTimeFormatLabel: "Custom time format",
     savingButton: "Saving…",
     saveButton: "Save settings",
     effectNote:
@@ -1185,14 +1322,29 @@ export const en = {
     stepUpFieldLabel: "Your current password *",
     stepUpCreateHint: "Creating another Owner needs your current password again.",
     stepUpResetHint: "Resetting an Owner's password needs your current password again.",
+    stepUpRoleHint: "Promoting someone to Owner needs your current password again.",
+    // #356 — disable/enable's step-up is UNCONDITIONAL (every disable/enable
+    // needs it, not just an Owner target), so these hints are shown every time
+    // rather than only once a sensitive role is picked.
+    stepUpDisableHint: "Disabling a user needs your current password again.",
+    stepUpEnableHint: "Re-enabling a user needs your current password again.",
 
     // Users table
     emailColumnHeader: "Email",
     nameColumnHeader: "Name",
     roleColumnHeader: "Role",
+    statusColumnHeader: "Status",
     editButton: "edit",
     resetPasswordButton: "password",
+    changeRoleButton: "role",
+    changeRoleSubmitButton: "Change role",
     flocksButton: "flocks",
+    // #356 — row actions and their badge. Disabled rows render muted with this
+    // badge (StatusBadge tinted via the "Inactive" status, labelled distinctly
+    // so it always reads "Disabled" rather than the generic "Inactive").
+    disabledBadge: "Disabled",
+    disableButton: "disable",
+    enableButton: "enable",
 
     // Flock-access dialog (per-worker scoping). {{email}} is the user's
     // email — DATA, not client copy.
@@ -1218,6 +1370,30 @@ export const en = {
     confirmPasswordFieldLabel: "Confirm new password *",
     setPasswordButton: "Set password",
 
+    // Change-role dialog (#355). {{email}} is DATA.
+    changeRoleTitle: "Change role — {{email}}",
+    roleDialogHint:
+      "Changing someone's role signs them out of every device. The "
+      + "account's last Owner cannot be demoted, and you cannot change "
+      + "your own role — ask another Owner.",
+
+    // #356 — the single disable/enable dialog: it IS the confirmation, shared
+    // by both modes (unconditional step-up proof, unlike the conditional
+    // Owner-only prompts above). {{email}} is DATA.
+    disableStepUpTitle: "Disable — {{email}}",
+    enableStepUpTitle: "Enable — {{email}}",
+    disableSubmitButton: "Disable",
+    enableSubmitButton: "Enable",
+    // Destructive warning shown in the disable dialog body — what disabling
+    // actually does, since this dialog is the only confirmation there is.
+    disableWarningBody:
+      "They will be signed out of every device immediately and won't be "
+      + "able to sign in again until you re-enable them.",
+    // The reason is OPTIONAL (DisableUserCommand.Reason is nullable) — the
+    // label says so plainly rather than following the "Field *" = required
+    // convention used elsewhere on this page.
+    disableReasonFieldLabel: "Reason (optional)",
+
     // Imperative messages (event handlers — see CONTRIBUTING-i18n.md's
     // imperative i18n.t() pattern). {{email}} is DATA; {{role}} is
     // roleLabel(role) — see the namespace header comment above.
@@ -1226,6 +1402,9 @@ export const en = {
     passwordSetMessage:
       "Password set for {{email}}. They have been signed out everywhere.",
     updatedMessage: "Updated {{email}}.",
+    roleChangedMessage: "{{email}} is now {{role}}.",
+    userDisabledMessage: "{{email}} has been disabled.",
+    userEnabledMessage: "{{email}} has been re-enabled.",
   },
   // Expenses screen — category management (a dialog panel: create/deactivate/
   // reactivate) + record/correct expenses, filtered by month and category
@@ -1438,16 +1617,18 @@ export const en = {
     // {{status}} is the RAW wire status, lowercased — see the locale-fragile
     // note in the namespace header comment above.
     nothingToAdjustMessage: "This entry is now {{status}} — nothing left to adjust.",
-    conflictReloadFailedMessage:
-      "This entry was changed by someone else and the list could not be "
-      + "reloaded — reload the page before retrying.",
+    // Describes what actually failed HERE: the form's fetch of the winning
+    // entry's values. The list is refreshed by the write path and reports its
+    // own health separately — this branch never touches it (#469).
+    conflictRebindFailedMessage:
+      "This entry was changed by someone else, and its latest values could "
+      + "not be loaded — close the form and try again.",
     // #394 — an adjustment has no draft state: grading must reconcile
     // EXACTLY to the sellable count (short or over both trigger this),
     // the same rule Daily Entry's submit uses.
     gradesMustReconcileMessage:
       "Graded quantities must equal total eggs minus cracked, dirty, and discarded eggs.",
     entryAdjustedMessage: "Entry adjusted — stock and bird ledger updated to match.",
-    adjustReloadFailedMessage: "The adjustment saved, but the list failed to reload — refresh the page.",
     // askReason dialog (title / body / confirmLabel). {{date}}/{{flock}} are
     // the entry's own free-form DATA (date string, resolved flock name).
     voidConfirmTitle: "Void the {{date}} entry for {{flock}}?",
@@ -1456,12 +1637,12 @@ export const en = {
       + "Voided. Refused if any of its eggs were already sold.",
     voidConfirmLabel: "Void entry",
     entryVoidedMessage: "Entry voided — its egg lots were emptied and its deaths reversed.",
-    voidReloadFailedMessage: "The void saved, but the list failed to reload — refresh the page.",
-    voidConflictMessage: "This entry was changed by someone else — the list has been reloaded; retry.",
-    voidConflictReloadFailedMessage:
-      "This entry was changed by someone else and the list could not be "
-      + "reloaded — reload the page.",
-    loadMoreFailedMessage: "Could not load more.",
+    // Says what the CONFLICT was and nothing about the list: whether the
+    // refresh landed is the list's own business, and it reports that itself
+    // through loadEntriesFailed. Three review rounds came from the previous
+    // wording claiming "the list has been reloaded" — a promise the screen
+    // could not keep, and every attempt to keep it added machinery (#469).
+    voidConflictMessage: "This entry was changed by someone else — check the list and retry.",
 
     // Filters
     flockLabel: "Flock",
@@ -1813,6 +1994,9 @@ export const en = {
     "auditAction.User.PasswordSet": "Password set",
     "auditAction.User.PasswordChanged": "Password changed",
     "auditAction.User.BreakGlassReset": "Break-glass reset",
+    "auditAction.User.RoleChanged": "Role changed",
+    "auditAction.User.Disabled": "User disabled",
+    "auditAction.User.Enabled": "User enabled",
     "auditAction.User.FlockAssign": "Flock assigned to user",
     "auditAction.User.FlockUnassign": "Flock unassigned from user",
     "auditAction.Account.Export": "Data exported",
@@ -1824,11 +2008,13 @@ export const en = {
     "auditAction.Product.Activate": "Product activated",
     "auditAction.Product.Deactivate": "Product deactivated",
     "auditAction.EggUnitConversion.Update": "Egg unit conversion updated",
+    "auditAction.EggLot.Movement": "Stock written off / recounted",
 
     // entity type (AuditPage table entity cell) — AuditEvent.entityType.
     "entityType.Account": "Account",
     "entityType.DailyEntry": "Daily entry",
     "entityType.EggGrade": "Egg grade",
+    "entityType.EggLot": "Egg lot",
     "entityType.EggUnitConversion": "Egg unit conversion",
     "entityType.Expense": "Expense",
     "entityType.ExpenseCategory": "Expense category",
@@ -1871,7 +2057,8 @@ export const en = {
     tocGrades: "Egg grades",
     tocProducts: "Products",
     tocStock: "Stock",
-    tocInventory: "Feed & inventory",
+    tocInventory: "Supplies & inventory",
+    tocFeed: "Feed",
     tocWater: "Water",
     tocSales: "Customers & sales",
     tocReports: "Reports",
@@ -1881,6 +2068,7 @@ export const en = {
     tocExport: "Export & backup",
     tocFarmSettings: "Farm settings",
     tocFarmPalette: "Farm palette",
+    tocAccount: "Your account",
     tocInstall: "Install on a phone",
     tocMistakes: "Fixing mistakes",
     tocGlossary: "Glossary",
@@ -1898,6 +2086,12 @@ export const en = {
       + "instead of leaving you on a blank page. Anything you had already saved is safe (anything you were "
       + "still typing may need to be entered again) — tap <strong>Reload</strong>, or <strong>Back to the "
       + "dashboard</strong> and try again. If it keeps happening, open \"Error details\" and send a screenshot.",
+    gettingAroundWhereMessagesAppear:
+      "A message about something that failed appears <strong>where the work is</strong>: if you were filling in "
+      + "a pop-up form, it appears inside that form, next to the fields it is about; if it was the screen itself "
+      + "— a list that would not load, say — it appears on the screen behind. So a form that refuses to save "
+      + "always tells you why without closing. Closing the form drops its message: that attempt is over, and "
+      + "anything the screen itself reported stays put.",
 
     // Signing in
     signingInHeading: "Signing in",
@@ -1917,6 +2111,14 @@ export const en = {
       "Your sign-in is kept in your browser securely and stays active as you work, even across reloads and "
       + "with the app open in <strong>several tabs</strong> at once. After the app is <strong>updated</strong> "
       + "you may be asked to sign in once more — that's expected.",
+    // #393 — revokeSupersededCookie() now always revokes a superseded flight's
+    // cookie, including the rare branch where the newer sign-in's own cookie
+    // was the one caught by that revoke. User-visible result: an unexpected
+    // "please sign in again" shortly after switching accounts across tabs.
+    signingInMultiTabResync:
+      "Signing in as someone else in one <strong>browser tab</strong> while another tab of the same browser is "
+      + "midway through its own quiet check can occasionally sign you back out right after — just sign in "
+      + "again. This only happens in that narrow multi-tab moment and never loses anything you already saved.",
     // #283 — first-run provisioning: no default credential ever ships with
     // the app, so the very first sign-in always starts from a printed
     // one-time password.
@@ -1931,10 +2133,12 @@ export const en = {
     // actions. Deliberately does NOT mention "grant"/"token" — that's internal
     // mechanism, not user-facing language.
     signingInStepUp:
-      "Two actions on the <strong>Users</strong> screen ask you to <strong>re-enter your current password</strong> "
-      + "right there in the dialog: creating another Owner, and resetting an existing Owner's password. This "
-      + "confirms it's really you before handing out that much access — every other action on that screen "
-      + "(creating a Worker/Manager/Sales/Read-only user, resetting one of their passwords) does not ask again.",
+      "Five actions on the <strong>Users</strong> screen ask you to <strong>re-enter your current password</strong> "
+      + "right there in the dialog: creating another Owner, resetting an existing Owner's password, promoting "
+      + "someone to Owner, and — whatever the target's role — disabling or re-enabling a user. This confirms it's "
+      + "really you before handing out that much access or cutting someone else's off; every other action on that "
+      + "screen (creating a Worker/Manager/Sales/Read-only user, resetting one of their passwords, changing "
+      + "someone's role to anything other than Owner) does not ask again.",
     signingInCredentialEpoch:
       "When an administrator resets a password, your existing sign-in can be invalidated immediately. If you "
       + "see a message that your credentials changed, sign in again with your current password.",
@@ -1976,8 +2180,21 @@ export const en = {
       + "creating sign-ins on the <strong>Users</strong> screen (email, password, an optional name, and role) "
       + "and assigning workers to flocks. A user's name can be changed later from the row's <strong>edit</strong> "
       + "action, and the <strong>password</strong> action sets a forgotten password without needing the old "
-      + "one. Changing an existing user's role comes with a later release. Controls you can't use are hidden, "
+      + "one. The <strong>role</strong> action promotes or demotes an existing user among the five roles — it "
+      + "refuses targeting your own sign-in, and refuses demoting the account's last Admin (owner), so the farm "
+      + "can never lock itself out of user administration. Promoting someone to Admin (owner) asks for the same "
+      + "re-confirmation as resetting an Admin's password (see below); every other role change needs no "
+      + "re-confirmation. A role change signs the affected sign-in out everywhere on its next request, the same "
+      + "way a password reset does. Controls you can't use are hidden, "
       + "and the server refuses them regardless.",
+    // #356 — disable/re-enable a colleague's sign-in.
+    rolesDisableUser:
+      "<strong>Disabling a sign-in</strong> (Users screen, Admin/owner only) cuts off access immediately — "
+      + "every one of that person's open sessions ends on its very next request, the same as a role change or "
+      + "password reset. A reason is optional, and either way it lands in the audit log. "
+      + "<strong>Re-enable</strong> restores their ability to sign in, but never revives the sessions the "
+      + "disable ended — they sign in fresh with their existing password. You can't disable your own sign-in, "
+      + "and you can't disable the account's last Admin (owner).",
     ownPassword:
       "<strong>Your own password.</strong> Anyone, in any role, can change their own password on the "
       + "<strong>Account</strong> screen by entering the current one and a new one (at least 12 characters). "
@@ -2002,6 +2219,10 @@ export const en = {
       + "what you typed — reopen it and you start from a blank form. If a save fails, the popup stays open "
       + "with your values and the reason, so you can fix it and try again — retrying is safe, it never "
       + "records the same thing twice.",
+    dialogsModal:
+      "While a popup is open the page behind it <strong>waits</strong>: clicks, the Tab key and a screen "
+      + "reader all stay inside the form, so nothing behind it can be changed by accident, and Escape closes "
+      + "the popup you are working in.",
     dialogsInlineForms:
       "The screens whose whole job is capture keep their form on the page: <strong>Daily entry</strong>, "
       + "<strong>Water</strong>, recording an expense, and adding lines to a draft order. Those you use every "
@@ -2033,13 +2254,19 @@ export const en = {
       + "draft can leave that partly done, or not started at all — submitting needs it exact.",
     dailyEntryGradingDown:
       "Grading counts <strong>down</strong>. Beside the grades is how many sellable eggs you still have to "
-      + "place; it turns green the moment the day adds up and red if you go over. You cannot submit until it "
-      + "reads exactly zero — grading a day partway, or not at all, is fine for a draft but not for Submit.",
+      + "place; it turns green the moment the day adds up and red if you go over — going over blocks saving "
+      + "the draft too, not just Submit. You cannot submit until it reads exactly zero — grading a day "
+      + "partway, or not at all, is fine for a draft but not for Submit.",
     dailyEntryButtons:
       "Every count has <strong>−</strong> and <strong>+</strong> buttons. Tap for one, or <strong>hold</strong> "
       + "— it speeds up as you go, so a few hundred eggs takes about a second. Easier than a keypad with "
-      + "gloves on. A grade's <strong>+</strong> stops once the day is fully graded, so you cannot overshoot "
-      + "with it.",
+      + "gloves on. A grade's <strong>+</strong> no longer stops at the day's current total — count the "
+      + "grades first and the total catches up to match. It only ever raises the total, never lowers it, so "
+      + "trimming the total on step 1 never pushes a grade back down. Farms that count by the tray can make "
+      + "each tap count a whole pack unit instead of one egg — the farm default lives in "
+      + "<strong>Settings</strong>, and each person can pick their own on their <strong>Account</strong> "
+      + "screen. When a pack unit is in force the buttons say so themselves (<strong>−30 / +30</strong>) and "
+      + "a note above the panes names the unit; typing still enters exact numbers.",
     dailyEntryPutAllIn:
       "Most days end the same way — one grade takes whatever is left. <strong>Put all in…</strong> beside the "
       + "remaining count does it in one move: drag it onto a grade, or tap it and pick one.",
@@ -2111,13 +2338,20 @@ export const en = {
     stockLots:
       "Every grade expands into its <strong>lots</strong> (one per submitted day), and every lot into its "
       + "<strong>movement ledger</strong> — an explicit line for each production, sale, correction, or void. "
-      + "The running sum always equals the balance shown; nothing changes stock without leaving a line.",
+      + "The running sum always equals the balance shown; nothing changes stock without leaving a line. "
+      + "The lot list shows the newest 50 at a time — narrow it with the <strong>From/To</strong> dates "
+      + "to reach an older lot, or keep loading more.",
     stockRestricted:
       "Stock is the sum of your egg lots per grade. The <strong>restricted</strong> column is reserved for "
       + "medication withholding periods — that feature arrives with medication tracking. <strong>Nothing "
       + "marks eggs restricted yet, so the system does not enforce withdrawal times today</strong> — manage "
       + "withholding periods outside Cluckwork for now.",
     stockFifo: "Selling always takes the oldest lots first, so stock naturally rotates.",
+    stockWriteOff:
+      "Lost stock — breakage, spoilage, eggs used by the household — is recorded with <strong>write off</strong> "
+      + "on the lot (Owner/Manager, reason required). It lowers the lot's available count without touching the "
+      + "day's production figures; a recount can also add eggs back, up to what was previously written off. If "
+      + "the recount says the day's <em>laying</em> was wrong, adjust the daily entry instead.",
 
     // Feed & inventory
     inventoryHeading: "Feed & inventory",
@@ -2125,9 +2359,9 @@ export const en = {
       "<strong>Items</strong> define what you track (feed, supplements…) and the unit it's measured in. The "
       + "unit locks once stock has been received — quantities on record must keep meaning what they meant.",
     inventoryPurchaseUsage:
-      "<strong>Record purchase</strong> books received stock as a dated lot with its cost. <strong>Record "
-      + "usage</strong> logs what a flock ate on a day: it draws from the oldest lots first (only lots that "
-      + "existed on that date) and estimates the cost from the actual lots consumed.",
+      "<strong>Record purchase</strong> books received stock as a dated lot with its cost. Feeding a flock "
+      + "is recorded on the <strong>Feed page</strong> — a feedable item's panel links straight there with "
+      + "the item preselected.",
     inventoryLedger:
       "Every change lands in the item's <strong>movement ledger</strong> — purchases, usage, corrections. "
       + "Ledger rows are never edited or deleted.",
@@ -2138,6 +2372,23 @@ export const en = {
     inventoryPermissions:
       "Recording purchases and usage is open to everyone; the item catalog and stock corrections are "
       + "admin-only.",
+
+    // Feed (#446 — its own page, out of the Inventory drill-down)
+    feedHeading: "Feed",
+    feedRecording:
+      "<strong>Record feed</strong> logs what a flock ate on a day: pick the flock, the item (current "
+      + "stock shows right in the picker), the amount, and the date. Stock drains from the oldest "
+      + "purchases first — only lots that existed on that date — and the cost estimate comes from the "
+      + "actual lots consumed. The page's history lists every feeding with its estimated cost.",
+    feedCorrecting:
+      "Feed records are <strong>never edited</strong>: the stock they drew is already in the ledger, so a "
+      + "mis-entry is fixed with an Inventory <strong>adjustment</strong> on the affected lot (reason "
+      + "required), which stays visible beside the original.",
+    feedDailyEntry:
+      "The <strong>Daily Entry</strong> page shows the selected flock and day's feed and water at a "
+      + "glance, linking here. A feed or water record made while that day's entry already exists also "
+      + "remembers that entry — records made before it stay unlinked on purpose; the day itself is what "
+      + "ties them together.",
 
     // Water
     waterHeading: "Water",
@@ -2158,8 +2409,10 @@ export const en = {
       "Orders start as <strong>drafts</strong>: add lines by picking a <strong>product</strong>, a packed "
       + "unit (dozen, carton, …), a whole-number quantity, and a price per unit (prefilled from the "
       + "product's default, decimals allowed) — edit freely, or <strong>cancel</strong> (the draft is kept, "
-      + "read-only). Each line remembers how many eggs its unit held when it was added, so redefining a "
-      + "carton later never changes old orders.",
+      + "read-only). The quantity counts <strong>units, not eggs</strong> — the field is labeled with the "
+      + "unit and shows the resulting egg count while you type (2 trays = 60 eggs, not 60 trays). Each "
+      + "line remembers how many eggs its unit held when it was added, so redefining a carton later never "
+      + "changes old orders.",
     salesConfirming:
       "<strong>Confirming</strong> an order allocates real stock — oldest lots first — and is the point "
       + "where inventory changes hands.",
@@ -2278,11 +2531,24 @@ export const en = {
       + "Animated images are refused rather than flattened. What gets stored is a rebuilt copy: camera and "
       + "location details are stripped out on the way in — a photo taken on a phone carries where it was "
       + "taken, and for a farm that is its address. Remove it and the sidebar goes back to the Cluckwork mark.",
+    // #452 — the preset dropdown + Custom escape hatch for date/time format
+    // overrides, replacing what used to be a bare free-text field.
+    farmSettingsDateTimeFormat:
+      "<strong>Date format</strong> and <strong>time format</strong> offer a few common choices in a "
+      + "dropdown — pick one and you are done. Need something not listed? Choose "
+      + "<strong>Custom…</strong> to type your own; the presets are all safe choices, but a custom value "
+      + "is only checked well enough to save, not to prove it looks right — nothing in Cluckwork displays "
+      + "dates or times through this setting yet, so a broken custom value would not be visible today.",
     farmSettingsSquareLogo:
       "Use a <strong>square</strong> logo. It shows small in the sidebar, so a simple, tightly-cropped mark "
       + "— a symbol or a single letter — reads much better there than a wide wordmark or a detailed picture, "
       + "which shrink to something unreadable. Keep a detailed logo for print or a website; give the app a "
       + "clean little mark.",
+    farmSettingsCountingUnit:
+      "<strong>Daily Entry counting unit</strong> sets how much the entry screen's +/− buttons count by for "
+      + "everyone on the farm — one egg, or a pack unit like Tray (30 per tap). Only units with an active "
+      + "eggs-per-unit definition on the Products screen can be picked, and each person can override it for "
+      + "themselves on their Account screen.",
 
     // Farm palette
     farmPaletteHeading: "Farm palette",
@@ -2294,6 +2560,19 @@ export const en = {
       "Light and night mode are separate and personal. Each person picks their own with the toggle in the "
       + "sidebar, on each device, and the farm palette never overrides it — every palette is designed to work "
       + "in both.",
+
+    // Account (#444) — the personal counterpart to Farm settings.
+    accountHeading: "Your account",
+    accountPassword:
+      "<strong>Change password</strong> needs your current one and signs your other devices out — every "
+      + "role can do this for themselves.",
+    accountLanguage:
+      "<strong>Language</strong> switches the interface just for you, immediately, on every device you "
+      + "sign into.",
+    accountCountingUnit:
+      "<strong>Daily Entry counting unit</strong> — how much YOUR +/− taps count by, overriding the farm "
+      + "default from Settings. Pick a pack unit like Tray to count by the tray, or follow the farm "
+      + "default so a later farm-wide change follows you automatically.",
 
     // Install on a phone
     installHeading: "Install on a phone",
@@ -2432,6 +2711,15 @@ export const en = {
       + "minutes are refused with this message until a short cool-off passes. It never affects an already "
       + "signed-in session.",
 
+    // #393 — same forced-reauth edge case as signingInMultiTabResync above,
+    // now in the glossary table's own term/definition form.
+    glossaryForcedReauthTerm: "Signed out right after switching accounts",
+    glossaryForcedReauthDef:
+      "Signing in as someone else in one <strong>browser tab</strong> while another tab is midway through "
+      + "its own quiet background check can occasionally sign the new session back out again immediately. "
+      + "Just sign in again — this only happens in that narrow multi-tab moment and nothing already saved "
+      + "is lost.",
+
     glossaryTooManyReportsTerm: "Too many reports at once",
     glossaryTooManyReportsDef:
       "The farm runs only a few reports at the same time, so one busy screen cannot slow the app for "
@@ -2442,10 +2730,11 @@ export const en = {
     // #308
     glossaryStepUpAuthTerm: "Step-up authentication",
     glossaryStepUpAuthDef:
-      "An extra check on top of being signed in: before creating another Owner or resetting an existing "
-      + "Owner's password, the Users screen asks you to re-enter your current password right there in the "
-      + "dialog. It confirms it's really you before handing out that much access — every other action on "
-      + "that screen does not ask again.",
+      "An extra check on top of being signed in: before creating another Owner, resetting an existing "
+      + "Owner's password, promoting someone to Owner, or disabling or re-enabling any user, the Users "
+      + "screen asks you to re-enter your current password right there in the dialog. It confirms it's "
+      + "really you before handing out — or taking away — that much access. Disabling and re-enabling ask "
+      + "every time, regardless of the target's role; the other three ask only when Owner access is involved.",
 
     glossarySomethingWentWrongScreenTerm: "\"Something went wrong\" screen",
     glossarySomethingWentWrongScreenDef:
@@ -2454,7 +2743,7 @@ export const en = {
       + "details\" holds the message for a screenshot.",
 
     glossaryDailyEntryTerm: "Daily entry",
-    glossaryDailyEntryDef: "One flock's day: eggs by grade, losses, deaths. Draft until submitted.",
+    glossaryDailyEntryDef: "One flock's day: eggs by grade, losses, deaths. Grading past the total raises it to match. Draft until submitted.",
 
     glossaryEggLotTerm: "Egg lot",
     glossaryEggLotDef:
@@ -2469,6 +2758,11 @@ export const en = {
       "The line-by-line history behind an egg lot's balance: production in, sales out, corrections and "
       + "voids signed accordingly.",
 
+    glossaryStockWriteOffTerm: "Stock write-off",
+    glossaryStockWriteOffDef:
+      "An Owner/Manager correction that removes lost eggs from a lot (breakage, spoilage, internal use) or "
+      + "applies a recount, with a required reason. It changes only the lot's available count — the day's "
+      + "production figures stay untouched. A recount can add eggs back up to what was previously written off.",
     glossaryFifoTerm: "FIFO",
     glossaryFifoDef: "\"First in, first out\" — sales and feed usage always take the oldest stock first.",
 
@@ -2498,6 +2792,11 @@ export const en = {
     glossaryPackedUnitDef:
       "How many eggs a dozen/tray/carton/case holds on your farm. Each sale line keeps the count it was "
       + "sold with.",
+    glossaryCountingUnitTerm: "Counting unit",
+    glossaryCountingUnitDef:
+      "How much each tap of the Daily Entry − / + buttons counts — one egg, or a packed unit like a tray. "
+      + "Farm default in Settings; your own pick on your Account screen. The buttons show the amount "
+      + "(−30 / +30) when it isn't one.",
 
     glossarySalesLineTerm: "Sales line",
     glossarySalesLineDef:
@@ -2559,8 +2858,9 @@ export const en = {
     glossaryFarmSettingsTerm: "Farm settings",
     glossaryFarmSettingsDef:
       "The farm's name, timezone, locale, currency and unit system, plus optional first day of week and "
-      + "date/time formats. Setup → Farm settings; owners and managers edit, everyone reads — formatting "
-      + "money and dates is not a permission.",
+      + "date/time formats — picked from a preset dropdown, or typed as a custom .NET format string. "
+      + "Setup → Farm settings; owners and managers edit, everyone reads — formatting money and dates is "
+      + "not a permission.",
 
     glossaryCurrencyLockTerm: "Currency lock",
     glossaryCurrencyLockDef:
@@ -2584,6 +2884,14 @@ export const en = {
       "The per-user language the interface is shown in — English, Español, or Tagalog — chosen from "
       + "Account → Preferences. English is the fallback for any screen not yet translated, whatever "
       + "language you picked.",
+
+    // #356 — appended last so it doesn't reshuffle the rows above.
+    glossaryDisabledUserTerm: "Disabled user",
+    glossaryDisabledUserDef:
+      "Revoked access, not deletion. A disabled user can't sign in, refresh, or get a step-up grant, and "
+      + "every session they had open ends on its very next request. Re-enabling restores sign-in but not "
+      + "those old sessions — anything issued before the disable never works again. The account's last "
+      + "active Admin (owner) can't be disabled, and nobody can disable themselves.",
 
     glossaryRepoNote:
       "Full spec-language definitions live in the repository's <code>specs/product/GLOSSARY.md</code>.",

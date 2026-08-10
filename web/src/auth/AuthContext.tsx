@@ -4,7 +4,7 @@ import {
   login as apiLogin, logout as apiLogout, restoreSession,
   setOnTokensChanged, setOnUnauthenticated,
 } from "../api/client";
-import { currentUserIsAdmin, currentUserMustChangePassword, currentUserRole } from "./claims";
+import { currentUserId, currentUserIsAdmin, currentUserMustChangePassword, currentUserRole } from "./claims";
 import type { Role } from "./claims";
 import { clearAccessToken, getAccessToken, purgeLegacyTokens } from "./tokenStore";
 
@@ -18,6 +18,10 @@ interface AuthState {
   // isAdmin = Owner OR Manager (the corrective/config tier).
   isAdmin: boolean;
   role: Role;
+  // #356 — the token's own "sub" claim, for guards that must not depend on
+  // /me succeeding (SessionProvider keeps the shell up with me === null on
+  // a failed /me).
+  userId: string | null;
   // #283 — true while the signed-in user must set a new password before
   // anything else works (the first-run admin, until they do). ProtectedRoute
   // reads this to show the set-password screen instead of the app shell; the
@@ -38,6 +42,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(() => getAccessToken() === null);
   const [isAdmin, setIsAdmin] = useState(currentUserIsAdmin);
   const [role, setRole] = useState<Role>(currentUserRole);
+  const [userId, setUserId] = useState<string | null>(currentUserId);
   const [mustChangePassword, setMustChangePassword] = useState(currentUserMustChangePassword);
   const [unauthenticatedReason, setUnauthenticatedReason] = useState<string | null>(null);
 
@@ -50,6 +55,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsAdmin(currentUserIsAdmin());
     setRole(currentUserRole());
     setMustChangePassword(currentUserMustChangePassword());
+    setUserId(currentUserId());
   }, []);
 
   // When any authenticated request exhausts its refresh, drop auth state so the
@@ -114,12 +120,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsAdmin(false);
     setRole("Worker");
     setMustChangePassword(false);
+    setUserId(null);
     setUnauthenticatedReason(null);
   }, []);
 
   const value = useMemo(
-    () => ({ isAuthenticated, isLoading, isAdmin, role, mustChangePassword, unauthenticatedReason, login, logout }),
-    [isAuthenticated, isLoading, isAdmin, role, mustChangePassword, unauthenticatedReason, login, logout],
+    () => ({
+      isAuthenticated, isLoading, isAdmin, role, userId, mustChangePassword, unauthenticatedReason, login, logout,
+    }),
+    [isAuthenticated, isLoading, isAdmin, role, userId, mustChangePassword, unauthenticatedReason, login, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

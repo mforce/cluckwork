@@ -1,22 +1,27 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
+import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
 import {
-  createFlock, listDailyEntries, listEggGrades, listFlocks,
-  recordDailyEntry, submitDailyEntry,
+  createFlock, formatMoney, listDailyEntries, listEggGrades, listEggUnitConversions,
+  listFeedUsage, listFlocks, listWaterUsage, recordDailyEntry, submitDailyEntry,
 } from "../api/cluckwork";
-import type { EggGrade, Flock } from "../api/cluckwork";
+import type { EggGrade, EggUnitConversion, FeedUsage, Flock, WaterUsage } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
+import { DialogError } from "../components/DialogError";
 import { StatusBadge } from "../components/StatusBadge";
 import { GradingChip, TakeRemainderButton, remainderDropProps } from "../components/GradingChip";
 import { NumberField } from "../components/NumberField";
 import { useConfirm } from "../components/useConfirm";
+import { useDialogErrors } from "../components/useDialogErrors";
 import { usePendingAction } from "../components/usePendingAction";
-import { useFarmToday } from "../farm/useFarm";
+import { useFarm, useFarmToday } from "../farm/useFarm";
 import { armedState, gradingState } from "../lib/grading";
 import { newId } from "../lib/ids";
+import { resolveStepperUnit } from "../lib/stepperUnit";
+import { useMe } from "../session/SessionContext";
 import i18n from "../i18n";
 import { statusLabel } from "../i18n/enums";
 
@@ -46,6 +51,10 @@ export function DailyEntryPage() {
   const { confirm, confirmDialog } = useConfirm();
   const [flocks, setFlocks] = useState<Flock[]>([]);
   const [grades, setGrades] = useState<EggGrade[]>([]);
+  // #444 — the stepper's base increment resolves from farm default + user
+  // override, both already fetched by the shell (useFarm/useMe); only the
+  // conversion catalog is this screen's own read.
+  const [eggUnitConversions, setEggUnitConversions] = useState<EggUnitConversion[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [flockId, setFlockId] = useState("");
@@ -56,6 +65,16 @@ export function DailyEntryPage() {
   const [discarded, setDiscarded] = useState(0);
   const [mortality, setMortality] = useState(0);
   const [gradeQty, setGradeQty] = useState<Record<string, number>>({});
+  // #443 — setGrade reads this instead of the `gradeQty` closure so a
+  // hold-to-repeat burst (each tick its own onChange call, still against the
+  // SAME setGrade closure captured at press-time — see NumberField's own
+  // `live` ref for the identical problem) sees every earlier tick's write,
+  // not just the value from the render the hold began on. Synced on every
+  // render AND written immediately inside setGrade, matching NumberField's
+  // pattern: the render-time write alone would still lag one tick behind
+  // during a burst faster than a commit.
+  const gradeQtyRef = useRef(gradeQty);
+  gradeQtyRef.current = gradeQty;
   // Grades are only sent when the user (or prefill) touched them: the server
   // treats [] as "explicitly clear all lines" and omitted as "leave unchanged",
   // so an untouched re-save must not wipe an existing entry's grading.
@@ -65,6 +84,14 @@ export function DailyEntryPage() {
   // guard, #59); failedTarget marks which flock+date the failure was for.
   const [prefillFailed, setPrefillFailed] = useState(false);
   const [prefillPending, setPrefillPending] = useState(false);
+  // #446 — the day-support strip: what else was recorded for this flock+date.
+  // DELIBERATELY isolated from the prefill state machine above it (its own
+  // effect, its own state, no retry) — a failed summary read hides the strip
+  // and must never gate or zero the entry form. Queried by flock+date, not by
+  // DailyEntryId: the strip works before the day's entry exists, which is
+  // exactly when a farmer is most likely filling this screen in.
+  const [daySupport, setDaySupport] =
+    useState<{ feed: FeedUsage[]; water: WaterUsage[] } | null>(null);
   const [prefillRetry, setPrefillRetry] = useState(0);
   const failedTarget = useRef<string | null>(null);
 
@@ -77,7 +104,11 @@ export function DailyEntryPage() {
   const saveKey = useRef<string>(newId());
   const flockKey = useRef<string>(newId());
   const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  // #479 — one slot per PLACE a message can appear: the deep-link check and
+  // the draft/submit writes (the main form, not behind a dialog) belong to
+  // the page; the new-flock dialog's failures belong to that form.
+  const errors = useDialogErrors();
+  const setPageError = errors.setPage;
 
   // inline flock creation
   const [showNewFlock, setShowNewFlock] = useState(false);
@@ -90,8 +121,8 @@ export function DailyEntryPage() {
     // includeInactive: an existing draft may reference a since-deactivated
     // grade; that line must render and survive a re-save (only the ACTIVE
     // saleable grades are offered for new input — see visibleGrades).
-    Promise.all([listFlocks(), listEggGrades({ includeInactive: true })])
-      .then(([all, g]) => {
+    Promise.all([listFlocks(), listEggGrades({ includeInactive: true }), listEggUnitConversions()])
+      .then(([all, g, units]) => {
         const f = capturable(all);
         setFlocks(f);
         // #396 — saleable AND hand-graded. Cracked and Dirty are saleable now,
@@ -101,6 +132,7 @@ export function DailyEntryPage() {
         // server refuses that outright (ConditionGradeGuard) — this keeps the
         // screen from offering a control whose only outcome is a rejection.
         setGrades(g.filter((x) => x.isSaleable && x.dailyEntryKind === "Manual"));
+        setEggUnitConversions(units);
         // Deep link from History's Draft "edit" (#85): ?flockId=…&date=….
         // The pair is applied atomically — applying only the date against a
         // fallback flock would open a DIFFERENT flock's day under the linked
@@ -121,7 +153,7 @@ export function DailyEntryPage() {
         const deepLinked = flockOk && dateOk;
         if (deepLinked) retarget(() => setDate(wantedDate!));
         else if (wantedFlock || wantedDate)
-          setError(i18n.t("dailyEntry:deepLinkUnavailable"));
+          setPageError(i18n.t("dailyEntry:deepLinkUnavailable"));
         const remembered = localStorage.getItem(LAST_FLOCK_KEY);
         // Default prefers an ACTIVE flock — depleted ones are backfill targets
         // you pick deliberately, not a default.
@@ -192,6 +224,31 @@ export function DailyEntryPage() {
     if (flockId) localStorage.setItem(LAST_FLOCK_KEY, flockId);
   }, [flockId]);
 
+  // #446 — see the daySupport state comment for why this effect is isolated.
+  useEffect(() => {
+    if (!flockId || !date) { setDaySupport(null); return; }
+    let cancelled = false;
+    setDaySupport(null);
+    // The strip presents COUNTS and a cost SUM, so it must drain every page —
+    // a single limit-100 read would silently underreport a heavy day.
+    const PAGE = 100;
+    const drain = async <T,>(fetchPage: (offset: number) => Promise<T[]>) => {
+      const all: T[] = [];
+      for (let offset = 0; ; offset += PAGE) {
+        const page = await fetchPage(offset);
+        all.push(...page);
+        if (page.length < PAGE) return all;
+      }
+    };
+    Promise.all([
+      drain((offset) => listFeedUsage({ flockId, from: date, to: date, limit: PAGE, offset })),
+      drain((offset) => listWaterUsage({ flockId, from: date, to: date, limit: PAGE, offset })),
+    ])
+      .then(([feed, water]) => { if (!cancelled) setDaySupport({ feed, water }); })
+      .catch(() => { /* strip stays hidden; the entry form is untouched */ });
+    return () => { cancelled = true; };
+  }, [flockId, date]);
+
   const gradesSum = useMemo(
     () => Object.values(gradeQty).reduce((a, b) => a + (b || 0), 0),
     [gradeQty],
@@ -209,6 +266,13 @@ export function DailyEntryPage() {
   // never disagree about what "the day adds up" means (#394).
   const state = gradingState({ totalEggs, cracked, dirty, discarded, gradesSum });
   const { losses, sellable, lossesExceedTotal, remaining } = state;
+  // #444 — the user's own preference wins over the farm default; both fall
+  // back to "Individual" (today's plain +1/-1) if unset or unconfigured.
+  const { farm } = useFarm();
+  const me = useMe();
+  const stepperUnit = resolveStepperUnit(
+    farm?.defaultStepperUnit, me?.preferredStepperUnit, eggUnitConversions);
+  const stepSize = stepperUnit.eggsPerUnit;
   const selectedFlock = flocks.find((f) => f.id === flockId);
   const entryLocked = existingStatus !== null && existingStatus !== "Draft";
   // The prefill found a draft for this flock+date: the form is EDITING it,
@@ -286,21 +350,46 @@ export function DailyEntryPage() {
     setAssigning(false);
   }
 
+  // #443 — grading may run ahead of the total (counted the grades before
+  // adding them up); this used to be capped by NumberField's `max` instead.
+  // Now a grade bump that would push the graded sum past what step 1's total
+  // currently allows raises the total to match, computed here (not via a
+  // `remaining`-watching effect) because an effect can't tell a total raised
+  // BY this grade edit apart from `remaining` going negative because the
+  // total itself was just lowered on step 1 — the latter must never be
+  // fought back up.
+  //
+  // Gated on `newSum > prevSum` (codex review of #449) — not just "still over
+  // the total" — for the same reason: after the user lowers the total below
+  // an already-graded sum, correcting the grade back DOWN with − is also
+  // "still over" on every step until it lands, and without this check each
+  // decrement would ratchet the total back up toward the old sum, undoing
+  // the very edit the user just made on step 1.
   const setGrade = (gradeId: string) => (next: number | ((prev: number) => number)) => {
     setGradesTouched(true);
-    setGradeQty((prev) => ({
-      ...prev,
-      [gradeId]: typeof next === "function" ? next(prev[gradeId] ?? 0) : next,
-    }));
+    const current = gradeQtyRef.current;
+    const prevSum = Object.values(current).reduce((a, b) => a + (b || 0), 0);
+    const updated = {
+      ...current,
+      [gradeId]: typeof next === "function" ? next(current[gradeId] ?? 0) : next,
+    };
+    gradeQtyRef.current = updated;
+    setGradeQty(updated);
+    const newSum = Object.values(updated).reduce((a, b) => a + (b || 0), 0);
+    if (newSum > prevSum) setTotalEggs((t) => Math.max(t, newSum + losses));
   };
 
+
+  // Dismissal empties the dialog's slot and mutes the attempt still out, so a
+  // late failure is not reported against a session the user reopened.
+  const closeNewFlock = () => { setShowNewFlock(false); errors.abandon("new-flock"); };
 
   async function onCreateFlock(e: FormEvent) {
     e.preventDefault();
     // #236: this form shipped with NO in-flight guard at all — a double submit
     // reached the API twice. The hook's ref is the guard now.
     await run("create-flock", async () => {
-      setError(null);
+      errors.beginAttempt("new-flock");
       try {
         const created = await createFlock({
           name: newFlockName,
@@ -323,7 +412,7 @@ export function DailyEntryPage() {
         setNewFlockPlaced(today);
         setNewFlockCount(100);
       } catch (err) {
-        setError(errorMessage(err));
+        errors.report("new-flock", errorMessage(err));
       }
     });
   }
@@ -350,7 +439,9 @@ export function DailyEntryPage() {
       // meanwhile because both save buttons are disabled while one is pending.
     }
     await run(submit ? "submit" : "save", async () => {
-      setError(null);
+      // The capture form is the page, not a dialog — its failure is the
+      // page's.
+      setPageError(null);
       setMessage(null);
       try {
         const lines = visibleGrades
@@ -381,7 +472,7 @@ export function DailyEntryPage() {
         }
         saveKey.current = newId();
       } catch (err) {
-        setError(errorMessage(err));
+        setPageError(errorMessage(err));
       }
     });
   }
@@ -420,7 +511,7 @@ export function DailyEntryPage() {
           <input type="date" value={date} max={today}
             onChange={(e) => retarget(() => setDate(e.target.value))} />
         </label>
-        <button className="link" type="button" onClick={() => { setError(null); setShowNewFlock(true); }}>
+        <button className="link" type="button" onClick={() => setShowNewFlock(true)}>
           {t("newFlockButton")}
         </button>
       </div>
@@ -428,7 +519,7 @@ export function DailyEntryPage() {
       {/* F131: creating a flock is catalog work, not capture — it belongs in a
           dialog like every other create, instead of shoving the entry grid
           down the page the moment the picker has nothing to offer yet. */}
-      <Dialog open={showNewFlock} title={t("newFlockDialogTitle")} onClose={() => setShowNewFlock(false)}>
+      <Dialog open={showNewFlock} title={t("newFlockDialogTitle")} onClose={closeNewFlock}>
         <form className="inline-form" onSubmit={onCreateFlock}>
           <label>{t("nameLabel")}
             <input value={newFlockName} required
@@ -451,13 +542,15 @@ export function DailyEntryPage() {
             <NumberField id={idFor("new-flock-birds")} label={t("birdsLabel").toLowerCase()}
               value={newFlockCount} onChange={setNewFlockCount} min={1} />
           </div>
-          {/* The dialog carries its own copy while it is up. This used to read
-              `!showNewFlock` here, inside a dialog that only exists WHEN
-              showNewFlock — so a failed create rendered no error anywhere and
-              the button just appeared to do nothing (F134 review of #131). */}
-          {error && <p className="error">{error}</p>}
+          {/* #479 — this form's own failures live in the "new-flock" dialog
+              slot; DialogError renders them only while this dialog is open.
+              (Used to read `!showNewFlock` on a shared slot instead, inside a
+              dialog that only exists WHEN showNewFlock — so a failed create
+              rendered no error anywhere and the button just appeared to do
+              nothing; F134 review of #131.) */}
+          <DialogError errors={errors} scope="new-flock" />
           <div className="dialog-foot">
-            <button type="button" className="link" onClick={() => setShowNewFlock(false)}>{tc("cancel")}</button>
+            <button type="button" className="link" onClick={closeNewFlock}>{tc("cancel")}</button>
             <BusyButton type="submit" busy={isPending("create-flock")} disabled={busy}>
               {t("createFlockButton")}
             </BusyButton>
@@ -479,6 +572,51 @@ export function DailyEntryPage() {
         </p>
       )}
 
+      {/* #444 — reinforces what the "+30" on the buttons already says: which
+          unit the taps count by and where that came from. Only when a pack
+          unit is in force — "counting by ones" would be noise restating the
+          default. */}
+      {stepSize > 1 && (
+        <p className="hint">
+          {t("stepperUnitCaption", { unit: stepperUnit.unitCode, count: stepSize })}
+        </p>
+      )}
+
+      {/* #446 — what else this flock's day already carries, with the way to
+          the pages that record it. Joined on flock+date (never DailyEntryId),
+          so it's live before the day's entry exists. */}
+      {daySupport && (() => {
+        // One currency per farm is the norm, but lot costs snapshot their
+        // purchase-time currency — summing across a historical currency
+        // change would blend units, so the cost drops rather than lies
+        // (quality review of #446).
+        const oneCurrency = daySupport.feed.every(
+          (r) => r.currencyCode === daySupport.feed[0].currencyCode);
+        const dayParams = `flockId=${flockId}&from=${date}&to=${date}`;
+        return (
+          <p className="hint">
+            <Link className="link" to={`/feed?${dayParams}`}>
+              {daySupport.feed.length === 0
+                ? t("daySupportFeedNone")
+                : oneCurrency
+                  ? t("daySupportFeed", {
+                      count: daySupport.feed.length,
+                      cost: formatMoney(
+                        daySupport.feed.reduce((a, r) => a + r.estimatedCostMinorUnits, 0),
+                        daySupport.feed[0].currencyCode, daySupport.feed[0].currencyMinorUnit),
+                    })
+                  : t("daySupportFeedNoCost", { count: daySupport.feed.length })}
+            </Link>
+            {" · "}
+            <Link className="link" to={`/water?${dayParams}`}>
+              {daySupport.water.length > 0
+                ? t("daySupportWater", { count: daySupport.water.length })
+                : t("daySupportWaterNone")}
+            </Link>
+          </p>
+        );
+      })()}
+
       {/* Side by side, because the two panes reconcile: the sellable figure the
           left one produces is the target the right one has to hit. Reading one
           while the other was a screen away was the whole problem. */}
@@ -494,25 +632,29 @@ export function DailyEntryPage() {
               <div className="entry-row">
                 <label htmlFor={idFor("total")}>{t("totalEggsLabel")}</label>
                 <NumberField id={idFor("total")} label={t("totalEggsLabel").toLowerCase()}
-                  value={totalEggs} onChange={setTotalEggs} disabled={entryLocked} />
+                  value={totalEggs} onChange={setTotalEggs} step={stepSize} disabled={entryLocked} />
               </div>
               <div className="entry-row">
                 <label htmlFor={idFor("cracked")}>{t("crackedLabel")}</label>
                 <NumberField id={idFor("cracked")} label={t("crackedLabel").toLowerCase()}
-                  value={cracked} onChange={setCracked} disabled={entryLocked} />
+                  value={cracked} onChange={setCracked} step={stepSize} disabled={entryLocked} />
               </div>
               <div className="entry-row">
                 <label htmlFor={idFor("dirty")}>{t("dirtyLabel")}</label>
                 <NumberField id={idFor("dirty")} label={t("dirtyLabel").toLowerCase()}
-                  value={dirty} onChange={setDirty} disabled={entryLocked} />
+                  value={dirty} onChange={setDirty} step={stepSize} disabled={entryLocked} />
               </div>
               <div className="entry-row">
                 <label htmlFor={idFor("discarded")}>{t("discardedLabel")}</label>
                 <NumberField id={idFor("discarded")} label={t("discardedLabel").toLowerCase()}
-                  value={discarded} onChange={setDiscarded} disabled={entryLocked} />
+                  value={discarded} onChange={setDiscarded} step={stepSize} disabled={entryLocked} />
               </div>
               <div className="entry-row">
                 <label htmlFor={idFor("mortality")}>{t("mortalityLabel")}</label>
+                {/* NO step: the pack unit counts EGGS. One tap here records a
+                    dead BIRD, and submitting writes the bird-ledger movement —
+                    a Tray farm must never log 30 deaths per tap (codex P1
+                    review of #451). */}
                 <NumberField id={idFor("mortality")} label={t("mortalityLabel").toLowerCase()}
                   value={mortality} onChange={setMortality} disabled={entryLocked} />
               </div>
@@ -544,10 +686,13 @@ export function DailyEntryPage() {
                   {...remainderDropProps(armed, () => assignRest(g.id))}
                 >
                   <label htmlFor={idFor(g.id)}>{g.name}{g.active ? "" : t("deactivatedGradeSuffix")}</label>
+                  {/* #443 — no max=: the old ceiling refused to let a grade
+                      run ahead of step 1's total, forcing the total to be
+                      known before grading could finish. setGrade now raises
+                      the total to fit instead. */}
                   <NumberField id={idFor(g.id)} label={g.name.toLowerCase()}
                     value={gradeQty[g.id] ?? 0} onChange={setGrade(g.id)}
-                    max={(gradeQty[g.id] ?? 0) + Math.max(0, remaining)}
-                    disabled={entryLocked} />
+                    step={stepSize} disabled={entryLocked} />
                   {armed && (
                     <TakeRemainderButton remaining={remaining} grade={g.name}
                       onTake={() => assignRest(g.id)} />
@@ -568,8 +713,10 @@ export function DailyEntryPage() {
       {/* Save feedback lives with the saves: anything below a pinned bar
           scrolls underneath it and is never read. */}
       <div className="entry-foot">
-        {/* The dialog carries its own copy while it is up. */}
-        {error && !showNewFlock && <p className="error">{error}</p>}
+        {/* #479 — unconditional: the new-flock dialog's own failures live in
+            their own slot now (see DialogError above), so there is nothing
+            here for a dialog message to double up on. */}
+        {errors.page && <p className="error">{errors.page}</p>}
         {message && <p className="success">{message}</p>}
         <div className="entry-foot-row">
           {/* Phones only (see styles.css): the two panes stack there, so the
@@ -590,9 +737,17 @@ export function DailyEntryPage() {
           </p>
           <div className="actions">
             {/* Sibling triggers: each spins only for its own scope, while the
-                shared `busy` in disabled keeps the other one inert. */}
+                shared `busy` in disabled keeps the other one inert.
+                `grading.tone === "over"` (not the narrower `lossesExceedTotal`)
+                because #443 made an over-graded draft reachable a second way:
+                setGrade only ever RAISES the total to fit a grade, so the one
+                path still left to "over" is trimming the total on step 1
+                below a sum already graded — that must still block the save
+                the lenient backend rule would reject anyway (#394), rather
+                than round-trip to find out. `tone === "over"` already covers
+                the lossesExceedTotal case too (see lib/grading). */}
             <BusyButton busy={isPending("save")}
-              disabled={busy || !flockId || lossesExceedTotal || entryLocked || prefillFailed || prefillPending}
+              disabled={busy || !flockId || grading.tone === "over" || entryLocked || prefillFailed || prefillPending}
               onClick={() => onSave(false)}>{t("saveDraftButton")}</BusyButton>
             {/* #394: submit requires grading to reconcile EXACTLY — the same
                 "done" state the chip and footer already show, so the gate can

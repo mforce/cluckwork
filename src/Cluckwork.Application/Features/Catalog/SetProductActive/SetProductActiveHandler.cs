@@ -19,7 +19,7 @@ public sealed class SetProductActiveHandler(
         if (result.IsFailure) return result;
 
         await audit.WriteAsync(
-            active ? "Product.Activate" : "Product.Deactivate",
+            active ? AuditActions.ProductActivate : AuditActions.ProductDeactivate,
             nameof(Product), product.Id,
             details: new { product.Name }, ct: ct);
 

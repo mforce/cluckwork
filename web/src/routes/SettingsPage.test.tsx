@@ -3,7 +3,7 @@ import { render, screen, within, fireEvent, act, waitFor } from "@testing-librar
 import { SettingsPage, formatByteCap } from "./SettingsPage";
 import { FarmContext } from "../farm/FarmContext";
 import {
-  getFarmLogo, getFarmSettings, removeFarmLogo, updateFarmSettings,
+  getFarmLogo, getFarmSettings, listEggUnitConversions, removeFarmLogo, updateFarmSettings,
   uploadFarmLogo,
 } from "../api/cluckwork";
 import type { Account, FarmSettings } from "../api/cluckwork";
@@ -36,6 +36,7 @@ vi.mock("../api/cluckwork", async () => {
     uploadFarmLogo: vi.fn(),
     removeFarmLogo: vi.fn(),
     getFarmLogo: vi.fn(),
+    listEggUnitConversions: vi.fn(),
   };
 });
 
@@ -44,6 +45,14 @@ const mockUpdate = vi.mocked(updateFarmSettings);
 const mockUpload = vi.mocked(uploadFarmLogo);
 const mockRemove = vi.mocked(removeFarmLogo);
 const mockGetLogo = vi.mocked(getFarmLogo);
+const mockListConversions = vi.mocked(listEggUnitConversions);
+
+// #444 — the seeded defaults every real account carries (EggUnitConversion.Defaults).
+const CONVERSIONS = [
+  { id: "c1", unitCode: "Individual", eggsPerUnit: 1, active: true, version: 0 },
+  { id: "c2", unitCode: "Dozen", eggsPerUnit: 12, active: true, version: 0 },
+  { id: "c3", unitCode: "Tray", eggsPerUnit: 30, active: true, version: 0 },
+];
 
 // A fixed cap for the size-boundary tests, independent of the production
 // default — the point is the > vs >= behaviour, not the number.
@@ -95,6 +104,7 @@ beforeEach(() => {
   refreshOk = true;
   document.documentElement.removeAttribute("data-brand");
   mockGetLogo.mockResolvedValue({ blob: new Blob(["png"]), filename: null });
+  mockListConversions.mockResolvedValue(CONVERSIONS);
   vi.stubGlobal("URL", {
     ...URL,
     createObjectURL: vi.fn(() => "blob:test/logo"),
@@ -117,6 +127,32 @@ describe("SettingsPage loading", () => {
     expect(screen.getByLabelText("Date format")).toHaveValue("dd/MM/yyyy");
     // A null override is an empty field, not the string "null".
     expect(screen.getByLabelText("Time format")).toHaveValue("");
+  });
+
+  it("opens the date/time format dropdown on Custom… when the stored value isn't one of the presets (#452)", async () => {
+    mockGetSettings.mockResolvedValue(SETTINGS({
+      dateFormatOverride: "dd-MM-yy", timeFormatOverride: "HHmm",
+    }));
+    render(<SettingsPage />);
+    await screen.findByLabelText("Farm name");
+
+    expect(screen.getByLabelText("Date format")).toHaveValue("__custom__");
+    expect(screen.getByLabelText("Custom date format")).toHaveValue("dd-MM-yy");
+    expect(screen.getByLabelText("Time format")).toHaveValue("__custom__");
+    expect(screen.getByLabelText("Custom time format")).toHaveValue("HHmm");
+  });
+
+  it("opens the date/time format dropdown on the matching preset, with no custom field, for a stored preset value (#452)", async () => {
+    mockGetSettings.mockResolvedValue(SETTINGS({
+      dateFormatOverride: "yyyy-MM-dd", timeFormatOverride: "HH:mm",
+    }));
+    render(<SettingsPage />);
+    await screen.findByLabelText("Farm name");
+
+    expect(screen.getByLabelText("Date format")).toHaveValue("yyyy-MM-dd");
+    expect(screen.queryByLabelText("Custom date format")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Time format")).toHaveValue("HH:mm");
+    expect(screen.queryByLabelText("Custom time format")).not.toBeInTheDocument();
   });
 
   it("reports a failed load instead of an empty form", async () => {
@@ -149,6 +185,7 @@ describe("SettingsPage saving", () => {
       dateFormatOverride: null,
       timeFormatOverride: null,
       brand: "aubergine",
+      defaultStepperUnit: "Individual",
       version: 7,
     });
     expect(key).toBeTruthy();
@@ -160,12 +197,48 @@ describe("SettingsPage saving", () => {
     await renderReady(SETTINGS({ firstDayOfWeek: "Monday", dateFormatOverride: "dd/MM/yyyy" }));
 
     fireEvent.change(screen.getByLabelText("First day of week"), { target: { value: "" } });
-    fireEvent.change(screen.getByLabelText("Date format"), { target: { value: "   " } });
+    // #452 — realistic path: switch the dropdown to "Custom…", which reveals
+    // the free-text field, THEN type whitespace into that field — a select
+    // itself has no way to hold an arbitrary typed value.
+    fireEvent.change(screen.getByLabelText("Date format"), { target: { value: "__custom__" } });
+    fireEvent.change(screen.getByLabelText("Custom date format"), { target: { value: "   " } });
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save settings" })); });
 
     const [body] = mockUpdate.mock.calls[0];
     expect(body.firstDayOfWeek).toBeNull();
     expect(body.dateFormatOverride).toBeNull();
+  });
+
+  it("sends a preset picked directly from the date/time format dropdowns, no custom field involved (#452)", async () => {
+    mockUpdate.mockResolvedValue(undefined);
+    await renderReady();
+
+    fireEvent.change(screen.getByLabelText("Date format"), { target: { value: "yyyy-MM-dd" } });
+    fireEvent.change(screen.getByLabelText("Time format"), { target: { value: "HH:mm" } });
+    expect(screen.queryByLabelText("Custom date format")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Custom time format")).not.toBeInTheDocument();
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save settings" })); });
+
+    const [body] = mockUpdate.mock.calls[0];
+    expect(body.dateFormatOverride).toBe("yyyy-MM-dd");
+    expect(body.timeFormatOverride).toBe("HH:mm");
+  });
+
+  it("reveals the custom field on Custom…, and re-hides it (discarding the typed value) if a preset is picked afterward (#452)", async () => {
+    mockUpdate.mockResolvedValue(undefined);
+    await renderReady();
+
+    fireEvent.change(screen.getByLabelText("Date format"), { target: { value: "__custom__" } });
+    const customField = screen.getByLabelText("Custom date format");
+    fireEvent.change(customField, { target: { value: "dd.MM.yyyy" } });
+    expect(screen.getByLabelText("Date format")).toHaveValue("__custom__");
+
+    fireEvent.change(screen.getByLabelText("Date format"), { target: { value: "MM/dd/yyyy" } });
+    expect(screen.queryByLabelText("Custom date format")).not.toBeInTheDocument();
+
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save settings" })); });
+    const [body] = mockUpdate.mock.calls[0];
+    expect(body.dateFormatOverride).toBe("MM/dd/yyyy");
   });
 
   it("uppercases the currency and trims the text fields", async () => {
@@ -330,6 +403,45 @@ describe("SettingsPage saving", () => {
 
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save settings" })); });
     expect(screen.getByRole("alert")).toHaveTextContent("This farm has already recorded amounts in USD.");
+  });
+});
+
+// #444 — the farm-default Daily Entry stepper pack unit.
+describe("SettingsPage stepper unit (#444)", () => {
+  const select = () => screen.getByLabelText("Daily Entry counting unit");
+
+  it("offers only the ACTIVE conversions and selects the stored default", async () => {
+    mockListConversions.mockResolvedValue([
+      ...CONVERSIONS,
+      { id: "c4", unitCode: "Case", eggsPerUnit: 360, active: false, version: 0 },
+    ]);
+    await renderReady(SETTINGS({ defaultStepperUnit: "Tray" }));
+
+    expect(select()).toHaveValue("Tray");
+    const options = within(select()).getAllByRole("option").map((o) => o.textContent);
+    expect(options).toEqual(["Individual", "Dozen", "Tray"]); // no inactive Case
+  });
+
+  it("sends the picked unit on save", async () => {
+    mockUpdate.mockResolvedValue(undefined);
+    await renderReady();
+
+    fireEvent.change(select(), { target: { value: "Tray" } });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save settings" })); });
+
+    expect(mockUpdate.mock.calls[0][0]).toMatchObject({ defaultStepperUnit: "Tray" });
+  });
+
+  it("falls back to Individual when the stored default's conversion is inactive", async () => {
+    // Same recovery as a retired brand: echoing a deactivated unit straight
+    // back on the next save would 422.
+    mockListConversions.mockResolvedValue([
+      { id: "c1", unitCode: "Individual", eggsPerUnit: 1, active: true, version: 0 },
+      { id: "c3", unitCode: "Tray", eggsPerUnit: 30, active: false, version: 0 },
+    ]);
+    await renderReady(SETTINGS({ defaultStepperUnit: "Tray" }));
+
+    expect(select()).toHaveValue("Individual");
   });
 });
 

@@ -15,6 +15,7 @@ using Cluckwork.Application.Features.EggGrades.CreateEggGrade;
 using Cluckwork.Application.Features.EggGrades.SetEggGradeActive;
 using Cluckwork.Application.Features.EggGrades.UpdateEggGrade;
 using Cluckwork.Application.Features.EggLots;
+using Cluckwork.Application.Features.EggLots.RecordEggLotMovement;
 using Cluckwork.Application.Features.Expenses;
 using Cluckwork.Application.Features.Expenses.AdjustExpense;
 using Cluckwork.Application.Features.Expenses.CreateExpense;
@@ -47,6 +48,7 @@ using Cluckwork.Application.Features.Sales.VoidPayment;
 using Cluckwork.Application.Features.Sales.VoidSale;
 using Cluckwork.Application.Features.Users.CreateUser;
 using Cluckwork.Application.Features.Users.SetLanguage;
+using Cluckwork.Application.Features.Users.SetStepperUnit;
 using Cluckwork.Infrastructure.Persistence;
 using Cluckwork.Infrastructure.Providers;
 using Cluckwork.Infrastructure.Repositories;
@@ -205,6 +207,9 @@ internal static class CluckworkFeatureServiceCollectionExtensions
             IValidator<RecordAdjustmentCommand>,
             RecordAdjustmentValidator>();
         services.AddScoped<
+            IValidator<RecordEggLotMovementCommand>,
+            RecordEggLotMovementValidator>();
+        services.AddScoped<
             IValidator<RecordWaterUsageCommand>,
             RecordWaterUsageValidator>();
         services.AddScoped<
@@ -220,6 +225,14 @@ internal static class CluckworkFeatureServiceCollectionExtensions
         services.AddScoped<
             IValidator<Cluckwork.Application.Features.Users.ChangeOwnPassword.ChangeOwnPasswordCommand>,
             Cluckwork.Application.Features.Users.ChangeOwnPassword.ChangeOwnPasswordValidator>();
+        services.AddScoped<
+            IValidator<Cluckwork.Application.Features.Users.ChangeUserRole.ChangeUserRoleCommand>,
+            Cluckwork.Application.Features.Users.ChangeUserRole.ChangeUserRoleValidator>();
+        // #356 — disable carries an optional reason; enable carries no body at
+        // all and therefore has no validator.
+        services.AddScoped<
+            IValidator<Cluckwork.Application.Features.Users.DisableUser.DisableUserCommand>,
+            Cluckwork.Application.Features.Users.DisableUser.DisableUserValidator>();
         // #309 — the login DTO validator lives in the Api assembly (it validates
         // the Api LoginRequest). MAX-length only; see LoginRequestValidator.
         services.AddScoped<
@@ -236,6 +249,7 @@ internal static class CluckworkFeatureServiceCollectionExtensions
             IValidator<VoidDailyEntryCommand>,
             VoidDailyEntryValidator>();
         services.AddScoped<IValidator<SetLanguageCommand>, SetLanguageValidator>();
+        services.AddScoped<IValidator<SetStepperUnitCommand>, SetStepperUnitValidator>();
         services.AddScoped<
             IValidator<Cluckwork.Application.Features.Accounts.UpdateFarmSettings.UpdateFarmSettingsCommand>,
             Cluckwork.Application.Features.Accounts.UpdateFarmSettings.UpdateFarmSettingsValidator>();
@@ -261,6 +275,7 @@ internal static class CluckworkFeatureServiceCollectionExtensions
         services.AddScoped<RecordPurchaseHandler>();
         services.AddScoped<RecordFeedUsageHandler>();
         services.AddScoped<RecordAdjustmentHandler>();
+        services.AddScoped<RecordEggLotMovementHandler>();
         services.AddScoped<RecordWaterUsageHandler>();
         services.AddScoped<UpdateWaterUsageHandler>();
         services.AddScoped<CreateFlockHandler>();
@@ -291,7 +306,14 @@ internal static class CluckworkFeatureServiceCollectionExtensions
             Cluckwork.Application.Features.Users.SetUserPassword.SetUserPasswordHandler>();
         services.AddScoped<
             Cluckwork.Application.Features.Users.ChangeOwnPassword.ChangeOwnPasswordHandler>();
+        services.AddScoped<
+            Cluckwork.Application.Features.Users.ChangeUserRole.ChangeUserRoleHandler>();
+        services.AddScoped<
+            Cluckwork.Application.Features.Users.DisableUser.DisableUserHandler>();
+        services.AddScoped<
+            Cluckwork.Application.Features.Users.EnableUser.EnableUserHandler>();
         services.AddScoped<SetLanguageHandler>();
+        services.AddScoped<SetStepperUnitHandler>();
         services.AddScoped<AdjustDailyEntryHandler>();
         services.AddScoped<
             Cluckwork.Application.Features.Accounts.UpdateFarmSettings.UpdateFarmSettingsHandler>();

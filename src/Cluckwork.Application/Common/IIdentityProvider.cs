@@ -1,5 +1,7 @@
 namespace Cluckwork.Application.Common;
 
+using Cluckwork.Domain.Catalog;
+
 // Port — abstraction over ASP.NET Core Identity + JWT. Swap to Keycloak/Entra
 // in a future IIdentityProvider implementation without touching Application.
 public interface IIdentityProvider
@@ -50,6 +52,65 @@ public interface IIdentityProvider
     Task<Result> SetUserPasswordAsync(
         Guid accountId, Guid userId, string newPassword, CancellationToken ct = default);
 
+    // #355 — promote/demote an existing user's role, account-scoped (foreign
+    // id -> NotFound). `role` is one of Roles.Assignable, or null for a plain
+    // worker — same convention as CreateUserAsync. `actingUserId` is
+    // re-verified INSIDE the locked transaction to still be an active
+    // (non-disabled) Owner — an authorization failure (AppError.Forbidden())
+    // if not, since the caller's authentication happened once, before this
+    // transaction (and its account-wide lock) ever ran, and their own role
+    // could have changed while queued behind it. A true no-op (the requested
+    // role already equals the target's full current role-row set) skips ALL
+    // side effects: no epoch bump, no revoke, no audit row, no mutation. Any
+    // REAL change unconditionally bumps CredentialEpoch and revokes every
+    // refresh token for the target (RevokeAllActiveForUserAsync) — both
+    // promotion and demotion, per #355's own reasoning that consistency here
+    // is cheaper than a rule nobody remembers. Demoting the account's LAST
+    // active Owner away from Owner fails with "Users.LastOwner" instead of
+    // applying; a concurrent Identity write conflict on the same user fails
+    // with "Users.Conflict".
+    Task<Result> ChangeUserRoleAsync(
+        Guid accountId, Guid userId, string? role, Guid actingUserId, CancellationToken ct = default);
+
+    // #356 — disable a user, account-scoped (foreign id -> NotFound). The
+    // DisabledAt flag is only half of it: CredentialEpochMiddleware (#364)
+    // already refuses a disabled user, but a flag ALONE means re-enabling
+    // resurrects every unexpired access token issued before the disable. So a
+    // real disable also bumps CredentialEpoch, rotates the SecurityStamp (the
+    // separate credential a step-up grant is validated against, #308) and
+    // revokes every refresh token — the same three side effects
+    // ChangeUserRoleAsync applies, for the same reasons.
+    //
+    // `actingUserId` is re-verified INSIDE the account-locked transaction to
+    // still be an active, non-disabled Owner (AppError.Forbidden() if not).
+    // Disabling the account's LAST ACTIVE Owner fails with "Users.LastOwner":
+    // that guard is NOT safe on ConcurrencyStamp alone, because two Owners
+    // disabling each other touch different rows and share no concurrency
+    // token — hence the account-wide FOR UPDATE lock, taken unconditionally.
+    // Disabling an already-disabled user is a TRUE no-op: no second epoch
+    // bump, no restamped DisabledAt, no audit row. A concurrent Identity write
+    // conflict fails with "Users.Conflict".
+    Task<Result> DisableUserAsync(
+        Guid accountId, Guid userId, Guid actingUserId, string? reason,
+        CancellationToken ct = default);
+
+    // #356 — re-enable a disabled user, account-scoped (foreign id ->
+    // NotFound). Deliberately ASYMMETRIC with DisableUserAsync on the
+    // CREDENTIAL side only: it clears DisabledAt and DisabledBy and writes
+    // an audit row, and it must NOT bump CredentialEpoch and must NOT
+    // restore the pre-disable value — leaving the epoch where the disable
+    // left it is exactly what keeps every pre-disable access token dead.
+    // It DOES also rotate SecurityStamp/ConcurrencyStamp (round-3 review of
+    // #492): a stale full-entity write from a concurrent SetUserPassword,
+    // read before this method ran, would otherwise land after it and
+    // silently restore DisabledAt behind a 204. That rotation is required,
+    // not optional — do not read "does NOTHING else" as license to drop it.
+    // It takes the same account lock so a disable and an enable of the same
+    // user cannot interleave into an inconsistent DisabledAt/epoch pair.
+    // Enabling an already-active user is a true no-op.
+    Task<Result> EnableUserAsync(
+        Guid accountId, Guid userId, Guid actingUserId, CancellationToken ct = default);
+
     // #265 — offline break-glass recovery for a locked-out account (e.g. a sole
     // Owner with a lost password and no email/SMTP reset path). Same account-
     // scoped reset as SetUserPasswordAsync — sets the password WITHOUT the
@@ -78,6 +139,13 @@ public interface IIdentityProvider
     // #45 — set/clear the user's language, account-scoped (foreign id -> NotFound).
     Task<Result> SetLanguageAsync(
         Guid accountId, Guid userId, string? language, CancellationToken ct = default);
+
+    // #444 — set/clear the user's Daily Entry stepper pack-unit override,
+    // account-scoped (foreign id -> NotFound). The caller (SetStepperUnitHandler)
+    // has already confirmed a non-null unit is still an active EggUnitConversion —
+    // this is a plain write, same shape as SetLanguageAsync.
+    Task<Result> SetStepperUnitAsync(
+        Guid accountId, Guid userId, EggUnit? unit, CancellationToken ct = default);
 }
 
 public sealed record TokenPair(
@@ -85,7 +153,11 @@ public sealed record TokenPair(
     string RefreshToken,
     DateTimeOffset AccessTokenExpiry);
 
-public sealed record UserSummary(Guid Id, string Email, string? DisplayName, string Role);
+// #356 — DisabledAt is null for an active user. Exposed on the LIST rather
+// than filtered out of it: an Owner cannot re-enable someone they cannot see.
+public sealed record UserSummary(
+    Guid Id, string Email, string? DisplayName, string Role, DateTimeOffset? DisabledAt);
 
 public sealed record UserProfile(
-    Guid Id, string Email, string? DisplayName, string Role, string? Language);
+    Guid Id, string Email, string? DisplayName, string Role, string? Language,
+    EggUnit? PreferredStepperUnit);

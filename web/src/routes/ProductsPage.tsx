@@ -12,8 +12,10 @@ import { ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
+import { DialogError } from "../components/DialogError";
 import { NumberField } from "../components/NumberField";
 import { StatusBadge } from "../components/StatusBadge";
+import { useDialogErrors } from "../components/useDialogErrors";
 import { usePendingAction } from "../components/usePendingAction";
 import { newId } from "../lib/ids";
 import i18n from "../i18n";
@@ -40,7 +42,10 @@ export function ProductsPage() {
   const [products, setProducts] = useState<Product[] | null>(null);
   const [grades, setGrades] = useState<EggGrade[]>([]);
   const [conversions, setConversions] = useState<EggUnitConversion[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  // #479 — one slot per PLACE a message can appear: the page (mount load) and
+  // each dialog by its own scope.
+  const errors = useDialogErrors();
+  const setPageError = errors.setPage;
   // #236 — the shared flight guard. `busy` inerts the whole screen; the one
   // clicked trigger additionally spins via isPending(scope).
   const { busy, isPending, run: runPending } = usePendingAction();
@@ -105,8 +110,8 @@ export function ProductsPage() {
         setGrades(g.filter((x) => x.isSaleable));
         setCurrency({ code: a.currencyCode, minor: a.currencyMinorUnit });
       })
-      .catch(() => setError(i18n.t("products:loadCatalogFailed")));
-  }, []);
+      .catch(() => setPageError(i18n.t("products:loadCatalogFailed")));
+  }, [setPageError]);
 
   // Exact string parsing — never float × 10^n (money rule).
   const toMinorUnits = (display: string, minor: number): number | null => {
@@ -125,9 +130,11 @@ export function ProductsPage() {
   // Rebased on usePendingAction (#236): the hook owns the re-entry guard and
   // the pending scope; the idempotency-key/refresh-before-rotate body stays
   // exactly as reviewed. The same scope string doubles as the key scope.
-  async function run(scope: string, action: (key: string) => Promise<unknown>) {
+  // `errorScope` names the DIALOG a failure belongs to; `null` routes it to
+  // the page — deactivate/activate run from row buttons, not a dialog.
+  async function run(scope: string, errorScope: string | null, action: (key: string) => Promise<unknown>) {
     const ok = await runPending(scope, async () => {
-      setError(null);
+      errors.beginAttempt(errorScope);
       try {
         await action(keyFor(scope));
         // Refresh must succeed before the key rotates (idempotent retry contract).
@@ -135,7 +142,7 @@ export function ProductsPage() {
         clearKey(scope);
         return true;
       } catch (err) {
-        setError(errorMessage(err));
+        errors.report(errorScope, errorMessage(err));
         return false;
       }
     });
@@ -144,16 +151,27 @@ export function ProductsPage() {
     return ok ?? false;
   }
 
+  // Dismissal empties this dialog's slot and mutes the attempt still out, so a
+  // late failure is not reported against a session the user reopened.
+  const closeCreate = () => { setCreating(false); errors.abandon("create"); };
+  const closeEdit = () => { setEditingId(null); errors.abandon("edit"); };
+  const closeEditConversion = () => { setEditingConvId(null); errors.abandon("edit-conversion"); };
+
   async function onCreate(e: FormEvent) {
     e.preventDefault();
+    // The attempt starts here, not inside `run` — a validation throw below
+    // returns before `run` (and its own beginAttempt) is ever reached, and
+    // without this the slot would still carry a MUTE from a prior dismissal,
+    // silently swallowing this attempt's own validation message.
+    errors.beginAttempt("create");
     let priceMinor: number | null;
     try {
       priceMinor = toMinorUnits(price, currency.minor);
     } catch (err) {
-      setError(errorMessage(err));
+      errors.report("create", errorMessage(err));
       return;
     }
-    const ok = await run("create-product", (key) =>
+    const ok = await run("create-product", "create", (key) =>
       createProduct({
         name,
         productType: "Egg",
@@ -170,10 +188,19 @@ export function ProductsPage() {
     }
   }
 
+  // Opening a dialog over a still-open one is a DISPLACEMENT: the first
+  // session ends without `onClose` ever running, so its `abandon` never fires
+  // and whatever verdict it left is still in the slot the next session
+  // renders. The backdrop keeps a mouse off the row buttons underneath, but
+  // #480 established it does not stop a screen reader's virtual cursor — the
+  // same door the per-dialog map exists for. A displacing open therefore
+  // abandons what it displaces, INCLUDING its own scope when that scope is
+  // fixed across records (pi review of #491). Never on the same record: a 409
+  // rebind reopens the identical scope and then reports into it.
   function startEdit(p: Product) {
-    setError(null);
-    setCreating(false);
-    setEditingConvId(null);
+    closeCreate();
+    closeEditConversion();
+    if (editingId !== null && editingId !== p.id) errors.abandon("edit");
     setEditingId(p.id);
     setEditName(p.name);
     setEditUnit(p.defaultUnit);
@@ -184,19 +211,33 @@ export function ProductsPage() {
     setEditNotes(p.notes ?? "");
   }
 
+  // Same displacement rule as startEdit, for the conversion dialog's own
+  // fixed scope.
+  function startEditConversion(c: EggUnitConversion) {
+    closeCreate();
+    closeEdit();
+    if (editingConvId !== null && editingConvId !== c.id) errors.abandon("edit-conversion");
+    setEditingConvId(c.id);
+    setEditEggs(c.eggsPerUnit);
+    setEditConvActive(c.active);
+  }
+
   async function onSaveEdit(e: FormEvent) {
     e.preventDefault();
     const id = editingId;
     if (id === null) return;
+    // See onCreate: the attempt starts here so a validation throw below still
+    // un-mutes and clears this dialog's own slot.
+    errors.beginAttempt("edit");
     const target = products?.find((p) => p.id === id);
     let priceMinor: number | null;
     try {
       priceMinor = toMinorUnits(editPrice, target?.currencyMinorUnit ?? currency.minor);
     } catch (err) {
-      setError(errorMessage(err));
+      errors.report("edit", errorMessage(err));
       return;
     }
-    const ok = await run(`update:${id}`, (key) =>
+    const ok = await run(`update:${id}`, "edit", (key) =>
       updateProduct(id, {
         name: editName,
         defaultUnit: editUnit,
@@ -211,7 +252,7 @@ export function ProductsPage() {
     e.preventDefault();
     const id = editingConvId;
     if (id === null) return;
-    const ok = await run(`conv:${id}`, (key) =>
+    const ok = await run(`conv:${id}`, "edit-conversion", (key) =>
       updateEggUnitConversion(id, { eggsPerUnit: editEggs, active: editConvActive }, key));
     if (ok) setEditingConvId(null);
   }
@@ -219,8 +260,8 @@ export function ProductsPage() {
   const gradeName = (id: string | null) =>
     grades.find((g) => g.id === id)?.name ?? (id ? id.slice(0, 8) : "—");
 
-  if (error && products === null) {
-    return <section><h2>{t("title")}</h2><p className="error">{error}</p></section>;
+  if (errors.page && products === null) {
+    return <section><h2>{t("title")}</h2><p className="error">{errors.page}</p></section>;
   }
   if (products === null) {
     return <section><h2>{t("title")}</h2><p className="muted">{tc("loading")}</p></section>;
@@ -228,14 +269,13 @@ export function ProductsPage() {
 
   const editingProduct = products.find((p) => p.id === editingId) ?? null;
   const editingConv = conversions.find((c) => c.id === editingConvId) ?? null;
-  const dialogOpen = creating || editingProduct !== null || editingConv !== null;
 
   return (
     <section>
       <div className="page-head">
         <h2>{t("title")}</h2>
         {isAdmin && (
-          <button type="button" onClick={() => { setError(null); setEditingId(null); setEditingConvId(null); setCreating(true); }}>
+          <button type="button" onClick={() => { closeEdit(); closeEditConversion(); setCreating(true); }}>
             <Plus size={16} aria-hidden /> {t("newProductButton")}
           </button>
         )}
@@ -244,11 +284,13 @@ export function ProductsPage() {
         {t("intro")}
       </p>
 
-      {/* A dialog renders its own copy of the error; don't double it. */}
-      {error && !dialogOpen && <p className="error" role="alert">{error}</p>}
+      {/* #479 — unconditional: each dialog now renders its own failure through
+          its own slot (DialogError below), so nothing here can be a stale copy
+          of a dialog's message; this is only ever the page's own. */}
+      {errors.page && <p className="error" role="alert">{errors.page}</p>}
 
       {/* Gated like the inline form was: a role change mid-edit closes it. */}
-      <Dialog open={creating && isAdmin} title={t("newProductDialogTitle")} onClose={() => setCreating(false)}>
+      <Dialog open={creating && isAdmin} title={t("newProductDialogTitle")} onClose={closeCreate}>
         <form onSubmit={(e) => void onCreate(e)} className="inline-form">
           <label>{t("nameLabel")}
             <input value={name} onChange={(e) => setName(e.target.value)} required maxLength={100} />
@@ -271,15 +313,15 @@ export function ProductsPage() {
           <label>{t("notesLabel")}
             <input value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={500} />
           </label>
-          {error && <p className="error" role="alert">{error}</p>}
+          <DialogError errors={errors} scope="create" />
           <div className="dialog-foot">
-            <button type="button" className="link" onClick={() => setCreating(false)}>{tc("cancel")}</button>
+            <button type="button" className="link" onClick={closeCreate}>{tc("cancel")}</button>
             <BusyButton disabled={busy} busy={isPending("create-product")}>{t("addProductButton")}</BusyButton>
           </div>
         </form>
       </Dialog>
 
-      <Dialog open={editingProduct !== null && isAdmin} title={t("editProductDialogTitle")} onClose={() => setEditingId(null)}>
+      <Dialog open={editingProduct !== null && isAdmin} title={t("editProductDialogTitle")} onClose={closeEdit}>
         {/* noValidate: the row's save used to be a plain button, so the browser
             never enforced min/step — the price parser's own message
             ("At most N decimal places for this currency") did. */}
@@ -305,9 +347,9 @@ export function ProductsPage() {
           </label>
           {/* No notes field: the inline edit had none, and #131 changes shape,
               not capability. editNotes stays seeded so the body round-trips. */}
-          {error && <p className="error" role="alert">{error}</p>}
+          <DialogError errors={errors} scope="edit" />
           <div className="dialog-foot">
-            <button type="button" className="link" onClick={() => setEditingId(null)}>{tc("cancel")}</button>
+            <button type="button" className="link" onClick={closeEdit}>{tc("cancel")}</button>
             <BusyButton type="submit" disabled={busy}
               busy={editingId !== null && isPending(`update:${editingId}`)}>{tc("save")}</BusyButton>
           </div>
@@ -317,7 +359,7 @@ export function ProductsPage() {
       <Dialog
         open={editingConv !== null && isAdmin}
         title={editingConv ? t("eggsPerUnit", { unitCode: editingConv.unitCode }) : t("packedUnitDialogTitle")}
-        onClose={() => setEditingConvId(null)}
+        onClose={closeEditConversion}
       >
         <form onSubmit={(e) => void onSaveConversion(e)} className="inline-form" noValidate>
           {/* #250: sibling label, not wrapping — a <label> may not contain
@@ -332,9 +374,9 @@ export function ProductsPage() {
             <input type="checkbox" checked={editConvActive}
               onChange={(e) => setEditConvActive(e.target.checked)} /> {t("activeCheckboxLabel")}
           </label>
-          {error && <p className="error" role="alert">{error}</p>}
+          <DialogError errors={errors} scope="edit-conversion" />
           <div className="dialog-foot">
-            <button type="button" className="link" onClick={() => setEditingConvId(null)}>{tc("cancel")}</button>
+            <button type="button" className="link" onClick={closeEditConversion}>{tc("cancel")}</button>
             <BusyButton type="submit" disabled={busy}
               busy={editingConvId !== null && isPending(`conv:${editingConvId}`)}>{tc("save")}</BusyButton>
           </div>
@@ -363,12 +405,12 @@ export function ProductsPage() {
                     <button className="link" disabled={busy} onClick={() => startEdit(p)}>{t("editButton")}</button>{" "}
                     {p.active ? (
                       <BusyButton className="link" disabled={busy} busy={isPending(`deact:${p.id}`)}
-                        onClick={() => void run(`deact:${p.id}`, (key) => deactivateProduct(p.id, key))}>
+                        onClick={() => void run(`deact:${p.id}`, null, (key) => deactivateProduct(p.id, key))}>
                         {t("deactivateButton")}
                       </BusyButton>
                     ) : (
                       <BusyButton className="link" disabled={busy} busy={isPending(`act:${p.id}`)}
-                        onClick={() => void run(`act:${p.id}`, (key) => activateProduct(p.id, key))}>
+                        onClick={() => void run(`act:${p.id}`, null, (key) => activateProduct(p.id, key))}>
                         {t("activateButton")}
                       </BusyButton>
                     )}
@@ -400,14 +442,7 @@ export function ProductsPage() {
                     <span className="muted">{t("alwaysOneMessage")}</span>
                   ) : (
                     <button className="link" disabled={busy}
-                      onClick={() => {
-                        setError(null);
-                        setCreating(false);
-                        setEditingId(null);
-                        setEditingConvId(c.id);
-                        setEditEggs(c.eggsPerUnit);
-                        setEditConvActive(c.active);
-                      }}>
+                      onClick={() => startEditConversion(c)}>
                       {t("editButton")}
                     </button>
                   )}

@@ -6,7 +6,7 @@ import { account } from "../test/fixtures";
 import {
   activateInventoryItem, createInventoryItem, deactivateInventoryItem, getAccount,
   listFlocks, listInventoryItems, listInventoryLots, listInventoryMovements,
-  recordFeedUsage, recordInventoryAdjustment, recordInventoryPurchase, updateInventoryItem,
+  recordInventoryAdjustment, recordInventoryPurchase, updateInventoryItem,
 } from "../api/cluckwork";
 import type { Account, Flock, InventoryItem, InventoryLot, InventoryMovement } from "../api/cluckwork";
 import { ApiError } from "../api/client";
@@ -45,7 +45,6 @@ const mockActivate = vi.mocked(activateInventoryItem);
 const mockDeactivate = vi.mocked(deactivateInventoryItem);
 const mockPurchase = vi.mocked(recordInventoryPurchase);
 const mockListLots = vi.mocked(listInventoryLots);
-const mockUsage = vi.mocked(recordFeedUsage);
 const mockAdjust = vi.mocked(recordInventoryAdjustment);
 const mockListMovements = vi.mocked(listInventoryMovements);
 
@@ -76,7 +75,6 @@ const FLOCK: Flock = {
 };
 // A second Active flock so the usage "Flock" select offers TWO options: picking
 // the second proves the request carries the chosen flockId, not a hard-coded index.
-const FLOCK2: Flock = { ...FLOCK, id: "fl2", name: "Flock Two" };
 
 const LOT: InventoryLot = {
   id: "lot1", inventoryItemId: "it1", receivedDate: "2026-07-01", lotNumber: "L-1",
@@ -316,39 +314,24 @@ describe("InventoryPage purchases", () => {
   // runs — a non-positive value never reaches the guard via a real click.
 });
 
-describe("InventoryPage feed usage", () => {
-  it("records feed usage against the SECOND selected flock, date, quantity + key on the opened item", async () => {
-    // TWO flocks so the select has two options and "fl1" is the prefilled default:
-    // choosing the second proves the request carries the selected flockId, not the
-    // default index.
-    mockListFlocks.mockResolvedValue([FLOCK, FLOCK2]);
-    mockUsage.mockResolvedValue({ feedUsageId: "fu1", quantityUsed: 25, estimatedCostMinorUnits: 0, currencyCode: "USD" });
-    await renderReady(WORKER); // usage is open to everyone, not just admins
+// #446 — the usage dialog moved to the /feed page; the panel keeps only a
+// deep link that carries the opened item along. Recording behavior is pinned
+// in FeedPage.test.tsx.
+describe("InventoryPage feed usage link", () => {
+  it("links a feedable item's panel to the Feed page with the item preselected", async () => {
+    await renderReady(WORKER); // recording is open to everyone, not just admins
     await openItem(FEED);
 
-    const form = openDialog("Record usage");
-    // Move off the prefilled first flock (fl1) to the second (fl2).
-    fireEvent.change(within(form).getByLabelText(/Flock/), { target: { value: "fl2" } });
-    fireEvent.change(within(form).getByLabelText(/Date/), { target: { value: "2026-07-10" } });
-    fireEvent.change(within(form).getByLabelText(/Quantity/), { target: { value: "25" } });
-    await act(async () => {
-      fireEvent.click(within(dialog()).getByRole("button", { name: "Record usage" }));
-    });
-
-    expect(mockUsage.mock.calls[0][0]).toBe("it1");
-    expect(mockUsage.mock.calls[0][1]).toEqual({
-      flockId: "fl2", date: "2026-07-10", quantity: 25, note: undefined, // the CHOSEN flock, not fl1
-    });
-    expect(mockUsage.mock.calls[0][2]).toEqual(expect.any(String));
-    expect(screen.getByText(/Feed usage recorded/)).toBeInTheDocument();
+    const link = screen.getByRole("link", { name: "Record usage on the Feed page" });
+    expect(link).toHaveAttribute("href", "/feed?item=it1");
   });
 
-  it("does not offer a usage form for a non-feedable category", async () => {
+  it("does not offer the usage link for a non-feedable category", async () => {
     await renderReady(WORKER);
     await openItem(PACKAGING);
 
     expect(screen.getByText(/aren't fed to flocks/)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Record usage" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Record usage on the Feed page" })).not.toBeInTheDocument();
   });
 });
 
@@ -559,17 +542,6 @@ describe("InventoryPage dialog dismissal", () => {
     expect(mockPurchase).not.toHaveBeenCalled();
   });
 
-  it("closes the usage dialog on Cancel without writing", async () => {
-    await renderReady(ADMIN);
-    await openItem(FEED);
-    openDialog("Record usage");
-
-    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
-
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    expect(mockUsage).not.toHaveBeenCalled();
-  });
-
   it("closes the correction dialog on Cancel without writing", async () => {
     mockListLots.mockResolvedValue([LOT]);
     await renderReady(ADMIN);
@@ -596,6 +568,207 @@ describe("InventoryPage role gating", () => {
     expect(screen.getByText(/Stock corrections need an admin/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Correct stock" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Record purchase" })).toBeInTheDocument();
+  });
+});
+
+describe("InventoryPage errors scoped per dialog (#479)", () => {
+  it("renders the create dialog's own failure inside it, not on the page", async () => {
+    mockCreate.mockRejectedValueOnce(new ApiError(500, "Server error", "create boom"));
+    await renderReady(ADMIN);
+    const form = openDialog("New item");
+    fireEvent.change(within(form).getByLabelText("Item name *"), { target: { value: "X" } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Add item" }));
+    });
+    expect(within(dialog()).getByText("create boom")).toBeInTheDocument();
+    expect(screen.getAllByText("create boom")).toHaveLength(1);
+  });
+
+  it("renders the edit dialog's own failure inside it, not on the page", async () => {
+    mockUpdate.mockRejectedValueOnce(new ApiError(500, "Server error", "edit boom"));
+    await renderReady(ADMIN);
+    fireEvent.click(within(screen.getByRole("row", { name: /Layer Feed/ })).getByRole("button", { name: "edit" }));
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Save" }));
+    });
+    expect(within(dialog()).getByText("edit boom")).toBeInTheDocument();
+    expect(screen.getAllByText("edit boom")).toHaveLength(1);
+  });
+
+  it("renders the purchase dialog's own failure inside it, not on the page", async () => {
+    mockPurchase.mockRejectedValueOnce(new ApiError(500, "Server error", "purchase boom"));
+    await renderReady(ADMIN);
+    await openItem(PACKAGING);
+    const form = openDialog("Record purchase");
+    fireEvent.change(within(form).getByLabelText(/Quantity/), { target: { value: "3" } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Record purchase" }));
+    });
+    expect(within(dialog()).getByText("purchase boom")).toBeInTheDocument();
+    expect(screen.getAllByText("purchase boom")).toHaveLength(1);
+  });
+
+  it("renders the correction dialog's own failure inside it, not on the page", async () => {
+    mockListLots.mockResolvedValue([LOT]);
+    mockAdjust.mockRejectedValueOnce(new ApiError(500, "Server error", "adjust boom"));
+    await renderReady(ADMIN);
+    await openItem(FEED);
+    const form = openDialog("Correct stock");
+    fireEvent.change(within(form).getByLabelText(/Quantity/), { target: { value: "-5" } });
+    fireEvent.change(within(form).getByLabelText(/Reason/), { target: { value: "spillage" } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Record correction" }));
+    });
+    expect(within(dialog()).getByText("adjust boom")).toBeInTheDocument();
+    expect(screen.getAllByText("adjust boom")).toHaveLength(1);
+  });
+
+  // The reachable bug: nothing on this screen closes one dialog when another
+  // opens except the create/edit pair, so a create dialog and the purchase
+  // dialog can be open at once. The quantity guard fires on every wrong
+  // keystroke — no race needed — and with ONE shared error slot its message
+  // used to leak into whichever other dialog happened to be open too.
+  // Bypasses the HTML min constraint via a direct submit, same technique as
+  // the WaterPage/FeedPage siblings (a real click never reaches the handler).
+  it("keeps the purchase quantity validation message inside the purchase dialog, not another open dialog or the page", async () => {
+    await renderReady(ADMIN);
+    fireEvent.click(screen.getByRole("button", { name: "New item" })); // left open
+    await openItem(PACKAGING);
+    fireEvent.click(screen.getByRole("button", { name: "Record purchase" }));
+    const purchaseDialog = screen.getByRole("dialog", { name: /Record purchase/ });
+
+    fireEvent.change(within(purchaseDialog).getByLabelText(/Quantity/), { target: { value: "-1" } });
+    const form = within(purchaseDialog).getByRole("button", { name: "Record purchase" }).closest("form")!;
+    await act(async () => { fireEvent.submit(form); });
+
+    expect(within(purchaseDialog).getByText("Quantity must be a positive number.")).toBeInTheDocument();
+    expect(screen.getAllByText("Quantity must be a positive number.")).toHaveLength(1);
+    expect(mockPurchase).not.toHaveBeenCalled();
+  });
+
+  // Displacement: the edit scope is per-item (`edit:${id}`), so a switch
+  // straight from item A's failed edit to item B leaves A's verdict parked in
+  // a slot nothing currently renders — until A's edit is REOPENED, which
+  // would replay a dead session's failure into a fresh one (pi review of
+  // #491). The row buttons behind the backdrop stay reachable to a screen
+  // reader's virtual cursor (#480).
+  it("does not replay a failed edit when that item's dialog is reopened after switching items", async () => {
+    mockUpdate.mockRejectedValueOnce(new ApiError(500, "Server error", "edit boom"));
+    await renderReady(ADMIN);
+    fireEvent.click(within(screen.getByRole("row", { name: /Layer Feed/ })).getByRole("button", { name: "edit" }));
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Save" }));
+    });
+    expect(within(dialog()).getByText("edit boom")).toBeInTheDocument();
+
+    // Switch straight to Egg Cartons' edit — no Cancel in between.
+    fireEvent.click(within(screen.getByRole("row", { name: /Egg Cartons/ })).getByRole("button", { name: "edit" }));
+    expect(within(dialog()).getByLabelText(/Item name/)).toHaveValue("Egg Cartons");
+    expect(screen.queryByText("edit boom")).not.toBeInTheDocument();
+
+    // Cancel, then reopen Layer Feed: a new session, no stale verdict.
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+    fireEvent.click(within(screen.getByRole("row", { name: /Layer Feed/ })).getByRole("button", { name: "edit" }));
+    expect(within(dialog()).getByLabelText(/Item name/)).toHaveValue("Layer Feed");
+    expect(screen.queryByText("edit boom")).not.toBeInTheDocument();
+  });
+
+  // The purchase/adjust dialogs are bound to the ACTIVE item's panel, so
+  // opening another item's panel COULD rebind an open dialog to the new item
+  // in place — title changes, nothing else does — leaving a stale quantity
+  // and someone else's verdict sitting in a form that now claims to be about
+  // a different item. `onOpen` closes both dialogs on a genuine item switch
+  // instead (adversarial review of #491: rebinding silently is worse than
+  // closing, since the leftover values are one Enter away from a purchase
+  // recorded against the wrong item).
+  it("closes an open purchase dialog, instead of rebinding it, when a different item is opened", async () => {
+    mockPurchase.mockRejectedValueOnce(new ApiError(500, "Server error", "purchase boom"));
+    await renderReady(ADMIN);
+    await openItem(PACKAGING);
+    const form = openDialog("Record purchase");
+    fireEvent.change(within(form).getByLabelText(/Quantity/), { target: { value: "3" } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Record purchase" }));
+    });
+    expect(within(dialog()).getByText("purchase boom")).toBeInTheDocument();
+
+    await openItem(FEED);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByText("purchase boom")).not.toBeInTheDocument();
+  });
+
+  // Re-opening the SAME still-active item is not a displacement — the panel
+  // heading re-renders (loadLedger runs again) but the open purchase dialog,
+  // and whatever the user has typed into it, must survive.
+  it("keeps an open purchase dialog and its typed values when the same item is opened again", async () => {
+    await renderReady(ADMIN);
+    await openItem(PACKAGING);
+    const form = openDialog("Record purchase");
+    fireEvent.change(within(form).getByLabelText(/Quantity/), { target: { value: "3" } });
+
+    // Not openItem(PACKAGING): its heading wait would collide with the still-
+    // open dialog's own title naming the same item.
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole("row", { name: /Egg Cartons/ })).getByRole("button", { name: "open" }));
+    });
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(within(dialog()).getByLabelText(/Quantity/)).toHaveValue(3);
+  });
+
+  // The panel's own Close button (`setActive(null)`) does not run the
+  // onOpen guard — `active` is already null when a DIFFERENT item is opened
+  // next, so an id comparison alone would miss it and the purchase dialog
+  // would spring back open over the new item, stale quantity and all.
+  it("does not resurrect a purchase dialog for a new item after the panel was closed and reopened elsewhere", async () => {
+    await renderReady(ADMIN);
+    await openItem(PACKAGING);
+    const form = openDialog("Record purchase");
+    fireEvent.change(within(form).getByLabelText(/Quantity/), { target: { value: "3" } });
+
+    // The PANEL's own close link ("close", lowercase) — not the purchase
+    // dialog's own "X" (accessible name "Close"), which already runs
+    // `closePurchase` via `onClose` and would pass this test regardless of
+    // the guard under test.
+    fireEvent.click(screen.getByRole("button", { name: "close" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    await openItem(FEED);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("keeps a background ledger-read failure off an open dialog and puts it on the page instead", async () => {
+    mockListMovements.mockRejectedValueOnce(new ApiError(500, "Server error", "ledger down"));
+    await renderReady(ADMIN);
+    const createDialogEl = openDialog("New item");
+    const row = screen.getByRole("row", { name: /Layer Feed/ });
+    await act(async () => {
+      fireEvent.click(within(row).getByRole("button", { name: "open" }));
+    });
+
+    expect(await screen.findByText("Could not load the movement ledger.")).toBeInTheDocument();
+    expect(within(createDialogEl).queryByText("Could not load the movement ledger.")).not.toBeInTheDocument();
+    expect(screen.getAllByText("Could not load the movement ledger.")).toHaveLength(1);
+  });
+
+  it("keeps a page failure visible after opening a dialog and running a failing dialog write", async () => {
+    mockListMovements.mockRejectedValueOnce(new ApiError(500, "Server error", "ledger down"));
+    mockCreate.mockRejectedValueOnce(new ApiError(500, "Server error", "create boom"));
+    await renderReady(ADMIN);
+
+    const row = screen.getByRole("row", { name: /Layer Feed/ });
+    await act(async () => {
+      fireEvent.click(within(row).getByRole("button", { name: "open" }));
+    });
+    expect(await screen.findByText("Could not load the movement ledger.")).toBeInTheDocument();
+
+    const form = openDialog("New item");
+    fireEvent.change(within(form).getByLabelText("Item name *"), { target: { value: "X" } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Add item" }));
+    });
+
+    expect(screen.getByText("Could not load the movement ledger.")).toBeInTheDocument();
+    expect(within(dialog()).getByText("create boom")).toBeInTheDocument();
   });
 });
 

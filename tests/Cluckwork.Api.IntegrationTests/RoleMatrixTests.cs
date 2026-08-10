@@ -107,6 +107,39 @@ public sealed class RoleMatrixTests(CluckworkWebApplicationFactory factory)
             new { reason = "manager void" })).StatusCode);
     }
 
+    // #406 — stock write-off is corrective-tier: Owner + Manager record it,
+    // every other tier is refused. Each refused tier is asserted separately
+    // (per the issue's AC): a single "non-admin is refused" probe passes
+    // while two of the three tiers are wide open.
+    [Fact]
+    public async Task StockWriteOff_OwnerAndManagerOnly_EachOtherTierRefused()
+    {
+        var (accountId, _, _, gradeId) = await SeedFarmAsync();
+        var lotId = await factory.SeedEggLotAsync(accountId, gradeId, 100);
+        var url = $"/api/v1/stock/lots/{lotId}/movements";
+        static object Body() => new { movementType = "Discard", quantityDelta = -1, reason = "role probe" };
+
+        var owner = await ClientAsync(accountId, Roles.Owner);
+        Assert.Equal(HttpStatusCode.OK,
+            (await owner.PostWithKeyAsync(url, Guid.NewGuid().ToString(), Body())).StatusCode);
+
+        var manager = await ClientAsync(accountId, Roles.Manager);
+        Assert.Equal(HttpStatusCode.OK,
+            (await manager.PostWithKeyAsync(url, Guid.NewGuid().ToString(), Body())).StatusCode);
+
+        var sales = await ClientAsync(accountId, Roles.Sales);
+        Assert.Equal(HttpStatusCode.Forbidden,
+            (await sales.PostWithKeyAsync(url, Guid.NewGuid().ToString(), Body())).StatusCode);
+
+        var readOnly = await ClientAsync(accountId, Roles.ReadOnly);
+        Assert.Equal(HttpStatusCode.Forbidden,
+            (await readOnly.PostWithKeyAsync(url, Guid.NewGuid().ToString(), Body())).StatusCode);
+
+        var worker = await ClientAsync(accountId, (string?)null);
+        Assert.Equal(HttpStatusCode.Forbidden,
+            (await worker.PostWithKeyAsync(url, Guid.NewGuid().ToString(), Body())).StatusCode);
+    }
+
     // A plain Worker is refused across the entire corrective + money-config
     // surface — the "missing gate" regression class this repo has shipped
     // before (#104 panel).

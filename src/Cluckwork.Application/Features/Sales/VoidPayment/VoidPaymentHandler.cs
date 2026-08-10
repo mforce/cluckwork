@@ -31,7 +31,7 @@ public sealed class VoidPaymentHandler(
         if (result.IsFailure) return result.LogFailure(logger, "VoidPayment");
 
         // Same SaveChanges as the change (#93): commits or fails with it.
-        await audit.WriteAsync("Payment.Void", nameof(Payment), payment.Id,
+        await audit.WriteAsync(AuditActions.PaymentVoid, nameof(Payment), payment.Id,
             command.Reason,
             new { payment.SalesOrderId, payment.AmountMinorUnits, payment.CurrencyCode }, ct);
 

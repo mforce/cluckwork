@@ -10,6 +10,10 @@ obj/
 .env
 .env.*
 !deploy/.env.example
+# #458 — VITE_APP_VERSION only, a public string baked into the client bundle
+# regardless of whether it's committed; release-please bumps it in lockstep
+# with version.txt (see release-please-config.json's extra-files).
+!web/.env.production
 appsettings.Development.local.json
 
 # OS/editor noise
@@ -39,3 +43,8 @@ node_modules/
 # and they embed the developer's machine name and absolute home path.
 TestResults/
 *.trx
+
+.agents/skills
+.claude/skills
+.codex/skills
+skills-lock.json

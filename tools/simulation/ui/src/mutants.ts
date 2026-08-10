@@ -145,6 +145,24 @@ export const MUTANTS: Record<string, Mutant> = {
   },
 
   // --- data integrity on screen -------------------------------------------
+  "stock-pager-inert": {
+    breaks:
+      "offset paging on the lot list (#465) — every page request is rewritten to offset 0, so "
+      + "load more re-serves page one forever and older lots stay unreachable (the pre-#465 "
+      + "behavior; the SPA's id-dedupe silently appends nothing)",
+    caughtBy: "readonly.spec.ts — pages a deep grade's lots with load more (#465)",
+    apply: async (page) => {
+      await page.route("**/api/v1/stock/lots**", async (route) => {
+        const url = new URL(route.request().url());
+        const offset = url.searchParams.get("offset");
+        if (offset === null || offset === "0") return route.fallback();
+        url.searchParams.set("offset", "0");
+        const response = await route.fetch({ url: url.toString() });
+        await route.fulfill({ response });
+      });
+    },
+  },
+
   "stock-summary-broken": {
     breaks: "the stock summary fetch, so the dashboard's stat tiles fall back to their em-dash",
     caughtBy: "owner.spec.ts — dashboard shows real production, stock and sales data",
@@ -265,6 +283,27 @@ export const MUTANTS: Record<string, Mutant> = {
       await page.route("**/api/v1/auth/logout", async (route) => {
         // Answer OK without ever reaching the server, so the cookie is never
         // revoked — exactly what a silently-failing revoke looks like.
+        await route.fulfill({ status: 204, body: "" });
+      });
+    },
+  },
+
+  // --- preferences ---------------------------------------------------------
+  "language-persist-dropped": {
+    breaks: "server-side persistence of the language preference — the PUT answers 204 and saves nothing",
+    caughtBy: "i18n.spec.ts — switching to <lang> renders that language across the shell",
+    apply: async (page) => {
+      // #486 — the durability half of that spec (clear the device hint, reload,
+      // and expect the language to come back from /me) is the only thing
+      // standing between "the server persisted it" and "the browser remembered
+      // it". Nothing mutated that until now, which is the same blind spot that
+      // let the spec's own persist assertion go vacuous without anyone noticing.
+      //
+      // Note what this does and does not cover: it breaks the SERVER guarantee,
+      // so it goes red under the old spec as well as the new one. Whether the
+      // spec waits for the RIGHT request is a property of the test, not of the
+      // app, and cannot be mutated from the network boundary.
+      await page.route("**/api/v1/me/language", async (route) => {
         await route.fulfill({ status: 204, body: "" });
       });
     },

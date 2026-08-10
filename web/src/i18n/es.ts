@@ -65,6 +65,13 @@ export const es = {
     preferences: "Preferencias",
     language: "Idioma",
     languageHint: "El idioma en que se muestra la interfaz, solo para usted.",
+    stepperUnit: "Unidad de conteo de la entrada diaria",
+    stepperUnitHint:
+      "Cuánto cuentan los botones +/− de la entrada diaria, solo para usted — elija una "
+      + "unidad de empaque como Tray para contar por bandeja en lugar de por huevo, o siga "
+      + "el valor predeterminado de la granja.",
+    stepperUnitFarmDefaultOption: "Predeterminado de la granja ({{unit}})",
+    stepperUnitSaveFailed: "No se pudo guardar — su unidad de conteo no cambió.",
 
     // machine-drafted (#182) — pending native review. Task 25 (B4): the rest
     // of AccountPage. Keys mirror en.ts exactly, including {{role}}/{{min}}
@@ -107,6 +114,7 @@ export const es = {
     dashboard: "Panel",
     dailyEntry: "Registro diario",
     flocks: "Lotes",
+    feed: "Alimento",
     water: "Agua",
     inventory: "Inventario",
     stock: "Existencias",
@@ -130,6 +138,7 @@ export const es = {
     skipToContent: "Saltar al contenido principal",
     primaryNavAriaLabel: "Principal",
     signOut: "Cerrar sesión",
+    versionLabel: "v{{version}}",
     farmLoadFailedNeverLoaded:
       "No se pudo cargar la configuración de esta granja, así que las "
       + "fechas siguen a este dispositivo en lugar de a la granja.",
@@ -152,6 +161,8 @@ export const es = {
   numberField: {
     increaseLabel: "Aumentar {{label}}",
     decreaseLabel: "Disminuir {{label}}",
+    increaseByLabel: "Aumentar {{label}} en {{step}}",
+    decreaseByLabel: "Disminuir {{label}} en {{step}}",
   },
 
   // machine-drafted (#182) — pending native review. Task CT1 (B1 catch-up):
@@ -230,6 +241,12 @@ export const es = {
     product: "Producto",
     perLabel: "Por",
     quantity: "Cantidad",
+    // #445
+    quantityWithUnit: "Cantidad ({{unit}})",
+    equalsEggs: "= {{count}} huevos",
+    equalsEggs_one: "= {{count}} huevo",
+    productOptionWithUnit: "{{name}} ({{count}} huevos/{{unit}})",
+    productOptionWithUnit_one: "{{name}} ({{count}} huevo/{{unit}})",
     unitPriceWithCurrency: "Precio unitario ({{code}})",
     method: "Método",
     referenceOptional: "Referencia (opcional)",
@@ -400,6 +417,17 @@ export const es = {
 
     // Pinned footer (phone-only summary + saves)
     countsExceedFooterMessage: "Las pérdidas superan el total — corrija los conteos",
+    // #446
+    daySupportFeed: "Alimento: {{count}} registros (est. {{cost}})",
+    daySupportFeed_one: "Alimento: {{count}} registro (est. {{cost}})",
+    // Cost dropped when the day's rows span currencies — never a blended sum.
+    daySupportFeedNoCost: "Alimento: {{count}} registros",
+    daySupportFeedNoCost_one: "Alimento: {{count}} registro",
+    daySupportFeedNone: "Alimento: 0 registros",
+    daySupportWater: "Agua: {{count}} registros",
+    daySupportWater_one: "Agua: {{count}} registro",
+    daySupportWaterNone: "Agua: 0 registros",
+    stepperUnitCaption: "Contando por {{unit}} — cada toque de − / + mueve {{count}} huevos. Escribir sigue ingresando números exactos.",
     sellableWord: "vendible",
     saveDraftButton: "Guardar borrador",
     submitButton: "Guardar y enviar (crea lotes de huevos)",
@@ -465,13 +493,49 @@ export const es = {
   // placeholder (no <Trans> tags in this namespace). Source/Unit picker
   // values go through the `enums` waterSourceLabel/waterUnitLabel helpers,
   // not a key here.
+  // #446 — machine-drafted, pending native review (translate-now policy).
+  feed: {
+    title: "Alimento",
+    loadFailed: "No se pudieron cargar las parvadas y los artículos de alimento. ¿Está activa la API?",
+    loadRecordsFailed: "No se pudieron cargar los registros de alimento.",
+    intro:
+      "Registre lo que se alimentó a cada parvada. El inventario se descuenta "
+      + "de las compras más antiguas primero y el costo estimado proviene de esos lotes.",
+    flockLabel: "Parvada",
+    depletedFlockSuffix: " — agotada, solo registro retroactivo",
+    itemLabel: "Artículo",
+    itemOption: "{{name}} ({{onHand}} {{unit}} disponibles)",
+    dateLabel: "Fecha",
+    quantityLabel: "Cantidad",
+    quantityLabelWithUnit: "Cantidad ({{unit}})",
+    noteLabel: "Nota",
+    recordFeedButton: "Registrar alimento",
+    quantityMustBePositive: "La cantidad debe ser un número positivo.",
+    recordedMessage: "Alimento registrado.",
+    correctionsHint:
+      "Una alimentación mal ingresada se corrige con un ajuste de Inventario en el "
+      + "lote afectado — los registros de alimento nunca se editan.",
+    filterFlockLabel: "Filtrar por parvada",
+    inactiveItemSuffix: " — inactivo, consumiendo existencias restantes",
+    inactiveEmptyItemSuffix: " — inactivo, sin existencias",
+    recordsHeading: "Registros",
+    fromLabel: "Desde",
+    toLabel: "Hasta",
+    noRecordsMatch: "Ningún registro de alimento coincide.",
+    dateHeader: "Fecha",
+    flockHeader: "Parvada",
+    itemHeader: "Artículo",
+    amountHeader: "Cantidad",
+    estimatedCostHeader: "Costo est.",
+    noteHeader: "Nota",
+    loadMoreButton: "cargar más",
+  },
   water: {
     title: "Agua",
 
     // Imperative messages
     loadFlocksFailed: "No se pudieron cargar los lotes. ¿Está la API activa?",
     loadRecordsFailed: "No se pudieron cargar los registros de agua.",
-    loadMoreFailed: "No se pudo cargar más.",
     concurrentEditError:
       "Este registro se acaba de cambiar en otro lugar — recargue la lista "
       + "e inténtelo de nuevo.",
@@ -595,9 +659,6 @@ export const es = {
     loadLedgerFailed: "No se pudo cargar el registro de movimientos.",
     quantityMustBePositive: "La cantidad debe ser un número positivo.",
     purchaseRecordedMessage: "Compra registrada — existencias recibidas.",
-    usageRecordedMessage:
-      "Uso de alimento registrado — se consumieron primero las existencias "
-      + "de los lotes más antiguos.",
     adjustQuantityRequired:
       "La cantidad de ajuste debe ser un número distinto de cero (negativo "
       + "quita existencias).",
@@ -619,12 +680,11 @@ export const es = {
     // Item panel (opened item)
     itemPanelHeading: "{{name}} — {{quantity}} {{unit}} disponible(s)",
     recordPurchaseButton: "Registrar compra",
-    recordUsageButton: "Registrar uso",
+    recordUsageLink: "Registrar uso en la página de Alimento",
     correctStockButton: "Corregir existencias",
     notFeedableMessage:
       "Los artículos de {{category}} no se dan de comer a los lotes — el "
       + "uso solo aplica a artículos de Alimento, Suplemento y Aditivo.",
-    noFlocksForUsageMessage: "No hay lotes — el uso necesita un lote para alimentar.",
     correctionsNeedAdminMessage: "Las correcciones de existencias requieren un administrador.",
     noLotsMessage: "Aún no hay lotes — las correcciones se aplican a un lote recibido.",
 
@@ -642,11 +702,9 @@ export const es = {
     recordPurchaseSubmitButton: "Registrar compra",
 
     // Record-usage dialog
-    recordUsageDialogTitle: "Registrar uso — {{name}}",
     flockLabel: "Lote",
     depletedFlockSuffix: " (agotado — solo para registrar fechas pasadas)",
     dateLabel: "Fecha",
-    recordUsageSubmitButton: "Registrar uso",
 
     // Correct-stock dialog
     correctStockDialogTitle: "Corregir existencias — {{name}}",
@@ -781,6 +839,10 @@ export const es = {
     producedHeader: "Producido",
     historyButton: "historial",
     hideHistoryButton: "ocultar historial",
+    // #465 — paginación + ventana de fechas sobre la tabla de lotes.
+    fromLabel: "Desde",
+    toLabel: "Hasta",
+    loadMoreButton: "cargar más",
 
     // Movement ledger drill-down (per lot)
     movementLedgerHeading: "Registro de movimientos",
@@ -791,6 +853,25 @@ export const es = {
     ledgerTypeHeader: "Tipo",
     ledgerChangeHeader: "Cambio",
     ledgerReasonHeader: "Motivo",
+
+    // #406 — baja / reconciliación por lote (solo Propietario/Gerente).
+    writeOffButton: "dar de baja",
+    writeOffNeedsAdminMessage: "Las correcciones de existencias requieren un Propietario o Gerente.",
+    writeOffDialogTitle: "Corregir existencias — lote del {{date}}",
+    writeOffTypeLabel: "Tipo",
+    writeOffDirectionLabel: "Dirección",
+    writeOffDirectionRemoveOption: "Quitar huevos (perdidos o menos de lo registrado)",
+    writeOffDirectionAddOption: "Devolver huevos (el recuento encontró más)",
+    writeOffQuantityLabel: "Huevos",
+    writeOffReasonLabel: "Motivo",
+    writeOffPreviewMessage: "{{current}} → {{result}} disponibles",
+    writeOffSubmitButton: "Registrar corrección",
+    writeOffRecordedMessage: "Corrección registrada — {{available}} disponibles ahora.",
+    writeOffQuantityRequired: "Indique cuántos huevos.",
+    writeOffReasonRequired: "Las correcciones requieren un motivo.",
+    writeOffOutOfRangeMessage:
+      "El resultado debe quedar entre 0 y los {{produced}} que produjo este lote. "
+      + "Un recuento por encima de la producción es un ajuste de la entrada diaria.",
   },
 
   // machine-drafted (#182) — pending native review. Task CT3 (B3 catch-up):
@@ -942,6 +1023,11 @@ export const es = {
       + "ella. El dinero registrado nunca se vuelve a valorar, así que "
       + "cambiar esto dejaría cada total guardado con otro significado.",
     unitSystemLabel: "Sistema de unidades",
+    defaultStepperUnitLabel: "Unidad de conteo de la entrada diaria",
+    defaultStepperUnitHint:
+      "Cuánto cuentan los botones +/− de la entrada diaria para todos en esta granja — "
+      + "por ejemplo Tray para contar por bandeja (30 huevos) en lugar de huevo por huevo. "
+      + "Cada persona puede elegir la suya en su pantalla de Cuenta.",
     firstDayOfWeekLabel: "Primer día de la semana",
     followLocaleOption: "Seguir la configuración regional",
     paletteLegend: "Paleta de la granja",
@@ -954,6 +1040,9 @@ export const es = {
     paletteTerracotta: "Terracota",
     dateFormatLabel: "Formato de fecha",
     timeFormatLabel: "Formato de hora",
+    customFormatOption: "Personalizado…",
+    customDateFormatLabel: "Formato de fecha personalizado",
+    customTimeFormatLabel: "Formato de hora personalizado",
     savingButton: "Guardando…",
     saveButton: "Guardar configuración",
     effectNote:
@@ -1003,14 +1092,24 @@ export const es = {
     stepUpFieldLabel: "Tu contraseña actual *",
     stepUpCreateHint: "Crear otro propietario requiere volver a ingresar tu contraseña actual.",
     stepUpResetHint: "Restablecer la contraseña de un propietario requiere volver a ingresar tu contraseña actual.",
+    stepUpRoleHint: "Ascender a alguien a propietario requiere volver a ingresar tu contraseña actual.",
+    // #356 — re-confirmación incondicional (machine-drafted, pending native review)
+    stepUpDisableHint: "Deshabilitar a un usuario requiere volver a ingresar tu contraseña actual.",
+    stepUpEnableHint: "Volver a habilitar a un usuario requiere volver a ingresar tu contraseña actual.",
 
     // Users table
     emailColumnHeader: "Correo electrónico",
     nameColumnHeader: "Nombre",
     roleColumnHeader: "Rol",
+    statusColumnHeader: "Estado",
     editButton: "editar",
     resetPasswordButton: "contraseña",
+    changeRoleButton: "rol",
+    changeRoleSubmitButton: "Cambiar rol",
     flocksButton: "lotes",
+    disabledBadge: "Deshabilitado",
+    disableButton: "deshabilitar",
+    enableButton: "habilitar",
 
     // Flock-access dialog
     flockAccessTitle: "Acceso a lotes — {{email}}",
@@ -1036,11 +1135,32 @@ export const es = {
     confirmPasswordFieldLabel: "Confirmar nueva contraseña *",
     setPasswordButton: "Establecer contraseña",
 
+    // Change-role dialog
+    changeRoleTitle: "Cambiar rol — {{email}}",
+    roleDialogHint:
+      "Cambiar el rol de alguien cierra su sesión en todos los "
+      + "dispositivos. No se puede degradar al último propietario de la "
+      + "cuenta, y no puedes cambiar tu propio rol — pide a otro propietario.",
+
+    // #356 — el diálogo único de deshabilitar/habilitar (machine-drafted,
+    // pending native review): el diálogo mismo ES la confirmación.
+    disableStepUpTitle: "Deshabilitar — {{email}}",
+    enableStepUpTitle: "Habilitar — {{email}}",
+    disableSubmitButton: "Deshabilitar",
+    enableSubmitButton: "Habilitar",
+    disableWarningBody:
+      "Se cerrará su sesión en todos los dispositivos de inmediato y no "
+      + "podrá volver a iniciar sesión hasta que lo vuelvas a habilitar.",
+    disableReasonFieldLabel: "Motivo (opcional)",
+
     // Imperative messages
     createSuccessMessage: "Cuenta de {{role}} creada para {{email}}.",
     passwordMismatchMessage: "Las contraseñas no coinciden.",
     passwordSetMessage: "Contraseña establecida para {{email}}. Se cerró la sesión en todos los dispositivos.",
     updatedMessage: "Se actualizó {{email}}.",
+    roleChangedMessage: "{{email}} ahora es {{role}}.",
+    userDisabledMessage: "{{email}} ha sido deshabilitado.",
+    userEnabledMessage: "{{email}} ha sido vuelto a habilitar.",
   },
 
   // machine-drafted (#182) — pending native review. Task 25c (B4): new
@@ -1171,14 +1291,13 @@ export const es = {
       "Esta entrada fue cambiada por otra persona — el formulario muestra "
       + "los valores más recientes; vuelva a aplicar su corrección.",
     nothingToAdjustMessage: "Esta entrada ahora está {{status}} — no queda nada por ajustar.",
-    conflictReloadFailedMessage:
-      "Esta entrada fue cambiada por otra persona y la lista no se pudo "
-      + "volver a cargar — vuelva a cargar la página antes de reintentarlo.",
+    conflictRebindFailedMessage:
+      "Esta entrada fue cambiada por otra persona y no se pudieron cargar "
+      + "sus valores más recientes — cierre el formulario y vuelva a intentarlo.",
     gradesMustReconcileMessage:
       "Las cantidades clasificadas deben ser iguales al total de huevos menos los agrietados, sucios y "
       + "descartados.",
     entryAdjustedMessage: "Entrada ajustada — las existencias y el registro de aves se actualizaron para coincidir.",
-    adjustReloadFailedMessage: "El ajuste se guardó, pero la lista no se pudo volver a cargar — actualice la página.",
     voidConfirmTitle: "¿Anular la entrada del {{date}} para {{flock}}?",
     voidConfirmBody:
       "Sus lotes de huevos quedan vacíos y sus muertes se revierten. La "
@@ -1186,13 +1305,8 @@ export const es = {
       + "huevos ya fue vendido.",
     voidConfirmLabel: "Anular entrada",
     entryVoidedMessage: "Entrada anulada — sus lotes de huevos quedaron vacíos y sus muertes se revirtieron.",
-    voidReloadFailedMessage: "La anulación se guardó, pero la lista no se pudo volver a cargar — actualice la página.",
     voidConflictMessage:
-      "Esta entrada fue cambiada por otra persona — la lista se ha vuelto a cargar; vuelva a intentarlo.",
-    voidConflictReloadFailedMessage:
-      "Esta entrada fue cambiada por otra persona y la lista no se pudo "
-      + "volver a cargar — vuelva a cargar la página.",
-    loadMoreFailedMessage: "No se pudo cargar más.",
+      "Esta entrada fue cambiada por otra persona — revise la lista y vuelva a intentarlo.",
 
     // Filters
     flockLabel: "Lote",
@@ -1464,6 +1578,9 @@ export const es = {
     "auditAction.User.PasswordSet": "Contraseña establecida",
     "auditAction.User.PasswordChanged": "Contraseña cambiada",
     "auditAction.User.BreakGlassReset": "Restablecimiento de emergencia",
+    "auditAction.User.RoleChanged": "Rol cambiado",
+    "auditAction.User.Disabled": "Usuario deshabilitado",
+    "auditAction.User.Enabled": "Usuario habilitado",
     "auditAction.User.FlockAssign": "Lote asignado al usuario",
     "auditAction.User.FlockUnassign": "Lote desasignado del usuario",
     "auditAction.Account.Export": "Datos exportados",
@@ -1475,10 +1592,12 @@ export const es = {
     "auditAction.Product.Activate": "Producto activado",
     "auditAction.Product.Deactivate": "Producto desactivado",
     "auditAction.EggUnitConversion.Update": "Conversión de unidad de huevo actualizada",
+    "auditAction.EggLot.Movement": "Existencias dadas de baja / recontadas",
 
     "entityType.Account": "Cuenta",
     "entityType.DailyEntry": "Entrada diaria",
     "entityType.EggGrade": "Grado de huevo",
+    "entityType.EggLot": "Lote de huevos",
     "entityType.EggUnitConversion": "Conversión de unidad de huevo",
     "entityType.Expense": "Gasto",
     "entityType.ExpenseCategory": "Categoría de gasto",
@@ -1520,7 +1639,8 @@ export const es = {
     tocGrades: "Grados de huevo",
     tocProducts: "Productos",
     tocStock: "Existencias",
-    tocInventory: "Alimento e inventario",
+    tocInventory: "Suministros e inventario",
+    tocFeed: "Alimento",
     tocWater: "Agua",
     tocSales: "Clientes y ventas",
     tocReports: "Informes",
@@ -1530,6 +1650,7 @@ export const es = {
     tocExport: "Exportar y respaldo",
     tocFarmSettings: "Configuración de la granja",
     tocFarmPalette: "Paleta de la granja",
+    tocAccount: "Su cuenta",
     tocInstall: "Instalar en un teléfono",
     tocMistakes: "Corregir errores",
     tocGlossary: "Glosario",
@@ -1549,6 +1670,12 @@ export const es = {
       + "está a salvo (lo que todavía estaba escribiendo puede que deba ingresarlo de nuevo) — toque "
       + "<strong>Recargar</strong>, o <strong>Volver al panel</strong> e inténtelo de nuevo. Si sigue "
       + "sucediendo, abra \"Detalles del error\" y envíe una captura de pantalla.",
+    gettingAroundWhereMessagesAppear:
+      "El mensaje de algo que falló aparece <strong>donde está el trabajo</strong>: si estaba llenando un "
+      + "formulario emergente, aparece dentro de ese formulario, junto a los campos a los que se refiere; si "
+      + "fue la pantalla misma — una lista que no cargó, por ejemplo — aparece en la pantalla de atrás. Así, "
+      + "un formulario que se niega a guardar siempre le dice por qué sin cerrarse. Al cerrar el formulario se "
+      + "descarta su mensaje: ese intento terminó, y lo que informó la pantalla misma se queda.",
 
     signingInHeading: "Iniciar sesión",
     signingInBasic:
@@ -1571,6 +1698,12 @@ export const es = {
       + "incluso al recargar y con la aplicación abierta en <strong>varias pestañas</strong> a la vez. "
       + "Después de que la aplicación se <strong>actualiza</strong> es posible que se le pida iniciar "
       + "sesión una vez más — eso es normal.",
+    // machine-drafted (#393) — pending native review.
+    signingInMultiTabResync:
+      "Iniciar sesión como otra persona en una <strong>pestaña del navegador</strong> mientras otra pestaña "
+      + "del mismo navegador está a mitad de su propia verificación silenciosa puede, en ocasiones, cerrarle "
+      + "la sesión justo después — simplemente vuelva a iniciar sesión. Esto solo ocurre en ese momento "
+      + "puntual con varias pestañas y nunca pierde nada que ya haya guardado.",
     // machine-drafted (#283) — pending native review.
     signingInFirstRun:
       "<strong>Primer inicio de sesión en una granja nueva.</strong> No hay una contraseña predeterminada — "
@@ -1581,12 +1714,15 @@ export const es = {
       + "configuración, al intentar iniciar sesión se le indica esto y se le remite a quien administra el "
       + "servidor, en lugar de afirmar que sus datos eran incorrectos.",
     // #308 (machine-drafted, pending native review)
+    // #308/#356 (machine-drafted, pending native review)
     signingInStepUp:
-      "Dos acciones en la pantalla <strong>Usuarios</strong> le piden <strong>volver a ingresar su contraseña "
-      + "actual</strong> directamente en el diálogo: crear otro propietario y restablecer la contraseña de un "
-      + "propietario existente. Esto confirma que realmente es usted antes de otorgar tanto acceso — ninguna "
-      + "otra acción en esa pantalla (crear un usuario Worker/Manager/Sales/Read-only, restablecer su "
-      + "contraseña) vuelve a preguntar.",
+      "Cinco acciones en la pantalla <strong>Usuarios</strong> le piden <strong>volver a ingresar su contraseña "
+      + "actual</strong> directamente en el diálogo: crear otro propietario, restablecer la contraseña de un "
+      + "propietario existente, ascender a alguien a propietario, y — sin importar el rol del destinatario — "
+      + "deshabilitar o volver a habilitar un usuario. Esto confirma que realmente es usted antes de otorgar "
+      + "tanto acceso o de retirárselo a otra persona — ninguna otra acción en esa pantalla (crear un usuario "
+      + "Worker/Manager/Sales/Read-only, restablecer su contraseña, cambiar el rol de alguien a algo distinto "
+      + "de propietario) vuelve a preguntar.",
     signingInCredentialEpoch:
       "Cuando un administrador restablece una contraseña, su sesión actual puede invalidarse inmediatamente. Si "
       + "ve un mensaje indicando que sus credenciales cambiaron, inicie sesión de nuevo con su contraseña actual.",
@@ -1630,9 +1766,24 @@ export const es = {
       + "administra usuarios: crea inicios de sesión en la pantalla <strong>Usuarios</strong> (correo "
       + "electrónico, contraseña, un nombre opcional y rol) y asigna trabajadores a lotes. El nombre de un "
       + "usuario se puede cambiar más tarde desde la acción <strong>editar</strong> de la fila, y la acción "
-      + "<strong>contraseña</strong> establece una contraseña olvidada sin necesitar la anterior. Cambiar el "
-      + "rol de un usuario existente llega con una versión posterior. Los controles que no puede usar "
+      + "<strong>contraseña</strong> establece una contraseña olvidada sin necesitar la anterior. La acción "
+      + "<strong>rol</strong> asciende o desciende a un usuario existente entre los cinco roles — rechaza "
+      + "dirigirse a su propio inicio de sesión, y rechaza degradar al último Administrador (propietario) "
+      + "de la cuenta, para que la granja nunca pueda quedarse sin administración de usuarios. Ascender a "
+      + "alguien a Administrador (propietario) pide la misma reconfirmación que restablecer la contraseña "
+      + "de un Administrador (vea abajo); cualquier otro cambio de rol no necesita reconfirmación. Un "
+      + "cambio de rol cierra la sesión afectada en todas partes en su siguiente solicitud, igual que un "
+      + "restablecimiento de contraseña. Los controles que no puede usar "
       + "están ocultos, y el servidor los rechaza de todos modos.",
+    // #356 (machine-drafted, pending native review)
+    rolesDisableUser:
+      "<strong>Deshabilitar un inicio de sesión</strong> (pantalla Usuarios, solo Admin/propietario) corta el "
+      + "acceso de inmediato — cada una de las sesiones abiertas de esa persona termina en su siguiente "
+      + "solicitud, igual que un cambio de rol o un restablecimiento de contraseña. El motivo es opcional y, "
+      + "de cualquier forma, queda en el registro de auditoría. <strong>Volver a habilitar</strong> restaura "
+      + "su capacidad de iniciar sesión, pero nunca revive las sesiones que terminó la deshabilitación — "
+      + "inician sesión de nuevo con su contraseña actual. No puede deshabilitar su propio inicio de sesión, "
+      + "ni puede deshabilitar al último Administrador (propietario) de la cuenta.",
     ownPassword:
       "<strong>Su propia contraseña.</strong> Cualquiera, en cualquier rol, puede cambiar su propia "
       + "contraseña en la pantalla <strong>Cuenta</strong> ingresando la actual y una nueva (al menos 12 "
@@ -1657,6 +1808,10 @@ export const es = {
       + "borra lo que escribió — al volver a abrirla empieza con un formulario en blanco. Si un guardado "
       + "falla, la ventana permanece abierta con sus valores y el motivo, para que pueda corregirlo e "
       + "intentarlo de nuevo — reintentar es seguro, nunca registra lo mismo dos veces.",
+    dialogsModal:
+      "Mientras una ventana emergente está abierta, la página detrás <strong>espera</strong>: los clics, la "
+      + "tecla Tab y el lector de pantalla permanecen dentro del formulario, así nada de atrás se cambia por "
+      + "accidente, y Escape cierra la ventana en la que está trabajando.",
     dialogsInlineForms:
       "Las pantallas cuyo único trabajo es la captura mantienen su formulario en la página: <strong>Entrada "
       + "diaria</strong>, <strong>Agua</strong>, registrar un gasto, y agregar líneas a un pedido en "
@@ -1690,15 +1845,22 @@ export const es = {
       + "clasificar — para enviar, debe cuadrar exactamente.",
     dailyEntryGradingDown:
       "La clasificación cuenta <strong>hacia abajo</strong>. Junto a los grados se muestra cuántos huevos "
-      + "vendibles le quedan por ubicar; se pone verde en cuanto el día cuadra y rojo si se excede. No "
-      + "puede enviar hasta que llegue exactamente a cero — clasificar el día a medias, o no clasificarlo, "
-      + "está bien para un borrador, pero no para enviar.",
+      + "vendibles le quedan por ubicar; se pone verde en cuanto el día cuadra y rojo si se excede — "
+      + "excederse también bloquea guardar el borrador, no solo Enviar. No puede enviar hasta que llegue "
+      + "exactamente a cero — clasificar el día a medias, o no clasificarlo, está bien para un borrador, "
+      + "pero no para enviar.",
     dailyEntryButtons:
       "Cada conteo tiene botones <strong>−</strong> y <strong>+</strong>. Toque para uno, o <strong>mantenga "
       + "presionado</strong> — se acelera a medida que avanza, así que unos cientos de huevos toman "
       + "aproximadamente un segundo. Más fácil que un teclado numérico con guantes puestos. El "
-      + "<strong>+</strong> de un grado se detiene una vez que el día está completamente clasificado, para "
-      + "que no pueda excederse con él.",
+      + "<strong>+</strong> de un grado ya no se detiene en el total actual del día — cuente los grados "
+      + "primero y el total se ajusta para igualarlos. Solo aumenta el total, nunca lo reduce, así que "
+      + "recortar el total en el paso 1 nunca empuja un grado hacia abajo. Las granjas que cuentan por "
+      + "bandeja pueden hacer que cada toque cuente una unidad de empaque completa en lugar de un huevo — "
+      + "el valor predeterminado de la granja está en <strong>Configuración</strong>, y cada persona puede "
+      + "elegir el suyo en su pantalla de <strong>Cuenta</strong>. Cuando una unidad de empaque está en uso, "
+      + "los propios botones lo indican (<strong>−30 / +30</strong>) y una nota sobre los paneles nombra la "
+      + "unidad; escribir sigue ingresando números exactos.",
     dailyEntryPutAllIn:
       "La mayoría de los días terminan de la misma manera — un grado se lleva lo que queda. <strong>Poner "
       + "todo en…</strong> junto al conteo restante lo hace en un solo movimiento: arrástrelo a un grado, o "
@@ -1774,13 +1936,21 @@ export const es = {
       "Cada grado se expande en sus <strong>lotes</strong> (uno por día enviado), y cada lote en su "
       + "<strong>libro mayor de movimientos</strong> — una línea explícita por cada producción, venta, "
       + "corrección o anulación. La suma acumulada siempre es igual al saldo mostrado; nada cambia las "
-      + "existencias sin dejar una línea.",
+      + "existencias sin dejar una línea. La lista de lotes muestra los 50 más recientes a la vez — "
+      + "acótela con las fechas <strong>Desde/Hasta</strong> para llegar a un lote antiguo, o siga "
+      + "cargando más.",
     stockRestricted:
       "Las existencias son la suma de sus lotes de huevos por grado. La columna <strong>restringido</strong> "
       + "está reservada para períodos de retiro por medicación — esa función llega con el seguimiento de "
       + "medicación. <strong>Nada marca huevos como restringidos todavía, así que el sistema no impone "
       + "tiempos de retiro hoy</strong> — gestione los períodos de retiro fuera de Cluckwork por ahora.",
     stockFifo: "Vender siempre toma primero los lotes más antiguos, para que las existencias roten naturalmente.",
+    stockWriteOff:
+      "Las existencias perdidas — roturas, deterioro, huevos consumidos en casa — se registran con "
+      + "<strong>dar de baja</strong> en el lote (Propietario/Gerente, motivo obligatorio). Reduce el disponible "
+      + "del lote sin tocar las cifras de producción del día; un recuento también puede devolver huevos, hasta lo "
+      + "que se dio de baja previamente. Si el recuento indica que la <em>puesta</em> del día era incorrecta, "
+      + "ajuste la entrada diaria en su lugar.",
 
     inventoryHeading: "Alimento e inventario",
     inventoryItems:
@@ -1789,9 +1959,8 @@ export const es = {
       + "deben seguir significando lo que significaban.",
     inventoryPurchaseUsage:
       "<strong>Registrar compra</strong> asienta las existencias recibidas como un lote fechado con su "
-      + "costo. <strong>Registrar uso</strong> anota lo que comió un lote en un día: toma de los lotes más "
-      + "antiguos primero (solo lotes que existían en esa fecha) y estima el costo a partir de los lotes "
-      + "realmente consumidos.",
+      + "costo. La alimentación de una parvada se registra en la <strong>página de Alimento</strong> — el "
+      + "panel de un artículo alimentable enlaza directamente allí con el artículo preseleccionado.",
     inventoryLedger:
       "Cada cambio queda registrado en el <strong>libro mayor de movimientos</strong> del artículo — "
       + "compras, uso, correcciones. Las filas del libro mayor nunca se editan ni se eliminan.",
@@ -1803,6 +1972,22 @@ export const es = {
       "Registrar compras y uso está abierto para todos; el catálogo de artículos y las correcciones de "
       + "existencias son solo para administradores.",
 
+    feedHeading: "Alimento",
+    feedRecording:
+      "<strong>Registrar alimento</strong> anota lo que comió una parvada en un día: elija la parvada, el "
+      + "artículo (las existencias actuales se ven en el propio selector), la cantidad y la fecha. Las "
+      + "existencias se descuentan de las compras más antiguas primero — solo lotes que existían en esa "
+      + "fecha — y el costo estimado proviene de los lotes realmente consumidos. El historial de la página "
+      + "lista cada alimentación con su costo estimado.",
+    feedCorrecting:
+      "Los registros de alimento <strong>nunca se editan</strong>: las existencias que consumieron ya están "
+      + "en el libro mayor, así que un error se corrige con un <strong>ajuste</strong> de Inventario en el "
+      + "lote afectado (con motivo), que queda visible junto al original.",
+    feedDailyEntry:
+      "La página de <strong>Entrada diaria</strong> muestra de un vistazo el alimento y el agua del día de "
+      + "la parvada seleccionada, con enlace aquí. Un registro de alimento o agua hecho cuando ya existe la "
+      + "entrada de ese día también recuerda esa entrada — los hechos antes quedan sin enlazar a propósito; "
+      + "el día en sí es lo que los une.",
     waterHeading: "Agua",
     waterRecording:
       "Registre lo que bebió cada lote por día: una cantidad directa (litros o galones) o <strong>lecturas "
@@ -1821,7 +2006,9 @@ export const es = {
       "Los pedidos comienzan como <strong>borradores</strong>: agregue líneas eligiendo un "
       + "<strong>producto</strong>, una unidad empacada (docena, cartón, …), una cantidad entera, y un "
       + "precio por unidad (precargado desde el valor predeterminado del producto, se permiten decimales) — "
-      + "edite libremente, o <strong>cancele</strong> (el borrador se conserva, de solo lectura). Cada línea "
+      + "edite libremente, o <strong>cancele</strong> (el borrador se conserva, de solo lectura). La cantidad "
+      + "cuenta <strong>unidades, no huevos</strong> — el campo indica la unidad y muestra el total de huevos "
+      + "resultante mientras escribe (2 bandejas = 60 huevos, no 60 bandejas). Cada línea "
       + "recuerda cuántos huevos contenía su unidad cuando se agregó, así que redefinir un cartón más tarde "
       + "nunca cambia pedidos antiguos.",
     salesConfirming:
@@ -1942,11 +2129,23 @@ export const es = {
       + "es una copia reconstruida: los detalles de cámara y ubicación se eliminan al ingresar — una foto "
       + "tomada en un teléfono lleva dónde se tomó, y para una granja eso es su dirección. Elimínelo y la "
       + "barra lateral vuelve a la marca de Cluckwork.",
+    farmSettingsDateTimeFormat:
+      "<strong>Formato de fecha</strong> y <strong>formato de hora</strong> ofrecen algunas opciones "
+      + "comunes en un menú desplegable — elija una y listo. ¿Necesita algo que no está en la lista? "
+      + "Elija <strong>Personalizado…</strong> para escribir el suyo; las opciones predefinidas son "
+      + "siempre seguras, pero un valor personalizado solo se verifica lo suficiente para guardarlo, no "
+      + "para comprobar que se ve bien — nada en Cluckwork muestra fechas u horas mediante esta "
+      + "configuración todavía, así que un valor personalizado incorrecto no sería visible hoy.",
     farmSettingsSquareLogo:
       "Use un logotipo <strong>cuadrado</strong>. Se muestra pequeño en la barra lateral, así que una "
       + "marca simple y bien recortada — un símbolo o una sola letra — se ve mucho mejor ahí que un "
       + "logotipo ancho o una imagen detallada, que se reducen a algo ilegible. Conserve un logotipo "
       + "detallado para impresión o un sitio web; dele a la aplicación una marca pequeña y limpia.",
+    farmSettingsCountingUnit:
+      "<strong>Unidad de conteo de la entrada diaria</strong> establece cuánto cuentan los botones +/− de "
+      + "la pantalla de entrada para todos en la granja — un huevo, o una unidad de empaque como Tray (30 "
+      + "por toque). Solo se pueden elegir unidades con una definición activa de huevos por unidad en la "
+      + "pantalla de Productos, y cada persona puede anularla para sí misma en su pantalla de Cuenta.",
 
     farmPaletteHeading: "Paleta de la granja",
     farmPaletteIntro:
@@ -1957,6 +2156,19 @@ export const es = {
       "El modo claro y nocturno son independientes y personales. Cada persona elige el suyo con el "
       + "interruptor en la barra lateral, en cada dispositivo, y la paleta de la granja nunca lo anula — "
       + "cada paleta está diseñada para funcionar en ambos.",
+
+    accountHeading: "Su cuenta",
+    accountPassword:
+      "<strong>Cambiar contraseña</strong> requiere la actual y cierra la sesión en sus otros dispositivos "
+      + "— todos los roles pueden hacerlo por sí mismos.",
+    accountLanguage:
+      "<strong>Idioma</strong> cambia la interfaz solo para usted, de inmediato, en cada dispositivo donde "
+      + "inicie sesión.",
+    accountCountingUnit:
+      "<strong>Unidad de conteo de la entrada diaria</strong> — cuánto cuentan SUS toques de +/−, "
+      + "anulando el valor predeterminado de la granja en Configuración. Elija una unidad de empaque como "
+      + "Tray para contar por bandeja, o siga el predeterminado de la granja para que un cambio posterior "
+      + "en toda la granja le aplique automáticamente.",
 
     installHeading: "Instalar en un teléfono",
     installIntro:
@@ -2105,13 +2317,24 @@ export const es = {
       + "demasiados intentos desde un mismo lugar en pocos minutos se rechazan con este mensaje hasta que "
       + "pasa un breve período de espera. Nunca afecta a una sesión que ya inició.",
 
+    // #393 (machine-drafted, pending native review)
+    glossaryForcedReauthTerm: "Sesión cerrada justo después de cambiar de cuenta",
+    glossaryForcedReauthDef:
+      "Iniciar sesión como otra persona en una <strong>pestaña del navegador</strong> mientras otra pestaña "
+      + "está a mitad de su propia comprobación silenciosa en segundo plano puede, en ocasiones, cerrar la "
+      + "nueva sesión de inmediato. Simplemente vuelva a iniciar sesión — esto solo ocurre en ese momento "
+      + "puntual de varias pestañas y no se pierde nada de lo ya guardado.",
+
     // #308 (machine-drafted, pending native review)
     glossaryStepUpAuthTerm: "Autenticación reforzada (step-up)",
     glossaryStepUpAuthDef:
-      "Una comprobación adicional además de haber iniciado sesión: antes de crear otro propietario o "
-      + "restablecer la contraseña de un propietario existente, la pantalla Usuarios le pide volver a "
+      "Una comprobación adicional además de haber iniciado sesión: antes de crear otro propietario, "
+      + "restablecer la contraseña de un propietario existente, ascender a alguien a propietario, o "
+      + "deshabilitar o volver a habilitar a cualquier usuario, la pantalla Usuarios le pide volver a "
       + "ingresar su contraseña actual directamente en el diálogo. Esto confirma que realmente es usted "
-      + "antes de otorgar tanto acceso — ninguna otra acción en esa pantalla vuelve a preguntar.",
+      + "antes de otorgar — o retirar — tanto acceso. Deshabilitar y volver a habilitar preguntan siempre, "
+      + "sin importar el rol del usuario; las otras tres solo preguntan cuando está en juego el acceso de "
+      + "propietario.",
 
     glossarySomethingWentWrongScreenTerm: "Pantalla \"Algo salió mal\"",
     glossarySomethingWentWrongScreenDef:
@@ -2121,7 +2344,7 @@ export const es = {
       + "pantalla.",
 
     glossaryDailyEntryTerm: "Entrada diaria",
-    glossaryDailyEntryDef: "El día de un lote: huevos por grado, pérdidas, muertes. Borrador hasta que se envía.",
+    glossaryDailyEntryDef: "El día de un lote: huevos por grado, pérdidas, muertes. Clasificar por encima del total lo eleva para igualarlo. Borrador hasta que se envía.",
 
     glossaryEggLotTerm: "Lote de huevos",
     glossaryEggLotDef:
@@ -2138,6 +2361,11 @@ export const es = {
       "El historial línea por línea detrás del saldo de un lote de huevos: producción que entra, ventas "
       + "que salen, correcciones y anulaciones con su signo correspondiente.",
 
+    glossaryStockWriteOffTerm: "Baja de existencias",
+    glossaryStockWriteOffDef:
+      "Una corrección de Propietario/Gerente que quita huevos perdidos de un lote (roturas, deterioro, consumo "
+      + "propio) o aplica un recuento, con motivo obligatorio. Solo cambia el disponible del lote — las cifras "
+      + "de producción del día no se tocan. Un recuento puede devolver huevos hasta lo dado de baja previamente.",
     glossaryFifoTerm: "FIFO",
     glossaryFifoDef:
       "\"Primero en entrar, primero en salir\" — las ventas y el uso de alimento siempre toman primero las "
@@ -2173,6 +2401,11 @@ export const es = {
     glossaryPackedUnitDef:
       "Cuántos huevos contiene una docena/bandeja/cartón/caja en su granja. Cada línea de venta conserva "
       + "el conteo con el que se vendió.",
+    glossaryCountingUnitTerm: "Unidad de conteo",
+    glossaryCountingUnitDef:
+      "Cuánto cuenta cada toque de los botones − / + de la entrada diaria — un huevo, o una unidad "
+      + "empacada como una bandeja. Predeterminado de la granja en Configuración; su propia elección en su "
+      + "pantalla de Cuenta. Los botones muestran la cantidad (−30 / +30) cuando no es uno.",
 
     glossarySalesLineTerm: "Línea de venta",
     glossarySalesLineDef:
@@ -2246,7 +2479,8 @@ export const es = {
     glossaryFarmSettingsTerm: "Configuración de la granja",
     glossaryFarmSettingsDef:
       "El nombre de la granja, la zona horaria, la configuración regional, la moneda y el sistema de "
-      + "unidades, además del primer día de la semana y los formatos de fecha/hora, opcionales. "
+      + "unidades, además del primer día de la semana y los formatos de fecha/hora, opcionales — elegidos "
+      + "de un menú de opciones predefinidas, o escritos como una cadena de formato .NET personalizada. "
       + "Configuración → Configuración de la granja; propietarios y gerentes editan, todos pueden leer — "
       + "dar formato a montos y fechas no es un permiso.",
 
@@ -2273,6 +2507,17 @@ export const es = {
       "El idioma por usuario en que se muestra la interfaz — inglés, español o tagalo — elegido desde "
       + "Cuenta → Preferencias. El inglés es el idioma de reserva para cualquier pantalla aún no "
       + "traducida, sea cual sea el idioma que eligió.",
+
+    // #356 — appended last so it doesn't reshuffle the rows above.
+    // (machine-drafted, pending native review)
+    glossaryDisabledUserTerm: "Usuario deshabilitado",
+    glossaryDisabledUserDef:
+      "Acceso revocado, no eliminación. Un usuario deshabilitado no puede iniciar sesión, refrescar su "
+      + "sesión ni obtener un step-up grant, y cada sesión que tenía abierta termina en su siguiente "
+      + "solicitud. Volver a habilitarlo restaura el inicio de sesión pero no esas sesiones anteriores — "
+      + "todo lo emitido antes de la deshabilitación deja de funcionar para siempre. El último "
+      + "Administrador (propietario) activo de la cuenta no puede deshabilitarse, y nadie puede "
+      + "deshabilitarse a sí mismo.",
 
     glossaryRepoNote:
       "Las definiciones completas en lenguaje de especificación viven en "

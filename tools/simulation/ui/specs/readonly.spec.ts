@@ -40,6 +40,14 @@ test.describe("ReadOnly", () => {
     await expect(page.getByText(tEn("stock:noStockMessage"))).toBeHidden();
     await expect(page.getByRole("alert")).toBeHidden();
 
+    // #406: the per-lot write-off is corrective-tier. Drill into the first
+    // grade's lots and assert the action is not offered (cosmetic half —
+    // RoleMatrixTests owns the server-side 403).
+    await page.getByRole("button", { name: tEn("stock:lotsButton") }).first().click();
+    await expect(page.getByRole("heading", { name: tEn("stock:lotsHeading") })).toBeVisible();
+    await expect(page.getByRole("button", { name: tEn("stock:writeOffButton") })).toHaveCount(0);
+    await expect(page.getByText(tEn("stock:writeOffNeedsAdminMessage"))).toBeVisible();
+
     // History — allowed for every role.
     await nav.link("nav:history").click();
     await expect(page.getByRole("heading", { name: tEn("history:title") })).toBeVisible();
@@ -51,6 +59,27 @@ test.describe("ReadOnly", () => {
     await nav.link("nav:reports").click();
     await expect(page.getByRole("heading", { name: tEn("reports:title") })).toBeVisible();
     await expect(page.getByRole("heading", { name: tEn("reports:moneyHeading") })).toBeHidden();
+  });
+
+  // #465 — the fixture's 90-day × 2-flock history gives every graded grade
+  // ~176 lots, so the drill-down MUST page: exactly one 50-lot page first,
+  // then load-more appends the next. Growth-after-click is the load-bearing
+  // assertion — the stock-pager-inert mutant serves page one for every
+  // offset, and only the count reaching 100 catches it.
+  test("pages a deep grade's lots with load more (#465)", async ({ page, nav }) => {
+    await nav.link("nav:stock").click();
+    await page.getByRole("button", { name: tEn("stock:lotsButton") }).first().click();
+    await expect(page.getByRole("heading", { name: tEn("stock:lotsHeading") })).toBeVisible();
+
+    const lotRows = page.getByRole("button", { name: tEn("stock:historyButton"), exact: true });
+    await expect(lotRows).toHaveCount(50);
+    const loadMore = page.getByRole("button", { name: tEn("stock:loadMoreButton") });
+    await expect(loadMore).toBeVisible();
+
+    await loadMore.click();
+    await expect(lotRows).toHaveCount(100);
+    // ~176 lots in the fixture: still more to load after two pages.
+    await expect(loadMore).toBeVisible();
   });
 
   test("is not offered the destinations it cannot use", async ({ nav }) => {

@@ -70,6 +70,13 @@ export const tl = {
     preferences: "Mga Kagustuhan",
     language: "Wika",
     languageHint: "Ang wikang gagamitin sa interface, para lang sa iyo.",
+    stepperUnit: "Yunit ng pagbilang sa Daily Entry",
+    stepperUnitHint:
+      "Kung magkano ang ibinibilang ng mga +/− na button ng Daily Entry, para lang sa iyo — "
+      + "pumili ng pack unit tulad ng Tray para magbilang bawat tray sa halip na bawat itlog, "
+      + "o sundin ang default ng bukid.",
+    stepperUnitFarmDefaultOption: "Default ng bukid ({{unit}})",
+    stepperUnitSaveFailed: "Hindi na-save — hindi nabago ang iyong yunit ng pagbilang.",
 
     // machine-drafted (#182) — pending native review. Task 25 (B4): the rest
     // of AccountPage. Keys mirror en.ts exactly, including {{role}}/{{min}}
@@ -117,6 +124,7 @@ export const tl = {
     dashboard: "Dashboard",
     dailyEntry: "Araw-araw na Tala",
     flocks: "Mga Kawan",
+    feed: "Pakain",
     water: "Tubig",
     inventory: "Imbentaryo",
     stock: "Stock",
@@ -140,6 +148,7 @@ export const tl = {
     skipToContent: "Lumaktaw papunta sa pangunahing content",
     primaryNavAriaLabel: "Pangunahin",
     signOut: "Mag-sign out",
+    versionLabel: "v{{version}}",
     farmLoadFailedNeverLoaded:
       "Hindi na-load ang mga setting ng bukid na ito, kaya susundin ng mga "
       + "petsa ang device na ito sa halip na ang bukid.",
@@ -162,6 +171,8 @@ export const tl = {
   numberField: {
     increaseLabel: "Dagdagan ang {{label}}",
     decreaseLabel: "Bawasan ang {{label}}",
+    increaseByLabel: "Dagdagan ang {{label}} ng {{step}}",
+    decreaseByLabel: "Bawasan ang {{label}} ng {{step}}",
   },
 
   // machine-drafted (#182) — pending native review. Task CT1 (B1 catch-up):
@@ -241,6 +252,16 @@ export const tl = {
     product: "Produkto",
     perLabel: "Bawat",
     quantity: "Dami",
+    // #445
+    quantityWithUnit: "Dami ({{unit}})",
+    // The _one strings equal the base ON PURPOSE: Tagalog's CLDR "one"
+    // category is broad (1, 2, 3, 5, 12, 30, …), not "exactly one", and
+    // Tagalog nouns don't inflect for number anyway — the keys exist only to
+    // satisfy catalog parity with en's genuinely singular forms.
+    equalsEggs: "= {{count}} na itlog",
+    equalsEggs_one: "= {{count}} na itlog",
+    productOptionWithUnit: "{{name}} ({{count}} na itlog/{{unit}})",
+    productOptionWithUnit_one: "{{name}} ({{count}} na itlog/{{unit}})",
     unitPriceWithCurrency: "Presyo bawat yunit ({{code}})",
     method: "Paraan",
     referenceOptional: "Reference (opsyonal)",
@@ -414,6 +435,18 @@ export const tl = {
 
     // Pinned footer (phone-only summary + saves)
     countsExceedFooterMessage: "Lumagpas sa kabuuan ang mga nawala — ayusin ang mga bilang",
+    // #446 — ang _one ay katumbas ng base nang sadya (malawak ang CLDR "one"
+    // ng Tagalog at hindi nagbabago ang anyo ng pangngalan).
+    daySupportFeed: "Pakain: {{count}} na tala (tantiya: {{cost}})",
+    daySupportFeed_one: "Pakain: {{count}} na tala (tantiya: {{cost}})",
+    // Cost dropped when the day's rows span currencies — never a blended sum.
+    daySupportFeedNoCost: "Pakain: {{count}} na tala",
+    daySupportFeedNoCost_one: "Pakain: {{count}} na tala",
+    daySupportFeedNone: "Pakain: 0 tala",
+    daySupportWater: "Tubig: {{count}} na tala",
+    daySupportWater_one: "Tubig: {{count}} na tala",
+    daySupportWaterNone: "Tubig: 0 tala",
+    stepperUnitCaption: "Nagbibilang bawat {{unit}} — bawat tap ng − / + ay gumagalaw ng {{count}} itlog. Ang pag-type ay naglalagay pa rin ng eksaktong numero.",
     sellableWord: "nabebenta",
     saveDraftButton: "I-save ang draft",
     submitButton: "I-save at isumite (gagawa ng lote ng itlog)",
@@ -481,13 +514,49 @@ export const tl = {
   // placeholder (no <Trans> tags in this namespace). Source/Unit picker
   // values go through the `enums` waterSourceLabel/waterUnitLabel helpers,
   // not a key here.
+  // #446 — machine-drafted, pending native review (translate-now policy).
+  feed: {
+    title: "Pakain",
+    loadFailed: "Hindi ma-load ang mga kawan at mga item ng pakain. Gumagana ba ang API?",
+    loadRecordsFailed: "Hindi ma-load ang mga tala ng pakain.",
+    intro:
+      "Itala kung ano ang ipinakain sa bawat kawan. Ang stock ay kinukuha muna "
+      + "mula sa pinakalumang mga binili at ang tantiyang gastos ay mula sa mga lot na iyon.",
+    flockLabel: "Kawan",
+    depletedFlockSuffix: " — ubos na, backfill lamang",
+    itemLabel: "Item",
+    itemOption: "{{name}} ({{onHand}} {{unit}} na natitira)",
+    dateLabel: "Petsa",
+    quantityLabel: "Dami",
+    quantityLabelWithUnit: "Dami ({{unit}})",
+    noteLabel: "Tala",
+    recordFeedButton: "Itala ang pakain",
+    quantityMustBePositive: "Ang dami ay dapat positibong numero.",
+    recordedMessage: "Naitala ang pakain.",
+    correctionsHint:
+      "Ang maling naitalang pagpapakain ay itinutuwid sa pamamagitan ng Inventory "
+      + "adjustment sa apektadong lot — hindi kailanman ine-edit ang mga tala ng pakain.",
+    filterFlockLabel: "Salain ayon sa kawan",
+    inactiveItemSuffix: " — hindi aktibo, inuubos ang natitirang stock",
+    inactiveEmptyItemSuffix: " — hindi aktibo, wala nang stock",
+    recordsHeading: "Mga tala",
+    fromLabel: "Mula",
+    toLabel: "Hanggang",
+    noRecordsMatch: "Walang tumutugmang tala ng pakain.",
+    dateHeader: "Petsa",
+    flockHeader: "Kawan",
+    itemHeader: "Item",
+    amountHeader: "Dami",
+    estimatedCostHeader: "Tantiyang gastos",
+    noteHeader: "Tala",
+    loadMoreButton: "mag-load pa",
+  },
   water: {
     title: "Tubig",
 
     // Imperative messages
     loadFlocksFailed: "Hindi na-load ang mga kawan. Gumagana ba ang API?",
     loadRecordsFailed: "Hindi na-load ang mga tala ng tubig.",
-    loadMoreFailed: "Hindi na-load ang iba pa.",
     concurrentEditError:
       "Kababago lang ng record na ito sa ibang lugar — i-reload ang "
       + "listahan at subukan ulit.",
@@ -613,9 +682,6 @@ export const tl = {
     loadLedgerFailed: "Hindi na-load ang talaan ng galaw.",
     quantityMustBePositive: "Dapat positibong numero ang dami.",
     purchaseRecordedMessage: "Naitala ang pagbili — natanggap ang stock.",
-    usageRecordedMessage:
-      "Naitala ang paggamit ng feed — inubos muna ang stock mula sa "
-      + "pinakamatandang lote.",
     adjustQuantityRequired:
       "Dapat hindi zero ang dami ng pagsasaayos (negatibo ang nag-aalis ng "
       + "stock).",
@@ -637,12 +703,11 @@ export const tl = {
     // Item panel (opened item)
     itemPanelHeading: "{{name}} — {{quantity}} {{unit}} available",
     recordPurchaseButton: "Itala ang pagbili",
-    recordUsageButton: "Itala ang paggamit",
+    recordUsageLink: "Itala ang paggamit sa pahina ng Pakain",
     correctStockButton: "Itama ang stock",
     notFeedableMessage:
       "Hindi ipinapakain sa mga kawan ang mga item na {{category}} — ang "
       + "paggamit ay para lang sa mga item na Feed, Suplemento, at Aditibo.",
-    noFlocksForUsageMessage: "Walang kawan — kailangan ng kawan ang paggamit para pakainin.",
     correctionsNeedAdminMessage: "Kailangan ng admin para sa mga pagtatama ng stock.",
     noLotsMessage: "Wala pang lote — ang mga pagtatama ay para sa isang natanggap na lote.",
 
@@ -660,11 +725,9 @@ export const tl = {
     recordPurchaseSubmitButton: "Itala ang pagbili",
 
     // Record-usage dialog
-    recordUsageDialogTitle: "Itala ang paggamit — {{name}}",
     flockLabel: "Kawan",
     depletedFlockSuffix: " (naubos — para sa pagtatala ng lumang petsa lang)",
     dateLabel: "Petsa",
-    recordUsageSubmitButton: "Itala ang paggamit",
 
     // Correct-stock dialog
     correctStockDialogTitle: "Itama ang stock — {{name}}",
@@ -804,6 +867,10 @@ export const tl = {
     producedHeader: "Produksyon",
     historyButton: "history",
     hideHistoryButton: "itago ang history",
+    // #465 — paging + saklaw ng petsa sa talahanayan ng mga lote.
+    fromLabel: "Mula",
+    toLabel: "Hanggang",
+    loadMoreButton: "mag-load pa",
 
     // Movement ledger drill-down (per lot)
     movementLedgerHeading: "Talaan ng Galaw",
@@ -814,6 +881,25 @@ export const tl = {
     ledgerTypeHeader: "Uri",
     ledgerChangeHeader: "Pagbabago",
     ledgerReasonHeader: "Dahilan",
+
+    // #406 — write-off / reconciliation kada lote (Owner/Manager lamang).
+    writeOffButton: "i-write off",
+    writeOffNeedsAdminMessage: "Ang mga pagwawasto ng stock ay nangangailangan ng Owner o Manager.",
+    writeOffDialogTitle: "Iwasto ang stock — lote ng {{date}}",
+    writeOffTypeLabel: "Uri",
+    writeOffDirectionLabel: "Direksyon",
+    writeOffDirectionRemoveOption: "Bawasan ang itlog (nawala o mas kaunti sa naitala)",
+    writeOffDirectionAddOption: "Ibalik ang itlog (mas marami ang nabilang)",
+    writeOffQuantityLabel: "Itlog",
+    writeOffReasonLabel: "Dahilan",
+    writeOffPreviewMessage: "{{current}} → {{result}} ang available",
+    writeOffSubmitButton: "Itala ang pagwawasto",
+    writeOffRecordedMessage: "Naitala ang pagwawasto — {{available}} na ang available.",
+    writeOffQuantityRequired: "Ilagay kung ilang itlog.",
+    writeOffReasonRequired: "Kailangan ng dahilan ang mga pagwawasto.",
+    writeOffOutOfRangeMessage:
+      "Ang resulta ay dapat manatili sa pagitan ng 0 at ng {{produced}} na ginawa ng loteng ito. "
+      + "Ang bilang na lampas sa produksyon ay pagsasaayos ng araw-araw na entry.",
   },
 
   // machine-drafted (#182) — pending native review. Task CT3 (B3 catch-up):
@@ -975,6 +1061,11 @@ export const tl = {
       + "pera, kaya kung babaguhin ito, magkakaiba na ang ibig sabihin ng "
       + "bawat naka-save na total.",
     unitSystemLabel: "Sistema ng yunit",
+    defaultStepperUnitLabel: "Yunit ng pagbilang sa Daily Entry",
+    defaultStepperUnitHint:
+      "Kung magkano ang ibinibilang ng mga +/− na button ng Daily Entry para sa lahat sa "
+      + "bukid na ito — halimbawa Tray para magbilang bawat tray (30 itlog) sa halip na "
+      + "isa-isang itlog. Maaaring pumili ang bawat tao ng kanilang sarili sa kanilang Account screen.",
     firstDayOfWeekLabel: "Unang araw ng linggo",
     followLocaleOption: "Sundin ang locale",
     paletteLegend: "Paleta ng bukid",
@@ -987,6 +1078,9 @@ export const tl = {
     paletteTerracotta: "Terracotta",
     dateFormatLabel: "Format ng petsa",
     timeFormatLabel: "Format ng oras",
+    customFormatOption: "Custom…",
+    customDateFormatLabel: "Custom na format ng petsa",
+    customTimeFormatLabel: "Custom na format ng oras",
     savingButton: "Sine-save…",
     saveButton: "I-save ang mga setting",
     effectNote:
@@ -1039,14 +1133,24 @@ export const tl = {
     stepUpFieldLabel: "Ang kasalukuyan mong password *",
     stepUpCreateHint: "Ang paggawa ng isa pang Owner ay nangangailangan muling ilagay ang kasalukuyan mong password.",
     stepUpResetHint: "Ang pag-reset ng password ng isang Owner ay nangangailangan muling ilagay ang kasalukuyan mong password.",
+    stepUpRoleHint: "Ang pag-promote ng isang tao bilang Owner ay nangangailangan muling ilagay ang kasalukuyan mong password.",
+    // #356 — walang kondisyong muling pagkumpirma (machine-drafted, pending native review)
+    stepUpDisableHint: "Ang pag-disable ng isang user ay nangangailangan muling ilagay ang kasalukuyan mong password.",
+    stepUpEnableHint: "Ang muling pag-enable ng isang user ay nangangailangan muling ilagay ang kasalukuyan mong password.",
 
     // Users table
     emailColumnHeader: "Email",
     nameColumnHeader: "Pangalan",
     roleColumnHeader: "Tungkulin",
+    statusColumnHeader: "Katayuan",
     editButton: "i-edit",
     resetPasswordButton: "password",
+    changeRoleButton: "tungkulin",
+    changeRoleSubmitButton: "Palitan ang tungkulin",
     flocksButton: "mga kawan",
+    disabledBadge: "Naka-disable",
+    disableButton: "i-disable",
+    enableButton: "i-enable",
 
     // Flock-access dialog
     flockAccessTitle: "Access sa kawan — {{email}}",
@@ -1073,11 +1177,33 @@ export const tl = {
     confirmPasswordFieldLabel: "Kumpirmahin ang bagong password *",
     setPasswordButton: "Itakda ang password",
 
+    // Change-role dialog
+    changeRoleTitle: "Palitan ang tungkulin — {{email}}",
+    roleDialogHint:
+      "Ang pagpapalit ng tungkulin ng isang tao ay nag-sa-sign out sa "
+      + "kanila sa lahat ng device. Hindi puwedeng i-demote ang huling "
+      + "Owner ng account, at hindi mo mapapalitan ang sarili mong "
+      + "tungkulin — humingi ng tulong sa ibang Owner.",
+
+    // #356 — ang iisang disable/enable dialog (machine-drafted, pending
+    // native review): ang dialog mismo ANG kumpirmasyon.
+    disableStepUpTitle: "I-disable — {{email}}",
+    enableStepUpTitle: "I-enable — {{email}}",
+    disableSubmitButton: "I-disable",
+    enableSubmitButton: "I-enable",
+    disableWarningBody:
+      "Ma-si-sign out sila sa lahat ng device kaagad at hindi na "
+      + "makakapag-sign in hangga't hindi mo sila na-e-enable ulit.",
+    disableReasonFieldLabel: "Dahilan (opsyonal)",
+
     // Imperative messages
     createSuccessMessage: "Nagawa ang {{role}} account para sa {{email}}.",
     passwordMismatchMessage: "Hindi magkatugma ang mga password.",
     passwordSetMessage: "Naitakda ang password para sa {{email}}. Na-sign out na sila sa lahat ng lugar.",
     updatedMessage: "Na-update ang {{email}}.",
+    roleChangedMessage: "Si {{email}} ay {{role}} na ngayon.",
+    userDisabledMessage: "Na-disable si {{email}}.",
+    userEnabledMessage: "Na-enable ulit si {{email}}.",
   },
 
   // machine-drafted (#182) — pending native review. Task 25c (B4): new
@@ -1210,13 +1336,12 @@ export const tl = {
       "Binago ng ibang tao ang entry na ito — ipinapakita na ngayon ng "
       + "form ang pinakabagong mga value; i-apply ulit ang iyong pagtatama.",
     nothingToAdjustMessage: "{{status}} na ngayon ang entry na ito — wala nang puwedeng i-adjust.",
-    conflictReloadFailedMessage:
-      "Binago ng ibang tao ang entry na ito at hindi na-reload ang "
-      + "listahan — i-reload ang page bago subukan ulit.",
+    conflictRebindFailedMessage:
+      "Binago ng ibang tao ang entry na ito at hindi na-load ang "
+      + "pinakabagong halaga nito — isara ang form at subukan ulit.",
     gradesMustReconcileMessage:
       "Dapat magkapareho ang mga na-grade na dami sa kabuuang itlog na bawas ang basag, marumi, at tinapon.",
     entryAdjustedMessage: "Na-adjust ang entry — na-update ang stock at ang rekord ng manok para tumugma.",
-    adjustReloadFailedMessage: "Na-save ang pag-adjust, pero hindi na-reload ang listahan — i-refresh ang page.",
     voidConfirmTitle: "I-void ang entry ng {{date}} para sa {{flock}}?",
     voidConfirmBody:
       "Mawawalan ng laman ang mga lote ng itlog nito at mababaliktad ang "
@@ -1224,12 +1349,7 @@ export const tl = {
       + "kung nabenta na ang alinman sa mga itlog nito.",
     voidConfirmLabel: "I-void ang entry",
     entryVoidedMessage: "Na-void ang entry — nawalan ng laman ang mga lote ng itlog nito at nabaliktad ang mga namatay dito.",
-    voidReloadFailedMessage: "Na-save ang pag-void, pero hindi na-reload ang listahan — i-refresh ang page.",
-    voidConflictMessage: "Binago ng ibang tao ang entry na ito — na-reload na ang listahan; subukan ulit.",
-    voidConflictReloadFailedMessage:
-      "Binago ng ibang tao ang entry na ito at hindi na-reload ang "
-      + "listahan — i-reload ang page.",
-    loadMoreFailedMessage: "Hindi na-load ang karagdagan.",
+    voidConflictMessage: "Binago ng ibang tao ang entry na ito — tingnan ang listahan at subukan ulit.",
 
     // Filters
     flockLabel: "Kawan",
@@ -1521,6 +1641,9 @@ export const tl = {
     "auditAction.User.PasswordSet": "Naitakda ang password",
     "auditAction.User.PasswordChanged": "Napalitan ang password",
     "auditAction.User.BreakGlassReset": "Emergency na pag-reset ng password",
+    "auditAction.User.RoleChanged": "Binago ang tungkulin",
+    "auditAction.User.Disabled": "Na-disable ang user",
+    "auditAction.User.Enabled": "Na-enable ang user",
     "auditAction.User.FlockAssign": "Na-assign ang kawan sa user",
     "auditAction.User.FlockUnassign": "Na-unassign ang kawan mula sa user",
     "auditAction.Account.Export": "Na-export ang datos",
@@ -1532,10 +1655,12 @@ export const tl = {
     "auditAction.Product.Activate": "Na-activate ang produkto",
     "auditAction.Product.Deactivate": "Na-deactivate ang produkto",
     "auditAction.EggUnitConversion.Update": "Na-update ang conversion ng yunit ng itlog",
+    "auditAction.EggLot.Movement": "Na-write off / na-recount ang stock",
 
     "entityType.Account": "Account",
     "entityType.DailyEntry": "Araw-araw na Entry",
     "entityType.EggGrade": "Grado ng Itlog",
+    "entityType.EggLot": "Lote ng Itlog",
     "entityType.EggUnitConversion": "Conversion ng Yunit ng Itlog",
     "entityType.Expense": "Gastos",
     "entityType.ExpenseCategory": "Kategorya ng Gastos",
@@ -1581,7 +1706,8 @@ export const tl = {
     tocGrades: "Mga Grado ng Itlog",
     tocProducts: "Mga Produkto",
     tocStock: "Stock",
-    tocInventory: "Feed at Imbentaryo",
+    tocInventory: "Mga suplay at imbentaryo",
+    tocFeed: "Pakain",
     tocWater: "Tubig",
     tocSales: "Mga Customer at Benta",
     tocReports: "Mga Report",
@@ -1591,6 +1717,7 @@ export const tl = {
     tocExport: "Export at Backup",
     tocFarmSettings: "Mga Setting ng Bukid",
     tocFarmPalette: "Paleta ng Bukid",
+    tocAccount: "Ang Iyong Account",
     tocInstall: "Pag-install sa Telepono",
     tocMistakes: "Pagtatama ng mga Pagkakamali",
     tocGlossary: "Glossary",
@@ -1609,6 +1736,13 @@ export const tl = {
       + "na-save mo na (maaaring kailanganin mong i-type ulit ang kahit anong tina-type mo pa) — i-tap ang "
       + "<strong>I-reload</strong>, o <strong>Bumalik sa dashboard</strong> at subukan ulit. Kung "
       + "paulit-ulit itong nangyayari, buksan ang \"Mga detalye ng error\" at magpadala ng screenshot.",
+    gettingAroundWhereMessagesAppear:
+      "Ang mensahe tungkol sa isang bagay na nabigo ay lumalabas <strong>kung nasaan ang trabaho</strong>: "
+      + "kung pumupuno ka ng pop-up na form, lalabas ito sa loob ng form na iyon, katabi ng mga field na "
+      + "tinutukoy nito; kung ang screen mismo ang nabigo — halimbawa, isang listahang hindi ma-load — lalabas "
+      + "ito sa screen sa likod. Kaya't ang isang form na ayaw mag-save ay laging nagsasabi kung bakit nang "
+      + "hindi nagsasara. Kapag isinara mo ang form, nawawala ang mensahe nito: tapos na ang pagsubok na iyon, "
+      + "at nananatili ang anumang iniulat ng screen mismo.",
 
     signingInHeading: "Pag-sign in",
     signingInBasic:
@@ -1630,6 +1764,12 @@ export const tl = {
       + "kahit mag-reload at kahit bukas ang app sa <strong>ilang tab</strong> nang sabay-sabay. "
       + "Pagkatapos ma-<strong>update</strong> ang app, maaaring hilingin sa iyong mag-sign in muli — "
       + "normal lang iyon.",
+    // machine-drafted (#393) — pending native review.
+    signingInMultiTabResync:
+      "Ang pag-sign in bilang ibang tao sa isang <strong>browser tab</strong> habang ang isa pang tab ng "
+      + "parehong browser ay kalagitnaan pa lang ng sarili nitong tahimik na pag-check ay paminsan-minsang "
+      + "maaaring mag-sign out sa iyo agad pagkatapos — mag-sign in na lang ulit. Nangyayari lang ito sa "
+      + "bihirang sitwasyong ito na may maraming tab at hindi kailanman nawawala ang anumang na-save mo na.",
     // machine-drafted (#283) — pending native review.
     signingInFirstRun:
       "<strong>Unang pag-sign in sa isang bagong-bagong farm.</strong> Walang default na password — "
@@ -1640,12 +1780,15 @@ export const tl = {
       + "naisasagawa ang hakbang na iyon sa setup, sinasabi ito sa iyo kapag sinubukan mong mag-sign in at "
       + "itinuturo ka sa kung sino ang nangangasiwa ng server, sa halip na sabihing mali ang iyong mga detalye.",
     // #308 (machine-drafted, pending native review)
+    // #308/#356 (machine-drafted, pending native review)
     signingInStepUp:
-      "May dalawang aksyon sa <strong>Users</strong> screen na humihiling sa iyong <strong>muling ilagay ang "
-      + "kasalukuyan mong password</strong> mismo sa dialog: ang paggawa ng isa pang Owner, at ang pag-reset "
-      + "ng password ng isang umiiral na Owner. Kinukumpirma nito na ikaw talaga bago bigyan ng ganoong "
-      + "kalaking access — walang ibang aksyon sa screen na iyon (paggawa ng Worker/Manager/Sales/Read-only "
-      + "user, pag-reset ng password nila) ang muling nagtatanong.",
+      "May limang aksyon sa <strong>Users</strong> screen na humihiling sa iyong <strong>muling ilagay ang "
+      + "kasalukuyan mong password</strong> mismo sa dialog: ang paggawa ng isa pang Owner, ang pag-reset "
+      + "ng password ng isang umiiral na Owner, ang pag-promote ng isang tao maging Owner, at — anuman ang "
+      + "tungkulin ng target — ang pag-disable o muling pag-enable ng isang user. Kinukumpirma nito na ikaw "
+      + "talaga bago bigyan ng ganoong kalaking access o bago alisin ito sa iba — walang ibang aksyon sa "
+      + "screen na iyon (paggawa ng Worker/Manager/Sales/Read-only user, pag-reset ng password nila, "
+      + "pagbabago ng tungkulin ng iba tungo sa hindi Owner) ang muling nagtatanong.",
     signingInCredentialEpoch:
       "Kapag ni-reset ng administrator ang password, maaaring agad ma-invalid ang kasalukuyan mong sign-in. Kung "
       + "makakita ka ng mensaheng nagbago ang iyong credentials, mag-sign in muli gamit ang kasalukuyan mong password.",
@@ -1692,9 +1835,24 @@ export const tl = {
       + "(email, password, opsyonal na pangalan, at tungkulin) at nag-a-assign ng manggagawa sa mga kawan. "
       + "Puwedeng baguhin sa ibang pagkakataon ang pangalan ng isang user mula sa aksyong "
       + "<strong>i-edit</strong> ng row, at nagtatakda ang aksyong <strong>password</strong> ng nakalimutang "
-      + "password nang hindi kailangan ang luma. Ang pagbabago ng tungkulin ng isang existing na user ay "
-      + "darating sa susunod na release. Nakatago ang mga control na hindi mo puwedeng gamitin, at "
+      + "password nang hindi kailangan ang luma. Ang aksyong <strong>tungkulin</strong> ay nag-a-promote o "
+      + "nag-de-demote ng isang existing na user sa isa sa limang tungkulin — tinatanggihan ang pagtarget "
+      + "sa sarili mong sign-in, at tinatanggihan ang pag-demote sa huling Admin (may-ari) ng account, para "
+      + "hindi kailanman maiwan ang farm na walang pamamahala ng user. Ang pag-promote ng isang tao maging "
+      + "Admin (may-ari) ay humihiling ng parehong reconfirmation gaya ng pag-reset ng password ng Admin "
+      + "(tingnan sa ibaba); hindi na kailangan ng reconfirmation ang ibang pagbabago ng tungkulin. Ang "
+      + "pagbabago ng tungkulin ay nag-si-sign out sa apektadong sign-in kahit saan sa susunod nitong "
+      + "request, gaya ng pag-reset ng password. Nakatago ang mga control na hindi mo puwedeng gamitin, at "
       + "tinatanggihan pa rin ito ng server.",
+    // #356 (machine-drafted, pending native review)
+    rolesDisableUser:
+      "Ang <strong>pag-disable ng sign-in</strong> (Users screen, Admin/owner lang) ay agad na pumuputol ng "
+      + "access — bawat bukas na session ng taong iyon ay natatapos sa susunod nitong request, gaya rin ng "
+      + "pagbabago ng tungkulin o pag-reset ng password. Opsyonal ang dahilan, at kahit alin pa, napupunta "
+      + "ito sa audit log. Ibinabalik ng <strong>Muling i-enable</strong> ang kanyang kakayahang mag-sign "
+      + "in, pero hindi na buhayin pa ang mga session na natapos ng pag-disable — mag-si-sign in sila ulit "
+      + "gamit ang kasalukuyan nilang password. Hindi mo puwedeng i-disable ang sarili mong sign-in, at "
+      + "hindi mo puwedeng i-disable ang huling Admin (may-ari) ng account.",
     ownPassword:
       "<strong>Ang sarili mong password.</strong> Kahit sino, sa kahit anong tungkulin, ay puwedeng "
       + "magpalit ng sariling password sa screen na <strong>Account</strong> sa pamamagitan ng pag-enter ng "
@@ -1721,6 +1879,10 @@ export const tl = {
       + "nabigo ang pag-save, mananatiling bukas ang popup na kasama ang mga value at ang dahilan mo, "
       + "para maayos mo ito at subukan ulit — ligtas ang muling pagsubok, hindi ito kailanman nagtatala "
       + "ng parehong bagay nang dalawang beses.",
+    dialogsModal:
+      "Habang bukas ang popup, <strong>naghihintay</strong> ang page sa likod nito: ang mga click, ang Tab "
+      + "key at ang screen reader ay nananatili sa loob ng form, kaya walang nababago sa likod nang hindi "
+      + "sinasadya, at isinasara ng Escape ang popup na pinagtatrabahuhan mo.",
     dialogsInlineForms:
       "Ang mga screen na ang buong trabaho ay pagtatala ay pinapanatili ang form sa page mismo: "
       + "<strong>Araw-araw na Tala</strong>, <strong>Tubig</strong>, pagtatala ng gastos, at pagdagdag ng "
@@ -1756,13 +1918,21 @@ export const tl = {
     dailyEntryGradingDown:
       "<strong>Bumababa</strong> ang bilang sa pag-grade. Sa tabi ng mga grado ay makikita kung ilang "
       + "naibibentang itlog pa ang kailangan mong ilagay; nagiging berde ito sa sandaling tumugma ang araw "
-      + "at pula kung lumagpas ka. Hindi ka puwedeng magsumite hangga't hindi umaabot sa eksaktong zero — "
-      + "okay lang na bahagya o hindi man i-grade ang araw para sa draft, pero hindi para sa Isumite.",
+      + "at pula kung lumagpas ka — ang paglagpas ay humaharang din sa pag-save ng draft, hindi lang sa "
+      + "Isumite. Hindi ka puwedeng magsumite hangga't hindi umaabot sa eksaktong zero — okay lang na "
+      + "bahagya o hindi man i-grade ang araw para sa draft, pero hindi para sa Isumite.",
     dailyEntryButtons:
       "May mga button na <strong>−</strong> at <strong>+</strong> ang bawat bilang. I-tap para sa isa, o "
       + "<strong>i-hold</strong> — bumibilis ito habang tumatagal, kaya ilang daang itlog ay tumatagal lang "
-      + "ng isang segundo. Mas madali kaysa sa keypad kapag naka-guwantes. Huminto ang <strong>+</strong> ng "
-      + "isang grado kapag kumpleto na ang pag-grade sa araw, para hindi ka lumampas dito.",
+      + "ng isang segundo. Mas madali kaysa sa keypad kapag naka-guwantes. Hindi na huminto ang "
+      + "<strong>+</strong> ng isang grado sa kasalukuyang kabuuan ng araw — bilangin muna ang mga grado at "
+      + "aabot ang kabuuan para tumugma. Tumataas lang ito, hindi kailanman bumababa, kaya ang pagbawas sa "
+      + "kabuuan sa hakbang 1 ay hindi kailanman itutulak pababa ang isang grado. Ang mga bukid na "
+      + "nagbibilang bawat tray ay maaaring gawing isang buong pack unit ang bilang ng bawat tap sa halip "
+      + "na isang itlog — nasa <strong>Settings</strong> ang default ng bukid, at maaaring pumili ang bawat "
+      + "tao ng kanilang sarili sa kanilang <strong>Account</strong> screen. Kapag may pack unit na "
+      + "ginagamit, sinasabi mismo ng mga button (<strong>−30 / +30</strong>) at may tala sa itaas ng mga "
+      + "pane na nagsasabi ng yunit; ang pag-type ay naglalagay pa rin ng eksaktong numero.",
     dailyEntryPutAllIn:
       "Karamihan sa mga araw ay natatapos sa parehong paraan — isang grado na lang ang kumukuha ng "
       + "natitira. Ginagawa ito sa isang galaw ng <strong>Ilagay lahat sa…</strong> sa tabi ng natitirang "
@@ -1843,7 +2013,9 @@ export const tl = {
       "Ang bawat grado ay lumalawak sa <strong>mga lote</strong> nito (isa kada naisumiteng araw), at ang "
       + "bawat lote naman ay lumalawak sa <strong>talaan ng galaw</strong> nito — isang malinaw na linya "
       + "para sa bawat production, benta, pagtatama, o void. Palaging katumbas ng balanseng ipinapakita ang "
-      + "tumatakbong kabuuan; walang nagbabago sa stock nang hindi nag-iiwan ng linya.",
+      + "tumatakbong kabuuan; walang nagbabago sa stock nang hindi nag-iiwan ng linya. Ipinapakita ng "
+      + "listahan ng lote ang pinakabagong 50 sa bawat pagkakataon — paliitin ito gamit ang mga petsang "
+      + "<strong>Mula/Hanggang</strong> para maabot ang mas lumang lote, o magpatuloy sa pag-load pa.",
     stockRestricted:
       "Ang stock ay ang kabuuan ng mga lote ng itlog mo kada grado. Ang column na "
       + "<strong>restricted</strong> ay nakalaan para sa mga withholding period ng gamot — darating ang "
@@ -1851,6 +2023,12 @@ export const tl = {
       + "itlog, kaya hindi ipinapatupad ng system ang mga withdrawal time sa ngayon</strong> — pamahalaan "
       + "ang mga withholding period sa labas ng Cluckwork sa ngayon.",
     stockFifo: "Palaging kinukuha muna ng pagbebenta ang mga pinakalumang lote, para natural na umiikot ang stock.",
+    stockWriteOff:
+      "Ang nawalang stock — nabasag, nasira, itlog na nagamit sa bahay — ay itinatala gamit ang "
+      + "<strong>i-write off</strong> sa lote (Owner/Manager, kailangan ng dahilan). Binabawasan nito ang "
+      + "available ng lote nang hindi ginagalaw ang mga bilang ng produksyon ng araw; maaari ring magbalik ng "
+      + "itlog ang recount, hanggang sa dating na-write off. Kung sinasabi ng recount na mali ang "
+      + "<em>pangingitlog</em> ng araw, ayusin na lang ang araw-araw na entry.",
 
     inventoryHeading: "Feed at Imbentaryo",
     inventoryItems:
@@ -1859,9 +2037,9 @@ export const tl = {
       + "sabihin ng mga nakatalang dami ang dating ibig sabihin nito.",
     inventoryPurchaseUsage:
       "Ang <strong>Itala ang pagbili</strong> ay nagtatala ng natanggap na stock bilang isang may petsang "
-      + "lote na may kasamang gastos. Ang <strong>Itala ang paggamit</strong> ay nagtatala kung ano ang "
-      + "kinain ng isang kawan sa isang araw: kumukuha ito mula sa mga pinakalumang lote muna (mga lote "
-      + "lang na umiiral noong petsang iyon) at tinatantya ang gastos mula sa mga aktwal na lote na nagamit.",
+      + "lote na may kasamang gastos. Ang pagpapakain sa kawan ay itinatala sa <strong>pahina ng "
+      + "Pakain</strong> — ang panel ng isang item na maipapakain ay direktang naka-link doon nang "
+      + "paunang napili ang item.",
     inventoryLedger:
       "Napupunta ang bawat pagbabago sa <strong>talaan ng galaw</strong> ng item — pagbili, paggamit, "
       + "pagtatama. Hindi kailanman ine-edit o binubura ang mga row ng talaan.",
@@ -1873,6 +2051,22 @@ export const tl = {
       "Bukas sa lahat ang pagtatala ng pagbili at paggamit; ang katalogo ng item at mga pagtatama ng "
       + "stock ay para sa admin lang.",
 
+    feedHeading: "Pakain",
+    feedRecording:
+      "Ang <strong>Itala ang pakain</strong> ay nagtatala kung ano ang kinain ng kawan sa isang araw: "
+      + "piliin ang kawan, ang item (makikita ang kasalukuyang stock sa mismong picker), ang dami, at ang "
+      + "petsa. Ang stock ay kinukuha muna mula sa pinakalumang mga binili — mga lote lang na umiiral "
+      + "noong petsang iyon — at ang tantiyang gastos ay mula sa mga aktwal na lote na nagamit. Nakalista "
+      + "sa history ng pahina ang bawat pagpapakain kasama ang tantiyang gastos nito.",
+    feedCorrecting:
+      "Ang mga tala ng pakain ay <strong>hindi kailanman ine-edit</strong>: nasa ledger na ang stock na "
+      + "kinuha nila, kaya ang maling entry ay itinutuwid sa pamamagitan ng <strong>adjustment</strong> sa "
+      + "Inventory sa apektadong lote (may dahilan), na nananatiling nakikita katabi ng orihinal.",
+    feedDailyEntry:
+      "Ipinapakita ng pahina ng <strong>Daily Entry</strong> ang pakain at tubig ng napiling kawan at araw "
+      + "sa isang sulyap, na may link dito. Ang tala ng pakain o tubig na ginawa habang umiiral na ang "
+      + "entry ng araw na iyon ay naaalala rin ang entry na iyon — ang mga ginawa bago nito ay sadyang "
+      + "hindi naka-link; ang araw mismo ang nag-uugnay sa kanila.",
     waterHeading: "Tubig",
     waterRecording:
       "Itala kung ano ang ininom ng bawat kawan kada araw: alinman sa direktang dami (litro o galon) o "
@@ -1892,6 +2086,8 @@ export const tl = {
       + "pagpili ng <strong>produkto</strong>, isang packed unit (dosena, karton, …), isang buong bilang "
       + "na dami, at isang presyo kada unit (naka-prefill mula sa default ng produkto, pinapayagan ang "
       + "decimal) — i-edit nang malaya, o <strong>kanselahin</strong> (mananatili ang draft, read-only). "
+      + "Ang dami ay bilang ng <strong>mga unit, hindi mga itlog</strong> — nakasaad sa field ang unit at "
+      + "ipinapakita nito ang kabuuang itlog habang nagta-type (2 tray = 60 itlog, hindi 60 tray). "
       + "Naaalala ng bawat linya kung ilang itlog ang laman ng unit nito noong idinagdag ito, kaya hindi "
       + "kailanman binabago ng muling pagtukoy sa isang karton ang mga lumang order.",
     salesConfirming:
@@ -2015,12 +2211,25 @@ export const tl = {
       + "ginawang kopya ang na-save: tinatanggal ang mga detalye ng camera at lokasyon papasok — ang isang "
       + "larawang kinunan sa telepono ay may kasamang kung saan ito kinuha, at para sa isang bukid, iyon "
       + "ang address nito. Alisin ito at babalik ang sidebar sa Cluckwork mark.",
+    farmSettingsDateTimeFormat:
+      "Nag-aalok ang <strong>format ng petsa</strong> at <strong>format ng oras</strong> ng ilang karaniwang "
+      + "pagpipilian sa isang dropdown — pumili at tapos na. Kailangan ng hindi nakalista? Piliin ang "
+      + "<strong>Custom…</strong> para mag-type ng sarili mo; palaging ligtas ang mga preset, pero "
+      + "sinusuri lang ang custom value nang sapat para ma-save, hindi para patunayan na tama ang "
+      + "itsura nito — wala pang nagpapakita ng petsa o oras gamit ang setting na ito sa Cluckwork, "
+      + "kaya hindi makikita ngayon ang isang maling custom value.",
     farmSettingsSquareLogo:
       "Gumamit ng <strong>parisukat</strong> na logo. Maliit itong lumalabas sa sidebar, kaya isang simple "
       + "at maigsing-crop na marka — isang simbolo o iisang letra — ang mas magandang tingnan doon kaysa "
       + "sa isang malawak na wordmark o isang detalyadong larawan, na bumabagsak sa isang bagay na hindi na "
       + "mabasa. Panatilihin ang isang detalyadong logo para sa print o isang website; bigyan ang app ng "
       + "isang malinis na maliit na marka.",
+    farmSettingsCountingUnit:
+      "<strong>Yunit ng pagbilang sa Daily Entry</strong> ang nagtatakda kung magkano ang bilang ng mga "
+      + "+/− na button ng entry screen para sa lahat sa bukid — isang itlog, o isang pack unit tulad ng "
+      + "Tray (30 bawat tap). Ang mga yunit lang na may aktibong depinisyon ng itlog-bawat-yunit sa "
+      + "Products screen ang mapipili, at maaari itong i-override ng bawat tao para sa sarili nila sa "
+      + "kanilang Account screen.",
 
     farmPaletteHeading: "Paleta ng Bukid",
     farmPaletteIntro:
@@ -2031,6 +2240,19 @@ export const tl = {
       "Magkahiwalay at personal ang light mode at night mode. Pumipili ang bawat tao ng sarili nila gamit "
       + "ang toggle sa sidebar, sa bawat device, at hindi kailanman ino-override ito ng paleta ng bukid — "
       + "dinisenyo ang bawat paleta para gumana sa pareho.",
+
+    accountHeading: "Ang Iyong Account",
+    accountPassword:
+      "Ang <strong>Palitan ang password</strong> ay nangangailangan ng kasalukuyan mo at nagsa-sign out sa "
+      + "iba mong device — magagawa ito ng bawat role para sa sarili nila.",
+    accountLanguage:
+      "Ang <strong>Wika</strong> ay nagpapalit ng interface para lang sa iyo, agad-agad, sa bawat device "
+      + "na pinag-sign in mo.",
+    accountCountingUnit:
+      "<strong>Yunit ng pagbilang sa Daily Entry</strong> — kung magkano ang bilang ng IYONG mga tap ng "
+      + "+/−, na nag-o-override sa default ng bukid mula sa Settings. Pumili ng pack unit tulad ng Tray "
+      + "para magbilang bawat tray, o sundin ang default ng bukid para awtomatikong sumunod sa iyo ang "
+      + "isang susunod na pagbabago sa buong bukid.",
 
     installHeading: "Pag-install sa Telepono",
     installIntro:
@@ -2184,13 +2406,23 @@ export const tl = {
       + "hanggang lumipas ang maikling paghihintay. Hindi nito naaapektuhan ang session na naka-sign in "
       + "na.",
 
+    // #393 (machine-drafted, pending native review)
+    glossaryForcedReauthTerm: "Na-sign out kaagad pagkatapos lumipat ng account",
+    glossaryForcedReauthDef:
+      "Ang pag-sign in bilang ibang tao sa isang <strong>browser tab</strong> habang kalagitnaan ng sarili "
+      + "nitong tahimik na pagsuri sa background ang isa pang tab ay paminsan-minsang maaaring mag-sign out "
+      + "kaagad sa bagong session. Mag-sign in na lang ulit — nangyayari lang ito sa maikling sandaling iyon "
+      + "ng maraming tab at walang nawawalang naka-save na.",
+
     // #308 (machine-drafted, pending native review)
     glossaryStepUpAuthTerm: "Karagdagang pagpapatunay (step-up)",
     glossaryStepUpAuthDef:
-      "Isang karagdagang tsek bukod sa pagiging naka-sign in: bago gumawa ng isa pang Owner o mag-reset ng "
-      + "password ng umiiral na Owner, hinihiling ng Users screen na muling ilagay ang kasalukuyan mong "
-      + "password mismo sa dialog. Kinukumpirma nito na ikaw talaga bago bigyan ng ganoong kalaking access "
-      + "— walang ibang aksyon sa screen na iyon ang muling nagtatanong.",
+      "Isang karagdagang tsek bukod sa pagiging naka-sign in: bago gumawa ng isa pang Owner, mag-reset ng "
+      + "password ng umiiral na Owner, mag-promote ng isang tao maging Owner, o mag-disable o mag-enable "
+      + "ulit ng kahit sinong user, hinihiling ng Users screen na muling ilagay ang kasalukuyan mong "
+      + "password mismo sa dialog. Kinukumpirma nito na ikaw talaga bago bigyan — o bawiin — ang ganoong "
+      + "kalaking access. Palaging nagtatanong ang disable at enable, kahit anong role ng user; ang tatlong "
+      + "iba pa ay nagtatanong lang kapag may kinalaman sa access ng Owner.",
 
     glossarySomethingWentWrongScreenTerm: "Screen na \"Something went wrong\"",
     glossarySomethingWentWrongScreenDef:
@@ -2199,7 +2431,7 @@ export const tl = {
       + "I-reload o Bumalik sa dashboard. Naglalaman ang \"Error details\" ng mensahe para sa screenshot.",
 
     glossaryDailyEntryTerm: "Araw-araw na Tala",
-    glossaryDailyEntryDef: "Ang araw ng isang kawan: itlog ayon sa grado, nawala, namatay. Draft hanggang isumite.",
+    glossaryDailyEntryDef: "Ang araw ng isang kawan: itlog ayon sa grado, nawala, namatay. Ang pag-grade nang lampas sa kabuuan ay nagpapataas nito para tumugma. Draft hanggang isumite.",
 
     glossaryEggLotTerm: "Lote ng itlog",
     glossaryEggLotDef:
@@ -2214,6 +2446,12 @@ export const tl = {
       "Ang history line by line sa likod ng balanse ng isang lote ng itlog: papasok na production, "
       + "palabas na benta, at mga pagtatama at void na may kaukulang sign.",
 
+    glossaryStockWriteOffTerm: "Write-off ng stock",
+    glossaryStockWriteOffDef:
+      "Pagwawasto ng Owner/Manager na nag-aalis ng nawalang itlog mula sa isang lote (nabasag, nasira, nagamit "
+      + "sa bahay) o naglalapat ng recount, na may kinakailangang dahilan. Binabago lamang nito ang available ng "
+      + "lote — hindi ginagalaw ang mga bilang ng produksyon ng araw. Maaaring magbalik ng itlog ang recount "
+      + "hanggang sa dating na-write off.",
     glossaryFifoTerm: "FIFO",
     glossaryFifoDef:
       "\"First in, first out\" — palaging kinukuha muna ng benta at ng paggamit ng feed ang pinakalumang "
@@ -2250,6 +2488,11 @@ export const tl = {
     glossaryPackedUnitDef:
       "Ilang itlog ang laman ng isang dosena/tray/karton/case sa bukid mo. Iniingatan ng bawat linya ng "
       + "benta ang bilang na ipinagbenta dito.",
+    glossaryCountingUnitTerm: "Yunit ng pagbilang",
+    glossaryCountingUnitDef:
+      "Kung magkano ang bilang ng bawat tap ng mga − / + na button ng Daily Entry — isang itlog, o isang "
+      + "packed unit tulad ng tray. Default ng bukid sa Settings; ang sarili mong pili sa iyong Account "
+      + "screen. Ipinapakita ng mga button ang halaga (−30 / +30) kapag hindi ito isa.",
 
     glossarySalesLineTerm: "Linya ng benta",
     glossarySalesLineDef:
@@ -2325,7 +2568,8 @@ export const tl = {
     glossaryFarmSettingsTerm: "Mga Setting ng Bukid",
     glossaryFarmSettingsDef:
       "Ang pangalan ng bukid, time zone, locale, currency, at unit system, kasama ang opsyonal na unang "
-      + "araw ng linggo at mga format ng petsa/oras. Setup → Mga Setting ng Bukid; nag-e-edit ang mga "
+      + "araw ng linggo at mga format ng petsa/oras — pinipili mula sa dropdown ng mga preset, o "
+      + "ini-type bilang custom na .NET format string. Setup → Mga Setting ng Bukid; nag-e-edit ang mga "
       + "may-ari at manager, nakakabasa ang lahat — hindi permission ang pag-format ng pera at petsa.",
 
     glossaryCurrencyLockTerm: "Currency lock",
@@ -2352,6 +2596,16 @@ export const tl = {
       "Ang wikang ipinapakita sa interface, kada user — English, Español, o Tagalog — pinipili mula sa "
       + "Account → Preferences. Ang English ang fallback para sa anumang screen na hindi pa naisasalin, "
       + "kahit anong wika ang pinili mo.",
+
+    // #356 — appended last so it doesn't reshuffle the rows above.
+    // (machine-drafted, pending native review)
+    glossaryDisabledUserTerm: "Na-disable na user",
+    glossaryDisabledUserDef:
+      "Binawi ang access, hindi pagbura. Hindi makaka-sign in, makaka-refresh, o makakakuha ng step-up "
+      + "grant ang isang na-disable na user, at natatapos ang bawat bukas niyang session sa susunod nitong "
+      + "request. Ibinabalik ng muling pag-enable ang sign-in pero hindi ang mga lumang session na iyon — "
+      + "kahit anong ibinigay bago ang pag-disable ay hindi na kailanman gagana. Hindi puwedeng i-disable "
+      + "ang huling aktibong Admin (may-ari) ng account, at walang puwedeng mag-disable sa sarili niya.",
 
     glossaryRepoNote:
       "Nasa <code>specs/product/GLOSSARY.md</code> ng repository ang kumpletong mga depinisyon sa "

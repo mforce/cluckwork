@@ -24,7 +24,7 @@ public sealed class UpdateEggUnitConversionHandler(
         // Redefining what a carton/case means is exactly the kind of quiet
         // config change the trail exists for (#93); existing orders keep their
         // snapshots (spec §9.7), only future lines resolve the new factor.
-        await audit.WriteAsync("EggUnitConversion.Update", nameof(EggUnitConversion), conversion.Id,
+        await audit.WriteAsync(AuditActions.EggUnitConversionUpdate, nameof(EggUnitConversion), conversion.Id,
             details: new
             {
                 Unit = conversion.UnitCode.ToString(),

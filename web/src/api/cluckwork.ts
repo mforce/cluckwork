@@ -226,9 +226,13 @@ export interface EggMovementRow {
   createdAtUtc: string;
 }
 
-export const listEggLots = (params?: { gradeId?: string; limit?: number; offset?: number }) => {
+export const listEggLots = (params?: {
+  gradeId?: string; from?: string; to?: string; limit?: number; offset?: number;
+}) => {
   const q = new URLSearchParams();
   if (params?.gradeId) q.set("gradeId", params.gradeId);
+  if (params?.from) q.set("from", params.from);
+  if (params?.to) q.set("to", params.to);
   if (params?.limit) q.set("limit", String(params.limit));
   if (params?.offset) q.set("offset", String(params.offset));
   return apiGet<EggLotRow[]>(`/stock/lots${q.size > 0 ? `?${q}` : ""}`);
@@ -236,6 +240,25 @@ export const listEggLots = (params?: { gradeId?: string; limit?: number; offset?
 
 export const listEggLotMovements = (lotId: string) =>
   apiGet<EggMovementRow[]>(`/stock/lots/${lotId}/movements`);
+
+// #406 — standalone stock correction against one lot (Owner/Manager only).
+// quantityDelta is signed: negative for Discard/InternalUse, either sign for
+// Reconciliation. The response carries the lot's new balance so the screen
+// can report it without a second read.
+export interface EggLotMovementResult {
+  movementId: string;
+  eggLotId: string;
+  movementType: string;
+  quantityDelta: number;
+  reason: string | null;
+  createdAtUtc: string;
+  quantityAvailable: number;
+  version: number;
+}
+
+export const recordEggLotMovement = (lotId: string, body: {
+  movementType: string; quantityDelta: number; reason: string;
+}, key?: string) => apiPost<EggLotMovementResult>(`/stock/lots/${lotId}/movements`, body, key);
 
 // --- Customers & sales (#23/#24) -------------------------------------------
 
@@ -307,7 +330,14 @@ export const createOrder = (body: { customerId: string; orderDate: string }, key
 
 export const addOrderItem = (
   orderId: string,
-  body: { productId: string; quantity: number; unit?: string; unitPriceMinorUnits?: number },
+  body: {
+    productId: string; quantity: number; unit?: string; unitPriceMinorUnits?: number;
+    // #445 — the eggs-per-unit factor the UI previewed while the quantity was
+    // entered; the server refuses the write (422 SalesOrder.UnitDefinitionChanged)
+    // if the definition changed in between, so the recorded QuantityBase can
+    // never silently differ from the previewed one. Omit when nothing was shown.
+    expectedEggsPerUnit?: number;
+  },
   key?: string,
 ) => apiPost<{ orderId: string; itemId: string }>(`/sales/${orderId}/items`, body, key);
 
@@ -358,6 +388,9 @@ export interface Account {
   // light/night toggle, which stays a per-user device preference. The API is
   // the source of truth; localStorage only caches it for the pre-paint script.
   brand: string;
+  // #444 — the farm-default Daily Entry stepper pack unit (an EggUnitConversion
+  // code, e.g. "Tray"). A user's own Me.preferredStepperUnit overrides this.
+  defaultStepperUnit: string;
 }
 
 // Clients need the account currency to parse money input correctly — a JPY
@@ -375,6 +408,9 @@ export interface Me {
   name: string | null;
   role: string;
   language: string | null;
+  // #444 — overrides Account.defaultStepperUnit for this user's Daily Entry
+  // steppers. Null = follow the farm default.
+  preferredStepperUnit: string | null;
 }
 
 export const getMe = () => apiGet<Me>("/me");
@@ -383,6 +419,10 @@ export const getMe = () => apiGet<Me>("/me");
 // Idempotency-Key per call. Returns void (204).
 export const putMeLanguage = (language: string | null): Promise<void> =>
   apiPut<void>("/me/language", { language });
+
+// #444 — same shape as putMeLanguage: one absolute preference, null clears it.
+export const putMeStepperUnit = (unit: string | null): Promise<void> =>
+  apiPut<void>("/me/stepper-unit", { unit });
 
 export interface FarmSettings {
   settings: Account;
@@ -406,6 +446,7 @@ export interface UpdateFarmSettings {
   dateFormatOverride: string | null;
   timeFormatOverride: string | null;
   brand: string;
+  defaultStepperUnit: string;
   version: number;
 }
 
@@ -522,6 +563,36 @@ export const recordFeedUsage = (itemId: string, body: {
   feedUsageId: string; quantityUsed: number; estimatedCostMinorUnits: number; currencyCode: string;
 }>(`/inventory/items/${itemId}/usage`, body, key);
 
+// #446 — the feed-usage history the server has always exposed but no screen
+// read until the /feed page. dailyEntryId is best-effort record-time
+// provenance (null when the day's entry didn't exist yet; never backfilled).
+export interface FeedUsage {
+  id: string;
+  flockId: string;
+  inventoryItemId: string;
+  date: string;
+  quantity: number;
+  unit: string;
+  estimatedCostMinorUnits: number;
+  currencyCode: string;
+  currencyMinorUnit: number;
+  note: string | null;
+  dailyEntryId: string | null;
+}
+
+export const listFeedUsage = (params?: {
+  flockId?: string; from?: string; to?: string; limit?: number; offset?: number;
+}) => {
+  const q = new URLSearchParams();
+  if (params?.flockId) q.set("flockId", params.flockId);
+  if (params?.from) q.set("from", params.from);
+  if (params?.to) q.set("to", params.to);
+  if (params?.limit) q.set("limit", String(params.limit));
+  if (params?.offset) q.set("offset", String(params.offset));
+  const qs = q.size > 0 ? `?${q}` : "";
+  return apiGet<FeedUsage[]>(`/inventory/usage${qs}`);
+};
+
 // Correction path: compensating ledger row against a specific lot. Type
 // "Adjustment" (signed) or "Discard" (negative write-off); reason required.
 export const recordInventoryAdjustment = (itemId: string, body: {
@@ -541,6 +612,8 @@ export interface WaterUsage {
   meterEnd: number | null;
   note: string | null;
   version: number;
+  // #446 — best-effort record-time provenance; corrections never change it.
+  dailyEntryId: string | null;
 }
 
 export const listWaterUsage = (params?: {
@@ -583,6 +656,9 @@ export interface User {
   email: string;
   displayName: string | null;
   role: string; // "Admin" | "Worker"
+  // #356 — ISO timestamp of when this user was disabled, or null while active.
+  // The SPA renders the row muted with a "Disabled" badge when this is set.
+  disabledAt: string | null;
 }
 
 export const listUsers = () => apiGet<User[]>("/users");
@@ -622,6 +698,38 @@ export const setUserPassword = (
   id: string, body: { newPassword: string }, key?: string, stepUpToken?: string,
 ) => apiPut<void>(
   `/users/${id}/password`, body, key, stepUpToken ? { [STEP_UP_HEADER]: stepUpToken } : undefined);
+
+// #355 — promote/demote an existing user's role. The server signs that user
+// out of every device.
+//
+// #308 — stepUpToken is required only when the REQUESTED role is Owner
+// ("Admin"); every other target role is unchanged. Server also refuses
+// self-targeting (400 Users.CannotChangeOwnRole) — surfaced as an ordinary
+// ApiError, not special-cased client-side.
+export const changeUserRole = (
+  id: string, body: { role: string }, key?: string, stepUpToken?: string,
+) => apiPut<void>(
+  `/users/${id}/role`, body, key, stepUpToken ? { [STEP_UP_HEADER]: stepUpToken } : undefined);
+
+// #356 — disable a user: revokes every session and refuses further sign-in.
+// Unlike setUserPassword/changeUserRole, whose step-up is gated only when the
+// TARGET holds Owner, stepUpToken is required UNCONDITIONALLY here — a disable
+// revokes access outright regardless of the target's role. Server also refuses
+// self-targeting (400 Users.CannotDisableSelf), surfaced as an ordinary
+// ApiError like every other domain refusal.
+export const disableUser = (
+  id: string, body: { reason: string | null }, key?: string, stepUpToken?: string,
+) => apiPost<void>(
+  `/users/${id}/disable`, body, key, stepUpToken ? { [STEP_UP_HEADER]: stepUpToken } : undefined);
+
+// #356 — re-enable a disabled user. No body: there is no free-text field, only
+// the route id and the step-up header (required unconditionally, same as
+// disable — re-enabling an Owner restores exactly the access a disable took
+// away).
+export const enableUser = (
+  id: string, key?: string, stepUpToken?: string,
+) => apiPost<void>(
+  `/users/${id}/enable`, undefined, key, stepUpToken ? { [STEP_UP_HEADER]: stepUpToken } : undefined);
 
 // Formats minor units per the order's snapshotted currency (JPY has 0 decimals).
 export function formatMoney(minorUnits: number, currencyCode: string, minorUnit: number): string {

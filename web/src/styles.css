@@ -927,6 +927,19 @@ input.cell {
   color: var(--stat-accent);
 }
 
+/* #444 — a non-1 step renders its amount ("+30") instead of the bare icon.
+   Width goes auto so "+360" (Case) fits; the wider button is a better glove
+   target, which is the point of these controls. */
+.numfield-step-unit {
+  width: auto;
+  min-width: 2.25rem;
+  padding: 0 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 /* Pinned while the form scrolls underneath. The reconciliation line and the two
    saves are the only things needed at every point in the flow, and on a phone
    the grade grid used to push them off-screen entirely. Save feedback lives in
@@ -1208,6 +1221,14 @@ input.cell {
 .sidebar button.link:hover:not(:disabled) {
   color: var(--on-brand);
   text-decoration: none;
+}
+
+.sidebar-version {
+  margin: 0.35rem 0 0.6rem;
+  padding: 0 0.25rem;
+  font-size: 0.75rem;
+  color: var(--on-brand-mute);
+  opacity: 0.7;
 }
 
 /* -------------------------------------------- Bottom nav (mobile) */
@@ -1731,6 +1752,21 @@ label.check {
     overflow-x: auto;
     white-space: nowrap;
     min-width: 0;
+    /* #441 — real-device repro (Android Chrome PWA + Firefox, both
+       confirmed): despite overflow-x: auto correctly scrolling the table
+       WITHIN itself (verified — clientWidth stays small, scrollLeft works),
+       mobile browsers' initial LAYOUT viewport sizing still measured this
+       table's raw un-clipped content width and inflated window.innerWidth
+       past the visual viewport — overflow-x:auto/hidden on every ancestor up
+       to <body> did not stop it. `contain: layout` does: it tells the
+       browser this element's internal layout can never affect an ancestor's
+       (or the viewport's) size, closing the gap overflow alone can't.
+       Without it, BottomNav's `position: fixed; bottom: 0` anchors to that
+       inflated layout viewport instead of the visible one and renders far
+       below the actual screen — reproduced exactly: innerWidth was measured
+       at up to 1066px against a 412px visual viewport, with the nav's own
+       rect landing ~1300px below the visible area. */
+    contain: layout;
     /* Scroll-shadow affordance (#150). Overlay scrollbars vanish at rest, so a
        wide table gives no sign the last column is clipped. Two "cover" layers
        (surface -> transparent) are pinned to the CONTENT (attachment: local):
@@ -1757,7 +1793,11 @@ label.check {
   }
 
   .help-layout {
-    grid-template-columns: 1fr;
+    /* minmax(0, …), not bare 1fr — same #441 grid-blowout shape as .shell's
+       own fix above: a bare 1fr track floors at .help-toc's wrapping nav's
+       min-content, not 0, and that nav's own flex-wrap row is wide enough
+       (many TOC entries) to blow the whole page out past the viewport. */
+    grid-template-columns: minmax(0, 1fr);
     gap: 1rem;
   }
 

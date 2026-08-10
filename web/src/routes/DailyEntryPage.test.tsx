@@ -2,9 +2,11 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { render, screen, within, fireEvent, waitFor, act } from "@testing-library/react";
+import { MemoryRouter } from "react-router";
 import { DailyEntryPage } from "./DailyEntryPage";
 import {
-  listFlocks, listEggGrades, listDailyEntries, createFlock, recordDailyEntry, submitDailyEntry,
+  listFlocks, listEggGrades, listEggUnitConversions, listDailyEntries, createFlock,
+  listFeedUsage, listWaterUsage, recordDailyEntry, submitDailyEntry,
 } from "../api/cluckwork";
 import type { Flock, EggGrade, DailyEntry } from "../api/cluckwork";
 import { todayIso } from "../lib/dates";
@@ -12,19 +14,32 @@ import { FarmContext } from "../farm/FarmContext";
 import { account, farmState } from "../test/fixtures";
 import i18n from "../i18n";
 
-// DailyEntry has no auth/router deps — mock only the API seam it loads from.
-vi.mock("../api/cluckwork", () => ({
-  listFlocks: vi.fn(),
-  listEggGrades: vi.fn(),
-  listDailyEntries: vi.fn(),
-  recordDailyEntry: vi.fn(),
-  submitDailyEntry: vi.fn(),
-  createFlock: vi.fn(),
-}));
+// DailyEntry has no auth deps — mock only the API seam it loads from. The
+// MemoryRouter wrapper exists solely for the #446 summary strip's <Link>s.
+vi.mock("../api/cluckwork", async (importOriginal) => {
+  // Real module (formatMoney and friends stay genuine); only the network
+  // seam is stubbed.
+  const actual = await importOriginal<typeof import("../api/cluckwork")>();
+  return {
+    ...actual,
+    listFlocks: vi.fn(),
+    listFeedUsage: vi.fn(),
+    listWaterUsage: vi.fn(),
+    listEggGrades: vi.fn(),
+    listEggUnitConversions: vi.fn(),
+    listDailyEntries: vi.fn(),
+    recordDailyEntry: vi.fn(),
+    submitDailyEntry: vi.fn(),
+    createFlock: vi.fn(),
+  };
+});
 
 const mockListFlocks = vi.mocked(listFlocks);
 const mockListEggGrades = vi.mocked(listEggGrades);
+const mockListEggUnitConversions = vi.mocked(listEggUnitConversions);
 const mockListDailyEntries = vi.mocked(listDailyEntries);
+const mockListFeedUsage = vi.mocked(listFeedUsage);
+const mockListWaterUsage = vi.mocked(listWaterUsage);
 const mockCreateFlock = vi.mocked(createFlock);
 
 const FLOCK: Flock = {
@@ -47,7 +62,17 @@ beforeEach(() => {
   localStorage.clear();
   mockListFlocks.mockResolvedValue([FLOCK]);
   mockListEggGrades.mockResolvedValue(GRADES);
+  // #444 — the seeded defaults every real account carries; Individual keeps
+  // every pre-existing test's +1/-1 stepper arithmetic unchanged.
+  mockListEggUnitConversions.mockResolvedValue([
+    { id: "c1", unitCode: "Individual", eggsPerUnit: 1, active: true, version: 0 },
+    { id: "c3", unitCode: "Tray", eggsPerUnit: 30, active: true, version: 0 },
+  ]);
   mockListDailyEntries.mockResolvedValue([]); // no existing entry for the day
+  // #446 — the day-support summary strip's own fetches; empty by default so
+  // pre-existing tests see the zero state and nothing else changes.
+  mockListFeedUsage.mockResolvedValue([]);
+  mockListWaterUsage.mockResolvedValue([]);
 });
 
 function setNum(label: string, value: number) {
@@ -72,7 +97,7 @@ function remainingChip() {
 }
 
 async function renderReady() {
-  render(<DailyEntryPage />);
+  render(<MemoryRouter><DailyEntryPage /></MemoryRouter>);
   await screen.findByLabelText("Grade A"); // mount load done, grades rendered
   // wait out the prefill fetch (it gates the save buttons via prefillPending)
   await waitFor(() => expect(saveDraftBtn()).toBeEnabled());
@@ -143,19 +168,25 @@ describe("DailyEntryPage accuracy gating", () => {
     expect(saveDraftBtn()).toBeEnabled();
   });
 
-  it("blocks submit (but not draft) and styles the message error when graded exceeds sellable", async () => {
+  it("blocks both saves and styles the message error when graded exceeds sellable", async () => {
     await renderReady();
     setNum("Total eggs", 100);
     setNum("Cracked", 2);
     setNum("Dirty", 3);
     setNum("Discarded", 5); // sellable 90
     setNum("Grade A", 95); // graded 95 > 90
+    // #443 — typing now auto-raises the total to absorb the overshoot (95 +
+    // 10 losses = 105), so pin the total back to its original 100 to force
+    // the over state this test is about.
+    setNum("Total eggs", 100);
 
     // Over-graded reads as an overage, not as a bigger number than the target.
     expect(remainingChip()).toHaveTextContent("5 over the sellable count");
     expect(remainingChip()).toHaveClass("over");
     expect(submitBtn()).toBeDisabled();
-    expect(saveDraftBtn()).toBeEnabled(); // an over-graded draft is allowed
+    // #443 — an over-graded draft used to be save-able (the backend would
+    // reject it on its own); Save Draft is now blocked client-side too.
+    expect(saveDraftBtn()).toBeDisabled();
   });
 
   it("allows submit at the exact boundary graded === sellable (#394: the gate is ===, nothing short or over)", async () => {
@@ -213,7 +244,7 @@ describe("DailyEntryPage prefill gating", () => {
   it("blocks saving until the prefill lookup resolves", async () => {
     let resolvePrefill!: (entries: DailyEntry[]) => void;
     mockListDailyEntries.mockReturnValue(new Promise((r) => (resolvePrefill = r)));
-    render(<DailyEntryPage />);
+    render(<MemoryRouter><DailyEntryPage /></MemoryRouter>);
     await screen.findByLabelText("Grade A"); // mount load done
 
     // prefill in flight → both saves disabled (no overwrite of an unknown day)
@@ -234,7 +265,7 @@ describe("DailyEntryPage prefill gating", () => {
       version: 1, adjustReason: null, voidReason: null, lockedAtUtc: "2026-07-20T10:00:00Z", adjustedFrom: null,
     };
     mockListDailyEntries.mockResolvedValue([existing]);
-    render(<DailyEntryPage />);
+    render(<MemoryRouter><DailyEntryPage /></MemoryRouter>);
 
     // the lock banner appears once the prefill applies the existing status
     expect(await screen.findByText(/already submitted/)).toBeInTheDocument();
@@ -257,7 +288,7 @@ describe("DailyEntryPage prefill gating", () => {
       version: 1, adjustReason: null, voidReason: null, lockedAtUtc: "2026-07-20T10:00:00Z", adjustedFrom: null,
     };
     mockListDailyEntries.mockResolvedValue([existing]);
-    render(<DailyEntryPage />);
+    render(<MemoryRouter><DailyEntryPage /></MemoryRouter>);
 
     expect(await screen.findByText(/already adjusted/)).toBeInTheDocument();
     expect(screen.queryByText(/manageradjusted/i)).not.toBeInTheDocument();
@@ -440,7 +471,7 @@ describe("DailyEntryPage draft badge", () => {
 
   it("says so when the prefill lands on an existing draft", async () => {
     mockListDailyEntries.mockResolvedValue([draftFor(todayIso())]);
-    render(<DailyEntryPage />);
+    render(<MemoryRouter><DailyEntryPage /></MemoryRouter>);
     await screen.findByLabelText("Grade A");
 
     // Without this the form looked identical whether it was a fresh day or an
@@ -472,7 +503,7 @@ describe("DailyEntryPage draft badge", () => {
     // Day one has a draft; switching to day two leaves existingStatus holding
     // the OLD day's value until the fetch lands.
     mockListDailyEntries.mockResolvedValueOnce([draftFor(todayIso())]);
-    render(<DailyEntryPage />);
+    render(<MemoryRouter><DailyEntryPage /></MemoryRouter>);
     expect(await screen.findByText("Editing draft")).toBeInTheDocument();
 
     // Hold the next prefill open so the assertion lands INSIDE the pending
@@ -491,7 +522,7 @@ describe("DailyEntryPage draft badge", () => {
 
   it("does not claim a draft when the prefill for a new day fails", async () => {
     mockListDailyEntries.mockResolvedValueOnce([draftFor(todayIso())]);
-    render(<DailyEntryPage />);
+    render(<MemoryRouter><DailyEntryPage /></MemoryRouter>);
     expect(await screen.findByText("Editing draft")).toBeInTheDocument();
 
     mockListDailyEntries.mockRejectedValueOnce(new Error("offline"));
@@ -507,7 +538,7 @@ describe("DailyEntryPage draft badge", () => {
     mockListDailyEntries.mockResolvedValue([
       { ...draftFor(todayIso()), status: "Submitted" },
     ]);
-    render(<DailyEntryPage />);
+    render(<MemoryRouter><DailyEntryPage /></MemoryRouter>);
 
     expect(await screen.findByText(/already submitted/)).toBeInTheDocument();
     expect(screen.queryByText("Editing draft")).toBeNull();
@@ -539,9 +570,69 @@ describe("DailyEntryPage new-flock dialog errors", () => {
     const dlg = screen.getByRole("dialog");
     expect(within(dlg).getByText("Flock name already used.")).toBeInTheDocument();
     expect(dlg).toBeInTheDocument(); // stays open to retry
-    // Exactly once: the footer copy stays suppressed while the dialog is up, so
-    // dropping that guard to "fix" the dialog would show the error twice.
+    // Exactly once: #479 gave this message its own "new-flock" dialog slot,
+    // so the page-level footer (a separate slot) has nothing to double up on.
     expect(screen.getAllByText("Flock name already used.")).toHaveLength(1);
+  });
+});
+
+// #479 — one slot per PLACE a message can appear. The dialog-own-failure
+// guarantee above already existed pre-#479 (F134); these two are the ones the
+// old shared slot could not make: an unrelated page failure must never land
+// in the open dialog, and a page failure must survive both the dialog opening
+// and a dialog write of its own failing.
+describe("DailyEntryPage error placement (#479)", () => {
+  const dialog = () => screen.getByRole("dialog");
+  // DailyEntryPage reads window.location.search directly (not react-router's
+  // own location), so a deep link is set the same way the app does — a plain
+  // history navigation before render — and restored after.
+  function withQuery(query: string) {
+    const restore = window.location.href;
+    window.history.pushState({}, "", `/daily-entry${query}`);
+    return () => window.history.pushState({}, "", restore);
+  }
+
+  it("keeps an invalid deep-link failure off the open new-flock dialog", async () => {
+    // No flockId, only a date: flockOk is false, so this never resolves to a
+    // deep link but is still a URL the screen was asked to honor — the
+    // screen's own mount-time failure, unrelated to creating a flock.
+    const restore = withQuery("?date=2026-07-01");
+    try {
+      await renderReady();
+      const message = i18n.t("dailyEntry:deepLinkUnavailable");
+      expect(await screen.findByText(message)).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "+ new flock" }));
+
+      expect(within(dialog()).queryByText(message)).not.toBeInTheDocument();
+      expect(screen.getByText(message)).toBeInTheDocument();
+    } finally {
+      restore();
+    }
+  });
+
+  it("keeps a page failure while the new-flock dialog opens and its own create fails", async () => {
+    const restore = withQuery("?date=2026-07-01");
+    try {
+      mockCreateFlock.mockRejectedValue(new Error("Flock name already used."));
+      await renderReady();
+      const pageFailure = i18n.t("dailyEntry:deepLinkUnavailable");
+      await screen.findByText(pageFailure);
+
+      fireEvent.click(screen.getByRole("button", { name: "+ new flock" }));
+      expect(screen.getByText(pageFailure)).toBeInTheDocument();
+
+      fireEvent.change(within(dialog()).getByLabelText("Name"), { target: { value: "Dupe" } });
+      fireEvent.change(within(dialog()).getByLabelText("Breed"), { target: { value: "ISA" } });
+      await act(async () => {
+        fireEvent.click(within(dialog()).getByRole("button", { name: "Create flock" }));
+      });
+
+      expect(within(dialog()).getByText("Flock name already used.")).toBeInTheDocument();
+      expect(screen.getByText(pageFailure)).toBeInTheDocument();
+    } finally {
+      restore();
+    }
   });
 });
 
@@ -759,22 +850,144 @@ describe("DailyEntryPage assign the remainder", () => {
 
 // F134: the + refuses to build an over-graded day. Typing still can, because a
 // draft is allowed to be over while it is being rearranged.
-describe("DailyEntryPage grading ceiling", () => {
-  it("stops + at the point the day is fully graded", async () => {
+// #443 — grading may run ahead of the total (counted the grades before adding
+// them up); the old ceiling that stopped a grade's + at the current total is
+// gone, replaced by the total catching up to fit.
+describe("DailyEntryPage grading sync (#443)", () => {
+  it("no longer stops + at the point the day is fully graded — raises the total to fit instead", async () => {
     await renderReady();
     setNum("Total eggs", 10);
     setNum("Grade A", 9); // sellable 10, one left
 
     const plusA = screen.getByRole("button", { name: "Increase grade a" });
+    fireEvent.pointerDown(plusA);
+    fireEvent.pointerUp(plusA);
+    expect(screen.getByLabelText("Grade A")).toHaveValue(10);
+    expect(remainingChip()).toHaveClass("done");
+
+    // Old behavior: this button would now be disabled. New behavior: it
+    // keeps going, and the total rises to keep the day reconciled.
     expect(plusA).toBeEnabled();
     fireEvent.pointerDown(plusA);
     fireEvent.pointerUp(plusA);
-
-    expect(screen.getByLabelText("Grade A")).toHaveValue(10);
+    expect(screen.getByLabelText("Grade A")).toHaveValue(11);
+    expect(screen.getByLabelText("Total eggs")).toHaveValue(11);
     expect(remainingChip()).toHaveClass("done");
-    // Nothing unallocated, so no grade can take more.
-    expect(screen.getByRole("button", { name: "Increase grade a" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Increase grade b" })).toBeDisabled();
+  });
+
+  // The two tests above only ever fire ONE onChange per interaction (a tap,
+  // or a single programmatic change) — they cannot tell setGrade's
+  // gradeQtyRef-based sum apart from one naively read off the `gradeQty`
+  // closure, because NumberField's hold-to-repeat binds its WHOLE burst of
+  // ticks to the single setGrade closure captured at press time (see
+  // gradeQtyRef's own comment). Only a genuine multi-tick hold — several
+  // repeat() ticks firing before this component ever re-renders — exercises
+  // the reason the ref exists (codex review of #449 / adversarial review).
+  it("accumulates correctly across a genuine multi-tick hold, not just the press-time snapshot", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      await renderReady();
+      setNum("Total eggs", 10);
+      setNum("Grade A", 9); // sellable 10, one left
+
+      const plusA = screen.getByRole("button", { name: "Increase grade a" });
+      await act(async () => { fireEvent.pointerDown(plusA); });
+      // Same hold length and acceleration curve as NumberField.test.tsx's
+      // "accelerates while held" case: press 1 + ticks 1-10 at +1 (10) +
+      // ticks 11-16 at +5 (30) = 41 over 1300ms.
+      await act(async () => { vi.advanceTimersByTime(1300); });
+      await act(async () => { fireEvent.pointerUp(plusA); });
+
+      expect(screen.getByLabelText("Grade A")).toHaveValue(9 + 41);
+      // Every tick in the burst increased the sum, so the total tracked
+      // every one of them, not just the value the burst started from — the
+      // read-off-a-stale-closure regression would leave this frozen near 10.
+      expect(screen.getByLabelText("Total eggs")).toHaveValue(9 + 41);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not touch the total when the grade still fits under it", async () => {
+    await renderReady();
+    setNum("Total eggs", 20);
+    setNum("Grade A", 5); // sellable 20, fifteen left
+
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Increase grade a" }));
+    fireEvent.pointerUp(screen.getByRole("button", { name: "Increase grade a" }));
+    expect(screen.getByLabelText("Grade A")).toHaveValue(6);
+    // Plenty of headroom left under 20 — nothing should have bumped it.
+    expect(screen.getByLabelText("Total eggs")).toHaveValue(20);
+  });
+
+  it("reducing the total below an already-graded sum reaches 'over' and blocks both saves, without forcing the grade down", async () => {
+    await renderReady();
+    setNum("Total eggs", 10);
+    setNum("Grade A", 10); // exactly reconciled
+    expect(remainingChip()).toHaveClass("done");
+
+    // The user lowers the total directly — this must never be fought by
+    // pulling Grade A back down (bullet 2 of #443's requested change).
+    setNum("Total eggs", 5);
+    expect(screen.getByLabelText("Grade A")).toHaveValue(10);
+    expect(remainingChip()).toHaveClass("over");
+    expect(saveDraftBtn()).toBeDisabled();
+    expect(submitBtn()).toBeDisabled();
+  });
+
+  // #444 — a farm that counts by the tray: every stepper on the screen bumps
+  // by the farm default's eggsPerUnit instead of 1. Typing stays raw numbers.
+  it("steps by the farm-default pack unit when one is set", async () => {
+    render(
+      <MemoryRouter>
+        <FarmContext.Provider value={farmState({ farm: account({ defaultStepperUnit: "Tray" }) })}>
+          <DailyEntryPage />
+        </FarmContext.Provider>
+      </MemoryRouter>);
+    await screen.findByLabelText("Grade A");
+    await waitFor(() => expect(saveDraftBtn()).toBeEnabled());
+
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Increase total eggs by 30" }));
+    fireEvent.pointerUp(screen.getByRole("button", { name: "Increase total eggs by 30" }));
+    expect(screen.getByLabelText("Total eggs")).toHaveValue(30);
+
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Increase grade a by 30" }));
+    fireEvent.pointerUp(screen.getByRole("button", { name: "Increase grade a by 30" }));
+    expect(screen.getByLabelText("Grade A")).toHaveValue(30);
+
+    // The unit is visible at the point of touch AND named above the panes.
+    expect(screen.getAllByText("+30").length).toBeGreaterThan(0);
+    expect(screen.getByText(/Counting by Tray/)).toBeInTheDocument();
+
+    // Mortality counts BIRDS, not eggs — a Tray farm must never record 30
+    // deaths per tap (codex P1 review of #451). Un-suffixed name = step 1.
+    const plusDeaths = screen.getByRole("button", { name: "Increase mortality" });
+    fireEvent.pointerDown(plusDeaths);
+    fireEvent.pointerUp(plusDeaths);
+    expect(screen.getByLabelText("Mortality")).toHaveValue(1);
+  });
+
+  it("shows no unit caption when counting by ones", async () => {
+    await renderReady(); // no farm context — resolves to Individual
+    expect(screen.queryByText(/Counting by/)).toBeNull();
+  });
+
+  // codex review of #449: gating only on "still over" (rather than on this
+  // EDIT increasing the graded sum) meant that fixing the over-graded day
+  // above by walking Grade A back down with − ratcheted the total right back
+  // up on every decrement, undoing the user's own step-1 correction.
+  it("does not ratchet the total back up when correcting an over-graded day with −", async () => {
+    await renderReady();
+    setNum("Total eggs", 10);
+    setNum("Grade A", 10); // exactly reconciled
+    setNum("Total eggs", 5); // trimmed directly — now over
+
+    const minusA = screen.getByRole("button", { name: "Decrease grade a" });
+    fireEvent.pointerDown(minusA);
+    fireEvent.pointerUp(minusA);
+
+    expect(screen.getByLabelText("Grade A")).toHaveValue(9);
+    expect(screen.getByLabelText("Total eggs")).toHaveValue(5);
   });
 });
 
@@ -784,9 +997,11 @@ describe("DailyEntryPage grading ceiling", () => {
 // farm) or hides a legitimate one (device behind).
 describe("DailyEntryPage farm-local date", () => {
   const farmed = (timeZoneId: string) => render(
-    <FarmContext.Provider value={farmState({ farm: account({ timeZoneId }) })}>
-      <DailyEntryPage />
-    </FarmContext.Provider>);
+    <MemoryRouter>
+      <FarmContext.Provider value={farmState({ farm: account({ timeZoneId }) })}>
+        <DailyEntryPage />
+      </FarmContext.Provider>
+    </MemoryRouter>);
 
   it("opens on the farm's today and refuses to go past it", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
@@ -852,7 +1067,7 @@ describe("DailyEntryPage i18n wiring (#182, Task 11)", () => {
     // Not renderReady(): it waits on the ORIGINAL "Save draft" name to confirm
     // the prefill settled, which the override below replaces.
     await withOverride("dailyEntry", "saveDraftButton", "SAVE-DRAFT-MARKER", async () => {
-      render(<DailyEntryPage />);
+      render(<MemoryRouter><DailyEntryPage /></MemoryRouter>);
       await screen.findByLabelText("Grade A");
       await waitFor(() =>
         expect(screen.getByRole("button", { name: "SAVE-DRAFT-MARKER" })).toBeEnabled());
@@ -872,7 +1087,7 @@ describe("DailyEntryPage i18n wiring (#182, Task 11)", () => {
     };
     mockListDailyEntries.mockResolvedValue([existing]);
     await withOverride("dailyEntry", "entryLockedBanner", "LOCKED-MARKER {{status}} MARKER-END", async () => {
-      render(<DailyEntryPage />);
+      render(<MemoryRouter><DailyEntryPage /></MemoryRouter>);
       expect(await screen.findByText("LOCKED-MARKER submitted MARKER-END")).toBeInTheDocument();
     });
   });
@@ -904,5 +1119,78 @@ describe("DailyEntryPage i18n wiring (#182, Task 11)", () => {
         expect(screen.getByRole("dialog")).toHaveAccessibleName("SUBMIT-TITLE-MARKER");
         expect(screen.getByRole("button", { name: "SUBMIT-CONFIRM-MARKER" })).toBeInTheDocument();
       }));
+  });
+});
+
+// #446 — the day-support strip: what else was recorded for this flock+date
+// (feed + water), queried by flock+date — NOT by DailyEntryId, so it works
+// before the day's entry exists — with links to the pages that record them.
+describe("DailyEntryPage feed/water day summary (#446)", () => {
+  const feedRow = (over: object = {}) => ({
+    id: "fu1", flockId: "f1", inventoryItemId: "i1", date: todayIso(),
+    quantity: 18, unit: "kg", estimatedCostMinorUnits: 45_000,
+    currencyCode: "USD", currencyMinorUnit: 2, note: null, dailyEntryId: null,
+    ...over,
+  });
+  const waterRow = (over: object = {}) => ({
+    id: "wu1", flockId: "f1", date: todayIso(), quantity: 250, unit: "L",
+    source: "Well", meterStart: null, meterEnd: null, note: null, version: 1,
+    dailyEntryId: null,
+    ...over,
+  });
+
+  it("summarizes the day's feed and water for the selected flock+date, linking both pages", async () => {
+    mockListFeedUsage.mockResolvedValue([feedRow(), feedRow({ id: "fu2", estimatedCostMinorUnits: 5_000 })]);
+    mockListWaterUsage.mockResolvedValue([waterRow()]);
+    await renderReady();
+
+    expect(await screen.findByText("Feed: 2 records (est. 500.00 USD)")).toBeInTheDocument();
+    expect(screen.getByText("Water: 1 record")).toBeInTheDocument();
+    // Context rides along: the link lands filtered to this flock and day.
+    expect(screen.getByRole("link", { name: /Feed: 2 records/ }))
+      .toHaveAttribute("href", `/feed?flockId=f1&from=${todayIso()}&to=${todayIso()}`);
+    expect(screen.getByRole("link", { name: /Water: 1 record/ }))
+      .toHaveAttribute("href", `/water?flockId=f1&from=${todayIso()}&to=${todayIso()}`);
+    // Queried by the page's own flock+date, never by the entry link.
+    expect(mockListFeedUsage).toHaveBeenCalledWith(
+      expect.objectContaining({ flockId: "f1", from: todayIso(), to: todayIso() }));
+  });
+
+  it("drops the cost — never a blended sum — when the day's feed rows span currencies", async () => {
+    mockListFeedUsage.mockResolvedValue([
+      feedRow(),
+      feedRow({ id: "fu2", currencyCode: "JPY", currencyMinorUnit: 0, estimatedCostMinorUnits: 700 }),
+    ]);
+    await renderReady();
+    expect(await screen.findByText("Feed: 2 records")).toBeInTheDocument();
+    expect(screen.queryByText(/est\./)).not.toBeInTheDocument();
+  });
+
+  it("shows the zero state with both links when nothing was recorded yet", async () => {
+    await renderReady();
+    expect(await screen.findByText("Feed: 0 records")).toBeInTheDocument();
+    expect(screen.getByText("Water: 0 records")).toBeInTheDocument();
+  });
+
+  it("pages past the API limit so the count and cost are true day totals", async () => {
+    // The list endpoints page at 100; a single request would silently
+    // underreport both figures for a heavy day. The strip must drain pages.
+    const fullPage = Array.from({ length: 100 }, (_, i) =>
+      feedRow({ id: `fu${i}`, estimatedCostMinorUnits: 100 }));
+    mockListFeedUsage.mockResolvedValueOnce(fullPage);
+    mockListFeedUsage.mockResolvedValueOnce([feedRow({ id: "fu-tail", estimatedCostMinorUnits: 500 })]);
+    await renderReady();
+
+    expect(await screen.findByText("Feed: 101 records (est. 105.00 USD)")).toBeInTheDocument();
+    expect(mockListFeedUsage).toHaveBeenCalledWith(expect.objectContaining({ offset: 100 }));
+  });
+
+  it("a failed summary read hides the strip and leaves the entry form fully usable", async () => {
+    mockListFeedUsage.mockRejectedValue(new Error("boom"));
+    mockListWaterUsage.mockRejectedValue(new Error("boom"));
+    await renderReady(); // renderReady itself asserts the save buttons enable
+    expect(screen.queryByText(/^Feed: /)).not.toBeInTheDocument();
+    setNum("Total eggs", 5);
+    expect(screen.getByLabelText("Total eggs")).toHaveValue(5);
   });
 });

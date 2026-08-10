@@ -107,6 +107,14 @@ public sealed class RefreshTokenFlowTests(CluckworkWebApplicationFactory factory
     // (With 3+ concurrent, a late replay can legitimately find the replacement
     // already consumed and trip the theft response to 0 live — also non-forking;
     // two is the deterministic boundary that isolates the anti-fork guarantee.)
+    //
+    // #468 — that boundary claim was NOT true when written: the read-after-commit
+    // loser reached the theft response instead of grace whenever it had captured
+    // its clock before the winner captured theirs, which made this test flaky at
+    // 0 live rather than 1. Since the grace window is measured from the read it
+    // holds as stated. Both interleavings are pinned deterministically, without
+    // racing, in RefreshGraceClockRaceTests — this test races them for real, so
+    // it is the one that notices if the ordering stops being an invariant.
     [Fact]
     public async Task Refresh_ConcurrentPresentationsOfSameToken_NeverForkIntoTwoSessions()
     {

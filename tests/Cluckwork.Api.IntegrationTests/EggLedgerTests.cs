@@ -252,6 +252,40 @@ public sealed class EggLedgerTests(CluckworkWebApplicationFactory factory)
         Assert.Equal("Production", movements![0].MovementType);
     }
 
+    // #465 — the SPA's date filter: from/to bound the lot list by production
+    // date (inclusive both ends, like the daily-entries list), composing with
+    // gradeId and paging so "show more" pages within the filtered window.
+    [Fact]
+    public async Task DateFilter_BoundsTheLotList_InclusiveAndPageable()
+    {
+        var (client, _, farmId, flockId, gradeId, _) = await SetupAsync();
+        var (_, oldest, _) = await SubmitEntryAsync(client, farmId, flockId, gradeId, 10, Today.AddDays(-2));
+        var (_, middle, _) = await SubmitEntryAsync(client, farmId, flockId, gradeId, 20, Today.AddDays(-1));
+        var (_, newest, _) = await SubmitEntryAsync(client, farmId, flockId, gradeId, 30);
+
+        async Task<List<Guid>> IdsAsync(string query) =>
+            (await client.GetFromJsonAsync<List<LotRow>>($"/api/v1/stock/lots?gradeId={gradeId}&{query}"))!
+            .Select(l => l.Id).ToList();
+
+        // from alone drops older lots; to alone drops newer ones.
+        Assert.Equal([newest, middle], await IdsAsync($"from={Today.AddDays(-1):yyyy-MM-dd}"));
+        Assert.Equal([oldest], await IdsAsync($"to={Today.AddDays(-2):yyyy-MM-dd}"));
+
+        // Both bounds are inclusive: a one-day window keeps exactly that day.
+        Assert.Equal([middle],
+            await IdsAsync($"from={Today.AddDays(-1):yyyy-MM-dd}&to={Today.AddDays(-1):yyyy-MM-dd}"));
+
+        // Paging happens WITHIN the window: two disjoint pages of one stitch
+        // back to the filtered pair, newest first.
+        var page1 = await IdsAsync($"from={Today.AddDays(-1):yyyy-MM-dd}&limit=1&offset=0");
+        var page2 = await IdsAsync($"from={Today.AddDays(-1):yyyy-MM-dd}&limit=1&offset=1");
+        Assert.Equal([newest], page1);
+        Assert.Equal([middle], page2);
+
+        // An empty window is an empty list, not an error.
+        Assert.Empty(await IdsAsync($"from={Today.AddDays(10):yyyy-MM-dd}"));
+    }
+
     [Fact]
     public async Task LotMovements_AreTenantIsolated_ForeignLotLooksNonexistent()
     {

@@ -14,5 +14,6 @@ public sealed class ApplicationUserConfiguration : IEntityTypeConfiguration<Appl
     {
         builder.Property(u => u.Language).HasMaxLength(16);
         builder.Property(u => u.CredentialEpoch).HasDefaultValue(1);
+        builder.Property(u => u.PreferredStepperUnit).HasConversion<string>().HasMaxLength(16);
     }
 }

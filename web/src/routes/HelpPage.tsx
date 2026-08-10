@@ -27,6 +27,7 @@ const TOC = [
   ["products", "tocProducts"],
   ["stock", "tocStock"],
   ["inventory", "tocInventory"],
+  ["feed", "tocFeed"],
   ["water", "tocWater"],
   ["sales", "tocSales"],
   ["reports", "tocReports"],
@@ -36,6 +37,7 @@ const TOC = [
   ["export", "tocExport"],
   ["farm-settings", "tocFarmSettings"],
   ["farm-palette", "tocFarmPalette"],
+  ["account", "tocAccount"],
   ["install", "tocInstall"],
   ["mistakes", "tocMistakes"],
   ["glossary", "tocGlossary"],
@@ -110,6 +112,9 @@ export function HelpPage() {
         <li>
           <Trans ns="help" i18nKey="gettingAroundErrorScreen" components={{ strong: <strong /> }} />
         </li>
+        <li>
+          <Trans ns="help" i18nKey="gettingAroundWhereMessagesAppear" components={{ strong: <strong /> }} />
+        </li>
       </ul>
 
       <h3 id="signing-in">{t("signingInHeading")}</h3>
@@ -128,6 +133,9 @@ export function HelpPage() {
         </li>
         <li>
           <Trans ns="help" i18nKey="signingInPersistence" components={{ strong: <strong /> }} />
+        </li>
+        <li>
+          <Trans ns="help" i18nKey="signingInMultiTabResync" components={{ strong: <strong /> }} />
         </li>
         <li>
           <Trans ns="help" i18nKey="signingInStepUp" components={{ strong: <strong /> }} />
@@ -161,6 +169,10 @@ export function HelpPage() {
         <li>
           <Trans ns="help" i18nKey="rolesAdmin" components={{ strong: <strong /> }} />
         </li>
+        <li>
+          {/* #356 — disable/re-enable a colleague's sign-in. */}
+          <Trans ns="help" i18nKey="rolesDisableUser" components={{ strong: <strong /> }} />
+        </li>
       </ul>
 
       <p>
@@ -177,6 +189,11 @@ export function HelpPage() {
         </li>
         <li>
           <Trans ns="help" i18nKey="dialogsCancel" components={{ strong: <strong /> }} />
+        </li>
+        <li>
+          {/* #482 — the page behind a popup is now genuinely out of reach, for
+              the pointer and for a screen reader alike. */}
+          <Trans ns="help" i18nKey="dialogsModal" components={{ strong: <strong /> }} />
         </li>
         <li>
           {/* #236 — the pending-save indicator, in the section that already
@@ -267,6 +284,9 @@ export function HelpPage() {
           <Trans ns="help" i18nKey="stockRestricted" components={{ strong: <strong /> }} />
         </li>
         <li>{t("stockFifo")}</li>
+        <li>
+          <Trans ns="help" i18nKey="stockWriteOff" components={{ strong: <strong />, em: <em /> }} />
+        </li>
       </ul>
 
       <h3 id="inventory">{t("inventoryHeading")}</h3>
@@ -284,6 +304,19 @@ export function HelpPage() {
           <Trans ns="help" i18nKey="inventoryCorrections" components={{ strong: <strong />, em: <em /> }} />
         </li>
         <li>{t("inventoryPermissions")}</li>
+      </ul>
+
+      <h3 id="feed">{t("feedHeading")}</h3>
+      <ul>
+        <li>
+          <Trans ns="help" i18nKey="feedRecording" components={{ strong: <strong /> }} />
+        </li>
+        <li>
+          <Trans ns="help" i18nKey="feedCorrecting" components={{ strong: <strong /> }} />
+        </li>
+        <li>
+          <Trans ns="help" i18nKey="feedDailyEntry" components={{ strong: <strong /> }} />
+        </li>
       </ul>
 
       <h3 id="water">{t("waterHeading")}</h3>
@@ -373,17 +406,40 @@ export function HelpPage() {
         <li>
           <Trans ns="help" i18nKey="farmSettingsCurrency" components={{ strong: <strong /> }} />
         </li>
+        {/* #452 — preset dropdown + Custom escape hatch for date/time format overrides. */}
+        <li>
+          <Trans ns="help" i18nKey="farmSettingsDateTimeFormat" components={{ strong: <strong /> }} />
+        </li>
         <li>
           <Trans ns="help" i18nKey="farmSettingsLogo" components={{ strong: <strong /> }} />
         </li>
         <li>
           <Trans ns="help" i18nKey="farmSettingsSquareLogo" components={{ strong: <strong /> }} />
         </li>
+        {/* #444 — the farm-default Daily Entry counting unit. */}
+        <li>
+          <Trans ns="help" i18nKey="farmSettingsCountingUnit" components={{ strong: <strong /> }} />
+        </li>
       </ul>
 
       <h3 id="farm-palette">{t("farmPaletteHeading")}</h3>
       <p>{t("farmPaletteIntro")}</p>
       <p>{t("farmPaletteLightNight")}</p>
+
+      {/* #444 — the personal counterpart to Farm settings: what each signed-in
+          person can set for themselves, whatever their role. */}
+      <h3 id="account">{t("accountHeading")}</h3>
+      <ul>
+        <li>
+          <Trans ns="help" i18nKey="accountPassword" components={{ strong: <strong /> }} />
+        </li>
+        <li>
+          <Trans ns="help" i18nKey="accountLanguage" components={{ strong: <strong /> }} />
+        </li>
+        <li>
+          <Trans ns="help" i18nKey="accountCountingUnit" components={{ strong: <strong /> }} />
+        </li>
+      </ul>
 
       <h3 id="install">{t("installHeading")}</h3>
       <ul>
@@ -481,6 +537,8 @@ export function HelpPage() {
             <td>{t("glossaryNewVersionReadyDef")}</td></tr>
           <tr><th scope="row">{t("glossaryTooManySignInAttemptsTerm")}</th>
             <td>{t("glossaryTooManySignInAttemptsDef")}</td></tr>
+          <tr><th scope="row">{t("glossaryForcedReauthTerm")}</th>
+            <td><Trans ns="help" i18nKey="glossaryForcedReauthDef" components={{ strong: <strong /> }} /></td></tr>
           <tr><th scope="row">{t("glossaryTooManyReportsTerm")}</th>
             <td>{t("glossaryTooManyReportsDef")}</td></tr>
           <tr><th scope="row">{t("glossaryStepUpAuthTerm")}</th>
@@ -495,6 +553,8 @@ export function HelpPage() {
             <td>{t("glossaryGradeDef")}</td></tr>
           <tr><th scope="row">{t("glossaryEggMovementLedgerTerm")}</th>
             <td>{t("glossaryEggMovementLedgerDef")}</td></tr>
+          <tr><th scope="row">{t("glossaryStockWriteOffTerm")}</th>
+            <td>{t("glossaryStockWriteOffDef")}</td></tr>
           <tr><th scope="row">{t("glossaryFifoTerm")}</th>
             <td>{t("glossaryFifoDef")}</td></tr>
           <tr><th scope="row">{t("glossaryCullTerm")}</th>
@@ -511,6 +571,9 @@ export function HelpPage() {
             <td>{t("glossaryProductDef")}</td></tr>
           <tr><th scope="row">{t("glossaryPackedUnitTerm")}</th>
             <td>{t("glossaryPackedUnitDef")}</td></tr>
+          {/* #444 — beside the packed unit it counts by. */}
+          <tr><th scope="row">{t("glossaryCountingUnitTerm")}</th>
+            <td>{t("glossaryCountingUnitDef")}</td></tr>
           <tr><th scope="row">{t("glossarySalesLineTerm")}</th>
             <td>{t("glossarySalesLineDef")}</td></tr>
           <tr><th scope="row">{t("glossaryConfirmOrderTerm")}</th>
@@ -551,6 +614,9 @@ export function HelpPage() {
           </tr>
           <tr><th scope="row">{t("glossaryUiLanguageTerm")}</th>
             <td>{t("glossaryUiLanguageDef")}</td></tr>
+          {/* #356 — appended last so it doesn't reshuffle the rows above. */}
+          <tr><th scope="row">{t("glossaryDisabledUserTerm")}</th>
+            <td>{t("glossaryDisabledUserDef")}</td></tr>
         </tbody>
       </table>
 

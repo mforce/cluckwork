@@ -74,7 +74,7 @@ public sealed class UpdateProductHandler(
             // (part 2), so history never reinterprets.
             mapping.Repoint(grade.Id);
 
-            await audit.WriteAsync("Product.Update", nameof(Product), product.Id,
+            await audit.WriteAsync(AuditActions.ProductUpdate, nameof(Product), product.Id,
                 details: new { product.Name, product.DefaultUnit, product.DefaultPriceMinorUnits, EggGrade = grade.Name },
                 ct: transactionCt);
 

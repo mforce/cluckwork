@@ -103,6 +103,21 @@ describe("AppLayout sidebar", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
+  it("shows no version line when VITE_APP_VERSION is unset (#458 — dev/test builds)", () => {
+    // import.meta.env.VITE_APP_VERSION is read once at module scope
+    // (AppLayout.tsx), matching errorReport.ts's own "absent in dev builds"
+    // contract — this test environment never sets it, so this proves the
+    // component renders nothing rather than a literal "vundefined".
+    renderWithProviders(<AppLayout />, { token: { sub: "u1", role: "Admin" } });
+    // Matches either a real version ("v0.0.2") or i18next's literal rendering
+    // of a missing interpolation (a bare "v", the {{version}} slot rendering
+    // empty) — both must be absent. Measured directly: i18next does not
+    // render "vundefined" for a missing var, it renders an empty
+    // interpolation, so a regex assuming the JS-string-concat shape would
+    // have silently passed against the exact bug this guards.
+    expect(screen.queryByText(/^v(\d.*)?$/)).not.toBeInTheDocument();
+  });
+
   it("toggles light ↔ night, flipping the control and the root data-theme", () => {
     renderWithProviders(<AppLayout />, { token: { sub: "u1", role: "Admin" } });
     // jsdom has no matchMedia → initial theme resolves to light, so the control

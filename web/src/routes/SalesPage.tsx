@@ -3,17 +3,20 @@ import { Plus } from "lucide-react";
 import { Trans, useTranslation } from "react-i18next";
 import {
   addOrderItem, cancelOrder, confirmOrder, createOrder, formatMoney, getOrder,
-  listCustomers, listEggGrades, listOrderPayments, listOrders, listProducts,
-  parseMoneyToMinorUnits, recordPayment,
+  listCustomers, listEggGrades, listEggUnitConversions, listOrderPayments, listOrders,
+  listProducts, parseMoneyToMinorUnits, recordPayment,
   removeOrderItem, updateOrderItem, voidOrder, voidPayment,
 } from "../api/cluckwork";
-import type { Customer, OrderPayments, Product, SalesOrder } from "../api/cluckwork";
+import type { Customer, EggUnitConversion, OrderPayments, Product, SalesOrder } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
 import { NumberField } from "../components/NumberField";
 import { Dialog } from "../components/Dialog";
+import { DialogError } from "../components/DialogError";
+import { useDialogErrors } from "../components/useDialogErrors";
 import { useConfirm } from "../components/useConfirm";
+import { usePagedList } from "../components/usePagedList";
 import { usePendingAction } from "../components/usePendingAction";
 import { StatusBadge } from "../components/StatusBadge";
 import { newId } from "../lib/ids";
@@ -22,6 +25,15 @@ import i18n from "../i18n";
 import { statusLabel } from "../i18n/enums";
 
 const PAGE = 50;
+
+// The egg selling units, in picker order — one list for the Per picker and
+// the #445 unit-label/preview helpers, mirroring the server's ProductUnit
+// egg subset. `as const` keeps `unit${SellingUnit}` a closed union the typed
+// i18n `t` accepts (a bare string template fails the tsc -b build).
+const SELLING_UNITS = ["Egg", "Dozen", "Flat", "Tray", "Carton", "Case"] as const;
+type SellingUnit = (typeof SELLING_UNITS)[number];
+const isSellingUnit = (u: string): u is SellingUnit =>
+  (SELLING_UNITS as readonly string[]).includes(u);
 
 // The sole RAW payment-method render site (below) mirrors the SAME six-value
 // vocabulary as the payment-method picker in this file (which already renders
@@ -60,14 +72,19 @@ export function SalesPage() {
   // voiding a payment stays corrective (Owner/Manager) like every other undo.
   const canSettle = isAdmin || role === "Sales";
   const { confirm, askReason, confirmDialog } = useConfirm();
-  const [orders, setOrders] = useState<SalesOrder[] | null>(null);
-  const [hasMore, setHasMore] = useState(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
   // #99: lines sell PRODUCTS. Active ones feed the picker; the full list
   // (inactive included) resolves display names on existing lines.
   const [products, setProducts] = useState<Product[]>([]);
   const [allProducts, setAllProducts] = useState<Product[]>([]);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  // #445 — eggs-per-unit definitions, so the add-line form can say what the
+  // quantity means BEFORE the line lands (the table row's "per tray (30 eggs)"
+  // arrives too late to catch "typed 60 eggs, sold 60 trays").
+  const [conversions, setConversions] = useState<EggUnitConversion[]>([]);
+  // Setup reads only (customers + products). The ORDER LIST's failures live
+  // in the paged-list hook and render as a banner — they must never take the
+  // workspace down with them (#469).
+  const [setupError, setSetupError] = useState<string | null>(null);
 
   // list filters (#24: status/customer/paged)
   const [statusFilter, setStatusFilter] = useState("");
@@ -129,7 +146,19 @@ export function SalesPage() {
   };
   const clearKey = (scope: string) => keys.current.delete(scope);
 
-  const [error, setError] = useState<string | null>(null);
+  // One slot per PLACE a message can appear: the page, and each dialog by
+  // scope. Sales learned every rule of this the hard way over four review
+  // rounds (#474 → #477 → #480 → #481); #479 extracted the result into
+  // useDialogErrors once the same one-shared-slot shape turned up on ten other
+  // screens. The rules and the incidents that earned them live with the hook —
+  // Sales-specific is only WHICH scopes own a dialog.
+  const errors = useDialogErrors();
+  // Pulled out for the payments effect's dependency list: both are stable, and
+  // naming them is what lets that effect declare its real dependencies.
+  const { abandon: abandonError, setPage: setPageError } = errors;
+  // The scopes that own a dialog. run() routes a failure by this and nothing
+  // else, so a new dialog action is one entry, not a new render condition.
+  const DIALOG_SCOPES = ["create-order", "record-payment"];
   const [message, setMessage] = useState<string | null>(null);
 
   // Payments (#89, admin-only money data) — settlement state of the open
@@ -144,16 +173,46 @@ export function SalesPage() {
   const customerName = (id: string) => customers.find((c) => c.id === id)?.name ?? id.slice(0, 8);
   const productName = (id: string) => allProducts.find((p) => p.id === id)?.name ?? id.slice(0, 8);
 
-  const loadOrders = useCallback(async (offset = 0) => {
-    const page = await listOrders({
-      status: statusFilter || undefined,
-      customerId: customerFilter || undefined,
-      limit: PAGE,
-      offset,
-    });
-    setHasMore(page.length === PAGE);
-    setOrders((prev) => (offset === 0 ? page : [...(prev ?? []), ...page]));
-  }, [statusFilter, customerFilter]);
+  // #445 — eggs per PACKED selling unit. null when no active definition
+  // exists — the UI then shows nothing extra rather than a wrong number, and
+  // the server's own check decides at add time. Callers exclude the per-egg
+  // unit by IDENTITY, never by factor value: only "Individual" is pinned to 1
+  // server-side, so a packed unit deliberately defined as 1 egg/unit is a
+  // real (nonstandard) configuration that must stay visible at entry time
+  // (codex review of #445) — which also means the "Egg"→"Individual" lookup
+  // the server does is not needed here, since "Egg" never annotates.
+  const eggsPerUnit = (sellingUnit: string): number | null => {
+    const c = conversions.find((x) => x.unitCode === sellingUnit && x.active);
+    return c?.eggsPerUnit ?? null;
+  };
+  // Lowercased to match the row display's `perUnit` convention ("per tray").
+  // The membership guard is what lets the typed i18n key accept the template:
+  // `unit${SellingUnit}` is a closed union of real catalog keys, while an
+  // unrecognized unit string (a future enum value this build predates) falls
+  // back to its raw name rather than a missing-key render.
+  const unitWord = (sellingUnit: string) =>
+    (isSellingUnit(sellingUnit) ? t(`unit${sellingUnit}`) : sellingUnit).toLowerCase();
+
+  // #469 — this list had no request sequencing, and its failure was fatal:
+  // any rejection (including one from a request the user had already moved
+  // past) set a `loadError` that NOTHING ever cleared, replacing the whole
+  // workspace — an order being edited included — for the rest of the session.
+  // The hook raises an error only from the current request and clears it on
+  // the next successful load; the screen now renders it as a banner beside
+  // the work rather than instead of it.
+  const orders = usePagedList({
+    fetchPage: useCallback(
+      (offset: number, limit: number) => listOrders({
+        status: statusFilter || undefined,
+        customerId: customerFilter || undefined,
+        limit,
+        offset,
+      }),
+      [statusFilter, customerFilter],
+    ),
+    pageSize: PAGE,
+    errorText: () => i18n.t("sales:loadOrdersFailed"),
+  });
 
   useEffect(() => {
     // includeInactive: existing order lines may reference deactivated
@@ -186,12 +245,15 @@ export function SalesPage() {
           setPrice(priceInput(first.defaultPriceMinorUnits, farmScale));
         }
       })
-      .catch(() => setLoadError(i18n.t("sales:loadSalesDataFailed")));
+      .catch(() => setSetupError(i18n.t("sales:loadSalesDataFailed")));
+    // Separate from the Promise.all above ON PURPOSE: the conversions only
+    // feed supplementary display (the live "= N eggs" hint and the option
+    // annotations), so a failed read degrades to the pre-#445 labels instead
+    // of blocking the whole screen. A genuinely missing conversion still 422s
+    // server-side at add time (SalesOrder.NoUnitConversion).
+    listEggUnitConversions().then(setConversions).catch(() => {});
   }, []);
 
-  useEffect(() => {
-    loadOrders().catch(() => setLoadError(i18n.t("sales:loadOrdersFailed")));
-  }, [loadOrders]);
 
   const activeId = active?.id ?? null;
   const activeStatus = active?.status ?? null;
@@ -201,13 +263,56 @@ export function SalesPage() {
     // actionable — their Void buttons would target the wrong order's money
     // (codex review of #90).
     setPayments(null);
+    // …and so does the payment form, for the same reason one layer up: it
+    // belongs to the order that was open, not to the screen. Left open,
+    // `paying` would reopen it on the NEXT order unasked, showing that order's
+    // money under the previous order's failure — its key says "record-payment",
+    // not which order (codex review of #481).
+    //
+    // The slot is emptied here, not merely closed over. Under #478 the trigger
+    // cleared the entry on the way back in, so a clear here killed no mutant;
+    // #479 moved that clear onto the dismissal, and THIS path is not one — it
+    // is the screen closing the form out from under the user. Without the line
+    // below, a 422 about the previous order's money survives the switch and is
+    // waiting inside the form when they open it on this order's.
+    //
+    // `abandon`, not `clearDialog`: a payment write can still be out when this
+    // runs, so the slot is emptied and that attempt muted together. Clearing
+    // alone would let the rejection settle into the slot afterwards, to be
+    // found by whoever opens a payment form next.
+    //
+    // An earlier version used `clearDialog` and argued the mute was
+    // unreachable, because the row's open button is `disabled={busy}`. That
+    // enumeration of what can change these deps was wrong twice over — the
+    // panel's own Close is ungated (and #480 already established the backdrop
+    // stops a mouse, not a screen reader's virtual cursor), and `canSettle`
+    // flips with no button at all when a transparent 401 refresh re-derives the
+    // role mid-write. Two misses of one shape means the method is wrong, so
+    // this stops reasoning about reachability: `abandon` is correct whether or
+    // not a write is out, and the next `beginAttempt` un-mutes so a later form
+    // can still fail normally.
+    //
+    // Stated honestly, because a mutation says so: swapping this back to
+    // `clearDialog` breaks NO test, and no test can be written that it would
+    // break — every route back into a payment form re-runs this effect, which
+    // clears the slot on the way in regardless. The choice buys the removal of
+    // an argument that has been wrong twice, not an observable fix. Deleting
+    // the line altogether IS caught, by the reopen test below.
+    setPaying(false);
+    abandonError("record-payment");
     if (activeId === null || activeStatus !== "Confirmed" || !canSettle) return;
     let cancelled = false;
     listOrderPayments(activeId)
       .then((p) => { if (!cancelled) setPayments(p); })
-      .catch(() => { if (!cancelled) setError(i18n.t("sales:loadPaymentsFailed")); });
+      .catch(() => {
+        if (!cancelled) setPageError(i18n.t("sales:loadPaymentsFailed"));
+      });
     return () => { cancelled = true; };
-  }, [activeId, activeStatus, canSettle]);
+    // The two hook members this effect uses are destructured above and listed
+    // here, rather than depending on `errors` — that object is rebuilt every
+    // render, so naming it would re-run this on every render and re-fetch the
+    // payments. There is no eslint in this package to have caught either.
+  }, [activeId, activeStatus, canSettle, abandonError, setPageError]);
 
   // Exact decimal parsing in the ORDER's denomination (no float multiply —
   // #88 review); excess decimals are rejected, not silently rounded.
@@ -231,19 +336,42 @@ export function SalesPage() {
   // guard but deliberately get no BusyButton treatment (#236 is writes).
   const run = (scope: string, fn: () => Promise<void>) =>
     runPending(scope, async () => {
-      setError(null);
+      // The slot this attempt owns — its dialog's, or the page's. Everything
+      // that is not a dialog's belongs to the page, so one lookup decides both
+      // where the attempt clears and where its verdict lands.
+      const slot = DIALOG_SCOPES.includes(scope) ? scope : null;
+      // Its own slot only, and un-muted: a dialog write must not wipe a page
+      // failure the user has not seen, and abandoning one attempt must not
+      // mute the next.
+      errors.beginAttempt(slot);
       setMessage(null);
       try {
         await fn();
       } catch (err) {
-        setError(errText(err));
+        // Dropped outright if the user gave up on this one — Cancel stays live
+        // during `busy`, and Escape and the backdrop dismiss too (#474, and
+        // the codex + pi review of #476). `report` owns that decision.
+        errors.report(slot, errText(err));
       }
     });
 
+  // #474 — dismissing empties the dialog's slot, so reopening the form shows no
+  // stale verdict, and mutes the attempt still out, so its failure is not
+  // reported against the session the user opens next. Both live in `abandon`.
+  const dismiss = (scope: string, setOpen: (open: boolean) => void) => {
+    setOpen(false);
+    errors.abandon(scope);
+  };
+  const closeNewOrder = () => dismiss("create-order", setCreatingOrder);
+  const closePayment = () => dismiss("record-payment", setPaying);
+
   const onCreateOrder = () => run("create-order", async () => {
-    const created = await createOrder({ customerId, orderDate }, keyFor("create-order"));
-    setActive(await getOrder(created.id));
-    await loadOrders();
+    // runWrite claims the list ticket before the POST, so a filter change
+    // made while it is in flight keeps the view (#469).
+    await orders.runWrite(async () => {
+      const created = await createOrder({ customerId, orderDate }, keyFor("create-order"));
+      setActive(await getOrder(created.id));
+    });
     clearKey("create-order");
     setCreatingOrder(false); // only on success — a throw keeps the dialog up
   });
@@ -263,9 +391,27 @@ export function SalesPage() {
       if (!Number.isFinite(minorUnits) || minorUnits < 0) throw new Error(i18n.t("sales:invalidUnitPrice"));
     }
     const scope = `add-item:${active.id}`;
-    await addOrderItem(active.id,
-      { productId, quantity: qty, unit, unitPriceMinorUnits: minorUnits },
-      keyFor(scope));
+    // #445 — bind the previewed factor to the write: if an admin redefined
+    // the unit after this page read its conversions, the server refuses
+    // (SalesOrder.UnitDefinitionChanged) instead of recording a QuantityBase
+    // different from the "= N eggs" the seller saw. undefined when nothing
+    // was previewed (per-egg unit, or no/failed conversions read).
+    const previewed = unit === "Egg" ? null : eggsPerUnit(unit);
+    try {
+      await addOrderItem(active.id,
+        {
+          productId, quantity: qty, unit, unitPriceMinorUnits: minorUnits,
+          expectedEggsPerUnit: previewed ?? undefined,
+        },
+        keyFor(scope));
+    } catch (err) {
+      // Any server rejection may mean the conversions moved under us (the
+      // UnitDefinitionChanged case) — refresh them so the preview and the
+      // next attempt use the current factors instead of looping on stale
+      // ones. Fire-and-forget: the thrown error still surfaces normally.
+      if (err instanceof ApiError) listEggUnitConversions().then(setConversions).catch(() => {});
+      throw err;
+    }
     setActive(await getOrder(active.id));
     clearKey(scope);
   });
@@ -303,11 +449,12 @@ export function SalesPage() {
     if (!ok || !active) return;
     void run(`confirm:${active.id}`, async () => {
       const scope = `confirm:${active.id}`;
-      await confirmOrder(active.id, keyFor(scope));
-      const refreshed = await getOrder(active.id);
-      setActive(refreshed);
-      setMessage(i18n.t("sales:orderConfirmed", { ref: refreshed.referenceNumber }));
-      await loadOrders();
+      await orders.runWrite(async () => {
+        await confirmOrder(active.id, keyFor(scope));
+        const refreshed = await getOrder(active.id);
+        setActive(refreshed);
+        setMessage(i18n.t("sales:orderConfirmed", { ref: refreshed.referenceNumber }));
+      });
       clearKey(scope);
     });
   };
@@ -324,10 +471,11 @@ export function SalesPage() {
     if (!ok || !active) return;
     void run(`cancel:${active.id}`, async () => {
       const scope = `cancel:${active.id}`;
-      await cancelOrder(active.id, keyFor(scope));
-      setActive(null);
-      setMessage(i18n.t("sales:draftOrderCancelled"));
-      await loadOrders();
+      await orders.runWrite(async () => {
+        await cancelOrder(active.id, keyFor(scope));
+        setActive(null);
+        setMessage(i18n.t("sales:draftOrderCancelled"));
+      });
       clearKey(scope);
     });
   };
@@ -398,11 +546,12 @@ export function SalesPage() {
     if (reason === null || !active) return;
     void run(`void:${active.id}`, async () => {
       const scope = `void:${active.id}`;
-      await voidOrder(active.id, reason, keyFor(scope));
-      const refreshed = await getOrder(active.id);
-      setActive(refreshed);
-      setMessage(i18n.t("sales:orderVoided", { ref: refreshed.referenceNumber }));
-      await loadOrders();
+      await orders.runWrite(async () => {
+        await voidOrder(active.id, reason, keyFor(scope));
+        const refreshed = await getOrder(active.id);
+        setActive(refreshed);
+        setMessage(i18n.t("sales:orderVoided", { ref: refreshed.referenceNumber }));
+      });
       clearKey(scope);
     });
   };
@@ -413,8 +562,13 @@ export function SalesPage() {
     setActive(await getOrder(id));
   });
 
-  if (loadError) return <section><h2>{t("title")}</h2><p className="error">{loadError}</p></section>;
-  if (orders === null) return <section><h2>{t("title")}</h2><p className="muted">{t("loading")}</p></section>;
+  // A list failure no longer replaces the workspace: it renders as a banner
+  // beside it (below), so a transient blip cannot discard an order the user
+  // is part-way through editing (#469). Only the setup reads — customers and
+  // products, without which no form on this screen can function — still gate
+  // the page.
+  if (setupError) return <section><h2>{t("title")}</h2><p className="error">{setupError}</p></section>;
+  if (orders.rows === null) return <section><h2>{t("title")}</h2><p className="muted">{t("loading")}</p></section>;
 
   return (
     <section>
@@ -426,7 +580,9 @@ export function SalesPage() {
           // while the picker's own ceiling had already moved on (codex review
           // of #123).
           <button type="button" onClick={() => {
-            setError(null); setOrderDate(today); setCreatingOrder(true);
+            // Nothing to clear on the way in: #479 moved that onto the
+            // dismissal, so the slot is already empty before a reopen.
+            setOrderDate(today); setCreatingOrder(true);
           }}>
             <Plus size={16} aria-hidden /> {t("newOrder")}
           </button>
@@ -440,7 +596,7 @@ export function SalesPage() {
       {/* Deliberately NOT a <form>: these controls were button-driven, so
           wrapping them in one would newly enforce min/step and swallow the
           screen's own money messages (codex review of #132). */}
-      <Dialog open={creatingOrder} title={t("newOrder")} onClose={() => setCreatingOrder(false)}>
+      <Dialog open={creatingOrder} title={t("newOrder")} onClose={closeNewOrder}>
         <div className="form-grid">
           <label>{t("customer")}
             <select value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
@@ -451,10 +607,16 @@ export function SalesPage() {
             <input type="date" value={orderDate} max={today}
               onChange={(e) => setOrderDate(e.target.value)} />
           </label>
-          {/* An open dialog renders its own copy of the error. */}
-      {error && !creatingOrder && !paying && <p className="error">{error}</p>}
+          {/* #474 — this copy lives INSIDE the dialog, which renders nothing
+              while closed, so the page's `!creatingOrder` condition hid the
+              message exactly when the dialog it belongs to was up. The scope
+              test replaces it: the dialog reports its OWN write, never
+              whatever else happened to fail underneath it. role="alert"
+              because focus is trapped in the panel and nothing else announces
+              the failure. */}
+          <DialogError errors={errors} scope="create-order" />
           <div className="dialog-foot">
-            <button type="button" className="link" onClick={() => setCreatingOrder(false)}>{tc("cancel")}</button>
+            <button type="button" className="link" onClick={closeNewOrder}>{tc("cancel")}</button>
             <BusyButton disabled={busy || !customerId} busy={isPending("create-order")}
               onClick={onCreateOrder}>{t("newDraftOrder")}</BusyButton>
           </div>
@@ -488,7 +650,10 @@ export function SalesPage() {
                           <NumberField id={editQtyId} label={t("editQuantityAriaLabel").toLowerCase()}
                             value={editQty} onChange={setEditQty} min={1} />
                         </td>
-                        <td>—</td>
+                        {/* #445 — live: the eggs column tracks the edited
+                            quantity instead of going blank, so a unit/count
+                            mix-up is visible mid-edit too. */}
+                        <td className="muted">{i.baseUnitFactor * editQty}</td>
                         <td><input className="cell" type="number" min={0}
                           aria-label={t("editUnitPriceAriaLabel")}
                           step={10 ** -active.currencyMinorUnit} value={editPrice}
@@ -544,12 +709,25 @@ export function SalesPage() {
                       setPrice(priceInput(p.defaultPriceMinorUnits, priceScale));
                     }
                   }}>
-                    {products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    {products.map((p) => {
+                      // Unit size visible BEFORE quantity entry starts (#445):
+                      // "Grade A Tray (30 eggs/tray)". Only the per-egg unit
+                      // is bare — by identity, not factor, so "1 egg/dozen"
+                      // still shows (see eggsPerUnit above).
+                      const f = p.defaultUnit === "Egg" ? null : eggsPerUnit(p.defaultUnit);
+                      return (
+                        <option key={p.id} value={p.id}>
+                          {f !== null
+                            ? t("productOptionWithUnit", { name: p.name, count: f, unit: unitWord(p.defaultUnit) })
+                            : p.name}
+                        </option>
+                      );
+                    })}
                   </select>
                 </label>
                 <label>{t("perLabel")}
                   <select value={unit} onChange={(e) => setUnit(e.target.value)}>
-                    {(["Egg", "Dozen", "Flat", "Tray", "Carton", "Case"] as const).map((u) =>
+                    {SELLING_UNITS.map((u) =>
                       <option key={u} value={u}>{t(`unit${u}`)}</option>)}
                   </select>
                 </label>
@@ -557,9 +735,20 @@ export function SalesPage() {
                     interactive content other than its own control, and the
                     stepper carries two buttons. */}
                 <div className="numfield-field">
-                  <label htmlFor={addQtyId}>{t("quantity")}</label>
-                  <NumberField id={addQtyId} label={t("quantity").toLowerCase()}
+                  {/* #445 — the label names the unit ("Quantity (trays)" not
+                      bare "Quantity"), and the live hint shows the resulting
+                      egg count while typing, so "2 trays" typed as 60 is
+                      visibly 1,800 eggs before Add line is pressed. */}
+                  <label htmlFor={addQtyId}>{t("quantityWithUnit", { unit: unitWord(unit) })}</label>
+                  <NumberField id={addQtyId} label={t("quantityWithUnit", { unit: unitWord(unit) }).toLowerCase()}
                     value={qty} onChange={setQty} min={1} />
+                  {(() => {
+                    // Per-egg suppressed by identity, not factor (see above).
+                    const f = unit === "Egg" ? null : eggsPerUnit(unit);
+                    return f !== null
+                      ? <p className="muted">{t("equalsEggs", { count: qty * f })}</p>
+                      : null;
+                  })()}
                 </div>
                 <label>{t("unitPriceWithCurrency", { code: active.currencyCode })}
                   <input type="number" min={0} step={10 ** -active.currencyMinorUnit} value={price}
@@ -622,14 +811,14 @@ export function SalesPage() {
               {payments.outstandingMinorUnits > 0 && (
                 <div className="panel-actions">
                   <button type="button" onClick={() => {
-                    setError(null); setPayDate(today); setPaying(true);
+                    setPayDate(today); setPaying(true);
                   }}>
                     {t("recordPayment")}
                   </button>
                 </div>
               )}
 
-              <Dialog open={paying} title={t("recordPayment")} onClose={() => setPaying(false)}>
+              <Dialog open={paying} title={t("recordPayment")} onClose={closePayment}>
                 <div className="form-grid">
                   <label>{t("date")}
                     <input type="date" value={payDate} max={today}
@@ -656,10 +845,12 @@ export function SalesPage() {
                     <input value={payNote} maxLength={500}
                       onChange={(e) => setPayNote(e.target.value)} />
                   </label>
-                  {/* An open dialog renders its own copy of the error. */}
-      {error && !creatingOrder && !paying && <p className="error">{error}</p>}
+                  {/* #474 — this dialog's own write only: see the new-order
+                      dialog above. A void raised from the payments table can
+                      land while this is open, and is not this form's failure. */}
+                  <DialogError errors={errors} scope="record-payment" />
                   <div className="dialog-foot">
-                    <button type="button" className="link" onClick={() => setPaying(false)}>{tc("cancel")}</button>
+                    <button type="button" className="link" onClick={closePayment}>{tc("cancel")}</button>
                     <BusyButton disabled={busy || !payAmount} busy={isPending("record-payment")}
                       onClick={onRecordPayment}>
                       {t("recordPayment")}
@@ -689,8 +880,11 @@ export function SalesPage() {
         </div>
       )}
 
-      {/* An open dialog renders its own copy of the error. */}
-      {error && !creatingOrder && !paying && <p className="error">{error}</p>}
+      {/* The page's own copy, for everything not behind a dialog — and for a
+          failure that is nobody's dialog even while one is open, rather than
+          swallowing it. Unconditional: a dialog's message lives in a slot only
+          that dialog reads, so there is nothing here to double up on (#474). */}
+      {errors.page && <p className="error">{errors.page}</p>}
       {message && <p className="success">{message}</p>}
 
       <h3>{t("ordersHeading")}</h3>
@@ -711,7 +905,14 @@ export function SalesPage() {
           </select>
         </label>
       </div>
-      {orders.length === 0 ? (
+      {/* The list's own failure, beside the workspace rather than instead of
+          it — and self-healing on the next successful load (#469). */}
+      {orders.error && <p className="error" role="alert">{orders.error}</p>}
+      {/* One window's orders must never sit under another window's filters,
+          not even for the length of the request (#469). */}
+      {orders.reloading ? (
+        <p className="muted">{t("loading")}</p>
+      ) : orders.rows.length === 0 ? (
         <p className="muted">{t("noOrdersMatch")}</p>
       ) : (
         <>
@@ -720,7 +921,7 @@ export function SalesPage() {
               <tr><th>{t("reference")}</th><th>{t("date")}</th><th>{t("customer")}</th><th>{t("status")}</th><th>{t("total")}</th><th></th></tr>
             </thead>
             <tbody>
-              {orders.map((o) => (
+              {orders.rows.map((o) => (
                 <tr key={o.id}>
                   <td>{o.referenceNumber}</td>
                   <td>{o.orderDate}</td>
@@ -732,10 +933,11 @@ export function SalesPage() {
               ))}
             </tbody>
           </table>
-          {hasMore && (
-            // A guarded READ ("more") — flight-scoped but no BusyButton (#236).
+          {orders.canLoadMore && (
+            // A guarded READ — the hook withdraws this control for the
+            // duration of any load, so it cannot mix two windows (#469).
             <button className="link" disabled={busy}
-              onClick={() => run("more", () => loadOrders(orders.length))}>{t("loadMore")}</button>
+              onClick={() => void orders.loadMore()}>{t("loadMore")}</button>
           )}
         </>
       )}

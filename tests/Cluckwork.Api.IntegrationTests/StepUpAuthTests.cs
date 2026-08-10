@@ -5,6 +5,7 @@ using System.Net.Http.Headers;
 using Cluckwork.Api.Endpoints.Auth;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Common;
+using Cluckwork.Domain.Catalog;
 using Cluckwork.Domain.Common;
 using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;
@@ -478,6 +479,18 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
             Guid accountId, Guid userId, string newPassword, CancellationToken ct = default) =>
             inner.SetUserPasswordAsync(accountId, userId, newPassword, ct);
 
+        public Task<Result> ChangeUserRoleAsync(
+            Guid accountId, Guid userId, string? role, Guid actingUserId, CancellationToken ct = default) =>
+            inner.ChangeUserRoleAsync(accountId, userId, role, actingUserId, ct);
+
+        public Task<Result> DisableUserAsync(
+            Guid accountId, Guid userId, Guid actingUserId, string? reason, CancellationToken ct = default) =>
+            inner.DisableUserAsync(accountId, userId, actingUserId, reason, ct);
+
+        public Task<Result> EnableUserAsync(
+            Guid accountId, Guid userId, Guid actingUserId, CancellationToken ct = default) =>
+            inner.EnableUserAsync(accountId, userId, actingUserId, ct);
+
         public Task<Result> BreakGlassResetAsync(
             Guid accountId, Guid userId, string newPassword, string? reason, CancellationToken ct = default) =>
             inner.BreakGlassResetAsync(accountId, userId, newPassword, reason, ct);
@@ -495,6 +508,10 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
         public Task<Result> SetLanguageAsync(
             Guid accountId, Guid userId, string? language, CancellationToken ct = default) =>
             inner.SetLanguageAsync(accountId, userId, language, ct);
+
+        public Task<Result> SetStepperUnitAsync(
+            Guid accountId, Guid userId, EggUnit? unit, CancellationToken ct = default) =>
+            inner.SetStepperUnitAsync(accountId, userId, unit, ct);
     }
 
     [Fact]
@@ -632,7 +649,11 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
             services.GetRequiredService<IOptions<JwtOptions>>(),
             timeProvider,
             services.GetRequiredService<IAuditWriter>(),
-            registry);
+            registry,
+            services.GetRequiredService<Microsoft.AspNetCore.Http.IHttpContextAccessor>(),
+            services.GetRequiredService<AuthSecurityEventLogger>(),
+            services.GetRequiredService<Microsoft.Extensions.Logging.ILogger<IdentityProvider>>(),
+            services.GetRequiredService<Cluckwork.Application.Features.Accounts.IAccountRepository>());
 
         var beforeRevoke = timeProvider.GetUtcNow();
 
@@ -750,7 +771,8 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
             db,
             services.GetRequiredService<IOptions<JwtOptions>>(),
             services.GetRequiredService<TimeProvider>(),
-            registry);
+            registry,
+            services.GetRequiredService<AuthSecurityEventLogger>());
 
         return (stepUp, db, accountId, user!.Id);
     }

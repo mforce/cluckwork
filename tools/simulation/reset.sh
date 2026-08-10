@@ -92,11 +92,53 @@ bash "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/verify-harness.sh"
 echo "-- down -v (cluckwork-sim volumes only) --"
 compose down -v --remove-orphans
 
+# The app container bind-mounts this dir (./out:/app/sim-cast) and writes
+# manifest.json into it as root. Docker auto-creates a bind-mount target
+# that doesn't already exist on the host, and does so as root — which then
+# blocks any HOST-side process (canary.spec.ts's `mkdir out/canary-vitals`,
+# run outside Docker) from creating anything under it. Creating it here,
+# as this script's own (non-root) user, before compose ever touches it,
+# means Docker reuses the existing directory instead of auto-vivifying a
+# root-owned one — the container still writes manifest.json as root, but
+# the directory itself stays owned by whoever ran this script.
+mkdir -p "$OUT_DIR"
+# codex review, PR #430: `mkdir -p` alone is a no-op on a directory that
+# ALREADY exists, regardless of who owns it — so a dev box that hit this
+# bug before this fix landed (./out auto-vivified root-owned by an earlier
+# run) would stay broken forever, silently. Repair that case too, but only
+# when actually needed: `-w` gates the Docker round-trip to the (rare)
+# broken case instead of running it on every reset. That gate also matters
+# for a second reason (codex review, PR #430 round 2): under rootless
+# Docker / userns-remap, the container's UID 0 doing this chown does not
+# map straight to the host UID we pass in — it can fail, or worse, leave
+# ./out owned by some remapped/subordinate UID instead of actually fixing
+# it. Skipping the helper whenever ./out is already host-writable keeps
+# that failure mode out of the common path entirely. Residual: if you ARE
+# on rootless/userns-remapped Docker and ./out genuinely is broken, this
+# repair may not produce a correctly host-owned directory — remove
+# tools/simulation/out by hand (so mkdir -p above recreates it fresh, as
+# your own user) rather than relying on this chown in that setup.
+if [[ ! -w "$OUT_DIR" ]]; then
+  echo "-- ./out is not writable by $(id -un) — repairing ownership via Docker --"
+  docker run --rm -v "$OUT_DIR:/out" alpine chown -R "$(id -u):$(id -g)" /out
+fi
+
 echo "-- config -q (validate before build) --"
 compose config -q
 
-echo "-- up -d --build --"
-compose up -d --build
+# CLUCKWORK_SIM_REUSE_IMAGE=1 (CI only): e2e-smoke.yml has already built and
+# tagged cluckwork-sim-app:latest via buildx against a layer cache shared with
+# ci.yml's image job, so compose must not rebuild over it. `up` without
+# `--build` still builds a MISSING image for a build:-only service, so a cold
+# run works either way; the default (unset) keeps the always-rebuild behavior
+# every local flow relies on.
+if [[ "${CLUCKWORK_SIM_REUSE_IMAGE:-0}" == "1" ]]; then
+  echo "-- up -d (reusing pre-built cluckwork-sim-app:latest) --"
+  compose up -d
+else
+  echo "-- up -d --build --"
+  compose up -d --build
+fi
 
 # --- Wait for /health/ready (covers boot + migration + the base seed) -----
 echo "-- waiting up to ${READY_TIMEOUT_SECONDS}s for /health/ready --"

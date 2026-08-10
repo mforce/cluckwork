@@ -3,10 +3,10 @@ import type { ChangeEvent, FormEvent } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { Trash2, Upload } from "lucide-react";
 import {
-  LOGO_ACCEPT, getFarmSettings, removeFarmLogo, updateFarmSettings,
+  LOGO_ACCEPT, getFarmSettings, listEggUnitConversions, removeFarmLogo, updateFarmSettings,
   uploadFarmLogo,
 } from "../api/cluckwork";
-import type { FarmSettings, UpdateFarmSettings } from "../api/cluckwork";
+import type { EggUnitConversion, FarmSettings, UpdateFarmSettings } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { BusyButton } from "../components/BusyButton";
 import { useConfirm } from "../components/useConfirm";
@@ -50,6 +50,24 @@ const UNIT_SYSTEMS = ["Metric", "Imperial"];
 const WEEKDAYS = [
   "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday",
 ];
+
+// #452 — common date/time format presets, offered as a dropdown so most
+// people never need to know .NET custom-format-string syntax (dd vs MM vs
+// yyyy, which one is the day and which is the month). "Custom…" reveals the
+// pre-existing free-text field for anything not listed — the server
+// validates whatever ends up there either way
+// (UpdateFarmSettingsValidator.BeAUsableFormat), this dropdown only changes
+// how most people arrive at a value, not what's accepted.
+const DATE_FORMAT_PRESETS = ["MM/dd/yyyy", "dd/MM/yyyy", "yyyy-MM-dd"];
+const TIME_FORMAT_PRESETS = ["h:mm tt", "HH:mm"];
+const CUSTOM_FORMAT_OPTION = "__custom__";
+
+// A stored value that isn't blank and isn't one of the offered presets means
+// the farm is already using a custom format — the dropdown must open on
+// "Custom…" (with the real value in the revealed field) rather than
+// silently falling back to "Follow the locale" and discarding it on save.
+const isCustomFormat = (value: string, presets: string[]) =>
+  value !== "" && !presets.includes(value);
 
 // The browser's own IANA list, so the field offers exactly the zones this
 // browser can also FORMAT with — the same table todayIso() reads. The server
@@ -132,9 +150,23 @@ export function SettingsPage() {
   const [currencyCode, setCurrencyCode] = useState("");
   const [unitSystem, setUnitSystem] = useState("Metric");
   const [brand, setBrand] = useState<string>(DEFAULT_BRAND);
+  // #444 — the farm-default Daily Entry stepper pack unit. Fetched alongside
+  // the settings themselves (not a separate effect) so the select's value and
+  // its options always land together — no race where the stored code briefly
+  // has no matching <option>.
+  const [defaultStepperUnit, setDefaultStepperUnit] = useState("Individual");
+  const [stepperUnits, setStepperUnits] = useState<EggUnitConversion[]>([]);
   const [firstDayOfWeek, setFirstDayOfWeek] = useState("");
   const [dateFormat, setDateFormat] = useState("");
+  // #452 — true once the user (or the loaded value) is on the "Custom…"
+  // branch of the dropdown, revealing the free-text field below it. Kept
+  // separate from `dateFormat` itself: deriving this purely from the value
+  // would collapse straight back to "Follow the locale" the instant someone
+  // picks "Custom…" from an empty/follow-locale start, since the value
+  // hasn't changed yet — the field would never actually appear.
+  const [dateFormatCustom, setDateFormatCustom] = useState(false);
   const [timeFormat, setTimeFormat] = useState("");
+  const [timeFormatCustom, setTimeFormatCustom] = useState(false);
 
   // #236 — ONE flight for the whole screen (the old `saving` + `logoBusy`
   // pair, consolidated). The cross-checks those two states enforced — no save
@@ -182,8 +214,9 @@ export function SettingsPage() {
   // is exactly what the empty dependency list below exists to prevent (review
   // of #123).
   async function load() {
-    const next = await getFarmSettings();
+    const [next, units] = await Promise.all([getFarmSettings(), listEggUnitConversions()]);
     setLoaded(next);
+    setStepperUnits(units);
     const s = next.settings;
     setName(s.name);
     setTimeZoneId(s.timeZoneId);
@@ -191,13 +224,23 @@ export function SettingsPage() {
     setCurrencyCode(s.currencyCode);
     setUnitSystem(s.unitSystem);
     setFirstDayOfWeek(s.firstDayOfWeek ?? "");
-    setDateFormat(s.dateFormatOverride ?? "");
+    const nextDateFormat = s.dateFormatOverride ?? "";
+    setDateFormat(nextDateFormat);
+    setDateFormatCustom(isCustomFormat(nextDateFormat, DATE_FORMAT_PRESETS));
     // A palette can be retired while farms still reference it. Echoing the
     // stored id straight back on the next save would 422; showing the default
     // selected means the next save writes a curated value, which is the
     // recovery the design describes.
     setBrand(isBrand(s.brand) ? s.brand : DEFAULT_BRAND);
-    setTimeFormat(s.timeFormatOverride ?? "");
+    const nextTimeFormat = s.timeFormatOverride ?? "";
+    setTimeFormat(nextTimeFormat);
+    setTimeFormatCustom(isCustomFormat(nextTimeFormat, TIME_FORMAT_PRESETS));
+    // Same recovery as brand: a unit can be deactivated (Products screen)
+    // while still named as the farm default. Individual is always active and
+    // cannot be deactivated (EggUnitConversion.cs), so it is always a safe
+    // fallback that the next save writes back as a valid value.
+    const activeCodes = units.filter((u) => u.active).map((u) => u.unitCode);
+    setDefaultStepperUnit(activeCodes.includes(s.defaultStepperUnit) ? s.defaultStepperUnit : "Individual");
     return next;
   }
 
@@ -247,6 +290,7 @@ export function SettingsPage() {
         dateFormatOverride: orNull(dateFormat),
         timeFormatOverride: orNull(timeFormat),
         brand,
+        defaultStepperUnit,
         version: loaded.settings.version,
       };
       const attempt = keyFor(saveAttempt.current, JSON.stringify(body));
@@ -509,6 +553,18 @@ export function SettingsPage() {
           </select>
         </label>
 
+        {/* #444 — the pack unit Daily Entry's steppers bump by, e.g. "+30/-30"
+            for Tray, unless a user overrides it for themselves (Header). Codes
+            render raw, untranslated, matching ProductsPage's own unitCode cells
+            — there is no separate label catalog for this enum anywhere else. */}
+        <label>{t("defaultStepperUnitLabel")}
+          <select value={defaultStepperUnit} onChange={(e) => setDefaultStepperUnit(e.target.value)}>
+            {stepperUnits.filter((u) => u.active).map((u) =>
+              <option key={u.unitCode} value={u.unitCode}>{u.unitCode}</option>)}
+          </select>
+        </label>
+        <p className="hint">{t("defaultStepperUnitHint")}</p>
+
         <label>{t("firstDayOfWeekLabel")}
           <select value={firstDayOfWeek} onChange={(e) => setFirstDayOfWeek(e.target.value)}>
             <option value="">{t("followLocaleOption")}</option>
@@ -542,14 +598,46 @@ export function SettingsPage() {
         </fieldset>
 
         <label>{t("dateFormatLabel")}
-          <input value={dateFormat} maxLength={MAX_FORMAT} placeholder={t("followLocaleOption")}
-            onChange={(e) => setDateFormat(e.target.value)} />
+          <select
+            value={dateFormatCustom ? CUSTOM_FORMAT_OPTION : dateFormat}
+            onChange={(e) => {
+              if (e.target.value === CUSTOM_FORMAT_OPTION) { setDateFormatCustom(true); return; }
+              setDateFormatCustom(false);
+              setDateFormat(e.target.value);
+            }}
+          >
+            <option value="">{t("followLocaleOption")}</option>
+            {DATE_FORMAT_PRESETS.map((p) => <option key={p} value={p}>{p}</option>)}
+            <option value={CUSTOM_FORMAT_OPTION}>{t("customFormatOption")}</option>
+          </select>
         </label>
+        {dateFormatCustom && (
+          <label>{t("customDateFormatLabel")}
+            <input value={dateFormat} maxLength={MAX_FORMAT}
+              onChange={(e) => setDateFormat(e.target.value)} />
+          </label>
+        )}
 
         <label>{t("timeFormatLabel")}
-          <input value={timeFormat} maxLength={MAX_FORMAT} placeholder={t("followLocaleOption")}
-            onChange={(e) => setTimeFormat(e.target.value)} />
+          <select
+            value={timeFormatCustom ? CUSTOM_FORMAT_OPTION : timeFormat}
+            onChange={(e) => {
+              if (e.target.value === CUSTOM_FORMAT_OPTION) { setTimeFormatCustom(true); return; }
+              setTimeFormatCustom(false);
+              setTimeFormat(e.target.value);
+            }}
+          >
+            <option value="">{t("followLocaleOption")}</option>
+            {TIME_FORMAT_PRESETS.map((p) => <option key={p} value={p}>{p}</option>)}
+            <option value={CUSTOM_FORMAT_OPTION}>{t("customFormatOption")}</option>
+          </select>
         </label>
+        {timeFormatCustom && (
+          <label>{t("customTimeFormatLabel")}
+            <input value={timeFormat} maxLength={MAX_FORMAT}
+              onChange={(e) => setTimeFormat(e.target.value)} />
+          </label>
+        )}
 
         <div className="actions">
           {/* Disabled while a logo write is in flight too (`busy` covers every

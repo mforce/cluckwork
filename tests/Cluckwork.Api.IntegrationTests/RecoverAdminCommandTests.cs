@@ -1,9 +1,11 @@
 namespace Cluckwork.Api.IntegrationTests;
 
 using System.Diagnostics;
+using System.Security.Cryptography;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Common;
 using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
 
 // #265 — the `recover-admin` break-glass command is a real CLI dispatch branch
 // in Program.cs (args[0] == "recover-admin"), never exercised by
@@ -66,9 +68,22 @@ public sealed class RecoverAdminCommandTests : IClassFixture<BreakGlassRecoveryF
 
         Assert.True(0 == exitCode, $"expected exit 0, got {exitCode}. stdout={stdout} stderr={stderr}");
         Assert.Contains("Temporary password:", stdout);
+        var tempPassword = ExtractTemporaryPassword(stdout);
+        // #273 — the actual "never the logger" guarantee, asserted directly:
+        // Serilog's own Console sink ALSO writes to this SAME captured stdout
+        // stream (running in Production here, this subprocess also legitimately
+        // logs the #262 "INSECURE database connection explicitly permitted"
+        // warning — a real Serilog line, correctly present, NOT a regression),
+        // so a stray password-carrying log line would show up here, not vanish.
+        // The precise invariant: the password appears EXACTLY ONCE in the whole
+        // capture (the one explicit Console.Out line), and never inside a line
+        // that opens with a Serilog outputTemplate "[HH:mm:ss LVL]" bracket.
+        Assert.Equal(1, CountOccurrences(stdout, tempPassword));
+        Assert.DoesNotContain(
+            stdout.Split('\n', StringSplitOptions.RemoveEmptyEntries),
+            line => line.TrimStart().StartsWith('[') && line.Contains(tempPassword));
 
         // The printed one-time password must actually work, and the old one must not.
-        var tempPassword = ExtractTemporaryPassword(stdout);
         using var scope = _factory.Services.CreateScope();
         var idp = scope.ServiceProvider.GetRequiredService<IIdentityProvider>();
 
@@ -110,10 +125,89 @@ public sealed class RecoverAdminCommandTests : IClassFixture<BreakGlassRecoveryF
         Assert.Contains("Recovery failed", stderr);
     }
 
+    // #450 — recover-admin is documented (AGENTS.md, #265) to run under the
+    // app's least-privilege DML-only runtime role, never the higher-privileged
+    // migrator credential — the whole point being that an operator never needs
+    // to keep the elevated credential warm just for incident response. Every
+    // OTHER test in this class connects with the Testcontainers superuser role,
+    // which has DDL regardless of what the command needs, so none of them could
+    // have caught #450 (an unconditional Database.MigrateAsync() call that
+    // required CREATE on the schema just to read the migrations-history table,
+    // verified live against production). This creates an ACTUAL restricted
+    // Postgres role — the same USAGE + DML, no CREATE shape the #263 deploy
+    // runbook describes for the runtime role — inside the same container, and
+    // runs the command against it, so a future regression of the same shape
+    // (some other verb picking up an unnecessary migrate/DDL call) fails here
+    // instead of only surfacing against a real production database.
+    [Fact]
+    public async Task RecoverAdmin_UnderALeastPrivilegeDmlOnlyRole_StillRecovers()
+    {
+        var roleConnectionString = await CreateDmlOnlyRoleConnectionStringAsync();
+
+        var (exitCode, stdout, stderr) = await RunAsync(
+            $"--email {_factory.AdminEmail} --reason least-privilege-drill",
+            extraEnvironment: new Dictionary<string, string>
+            {
+                ["ConnectionStrings__Default"] = roleConnectionString,
+            });
+
+        Assert.True(0 == exitCode, $"expected exit 0, got {exitCode}. stdout={stdout} stderr={stderr}");
+        Assert.Contains("Temporary password:", stdout);
+    }
+
+    // Creates a Postgres role holding exactly the grants #263's deploy runbook
+    // describes for the runtime role (USAGE on the schema, DML on every
+    // existing table/sequence — explicitly NO CREATE), via the Testcontainers
+    // superuser connection this factory already holds, and returns a
+    // connection string for that role against the SAME database. The role
+    // outlives this one call — cleaned up implicitly when the container is
+    // disposed at the end of the fixture's lifetime, not worth a DROP ROLE
+    // here.
+    private async Task<string> CreateDmlOnlyRoleConnectionStringAsync()
+    {
+        var roleName = $"recover_test_role_{Guid.NewGuid():N}";
+        // Generated per invocation, not a literal — GitGuardian scans PRs, and
+        // AGENTS.md requires runtime-generated test credentials even for a
+        // role that only ever exists inside this one disposable container.
+        var rolePassword = RandomNumberGenerator.GetHexString(64);
+
+        await using (var admin = new NpgsqlConnection(_factory.ConnectionString))
+        {
+            await admin.OpenAsync();
+            await using var cmd = admin.CreateCommand();
+            cmd.CommandText = $"""
+                CREATE ROLE "{roleName}" LOGIN PASSWORD '{rolePassword}';
+                GRANT USAGE ON SCHEMA public TO "{roleName}";
+                GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO "{roleName}";
+                GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO "{roleName}";
+                """;
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        var builder = new NpgsqlConnectionStringBuilder(_factory.ConnectionString)
+        {
+            Username = roleName,
+            Password = rolePassword,
+        };
+        return builder.ConnectionString;
+    }
+
     private static string ExtractTemporaryPassword(string stdout)
     {
         const string marker = "Temporary password:";
         var line = stdout.Split('\n').First(l => l.Contains(marker));
         return line[(line.IndexOf(marker, StringComparison.Ordinal) + marker.Length)..].Trim();
+    }
+
+    private static int CountOccurrences(string haystack, string needle)
+    {
+        var count = 0;
+        var index = 0;
+        while ((index = haystack.IndexOf(needle, index, StringComparison.Ordinal)) >= 0)
+        {
+            count++;
+            index += needle.Length;
+        }
+        return count;
     }
 }
