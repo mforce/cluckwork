@@ -518,7 +518,7 @@ describe("UsersPage change-role step-up (#308, #355)", () => {
     const tree = (isAuthenticated: boolean) => (
       <MemoryRouter initialEntries={["/"]}>
         <AuthContext.Provider value={{
-          isAuthenticated, isLoading: false, isAdmin: true, role: "Admin" as Role,
+          isAuthenticated, isLoading: false, isAdmin: true, role: "Admin" as Role, userId: "u1",
           mustChangePassword: false,
           unauthenticatedReason: null,
           login: vi.fn(), logout: vi.fn(),
@@ -591,6 +591,23 @@ describe("UsersPage disable/enable (#356)", () => {
     expect(within(selfRow).queryByRole("button", { name: "disable" })).not.toBeInTheDocument();
     expect(within(selfRow).queryByRole("button", { name: "enable" })).not.toBeInTheDocument();
     // A non-self row in the same render is unaffected.
+    expect(within(screen.getByRole("row", { name: /worker@farm.test/ }))
+      .getByRole("button", { name: "disable" })).toBeInTheDocument();
+  });
+
+  // Round-10 codex review of #492: SessionProvider deliberately keeps the
+  // shell visible with me === null when /me fails, so the self-target guard
+  // must not depend on /me — a submit that reaches the server for a
+  // self-target only 400s, after already spending a step-up password
+  // confirmation. `me: null` here reproduces exactly that failure.
+  it("hides self-target actions from the TOKEN's id even when /me is null", async () => {
+    mockListUsers.mockResolvedValue([WORKER_USER, SELF_USER]);
+    renderWithProviders(<UsersPage />, { token: ADMIN, me: null }); // ADMIN token's sub is "u1", matching SELF_USER's id
+    await screen.findByText("worker@farm.test");
+
+    const selfRow = screen.getByRole("row", { name: /self@farm.test/ });
+    expect(within(selfRow).queryByRole("button", { name: "disable" })).not.toBeInTheDocument();
+    expect(within(selfRow).queryByRole("button", { name: "enable" })).not.toBeInTheDocument();
     expect(within(screen.getByRole("row", { name: /worker@farm.test/ }))
       .getByRole("button", { name: "disable" })).toBeInTheDocument();
   });
@@ -1737,7 +1754,7 @@ describe("UsersPage step-up authentication (#308)", () => {
     const tree = (isAuthenticated: boolean) => (
       <MemoryRouter initialEntries={["/"]}>
         <AuthContext.Provider value={{
-          isAuthenticated, isLoading: false, isAdmin: true, role: "Admin" as Role,
+          isAuthenticated, isLoading: false, isAdmin: true, role: "Admin" as Role, userId: "u1",
           // #283 — an Owner working the Users screen is already past the
           // first-run set-password gate.
           mustChangePassword: false,

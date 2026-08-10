@@ -39,6 +39,19 @@ export function currentUserIsAdmin(): boolean {
   return role === "Admin" || role === "Manager";
 }
 
+// #356 (codex review of #492 round 10) — the caller's own id, straight from
+// the token's standard "sub" claim, for UI checks that must not depend on
+// /me succeeding. SessionProvider deliberately keeps the shell up with
+// me === null when /me fails, and a self-target guard written as
+// `me?.id !== u.id` then reads true for EVERY row, including the caller's
+// own — exposing Disable/Enable on themselves for a submit that can only
+// 400. The token is already decoded and present the instant the user is
+// authenticated; /me is a separate, failable network call.
+export function currentUserId(): string | null {
+  const payload = decodedPayload() as { sub?: string } | null;
+  return typeof payload?.sub === "string" && payload.sub.length > 0 ? payload.sub : null;
+}
+
 // #283 — decodes the "must_change_password" claim JwtTokenService adds ONLY
 // when ApplicationUser.MustChangePassword is true (the first-run admin, or
 // anyone else whose password was force-reset and hasn't changed it since).

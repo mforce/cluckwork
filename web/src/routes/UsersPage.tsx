@@ -18,7 +18,6 @@ import { newId } from "../lib/ids";
 import i18n from "../i18n";
 import { ROLE_VALUES, roleLabel } from "../i18n/enums";
 import { useAuth } from "../auth/useAuth";
-import { useMe } from "../session/SessionContext";
 
 // #308 — the one Owner-level role name gated by step-up, shared by the create
 // and reset-password flows below. Matches Cluckwork.Domain.Accounts.Roles.Owner.
@@ -66,11 +65,15 @@ export function UsersPage() {
   const [pwStepUpPassword, setPwStepUpPassword] = useState("");
   const [roleStepUpPassword, setRoleStepUpPassword] = useState("");
 
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, userId: myId } = useAuth();
   // #356 — this screen's own identity, so the disable/enable actions can be
   // withheld from the caller's own row (the server 400s a self-target, but the
-  // UI should not present a button that can only fail).
-  const me = useMe();
+  // UI should not present a button that can only fail). Read from the TOKEN
+  // (useAuth's userId), not the separate /me fetch (useMe): SessionProvider
+  // deliberately keeps the shell up with me === null when /me fails, which
+  // made `me?.id !== u.id` read true for every row — including the caller's
+  // own — exposing a self-target action that consumes a step-up password
+  // confirmation only to 400 (codex review of #492 round 10).
 
   // #308 — belt-and-braces: logout already navigates away (unmounting this
   // page in the normal flow) and every dialog's own close path already clears
@@ -649,7 +652,7 @@ export function UsersPage() {
                     {t("flocksButton")}
                   </button>
                 )}
-                {me?.id !== u.id && (
+                {myId !== u.id && (
                   u.disabledAt ? (
                     <button className="link" disabled={busy} onClick={() => openStepUp(u, "enable")}>
                       <RotateCcw size={14} aria-hidden /> {t("enableButton")}
