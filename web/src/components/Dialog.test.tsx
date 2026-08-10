@@ -387,6 +387,27 @@ describe("Dialog with another dialog open (#482)", () => {
     await user.keyboard("{Escape}"); // closes B, the top one
     expect(backdropOf("Dialog A")).not.toHaveAttribute("inert");
   });
+
+  // Dialog B's own trigger ("Open B") is a PAGE button, not something inside
+  // Dialog A — reachable while A is open only through the #480 virtual-cursor
+  // door TwoHost's own click above already exercises. Closing B leaves A
+  // topmost, and the "Open B" button is now inert right along with the rest
+  // of the page — a real browser refuses to focus it, dropping the user on
+  // <body> with no visible cue which control is active (adversarial review
+  // of #483). jsdom's `focus()` does not itself enforce `inert`, so this pins
+  // the FIX's own logic (never target a trigger outside the dialog that is
+  // still open) rather than relying on a browser behavior jsdom won't
+  // reproduce.
+  it("moves focus into the remaining dialog when the closed one's trigger lives outside it", async () => {
+    const user = userEvent.setup();
+    render(<TwoHost />);
+    await user.click(screen.getByRole("button", { name: "Open A" }));
+    await user.click(screen.getByRole("button", { name: "Open B" }));
+
+    await user.click(within(backdropOf("Dialog B")).getByRole("button", { name: "Close" }));
+
+    expect(screen.getByLabelText("A field")).toHaveFocus();
+  });
 });
 
 describe("Dialog background inertness (#482)", () => {

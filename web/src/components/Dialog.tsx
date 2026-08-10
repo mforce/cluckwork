@@ -143,6 +143,31 @@ export function Dialog({ open, title, onClose, focusKey, describedBy, wide, chil
     return () => {
       if (backdrop !== null) popModal(backdrop);
       const trigger = returnFocusTo.current;
+      // If another dialog is still open, IT is what the page now shows —
+      // this one's own trigger sits in whatever the page was when THIS
+      // dialog opened, which the remaining dialog has since made inert
+      // (or, if the trigger happens to be inside the remaining dialog
+      // itself, restoring to it is exactly right). A trigger outside it is
+      // no longer a legitimate focus target: real browsers refuse to focus
+      // an inert element, and a screen reader's virtual cursor can reach
+      // that trigger the same way it reached this dialog's own opener in
+      // the first place (#480). Land inside the dialog that is now topmost
+      // instead (adversarial review of #483).
+      const remainingTop = openStack[openStack.length - 1] ?? null;
+      if (remainingTop !== null) {
+        if (!(trigger instanceof HTMLElement) || !remainingTop.contains(trigger)) {
+          // The BODY, not the whole panel — same reasoning as the initial-
+          // focus effect below: the panel's own DOM order puts the close
+          // button before the form fields, so querying the panel would land
+          // there instead of on the content the dialog exists to show.
+          const body = remainingTop.querySelector<HTMLElement>(".dialog-body");
+          if (!focusFirstThatTakes(focusableIn(body))) {
+            remainingTop.querySelector<HTMLElement>('[role="dialog"]')?.focus();
+          }
+        }
+        return;
+      }
+
       // The trigger can be gone if the save re-rendered the row that owned it.
       if (!(trigger instanceof HTMLElement)) return;
 
