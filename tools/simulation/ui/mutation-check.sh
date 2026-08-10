@@ -93,7 +93,8 @@ if [ ${#MUTANTS[@]} -eq 0 ]; then
   MUTANTS=(audit-gate-removed users-gate-removed flock-scope-removed
            stock-pager-inert stock-summary-broken report-range-bound-removed
            refresh-always-fails logout-not-honoured
-           nav-role-gate-bypassed payment-never-settles export-returns-nothing)
+           nav-role-gate-bypassed payment-never-settles export-returns-nothing
+           language-persist-dropped)
 fi
 
 rule() { printf '\n%s\n' "────────────────────────────────────────────────────────────────────────"; }
