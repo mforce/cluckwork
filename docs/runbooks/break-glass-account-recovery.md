@@ -138,9 +138,11 @@ A clear message is written to **stderr**, e.g.:
   COMMIT;
   ```
 
-  This is DB surgery, not the app's own audited path — it writes **no** `User.Enabled`/`RefreshToken.Revoked` audit
-  row, unlike a normal re-enable. Record what you did (who, when, why, which row) somewhere durable outside the
-  database, the same way you would for any other manual production change. Sign in once you're done — with a
+  This is DB surgery, not the app's own audited path — it writes **no** `User.Enabled` audit row, unlike a normal
+  re-enable (the refresh-token revocation above has no audit row of its own either way — `RevokeAllActiveForUserAsync`
+  is a bulk update, not an audited event, even on the app's own disable path). Record what you did (who, when, why,
+  which row) somewhere durable outside the database, the same way you would for any other manual production change.
+  Sign in once you're done — with a
   **fresh** login, since every prior access and refresh token for this user is now dead by construction — and
   re-run this command if the password is also unknown.
 - `Invalid --account '<x>' — must be a GUID.`
