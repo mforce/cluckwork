@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useLiveAnnouncement } from "../components/useLiveAnnouncement";
 import { registerServiceWorker } from "./registerServiceWorker";
 
 // #142 — "a new version is ready" affordance.
@@ -11,8 +12,8 @@ import { registerServiceWorker } from "./registerServiceWorker";
 // component — without it an update would wait forever and clients would silently
 // run a stale shell against a newer API.
 //
-// Renders nothing at all until an update is genuinely waiting, so it costs a
-// hook and no layout in the normal case.
+// Renders no visible UI until an update is genuinely waiting — only the
+// always-present, empty announcer below, which occupies no layout (#485).
 export function UpdatePrompt() {
   const { t } = useTranslation("pwa");
   // Holds the activator handed over by the registration; its presence IS the
@@ -41,7 +42,12 @@ export function UpdatePrompt() {
     return () => teardown.abort();
   }, []);
 
-  if (!activate || dismissed) return null;
+  const waiting = activate !== null && !dismissed;
+  // #485 — the announcement lives in the always-mounted region below rather
+  // than on the visible banner, because the banner is inert whenever a dialog
+  // is open and cannot speak from there. See useLiveAnnouncement for why a
+  // freshly-inserted populated region is not an acceptable substitute.
+  const announcement = useLiveAnnouncement(waiting ? t("updateAvailable") : null);
 
   async function onReload() {
     if (busy || !activate) return;
@@ -56,23 +62,34 @@ export function UpdatePrompt() {
   }
 
   return (
-    // polite + status: announced by a screen reader without stealing focus from
-    // whatever is being typed.
-    <div className="update-banner" role="status" aria-live="polite">
-      <span className="update-banner-text">{t("updateAvailable")}</span>
-      <div className="update-banner-actions">
-        <button type="button" onClick={onReload} disabled={busy}>
-          {busy ? t("reloading") : t("reload")}
-        </button>
-        <button
-          type="button"
-          className="update-banner-later"
-          onClick={() => setDismissed(true)}
-          disabled={busy}
-        >
-          {t("later")}
-        </button>
-      </div>
-    </div>
+    <>
+      {/* polite + status: announced without stealing focus from whatever is
+          being typed. Mounted unconditionally and empty until there is
+          something to say — a live region has to be in the accessibility tree
+          BEFORE its text changes, and the visible banner spends its life going
+          in and out of that tree as dialogs open (#485). */}
+      <p className="sr-only" role="status" aria-live="polite">{announcement}</p>
+      {waiting && (
+        <div className="update-banner">
+          {/* The announcer above is the accessible copy of this sentence;
+              leaving both readable would have a screen reader say it twice on
+              the way down the page. */}
+          <span className="update-banner-text" aria-hidden="true">{t("updateAvailable")}</span>
+          <div className="update-banner-actions">
+            <button type="button" onClick={onReload} disabled={busy}>
+              {busy ? t("reloading") : t("reload")}
+            </button>
+            <button
+              type="button"
+              className="update-banner-later"
+              onClick={() => setDismissed(true)}
+              disabled={busy}
+            >
+              {t("later")}
+            </button>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { useAuth } from "../auth/useAuth";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { BottomNav } from "../components/BottomNav";
+import { useLiveAnnouncement } from "../components/useLiveAnnouncement";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { FarmBrand } from "../components/FarmBrand";
 import { useFarm } from "../farm/useFarm";
@@ -33,6 +34,15 @@ export function AppLayout() {
 
   const groups = navGroups(role, isAdmin);
   const tabs = tabEntries(groups);
+
+  // The visible banner below says the same thing, but it goes inert whenever a
+  // dialog is open and so cannot be the thing that speaks (#485). A read that
+  // fails while the user is mid-dialog is exactly when this matters: the alert
+  // is on screen the moment they close it, but nothing would ever have said so.
+  const farmWarning = loadFailed
+    ? (farm === null ? t("farmLoadFailedNeverLoaded") : t("farmLoadFailedStale"))
+    : null;
+  const farmAnnouncement = useLiveAnnouncement(farmWarning);
 
   // Per-page document.title: the active nav entry's translated label + the
   // shared suffix (e.g. "Dashboard — Cluckwork"), so the browser tab/history
@@ -85,23 +95,27 @@ export function AppLayout() {
       </aside>
 
       <main className="content" id="main-content" tabIndex={-1}>
+        {/* Assertive, and separate from the visible banner: the banner carries
+            a Try again button, and an alert region containing a control gets
+            the control read out as part of the warning. Empty until there is
+            something to warn about (#485). */}
+        <p className="sr-only" role="alert">{farmAnnouncement}</p>
+
         {/* A farm we never got is not a cosmetic loss: §4.5 formatting and —
             since #123 — every date field's ceiling come from it, so without a
             farm the pickers silently follow the DEVICE's day and the screen
             looks perfectly healthy while being a day out. Say so, and offer the
-            read again, rather than degrade in silence (codex review of #123). */}
-        {loadFailed && (
-          <p className="warn farm-warning" role="alert">
-            {farm === null
-              // Never got one: §4.5 formatting and every date field's ceiling
-              // come from the farm, so without it the pickers follow the
-              // DEVICE's day.
-              ? t("farmLoadFailedNeverLoaded")
-              // Got one, then a re-read failed. The farm on screen is whatever
-              // was last read — which after a settings save is the value the
-              // save was meant to replace, so a new timezone silently does not
-              // apply anywhere (round 2: codex + pi).
-              : t("farmLoadFailedStale")}{" "}
+            read again, rather than degrade in silence (codex review of #123).
+            The wording is picked above, where the announcer also reads it:
+            never got one -> the pickers follow the DEVICE's day; got one then a
+            re-read failed -> what is on screen is what a save was meant to
+            replace, so a new timezone silently does not apply (round 2: codex
+            + pi). */}
+        {farmWarning !== null && (
+          <p className="warn farm-warning">
+            {/* Announced by the region above, not from here — reading both
+                would say the same warning twice. */}
+            <span aria-hidden="true">{farmWarning}</span>{" "}
             <button type="button" className="link" onClick={() => void refresh()}>
               {t("tryAgain")}
             </button>

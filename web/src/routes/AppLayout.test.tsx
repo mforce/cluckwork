@@ -68,9 +68,17 @@ describe("AppLayout sidebar", () => {
         </AuthProvider>
       </MemoryRouter>);
 
-    const banner = screen.getByRole("alert");
+    // Since #485 the words and the control sit in two places on purpose: the
+    // sr-only alert region carries the announcement (an alert wrapped round a
+    // button gets the button read out as part of the warning, and it has to
+    // be able to speak from outside an inert subtree), the visible banner
+    // carries the button.
+    expect(screen.getByRole("alert"))
+      .toHaveTextContent(/dates follow this device rather than the farm/);
+    const banner = document.querySelector<HTMLElement>(".farm-warning");
+    expect(banner).not.toBeNull();
     expect(banner).toHaveTextContent(/dates follow this device rather than the farm/);
-    fireEvent.click(within(banner).getByRole("button", { name: "Try again" }));
+    fireEvent.click(within(banner!).getByRole("button", { name: "Try again" }));
     expect(retried).toBe(1);
   });
 
@@ -100,7 +108,11 @@ describe("AppLayout sidebar", () => {
       token: { sub: "u1", role: "Admin" },
       farm: account({ name: "Hen House" }),
     });
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    // The alert region is always mounted since #485 — a live region has to be
+    // in the accessibility tree BEFORE its text changes — so "says nothing"
+    // means it is empty, and no warning is drawn.
+    expect(screen.getByRole("alert")).toHaveTextContent("");
+    expect(document.querySelector(".farm-warning")).toBeNull();
   });
 
   it("shows no version line when VITE_APP_VERSION is unset (#458 — dev/test builds)", () => {
