@@ -571,6 +571,117 @@ describe("InventoryPage role gating", () => {
   });
 });
 
+describe("InventoryPage errors scoped per dialog (#479)", () => {
+  it("renders the create dialog's own failure inside it, not on the page", async () => {
+    mockCreate.mockRejectedValueOnce(new ApiError(500, "Server error", "create boom"));
+    await renderReady(ADMIN);
+    const form = openDialog("New item");
+    fireEvent.change(within(form).getByLabelText("Item name *"), { target: { value: "X" } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Add item" }));
+    });
+    expect(within(dialog()).getByText("create boom")).toBeInTheDocument();
+    expect(screen.getAllByText("create boom")).toHaveLength(1);
+  });
+
+  it("renders the edit dialog's own failure inside it, not on the page", async () => {
+    mockUpdate.mockRejectedValueOnce(new ApiError(500, "Server error", "edit boom"));
+    await renderReady(ADMIN);
+    fireEvent.click(within(screen.getByRole("row", { name: /Layer Feed/ })).getByRole("button", { name: "edit" }));
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Save" }));
+    });
+    expect(within(dialog()).getByText("edit boom")).toBeInTheDocument();
+    expect(screen.getAllByText("edit boom")).toHaveLength(1);
+  });
+
+  it("renders the purchase dialog's own failure inside it, not on the page", async () => {
+    mockPurchase.mockRejectedValueOnce(new ApiError(500, "Server error", "purchase boom"));
+    await renderReady(ADMIN);
+    await openItem(PACKAGING);
+    const form = openDialog("Record purchase");
+    fireEvent.change(within(form).getByLabelText(/Quantity/), { target: { value: "3" } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Record purchase" }));
+    });
+    expect(within(dialog()).getByText("purchase boom")).toBeInTheDocument();
+    expect(screen.getAllByText("purchase boom")).toHaveLength(1);
+  });
+
+  it("renders the correction dialog's own failure inside it, not on the page", async () => {
+    mockListLots.mockResolvedValue([LOT]);
+    mockAdjust.mockRejectedValueOnce(new ApiError(500, "Server error", "adjust boom"));
+    await renderReady(ADMIN);
+    await openItem(FEED);
+    const form = openDialog("Correct stock");
+    fireEvent.change(within(form).getByLabelText(/Quantity/), { target: { value: "-5" } });
+    fireEvent.change(within(form).getByLabelText(/Reason/), { target: { value: "spillage" } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Record correction" }));
+    });
+    expect(within(dialog()).getByText("adjust boom")).toBeInTheDocument();
+    expect(screen.getAllByText("adjust boom")).toHaveLength(1);
+  });
+
+  // The reachable bug: nothing on this screen closes one dialog when another
+  // opens except the create/edit pair, so a create dialog and the purchase
+  // dialog can be open at once. The quantity guard fires on every wrong
+  // keystroke — no race needed — and with ONE shared error slot its message
+  // used to leak into whichever other dialog happened to be open too.
+  // Bypasses the HTML min constraint via a direct submit, same technique as
+  // the WaterPage/FeedPage siblings (a real click never reaches the handler).
+  it("keeps the purchase quantity validation message inside the purchase dialog, not another open dialog or the page", async () => {
+    await renderReady(ADMIN);
+    fireEvent.click(screen.getByRole("button", { name: "New item" })); // left open
+    await openItem(PACKAGING);
+    fireEvent.click(screen.getByRole("button", { name: "Record purchase" }));
+    const purchaseDialog = screen.getByRole("dialog", { name: /Record purchase/ });
+
+    fireEvent.change(within(purchaseDialog).getByLabelText(/Quantity/), { target: { value: "-1" } });
+    const form = within(purchaseDialog).getByRole("button", { name: "Record purchase" }).closest("form")!;
+    await act(async () => { fireEvent.submit(form); });
+
+    expect(within(purchaseDialog).getByText("Quantity must be a positive number.")).toBeInTheDocument();
+    expect(screen.getAllByText("Quantity must be a positive number.")).toHaveLength(1);
+    expect(mockPurchase).not.toHaveBeenCalled();
+  });
+
+  it("keeps a background ledger-read failure off an open dialog and puts it on the page instead", async () => {
+    mockListMovements.mockRejectedValueOnce(new ApiError(500, "Server error", "ledger down"));
+    await renderReady(ADMIN);
+    const createDialogEl = openDialog("New item");
+    const row = screen.getByRole("row", { name: /Layer Feed/ });
+    await act(async () => {
+      fireEvent.click(within(row).getByRole("button", { name: "open" }));
+    });
+
+    expect(await screen.findByText("Could not load the movement ledger.")).toBeInTheDocument();
+    expect(within(createDialogEl).queryByText("Could not load the movement ledger.")).not.toBeInTheDocument();
+    expect(screen.getAllByText("Could not load the movement ledger.")).toHaveLength(1);
+  });
+
+  it("keeps a page failure visible after opening a dialog and running a failing dialog write", async () => {
+    mockListMovements.mockRejectedValueOnce(new ApiError(500, "Server error", "ledger down"));
+    mockCreate.mockRejectedValueOnce(new ApiError(500, "Server error", "create boom"));
+    await renderReady(ADMIN);
+
+    const row = screen.getByRole("row", { name: /Layer Feed/ });
+    await act(async () => {
+      fireEvent.click(within(row).getByRole("button", { name: "open" }));
+    });
+    expect(await screen.findByText("Could not load the movement ledger.")).toBeInTheDocument();
+
+    const form = openDialog("New item");
+    fireEvent.change(within(form).getByLabelText("Item name *"), { target: { value: "X" } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Add item" }));
+    });
+
+    expect(screen.getByText("Could not load the movement ledger.")).toBeInTheDocument();
+    expect(within(dialog()).getByText("create boom")).toBeInTheDocument();
+  });
+});
+
 // ---------------------------------------------------------------------------
 // i18n wiring (#182, Task 16, batch B3 — the biggest B3 screen)
 // ---------------------------------------------------------------------------
