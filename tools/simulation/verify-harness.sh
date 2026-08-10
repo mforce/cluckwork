@@ -192,6 +192,24 @@ except KeyError:
 fail = []
 ok = []
 
+# --- #496 farm banner upload limit ---------------------------------------
+# Mirror FarmBannerOptionsValidator so a stale or ambient override is caught
+# before the Production-mode app is started.
+banner_limit_raw = env.get("FarmBanner__MaxUploadBytes")
+try:
+    banner_limit = int(str(banner_limit_raw))
+except (TypeError, ValueError):
+    banner_limit = None
+
+if banner_limit is None:
+    fail.append(f"FarmBanner__MaxUploadBytes={banner_limit_raw!r} is not an integer")
+elif banner_limit <= 0:
+    fail.append(f"FarmBanner__MaxUploadBytes={banner_limit} must be greater than zero")
+elif banner_limit > 15 * 1024 * 1024:
+    fail.append(f"FarmBanner__MaxUploadBytes={banner_limit} exceeds the 15728640-byte ceiling")
+else:
+    ok.append(f"FarmBanner upload limit OK ({banner_limit} bytes)")
+
 # --- #319 AllowedHosts ---------------------------------------------------
 # Parsed EXACTLY as Program.cs does: split on ';', trim, drop empties, then
 # require at least one entry and none equal to '*'. A raw non-empty/no-'*'

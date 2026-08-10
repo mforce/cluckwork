@@ -225,6 +225,9 @@ Simulation__ReadOnly=${READONLY}
 Simulation__Seed=243
 Simulation__CredentialOutputPath=/app/sim-cast/manifest.json
 
+# --- Farm banner upload limit (#496) -----------------------------------
+FarmBanner__MaxUploadBytes=5242880
+
 # --- Rate limiting (#143) — all three buckets raised so k6 traffic never
 # looks like a credential-spraying/log-flooding attack. Window seconds are
 # unchanged from production; only PermitLimit is raised. ---
