@@ -438,7 +438,14 @@ export function UsersPage() {
   // reason is not a parameter: the dialog collects it itself, seeded blank,
   // through a controlled textarea.
   function openStepUp(u: User, mode: "disable" | "enable") {
-    if (stepUpUser !== null && stepUpUser.id !== u.id) errors.abandon("disable-enable");
+    // Both modes share one error scope (one dialog, one title swap), so a
+    // same-user reopen must also abandon when MODE changes, not just user:
+    // the row's Disable/Enable button flips with u.disabledAt, so a stale
+    // "Cannot disable the sole remaining owner" from a failed disable attempt
+    // could otherwise still be showing when this reopens in enable mode for
+    // the same user (local review of #492's merge-driven conversion to
+    // useDialogErrors) — a message about the wrong operation entirely.
+    if (stepUpUser !== null && (stepUpUser.id !== u.id || stepUpMode !== mode)) errors.abandon("disable-enable");
     setMessage(null);
     setStepUpPassword("");
     setDisableReason("");

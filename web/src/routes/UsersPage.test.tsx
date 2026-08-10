@@ -691,12 +691,64 @@ describe("UsersPage disable/enable (#356)", () => {
       fireEvent.click(within(dialog).getByRole("button", { name: "Disable" }));
     });
 
-    // The error rendered inside the still-open dialog IS the shared `error`
-    // slot (#356 — not a scoped dialogErrors map, deliberately out of scope
-    // here; #479's job).
+    // Renders through the "disable-enable" scope of useDialogErrors (#491
+    // merge, #492 round-4 local review) — same DialogError component every
+    // other dialog on this screen uses.
     expect(within(dialog).getByText(/sole remaining owner/)).toBeInTheDocument();
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(mockEnableUser).not.toHaveBeenCalled();
+  });
+
+  // Local review of the #491 merge (round-4 of #492): both modes share ONE
+  // error scope ("disable-enable") since it's one dialog with a swapped
+  // title, not two. openStepUp only abandoned that scope on a DIFFERENT
+  // user, so a same-user reopen that flips MODE without ever closing (the
+  // row's button label follows u.disabledAt, which a background listUsers()
+  // refresh — triggered here by an unrelated edit — can flip while this
+  // dialog is still open) would otherwise carry the failed disable's error
+  // text into the enable dialog: a message about the wrong operation.
+  it("does not carry a failed disable's error into an enable dialog reopened for the same user", async () => {
+    mockListUsers.mockResolvedValueOnce([WORKER_USER, ADMIN_USER]);
+    await renderReady(ADMIN);
+
+    fireEvent.click(disableRow(/worker@farm.test/));
+    const dialog = await screen.findByRole("dialog", { name: /Disable — worker@farm\.test/ });
+    fireEvent.change(within(dialog).getByLabelText(/Your current password/), {
+      target: { value: OWNER_STEP_UP_PASSWORD },
+    });
+    mockStepUp.mockResolvedValue({ token: "grant-d3", expiresAt: "2026-01-01T00:05:00Z" });
+    mockDisableUser.mockRejectedValue(
+      new ApiError(422, "Users.LastOwner", "Cannot disable the sole remaining owner."));
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole("button", { name: "Disable" }));
+    });
+    expect(within(dialog).getByText(/sole remaining owner/)).toBeInTheDocument();
+
+    // Simulate a concurrent external disable of the SAME user: the next
+    // listUsers() refresh (triggered here by an unrelated, successful edit
+    // on a different row) reflects it, flipping worker's row to Enable —
+    // the disable dialog above stays open throughout; nothing closed it.
+    mockListUsers.mockResolvedValueOnce([
+      { ...WORKER_USER, disabledAt: "2026-08-09T12:00:00Z" }, ADMIN_USER,
+    ]);
+    mockUpdateUser.mockResolvedValue(undefined);
+    fireEvent.click(within(screen.getByRole("row", { name: /boss@farm.test/ }))
+      .getByRole("button", { name: /edit/i }));
+    const editDialog = await screen.findByRole("dialog", { name: /boss@farm\.test/ });
+    await act(async () => {
+      fireEvent.click(within(editDialog).getByRole("button", { name: "Save" }));
+    });
+    expect(await within(screen.getByRole("row", { name: /worker@farm.test/ }))
+      .findByRole("button", { name: /enable/i })).toBeInTheDocument();
+
+    // The still-open dialog is still titled Disable, still showing the old
+    // error — reopening it is a fresh user action, not automatic.
+    expect(screen.getByRole("dialog", { name: /Disable — worker@farm\.test/ })).toBeInTheDocument();
+
+    fireEvent.click(within(screen.getByRole("row", { name: /worker@farm.test/ }))
+      .getByRole("button", { name: /enable/i }));
+    const enableDialog = await screen.findByRole("dialog", { name: /Enable — worker@farm\.test/ });
+    expect(within(enableDialog).queryByText(/sole remaining owner/)).not.toBeInTheDocument();
   });
 
   // NOT a regression test for the #356 reason/await reorder — see the report

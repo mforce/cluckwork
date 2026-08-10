@@ -821,11 +821,15 @@ public sealed class IdentityProvider(
             return Result.Success();
         }, ct);
 
-    // #356 — re-enable. Deliberately asymmetric with DisableUserAsync: it
-    // clears the two Disabled* columns and audits, and touches NOTHING else.
-    // No epoch bump, no restored pre-disable epoch, no stamp rotation, no
-    // token re-issue. That asymmetry IS the feature — it is what stops a
-    // re-enable from resurrecting every access token the disable killed.
+    // #356 — re-enable. Deliberately asymmetric with DisableUserAsync on the
+    // CREDENTIAL side only: it clears the two Disabled* columns and audits;
+    // no epoch bump, no restored pre-disable epoch, no token re-issue. That
+    // asymmetry IS the feature — it is what stops a re-enable from
+    // resurrecting every access token the disable killed. It DOES rotate
+    // SecurityStamp/ConcurrencyStamp below (round-3/round-5 review of #492) —
+    // required, not optional: without it a stale full-entity write from a
+    // concurrent SetUserPassword could silently restore DisabledAt behind a
+    // 204. Do not read "touches NOTHING else" as covering that rotation.
     public Task<Result> EnableUserAsync(
         Guid accountId, Guid userId, Guid actingUserId, CancellationToken ct = default) =>
         AmbientTransaction.RunAsync(db.Database, async (transaction, token) =>
