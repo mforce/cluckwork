@@ -1175,12 +1175,19 @@ input.cell {
 }
 
 /* The farm's own logo in the branding slot (#123). On a white plate because
-   the sidebar is aubergine and a dark logo would otherwise disappear into it;
-   `contain` keeps a wide wordmark from being cropped to a square. */
+   the sidebar is aubergine and a dark logo would otherwise disappear into it.
+   `contain` stops a non-square logo being CROPPED — but on the fixed 26x26
+   square this used to be, contain is what collapsed a wide wordmark into a
+   sliver: it kept the aspect ratio and gave up the height (#179).
+   So the height drives the size and the width follows the image's own aspect.
+   max-width only binds for a WIDE logo — a square mark stays ~24px and leaves
+   .brand-name its full slot; a wordmark takes the space instead, which is the
+   right trade because a wordmark already carries the farm's name. */
 .brand-logo {
   flex: 0 0 auto;
-  width: 26px;
-  height: 26px;
+  height: 24px;
+  width: auto;
+  max-width: 140px;
   object-fit: contain;
   background: #fff;
   border-radius: 4px;
@@ -2020,7 +2027,7 @@ label.check {
 }
 
 /* Same plate as .logo-preview, but sized for a wide/hero image (#179) rather
-   than a small square mark — capped by width instead of height, and taller. */
+   than the small sidebar-scale mark — capped by width instead of height, and taller. */
 .banner-preview {
   max-width: 100%;
   width: 360px;

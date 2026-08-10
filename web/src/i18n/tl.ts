@@ -1034,11 +1034,13 @@ export const tl = {
       + "tinatanggap ang mga animated na larawan. Na-save ang larawan nang "
       + "na-rewrite, tanggal ang camera at location metadata.",
     logoSquareHint:
-      "Gumamit ng <strong>parisukat</strong> na larawan — maliit lang "
-      + "lumalabas ang logo sa sidebar, kaya mas maganda ang tingin ng "
-      + "simple at maigsing-crop na marka (isang simbolo o iisang letra) "
-      + "doon kaysa sa malawak o detalyadong larawan. Mas maganda kung "
-      + "transparent ang background sa isang light na disenyo.",
+      "Maliit lang lumalabas ang logo sa sidebar, halos kasingtaas ng isang "
+      + "linya ng teksto. Maganda ang tingin doon ng simpleng marka at ng "
+      + "malawak na wordmark. Ang hindi umuubra ay ang "
+      + "<strong>detalyadong</strong> larawan — sa sukat na iyon ay lumiliit "
+      + "ito hanggang hindi na mabasa, kaya ilagay iyon sa banner sa ibaba. "
+      + "Mas maganda kung transparent ang background sa isang light na "
+      + "disenyo.",
     logoWorkingMessage: "Pinoproseso…",
     logoUpdatedMessage: "Na-update ang logo.",
     logoRemovedMessage: "Naalis ang logo.",
@@ -2248,11 +2250,12 @@ export const tl = {
       + "itsura nito — wala pang nagpapakita ng petsa o oras gamit ang setting na ito sa Cluckwork, "
       + "kaya hindi makikita ngayon ang isang maling custom value.",
     farmSettingsSquareLogo:
-      "Gumamit ng <strong>parisukat</strong> na logo. Maliit itong lumalabas sa sidebar, kaya isang simple "
-      + "at maigsing-crop na marka — isang simbolo o iisang letra — ang mas magandang tingnan doon kaysa "
-      + "sa isang malawak na wordmark o isang detalyadong larawan, na bumabagsak sa isang bagay na hindi na "
-      + "mabasa. Panatilihin ang isang detalyadong logo para sa print o isang website; bigyan ang app ng "
-      + "isang malinis na maliit na marka.",
+      "Lumalabas ang logo sa sidebar nang halos kasingtaas ng isang linya ng teksto. Maganda ang tingin "
+      + "doon ng simple at maigsing-crop na marka at ng <strong>malawak na wordmark</strong> — pinananatili "
+      + "ng wordmark ang sarili nitong hugis at ginagamit ang pahalang na espasyo sa halip na maipit sa "
+      + "isang parisukat. Ang hindi umuubra sa sukat na iyon ay ang detalyadong larawan o masikip na eksena: "
+      + "lumiliit ito hanggang hindi na mabasa. Ilagay ang detalyadong larawan sa banner ng bukid, kung saan "
+      + "ipinapakita ito nang buong sukat.",
     farmSettingsBanner:
       "Ang <strong>banner</strong> ay pangalawa, independiyenteng larawan na ipinapakita nang buong-laki sa "
       + "isang splash screen kaagad pagkatapos mag-log in, isang beses kada session — maganda rito ang "
@@ -2617,9 +2620,9 @@ export const tl = {
     glossaryFarmLogoTerm: "Logo ng Bukid",
     glossaryFarmLogoDef:
       "Ang sarili mong larawan sa halip ng Cluckwork mark sa sidebar, ina-upload mula sa Mga Setting ng "
-      + "Bukid. PNG, JPEG, o WebP (2 MB bilang default), still images lang; mas mabasa ang isang "
-      + "parisukat at simpleng mark sa maliit na sukat ng sidebar. Naka-store bilang muling ginawang "
-      + "kopya na tinanggalan ng detalye ng camera at lokasyon.",
+      + "Bukid. PNG, JPEG, o WebP (2 MB bilang default), still images lang; mas mabasa ang simpleng mark o "
+      + "malawak na wordmark sa sukat na iyon, samantalang ang detalyadong larawan ay para sa banner ng "
+      + "bukid. Naka-store bilang muling ginawang kopya na tinanggalan ng detalye ng camera at lokasyon.",
 
     glossaryFarmBannerTerm: "Banner ng Bukid",
     glossaryFarmBannerDef:

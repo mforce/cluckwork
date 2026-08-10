@@ -498,7 +498,7 @@ export const removeFarmLogo = (key?: string) => apiDelete<void>("/account/logo",
 // --- Farm banner (#179) ---
 //
 // A second, independent branding image: a wide/hero picture shown full-size
-// on the post-login splash, distinct from the square sidebar logo above. Same
+// on the post-login splash, distinct from the small sidebar logo above. Same
 // contract shape (raw-body PUT, blob-fetched GET, own upload cap from server
 // config), just its own route and its own larger default cap.
 

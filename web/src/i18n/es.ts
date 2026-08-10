@@ -998,11 +998,12 @@ export const es = {
       + "imágenes animadas. La imagen se guarda reescrita, sin los metadatos "
       + "de cámara ni ubicación.",
     logoSquareHint:
-      "Use una imagen <strong>cuadrada</strong> — el logotipo se muestra "
-      + "pequeño en la barra lateral, así que una marca simple y bien "
-      + "recortada (un símbolo o una sola letra) se ve mucho mejor ahí que "
-      + "una imagen ancha o detallada. Un fondo transparente sobre un diseño "
-      + "claro funciona mejor.",
+      "El logotipo se muestra pequeño en la barra lateral, más o menos con "
+      + "la altura de una línea de texto. Tanto una marca simple como un "
+      + "logotipo ancho se ven bien ahí. Lo que no funciona es una imagen "
+      + "<strong>detallada</strong> — a ese tamaño se reduce a algo ilegible, "
+      + "así que úsela en el banner de abajo. Un fondo transparente sobre un "
+      + "diseño claro funciona mejor.",
     logoWorkingMessage: "Procesando…",
     logoUpdatedMessage: "Logotipo actualizado.",
     logoRemovedMessage: "Logotipo eliminado.",
@@ -2166,10 +2167,12 @@ export const es = {
       + "para comprobar que se ve bien — nada en Cluckwork muestra fechas u horas mediante esta "
       + "configuración todavía, así que un valor personalizado incorrecto no sería visible hoy.",
     farmSettingsSquareLogo:
-      "Use un logotipo <strong>cuadrado</strong>. Se muestra pequeño en la barra lateral, así que una "
-      + "marca simple y bien recortada — un símbolo o una sola letra — se ve mucho mejor ahí que un "
-      + "logotipo ancho o una imagen detallada, que se reducen a algo ilegible. Conserve un logotipo "
-      + "detallado para impresión o un sitio web; dele a la aplicación una marca pequeña y limpia.",
+      "El logotipo se muestra en la barra lateral más o menos con la altura de una línea de texto. Tanto "
+      + "una marca simple y bien recortada como un <strong>logotipo ancho</strong> se ven bien ahí — un "
+      + "logotipo ancho conserva su forma y aprovecha el espacio horizontal en vez de quedar aplastado en "
+      + "un cuadrado. Lo que no funciona a ese tamaño es una imagen detallada o una escena cargada: se "
+      + "reduce a algo ilegible. Use el banner de la granja para una imagen detallada, donde se muestra a "
+      + "tamaño completo.",
     farmSettingsBanner:
       "El <strong>banner</strong> es una segunda imagen, independiente, que se muestra a tamaño completo "
       + "en una pantalla de bienvenida justo después de iniciar sesión, una vez por sesión — una imagen "
@@ -2529,9 +2532,9 @@ export const es = {
     glossaryFarmLogoTerm: "Logotipo de la granja",
     glossaryFarmLogoDef:
       "Su propia imagen en lugar de la marca de Cluckwork en la barra lateral, subida desde Configuración "
-      + "de la granja. PNG, JPEG o WebP (2 MB por defecto), solo imágenes fijas; una marca cuadrada y "
-      + "simple se lee mejor en el tamaño pequeño de la barra lateral. Se guarda como una copia "
-      + "reconstruida sin los detalles de cámara y ubicación.",
+      + "de la granja. PNG, JPEG o WebP (2 MB por defecto), solo imágenes fijas; una marca simple o un "
+      + "logotipo ancho se leen mejor a ese tamaño, mientras que una imagen detallada corresponde al banner "
+      + "de la granja. Se guarda como una copia reconstruida sin los detalles de cámara y ubicación.",
 
     glossaryFarmBannerTerm: "Banner de la granja",
     glossaryFarmBannerDef:

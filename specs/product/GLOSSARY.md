@@ -521,20 +521,30 @@ Animated PNG and animated WebP are refused too — an animated frame can hide
 data inside itself where the check that cleans the rest of the file never
 looks.
 
-The chrome renders it in a small **square** slot, so the guidance is to upload a
-square, simple mark — a symbol or a single letter, tightly cropped — rather than
-a wide wordmark or a detailed illustration, which shrink to something unreadable
-at sidebar size. The slot fits the whole image (`object-fit: contain`), so a
-wide logo keeps its aspect and loses its height. A larger surface for a detailed
-logo — the **farm banner**, below — is a separate image entirely.
+The chrome renders it in a short row — a fixed height (~24px, about a line of
+text) with the width following the image's own aspect ratio, bounded so a very
+wide image cannot crowd the farm name out of the sidebar. So a simple mark and a
+**wide wordmark** both read correctly; a wordmark uses the horizontal space
+instead of being squashed into a square. What still does not survive that size
+is a detailed illustration or a busy scene, which shrinks to something
+unreadable — that belongs on the **farm banner**, below, a separate image
+entirely.
+
+This was not always so (#179). The slot was originally a fixed 26×26 **square**,
+and because it fits the whole image (`object-fit: contain`) a wide logo kept its
+aspect ratio and gave up its height, rendering as a sliver — `contain` prevents
+cropping, but on a square slot that is exactly what collapses a wordmark. The
+guidance then was "upload a square mark", which was a workaround for the slot
+rather than advice about logos. Two changes retired it: the banner gave detailed
+art a home of its own, and the slot itself became height-driven.
 
 **Farm banner (#179)** — a second, independent image: a wide/hero picture shown
-full-size on a **post-login splash**, once per login, rather than in the small
-square sidebar slot the logo occupies. A farm can have a logo, a banner, both,
+full-size on a **post-login splash**, once per login, rather than in the short
+sidebar row the logo occupies. A farm can have a logo, a banner, both,
 or neither — setting or clearing one never touches the other. Same upload rules
 as the logo (PNG/JPEG/WebP, a still image, no SVG, dimensions and metadata
 handled the same way — see below), but its own larger size cap (5 MB by default,
-since a detailed hero image is typically heavier than a square mark) and its own
+since a detailed hero image is typically heavier than a small sidebar mark) and its own
 Owner/Manager-only upload and everyone-sees-it read, same as the logo. The
 splash is skipped entirely when no banner is set — it is never shown empty, and
 never shown on the pre-login screen (that screen has no farm to show a banner

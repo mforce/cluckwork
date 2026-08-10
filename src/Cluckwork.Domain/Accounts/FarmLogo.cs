@@ -21,7 +21,7 @@ using Cluckwork.Domain.Media;
 // NAME DISCREPANCY, KEPT ON PURPOSE (#179): this class and table are still
 // called FarmLogo/FarmLogos even though a row can also hold a banner — a
 // second, independent wide/hero image the SPA shows on a post-login splash,
-// distinct from the square sidebar mark. Renaming to something like
+// distinct from the small sidebar mark. Renaming to something like
 // FarmBranding was considered and rejected: it would touch every layer of a
 // shipped, tested feature (#123) — repository, handlers, endpoints, options,
 // audit action, migrations with live data — to fix a name, for zero functional
@@ -34,7 +34,7 @@ public sealed class FarmLogo : AggregateRoot<Guid>
 {
     public Guid FarmId { get; private set; }
 
-    // --- Logo (square sidebar mark) ---
+    // --- Logo (the small sidebar mark) ---
     // All null until the first upload, and after a removal — a row can hold a
     // banner with no logo, or vice versa, so neither side can require the
     // other's presence.
