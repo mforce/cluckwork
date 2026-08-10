@@ -192,6 +192,24 @@ except KeyError:
 fail = []
 ok = []
 
+# --- #123 farm logo upload limit ------------------------------------------
+# Mirror FarmLogoOptionsValidator so a stale or ambient override is caught
+# before the Production-mode app is started.
+logo_limit_raw = env.get("FarmLogo__MaxUploadBytes")
+try:
+    logo_limit = int(str(logo_limit_raw))
+except (TypeError, ValueError):
+    logo_limit = None
+
+if logo_limit is None:
+    fail.append(f"FarmLogo__MaxUploadBytes={logo_limit_raw!r} is not an integer")
+elif logo_limit <= 0:
+    fail.append(f"FarmLogo__MaxUploadBytes={logo_limit} must be greater than zero")
+elif logo_limit > 5 * 1024 * 1024:
+    fail.append(f"FarmLogo__MaxUploadBytes={logo_limit} exceeds the 5242880-byte ceiling")
+else:
+    ok.append(f"FarmLogo upload limit OK ({logo_limit} bytes)")
+
 # --- #496 farm banner upload limit ---------------------------------------
 # Mirror FarmBannerOptionsValidator so a stale or ambient override is caught
 # before the Production-mode app is started.

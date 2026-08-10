@@ -97,6 +97,7 @@ services:
       Simulation__ReadOnly: ${Simulation__ReadOnly}
       Simulation__Seed: ${Simulation__Seed}
       Simulation__CredentialOutputPath: ${Simulation__CredentialOutputPath}
+      FarmLogo__MaxUploadBytes: ${FarmLogo__MaxUploadBytes}
       FarmBanner__MaxUploadBytes: ${FarmBanner__MaxUploadBytes}
       RateLimiting__Login__PermitLimit: ${RateLimiting__Login__PermitLimit}
       RateLimiting__Login__WindowSeconds: ${RateLimiting__Login__WindowSeconds}

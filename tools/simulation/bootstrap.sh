@@ -225,7 +225,8 @@ Simulation__ReadOnly=${READONLY}
 Simulation__Seed=243
 Simulation__CredentialOutputPath=/app/sim-cast/manifest.json
 
-# --- Farm banner upload limit (#496) -----------------------------------
+# --- Farm logo/banner upload limits (#123, #496) ------------------------
+FarmLogo__MaxUploadBytes=2097152
 FarmBanner__MaxUploadBytes=5242880
 
 # --- Rate limiting (#143) — all three buckets raised so k6 traffic never
