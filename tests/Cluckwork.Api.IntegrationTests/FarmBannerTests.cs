@@ -213,6 +213,38 @@ public sealed class FarmBannerTests(CluckworkWebApplicationFactory factory)
         Assert.IsType<DbUpdateConcurrencyException>(conflict);
     }
 
+    // Codex review of #496 round 4: the replace-vs-replace race above doesn't
+    // cover ClearBanner, a separate mutation that also bumps the shared
+    // Version. A logo stays set throughout so the row survives either writer
+    // (RemovingBothAssets_RemovesTheSharedRow already covers deletion) — this
+    // isolates the field-level race: remove-vs-replace on the banner side,
+    // sharing the row with an untouched logo.
+    [Fact]
+    public async Task RemovingTheBanner_WhileAnotherWriterReplacesIt_Conflicts()
+    {
+        var (client, accountId) = await AdminAsync();
+        await PutAsync(client, LogoPath, TinyPng); // keeps the row alive either way
+        await PutAsync(client, BannerPath, TinyPng);
+
+        var conflict = await Record.ExceptionAsync(() =>
+            factory.WithTenantScopeAsync(accountId, dbA =>
+                factory.WithTenantScopeAsync(accountId, async dbB =>
+                {
+                    var a = await dbA.FarmLogos.FirstAsync();
+                    var b = await dbB.FarmLogos.FirstAsync();
+
+                    a.ClearBanner();
+                    await dbA.SaveChangesAsync();
+
+                    b.ReplaceBanner(
+                        ImageSanitizer.Sanitize(TinyPng, ImageSanitizer.MaxBannerByteLengthCeiling, ImageSanitizer.ImageAssetKind.Banner).Value,
+                        DateTimeOffset.UtcNow);
+                    await dbB.SaveChangesAsync();
+                })));
+
+        Assert.IsType<DbUpdateConcurrencyException>(conflict);
+    }
+
     // --- surfaced on /account -----------------------------------------------
 
     [Fact]
