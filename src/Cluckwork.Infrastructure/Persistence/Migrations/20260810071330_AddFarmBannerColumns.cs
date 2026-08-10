@@ -133,6 +133,15 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            // Codex review of #496: the pre-banner schema required every FarmLogos
+            // row to carry a real (non-null, non-empty) logo. A row this migration
+            // allowed — banner-only, Content NULL — has no valid pre-migration
+            // state to roll back to. Left in place, the NOT NULL backfill below
+            // would set Content to an empty bytea, which immediately violates the
+            // restored ck_farm_logos_content_length ("> 0") check. Delete such rows
+            // before restoring the old constraints rather than fail the rollback.
+            migrationBuilder.Sql("DELETE FROM \"FarmLogos\" WHERE \"Content\" IS NULL;");
+
             migrationBuilder.DropCheckConstraint(
                 name: "ck_farm_logos_banner_content_length",
                 table: "FarmLogos");

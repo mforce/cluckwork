@@ -14,6 +14,17 @@ import { resolveLanguage } from "../i18n/resolve";
 // construction, so this needs no extra bookkeeping to get that for free.
 const SPLASH_SHOWN_KEY = "cluckwork.splashShown";
 
+// Codex review of #496: the marker above is otherwise never cleared, so once
+// dismissed in a tab it stays suppressed across logout/login in that tab —
+// including a different user signing in. AuthContext.login calls this before
+// marking the app authenticated, so "once per login" is actually per login,
+// not per tab lifetime; a silent token refresh (same session, not a new
+// login) deliberately does NOT call this.
+// eslint-disable-next-line react-refresh/only-export-components
+export function clearSplashSeenMarker(): void {
+  sessionStorage.removeItem(SPLASH_SHOWN_KEY);
+}
+
 // eslint-disable-next-line react-refresh/only-export-components
 export const MeContext = createContext<Me | null>(null);
 // eslint-disable-next-line react-refresh/only-export-components

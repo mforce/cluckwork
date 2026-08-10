@@ -7,6 +7,7 @@ import {
 import { currentUserIsAdmin, currentUserMustChangePassword, currentUserRole } from "./claims";
 import type { Role } from "./claims";
 import { clearAccessToken, getAccessToken, purgeLegacyTokens } from "./tokenStore";
+import { clearSplashSeenMarker } from "../session/SessionContext";
 
 interface AuthState {
   isAuthenticated: boolean;
@@ -99,6 +100,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (email: string, password: string) => {
     await apiLogin({ email, password });
+    // #179/codex: a fresh explicit login is a new "per login" for the splash,
+    // even in a tab that already dismissed it (or belonged to another user).
+    // A silent token refresh never reaches this line, so it's exempt by design.
+    clearSplashSeenMarker();
     setIsAuthenticated(true);
     setUnauthenticatedReason(null);
     refreshClaims();
