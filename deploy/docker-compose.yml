@@ -1,5 +1,12 @@
 services:
   # Bundled application: the .NET API serves the JSON API and the SPA (wwwroot).
+  #
+  # EXACTLY ONE serving instance until #271 closes — no `deploy.replicas`, no
+  # second app service, no scaling this on a real host. Every instance runs the
+  # DurableJobWorker loop and its three recurring sweeps with nothing claiming
+  # the work, so a second one double-runs them silently: no error, no log, just
+  # duplicate work. See "Deploy invariant" in AGENTS.md for what is and isn't
+  # exposed today, and why #307's closure is NOT permission to scale.
   app:
     build:
       context: ..

@@ -95,6 +95,40 @@ Reviewers: treat a hardcoded provider name in code, config, or a committed doc
 like a missing test — flag it. Naming a provider as a passing *example* in prose
 is tolerable only when no portable phrasing works; prefer the neutral term.
 
+### Deploy invariant: exactly ONE serving API instance (#271)
+
+**Run one serving instance until #271 is closed.** Scaling past one silently
+double-runs the background work — nothing fails, nothing logs, the duplicate is
+simply invisible. This is a *requirement* the app imposes on its host, so it
+lives here; the concrete replica count and how it is pinned are deploy-side.
+
+`AddHostedService<DurableJobWorker>()`
+(`Hosting/CluckworkJobServiceCollectionExtensions.cs`) means **every** instance
+runs the worker loop, and the poll claims nothing — no `FOR UPDATE SKIP
+LOCKED`, no lease, no advisory lock. What that exposes today is **the three
+recurring sweeps**, which ride the same poll and run unconditionally per
+instance: `DailyEntryLockSweep`, `RefreshTokenPurgeSweep`,
+`IdempotencyRecordPurgeSweep`. The durable-job half is still a scaffold that
+selects pending rows and logs them — no handlers are registered — so job
+double-execution is latent, not live. **Registering the first handler makes it
+live**, which is the moment this invariant stops being about sweeps only.
+
+Not every double-run is equally bad, and the difference is worth knowing before
+someone waves it through: the two purge sweeps are idempotent deletes, so a
+second runner wastes work rather than corrupting state. `DailyEntryLockSweep`
+reads-then-writes behind only an optimistic `Version` token, so that is where
+concurrent runners actually contend.
+
+- **#307 (multi-replica HTTP write idempotency) is CLOSED**, so the request-path
+  half of the multi-instance story is done. **#271 is the sole remaining
+  blocker** — do not read #307's closure as permission to scale.
+- Closing #271 needs a real single-runner mechanism (advisory-lock lease or
+  `FOR UPDATE SKIP LOCKED` with crash recovery) **plus** a two-instance test
+  proving each job and each sweep executes exactly once. Documenting the
+  invariant, as this section does, is the interim mitigation — not the close.
+- The run-then-exit verbs (`migrate`, `seed`, `recover-admin`, `bootstrap-admin`,
+  `healthcheck`) are unaffected: they do not start the host's hosted services.
+
 ## Writing a guard (a test that asserts an invariant)
 
 A guard is a test whose job is to *fail* when someone later does the wrong thing — the migration freeze (`MigrationSecurityReviewTests`), the body-reading endpoint check, the simulation manifest's exact counts. **A wrong guard is worse than no guard, because it reads as safety.** #407 spent five review rounds on one. The full rules with the incidents that earned them are in [`docs/decisions/407-writing-a-guard.md`](docs/decisions/407-writing-a-guard.md); in brief:
