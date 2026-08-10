@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { Dialog } from "./Dialog";
@@ -303,5 +303,188 @@ describe("Dialog i18n wiring (#182, Task 8)", () => {
       expect(screen.getByRole("button", { name: "CLOSE-MARKER" })).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Close" })).not.toBeInTheDocument();
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// #482 — Dialog assumed it was the only instance open. Nothing enforced that
+// (SalesPage proved it in #480), and each instance kept its own copy of the
+// page's state: its own scroll snapshot, its own document keydown listener.
+// ---------------------------------------------------------------------------
+
+// Two independent dialogs on one page, as SalesPage has.
+function TwoHost() {
+  const [a, setA] = useState(false);
+  const [b, setB] = useState(false);
+  return (
+    <>
+      <button onClick={() => setA(true)}>Open A</button>
+      <button onClick={() => setB(true)}>Open B</button>
+      <Dialog open={a} title="Dialog A" onClose={() => setA(false)}>
+        <input aria-label="A field" />
+      </Dialog>
+      <Dialog open={b} title="Dialog B" onClose={() => setB(false)}>
+        <input aria-label="B field" />
+      </Dialog>
+    </>
+  );
+}
+
+const backdropOf = (name: string) =>
+  screen.getByRole("dialog", { name }).closest(".dialog-backdrop") as HTMLElement;
+
+// Like TwoHost, but A can also close WITHOUT going through its own trigger,
+// onClose, or Escape — a "Close A directly" button stands in for an
+// unrelated effect elsewhere calling setA(false) while the user is busy in
+// B, which is what "programmatically" means below: A closing is not
+// something the user did from inside B, or even noticed.
+function TwoHostWithProgrammaticClose() {
+  const [a, setA] = useState(false);
+  const [b, setB] = useState(false);
+  return (
+    <>
+      <button onClick={() => setA(true)}>Open A</button>
+      <button onClick={() => setB(true)}>Open B</button>
+      <button onClick={() => setA(false)}>Close A directly</button>
+      <Dialog open={a} title="Dialog A" onClose={() => setA(false)}>
+        <input aria-label="A field" />
+      </Dialog>
+      <Dialog open={b} title="Dialog B" onClose={() => setB(false)}>
+        <input aria-label="B field one" />
+        <input aria-label="B field two" />
+      </Dialog>
+    </>
+  );
+}
+
+describe("Dialog with another dialog open (#482)", () => {
+  it("keeps the scroll lock until the LAST dialog closes, then restores it", async () => {
+    // The defect this pins: each instance snapshotted and restored
+    // document.body.style.overflow on its own. Closing them in FIFO order
+    // unlocked the page while a dialog was still up, and then re-locked it
+    // permanently — a page that never scrolls again, with nothing open.
+    const user = userEvent.setup();
+    document.body.style.overflow = "visible";
+    render(<TwoHost />);
+
+    await user.click(screen.getByRole("button", { name: "Open A" }));
+    await user.click(screen.getByRole("button", { name: "Open B" }));
+    expect(document.body.style.overflow).toBe("hidden");
+
+    // Close the FIRST-opened one while the second is still up.
+    await user.click(within(backdropOf("Dialog A")).getByRole("button", { name: "Close" }));
+    expect(document.body.style.overflow).toBe("hidden"); // B is still open
+    // …and B is still the live dialog. Removing the closed entry by identity
+    // rather than popping the end of the stack is what keeps this true: a
+    // blind pop would drop B's entry, leaving the OPEN dialog inert — dead to
+    // the pointer, to Tab and to Escape — with the closed one as a phantom top
+    // (internal review of #483).
+    expect(backdropOf("Dialog B")).not.toHaveAttribute("inert");
+
+    await user.click(within(backdropOf("Dialog B")).getByRole("button", { name: "Close" }));
+    expect(document.body.style.overflow).toBe("visible"); // the value from before ANY dialog
+  });
+
+  it("closes only the topmost dialog on Escape", async () => {
+    // Both instances listened on document, so one Escape ran both handlers and
+    // silently discarded whatever was typed in the lower form.
+    const user = userEvent.setup();
+    render(<TwoHost />);
+    await user.click(screen.getByRole("button", { name: "Open A" }));
+    await user.click(screen.getByRole("button", { name: "Open B" }));
+
+    await user.keyboard("{Escape}");
+
+    expect(screen.queryByRole("dialog", { name: "Dialog B" })).toBeNull();
+    expect(screen.getByRole("dialog", { name: "Dialog A" })).toBeInTheDocument();
+  });
+
+  it("marks the dialog underneath inert, and un-marks it when the top one closes", async () => {
+    const user = userEvent.setup();
+    render(<TwoHost />);
+    await user.click(screen.getByRole("button", { name: "Open A" }));
+    await user.click(screen.getByRole("button", { name: "Open B" }));
+
+    expect(backdropOf("Dialog A")).toHaveAttribute("inert");
+    expect(backdropOf("Dialog B")).not.toHaveAttribute("inert");
+
+    await user.keyboard("{Escape}"); // closes B, the top one
+    expect(backdropOf("Dialog A")).not.toHaveAttribute("inert");
+  });
+
+  // Dialog B's own trigger ("Open B") is a PAGE button, not something inside
+  // Dialog A — reachable while A is open only through the #480 virtual-cursor
+  // door TwoHost's own click above already exercises. Closing B leaves A
+  // topmost, and the "Open B" button is now inert right along with the rest
+  // of the page — a real browser refuses to focus it, dropping the user on
+  // <body> with no visible cue which control is active (adversarial review
+  // of #483). jsdom's `focus()` does not itself enforce `inert`, so this pins
+  // the FIX's own logic (never target a trigger outside the dialog that is
+  // still open) rather than relying on a browser behavior jsdom won't
+  // reproduce.
+  it("moves focus into the remaining dialog when the closed one's trigger lives outside it", async () => {
+    const user = userEvent.setup();
+    render(<TwoHost />);
+    await user.click(screen.getByRole("button", { name: "Open A" }));
+    await user.click(screen.getByRole("button", { name: "Open B" }));
+
+    await user.click(within(backdropOf("Dialog B")).getByRole("button", { name: "Close" }));
+
+    expect(screen.getByLabelText("A field")).toHaveFocus();
+  });
+
+  // The redirect above must not fire when it isn't needed. A (bottom) can
+  // close from an unrelated effect while the user is genuinely mid-typing in
+  // B (top) — B never moved, so A's cleanup running is not the user's cue to
+  // yank focus off whatever field they are in and back to B's first one
+  // (codex review of #483, against 4dfa12e7's first attempt).
+  it("leaves focus alone when it is already inside the dialog that stays open", async () => {
+    const user = userEvent.setup();
+    render(<TwoHostWithProgrammaticClose />);
+    await user.click(screen.getByRole("button", { name: "Open A" }));
+    await user.click(screen.getByRole("button", { name: "Open B" }));
+
+    const secondField = screen.getByLabelText("B field two");
+    await user.click(secondField);
+    expect(secondField).toHaveFocus();
+
+    // fireEvent, not userEvent: a real click on a button focuses it first,
+    // which would move focus off `secondField` regardless of Dialog's own
+    // logic and prove nothing. This dispatches only the click, standing in
+    // for a close that isn't a focus-moving user interaction at all — a
+    // prop change, a timer, code elsewhere calling the same setter.
+    fireEvent.click(screen.getByRole("button", { name: "Close A directly" }));
+
+    expect(secondField).toHaveFocus();
+  });
+});
+
+describe("Dialog background inertness (#482)", () => {
+  it("marks the page inert while open and restores it on close", async () => {
+    // aria-modal is a hint, not containment: without this, every control
+    // behind the backdrop stays in the accessibility tree, reachable by a
+    // screen reader's virtual cursor — which is how two dialogs came to be
+    // open at once in the first place.
+    const user = userEvent.setup();
+    const { container } = render(<Host />);
+
+    await user.click(screen.getByRole("button", { name: "New grade" }));
+    expect(container).toHaveAttribute("inert");
+    // …but not the dialog itself, which is the one thing that must stay usable.
+    expect(document.querySelector(".dialog-backdrop")).not.toHaveAttribute("inert");
+
+    await user.keyboard("{Escape}");
+    expect(container).not.toHaveAttribute("inert");
+  });
+
+  it("keeps the page inert while any dialog remains open", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<TwoHost />);
+    await user.click(screen.getByRole("button", { name: "Open A" }));
+    await user.click(screen.getByRole("button", { name: "Open B" }));
+
+    await user.click(within(backdropOf("Dialog B")).getByRole("button", { name: "Close" }));
+
+    expect(container).toHaveAttribute("inert"); // A is still up
   });
 });

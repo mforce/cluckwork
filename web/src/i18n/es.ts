@@ -1773,6 +1773,10 @@ export const es = {
       + "borra lo que escribió — al volver a abrirla empieza con un formulario en blanco. Si un guardado "
       + "falla, la ventana permanece abierta con sus valores y el motivo, para que pueda corregirlo e "
       + "intentarlo de nuevo — reintentar es seguro, nunca registra lo mismo dos veces.",
+    dialogsModal:
+      "Mientras una ventana emergente está abierta, la página detrás <strong>espera</strong>: los clics, la "
+      + "tecla Tab y el lector de pantalla permanecen dentro del formulario, así nada de atrás se cambia por "
+      + "accidente, y Escape cierra la ventana en la que está trabajando.",
     dialogsInlineForms:
       "Las pantallas cuyo único trabajo es la captura mantienen su formulario en la página: <strong>Entrada "
       + "diaria</strong>, <strong>Agua</strong>, registrar un gasto, y agregar líneas a un pedido en "

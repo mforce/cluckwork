@@ -77,6 +77,38 @@ describe("HelpPage", () => {
     expect(screen.getByText(/A spinning button means the save is still working/)).toBeInTheDocument();
   });
 
+  it("says the page behind a popup is out of reach, in every catalog (#482)", () => {
+    // The behaviour: everything except the topmost dialog is inert, so the
+    // background is unreachable by pointer AND by a screen reader — and Escape
+    // closes the dialog the user is in, not every open one.
+    render(<HelpPage />);
+    expect(screen.getByText(/the page behind it/i)).toBeInTheDocument();
+    expect(screen.getByText(/Escape closes the popup you are working in/i)).toBeInTheDocument();
+
+    for (const lng of ["es", "tl"] as const) {
+      const value = i18n.getResource(lng, "help", "dialogsModal") as string;
+      expect(value).toBeTruthy();
+      expect(value).not.toBe(i18n.getResource("en", "help", "dialogsModal"));
+    }
+  });
+
+  // codex on #483: the string-concatenated en catalog entry lost the space
+  // between two adjacent <Trans> segments, rendering "Daily entry,Water"
+  // with nothing between the names. Nothing asserted the joined text before,
+  // so it shipped silently — this is that assertion.
+  it("keeps a space between adjacent inline-form names", () => {
+    // The two names sit in separate <strong> elements either side of the
+    // regression's missing space, so the joined text is not any single
+    // node's own — read the item's full textContent instead of getByText,
+    // which only matches within one node.
+    render(<HelpPage />);
+    // "Daily entry" and "Water" both appear elsewhere on the page (nav, other
+    // sections); "recording an expense" is unique to this list item.
+    const item = screen.getByText(/recording an expense/).closest("li");
+    expect(item).not.toBeNull();
+    expect(item!.textContent).toMatch(/Daily entry,\s+Water/);
+  });
+
   it("says a failed save explains itself inside the form, in every catalog (#477)", () => {
     // Deliberately the NARROW claim: every dialog screen renders its own
     // failure inside the dialog, so this holds app-wide. The rest of the

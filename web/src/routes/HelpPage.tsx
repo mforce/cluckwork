@@ -187,6 +187,11 @@ export function HelpPage() {
           <Trans ns="help" i18nKey="dialogsCancel" components={{ strong: <strong /> }} />
         </li>
         <li>
+          {/* #482 — the page behind a popup is now genuinely out of reach, for
+              the pointer and for a screen reader alike. */}
+          <Trans ns="help" i18nKey="dialogsModal" components={{ strong: <strong /> }} />
+        </li>
+        <li>
           {/* #236 — the pending-save indicator, in the section that already
               explains save/retry behaviour. */}
           {tc("workingHint")}
