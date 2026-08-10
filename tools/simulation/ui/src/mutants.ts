@@ -29,6 +29,53 @@
 // logic directly. A regression purely inside the SPA — a role gate deleted from
 // `nav.tsx`, say — is not reachable by rewriting a server response.
 //
+// ================== THE SECOND BOUNDARY: DOM-LEVEL MUTANTS (#501) ==================
+//
+// The four `a11y-*` mutants below do NOT go through the network. They inject a
+// script into the page and break the DOM the way the corresponding regression
+// would leave it. That was added for #501, whose guarantees are entirely
+// client-side — a live region's presence in the accessibility tree is never
+// something a server response can decide — and it is a different instrument
+// from the rest of this file, so read it as one.
+//
+// **What it is faithful to, and what it is not.** These imitate the EFFECT of a
+// regression, not its cause: the app's own source is untouched, so a mutant
+// proves the spec notices that DOM state, not that the spec would notice the
+// real code change if that change happened to leave a different trace. For
+// `a11y-inert-sweep-removed` the two coincide exactly — reverting #483's sweep
+// IS "no `inert` attribute on the background", which is what the mutant
+// produces. For the three announcer mutants the match is close but not identical:
+// the real regression is #499's hook deciding to write when it should not, and
+// the mutants write the same text from outside. Both leave the screen reader in
+// the same state, which is the state the spec judges.
+//
+// **Three announcer mutants, not one, because one mutant covered one third of
+// the test it named.** They differ only in WHEN they write, and each is the
+// only one of the three that reaches its assertion:
+//   * `a11y-announcer-duplicates-banner` writes from first paint, so it kills
+//     the ordinary-path check — and kills it BEFORE the dialog loop below runs,
+//     which left the anti-nag half of that test (half its title) unchecked.
+//   * `a11y-announcer-renags-on-close` writes only on a close transition, so
+//     the loop is what catches it.
+//   * `a11y-announcer-writes-transiently` writes and clears within ~80ms, which
+//     every point-in-time read in the test passes over; only the cumulative
+//     MutationObserver assertion sees it.
+// The first hole was found by an adversarial review of this PR, the second by
+// applying the same question to the fix. In both cases the harness reported a
+// clean kill and said nothing — a mutant killing SOMETHING is not evidence that
+// it killed the thing its name claims.
+//
+// Do not reach for this shape when a network mutant would do. It is here
+// because the alternative for #501 was no mutation coverage at all.
+//
+// **A DOM mutant that fails to install looks exactly like a surviving one.**
+// The first two below originally observed `document.documentElement`, which is not
+// yet there when an init script runs: the constructor threw into `pageerror`,
+// nothing was mutated, and both specs stayed green — reported as two
+// survivors, which reads as "your specs are vacuous" rather than "your mutant
+// never ran". Observing `document` fixes it. When a DOM mutant survives, check
+// for a page error before touching the spec it accuses.
+//
 // An earlier version of this comment claimed the nav-gate assertions were
 // "covered by spec-level vacuity mutants" instead. **That was false** — no such
 // mutant existed, and three specs' role-gate assertions had no mutation coverage
@@ -224,6 +271,132 @@ export const MUTANTS: Record<string, Mutant> = {
       };
       await page.route("**/api/v1/auth/login", forgeRole);
       await page.route("**/api/v1/auth/refresh", forgeRole);
+    },
+  },
+
+  // --- accessibility under a modal (#485/#501, DOM-level — see the header) --
+  "a11y-inert-sweep-removed": {
+    breaks:
+      "#483's modal inert sweep, so the page behind a dialog stays in the accessibility tree — "
+      + "the state the app was in before #483, and the state #485's premise denies",
+    caughtBy:
+      "a11y-live-regions.spec.ts — the offscreen announcers leave the accessibility tree while "
+      + "a dialog is open",
+    apply: async (page) => {
+      await page.addInitScript(() => {
+        // Strip `inert` as fast as the sweep sets it. Observing the DOCUMENT
+        // with subtree covers body's children, which is what
+        // syncModalBackground() actually marks, including ones added later —
+        // `document.documentElement` does not exist yet at init-script time
+        // (see the header). Removing an absent attribute produces no record,
+        // so this terminates.
+        new MutationObserver((records) => {
+          for (const record of records) {
+            if (record.target instanceof Element) record.target.removeAttribute("inert");
+          }
+        }).observe(document, {
+          attributes: true,
+          subtree: true,
+          attributeFilter: ["inert"],
+        });
+      });
+    },
+  },
+
+  "a11y-announcer-duplicates-banner": {
+    breaks:
+      "#499's rule that the offscreen announcer speaks ONLY for a message the visible banner "
+      + "could not — here it mirrors the banner unconditionally, so a screen reader hears the "
+      + "same warning from both regions",
+    caughtBy:
+      "a11y-live-regions.spec.ts — a standing farm warning is announced once by the banner",
+    apply: async (page) => {
+      await page.addInitScript(() => {
+        const mirror = () => {
+          const banner = document.querySelector("p.farm-warning");
+          const region = document.querySelector('main.content > p.sr-only[aria-live="assertive"]');
+          if (banner && region && region.textContent !== banner.textContent) {
+            region.textContent = banner.textContent;
+          }
+        };
+        new MutationObserver(mirror).observe(document, {
+          childList: true,
+          subtree: true,
+          characterData: true,
+        });
+      });
+    },
+  },
+
+  "a11y-announcer-renags-on-close": {
+    breaks:
+      "#499's retain rule specifically — the region is written only when the LAST dialog closes, "
+      + "so a standing warning is re-announced on every close instead of once",
+    caughtBy:
+      "a11y-live-regions.spec.ts — a standing farm warning ... not re-announced as dialogs come "
+      + "and go (the anti-nag loop, which a11y-announcer-duplicates-banner kills before reaching)",
+    apply: async (page) => {
+      // Deliberately distinct from `a11y-announcer-duplicates-banner`. That one
+      // mirrors from first paint, so it kills the ordinary-path assertion
+      // BEFORE the dialog loop ever runs — leaving the anti-nag half of the
+      // test, which is half its title, with no mutation coverage at all (found
+      // by an adversarial review of this PR, not by the harness). This one
+      // stays silent until a close transition, so the loop is what catches it.
+      await page.addInitScript(() => {
+        let wasInert = false;
+        const check = () => {
+          const root = document.getElementById("root");
+          const banner = document.querySelector("p.farm-warning");
+          const region = document.querySelector('main.content > p.sr-only[aria-live="assertive"]');
+          const nowInert = root?.hasAttribute("inert") ?? false;
+          if (wasInert && !nowInert && banner && region) region.textContent = banner.textContent;
+          wasInert = nowInert;
+        };
+        new MutationObserver(check).observe(document, {
+          attributes: true,
+          childList: true,
+          subtree: true,
+          attributeFilter: ["inert"],
+        });
+      });
+    },
+  },
+
+  "a11y-announcer-writes-transiently": {
+    breaks:
+      "the announcer by writing the warning and clearing it again a frame later — a screen "
+      + "reader still speaks it, but no snapshot of the DOM ever shows it",
+    caughtBy:
+      "a11y-live-regions.spec.ts — a standing farm warning ... not re-announced (the CUMULATIVE "
+      + "MutationObserver assertion; every point-in-time read in that test passes under this)",
+    apply: async (page) => {
+      // This exists to prove one specific assertion is not decorative. The
+      // spec's `recordAnnouncerWrites` observer was added because a read taken
+      // at a fixed moment cannot see a write that lands outside it — but the
+      // other two announcer mutants both trip an earlier point-in-time check,
+      // so nothing demonstrated the observer could catch anything the snapshots
+      // could not. A write that exists for ~80ms is exactly that case: audible,
+      // and invisible to every snapshot in the test.
+      await page.addInitScript(() => {
+        let wasInert = false;
+        const check = () => {
+          const root = document.getElementById("root");
+          const banner = document.querySelector("p.farm-warning");
+          const region = document.querySelector('main.content > p.sr-only[aria-live="assertive"]');
+          const nowInert = root?.hasAttribute("inert") ?? false;
+          if (wasInert && !nowInert && banner && region) {
+            region.textContent = banner.textContent;
+            setTimeout(() => { region.textContent = ""; }, 80);
+          }
+          wasInert = nowInert;
+        };
+        new MutationObserver(check).observe(document, {
+          attributes: true,
+          childList: true,
+          subtree: true,
+          attributeFilter: ["inert"],
+        });
+      });
     },
   },
 

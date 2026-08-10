@@ -68,7 +68,24 @@ declare -A SPEC_FOR=(
   [payment-never-settles]="specs/sales.spec.ts"
   [export-returns-nothing]="specs/owner.spec.ts"
   [language-persist-dropped]="specs/i18n.spec.ts"
+  [a11y-inert-sweep-removed]="specs/a11y-live-regions.spec.ts"
+  [a11y-announcer-duplicates-banner]="specs/a11y-live-regions.spec.ts"
+  [a11y-announcer-renags-on-close]="specs/a11y-live-regions.spec.ts"
+  [a11y-announcer-writes-transiently]="specs/a11y-live-regions.spec.ts"
 )
+
+# The third test in a11y-live-regions.spec.ts is deliberately NOT MAPPED to a
+# mutant of its own: it records what CHROMIUM does for two designs #501 has not
+# taken, and a mutant of this app cannot change Chromium's mind.
+#
+# An earlier version of this note claimed something stronger and FALSE — that
+# "no mutant of this app can break it". It can: that test's FACT 2 first asserts
+# the injected probe IS inerted by the sweep, which `a11y-inert-sweep-removed`
+# breaks. That assertion is a precondition on product behaviour, and it goes red
+# under that mutant exactly as it should. It is simply already counted as test
+# 1's coverage, not separate coverage, which is the real reason there is no
+# third mapping. (Caught by an adversarial review of this PR; the operational
+# reason nobody noticed is that GREP_FOR narrows each run to one test title.)
 
 declare -A GREP_FOR=(
   [audit-gate-removed]="direct link to /audit"
@@ -83,6 +100,10 @@ declare -A GREP_FOR=(
   [payment-never-settles]="takes an order from new customer"
   [export-returns-nothing]="export downloads a real file"
   [language-persist-dropped]="renders that language across the shell"
+  [a11y-inert-sweep-removed]="leave the accessibility tree"
+  [a11y-announcer-duplicates-banner]="standing farm warning"
+  [a11y-announcer-renags-on-close]="standing farm warning"
+  [a11y-announcer-writes-transiently]="standing farm warning"
 )
 
 # Mutants whose RED is known not to prove the guarantee they name. See the header.
@@ -96,7 +117,9 @@ if [ ${#MUTANTS[@]} -eq 0 ]; then
            stock-pager-inert stock-summary-broken report-range-bound-removed
            refresh-always-fails logout-not-honoured
            nav-role-gate-bypassed payment-never-settles export-returns-nothing
-           language-persist-dropped)
+           language-persist-dropped
+           a11y-inert-sweep-removed a11y-announcer-duplicates-banner
+           a11y-announcer-renags-on-close a11y-announcer-writes-transiently)
 fi
 
 rule() { printf '\n%s\n' "────────────────────────────────────────────────────────────────────────"; }
