@@ -117,6 +117,41 @@ describe("useMissedAnnouncement (#485)", () => {
     expect(out()).toHaveTextContent("ready");
   });
 
+  it("catches a message raised in the SAME commit that opens the dialog", async () => {
+    // One state update does both, so at the moment the message is noticed the
+    // stack is still empty: Dialog pushes from an effect that has not run yet.
+    // Reading "is anything open" too early records no debt, and since the
+    // message has stopped changing by the time the truth arrives, nothing
+    // reconsiders it — the dialog closes to silence, which is the whole bug
+    // this hook exists to fix, reintroduced one layer down (codex review
+    // of #499).
+    function Harness() {
+      const [open, setOpen] = useState(false);
+      const [msg, setMsg] = useState<string | null>(null);
+      return (
+        <>
+          <Probe message={msg} />
+          <button onClick={() => { setMsg("ready"); setOpen(true); }}>
+            Raise and open together
+          </button>
+          <Dialog open={open} title="Edit" onClose={() => setOpen(false)}>
+            <input aria-label="Field" />
+          </Dialog>
+        </>
+      );
+    }
+
+    await act(async () => { render(<Harness />); });
+    await act(async () => {
+      screen.getByRole("button", { name: "Raise and open together" }).click();
+    });
+    expect(screen.getByRole("dialog", { name: "Edit" })).toBeInTheDocument();
+    expect(out()).toHaveTextContent("");
+
+    await act(async () => { screen.getByRole("button", { name: "Close" }).click(); });
+    expect(out()).toHaveTextContent("ready");
+  });
+
   it("does not speak for a repeat message the visible region can announce itself", async () => {
     // The sequence codex found: raised behind a dialog, delivered, resolved,
     // then raised AGAIN with no dialog in the way. The messages here are fixed

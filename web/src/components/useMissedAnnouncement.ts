@@ -44,18 +44,34 @@ export function useMissedAnnouncement(message: string | null): string {
   useEffect(() => {
     if (message === previous.current) return;
     previous.current = message;
-    // Every change reassigns the debt from scratch, rather than only ever
-    // taking one on. A change the visible region CAN announce for itself
-    // cancels whatever was owed; only one it cannot becomes the new debt.
-    //
-    // Leaving a settled debt behind is not harmless bookkeeping, because the
-    // messages here are fixed strings: dismiss an update banner and let the
-    // next one raise the same sentence with no dialog in the way, and a stale
-    // `missed` still matches it — so this region speaks in chorus with the
-    // visible one, which is the exact duplicate it exists to prevent (codex
-    // review of #499). Same trap via a message that changes away and back.
-    setMissed(message !== null && blocked ? message : null);
-  }, [message, blocked]);
+
+    // Settled a microtask later, and read from the stack itself rather than
+    // the `blocked` mirror above. A message can appear in the very commit that
+    // opens a dialog, and Dialog does not push until its own effect runs — so
+    // at this point the stack, and anything derived from it, can still say
+    // "nothing is open" about a page that is about to be inert. Deciding now
+    // would record no debt, and because `previous` has already moved on, the
+    // correction arriving later would be turned away at the early return: the
+    // dialog closes to silence (codex review of #499). Microtasks queued from
+    // inside a passive effect drain once the whole flush is done, by which
+    // point every Dialog in this commit has pushed.
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      // Every change reassigns the debt from scratch rather than only ever
+      // taking one on. A change the visible region CAN announce for itself
+      // cancels whatever was owed; only one it cannot becomes the new debt.
+      //
+      // Leaving a settled debt behind is not harmless bookkeeping, because
+      // these messages are fixed strings: dismiss an update banner and let the
+      // next one raise the same sentence with no dialog in the way, and a
+      // stale `missed` still matches it — so this region speaks in chorus with
+      // the visible one, the exact duplicate it exists to prevent. Same trap
+      // via a message that changes away and back.
+      setMissed(message !== null && anyDialogOpen() ? message : null);
+    });
+    return () => { cancelled = true; };
+  }, [message]);
 
   const [shown, setShown] = useState("");
   useEffect(() => {
