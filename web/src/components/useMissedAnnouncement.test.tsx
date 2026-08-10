@@ -152,6 +152,38 @@ describe("useMissedAnnouncement (#485)", () => {
     expect(out()).toHaveTextContent("ready");
   });
 
+  it("catches a message raised in the SAME commit that closes the last dialog", async () => {
+    // The mirror image of the case above, and the one the first fix for it
+    // introduced. The banner's text lands during the mutation phase, while the
+    // page is still inert; Dialog only drops the inertness afterwards, in its
+    // passive-effect cleanup. By the time this hook looks at the stack the
+    // dialog is already gone, so a settled-only reading concludes the visible
+    // region managed it — and the user hears nothing at all.
+    function Harness() {
+      const [open, setOpen] = useState(true);
+      const [msg, setMsg] = useState<string | null>(null);
+      return (
+        <>
+          <Probe message={msg} />
+          <button onClick={() => { setMsg("ready"); setOpen(false); }}>
+            Raise and close together
+          </button>
+          <Dialog open={open} title="Edit" onClose={() => setOpen(false)}>
+            <input aria-label="Field" />
+          </Dialog>
+        </>
+      );
+    }
+
+    await act(async () => { render(<Harness />); });
+    await act(async () => {
+      screen.getByRole("button", { name: "Raise and close together" }).click();
+    });
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(out()).toHaveTextContent("ready");
+  });
+
   it("does not speak for a repeat message the visible region can announce itself", async () => {
     // The sequence codex found: raised behind a dialog, delivered, resolved,
     // then raised AGAIN with no dialog in the way. The messages here are fixed

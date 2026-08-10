@@ -45,16 +45,21 @@ export function useMissedAnnouncement(message: string | null): string {
     if (message === previous.current) return;
     previous.current = message;
 
-    // Settled a microtask later, and read from the stack itself rather than
-    // the `blocked` mirror above. A message can appear in the very commit that
-    // opens a dialog, and Dialog does not push until its own effect runs — so
-    // at this point the stack, and anything derived from it, can still say
-    // "nothing is open" about a page that is about to be inert. Deciding now
-    // would record no debt, and because `previous` has already moved on, the
-    // correction arriving later would be turned away at the early return: the
-    // dialog closes to silence (codex review of #499). Microtasks queued from
-    // inside a passive effect drain once the whole flush is done, by which
-    // point every Dialog in this commit has pushed.
+    // Neither reading of "was the page inert" is sufficient alone, because a
+    // commit can move the page in either direction around the message, and the
+    // two races are mirror images (both found by codex on #499):
+    //
+    // - Raised in the commit that OPENS a dialog: Dialog pushes from its own
+    //   effect, so at this point the stack can still say nothing is open about
+    //   a page that is about to be inert.
+    // - Raised in the commit that CLOSES the last dialog: popModal runs in
+    //   cleanup, BEFORE this effect, so the stack already says nothing is open
+    //   — while the banner's own DOM mutation landed during the mutation
+    //   phase, when the page was still inert and could not speak.
+    //
+    // So take the debt if the page was inert on EITHER side of the commit: the
+    // mirror as it stood going in, or the stack once it has settled.
+    const inertGoingIn = blocked || anyDialogOpen();
     let cancelled = false;
     queueMicrotask(() => {
       if (cancelled) return;
@@ -68,10 +73,19 @@ export function useMissedAnnouncement(message: string | null): string {
       // stale `missed` still matches it — so this region speaks in chorus with
       // the visible one, the exact duplicate it exists to prevent. Same trap
       // via a message that changes away and back.
-      setMissed(message !== null && anyDialogOpen() ? message : null);
+      //
+      // The OR is deliberately generous, and the asymmetry is the reason. In a
+      // commit that moves the page across the boundary, whether the visible
+      // region got its announcement out depends on how the browser interleaves
+      // a live-region mutation with an `inert` flip applied later in the same
+      // task — which no test here can observe, since jsdom implements neither.
+      // Guessing "it managed" costs a screen-reader user the notification
+      // entirely; guessing "it did not" costs a repeat. Those are not equally
+      // bad, so this errs toward saying it twice.
+      setMissed(message !== null && (inertGoingIn || anyDialogOpen()) ? message : null);
     });
     return () => { cancelled = true; };
-  }, [message]);
+  }, [message, blocked]);
 
   const [shown, setShown] = useState("");
   useEffect(() => {
