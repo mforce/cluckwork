@@ -5,7 +5,7 @@ import { StockPage } from "./StockPage";
 import {
   getStock, listEggLots, listEggLotMovements, recordEggLotMovement,
 } from "../api/cluckwork";
-import type { StockRow, EggLotRow, EggMovementRow } from "../api/cluckwork";
+import type { StockRow, EggLotRow, EggMovementRow, EggLotMovementResult } from "../api/cluckwork";
 import i18n from "../i18n";
 import { renderWithProviders } from "../test/renderWithProviders";
 
@@ -451,6 +451,170 @@ describe("StockPage write-off (#406)", () => {
     } finally {
       i18n.addResource("en", "stock", "writeOffButton", original);
     }
+  });
+});
+
+// #479 — this screen already kept the write-off dialog's own failures in a
+// separate hand-rolled `dialogError` state, so converting it to the shared
+// per-place store is for uniformity, not a bug fix. The one gap the shared
+// hook closes for free: muting a late failure from an attempt abandoned
+// mid-flight, so it can't land in a dialog reopened after it.
+describe("StockPage error placement (#479)", () => {
+  async function openLotRow() {
+    mockGetStock.mockResolvedValue(ROWS);
+    mockListEggLots.mockResolvedValue(LOTS);
+    render(<StockPage />);
+    await screen.findByText("Grade A");
+    fireEvent.click(within(screen.getByRole("row", { name: /Grade A\b/ })).getByRole("button", { name: "lots" }));
+    return await screen.findByRole("row", { name: /2026-07-01/ });
+  }
+
+  function fillAndSubmit({ qty = "7", reason = "dropped a tray" }: { qty?: string; reason?: string } = {}) {
+    const dlg = screen.getByRole("dialog");
+    fireEvent.change(within(dlg).getByRole("spinbutton"), { target: { value: qty } });
+    if (reason) fireEvent.change(within(dlg).getByLabelText(/Reason/), { target: { value: reason } });
+    fireEvent.click(within(dlg).getByRole("button", { name: /Record/ }));
+    return dlg;
+  }
+
+  async function openLotRowAndWriteOff() {
+    const lotRow = await openLotRow();
+    fireEvent.click(within(lotRow).getByRole("button", { name: "write off" }));
+    return lotRow;
+  }
+
+  it("shows a failed write-off inside the dialog, not on the page", async () => {
+    mockRecordEggLotMovement.mockRejectedValue(new Error("network down"));
+    await openLotRowAndWriteOff();
+    const dlg = fillAndSubmit();
+
+    await screen.findByText("network down");
+
+    expect(within(dlg).getByText("network down")).toBeInTheDocument();
+    // Exactly one copy: the page must not render the dialog's message too.
+    expect(screen.getAllByText("network down")).toHaveLength(1);
+  });
+
+  // Displacement: the write-off scope is fixed ("write-off"), and a second
+  // lot's write-off can begin without the first being dismissed — the row
+  // buttons behind the backdrop are reachable to a screen reader's virtual
+  // cursor (#480). Without an abandon on the switch, lot A's failed write-off
+  // renders under lot B's date in the dialog title (pi review of #491).
+  it("does not carry one lot's failed write-off into another lot's dialog", async () => {
+    const LOT_2: EggLotRow = { ...LOTS[0], id: "lot2", productionDate: "2026-07-02", quantityAvailable: 50 };
+    mockGetStock.mockResolvedValue(ROWS);
+    mockListEggLots.mockResolvedValue([LOTS[0], LOT_2]);
+    mockRecordEggLotMovement.mockRejectedValue(new Error("network down"));
+    render(<StockPage />);
+    await screen.findByText("Grade A");
+    fireEvent.click(within(screen.getByRole("row", { name: /Grade A\b/ })).getByRole("button", { name: "lots" }));
+    const lotRow1 = await screen.findByRole("row", { name: /2026-07-01/ });
+    fireEvent.click(within(lotRow1).getByRole("button", { name: "write off" }));
+    fillAndSubmit();
+    await screen.findByText("network down");
+
+    const lotRow2 = screen.getByRole("row", { name: /2026-07-02/ });
+    fireEvent.click(within(lotRow2).getByRole("button", { name: "write off" }));
+    // The dialog really swapped lots — its title names the new lot's date.
+    expect(screen.getByRole("dialog")).toHaveAccessibleName(/2026-07-02/);
+    expect(screen.queryByText("network down")).not.toBeInTheDocument();
+  });
+
+  // The write-off trigger has no `disabled={busy}` gate, so lot A's submit
+  // can still be in flight when lot B's write-off is opened over it. A
+  // SUCCESSFUL settle for A must not close B's now-displayed dialog or claim
+  // a success about A while B's form is what the admin is looking at
+  // (adversarial review of #491).
+  it("does not close another lot's dialog when a displaced write-off succeeds", async () => {
+    const LOT_2: EggLotRow = { ...LOTS[0], id: "lot2", productionDate: "2026-07-02", quantityAvailable: 50 };
+    mockGetStock.mockResolvedValue(ROWS);
+    mockListEggLots.mockResolvedValue([LOTS[0], LOT_2]);
+    let resolveFirst!: (v: EggLotMovementResult) => void;
+    mockRecordEggLotMovement.mockReturnValueOnce(
+      new Promise((resolve) => { resolveFirst = resolve; }));
+    render(<StockPage />);
+    await screen.findByText("Grade A");
+    fireEvent.click(within(screen.getByRole("row", { name: /Grade A\b/ })).getByRole("button", { name: "lots" }));
+    const lotRow1 = await screen.findByRole("row", { name: /2026-07-01/ });
+    fireEvent.click(within(lotRow1).getByRole("button", { name: "write off" }));
+    fillAndSubmit(); // lot A's submit is left pending
+
+    const lotRow2 = screen.getByRole("row", { name: /2026-07-02/ });
+    fireEvent.click(within(lotRow2).getByRole("button", { name: "write off" }));
+    expect(screen.getByRole("dialog")).toHaveAccessibleName(/2026-07-02/);
+
+    await act(async () => {
+      resolveFirst({
+        movementId: "mv-new", eggLotId: "lot1", movementType: "Discard",
+        quantityDelta: -7, reason: "dropped a tray", createdAtUtc: "2026-07-01T10:00:00Z",
+        quantityAvailable: 42, version: 2,
+      });
+    });
+
+    // Still open, still lot B — a success about lot A did not sweep it away.
+    // (Lot A's row correctly patches to 42 available either way — that is
+    // the write landing, not the bug; the bug is the dialog closing.)
+    expect(screen.getByRole("dialog")).toHaveAccessibleName(/2026-07-02/);
+    expect(screen.queryByText(i18n.t("stock:writeOffRecordedMessage", { available: 42 }))).not.toBeInTheDocument();
+  });
+
+  it("keeps a movements-load failure out of the open write-off dialog", async () => {
+    mockListEggLotMovements.mockRejectedValue(new Error("boom"));
+    const lotRow = await openLotRowAndWriteOff();
+    const dlg = screen.getByRole("dialog");
+
+    await act(async () => {
+      fireEvent.click(within(lotRow).getByRole("button", { name: "history" }));
+    });
+
+    const message = i18n.t("stock:loadMovementsFailed");
+    expect(within(dlg).queryByText(message)).not.toBeInTheDocument();
+    expect(screen.getByText(message)).toBeInTheDocument();
+  });
+
+  it("keeps a page failure while the write-off dialog opens and its own submit fails", async () => {
+    mockListEggLotMovements.mockRejectedValue(new Error("boom"));
+    const lotRow = await openLotRow();
+    await act(async () => {
+      fireEvent.click(within(lotRow).getByRole("button", { name: "history" }));
+    });
+    const pageFailure = i18n.t("stock:loadMovementsFailed");
+    expect(screen.getByText(pageFailure)).toBeInTheDocument();
+
+    mockRecordEggLotMovement.mockRejectedValue(new Error("network down"));
+    fireEvent.click(within(lotRow).getByRole("button", { name: "write off" }));
+    const dlg = fillAndSubmit();
+
+    await screen.findByText("network down");
+    expect(within(dlg).getByText("network down")).toBeInTheDocument();
+    expect(screen.getByText(pageFailure)).toBeInTheDocument();
+  });
+
+  // The specific gap this conversion closes: the old `dialogError` only reset
+  // on the NEXT open, which could not stop an already-in-flight request's late
+  // failure from landing in a dialog reopened before that request settled.
+  // `abandon` mutes the attempt itself, not just the visible slot.
+  it("mutes a write-off's late failure once its dialog is abandoned mid-flight", async () => {
+    let rejectFirst!: (err: unknown) => void;
+    mockRecordEggLotMovement.mockReturnValueOnce(
+      new Promise((_resolve, reject) => { rejectFirst = reject; }));
+    const lotRow = await openLotRowAndWriteOff();
+    fillAndSubmit(); // left pending — the promise above never settles yet
+
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    // Reopen the same dialog — a new session, nothing to show yet.
+    fireEvent.click(within(lotRow).getByRole("button", { name: "write off" }));
+    const reopened = screen.getByRole("dialog");
+    expect(within(reopened).queryByRole("alert")).not.toBeInTheDocument();
+
+    // The abandoned attempt's failure lands late.
+    await act(async () => {
+      rejectFirst(new Error("late failure from the abandoned attempt"));
+    });
+
+    expect(screen.queryByText(/late failure from the abandoned attempt/)).not.toBeInTheDocument();
   });
 });
 

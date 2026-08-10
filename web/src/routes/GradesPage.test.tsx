@@ -220,6 +220,106 @@ describe("GradesPage dialog dismissal", () => {
   });
 });
 
+// #479 — one slot per PLACE a message can appear. Create and edit each get
+// their own dialog slot; the initial load and the row-level activate/
+// deactivate writes (neither behind a dialog) share the page's.
+describe("GradesPage error placement (#479)", () => {
+  it("shows a failed create inside the dialog, not on the page behind it", async () => {
+    mockCreate.mockRejectedValue(new ApiError(422, "Validation failed", "Name already exists."));
+    await renderReady(ADMIN);
+    openCreate();
+    fireEvent.change(within(dialog()).getByLabelText("Name *"), { target: { value: "Dup" } });
+
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Add grade" }));
+    });
+
+    expect(within(dialog()).getByText("Name already exists.")).toBeInTheDocument();
+    // Exactly one copy: the page must not render the dialog's message too.
+    expect(screen.getAllByText("Name already exists.")).toHaveLength(1);
+  });
+
+  it("shows a failed edit inside the dialog, not on the page behind it", async () => {
+    mockUpdate.mockRejectedValue(new ApiError(422, "Validation failed", "Name already exists."));
+    await renderReady(ADMIN);
+    fireEvent.click(within(screen.getByRole("row", { name: /Grade A/ })).getByRole("button", { name: "edit" }));
+
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Save" }));
+    });
+
+    expect(within(dialog()).getByText("Name already exists.")).toBeInTheDocument();
+    expect(screen.getAllByText("Name already exists.")).toHaveLength(1);
+  });
+
+  // Displacement: the edit scope is per-grade (`edit:${id}`), so a switch
+  // straight from grade A's failed edit to grade B leaves A's verdict parked
+  // in a slot nothing currently renders — until A's edit is REOPENED, which
+  // would replay a dead session's failure into a fresh one (pi review of
+  // #491). The row buttons behind the backdrop stay reachable to a screen
+  // reader's virtual cursor (#480).
+  it("does not replay a failed edit when that grade's dialog is reopened after switching grades", async () => {
+    mockUpdate.mockRejectedValue(new ApiError(422, "Validation failed", "Name already exists."));
+    await renderReady(ADMIN);
+    fireEvent.click(within(screen.getByRole("row", { name: /Grade A/ })).getByRole("button", { name: "edit" }));
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Save" }));
+    });
+    expect(within(dialog()).getByText("Name already exists.")).toBeInTheDocument();
+
+    // Switch straight to Legacy's edit — no Cancel in between.
+    fireEvent.click(within(screen.getByRole("row", { name: /Legacy/ })).getByRole("button", { name: "edit" }));
+    expect(within(dialog()).getByLabelText("Name")).toHaveValue("Legacy");
+    expect(screen.queryByText("Name already exists.")).not.toBeInTheDocument();
+
+    // Cancel, then reopen Grade A: a new session, no stale verdict.
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+    fireEvent.click(within(screen.getByRole("row", { name: /Grade A/ })).getByRole("button", { name: "edit" }));
+    expect(within(dialog()).getByLabelText("Name")).toHaveValue("Grade A");
+    expect(screen.queryByText("Name already exists.")).not.toBeInTheDocument();
+  });
+
+  // GradesPage's only background READ is the initial list load, which blocks
+  // the create trigger from rendering at all when it fails — so there is no
+  // read that can race an open dialog here. The row-level deactivate/activate
+  // writes are the screen's other PAGE-scoped failure source (not behind a
+  // dialog), and they reach the same slot the same way; this proves one stays
+  // out of a dialog that is open when it lands.
+  it("keeps a row-action failure out of an open create dialog", async () => {
+    mockDeactivate.mockRejectedValue(new ApiError(500, "Server error", "boom"));
+    await renderReady(ADMIN);
+    openCreate();
+    fireEvent.change(within(dialog()).getByLabelText("Name *"), { target: { value: "Jumbo" } });
+
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole("row", { name: /Grade A/ })).getByRole("button", { name: "deactivate" }));
+    });
+
+    expect(within(dialog()).queryByText(/Server error|boom/)).not.toBeInTheDocument();
+    expect(screen.getByText(/Server error|boom/)).toBeInTheDocument();
+  });
+
+  it("keeps a page failure while the dialog opens and its own write fails", async () => {
+    mockDeactivate.mockRejectedValue(new ApiError(500, "Server error", "boom"));
+    mockCreate.mockRejectedValue(new ApiError(422, "Validation failed", "Name already exists."));
+    await renderReady(ADMIN);
+
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole("row", { name: /Grade A/ })).getByRole("button", { name: "deactivate" }));
+    });
+    expect(screen.getByText(/Server error|boom/)).toBeInTheDocument();
+
+    openCreate();
+    fireEvent.change(within(dialog()).getByLabelText("Name *"), { target: { value: "Dup" } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Add grade" }));
+    });
+
+    expect(within(dialog()).getByText("Name already exists.")).toBeInTheDocument();
+    expect(screen.getByText(/Server error|boom/)).toBeInTheDocument(); // still there
+  });
+});
+
 describe("GradesPage role gating", () => {
   it("renders read-only for a non-admin — no create form, no row actions", async () => {
     await renderReady(WORKER);

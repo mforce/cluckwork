@@ -10,10 +10,12 @@ import type { EggGrade, EggUnitConversion, FeedUsage, Flock, WaterUsage } from "
 import { ApiError } from "../api/client";
 import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
+import { DialogError } from "../components/DialogError";
 import { StatusBadge } from "../components/StatusBadge";
 import { GradingChip, TakeRemainderButton, remainderDropProps } from "../components/GradingChip";
 import { NumberField } from "../components/NumberField";
 import { useConfirm } from "../components/useConfirm";
+import { useDialogErrors } from "../components/useDialogErrors";
 import { usePendingAction } from "../components/usePendingAction";
 import { useFarm, useFarmToday } from "../farm/useFarm";
 import { armedState, gradingState } from "../lib/grading";
@@ -102,7 +104,11 @@ export function DailyEntryPage() {
   const saveKey = useRef<string>(newId());
   const flockKey = useRef<string>(newId());
   const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  // #479 — one slot per PLACE a message can appear: the deep-link check and
+  // the draft/submit writes (the main form, not behind a dialog) belong to
+  // the page; the new-flock dialog's failures belong to that form.
+  const errors = useDialogErrors();
+  const setPageError = errors.setPage;
 
   // inline flock creation
   const [showNewFlock, setShowNewFlock] = useState(false);
@@ -147,7 +153,7 @@ export function DailyEntryPage() {
         const deepLinked = flockOk && dateOk;
         if (deepLinked) retarget(() => setDate(wantedDate!));
         else if (wantedFlock || wantedDate)
-          setError(i18n.t("dailyEntry:deepLinkUnavailable"));
+          setPageError(i18n.t("dailyEntry:deepLinkUnavailable"));
         const remembered = localStorage.getItem(LAST_FLOCK_KEY);
         // Default prefers an ACTIVE flock — depleted ones are backfill targets
         // you pick deliberately, not a default.
@@ -374,12 +380,16 @@ export function DailyEntryPage() {
   };
 
 
+  // Dismissal empties the dialog's slot and mutes the attempt still out, so a
+  // late failure is not reported against a session the user reopened.
+  const closeNewFlock = () => { setShowNewFlock(false); errors.abandon("new-flock"); };
+
   async function onCreateFlock(e: FormEvent) {
     e.preventDefault();
     // #236: this form shipped with NO in-flight guard at all — a double submit
     // reached the API twice. The hook's ref is the guard now.
     await run("create-flock", async () => {
-      setError(null);
+      errors.beginAttempt("new-flock");
       try {
         const created = await createFlock({
           name: newFlockName,
@@ -402,7 +412,7 @@ export function DailyEntryPage() {
         setNewFlockPlaced(today);
         setNewFlockCount(100);
       } catch (err) {
-        setError(errorMessage(err));
+        errors.report("new-flock", errorMessage(err));
       }
     });
   }
@@ -429,7 +439,9 @@ export function DailyEntryPage() {
       // meanwhile because both save buttons are disabled while one is pending.
     }
     await run(submit ? "submit" : "save", async () => {
-      setError(null);
+      // The capture form is the page, not a dialog — its failure is the
+      // page's.
+      setPageError(null);
       setMessage(null);
       try {
         const lines = visibleGrades
@@ -460,7 +472,7 @@ export function DailyEntryPage() {
         }
         saveKey.current = newId();
       } catch (err) {
-        setError(errorMessage(err));
+        setPageError(errorMessage(err));
       }
     });
   }
@@ -499,7 +511,7 @@ export function DailyEntryPage() {
           <input type="date" value={date} max={today}
             onChange={(e) => retarget(() => setDate(e.target.value))} />
         </label>
-        <button className="link" type="button" onClick={() => { setError(null); setShowNewFlock(true); }}>
+        <button className="link" type="button" onClick={() => setShowNewFlock(true)}>
           {t("newFlockButton")}
         </button>
       </div>
@@ -507,7 +519,7 @@ export function DailyEntryPage() {
       {/* F131: creating a flock is catalog work, not capture — it belongs in a
           dialog like every other create, instead of shoving the entry grid
           down the page the moment the picker has nothing to offer yet. */}
-      <Dialog open={showNewFlock} title={t("newFlockDialogTitle")} onClose={() => setShowNewFlock(false)}>
+      <Dialog open={showNewFlock} title={t("newFlockDialogTitle")} onClose={closeNewFlock}>
         <form className="inline-form" onSubmit={onCreateFlock}>
           <label>{t("nameLabel")}
             <input value={newFlockName} required
@@ -530,13 +542,15 @@ export function DailyEntryPage() {
             <NumberField id={idFor("new-flock-birds")} label={t("birdsLabel").toLowerCase()}
               value={newFlockCount} onChange={setNewFlockCount} min={1} />
           </div>
-          {/* The dialog carries its own copy while it is up. This used to read
-              `!showNewFlock` here, inside a dialog that only exists WHEN
-              showNewFlock — so a failed create rendered no error anywhere and
-              the button just appeared to do nothing (F134 review of #131). */}
-          {error && <p className="error">{error}</p>}
+          {/* #479 — this form's own failures live in the "new-flock" dialog
+              slot; DialogError renders them only while this dialog is open.
+              (Used to read `!showNewFlock` on a shared slot instead, inside a
+              dialog that only exists WHEN showNewFlock — so a failed create
+              rendered no error anywhere and the button just appeared to do
+              nothing; F134 review of #131.) */}
+          <DialogError errors={errors} scope="new-flock" />
           <div className="dialog-foot">
-            <button type="button" className="link" onClick={() => setShowNewFlock(false)}>{tc("cancel")}</button>
+            <button type="button" className="link" onClick={closeNewFlock}>{tc("cancel")}</button>
             <BusyButton type="submit" busy={isPending("create-flock")} disabled={busy}>
               {t("createFlockButton")}
             </BusyButton>
@@ -699,8 +713,10 @@ export function DailyEntryPage() {
       {/* Save feedback lives with the saves: anything below a pinned bar
           scrolls underneath it and is never read. */}
       <div className="entry-foot">
-        {/* The dialog carries its own copy while it is up. */}
-        {error && !showNewFlock && <p className="error">{error}</p>}
+        {/* #479 — unconditional: the new-flock dialog's own failures live in
+            their own slot now (see DialogError above), so there is nothing
+            here for a dialog message to double up on. */}
+        {errors.page && <p className="error">{errors.page}</p>}
         {message && <p className="success">{message}</p>}
         <div className="entry-foot-row">
           {/* Phones only (see styles.css): the two panes stack there, so the

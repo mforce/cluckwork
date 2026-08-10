@@ -408,6 +408,92 @@ describe("ExpensesPage dialog dismissal", () => {
   });
 });
 
+// #479 — one slot per PLACE a message can appear. The add-category and
+// correction dialogs each get their own; the mount read and the
+// category-toggle writes (neither behind a dialog) share the page's.
+describe("ExpensesPage error placement (#479)", () => {
+  it("shows a failed category create inside the dialog, not on the page behind it", async () => {
+    mockCreateCategory.mockRejectedValue(new ApiError(422, "Validation failed", "Name already in use."));
+    renderWithProviders(<ExpensesPage />, { token: ADMIN });
+
+    fireEvent.click(await screen.findByRole("button", { name: "manage categories" }));
+    fireEvent.click(screen.getByRole("button", { name: "New category" }));
+    const dlg = screen.getByRole("dialog");
+    fireEvent.change(within(dlg).getByLabelText("Category name"), { target: { value: "Feed" } });
+    await act(async () => {
+      fireEvent.click(within(dlg).getByRole("button", { name: "Add category" }));
+    });
+
+    expect(within(dlg).getByText("Name already in use.")).toBeInTheDocument();
+    // Exactly one copy: the page must not render the dialog's message too.
+    expect(screen.getAllByText("Name already in use.")).toHaveLength(1);
+  });
+
+  it("shows a failed correction inside the dialog, not on the page behind it", async () => {
+    mockListExpenses.mockResolvedValue({ items: [EXP_OLD], totalMinorUnits: 1500, currencyCode: "JPY", currencyMinorUnit: 0 });
+    mockAdjustExpense.mockRejectedValue(new ApiError(500, "Server error", "Correction failed."));
+    renderWithProviders(<ExpensesPage />, { token: ADMIN });
+
+    const row = await screen.findByRole("row", { name: /Generator diesel/ });
+    fireEvent.click(within(row).getByRole("button", { name: "correct" }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Save correction" }));
+    });
+
+    const dlg = screen.getByRole("dialog");
+    expect(within(dlg).getByText("Correction failed.")).toBeInTheDocument();
+    expect(screen.getAllByText("Correction failed.")).toHaveLength(1);
+  });
+
+  // The mount-time categories/flocks read is this screen's only background
+  // READ — held open so it can still be pending once a dialog is up, the same
+  // shape as CustomersPage's balances race.
+  it("keeps a background categories/flocks load failure out of an open add-category dialog", async () => {
+    let rejectLoad!: (err: unknown) => void;
+    mockListCategories.mockReturnValueOnce(
+      new Promise((_resolve, reject) => { rejectLoad = reject; }) as never);
+    renderWithProviders(<ExpensesPage />, { token: ADMIN });
+    await screen.findByRole("heading", { name: "Expenses" });
+
+    fireEvent.click(screen.getByRole("button", { name: "manage categories" }));
+    fireEvent.click(screen.getByRole("button", { name: "New category" }));
+    const dlg = screen.getByRole("dialog");
+
+    await act(async () => {
+      rejectLoad(new ApiError(500, "Server error", "Categories failed to load."));
+    });
+
+    expect(within(dlg).queryByText("Categories failed to load.")).not.toBeInTheDocument();
+    expect(screen.getByText("Categories failed to load.")).toBeInTheDocument();
+  });
+
+  it("keeps a page failure while the correction dialog opens and its own write fails", async () => {
+    mockListExpenses.mockResolvedValue({ items: [EXP_OLD], totalMinorUnits: 1500, currencyCode: "JPY", currencyMinorUnit: 0 });
+    mockUpdateCategory.mockRejectedValue(new ApiError(500, "Server error", "Category toggle failed."));
+    mockAdjustExpense.mockRejectedValue(new ApiError(500, "Server error", "Correction failed."));
+    renderWithProviders(<ExpensesPage />, { token: ADMIN });
+
+    fireEvent.click(await screen.findByRole("button", { name: "manage categories" }));
+    const rows = screen.getAllByRole("listitem");
+    const feedRow = rows.find((li) => li.textContent?.includes("Feed"))!;
+    await act(async () => {
+      fireEvent.click(within(feedRow).getByRole("button", { name: "deactivate" }));
+    });
+    expect(screen.getByText("Category toggle failed.")).toBeInTheDocument();
+
+    const row = screen.getByRole("row", { name: /Generator diesel/ });
+    fireEvent.click(within(row).getByRole("button", { name: "correct" }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Save correction" }));
+    });
+
+    const dlg = screen.getByRole("dialog");
+    expect(within(dlg).getByText("Correction failed.")).toBeInTheDocument();
+    expect(within(dlg).queryByText("Category toggle failed.")).not.toBeInTheDocument();
+    expect(screen.getByText("Category toggle failed.")).toBeInTheDocument(); // still there
+  });
+});
+
 describe("ExpensesPage access (admin-only money data)", () => {
   // ExpensesPage has NO in-component role gate: it renders the same tree and
   // loads on mount for any authenticated session. The Admin restriction lives in
@@ -798,5 +884,59 @@ describe("ExpensesPage total is never a guess (#469, codex P2)", () => {
     expect(screen.getByRole("alert")).toBeInTheDocument();
     expect(screen.queryByText(/Month total:/)).not.toBeInTheDocument();
     expect(screen.queryByText(/0\.00/)).not.toBeInTheDocument();
+  });
+});
+
+// #491 review — two ways a message could reach a slot nobody is rendering.
+// Both were found by reviewers, both reproduced here before being fixed.
+describe("ExpensesPage messages that had nowhere to land (#491)", () => {
+  it("explains the reopened correction even when it was dismissed mid-flight", async () => {
+    // The correction's Cancel is gated on busy, but Escape and the X are not,
+    // and onClose runs the same abandon. Dismiss during the 409's re-read and
+    // the panel springs back open on the winner's values; without un-muting,
+    // it does so with no word of why.
+    mockListExpenses.mockResolvedValue({
+      items: [EXP_OLD], totalMinorUnits: 1500, currencyCode: "BHD", currencyMinorUnit: 3,
+    });
+    mockAdjustExpense.mockRejectedValue(new ApiError(409, "Conflict", "stale"));
+    let resolveReread!: (e: Expense) => void;
+    mockGetExpense.mockReturnValueOnce(
+      new Promise((resolve) => { resolveReread = resolve; }) as never);
+    await renderReady("BHD");
+
+    const row = await screen.findByRole("row", { name: /Generator diesel/ });
+    fireEvent.click(within(row).getByRole("button", { name: "correct" }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Save correction" }));
+    });
+
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    await act(async () => {
+      resolveReread({ ...EXP_OLD, description: "Diesel (recount)", version: 8 });
+    });
+
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(await screen.findByText(/changed by someone else/)).toBeInTheDocument();
+  });
+
+  it("puts a post-create category refresh failure on the page, not in the closed dialog", async () => {
+    // The write succeeded and the dialog closed; the list refresh then failed.
+    // Reported to the dialog's scope it renders nowhere at all, leaving a stale
+    // category list and no explanation.
+    mockCreateCategory.mockResolvedValue({ id: "cat-9" });
+    await renderReady();
+    // Queued AFTER the mount load, so it is the post-create refresh that fails
+    // and not the screen's own first read.
+    mockListCategories.mockRejectedValueOnce(new ApiError(500, "Server error", "Could not reload categories."));
+
+    fireEvent.click(screen.getByRole("button", { name: "manage categories" }));
+    fireEvent.click(screen.getByRole("button", { name: "New category" }));
+    fireEvent.change(within(screen.getByRole("dialog")).getByLabelText("Category name"), { target: { value: "Bedding" } });
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Add category" }));
+    });
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByText("Could not reload categories.")).toBeInTheDocument();
   });
 });

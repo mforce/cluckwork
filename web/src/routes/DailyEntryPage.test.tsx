@@ -570,9 +570,69 @@ describe("DailyEntryPage new-flock dialog errors", () => {
     const dlg = screen.getByRole("dialog");
     expect(within(dlg).getByText("Flock name already used.")).toBeInTheDocument();
     expect(dlg).toBeInTheDocument(); // stays open to retry
-    // Exactly once: the footer copy stays suppressed while the dialog is up, so
-    // dropping that guard to "fix" the dialog would show the error twice.
+    // Exactly once: #479 gave this message its own "new-flock" dialog slot,
+    // so the page-level footer (a separate slot) has nothing to double up on.
     expect(screen.getAllByText("Flock name already used.")).toHaveLength(1);
+  });
+});
+
+// #479 — one slot per PLACE a message can appear. The dialog-own-failure
+// guarantee above already existed pre-#479 (F134); these two are the ones the
+// old shared slot could not make: an unrelated page failure must never land
+// in the open dialog, and a page failure must survive both the dialog opening
+// and a dialog write of its own failing.
+describe("DailyEntryPage error placement (#479)", () => {
+  const dialog = () => screen.getByRole("dialog");
+  // DailyEntryPage reads window.location.search directly (not react-router's
+  // own location), so a deep link is set the same way the app does — a plain
+  // history navigation before render — and restored after.
+  function withQuery(query: string) {
+    const restore = window.location.href;
+    window.history.pushState({}, "", `/daily-entry${query}`);
+    return () => window.history.pushState({}, "", restore);
+  }
+
+  it("keeps an invalid deep-link failure off the open new-flock dialog", async () => {
+    // No flockId, only a date: flockOk is false, so this never resolves to a
+    // deep link but is still a URL the screen was asked to honor — the
+    // screen's own mount-time failure, unrelated to creating a flock.
+    const restore = withQuery("?date=2026-07-01");
+    try {
+      await renderReady();
+      const message = i18n.t("dailyEntry:deepLinkUnavailable");
+      expect(await screen.findByText(message)).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "+ new flock" }));
+
+      expect(within(dialog()).queryByText(message)).not.toBeInTheDocument();
+      expect(screen.getByText(message)).toBeInTheDocument();
+    } finally {
+      restore();
+    }
+  });
+
+  it("keeps a page failure while the new-flock dialog opens and its own create fails", async () => {
+    const restore = withQuery("?date=2026-07-01");
+    try {
+      mockCreateFlock.mockRejectedValue(new Error("Flock name already used."));
+      await renderReady();
+      const pageFailure = i18n.t("dailyEntry:deepLinkUnavailable");
+      await screen.findByText(pageFailure);
+
+      fireEvent.click(screen.getByRole("button", { name: "+ new flock" }));
+      expect(screen.getByText(pageFailure)).toBeInTheDocument();
+
+      fireEvent.change(within(dialog()).getByLabelText("Name"), { target: { value: "Dupe" } });
+      fireEvent.change(within(dialog()).getByLabelText("Breed"), { target: { value: "ISA" } });
+      await act(async () => {
+        fireEvent.click(within(dialog()).getByRole("button", { name: "Create flock" }));
+      });
+
+      expect(within(dialog()).getByText("Flock name already used.")).toBeInTheDocument();
+      expect(screen.getByText(pageFailure)).toBeInTheDocument();
+    } finally {
+      restore();
+    }
   });
 });
 

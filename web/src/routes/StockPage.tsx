@@ -9,7 +9,9 @@ import { ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
+import { DialogError } from "../components/DialogError";
 import { NumberField } from "../components/NumberField";
+import { useDialogErrors } from "../components/useDialogErrors";
 import { usePendingAction } from "../components/usePendingAction";
 import i18n from "../i18n";
 import { stockMovementLabel } from "../i18n/enums";
@@ -36,7 +38,13 @@ export function StockPage() {
   const { isAdmin } = useAuth();
   const { busy, isPending, run: runPending } = usePendingAction();
   const [rows, setRows] = useState<StockRow[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  // #479 — one slot per PLACE a message can appear. This screen already kept
+  // the write-off dialog's own failures in a separate hand-rolled
+  // `dialogError` state, so this conversion is for uniformity with the other
+  // screens, not a bug fix — the one gap the shared hook closes for free is
+  // muting a late failure from an attempt the dialog abandoned mid-flight.
+  const errors = useDialogErrors();
+  const setPageError = errors.setPage;
   const [message, setMessage] = useState<string | null>(null);
   const [openGrade, setOpenGrade] = useState<string | null>(null);
   const [lots, setLots] = useState<EggLotRow[]>([]);
@@ -60,7 +68,6 @@ export function StockPage() {
   const [woDirection, setWoDirection] = useState("remove");
   const [woQty, setWoQty] = useState(0);
   const [woReason, setWoReason] = useState("");
-  const [dialogError, setDialogError] = useState<string | null>(null);
 
   // Stable idempotency keys per logical mutation, rotated only after the full
   // action (write + refresh) succeeds — same contract as the other screens.
@@ -77,7 +84,7 @@ export function StockPage() {
   useEffect(() => {
     getStock()
       .then(setRows)
-      .catch(() => setError(i18n.t("stock:loadStockFailed")));
+      .catch(() => setPageError(i18n.t("stock:loadStockFailed")));
   }, []);
 
   // One page of lots under a filter; empty date strings mean "no bound".
@@ -154,7 +161,7 @@ export function StockPage() {
       setOpenLot(null);
       setMovements(null);
       ledgerReq.current++;
-      setError(null);
+      setPageError(null);
     } catch {
       if (seq === lotsReq.current) {
         // The still-visible rows are the old grade's applied window — and if
@@ -164,7 +171,7 @@ export function StockPage() {
         setLotsFrom(appliedFilter.current.from);
         setLotsTo(appliedFilter.current.to);
         setLotsLoading(false);
-        setError(i18n.t("stock:loadLotsFailed"));
+        setPageError(i18n.t("stock:loadLotsFailed"));
       }
     }
   }
@@ -195,7 +202,7 @@ export function StockPage() {
       setOpenLot(null);
       setMovements(null);
       ledgerReq.current++;
-      setError(null);
+      setPageError(null);
     } catch {
       // Roll the inputs back to the window the still-visible rows actually
       // came from — NOT the previous optimistic value, which with two
@@ -204,7 +211,7 @@ export function StockPage() {
         setLotsFrom(appliedFilter.current.from);
         setLotsTo(appliedFilter.current.to);
         setLotsLoading(false);
-        setError(i18n.t("stock:loadLotsFailed"));
+        setPageError(i18n.t("stock:loadLotsFailed"));
       }
     }
   }
@@ -227,11 +234,11 @@ export function StockPage() {
       });
       setHasMoreLots(page.length === LOT_PAGE);
       setLotsLoading(false);
-      setError(null);
+      setPageError(null);
     } catch {
       if (seq === lotsReq.current) {
         setLotsLoading(false);
-        setError(i18n.t("stock:loadLotsFailed"));
+        setPageError(i18n.t("stock:loadLotsFailed"));
       }
     }
   }
@@ -251,20 +258,47 @@ export function StockPage() {
       if (seq !== ledgerReq.current) return;
       setMovements(list);
       setOpenLot(lotId);
-      setError(null);
+      setPageError(null);
     } catch {
-      if (seq === ledgerReq.current) setError(i18n.t("stock:loadMovementsFailed"));
+      if (seq === ledgerReq.current) setPageError(i18n.t("stock:loadMovementsFailed"));
     }
   }
+
+  // Mirrors `writeOffLot` synchronously. `onWriteOff` is an async function
+  // whose closure captures `writeOffLot` as it read at SUBMIT time — reading
+  // the state itself after an `await` would silently see that stale value
+  // forever, not the lot the dialog has since rebound to. The ref is updated
+  // everywhere `writeOffLot` is, so a post-`await` read reflects reality
+  // (adversarial review of #491).
+  const activeWriteOffLotId = useRef<string | null>(null);
 
   function openWriteOff(lot: EggLotRow) {
     setWoType("Discard");
     setWoDirection("remove");
     setWoQty(0);
     setWoReason("");
-    setDialogError(null);
+    // #479 — no reset for a plain open. Every DISMISSAL goes through
+    // closeWriteOff, whose `abandon` cleared the slot and muted any attempt
+    // still in flight on the way out. The success path closes with a bare
+    // setWriteOffLot(null), where the slot is empty by construction: the
+    // attempt did not fail. The one door left: a DIFFERENT lot's write-off
+    // opened over this one DISPLACES it without any close running, and the
+    // scope is fixed — so the displaced lot's verdict would render under the
+    // new lot's date. Reachable behind the backdrop via a screen reader's
+    // virtual cursor (#480; pi review of #491).
+    if (writeOffLot !== null && writeOffLot.id !== lot.id) errors.abandon("write-off");
+    activeWriteOffLotId.current = lot.id;
     setWriteOffLot(lot);
   }
+
+  // Dismissal empties the dialog's slot and mutes the attempt still out, so a
+  // late failure from an in-flight write-off is not reported against a
+  // session the user reopened.
+  const closeWriteOff = () => {
+    activeWriteOffLotId.current = null;
+    setWriteOffLot(null);
+    errors.abandon("write-off");
+  };
 
   // The signed delta the API receives: only a reconciliation may add back.
   const woDelta = woType === "Reconciliation" && woDirection === "add" ? woQty : -woQty;
@@ -340,20 +374,25 @@ export function StockPage() {
     e.preventDefault();
     const lot = writeOffLot;
     if (lot === null) return;
+    // Clears and un-mutes the slot up front — before the validation writes
+    // below, not just the network write's — so a validation failure right
+    // after a reopened dialog is never dropped as belonging to an abandoned
+    // session (#479).
+    errors.beginAttempt("write-off");
     if (woQty <= 0) {
-      setDialogError(i18n.t("stock:writeOffQuantityRequired"));
+      errors.report("write-off", i18n.t("stock:writeOffQuantityRequired"));
       return;
     }
     if (!woReason.trim()) {
-      setDialogError(i18n.t("stock:writeOffReasonRequired"));
+      errors.report("write-off", i18n.t("stock:writeOffReasonRequired"));
       return;
     }
     // Coarse pre-check only — the server additionally caps a positive
     // reconciliation at the lot's cumulative write-off total (which this
-    // screen doesn't know); its 422 renders through dialogError below.
+    // screen doesn't know); its 422 renders through the write-off dialog slot below.
     const result = lot.quantityAvailable + woDelta;
     if (result < 0 || result > lot.quantityProduced) {
-      setDialogError(i18n.t("stock:writeOffOutOfRangeMessage", { produced: lot.quantityProduced }));
+      errors.report("write-off", i18n.t("stock:writeOffOutOfRangeMessage", { produced: lot.quantityProduced }));
       return;
     }
     const scope = `write-off:${lot.id}`;
@@ -369,7 +408,6 @@ export function StockPage() {
     const ledgerSeq = ledgerReq.current;
     setLotsLoading(true);
     const outcome = await runPending(scope, async () => {
-      setDialogError(null);
       setMessage(null);
       let res;
       try {
@@ -380,7 +418,7 @@ export function StockPage() {
         // No definitive success — keep the key so a retry replays rather than
         // repeats. (A 4xx stores no idempotency record, so an edited resubmit
         // under the same key is safe too.)
-        setDialogError(errText(err));
+        errors.report("write-off", errText(err));
         return undefined;
       }
       // The write is durable the moment the server answers — rotate NOW.
@@ -403,7 +441,7 @@ export function StockPage() {
         await refreshAfterWriteOff(lot, lotSeq, ledgerSeq);
       } catch {
         // Only the view is stale; the correction itself landed.
-        setError(i18n.t("stock:loadStockFailed"));
+        setPageError(i18n.t("stock:loadStockFailed"));
       }
       return res;
     });
@@ -418,14 +456,23 @@ export function StockPage() {
       setLotsFrom(appliedFilter.current.from);
       setLotsTo(appliedFilter.current.to);
     }
-    if (outcome) {
+    // The write-off trigger has no `disabled={busy}` gate (an admin can act
+    // on another lot's ledger while this submit is out), so the dialog may
+    // already be a DIFFERENT lot's by now. Closing it here would be a
+    // success message about lot A slamming shut lot B's still-open form —
+    // typed quantity and all (adversarial review of #491). Same-lot
+    // re-entry (a reseed of THIS lot) still closes normally. Read via the
+    // ref, not the `writeOffLot` state this closure captured at submit time
+    // — that value is frozen at lot A and would never see the switch.
+    if (outcome && activeWriteOffLotId.current === lot.id) {
+      activeWriteOffLotId.current = null;
       setMessage(i18n.t("stock:writeOffRecordedMessage", { available: outcome.quantityAvailable }));
       setWriteOffLot(null);
     }
   }
 
-  if (error && rows === null) {
-    return <section><h2>{t("title")}</h2><p className="error">{error}</p></section>;
+  if (errors.page && rows === null) {
+    return <section><h2>{t("title")}</h2><p className="error">{errors.page}</p></section>;
   }
   if (rows === null) return <section><h2>{t("title")}</h2><p className="muted">{tc("loading")}</p></section>;
 
@@ -437,7 +484,7 @@ export function StockPage() {
   return (
     <section>
       <h2>{t("title")}</h2>
-      {error && <p className="error" role="alert">{error}</p>}
+      {errors.page && <p className="error" role="alert">{errors.page}</p>}
       {message && <p className="success" role="status">{message}</p>}
       {rows.length === 0 ? (
         <p className="muted">{t("noStockMessage")}</p>
@@ -554,7 +601,7 @@ export function StockPage() {
           demotion can't leave a stale dialog open. */}
       {writeOffLot !== null && (
         <Dialog open={isAdmin} title={t("writeOffDialogTitle", { date: writeOffLot.productionDate })}
-          onClose={() => setWriteOffLot(null)}>
+          onClose={closeWriteOff}>
           <form className="form-grid" onSubmit={(e) => void onWriteOff(e)}>
             <label>{t("writeOffTypeLabel")}
               <select value={woType} onChange={(e) => setWoType(e.target.value)}>
@@ -591,9 +638,12 @@ export function StockPage() {
                 })}
               </p>
             )}
-            {dialogError && <p className="error">{dialogError}</p>}
+            {/* #479 — the "write-off" scope; DialogError adds role="alert",
+                which this bare paragraph never carried (deliberate
+                improvement, not a behavior this conversion is fixing). */}
+            <DialogError errors={errors} scope="write-off" />
             <div className="dialog-foot">
-              <button type="button" className="link" onClick={() => setWriteOffLot(null)}>{tc("cancel")}</button>
+              <button type="button" className="link" onClick={closeWriteOff}>{tc("cancel")}</button>
               <BusyButton type="submit" busy={isPending(`write-off:${writeOffLot.id}`)} disabled={busy}>
                 {t("writeOffSubmitButton")}
               </BusyButton>

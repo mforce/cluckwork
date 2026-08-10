@@ -13,7 +13,9 @@ import { ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
+import { DialogError } from "../components/DialogError";
 import { StatusBadge } from "../components/StatusBadge";
+import { useDialogErrors } from "../components/useDialogErrors";
 import { usePendingAction } from "../components/usePendingAction";
 import { newId } from "../lib/ids";
 import { useFarmToday } from "../farm/useFarm";
@@ -50,7 +52,10 @@ export function InventoryPage() {
   // Account currency drives ALL money parsing/formatting here — costs may not
   // exist on an item yet, and assuming 2 decimals corrupts JPY/KWD amounts.
   const [account, setAccount] = useState<Account | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  // #479 — one slot per PLACE a message can appear: the page, and each of the
+  // four dialogs below by its own scope.
+  const errors = useDialogErrors();
+  const setPageError = errors.setPage;
   const [message, setMessage] = useState<string | null>(null);
   // #236: the flight guard + per-scope spinner state live in the shared hook;
   // this screen keeps only its idempotency-key and refresh discipline below.
@@ -111,8 +116,19 @@ export function InventoryPage() {
         setItems(list);
         setAccount(acct);
       })
-      .catch(() => setError(i18n.t("inventory:loadInventoryFailed")));
+      .catch(() => setPageError(i18n.t("inventory:loadInventoryFailed")));
   }, []);
+
+  // Dismissal empties a dialog's slot and mutes the attempt still out, so a
+  // late failure is not reported against a session the user reopened.
+  const closeCreate = () => { setCreating(false); errors.abandon("create"); };
+  const closeEdit = () => {
+    const id = editingId;
+    setEditingId(null);
+    if (id) errors.abandon(`edit:${id}`);
+  };
+  const closePurchase = () => { setPurchasing(false); errors.abandon("purchase"); };
+  const closeAdjust = () => { setAdjusting(false); errors.abandon("adjust"); };
 
   async function refreshAll(openItemId?: string) {
     const fresh = await fetchItems();
@@ -137,9 +153,12 @@ export function InventoryPage() {
     setAdjustLotId((prev) => lotRows.some((l) => l.id === prev) ? prev : (lotRows[0]?.id ?? ""));
   }
 
-  async function run(scope: string, action: (key: string) => Promise<unknown>, openItemId?: string): Promise<boolean> {
+  // `scope` drives the idempotency key + pending spinner (#236); `errorScope`
+  // is the #479 slot the attempt reports to — `null` for the two row-level
+  // writes (activate/deactivate) that have no dialog of their own.
+  async function run(scope: string, errorScope: string | null, action: (key: string) => Promise<unknown>, openItemId?: string): Promise<boolean> {
     const outcome = await runPending(scope, async () => {
-      setError(null);
+      errors.beginAttempt(errorScope);
       setMessage(null);
       try {
         await action(keyFor(scope));
@@ -149,7 +168,7 @@ export function InventoryPage() {
         clearKey(scope);
         return true;
       } catch (err) {
-        setError(errText(err));
+        errors.report(errorScope, errText(err));
         return false;
       }
     });
@@ -171,7 +190,7 @@ export function InventoryPage() {
 
   async function onCreate(e: FormEvent) {
     e.preventDefault();
-    const ok = await run("create-item", (key) =>
+    const ok = await run("create-item", "create", (key) =>
       createInventoryItem({
         name, category, unit,
         defaultUnitCostMinorUnits: toMinorUnits(defaultCost),
@@ -185,8 +204,12 @@ export function InventoryPage() {
   }
 
   function startEdit(i: InventoryItem) {
-    setError(null);
-    setCreating(false);
+    closeCreate();
+    // A different item's edit DISPLACES this one: the session ends without
+    // onClose, and its per-id slot would otherwise replay the dead session's
+    // failure when THAT item's edit is reopened later. Reachable behind the
+    // backdrop via a screen reader's virtual cursor (#480; pi review of #491).
+    if (editingId !== null && editingId !== i.id) errors.abandon(`edit:${editingId}`);
     setEditingId(i.id);
     setEditName(i.name);
     setEditUnit(i.unit);
@@ -199,7 +222,7 @@ export function InventoryPage() {
     e.preventDefault();
     const id = editingId;
     if (id === null) return;
-    const ok = await run(`update:${id}`, (key) =>
+    const ok = await run(`update:${id}`, `edit:${id}`, (key) =>
       updateInventoryItem(id, {
         name: editName, unit: editUnit,
         defaultUnitCostMinorUnits: toMinorUnits(editCost),
@@ -208,24 +231,45 @@ export function InventoryPage() {
   }
 
   async function onOpen(i: InventoryItem) {
+    // The purchase/adjust dialogs are bound to the ACTIVE panel — an open one
+    // would otherwise REBIND in place when the item switches: its title
+    // changes but the typed quantity/cost and any error do not, so it would
+    // spring back open over the new item carrying the old item's form and
+    // verdict. Closing it (not just abandoning the error scope) is what the
+    // Close button below should have done too — this covers a panel closed
+    // via #480's virtual-cursor door and then a DIFFERENT item opened, which
+    // otherwise skips the guard entirely (`active` is null by then).
+    // Checking `active === null` as well as an id mismatch covers a panel
+    // closed via #480's virtual-cursor door and then a DIFFERENT item
+    // opened, which otherwise skipped this entirely (nothing reset
+    // `purchasing`/`adjusting` on close, and `active` reads null by then,
+    // so an id comparison alone missed it). Re-opening the SAME still-active
+    // item is spared, same as every other displacement guard in this file.
+    if (active === null || active.id !== i.id) {
+      closePurchase();
+      closeAdjust();
+    }
     setActive(i);
     setMovements([]);
     try {
       await loadLedger(i.id);
     } catch {
-      setError(i18n.t("inventory:loadLedgerFailed"));
+      setPageError(i18n.t("inventory:loadLedgerFailed"));
     }
   }
 
   async function onPurchase(e: FormEvent) {
     e.preventDefault();
     if (!active) return;
+    // Clears the purchase slot whether or not the check below fails, so a
+    // fixed keystroke doesn't leave a stale verdict behind.
+    errors.beginAttempt("purchase");
     const qty = parseFloat(purchaseQty);
     if (!Number.isFinite(qty) || qty <= 0) {
-      setError(i18n.t("inventory:quantityMustBePositive"));
+      errors.report("purchase", i18n.t("inventory:quantityMustBePositive"));
       return;
     }
-    const ok = await run(`purchase:${active.id}`, (key) =>
+    const ok = await run(`purchase:${active.id}`, "purchase", (key) =>
       recordInventoryPurchase(active.id, {
         receivedDate: purchaseDate,
         quantity: qty,
@@ -248,16 +292,19 @@ export function InventoryPage() {
   async function onAdjust(e: FormEvent) {
     e.preventDefault();
     if (!active) return;
+    // Same reasoning as onPurchase: cleared up front so either guard below
+    // reports against a clean slot.
+    errors.beginAttempt("adjust");
     const delta = parseFloat(adjustQty);
     if (!Number.isFinite(delta) || delta === 0) {
-      setError(i18n.t("inventory:adjustQuantityRequired"));
+      errors.report("adjust", i18n.t("inventory:adjustQuantityRequired"));
       return;
     }
     if (!adjustReason.trim()) {
-      setError(i18n.t("inventory:adjustReasonRequired"));
+      errors.report("adjust", i18n.t("inventory:adjustReasonRequired"));
       return;
     }
-    const ok = await run(`adjust:${active.id}:${adjustLotId}`, (key) =>
+    const ok = await run(`adjust:${active.id}:${adjustLotId}`, "adjust", (key) =>
       recordInventoryAdjustment(active.id, {
         inventoryLotId: adjustLotId,
         date: today,
@@ -282,14 +329,13 @@ export function InventoryPage() {
           i.defaultCostCurrencyMinorUnit ?? minorUnit)
       : "—";
 
-  if (error && items === null) {
-    return <section><h2>{t("title")}</h2><p className="error">{error}</p></section>;
+  if (errors.page && items === null) {
+    return <section><h2>{t("title")}</h2><p className="error">{errors.page}</p></section>;
   }
   if (items === null) {
     return <section><h2>{t("title")}</h2><p className="muted">{tc("loading")}</p></section>;
   }
 
-  const dialogOpen = creating || editingId !== null || purchasing || adjusting;
   const canFeed = active !== null && FEEDABLE_CATEGORIES.includes(active.category);
 
   return (
@@ -297,7 +343,7 @@ export function InventoryPage() {
       <div className="page-head">
         <h2>{t("title")}</h2>
         {isAdmin && (
-          <button type="button" onClick={() => { setError(null); setEditingId(null); setCreating(true); }}>
+          <button type="button" onClick={() => { closeEdit(); setCreating(true); }}>
             <Plus size={16} aria-hidden /> {t("newItemButton")}
           </button>
         )}
@@ -307,7 +353,7 @@ export function InventoryPage() {
       </p>
 
       {/* Gated like the inline form was: a role change mid-edit closes it. */}
-      <Dialog open={creating && isAdmin} title={t("newItemDialogTitle")} onClose={() => setCreating(false)}>
+      <Dialog open={creating && isAdmin} title={t("newItemDialogTitle")} onClose={closeCreate}>
         <form className="inline-form" onSubmit={onCreate}>
           <label>{t("itemNameLabel")}
             <input value={name} required maxLength={200}
@@ -326,15 +372,15 @@ export function InventoryPage() {
             <input className="cell" type="number" min={0} step={costStep} value={defaultCost}
               onChange={(e) => setDefaultCost(e.target.value)} />
           </label>
-          {error && <p className="error">{error}</p>}
+          <DialogError errors={errors} scope="create" />
           <div className="dialog-foot">
-            <button type="button" className="link" onClick={() => setCreating(false)}>{tc("cancel")}</button>
+            <button type="button" className="link" onClick={closeCreate}>{tc("cancel")}</button>
             <BusyButton type="submit" busy={isPending("create-item")} disabled={busy}>{t("addItemButton")}</BusyButton>
           </div>
         </form>
       </Dialog>
 
-      <Dialog open={editingId !== null && isAdmin} title={t("editItemDialogTitle")} onClose={() => setEditingId(null)}>
+      <Dialog open={editingId !== null && isAdmin} title={t("editItemDialogTitle")} onClose={closeEdit}>
         {/* noValidate: the row's save used to be a plain button, so the browser
             never enforced min/step — toMinorUnits' own message did. */}
         <form className="inline-form" noValidate onSubmit={onSaveEdit}>
@@ -350,9 +396,9 @@ export function InventoryPage() {
             <input className="cell" type="number" min={0} step={costStep} value={editCost}
               onChange={(e) => setEditCost(e.target.value)} />
           </label>
-          {error && <p className="error">{error}</p>}
+          <DialogError errors={errors} scope={`edit:${editingId}`} />
           <div className="dialog-foot">
-            <button type="button" className="link" onClick={() => setEditingId(null)}>{tc("cancel")}</button>
+            <button type="button" className="link" onClick={closeEdit}>{tc("cancel")}</button>
             <BusyButton type="submit" busy={editingId !== null && isPending(`update:${editingId}`)} disabled={busy}>
               {tc("save")}
             </BusyButton>
@@ -360,8 +406,9 @@ export function InventoryPage() {
         </form>
       </Dialog>
 
-      {/* Whichever dialog is open renders its own copy of the error. */}
-      {error && !dialogOpen && <p className="error">{error}</p>}
+      {/* Unconditional since #479 — a dialog's failure lives in its own slot
+          now, so the page copy can't inherit it. */}
+      {errors.page && <p className="error">{errors.page}</p>}
       {message && <p className="success">{message}</p>}
 
       {active && (
@@ -371,7 +418,7 @@ export function InventoryPage() {
           {/* One row of actions; each opens its own dialog so the ledger below
               stays put instead of being pushed down by three stacked forms. */}
           <div className="panel-actions">
-            <button type="button" onClick={() => { setError(null); setPurchasing(true); }}>
+            <button type="button" onClick={() => setPurchasing(true)}>
               <Plus size={16} aria-hidden /> {t("recordPurchaseButton")}
             </button>
             {canFeed && (
@@ -383,7 +430,7 @@ export function InventoryPage() {
               </Link>
             )}
             {isAdmin && lots.length > 0 && (
-              <button type="button" className="link" onClick={() => { setError(null); setAdjusting(true); }}>
+              <button type="button" className="link" onClick={() => setAdjusting(true)}>
                 {t("correctStockButton")}
               </button>
             )}
@@ -401,7 +448,7 @@ export function InventoryPage() {
             <p className="muted">{t("noLotsMessage")}</p>
           ) : null}
 
-          <Dialog open={purchasing} title={t("recordPurchaseDialogTitle", { name: active.name })} onClose={() => setPurchasing(false)}>
+          <Dialog open={purchasing} title={t("recordPurchaseDialogTitle", { name: active.name })} onClose={closePurchase}>
             <form className="form-grid" onSubmit={onPurchase}>
               <label>{t("receivedLabel")}
                 <input type="date" value={purchaseDate} max={today} required
@@ -430,9 +477,9 @@ export function InventoryPage() {
                 <input value={purchaseNote} maxLength={500}
                   onChange={(e) => setPurchaseNote(e.target.value)} />
               </label>
-              {error && <p className="error">{error}</p>}
+              <DialogError errors={errors} scope="purchase" />
               <div className="dialog-foot">
-                <button type="button" className="link" onClick={() => setPurchasing(false)}>{tc("cancel")}</button>
+                <button type="button" className="link" onClick={closePurchase}>{tc("cancel")}</button>
                 <BusyButton type="submit" busy={isPending(`purchase:${active.id}`)} disabled={busy}>
                   {t("recordPurchaseSubmitButton")}
                 </BusyButton>
@@ -440,7 +487,7 @@ export function InventoryPage() {
             </form>
           </Dialog>
 
-          <Dialog open={adjusting && isAdmin} title={t("correctStockDialogTitle", { name: active.name })} onClose={() => setAdjusting(false)}>
+          <Dialog open={adjusting && isAdmin} title={t("correctStockDialogTitle", { name: active.name })} onClose={closeAdjust}>
             <form className="form-grid" onSubmit={onAdjust}>
               {/* Disabled during any flight: the composite adjust scope embeds
                   the selected lot id, so changing the selection mid-flight
@@ -467,9 +514,9 @@ export function InventoryPage() {
                 <input value={adjustReason} maxLength={500} required
                   onChange={(e) => setAdjustReason(e.target.value)} />
               </label>
-              {error && <p className="error">{error}</p>}
+              <DialogError errors={errors} scope="adjust" />
               <div className="dialog-foot">
-                <button type="button" className="link" onClick={() => setAdjusting(false)}>{tc("cancel")}</button>
+                <button type="button" className="link" onClick={closeAdjust}>{tc("cancel")}</button>
                 {/* The composite key scope doubles as the pending scope (#236). */}
                 <BusyButton type="submit" busy={isPending(`adjust:${active.id}:${adjustLotId}`)}
                   disabled={busy || !adjustLotId}>
@@ -526,12 +573,12 @@ export function InventoryPage() {
                       onClick={() => startEdit(i)}>{t("editButton")}</button>
                     {i.active ? (
                       <BusyButton className="link" busy={isPending(`deactivate:${i.id}`)} disabled={busy}
-                        onClick={() => void run(`deactivate:${i.id}`, (key) => deactivateInventoryItem(i.id, key))}>
+                        onClick={() => void run(`deactivate:${i.id}`, null, (key) => deactivateInventoryItem(i.id, key))}>
                         {t("deactivateButton")}
                       </BusyButton>
                     ) : (
                       <BusyButton className="link" busy={isPending(`activate:${i.id}`)} disabled={busy}
-                        onClick={() => void run(`activate:${i.id}`, (key) => activateInventoryItem(i.id, key))}>
+                        onClick={() => void run(`activate:${i.id}`, null, (key) => activateInventoryItem(i.id, key))}>
                         {t("activateButton")}
                       </BusyButton>
                     )}

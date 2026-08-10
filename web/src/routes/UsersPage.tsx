@@ -10,7 +10,9 @@ import type { Flock, FlockAssignment, User } from "../api/cluckwork";
 import { ApiError, stepUp } from "../api/client";
 import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
+import { DialogError } from "../components/DialogError";
 import { StatusBadge } from "../components/StatusBadge";
+import { useDialogErrors } from "../components/useDialogErrors";
 import { usePendingAction } from "../components/usePendingAction";
 import { newId } from "../lib/ids";
 import i18n from "../i18n";
@@ -34,7 +36,14 @@ export function UsersPage() {
   const { t: tc } = useTranslation("common");
 
   const [users, setUsers] = useState<User[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  // #479 — one slot per PLACE a message can appear. Five dialogs on this
+  // screen, and each used to render the one shared string unconditionally,
+  // so whichever failure happened last appeared inside every open form.
+  // Scopes are fixed per dialog rather than per row: a dialog is bound to
+  // one user at a time, the `active*` refs below already drop a verdict
+  // whose target moved on, and a fixed vocabulary keeps the mute set bounded.
+  const errors = useDialogErrors();
+  const setPageError = errors.setPage;
   const [message, setMessage] = useState<string | null>(null);
   // #236 — the shared flight guard replaces the old `busy` state. `busy`
   // still inerts every trigger; isPending(scope) spins only the clicked one.
@@ -122,6 +131,15 @@ export function UsersPage() {
   // old worker's list or error into the new one (#154 review) — post-await
   // writes commit only while this still matches the request's target.
   const activeUser = useRef<string | null>(null);
+  // Mirrors `openUser` synchronously, for the one read that happens AFTER an
+  // `await` (the displacement guard below). `openAssignments` is async; a
+  // dismissal mid-load re-renders with `openUser=null`, but this function's
+  // own closure keeps whatever `openUser` was at the render it started in —
+  // reading the state itself there is the exact stale-closure shape that
+  // made StockPage's write-off guard silently never fire. Traced safe today
+  // (pi review of #491: every reachable interleaving still evaluates
+  // correctly), but the ref removes the trap for whoever edits this next.
+  const openUserRef = useRef<string | null>(null);
   const [flocks, setFlocks] = useState<Flock[]>([]);
   const [assignFlockId, setAssignFlockId] = useState("");
 
@@ -148,8 +166,8 @@ export function UsersPage() {
         // would 404 (conventions review of #104).
         if (active.length > 0) setAssignFlockId(active[0].id);
       })
-      .catch((err) => setError(errText(err)));
-  }, []);
+      .catch((err) => setPageError(errText(err)));
+  }, [setPageError]);
 
   // F133: flock scoping is a per-worker action, so it opens in the shared dialog
   // like the other per-row surfaces (#131) — the row button opens it, the dialog
@@ -165,19 +183,28 @@ export function UsersPage() {
       // dropdown keeps the last worker's pick — open A, choose fl2, close, open
       // B, and B shows fl2 — so a distracted admin could assign the wrong flock.
       setAssignFlockId(flocks[0]?.id ?? "");
-      setError(null);
+      // Displacement only once the load actually succeeds and the dialog is
+      // about to rebind. Abandoning up front (adversarial review of #491)
+      // would fire even when THIS load fails and openUser's dialog never
+      // moves — worker A's dialog stays open per the comment above, but its
+      // verdict would already be gone, and the failed load's own message
+      // lands on the page behind it, about a worker the admin isn't looking
+      // at.
+      if (openUserRef.current !== null && openUserRef.current !== userId) errors.abandon("flock-access");
+      openUserRef.current = userId;
       setOpenUser(userId);
     } catch (err) {
       if (activeUser.current !== userId) return;
       activeUser.current = null; // load failed → no dialog; surface on the page
-      setError(errText(err));
+      errors.setPage(errText(err));
     }
   }
 
   function closeAssignments() {
     activeUser.current = null;
+    openUserRef.current = null;
     setOpenUser(null);
-    setError(null);
+    errors.abandon("flock-access");
   }
 
   async function onAssign() {
@@ -187,14 +214,14 @@ export function UsersPage() {
     // scope here — payload-bound either way.
     const scope = `assign:${target}:${assignFlockId}`;
     await run(scope, async () => {
-      setError(null);
+      errors.beginAttempt("flock-access");
       try {
         await assignFlock(target, assignFlockId, keyFor(scope));
         const fresh = await listFlockAssignments(target);
         clearKey(scope);
         if (activeUser.current === target) setAssignments(fresh);
       } catch (err) {
-        if (activeUser.current === target) setError(errText(err));
+        if (activeUser.current === target) errors.report("flock-access", errText(err));
       }
     });
   }
@@ -207,14 +234,14 @@ export function UsersPage() {
     // what the admin sees themselves removing.
     const keyScope = `unassign:${a.id}`;
     await run(`unassign:${target}:${a.flockId}`, async () => {
-      setError(null);
+      errors.beginAttempt("flock-access");
       try {
         await unassignFlock(target, a.id, keyFor(keyScope));
         const fresh = await listFlockAssignments(target);
         clearKey(keyScope);
         if (activeUser.current === target) setAssignments(fresh);
       } catch (err) {
-        if (activeUser.current === target) setError(errText(err));
+        if (activeUser.current === target) errors.report("flock-access", errText(err));
       }
     });
   }
@@ -225,7 +252,7 @@ export function UsersPage() {
   async function onCreate(e: FormEvent) {
     e.preventDefault();
     await run("create", async () => {
-      setError(null);
+      errors.beginAttempt("create");
       setMessage(null);
       try {
         // #308 — creating another Owner needs a fresh step-up grant. Read the
@@ -257,7 +284,7 @@ export function UsersPage() {
         // forgotten in one place, not two — the #314 lesson, relearned.
         closeCreate();
       } catch (err) {
-        setError(errText(err));
+        errors.report("create", errText(err));
       }
     });
   }
@@ -275,11 +302,18 @@ export function UsersPage() {
     setRole("Worker");
     setName("");
     setCreateStepUpPassword(""); // #308 — never leave a typed proof password behind
+    errors.abandon("create");
   }
 
   // #163 — open the edit dialog seeded with the user's current name.
+  // Each open handler below abandons its own scope when a DIFFERENT user's
+  // dialog displaces the one still open: the displaced session ends without
+  // onClose, so nothing else empties the fixed scope, and the old user's
+  // verdict would render under the new user's email in the title. The row
+  // buttons behind the backdrop stay reachable to a screen reader's virtual
+  // cursor (#480; pi review of #491). Same-user re-entry is not a displacement.
   function openEdit(u: User) {
-    setError(null);
+    if (editUser !== null && editUser.id !== u.id) errors.abandon("edit-user");
     setMessage(null);
     setEditName(u.displayName ?? "");
     activeEdit.current = u.id;
@@ -289,11 +323,12 @@ export function UsersPage() {
   function closeEdit() {
     activeEdit.current = null;
     setEditUser(null);
+    errors.abandon("edit-user");
   }
 
   // #165 — open/close the password dialog for a user.
   function openPassword(u: User) {
-    setError(null);
+    if (pwUser !== null && pwUser.id !== u.id) errors.abandon("set-password");
     setMessage(null);
     setPwValue("");
     setPwConfirm("");
@@ -310,6 +345,7 @@ export function UsersPage() {
     setPwConfirm("");
     setPwStepUpPassword("");
     setPwUser(null);
+    errors.abandon("set-password");
   }
 
   async function onSetPassword(e: FormEvent) {
@@ -318,10 +354,13 @@ export function UsersPage() {
     // The mismatch check stays OUTSIDE the flight (it is validation, not
     // work), so it keeps the old busy guard alongside the hook's.
     if (!target || busy) return;
-    setError(null);
+    // Before the validation below, not only inside run(): a mismatch never
+    // reaches run(), so without this the slot would still hold the previous
+    // attempt's verdict — and a mute left by a dismissal would swallow this.
+    errors.beginAttempt("set-password");
     setMessage(null);
     if (pwValue !== pwConfirm) {
-      setError(i18n.t("users:passwordMismatchMessage"));
+      errors.report("set-password", i18n.t("users:passwordMismatchMessage"));
       return;
     }
     const keyScope = `password:${target.id}`;
@@ -342,14 +381,14 @@ export function UsersPage() {
         setMessage(i18n.t("users:passwordSetMessage", { email: target.email }));
         closePassword();
       } catch (err) {
-        if (activePw.current === target.id) setError(errText(err));
+        if (activePw.current === target.id) errors.report("set-password", errText(err));
       }
     });
   }
 
   // #355 — open/close the role dialog for a user, seeded with their current role.
   function openRole(u: User) {
-    setError(null);
+    if (roleUser !== null && roleUser.id !== u.id) errors.abandon("change-role");
     setMessage(null);
     setRoleValue(u.role);
     setRoleStepUpPassword("");
@@ -361,13 +400,14 @@ export function UsersPage() {
     activeRole.current = null;
     setRoleStepUpPassword(""); // #308 — never leave a typed proof password behind
     setRoleUser(null);
+    errors.abandon("change-role");
   }
 
   async function onChangeRole(e: FormEvent) {
     e.preventDefault();
     const target = roleUser;
     if (!target || busy) return;
-    setError(null);
+    errors.beginAttempt("change-role");
     setMessage(null);
     const keyScope = `role:${target.id}`;
     await run(`change-role:${target.id}`, async () => {
@@ -388,7 +428,7 @@ export function UsersPage() {
         setMessage(i18n.t("users:roleChangedMessage", { email: target.email, role: roleLabel(roleValue) }));
         closeRole();
       } catch (err) {
-        if (activeRole.current === target.id) setError(errText(err));
+        if (activeRole.current === target.id) errors.report("change-role", errText(err));
       }
     });
   }
@@ -398,7 +438,7 @@ export function UsersPage() {
   // reason is not a parameter: the dialog collects it itself, seeded blank,
   // through a controlled textarea.
   function openStepUp(u: User, mode: "disable" | "enable") {
-    setError(null);
+    if (stepUpUser !== null && stepUpUser.id !== u.id) errors.abandon("disable-enable");
     setMessage(null);
     setStepUpPassword("");
     setDisableReason("");
@@ -413,6 +453,7 @@ export function UsersPage() {
     setDisableReason("");
     setStepUpMode(null);
     setStepUpUser(null);
+    errors.abandon("disable-enable");
   }
 
   async function onSubmitStepUp(e: FormEvent) {
@@ -420,7 +461,7 @@ export function UsersPage() {
     const target = stepUpUser;
     const mode = stepUpMode;
     if (!target || !mode || busy) return;
-    setError(null);
+    errors.beginAttempt("disable-enable");
     setMessage(null);
     const scope = `${mode}:${target.id}`;
     await run(scope, async () => {
@@ -460,7 +501,7 @@ export function UsersPage() {
           { email: target.email }));
         closeStepUp();
       } catch (err) {
-        if (activeStepUp.current === target.id) setError(errText(err));
+        if (activeStepUp.current === target.id) errors.report("disable-enable", errText(err));
       }
     });
   }
@@ -471,7 +512,7 @@ export function UsersPage() {
     if (!target) return;
     const scope = `update:${target.id}`;
     await run(scope, async () => {
-      setError(null);
+      errors.beginAttempt("edit-user");
       setMessage(null);
       try {
         // Blank clears the name back to "—" (null); the server normalizes too.
@@ -486,19 +527,21 @@ export function UsersPage() {
         setMessage(i18n.t("users:updatedMessage", { email: target.email }));
         closeEdit();
       } catch (err) {
-        if (activeEdit.current === target.id) setError(errText(err));
+        if (activeEdit.current === target.id) errors.report("edit-user", errText(err));
       }
     });
   }
 
-  if (error && users === null) return <section><h2>{t("heading")}</h2><p className="error" role="alert">{error}</p></section>;
+  // The list read failed and there is nothing to show: a fatal page state,
+  // never a dialog's (no dialog can be open before the screen renders).
+  if (errors.page && users === null) return <section><h2>{t("heading")}</h2><p className="error" role="alert">{errors.page}</p></section>;
   if (users === null) return <section><h2>{t("heading")}</h2><p className="muted">{tc("loading")}</p></section>;
 
   return (
     <section>
       <div className="page-head">
         <h2>{t("heading")}</h2>
-        <button type="button" onClick={() => { setError(null); setMessage(null); setCreating(true); }}>
+        <button type="button" onClick={() => { setMessage(null); setCreating(true); }}>
           <Plus size={16} aria-hidden /> {t("newUserButton")}
         </button>
       </div>
@@ -543,7 +586,7 @@ export function UsersPage() {
               </label>
             </>
           )}
-          {error && <p className="error">{error}</p>}
+          <DialogError errors={errors} scope="create" />
           <div className="dialog-foot">
             <button type="button" className="link" onClick={closeCreate}>{tc("cancel")}</button>
             <BusyButton type="submit" disabled={busy} busy={isPending("create")}>{t("createUserButton")}</BusyButton>
@@ -551,10 +594,11 @@ export function UsersPage() {
         </form>
       </Dialog>
 
-      {/* Each dialog carries its own error copy while it is up. */}
-      {error && !creating && openUser === null && editUser === null && pwUser === null && roleUser === null
-        && stepUpUser === null
-        && <p className="error" role="alert">{error}</p>}
+      {/* Unconditional since #479. The five-way guard this replaces existed
+          because every dialog rendered the same string, so the page had to
+          suppress itself whenever any of them was up. Each dialog now reads
+          a slot of its own and there is nothing here to double up on. */}
+      {errors.page && <p className="error" role="alert">{errors.page}</p>}
       {message && <p className="success">{message}</p>}
 
       <table className="data">
@@ -650,7 +694,7 @@ export function UsersPage() {
             {t("assignFlockButton")}
           </BusyButton>
         </div>
-        {error && <p className="error">{error}</p>}
+        <DialogError errors={errors} scope="flock-access" />
         <div className="dialog-foot">
           <button type="button" className="link" onClick={closeAssignments}>{t("doneButton")}</button>
         </div>
@@ -667,7 +711,7 @@ export function UsersPage() {
               onChange={(e) => setEditName(e.target.value)} />
           </label>
           <p className="muted">{t("clearNameHint")}</p>
-          {error && <p className="error">{error}</p>}
+          <DialogError errors={errors} scope="edit-user" />
           <div className="dialog-foot">
             <button type="button" className="link" onClick={closeEdit}>{tc("cancel")}</button>
             <BusyButton type="submit" disabled={busy}
@@ -707,7 +751,7 @@ export function UsersPage() {
               </label>
             </>
           )}
-          {error && <p className="error">{error}</p>}
+          <DialogError errors={errors} scope="set-password" />
           <div className="dialog-foot">
             <button type="button" className="link" onClick={closePassword}>{tc("cancel")}</button>
             <BusyButton type="submit" disabled={busy}
@@ -746,7 +790,7 @@ export function UsersPage() {
               </label>
             </>
           )}
-          {error && <p className="error">{error}</p>}
+          <DialogError errors={errors} scope="change-role" />
           <div className="dialog-foot">
             <button type="button" className="link" onClick={closeRole}>{tc("cancel")}</button>
             <BusyButton type="submit" disabled={busy}
@@ -785,7 +829,7 @@ export function UsersPage() {
               autoComplete="current-password"
               onChange={(e) => setStepUpPassword(e.target.value)} />
           </label>
-          {error && <p className="error">{error}</p>}
+          <DialogError errors={errors} scope="disable-enable" />
           <div className="dialog-foot">
             <button type="button" className="link" onClick={closeStepUp}>{tc("cancel")}</button>
             <BusyButton type="submit" disabled={busy}

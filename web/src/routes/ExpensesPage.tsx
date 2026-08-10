@@ -9,6 +9,8 @@ import type { Expense, ExpenseCategory, Flock } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
+import { DialogError } from "../components/DialogError";
+import { useDialogErrors } from "../components/useDialogErrors";
 import { usePagedList } from "../components/usePagedList";
 import { usePendingAction } from "../components/usePendingAction";
 import { useFarm, useFarmToday } from "../farm/useFarm";
@@ -35,7 +37,12 @@ export function ExpensesPage() {
   const { farm } = useFarm();
   const [categories, setCategories] = useState<ExpenseCategory[]>([]);
   const [flocks, setFlocks] = useState<Flock[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  // #479 — one slot per PLACE a message can appear. The record-expense form
+  // sits on the page (not in a dialog), same as the mount read and the
+  // category-toggle writes; "add-category" and each correction dialog get
+  // their own.
+  const errors = useDialogErrors();
+  const setPageError = errors.setPage;
   const [message, setMessage] = useState<string | null>(null);
   // #236: the flight guard + per-scope spinner state live in the shared hook;
   // this screen keeps only its idempotency-key discipline below.
@@ -154,8 +161,8 @@ export function ExpensesPage() {
         setCategories(c);
         setFlocks(f);
       })
-      .catch((err) => setError(errText(err)));
-  }, []);
+      .catch((err) => setPageError(errText(err)));
+  }, [setPageError]);
 
 
   const categoryName = (id: string) =>
@@ -186,25 +193,28 @@ export function ExpensesPage() {
     return v;
   };
 
-  async function run(scope: string, fn: () => Promise<void>) {
+  // `dialogScope` names the DIALOG this attempt's failure belongs to — `null`
+  // for the record-expense form and the category-toggle writes, neither of
+  // which is behind a dialog.
+  async function run(scope: string, dialogScope: string | null, fn: () => Promise<void>) {
     // A skipped run (another flight already open) simply does nothing — no
     // caller here branches on the outcome, so there is no boolean to map.
     await runPending(scope, async () => {
-      setError(null);
+      errors.beginAttempt(dialogScope);
       setMessage(null);
       try {
         await fn();
         settleKey(scope);
       } catch (err) {
         settleKey(scope, err);
-        setError(errText(err));
+        errors.report(dialogScope, errText(err));
       }
     });
   }
 
   function onAdd(e: FormEvent) {
     e.preventDefault();
-    void run("add", async () => {
+    void run("add", null, async () => {
       // runWrite claims the list's ticket before the POST, so a month or
       // category change made while it is in flight keeps the view (#469).
       await expenses.runWrite(async () => {
@@ -229,7 +239,17 @@ export function ExpensesPage() {
     });
   }
 
+  // A switch straight from one bound expense to another, with no Cancel or
+  // close in between, abandons the one being displaced, so its stale verdict
+  // cannot resurface next time THAT expense is reopened. The backdrop stops a
+  // mouse from reaching the row buttons underneath, so this is not the common
+  // path — but #480 established that it does not stop a screen reader's
+  // virtual cursor, which is the same reason the per-dialog map exists at all.
+  // The 409 rebind below also calls this, on the
+  // SAME id, so this must not fire there — abandoning would mute the very
+  // report the rebind is about to make.
   function startEdit(x: Expense) {
+    if (editing !== null && editing.id !== x.id) errors.abandon(`edit:${editing.id}`);
     setEditing(x);
     setEditDate(x.date);
     setEditCategory(x.expenseCategoryId);
@@ -238,9 +258,18 @@ export function ExpensesPage() {
     setEditFlock(x.flockId ?? "");
     setEditNote(x.note ?? "");
     setMessage(null);
-    setError(null);
     // F131: the correction form is a dialog now — it takes focus itself, so
     // there is nothing to scroll to.
+  }
+
+  function closeEdit() {
+    if (editing !== null) errors.abandon(`edit:${editing.id}`);
+    setEditing(null);
+  }
+
+  function closeAddCategory() {
+    setAddingCategory(false);
+    errors.abandon("add-category");
   }
 
   function onSaveEdit(e: FormEvent) {
@@ -248,7 +277,7 @@ export function ExpensesPage() {
     if (editing === null) return;
     const target = editing;
     const scope = `edit:${target.id}`;
-    void run(scope, async () => {
+    void run(scope, scope, async () => {
       try {
         // The refresh that follows replaces the row wholesale, so the old
         // optimistic splice into `items` is gone with the local list state.
@@ -277,6 +306,13 @@ export function ExpensesPage() {
           // user who had paged deeper it collapses the window that refresh
           // just restored — and clears it outright if it fails (#469).
           startEdit(await getExpense(target.id));
+          // startEdit may have just REOPENED a dialog the user dismissed while
+          // this GET was out, and that dismissal muted this scope — so the
+          // message below would be dropped and the panel would reappear with
+          // the winner's values and no word of why (codex on #491). A forced
+          // reopen is a new session, so un-mute it. Same id as the scope `run`
+          // reports on, so this re-enables that report and nothing else.
+          errors.beginAttempt(scope);
           throw new Error(i18n.t("expenses:conflictRebindMessage"));
         }
         throw err;
@@ -292,18 +328,26 @@ export function ExpensesPage() {
   function onAddCategory(e: FormEvent) {
     e.preventDefault();
     const scope = addCategoryScope;
-    void run(scope, async () => {
+    void run(scope, "add-category", async () => {
       await createExpenseCategory({ name: newCategoryName.trim() }, keyFor(scope));
       setNewCategoryName("");
       setAddingCategory(false);
-      setCategories(await listExpenseCategories({ includeInactive: true }));
       setMessage(i18n.t("expenses:categoryCreatedMessage"));
+      // The dialog closed two lines ago, so its slot renders NOWHERE from here
+      // on: a refresh failure reported to it would leave the user with a stale
+      // category list and no message at all (codex on #491). The write already
+      // succeeded, so this is the screen's problem now, not the form's.
+      try {
+        setCategories(await listExpenseCategories({ includeInactive: true }));
+      } catch (err) {
+        errors.setPage(errText(err));
+      }
     });
   }
 
   function onToggleCategory(c: ExpenseCategory) {
     const scope = `toggle-category:${c.id}`;
-    void run(scope, async () => {
+    void run(scope, null, async () => {
       await updateExpenseCategory(c.id, { name: c.name, active: !c.active }, keyFor(scope));
       setCategories(await listExpenseCategories({ includeInactive: true }));
       setMessage(c.active
@@ -355,12 +399,12 @@ export function ExpensesPage() {
         <div className="order-panel">
           <h3>{t("categoriesHeading")}</h3>
           <div className="panel-actions">
-            <button type="button" onClick={() => { setError(null); setAddingCategory(true); }}>
+            <button type="button" onClick={() => setAddingCategory(true)}>
               {t("newCategoryButton")}
             </button>
           </div>
 
-          <Dialog open={addingCategory} title={t("newCategoryDialogTitle")} onClose={() => setAddingCategory(false)}>
+          <Dialog open={addingCategory} title={t("newCategoryDialogTitle")} onClose={closeAddCategory}>
             <form className="inline-form" onSubmit={onAddCategory}>
               {/* Disabled during any flight: the create scope is derived from
                   this name (addCategoryScope), so editing it mid-flight would
@@ -370,9 +414,9 @@ export function ExpensesPage() {
                 <input value={newCategoryName} required disabled={busy}
                   onChange={(e) => setNewCategoryName(e.target.value)} />
               </label>
-              {error && <p className="error">{error}</p>}
+              <DialogError errors={errors} scope="add-category" />
               <div className="dialog-foot">
-                <button type="button" className="link" onClick={() => setAddingCategory(false)}>{tc("cancel")}</button>
+                <button type="button" className="link" onClick={closeAddCategory}>{tc("cancel")}</button>
                 <BusyButton type="submit" busy={isPending(addCategoryScope)} disabled={busy}>{t("addCategoryButton")}</BusyButton>
               </div>
             </form>
@@ -436,8 +480,9 @@ export function ExpensesPage() {
         <p className="muted">{t("addCategoryFirstMessage")}</p>
       )}
 
-      {/* An open dialog renders its own copy of the error. */}
-      {error && !addingCategory && editing === null && <p className="error" role="alert">{error}</p>}
+      {/* Unconditional since #479: this slot is the page's alone now, so there
+          is nothing a dialog's own message could double up with. */}
+      {errors.page && <p className="error" role="alert">{errors.page}</p>}
       {message && <p className="success" role="status">{message}</p>}
 
       <Dialog
@@ -445,7 +490,7 @@ export function ExpensesPage() {
         title={editing
           ? t("correctExpenseDialogTitleWithExpense", { date: editing.date, description: editing.description })
           : t("correctExpenseDialogTitle")}
-        onClose={() => setEditing(null)}
+        onClose={closeEdit}
         // A 409 rebinds this dialog to the server's newer row; the record
         // identity changing pulls focus back to the first field rather than
         // swapping the form out from under the user's cursor.
@@ -485,10 +530,10 @@ export function ExpensesPage() {
             </label>
             {/* The 409 rebind reports through here, so the conflict banner stays
                 next to the form it is telling you to re-apply. */}
-            {error && <p className="error" role="alert">{error}</p>}
+            <DialogError errors={errors} scope={`edit:${editing.id}`} />
             <div className="dialog-foot">
               <button type="button" className="link" disabled={busy}
-                onClick={() => setEditing(null)}>{tc("cancel")}</button>
+                onClick={closeEdit}>{tc("cancel")}</button>
               <BusyButton type="submit" busy={isPending(`edit:${editing.id}`)} disabled={busy}>
                 {t("saveCorrectionButton")}
               </BusyButton>

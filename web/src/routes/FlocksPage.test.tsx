@@ -271,6 +271,118 @@ describe("FlocksPage dialog dismissal", () => {
   });
 });
 
+// #479 — one slot per PLACE a message can appear. FlocksPage has three
+// dialogs (create, edit, record-movement) plus a background read outside any
+// of them (the bird ledger), so it exercises the routing on both sides.
+describe("FlocksPage error placement (#479)", () => {
+  it("shows a failed create inside the dialog, not on the page behind it", async () => {
+    mockCreate.mockRejectedValue(new ApiError(422, "Validation failed", "Name already used."));
+    await renderReady(ADMIN, [ACTIVE]);
+    openCreate();
+    fireEvent.change(within(dialog()).getByLabelText("Name *"), { target: { value: "Rhode Reds" } });
+    fireEvent.change(within(dialog()).getByLabelText("Breed *"), { target: { value: "Rhode Island Red" } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Add flock" }));
+    });
+
+    expect(within(dialog()).getByText("Name already used.")).toBeInTheDocument();
+    // Exactly one copy: the page must not render the dialog's message too.
+    expect(screen.getAllByText("Name already used.")).toHaveLength(1);
+  });
+
+  it("shows a failed edit inside the dialog, not on the page behind it", async () => {
+    mockUpdate.mockRejectedValue(new ApiError(409, "Conflict", "Someone else changed this flock."));
+    await renderReady(ADMIN, [ACTIVE]);
+    fireEvent.click(within(screen.getByRole("row", { name: /Hen House 1/ })).getByRole("button", { name: "edit" }));
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Save" }));
+    });
+
+    expect(within(dialog()).getByText("Someone else changed this flock.")).toBeInTheDocument();
+    expect(screen.getAllByText("Someone else changed this flock.")).toHaveLength(1);
+  });
+
+  it("shows a failed movement record inside the dialog, not on the page behind it", async () => {
+    mockListMovements.mockResolvedValue([]);
+    mockRecordMovement.mockRejectedValue(new ApiError(422, "Validation failed", "Quantity exceeds current birds."));
+    await renderReady(ADMIN, [ACTIVE]);
+    fireEvent.click(within(screen.getByRole("row", { name: /Hen House 1/ })).getByRole("button", { name: "birds" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Record movement" }));
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Record" }));
+    });
+
+    expect(within(dialog()).getByText("Quantity exceeds current birds.")).toBeInTheDocument();
+    expect(screen.getAllByText("Quantity exceeds current birds.")).toHaveLength(1);
+  });
+
+  // Displacement: the edit scope is fixed ("edit"), and a second flock's edit
+  // can begin without the first being dismissed — the row buttons behind the
+  // backdrop are reachable to a screen reader's virtual cursor (#480). Without
+  // an abandon on the switch, flock A's failed save renders inside flock B's
+  // dialog (pi review of #491).
+  it("does not carry one flock's failed edit into another flock's dialog", async () => {
+    mockUpdate.mockRejectedValue(new ApiError(409, "Conflict", "Someone else changed this flock."));
+    await renderReady(ADMIN, [ACTIVE, DEPLETED]);
+    fireEvent.click(within(screen.getByRole("row", { name: /Hen House 1/ })).getByRole("button", { name: "edit" }));
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Save" }));
+    });
+    expect(within(dialog()).getByText("Someone else changed this flock.")).toBeInTheDocument();
+
+    fireEvent.click(within(screen.getByRole("row", { name: /Depleted Flock/ })).getByRole("button", { name: "edit" }));
+    // The dialog really swapped records — otherwise the absence below could
+    // pass for the wrong reason.
+    expect(within(dialog()).getByLabelText("Edit name")).toHaveValue("Depleted Flock");
+    expect(screen.queryByText("Someone else changed this flock.")).not.toBeInTheDocument();
+  });
+
+  it("keeps a bird-ledger read failure out of an open create dialog", async () => {
+    // The ledger toggle stays reachable in the DOM behind a portalled dialog
+    // (jsdom does not enforce the backdrop's visual occlusion), so this is a
+    // real background failure landing while a dialog happens to be open —
+    // not a contrived one.
+    mockListMovements.mockRejectedValue(new ApiError(500, "Server error", "boom"));
+    await renderReady(ADMIN, [ACTIVE]);
+    openCreate();
+
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole("row", { name: /Hen House 1/ })).getByRole("button", { name: "birds" }));
+    });
+
+    const message = i18n.t("flocks:loadMovementsFailed");
+    expect(within(dialog()).queryByText(message)).not.toBeInTheDocument();
+    expect(screen.getByText(message)).toBeInTheDocument();
+  });
+
+  it("keeps a bird-ledger failure on the page while the create dialog opens and its own write fails", async () => {
+    // Two live messages at once, in their own places. The page's belongs to
+    // the ledger read the user has not dealt with; the dialog's to the form
+    // in front of them. Neither may erase the other.
+    mockListMovements.mockRejectedValue(new ApiError(500, "Server error", "boom"));
+    mockCreate.mockRejectedValue(new ApiError(422, "Validation failed", "Name already used."));
+    await renderReady(ADMIN, [ACTIVE]);
+
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole("row", { name: /Hen House 1/ })).getByRole("button", { name: "birds" }));
+    });
+    const pageMessage = i18n.t("flocks:loadMovementsFailed");
+    await screen.findByText(pageMessage);
+
+    openCreate();
+    expect(screen.getByText(pageMessage)).toBeInTheDocument();
+
+    fireEvent.change(within(dialog()).getByLabelText("Name *"), { target: { value: "Rhode Reds" } });
+    fireEvent.change(within(dialog()).getByLabelText("Breed *"), { target: { value: "Rhode Island Red" } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Add flock" }));
+    });
+
+    expect(within(dialog()).getByText("Name already used.")).toBeInTheDocument();
+    expect(screen.getByText(pageMessage)).toBeInTheDocument();
+  });
+});
+
 describe("FlocksPage lifecycle", () => {
   it("depletes an active flock after confirmation", async () => {
     mockDeplete.mockResolvedValue(undefined);
