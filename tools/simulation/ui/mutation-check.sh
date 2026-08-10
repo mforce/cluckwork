@@ -67,6 +67,7 @@ declare -A SPEC_FOR=(
   [nav-role-gate-bypassed]="specs/readonly.spec.ts"
   [payment-never-settles]="specs/sales.spec.ts"
   [export-returns-nothing]="specs/owner.spec.ts"
+  [language-persist-dropped]="specs/i18n.spec.ts"
 )
 
 declare -A GREP_FOR=(
@@ -81,6 +82,7 @@ declare -A GREP_FOR=(
   [nav-role-gate-bypassed]="is not offered the destinations"
   [payment-never-settles]="takes an order from new customer"
   [export-returns-nothing]="export downloads a real file"
+  [language-persist-dropped]="renders that language across the shell"
 )
 
 # Mutants whose RED is known not to prove the guarantee they name. See the header.
