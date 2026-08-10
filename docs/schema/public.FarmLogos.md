@@ -6,15 +6,22 @@
 | ---- | ---- | ------- | -------- | -------- | ------- | ------- |
 | Id | uuid |  | false |  |  |  |
 | FarmId | uuid |  | false |  |  |  |
-| Content | bytea |  | false |  |  |  |
-| ContentType | varchar(32) |  | false |  |  |  |
-| Width | integer |  | false |  |  |  |
-| Height | integer |  | false |  |  |  |
-| ByteLength | integer |  | false |  |  |  |
-| ContentHash | varchar(64) |  | false |  |  |  |
-| UpdatedAt | timestamp with time zone |  | false |  |  |  |
+| Content | bytea |  | true |  |  |  |
+| ContentType | varchar(32) |  | true |  |  |  |
+| Width | integer |  | true |  |  |  |
+| Height | integer |  | true |  |  |  |
+| ByteLength | integer |  | true |  |  |  |
+| ContentHash | varchar(64) |  | true |  |  |  |
+| UpdatedAt | timestamp with time zone |  | true |  |  |  |
 | Version | integer |  | false |  |  |  |
 | AccountId | uuid |  | false |  |  |  |
+| BannerByteLength | integer |  | true |  |  |  |
+| BannerContent | bytea |  | true |  |  |  |
+| BannerContentHash | varchar(64) |  | true |  |  |  |
+| BannerContentType | varchar(32) |  | true |  |  |  |
+| BannerHeight | integer |  | true |  |  |  |
+| BannerUpdatedAt | timestamp with time zone |  | true |  |  |  |
+| BannerWidth | integer |  | true |  |  |  |
 
 ## Viewpoints
 
@@ -27,17 +34,11 @@
 | Name | Type | Definition |
 | ---- | ---- | ---------- |
 | FarmLogos_AccountId_not_null | n | NOT NULL "AccountId" |
-| FarmLogos_ByteLength_not_null | n | NOT NULL "ByteLength" |
-| FarmLogos_ContentHash_not_null | n | NOT NULL "ContentHash" |
-| FarmLogos_ContentType_not_null | n | NOT NULL "ContentType" |
-| FarmLogos_Content_not_null | n | NOT NULL "Content" |
 | FarmLogos_FarmId_not_null | n | NOT NULL "FarmId" |
-| FarmLogos_Height_not_null | n | NOT NULL "Height" |
 | FarmLogos_Id_not_null | n | NOT NULL "Id" |
-| FarmLogos_UpdatedAt_not_null | n | NOT NULL "UpdatedAt" |
 | FarmLogos_Version_not_null | n | NOT NULL "Version" |
-| FarmLogos_Width_not_null | n | NOT NULL "Width" |
-| ck_farm_logos_content_length | CHECK | CHECK (((octet_length("Content") > 0) AND (octet_length("Content") <= 5242880))) |
+| ck_farm_logos_banner_content_length | CHECK | CHECK ((("BannerContent" IS NULL) OR ((octet_length("BannerContent") > 0) AND (octet_length("BannerContent") <= 15728640)))) |
+| ck_farm_logos_content_length | CHECK | CHECK ((("Content" IS NULL) OR ((octet_length("Content") > 0) AND (octet_length("Content") <= 5242880)))) |
 | PK_FarmLogos | PRIMARY KEY | PRIMARY KEY ("Id") |
 
 ## Indexes
@@ -65,6 +66,13 @@ erDiagram
   timestamp_with_time_zone UpdatedAt
   integer Version
   uuid AccountId
+  integer BannerByteLength
+  bytea BannerContent
+  varchar_64_ BannerContentHash
+  varchar_32_ BannerContentType
+  integer BannerHeight
+  timestamp_with_time_zone BannerUpdatedAt
+  integer BannerWidth
 }
 ```
 

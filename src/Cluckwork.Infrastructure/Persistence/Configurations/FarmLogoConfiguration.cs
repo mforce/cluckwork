@@ -5,8 +5,9 @@ using Cluckwork.Domain.Media;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
-// #123 — the farm logo's own table. See FarmLogo for why it is not a column on
-// accounts.
+// #123, #179 — the farm logo AND banner's shared table. See FarmLogo for why
+// it is not a column on accounts, and for the name discrepancy (this row also
+// holds the banner) kept deliberately.
 public sealed class FarmLogoConfiguration : IEntityTypeConfiguration<FarmLogo>
 {
     public void Configure(EntityTypeBuilder<FarmLogo> builder)
@@ -15,23 +16,27 @@ public sealed class FarmLogoConfiguration : IEntityTypeConfiguration<FarmLogo>
         builder.Property(l => l.AccountId).IsRequired();
         builder.Property(l => l.FarmId).IsRequired();
 
+        // --- Logo columns ---
+        // All nullable (#179): a row can hold a banner with no logo, so the
+        // logo side can no longer be required the way it was pre-#179.
+
         // bytea. The sanitizer refuses anything larger, so this is a second
         // line rather than the only one — but it is the line the database
         // itself enforces, which is the one that survives a bug upstream.
-        builder.Property(l => l.Content)
-            .HasColumnType("bytea")
-            .IsRequired();
+        builder.Property(l => l.Content).HasColumnType("bytea");
 
         // "image/png" and friends — the sniffed value, never the client's.
-        builder.Property(l => l.ContentType).HasMaxLength(32).IsRequired();
-        builder.Property(l => l.Width).IsRequired();
-        builder.Property(l => l.Height).IsRequired();
-        builder.Property(l => l.ByteLength).IsRequired();
+        builder.Property(l => l.ContentType).HasMaxLength(32);
         // Hex SHA-256.
-        builder.Property(l => l.ContentHash).HasMaxLength(64).IsRequired();
-        builder.Property(l => l.UpdatedAt).IsRequired();
+        builder.Property(l => l.ContentHash).HasMaxLength(64);
 
-        // One logo per farm, and the index the tenant query filter reads
+        // --- Banner columns (#179) --- same shape, same nullability story.
+
+        builder.Property(l => l.BannerContent).HasColumnType("bytea");
+        builder.Property(l => l.BannerContentType).HasMaxLength(32);
+        builder.Property(l => l.BannerContentHash).HasMaxLength(64);
+
+        // One row per farm, and the index the tenant query filter reads
         // through — AccountId leads for that reason, matching the convention
         // elsewhere in this folder.
         //
@@ -55,14 +60,26 @@ public sealed class FarmLogoConfiguration : IEntityTypeConfiguration<FarmLogo>
 
         builder.Property(l => l.Version).IsConcurrencyToken();
 
-        // The HARD ceiling, not the operational limit: this is a data-integrity
-        // backstop against any write that bypasses the sanitizer, so it holds
-        // the most the column will ever tolerate. The day-to-day upload cap is
-        // config (FarmLogoOptions), validated to stay at or under this — which
-        // lets the cap move without a migration while nothing can store past
-        // what the constraint permits (#123).
+        // The HARD ceiling, not the operational limit: a data-integrity
+        // backstop against any write that bypasses the sanitizer. The day-to-
+        // day upload cap is config (FarmLogoOptions/FarmBannerOptions),
+        // validated to stay at or under the matching ceiling — which lets the
+        // cap move without a migration while nothing can store past what the
+        // constraint permits (#123, #179).
+        //
+        // Each side's constraint is conditional on that side being SET
+        // (Content/BannerContent IS NOT NULL) — a row holding only a banner
+        // has a null Content, which octet_length() would compare against 0 and
+        // wrongly fail if the constraint didn't guard on presence first.
         builder.ToTable(t => t.HasCheckConstraint(
             "ck_farm_logos_content_length",
-            $"octet_length(\"Content\") > 0 AND octet_length(\"Content\") <= {ImageSanitizer.MaxByteLengthCeiling}"));
+            "\"Content\" IS NULL OR " +
+            $"(octet_length(\"Content\") > 0 AND octet_length(\"Content\") <= {ImageSanitizer.MaxByteLengthCeiling})"));
+
+        builder.ToTable(t => t.HasCheckConstraint(
+            "ck_farm_logos_banner_content_length",
+            "\"BannerContent\" IS NULL OR " +
+            "(octet_length(\"BannerContent\") > 0 AND octet_length(\"BannerContent\") <= " +
+            $"{ImageSanitizer.MaxBannerByteLengthCeiling})"));
     }
 }

@@ -33,14 +33,11 @@ public sealed class SetFarmLogoHandler(
         var existing = await logos.GetTrackedAsync(ct);
         if (existing is null)
         {
-            existing = FarmLogo.Create(
-                Guid.NewGuid(), accountId, SeedDefaults.FarmId, image, now);
+            existing = FarmLogo.Create(Guid.NewGuid(), accountId, SeedDefaults.FarmId);
             logos.Add(existing);
         }
-        else
-        {
-            existing.Replace(image, now);
-        }
+
+        existing.Replace(image, now);
 
         // Details describe the image, never carry it — an audit row with a
         // megabyte of base64 in its JSON would make the audit viewer unusable
@@ -61,8 +58,9 @@ public sealed class SetFarmLogoHandler(
 
         await unitOfWork.SaveChangesAsync(ct);
 
+        // Non-null: Replace() just set every one of these on this same instance.
         return Result.Success(new FarmLogoMetadata(
-            existing.ContentType, existing.ContentHash,
-            existing.Width, existing.Height, existing.Content.Length, existing.UpdatedAt));
+            existing.ContentType!, existing.ContentHash!,
+            existing.Width!.Value, existing.Height!.Value, existing.Content!.Length, existing.UpdatedAt!.Value));
     }
 }

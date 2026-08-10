@@ -42,11 +42,11 @@ public static class AccountEndpoints
         var account = await accounts.GetCurrentAsync(ct);
         if (account is null) return Results.NotFound();
 
-        // Metadata only — the projection leaves the bytes in the database. This
-        // tells the chrome whether to fetch /logo at all, and gives it a value
-        // that changes when the logo does.
-        var logo = await logos.GetMetadataAsync(ct);
-        return Results.Ok(ToResponse(account, logo?.ContentHash));
+        // Hashes only, one round trip (#179 review) — this tells the chrome
+        // whether to fetch /logo (or the splash /banner) at all, and gives it a
+        // value that changes when the image does.
+        var branding = await logos.GetBrandingHashesAsync(ct);
+        return Results.Ok(ToResponse(account, branding.LogoContentHash, branding.BannerContentHash));
     }
 
     private static async Task<IResult> GetSettings(
@@ -54,6 +54,7 @@ public static class AccountEndpoints
         ICurrencyBoundRowProbe currencyBoundRows,
         IFarmLogoRepository logos,
         IOptionsSnapshot<FarmLogoOptions> logoOptions,
+        IOptionsSnapshot<FarmBannerOptions> bannerOptions,
         TenantContext tenant,
         CancellationToken ct)
     {
@@ -64,15 +65,16 @@ public static class AccountEndpoints
         // Surfaced so the screen can disable the currency field with an
         // explanation instead of letting the user discover the rule as a 422.
         var canChangeCurrency = !await currencyBoundRows.AnyAsync(ct);
-        var logo = await logos.GetMetadataAsync(ct);
+        var branding = await logos.GetBrandingHashesAsync(ct);
         // The upload cap travels with the settings the upload screen reads, so
         // the client-side pre-check and the "up to N MB" copy cannot drift from
-        // what the server enforces (#123). It IS config, so the SPA must not
-        // carry its own copy.
+        // what the server enforces (#123, #179). It IS config, so the SPA must
+        // not carry its own copy.
         return Results.Ok(new FarmSettingsResponse(
-            ToResponse(account, logo?.ContentHash),
+            ToResponse(account, branding.LogoContentHash, branding.BannerContentHash),
             canChangeCurrency,
-            logoOptions.Value.MaxUploadBytes));
+            logoOptions.Value.MaxUploadBytes,
+            bannerOptions.Value.MaxUploadBytes));
     }
 
     private static async Task<IResult> UpdateSettings(
@@ -116,7 +118,7 @@ public static class AccountEndpoints
         _ => Results.Problem(error.Description, statusCode: 422, title: error.Code)
     };
 
-    private static AccountResponse ToResponse(Account a, string? logoContentHash) => new(
+    private static AccountResponse ToResponse(Account a, string? logoContentHash, string? bannerContentHash) => new(
         a.Id, a.Name,
         a.DefaultCurrencyCode, a.DefaultCurrencyMinorUnit, a.CurrencySymbol,
         a.TimeZoneId, a.Locale,
@@ -126,7 +128,8 @@ public static class AccountEndpoints
         a.Version,
         logoContentHash,
         a.Brand,
-        a.DefaultStepperUnit.ToString());
+        a.DefaultStepperUnit.ToString(),
+        bannerContentHash);
 }
 
 // CurrencyCode/CurrencyMinorUnit keep their names and positions from the
@@ -155,14 +158,20 @@ public sealed record AccountResponse(
     // #444 — the farm-default Daily Entry stepper pack unit, on the same
     // role-agnostic read as Brand: DailyEntryPage needs it for every role,
     // not just admins.
-    string DefaultStepperUnit);
+    string DefaultStepperUnit,
+    // Null when the farm has no banner — the post-login splash is skipped
+    // entirely (#179). Otherwise the stored image's content hash, same
+    // self-invalidating role as LogoContentHash.
+    string? BannerContentHash);
 
 public sealed record FarmSettingsResponse(
     AccountResponse Settings,
     bool CanChangeCurrency,
     // The farm-logo upload cap in bytes (#123), from config. The SPA reads it
     // for the client-side size pre-check and the "up to N MB" copy.
-    int LogoMaxUploadBytes);
+    int LogoMaxUploadBytes,
+    // Same, for the farm banner (#179) — a separate, larger cap.
+    int BannerMaxUploadBytes);
 
 public sealed record UpdateFarmSettingsRequest(
     string Name,

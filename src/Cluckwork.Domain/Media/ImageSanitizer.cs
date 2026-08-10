@@ -47,6 +47,17 @@ using Cluckwork.Domain.Common;
 // stored and renders broken. That is a display bug, not a security one.
 public static class ImageSanitizer
 {
+    // Which of the two independent images (#179: logo vs banner) a Sanitize
+    // call is judging, so a failure names the right one — "FarmBanner.TooLarge"
+    // and "The banner must be...", never the logo's code/copy for a banner
+    // upload or vice versa. Code is what MapFailure switches on; Noun is what
+    // the message reads.
+    public readonly record struct ImageAssetKind(string Code, string Noun)
+    {
+        public static readonly ImageAssetKind Logo = new("FarmLogo", "logo");
+        public static readonly ImageAssetKind Banner = new("FarmBanner", "banner");
+    }
+
     // The HARD ceiling: the most the stored-bytes column will ever physically
     // tolerate, backing the DB check constraint (FarmLogoConfiguration) and the
     // upper bound the configured operational limit is validated against
@@ -64,31 +75,52 @@ public static class ImageSanitizer
     // enough that buffering one upload in memory is not itself the attack.
     public const int MaxByteLengthCeiling = 5 * 1024 * 1024;
 
+    // The banner (#179) is a wide/hero image, typically heavier than a square
+    // mark, and gets its own ceiling rather than sharing the logo's — backing
+    // FarmBannerConfiguration's check constraint and FarmBannerOptions.
+    public const int MaxBannerByteLengthCeiling = 15 * 1024 * 1024;
+
     // Above this a decode is measured in gigabytes of client RAM. 4096 is far
-    // past any sane logo and still renders on a 4K display at 1:1.
+    // past any sane logo/banner and still renders on a 4K display at 1:1. Not
+    // an aspect-ratio rule — a wide banner just needs one dimension near this
+    // ceiling and the other small.
     public const int MaxPixelDimension = 4096;
 
-    public static readonly Error Empty = Error.Validation(
-        "FarmLogo.Empty", "The uploaded file is empty.");
+    // Every error below has a Logo-defaulting zero-arg overload (used by the
+    // 50+ existing tests and callers that only ever sanitized a logo, before
+    // #179 added a second caller) and an ImageAssetKind overload so a banner
+    // upload gets its own code/copy instead of borrowing the logo's (#179).
+    public static Error Empty() => Empty(ImageAssetKind.Logo);
+
+    public static Error Empty(ImageAssetKind asset) => Error.Validation(
+        $"{asset.Code}.Empty", "The uploaded file is empty.");
 
     // A factory, not a field: the limit is configurable now, so the message has
-    // to carry whatever it was actually held to. The CODE stays "FarmLogo.TooLarge"
+    // to carry whatever it was actually held to. The CODE stays "<Asset>.TooLarge"
     // so the status mapping (413) and the SPA's switch on it do not move.
-    public static Error TooLarge(int maxByteLength) => Error.Validation(
-        "FarmLogo.TooLarge",
-        $"The logo must be {maxByteLength / 1024} KB or smaller.");
+    public static Error TooLarge(int maxByteLength) => TooLarge(maxByteLength, ImageAssetKind.Logo);
 
-    public static readonly Error UnsupportedFormat = Error.Validation(
-        "FarmLogo.UnsupportedFormat",
-        "The logo must be a PNG, JPEG or WebP image. SVG is not accepted because it can carry script.");
+    public static Error TooLarge(int maxByteLength, ImageAssetKind asset) => Error.Validation(
+        $"{asset.Code}.TooLarge",
+        $"The {asset.Noun} must be {maxByteLength / 1024} KB or smaller.");
 
-    public static readonly Error Malformed = Error.Validation(
-        "FarmLogo.Malformed",
+    public static Error UnsupportedFormat() => UnsupportedFormat(ImageAssetKind.Logo);
+
+    public static Error UnsupportedFormat(ImageAssetKind asset) => Error.Validation(
+        $"{asset.Code}.UnsupportedFormat",
+        $"The {asset.Noun} must be a PNG, JPEG or WebP image. SVG is not accepted because it can carry script.");
+
+    public static Error Malformed() => Malformed(ImageAssetKind.Logo);
+
+    public static Error Malformed(ImageAssetKind asset) => Error.Validation(
+        $"{asset.Code}.Malformed",
         "The file claims to be an image but its structure is not valid. Re-export it and try again.");
 
-    public static readonly Error DimensionsTooLarge = Error.Validation(
-        "FarmLogo.DimensionsTooLarge",
-        $"The logo must be at most {MaxPixelDimension}x{MaxPixelDimension} pixels.");
+    public static Error DimensionsTooLarge() => DimensionsTooLarge(ImageAssetKind.Logo);
+
+    public static Error DimensionsTooLarge(ImageAssetKind asset) => Error.Validation(
+        $"{asset.Code}.DimensionsTooLarge",
+        $"The {asset.Noun} must be at most {MaxPixelDimension}x{MaxPixelDimension} pixels.");
 
     // Animated PNG and animated WebP are both refused.
     //
@@ -100,30 +132,39 @@ public static class ImageSanitizer
     // APNG has no such nesting and could safely have been kept. It is refused
     // anyway so the product rule is one sentence — a logo is a still image —
     // rather than a per-format footnote, and so the surface stays small.
-    public static readonly Error AnimationNotSupported = Error.Validation(
-        "FarmLogo.AnimationNotSupported",
-        "The logo must be a still image. Animated PNG and animated WebP are not accepted.");
+    public static Error AnimationNotSupported() => AnimationNotSupported(ImageAssetKind.Logo);
+
+    public static Error AnimationNotSupported(ImageAssetKind asset) => Error.Validation(
+        $"{asset.Code}.AnimationNotSupported",
+        $"The {asset.Noun} must be a still image. Animated PNG and animated WebP are not accepted.");
 
     private static readonly byte[] PngSignature = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
 
     public static Result<SanitizedImage> Sanitize(
-        ReadOnlySpan<byte> data, int maxByteLength = MaxByteLengthCeiling)
-    {
-        if (data.Length == 0) return Result.Failure<SanitizedImage>(Empty);
-        if (data.Length > maxByteLength) return Result.Failure<SanitizedImage>(TooLarge(maxByteLength));
+        ReadOnlySpan<byte> data, int maxByteLength = MaxByteLengthCeiling) =>
+        Sanitize(data, maxByteLength, ImageAssetKind.Logo);
 
-        if (data.StartsWith(PngSignature)) return SanitizePng(data);
+    // #179 — the banner shares this walk (format detection, security limits,
+    // dimension cap) with the logo; only WHICH error codes/copy come back on
+    // failure differs, via `asset`.
+    public static Result<SanitizedImage> Sanitize(
+        ReadOnlySpan<byte> data, int maxByteLength, ImageAssetKind asset)
+    {
+        if (data.Length == 0) return Result.Failure<SanitizedImage>(Empty(asset));
+        if (data.Length > maxByteLength) return Result.Failure<SanitizedImage>(TooLarge(maxByteLength, asset));
+
+        if (data.StartsWith(PngSignature)) return SanitizePng(data, asset);
 
         // SOI. Every JPEG variant (JFIF, Exif, raw) shares it.
         if (data.Length >= 3 && data[0] == 0xFF && data[1] == 0xD8 && data[2] == 0xFF)
-            return SanitizeJpeg(data);
+            return SanitizeJpeg(data, asset);
 
         if (data.Length >= 12
             && FourCc(data) == Riff
             && FourCc(data[8..]) == Webp)
-            return SanitizeWebp(data);
+            return SanitizeWebp(data, asset);
 
-        return Result.Failure<SanitizedImage>(UnsupportedFormat);
+        return Result.Failure<SanitizedImage>(UnsupportedFormat(asset));
     }
 
     // --- PNG ---------------------------------------------------------------
@@ -178,7 +219,7 @@ public static class ImageSanitizer
         return true;
     }
 
-    private static Result<SanitizedImage> SanitizePng(ReadOnlySpan<byte> data)
+    private static Result<SanitizedImage> SanitizePng(ReadOnlySpan<byte> data, ImageAssetKind asset)
     {
         // The rewrite only ever drops, so the input length is a safe ceiling.
         var output = new byte[data.Length];
@@ -197,7 +238,7 @@ public static class ImageSanitizer
             // Long arithmetic throughout: a declared length near uint.MaxValue
             // overflows an int add and would wrap into a passing bounds check.
             var chunkEnd = (long)pos + 8 + declared + 4;
-            if (chunkEnd > data.Length) return Result.Failure<SanitizedImage>(Malformed);
+            if (chunkEnd > data.Length) return Result.Failure<SanitizedImage>(Malformed(asset));
 
             var type = FourCc(data[(pos + 4)..]);
             var dataStart = pos + 8;
@@ -206,26 +247,26 @@ public static class ImageSanitizer
             // Length first, so the header read below is against a chunk whose
             // size the specification agrees with.
             if (!PngChunkLengthIsLegal(type, length))
-                return Result.Failure<SanitizedImage>(Malformed);
+                return Result.Failure<SanitizedImage>(Malformed(asset));
 
             if (!sawHeader)
             {
                 // IHDR is required to be the first chunk, and it is where the
                 // dimensions live, so nothing can precede it.
-                if (type != Ihdr) return Result.Failure<SanitizedImage>(Malformed);
+                if (type != Ihdr) return Result.Failure<SanitizedImage>(Malformed(asset));
                 width = (int)BinaryPrimitives.ReadUInt32BigEndian(data[dataStart..]);
                 height = (int)BinaryPrimitives.ReadUInt32BigEndian(data[(dataStart + 4)..]);
                 sawHeader = true;
             }
             else if (type == Ihdr)
             {
-                return Result.Failure<SanitizedImage>(Malformed);
+                return Result.Failure<SanitizedImage>(Malformed(asset));
             }
 
             // Animation is refused rather than silently flattened — see the
             // WebP walk for why the two formats are held to one rule.
             if (type == Actl || type == Fctl || type == Fdat)
-                return Result.Failure<SanitizedImage>(AnimationNotSupported);
+                return Result.Failure<SanitizedImage>(AnimationNotSupported(asset));
 
             if (type == Idat) sawPixels = true;
 
@@ -234,7 +275,7 @@ public static class ImageSanitizer
             // would just be storing a broken logo.
             var isCritical = (data[pos + 4] & 0x20) == 0;
             if (!PngKeep.Contains(type) && isCritical)
-                return Result.Failure<SanitizedImage>(Malformed);
+                return Result.Failure<SanitizedImage>(Malformed(asset));
 
             if (PngKeep.Contains(type))
             {
@@ -255,8 +296,8 @@ public static class ImageSanitizer
         // Header, at least one pixel chunk, and a proper end. Same reasoning as
         // the unknown-critical-chunk rejection: a file missing any of these
         // cannot render, so accepting it only stores a broken logo.
-        if (!sawHeader || !sawPixels || !sawEnd) return Result.Failure<SanitizedImage>(Malformed);
-        return Complete(ImageKind.Png, output, written, width, height);
+        if (!sawHeader || !sawPixels || !sawEnd) return Result.Failure<SanitizedImage>(Malformed(asset));
+        return Complete(ImageKind.Png, output, written, width, height, asset);
     }
 
     // --- JPEG --------------------------------------------------------------
@@ -266,7 +307,7 @@ public static class ImageSanitizer
     // alternate between the two, so the walk below switches modes rather than
     // assuming SOS is the last thing it sees.
 
-    private static Result<SanitizedImage> SanitizeJpeg(ReadOnlySpan<byte> data)
+    private static Result<SanitizedImage> SanitizeJpeg(ReadOnlySpan<byte> data, ImageAssetKind asset)
     {
         var output = new byte[data.Length];
         output[0] = 0xFF;
@@ -281,7 +322,7 @@ public static class ImageSanitizer
 
         while (pos + 1 < data.Length)
         {
-            if (data[pos] != 0xFF) return Result.Failure<SanitizedImage>(Malformed);
+            if (data[pos] != 0xFF) return Result.Failure<SanitizedImage>(Malformed(asset));
 
             // FF FF is legal padding before a marker.
             if (data[pos + 1] == 0xFF) { pos++; continue; }
@@ -306,13 +347,13 @@ public static class ImageSanitizer
                 continue;
             }
 
-            if (pos + 4 > data.Length) return Result.Failure<SanitizedImage>(Malformed);
+            if (pos + 4 > data.Length) return Result.Failure<SanitizedImage>(Malformed(asset));
             var segmentLength = BinaryPrimitives.ReadUInt16BigEndian(data[(pos + 2)..]);
             // The length counts its own two bytes, so anything under 2 is a lie
             // that would make the walk stand still or run backwards.
-            if (segmentLength < 2) return Result.Failure<SanitizedImage>(Malformed);
+            if (segmentLength < 2) return Result.Failure<SanitizedImage>(Malformed(asset));
             var segmentEnd = (long)pos + 2 + segmentLength;
-            if (segmentEnd > data.Length) return Result.Failure<SanitizedImage>(Malformed);
+            if (segmentEnd > data.Length) return Result.Failure<SanitizedImage>(Malformed(asset));
 
             var payload = data.Slice(pos + 4, segmentLength - 2);
 
@@ -320,7 +361,7 @@ public static class ImageSanitizer
             // DAC (CC). Payload is precision, height, width, components.
             if (marker is >= 0xC0 and <= 0xCF && marker != 0xC4 && marker != 0xC8 && marker != 0xCC)
             {
-                if (payload.Length < 5) return Result.Failure<SanitizedImage>(Malformed);
+                if (payload.Length < 5) return Result.Failure<SanitizedImage>(Malformed(asset));
 
                 // Exactly the WebP duplicate-bitstream bug, in the format I
                 // fixed it for and then left standing here (codex round 2 of
@@ -328,11 +369,11 @@ public static class ImageSanitizer
                 // pair was capped, so SOF0(65535x65535) followed by SOF0(1x1)
                 // reported 1x1 and shipped the bomb header. A still image has
                 // one frame header.
-                if (sawFrame) return Result.Failure<SanitizedImage>(Malformed);
+                if (sawFrame) return Result.Failure<SanitizedImage>(Malformed(asset));
 
                 height = BinaryPrimitives.ReadUInt16BigEndian(payload[1..]);
                 width = BinaryPrimitives.ReadUInt16BigEndian(payload[3..]);
-                if (Exceeds(width, height)) return Result.Failure<SanitizedImage>(DimensionsTooLarge);
+                if (Exceeds(width, height)) return Result.Failure<SanitizedImage>(DimensionsTooLarge(asset));
                 sawFrame = true;
             }
 
@@ -357,8 +398,8 @@ public static class ImageSanitizer
         }
 
         // A frame header for the dimensions, a scan for the pixels, and EOI.
-        if (!sawFrame || !sawScan || !sawEnd) return Result.Failure<SanitizedImage>(Malformed);
-        return Complete(ImageKind.Jpeg, output, written, width, height);
+        if (!sawFrame || !sawScan || !sawEnd) return Result.Failure<SanitizedImage>(Malformed(asset));
+        return Complete(ImageKind.Jpeg, output, written, width, height, asset);
     }
 
     // Inside a scan, FF is escaped as FF 00, and restart markers are expected.
@@ -440,13 +481,13 @@ public static class ImageSanitizer
         // stream, which a flat allowlist cannot sweep. Animation is refused.
     }.Select(Fcc).ToFrozenSet();
 
-    private static Result<SanitizedImage> SanitizeWebp(ReadOnlySpan<byte> data)
+    private static Result<SanitizedImage> SanitizeWebp(ReadOnlySpan<byte> data, ImageAssetKind asset)
     {
         var declaredSize = BinaryPrimitives.ReadUInt32LittleEndian(data[4..]);
         // The RIFF size is authoritative. A file longer than it declares has a
         // tail we were never meant to read, and one shorter is truncated.
         var end = 8L + declaredSize;
-        if (end > data.Length || end < 12) return Result.Failure<SanitizedImage>(Malformed);
+        if (end > data.Length || end < 12) return Result.Failure<SanitizedImage>(Malformed(asset));
         var limit = (int)end;
 
         var output = new byte[data.Length];
@@ -469,29 +510,29 @@ public static class ImageSanitizer
             // length.
             var padded = (long)payloadLength + (payloadLength & 1);
             var chunkEnd = (long)pos + 8 + padded;
-            if (chunkEnd > limit) return Result.Failure<SanitizedImage>(Malformed);
+            if (chunkEnd > limit) return Result.Failure<SanitizedImage>(Malformed(asset));
 
             var payload = data.Slice(pos + 8, (int)payloadLength);
 
             if (type == Anim || type == Anmf)
-                return Result.Failure<SanitizedImage>(AnimationNotSupported);
+                return Result.Failure<SanitizedImage>(AnimationNotSupported(asset));
 
             if (type == Vp8x)
             {
                 // A second VP8X would overwrite the first one's canvas. A
                 // decoder reads the first; we would report the second.
-                if (sawCanvas) return Result.Failure<SanitizedImage>(Malformed);
+                if (sawCanvas) return Result.Failure<SanitizedImage>(Malformed(asset));
                 // EXACTLY ten: flags, three reserved, then two 24-bit canvas
                 // fields. VP8X is on the keep-list and keep-listed chunks are
                 // copied whole, so a longer one smuggles its surplus through —
                 // the same hole as PNG's fixed-size chunks, checked here with
                 // `<` instead of `!=` (adversarial review, round 2 of #168).
-                if (payload.Length != 10) return Result.Failure<SanitizedImage>(Malformed);
+                if (payload.Length != 10) return Result.Failure<SanitizedImage>(Malformed(asset));
                 // Canvas size is stored minus one, as two 24-bit LE fields.
                 var canvasWidth = ReadUInt24LittleEndian(payload[4..]) + 1;
                 var canvasHeight = ReadUInt24LittleEndian(payload[7..]) + 1;
                 if (Exceeds(canvasWidth, canvasHeight))
-                    return Result.Failure<SanitizedImage>(DimensionsTooLarge);
+                    return Result.Failure<SanitizedImage>(DimensionsTooLarge(asset));
 
                 width = canvasWidth;
                 height = canvasHeight;
@@ -509,20 +550,20 @@ public static class ImageSanitizer
                 // dimensions we judge. That turned the cap inside out — declare
                 // 16384x16384 first and 1x1 second and the bomb shipped with a
                 // 1x1 verdict (adversarial review of #168).
-                if (sawImage) return Result.Failure<SanitizedImage>(Malformed);
+                if (sawImage) return Result.Failure<SanitizedImage>(Malformed(asset));
 
                 int frameWidth = 0, frameHeight = 0;
                 var read = type == Vp8
                     ? TryReadLossyDimensions(payload, ref frameWidth, ref frameHeight)
                     : TryReadLosslessDimensions(payload, ref frameWidth, ref frameHeight);
-                if (!read) return Result.Failure<SanitizedImage>(Malformed);
+                if (!read) return Result.Failure<SanitizedImage>(Malformed(asset));
 
                 // Judged on its own account, whether or not it is the number we
                 // go on to report. EVERY dimension the file declares has to
                 // clear the cap, because we cannot know which one a given
                 // decoder will act on.
                 if (Exceeds(frameWidth, frameHeight))
-                    return Result.Failure<SanitizedImage>(DimensionsTooLarge);
+                    return Result.Failure<SanitizedImage>(DimensionsTooLarge(asset));
 
                 // VP8X carries the CANVAS size, which is what a decoder
                 // allocates; a frame inside it may be smaller.
@@ -547,7 +588,7 @@ public static class ImageSanitizer
         // VP8X alone is not an image: it only declares a canvas and which
         // optional features follow. Actual pixels live in VP8 or VP8L, and
         // without one there is nothing to render (codex review of #168).
-        if (!sawImage) return Result.Failure<SanitizedImage>(Malformed);
+        if (!sawImage) return Result.Failure<SanitizedImage>(Malformed(asset));
 
         // VP8X flags, MSB first: Rsv Rsv ICC Alpha EXIF XMP Anim Rsv.
         //
@@ -563,7 +604,7 @@ public static class ImageSanitizer
         // size no longer matches what we are storing.
         BinaryPrimitives.WriteUInt32LittleEndian(output.AsSpan(4), (uint)(written - 8));
 
-        return Complete(ImageKind.Webp, output, written, width, height);
+        return Complete(ImageKind.Webp, output, written, width, height, asset);
     }
 
     // VP8 key frame: 3-byte tag, the 9D 01 2A start code, then 14-bit
@@ -591,10 +632,10 @@ public static class ImageSanitizer
     // --- shared ------------------------------------------------------------
 
     private static Result<SanitizedImage> Complete(
-        ImageKind kind, byte[] output, int written, int width, int height)
+        ImageKind kind, byte[] output, int written, int width, int height, ImageAssetKind asset)
     {
-        if (width <= 0 || height <= 0) return Result.Failure<SanitizedImage>(Malformed);
-        if (Exceeds(width, height)) return Result.Failure<SanitizedImage>(DimensionsTooLarge);
+        if (width <= 0 || height <= 0) return Result.Failure<SanitizedImage>(Malformed(asset));
+        if (Exceeds(width, height)) return Result.Failure<SanitizedImage>(DimensionsTooLarge(asset));
 
         return Result.Success(new SanitizedImage(kind, output[..written], width, height));
     }

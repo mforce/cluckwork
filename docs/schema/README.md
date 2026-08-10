@@ -41,7 +41,7 @@ egg grades, and six packed-unit conversions — as guarded raw SQL
 | [public.EggGrades](public.EggGrades.md) | 10 |  | BASE TABLE |
 | [public.EggUnitConversions](public.EggUnitConversions.md) | 6 |  | BASE TABLE |
 | [public.ExpenseCategories](public.ExpenseCategories.md) | 6 |  | BASE TABLE |
-| [public.FarmLogos](public.FarmLogos.md) | 11 |  | BASE TABLE |
+| [public.FarmLogos](public.FarmLogos.md) | 18 |  | BASE TABLE |
 | [public.Flocks](public.Flocks.md) | 12 |  | BASE TABLE |
 | [public.idempotency_records](public.idempotency_records.md) | 13 |  | BASE TABLE |
 | [public.InventoryItems](public.InventoryItems.md) | 11 |  | BASE TABLE |
@@ -255,6 +255,13 @@ erDiagram
   timestamp_with_time_zone UpdatedAt
   integer Version
   uuid AccountId
+  integer BannerByteLength
+  bytea BannerContent
+  varchar_64_ BannerContentHash
+  varchar_32_ BannerContentType
+  integer BannerHeight
+  timestamp_with_time_zone BannerUpdatedAt
+  integer BannerWidth
 }
 "public.Flocks" {
   uuid Id

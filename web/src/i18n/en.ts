@@ -240,6 +240,12 @@ export const en = {
     reloading: "Reloading…",
     later: "Later",
   },
+  // The post-login splash (#179) — shown once per sign-in when the farm has a
+  // banner set, before the authenticated shell.
+  splash: {
+    continue: "Continue",
+    bannerAlt: "{{farmName}} banner",
+  },
   // Sales pilot (Task 7, #182) — the worked pattern for the full sweep.
   sales: {
     // Headings
@@ -1213,6 +1219,28 @@ export const en = {
       + "at any time.",
     removeLogoConfirmLabel: "Remove logo",
 
+    // Banner panel (#179)
+    bannerSectionHeading: "Banner",
+    bannerAlt: "Current farm banner",
+    bannerLoadingMessage: "Loading the banner…",
+    bannerLoadFailedMessage: "The banner could not be loaded.",
+    bannerNoneMessage: "No banner set — the post-login splash is skipped.",
+    uploadBannerButton: "Upload a banner",
+    replaceBannerButton: "Replace the banner",
+    removeBannerButton: "Remove",
+    bannerRulesHint:
+      "PNG, JPEG or WebP, up to {{cap}} and 4096 px a side. Shown full-size on "
+      + "a post-login splash, once per sign-in — a wide or detailed image works "
+      + "well here, unlike the small sidebar logo above.",
+    bannerWorkingMessage: "Working…",
+    bannerUpdatedMessage: "Banner updated.",
+    bannerRemovedMessage: "Banner removed.",
+    bannerOversizeMessage: "That image is {{actualKb}} KB. The limit is {{limitKb}} KB.",
+    removeBannerConfirmTitle: "Remove the farm banner?",
+    removeBannerConfirmBody:
+      "The post-login splash is skipped until another banner is uploaded.",
+    removeBannerConfirmLabel: "Remove banner",
+
     // Localization form
     localizationSectionHeading: "Localization",
     farmNameLabel: "Farm name",
@@ -1969,6 +1997,8 @@ export const en = {
     "auditAction.Account.Export": "Data exported",
     "auditAction.Account.SetLogo": "Farm logo set",
     "auditAction.Account.RemoveLogo": "Farm logo removed",
+    "auditAction.Account.SetBanner": "Farm banner set",
+    "auditAction.Account.RemoveBanner": "Farm banner removed",
     "auditAction.Account.UpdateSettings": "Farm settings updated",
     "auditAction.Product.Create": "Product created",
     "auditAction.Product.Update": "Product updated",
@@ -2495,6 +2525,11 @@ export const en = {
       + "— a symbol or a single letter — reads much better there than a wide wordmark or a detailed picture, "
       + "which shrink to something unreadable. Keep a detailed logo for print or a website; give the app a "
       + "clean little mark.",
+    farmSettingsBanner:
+      "The <strong>banner</strong> is a second, independent image shown full-size on a splash screen right "
+      + "after signing in, once per sign-in — a wide or detailed picture works well here, unlike the small "
+      + "sidebar logo above. It has its own size limit (5 MB by default) and its own presence: a farm can "
+      + "have a logo, a banner, both, or neither. If none is set, the splash is skipped entirely.",
     farmSettingsCountingUnit:
       "<strong>Daily Entry counting unit</strong> sets how much the entry screen's +/− buttons count by for "
       + "everyone on the farm — one egg, or a pack unit like Tray (30 per tap). Only units with an active "
@@ -2823,6 +2858,13 @@ export const en = {
       "Your own image in place of the Cluckwork mark in the sidebar, uploaded from Farm settings. PNG, "
       + "JPEG or WebP (2 MB by default), still images only; a square, simple mark reads best at the small "
       + "sidebar size. Stored as a rebuilt copy with camera and location details stripped out.",
+
+    glossaryFarmBannerTerm: "Farm banner",
+    glossaryFarmBannerDef:
+      "A second, independent image shown full-size on a splash screen right after signing in, once per "
+      + "sign-in. Separate from the farm logo above — a farm can have a logo, a banner, both, or neither. "
+      + "Same PNG/JPEG/WebP still-image rules, its own larger size limit (5 MB by default), uploaded from "
+      + "Farm settings.",
 
     glossaryFarmPaletteTerm: "Farm palette",
     glossaryFarmPaletteDef:

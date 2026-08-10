@@ -351,7 +351,7 @@ public sealed class FarmLogoTests(CluckworkWebApplicationFactory factory)
             .Select(l => new { l.Content, l.ContentType, l.ContentHash, l.ByteLength, l.Width, l.Height })
             .FirstAsync());
 
-        Assert.Equal(stored.Content.Length, stored.ByteLength);
+        Assert.Equal(stored.Content!.Length, stored.ByteLength);
         Assert.Equal(
             Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(stored.Content)).ToLowerInvariant(),
             stored.ContentHash);
@@ -377,8 +377,9 @@ public sealed class FarmLogoTests(CluckworkWebApplicationFactory factory)
             factory.WithTenantScopeAsync(accountId, async db =>
             {
                 var image = ImageSanitizer.Sanitize(TinyPng).Value;
-                db.FarmLogos.Add(FarmLogo.Create(
-                    Guid.NewGuid(), accountId, SeedDefaults.FarmId, image, DateTimeOffset.UtcNow));
+                var row = FarmLogo.Create(Guid.NewGuid(), accountId, SeedDefaults.FarmId);
+                row.Replace(image, DateTimeOffset.UtcNow);
+                db.FarmLogos.Add(row);
                 await db.SaveChangesAsync();
             }));
 
@@ -544,7 +545,9 @@ public sealed class FarmLogoTests(CluckworkWebApplicationFactory factory)
         var okId = Guid.NewGuid();
         await factory.WithTenantScopeAsync(accountId, async db =>
         {
-            db.FarmLogos.Add(FarmLogo.Create(okId, accountId, SeedDefaults.FarmId, twoMb, DateTimeOffset.UtcNow));
+            var row = FarmLogo.Create(okId, accountId, SeedDefaults.FarmId);
+            row.Replace(twoMb, DateTimeOffset.UtcNow);
+            db.FarmLogos.Add(row);
             await db.SaveChangesAsync();
         });
         var storedBytes = await factory.WithTenantScopeAsync(accountId,
@@ -561,8 +564,9 @@ public sealed class FarmLogoTests(CluckworkWebApplicationFactory factory)
             factory.WithTenantScopeAsync(accountId, async db =>
             {
                 await db.FarmLogos.Where(l => l.AccountId == accountId).ExecuteDeleteAsync();
-                db.FarmLogos.Add(FarmLogo.Create(
-                    Guid.NewGuid(), accountId, SeedDefaults.FarmId, overCeiling, DateTimeOffset.UtcNow));
+                var row = FarmLogo.Create(Guid.NewGuid(), accountId, SeedDefaults.FarmId);
+                row.Replace(overCeiling, DateTimeOffset.UtcNow);
+                db.FarmLogos.Add(row);
                 await db.SaveChangesAsync();
             }));
         var dbEx = Assert.IsType<DbUpdateException>(rejected);
@@ -611,8 +615,8 @@ public sealed class FarmLogoTests(CluckworkWebApplicationFactory factory)
 
         var stored = await factory.WithTenantScopeAsync(
             accountId, db => db.FarmLogos.Select(l => l.Content).FirstAsync());
-        Assert.DoesNotContain("GPSLatitude", AsBytewiseText(stored));
-        Assert.DoesNotContain("Exif", AsBytewiseText(stored));
+        Assert.DoesNotContain("GPSLatitude", AsBytewiseText(stored!));
+        Assert.DoesNotContain("Exif", AsBytewiseText(stored!));
     }
 
     [Fact]

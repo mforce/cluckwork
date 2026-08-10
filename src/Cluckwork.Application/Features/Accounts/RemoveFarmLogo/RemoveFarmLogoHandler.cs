@@ -15,9 +15,9 @@ public sealed class RemoveFarmLogoHandler(
     public async Task<Result> HandleAsync(CancellationToken ct)
     {
         var logo = await logos.GetTrackedAsync(ct);
-        if (logo is null) return Result.Failure(NotSet);
+        if (logo is null || !logo.HasLogo) return Result.Failure(NotSet);
 
-        // Recorded before the delete, while there is still something to
+        // Recorded before the clear, while there is still something to
         // describe. The hash is the useful part: it says WHICH logo went.
         await audit.WriteAsync(
             AuditActions.AccountRemoveLogo, nameof(FarmLogo), logo.Id,
@@ -25,7 +25,11 @@ public sealed class RemoveFarmLogoHandler(
             details: new { contentType = logo.ContentType, contentHash = logo.ContentHash },
             ct: ct);
 
-        logos.Remove(logo);
+        logo.ClearLogo();
+        // The row also holds the banner (#179) — delete it only once neither
+        // asset is left, never just because this one was.
+        if (!logo.HasBanner) logos.Remove(logo);
+
         await unitOfWork.SaveChangesAsync(ct);
 
         return Result.Success();

@@ -3,8 +3,8 @@ import type { ChangeEvent, FormEvent } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { Trash2, Upload } from "lucide-react";
 import {
-  LOGO_ACCEPT, getFarmSettings, listEggUnitConversions, removeFarmLogo, updateFarmSettings,
-  uploadFarmLogo,
+  BANNER_ACCEPT, LOGO_ACCEPT, getFarmSettings, listEggUnitConversions, removeFarmBanner,
+  removeFarmLogo, updateFarmSettings, uploadFarmBanner, uploadFarmLogo,
 } from "../api/cluckwork";
 import type { EggUnitConversion, FarmSettings, UpdateFarmSettings } from "../api/cluckwork";
 import { ApiError } from "../api/client";
@@ -12,7 +12,7 @@ import { BusyButton } from "../components/BusyButton";
 import { useConfirm } from "../components/useConfirm";
 import { usePendingAction } from "../components/usePendingAction";
 import { useFarm } from "../farm/useFarm";
-import { useLogoObjectUrl } from "../farm/useLogoObjectUrl";
+import { useBannerObjectUrl, useLogoObjectUrl } from "../farm/useLogoObjectUrl";
 import { BRANDS, DEFAULT_BRAND, applyBrand, isBrand } from "../lib/brand";
 import type { Brand } from "../lib/brand";
 import { isKnownTimeZone } from "../lib/dates";
@@ -177,6 +177,7 @@ export function SettingsPage() {
   const { busy, isPending, run } = usePendingAction();
   const saving = isPending("settings");
   const logoBusy = isPending("logo:upload") || isPending("logo:remove");
+  const bannerBusy = isPending("banner:upload") || isPending("banner:remove");
 
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -193,18 +194,32 @@ export function SettingsPage() {
   const removeAttempt = useRef<Attempt | null>(null);
   const uploadInput = useRef<HTMLInputElement>(null);
 
+  const [focusBannerUploadAfterRemove, setFocusBannerUploadAfterRemove] = useState(false);
+  const [bannerError, setBannerError] = useState<string | null>(null);
+  const [bannerMessage, setBannerMessage] = useState<string | null>(null);
+  const bannerUploadAttempt = useRef<Attempt | null>(null);
+  const bannerRemoveAttempt = useRef<Attempt | null>(null);
+  const bannerUploadInput = useRef<HTMLInputElement>(null);
+
   const currencyNoteId = useId();
   const timeZoneNoteId = useId();
   const logoRulesId = useId();
+  const bannerRulesId = useId();
 
   const logoHash = loaded?.settings.logoContentHash ?? null;
   const hasLogo = logoHash !== null;
   const logo = useLogoObjectUrl(logoHash);
 
+  const bannerHash = loaded?.settings.bannerContentHash ?? null;
+  const hasBanner = bannerHash !== null;
+  const banner = useBannerObjectUrl(bannerHash);
+
   // Server config, carried on the settings payload — never a client constant,
-  // so it cannot drift from what the server enforces (#123).
+  // so it cannot drift from what the server enforces (#123, #179).
   const maxUploadBytes = loaded?.logoMaxUploadBytes ?? 0;
   const maxUploadKb = Math.floor(maxUploadBytes / 1024);
+  const bannerMaxUploadBytes = loaded?.bannerMaxUploadBytes ?? 0;
+  const bannerMaxUploadKb = Math.floor(bannerMaxUploadBytes / 1024);
 
   const timeZoneUnknown = timeZoneId.trim() !== "" && !isKnownTimeZone(timeZoneId.trim());
 
@@ -255,6 +270,16 @@ export function SettingsPage() {
     });
   }
 
+  // Same reasoning as applyLogoHash, for the banner (#179) — the two are
+  // independent, so a banner write must never touch logoContentHash or vice
+  // versa.
+  function applyBannerHash(contentHash: string | null) {
+    setLoaded((prev) => prev === null ? prev : {
+      ...prev,
+      settings: { ...prev.settings, bannerContentHash: contentHash },
+    });
+  }
+
   // Once, on mount. `load` is re-created every render but must not re-run on
   // one: it overwrites the fields, so a reload mid-edit would discard whatever
   // the user had typed.
@@ -270,6 +295,12 @@ export function SettingsPage() {
     setFocusUploadAfterRemove(false);
     uploadInput.current?.focus();
   }, [focusUploadAfterRemove, logoBusy]);
+
+  useEffect(() => {
+    if (!focusBannerUploadAfterRemove || bannerBusy) return;
+    setFocusBannerUploadAfterRemove(false);
+    bannerUploadInput.current?.focus();
+  }, [focusBannerUploadAfterRemove, bannerBusy]);
 
   async function onSave(e: FormEvent) {
     e.preventDefault();
@@ -421,6 +452,67 @@ export function SettingsPage() {
     });
   }
 
+  async function onPickBanner(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (file === undefined) return;
+
+    if (busy) return;
+    setBannerError(null);
+    setBannerMessage(null);
+    if (file.size > bannerMaxUploadBytes) {
+      setBannerError(i18n.t("settings:bannerOversizeMessage", {
+        actualKb: Math.ceil(file.size / 1024),
+        limitKb: bannerMaxUploadKb,
+      }));
+      return;
+    }
+
+    const attempt = keyFor(bannerUploadAttempt.current, `${file.name}:${file.size}:${file.lastModified}`);
+    bannerUploadAttempt.current = attempt;
+
+    await run("banner:upload", async () => {
+      try {
+        const stored = await uploadFarmBanner(file, attempt.key);
+        bannerUploadAttempt.current = null;
+        applyBannerHash(stored.contentHash);
+        setBannerMessage(i18n.t("settings:bannerUpdatedMessage"));
+        await refresh();
+      } catch (err) {
+        setBannerError(errText(err));
+      }
+    });
+  }
+
+  async function onRemoveBanner() {
+    const ok = await confirm({
+      title: i18n.t("settings:removeBannerConfirmTitle"),
+      body: i18n.t("settings:removeBannerConfirmBody"),
+      confirmLabel: i18n.t("settings:removeBannerConfirmLabel"),
+      destructive: true,
+    });
+    if (!ok) return;
+    if (busy) return;
+
+    setBannerError(null);
+    setBannerMessage(null);
+    const attempt = keyFor(bannerRemoveAttempt.current, `remove:${bannerHash ?? ""}`);
+    bannerRemoveAttempt.current = attempt;
+
+    await run("banner:remove", async () => {
+      try {
+        await removeFarmBanner(attempt.key);
+        bannerRemoveAttempt.current = null;
+        applyBannerHash(null);
+        setBannerMessage(i18n.t("settings:bannerRemovedMessage"));
+        setFocusBannerUploadAfterRemove(true);
+        await refresh();
+      } catch (err) {
+        setBannerError(errText(err));
+      }
+    });
+  }
+
   if (loadError !== null) return (
     <section>
       <h2>{t("heading")}</h2>
@@ -493,6 +585,41 @@ export function SettingsPage() {
         {isPending("logo:upload") ? t("logoWorkingMessage") : logoMessage ?? ""}
       </p>
       {logoError !== null && <p className="error" role="alert">{logoError}</p>}
+
+      <h3>{t("bannerSectionHeading")}</h3>
+      <div className="logo-panel">
+        {banner.url !== null ? (
+          <img className="banner-preview" src={banner.url} alt={t("bannerAlt")} />
+        ) : (
+          <p className="muted logo-empty">
+            {banner.loading ? t("bannerLoadingMessage")
+              : banner.failed ? t("bannerLoadFailedMessage")
+                : t("bannerNoneMessage")}
+          </p>
+        )}
+        <div className="logo-actions">
+          <label className="logo-file">
+            <Upload size={16} aria-hidden /> {hasBanner ? t("replaceBannerButton") : t("uploadBannerButton")}
+            <input ref={bannerUploadInput} type="file" accept={BANNER_ACCEPT} disabled={busy}
+              aria-describedby={bannerRulesId}
+              onChange={(e) => void onPickBanner(e)} />
+          </label>
+          {hasBanner && (
+            <BusyButton type="button" className="btn-danger" disabled={busy}
+              busy={isPending("banner:remove")}
+              onClick={() => void onRemoveBanner()}>
+              <Trash2 size={16} aria-hidden /> {t("removeBannerButton")}
+            </BusyButton>
+          )}
+        </div>
+      </div>
+      <p className="muted" id={bannerRulesId}>
+        {t("bannerRulesHint", { cap: formatByteCap(bannerMaxUploadBytes) })}
+      </p>
+      <p className="success" role="status">
+        {isPending("banner:upload") ? t("bannerWorkingMessage") : bannerMessage ?? ""}
+      </p>
+      {bannerError !== null && <p className="error" role="alert">{bannerError}</p>}
 
       <h3>{t("localizationSectionHeading")}</h3>
       <form className="form-grid" onSubmit={(e) => void onSave(e)}>
