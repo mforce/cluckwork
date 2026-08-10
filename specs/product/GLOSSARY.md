@@ -659,10 +659,12 @@ request, not once the access token's ~15-minute lifetime happens to run out —
 the disable bumps the target's **credential epoch** (see above), rotates
 their security stamp, and revokes every refresh token, mirroring the side
 effects a role change applies. Re-enabling is reversible but deliberately
-**not symmetric**: it clears only the disabled flag — it does NOT roll the
-credential epoch back, so every credential issued before the disable stays
-permanently dead and the user signs back in fresh; nothing minted before the
-disable is ever revived. The account's last active Owner cannot be disabled
+**not symmetric on the credential epoch**: it also rotates the security
+stamp (so a stale concurrent password-reset write cannot silently restore
+the disabled flag), but it does NOT roll the credential epoch back, so every
+credential issued before the disable stays permanently dead and the user
+signs back in fresh; nothing minted before the disable is ever revived. The
+account's last active Owner cannot be disabled
 (refused inside the same account-locked transaction that guards a demotion),
 and nobody can disable themselves (refused at the endpoint before validation
 even runs). This is not deletion: a disabled user's row, their audit trail,

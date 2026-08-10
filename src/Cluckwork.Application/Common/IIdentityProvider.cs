@@ -95,14 +95,19 @@ public interface IIdentityProvider
         CancellationToken ct = default);
 
     // #356 — re-enable a disabled user, account-scoped (foreign id ->
-    // NotFound). Deliberately ASYMMETRIC with DisableUserAsync: it clears
-    // DisabledAt and DisabledBy and writes an audit row, and does NOTHING
-    // else. It must NOT bump CredentialEpoch and must NOT restore the
-    // pre-disable value — leaving the epoch where the disable left it is
-    // exactly what keeps every pre-disable access token dead. It takes the
-    // same account lock so a disable and an enable of the same user cannot
-    // interleave into an inconsistent DisabledAt/epoch pair. Enabling an
-    // already-active user is a true no-op.
+    // NotFound). Deliberately ASYMMETRIC with DisableUserAsync on the
+    // CREDENTIAL side only: it clears DisabledAt and DisabledBy and writes
+    // an audit row, and it must NOT bump CredentialEpoch and must NOT
+    // restore the pre-disable value — leaving the epoch where the disable
+    // left it is exactly what keeps every pre-disable access token dead.
+    // It DOES also rotate SecurityStamp/ConcurrencyStamp (round-3 review of
+    // #492): a stale full-entity write from a concurrent SetUserPassword,
+    // read before this method ran, would otherwise land after it and
+    // silently restore DisabledAt behind a 204. That rotation is required,
+    // not optional — do not read "does NOTHING else" as license to drop it.
+    // It takes the same account lock so a disable and an enable of the same
+    // user cannot interleave into an inconsistent DisabledAt/epoch pair.
+    // Enabling an already-active user is a true no-op.
     Task<Result> EnableUserAsync(
         Guid accountId, Guid userId, Guid actingUserId, CancellationToken ct = default);
 
