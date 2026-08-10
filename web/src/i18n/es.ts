@@ -2323,10 +2323,12 @@ export const es = {
     glossaryStepUpAuthTerm: "Autenticación reforzada (step-up)",
     glossaryStepUpAuthDef:
       "Una comprobación adicional además de haber iniciado sesión: antes de crear otro propietario, "
-      + "restablecer la contraseña de un propietario existente, o ascender a alguien a propietario, la "
-      + "pantalla Usuarios le pide volver a ingresar su contraseña actual directamente en el diálogo. Esto "
-      + "confirma que realmente es usted antes de otorgar tanto acceso — ninguna otra acción en esa "
-      + "pantalla vuelve a preguntar.",
+      + "restablecer la contraseña de un propietario existente, ascender a alguien a propietario, o "
+      + "deshabilitar o volver a habilitar a cualquier usuario, la pantalla Usuarios le pide volver a "
+      + "ingresar su contraseña actual directamente en el diálogo. Esto confirma que realmente es usted "
+      + "antes de otorgar — o retirar — tanto acceso. Deshabilitar y volver a habilitar preguntan siempre, "
+      + "sin importar el rol del usuario; las otras tres solo preguntan cuando está en juego el acceso de "
+      + "propietario.",
 
     glossarySomethingWentWrongScreenTerm: "Pantalla \"Algo salió mal\"",
     glossarySomethingWentWrongScreenDef:

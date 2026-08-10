@@ -2724,9 +2724,10 @@ export const en = {
     glossaryStepUpAuthTerm: "Step-up authentication",
     glossaryStepUpAuthDef:
       "An extra check on top of being signed in: before creating another Owner, resetting an existing "
-      + "Owner's password, or promoting someone to Owner, the Users screen asks you to re-enter your current "
-      + "password right there in the dialog. It confirms it's really you before handing out that much access "
-      + "— every other action on that screen does not ask again.",
+      + "Owner's password, promoting someone to Owner, or disabling or re-enabling any user, the Users "
+      + "screen asks you to re-enter your current password right there in the dialog. It confirms it's "
+      + "really you before handing out — or taking away — that much access. Disabling and re-enabling ask "
+      + "every time, regardless of the target's role; the other three ask only when Owner access is involved.",
 
     glossarySomethingWentWrongScreenTerm: "\"Something went wrong\" screen",
     glossarySomethingWentWrongScreenDef:

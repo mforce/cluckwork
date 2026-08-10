@@ -2411,10 +2411,11 @@ export const tl = {
     glossaryStepUpAuthTerm: "Karagdagang pagpapatunay (step-up)",
     glossaryStepUpAuthDef:
       "Isang karagdagang tsek bukod sa pagiging naka-sign in: bago gumawa ng isa pang Owner, mag-reset ng "
-      + "password ng umiiral na Owner, o mag-promote ng isang tao maging Owner, hinihiling ng Users screen "
-      + "na muling ilagay ang kasalukuyan mong password mismo sa dialog. Kinukumpirma nito na ikaw talaga "
-      + "bago bigyan ng ganoong kalaking access — walang ibang aksyon sa screen na iyon ang muling "
-      + "nagtatanong.",
+      + "password ng umiiral na Owner, mag-promote ng isang tao maging Owner, o mag-disable o mag-enable "
+      + "ulit ng kahit sinong user, hinihiling ng Users screen na muling ilagay ang kasalukuyan mong "
+      + "password mismo sa dialog. Kinukumpirma nito na ikaw talaga bago bigyan — o bawiin — ang ganoong "
+      + "kalaking access. Palaging nagtatanong ang disable at enable, kahit anong role ng user; ang tatlong "
+      + "iba pa ay nagtatanong lang kapag may kinalaman sa access ng Owner.",
 
     glossarySomethingWentWrongScreenTerm: "Screen na \"Something went wrong\"",
     glossarySomethingWentWrongScreenDef:
