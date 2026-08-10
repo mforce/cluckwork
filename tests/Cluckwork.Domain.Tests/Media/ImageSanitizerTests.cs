@@ -25,7 +25,50 @@ public sealed class ImageSanitizerTests
         var result = ImageSanitizer.Sanitize([]);
 
         Assert.True(result.IsFailure);
-        Assert.Equal(ImageSanitizer.Empty, result.Error);
+        Assert.Equal(ImageSanitizer.Empty(), result.Error);
+    }
+
+    // --- #179: asset-labelled errors ----------------------------------------
+    // A banner upload must never come back as "FarmLogo.*" — the SPA switches
+    // on the code, and the message reads the wrong noun. These four exercise
+    // Sanitize's asset-aware overload directly, independent of format walking
+    // (already covered above/below using the Logo-defaulting overload).
+
+    [Fact]
+    public void BannerAsset_Empty_UsesFarmBannerCode()
+    {
+        var result = ImageSanitizer.Sanitize(
+            [], ImageSanitizer.MaxByteLengthCeiling, ImageSanitizer.ImageAssetKind.Banner);
+
+        Assert.Equal("FarmBanner.Empty", result.Error.Code);
+    }
+
+    [Fact]
+    public void BannerAsset_TooLarge_UsesFarmBannerCodeAndNoun()
+    {
+        var result = ImageSanitizer.Sanitize(
+            new byte[10], 5, ImageSanitizer.ImageAssetKind.Banner);
+
+        Assert.Equal("FarmBanner.TooLarge", result.Error.Code);
+        Assert.Contains("banner", result.Error.Description);
+    }
+
+    [Fact]
+    public void BannerAsset_UnsupportedFormat_UsesFarmBannerCodeAndNoun()
+    {
+        var result = ImageSanitizer.Sanitize(
+            "not an image"u8.ToArray(), ImageSanitizer.MaxByteLengthCeiling, ImageSanitizer.ImageAssetKind.Banner);
+
+        Assert.Equal("FarmBanner.UnsupportedFormat", result.Error.Code);
+        Assert.Contains("banner", result.Error.Description);
+    }
+
+    [Fact]
+    public void LogoAsset_StillDefaultsWhenNoAssetGiven()
+    {
+        var result = ImageSanitizer.Sanitize([]);
+
+        Assert.Equal("FarmLogo.Empty", result.Error.Code);
     }
 
     [Fact]
@@ -87,7 +130,7 @@ public sealed class ImageSanitizerTests
         var result = ImageSanitizer.Sanitize(Encoding.UTF8.GetBytes(content));
 
         Assert.True(result.IsFailure);
-        Assert.Equal(ImageSanitizer.UnsupportedFormat, result.Error);
+        Assert.Equal(ImageSanitizer.UnsupportedFormat(), result.Error);
     }
 
     [Fact]
@@ -99,7 +142,7 @@ public sealed class ImageSanitizerTests
         var result = ImageSanitizer.Sanitize("\n\n  <svg xmlns=\"http://www.w3.org/2000/svg\"/>"u8);
 
         Assert.True(result.IsFailure);
-        Assert.Equal(ImageSanitizer.UnsupportedFormat, result.Error);
+        Assert.Equal(ImageSanitizer.UnsupportedFormat(), result.Error);
     }
 
     // --- PNG ---------------------------------------------------------------
@@ -179,7 +222,7 @@ public sealed class ImageSanitizerTests
         var result = ImageSanitizer.Sanitize(png);
 
         Assert.True(result.IsFailure);
-        Assert.Equal(ImageSanitizer.AnimationNotSupported, result.Error);
+        Assert.Equal(ImageSanitizer.AnimationNotSupported(), result.Error);
     }
 
     // The polyglot hole reopened from the inside. IEND is on the allowlist and
@@ -198,7 +241,7 @@ public sealed class ImageSanitizerTests
         var result = ImageSanitizer.Sanitize(png);
 
         Assert.True(result.IsFailure);
-        Assert.Equal(ImageSanitizer.Malformed, result.Error);
+        Assert.Equal(ImageSanitizer.Malformed(), result.Error);
     }
 
     // The IEND lesson generalized. Every kept chunk the specification gives a
@@ -227,7 +270,7 @@ public sealed class ImageSanitizerTests
         var result = ImageSanitizer.Sanitize(png);
 
         Assert.True(result.IsFailure, $"{type} carried {payload.Length} surplus bytes through");
-        Assert.Equal(ImageSanitizer.Malformed, result.Error);
+        Assert.Equal(ImageSanitizer.Malformed(), result.Error);
     }
 
     [Theory]
@@ -259,7 +302,7 @@ public sealed class ImageSanitizerTests
         var result = ImageSanitizer.Sanitize(png);
 
         Assert.True(result.IsFailure);
-        Assert.Equal(ImageSanitizer.Malformed, result.Error);
+        Assert.Equal(ImageSanitizer.Malformed(), result.Error);
     }
 
     [Fact]
@@ -275,7 +318,7 @@ public sealed class ImageSanitizerTests
         var result = ImageSanitizer.Sanitize(png);
 
         Assert.True(result.IsFailure);
-        Assert.Equal(ImageSanitizer.Malformed, result.Error);
+        Assert.Equal(ImageSanitizer.Malformed(), result.Error);
     }
 
     // The headline case for the whole no-decode approach. A polyglot is a valid
@@ -313,7 +356,7 @@ public sealed class ImageSanitizerTests
         var result = ImageSanitizer.Sanitize(png);
 
         Assert.True(result.IsFailure);
-        Assert.Equal(ImageSanitizer.Malformed, result.Error);
+        Assert.Equal(ImageSanitizer.Malformed(), result.Error);
     }
 
     [Theory]
@@ -340,7 +383,7 @@ public sealed class ImageSanitizerTests
         var result = ImageSanitizer.Sanitize(png);
 
         Assert.True(result.IsFailure);
-        Assert.Equal(ImageSanitizer.Malformed, result.Error);
+        Assert.Equal(ImageSanitizer.Malformed(), result.Error);
     }
 
     [Fact]
@@ -354,7 +397,7 @@ public sealed class ImageSanitizerTests
         var result = ImageSanitizer.Sanitize(png);
 
         Assert.True(result.IsFailure);
-        Assert.Equal(ImageSanitizer.Malformed, result.Error);
+        Assert.Equal(ImageSanitizer.Malformed(), result.Error);
     }
 
     [Fact]
@@ -368,7 +411,7 @@ public sealed class ImageSanitizerTests
         var result = ImageSanitizer.Sanitize(png);
 
         Assert.True(result.IsFailure);
-        Assert.Equal(ImageSanitizer.Malformed, result.Error);
+        Assert.Equal(ImageSanitizer.Malformed(), result.Error);
     }
 
     // --- JPEG --------------------------------------------------------------
@@ -579,7 +622,7 @@ public sealed class ImageSanitizerTests
         var result = ImageSanitizer.Sanitize(jpeg);
 
         Assert.True(result.IsFailure);
-        Assert.NotEqual(ImageSanitizer.Empty, result.Error);
+        Assert.NotEqual(ImageSanitizer.Empty(), result.Error);
     }
 
     [Fact]
@@ -598,7 +641,7 @@ public sealed class ImageSanitizerTests
         var result = ImageSanitizer.Sanitize(jpeg);
 
         Assert.True(result.IsFailure);
-        Assert.Equal(ImageSanitizer.Malformed, result.Error);
+        Assert.Equal(ImageSanitizer.Malformed(), result.Error);
     }
 
     [Fact]
@@ -614,7 +657,7 @@ public sealed class ImageSanitizerTests
         var result = ImageSanitizer.Sanitize(jpeg);
 
         Assert.True(result.IsFailure);
-        Assert.Equal(ImageSanitizer.Malformed, result.Error);
+        Assert.Equal(ImageSanitizer.Malformed(), result.Error);
     }
 
     [Theory]
@@ -633,7 +676,7 @@ public sealed class ImageSanitizerTests
         var result = ImageSanitizer.Sanitize(jpeg);
 
         Assert.True(result.IsFailure);
-        Assert.Equal(ImageSanitizer.Malformed, result.Error);
+        Assert.Equal(ImageSanitizer.Malformed(), result.Error);
     }
 
     // --- WebP --------------------------------------------------------------
@@ -702,7 +745,7 @@ public sealed class ImageSanitizerTests
         var result = ImageSanitizer.Sanitize(webp);
 
         Assert.True(result.IsFailure);
-        Assert.Equal(ImageSanitizer.Malformed, result.Error);
+        Assert.Equal(ImageSanitizer.Malformed(), result.Error);
     }
 
     [Fact]
@@ -717,7 +760,7 @@ public sealed class ImageSanitizerTests
         var result = ImageSanitizer.Sanitize(webp);
 
         Assert.True(result.IsFailure);
-        Assert.Equal(ImageSanitizer.Malformed, result.Error);
+        Assert.Equal(ImageSanitizer.Malformed(), result.Error);
     }
 
     [Fact]
@@ -765,7 +808,7 @@ public sealed class ImageSanitizerTests
         var result = ImageSanitizer.Sanitize(Webp(WebpChunk("EXIF", new byte[8])));
 
         Assert.True(result.IsFailure);
-        Assert.Equal(ImageSanitizer.Malformed, result.Error);
+        Assert.Equal(ImageSanitizer.Malformed(), result.Error);
     }
 
     [Fact]
@@ -777,7 +820,7 @@ public sealed class ImageSanitizerTests
         var result = ImageSanitizer.Sanitize(Webp(WebpChunk("VP8X", Vp8XPayload(64, 64, 0))));
 
         Assert.True(result.IsFailure);
-        Assert.Equal(ImageSanitizer.Malformed, result.Error);
+        Assert.Equal(ImageSanitizer.Malformed(), result.Error);
     }
 
     [Fact]
@@ -793,7 +836,7 @@ public sealed class ImageSanitizerTests
         var result = ImageSanitizer.Sanitize(webp);
 
         Assert.True(result.IsFailure);
-        Assert.Equal(ImageSanitizer.Malformed, result.Error);
+        Assert.Equal(ImageSanitizer.Malformed(), result.Error);
     }
 
     // The cap turned inside out. A decoder acts on the FIRST bitstream while
@@ -825,7 +868,7 @@ public sealed class ImageSanitizerTests
         var result = ImageSanitizer.Sanitize(webp);
 
         Assert.True(result.IsFailure);
-        Assert.Equal(ImageSanitizer.Malformed, result.Error);
+        Assert.Equal(ImageSanitizer.Malformed(), result.Error);
     }
 
     [Fact]
@@ -841,7 +884,7 @@ public sealed class ImageSanitizerTests
         var result = ImageSanitizer.Sanitize(webp);
 
         Assert.True(result.IsFailure);
-        Assert.Equal(ImageSanitizer.DimensionsTooLarge, result.Error);
+        Assert.Equal(ImageSanitizer.DimensionsTooLarge(), result.Error);
     }
 
     // An ANMF frame nests its own chunk stream, so the flat allowlist never
@@ -870,7 +913,7 @@ public sealed class ImageSanitizerTests
         var result = ImageSanitizer.Sanitize(webp);
 
         Assert.True(result.IsFailure);
-        Assert.Equal(ImageSanitizer.AnimationNotSupported, result.Error);
+        Assert.Equal(ImageSanitizer.AnimationNotSupported(), result.Error);
     }
 
     [Fact]
@@ -887,7 +930,7 @@ public sealed class ImageSanitizerTests
         var result = ImageSanitizer.Sanitize(webp);
 
         Assert.True(result.IsFailure);
-        Assert.Equal(ImageSanitizer.Malformed, result.Error);
+        Assert.Equal(ImageSanitizer.Malformed(), result.Error);
     }
 
     [Fact]
@@ -925,7 +968,7 @@ public sealed class ImageSanitizerTests
         var result = ImageSanitizer.Sanitize(png);
 
         Assert.True(result.IsFailure);
-        Assert.Equal(ImageSanitizer.DimensionsTooLarge, result.Error);
+        Assert.Equal(ImageSanitizer.DimensionsTooLarge(), result.Error);
     }
 
     [Fact]
@@ -940,7 +983,7 @@ public sealed class ImageSanitizerTests
         var result = ImageSanitizer.Sanitize(jpeg);
 
         Assert.True(result.IsFailure);
-        Assert.Equal(ImageSanitizer.DimensionsTooLarge, result.Error);
+        Assert.Equal(ImageSanitizer.DimensionsTooLarge(), result.Error);
     }
 
     [Fact]
@@ -953,7 +996,7 @@ public sealed class ImageSanitizerTests
         var result = ImageSanitizer.Sanitize(webp);
 
         Assert.True(result.IsFailure);
-        Assert.Equal(ImageSanitizer.DimensionsTooLarge, result.Error);
+        Assert.Equal(ImageSanitizer.DimensionsTooLarge(), result.Error);
     }
 
     [Fact]
@@ -977,7 +1020,7 @@ public sealed class ImageSanitizerTests
         var result = ImageSanitizer.Sanitize(png);
 
         Assert.True(result.IsFailure);
-        Assert.Equal(ImageSanitizer.Malformed, result.Error);
+        Assert.Equal(ImageSanitizer.Malformed(), result.Error);
     }
 
     // --- fixtures ----------------------------------------------------------

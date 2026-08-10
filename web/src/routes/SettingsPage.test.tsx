@@ -3,8 +3,8 @@ import { render, screen, within, fireEvent, act, waitFor } from "@testing-librar
 import { SettingsPage, formatByteCap } from "./SettingsPage";
 import { FarmContext } from "../farm/FarmContext";
 import {
-  getFarmLogo, getFarmSettings, listEggUnitConversions, removeFarmLogo, updateFarmSettings,
-  uploadFarmLogo,
+  getFarmBanner, getFarmLogo, getFarmSettings, listEggUnitConversions, removeFarmBanner,
+  removeFarmLogo, updateFarmSettings, uploadFarmBanner, uploadFarmLogo,
 } from "../api/cluckwork";
 import type { Account, FarmSettings } from "../api/cluckwork";
 import { ApiError } from "../api/client";
@@ -36,6 +36,9 @@ vi.mock("../api/cluckwork", async () => {
     uploadFarmLogo: vi.fn(),
     removeFarmLogo: vi.fn(),
     getFarmLogo: vi.fn(),
+    uploadFarmBanner: vi.fn(),
+    removeFarmBanner: vi.fn(),
+    getFarmBanner: vi.fn(),
     listEggUnitConversions: vi.fn(),
   };
 });
@@ -45,6 +48,9 @@ const mockUpdate = vi.mocked(updateFarmSettings);
 const mockUpload = vi.mocked(uploadFarmLogo);
 const mockRemove = vi.mocked(removeFarmLogo);
 const mockGetLogo = vi.mocked(getFarmLogo);
+const mockUploadBanner = vi.mocked(uploadFarmBanner);
+const mockRemoveBanner = vi.mocked(removeFarmBanner);
+const mockGetBanner = vi.mocked(getFarmBanner);
 const mockListConversions = vi.mocked(listEggUnitConversions);
 
 // #444 — the seeded defaults every real account carries (EggUnitConversion.Defaults).
@@ -57,6 +63,7 @@ const CONVERSIONS = [
 // A fixed cap for the size-boundary tests, independent of the production
 // default — the point is the > vs >= behaviour, not the number.
 const MAX_UPLOAD = 2 * 1024 * 1024;
+const BANNER_MAX_UPLOAD = 5 * 1024 * 1024;
 
 const SETTINGS = (over: Partial<Account> = {}, canChangeCurrency = true): FarmSettings => ({
   settings: account({
@@ -71,6 +78,7 @@ const SETTINGS = (over: Partial<Account> = {}, canChangeCurrency = true): FarmSe
   }),
   canChangeCurrency,
   logoMaxUploadBytes: MAX_UPLOAD,
+  bannerMaxUploadBytes: BANNER_MAX_UPLOAD,
 });
 
 let refreshed = 0;
@@ -104,6 +112,7 @@ beforeEach(() => {
   refreshOk = true;
   document.documentElement.removeAttribute("data-brand");
   mockGetLogo.mockResolvedValue({ blob: new Blob(["png"]), filename: null });
+  mockGetBanner.mockResolvedValue({ blob: new Blob(["png"]), filename: null });
   mockListConversions.mockResolvedValue(CONVERSIONS);
   vi.stubGlobal("URL", {
     ...URL,
@@ -898,6 +907,121 @@ describe("SettingsPage logo", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(mockRemove).not.toHaveBeenCalled();
     expect(refreshed).toBe(0);
+  });
+});
+
+// #179 — the banner panel, independent of the logo one above (separate hash,
+// separate upload cap, separate route). Not a full re-run of every logo case:
+// the shared plumbing (usePendingAction scopes, the oversize/server-error
+// paths) is proven once by the logo suite above and by useLogoObjectUrl's own
+// tests; this covers what's actually NEW — the banner's own cap wiring and
+// that it never touches the logo's state (mirrored in server-side tests too).
+describe("SettingsPage banner", () => {
+  it("says there is none, offers upload only, and never fetches bytes", async () => {
+    await renderReady(SETTINGS({ bannerContentHash: null }));
+    expect(screen.getByText(/No banner set/)).toBeInTheDocument();
+    expect(screen.getByText("Upload a banner")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Remove/ })).not.toBeInTheDocument();
+    expect(mockGetBanner).not.toHaveBeenCalled();
+  });
+
+  it("previews the stored banner and offers replace + remove", async () => {
+    await renderReady(SETTINGS({ logoContentHash: null, bannerContentHash: "deadbeef" }));
+    const img = await screen.findByAltText("Current farm banner");
+    expect(img).toHaveAttribute("src", "blob:test/logo");
+    expect(screen.getByText("Replace the banner")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Remove/ })).toBeInTheDocument();
+  });
+
+  it("uploads the chosen file, then re-reads and refreshes", async () => {
+    mockUploadBanner.mockResolvedValue({
+      contentType: "image/png", contentHash: "newhash", width: 1200, height: 400,
+      byteLength: 900, updatedAt: "2026-07-23T00:00:00Z",
+    });
+    await renderReady(SETTINGS({ bannerContentHash: null }));
+
+    const input = screen.getByLabelText("Upload a banner");
+    const file = imageOfSize(900);
+    await act(async () => { fireEvent.change(input, { target: { files: [file] } }); });
+
+    expect(mockUploadBanner).toHaveBeenCalledTimes(1);
+    expect(mockUploadBanner.mock.calls[0][0]).toBe(file);
+    expect(refreshed).toBe(1);
+  });
+
+  it("refuses an oversize file locally, using the BANNER's own cap, not the logo's", async () => {
+    // 5 MB default banner cap vs the fixture's 2 MB logo cap (MAX_UPLOAD) —
+    // this file is over the banner's cap and under the logo's, so a wrong
+    // wire-up (reading logoMaxUploadBytes here by mistake) would pass it.
+    await renderReady(SETTINGS({ bannerContentHash: null }));
+
+    const input = screen.getByLabelText("Upload a banner");
+    await act(async () => {
+      fireEvent.change(input, { target: { files: [imageOfSize(BANNER_MAX_UPLOAD + 1)] } });
+    });
+
+    expect(mockUploadBanner).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent(/The limit is 5120 KB/);
+  });
+
+  it("sends a file exactly at the banner cap — the guard is > not >=", async () => {
+    mockUploadBanner.mockResolvedValue({
+      contentType: "image/png", contentHash: "h", width: 1, height: 1,
+      byteLength: BANNER_MAX_UPLOAD, updatedAt: "2026-07-23T00:00:00Z",
+    });
+    await renderReady(SETTINGS({ bannerContentHash: null }));
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Upload a banner"),
+        { target: { files: [imageOfSize(BANNER_MAX_UPLOAD)] } });
+    });
+
+    expect(mockUploadBanner).toHaveBeenCalledTimes(1);
+  });
+
+  it("surfaces a server refusal with the FarmBanner code's message, not FarmLogo's", async () => {
+    mockUploadBanner.mockRejectedValue(
+      new ApiError(415, "FarmBanner.UnsupportedFormat", "The banner must be PNG, JPEG or WebP."));
+    await renderReady(SETTINGS({ bannerContentHash: null }));
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Upload a banner"),
+        { target: { files: [imageOfSize(400, "banner.svg", "image/svg+xml")] } });
+    });
+
+    expect(screen.getByRole("alert")).toHaveTextContent("The banner must be PNG, JPEG or WebP.");
+  });
+
+  it("removes the banner after the confirm is accepted, leaving the logo section untouched", async () => {
+    mockRemoveBanner.mockResolvedValue(undefined);
+    await renderReady(SETTINGS({ logoContentHash: null, bannerContentHash: "deadbeef" }));
+
+    fireEvent.click(screen.getByRole("button", { name: /Remove/ }));
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Remove banner" }));
+    });
+
+    expect(mockRemoveBanner).toHaveBeenCalledTimes(1);
+    expect(mockRemove).not.toHaveBeenCalled();
+    expect(refreshed).toBe(1);
+    expect(screen.getByText(/No logo set/)).toBeInTheDocument();
+  });
+
+  it("keeps unsaved form edits when a banner is uploaded", async () => {
+    mockUploadBanner.mockResolvedValue({
+      contentType: "image/png", contentHash: "newhash", width: 1200, height: 400,
+      byteLength: 900, updatedAt: "2026-07-23T00:00:00Z",
+    });
+    await renderReady(SETTINGS({ bannerContentHash: null }));
+
+    fireEvent.change(screen.getByLabelText("Farm name"), { target: { value: "Coop Co" } });
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Upload a banner"),
+        { target: { files: [imageOfSize(900)] } });
+    });
+
+    expect(screen.getByLabelText("Farm name")).toHaveValue("Coop Co");
+    expect(mockGetSettings).toHaveBeenCalledTimes(1);
   });
 });
 

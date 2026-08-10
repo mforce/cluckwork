@@ -73,6 +73,13 @@ internal static class CluckworkFeatureServiceCollectionExtensions
             IValidateOptions<FarmLogoOptions>,
             FarmLogoOptionsValidator>();
 
+        services.AddOptions<FarmBannerOptions>()
+            .Bind(configuration.GetSection(FarmBannerOptions.SectionName))
+            .ValidateOnStart();
+        services.AddSingleton<
+            IValidateOptions<FarmBannerOptions>,
+            FarmBannerOptionsValidator>();
+
         return services;
     }
 
@@ -321,6 +328,10 @@ internal static class CluckworkFeatureServiceCollectionExtensions
             Cluckwork.Application.Features.Accounts.SetFarmLogo.SetFarmLogoHandler>();
         services.AddScoped<
             Cluckwork.Application.Features.Accounts.RemoveFarmLogo.RemoveFarmLogoHandler>();
+        services.AddScoped<
+            Cluckwork.Application.Features.Accounts.SetFarmBanner.SetFarmBannerHandler>();
+        services.AddScoped<
+            Cluckwork.Application.Features.Accounts.RemoveFarmBanner.RemoveFarmBannerHandler>();
         services.AddScoped<VoidDailyEntryHandler>();
         services.AddScoped<
             Cluckwork.Application.Features.Users.AssignFlock.AssignFlockHandler>();

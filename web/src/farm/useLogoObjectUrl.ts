@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getFarmLogo } from "../api/cluckwork";
+import { getFarmBanner, getFarmLogo } from "../api/cluckwork";
 
 export interface FarmLogoImage {
   // The object URL to render, or null while it is loading, when the farm has
@@ -14,17 +14,20 @@ export interface FarmLogoImage {
   failed: boolean;
 }
 
-// The farm logo as an object URL (#123).
+// A branding image (logo or banner, #179) as an object URL.
 //
-// The logo is FETCHED rather than linked: /account/logo sits behind the
-// Authorization header and an <img src> cannot carry one, so the bytes come
-// through the API client and render from a blob: URL — which is why the CSP
-// carries `img-src 'self' blob:` (SecurityHeaders.cs).
+// The image is FETCHED rather than linked: /account/logo and /account/banner
+// both sit behind the Authorization header and an <img src> cannot carry one,
+// so the bytes come through the API client and render from a blob: URL —
+// which is why the CSP carries `img-src 'self' blob:` (SecurityHeaders.cs).
 //
-// `logoHash` is the dependency because it changes exactly when the logo does:
-// an unrelated settings save does not re-fetch a megabyte, and a replacement
-// does. Passing null (no logo set) skips the request entirely.
-export function useLogoObjectUrl(logoHash: string | null): FarmLogoImage {
+// `hash` is the dependency because it changes exactly when the image does: an
+// unrelated settings save does not re-fetch a megabyte, and a replacement
+// does. Passing null (no image set) skips the request entirely.
+function useImageObjectUrl(
+  hash: string | null,
+  fetchImage: () => Promise<{ blob: Blob }>,
+): FarmLogoImage {
   const [url, setUrl] = useState<string | null>(null);
   // The hash whose request has finished, whichever way it went. Compared
   // against the CURRENT hash to derive `loading` — a `loading` boolean set
@@ -36,7 +39,7 @@ export function useLogoObjectUrl(logoHash: string | null): FarmLogoImage {
   const [failedHash, setFailedHash] = useState<string | null>(null);
 
   useEffect(() => {
-    if (logoHash === null) {
+    if (hash === null) {
       setUrl(null);
       return;
     }
@@ -44,20 +47,20 @@ export function useLogoObjectUrl(logoHash: string | null): FarmLogoImage {
     let objectUrl: string | null = null;
     let cancelled = false;
 
-    getFarmLogo()
+    fetchImage()
       .then(({ blob }) => {
         if (cancelled) return;
         objectUrl = URL.createObjectURL(blob);
         setUrl(objectUrl);
-        setSettledHash(logoHash);
+        setSettledHash(hash);
       })
       .catch(() => {
         if (cancelled) return;
         // Reported through `failed` rather than thrown: callers show their own
-        // fallback, and a logo that will not load is not worth taking a screen
-        // down over.
-        setFailedHash(logoHash);
-        setSettledHash(logoHash);
+        // fallback, and an image that will not load is not worth taking a
+        // screen down over.
+        setFailedHash(hash);
+        setSettledHash(hash);
       });
 
     return () => {
@@ -67,13 +70,31 @@ export function useLogoObjectUrl(logoHash: string | null): FarmLogoImage {
       setUrl(null);
       if (objectUrl !== null) URL.revokeObjectURL(objectUrl);
     };
-  }, [logoHash]);
+    // fetchImage is a stable module-level function reference (getFarmLogo /
+    // getFarmBanner) for every real caller, so it is intentionally not in the
+    // dependency list — including it would be correct too, but every caller
+    // would then need useCallback to avoid an infinite refetch loop for no gain.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hash]);
 
   return {
     url,
-    // Derived, so it is true from the very first render on which there is a
-    // logo to fetch — not one commit later.
-    loading: logoHash !== null && settledHash !== logoHash,
-    failed: logoHash !== null && failedHash === logoHash,
+    // Derived, so it is true from the very first render on which there is an
+    // image to fetch — not one commit later.
+    loading: hash !== null && settledHash !== hash,
+    failed: hash !== null && failedHash === hash,
   };
+}
+
+// The farm logo as an object URL (#123). Thin wrapper so every existing
+// caller/test keeps its exact signature; useBannerObjectUrl below is the
+// sibling for #179.
+export function useLogoObjectUrl(logoHash: string | null): FarmLogoImage {
+  return useImageObjectUrl(logoHash, getFarmLogo);
+}
+
+// The farm banner as an object URL (#179) — same contract as the logo above,
+// for the post-login splash.
+export function useBannerObjectUrl(bannerHash: string | null): FarmLogoImage {
+  return useImageObjectUrl(bannerHash, getFarmBanner);
 }

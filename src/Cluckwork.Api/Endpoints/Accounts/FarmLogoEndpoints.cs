@@ -62,7 +62,7 @@ public static class FarmLogoEndpoints
         if (!tenant.IsResolved) return Results.Unauthorized();
 
         // Metadata first: the projection leaves the bytes in the database.
-        var metadata = await logos.GetMetadataAsync(ct);
+        var metadata = await logos.GetLogoMetadataAsync(ct);
         if (metadata is null) return Results.NotFound();
 
         var etag = new EntityTagHeaderValue($"\"{metadata.ContentHash}\"");
@@ -87,7 +87,7 @@ public static class FarmLogoEndpoints
             return Results.StatusCode(StatusCodes.Status304NotModified);
         }
 
-        var logo = await logos.GetContentAsync(ct);
+        var logo = await logos.GetLogoContentAsync(ct);
         // Removed between the two reads.
         if (logo is null) return Results.NotFound();
 
@@ -114,7 +114,9 @@ public static class FarmLogoEndpoints
     // lower-precedence condition and skip the higher one entirely (codex round
     // 2 of #168). Those requests cost a byte load, which is the right price for
     // not reimplementing precedence.
-    private static bool MatchesIfNoneMatch(HttpRequest request, EntityTagHeaderValue etag)
+    // internal: shared with FarmBannerEndpoints (#179) — same conditional-request
+    // logic, no reason for a second copy.
+    internal static bool MatchesIfNoneMatch(HttpRequest request, EntityTagHeaderValue etag)
     {
         var headers = request.GetTypedHeaders();
         if (request.Headers.ContainsKey(HeaderNames.IfMatch)

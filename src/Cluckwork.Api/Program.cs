@@ -290,6 +290,8 @@ app.UseCluckworkRequestBodyLimit();
 // compile-time long that mechanism's metadata carries. See
 // Hosting/FarmLogoRequestBodyCap.cs.
 app.UseFarmLogoRequestBodyCap();
+// #179 — same reasoning, for the farm banner's own (larger) cap.
+app.UseFarmBannerRequestBodyCap();
 
 app.UseAuthentication();
 app.UseMiddleware<TenantResolutionMiddleware>();
@@ -348,7 +350,8 @@ app.MapGroup("/api/v1/account")
     .WithTags("Account")
     .RequireAuthorization()
     .MapAccountEndpoints()
-    .MapFarmLogoEndpoints();
+    .MapFarmLogoEndpoints()
+    .MapFarmBannerEndpoints();
 
 // #45 — user-scoped sibling of /account: identity comes from the JWT, not the
 // farm. DEFAULT policy (not a named one) so every role, ReadOnly included, can

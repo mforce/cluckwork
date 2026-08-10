@@ -11,10 +11,11 @@ import i18n from "../i18n";
 
 vi.mock("../api/cluckwork", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../api/cluckwork")>();
-  return { ...actual, getMe: vi.fn(), getAccount: vi.fn() };
+  return { ...actual, getMe: vi.fn(), getAccount: vi.fn(), getFarmBanner: vi.fn() };
 });
 const mockGetMe = vi.mocked(api.getMe);
 const mockGetAccount = vi.mocked(api.getAccount);
+const mockGetFarmBanner = vi.mocked(api.getFarmBanner);
 
 function Probe() {
   const me = useMe();
@@ -38,6 +39,13 @@ const renderShell = () =>
 beforeEach(() => {
   vi.clearAllMocks();
   setStoredToken({ sub: "u1", role: "Admin" });
+  sessionStorage.clear();
+  mockGetFarmBanner.mockResolvedValue({ blob: new Blob(["png"]), filename: null });
+  vi.stubGlobal("URL", {
+    ...URL,
+    createObjectURL: vi.fn(() => "blob:test/banner"),
+    revokeObjectURL: vi.fn(),
+  });
 });
 
 describe("SessionProvider", () => {
@@ -113,5 +121,52 @@ describe("SessionProvider", () => {
     renderShell();
     await waitFor(() => expect(screen.getByTestId("who")).toHaveTextContent("a@b.co"));
     expect(spy).toHaveBeenCalledWith("en");
+  });
+});
+
+describe("SessionProvider brand splash (#179)", () => {
+  it("shows the splash when the farm has a banner", async () => {
+    mockGetMe.mockResolvedValue({
+      id: "u1", email: "a@b.co", name: null, role: "Admin", language: null,
+      preferredStepperUnit: null,
+    });
+    mockGetAccount.mockResolvedValue(account({ name: "Sunrise Farm", bannerContentHash: "abc" }));
+
+    renderShell();
+
+    expect(await screen.findByRole("dialog", { name: "Sunrise Farm" })).toBeInTheDocument();
+  });
+
+  it("never shows the splash when the farm has no banner", async () => {
+    mockGetMe.mockResolvedValue({
+      id: "u1", email: "a@b.co", name: null, role: "Admin", language: null,
+      preferredStepperUnit: null,
+    });
+    mockGetAccount.mockResolvedValue(account({ bannerContentHash: null }));
+
+    renderShell();
+
+    await waitFor(() => expect(screen.getByTestId("who")).toHaveTextContent("a@b.co"));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("dismissing the splash hides it and remembers that for the rest of the tab session", async () => {
+    mockGetMe.mockResolvedValue({
+      id: "u1", email: "a@b.co", name: null, role: "Admin", language: null,
+      preferredStepperUnit: null,
+    });
+    mockGetAccount.mockResolvedValue(account({ name: "Sunrise Farm", bannerContentHash: "abc" }));
+
+    const { unmount } = renderShell();
+    const dialog = await screen.findByRole("dialog", { name: "Sunrise Farm" });
+    screen.getByRole("button", { name: "Continue" }).click();
+    await waitFor(() => expect(dialog).not.toBeInTheDocument());
+
+    // A fresh SessionProvider mount in the SAME tab session (e.g. a route
+    // change that remounts the provider) must not show it again.
+    unmount();
+    renderShell();
+    await waitFor(() => expect(screen.getByTestId("who")).toHaveTextContent("a@b.co"));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });

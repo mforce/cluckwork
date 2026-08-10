@@ -384,6 +384,9 @@ export interface Account {
   // calls /account/logo. Otherwise it changes whenever the logo is replaced,
   // which is what makes the cached blob URL self-invalidating.
   logoContentHash: string | null;
+  // Same contract as logoContentHash, for the post-login splash banner (#179):
+  // null means no banner is set, so the splash is skipped entirely.
+  bannerContentHash: string | null;
   // The farm's accent palette (#149) — farm-wide and admin-chosen, unlike the
   // light/night toggle, which stays a per-user device preference. The API is
   // the source of truth; localStorage only caches it for the pre-paint script.
@@ -434,6 +437,8 @@ export interface FarmSettings {
   // rather than being duplicated as a client constant — a hardcoded copy would
   // silently diverge from the server the moment the config changed.
   logoMaxUploadBytes: number;
+  // Same contract, for the banner (#179) — a separate, larger cap.
+  bannerMaxUploadBytes: number;
 }
 
 export interface UpdateFarmSettings {
@@ -489,6 +494,36 @@ export const uploadFarmLogo = (file: File, key?: string) =>
   );
 
 export const removeFarmLogo = (key?: string) => apiDelete<void>("/account/logo", key);
+
+// --- Farm banner (#179) ---
+//
+// A second, independent branding image: a wide/hero picture shown full-size
+// on the post-login splash, distinct from the square sidebar logo above. Same
+// contract shape (raw-body PUT, blob-fetched GET, own upload cap from server
+// config), just its own route and its own larger default cap.
+
+export interface FarmBanner {
+  contentType: string;
+  contentHash: string;
+  width: number;
+  height: number;
+  byteLength: number;
+  updatedAt: string;
+}
+
+export const BANNER_ACCEPT = "image/png,image/jpeg,image/webp";
+
+export const getFarmBanner = () => apiGetBlob("/account/banner");
+
+export const uploadFarmBanner = (file: File, key?: string) =>
+  apiPutBytes<FarmBanner>(
+    "/account/banner",
+    file,
+    file.type || "application/octet-stream",
+    key,
+  );
+
+export const removeFarmBanner = (key?: string) => apiDelete<void>("/account/banner", key);
 
 // --- Feed & inventory (#66) ---
 

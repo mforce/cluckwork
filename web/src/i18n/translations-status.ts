@@ -37,6 +37,7 @@ export const TRANSLATED_NAMESPACES = [
   "themeToggle",
   "useConfirm",
   "pwa",
+  "splash",
   "dailyEntry",
   "dashboard",
   "feed",

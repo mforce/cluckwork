@@ -416,6 +416,10 @@ export function HelpPage() {
         <li>
           <Trans ns="help" i18nKey="farmSettingsSquareLogo" components={{ strong: <strong /> }} />
         </li>
+        {/* #179 — the post-login splash banner, independent of the logo above. */}
+        <li>
+          <Trans ns="help" i18nKey="farmSettingsBanner" components={{ strong: <strong /> }} />
+        </li>
         {/* #444 — the farm-default Daily Entry counting unit. */}
         <li>
           <Trans ns="help" i18nKey="farmSettingsCountingUnit" components={{ strong: <strong /> }} />
@@ -608,6 +612,8 @@ export function HelpPage() {
             <td>{t("glossaryCurrencyLockDef")}</td></tr>
           <tr><th scope="row">{t("glossaryFarmLogoTerm")}</th>
             <td>{t("glossaryFarmLogoDef")}</td></tr>
+          <tr><th scope="row">{t("glossaryFarmBannerTerm")}</th>
+            <td>{t("glossaryFarmBannerDef")}</td></tr>
           <tr>
             <th scope="row">{t("glossaryFarmPaletteTerm")}</th>
             <td>{t("glossaryFarmPaletteDef")}</td>

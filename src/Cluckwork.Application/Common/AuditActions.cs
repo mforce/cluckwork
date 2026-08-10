@@ -46,6 +46,8 @@ public static class AuditActions
     public const string AccountExport = "Account.Export";
     public const string AccountSetLogo = "Account.SetLogo";
     public const string AccountRemoveLogo = "Account.RemoveLogo";
+    public const string AccountSetBanner = "Account.SetBanner";
+    public const string AccountRemoveBanner = "Account.RemoveBanner";
     public const string AccountUpdateSettings = "Account.UpdateSettings";
     public const string ProductCreate = "Product.Create";
     public const string ProductUpdate = "Product.Update";

@@ -11,7 +11,7 @@ Tenancy root, audit, jobs, idempotency, seeding bookkeeping.
 | [public.Accounts](public.Accounts.md) | 16 |  | BASE TABLE |
 | [public.AuditEvents](public.AuditEvents.md) | 10 |  | BASE TABLE |
 | [public.durable_jobs](public.durable_jobs.md) | 9 |  | BASE TABLE |
-| [public.FarmLogos](public.FarmLogos.md) | 11 |  | BASE TABLE |
+| [public.FarmLogos](public.FarmLogos.md) | 18 |  | BASE TABLE |
 | [public.idempotency_records](public.idempotency_records.md) | 13 |  | BASE TABLE |
 | [public.simulation_seed_state](public.simulation_seed_state.md) | 3 |  | BASE TABLE |
 
@@ -74,6 +74,13 @@ erDiagram
   timestamp_with_time_zone UpdatedAt
   integer Version
   uuid AccountId
+  integer BannerByteLength
+  bytea BannerContent
+  varchar_64_ BannerContentHash
+  varchar_32_ BannerContentType
+  integer BannerHeight
+  timestamp_with_time_zone BannerUpdatedAt
+  integer BannerWidth
 }
 "public.idempotency_records" {
   uuid Id

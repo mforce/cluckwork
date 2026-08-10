@@ -208,6 +208,10 @@ export const es = {
     reloading: "Recargando…",
     later: "Más tarde",
   },
+  splash: {
+    continue: "Continuar",
+    bannerAlt: "Banner de {{farmName}}",
+  },
 
   sales: {
     // Headings
@@ -1009,6 +1013,29 @@ export const es = {
       + "otro en cualquier momento.",
     removeLogoConfirmLabel: "Quitar logotipo",
 
+    // Banner panel (#179)
+    bannerSectionHeading: "Banner",
+    bannerAlt: "Banner actual de la granja",
+    bannerLoadingMessage: "Cargando el banner…",
+    bannerLoadFailedMessage: "No se pudo cargar el banner.",
+    bannerNoneMessage: "No hay banner configurado — se omite la pantalla de bienvenida.",
+    uploadBannerButton: "Subir un banner",
+    replaceBannerButton: "Reemplazar el banner",
+    removeBannerButton: "Quitar",
+    bannerRulesHint:
+      "PNG, JPEG o WebP, de hasta {{cap}} y 4096 px por lado. Se muestra a "
+      + "tamaño completo en una pantalla de bienvenida tras iniciar sesión, "
+      + "una vez por sesión — una imagen ancha o detallada funciona bien aquí, "
+      + "a diferencia del logotipo pequeño de la barra lateral.",
+    bannerWorkingMessage: "Procesando…",
+    bannerUpdatedMessage: "Banner actualizado.",
+    bannerRemovedMessage: "Banner eliminado.",
+    bannerOversizeMessage: "Esa imagen pesa {{actualKb}} KB. El límite es {{limitKb}} KB.",
+    removeBannerConfirmTitle: "¿Quitar el banner de la granja?",
+    removeBannerConfirmBody:
+      "La pantalla de bienvenida se omite hasta que se suba otro banner.",
+    removeBannerConfirmLabel: "Quitar banner",
+
     // Localization form
     localizationSectionHeading: "Localización",
     farmNameLabel: "Nombre de la granja",
@@ -1586,6 +1613,8 @@ export const es = {
     "auditAction.Account.Export": "Datos exportados",
     "auditAction.Account.SetLogo": "Logotipo de la granja establecido",
     "auditAction.Account.RemoveLogo": "Logotipo de la granja eliminado",
+    "auditAction.Account.SetBanner": "Banner de la granja establecido",
+    "auditAction.Account.RemoveBanner": "Banner de la granja eliminado",
     "auditAction.Account.UpdateSettings": "Configuración de la granja actualizada",
     "auditAction.Product.Create": "Producto creado",
     "auditAction.Product.Update": "Producto actualizado",
@@ -2141,6 +2170,13 @@ export const es = {
       + "marca simple y bien recortada — un símbolo o una sola letra — se ve mucho mejor ahí que un "
       + "logotipo ancho o una imagen detallada, que se reducen a algo ilegible. Conserve un logotipo "
       + "detallado para impresión o un sitio web; dele a la aplicación una marca pequeña y limpia.",
+    farmSettingsBanner:
+      "El <strong>banner</strong> es una segunda imagen, independiente, que se muestra a tamaño completo "
+      + "en una pantalla de bienvenida justo después de iniciar sesión, una vez por sesión — una imagen "
+      + "ancha o detallada funciona bien aquí, a diferencia del logotipo pequeño de la barra lateral. Tiene "
+      + "su propio límite de tamaño (5 MB por defecto) y su propia presencia: una granja puede tener un "
+      + "logotipo, un banner, ambos, o ninguno. Si no hay ninguno configurado, se omite la pantalla de "
+      + "bienvenida.",
     farmSettingsCountingUnit:
       "<strong>Unidad de conteo de la entrada diaria</strong> establece cuánto cuentan los botones +/− de "
       + "la pantalla de entrada para todos en la granja — un huevo, o una unidad de empaque como Tray (30 "
@@ -2496,6 +2532,14 @@ export const es = {
       + "de la granja. PNG, JPEG o WebP (2 MB por defecto), solo imágenes fijas; una marca cuadrada y "
       + "simple se lee mejor en el tamaño pequeño de la barra lateral. Se guarda como una copia "
       + "reconstruida sin los detalles de cámara y ubicación.",
+
+    glossaryFarmBannerTerm: "Banner de la granja",
+    glossaryFarmBannerDef:
+      "Una segunda imagen, independiente, que se muestra a tamaño completo en una pantalla de bienvenida "
+      + "justo después de iniciar sesión, una vez por sesión. Separada del logotipo de la granja anterior "
+      + "— una granja puede tener un logotipo, un banner, ambos, o ninguno. Mismas reglas de imagen fija "
+      + "PNG/JPEG/WebP, su propio límite de tamaño más grande (5 MB por defecto), se sube desde "
+      + "Configuración de la granja.",
 
     glossaryFarmPaletteTerm: "Paleta de la granja",
     glossaryFarmPaletteDef:

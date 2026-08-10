@@ -46,6 +46,7 @@ beforeEach(() => {
   clearAccessToken();
   document.documentElement.removeAttribute("data-brand");
   localStorage.clear();
+  sessionStorage.clear();
 });
 
 describe("AuthProvider lifecycle", () => {
@@ -251,6 +252,21 @@ describe("AuthProvider lifecycle", () => {
     });
 
     expect(screen.getByTestId("pending-pw")).toHaveTextContent("false");
+  });
+
+  // Codex review of #496: an unscoped sessionStorage marker dismissing the
+  // splash forever in a tab (across logout/login, even for a different user)
+  // unless login resets it.
+  it("clears the splash-shown marker on login, so a new sign-in shows it again", async () => {
+    sessionStorage.setItem("cluckwork.splashShown", "1");
+    mockApiLogin.mockResolvedValue(undefined);
+    renderAuth();
+
+    await act(async () => {
+      fireEvent.click(screen.getByText("login"));
+    });
+
+    expect(sessionStorage.getItem("cluckwork.splashShown")).toBeNull();
   });
 
   // #356 (local review of #492, round 5-10) — userId is decoded through the

@@ -219,6 +219,10 @@ export const tl = {
     reloading: "Nire-reload…",
     later: "Mamaya",
   },
+  splash: {
+    continue: "Magpatuloy",
+    bannerAlt: "Banner ng {{farmName}}",
+  },
 
   sales: {
     // Headings
@@ -1045,6 +1049,29 @@ export const tl = {
       + "anumang oras.",
     removeLogoConfirmLabel: "Alisin ang logo",
 
+    // Banner panel (#179)
+    bannerSectionHeading: "Banner",
+    bannerAlt: "Kasalukuyang banner ng bukid",
+    bannerLoadingMessage: "Naglo-load ang banner…",
+    bannerLoadFailedMessage: "Hindi na-load ang banner.",
+    bannerNoneMessage: "Walang naka-set na banner — nilalaktawan ang splash pagkatapos mag-log in.",
+    uploadBannerButton: "Mag-upload ng banner",
+    replaceBannerButton: "Palitan ang banner",
+    removeBannerButton: "Alisin",
+    bannerRulesHint:
+      "PNG, JPEG, o WebP, hanggang {{cap}} at 4096 px kada gilid. Ipinapakita "
+      + "nang buong-laki sa isang splash pagkatapos mag-log in, isang beses "
+      + "kada session — maganda rito ang malawak o detalyadong larawan, "
+      + "hindi katulad ng maliit na logo sa sidebar.",
+    bannerWorkingMessage: "Pinoproseso…",
+    bannerUpdatedMessage: "Na-update ang banner.",
+    bannerRemovedMessage: "Naalis ang banner.",
+    bannerOversizeMessage: "{{actualKb}} KB ang larawang iyon. Ang limitasyon ay {{limitKb}} KB.",
+    removeBannerConfirmTitle: "Alisin ang banner ng bukid?",
+    removeBannerConfirmBody:
+      "Nilalaktawan ang splash hanggang may bagong banner na ma-upload.",
+    removeBannerConfirmLabel: "Alisin ang banner",
+
     // Localization form
     localizationSectionHeading: "Localization",
     farmNameLabel: "Pangalan ng bukid",
@@ -1649,6 +1676,8 @@ export const tl = {
     "auditAction.Account.Export": "Na-export ang datos",
     "auditAction.Account.SetLogo": "Na-set ang logo ng bukid",
     "auditAction.Account.RemoveLogo": "Naalis ang logo ng bukid",
+    "auditAction.Account.SetBanner": "Na-set ang banner ng bukid",
+    "auditAction.Account.RemoveBanner": "Naalis ang banner ng bukid",
     "auditAction.Account.UpdateSettings": "Na-update ang mga setting ng bukid",
     "auditAction.Product.Create": "Nagawa ang produkto",
     "auditAction.Product.Update": "Na-update ang produkto",
@@ -2224,6 +2253,12 @@ export const tl = {
       + "sa isang malawak na wordmark o isang detalyadong larawan, na bumabagsak sa isang bagay na hindi na "
       + "mabasa. Panatilihin ang isang detalyadong logo para sa print o isang website; bigyan ang app ng "
       + "isang malinis na maliit na marka.",
+    farmSettingsBanner:
+      "Ang <strong>banner</strong> ay pangalawa, independiyenteng larawan na ipinapakita nang buong-laki sa "
+      + "isang splash screen kaagad pagkatapos mag-log in, isang beses kada session — maganda rito ang "
+      + "malawak o detalyadong larawan, hindi katulad ng maliit na logo sa sidebar sa itaas. May sarili "
+      + "itong limitasyon sa laki (5 MB bilang default) at sariling presensya: puwedeng magkaroon ang "
+      + "isang bukid ng logo, banner, pareho, o wala. Kung wala, nilalaktawan nang buo ang splash.",
     farmSettingsCountingUnit:
       "<strong>Yunit ng pagbilang sa Daily Entry</strong> ang nagtatakda kung magkano ang bilang ng mga "
       + "+/− na button ng entry screen para sa lahat sa bukid — isang itlog, o isang pack unit tulad ng "
@@ -2585,6 +2620,14 @@ export const tl = {
       + "Bukid. PNG, JPEG, o WebP (2 MB bilang default), still images lang; mas mabasa ang isang "
       + "parisukat at simpleng mark sa maliit na sukat ng sidebar. Naka-store bilang muling ginawang "
       + "kopya na tinanggalan ng detalye ng camera at lokasyon.",
+
+    glossaryFarmBannerTerm: "Banner ng Bukid",
+    glossaryFarmBannerDef:
+      "Pangalawa, independiyenteng larawan na ipinapakita nang buong-laki sa isang splash screen kaagad "
+      + "pagkatapos mag-log in, isang beses kada session. Hiwalay sa logo ng bukid sa itaas — puwedeng "
+      + "magkaroon ang isang bukid ng logo, banner, pareho, o wala. Parehong panuntunan ng still image "
+      + "na PNG/JPEG/WebP, may sarili itong mas malaking limitasyon sa laki (5 MB bilang default), "
+      + "ina-upload mula sa Mga Setting ng Bukid.",
 
     glossaryFarmPaletteTerm: "Paleta ng Bukid",
     glossaryFarmPaletteDef:

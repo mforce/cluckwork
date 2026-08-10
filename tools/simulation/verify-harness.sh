@@ -192,6 +192,42 @@ except KeyError:
 fail = []
 ok = []
 
+# --- #123 farm logo upload limit ------------------------------------------
+# Mirror FarmLogoOptionsValidator so a stale or ambient override is caught
+# before the Production-mode app is started.
+logo_limit_raw = env.get("FarmLogo__MaxUploadBytes")
+try:
+    logo_limit = int(str(logo_limit_raw))
+except (TypeError, ValueError):
+    logo_limit = None
+
+if logo_limit is None:
+    fail.append(f"FarmLogo__MaxUploadBytes={logo_limit_raw!r} is not an integer")
+elif logo_limit <= 0:
+    fail.append(f"FarmLogo__MaxUploadBytes={logo_limit} must be greater than zero")
+elif logo_limit > 5 * 1024 * 1024:
+    fail.append(f"FarmLogo__MaxUploadBytes={logo_limit} exceeds the 5242880-byte ceiling")
+else:
+    ok.append(f"FarmLogo upload limit OK ({logo_limit} bytes)")
+
+# --- #496 farm banner upload limit ---------------------------------------
+# Mirror FarmBannerOptionsValidator so a stale or ambient override is caught
+# before the Production-mode app is started.
+banner_limit_raw = env.get("FarmBanner__MaxUploadBytes")
+try:
+    banner_limit = int(str(banner_limit_raw))
+except (TypeError, ValueError):
+    banner_limit = None
+
+if banner_limit is None:
+    fail.append(f"FarmBanner__MaxUploadBytes={banner_limit_raw!r} is not an integer")
+elif banner_limit <= 0:
+    fail.append(f"FarmBanner__MaxUploadBytes={banner_limit} must be greater than zero")
+elif banner_limit > 15 * 1024 * 1024:
+    fail.append(f"FarmBanner__MaxUploadBytes={banner_limit} exceeds the 15728640-byte ceiling")
+else:
+    ok.append(f"FarmBanner upload limit OK ({banner_limit} bytes)")
+
 # --- #319 AllowedHosts ---------------------------------------------------
 # Parsed EXACTLY as Program.cs does: split on ';', trim, drop empties, then
 # require at least one entry and none equal to '*'. A raw non-empty/no-'*'

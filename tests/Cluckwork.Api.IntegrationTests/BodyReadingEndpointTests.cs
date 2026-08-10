@@ -45,6 +45,9 @@ public sealed class BodyReadingEndpointTests(CluckworkWebApplicationFactory fact
         ["GET /api/v1/account/logo"] =
             "GetLogo takes HttpContext to set Cache-Control/ETag on the RESPONSE and to " +
             "read If-None-Match; a GET carries no body to fail on.",
+        ["GET /api/v1/account/banner"] =
+            "GetBanner (#179) is the same shape as GetLogo, for the same reason: HttpContext " +
+            "is for the response's Cache-Control/ETag and reading If-None-Match, never the body.",
         ["POST /api/v1/auth/logout"] =
             "Logout takes HttpRequest for the refresh COOKIE and the CSRF header only — " +
             "it never touches Request.Body (unlike /auth/refresh, which drains it).",

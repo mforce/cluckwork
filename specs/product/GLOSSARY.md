@@ -526,7 +526,19 @@ square, simple mark — a symbol or a single letter, tightly cropped — rather 
 a wide wordmark or a detailed illustration, which shrink to something unreadable
 at sidebar size. The slot fits the whole image (`object-fit: contain`), so a
 wide logo keeps its aspect and loses its height. A larger surface for a detailed
-logo (a post-login splash) is a separate follow-up (#179).
+logo — the **farm banner**, below — is a separate image entirely.
+
+**Farm banner (#179)** — a second, independent image: a wide/hero picture shown
+full-size on a **post-login splash**, once per login, rather than in the small
+square sidebar slot the logo occupies. A farm can have a logo, a banner, both,
+or neither — setting or clearing one never touches the other. Same upload rules
+as the logo (PNG/JPEG/WebP, a still image, no SVG, dimensions and metadata
+handled the same way — see below), but its own larger size cap (5 MB by default,
+since a detailed hero image is typically heavier than a square mark) and its own
+Owner/Manager-only upload and everyone-sees-it read, same as the logo. The
+splash is skipped entirely when no banner is set — it is never shown empty, and
+never shown on the pre-login screen (that screen has no farm to show a banner
+for yet).
 
 What gets stored is never quite the file that was uploaded. The image is taken
 apart and rebuilt, which drops two things on purpose: **embedded metadata** — a

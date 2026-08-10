@@ -286,7 +286,8 @@ export const AUDIT_ACTION_VALUES = [
   "EggGrade.Deactivate", "User.Create", "User.Update", "User.PasswordSet",
   "User.PasswordChanged", "User.BreakGlassReset", "User.RoleChanged", "User.Disabled", "User.Enabled",
   "User.FlockAssign", "User.FlockUnassign",
-  "Account.Export", "Account.SetLogo", "Account.RemoveLogo", "Account.UpdateSettings",
+  "Account.Export", "Account.SetLogo", "Account.RemoveLogo",
+  "Account.SetBanner", "Account.RemoveBanner", "Account.UpdateSettings",
   "Product.Create", "Product.Update", "Product.Activate",
   "Product.Deactivate", "EggUnitConversion.Update", "EggLot.Movement",
 ] as const;
@@ -321,6 +322,8 @@ const AUDIT_ACTION_KEYS = {
   "Account.Export": "enums:auditAction.Account.Export",
   "Account.SetLogo": "enums:auditAction.Account.SetLogo",
   "Account.RemoveLogo": "enums:auditAction.Account.RemoveLogo",
+  "Account.SetBanner": "enums:auditAction.Account.SetBanner",
+  "Account.RemoveBanner": "enums:auditAction.Account.RemoveBanner",
   "Account.UpdateSettings": "enums:auditAction.Account.UpdateSettings",
   "Product.Create": "enums:auditAction.Product.Create",
   "Product.Update": "enums:auditAction.Product.Update",
