@@ -90,9 +90,14 @@ declare -A SPEC_FOR=(
 #   2. Corrected to say it "goes red under that mutant" — also false at the
 #      time, because GREP_FOR selected only the first test, so the harness never
 #      executed it. A true statement about code that never runs is not coverage.
-# Both were caught by review, not by the harness (codex round 1 on #504). The
-# EXPECT_MSG_FOR table below is the structural answer: it makes the harness
-# check WHICH assertion a mutant dies on, instead of trusting prose like this.
+#   3. Corrected again by widening GREP_FOR so both tests run — still not
+#      enough on its own, because one failure ends the run and the second test's
+#      precondition could quietly stop failing (codex round 2).
+# None of the three was caught by the harness. It is now: EXPECT_MSG_FOR lists
+# the browser-facts precondition as one of the messages `a11y-inert-sweep-removed`
+# must produce, so the claim in this comment is checked on every run instead of
+# being trusted. Prose asserting coverage is not coverage — that is the whole
+# lesson of this paragraph's three revisions.
 
 declare -A GREP_FOR=(
   [audit-gate-removed]="direct link to /audit"
@@ -120,21 +125,48 @@ declare -A FALSE_KILLS=(
   [nav-role-gate-bypassed]="the server rejects the forged token, so sign-in fails before the nav assertion runs"
 )
 
-# The assertion each mutant must die ON — a substring of the expected failure
-# message. Without this a mutant that trips some EARLIER assertion is recorded
-# as a clean kill, and the assertion it was written for keeps no coverage at
-# all. That happened three times on #504 alone; see the kill-detection block.
+# The assertion each mutant must die ON. One substring per line; EVERY line must
+# appear in the run's log or the kill does not count.
 #
-# Populated for the a11y mutants, which is where the failure was found. It is
-# deliberately opt-in: a wrong expectation demotes a real kill, so an entry is
-# only added once the run has been observed to print it.
+# **Required, not optional.** The first version made this opt-in and populated
+# only the a11y mutants. That still counted the other twelve as coverage on the
+# strength of "some assertion failed" — the exact thing this table exists to
+# stop — while the headline presented them as verified (codex round 2 on #504).
+# A mutant with no entry is now reported UNVERIFIED and kept out of the killed
+# count.
+#
+# Every line below was COPIED FROM AN OBSERVED RUN, never guessed. Three mutants
+# trip assertions that carry no custom message, so the distinctive part is
+# Playwright's locator line instead; that is weaker, and it is the honest limit
+# of this technique rather than a reason to skip them.
+#
+# Multi-line entries exist because one mutant can be required to break several
+# assertions: the two inert mutants must fail for BOTH announcers (they are
+# judged with expect.soft precisely so both reach the log), and
+# a11y-inert-sweep-removed must additionally fail the browser-facts precondition
+# its GREP_FOR now runs.
 declare -A EXPECT_MSG_FOR=(
-  [a11y-inert-sweep-removed]="is still in the accessibility tree with a dialog open"
+  [audit-gate-removed]="/audit rendered no error for a ReadOnly user"
+  [users-gate-removed]="/users rendered no error for a ReadOnly user"
+  [flock-scope-removed]="the unassigned-flock write was NOT refused"
+  [stock-pager-inert]="getByRole('button', { name: 'history', exact: true })"
+  [stock-summary-broken]="fell back to \"—\" (its fetch failed)"
+  [report-range-bound-removed]="getByRole('button', { name: 'retry' })"
+  [refresh-always-fails]="the silent refresh itself failed"
+  [logout-not-honoured]="a live refresh cookie survived the logout"
+  [nav-role-gate-bypassed]="getByRole('complementary')"
+  [payment-never-settles]="so the payment did not settle the balance"
+  [export-returns-nothing]="the export downloaded 0 bytes"
+  [language-persist-dropped]="the es preference did not survive a reload"
+  [a11y-inert-sweep-removed]="main.content > p.sr-only[aria-live=\"assertive\"] is still in the accessibility tree with a dialog open
+#root > p.sr-only[aria-live=\"polite\"] is still in the accessibility tree with a dialog open
+the injected probe is a body child but the modal sweep did not inert it"
+  [a11y-inert-never-lifted]="main.content > p.sr-only[aria-live=\"assertive\"] never returned to the accessibility tree
+#root > p.sr-only[aria-live=\"polite\"] never returned to the accessibility tree"
   [a11y-announcer-duplicates-banner]="duplicated a warning the visible banner already made"
   [a11y-announcer-renags-on-close]="re-announced a standing warning after dialog cycle"
   [a11y-announcer-writes-transiently]="was written to during the dialog cycles"
   [a11y-announcer-writes-late]="was written to during the dialog cycles"
-  [a11y-inert-never-lifted]="never returned to the accessibility tree"
 )
 
 MUTANTS=("$@")
@@ -170,7 +202,7 @@ rule
 echo "PHASE 2/3 — MUTANTS (each must turn its spec RED)"
 rule
 
-killed=(); survived=(); false_killed=()
+killed=(); survived=(); false_killed=(); unverified=()
 for name in "${MUTANTS[@]}"; do
   spec="${SPEC_FOR[$name]:-}"
   pattern="${GREP_FOR[$name]:-}"
@@ -241,15 +273,27 @@ for name in "${MUTANTS[@]}"; do
       # never executed. Reviewers caught all three; the harness caught none,
       # because "something failed" was the only question it asked.
       #
-      # So a mutant MAY declare the text it expects to die on, and the kill then
-      # counts only if the log contains it. Optional by design: retrofitting the
-      # older mutants would mean guessing what each currently dies on, and a
-      # wrong expectation here demotes a genuine kill — the one failure mode
-      # this whole script exists to avoid.
+      # So every mutant DECLARES the text it must die on, and the kill counts
+      # only if the log contains all of it. A first version made this opt-in and
+      # filled in the a11y mutants alone; that still counted the other twelve on
+      # "something failed", and the headline still called them coverage (codex
+      # round 2). A mutant with no declaration is now UNVERIFIED, not killed.
       want="${EXPECT_MSG_FOR[$name]:-}"
-      if [ -n "$want" ] && ! grep -qF -- "$want" "$log"; then
-        echo "     WRONG ASSERTION — it died, but not on the one it names."
-        echo "                   expected to find: $want"
+      missing=""
+      if [ -n "$want" ]; then
+        while IFS= read -r line; do
+          [ -z "$line" ] && continue
+          grep -qF -- "$line" "$log" || missing+="                     - ${line}"$'\n'
+        done <<< "$want"
+      fi
+      if [ -z "$want" ]; then
+        echo "     UNVERIFIED — no expected assertion declared, so this red is not evidence."
+        echo "                   Run it, read the failure, add it to EXPECT_MSG_FOR."
+        unverified+=("$name")
+      elif [ -n "$missing" ]; then
+        echo "     WRONG ASSERTION — it died, but not on every assertion it names."
+        echo "                   never appeared in the log:"
+        printf '%s' "$missing"
         echo "                   The guarantee in its name is NOT covered. See $log"
         survived+=("$name (killed at the wrong assertion)")
       elif [ -n "${FALSE_KILLS[$name]:-}" ]; then
@@ -284,6 +328,10 @@ echo "RESULT"
 rule
 echo "  baseline    : GREEN"
 echo "  killed      : ${#killed[@]}  ${killed[*]:-}"
+if [ ${#unverified[@]} -gt 0 ]; then
+  echo "  UNVERIFIED  : ${#unverified[@]}  ${unverified[*]}"
+  echo "                red, but no declared assertion — NOT counted as coverage."
+fi
 if [ ${#false_killed[@]} -ne 0 ]; then
   echo "  FALSE kills : ${#false_killed[@]}  ${false_killed[*]}"
   echo "                red, but for the wrong reason — NOT counted as coverage."

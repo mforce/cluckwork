@@ -234,12 +234,18 @@ test.describe("live regions under a modal", () => {
       UPDATE_ANNOUNCER,
       '[role="dialog"] button',
     ]);
+    // `expect.soft`, so BOTH announcers are judged. A hard assertion in this
+    // loop dies on the farm announcer and never evaluates the update one,
+    // which made the update announcer's assertion unkillable — every mutant
+    // that breaks the sweep breaks both, so the farm one always failed first
+    // and the run still reported a clean kill (codex round 2 on #504). Soft
+    // failures both reach the log, and mutation-check.sh requires both.
     for (const [selector, during] of [
       [FARM_ANNOUNCER, farmDuring!],
       [UPDATE_ANNOUNCER, updateDuring!],
     ] as const) {
-      expect(during.inDom, `${selector} unmounted instead of going inert`).toBe(true);
-      expect(
+      expect.soft(during.inDom, `${selector} unmounted instead of going inert`).toBe(true);
+      expect.soft(
         during.inTree,
         `${selector} is still in the accessibility tree with a dialog open — the #483 inert `
           + `sweep is not reaching it, and #485's premise no longer holds`,
@@ -257,9 +263,14 @@ test.describe("live regions under a modal", () => {
 
     // ...and the page belongs to the announcers again. This is the un-inerting
     // that replays nothing, which is the whole reason #499's hook exists.
-    for (const selector of [FARM_ANNOUNCER, UPDATE_ANNOUNCER]) {
-      const after = await ax.node(selector);
-      expect(after.inTree, `${selector} never returned to the accessibility tree`).toBe(true);
+    // Soft for the same reason as the loop above: both announcers must be
+    // judged, not just whichever is checked first.
+    const afterNodes = await ax.nodes([FARM_ANNOUNCER, UPDATE_ANNOUNCER]);
+    for (const [selector, after] of [
+      [FARM_ANNOUNCER, afterNodes[0]!],
+      [UPDATE_ANNOUNCER, afterNodes[1]!],
+    ] as const) {
+      expect.soft(after.inTree, `${selector} never returned to the accessibility tree`).toBe(true);
     }
   });
 
