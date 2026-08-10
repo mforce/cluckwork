@@ -674,11 +674,14 @@ describe("InventoryPage errors scoped per dialog (#479)", () => {
   });
 
   // The purchase/adjust dialogs are bound to the ACTIVE item's panel, so
-  // opening another item's panel rebinds an open dialog to the new item in
-  // place — its title changes, but nothing closes it, so a failure reported
-  // under the old item would sit inside a dialog now naming a different one
-  // (same displacement class as the edit dialogs; pi review of #491).
-  it("does not carry one item's failed purchase into the dialog rebound to another item", async () => {
+  // opening another item's panel COULD rebind an open dialog to the new item
+  // in place — title changes, nothing else does — leaving a stale quantity
+  // and someone else's verdict sitting in a form that now claims to be about
+  // a different item. `onOpen` closes both dialogs on a genuine item switch
+  // instead (adversarial review of #491: rebinding silently is worse than
+  // closing, since the leftover values are one Enter away from a purchase
+  // recorded against the wrong item).
+  it("closes an open purchase dialog, instead of rebinding it, when a different item is opened", async () => {
     mockPurchase.mockRejectedValueOnce(new ApiError(500, "Server error", "purchase boom"));
     await renderReady(ADMIN);
     await openItem(PACKAGING);
@@ -689,14 +692,48 @@ describe("InventoryPage errors scoped per dialog (#479)", () => {
     });
     expect(within(dialog()).getByText("purchase boom")).toBeInTheDocument();
 
-    // Open the other item's panel directly — openItem's heading wait would
-    // collide with the rebound dialog's own title naming the same item.
-    await act(async () => {
-      fireEvent.click(within(screen.getByRole("row", { name: /Layer Feed/ })).getByRole("button", { name: "open" }));
-    });
-    // Still open, rebound to the other item's panel.
-    expect(dialog()).toHaveAccessibleName(/Layer Feed/);
+    await openItem(FEED);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(screen.queryByText("purchase boom")).not.toBeInTheDocument();
+  });
+
+  // Re-opening the SAME still-active item is not a displacement — the panel
+  // heading re-renders (loadLedger runs again) but the open purchase dialog,
+  // and whatever the user has typed into it, must survive.
+  it("keeps an open purchase dialog and its typed values when the same item is opened again", async () => {
+    await renderReady(ADMIN);
+    await openItem(PACKAGING);
+    const form = openDialog("Record purchase");
+    fireEvent.change(within(form).getByLabelText(/Quantity/), { target: { value: "3" } });
+
+    // Not openItem(PACKAGING): its heading wait would collide with the still-
+    // open dialog's own title naming the same item.
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole("row", { name: /Egg Cartons/ })).getByRole("button", { name: "open" }));
+    });
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(within(dialog()).getByLabelText(/Quantity/)).toHaveValue(3);
+  });
+
+  // The panel's own Close button (`setActive(null)`) does not run the
+  // onOpen guard — `active` is already null when a DIFFERENT item is opened
+  // next, so an id comparison alone would miss it and the purchase dialog
+  // would spring back open over the new item, stale quantity and all.
+  it("does not resurrect a purchase dialog for a new item after the panel was closed and reopened elsewhere", async () => {
+    await renderReady(ADMIN);
+    await openItem(PACKAGING);
+    const form = openDialog("Record purchase");
+    fireEvent.change(within(form).getByLabelText(/Quantity/), { target: { value: "3" } });
+
+    // The PANEL's own close link ("close", lowercase) — not the purchase
+    // dialog's own "X" (accessible name "Close"), which already runs
+    // `closePurchase` via `onClose` and would pass this test regardless of
+    // the guard under test.
+    fireEvent.click(screen.getByRole("button", { name: "close" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    await openItem(FEED);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("keeps a background ledger-read failure off an open dialog and puts it on the page instead", async () => {

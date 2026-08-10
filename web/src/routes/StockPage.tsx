@@ -264,6 +264,14 @@ export function StockPage() {
     }
   }
 
+  // Mirrors `writeOffLot` synchronously. `onWriteOff` is an async function
+  // whose closure captures `writeOffLot` as it read at SUBMIT time — reading
+  // the state itself after an `await` would silently see that stale value
+  // forever, not the lot the dialog has since rebound to. The ref is updated
+  // everywhere `writeOffLot` is, so a post-`await` read reflects reality
+  // (adversarial review of #491).
+  const activeWriteOffLotId = useRef<string | null>(null);
+
   function openWriteOff(lot: EggLotRow) {
     setWoType("Discard");
     setWoDirection("remove");
@@ -279,13 +287,18 @@ export function StockPage() {
     // new lot's date. Reachable behind the backdrop via a screen reader's
     // virtual cursor (#480; pi review of #491).
     if (writeOffLot !== null && writeOffLot.id !== lot.id) errors.abandon("write-off");
+    activeWriteOffLotId.current = lot.id;
     setWriteOffLot(lot);
   }
 
   // Dismissal empties the dialog's slot and mutes the attempt still out, so a
   // late failure from an in-flight write-off is not reported against a
   // session the user reopened.
-  const closeWriteOff = () => { setWriteOffLot(null); errors.abandon("write-off"); };
+  const closeWriteOff = () => {
+    activeWriteOffLotId.current = null;
+    setWriteOffLot(null);
+    errors.abandon("write-off");
+  };
 
   // The signed delta the API receives: only a reconciliation may add back.
   const woDelta = woType === "Reconciliation" && woDirection === "add" ? woQty : -woQty;
@@ -443,7 +456,16 @@ export function StockPage() {
       setLotsFrom(appliedFilter.current.from);
       setLotsTo(appliedFilter.current.to);
     }
-    if (outcome) {
+    // The write-off trigger has no `disabled={busy}` gate (an admin can act
+    // on another lot's ledger while this submit is out), so the dialog may
+    // already be a DIFFERENT lot's by now. Closing it here would be a
+    // success message about lot A slamming shut lot B's still-open form —
+    // typed quantity and all (adversarial review of #491). Same-lot
+    // re-entry (a reseed of THIS lot) still closes normally. Read via the
+    // ref, not the `writeOffLot` state this closure captured at submit time
+    // — that value is frozen at lot A and would never see the switch.
+    if (outcome && activeWriteOffLotId.current === lot.id) {
+      activeWriteOffLotId.current = null;
       setMessage(i18n.t("stock:writeOffRecordedMessage", { available: outcome.quantityAvailable }));
       setWriteOffLot(null);
     }

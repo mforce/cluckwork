@@ -1540,6 +1540,34 @@ describe("UsersPage error placement (#479)", () => {
     expect(screen.queryByText("That flock is already assigned.")).not.toBeInTheDocument();
   });
 
+  // The load runs BEFORE the dialog rebinds — a failed load never opens the
+  // second worker's dialog (see the comment on `openAssignments`), so it
+  // must not abandon the first worker's still-open one. Abandoning up front
+  // would erase worker A's visible message while A's dialog stays open and
+  // unchanged (adversarial review of #491).
+  it("keeps worker A's dialog and its message when worker B's load fails", async () => {
+    const WORKER_2: User = { id: "u-w2", email: "second@farm.test", displayName: null, role: "Worker" };
+    mockListUsers.mockResolvedValue([WORKER_USER, WORKER_2, ADMIN_USER]);
+    mockAssignFlock.mockRejectedValue(new ApiError(409, "Conflict", "That flock is already assigned."));
+    await renderReady(ADMIN);
+    await act(async () => {
+      openRowDialog("worker@farm.test", "flocks");
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Assign flock" }));
+    });
+    expect(within(dialog()).getByText("That flock is already assigned.")).toBeInTheDocument();
+
+    mockListAssignments.mockRejectedValueOnce(new ApiError(500, "Server error", "Could not load flock access."));
+    await act(async () => {
+      openRowDialog("second@farm.test", "flocks");
+    });
+
+    // Still worker A's dialog — B's never opened.
+    expect(dialog()).toHaveAccessibleName(/worker@farm\.test/);
+    expect(within(dialog()).getByText("That flock is already assigned.")).toBeInTheDocument();
+  });
+
   it("keeps one dialog's failure out of another dialog opened beside it", async () => {
     // Nothing on this screen enforces one-open-dialog: `editUser` and `pwUser`
     // are independent state and both row buttons stay live. With one shared

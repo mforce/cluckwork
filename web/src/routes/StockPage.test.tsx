@@ -5,7 +5,7 @@ import { StockPage } from "./StockPage";
 import {
   getStock, listEggLots, listEggLotMovements, recordEggLotMovement,
 } from "../api/cluckwork";
-import type { StockRow, EggLotRow, EggMovementRow } from "../api/cluckwork";
+import type { StockRow, EggLotRow, EggMovementRow, EggLotMovementResult } from "../api/cluckwork";
 import i18n from "../i18n";
 import { renderWithProviders } from "../test/renderWithProviders";
 
@@ -518,6 +518,44 @@ describe("StockPage error placement (#479)", () => {
     // The dialog really swapped lots — its title names the new lot's date.
     expect(screen.getByRole("dialog")).toHaveAccessibleName(/2026-07-02/);
     expect(screen.queryByText("network down")).not.toBeInTheDocument();
+  });
+
+  // The write-off trigger has no `disabled={busy}` gate, so lot A's submit
+  // can still be in flight when lot B's write-off is opened over it. A
+  // SUCCESSFUL settle for A must not close B's now-displayed dialog or claim
+  // a success about A while B's form is what the admin is looking at
+  // (adversarial review of #491).
+  it("does not close another lot's dialog when a displaced write-off succeeds", async () => {
+    const LOT_2: EggLotRow = { ...LOTS[0], id: "lot2", productionDate: "2026-07-02", quantityAvailable: 50 };
+    mockGetStock.mockResolvedValue(ROWS);
+    mockListEggLots.mockResolvedValue([LOTS[0], LOT_2]);
+    let resolveFirst!: (v: EggLotMovementResult) => void;
+    mockRecordEggLotMovement.mockReturnValueOnce(
+      new Promise((resolve) => { resolveFirst = resolve; }));
+    render(<StockPage />);
+    await screen.findByText("Grade A");
+    fireEvent.click(within(screen.getByRole("row", { name: /Grade A\b/ })).getByRole("button", { name: "lots" }));
+    const lotRow1 = await screen.findByRole("row", { name: /2026-07-01/ });
+    fireEvent.click(within(lotRow1).getByRole("button", { name: "write off" }));
+    fillAndSubmit(); // lot A's submit is left pending
+
+    const lotRow2 = screen.getByRole("row", { name: /2026-07-02/ });
+    fireEvent.click(within(lotRow2).getByRole("button", { name: "write off" }));
+    expect(screen.getByRole("dialog")).toHaveAccessibleName(/2026-07-02/);
+
+    await act(async () => {
+      resolveFirst({
+        movementId: "mv-new", eggLotId: "lot1", movementType: "Discard",
+        quantityDelta: -7, reason: "dropped a tray", createdAtUtc: "2026-07-01T10:00:00Z",
+        quantityAvailable: 42, version: 2,
+      });
+    });
+
+    // Still open, still lot B — a success about lot A did not sweep it away.
+    // (Lot A's row correctly patches to 42 available either way — that is
+    // the write landing, not the bug; the bug is the dialog closing.)
+    expect(screen.getByRole("dialog")).toHaveAccessibleName(/2026-07-02/);
+    expect(screen.queryByText(i18n.t("stock:writeOffRecordedMessage", { available: 42 }))).not.toBeInTheDocument();
   });
 
   it("keeps a movements-load failure out of the open write-off dialog", async () => {

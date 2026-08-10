@@ -231,13 +231,23 @@ export function InventoryPage() {
   }
 
   async function onOpen(i: InventoryItem) {
-    // The purchase/adjust dialogs are bound to the ACTIVE panel — switching
-    // items REBINDS an open one in place (its title changes, nothing closes
-    // it), so a verdict reported under the old item would sit inside a dialog
-    // now naming a different one. Same displacement rule as startEdit above.
-    if (active !== null && active.id !== i.id) {
-      errors.abandon("purchase");
-      errors.abandon("adjust");
+    // The purchase/adjust dialogs are bound to the ACTIVE panel — an open one
+    // would otherwise REBIND in place when the item switches: its title
+    // changes but the typed quantity/cost and any error do not, so it would
+    // spring back open over the new item carrying the old item's form and
+    // verdict. Closing it (not just abandoning the error scope) is what the
+    // Close button below should have done too — this covers a panel closed
+    // via #480's virtual-cursor door and then a DIFFERENT item opened, which
+    // otherwise skips the guard entirely (`active` is null by then).
+    // Checking `active === null` as well as an id mismatch covers a panel
+    // closed via #480's virtual-cursor door and then a DIFFERENT item
+    // opened, which otherwise skipped this entirely (nothing reset
+    // `purchasing`/`adjusting` on close, and `active` reads null by then,
+    // so an id comparison alone missed it). Re-opening the SAME still-active
+    // item is spared, same as every other displacement guard in this file.
+    if (active === null || active.id !== i.id) {
+      closePurchase();
+      closeAdjust();
     }
     setActive(i);
     setMovements([]);

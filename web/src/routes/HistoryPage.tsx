@@ -323,10 +323,14 @@ export function HistoryPage() {
       // The re-read itself failed. Unlike the success path this does NOT
       // reopen the panel, so there is no un-mute here: if the user kept the
       // panel open no mute exists (the submit cleared it) and this report
-      // lands on the stale numbers it explains; if they dismissed — or opened
-      // a different entry's adjust, whose displacement abandons this scope —
-      // the mute is exactly what drops a message that would otherwise park in
-      // the closed slot and replay in the next dialog (pi review of #491).
+      // lands on the stale numbers it explains; if they dismissed, the mute
+      // is exactly what drops a message that would otherwise park in the
+      // closed slot and replay in the next adjust dialog (pi review of #491).
+      // A displacing open of a DIFFERENT entry's adjust is not a live
+      // alternative here — every adjust trigger is `disabled={busy}`, and
+      // `busy` covers this whole call (it runs inside the submit's own
+      // `run()`), so the only action reachable while this is out is a
+      // dismissal (adversarial review of #491).
       errors.report("adjust", i18n.t("history:conflictRebindFailedMessage"));
     }
   }

@@ -145,7 +145,6 @@ export function UsersPage() {
   // closes it. Load the assignments before opening so the panel is never empty
   // mid-flight; a load failure surfaces on the page and the dialog stays shut.
   async function openAssignments(userId: string) {
-    if (openUser !== null && openUser !== userId) errors.abandon("flock-access");
     activeUser.current = userId;
     try {
       const list = await listFlockAssignments(userId);
@@ -155,6 +154,14 @@ export function UsersPage() {
       // dropdown keeps the last worker's pick — open A, choose fl2, close, open
       // B, and B shows fl2 — so a distracted admin could assign the wrong flock.
       setAssignFlockId(flocks[0]?.id ?? "");
+      // Displacement only once the load actually succeeds and the dialog is
+      // about to rebind. Abandoning up front (adversarial review of #491)
+      // would fire even when THIS load fails and openUser's dialog never
+      // moves — worker A's dialog stays open per the comment above, but its
+      // verdict would already be gone, and the failed load's own message
+      // lands on the page behind it, about a worker the admin isn't looking
+      // at.
+      if (openUser !== null && openUser !== userId) errors.abandon("flock-access");
       setOpenUser(userId);
     } catch (err) {
       if (activeUser.current !== userId) return;
