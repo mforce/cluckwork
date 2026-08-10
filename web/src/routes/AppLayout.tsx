@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { useAuth } from "../auth/useAuth";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { BottomNav } from "../components/BottomNav";
-import { useLiveAnnouncement } from "../components/useLiveAnnouncement";
+import { useMissedAnnouncement } from "../components/useMissedAnnouncement";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { FarmBrand } from "../components/FarmBrand";
 import { useFarm } from "../farm/useFarm";
@@ -35,14 +35,14 @@ export function AppLayout() {
   const groups = navGroups(role, isAdmin);
   const tabs = tabEntries(groups);
 
-  // The visible banner below says the same thing, but it goes inert whenever a
-  // dialog is open and so cannot be the thing that speaks (#485). A read that
-  // fails while the user is mid-dialog is exactly when this matters: the alert
-  // is on screen the moment they close it, but nothing would ever have said so.
+  // #485 — the banner below is a role="alert" and announces itself, except
+  // when a dialog has it inert. A read that fails while the user is mid-dialog
+  // is exactly when that bites: the warning is on screen the moment they close
+  // it, but nothing would ever have said so.
   const farmWarning = loadFailed
     ? (farm === null ? t("farmLoadFailedNeverLoaded") : t("farmLoadFailedStale"))
     : null;
-  const farmAnnouncement = useLiveAnnouncement(farmWarning);
+  const missedFarmWarning = useMissedAnnouncement(farmWarning);
 
   // Per-page document.title: the active nav entry's translated label + the
   // shared suffix (e.g. "Dashboard — Cluckwork"), so the browser tab/history
@@ -95,35 +95,33 @@ export function AppLayout() {
       </aside>
 
       <main className="content" id="main-content" tabIndex={-1}>
-        {/* Assertive, and separate from the visible banner: the banner carries
-            a Try again button, and an alert region wrapped round a control
-            gets the control read out as part of the warning. Empty until there
-            is something to warn about (#485).
+        {/* Carries the warning the banner below could not announce because a
+            dialog had it inert (#485), and stays empty otherwise so the two
+            never say the same thing twice.
 
             `aria-live="assertive"` + `aria-atomic` rather than `role="alert"`,
             which is shorthand for exactly that pair. The distinction matters
-            because this element is always mounted: `role="alert"` is how ~20
-            error banners across the app mark themselves, and the E2E suite
-            reads "no alert on screen" as "nothing has gone wrong". A permanent
-            one would answer all of those queries and quietly retire the
-            check. */}
-        <p className="sr-only" aria-live="assertive" aria-atomic="true">{farmAnnouncement}</p>
+            because this element is always mounted, and `role="alert"` is how
+            ~20 error banners across the app mark themselves — the E2E suite
+            reads "no alert on screen" as "nothing has gone wrong", so a
+            permanent one would answer every such query and quietly retire the
+            check. The CONDITIONAL banner below keeps the role, and with it its
+            place in that net. */}
+        <p className="sr-only" aria-live="assertive" aria-atomic="true">{missedFarmWarning}</p>
 
         {/* A farm we never got is not a cosmetic loss: §4.5 formatting and —
             since #123 — every date field's ceiling come from it, so without a
             farm the pickers silently follow the DEVICE's day and the screen
             looks perfectly healthy while being a day out. Say so, and offer the
             read again, rather than degrade in silence (codex review of #123).
-            The wording is picked above, where the announcer also reads it:
-            never got one -> the pickers follow the DEVICE's day; got one then a
-            re-read failed -> what is on screen is what a save was meant to
-            replace, so a new timezone silently does not apply (round 2: codex
-            + pi). */}
+            The wording is picked above, where the offscreen region reads it
+            too: never got one -> the pickers follow the DEVICE's day; got one
+            then a re-read failed -> what is on screen is what a save was meant
+            to replace, so a new timezone silently does not apply (round 2:
+            codex + pi). */}
         {farmWarning !== null && (
-          <p className="warn farm-warning">
-            {/* Announced by the region above, not from here — reading both
-                would say the same warning twice. */}
-            <span aria-hidden="true">{farmWarning}</span>{" "}
+          <p className="warn farm-warning" role="alert">
+            {farmWarning}{" "}
             <button type="button" className="link" onClick={() => void refresh()}>
               {t("tryAgain")}
             </button>

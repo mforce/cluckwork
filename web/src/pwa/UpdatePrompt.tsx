@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useLiveAnnouncement } from "../components/useLiveAnnouncement";
+import { useMissedAnnouncement } from "../components/useMissedAnnouncement";
 import { registerServiceWorker } from "./registerServiceWorker";
 
 // #142 — "a new version is ready" affordance.
@@ -13,7 +13,8 @@ import { registerServiceWorker } from "./registerServiceWorker";
 // run a stale shell against a newer API.
 //
 // Renders no visible UI until an update is genuinely waiting — only the
-// always-present, empty announcer below, which occupies no layout (#485).
+// always-present offscreen region below, empty and occupying no layout until
+// there is a missed announcement to make (#485).
 export function UpdatePrompt() {
   const { t } = useTranslation("pwa");
   // Holds the activator handed over by the registration; its presence IS the
@@ -43,11 +44,10 @@ export function UpdatePrompt() {
   }, []);
 
   const waiting = activate !== null && !dismissed;
-  // #485 — the announcement lives in the always-mounted region below rather
-  // than on the visible banner, because the banner is inert whenever a dialog
-  // is open and cannot speak from there. See useLiveAnnouncement for why a
-  // freshly-inserted populated region is not an acceptable substitute.
-  const announcement = useLiveAnnouncement(waiting ? t("updateAvailable") : null);
+  // #485 — the banner below announces itself on the ordinary path. It cannot
+  // when a dialog is open, because it is inert then and out of the
+  // accessibility tree; this covers only that case.
+  const missed = useMissedAnnouncement(waiting ? t("updateAvailable") : null);
 
   async function onReload() {
     if (busy || !activate) return;
@@ -63,25 +63,22 @@ export function UpdatePrompt() {
 
   return (
     <>
-      {/* Polite: announced without stealing focus from whatever is being
-          typed. Mounted unconditionally and empty until there is something to
-          say — a live region has to be in the accessibility tree BEFORE its
-          text changes, and the visible banner spends its life going in and out
-          of that tree as dialogs open (#485).
+      {/* Carries the announcement the banner below could not make because a
+          dialog had it inert (#485), and stays empty the rest of the time so
+          the two never say the same sentence twice.
 
           `aria-live` + `aria-atomic` rather than `role="status"`, which is
-          just shorthand for the pair: this element is always present, and a
-          permanently-mounted node holding a live ROLE would answer every
+          just shorthand for that pair: this element is always mounted, and a
+          permanent node holding a live ROLE would answer every
           `getByRole("status"/"alert")` query in the app. Those roles mean "a
-          message is on screen" here — ~20 error banners use `role="alert"`,
-          and the E2E suite reads its absence as "nothing has gone wrong". */}
-      <p className="sr-only" aria-live="polite" aria-atomic="true">{announcement}</p>
+          message is on screen" here — ~20 error banners use `role="alert"` —
+          and the E2E suite reads their absence as "nothing has gone wrong". */}
+      <p className="sr-only" aria-live="polite" aria-atomic="true">{missed}</p>
       {waiting && (
-        <div className="update-banner">
-          {/* The announcer above is the accessible copy of this sentence;
-              leaving both readable would have a screen reader say it twice on
-              the way down the page. */}
-          <span className="update-banner-text" aria-hidden="true">{t("updateAvailable")}</span>
+        // polite + status: announced by a screen reader without stealing focus
+        // from whatever is being typed.
+        <div className="update-banner" role="status" aria-live="polite">
+          <span className="update-banner-text">{t("updateAvailable")}</span>
           <div className="update-banner-actions">
             <button type="button" onClick={onReload} disabled={busy}>
               {busy ? t("reloading") : t("reload")}

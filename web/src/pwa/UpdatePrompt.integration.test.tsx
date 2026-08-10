@@ -6,33 +6,30 @@ import { UpdatePrompt } from "./UpdatePrompt";
 import { registerServiceWorker } from "./registerServiceWorker";
 
 // #485 — #483 makes everything outside the topmost dialog `inert`, which takes
-// the update banner out of the accessibility tree, and un-inerting it later
-// replays nothing. The fix is an always-mounted, initially-empty live region
-// that is written into once the page is the user's own again.
+// the update banner out of the accessibility tree. A banner that appears while
+// a dialog is open is therefore never announced, and un-inerting it afterwards
+// replays nothing. An offscreen live region covers exactly that gap.
 //
-// What these tests can and cannot prove, stated plainly because the previous
+// What these tests can and cannot prove, stated plainly because an earlier
 // version of this file got it wrong: jsdom implements no accessibility tree
 // and (as of 29.1.1) not even the `inert` IDL, so NOTHING here observes a real
-// announcement. What they do pin is the contract the announcement rests on —
-// the region is present and EMPTY while a dialog is open, and carries the
-// message only once none is. An implementation that spoke while inert, or that
-// never spoke on the way out, fails these. Whether a given screen reader then
-// voices that mutation is a browser/AT matter, verified by hand, not here.
+// announcement. What they pin is the contract underneath it — who holds the
+// message, and when. Whether a screen reader then voices that mutation is a
+// browser/AT matter for manual verification.
 
 vi.mock("./registerServiceWorker", () => ({ registerServiceWorker: vi.fn() }));
 const mockRegister = vi.mocked(registerServiceWorker);
 
-/** The always-mounted announcer, distinct from the visible banner. */
-// Role-less on purpose (see UpdatePrompt.tsx): this region is always mounted,
-// and a permanent `role="status"` would answer every such query in the app.
+// Role-less on purpose (see UpdatePrompt.tsx): it is always mounted, and a
+// permanent `role="status"` would answer every such query in the app.
 function announcer(): HTMLElement {
   const el = document.querySelector<HTMLElement>(".sr-only[aria-live]");
-  if (el === null) throw new Error("no live-region announcer rendered");
+  if (el === null) throw new Error("no offscreen live region rendered");
   return el;
 }
 const visibleBanner = () => document.querySelector(".update-banner");
+const MESSAGE = "A new version of Cluckwork is ready";
 
-/** Renders the given tree and hands back the captured update callback. */
 async function renderWithUpdate(ui: React.ReactElement) {
   let announce: ((activate: () => Promise<void>) => void) | undefined;
   mockRegister.mockImplementation(async (onUpdate) => {
@@ -47,41 +44,54 @@ async function renderWithUpdate(ui: React.ReactElement) {
   };
 }
 
-describe("UpdatePrompt announcement survives a dialog's inertness (#485)", () => {
-  it("stays silent while a dialog is open, then speaks once it closes", async () => {
-    function Harness() {
-      const [open, setOpen] = useState(true);
-      return (
-        <>
-          <UpdatePrompt />
-          <Dialog open={open} title="Edit" onClose={() => setOpen(false)}>
-            <input aria-label="Name" />
-          </Dialog>
-        </>
-      );
-    }
+function withDialog(initiallyOpen: boolean) {
+  return function Harness() {
+    const [open, setOpen] = useState(initiallyOpen);
+    return (
+      <>
+        <UpdatePrompt />
+        <button onClick={() => setOpen(true)}>Open</button>
+        <Dialog open={open} title="Edit" onClose={() => setOpen(false)}>
+          <input aria-label="Name" />
+        </Dialog>
+      </>
+    );
+  };
+}
 
+describe("UpdatePrompt announcement survives a dialog's inertness (#485)", () => {
+  it("leaves the ordinary path to the visible banner, saying nothing itself", async () => {
+    // No dialog: the banner is a live region in the accessibility tree and
+    // announces its own arrival. A second region holding the same sentence
+    // would have a screen reader say it twice.
+    const Harness = withDialog(false);
     const { announce } = await renderWithUpdate(<Harness />);
-    // The update lands while the dialog is ALREADY open — the case where the
-    // banner mounts straight into an inert subtree and its first render is
-    // never announced either.
     await announce();
 
-    // Visible immediately (it is only unreachable, not hidden)...
     expect(visibleBanner()).not.toBeNull();
-    // ...but the announcer must NOT be carrying the message yet: writing it
-    // into an inert region spends the announcement on a moment nobody hears,
-    // and leaves nothing to change on the way out.
+    expect(screen.getByRole("status")).toHaveTextContent(MESSAGE);
+    expect(announcer()).toHaveTextContent("");
+  });
+
+  it("covers the banner that appeared while a dialog was open, once it closes", async () => {
+    const Harness = withDialog(true);
+    const { announce } = await renderWithUpdate(<Harness />);
+    // The update lands with the dialog ALREADY open, so the banner mounts
+    // straight into an inert subtree and its own announcement is lost.
+    await announce();
+
+    expect(visibleBanner()).not.toBeNull();
+    // Writing here now would be spent on a moment nobody hears, and would
+    // leave nothing to change on the way out.
     expect(announcer()).toHaveTextContent("");
 
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Close" }));
     });
-
-    expect(announcer()).toHaveTextContent("A new version of Cluckwork is ready");
+    expect(announcer()).toHaveTextContent(MESSAGE);
   });
 
-  it("speaks only when the LAST dialog closes, not the first", async () => {
+  it("waits for the LAST dialog, not the first", async () => {
     function TwoDialogs() {
       const [a, setA] = useState(true);
       const [b, setB] = useState(true);
@@ -108,53 +118,39 @@ describe("UpdatePrompt announcement survives a dialog's inertness (#485)", () =>
     });
     expect(announcer()).toHaveTextContent("");
 
-    // The last one closes: NOW it speaks. Asserting this positive half is what
-    // stops an implementation that simply never fires from passing (codex +
-    // both agents flagged its absence).
+    // The last one closes: now it speaks. Asserting this positive half is what
+    // stops an implementation that never fires at all from passing.
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Close" }));
     });
-    expect(announcer()).toHaveTextContent("A new version of Cluckwork is ready");
+    expect(announcer()).toHaveTextContent(MESSAGE);
   });
 
-  it("goes quiet again under a second dialog, and speaks again when it closes", async () => {
-    // A live region only speaks on a CHANGE, so a re-announcement is only
-    // possible if the region was blanked in between. This is the test that
-    // fails if the message is left sitting in the region permanently.
-    function Reopenable() {
-      const [open, setOpen] = useState(false);
-      return (
-        <>
-          <UpdatePrompt />
-          <button onClick={() => setOpen(true)}>Open</button>
-          <Dialog open={open} title="Edit" onClose={() => setOpen(false)}>
-            <input aria-label="Name" />
-          </Dialog>
-        </>
-      );
-    }
-
-    const { announce } = await renderWithUpdate(<Reopenable />);
+  it("does not nag: a later dialog cycle over the same banner says nothing new", async () => {
+    const Harness = withDialog(true);
+    const { announce } = await renderWithUpdate(<Harness />);
     await announce();
-    expect(announcer()).toHaveTextContent("A new version of Cluckwork is ready");
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    });
+    expect(announcer()).toHaveTextContent(MESSAGE);
 
+    // The banner is standing, unchanged. Blanking the region on every dialog
+    // open would make the next close re-announce it, over and over.
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Open" }));
     });
-    expect(announcer()).toHaveTextContent("");
-
+    expect(announcer()).toHaveTextContent(MESSAGE);
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Close" }));
     });
-    expect(announcer()).toHaveTextContent("A new version of Cluckwork is ready");
+    expect(announcer()).toHaveTextContent(MESSAGE);
   });
 
   it("stays silent when one dialog is swapped for another in a single commit", async () => {
     // The stack is momentarily empty between the outgoing dialog's effect
     // cleanup and the incoming one's setup, but the page never becomes the
-    // user's own — it is inert before and after. Announcing into that gap
-    // spends the message on a moment nobody can hear and leaves nothing to
-    // change when a dialog finally does close for real.
+    // user's own — it is inert before and after.
     function Swap() {
       const [which, setWhich] = useState<"a" | "b">("a");
       return (
@@ -179,17 +175,16 @@ describe("UpdatePrompt announcement survives a dialog's inertness (#485)", () =>
       fireEvent.click(screen.getByRole("button", { name: "Swap" }));
     });
 
-    // Dialog B is now the open one; the banner is still unreachable.
     expect(screen.getByRole("dialog", { name: "B" })).toBeInTheDocument();
     expect(announcer()).toHaveTextContent("");
   });
 
-  it("stays silent for a banner mounted BELOW the dialog in the tree", async () => {
+  it("still covers a prompt mounted BELOW the dialog in the tree", async () => {
     // Ordering, not cosmetics: Dialog pushes onto the stack from its own
-    // effect, and effects run in tree order, so a banner rendered after it has
+    // effect, and effects run in tree order, so a prompt rendered after it has
     // not subscribed yet at that moment. Told inline, nobody would be
-    // listening, and the banner would keep the "no dialog open" reading it
-    // took before the dialog existed — announcing into an inert region.
+    // listening, and it would keep the "no dialog open" reading it took before
+    // the dialog existed — never registering that it owed an announcement.
     function DialogFirst() {
       const [open, setOpen] = useState(true);
       return (
@@ -209,46 +204,37 @@ describe("UpdatePrompt announcement survives a dialog's inertness (#485)", () =>
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Close" }));
     });
-    expect(announcer()).toHaveTextContent("A new version of Cluckwork is ready");
+    expect(announcer()).toHaveTextContent(MESSAGE);
   });
 
-  it("claims no live ARIA role, so it cannot answer the app's error queries", async () => {
-    // Same regression as AppLayout's: `role="status"`/`role="alert"` mean "a
-    // message is on screen" throughout this app, and `.sr-only` is visible to
-    // a browser (a 1px box, not `display:none`). A permanently-mounted node
-    // holding one of those roles answers every query for them. The announcer
-    // therefore spells out `aria-live` + `aria-atomic`, which is all those
-    // roles are shorthand for, and claims neither.
+  it("claims no live ARIA role of its own", async () => {
+    // The regression this pins actually shipped to CI: the region first went
+    // out as `role="status"`, and because `.sr-only` is a 1px box rather than
+    // `display:none` a browser counts it VISIBLE. Ten Playwright specs read
+    // `getByRole("alert")` being hidden as "nothing has gone wrong on this
+    // screen"; a permanently-mounted node holding a live role answers all of
+    // them and turns the check into a tautology.
     const { announce } = await renderWithUpdate(<UpdatePrompt />);
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
 
     await announce();
-    expect(announcer()).toHaveTextContent("A new version of Cluckwork is ready");
-    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    // The VISIBLE banner is the role="status" here, as it always was...
+    expect(screen.getByRole("status")).toHaveClass("update-banner");
+    // ...and the offscreen region still claims nothing.
+    expect(announcer()).not.toHaveAttribute("role");
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("says nothing when there is no update, dialog or not", async () => {
-    function Harness() {
-      const [open, setOpen] = useState(true);
-      return (
-        <>
-          <UpdatePrompt />
-          <Dialog open={open} title="Edit" onClose={() => setOpen(false)}>
-            <input aria-label="Name" />
-          </Dialog>
-        </>
-      );
-    }
-
+    const Harness = withDialog(true);
     await renderWithUpdate(<Harness />);
     expect(announcer()).toHaveTextContent("");
+
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Close" }));
     });
-    // Closing a dialog is not itself news — the region only ever carries a
-    // message there is a reason to make.
+    // Closing a dialog is not itself news.
     expect(announcer()).toHaveTextContent("");
     expect(visibleBanner()).toBeNull();
   });

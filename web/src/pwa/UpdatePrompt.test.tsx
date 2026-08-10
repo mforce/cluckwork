@@ -22,13 +22,7 @@ async function renderAndCapture() {
   };
 }
 
-// The VISIBLE banner specifically. Since #485 the same sentence also lives in
-// an always-mounted sr-only live region — the accessible copy, and the one
-// that actually gets announced — so an unscoped text query matches two nodes.
-const banner = () =>
-  screen.queryByText(/new version of Cluckwork is ready/i, {
-    selector: ".update-banner-text",
-  });
+const banner = () => screen.queryByText(/new version of Cluckwork is ready/i);
 
 beforeEach(() => vi.resetAllMocks());
 
@@ -51,12 +45,8 @@ describe("UpdatePrompt (#142)", () => {
     announce(vi.fn().mockResolvedValue(undefined));
 
     expect(banner()).toBeInTheDocument();
-    // Announced politely so a screen reader doesn't steal focus mid-entry —
-    // from the sr-only live region, which since #485 is where the
-    // announcement lives (the visible banner is inert whenever a dialog is
-    // open). Role-less by design; see UpdatePrompt.tsx.
-    const live = document.querySelector(".sr-only[aria-live='polite']");
-    expect(live).toHaveTextContent(/new version of Cluckwork is ready/i);
+    // Announced politely so a screen reader doesn't steal focus mid-entry.
+    expect(screen.getByRole("status")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Reload" })).toBeInTheDocument();
   });
 
@@ -155,9 +145,7 @@ describe("UpdatePrompt i18n wiring (#182, Task 9)", () => {
     await withOverride("updateAvailable", "UPDATE-AVAILABLE-MARKER", async () => {
       const { announce } = await renderAndCapture();
       announce(vi.fn().mockResolvedValue(undefined));
-      // Both copies of the sentence read the catalog: the visible one and the
-      // sr-only announcer that speaks it (#485).
-      expect(screen.getAllByText("UPDATE-AVAILABLE-MARKER")).toHaveLength(2);
+      expect(screen.getByText("UPDATE-AVAILABLE-MARKER")).toBeInTheDocument();
       expect(banner()).not.toBeInTheDocument();
     });
   });
