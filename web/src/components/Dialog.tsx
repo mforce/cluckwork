@@ -67,6 +67,49 @@ interface DialogProps {
   children: ReactNode;
 }
 
+// #482 — the page has one scrollbar and one accessibility tree, so the state
+// that belongs to the PAGE lives here, once, not once per instance. Every
+// instance used to snapshot and restore `body.style.overflow` on its own:
+// closing two dialogs in first-opened-first order unlocked the page while one
+// was still up, then re-locked it permanently — a page that never scrolls
+// again with nothing open, reachable by a single Escape (which every instance
+// answered). The stack is in open order, so the last entry is the topmost.
+const openStack: HTMLElement[] = [];
+let overflowBeforeAnyDialog: string | null = null;
+
+// Everything except the topmost dialog is inert: the page behind it, and any
+// dialog underneath it. `aria-modal` is a hint some ATs honour, not
+// containment — without this, every control behind the backdrop stays
+// focusable and activatable by a virtual cursor, which is how a second dialog
+// came to be open at all (#480).
+function syncModalBackground() {
+  const top = openStack[openStack.length - 1] ?? null;
+  for (const child of Array.from(document.body.children)) {
+    if (!(child instanceof HTMLElement)) continue;
+    if (top !== null && child !== top) child.setAttribute("inert", "");
+    else child.removeAttribute("inert");
+  }
+}
+
+function pushModal(backdrop: HTMLElement) {
+  // Snapshotted once, by the first dialog to open, and restored by the last to
+  // close — never per instance.
+  if (openStack.length === 0) overflowBeforeAnyDialog = document.body.style.overflow;
+  openStack.push(backdrop);
+  document.body.style.overflow = "hidden";
+  syncModalBackground();
+}
+
+function popModal(backdrop: HTMLElement) {
+  const at = openStack.indexOf(backdrop);
+  if (at !== -1) openStack.splice(at, 1);
+  if (openStack.length === 0 && overflowBeforeAnyDialog !== null) {
+    document.body.style.overflow = overflowBeforeAnyDialog;
+    overflowBeforeAnyDialog = null;
+  }
+  syncModalBackground();
+}
+
 // F131: the shared modal shell. Add/edit forms used to sit inline above (or
 // inside) the list they mutate, shoving the data around on every open. They now
 // live in here: the list stays put and the form gets full attention.
@@ -76,6 +119,7 @@ interface DialogProps {
 export function Dialog({ open, title, onClose, focusKey, describedBy, wide, children }: DialogProps) {
   const { t } = useTranslation("common");
   const panelRef = useRef<HTMLDivElement>(null);
+  const backdropRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   const returnFocusTo = useRef<Element | null>(null);
 
@@ -86,17 +130,18 @@ export function Dialog({ open, title, onClose, focusKey, describedBy, wide, chil
   const onCloseRef = useRef(onClose);
   useEffect(() => { onCloseRef.current = onClose; });
 
-  // Remember where focus came from, and stop the page behind the backdrop from
-  // scrolling. Keyed on `open` alone: a rebind must not re-capture the trigger.
+  // Remember where focus came from, and hand this dialog to the page-level
+  // bookkeeping above (scroll lock + inertness). Keyed on `open` alone: a
+  // rebind must not re-capture the trigger.
   useEffect(() => {
     if (!open) return;
     returnFocusTo.current = document.activeElement;
 
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    const backdrop = backdropRef.current;
+    if (backdrop !== null) pushModal(backdrop);
 
     return () => {
-      document.body.style.overflow = previousOverflow;
+      if (backdrop !== null) popModal(backdrop);
       const trigger = returnFocusTo.current;
       // The trigger can be gone if the save re-rendered the row that owned it.
       if (!(trigger instanceof HTMLElement)) return;
@@ -131,6 +176,13 @@ export function Dialog({ open, title, onClose, focusKey, describedBy, wide, chil
     if (!open) return;
 
     function onKeyDown(e: KeyboardEvent) {
+      // Every open instance listens on `document`, so without this one Escape
+      // ran every handler and closed every dialog — discarding a lower form's
+      // input on a keystroke meant for the top one. The same check keeps the
+      // Tab traps from fighting: only the topmost pulls focus back (#482).
+      const backdrop = backdropRef.current;
+      if (backdrop !== null && openStack[openStack.length - 1] !== backdrop) return;
+
       if (e.key === "Escape") {
         onCloseRef.current();
         return;
@@ -169,6 +221,7 @@ export function Dialog({ open, title, onClose, focusKey, describedBy, wide, chil
   return createPortal(
     <div
       className="dialog-backdrop"
+      ref={backdropRef}
       // Only a click on the backdrop itself dismisses — a click that lands on
       // the panel bubbles up here too.
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
