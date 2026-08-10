@@ -1,12 +1,19 @@
 services:
   # Bundled application: the .NET API serves the JSON API and the SPA (wwwroot).
   #
-  # EXACTLY ONE serving instance until #271 closes — no `deploy.replicas`, no
-  # second app service, no scaling this on a real host. Every instance runs the
-  # DurableJobWorker loop and its three recurring sweeps with nothing claiming
-  # the work, so a second one double-runs them silently: no error, no log, just
-  # duplicate work. See "Deploy invariant" in AGENTS.md for what is and isn't
-  # exposed today, and why #307's closure is NOT permission to scale.
+  # EXACTLY ONE serving instance — no `deploy.replicas`, no second app service,
+  # no scaling this on a real host. Every instance runs the DurableJobWorker
+  # loop and its three recurring sweeps with nothing claiming the work, so a
+  # second one double-runs them (#271); the step-up grant registry is
+  # process-local, so a single-use grant becomes usable once per replica and a
+  # logout is invisible to the others (#338); and the per-IP login limiter is
+  # in-process, so N replicas allow ~N times the intended attempts (#143).
+  #
+  # Only the two purge sweeps are silent about it. DailyEntryLockSweep loses an
+  # optimistic-concurrency check and logs "Lock sweep failed for account …",
+  # which reads as a database fault rather than as a second replica. See
+  # "Deploy invariant" in AGENTS.md — and note that #307's closure is NOT
+  # permission to scale.
   app:
     build:
       context: ..
