@@ -559,12 +559,19 @@ describe("SettingsPage logo", () => {
     expect(mockGetLogo).not.toHaveBeenCalled();
   });
 
-  it("tells the admin a square, simple mark reads best in the sidebar", async () => {
+  it("tells the admin what the small sidebar slot can and cannot show", async () => {
     await renderReady(SETTINGS({ logoContentHash: null }));
-    // The guidance discovered through use: the slot is small and square, so a
-    // detailed or wide logo shrinks to mush.
-    expect(screen.getByText(/Use a/)).toHaveTextContent(/square/);
-    expect(screen.getByText(/reads far better there/)).toBeInTheDocument();
+    // #179 retired the old "upload a SQUARE mark" guidance: the slot is now
+    // height-driven, so a wide wordmark renders at its own aspect. What the
+    // hint must still rule out is a DETAILED image, which is unreadable at
+    // sidebar size and belongs on the banner. Asserting the surviving advice
+    // AND the absence of the retired advice — the copy going stale again is
+    // exactly the regression this catches.
+    const hint = screen.getByText(/shows small in the sidebar/);
+    expect(hint).toHaveTextContent(/detailed/);
+    expect(hint).toHaveTextContent(/wide wordmark/);
+    expect(hint).toHaveTextContent(/banner/);
+    expect(hint).not.toHaveTextContent(/square/i);
   });
 
   it("previews the stored logo and offers replace + remove", async () => {

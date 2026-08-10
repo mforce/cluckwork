@@ -1203,10 +1203,11 @@ export const en = {
     // <Trans> key — the only string on this screen interleaving JSX
     // (<strong>square</strong>), see CONTRIBUTING-i18n.md.
     logoSquareHint:
-      "Use a <strong>square</strong> image — the logo shows small in the "
-      + "sidebar, so a simple, tightly-cropped mark (a symbol or a single "
-      + "letter) reads far better there than a wide or detailed picture. A "
-      + "transparent background on a light design works best.",
+      "The logo shows small in the sidebar, about the height of a line of "
+      + "text. A simple mark and a wide wordmark both read fine there. What "
+      + "does not work is a <strong>detailed</strong> picture — at that size "
+      + "it shrinks to something unreadable, so give it to the banner below "
+      + "instead. A transparent background on a light design works best.",
     logoWorkingMessage: "Working…",
     logoUpdatedMessage: "Logo updated.",
     logoRemovedMessage: "Logo removed.",
@@ -2570,10 +2571,11 @@ export const en = {
       + "is only checked well enough to save, not to prove it looks right — nothing in Cluckwork displays "
       + "dates or times through this setting yet, so a broken custom value would not be visible today.",
     farmSettingsSquareLogo:
-      "Use a <strong>square</strong> logo. It shows small in the sidebar, so a simple, tightly-cropped mark "
-      + "— a symbol or a single letter — reads much better there than a wide wordmark or a detailed picture, "
-      + "which shrink to something unreadable. Keep a detailed logo for print or a website; give the app a "
-      + "clean little mark.",
+      "The logo shows in the sidebar at about the height of a line of text. A simple, tightly-cropped mark "
+      + "and a <strong>wide wordmark</strong> both read fine there — a wordmark keeps its own shape and uses "
+      + "the horizontal space rather than being squashed into a square. What does not work at that size is a "
+      + "detailed picture or a busy scene: it shrinks to something unreadable. Give a detailed image to the "
+      + "farm banner instead, where it is shown full-size.",
     farmSettingsBanner:
       "The <strong>banner</strong> is a second, independent image shown full-size on a splash screen right "
       + "after signing in, once per sign-in — a wide or detailed picture works well here, unlike the small "
@@ -2906,8 +2908,9 @@ export const en = {
     glossaryFarmLogoTerm: "Farm logo",
     glossaryFarmLogoDef:
       "Your own image in place of the Cluckwork mark in the sidebar, uploaded from Farm settings. PNG, "
-      + "JPEG or WebP (2 MB by default), still images only; a square, simple mark reads best at the small "
-      + "sidebar size. Stored as a rebuilt copy with camera and location details stripped out.",
+      + "JPEG or WebP (2 MB by default), still images only; a simple mark or a wide wordmark reads best at "
+      + "that size, while a detailed picture belongs on the farm banner. Stored as a rebuilt copy with "
+      + "camera and location details stripped out.",
 
     glossaryFarmBannerTerm: "Farm banner",
     glossaryFarmBannerDef:
