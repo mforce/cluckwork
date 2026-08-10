@@ -1369,6 +1369,40 @@ describe("SalesPage in-dialog errors (#474)", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
+  it("opens the next order's payment form without the last order's failure", async () => {
+    // #479 — until now the trigger cleared the slot on the way in, so this was
+    // covered by accident. The clear moved onto the dismissal, and the screen
+    // closing the form because the ORDER changed is not a dismissal: without an
+    // explicit clear there, a 422 about SO-9's money is sitting in SO-10's form
+    // when the user opens it. The test therefore has to REOPEN — the previous
+    // test stops at "the message is not on screen", which a closed dialog
+    // satisfies whether or not the slot was emptied.
+    mockListOrderPayments.mockResolvedValue({
+      items: [], paidMinorUnits: 0, outstandingMinorUnits: 12000, totalMinorUnits: 12000,
+      currencyCode: "USD", currencyMinorUnit: 2,
+    });
+    await openOrder(CONFIRMED_9, /Grade A Dozen/);
+    fireEvent.click(await screen.findByRole("button", { name: "Record payment" }));
+    mockRecordPayment.mockRejectedValueOnce(
+      new ApiError(422, "Validation failed", "Payment exceeds the outstanding balance."));
+    fireEvent.change(within(dialog()).getByLabelText(/Amount/), { target: { value: "99" } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Record payment" }));
+    });
+    expect(within(dialog()).getByText("Payment exceeds the outstanding balance.")).toBeInTheDocument();
+
+    mockGetOrder.mockResolvedValue({ ...CONFIRMED_9, id: "o10", referenceNumber: "SO-10" });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "open" }));
+    });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Record payment" }));
+
+    expect(within(dialog()).queryByText("Payment exceeds the outstanding balance."))
+      .not.toBeInTheDocument();
+  });
+
   it("clears the form's last message while its next attempt is in flight", async () => {
     // A form mid-save must not still be showing why the PREVIOUS attempt
     // failed — the user cannot tell whether it is a stale message or the
@@ -1414,9 +1448,9 @@ describe("SalesPage in-dialog errors (#474)", () => {
   });
 
   it("reopening a dialog does not show the message its last attempt left", async () => {
-    // The slot survives the close; the reopen is what clears it. Without that,
-    // a form opens already accusing the user of a mistake they made minutes
-    // ago, about a submission they never made this time.
+    // The dismissal empties the slot (#479 moved it there from the reopen).
+    // Without that, a form opens already accusing the user of a mistake they
+    // made minutes ago, about a submission they never made this time.
     await renderReady();
     mockCreateOrder.mockRejectedValueOnce(
       new ApiError(422, "Validation failed", "Order date cannot be in the future."));
