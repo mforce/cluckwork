@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 export interface DialogErrors {
   /** The screen's own failure — a read, or a write not behind a dialog. */
@@ -10,9 +10,22 @@ export interface DialogErrors {
   clearDialog: (scope: string) => void;
   /**
    * Called when an attempt starts: clears the slot that attempt will write to
-   * and nothing else. `null` means the page's.
+   * and nothing else, and un-mutes that scope so this attempt can report.
+   * `null` means the page's.
    */
   beginAttempt: (scope: string | null) => void;
+  /**
+   * Called when a dialog is dismissed: empties its slot, so reopening the form
+   * shows no stale verdict, and mutes whatever attempt was still out, so its
+   * failure is not reported against the session the user opens next.
+   */
+  abandon: (scope: string) => void;
+  /**
+   * The settle path: routes a failure to the slot its scope names, unless that
+   * attempt was abandoned, in which case it lands nowhere. `null` is the
+   * page's — a page failure is never muted, because the page does not go away.
+   */
+  report: (scope: string | null, text: string) => void;
 }
 
 /**
@@ -38,6 +51,10 @@ export interface DialogErrors {
 export function useDialogErrors(): DialogErrors {
   const [page, setPage] = useState<string | null>(null);
   const [dialogs, setDialogs] = useState<Record<string, string>>({});
+  // The scopes whose dialog was dismissed while their write was still out. A
+  // ref, not state: it is read in the settle path of a request already running,
+  // where a render-behind value is the wrong answer.
+  const abandoned = useRef<Set<string>>(new Set());
 
   const clearDialog = useCallback((scope: string) => {
     setDialogs((current) => {
@@ -55,11 +72,34 @@ export function useDialogErrors(): DialogErrors {
   }, []);
 
   const beginAttempt = useCallback((scope: string | null) => {
-    if (scope === null) setPage(null);
-    else clearDialog(scope);
+    if (scope === null) {
+      setPage(null);
+      return;
+    }
+    // Muting is per ATTEMPT, not per dialog: without this, one dismissal would
+    // silence the form the user reopened and is filling in now.
+    abandoned.current.delete(scope);
+    clearDialog(scope);
   }, [clearDialog]);
+
+  const abandon = useCallback((scope: string) => {
+    abandoned.current.add(scope);
+    clearDialog(scope);
+  }, [clearDialog]);
+
+  const report = useCallback((scope: string | null, text: string) => {
+    if (scope === null) {
+      setPage(text);
+      return;
+    }
+    // The user gave up on this one, so its verdict has nowhere honest to land:
+    // not on the page, which is the context-free message #474 was filed about,
+    // and not in the dialog, which by now may be a second session.
+    if (abandoned.current.has(scope)) return;
+    setDialog(scope, text);
+  }, [setDialog]);
 
   const forDialog = useCallback((scope: string) => dialogs[scope], [dialogs]);
 
-  return { page, setPage, forDialog, setDialog, clearDialog, beginAttempt };
+  return { page, setPage, forDialog, setDialog, clearDialog, beginAttempt, abandon, report };
 }
