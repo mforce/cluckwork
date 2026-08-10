@@ -117,6 +117,75 @@ describe("useMissedAnnouncement (#485)", () => {
     expect(out()).toHaveTextContent("ready");
   });
 
+  it("does not speak for a repeat message the visible region can announce itself", async () => {
+    // The sequence codex found: raised behind a dialog, delivered, resolved,
+    // then raised AGAIN with no dialog in the way. The messages here are fixed
+    // strings — dismiss an update banner and the next one says the very same
+    // sentence — so a debt left behind from the first round still matches the
+    // second, and this region would speak in chorus with the visible one.
+    function Harness() {
+      const [open, setOpen] = useState(true);
+      const [msg, setMsg] = useState<string | null>(null);
+      return (
+        <>
+          <Probe message={msg} />
+          <button onClick={() => setMsg("ready")}>Raise</button>
+          <button onClick={() => setMsg(null)}>Resolve</button>
+          <Dialog open={open} title="Edit" onClose={() => setOpen(false)}>
+            <input aria-label="Field" />
+          </Dialog>
+        </>
+      );
+    }
+
+    await act(async () => { render(<Harness />); });
+    await act(async () => { screen.getByRole("button", { name: "Raise" }).click(); });
+    await act(async () => { screen.getByRole("button", { name: "Close" }).click(); });
+    expect(out()).toHaveTextContent("ready");
+
+    await act(async () => { screen.getByRole("button", { name: "Resolve" }).click(); });
+    expect(out()).toHaveTextContent("");
+
+    // Same text, no dialog: the visible region is in the accessibility tree
+    // and announces this one on its own.
+    await act(async () => { screen.getByRole("button", { name: "Raise" }).click(); });
+    expect(out()).toHaveTextContent("");
+  });
+
+  it("does not speak for a message that changes away and back with no dialog", async () => {
+    // The same stale-debt trap without a null in between: deliver A behind a
+    // dialog, switch to B in the clear, then back to A. Clearing only on
+    // resolve would still match here.
+    function Harness() {
+      const [open, setOpen] = useState(true);
+      const [msg, setMsg] = useState<string | null>(null);
+      return (
+        <>
+          <Probe message={msg} />
+          <button onClick={() => setMsg("A")}>To A</button>
+          <button onClick={() => setMsg("B")}>To B</button>
+          <Dialog open={open} title="Edit" onClose={() => setOpen(false)}>
+            <input aria-label="Field" />
+          </Dialog>
+        </>
+      );
+    }
+
+    await act(async () => { render(<Harness />); });
+    // Raised after mount so it lands while the dialog is genuinely up: within
+    // one tree the dialog pushes onto the stack from an effect, which runs
+    // after this hook's first render, so a message present at mount would not
+    // be behind anything yet.
+    await act(async () => { screen.getByRole("button", { name: "To A" }).click(); });
+    await act(async () => { screen.getByRole("button", { name: "Close" }).click(); });
+    expect(out()).toHaveTextContent("A");
+
+    await act(async () => { screen.getByRole("button", { name: "To B" }).click(); });
+    expect(out()).toHaveTextContent("");
+    await act(async () => { screen.getByRole("button", { name: "To A" }).click(); });
+    expect(out()).toHaveTextContent("");
+  });
+
   it("clears once there is nothing left to say", async () => {
     function Harness() {
       const [msg, setMsg] = useState<string | null>("ready");

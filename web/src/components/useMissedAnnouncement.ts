@@ -44,7 +44,17 @@ export function useMissedAnnouncement(message: string | null): string {
   useEffect(() => {
     if (message === previous.current) return;
     previous.current = message;
-    if (message !== null && blocked) setMissed(message);
+    // Every change reassigns the debt from scratch, rather than only ever
+    // taking one on. A change the visible region CAN announce for itself
+    // cancels whatever was owed; only one it cannot becomes the new debt.
+    //
+    // Leaving a settled debt behind is not harmless bookkeeping, because the
+    // messages here are fixed strings: dismiss an update banner and let the
+    // next one raise the same sentence with no dialog in the way, and a stale
+    // `missed` still matches it — so this region speaks in chorus with the
+    // visible one, which is the exact duplicate it exists to prevent (codex
+    // review of #499). Same trap via a message that changes away and back.
+    setMissed(message !== null && blocked ? message : null);
   }, [message, blocked]);
 
   const [shown, setShown] = useState("");
