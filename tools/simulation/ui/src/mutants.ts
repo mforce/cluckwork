@@ -287,6 +287,27 @@ export const MUTANTS: Record<string, Mutant> = {
       });
     },
   },
+
+  // --- preferences ---------------------------------------------------------
+  "language-persist-dropped": {
+    breaks: "server-side persistence of the language preference — the PUT answers 204 and saves nothing",
+    caughtBy: "i18n.spec.ts — switching to <lang> renders that language across the shell",
+    apply: async (page) => {
+      // #486 — the durability half of that spec (clear the device hint, reload,
+      // and expect the language to come back from /me) is the only thing
+      // standing between "the server persisted it" and "the browser remembered
+      // it". Nothing mutated that until now, which is the same blind spot that
+      // let the spec's own persist assertion go vacuous without anyone noticing.
+      //
+      // Note what this does and does not cover: it breaks the SERVER guarantee,
+      // so it goes red under the old spec as well as the new one. Whether the
+      // spec waits for the RIGHT request is a property of the test, not of the
+      // app, and cannot be mutated from the network boundary.
+      await page.route("**/api/v1/me/language", async (route) => {
+        await route.fulfill({ status: 204, body: "" });
+      });
+    },
+  },
 };
 
 /** The mutant named by the environment, or null for an ordinary run. */

@@ -43,6 +43,34 @@ function languageSelect(page: Page) {
  */
 const WITNESS_KEYS = ["account:language", "nav:reports"] as const;
 
+/**
+ * Resolves when the server has answered the PUT that persists THIS language —
+ * matched on the request payload, not just on the route (#486).
+ *
+ * Matching the route alone is not enough, because more than one of these is in
+ * flight at a time. Every test normalises to English first, and the select is
+ * `disabled` while a persist runs (`LanguageSelector.tsx`), so Playwright's
+ * actionability check parks the NEXT `selectOption` until the reset's PUT
+ * answers. A route-only listener registered in between is then satisfied by the
+ * reset's response, and the assertion that the target language was persisted
+ * passes without that request ever having been observed — which is how #486
+ * reached a reload with nothing saved and an assertion that had already gone
+ * green. `putMeLanguage` sends `{ language }` (`web/src/api/cluckwork.ts`), so
+ * the payload is what tells the two apart.
+ */
+function languagePersisted(page: Page, lang: string, timeout = 10_000) {
+  return page.waitForResponse((response) => {
+    const request = response.request();
+    if (!response.url().includes("/api/v1/me/language") || request.method() !== "PUT") return false;
+    try {
+      return (request.postDataJSON() as { language?: string } | null)?.language === lang;
+    } catch {
+      // A body that will not parse is not the request we are waiting for.
+      return false;
+    }
+  }, { timeout });
+}
+
 const LANGUAGE_OPTION = { en: "English", es: "Español", tl: "Tagalog" } as const;
 
 test.describe("i18n", () => {
@@ -54,11 +82,25 @@ test.describe("i18n", () => {
     // itself hang converts one failure into a cascade across the whole file.
     try {
       await page.goto("/account", { timeout: 10_000 });
+      // Settled at creation so it can never float. If the selectOption below
+      // throws — the select missing, the page not reaching /account — control
+      // leaves through the catch without awaiting this, and its timeout then
+      // surfaces as an unhandled rejection. Measured: that fails EVERY test in
+      // the file with "page.waitForResponse: Test ended.", including ones that
+      // never touch the language switch, which is precisely the cascade this
+      // best-effort hook exists to prevent (#486 review).
+      const reset = languagePersisted(page, "en").catch(() => undefined);
       await languageSelect(page).selectOption("en", { timeout: 10_000 });
       // Wait for the persist to land, not just the local switch — the point of
       // the reset is the SERVER-side preference, which is what the next run
       // bootstraps from.
-      await expect(page.locator("html")).toHaveAttribute("lang", "en", { timeout: 10_000 });
+      //
+      // #486 — this used to assert `html lang="en"`, which proves nothing about
+      // the server: i18next sets that attribute synchronously on
+      // languageChanged, so it was already correct while the PUT was still in
+      // flight. Leaving cleanup's PUT in flight is what let the NEXT test's
+      // persist listener match THIS reset's response instead of its own.
+      await reset;
     } catch {
       // Deliberately swallowed. A failed reset is worth knowing about but is not
       // itself the finding, and re-throwing here would mask the real failure.
@@ -91,11 +133,12 @@ test.describe("i18n", () => {
       await selector.selectOption("en");
       await expect(page.getByRole("link", { name: tEn("nav:reports"), exact: true })).toBeVisible();
 
-      // The switch, made the way a user makes it.
-      const persisted = page.waitForResponse((response) =>
-        response.url().includes("/api/v1/me/language")
-          && response.request().method() === "PUT",
-      );
+      // The switch, made the way a user makes it. Bound to THIS language's
+      // payload: registered here, a route-only listener is satisfied by the
+      // English reset above while `selectOption` is still parked on the
+      // disabled select, and would report a persist that had not happened
+      // (#486 — see languagePersisted).
+      const persisted = languagePersisted(page, lang);
       await selector.selectOption(lang);
       expect((await persisted).ok(), `the ${lang} preference was not persisted`).toBe(true);
 

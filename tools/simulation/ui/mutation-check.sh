@@ -67,6 +67,7 @@ declare -A SPEC_FOR=(
   [nav-role-gate-bypassed]="specs/readonly.spec.ts"
   [payment-never-settles]="specs/sales.spec.ts"
   [export-returns-nothing]="specs/owner.spec.ts"
+  [language-persist-dropped]="specs/i18n.spec.ts"
 )
 
 declare -A GREP_FOR=(
@@ -81,6 +82,7 @@ declare -A GREP_FOR=(
   [nav-role-gate-bypassed]="is not offered the destinations"
   [payment-never-settles]="takes an order from new customer"
   [export-returns-nothing]="export downloads a real file"
+  [language-persist-dropped]="renders that language across the shell"
 )
 
 # Mutants whose RED is known not to prove the guarantee they name. See the header.
@@ -93,7 +95,8 @@ if [ ${#MUTANTS[@]} -eq 0 ]; then
   MUTANTS=(audit-gate-removed users-gate-removed flock-scope-removed
            stock-pager-inert stock-summary-broken report-range-bound-removed
            refresh-always-fails logout-not-honoured
-           nav-role-gate-bypassed payment-never-settles export-returns-nothing)
+           nav-role-gate-bypassed payment-never-settles export-returns-nothing
+           language-persist-dropped)
 fi
 
 rule() { printf '\n%s\n' "────────────────────────────────────────────────────────────────────────"; }
