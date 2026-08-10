@@ -54,16 +54,21 @@ public static class DailyEntryEndpoints
     private static async Task<IResult> GetDailyEntry(
         Guid id,
         Cluckwork.Application.Features.DailyEntries.IDailyEntryRepository entries,
+        Cluckwork.Application.Features.Audit.IAuditEventRepository audit,
         TenantContext tenant,
         CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
         var entry = await entries.GetReadOnlyAsync(id, ct);
-        return entry is null ? Results.NotFound() : Results.Ok(ToResponse(entry));
+        if (entry is null) return Results.NotFound();
+        var provenance = await audit.GetProvenanceAsync(
+            nameof(Cluckwork.Domain.Eggs.DailyEntry), [id], ct);
+        return Results.Ok(ToResponse(entry, provenance.GetValueOrDefault(id)));
     }
 
     private static async Task<IResult> ListDailyEntries(
         Cluckwork.Application.Features.DailyEntries.IDailyEntryRepository entries,
+        Cluckwork.Application.Features.Audit.IAuditEventRepository audit,
         TenantContext tenant,
         CancellationToken ct,
         Guid? flockId = null,
@@ -78,10 +83,14 @@ public static class DailyEntryEndpoints
         var skip = Math.Max(offset ?? 0, 0);
 
         var list = await entries.ListAsync(flockId, from, to, take, skip, ct);
-        return Results.Ok(list.Select(ToResponse));
+        var provenance = await audit.GetProvenanceAsync(
+            nameof(Cluckwork.Domain.Eggs.DailyEntry), list.Select(e => e.Id).ToList(), ct);
+        return Results.Ok(list.Select(e => ToResponse(e, provenance.GetValueOrDefault(e.Id))));
     }
 
-    private static DailyEntryResponse ToResponse(Cluckwork.Domain.Eggs.DailyEntry e) => new(
+    private static DailyEntryResponse ToResponse(
+        Cluckwork.Domain.Eggs.DailyEntry e,
+        Cluckwork.Application.Features.Audit.EntityProvenance? p) => new(
         e.Id, e.FarmId, e.HouseId, e.FlockId, e.Date, e.Status.ToString(),
         e.TotalEggs, e.CrackedEggs, e.DirtyEggs, e.DiscardedEggs, e.MortalityCount,
         // #396 — which grade each condition counter resolved to when this entry
@@ -92,7 +101,8 @@ public static class DailyEntryEndpoints
         e.Grades.Select(g => new GradeLineResponse(g.EggGradeId, g.Quantity)).ToList(),
         e.Version, e.AdjustReason, e.VoidReason, e.LockedAtUtc,
         // The audit snapshot is stored as JSON; embed it as an object, not a string.
-        e.AdjustedFromJson is null ? null : JsonSerializer.Deserialize<JsonElement>(e.AdjustedFromJson));
+        e.AdjustedFromJson is null ? null : JsonSerializer.Deserialize<JsonElement>(e.AdjustedFromJson),
+        p?.CreatedByEmail, p?.CreatedAtUtc, p?.LastChangedByEmail, p?.LastChangedAtUtc);
 
     private static async Task<IResult> AdjustDailyEntry(
         Guid id,
@@ -230,7 +240,11 @@ public sealed record DailyEntryResponse(
     Guid? CrackedGradeId, Guid? DirtyGradeId,
     IReadOnlyList<GradeLineResponse> Grades,
     int Version, string? AdjustReason, string? VoidReason, DateTimeOffset? LockedAtUtc,
-    JsonElement? AdjustedFrom);
+    JsonElement? AdjustedFrom,
+    // #494 provenance, derived from the audit trail: null together for a
+    // record created before that shipped (no backfill).
+    string? CreatedByEmail, DateTimeOffset? CreatedAtUtc,
+    string? LastChangedByEmail, DateTimeOffset? LastChangedAtUtc);
 
 public sealed record GradeLineResponse(Guid EggGradeId, int Quantity);
 

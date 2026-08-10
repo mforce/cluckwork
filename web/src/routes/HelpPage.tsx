@@ -385,6 +385,8 @@ export function HelpPage() {
       <h3 id="audit">{t("auditHeading")}</h3>
       <ul>
         <li>{t("auditLog")}</li>
+        <li>{t("auditRecordHistory")}</li>
+        <li>{t("auditRecordHistoryOlder")}</li>
       </ul>
 
       <h3 id="export">{t("exportHeading")}</h3>

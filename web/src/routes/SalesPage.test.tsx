@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, within, fireEvent, act } from "@testing-library/react";
 import { SalesPage } from "./SalesPage";
 import { renderWithProviders } from "../test/renderWithProviders";
-import { account } from "../test/fixtures";
+import { account, NO_RECORD_HISTORY, RECORD_HISTORY } from "../test/fixtures";
 import i18n from "../i18n";
 import {
   addOrderItem, cancelOrder, confirmOrder, createOrder, getOrder, listCustomers, listEggGrades,
@@ -55,7 +55,7 @@ const mockRecordPayment = vi.mocked(recordPayment);
 const CUSTOMER: Customer = { id: "c1", name: "Acme Eggs", phone: "555", email: null, address: null, note: null };
 // Only gr1 is saleable → the picker offers PRODUCT_A only; gr2/PRODUCT_B exists
 // solely to resolve the second line's display name (allProducts).
-const GRADE: EggGrade = { id: "gr1", farmId: "farm1", name: "Grade A", gradeType: "Size", sortOrder: 1, isSaleable: true, dailyEntryKind: "Manual", active: true };
+const GRADE: EggGrade = { ...NO_RECORD_HISTORY, id: "gr1", farmId: "farm1", name: "Grade A", gradeType: "Size", sortOrder: 1, isSaleable: true, dailyEntryKind: "Manual", active: true };
 const PRODUCT_A: Product = {
   id: "p1", name: "Grade A Dozen", productType: "Egg", defaultUnit: "Dozen",
   defaultPriceMinorUnits: 300, currencyCode: "USD", currencyMinorUnit: 2,
@@ -71,6 +71,7 @@ const PRODUCT_B: Product = {
 // ORDER's currencyMinorUnit, not a hard-coded 2.
 function draftEmpty(currencyMinorUnit: number, currencyCode: string, id = "o1"): SalesOrder {
   return {
+    ...NO_RECORD_HISTORY,
     id, customerId: "c1", referenceNumber: "SO-1", orderDate: "2026-07-20",
     status: "Draft", totalMinorUnits: 0, currencyCode, currencyMinorUnit, voidReason: null, items: [],
   };
@@ -929,6 +930,29 @@ describe("SalesPage pending states (#236)", () => {
     await screen.findByText(new RegExp(order.referenceNumber));
     expect(errorSpy.mock.calls.filter(([first]) => String(first).includes("act("))).toEqual([]);
     errorSpy.mockRestore();
+  });
+});
+
+// #494 — the record-history column is a shared component, well tested on its
+// own; what is NOT tested by that unit suite is the per-page WIRING that hands
+// it the CORRECT row's history object. A page passing the wrong variable (a
+// different row, or a stray constant) would go uncaught otherwise.
+describe("SalesPage record history column (#494)", () => {
+  it("shows the record history column for the row that has one", async () => {
+    const HISTORY_ORDER: SalesOrder = {
+      ...draftEmpty(2, "USD", "o-hist"), ...RECORD_HISTORY, referenceNumber: "SO-HIST",
+    };
+    mockListOrders.mockResolvedValue([DRAFT_TWO, HISTORY_ORDER]);
+    await renderReady();
+
+    const historyRow = screen.getByRole("row", { name: /SO-HIST/ });
+    expect(within(historyRow).getByText(/ana@farm\.test/)).toBeInTheDocument();
+    expect(within(historyRow).getByText(/bo@farm\.test/)).toBeInTheDocument();
+
+    // The OTHER row must not carry the history row's data — this is what
+    // catches every row being wired to the same object.
+    const otherRow = screen.getByRole("row", { name: /SO-2/ });
+    expect(within(otherRow).queryByText(/ana@farm\.test/)).not.toBeInTheDocument();
   });
 });
 

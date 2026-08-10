@@ -416,6 +416,22 @@ update or delete surface anywhere. Admin-only viewer at /audit. The
 entity-local snapshots (`AdjustedFromJson` etc.) remain — they are the
 record's own history; the audit log is the cross-cutting trail.
 
+**Record history (#494)** — the "Created by … / Last changed by …" column on
+the Flocks, Egg grades, Daily entry history, Sales and Expenses tables. Not a
+stored field: it is **derived from the audit log**, taking that record's
+earliest event as its creation and its latest as its last change. Creation
+itself became an audited action for these five in the same change (`Flock.Create`
+and siblings) — before that only corrections were on the trail. Two consequences
+follow from being derived rather than stored. A record created **before #494**
+has no creation event and is **never backfilled**, so its history column is
+blank. And who can see it is exactly who could already read the record — it adds
+no gate of its own, so a worker reading their own daily entry also sees which
+manager corrected it. The actor is shown as the plain **email snapshot** the
+audit log already keeps, deliberately not a live-joined name: a later rename or
+disable must not rewrite what old history displays. Distinct from the audit
+log's own admin-only viewer at /audit, which is the full cross-cutting trail —
+this is the one-line summary on the record's own page.
+
 **Hen-day % (#91)** — eggs collected ÷ hen-days × 100 (spec §19.3). A
 hen-day is one bird alive for one day; the day's bird count comes from the
 bird ledger (placements + movements). The production report shows it per

@@ -9,6 +9,7 @@ import {
 import type { BirdMovement, Flock } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import i18n from "../i18n";
+import { NO_RECORD_HISTORY, RECORD_HISTORY } from "../test/fixtures";
 
 // Network seam only; ApiError stays real (errorMessage branches on it), and the
 // date helpers (todayIso/ageWeeks) stay real too — they are pure and not mocked.
@@ -33,14 +34,17 @@ const mockReactivate = vi.mocked(reactivateFlock);
 const mockListMovements = vi.mocked(listBirdMovements);
 
 const ACTIVE: Flock = {
+  ...NO_RECORD_HISTORY,
   id: "f1", farmId: "farm1", houseId: "h1", name: "Hen House 1", breed: "ISA Brown",
   placementDate: "2026-01-01", initialCount: 100, currentBirds: 98, status: "Active",
 };
 const DEPLETED: Flock = {
+  ...NO_RECORD_HISTORY,
   id: "f2", farmId: "farm1", houseId: "h1", name: "Depleted Flock", breed: "Leghorn",
   placementDate: "2025-06-01", initialCount: 200, currentBirds: 0, status: "Depleted",
 };
 const ARCHIVED: Flock = {
+  ...NO_RECORD_HISTORY,
   id: "f3", farmId: "farm1", houseId: "h1", name: "Old Coop", breed: "Sussex",
   placementDate: "2024-01-01", initialCount: 50, currentBirds: 0, status: "Archived",
 };
@@ -547,6 +551,30 @@ describe("FlocksPage role gating", () => {
     // No way in: the action that opens the movement dialog is admin-only.
     expect(screen.queryByRole("button", { name: "Record movement" })).not.toBeInTheDocument();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+});
+
+// #494 — the record-history column is a shared component, well tested on its
+// own; what is NOT tested by that unit suite is the per-page WIRING that hands
+// it the CORRECT row's history object. A page passing the wrong variable (a
+// different row, or a stray constant) would go uncaught otherwise.
+describe("FlocksPage record history column (#494)", () => {
+  it("shows the record history column for the row that has one", async () => {
+    const HISTORY_FLOCK: Flock = {
+      ...RECORD_HISTORY,
+      id: "f9", farmId: "farm1", houseId: "h1", name: "Provenance Coop", breed: "Orpington",
+      placementDate: "2026-02-01", initialCount: 50, currentBirds: 50, status: "Active",
+    };
+    await renderReady(ADMIN, [ACTIVE, HISTORY_FLOCK]);
+
+    const historyRow = screen.getByRole("row", { name: /Provenance Coop/ });
+    expect(within(historyRow).getByText(/ana@farm\.test/)).toBeInTheDocument();
+    expect(within(historyRow).getByText(/bo@farm\.test/)).toBeInTheDocument();
+
+    // The OTHER row must not carry the history row's data — this is what
+    // catches every row being wired to the same object.
+    const otherRow = screen.getByRole("row", { name: /Hen House 1/ });
+    expect(within(otherRow).queryByText(/ana@farm\.test/)).not.toBeInTheDocument();
   });
 });
 

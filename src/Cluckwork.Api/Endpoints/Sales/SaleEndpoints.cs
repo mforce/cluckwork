@@ -1,6 +1,7 @@
 namespace Cluckwork.Api.Endpoints.Sales;
 
 using Cluckwork.Api.Validation;
+using Cluckwork.Application.Features.Audit;
 using Cluckwork.Application.Features.Sales;
 using Cluckwork.Application.Features.Sales.AddOrderItem;
 using Cluckwork.Application.Features.Sales.CancelSalesOrder;
@@ -182,15 +183,19 @@ public static class SaleEndpoints
     }
 
     private static async Task<IResult> GetSalesOrder(
-        Guid id, ISalesOrderRepository orders, TenantContext tenant, CancellationToken ct)
+        Guid id, ISalesOrderRepository orders, IAuditEventRepository audit,
+        TenantContext tenant, CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
         var order = await orders.GetReadOnlyAsync(id, ct);
-        return order is null ? Results.NotFound() : Results.Ok(ToResponse(order));
+        if (order is null) return Results.NotFound();
+        var provenance = await audit.GetProvenanceAsync(nameof(SalesOrder), [id], ct);
+        return Results.Ok(ToResponse(order, provenance.GetValueOrDefault(id)));
     }
 
     private static async Task<IResult> ListSalesOrders(
-        ISalesOrderRepository orders, TenantContext tenant, CancellationToken ct,
+        ISalesOrderRepository orders, IAuditEventRepository audit,
+        TenantContext tenant, CancellationToken ct,
         string? status = null, Guid? customerId = null,
         DateOnly? from = null, DateOnly? to = null,
         int? limit = null, int? offset = null)
@@ -214,17 +219,20 @@ public static class SaleEndpoints
         var skip = Math.Max(offset ?? 0, 0);
 
         var list = await orders.ListAsync(statusFilter, customerId, from, to, take, skip, ct);
-        return Results.Ok(list.Select(ToResponse));
+        var provenance = await audit.GetProvenanceAsync(
+            nameof(SalesOrder), list.Select(o => o.Id).ToList(), ct);
+        return Results.Ok(list.Select(o => ToResponse(o, provenance.GetValueOrDefault(o.Id))));
     }
 
-    private static SalesOrderResponse ToResponse(SalesOrder o) => new(
+    private static SalesOrderResponse ToResponse(SalesOrder o, EntityProvenance? p) => new(
         o.Id, o.CustomerId, o.ReferenceNumber, o.OrderDate, o.Status.ToString(),
         o.TotalAmount.MinorUnits, o.TotalAmount.CurrencyCode, o.TotalAmount.CurrencyMinorUnit,
         o.VoidReason,
         o.Items.Select(i => new SalesOrderItemResponse(
             i.Id, i.ProductId, i.EggGradeId, i.Unit.ToString(), i.BaseUnitFactor,
             i.Quantity, i.QuantityBase,
-            i.UnitPrice.MinorUnits, i.UnitPrice.CurrencyCode, i.UnitPrice.CurrencyMinorUnit)).ToList());
+            i.UnitPrice.MinorUnits, i.UnitPrice.CurrencyCode, i.UnitPrice.CurrencyMinorUnit)).ToList(),
+        p?.CreatedByEmail, p?.CreatedAtUtc, p?.LastChangedByEmail, p?.LastChangedAtUtc);
 
     private static async Task<IResult> VoidSale(
         Guid id,
@@ -297,7 +305,11 @@ public sealed record SalesOrderResponse(
     Guid Id, Guid CustomerId, string ReferenceNumber, DateOnly OrderDate, string Status,
     long TotalMinorUnits, string CurrencyCode, int CurrencyMinorUnit,
     string? VoidReason,
-    IReadOnlyList<SalesOrderItemResponse> Items);
+    IReadOnlyList<SalesOrderItemResponse> Items,
+    // #494 provenance, derived from the audit trail: null together for a
+    // record created before that shipped (no backfill).
+    string? CreatedByEmail, DateTimeOffset? CreatedAtUtc,
+    string? LastChangedByEmail, DateTimeOffset? LastChangedAtUtc);
 
 public sealed record CreateSalesOrderRequest(Guid CustomerId, DateOnly OrderDate);
 

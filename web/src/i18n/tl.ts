@@ -10,6 +10,9 @@
 //   label, until that screen itself is externalized to the catalog (#182).
 export const tl = {
   common: {
+    "recordHistory.createdBy": "Ginawa ni {{email}} noong {{at}}",
+    "recordHistory.lastChangedBy": "Huling binago ni {{email}} noong {{at}}",
+    recordHistoryHeader: "Kasaysayan",
     cancel: "Kanselahin",
     save: "I-save",
     close: "Isara",
@@ -1685,6 +1688,11 @@ export const tl = {
     "auditAction.Product.Deactivate": "Na-deactivate ang produkto",
     "auditAction.EggUnitConversion.Update": "Na-update ang conversion ng yunit ng itlog",
     "auditAction.EggLot.Movement": "Na-write off / na-recount ang stock",
+    "auditAction.Flock.Create": "Nagawa ang kawan",
+    "auditAction.DailyEntry.Create": "Nagawa ang pang-araw-araw na entry",
+    "auditAction.SalesOrder.Create": "Nagawa ang order ng benta",
+    "auditAction.Expense.Create": "Nagawa ang gastos",
+    "auditAction.EggGrade.Create": "Nagawa ang grado ng itlog",
 
     "entityType.Account": "Account",
     "entityType.DailyEntry": "Araw-araw na Entry",
@@ -2199,6 +2207,14 @@ export const tl = {
       + "awtomatiko: sino ang gumawa nito, kailan (UTC), ano ang naapektuhan, at ang dahilan kung mayroon. "
       + "Isinusulat ito kasabay ng pagbabago mismo — walang naiiwang bakas ang isang nabigong aksyon, "
       + "palaging may naiiwan ang isang matagumpay — at hindi kailanman ine-edit, ng kahit sino.",
+    auditRecordHistory:
+      "Ang Mga kawan, Grado ng itlog, Kasaysayan ng pang-araw-araw na entry, Benta at Gastos ay may "
+      + "kolum na Kasaysayan na nagpapakita kung sino ang gumawa ng record at kailan, at kung sino ang "
+      + "huling nagbago kung mayroon man. Galing ito sa parehong audit log, kaya walang kailangang dagdag "
+      + "na pahintulot: kung nakikita mo ang record, nakikita mo ang kasaysayan nito.",
+    auditRecordHistoryOlder:
+      "Ang mga record na ginawa bago ito idagdag ay may blangkong kolum na Kasaysayan. Walang nawawala — "
+      + "wala lang talagang entry ng paggawa sa log para sa kanila, at walang iniimbentong bago pagkatapos.",
 
     exportHeading: "Export at Backup (admin)",
     exportCsv:

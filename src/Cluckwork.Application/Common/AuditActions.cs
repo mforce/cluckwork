@@ -55,4 +55,9 @@ public static class AuditActions
     public const string ProductDeactivate = "Product.Deactivate";
     public const string EggUnitConversionUpdate = "EggUnitConversion.Update";
     public const string EggLotMovement = "EggLot.Movement";
+    public const string FlockCreate = "Flock.Create";
+    public const string DailyEntryCreate = "DailyEntry.Create";
+    public const string SalesOrderCreate = "SalesOrder.Create";
+    public const string ExpenseCreate = "Expense.Create";
+    public const string EggGradeCreate = "EggGrade.Create";
 }

@@ -1,7 +1,26 @@
 // Typed wrappers over the Cluckwork JSON API (mirrors the endpoint DTOs).
 import { apiDelete, apiGet, apiGetBlob, apiPost, apiPut, apiPutBytes, STEP_UP_HEADER } from "./client";
 
-export interface EggGrade {
+/**
+ * #494 — who created a record and who last changed it, derived server-side
+ * from the audit trail rather than stored on the record.
+ *
+ * `createdBy*` are null for a record created before #494 shipped: there is no
+ * backfill, so its trail has no creation event to report.
+ *
+ * `lastChanged*` are null when nothing has happened since creation. That is the
+ * SERVER's judgement, made from the audit event ids — do NOT re-derive it by
+ * comparing the two timestamps, because two distinct events can share an
+ * instant and that comparison would hide a real edit.
+ */
+export interface RecordHistory {
+  createdByEmail: string | null;
+  createdAtUtc: string | null;
+  lastChangedByEmail: string | null;
+  lastChangedAtUtc: string | null;
+}
+
+export interface EggGrade extends RecordHistory {
   id: string;
   farmId: string;
   name: string;
@@ -20,7 +39,7 @@ export interface EggGrade {
   active: boolean;
 }
 
-export interface Flock {
+export interface Flock extends RecordHistory {
   id: string;
   farmId: string;
   houseId: string;
@@ -48,7 +67,7 @@ export interface GradeLine {
 
 // version = the base an admin correction must send back (stale → 409);
 // adjustedFrom = audit snapshot of the values the last adjust replaced.
-export interface DailyEntry {
+export interface DailyEntry extends RecordHistory {
   id: string;
   farmId: string;
   houseId: string;
@@ -284,7 +303,7 @@ export interface OrderItem {
   currencyMinorUnit: number;
 }
 
-export interface SalesOrder {
+export interface SalesOrder extends RecordHistory {
   id: string;
   customerId: string;
   referenceNumber: string;
@@ -1016,7 +1035,7 @@ export interface ExpenseCategory {
   active: boolean;
 }
 
-export interface Expense {
+export interface Expense extends RecordHistory {
   id: string;
   farmId: string;
   expenseCategoryId: string;

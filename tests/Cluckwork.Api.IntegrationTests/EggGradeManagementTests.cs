@@ -221,5 +221,25 @@ public sealed class EggGradeManagementTests(CluckworkWebApplicationFactory facto
         Assert.Single(all!, g => g.Name.Equals("duplo", StringComparison.OrdinalIgnoreCase));
     }
 
+    // #494 — creation wasn't on the audit trail at all; only corrections were.
+    [Fact]
+    public async Task Grade_Create_WritesAuditEvent()
+    {
+        var (client, accountId) = await SetupAsync();
+
+        var create = await client.PostWithKeyAsync(
+            "/api/v1/egg-grades", Guid.NewGuid().ToString(),
+            new { name = "Jumbo", gradeType = "Custom", sortOrder = 7, isSaleable = true });
+        Assert.Equal(HttpStatusCode.Created, create.StatusCode);
+        var id = (await create.Content.ReadFromJsonAsync<IdDto>())!.Id;
+
+        var events = await factory.WithTenantScopeAsync(accountId, db => db.AuditEvents
+            .Where(e => e.EntityType == "EggGrade" && e.EntityId == id)
+            .ToListAsync());
+
+        var created = Assert.Single(events);
+        Assert.Equal("EggGrade.Create", created.Action);
+    }
+
     private sealed record FlockDto(Guid Id, Guid FarmId, Guid HouseId, string Name);
 }

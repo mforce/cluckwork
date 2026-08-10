@@ -10,6 +10,7 @@ import { ApiError } from "../api/client";
 import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
 import { DialogError } from "../components/DialogError";
+import { ProvenanceCell } from "../components/ProvenanceCell";
 import { useDialogErrors } from "../components/useDialogErrors";
 import { usePagedList } from "../components/usePagedList";
 import { usePendingAction } from "../components/usePendingAction";
@@ -553,7 +554,8 @@ export function ExpensesPage() {
           <thead>
             <tr>
               <th>{t("dateHeader")}</th><th>{t("categoryHeader")}</th><th>{t("descriptionHeader")}</th><th>{t("amountHeader")}</th>
-              <th>{t("flockHeader")}</th><th>{t("noteHeader")}</th><th></th>
+              <th>{t("flockHeader")}</th><th>{t("noteHeader")}</th>
+              <th>{tc("recordHistoryHeader")}</th><th></th>
             </tr>
           </thead>
           <tbody>
@@ -565,6 +567,7 @@ export function ExpensesPage() {
                 <td>{formatMoney(x.amountMinorUnits, x.currencyCode, x.currencyMinorUnit)}</td>
                 <td>{flockName(x.flockId)}</td>
                 <td>{x.note ?? "—"}</td>
+                <ProvenanceCell history={x} />
                 <td>
                   {/* Opens the correction dialog — non-mutating, so the
                       spinner belongs to the dialog's Save, not here (#242). */}

@@ -7,6 +7,7 @@ import {
 } from "../api/cluckwork";
 import type { DailyEntry, Flock, SalesOrder, StockRow } from "../api/cluckwork";
 import i18n from "../i18n";
+import { NO_RECORD_HISTORY } from "../test/fixtures";
 
 // Keep the real formatMoney; stub the five read endpoints the dashboard fans out.
 vi.mock("../api/cluckwork", async (importOriginal) => {
@@ -28,10 +29,12 @@ const mockOrders = vi.mocked(listOrders);
 const mockCustomers = vi.mocked(listCustomers);
 
 const flock = (id: string, status: string): Flock => ({
+  ...NO_RECORD_HISTORY,
   id, farmId: "f", houseId: "h", name: `Flock ${id}`, breed: "ISA",
   placementDate: "2026-01-01", initialCount: 100, currentBirds: 98, status,
 });
 const entry = (flockId: string, status: string, totalEggs: number): DailyEntry => ({
+  ...NO_RECORD_HISTORY,
   id: `de-${flockId}`, farmId: "f", houseId: "h", flockId, date: "2026-07-21", status,
   totalEggs, crackedEggs: 0, dirtyEggs: 0, discardedEggs: 0, mortalityCount: 0,
   crackedGradeId: null, dirtyGradeId: null, grades: [],

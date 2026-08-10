@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, within, fireEvent, act } from "@testing-library/react";
 import { ProductsPage } from "./ProductsPage";
 import { renderWithProviders } from "../test/renderWithProviders";
-import { account } from "../test/fixtures";
+import { account, NO_RECORD_HISTORY } from "../test/fixtures";
 import {
   activateProduct, createProduct, deactivateProduct, getAccount,
   listEggGrades, listEggUnitConversions, listProducts,
@@ -43,8 +43,8 @@ const mockDeactivate = vi.mocked(deactivateProduct);
 const mockActivate = vi.mocked(activateProduct);
 const mockUpdateConversion = vi.mocked(updateEggUnitConversion);
 
-const GRADE_A: EggGrade = { id: "g1", farmId: "f", name: "Grade A", gradeType: "Size", sortOrder: 1, isSaleable: true, dailyEntryKind: "Manual", active: true };
-const GRADE_B: EggGrade = { id: "g2", farmId: "f", name: "Grade B", gradeType: "Size", sortOrder: 2, isSaleable: true, dailyEntryKind: "Manual", active: true };
+const GRADE_A: EggGrade = { ...NO_RECORD_HISTORY, id: "g1", farmId: "f", name: "Grade A", gradeType: "Size", sortOrder: 1, isSaleable: true, dailyEntryKind: "Manual", active: true };
+const GRADE_B: EggGrade = { ...NO_RECORD_HISTORY, id: "g2", farmId: "f", name: "Grade B", gradeType: "Size", sortOrder: 2, isSaleable: true, dailyEntryKind: "Manual", active: true };
 
 // KWD (3 decimals) throughout so a hard-coded 2-decimal money path fails: 500
 // minor units renders "0.500 KWD" and typed "0.5" parses to 500 (not 50).

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, within, fireEvent, act, waitFor } from "@testing-library/react";
 import { ExpensesPage } from "./ExpensesPage";
 import { renderWithProviders } from "../test/renderWithProviders";
-import { account } from "../test/fixtures";
+import { account, NO_RECORD_HISTORY, RECORD_HISTORY } from "../test/fixtures";
 import {
   adjustExpense, createExpense, createExpenseCategory, getExpense,
   listExpenseCategories, listExpenses, listFlocks, updateExpenseCategory,
@@ -56,6 +56,7 @@ const CAT_FEED: ExpenseCategory = { id: "cat-feed", farmId: "farm1", name: "Feed
 const CAT_UTIL: ExpenseCategory = { id: "cat-util", farmId: "farm1", name: "Utilities", active: true };
 const CAT_OLD: ExpenseCategory = { id: "cat-old", farmId: "farm1", name: "Legacy", active: false };
 const FLOCK: Flock = {
+  ...NO_RECORD_HISTORY,
   id: "f1", farmId: "farm1", houseId: "h1", name: "Hen House 1", breed: "ISA",
   placementDate: "2026-01-01", initialCount: 100, currentBirds: 98, status: "Active",
 };
@@ -64,6 +65,7 @@ const FLOCK: Flock = {
 // account/list currency — the exact case the code comments call out. 1500 minor
 // units @ 3dp renders "1.500 BHD" (a 2dp formatter could not produce it).
 const EXP_BHD: Expense = {
+  ...NO_RECORD_HISTORY,
   id: "e1", farmId: "farm1", expenseCategoryId: "cat-feed", date: "2026-07-05",
   description: "Layer feed", amountMinorUnits: 1500, currencyCode: "BHD",
   currencyMinorUnit: 3, flockId: null, note: null, version: 1,
@@ -123,6 +125,29 @@ describe("ExpensesPage list + totals", () => {
     mockListExpenses.mockResolvedValue(emptyList("USD", 2));
     renderWithProviders(<ExpensesPage />, { token: ADMIN });
     expect(await screen.findByText("No expenses for this month.")).toBeInTheDocument();
+  });
+});
+
+// #494 — the record-history column is a shared component, well tested on its
+// own; what is NOT tested by that unit suite is the per-page WIRING that hands
+// it the CORRECT row's history object. A page passing the wrong variable (a
+// different row, or a stray constant) would go uncaught otherwise.
+describe("ExpensesPage record history column (#494)", () => {
+  it("shows the record history column for the row that has one", async () => {
+    const EXP_HISTORY: Expense = { ...EXP_BHD, ...RECORD_HISTORY, id: "e-hist", description: "Provenance expense" };
+    mockListExpenses.mockResolvedValue({
+      items: [EXP_BHD, EXP_HISTORY], totalMinorUnits: 3000, currencyCode: "BHD", currencyMinorUnit: 3,
+    });
+    renderWithProviders(<ExpensesPage />, { token: ADMIN });
+
+    const historyRow = await screen.findByRole("row", { name: /Provenance expense/ });
+    expect(within(historyRow).getByText(/ana@farm\.test/)).toBeInTheDocument();
+    expect(within(historyRow).getByText(/bo@farm\.test/)).toBeInTheDocument();
+
+    // The OTHER row must not carry the history row's data — this is what
+    // catches every row being wired to the same object.
+    const otherRow = screen.getByRole("row", { name: /Layer feed/ });
+    expect(within(otherRow).queryByText(/ana@farm\.test/)).not.toBeInTheDocument();
   });
 });
 

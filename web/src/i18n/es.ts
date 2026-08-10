@@ -5,6 +5,9 @@
 // on-screen label, until that screen itself is externalized to the catalog (#182).
 export const es = {
   common: {
+    "recordHistory.createdBy": "Creado por {{email}} el {{at}}",
+    "recordHistory.lastChangedBy": "Última modificación por {{email}} el {{at}}",
+    recordHistoryHeader: "Historial",
     cancel: "Cancelar",
     save: "Guardar",
     close: "Cerrar",
@@ -1622,6 +1625,11 @@ export const es = {
     "auditAction.Product.Deactivate": "Producto desactivado",
     "auditAction.EggUnitConversion.Update": "Conversión de unidad de huevo actualizada",
     "auditAction.EggLot.Movement": "Existencias dadas de baja / recontadas",
+    "auditAction.Flock.Create": "Lote creado",
+    "auditAction.DailyEntry.Create": "Registro diario creado",
+    "auditAction.SalesOrder.Create": "Pedido de venta creado",
+    "auditAction.Expense.Create": "Gasto creado",
+    "auditAction.EggGrade.Create": "Grado de huevo creado",
 
     "entityType.Account": "Cuenta",
     "entityType.DailyEntry": "Entrada diaria",
@@ -2118,6 +2126,15 @@ export const es = {
       + "automáticamente: quién lo hizo, cuándo (UTC), qué afectó, y el motivo cuando se dio uno. Se "
       + "escribe junto con el cambio mismo — una acción fallida no deja rastro, una exitosa siempre lo hace "
       + "— y nunca es editable, por nadie.",
+    auditRecordHistory:
+      "Lotes, Grados de huevo, Historial de registro diario, Ventas y Gastos tienen una columna Historial "
+      + "que muestra quién creó el registro y cuándo, más quién lo modificó por última vez si alguien lo "
+      + "hizo. Se lee del mismo registro de auditoría, así que no requiere permisos adicionales: si puede "
+      + "ver el registro, puede ver su historial.",
+    auditRecordHistoryOlder:
+      "Los registros creados antes de que esto se agregara muestran la columna Historial en blanco. No "
+      + "falta nada — simplemente no hay una entrada de creación en el registro para ellos, y no se "
+      + "inventa ninguna después.",
 
     exportHeading: "Exportar y respaldo (admin)",
     exportCsv:

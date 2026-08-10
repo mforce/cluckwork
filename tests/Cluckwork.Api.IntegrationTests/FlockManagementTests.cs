@@ -97,6 +97,21 @@ public sealed class FlockManagementTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(HttpStatusCode.NoContent, archive.StatusCode);
     }
 
+    // #494 — creation wasn't on the audit trail at all; only corrections were.
+    [Fact]
+    public async Task Flock_Create_WritesAuditEvent()
+    {
+        var (client, accountId) = await SetupAsync();
+        var id = await CreateFlockAsync(client);
+
+        var events = await factory.WithTenantScopeAsync(accountId, db => db.AuditEvents
+            .Where(e => e.EntityType == "Flock" && e.EntityId == id)
+            .ToListAsync());
+
+        var created = Assert.Single(events);
+        Assert.Equal("Flock.Create", created.Action);
+    }
+
     // #35 review: the 422 lifecycle branch above can no longer be reached with a
     // future date, so reach it the way real farms do — a flock depleted days ago
     // refuses an entry dated after that depletion but still in the past. Deplete

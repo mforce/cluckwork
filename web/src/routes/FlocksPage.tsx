@@ -12,6 +12,7 @@ import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
 import { DialogError } from "../components/DialogError";
 import { NumberField } from "../components/NumberField";
+import { ProvenanceCell } from "../components/ProvenanceCell";
 import { StatusBadge } from "../components/StatusBadge";
 import { useConfirm } from "../components/useConfirm";
 import { useDialogErrors } from "../components/useDialogErrors";
@@ -344,7 +345,8 @@ export function FlocksPage() {
           <thead>
             <tr>
               <th>{t("nameHeader")}</th><th>{t("breedHeader")}</th><th>{t("placedHeader")}</th><th>{t("ageHeader")}</th>
-              <th>{t("birdsHeader")}</th><th>{t("statusHeader")}</th><th></th>
+              <th>{t("birdsHeader")}</th><th>{t("statusHeader")}</th>
+              <th>{tc("recordHistoryHeader")}</th><th></th>
             </tr>
           </thead>
           <tbody>
@@ -360,6 +362,7 @@ export function FlocksPage() {
                     <span className="muted"> / {f.initialCount}</span>}
                 </td>
                 <td><StatusBadge status={f.status} label={statusLabel(f.status)} /></td>
+                <ProvenanceCell history={f} />
                 <td>
                   <button className="link" disabled={busy}
                     onClick={() => void openLedger(f.id)}>

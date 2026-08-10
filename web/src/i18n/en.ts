@@ -4,6 +4,11 @@
 // is a build error.
 export const en = {
   common: {
+    // #494 — the record-history cell shown on the list screens. "Last changed"
+    // appears only when something happened after creation.
+    "recordHistory.createdBy": "Created by {{email}} on {{at}}",
+    "recordHistory.lastChangedBy": "Last changed by {{email}} on {{at}}",
+    recordHistoryHeader: "History",
     cancel: "Cancel",
     save: "Save",
     close: "Close",
@@ -2039,6 +2044,11 @@ export const en = {
     "auditAction.Product.Deactivate": "Product deactivated",
     "auditAction.EggUnitConversion.Update": "Egg unit conversion updated",
     "auditAction.EggLot.Movement": "Stock written off / recounted",
+    "auditAction.Flock.Create": "Flock created",
+    "auditAction.DailyEntry.Create": "Daily entry created",
+    "auditAction.SalesOrder.Create": "Sales order created",
+    "auditAction.Expense.Create": "Expense created",
+    "auditAction.EggGrade.Create": "Egg grade created",
 
     // entity type (AuditPage table entity cell) — AuditEvent.entityType.
     "entityType.Account": "Account",
@@ -2522,6 +2532,13 @@ export const en = {
       + "it, when (UTC), what it touched, and the reason where one was given. Written together with the "
       + "change itself — a failed action leaves no trace, a successful one always does — and never editable, "
       + "by anyone.",
+    auditRecordHistory:
+      "Flocks, Egg grades, Daily entry history, Sales and Expenses each carry a History column showing who "
+      + "created the record and when, plus who last changed it if anyone has. It is read from the same audit "
+      + "log, so it needs no extra permission: if you can see the record, you can see its history.",
+    auditRecordHistoryOlder:
+      "Records created before this was added show a blank History column. Nothing is missing — there is "
+      + "simply no creation entry in the log for them, and none is invented after the fact.",
 
     // Export & backup
     exportHeading: "Export & backup (admin)",

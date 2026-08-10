@@ -7,6 +7,7 @@ using Cluckwork.Domain.Eggs;
 
 public sealed class CreateEggGradeHandler(
     IEggGradeRepository grades,
+    IAuditWriter audit,
     IUnitOfWork unitOfWork)
 {
     public async Task<Result<Guid>> HandleAsync(
@@ -28,6 +29,7 @@ public sealed class CreateEggGradeHandler(
             command.Name, gradeType, command.SortOrder, command.IsSaleable);
 
         await grades.AddAsync(grade, ct);
+        await audit.WriteAsync(AuditActions.EggGradeCreate, nameof(EggGrade), grade.Id, ct: ct);
         await unitOfWork.SaveChangesAsync(ct);
         return Result.Success(grade.Id);
     }

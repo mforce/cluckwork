@@ -8,6 +8,7 @@ using Cluckwork.Domain.Flocks;
 
 public sealed class CreateFlockHandler(
     IFlockRepository flocks,
+    IAuditWriter audit,
     IUnitOfWork unitOfWork)
 {
     public async Task<Result<Guid>> HandleAsync(
@@ -20,6 +21,7 @@ public sealed class CreateFlockHandler(
             command.PlacementDate, command.InitialCount);
 
         await flocks.AddAsync(flock, ct);
+        await audit.WriteAsync(AuditActions.FlockCreate, nameof(Flock), flock.Id, ct: ct);
         await unitOfWork.SaveChangesAsync(ct);
         return Result.Success(flock.Id);
     }

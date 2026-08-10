@@ -279,4 +279,54 @@ public sealed class SubmitDailyEntryTests(CluckworkWebApplicationFactory factory
         Assert.Equal(600, lot.QuantityProduced);
         Assert.Equal(350, lot.QuantityAvailable);
     }
+
+    // #494 — creation wasn't on the audit trail at all; only corrections were.
+    [Fact]
+    public async Task DailyEntry_Record_WritesCreateAuditEvent()
+    {
+        var (client, accountId, farmId, flockId, grades) = await SetupAsync("Large");
+        var entryId = await RecordAsync(client, Body(farmId, flockId,
+            [new { eggGradeId = grades["Large"], quantity = 600 }]));
+
+        var events = await factory.WithTenantScopeAsync(accountId, db => db.AuditEvents
+            .Where(e => e.EntityType == "DailyEntry" && e.EntityId == entryId)
+            .ToListAsync());
+
+        var created = Assert.Single(events);
+        Assert.Equal("DailyEntry.Create", created.Action);
+    }
+
+    // The gate: re-recording against the same natural key APPENDS to the
+    // existing entry — that is not a creation and must not emit a second event.
+    [Fact]
+    public async Task DailyEntry_ReRecordedOnTheSameKey_WritesOnlyOneCreateEvent()
+    {
+        var (client, accountId, farmId, flockId, grades) = await SetupAsync("Large");
+        var houseId = Guid.NewGuid();
+        var date = DateOnly.FromDateTime(DateTime.UtcNow.Date);
+        object Body2(int total, int quantity) => new
+        {
+            farmId,
+            houseId,
+            flockId,
+            date,
+            totalEggs = total,
+            crackedEggs = 10,
+            dirtyEggs = 5,
+            discardedEggs = 3,
+            mortalityCount = 0,
+            grades = new object[] { new { eggGradeId = grades["Large"], quantity } },
+        };
+
+        var entryId = await RecordAsync(client, Body2(618, 600));
+        var again = await RecordAsync(client, Body2(718, 700));
+        Assert.Equal(entryId, again);
+
+        var events = await factory.WithTenantScopeAsync(accountId, db => db.AuditEvents
+            .Where(e => e.EntityType == "DailyEntry" && e.EntityId == entryId)
+            .Select(e => e.Action)
+            .ToListAsync());
+
+        Assert.Equal(["DailyEntry.Create"], events);
+    }
 }

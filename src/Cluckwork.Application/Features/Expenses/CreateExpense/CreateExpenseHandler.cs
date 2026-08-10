@@ -12,6 +12,7 @@ public sealed class CreateExpenseHandler(
     IExpenseCategoryRepository categories,
     IFlockRepository flocks,
     IAccountRepository accounts,
+    IAuditWriter audit,
     IUnitOfWork unitOfWork)
 {
     public async Task<Result<Guid>> HandleAsync(
@@ -59,6 +60,8 @@ public sealed class CreateExpenseHandler(
                 command.FlockId, command.Note);
 
             await expenses.AddAsync(expense, transactionCt);
+            await audit.WriteAsync(
+                AuditActions.ExpenseCreate, nameof(Expense), expense.Id, ct: transactionCt);
             outcome = Result.Success(expense.Id);
             return true;
         }, ct);

@@ -1,6 +1,7 @@
 namespace Cluckwork.Api.Endpoints.Flocks;
 
 using Cluckwork.Api.Validation;
+using Cluckwork.Application.Features.Audit;
 using Cluckwork.Application.Features.Flocks;
 using Cluckwork.Application.Features.Flocks.ArchiveFlock;
 using Cluckwork.Application.Features.Flocks.CreateFlock;
@@ -92,7 +93,8 @@ public static class FlockEndpoints
     }
 
     private static async Task<IResult> ListFlocks(
-        IFlockRepository flocks, IBirdMovementRepository movements, TenantContext tenant,
+        IFlockRepository flocks, IBirdMovementRepository movements, IAuditEventRepository audit,
+        TenantContext tenant,
         CancellationToken ct, int? limit = null, int? offset = null, bool includeArchived = false)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
@@ -102,19 +104,22 @@ public static class FlockEndpoints
 
         var list = await flocks.ListAsync(take, skip, includeArchived, ct);
         var removed = await movements.RemovedByFlockAsync(ct);
+        var provenance = await audit.GetProvenanceAsync(
+            nameof(Flock), list.Select(f => f.Id).ToList(), ct);
         return Results.Ok(list.Select(f =>
-            ToResponse(f, removed.GetValueOrDefault(f.Id, 0))));
+            ToResponse(f, removed.GetValueOrDefault(f.Id, 0), provenance.GetValueOrDefault(f.Id))));
     }
 
     private static async Task<IResult> GetFlock(
         Guid id, IFlockRepository flocks, IBirdMovementRepository movements,
-        TenantContext tenant, CancellationToken ct)
+        IAuditEventRepository audit, TenantContext tenant, CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
         var flock = await flocks.GetByIdAsync(id, ct);
         if (flock is null) return Results.NotFound();
         var removed = await movements.RemovedForFlockAsync(id, ct);
-        return Results.Ok(ToResponse(flock, removed));
+        var provenance = await audit.GetProvenanceAsync(nameof(Flock), [id], ct);
+        return Results.Ok(ToResponse(flock, removed, provenance.GetValueOrDefault(id)));
     }
 
     private static async Task<IResult> ReactivateFlock(
@@ -212,9 +217,10 @@ public static class FlockEndpoints
             : Results.Problem(error.Description, statusCode: 422, title: error.Code);
     }
 
-    private static FlockResponse ToResponse(Flock f, long removed) => new(
+    private static FlockResponse ToResponse(Flock f, long removed, EntityProvenance? p) => new(
         f.Id, f.FarmId, f.HouseId, f.Name, f.Breed,
-        f.PlacementDate, f.InitialCount, f.InitialCount - removed, f.Status.ToString());
+        f.PlacementDate, f.InitialCount, f.InitialCount - removed, f.Status.ToString(),
+        p?.CreatedByEmail, p?.CreatedAtUtc, p?.LastChangedByEmail, p?.LastChangedAtUtc);
 }
 
 public sealed record CreateFlockRequest(
@@ -230,9 +236,13 @@ public sealed record UpdateFlockRequest(
     int InitialCount);
 
 // CurrentBirds = InitialCount − Σ movement quantities (bird ledger, #54).
+// The four trailing fields are #494 provenance, derived from the audit trail:
+// null together for a record created before that shipped (no backfill).
 public sealed record FlockResponse(
     Guid Id, Guid FarmId, Guid HouseId, string Name, string Breed,
-    DateOnly PlacementDate, int InitialCount, long CurrentBirds, string Status);
+    DateOnly PlacementDate, int InitialCount, long CurrentBirds, string Status,
+    string? CreatedByEmail, DateTimeOffset? CreatedAtUtc,
+    string? LastChangedByEmail, DateTimeOffset? LastChangedAtUtc);
 
 public sealed record RecordBirdMovementRequest(
     DateOnly Date, string Type, int Quantity, string? Note = null);

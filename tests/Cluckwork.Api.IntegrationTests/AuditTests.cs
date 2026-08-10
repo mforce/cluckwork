@@ -56,8 +56,11 @@ public sealed class AuditTests(CluckworkWebApplicationFactory factory)
             });
         Assert.Equal(HttpStatusCode.Conflict, failed.StatusCode);
 
+        // Scoped to the adjust action: recording the entry legitimately left a
+        // DailyEntry.Create event (#494), and this test is about what the
+        // FAILED ADJUST wrote, which is nothing.
         var afterFailure = await client.GetFromJsonAsync<List<AuditRow>>(
-            $"/api/v1/audit?entityId={entryId}");
+            $"/api/v1/audit?entityId={entryId}&action=DailyEntry.Adjust");
         Assert.Empty(afterFailure!);
 
         // The successful adjust writes exactly one, with actor + reason.
@@ -69,7 +72,8 @@ public sealed class AuditTests(CluckworkWebApplicationFactory factory)
             });
         Assert.Equal(HttpStatusCode.OK, ok.StatusCode);
 
-        var rows = await client.GetFromJsonAsync<List<AuditRow>>($"/api/v1/audit?entityId={entryId}");
+        var rows = await client.GetFromJsonAsync<List<AuditRow>>(
+            $"/api/v1/audit?entityId={entryId}&action=DailyEntry.Adjust");
         var row = Assert.Single(rows!);
         Assert.Equal("DailyEntry.Adjust", row.Action);
         Assert.Equal("DailyEntry", row.EntityType);
@@ -136,7 +140,9 @@ public sealed class AuditTests(CluckworkWebApplicationFactory factory)
             version, totalEggs = 40, crackedEggs = 0, dirtyEggs = 0,
             discardedEggs = 0, mortalityCount = 0, reason = "tenant A only"
         });
-        Assert.Single((await clientA.GetFromJsonAsync<List<AuditRow>>($"/api/v1/audit?entityId={entryId}"))!);
+        // A's own trail is non-empty (create + adjust), which is what makes B's
+        // emptiness below meaningful rather than vacuous.
+        Assert.NotEmpty((await clientA.GetFromJsonAsync<List<AuditRow>>($"/api/v1/audit?entityId={entryId}"))!);
 
         // Tenant B's admin sees nothing — not by list, not by A's entity id.
         var (clientB, _, _, _, _, _) = await SetupAsync();

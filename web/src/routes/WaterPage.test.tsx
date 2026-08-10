@@ -9,6 +9,7 @@ import type { Flock, WaterUsage } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { todayIso } from "../lib/dates";
 import i18n from "../i18n";
+import { NO_RECORD_HISTORY } from "../test/fixtures";
 
 // WaterPage's only runtime deps on the API module are the four network fns it
 // imports; mock exactly those. ApiError stays real (../api/client, unmocked) so
@@ -28,6 +29,7 @@ const mockRecordWaterUsage = vi.mocked(recordWaterUsage);
 const mockUpdateWaterUsage = vi.mocked(updateWaterUsage);
 
 const FLOCK_A: Flock = {
+  ...NO_RECORD_HISTORY,
   id: "f1", farmId: "farm1", houseId: "h1", name: "Hen House 1", breed: "ISA",
   placementDate: "2026-01-01", initialCount: 100, currentBirds: 98, status: "Active",
 };

@@ -14,6 +14,7 @@ import { Dialog } from "../components/Dialog";
 import { DialogError } from "../components/DialogError";
 import { GradingChip, TakeRemainderButton, remainderDropProps } from "../components/GradingChip";
 import { NumberField } from "../components/NumberField";
+import { ProvenanceCell } from "../components/ProvenanceCell";
 import { useConfirm } from "../components/useConfirm";
 import { useDialogErrors } from "../components/useDialogErrors";
 import { usePagedList } from "../components/usePagedList";
@@ -665,6 +666,7 @@ export function HistoryPage() {
                     actually became stock, per the entry's own snapshot. */}
                 <th>{t("conditionHeader")}</th>
                 <th>{t("mortalityHeader")}</th><th>{t("gradedHeader")}</th>
+                <th>{tc("recordHistoryHeader")}</th>
                 <th></th>
               </tr>
             </thead>
@@ -683,6 +685,7 @@ export function HistoryPage() {
                       ? "—"
                       : e.grades.map((g) => `${gradeName(g.eggGradeId)} ${g.quantity}`).join(", ")}
                   </td>
+                  <ProvenanceCell history={e} />
                   <td>
                     {/* Drafts are edited on the Daily entry screen (#85) —
                         open to workers too; adjust/void stay admin-only. */}

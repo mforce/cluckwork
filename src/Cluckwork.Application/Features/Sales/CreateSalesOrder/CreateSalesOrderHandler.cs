@@ -9,6 +9,7 @@ using Cluckwork.Domain.Sales;
 public sealed class CreateSalesOrderHandler(
     ICustomerRepository customers,
     IAccountRepository accounts,
+    IAuditWriter audit,
     IUnitOfWork unitOfWork,
     ISalesOrderRepository orders)
 {
@@ -43,6 +44,8 @@ public sealed class CreateSalesOrderHandler(
                 account.DefaultCurrencyCode, account.DefaultCurrencyMinorUnit);
 
             await orders.AddAsync(order, transactionCt);
+            await audit.WriteAsync(
+                AuditActions.SalesOrderCreate, nameof(SalesOrder), order.Id, ct: transactionCt);
             outcome = Result.Success(order.Id);
             return true;
         }, ct);

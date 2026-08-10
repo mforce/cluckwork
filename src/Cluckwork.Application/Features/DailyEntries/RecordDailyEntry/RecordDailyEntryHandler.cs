@@ -14,6 +14,7 @@ public sealed class RecordDailyEntryHandler(
     IEggGradeRepository eggGrades,
     IFlockRepository flocks,
     IFlockScopeGuard flockScope,
+    IAuditWriter audit,
     IUnitOfWork unitOfWork,
     ILogger<RecordDailyEntryHandler> logger)
 {
@@ -86,6 +87,9 @@ public sealed class RecordDailyEntryHandler(
                 command.FarmId, command.HouseId, command.FlockId, command.Date);
 
             await repository.AddAsync(entry, ct);
+            // #494 — only the first record for a natural key is a creation;
+            // a later call appends to the same entry and is not audited here.
+            await audit.WriteAsync(AuditActions.DailyEntryCreate, nameof(DailyEntry), entry.Id, ct: ct);
         }
         else
         {

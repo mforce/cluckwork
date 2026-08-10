@@ -4,7 +4,7 @@ import { screen, within, fireEvent, act, render } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { UsersPage } from "./UsersPage";
 import { renderWithProviders } from "../test/renderWithProviders";
-import { farmState } from "../test/fixtures";
+import { farmState, NO_RECORD_HISTORY } from "../test/fixtures";
 import { AuthContext } from "../auth/AuthContext";
 import type { Role } from "../auth/claims";
 import { FarmContext } from "../farm/FarmContext";
@@ -87,6 +87,7 @@ const SELF_USER: User = {
 };
 
 const flock = (id: string, name: string, status = "Active"): Flock => ({
+  ...NO_RECORD_HISTORY,
   id, farmId: "farm", houseId: "house", name, breed: "ISA Brown",
   placementDate: "2026-01-01", initialCount: 100, currentBirds: 98, status,
 });
