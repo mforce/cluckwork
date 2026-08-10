@@ -11,6 +11,14 @@ export interface DialogErrors {
    * Called when an attempt starts: clears the slot that attempt will write to
    * and nothing else, and un-mutes that scope so this attempt can report.
    * `null` means the page's.
+   *
+   * Call it BEFORE any client-side validation, not just before the network
+   * call. A form that rejects its own input never reaches the write, so a mute
+   * left behind by an earlier dismissal would still be set and `report` would
+   * silently drop the message — the user presses Save and nothing at all
+   * happens. Four screens hit this independently while #479 rolled out
+   * (Products, Users, Stock, Inventory), which is why it is written here
+   * rather than in four screen comments.
    */
   beginAttempt: (scope: string | null) => void;
   /**
